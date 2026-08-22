@@ -4,7 +4,7 @@
 // seed mapping (apps/floor agent-catalog.ts) but from the resolved recipe shape; pure +
 // deterministic. The k8s apply/delete is the IO shell (agent-crd-k8s.ts).
 
-import Boom from "@hapi/boom";
+import { apiError } from "../../server/api-error.js";
 import type { AgentDefinition as RecipeDef } from "@re-cinq/lore-shared";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import type {
@@ -153,7 +153,7 @@ function llmSpec(
   // The subsystem rejects a promptless AgentDefinition at admission
   // (ai-agent-subsystem#155). Emitting the spec without one just moved the failure
   // to the apply, where it surfaces as an opaque API-server rejection.
-  enforceTrue(def.prompt, Boom.badRequest, `recipe ${def.name} has no prompt`);
+  enforceTrue(def.prompt, apiError(400), `recipe ${def.name} has no prompt`);
 
   return {
     ...loreResources(mcpUrl),
