@@ -14,6 +14,29 @@ import type { AgentApi } from "./agent-backend.js";
 
 const PLURAL = "agents";
 
+/**
+ * Pure: the status an EXISTING Agent CR reports.
+ *
+ * A CR the controller has not stamped yet is BORN, not absent — so it answers
+ * `Pending` rather than null. Collapsing the two made the reaper read a live
+ * just-launched pod as "crashed between the row insert and the launch" and
+ * relaunch over it every 60s, re-provisioning its recipe clone from a spec that
+ * had lost the conversation (#1466). Null is reserved for a 404.
+ */
+export function statusFromAgentCr(obj: AgentCr): AgentNodeStatus {
+  const status = obj.status;
+
+  if (!status) {
+    return { phase: "Pending" };
+  }
+
+  return {
+    phase: status.phase,
+    output: status.output,
+    failureReason: status.failureReason,
+  };
+}
+
 export class KubeAgentApi implements AgentApi {
   private namespace(): string {
     return process.env.LORE_AGENTS_NAMESPACE ?? "ai-agents";
@@ -64,7 +87,8 @@ export class KubeAgentApi implements AgentApi {
   }
 
   /** The status of one Agent CR by name (the per-node Agent, `<id12>-<nodeId>`), as the
-   *  graph handler's poll expects. Null when the CR doesn't exist yet (404). */
+   *  graph handler's poll expects. Null ONLY when the CR does not exist (404) — a CR
+   *  that exists without a status reports `Pending` (see `statusFromAgentCr`). */
   async getStatus(name: string): Promise<AgentNodeStatus | null> {
     const api = await this.customObjects();
 
@@ -76,17 +100,8 @@ export class KubeAgentApi implements AgentApi {
         plural: PLURAL,
         name,
       })) as AgentCr;
-      const status = obj.status;
 
-      if (!status) {
-        return null;
-      }
-
-      return {
-        phase: status.phase,
-        output: status.output,
-        failureReason: status.failureReason,
-      };
+      return statusFromAgentCr(obj);
     } catch (err) {
       const e = err as { code?: number; response?: { statusCode?: number } };
 
