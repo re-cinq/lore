@@ -5,6 +5,7 @@
   },
   "workspaces": [
     "libs/*",
+    "apps/event-router",
     "apps/floor",
     "apps/lore-api",
     "apps/lore-station",

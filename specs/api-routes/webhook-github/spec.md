@@ -157,13 +157,13 @@ A validly-signed delivery answers 202 and QUEUES the mapped events, each carryin
 
 A merged spec PR parses tasks.md and syncs spec-tasks; a non-spec branch, an already-synced spec, and a missing tasks.md each skip with the matching reason; a null pool returns 503.
 
-A `synchronize` pull_request triggers the review reactor; an unhandled action skips. ([validated by `github-map.test.ts:7`](apps/floor/src/listeners/github-map.test.ts#L7), [`github-map.test.ts:83`](apps/floor/src/listeners/github-map.test.ts#L83))
+A `synchronize` pull_request triggers the review reactor; an unhandled action skips. ([validated by `github-map.test.ts:7`](libs/shared/src/project/events/github-map.test.ts#L7), [`github-map.test.ts:83`](libs/shared/src/project/events/github-map.test.ts#L83))
 
-A submitted review triggers both the review reactor and auto-merge; a non-submitted review skips; missing repo/pr returns 400. ([validated by `github-map.test.ts:95`](apps/floor/src/listeners/github-map.test.ts#L95), [`github-map.test.ts:129`](apps/floor/src/listeners/github-map.test.ts#L129))
+A submitted review triggers both the review reactor and auto-merge; a non-submitted review skips; missing repo/pr returns 400. ([validated by `github-map.test.ts:95`](libs/shared/src/project/events/github-map.test.ts#L95), [`github-map.test.ts:129`](libs/shared/src/project/events/github-map.test.ts#L129))
 
-A completed `check_run` / `check_suite` fans out auto-merge to every PR; a non-completed check and an empty PR list each skip. ([validated by `github-map.test.ts:263`](apps/floor/src/listeners/github-map.test.ts#L263), [`github-map.test.ts:286`](apps/floor/src/listeners/github-map.test.ts#L286))
+A completed `check_run` / `check_suite` fans out auto-merge to every PR; a non-completed check and an empty PR list each skip. ([validated by `github-map.test.ts:263`](libs/shared/src/project/events/github-map.test.ts#L263), [`github-map.test.ts:286`](libs/shared/src/project/events/github-map.test.ts#L286))
 
-A created PR comment triggers the review reactor; an edited comment and a non-PR comment skip. ([validated by `github-map.test.ts:153`](apps/floor/src/listeners/github-map.test.ts#L153), [`github-map.test.ts:177`](apps/floor/src/listeners/github-map.test.ts#L177))
+A created PR comment triggers the review reactor; an edited comment and a non-PR comment skip. ([validated by `github-map.test.ts:153`](libs/shared/src/project/events/github-map.test.ts#L153), [`github-map.test.ts:177`](libs/shared/src/project/events/github-map.test.ts#L177))
 
 A `lore`-labeled issue creates a task (type from issue labels) and labels the issue; a mismatched label, a duplicate, missing fields, a null pool, and a createTask failure each return their documented status. The duplicate guard excludes `failed`/`cancelled` tasks (a new task is allowed after the previous one failed), the dispatch decision reads `dispatch_label`/`auto_review` from `lore.repos.settings`, and the created task is linked to its issue via `issue_number`/`issue_url`. ([validated by `webhook.test.ts:61`](apps/lore-api/src/integration-tests/webhook.test.ts#L61), [`webhook.test.ts:79`](apps/lore-api/src/integration-tests/webhook.test.ts#L79), [`webhook.test.ts:91`](apps/lore-api/src/integration-tests/webhook.test.ts#L91))
 

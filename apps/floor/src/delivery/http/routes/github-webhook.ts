@@ -10,7 +10,7 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { apiError } from "../api-error.js";
 import type { ServerRoute } from "@hapi/hapi";
-import { mapGitHubEvent } from "../../../listeners/github-map.js";
+import { mapGitHubEvent } from "@re-cinq/lore-shared/project/events/github-map.js";
 import { insertEventList } from "../../../main-loop/store.js";
 import { rawBody, parseJsonBody } from "../raw-body.js";
 

@@ -1,0 +1,44 @@
+// The router's Postgres pool. It is the ONE writer of `pipeline.events`
+// (ADR-044), so unlike the Floor it keeps a pool on purpose — and unlike the
+// Floor it reaches the database ONLY through the shared repositories bundle,
+// never through a `query()` escape hatch. There is deliberately no such helper
+// here for the next person to reach for.
+
+import pg from "pg";
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
+
+let pool: pg.Pool | null = null;
+
+export function initPool(): pg.Pool {
+  pool = new pg.Pool({
+    host: process.env.LORE_DB_HOST || "localhost",
+    port: parseInt(process.env.LORE_DB_PORT || "5432", 10),
+    database: process.env.LORE_DB_NAME || "lore",
+    user: process.env.LORE_DB_USER || "postgres",
+    password: process.env.LORE_DB_PASSWORD,
+    max: 5,
+  });
+
+  pool.on("error", (err) => {
+    console.error("[db] pg pool error (idle client):", err);
+  });
+
+  return pool;
+}
+
+export function getPool(): pg.Pool {
+  enforceTrue(pool, Error, "DB pool not initialized — call initPool() first");
+
+  return pool;
+}
+
+/** Whether Postgres answers — the readiness probe's whole question. */
+export async function isDbAvailable(): Promise<boolean> {
+  try {
+    await getPool().query("SELECT 1");
+
+    return true;
+  } catch {
+    return false;
+  }
+}

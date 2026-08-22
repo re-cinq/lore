@@ -6,8 +6,8 @@
  * HMAC + insert.
  */
 
-import type { EventInput } from "../main-loop/types.js";
-import { githubDedupeKey } from "@re-cinq/lore-shared/project/events/dedupe.js";
+import type { EventInsert as EventInput } from "../../events.js";
+import { githubDedupeKey } from "./dedupe.js";
 
 const PR_REVIEW_TRIGGER_ACTIONS = new Set([
   "synchronize",

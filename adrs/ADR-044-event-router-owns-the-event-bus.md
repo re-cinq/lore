@@ -55,14 +55,25 @@ ADR-024 pins to it and reaches every byte of its data over HTTP.
   to insert loses the work it was meant to start, and a producer that reports
   success anyway converts that loss into silence — which is how a resume behind
   a `202` went missing before (FR6.32). ([validated by throws on a refusal rather than losing the event silently](libs/shared/src/project/events/event-reporter-http.test.ts#L53))
-- The route carries two authentication branches, not two routes: GitHub sends
-  its native webhook body with `X-Hub-Signature-256`, verified by HMAC over the
-  raw body; every other producer sends the generic shape with a bearer token.
-  Multiplexing an untrusted external caller and a trusted internal one on one
-  path means the branch cannot be a single hapi auth strategy — both checks run
-  in sequence inside the handler. That is the price of one front door, and it
-  is worth paying: a producer should not have to know which door its event
-  qualifies for.
+- The route carries two authentication branches, not two routes. Multiplexing
+  an untrusted external caller and a trusted internal one on one path means the
+  branch cannot be a single hapi auth strategy — both checks run in sequence
+  inside the handler. That is the price of one front door, and it is worth
+  paying: a producer should not have to know which door its event qualifies
+  for.
+- GitHub is recognised by its own `X-Hub-Signature-256` header and
+  authenticated by HMAC over the raw body — it carries no bearer token and is
+  never asked for one. ([validated by captures a signed webhook without any bearer token](apps/event-router/src/delivery/routes/events.test.ts#L37))
+- A webhook whose signature does not verify is refused and writes nothing.
+  ([validated by refuses a webhook whose signature does not match the secret](apps/event-router/src/delivery/routes/events.test.ts#L60))
+- Every other producer authenticates with a bearer token and reports the
+  generic shape, which is inserted unchanged. ([validated by inserts a reported event verbatim for a valid bearer token](apps/event-router/src/delivery/routes/events.test.ts#L86))
+- A reported event with no bearer token is refused, so the trusted branch
+  cannot be reached by omitting credentials rather than presenting bad ones.
+  ([validated by refuses a reported event carrying no bearer token](apps/event-router/src/delivery/routes/events.test.ts#L98))
+- A source outside the known vocabulary is refused at the door. An event whose
+  source is a typo reaches no handler and would be discovered only by its
+  absence. ([validated by refuses a source outside the known vocabulary](apps/event-router/src/delivery/routes/events.test.ts#L109))
 
 ### What moves, and what deliberately does not
 
