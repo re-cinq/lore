@@ -1,3 +1,5 @@
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
+import { apiError } from "../../../server/api-error.js";
 import type { Pool } from "pg";
 import type { ServerRoute } from "@hapi/hapi";
 import { z } from "zod";
@@ -144,9 +146,7 @@ export function activityRoutes(getPool: () => Pool | null): ServerRoute[] {
       handler: async (request, h) => {
         const pool = getPool();
 
-        if (!pool) {
-          return h.response({ error: DB_UNAVAILABLE }).code(503);
-        }
+        enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
         const { agent, operation, zero_results, limit, offset } =
           request.query as unknown as MemoryAuditQuery;
 
@@ -201,9 +201,7 @@ export function activityRoutes(getPool: () => Pool | null): ServerRoute[] {
       handler: async (request, h) => {
         const pool = getPool();
 
-        if (!pool) {
-          return h.response({ error: DB_UNAVAILABLE }).code(503);
-        }
+        enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
         const { repo, limit, offset } = request.query as unknown as EventsQuery;
 
         try {
@@ -238,9 +236,7 @@ export function activityRoutes(getPool: () => Pool | null): ServerRoute[] {
       handler: async (request, h) => {
         const pool = getPool();
 
-        if (!pool) {
-          return h.response({ error: DB_UNAVAILABLE }).code(503);
-        }
+        enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
         const { rows } = await pool.query(
           `SELECT ${selectList(JOB_RUN_COLUMNS)}
              FROM pipeline.job_runs WHERE id = $1`,
@@ -263,9 +259,7 @@ export function activityRoutes(getPool: () => Pool | null): ServerRoute[] {
       handler: async (request, h) => {
         const pool = getPool();
 
-        if (!pool) {
-          return h.response({ error: DB_UNAVAILABLE }).code(503);
-        }
+        enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
         const repo = `${request.params.owner}/${request.params.repo}`;
 
         return h.response({

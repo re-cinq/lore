@@ -1,3 +1,5 @@
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
+import { apiError } from "../../../server/api-error.js";
 import { z } from "zod";
 import { errorMessage } from "@re-cinq/lore-shared";
 /**
@@ -95,11 +97,7 @@ export function webhookSecretRoute(): ServerRoute {
     handler: async (_request, h) => {
       const secret = process.env.LORE_WEBHOOK_SECRET || "";
 
-      if (!secret) {
-        return h
-          .response({ error: "LORE_WEBHOOK_SECRET not configured" })
-          .code(503);
-      }
+      enforceTrue(secret, apiError(503), "LORE_WEBHOOK_SECRET not configured");
 
       return h.response({ secret, canonicalUrl: canonicalUrl() });
     },

@@ -22,6 +22,7 @@ import type { AssemblyRuns } from "@re-cinq/lore-shared/project/assembly-runs/as
 import { featureSubject } from "@re-cinq/lore-shared/project/assembly-runs/subject-keys.js";
 import { reportToParkedNode } from "@re-cinq/lore-shared/project/assembly-runs/parked-node.js";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
+import { apiError, rethrowBoom } from "../../../server/api-error.js";
 import { projectFor } from "../../../platform/project-boot.js";
 import { createTask } from "@re-cinq/lore-server-core/features/pipeline/pipeline.js";
 import { bearerScope } from "../../../server/plugins/bearer-scope.js";
@@ -61,7 +62,12 @@ const repoOf = (p: Record<string, string>) => `${p.owner}/${p.repo}`;
 // hapi parses the payload natively (ADR-034); the 2 MB cap surfaces as a 413.
 const WRITE_PAYLOAD = { maxBytes: 2 * 1_048_576 } as const;
 
-/** Map a handler throw to the legacy dispatcher's outcome: ValidationError → 400, else → 500. */
+/**
+ * Map a handler throw to the legacy dispatcher's outcome: ValidationError → 400,
+ * else → 500. A Boom passes straight through — `apiError` guards throw one
+ * carrying the status they mean, and reshaping that to 500 would turn every
+ * refusal in these handlers into a server fault.
+ */
 async function run(
   h: ResponseToolkit,
   fn: () => Promise<ResponseObject>,
@@ -69,6 +75,8 @@ async function run(
   try {
     return await fn();
   } catch (err) {
+    rethrowBoom(err);
+
     if (err instanceof ValidationError) {
       return h.response({ error: err.message }).code(400);
     }
@@ -286,9 +294,7 @@ export function featuresRoutes(getPool: () => Pool | null): ServerRoute[] {
             await projectFor(repoOf(request.params))
           ).features.get(request.params.id);
 
-          if (!feature) {
-            return h.response({ error: "feature not found" }).code(404);
-          }
+          enforceTrue(feature, apiError(404), "feature not found");
 
           return h.response(feature);
         }),
@@ -311,9 +317,7 @@ export function featuresRoutes(getPool: () => Pool | null): ServerRoute[] {
           const project = await projectFor(repoOf(request.params));
           const feature = await project.features.get(request.params.id);
 
-          if (!feature) {
-            return h.response({ error: "feature not found" }).code(404);
-          }
+          enforceTrue(feature, apiError(404), "feature not found");
           const { iterations, ...row } = feature;
 
           return h.response({
@@ -342,9 +346,11 @@ export function featuresRoutes(getPool: () => Pool | null): ServerRoute[] {
           // An unknown id is NOT an empty tree. The empty list is for a feature
           // that exists and has not been decomposed yet; conflating the two would
           // report success for a typo.
-          if (!(await project.features.get(request.params.id))) {
-            return h.response({ error: "feature not found" }).code(404);
-          }
+          enforceTrue(
+            await project.features.get(request.params.id),
+            apiError(404),
+            "feature not found",
+          );
 
           return h.response({
             tasks: await project.tasks.specTasksForFeature(request.params.id),
@@ -366,9 +372,7 @@ export function featuresRoutes(getPool: () => Pool | null): ServerRoute[] {
             await projectFor(repoOf(request.params))
           ).features.delete(request.params.id);
 
-          if (!deleted) {
-            return h.response({ error: "feature not found" }).code(404);
-          }
+          enforceTrue(deleted, apiError(404), "feature not found");
 
           return h.response({ ok: true });
         }),
@@ -398,9 +402,7 @@ export function featuresRoutes(getPool: () => Pool | null): ServerRoute[] {
           const features = project.features;
           const feature = await features.get(id);
 
-          if (!feature) {
-            return h.response({ error: "feature not found" }).code(404);
-          }
+          enforceTrue(feature, apiError(404), "feature not found");
 
           // One planning round per feature at a time (a stale page / double-click
           // must not spawn a 2nd pod). An orphaned `running` past the window is dead.
@@ -515,11 +517,11 @@ export function featuresRoutes(getPool: () => Pool | null): ServerRoute[] {
           const id = request.params.id;
           const iteration = Number(request.params.n);
 
-          if (!Number.isInteger(iteration) || iteration < 0) {
-            return h
-              .response({ error: "iteration must be a non-negative integer" })
-              .code(400);
-          }
+          enforceTrue(
+            Number.isInteger(iteration) && iteration >= 0,
+            apiError(400),
+            "iteration must be a non-negative integer",
+          );
 
           // Confirm the feature belongs to this repo before any write — feature.id
           // is a global UUID, so without this a write-token holder could POST a
@@ -527,9 +529,7 @@ export function featuresRoutes(getPool: () => Pool | null): ServerRoute[] {
           const features = (await projectFor(repoOf(request.params))).features;
           const feature = await features.get(id);
 
-          if (!feature) {
-            return h.response({ error: "feature not found" }).code(404);
-          }
+          enforceTrue(feature, apiError(404), "feature not found");
 
           // Shared with the Floor's artifact-event handler so a round reads the
           // same however the pod delivered it (applyGapResult).
@@ -551,6 +551,9 @@ export function featuresRoutes(getPool: () => Pool | null): ServerRoute[] {
     // POST .../features/:id/finalize — kick the finalize Station.
     {
       method: "POST",
+      /// todo: the "finalize" term is incorrect here because this endpoint just moves the context in the assembly run to the next station and starts it.
+      /// one of the next steps are to review a PR for the spec, so the user still needs to provide feedback on the assembly run.
+      /// you must rename the endpoint to something like "createSpecFile"
       path: `${BASE}/{id}/finalize`,
       options: {
         ...zodResponse(bearerScope("write"), FinalizeStartedSchema, {
@@ -568,19 +571,16 @@ export function featuresRoutes(getPool: () => Pool | null): ServerRoute[] {
           const features = project.features;
           const feature = await features.get(id);
 
-          if (!feature) {
-            return h.response({ error: "feature not found" }).code(404);
-          }
+          enforceTrue(feature, apiError(404), "feature not found");
 
-          if (!canFinalize(feature.status)) {
-            return h
-              .response({
-                error: `cannot finalize a feature in '${feature.status}' state`,
-              })
-              .code(409);
-          }
+          enforceTrue(
+            canFinalize(feature.status),
+            apiError(409),
+            `cannot finalize a feature in '${feature.status}' state`,
+          );
           // Accepting is the author station reporting `success`: the spec work runs
           // on the SAME line, so what follows the accept is an edge, not a new run.
+          /// TODO: what is the meaning of the "dispatch" term in this context? it is very confusing and we need a better name for the function and the variable
           const dispatch = await resolveDispatch(project, id);
 
           if (dispatch.kind === "resume") {
@@ -662,17 +662,13 @@ export function featuresRoutes(getPool: () => Pool | null): ServerRoute[] {
           const features = (await projectFor(repoOf(request.params))).features;
           const parent = await features.get(parentId);
 
-          if (!parent) {
-            return h.response({ error: "feature not found" }).code(404);
-          }
+          enforceTrue(parent, apiError(404), "feature not found");
 
-          if (!latestReadyGap(parent.iterations)?.split_suggestion) {
-            return h
-              .response({
-                error: "parent feature has no split suggestion to split from",
-              })
-              .code(409);
-          }
+          enforceTrue(
+            latestReadyGap(parent.iterations)?.split_suggestion,
+            apiError(409),
+            "parent feature has no split suggestion to split from",
+          );
           const child = await features.createSplitChild(parentId, {
             title,
             prompt,

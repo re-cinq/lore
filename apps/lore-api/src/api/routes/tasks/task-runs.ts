@@ -1,4 +1,6 @@
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { errorMessage } from "@re-cinq/lore-shared";
+import { rethrowBoom, apiError } from "../../../server/api-error.js";
 import { selectList, pickColumns } from "@re-cinq/lore-shared/lib/row.js";
 import { wireSchema } from "@re-cinq/lore-shared/lib/wire-schema.js";
 import {
@@ -59,9 +61,7 @@ export function taskRunsRoute(getPool: () => Pool | null): ServerRoute {
     handler: async (request, h) => {
       const pool = getPool();
 
-      if (!pool) {
-        return h.response({ error: DB_UNAVAILABLE }).code(503);
-      }
+      enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
       const taskId = request.params.id;
 
       try {
@@ -70,10 +70,12 @@ export function taskRunsRoute(getPool: () => Pool | null): ServerRoute {
           [taskId],
         );
 
-        if (rows.length === 0) {
-          return h.response({ error: "Task not found" }).code(404);
-        }
+        enforceTrue(rows.length !== 0, apiError(404), "Task not found");
       } catch (err) {
+        // A guard's refusal already carries its status; only an unexpected failure
+        // is this block's to shape.
+        rethrowBoom(err);
+
         return h.response({ error: errorMessage(err) }).code(500);
       }
 

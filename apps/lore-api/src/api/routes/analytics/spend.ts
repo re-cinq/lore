@@ -1,3 +1,5 @@
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
+import { apiError } from "../../../server/api-error.js";
 import { selectList } from "@re-cinq/lore-shared/lib/row.js";
 import { wireSchema } from "@re-cinq/lore-shared/lib/wire-schema.js";
 import {
@@ -316,9 +318,7 @@ export function analyticsOverviewRoute(
     handler: async (_request, h) => {
       const pool = getPool();
 
-      if (!pool) {
-        return h.response({ error: DB_UNAVAILABLE }).code(503);
-      }
+      enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
 
       const { rows: summaryRows } = await pool.query(
         `SELECT
@@ -404,9 +404,7 @@ export function spendRoute(getPool: () => Pool | null): ServerRoute {
     handler: async (_request, h) => {
       const pool = getPool();
 
-      if (!pool) {
-        return h.response({ error: DB_UNAVAILABLE }).code(503);
-      }
+      enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
 
       const orgMtdRows = await optionalTableRows<{
         billed_usd: number;

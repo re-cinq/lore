@@ -28,8 +28,27 @@ export function apiError(
   return (message) => {
     const boom = new Boom.Boom(message, { statusCode });
 
-    boom.output.payload = { ...data, error: message } as unknown as Boom.Payload;
+    boom.output.payload = {
+      ...data,
+      error: message,
+    } as unknown as Boom.Payload;
 
     return boom;
   };
+}
+
+/**
+ * Let a refusal out of an error-shaping `catch`.
+ *
+ * A handler that wraps its body in `try { … } catch (err) { return
+ * h.response({ error: errorMessage(err) }).code(500) }` treats every throw as an
+ * unexpected failure — which is right for a dropped connection and wrong for a
+ * guard that deliberately threw a 404. Call this first in such a catch: a Boom
+ * arrived already shaped and carries its own status, so it goes back out
+ * untouched; anything else returns and the catch shapes it as before.
+ */
+export function rethrowBoom(err: unknown): void {
+  if (Boom.isBoom(err)) {
+    throw err;
+  }
 }

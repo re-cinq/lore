@@ -26,14 +26,22 @@ ruleTester.run("prefer-api-error", rule, {
     // an unconditional return is the handler's answer, not a guard
     valid(`return h.response({ error: "no" }).code(404);`),
     // if/else is a branch; a multi-statement body is not a pure guard
-    valid(`if (!x) { return h.response({ error: "a" }).code(404); } else { y(); }`),
+    valid(
+      `if (!x) { return h.response({ error: "a" }).code(404); } else { y(); }`,
+    ),
     valid(`if (!x) { log(x); return h.response({ error: "a" }).code(404); }`),
     // the refusal reads a variable the test narrows — enforceTrue asserts AFTER
     // the call, so its own arguments would lose that narrowing
     valid(
       `if (inFlight) { return h.response({ error: "busy", ...ids(inFlight) }).code(409); }`,
     ),
-    valid(`if (!feature) { return h.response({ error: feature.why }).code(404); }`),
+    valid(
+      `if (!feature) { return h.response({ error: feature.why }).code(404); }`,
+    ),
+    // `in` narrows too: `result.error` only exists in the branch being deleted
+    valid(
+      `if ("error" in result) { return h.response({ error: result.error }).code(400); }`,
+    ),
     // already the canonical form
     valid(`enforceTrue(feature, apiError(404), "feature not found");`),
   ],
@@ -117,7 +125,9 @@ ruleTester.run("prefer-api-error", rule, {
     },
     {
       // the api-error import path is relative to the file being fixed
-      code: handler(`if (!row) { return h.response({ error: "not found" }).code(404); }`),
+      code: handler(
+        `if (!row) { return h.response({ error: "not found" }).code(404); }`,
+      ),
       output: `${ENFORCE}\nimport { apiError } from "./api-error.js";\n${handler(
         `enforceTrue(row, apiError(404), "not found");`,
       )}`,
@@ -127,7 +137,9 @@ ruleTester.run("prefer-api-error", rule, {
     {
       // outside lore-api the pattern is still wrong, but the rule cannot know
       // where apiError lives, so it reports without a fix
-      code: handler(`if (!row) { return h.response({ error: "not found" }).code(404); }`),
+      code: handler(
+        `if (!row) { return h.response({ error: "not found" }).code(404); }`,
+      ),
       output: null,
       errors: [{ messageId: "preferApiError" }],
       filename: "/repo/apps/floor/src/delivery/http/routes/thing.ts",

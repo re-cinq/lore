@@ -1,3 +1,5 @@
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
+import { apiError } from "../../../server/api-error.js";
 import type { Pool } from "pg";
 import type { ServerRoute } from "@hapi/hapi";
 import { z } from "zod";
@@ -52,9 +54,7 @@ export function orgSettingsRoutes(getPool: () => Pool | null): ServerRoute[] {
       handler: async (_request, h) => {
         const pool = getPool();
 
-        if (!pool) {
-          return h.response({ error: DB_UNAVAILABLE }).code(503);
-        }
+        enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
         const { rows: settings } = await pool.query(
           `SELECT key, value, updated_at FROM lore.settings ORDER BY key`,
         );
@@ -83,9 +83,7 @@ export function orgSettingsRoutes(getPool: () => Pool | null): ServerRoute[] {
       handler: async (request, h) => {
         const pool = getPool();
 
-        if (!pool) {
-          return h.response({ error: DB_UNAVAILABLE }).code(503);
-        }
+        enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
         const { entries } = request.payload as SettingsBody;
 
         const unknown = entries.find((entry) => !WRITABLE_KEYS.has(entry.key));
@@ -123,9 +121,7 @@ export function orgSettingsRoutes(getPool: () => Pool | null): ServerRoute[] {
       handler: async (request, h) => {
         const pool = getPool();
 
-        if (!pool) {
-          return h.response({ error: DB_UNAVAILABLE }).code(503);
-        }
+        enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
         const repo = `${request.params.owner}/${request.params.repo}`;
         const { rows } = await pool.query<{
           devs: number;

@@ -158,7 +158,10 @@ export default {
       IfStatement(node) {
         if (node.alternate) return;
 
-        const throwStatement = soleStatementOf(node.consequent, "ThrowStatement");
+        const throwStatement = soleStatementOf(
+          node.consequent,
+          "ThrowStatement",
+        );
         if (!throwStatement || !throwStatement.argument) return;
 
         // Rethrow of the caught error is control flow, not a guard.

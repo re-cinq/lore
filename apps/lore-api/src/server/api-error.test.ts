@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import Boom from "@hapi/boom";
-import { apiError } from "./api-error.js";
+import { apiError, rethrowBoom } from "./api-error.js";
 
 describe("apiError", () => {
   it("carries the status on a boom hapi renders", () => {
@@ -29,8 +29,22 @@ describe("apiError", () => {
   });
 
   it("a data key named error does not override the message", () => {
-    expect(apiError(400, { error: "shadowed" })("real message").output.payload).toEqual({
+    expect(
+      apiError(400, { error: "shadowed" })("real message").output.payload,
+    ).toEqual({
       error: "real message",
     });
+  });
+});
+
+describe("rethrowBoom", () => {
+  it("a refusal a guard already shaped passes straight back out", () => {
+    const refusal = apiError(404)("feature not found");
+
+    expect(() => rethrowBoom(refusal)).toThrow(refusal);
+  });
+
+  it("an ordinary failure is the catch block's to shape", () => {
+    expect(rethrowBoom(new Error("connection reset"))).toBeUndefined();
   });
 });

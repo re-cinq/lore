@@ -140,7 +140,10 @@ export default {
       IfStatement(node) {
         if (node.alternate) return;
 
-        const returnStatement = soleStatementOf(node.consequent, "ReturnStatement");
+        const returnStatement = soleStatementOf(
+          node.consequent,
+          "ReturnStatement",
+        );
         if (!returnStatement) return;
 
         const refusal = refusalShape(returnStatement.argument);

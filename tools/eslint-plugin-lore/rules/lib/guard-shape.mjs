@@ -61,6 +61,12 @@ export function narrowedRoots(test) {
       const root = rootIdentifier(test.left);
       return root ? [root] : [];
     }
+    // `"error" in result` narrows the RIGHT operand — the discriminated branch
+    // is where `result.error` exists at all.
+    if (test.operator === "in") {
+      const root = rootIdentifier(test.right);
+      return root ? [root] : [];
+    }
     if (["===", "!==", "==", "!="].includes(test.operator)) {
       const roots = [];
       for (const side of [test.left, test.right]) {
