@@ -19,7 +19,7 @@ import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { detectSubject } from "@re-cinq/lore-shared/project/assembly-runs/subject-keys.js";
 import type { EventHandler } from "../../main-loop/types.js";
 import { query } from "../../kernel/db.js";
-import { assemblyRuns, jobRuns } from "../../kernel/queues.js";
+import { pipeline } from "../../kernel/queues.js";
 
 /** The line's branch: a synthetic ref no `git checkout` resolves — detect nodes
  *  read through the API and clone nothing. It used to double as the overlap-guard
@@ -237,8 +237,8 @@ const productionTick =
   ): EventHandler =>
   (params) =>
     createDetectTickHandler(blueprintName, {
-      assemblyRuns: assemblyRuns(),
-      jobRuns: jobRuns(),
+      assemblyRuns: pipeline().assemblyRuns,
+      jobRuns: pipeline().jobRuns,
       jobRef: () => builtinJobRef(blueprintName),
       listTargetRepos,
     })(params);

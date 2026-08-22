@@ -31,7 +31,7 @@ import {
   type RunGraphNode,
 } from "@re-cinq/lore-shared/project/assembly-runs/run-graph.js";
 import { resolveRunGraph } from "@re-cinq/lore-assembly-lines";
-import { assemblyRuns } from "../../../kernel/queues.js";
+import { pipeline } from "../../../kernel/queues.js";
 
 interface NodeRow {
   nodeId: string;
@@ -84,11 +84,11 @@ export function assemblyRunReadRoute(
     path: "/api/assembly-runs/{id}",
     options: { auth: "ingest-token" },
     handler: async (request) => {
-      const line = await assemblyRuns().getById(request.params.id);
+      const line = await pipeline().assemblyRuns.getById(request.params.id);
 
       enforceTrue(line !== null, apiError(404), "assembly line not found");
       const [rows, graph] = await Promise.all([
-        assemblyRuns().listStationRuns(line.id),
+        pipeline().assemblyRuns.listStationRuns(line.id),
         // The run's own clone; a blueprint loaded by name only for rows stamped
         // before clones existed (same rule as the walk and the reaper).
         resolveRunGraph(line, load),

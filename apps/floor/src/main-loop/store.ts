@@ -7,11 +7,11 @@
  * the reaper recovers rows stuck in `processing` by a crash.
  */
 
-import { eventQueue } from "../kernel/queues.js";
+import { pipeline } from "../kernel/queues.js";
 import type { EventInput, EventRow } from "./types.js";
 
 export function insertEvent(input: EventInput): Promise<void> {
-  return eventQueue().insert(input);
+  return pipeline().eventQueue.insert(input);
 }
 
 /**
@@ -54,11 +54,11 @@ export function claimBatch(
   limit: number,
   excludeEventNames: string[] = [],
 ): Promise<EventRow[]> {
-  return eventQueue().claimBatch(limit, excludeEventNames);
+  return pipeline().eventQueue.claimBatch(limit, excludeEventNames);
 }
 
 export function markDone(id: string): Promise<void> {
-  return eventQueue().markDone(id);
+  return pipeline().eventQueue.markDone(id);
 }
 
 export function markFailed(
@@ -66,19 +66,19 @@ export function markFailed(
   error: string,
   backoffSeconds: number,
 ): Promise<void> {
-  return eventQueue().markFailed(id, error, backoffSeconds);
+  return pipeline().eventQueue.markFailed(id, error, backoffSeconds);
 }
 
 export function markDead(id: string, error: string): Promise<void> {
-  return eventQueue().markDead(id, error);
+  return pipeline().eventQueue.markDead(id, error);
 }
 
 /** Reset rows stuck in `processing` (claimer crashed) back to failed so they re-run. */
 export function reapStuck(timeoutSeconds: number): Promise<number> {
-  return eventQueue().reapStuck(timeoutSeconds);
+  return pipeline().eventQueue.reapStuck(timeoutSeconds);
 }
 
 /** Delete old terminal rows to keep the claim index small. */
 export function pruneHandled(olderThanDays: number): Promise<number> {
-  return eventQueue().pruneHandled(olderThanDays);
+  return pipeline().eventQueue.pruneHandled(olderThanDays);
 }

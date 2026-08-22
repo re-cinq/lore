@@ -19,7 +19,7 @@ import {
 import { linkifyMarkdown } from "@re-cinq/lore-shared";
 import type { Project } from "@re-cinq/lore-shared";
 import { slugify, setStatus, insertEvent } from "./task-helpers.js";
-import { taskQueue, settings, assemblyRuns } from "../../kernel/queues.js";
+import { pipeline, settings } from "../../kernel/queues.js";
 import type { TaskQueueRepository } from "@re-cinq/lore-shared/project/tasks/task-queue-port.js";
 import { composeIssueBody } from "./issue-body.js";
 import { handleFeatureRequest } from "./handle-feature-request.js";
@@ -66,11 +66,11 @@ export interface RecoverStaleDeps {
  */
 export async function recoverStaleTasks(
   deps: RecoverStaleDeps = {
-    queue: taskQueue(),
+    queue: pipeline().taskQueue,
     setStatus,
     insertEvent,
     hasOpenLine: async (taskId) =>
-      (await assemblyRuns().listForTask(taskId)).some(
+      (await pipeline().assemblyRuns.listForTask(taskId)).some(
         (line) => line.status === "running" || line.status === "queued",
       ),
   },
@@ -156,7 +156,7 @@ async function pollOnce(): Promise<void> {
   // past the 30-second grace that lets a local runner claim it first. The claim
   // SQL lives in the shared TaskQueue.
   await pollWithGuard({
-    claim: () => taskQueue().claimNextPending(),
+    claim: () => pipeline().taskQueue.claimNextPending(),
     process: processTask,
   });
 }
@@ -392,7 +392,7 @@ async function ensureIssue(
       );
 
       issueNumber = issue.number;
-      await taskQueue().setColumns(task.id, {
+      await pipeline().taskQueue.setColumns(task.id, {
         issue_number: issue.number,
         issue_url: issue.url,
       });

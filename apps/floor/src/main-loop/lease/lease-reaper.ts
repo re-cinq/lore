@@ -1,6 +1,6 @@
 import { trace } from "@opentelemetry/api";
 import { writeAuditLog } from "../../jobs/lib/audit.js";
-import { leaseBackend, auditLog } from "../../kernel/queues.js";
+import { pipeline } from "../../kernel/queues.js";
 import type { LeaseReaper } from "@re-cinq/lore-shared/project/leases/lease-backends.js";
 import type { AuditPort } from "@re-cinq/lore-shared/project/audit/audit-port.js";
 
@@ -21,7 +21,10 @@ export interface LeaseReaperDeps {
  * the database. Scheduled at 60s tick by the agent's job runner.
  */
 export async function leaseReaperJob(
-  deps: LeaseReaperDeps = { leases: leaseBackend(), audit: auditLog() },
+  deps: LeaseReaperDeps = {
+    leases: pipeline().leases,
+    audit: pipeline().audit,
+  },
   now: Date = new Date(),
 ): Promise<string> {
   return await tracer.startActiveSpan("lore.lease.expired", async (span) => {

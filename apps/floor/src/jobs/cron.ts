@@ -12,7 +12,7 @@ import { staleTaskCheckJob } from "./task/stale-task-check.js";
 import { featurePlanningReaperJob } from "./task/feature-planning-reaper.js";
 import { leaseReaperJob } from "../main-loop/lease/lease-reaper.js";
 import { pruneHandled } from "../main-loop/store.js";
-import { agentRunEvents, agentRunTurns } from "../kernel/queues.js";
+import { pipeline } from "../kernel/queues.js";
 import { reconcileAgents } from "../listeners/k8s-watch.js";
 import type { EventHandler } from "../main-loop/types.js";
 
@@ -139,7 +139,7 @@ export const eventsPrune: EventHandler = async () => {
     console.log(`[events] pruned ${n} handled event(s)`);
   }
 
-  const runEvents = await agentRunEvents().pruneOld(
+  const runEvents = await pipeline().agentRunEvents.pruneOld(
     AGENT_RUN_EVENT_RETENTION_DAYS,
   );
 
@@ -147,7 +147,7 @@ export const eventsPrune: EventHandler = async () => {
     console.log(`[events] pruned ${runEvents} agent run event(s)`);
   }
 
-  const runTurns = await agentRunTurns().pruneOld(turnRetentionDays());
+  const runTurns = await pipeline().agentRunTurns.pruneOld(turnRetentionDays());
 
   if (runTurns > 0) {
     console.log(`[events] pruned ${runTurns} agent run turn(s)`);

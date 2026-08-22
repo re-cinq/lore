@@ -17,7 +17,7 @@ import {
 } from "../jobs/station/kube-token-provisioner.js";
 import { PlatformGitHub } from "@re-cinq/lore-shared/project/lib/platform-github.js";
 import { AssemblyLineStationBackend } from "../jobs/assembly-run/assembly-run-station-backend.js";
-import { assemblyRuns } from "../kernel/queues.js";
+import { pipeline } from "../kernel/queues.js";
 import { AgentCrStationBackend } from "../jobs/station/agent-cr-station-backend.js";
 
 /**
@@ -60,10 +60,10 @@ export function stationBackend(
   return new AgentCrStationBackend(
     // launch() = project.assemblyRuns.start(); the assembly_line.start event
     // handler launches the entry node — the walk advances on agent_node events.
-    new AssemblyLineStationBackend(assemblyRuns()),
+    new AssemblyLineStationBackend(pipeline().assemblyRuns),
     agentBackend,
     assemblyLineDefinitions,
-    assemblyRuns(),
+    pipeline().assemblyRuns,
   );
 }
 
@@ -80,5 +80,8 @@ export async function projectFor(repo: string): Promise<Project> {
   const dgraph = createDgraphClient() ?? NO_OP_DGRAPH;
   const station = stationBackend(await assemblyLineNames());
 
-  return createProject(repo, getPool(), dgraph, process.env, { station });
+  return createProject(repo, getPool(), dgraph, process.env, {
+    station,
+    pipeline: pipeline(),
+  });
 }

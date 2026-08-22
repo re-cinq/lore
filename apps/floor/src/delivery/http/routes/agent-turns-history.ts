@@ -13,7 +13,7 @@
  * an unbounded read.
  */
 
-import { agentRunTurns } from "../../../kernel/queues.js";
+import { pipeline } from "../../../kernel/queues.js";
 import { parseAfter, parseLimit } from "./agent-events-history.js";
 import type { ServerRoute } from "@hapi/hapi";
 import type { AgentRunTurnRow } from "@re-cinq/lore-shared";
@@ -44,7 +44,7 @@ export function agentTurnsHistoryRoute(turns?: {
     options: { auth: "ingest-token" },
     handler: async (request, h) => {
       const limit = parseLimit(request.query.limit);
-      const rows = await (turns ?? agentRunTurns()).listByLine(
+      const rows = await (turns ?? pipeline().agentRunTurns).listByLine(
         request.params.assemblyRunId,
         parseAfter(request.query.after),
         limit + PAGE_LOOKAHEAD,

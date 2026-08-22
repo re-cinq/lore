@@ -1,9 +1,9 @@
-import { taskQueue } from "../../kernel/queues.js";
+import { pipeline } from "../../kernel/queues.js";
 import { projectFor } from "../../composition/project-boot.js";
 import { getApprovalLabel } from "./approval.js";
 
 export async function approvalCheckJob(): Promise<string> {
-  const tasks = await taskQueue().awaitingApproval();
+  const tasks = await pipeline().taskQueue.awaitingApproval();
 
   if (tasks.length === 0) {
     console.log("[job] approval-check: no tasks awaiting approval");
