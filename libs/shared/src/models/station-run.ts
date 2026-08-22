@@ -29,7 +29,7 @@ import type { ColumnMap } from "../lib/row.js";
  * reproducible from the context system.
  */
 export const StationRunInputSchema = z.object({
-  /** The round content the node worked from — `roundContent(task, conversation)`. */
+  /** The round content the node worked from — `resolveRoundContent(task, conversation)`. */
   description: z.string(),
   /** The resolved prompt an agent node's pod rendered; null for station nodes. */
   prompt: z.string().nullable(),

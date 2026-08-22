@@ -1,10 +1,9 @@
 import { errorMessage } from "@re-cinq/lore-shared";
 import {
+  pipeline,
   taskStore,
-  taskQueue,
   settings,
   memoryLifecycle,
-  assemblyRuns,
 } from "../../kernel/queues.js";
 import { getPool } from "../../kernel/db.js";
 import { poolReporter, resumeDecomposition } from "./decompose-resume.js";
@@ -40,7 +39,9 @@ async function syncSpecTasksFromMerge(task: {
   }
 
   // Idempotency: check if spec-tasks already synced (by webhook or previous run)
-  if (await taskQueue().hasSpecTasksForSlug(task.target_repo, specSlug)) {
+  if (
+    await pipeline().taskQueue.hasSpecTasksForSlug(task.target_repo, specSlug)
+  ) {
     console.log(`[job] merge-check: spec-tasks already synced for ${specSlug}`);
 
     return;
@@ -135,7 +136,7 @@ export async function mergeCheckJob(): Promise<string> {
   }
 
   // Also check pipeline tasks with PRs that might have been merged
-  const tasks = await taskQueue().mergeableTasks();
+  const tasks = await pipeline().taskQueue.mergeableTasks();
 
   let tasksMerged = 0;
   let tasksClosed = 0;
@@ -219,7 +220,7 @@ async function maybeFlipSpecStatus(
   task: MergeableTask,
 ): Promise<void> {
   const remaining = task.task_group_id
-    ? await taskQueue().countUnmergedInGroup(task.task_group_id)
+    ? await pipeline().taskQueue.countUnmergedInGroup(task.task_group_id)
     : 0;
   const decision = decideSpecStatusFlip(task, remaining);
 
@@ -341,7 +342,7 @@ async function handleMergedTask(
     try {
       await resumeDecomposition(
         { repo: task.target_repo, prNumber: task.pr_number },
-        { assemblyRuns: assemblyRuns(), report: poolReporter(pool) },
+        { assemblyRuns: pipeline().assemblyRuns, report: poolReporter(pool) },
       );
     } catch (err) {
       console.error(
@@ -377,7 +378,7 @@ async function applyOutcomeFeedback(
   action: "boost" | "penalize",
 ): Promise<void> {
   try {
-    const refs = await taskQueue().contextRefs(taskId);
+    const refs = await pipeline().taskQueue.contextRefs(taskId);
 
     if (!refs) {
       return;

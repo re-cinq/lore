@@ -13,7 +13,7 @@ import { dispatchSpecTrace } from "./spec-trace/spec-trace-dispatch.js";
 import { projectFor } from "../composition/project-boot.js";
 import { insertEvent } from "../main-loop/store.js";
 import { getPool } from "../kernel/db.js";
-import { assemblyRuns, chunks, settings } from "../kernel/queues.js";
+import { pipeline, chunks, settings } from "../kernel/queues.js";
 import { writeAuditLog } from "./lib/audit.js";
 import type { EventHandler } from "../main-loop/types.js";
 
@@ -76,7 +76,7 @@ export const specTrace: EventHandler = async (params, meta) => {
     insertEvent,
     // FR2/FR3: docs kinds and payload kinds run as ingest-station lines;
     // payload bodies hand off by reference through the scheduling event's id.
-    startLine: (input) => assemblyRuns().start(input),
+    startLine: (input) => pipeline().assemblyRuns.start(input),
     eventId: meta?.eventId,
   });
 

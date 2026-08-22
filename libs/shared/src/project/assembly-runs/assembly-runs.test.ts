@@ -1528,7 +1528,7 @@ describe("PgAssemblyRuns resumeFrom", () => {
 
     // `failure_class` / `failure_detail` are dropped with `agent_cr_name`: all
     // three classify the ATTEMPT that is over. Copying the verdict would fail
-    // the fork on its first advance, because `nextTransition` replays the copied
+    // the fork on its first advance, because `getNextTransition` replays the copied
     // prefix and refuses a retry on a permanent failure — so a fork taken to
     // rerun an `anthropic-credit` failure would die of the failure it exists to
     // get past.

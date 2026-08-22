@@ -10,7 +10,7 @@
  * unbounded read.
  */
 
-import { agentRunTurns } from "../../../kernel/queues.js";
+import { pipeline } from "../../../kernel/queues.js";
 import { parseAfter, parseLimit } from "./agent-events-history.js";
 import { PAGE_LOOKAHEAD, pageWithLookahead } from "./agent-turns-history.js";
 import type { ServerRoute } from "@hapi/hapi";
@@ -29,7 +29,7 @@ export function agentTurnsByTaskRoute(turns?: {
     options: { auth: "ingest-token" },
     handler: async (request, h) => {
       const limit = parseLimit(request.query.limit);
-      const rows = await (turns ?? agentRunTurns()).listByTask(
+      const rows = await (turns ?? pipeline().agentRunTurns).listByTask(
         request.params.taskId,
         parseAfter(request.query.after),
         limit + PAGE_LOOKAHEAD,

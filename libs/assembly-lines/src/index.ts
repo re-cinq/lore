@@ -31,7 +31,7 @@ export {
 } from "./agent-output.js";
 
 export { ciOutcome, type CiConclusion } from "./github-action-handler.js";
-export { graphForRun } from "./graph-for-run.js";
+export { resolveRunGraph } from "./resolve-run-graph.js";
 
 export {
   loadAssemblyLineDir,
@@ -80,7 +80,7 @@ export {
 
 export {
   selectEdge,
-  nextTransition,
+  getNextTransition,
   type NodeVisit,
   type Transition,
 } from "./transition.js";

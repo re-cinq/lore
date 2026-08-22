@@ -860,7 +860,7 @@ describe.each(IMPLEMENTATIONS)(
       });
 
       // The copied row keeps WHAT happened and drops the classification of WHY,
-      // which belongs to the attempt that is over. `nextTransition` replays the
+      // which belongs to the attempt that is over. `getNextTransition` replays the
       // copied prefix and refuses a retry on a permanent failure — inherit the
       // verdict and a fork taken to rerun a credit failure dies of the failure
       // it exists to get past, on its first advance, right after someone tops

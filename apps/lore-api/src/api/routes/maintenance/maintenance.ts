@@ -1,5 +1,5 @@
 import type { ServerRoute } from "@hapi/hapi";
-import Boom from "@hapi/boom";
+import { apiError } from "../../../server/api-error.js";
 import { z } from "zod";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { PgMemoryLifecycle } from "@re-cinq/lore-shared/project/memory/memory-lifecycle-pg.js";
@@ -40,7 +40,7 @@ export function maintenanceJobs(getPool: () => Pool | null): MaintenanceJobs {
   const pool = (): Pool => {
     const p = getPool();
 
-    enforceTrue(p !== null, Boom.serverUnavailable, "database unavailable");
+    enforceTrue(p !== null, apiError(503), "database unavailable");
 
     return p;
   };
@@ -77,7 +77,7 @@ export function maintenanceRoute(jobs: MaintenanceJobs): ServerRoute {
 
       enforceTrue(
         job !== undefined,
-        Boom.notFound,
+        apiError(404),
         `unknown maintenance job: ${name}`,
       );
 
@@ -89,7 +89,7 @@ export function maintenanceRoute(jobs: MaintenanceJobs): ServerRoute {
         // answer the caller with a status and nothing else.
         console.error(`[maintenance] ${name} failed:`, err);
 
-        throw Boom.internal(`maintenance job failed: ${name}`);
+        throw apiError(500)(`maintenance job failed: ${name}`);
       }
     },
   };

@@ -26,7 +26,7 @@ import type {
 } from "@re-cinq/lore-shared/project/features/features-port.js";
 
 /** The `prompt_ref` every line's pushing node carries (implementation, general,
- *  gap-fill, feature-finalize, feature-planning). Identifying the node by its
+ *  gap-fill, feature-planning). Identifying the node by its
  *  recipe rather than its id keeps this working for a line that names it
  *  something other than "push". */
 const PUSH_PROMPT_REF = "push-only";

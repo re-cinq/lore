@@ -14,9 +14,10 @@ import { TASK_EVENT_COLUMNS } from "./models/task-event.js";
 
 /** Trust level → allowed task types. The createTask gate reads
  *  lore.repos.settings.trust.level. Relocated from mcp's pipeline.ts. */
-// Feature planning + finalize produce only analysis and a spec-doc PR (no code),
-// so they are allowed from the docs tier up (ADR-027 / specs/7-feature-planning).
-const FEATURE_PLANNING = ["feature-planning", "feature-finalize"];
+// Feature planning produces only analysis and a spec-doc PR (no code), so it is
+// allowed from the docs tier up (ADR-027 / specs/7-feature-planning). One line now
+// spans a feature's whole life, so there is no separate finalize task type to list.
+const FEATURE_PLANNING = ["feature-planning"];
 
 // Onboarding is allowed at every tier: it produces a docs-only scaffolding PR
 // and is gated against duplicates by its own dedicated guard (onboard-guard.ts).

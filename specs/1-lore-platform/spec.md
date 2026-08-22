@@ -394,7 +394,7 @@ The system MUST ingest content from multiple sources into the vector
 store via the Lore Agent service. ([validated by `content-classify.test.ts:5`](libs/shared/src/content-classify.test.ts#L5))
 
 - FR-7.1: Fast path: on-push to main triggers incremental ingestion
-  via pipeline task. ([validated by `ingest-workflow.test.ts:11`](libs/shared/src/ingest-workflow.test.ts#L11), [`ci-ingest.test.ts:28`](apps/floor/src/delivery/http/routes/ci-ingest.test.ts#L28))
+  via pipeline task. ([validated by `ingest-workflow.test.ts:11`](libs/shared/src/ingest-workflow.test.ts#L11), [`ci-ingest.test.ts:78`](apps/floor/src/delivery/http/routes/ci-ingest.test.ts#L78))
 - FR-7.2: Full path: nightly job triggers complete re-index via
   pipeline task. ([validated by `reindex-backfill.test.ts:24`](apps/floor/src/jobs/context-jobs/reindex/reindex-backfill.test.ts#L24), [`reindex-seed.test.ts:5`](apps/floor/src/jobs/context-jobs/reindex/reindex-seed.test.ts#L5))
 - FR-7.3: Content types: code (AST-split), pull requests (diff +
@@ -568,8 +568,8 @@ The system MUST gate task types per-repo based on demonstrated
 reliability. ([validated by `pipeline-tasks.trust.test.ts:37`](libs/shared/src/pipeline-tasks.trust.test.ts#L37))
 
 - FR-15.1: `settings.trust.level` controls which task types are
-  allowed: `docs` (gap-fill/runbook/onboard + feature-planning/
-  feature-finalize per ADR-027), `tests` (+review),
+  allowed: `docs` (gap-fill/runbook/onboard + feature-planning
+  per ADR-027), `tests` (+review),
   `implementation` (+implementation/feature-request/general),
   `full` (all). `onboard` is allowed at every tier — it produces a
   docs-only scaffolding PR and duplicate protection lives in its own

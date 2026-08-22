@@ -10,7 +10,7 @@ import {
   advanceLine,
   finishLine,
   finishNodeAndAdvance,
-  taskFromRow,
+  taskFromAssemblyRun,
   type AdvanceDeps,
 } from "./advance.js";
 import { LlmDispatchGate } from "./llm-dispatch-gate.js";
@@ -785,7 +785,7 @@ edges:
   });
 });
 
-describe("taskFromRow", () => {
+describe("taskFromAssemblyRun", () => {
   it("derives the synthetic taskId for a task-less row and keeps the real one otherwise", async () => {
     const port = new InMemoryAssemblyRuns();
     const taskless = await port.start({
@@ -795,7 +795,7 @@ describe("taskFromRow", () => {
     });
     const rowless = (await port.getById(taskless))!;
 
-    expect(taskFromRow(rowless)).toMatchObject({
+    expect(taskFromAssemblyRun(rowless)).toMatchObject({
       taskId: taskless,
       pipelineTaskId: null,
       assemblyLineId: taskless,
@@ -808,7 +808,7 @@ describe("taskFromRow", () => {
       taskId: "task-9",
     });
 
-    expect(taskFromRow((await port.getById(taskful))!)).toMatchObject({
+    expect(taskFromAssemblyRun((await port.getById(taskful))!)).toMatchObject({
       taskId: "task-9",
       pipelineTaskId: "task-9",
     });
@@ -816,7 +816,7 @@ describe("taskFromRow", () => {
 });
 
 // ── Fork-and-rerun (specs/fork-rerun-from-node FR5): the walk itself is
-//    untouched — a forked line's inherited rows replay through nextTransition
+//    untouched — a forked line's inherited rows replay through getNextTransition
 //    like any other history. What the guard needs is to stop reading "has node
 //    rows" as "already started work".
 describe("advanceLine on a forked line", () => {

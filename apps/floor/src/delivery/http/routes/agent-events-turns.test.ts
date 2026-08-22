@@ -13,9 +13,11 @@ const write = vi.fn();
 
 vi.mock("../../../kernel/queues.js", () => ({
   usage: () => ({ logLlmCall }),
-  agentRunEvents: () => ({ insertBatch }),
-  agentRunTurns: () => ({ insertBatch: insertTurns }),
-  auditLog: () => ({ write }),
+  pipeline: () => ({
+    agentRunEvents: { insertBatch },
+    agentRunTurns: { insertBatch: insertTurns },
+    audit: { write },
+  }),
 }));
 
 const ORIG_TOKEN = process.env.LORE_AGENT_INTERNAL_TOKEN;

@@ -38,6 +38,7 @@ import type { AuditPort } from "../audit/audit-port.js";
 import type { UsagePort } from "../usage/usage-port.js";
 import type { FeaturesPort } from "../features/features-port.js";
 import type { ChunksPort } from "../chunks/chunks-port.js";
+import type { PipelineRepositories } from "../pipeline/pipeline-repositories.js";
 
 /**
  * The unified internal API. Built by createProject from a repo fullName
@@ -140,6 +141,17 @@ export class Project {
   /** LLM-call accounting (pipeline.llm_calls). */
   get usage(): UsagePort {
     return this.port<UsagePort>("usage");
+  }
+
+  /**
+   * The org-wide `pipeline.*` repositories (task queue, event queue, assembly
+   * runs, job runs, audit, leases, agent-run events + turns).
+   *
+   * Raw, like `leases` and `usage`: nothing here is scoped by `fullName`, so a
+   * repo-scoped wrapper would only imply a filter that does not exist.
+   */
+  get pipeline(): PipelineRepositories {
+    return this.port<PipelineRepositories>("pipeline");
   }
 
   /** Smart feature-planning lifecycle (lore.features + lore.feature_iterations). */

@@ -14,19 +14,19 @@ import {
 } from "@re-cinq/lore-shared";
 import { getPool } from "../kernel/db.js";
 import { projectFor } from "../composition/project-boot.js";
-import { settings, taskStore, taskQueue } from "../kernel/queues.js";
+import { pipeline, settings, taskStore } from "../kernel/queues.js";
 import { tryAutoMergeForCompletedTask } from "./merge/auto-merge-trigger.js";
 import {
   decideResumeFromClosedPr,
   poolReporter,
   resumeDecomposition,
 } from "./merge/decompose-resume.js";
-import { assemblyRuns } from "../kernel/queues.js";
 import type { EventHandler } from "../main-loop/types.js";
 
 /** Resolve the backing pipeline task for a PR and re-evaluate auto-merge (no-op if none). */
 async function autoMergeForPR(repo: string, prNumber: number): Promise<void> {
-  const taskId = (await taskQueue().latestTaskByPr(repo, prNumber))?.id;
+  const taskId = (await pipeline().taskQueue.latestTaskByPr(repo, prNumber))
+    ?.id;
 
   if (!taskId) {
     return;
@@ -98,7 +98,10 @@ export const issuesLabeled: EventHandler = async (params) => {
   }
 
   const issues = (await projectFor(repo)).issues;
-  const existing = await taskQueue().activeTaskByIssue(repo, issue.number);
+  const existing = await pipeline().taskQueue.activeTaskByIssue(
+    repo,
+    issue.number,
+  );
 
   if (existing) {
     await issues.comment(
@@ -122,7 +125,7 @@ export const issuesLabeled: EventHandler = async (params) => {
     },
   });
 
-  await taskQueue().setColumns(task.task_id, {
+  await pipeline().taskQueue.setColumns(task.task_id, {
     issue_number: issue.number,
     issue_url: issue.html_url,
   });
@@ -159,7 +162,7 @@ export const specPrResumeLine: EventHandler = async (params) => {
   }
 
   await resumeDecomposition(pr, {
-    assemblyRuns: assemblyRuns(),
+    assemblyRuns: pipeline().assemblyRuns,
     report: poolReporter(pool),
   });
 };
@@ -187,7 +190,7 @@ export const specPrMerge: EventHandler = async (params) => {
     return;
   }
 
-  if (await taskQueue().hasSpecTasksForSlug(repo, specSlug)) {
+  if (await pipeline().taskQueue.hasSpecTasksForSlug(repo, specSlug)) {
     return;
   } // already synced
 
@@ -205,8 +208,8 @@ export const specPrMerge: EventHandler = async (params) => {
   // syncTasksToDb is a shared, multi-app helper that takes the pool directly.
   await syncTasksToDb(getPool(), repo, specSlug, withDeps, taskGroupId);
 
-  await taskQueue()
-    .markFeatureRequestMergedOnBranch(repo, branch)
+  await pipeline()
+    .taskQueue.markFeatureRequestMergedOnBranch(repo, branch)
     .catch(() => {});
   console.log(
     `[events] spec PR merged: ${repo}/${specSlug} → spec-tasks (group ${taskGroupId})`,

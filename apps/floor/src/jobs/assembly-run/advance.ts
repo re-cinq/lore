@@ -1,6 +1,6 @@
 // The event-driven walk's shared IO orchestration (spec 6-dark-factory FR6): every
 // node-terminal event (or reaper-synthesized timeout) records the node's outcome and
-// re-derives "what happens next" purely from the persisted node rows (nextTransition).
+// re-derives "what happens next" purely from the persisted node rows (getNextTransition).
 // There is no walker process — a Floor restart loses nothing; duplicate/concurrent
 // advancers converge on the UNIQUE (line, node, iteration) row and the 409-idempotent
 // CR create.
@@ -14,13 +14,13 @@ import type {
 import {
   isHumanStation,
   nodeFailureReason,
-  nextTransition,
+  getNextTransition,
   type AssemblyLine,
   type NodeVisit,
   type NodeResult,
   type StageOutcome,
 } from "@re-cinq/lore-assembly-lines";
-import { graphForRun } from "@re-cinq/lore-assembly-lines";
+import { resolveRunGraph } from "@re-cinq/lore-assembly-lines";
 import {
   nodeAgentName,
   stationRunInputFor,
@@ -63,7 +63,7 @@ export interface AdvanceDeps {
   /** User-facing failure notification (Slack + PR comment), fired once per line by
    *  the winning finisher. Optional seam — tests and partial compositions omit it. */
   notifyFailure?: (
-    row: AssemblyRunRecord,
+    assemblyRun: AssemblyRunRecord,
     outcome: string,
     reason?: string,
   ) => Promise<void>;
@@ -75,7 +75,7 @@ export interface AdvanceDeps {
    *  iteration — so a failed line stops reading as "still running" everywhere
    *  downstream. Optional seam, same as notifyFailure. */
   settleTask?: (
-    row: AssemblyRunRecord,
+    assemblyRun: AssemblyRunRecord,
     outcome: string,
     reason?: string,
   ) => Promise<void>;
@@ -93,7 +93,7 @@ export interface AdvanceDeps {
    *  (`args.pr_number`), moving a feature-carrying line to `pr-open`. Nothing else
    *  does it: the push recipe defers to a watcher that ignores assembly-line CRs.
    *  Optional seam, same as notifyFailure. */
-  stampPr?: (row: AssemblyRunRecord) => Promise<void>;
+  stampPr?: (assemblyRun: AssemblyRunRecord) => Promise<void>;
 }
 
 /** A walk that reached exit still failed as a whole when a node failed on the way
@@ -128,16 +128,18 @@ function visitFailed(outcome: StageOutcome | null): boolean {
 }
 
 /** The walk task shape, derived from the persisted row instead of an in-memory task. */
-export function taskFromRow(row: AssemblyRunRecord): FloorAssemblyRunTask {
+export function taskFromAssemblyRun(
+  assemblyRun: AssemblyRunRecord,
+): FloorAssemblyRunTask {
   return {
-    taskId: row.taskId ?? row.id,
-    pipelineTaskId: row.taskId,
-    assemblyLineId: row.id,
-    taskType: row.blueprintName,
-    description: String(row.args.description ?? ""),
-    targetRepo: row.repo,
-    branch: row.branch ?? "",
-    args: row.args,
+    taskId: assemblyRun.taskId ?? assemblyRun.id,
+    pipelineTaskId: assemblyRun.taskId,
+    assemblyLineId: assemblyRun.id,
+    taskType: assemblyRun.blueprintName,
+    description: String(assemblyRun.args.description ?? ""),
+    targetRepo: assemblyRun.repo,
+    branch: assemblyRun.branch ?? "",
+    args: assemblyRun.args,
   };
 }
 
@@ -148,15 +150,15 @@ export async function advanceLine(
   assemblyLineId: string,
   deps: AdvanceDeps,
 ): Promise<void> {
-  const row = await deps.assemblyRuns.getById(assemblyLineId);
+  const assemblyRun = await deps.assemblyRuns.getById(assemblyLineId);
 
-  if (!row || row.status !== "running") {
+  if (!assemblyRun || assemblyRun.status !== "running") {
     return;
   }
 
-  const graph = await graphForRun(row, deps.definitions);
+  const runGraph = await resolveRunGraph(assemblyRun, deps.definitions);
 
-  if (!graph) {
+  if (!runGraph) {
     // A single-CR run record (FR6.8) — the agent-watcher owns its lifecycle.
     return;
   }
@@ -173,7 +175,8 @@ export async function advanceLine(
     failureClass: n.failureClass,
     failureDetail: n.failureDetail,
   }));
-  const transition = nextTransition(graph, visits);
+
+  const transition = getNextTransition(runGraph, visits);
 
   if (transition.kind === "await") {
     return;
@@ -185,17 +188,17 @@ export async function advanceLine(
         ? lineOutcomeFromVisits(visits)
         : { outcome: transition.outcome, reason: transition.reason };
 
-    await finishLine(row, outcome, reason, deps);
+    await finishLine(assemblyRun, outcome, reason, deps);
 
     return;
   }
 
-  const node = graph.nodes.find((n) => n.id === transition.nodeId);
+  const node = runGraph.nodes.find((n) => n.id === transition.nodeId);
 
   enforceTrue(
     node,
     Error,
-    `AssemblyLine ${graph.name}: unknown node "${transition.nodeId}"`,
+    `AssemblyLine ${runGraph.name}: unknown node "${transition.nodeId}"`,
   );
 
   // Before ANY of the work below — the conversation lookup, the row, the CR. An
@@ -209,12 +212,12 @@ export async function advanceLine(
     // node. Naming the run and the node is what answers "which ones are
     // waiting", at one line per reaper tick per parked run.
     console.log(
-      `[llm-dispatch-gate] parked ${row.id} at node "${node.id}" — agent dispatch is blocked`,
+      `[llm-dispatch-gate] parked ${assemblyRun.id} at node "${node.id}" — agent dispatch is blocked`,
     );
 
     return;
   }
-  const task = taskFromRow(row);
+  const task = taskFromAssemblyRun(assemblyRun);
   // Resolved BEFORE the row, because the row RECORDS it: the prompt and round
   // content a pod runs on otherwise exist only on an Agent CR that is pruned
   // after the run, and "what was this node given" then has no answer at all.
@@ -264,12 +267,12 @@ export async function advanceLine(
 
 /** Close the row, reclaim the token, and settle the detect fan-out's job_run. */
 export async function finishLine(
-  row: AssemblyRunRecord,
+  assemblyRun: AssemblyRunRecord,
   outcome: string,
   reason: string | undefined,
   deps: AdvanceDeps,
 ): Promise<void> {
-  const jobRunId = row.args.job_run_id;
+  const jobRunId = assemblyRun.args.job_run_id;
 
   // Settle the detect fan-out's job_run BEFORE closing the row: if the row close
   // commits but this step then throws, the event retry's advanceLine early-returns
@@ -280,7 +283,7 @@ export async function finishLine(
     if (outcome === "completed") {
       await deps.jobRuns.complete(
         jobRunId,
-        `station run: ${row.blueprintName}:${row.repo} ${outcome}`,
+        `station run: ${assemblyRun.blueprintName}:${assemblyRun.repo} ${outcome}`,
       );
     } else if (outcome === "lease_held") {
       await deps.jobRuns.complete(jobRunId, `skipped: ${reason}`);
@@ -289,25 +292,29 @@ export async function finishLine(
     }
   }
 
-  const closedNow = await deps.assemblyRuns.finish(row.id, outcome, reason);
+  const closedNow = await deps.assemblyRuns.finish(
+    assemblyRun.id,
+    outcome,
+    reason,
+  );
 
   // finish is first-writer-wins — a losing racer (node event vs reaper re-advance)
   // closes 0 rows yet still reaches here, so cleanupToken MUST be idempotent
   // (cleanupPerTaskToken swallows 404s); the double-reclaim is a harmless no-op.
-  await deps.cleanupToken(row.taskId ?? row.id);
+  await deps.cleanupToken(assemblyRun.taskId ?? assemblyRun.id);
 
   // The winning finisher also settles the backing task. Without this a line-backed
   // task stays `running` with a NULL failure_reason forever — the watcher's
   // post-completion path returns early for node CRs, so nobody else ever closes it.
   if (closedNow && deps.settleTask) {
-    await deps.settleTask(row, outcome, reason);
+    await deps.settleTask(assemblyRun, outcome, reason);
   }
 
   // Only the winning finisher tells the user — losers would duplicate the Slack
   // message and PR comment. Never let a notification failure poison the close.
   if (closedNow && isFailureOutcome(outcome) && deps.notifyFailure) {
     try {
-      await deps.notifyFailure(row, outcome, reason);
+      await deps.notifyFailure(assemblyRun, outcome, reason);
     } catch (err) {
       console.error("[notify-failure] notifier threw:", (err as Error).message);
     }
@@ -374,35 +381,40 @@ async function maybeStampPr(
   if (!deps.stampPr) {
     return;
   }
-  const row = await deps.assemblyRuns.getById(assemblyLineId);
+  const assemblyRun = await deps.assemblyRuns.getById(assemblyLineId);
 
-  if (!row) {
+  if (!assemblyRun) {
     return;
   }
 
   try {
-    const node = (await graphForRun(row, deps.definitions))?.nodes.find(
-      (n) => n.id === nodeId,
-    );
+    const node = (
+      await resolveRunGraph(assemblyRun, deps.definitions)
+    )?.nodes.find((n) => n.id === nodeId);
 
     if (
       !decidePrStamp({
         promptRef: node?.prompt_ref,
         outcome: result.outcome,
-        args: row.args,
+        args: assemblyRun.args,
       })
     ) {
       return;
     }
 
-    await deps.stampPr(row);
+    await deps.stampPr(assemblyRun);
   } catch (err) {
     const message = (err as Error).message;
 
     console.error("[spec-pr] stamp failed:", message);
 
     if (decideStampFailure(message) === "empty-branch") {
-      await finishLine(row, "error", emptyBranchReason(row.branch), deps);
+      await finishLine(
+        assemblyRun,
+        "error",
+        emptyBranchReason(assemblyRun.branch),
+        deps,
+      );
     }
   }
 }

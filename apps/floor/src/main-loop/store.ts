@@ -7,11 +7,11 @@
  * the reaper recovers rows stuck in `processing` by a crash.
  */
 
-import { eventQueue } from "../kernel/queues.js";
+import { pipeline } from "../kernel/queues.js";
 import type { EventInput, EventRow } from "./types.js";
 
 export function insertEvent(input: EventInput): Promise<void> {
-  return eventQueue().insert(input);
+  return pipeline().eventQueue.insert(input);
 }
 
 /**
@@ -22,15 +22,29 @@ export function insertEvent(input: EventInput): Promise<void> {
  * surface makes the route return 5xx so the sender retries; every insert is idempotent
  * (dedupe_key where present, content-hash otherwise), so redelivery is safe.
  */
-export async function insertEventList(
+export function insertEventList(
   events: EventInput[],
   source: string,
 ): Promise<void> {
-  /// TODO: intead of using try/catch here, we can add a new utility "LoggedPromise" that wraps a promise and logs errors.
+  return logAndRethrow(
+    Promise.all(events.map((ev) => insertEvent(ev))).then(() => undefined),
+    `[events] ${source} insert failed:`,
+  );
+}
+
+/**
+ * Log a rejection where operators look, then let it through UNCHANGED.
+ *
+ * The rethrow is the whole point (see `insertEventList` above): swallowing here
+ * would answer the sender 2xx for work that was lost. Naming the shape says that
+ * out loud, where a bare try/catch reads like a place someone might later be
+ * tempted to stop rethrowing from.
+ */
+async function logAndRethrow<T>(work: Promise<T>, label: string): Promise<T> {
   try {
-    await Promise.all(events.map((ev) => insertEvent(ev)));
+    return await work;
   } catch (err) {
-    console.error(`[events] ${source} insert failed:`, err);
+    console.error(label, err);
     throw err;
   }
 }
@@ -40,11 +54,11 @@ export function claimBatch(
   limit: number,
   excludeEventNames: string[] = [],
 ): Promise<EventRow[]> {
-  return eventQueue().claimBatch(limit, excludeEventNames);
+  return pipeline().eventQueue.claimBatch(limit, excludeEventNames);
 }
 
 export function markDone(id: string): Promise<void> {
-  return eventQueue().markDone(id);
+  return pipeline().eventQueue.markDone(id);
 }
 
 export function markFailed(
@@ -52,19 +66,19 @@ export function markFailed(
   error: string,
   backoffSeconds: number,
 ): Promise<void> {
-  return eventQueue().markFailed(id, error, backoffSeconds);
+  return pipeline().eventQueue.markFailed(id, error, backoffSeconds);
 }
 
 export function markDead(id: string, error: string): Promise<void> {
-  return eventQueue().markDead(id, error);
+  return pipeline().eventQueue.markDead(id, error);
 }
 
 /** Reset rows stuck in `processing` (claimer crashed) back to failed so they re-run. */
 export function reapStuck(timeoutSeconds: number): Promise<number> {
-  return eventQueue().reapStuck(timeoutSeconds);
+  return pipeline().eventQueue.reapStuck(timeoutSeconds);
 }
 
 /** Delete old terminal rows to keep the claim index small. */
 export function pruneHandled(olderThanDays: number): Promise<number> {
-  return eventQueue().pruneHandled(olderThanDays);
+  return pipeline().eventQueue.pruneHandled(olderThanDays);
 }

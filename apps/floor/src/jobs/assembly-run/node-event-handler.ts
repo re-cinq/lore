@@ -9,7 +9,7 @@ import {
   stationNodeOutcome,
   type AgentNodeStatus,
 } from "@re-cinq/lore-assembly-lines";
-import { graphForRun } from "@re-cinq/lore-assembly-lines";
+import { resolveRunGraph } from "@re-cinq/lore-assembly-lines";
 import type { EventHandler } from "../../main-loop/types.js";
 import { advanceLine, type AdvanceDeps } from "./advance.js";
 import { finishNodeTerminal, normalizeAgentStatus } from "./node-terminal.js";
@@ -58,7 +58,7 @@ export function createNodeEventHandler(deps: NodeEventDeps): EventHandler {
       return;
     }
 
-    const graph = await graphForRun(row, deps.definitions);
+    const graph = await resolveRunGraph(row, deps.definitions);
     const node = graph?.nodes.find((n) => n.id === nodeId);
 
     if (!node) {
@@ -208,7 +208,7 @@ export { advanceLine };
  *  advance, and the reaper tick. */
 export async function productionNodeEventDeps(): Promise<NodeEventDeps> {
   const [
-    { assemblyRuns, jobRuns, taskStore, conversations },
+    { pipeline, taskStore, conversations },
     { loadBuiltinAssemblyLines },
     { agentCrBackend, projectFor },
     { buildNodePrompt },
@@ -231,7 +231,7 @@ export async function productionNodeEventDeps(): Promise<NodeEventDeps> {
   const kubeApi = new KubeAgentApi();
 
   return {
-    assemblyRuns: assemblyRuns(),
+    assemblyRuns: pipeline().assemblyRuns,
     definitions: loadBuiltinAssemblyLines,
     launch: async (spec) => {
       await agentCrBackend().launch(spec);
@@ -240,7 +240,7 @@ export async function productionNodeEventDeps(): Promise<NodeEventDeps> {
     // fails the node instead of silently running `general` (#1329).
     resolvePrompt: buildNodePrompt,
     cleanupToken: cleanupPerTaskToken,
-    jobRuns: jobRuns(),
+    jobRuns: pipeline().jobRuns,
     notifyFailure: notifyLineFailure,
     resolveConversation: (node, task, iteration, priorOutcome) =>
       resolveConversation(
@@ -256,7 +256,9 @@ export async function productionNodeEventDeps(): Promise<NodeEventDeps> {
           // Rewind: `args.resume_from_task` names the round the author chose, and the
           // conversation it reserved is keyed by the assembly line that ran it.
           linesForTask: async (taskId) =>
-            (await assemblyRuns().listForTask(taskId)).map((line) => line.id),
+            (await pipeline().assemblyRuns.listForTask(taskId)).map(
+              (line) => line.id,
+            ),
         },
         priorOutcome,
       ),
@@ -270,7 +272,7 @@ export async function productionNodeEventDeps(): Promise<NodeEventDeps> {
 
       await stampLinePr(row, {
         pulls: project.pulls,
-        assemblyRuns: assemblyRuns(),
+        assemblyRuns: pipeline().assemblyRuns,
         features: project.features,
       });
     },

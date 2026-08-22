@@ -88,6 +88,15 @@ export default tseslint.config(
     },
   },
 
+  // An HTTP refusal is a precondition, so it goes through the same bouncer as
+  // every other guard. Scoped to the two hapi servers — the rule rewrites to
+  // `apiError`, and each server owns its own copy of that helper (shared cannot
+  // hold it without dragging @hapi/boom into the lean MCP adapter, ADR-032).
+  {
+    files: ["apps/lore-api/src/**/*.ts", "apps/floor/src/**/*.ts"],
+    rules: { "lore/prefer-api-error": "error" },
+  },
+
   // SVG transforms and measured iframe heights are computed per render — there is
   // no class that can express them, so these turn the style rule off by path
   // rather than accumulating inline disables.

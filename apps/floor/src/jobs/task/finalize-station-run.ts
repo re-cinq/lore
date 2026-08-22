@@ -63,7 +63,7 @@ export function stationLogTail(
  *  - non-zero exit → task failed
  *  - feature-planning / no file changes → just complete (planning self-POSTed its result)
  *  - changes pushed → open the PR for the branch, update the task, and (for
- *    feature-finalize) flip the feature to pr-open.
+ *    the merged planning line) flip the feature to pr-open.
  */
 export async function finalizeStationRun(opts: {
   task: PipelineTask;
@@ -185,21 +185,8 @@ export async function finalizeStationRun(opts: {
   });
   await insertEvent(task.id, "running", "pr-created", { pr_url: pr.url });
 
-  // feature-finalize: link the PR back to the feature row (Features tab → pr-open).
-  if (
-    task.task_type === "feature-finalize" &&
-    task.context_bundle?.feature_id
-  ) {
-    const slug = task.context_bundle.slug as string | undefined;
-
-    await project.features.transitionStatus(
-      task.context_bundle.feature_id as string,
-      "pr-open",
-      {
-        spec_pr_url: pr.url,
-        spec_pr_number: pr.number,
-        ...(slug ? { spec_path: `specs/${slug}/spec.md` } : {}),
-      },
-    );
-  }
+  // The feature's own move to `pr-open` is NOT done here. A feature's spec PR is
+  // opened by the merged planning line's `push` node, and `spec-pr.ts` owns that
+  // transition (FR6.33); this branch was the retired feature-finalize task's copy
+  // of it.
 }

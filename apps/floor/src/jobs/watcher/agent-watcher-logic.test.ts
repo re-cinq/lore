@@ -122,13 +122,6 @@ describe("decideFeatureLink", () => {
     });
   });
 
-  it("still links the legacy finalize task", () => {
-    expect(decideFeatureLink("feature-finalize", bundle)).toEqual({
-      featureId: "f1",
-      slug: "spec-standard",
-    });
-  });
-
   it("links nothing for a task that is not part of a feature's life", () => {
     expect(decideFeatureLink("implementation", bundle)).toBeNull();
   });

@@ -1,4 +1,6 @@
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { errorMessage } from "@re-cinq/lore-shared";
+import { rethrowBoom, apiError } from "../../../server/api-error.js";
 import { toRow } from "@re-cinq/lore-shared/lib/row.js";
 import { wireSchema } from "@re-cinq/lore-shared/lib/wire-schema.js";
 import { RepoSchema, REPO_COLUMNS } from "@re-cinq/lore-shared/models/repo.js";
@@ -42,12 +44,14 @@ export function repoRecordRoute(): ServerRoute {
         const project = await projectFor(repo);
         const record = await project.settings.record();
 
-        if (!record) {
-          return h.response({ error: "Repo not found" }).code(404);
-        }
+        enforceTrue(record, apiError(404), "Repo not found");
 
         return h.response(toRow(REPO_COLUMNS, record));
       } catch (err) {
+        // A guard's refusal already carries its status; only an unexpected failure
+        // is this block's to shape.
+        rethrowBoom(err);
+
         return h.response({ error: errorMessage(err) }).code(500);
       }
     },

@@ -22,12 +22,7 @@ import {
   projectFor,
   assemblyLineNames,
 } from "../../composition/project-boot.js";
-import {
-  taskStore,
-  settings,
-  taskQueue,
-  assemblyRuns,
-} from "../../kernel/queues.js";
+import { pipeline, taskStore, settings } from "../../kernel/queues.js";
 import {
   writeEpisode,
   writeEpisodeWithCuration,
@@ -343,8 +338,8 @@ async function finishSingleCrRunRows(
   phase: string | undefined,
   failureReason?: string,
 ): Promise<void> {
-  const open = (await assemblyRuns().listForTask(taskId)).filter((row) =>
-    ["queued", "running"].includes(row.status),
+  const open = (await pipeline().assemblyRuns.listForTask(taskId)).filter(
+    (row) => ["queued", "running"].includes(row.status),
   );
 
   if (open.length === 0) {
@@ -355,7 +350,9 @@ async function finishSingleCrRunRows(
   const outcome = runOutcomeFromTaskStatus(task?.status ?? "completed", phase);
 
   await Promise.all(
-    open.map((row) => assemblyRuns().finish(row.id, outcome, failureReason)),
+    open.map((row) =>
+      pipeline().assemblyRuns.finish(row.id, outcome, failureReason),
+    ),
   );
 }
 
@@ -529,7 +526,7 @@ async function handleSucceededChanges(ctx: AgentContext): Promise<void> {
           ).issues.create(copy.title, body, ["lore-managed", taskType]);
 
           issue_number = issue.number;
-          await taskQueue().setColumns(taskId, {
+          await pipeline().taskQueue.setColumns(taskId, {
             issue_number: issue.number,
             issue_url: issue.url,
           });
@@ -680,7 +677,7 @@ async function handleSucceededChanges(ctx: AgentContext): Promise<void> {
     }
 
     if (await shouldAutoReview(targetRepo)) {
-      const reviewTaskId = (await taskQueue().insertTask({
+      const reviewTaskId = (await pipeline().taskQueue.insertTask({
         description: `Review PR #${pr.number} on ${targetRepo}`,
         taskType: "review",
         targetRepo,
@@ -773,7 +770,7 @@ async function handleFailure(ctx: AgentContext, reason: string): Promise<void> {
       transient_infra: true,
       infra_retry: infraRetries + 1,
     });
-    const requeuedId = await taskQueue().insertTask({
+    const requeuedId = await pipeline().taskQueue.insertTask({
       description,
       taskType,
       status: "pending",
@@ -787,7 +784,7 @@ async function handleFailure(ctx: AgentContext, reason: string): Promise<void> {
     });
 
     if (requeuedId && failedTask.issue_number != null) {
-      await taskQueue().setColumns(requeuedId, {
+      await pipeline().taskQueue.setColumns(requeuedId, {
         issue_number: failedTask.issue_number,
       });
     }
@@ -877,7 +874,9 @@ async function handleReviewVerdict(
     }
     const iteration = (Number(parent.review_iteration) || 0) + 1;
 
-    await taskQueue().setColumns(parentTaskId, { review_iteration: iteration });
+    await pipeline().taskQueue.setColumns(parentTaskId, {
+      review_iteration: iteration,
+    });
 
     if (iteration >= 2) {
       await taskStore().recordEvent(parentTaskId, "review", "review", {
@@ -917,7 +916,7 @@ async function handleReviewVerdict(
         prNumber: parent.pr_number ?? null,
         iteration,
       });
-      const fixTaskId = (await taskQueue().insertTask({
+      const fixTaskId = (await pipeline().taskQueue.insertTask({
         description: fixDescription,
         taskType: "implementation",
         targetRepo: parent.target_repo,

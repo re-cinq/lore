@@ -1,4 +1,6 @@
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import type { Pool } from "pg";
+import { rethrowBoom, apiError } from "../../../server/api-error.js";
 import type {
   Request,
   ResponseToolkit,
@@ -133,12 +135,18 @@ async function handleGet(
     const project = await projectFor(repo);
     const settings = await project.settings.resolveOrNull();
 
-    if (settings === null) {
-      return h.response({ error: "repo not onboarded", repo }).code(404);
-    }
+    enforceTrue(
+      settings !== null,
+      apiError(404, { repo }),
+      "repo not onboarded",
+    );
 
     return h.response(settings);
   } catch (err) {
+    // A guard's refusal already carries its status; only an unexpected failure
+    // is this block's to shape.
+    rethrowBoom(err);
+
     console.error("[dark-factory] GET settings failed:", err);
 
     return h.response({ error: "internal" }).code(500);

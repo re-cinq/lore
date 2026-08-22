@@ -7,7 +7,7 @@ const getById = vi.fn();
 const listStationRuns = vi.fn();
 
 vi.mock("../../../kernel/queues.js", () => ({
-  assemblyRuns: () => ({ getById, listStationRuns }),
+  pipeline: () => ({ assemblyRuns: { getById, listStationRuns } }),
 }));
 
 const {

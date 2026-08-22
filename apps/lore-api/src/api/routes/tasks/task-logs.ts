@@ -1,4 +1,6 @@
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { zodResponse } from "../../../server/plugins/zod-response.js";
+import { rethrowBoom, apiError } from "../../../server/api-error.js";
 import { errorMessage } from "@re-cinq/lore-shared";
 import type { AgentRunTurnsRepository } from "@re-cinq/lore-shared";
 import { PgAgentRunTurns } from "@re-cinq/lore-shared/project/agent-run-turns/agent-run-turns-pg.js";
@@ -307,13 +309,9 @@ export function taskLogsGetRoute(getPool: () => Pool | null): ServerRoute {
           repo = repo ?? task?.target_repo ?? null;
         }
 
-        if (!repo && !pool) {
-          return h.response({ error: DB_UNAVAILABLE }).code(503);
-        }
+        enforceTrue(repo || pool, apiError(503), DB_UNAVAILABLE);
 
-        if (!repo) {
-          return h.response({ error: `task not found: ${taskId}` }).code(404);
-        }
+        enforceTrue(repo, apiError(404), `task not found: ${taskId}`);
         const { Storage } = await import("@google-cloud/storage");
         const bucket = new Storage().bucket(
           process.env.LORE_LOG_BUCKET || "lore-task-logs",
@@ -336,6 +334,10 @@ export function taskLogsGetRoute(getPool: () => Pool | null): ServerRoute {
           complete: pool ? finished : true,
         });
       } catch (err) {
+        // A guard's refusal already carries its status; only an unexpected failure
+        // is this block's to shape.
+        rethrowBoom(err);
+
         return h.response({ error: errorMessage(err) }).code(500);
       }
     },

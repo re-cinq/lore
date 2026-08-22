@@ -186,7 +186,7 @@ export class PgAssemblyRuns implements AssemblyRunsPort {
     // `failure_class` / `failure_detail` are dropped alongside `agent_cr_name`,
     // and for the same reason: all three describe the ATTEMPT that is over, not
     // the history the fork inherits. Copying the verdict would be worse than
-    // untidy — `nextTransition` replays every visit from the entry node and
+    // untidy — `getNextTransition` replays every visit from the entry node and
     // fails the run on a permanent failure it meets on a revisit edge, so an
     // inherited `anthropic-credit` visit anywhere in the copied prefix kills the
     // fork on its first `advanceLine`. That is exactly the operation someone

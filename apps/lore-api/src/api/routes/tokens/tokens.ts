@@ -1,4 +1,6 @@
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { errorMessage } from "@re-cinq/lore-shared";
+import { rethrowBoom, apiError } from "../../../server/api-error.js";
 import type { Pool } from "pg";
 import type { Request, ResponseToolkit, ServerRoute } from "@hapi/hapi";
 import { z } from "zod";
@@ -137,9 +139,7 @@ export function tokensRoute(getPool: () => Pool | null): ServerRoute[] {
   async function list(request: Request, h: ResponseToolkit) {
     const pool = getPool();
 
-    if (!pool) {
-      return h.response({ error: DB_UNAVAILABLE }).code(503);
-    }
+    enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
     // List active tokens (never return the actual token)
     const { limit, offset } = request.query as unknown as TokensQuery;
     const { rows } = await pool.query(
@@ -163,9 +163,7 @@ export function tokensRoute(getPool: () => Pool | null): ServerRoute[] {
   async function write(request: Request, h: ResponseToolkit) {
     const pool = getPool();
 
-    if (!pool) {
-      return h.response({ error: DB_UNAVAILABLE }).code(503);
-    }
+    enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
 
     try {
       const { action, name, scopes, expires_in_days, token_id } =
@@ -181,9 +179,7 @@ export function tokensRoute(getPool: () => Pool | null): ServerRoute[] {
       }
 
       // Create new token
-      if (!name) {
-        return h.response({ error: "name required" }).code(400);
-      }
+      enforceTrue(name, apiError(400), "name required");
       const { randomBytes } = await import("node:crypto");
       const rawToken = `lore_${randomBytes(32).toString("hex")}`;
       const tokenHash = createHash("sha256").update(rawToken).digest("hex");
@@ -212,6 +208,10 @@ export function tokensRoute(getPool: () => Pool | null): ServerRoute[] {
         .response({ ...rows[0], token: rawToken, expires_at: expiresAt })
         .code(201);
     } catch (err) {
+      // A guard's refusal already carries its status; only an unexpected failure
+      // is this block's to shape.
+      rethrowBoom(err);
+
       return h.response({ error: errorMessage(err) }).code(500);
     }
   }

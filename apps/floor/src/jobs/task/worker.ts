@@ -16,15 +16,14 @@ import {
   TaskFailure,
   resolveExecutionImage,
 } from "@re-cinq/lore-shared";
-import { linkifyMarkdown, selectStationBackend } from "@re-cinq/lore-shared";
+import { linkifyMarkdown } from "@re-cinq/lore-shared";
 import type { Project } from "@re-cinq/lore-shared";
 import { slugify, setStatus, insertEvent } from "./task-helpers.js";
-import { taskQueue, settings, assemblyRuns } from "../../kernel/queues.js";
+import { pipeline, settings } from "../../kernel/queues.js";
 import type { TaskQueueRepository } from "@re-cinq/lore-shared/project/tasks/task-queue-port.js";
 import { composeIssueBody } from "./issue-body.js";
 import { handleFeatureRequest } from "./handle-feature-request.js";
 import { handleClaudeCodeTask } from "./handle-claude-code-task.js";
-import { handleFeatureFinalize } from "./handle-feature-finalize.js";
 import { handleOnboard } from "./handle-onboard.js";
 
 // Re-export the task handlers so existing import sites (e.g. the onboard
@@ -39,11 +38,7 @@ export { handleOnboard } from "./handle-onboard.js";
  *  decompose line files Issues itself, one per user story. Changing this set changes
  *  both, which is why it is one named decision rather than two inline predicates. */
 export function isFeatureLifecycleType(taskType: string): boolean {
-  return (
-    taskType === "feature-planning" ||
-    taskType === "feature-finalize" ||
-    taskType === "feature-decompose"
-  );
+  return taskType === "feature-planning" || taskType === "feature-decompose";
 }
 
 // ── Crash recovery ────────────────────────────────────────────────────
@@ -71,11 +66,11 @@ export interface RecoverStaleDeps {
  */
 export async function recoverStaleTasks(
   deps: RecoverStaleDeps = {
-    queue: taskQueue(),
+    queue: pipeline().taskQueue,
     setStatus,
     insertEvent,
     hasOpenLine: async (taskId) =>
-      (await assemblyRuns().listForTask(taskId)).some(
+      (await pipeline().assemblyRuns.listForTask(taskId)).some(
         (line) => line.status === "running" || line.status === "queued",
       ),
   },
@@ -161,7 +156,7 @@ async function pollOnce(): Promise<void> {
   // past the 30-second grace that lets a local runner claim it first. The claim
   // SQL lives in the shared TaskQueue.
   await pollWithGuard({
-    claim: () => taskQueue().claimNextPending(),
+    claim: () => pipeline().taskQueue.claimNextPending(),
     process: processTask,
   });
 }
@@ -184,17 +179,9 @@ async function processTask(task: PipelineTask): Promise<void> {
   // decompose line files its own, one per user story, from the labels the agent chose.
   const isFeaturePlanningType = isFeatureLifecycleType(task.task_type);
 
-  // No in-process arm for feature-planning: its prompt is the recipe the pod runs
+  // No in-process arm for any feature type: the prompt is the recipe the pod runs
   // (scripts/task-types.yaml), and a second execution path meant a second prompt
   // that silently drifted — the agent was asked for a GapResult it was never shown.
-  if (
-    task.task_type === "feature-finalize" &&
-    selectStationBackend(process.env) === "inprocess"
-  ) {
-    await handleFeatureFinalize(task, targetRepo);
-
-    return;
-  }
 
   const issueNumber = await ensureIssue(
     task,
@@ -405,7 +392,7 @@ async function ensureIssue(
       );
 
       issueNumber = issue.number;
-      await taskQueue().setColumns(task.id, {
+      await pipeline().taskQueue.setColumns(task.id, {
         issue_number: issue.number,
         issue_url: issue.url,
       });

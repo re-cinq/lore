@@ -1,7 +1,7 @@
 ---
 adr_number: 24
 title: "Ubiquitous language for the execution model: Factory / Floor / AssemblyLine / Station / Agent"
-status: draft
+status: in progress
 date: 2026-06-15
 domains: [agent, pipeline, ux, governance, web-ui, infra]
 ---
@@ -213,10 +213,27 @@ shared `@re-cinq/lore-shared/project/*` ports**, not inline SQL.
   (`projectFor(repo)` → `project.tasks` / `.settings` / `.usage` / `.issues` …).
   A cross-repo / no-repo job (most crons, the agent-events sink) uses a lazy
   port singleton in `apps/floor/src/kernel/queues.ts` (`taskStore()`,
-  `taskQueue()`, `settings()`, `usage()`, `jobRuns()`, `evalRuns()`, `cost()`,
-  `contextCore()`, `research()`, `baseline()`, `chunks()`, `memoryLifecycle()`)
-  that binds the shared `Pg…` adapter to the pool — the established
-  `eventQueue()`/`auditLog()` pattern.
+  `settings()`, `evalRuns()`, `cost()`, `contextCore()`, `research()`,
+  `baseline()`, `chunks()`, `memoryLifecycle()`) that binds the shared `Pg…`
+  adapter to the pool.
+- **The `pipeline` schema's own tables travel as ONE bundle**, not as one
+  accessor each: `PipelineRepositories`
+  (`libs/shared/src/project/pipeline/`) carries `taskQueue`, `eventQueue`,
+  `assemblyRuns`, `jobRuns`, `audit`, `leases`, `agentRunEvents` and
+  `agentRunTurns` behind a single object, built once per process from one pool
+  by `createPipelineRepositories(pool)` and reached as `pipeline()` in Floor or
+  `project.pipeline` in lore-api.
+- The in-memory composition supplies a working double behind every field
+  ([validated by carries a working double behind every field](libs/shared/src/project/pipeline/pipeline-repositories.test.ts#L7)).
+- Its `overrides` bag swaps one field and leaves the other seven doubles standing
+  ([validated by replaces only the overridden field](libs/shared/src/project/pipeline/pipeline-repositories.test.ts#L30)).
+- *(Amended 2026-08: these eight were originally eight independent `queues.ts`
+  accessors. That shape only ever described Floor — lore-api, which reaches
+  ports through `Project`, had no route to `eventQueue`, `jobRuns`,
+  `agentRunEvents` or `agentRunTurns` at all, and rebuilt three Pg adapters on
+  every request because `createProject` runs per call. A bundle is what lets
+  ONE construction serve both deployables; `taskQueue`/`eventQueue` keep the
+  `Queue` suffix so neither can be misread as the repo-scoped `project.tasks`.)*
 - **One home per table.** Each port ships a MODEL
   (`libs/shared/src/models/<entity>.ts` — a schema, the type inferred from it, and
   a map binding each field to the column that stores it) + a port interface + a Pg
