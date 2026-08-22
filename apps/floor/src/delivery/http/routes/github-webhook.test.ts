@@ -1,7 +1,10 @@
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach, vi } from "vitest";
 import { createHmac } from "node:crypto";
 import { buildServer } from "../server.js";
 import { verifyGitHubSignature } from "./github-webhook.js";
+import { insertEventList } from "../../../main-loop/store.js";
+
+vi.mock("../../../main-loop/store.js", () => ({ insertEventList: vi.fn() }));
 
 const SECRET = "test-webhook-secret";
 const BODY = JSON.stringify({ action: "opened", number: 7 });
@@ -40,11 +43,61 @@ afterEach(() => {
   } else {
     process.env.LORE_WEBHOOK_SECRET = ORIG;
   }
+  vi.mocked(insertEventList).mockReset();
 });
 
-// TODO: this is not fully tested. New tests for happy paths must be added too.
-
 describe("POST /api/webhook/github", () => {
+  it("returns 202 and queues a github.pull_request.opened event for a signed delivery", async () => {
+    process.env.LORE_WEBHOOK_SECRET = SECRET;
+    const body = JSON.stringify({
+      action: "opened",
+      repository: { full_name: "re-cinq/lore" },
+      pull_request: { number: 7 },
+    });
+    const res = await buildServer({ getJobStatus: () => ({}) }).inject({
+      method: "POST",
+      url: "/api/webhook/github",
+      headers: {
+        "x-github-event": "pull_request",
+        "x-hub-signature-256": sign(SECRET, body),
+        "x-github-delivery": "delivery-7",
+      },
+      payload: body,
+    });
+
+    expect(res.statusCode).toBe(202);
+    expect(res.result).toMatchObject({ captured: 1 });
+    // The dedupe key is the delivery id: GitHub redelivers on any non-2xx, and
+    // without it a retried delivery would run the whole reaction twice.
+    expect(vi.mocked(insertEventList).mock.calls[0]).toEqual([
+      [
+        {
+          eventName: "github.pull_request.opened",
+          source: "github",
+          params: { repo: "re-cinq/lore", pr_number: 7 },
+          dedupeKey: "github:delivery-7",
+        },
+      ],
+      "github",
+    ]);
+  });
+
+  it("returns 400 when the delivery carries no x-github-event header", async () => {
+    process.env.LORE_WEBHOOK_SECRET = SECRET;
+    const body = "{}";
+    const res = await buildServer({ getJobStatus: () => ({}) }).inject({
+      method: "POST",
+      url: "/api/webhook/github",
+      headers: {
+        "x-hub-signature-256": sign(SECRET, body),
+        "x-github-delivery": "d3",
+      },
+      payload: body,
+    });
+
+    expect(res.statusCode).toBe(400);
+  });
+
   it("returns 503 when the webhook secret is not configured", async () => {
     delete process.env.LORE_WEBHOOK_SECRET;
     const res = await buildServer({ getJobStatus: () => ({}) }).inject({

@@ -23,8 +23,58 @@ const authed = (payload: string) =>
     payload,
   });
 
-// TODO: this is not fully tested. New tests for happy paths must be added too.
 describe("POST /api/webhook/ci-ingest", () => {
+  it("returns 202 and queues one spec_trace event per requested kind", async () => {
+    process.env.LORE_INGEST_TOKEN = "right-token";
+    const res = await authed(
+      JSON.stringify({
+        repo: "re-cinq/lore",
+        kinds: ["specs", "adrs"],
+        commit: "abc123",
+        force: true,
+      }),
+    );
+
+    expect(res.statusCode).toBe(202);
+    expect(res.result).toEqual({ triggered: ["specs", "adrs"] });
+    // The 202 says "captured", so what was captured is the assertion that matters:
+    // a 202 over an empty insert would tell CI the projection was queued when it
+    // was not, and CI never retries a 2xx.
+    expect(vi.mocked(insertEventList).mock.calls[0]).toEqual([
+      [
+        {
+          eventName: "internal.ingest.spec_trace",
+          source: "internal",
+          params: {
+            repo: "re-cinq/lore",
+            kind: "specs",
+            payload: { commit: "abc123", force: true },
+          },
+        },
+        {
+          eventName: "internal.ingest.spec_trace",
+          source: "internal",
+          params: {
+            repo: "re-cinq/lore",
+            kind: "adrs",
+            payload: { commit: "abc123", force: true },
+          },
+        },
+      ],
+      "ci-ingest",
+    ]);
+  });
+
+  it("projects every doc kind when the body names none", async () => {
+    process.env.LORE_INGEST_TOKEN = "right-token";
+    const res = await authed(
+      JSON.stringify({ repo: "re-cinq/lore", commit: "abc123" }),
+    );
+
+    expect(res.statusCode).toBe(202);
+    expect(res.result).toEqual({ triggered: ["specs", "adrs"] });
+  });
+
   it("returns 503 when the ingest token is not configured", async () => {
     delete process.env.LORE_INGEST_TOKEN;
     const res = await buildServer({ getJobStatus: () => ({}) }).inject({

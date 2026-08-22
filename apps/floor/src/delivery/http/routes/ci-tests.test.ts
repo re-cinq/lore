@@ -23,8 +23,45 @@ const authed = (payload: string) =>
     payload,
   });
 
-// TODO: this is not fully tested. New tests for happy paths must be added too.
 describe("POST /api/webhook/ci-tests", () => {
+  it("returns 202 and queues the report as one test-report spec_trace event", async () => {
+    process.env.LORE_INGEST_TOKEN = "right-token";
+    const res = await authed(
+      JSON.stringify({
+        repo: "re-cinq/lore",
+        commit: "abc123",
+        branch: "main",
+        tests: [{ id: "t1", name: "adds", file: "a.test.ts" }],
+        results: [{ id: "t1", passed: true }],
+      }),
+    );
+
+    expect(res.statusCode).toBe(202);
+    expect(res.result).toEqual({ ingested: 1 });
+    // `repo` is lifted out and everything else becomes the payload — the binary
+    // sends tests and results together, and dropping either half would leave the
+    // graph with descriptors nothing ran, or runs nothing described.
+    expect(vi.mocked(insertEventList).mock.calls[0]).toEqual([
+      [
+        {
+          eventName: "internal.ingest.spec_trace",
+          source: "internal",
+          params: {
+            repo: "re-cinq/lore",
+            kind: "test-report",
+            payload: {
+              commit: "abc123",
+              branch: "main",
+              tests: [{ id: "t1", name: "adds", file: "a.test.ts" }],
+              results: [{ id: "t1", passed: true }],
+            },
+          },
+        },
+      ],
+      "ci-tests",
+    ]);
+  });
+
   it("returns 503 when the ingest token is not configured", async () => {
     delete process.env.LORE_INGEST_TOKEN;
     const res = await buildServer({ getJobStatus: () => ({}) }).inject({

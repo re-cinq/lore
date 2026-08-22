@@ -149,9 +149,11 @@ warning and is skipped, the webhook still returns success).
 ## Acceptance Criteria
 
 A valid `sha256=` signature over the raw body verifies; a tampered body or a
-length-mismatched signature is rejected without throwing. ([validated by `github-webhook.test.ts:14`](apps/floor/src/delivery/http/routes/github-webhook.test.ts#L14), [`github-webhook.test.ts:24`](apps/floor/src/delivery/http/routes/github-webhook.test.ts#L24), [`github-webhook.test.ts:30`](apps/floor/src/delivery/http/routes/github-webhook.test.ts#L30))
+length-mismatched signature is rejected without throwing. ([validated by `github-webhook.test.ts:17`](apps/floor/src/delivery/http/routes/github-webhook.test.ts#L17), [`github-webhook.test.ts:27`](apps/floor/src/delivery/http/routes/github-webhook.test.ts#L27), [`github-webhook.test.ts:33`](apps/floor/src/delivery/http/routes/github-webhook.test.ts#L33))
 
-An unset secret returns 503; a missing signature header returns 401 `missing signature`; an invalid signature returns 401 `invalid signature`. ([validated by `github-webhook.test.ts:48`](apps/floor/src/delivery/http/routes/github-webhook.test.ts#L48), [`github-webhook.test.ts:63`](apps/floor/src/delivery/http/routes/github-webhook.test.ts#L63))
+An unset secret returns 503; a missing signature header returns 401; an invalid signature returns 401. Each refusal names what to go and change — the secret to set, the header GitHub must send, or the two secrets that disagree — because these are read in a delivery log, not with the source open. A delivery carrying no `x-github-event` header is a 400. ([validated by `github-webhook.test.ts:101`](apps/floor/src/delivery/http/routes/github-webhook.test.ts#L101), [`github-webhook.test.ts:116`](apps/floor/src/delivery/http/routes/github-webhook.test.ts#L116), [`github-webhook.test.ts:85`](apps/floor/src/delivery/http/routes/github-webhook.test.ts#L85))
+
+A validly-signed delivery answers 202 and QUEUES the mapped events, each carrying the delivery id as its dedupe key — GitHub redelivers on any non-2xx, and without that key a retried delivery would run the whole reaction a second time. ([validated by returns 202 and queues a github.pull_request.opened event for a signed delivery](apps/floor/src/delivery/http/routes/github-webhook.test.ts#L50))
 
 A merged spec PR parses tasks.md and syncs spec-tasks; a non-spec branch, an already-synced spec, and a missing tasks.md each skip with the matching reason; a null pool returns 503.
 
