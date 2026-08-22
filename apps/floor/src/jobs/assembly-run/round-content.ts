@@ -20,7 +20,7 @@ export interface RoundContentTask {
  * or a thread whose only prior run never uploaded its state. Every one of those
  * needs the full composition, so no extra flag has to stay in sync with it.
  */
-export function roundContent(
+export function resolveRoundContent(
   task: RoundContentTask,
   conversation: LoreTaskSpec["conversation"] | undefined,
 ): string {

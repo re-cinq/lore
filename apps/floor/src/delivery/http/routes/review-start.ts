@@ -24,7 +24,10 @@ export const reviewStartRoute: ServerRoute = {
   path: "/api/review/start",
   options: { auth: "ingest-token", payload: { parse: false } },
   handler: async (request, h) => {
-    const body = parseJsonBody<ReviewStartBody>(rawBody(request));
+    const body = parseJsonBody<ReviewStartBody>(
+      rawBody(request),
+      "review-start",
+    );
 
     enforceTrue(
       typeof body.repo === "string" &&

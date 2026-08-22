@@ -21,7 +21,9 @@ export const ciIngestRoute: ServerRoute = {
   path: "/api/webhook/ci-ingest",
   options: { auth: "ingest-token", payload: { parse: false } },
   handler: async (request, h) => {
-    const mapped = mapCiIngest(parseJsonBody<CiIngestBody>(rawBody(request)));
+    const mapped = mapCiIngest(
+      parseJsonBody<CiIngestBody>(rawBody(request), "ci-ingest"),
+    );
 
     // A validation failure is a client error — a 400 surfaces the
     // mapper's 400 + message instead of a generic 500.

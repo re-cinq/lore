@@ -22,15 +22,29 @@ export function insertEvent(input: EventInput): Promise<void> {
  * surface makes the route return 5xx so the sender retries; every insert is idempotent
  * (dedupe_key where present, content-hash otherwise), so redelivery is safe.
  */
-export async function insertEventList(
+export function insertEventList(
   events: EventInput[],
   source: string,
 ): Promise<void> {
-  /// TODO: intead of using try/catch here, we can add a new utility "LoggedPromise" that wraps a promise and logs errors.
+  return logAndRethrow(
+    Promise.all(events.map((ev) => insertEvent(ev))).then(() => undefined),
+    `[events] ${source} insert failed:`,
+  );
+}
+
+/**
+ * Log a rejection where operators look, then let it through UNCHANGED.
+ *
+ * The rethrow is the whole point (see `insertEventList` above): swallowing here
+ * would answer the sender 2xx for work that was lost. Naming the shape says that
+ * out loud, where a bare try/catch reads like a place someone might later be
+ * tempted to stop rethrowing from.
+ */
+async function logAndRethrow<T>(work: Promise<T>, label: string): Promise<T> {
   try {
-    await Promise.all(events.map((ev) => insertEvent(ev)));
+    return await work;
   } catch (err) {
-    console.error(`[events] ${source} insert failed:`, err);
+    console.error(label, err);
     throw err;
   }
 }

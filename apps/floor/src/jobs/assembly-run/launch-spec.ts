@@ -17,7 +17,7 @@ import {
   nodeStationSpec,
   type FloorAssemblyRunTask,
 } from "./floor-assembly-run.js";
-import { roundContent } from "./round-content.js";
+import { resolveRoundContent } from "./round-content.js";
 
 /** Resolve a node's `continues` declaration into the conversation this run resumes
  *  and saves as. Optional seam — a composition without it never continues. */
@@ -103,7 +103,7 @@ export async function resolveNodeDispatch(
     node.type === "agent" && deps.resolveConversation
       ? await deps.resolveConversation(node, task, iteration, priorOutcome)
       : undefined;
-  const content = roundContent(task, conversation);
+  const content = resolveRoundContent(task, conversation);
 
   return {
     conversation,

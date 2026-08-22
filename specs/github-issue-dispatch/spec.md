@@ -152,5 +152,7 @@ Defaults: label=`lore`, type=`general`.
 7. The `POST /api/webhook/github` endpoint is a signed door: `verifyGitHubSignature` rejects a
    signature computed with a different secret (accepting only one over the same secret + raw body),
    and the route returns 202 capturing `{captured:0, events:[]}` for a validly-signed event that maps
-   to no work; `parseJsonBody` returns the typed object and throws a 400 `Boom.badRequest` on a
-   malformed body. ([validated by `github-webhook.test.ts:18`](apps/floor/src/delivery/http/routes/github-webhook.test.ts#L18), [`github-webhook.test.ts:79`](apps/floor/src/delivery/http/routes/github-webhook.test.ts#L79), [`raw-body.test.ts:6`](apps/floor/src/delivery/http/raw-body.test.ts#L6), [`raw-body.test.ts:10`](apps/floor/src/delivery/http/raw-body.test.ts#L10))
+   to no work; `parseJsonBody` returns the typed object and throws a 400 on a
+   malformed body, naming the ingress that was parsing it and quoting the parser's own
+   objection — five routes parse bodies this way, and a bare "invalid JSON" said a body
+   was rejected without saying which ingress rejected it or where the body went wrong. ([validated by `github-webhook.test.ts:18`](apps/floor/src/delivery/http/routes/github-webhook.test.ts#L18), [`github-webhook.test.ts:79`](apps/floor/src/delivery/http/routes/github-webhook.test.ts#L79), [`raw-body.test.ts:6`](apps/floor/src/delivery/http/raw-body.test.ts#L6), [`raw-body.test.ts:12`](apps/floor/src/delivery/http/raw-body.test.ts#L12))
