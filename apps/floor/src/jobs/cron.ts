@@ -13,7 +13,7 @@ import { featurePlanningReaperJob } from "./task/feature-planning-reaper.js";
 import { leaseReaperJob } from "../main-loop/lease/lease-reaper.js";
 import { pruneHandled } from "../main-loop/store.js";
 import { pipeline } from "../kernel/queues.js";
-import { reconcileAgents } from "../listeners/k8s-watch.js";
+import { reconcileAgents } from "../listeners/agent-reconcile.js";
 import type { EventHandler } from "../main-loop/types.js";
 
 /** Agent run events are per-tool-call telemetry: high volume, low half-life. */

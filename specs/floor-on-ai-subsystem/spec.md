@@ -401,7 +401,7 @@ These statements pin the deterministic Floor glue that wraps the subsystem.
   response must never be held or parsed whole, because an accumulated CR pile OOMs the single
   512Mi Floor replica and, since the age-based pruner runs inside this same pass, the pile can
   then never shrink again (2026-07-24 crash loop). Per-page processing keeps the emit gating
-  (task/line still in flight) and the prune-after-an-hour behavior unchanged. ([validated by `k8s-watch-pagination.test.ts:56`](apps/floor/src/listeners/k8s-watch-pagination.test.ts#L56), [`k8s-watch-pagination.test.ts:77`](apps/floor/src/listeners/k8s-watch-pagination.test.ts#L77), [`k8s-watch-pagination.test.ts:94`](apps/floor/src/listeners/k8s-watch-pagination.test.ts#L94), [`k8s-watch-pagination.test.ts:112`](apps/floor/src/listeners/k8s-watch-pagination.test.ts#L112))
+  (task/line still in flight) and the prune-after-an-hour behavior unchanged. ([validated by `agent-reconcile.test.ts:56`](apps/floor/src/listeners/agent-reconcile.test.ts#L56), [`agent-reconcile.test.ts:77`](apps/floor/src/listeners/agent-reconcile.test.ts#L77), [`agent-reconcile.test.ts:94`](apps/floor/src/listeners/agent-reconcile.test.ts#L94), [`agent-reconcile.test.ts:112`](apps/floor/src/listeners/agent-reconcile.test.ts#L112))
 - **Run-outcome mapping.** `runOutcomeFromTaskStatus` records the watcher's run outcome: `pr-created`
   and `review` → `pr_created`; `failed` and `needs-human-help` → `failed`; `completed` → `completed`;
   an un-advanced task on a `Failed` CR maps to `failed` (not completed) while a `Succeeded` CR maps to

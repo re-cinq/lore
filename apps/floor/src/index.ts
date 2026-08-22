@@ -22,7 +22,6 @@ import { startEventLoop } from "./main-loop/loop.js";
 import { startEventReaper } from "./main-loop/reaper.js";
 import { registerCronEmitter } from "./listeners/scheduler-emitter.js";
 import { CRON_EMITTERS } from "./listeners/cron-emitters.js";
-import { startK8sWatch } from "./listeners/k8s-watch.js";
 
 async function main(): Promise<void> {
   console.log("[floor] Lore Floor Service starting...");
@@ -80,7 +79,6 @@ async function main(): Promise<void> {
   startEventReaper();
 
   // ── Layer 1: the k8s Agent-CR watch (emits kubernetes.agent.* events) ──
-  startK8sWatch();
 
   // ── Layer 1: cron emitters. Each scheduled tick INSERTs a cron.<name>.tick event;
   // the loop runs the handler. The set is single-sourced in cron-emitters.ts (the

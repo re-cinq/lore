@@ -22,7 +22,7 @@ vi.mock("../jobs/watcher/agent-watcher.js", () => ({
   },
 }));
 
-const { forEachAgentPage, reconcileAgents } = await import("./k8s-watch.js");
+const { forEachAgentPage, reconcileAgents } = await import("./agent-reconcile.js");
 
 interface FakePage {
   items?: unknown[];

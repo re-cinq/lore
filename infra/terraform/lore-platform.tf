@@ -27,6 +27,11 @@ locals {
   # egress policy's RFC1918 except-list. Host/port must stay in step with the
   # ai-agents-helm `mcpSink` values that open the matching NetworkPolicy hole.
   lore_mcp_in_cluster = "http://lore-mcp-gateway.lore-api.svc.cluster.local:8080"
+
+  # In-cluster base URL of the event-router (ADR-044). Producers are ordinary
+  # Deployments, not run pods, so the ClusterIP is reachable and no public hop
+  # is involved — only GitHub reaches the router from outside, via its ingress.
+  event_router_in_cluster = "http://lore-event-router.lore-event-router.svc.cluster.local:8080"
 }
 
 resource "helm_release" "lore_platform" {
@@ -57,6 +62,10 @@ resource "helm_release" "lore_platform" {
         # Web-UI base: the "Lore review has started — <id>" comment (loreTaskRef)
         # links the run id to /assembly-lines/<id>, which the resolver renders.
         LORE_UI_URL = var.lore_ui_url
+        # Where this Floor REPORTS events (ADR-044). Unset would silently fall
+        # back to writing pipeline.events directly, which is right on a laptop
+        # and wrong here — the fallback logs which way it resolved.
+        EVENT_ROUTER_URL = local.event_router_in_cluster
       }
       dbPasswordSecret        = { name = "lore-db-password", key = "password" }
       anthropicKeySecret      = { name = "lore-anthropic-key", key = "anthropic-api-key" }
@@ -192,6 +201,22 @@ resource "helm_release" "lore_platform" {
       # in-cluster, same as loreMcpUrl above. All three had to be fixed (#1126).
       loreSkillsUrl = var.lore_mcp_url != "" ? "${local.lore_mcp_in_cluster}/skills" : ""
     }
+
+    # ---- Event router (lore-event-router namespace) ----
+    # The one writer of pipeline.events (ADR-044): the GitHub webhook ingress and
+    # the Agent CR watch. Its DB credentials are its own; its ingest token is the
+    # SAME secret every producer presents, so the two ends cannot drift apart.
+    "lore-event-router" = {
+      env = {
+        LORE_DB_HOST          = "lore-db-rw.lore-db.svc.cluster.local"
+        LORE_DB_PORT          = "5432"
+        LORE_DB_NAME          = "lore"
+        LORE_DB_USER          = "lore"
+        PORT                  = "8080"
+        LORE_STATION_BACKEND  = "k8s"
+        LORE_AGENTS_NAMESPACE = "ai-agents"
+      }
+    }
   })]
 
   depends_on = [
@@ -200,6 +225,7 @@ resource "helm_release" "lore_platform" {
     kubernetes_namespace.lore_ui,
     kubernetes_namespace.lore_db,
     kubernetes_namespace.ai_agents,
+    kubernetes_namespace.lore_event_router,
     kubernetes_service_account.lore_ui,
     kubectl_manifest.lore_db_cluster,
     kubectl_manifest.es_ai_agents_secrets,
