@@ -20,9 +20,9 @@ const TIMEOUT_MS = 15_000;
 /**
  * The producer half of {@link EventQueueRepository}, over HTTP.
  *
- * Only `insert` — the consume side (claim/mark/reap) belongs to whoever drains
- * the queue, and a producer that could claim its own events would be a
- * different thing entirely.
+ * Only `insert` — the consume side belongs to whoever drains the queue, and a
+ * producer that could claim its own events would be a different thing.
+ * {@link HttpEventQueue} extends this for the drainer that needs both.
  */
 export class HttpEventReporter implements Pick<EventQueueRepository, "insert"> {
   constructor(
@@ -41,13 +41,18 @@ export class HttpEventReporter implements Pick<EventQueueRepository, "insert"> {
     return h;
   }
 
-  async insert(input: EventInsert): Promise<void> {
-    const res = await this.fetchImpl(`${this.baseUrl}/api/events`, {
+  /** One POST to the router, with the deadline every call shares. */
+  protected post(path: string, body?: unknown): Promise<Response> {
+    return this.fetchImpl(`${this.baseUrl}${path}`, {
       method: "POST",
       headers: this.headers(),
-      body: JSON.stringify(input),
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
       signal: AbortSignal.timeout(TIMEOUT_MS),
     });
+  }
+
+  async insert(input: EventInsert): Promise<void> {
+    const res = await this.post("/api/events", input);
 
     if (!res.ok) {
       throw new Error(`event insert failed: ${res.status}`);

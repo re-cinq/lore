@@ -1,6 +1,6 @@
 /**
- * The event-router's HTTP server (hapi). Two routes: the one front door to
- * `pipeline.events`, and the probe.
+ * The event-router's HTTP server (hapi): the one front door to
+ * `pipeline.events`, the drain loop's consume endpoints, and the probe.
  *
  * `buildServer` does not listen, so tests drive it with `inject()`; `startServer`
  * is what boot calls. It registers NO signal handler — process lifecycle belongs
@@ -10,6 +10,7 @@
 
 import Hapi from "@hapi/hapi";
 import { eventsRoute } from "./routes/events.js";
+import { eventQueueRoutes } from "./routes/event-queue.js";
 import { healthRoute } from "./routes/health.js";
 import { pipeline } from "../kernel/queues.js";
 
@@ -40,6 +41,10 @@ export function buildServer(opts: { port?: number } = {}): Hapi.Server {
     eventsRoute({
       insert: (event) => pipeline().eventQueue.insert(event),
       webhookSecret: process.env.LORE_WEBHOOK_SECRET,
+      bearerToken: process.env.LORE_INGEST_TOKEN,
+    }),
+    ...eventQueueRoutes({
+      queue: () => pipeline().eventQueue,
       bearerToken: process.env.LORE_INGEST_TOKEN,
     }),
     healthRoute(),

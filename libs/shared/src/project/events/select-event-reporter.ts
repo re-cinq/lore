@@ -12,7 +12,11 @@
 // directly and look healthy, so the choice is logged once at construction.
 
 import { HttpEventReporter } from "./event-reporter-http.js";
-import type { EventReporter } from "./event-queue-port.js";
+import { HttpEventQueue } from "./event-queue-http.js";
+import type {
+  EventQueueRepository,
+  EventReporter,
+} from "./event-queue-port.js";
 
 export interface SelectReporterDeps {
   /**
@@ -47,4 +51,35 @@ export function selectEventReporter(deps: SelectReporterDeps): EventReporter {
   log(`[events] reporting to the event-router at ${url}`);
 
   return new HttpEventReporter(url, env.LORE_INGEST_TOKEN);
+}
+
+export interface SelectQueueDeps {
+  /** The pool-backed queue to fall back to — normally `pipeline().eventQueue`. */
+  local: () => EventQueueRepository;
+  env?: NodeJS.ProcessEnv;
+  log?: (message: string) => void;
+}
+
+/**
+ * Resolve the whole queue for a DRAINER, the same way {@link selectEventReporter}
+ * resolves the producer half.
+ *
+ * Separate from the reporter because the privileges differ: a producer gets
+ * `insert` and nothing else, and only the process that drains asks for this.
+ */
+export function selectEventQueue(deps: SelectQueueDeps): EventQueueRepository {
+  const env = deps.env ?? process.env;
+  const log = deps.log ?? console.log;
+  const url = env.EVENT_ROUTER_URL;
+
+  if (!url) {
+    log(
+      "[events] EVENT_ROUTER_URL unset — draining pipeline.events directly (local mode)",
+    );
+
+    return deps.local();
+  }
+  log(`[events] draining through the event-router at ${url}`);
+
+  return new HttpEventQueue(url, env.LORE_INGEST_TOKEN);
 }

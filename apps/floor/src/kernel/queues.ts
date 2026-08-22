@@ -12,8 +12,14 @@
 import { getPool } from "./db.js";
 import { createPipelineRepositories } from "@re-cinq/lore-shared/project/pipeline/pipeline-repositories-pg.js";
 import type { PipelineRepositories } from "@re-cinq/lore-shared";
-import { selectEventReporter } from "@re-cinq/lore-shared/project/events/select-event-reporter.js";
-import type { EventReporter } from "@re-cinq/lore-shared/project/events/event-queue-port.js";
+import {
+  selectEventQueue,
+  selectEventReporter,
+} from "@re-cinq/lore-shared/project/events/select-event-reporter.js";
+import type {
+  EventQueueRepository,
+  EventReporter,
+} from "@re-cinq/lore-shared/project/events/event-queue-port.js";
 import { PgTaskStore } from "@re-cinq/lore-shared/project/tasks/task-store-pg.js";
 import { PgUsage } from "@re-cinq/lore-shared/project/usage/usage-pg.js";
 import { PgConversations } from "@re-cinq/lore-shared/project/conversations/conversations-pg.js";
@@ -103,5 +109,20 @@ let eventReporterSingleton: EventReporter | undefined;
  */
 export const eventReporter = (): EventReporter =>
   (eventReporterSingleton ??= selectEventReporter({
+    local: () => pipeline().eventQueue,
+  }));
+
+let eventQueueSingleton: EventQueueRepository | undefined;
+
+/**
+ * The queue this Floor DRAINS (ADR-044). The router owns `pipeline.events`, so
+ * in a cluster the loop claims and acks over HTTP; with no `EVENT_ROUTER_URL`
+ * (local `npm start`) it falls back to the pool.
+ *
+ * The claim stays atomic either way — `FOR UPDATE SKIP LOCKED` is one statement
+ * server-side, and going over HTTP only carries the request to it.
+ */
+export const eventQueue = (): EventQueueRepository =>
+  (eventQueueSingleton ??= selectEventQueue({
     local: () => pipeline().eventQueue,
   }));

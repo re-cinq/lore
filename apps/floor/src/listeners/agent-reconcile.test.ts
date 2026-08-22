@@ -22,7 +22,8 @@ vi.mock("../jobs/watcher/agent-watcher.js", () => ({
   },
 }));
 
-const { forEachAgentPage, reconcileAgents } = await import("./agent-reconcile.js");
+const { forEachAgentPage, reconcileAgents } =
+  await import("./agent-reconcile.js");
 
 interface FakePage {
   items?: unknown[];

@@ -95,6 +95,33 @@ ADR-024 pins to it and reaches every byte of its data over HTTP.
   in a single unpaginated LIST blew Node's heap and crash-looped the Floor on
   2026-07-24. ([validated by walks every page rather than holding the namespace at once](apps/event-router/src/listeners/agent-reporting.test.ts#L99), [`agent-reporting.test.ts:119`](apps/event-router/src/listeners/agent-reporting.test.ts#L119), [`agent-reporting.test.ts:144`](apps/event-router/src/listeners/agent-reporting.test.ts#L144))
 
+### The router serves the drain loop
+
+The Floor drains a queue it neither owns nor writes to. Six endpoints, matching
+exactly the calls the loop and its reaper make — and no endpoint here writes an
+event, because producing and draining are different privileges even when one
+process happens to do both.
+
+- A claim hands the caller a batch. ([validated by hands a claimed batch to the caller that asked for it](apps/event-router/src/delivery/routes/event-queue.test.ts#L28))
+- The atomicity is unchanged: `FOR UPDATE SKIP LOCKED` is still one statement,
+  now on the router's side of the call, so two drainers claiming at once still
+  receive disjoint batches. ([validated by claims nothing twice, so two drainers cannot run the same event](apps/event-router/src/delivery/routes/event-queue.test.ts#L46))
+- A busy serial family can be held back at claim time, so its waiting rows stay
+  `pending` rather than being parked in `processing` and reaped as presumed
+  dead. ([validated by holds back an excluded event name](apps/event-router/src/delivery/routes/event-queue.test.ts#L67))
+- An acked event is not handed out again. ([validated by marks a claimed event done](apps/event-router/src/delivery/routes/event-queue.test.ts#L82))
+- A failed event returns for another attempt after its backoff. ([validated by fails a claimed event back for another attempt after its backoff](apps/event-router/src/delivery/routes/event-queue.test.ts#L96))
+- Dead-lettering is its own endpoint, not a flag on failure: whether an event
+  has run out of attempts is the DRAINER's judgement, and folding the two
+  together would move that decision to a service that does not know the retry
+  budget. ([validated by dead-letters an event that has run out of attempts](apps/event-router/src/delivery/routes/event-queue.test.ts#L111))
+- The reaper recovers rows a crashed claimer left in flight, and prunes handled
+  ones. ([validated by reaps rows a crashed claimer left in flight](apps/event-router/src/delivery/routes/event-queue.test.ts#L127), [`event-queue.test.ts:142`](apps/event-router/src/delivery/routes/event-queue.test.ts#L142))
+- Draining requires the same token reporting does. ([validated by refuses to hand out a batch to a caller with no token](apps/event-router/src/delivery/routes/event-queue.test.ts#L156), [`event-queue.test.ts:164`](apps/event-router/src/delivery/routes/event-queue.test.ts#L164))
+- The client and the routes are two halves of one contract written apart, so
+  they are exercised against each other rather than each against its own idea
+  of the other. ([validated by reports an event and claims it back](apps/event-router/src/delivery/routes/event-queue-roundtrip.test.ts#L56), [`event-queue-roundtrip.test.ts:63`](apps/event-router/src/delivery/routes/event-queue-roundtrip.test.ts#L63), [`event-queue-roundtrip.test.ts:72`](apps/event-router/src/delivery/routes/event-queue-roundtrip.test.ts#L72), [`event-queue-roundtrip.test.ts:81`](apps/event-router/src/delivery/routes/event-queue-roundtrip.test.ts#L81), [`event-queue-roundtrip.test.ts:90`](apps/event-router/src/delivery/routes/event-queue-roundtrip.test.ts#L90), [`event-queue-roundtrip.test.ts:99`](apps/event-router/src/delivery/routes/event-queue-roundtrip.test.ts#L99))
+
 ### Every other producer reports through the router
 
 A producer keeps its code and its location; only its write changes. The

@@ -410,7 +410,7 @@ the cluster path ever recorded a cause.
 4. The implementation pipeline picks up the tasks under the repo's trust gate.
 
 **Acceptance Criteria:**
-- Decomposition runs on spec-PR merge, by resuming the line's parked `merged` node rather than minting a task. ([validated by reports success to the parked merged node of the PR's line](apps/floor/src/jobs/merge/decompose-resume.test.ts#L140))
+- Decomposition runs on spec-PR merge, by resuming the line's parked `merged` node rather than minting a task. ([validated by reports success to the parked merged node of the PR's line](apps/floor/src/jobs/merge/decompose-resume.test.ts#L139))
 - The agent's `DecompositionResult` validates against the shared schema; an invalid result fails the round. ([validated by parseDecomposition accepts a valid stories payload](libs/shared/src/feature-planning/decomposition-result.test.ts#L38))
 - A story Issue is created per story unless the dark-factory `create_issue` policy says never. ([validated by storyIssueBody renders the story Issue](libs/shared/src/feature-planning/decomposition-plan.test.ts#L77))
 - Each task is a `spec-task` row linked to its story Issue and feature, runnable by the existing pipeline. ([validated by specTaskRows links each task to its story issue and feature](libs/shared/src/feature-planning/decomposition-plan.test.ts#L32))

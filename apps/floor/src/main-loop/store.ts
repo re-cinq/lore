@@ -1,13 +1,17 @@
 /**
- * The pipeline.events data layer. The SQL now lives once in the shared
- * `PgEventQueue` (`@re-cinq/lore-shared/project/events`); this module is the
- * thin Floor-side delegation so producers/loop/reaper keep their existing
- * imports. Producers insert (idempotent via dedupe_key); the loop claims a batch
- * atomically (FOR UPDATE SKIP LOCKED) and transitions each row done/failed/dead;
- * the reaper recovers rows stuck in `processing` by a crash.
+ * The Floor's view of `pipeline.events` — a table it no longer owns (ADR-044).
+ *
+ * Both halves go through the event-router: producers insert (idempotent via
+ * dedupe_key), the loop claims a batch and transitions each row
+ * done/failed/dead, the reaper recovers rows a crash left in `processing`. The
+ * claim is still atomic — `FOR UPDATE SKIP LOCKED` is one statement, and it now
+ * runs on the router's side of the call rather than this one.
+ *
+ * This module stays as the seam every Floor caller already imports, which is
+ * what let the whole write and consume path move without touching them.
  */
 
-import { eventReporter, pipeline } from "../kernel/queues.js";
+import { eventQueue, eventReporter } from "../kernel/queues.js";
 import type { EventInput, EventRow } from "./types.js";
 
 /**
@@ -18,8 +22,8 @@ import type { EventInput, EventRow } from "./types.js";
  * emitter, the CI ingress, the reconcile pass — already inserts through, so
  * routing it here routes all of them.
  *
- * The READ side below still uses the pool directly. The Floor drains the queue
- * it no longer writes to; that half moves in its own step.
+ * The consume side below reports through the router too — the Floor drains a
+ * queue it neither owns nor writes to.
  */
 export function insertEvent(input: EventInput): Promise<void> {
   return eventReporter().insert(input);
@@ -65,11 +69,11 @@ export function claimBatch(
   limit: number,
   excludeEventNames: string[] = [],
 ): Promise<EventRow[]> {
-  return pipeline().eventQueue.claimBatch(limit, excludeEventNames);
+  return eventQueue().claimBatch(limit, excludeEventNames);
 }
 
 export function markDone(id: string): Promise<void> {
-  return pipeline().eventQueue.markDone(id);
+  return eventQueue().markDone(id);
 }
 
 export function markFailed(
@@ -77,19 +81,19 @@ export function markFailed(
   error: string,
   backoffSeconds: number,
 ): Promise<void> {
-  return pipeline().eventQueue.markFailed(id, error, backoffSeconds);
+  return eventQueue().markFailed(id, error, backoffSeconds);
 }
 
 export function markDead(id: string, error: string): Promise<void> {
-  return pipeline().eventQueue.markDead(id, error);
+  return eventQueue().markDead(id, error);
 }
 
 /** Reset rows stuck in `processing` (claimer crashed) back to failed so they re-run. */
 export function reapStuck(timeoutSeconds: number): Promise<number> {
-  return pipeline().eventQueue.reapStuck(timeoutSeconds);
+  return eventQueue().reapStuck(timeoutSeconds);
 }
 
 /** Delete old terminal rows to keep the claim index small. */
 export function pruneHandled(olderThanDays: number): Promise<number> {
-  return pipeline().eventQueue.pruneHandled(olderThanDays);
+  return eventQueue().pruneHandled(olderThanDays);
 }

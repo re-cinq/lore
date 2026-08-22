@@ -28,6 +28,7 @@ import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { SOURCES, type EventInsert } from "@re-cinq/lore-shared";
 import { rawBody } from "@re-cinq/lore-shared/http/raw-body.js";
 import { apiError } from "../api-error.js";
+import { enforceBearer } from "../bearer.js";
 import { mapGitHubEvent } from "@re-cinq/lore-shared/project/events/github-map.js";
 
 /** The reported-event body. `source` is the closed vocabulary rather than a
@@ -127,18 +128,7 @@ function fromReporter(
   headers: Record<string, unknown>,
   deps: EventsRouteDeps,
 ): EventInsert {
-  const auth = headers["authorization"] as string | undefined;
-
-  enforceTrue(
-    deps.bearerToken,
-    apiError(503),
-    "reporting token not configured — set LORE_INGEST_TOKEN on the event-router deployment",
-  );
-  enforceTrue(
-    auth === `Bearer ${deps.bearerToken}`,
-    apiError(401),
-    "missing or invalid bearer token — a reported event must carry Authorization: Bearer <LORE_INGEST_TOKEN>",
-  );
+  enforceBearer(headers, deps.bearerToken);
 
   const parsed = ReportedEvent.safeParse(parseJson(raw));
 
