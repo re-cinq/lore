@@ -51,24 +51,35 @@ export function parseReviewVerdict(
 }
 
 /**
- * The station contract's terminal line: `LORE_NODE_RESULT: {"outcome": ...,
- * "extras": {...}}`. Null on absence or any malformation — callers fall back to
- * the older signals rather than failing the node over a formatting slip.
+ * The payload of the LAST line-start `LORE_NODE_RESULT:` marker, or null.
+ *
+ * Line-start and last-wins together are what make the marker safe to DISCUSS: an
+ * agent quoting its own contract mid-sentence decides nothing, and one that
+ * explains the marker and then prints it is read by its final word. The payload is
+ * one physical line — the contract's own shape, and all `JSON.parse` accepts here.
  */
-export function parseNodeResult(output?: string): NodeResult | null {
-  const match = output?.match(/LORE_NODE_RESULT:\s*(\{.*\})/);
+function lastNodeResultPayload(output?: string): string | null {
+  const matches = [
+    ...(output ?? "").matchAll(/^LORE_NODE_RESULT:[ \t]*(.*)$/gm),
+  ];
 
-  if (!match) {
-    return null;
+  return matches.length ? matches[matches.length - 1][1].trim() : null;
+}
+
+function nodeResultFromPayload(payload: string): NodeResult | null {
+  // The bare word is legacy but LIVE: a deployed recipe instructs exactly it, and
+  // rejecting it turned a station's objection into a silent success (#1469).
+  if (OUTCOMES.has(payload as StageOutcome)) {
+    return { outcome: payload as StageOutcome, extras: {} };
   }
-  let payload: unknown;
+  let parsed: unknown;
 
   try {
-    payload = JSON.parse(match[1]);
+    parsed = JSON.parse(payload);
   } catch {
     return null;
   }
-  const { outcome, extras } = payload as {
+  const { outcome, extras } = parsed as {
     outcome?: string;
     extras?: Record<string, unknown>;
   };
@@ -85,6 +96,36 @@ export function parseNodeResult(output?: string): NodeResult | null {
   }
 
   return { outcome: outcome as StageOutcome, extras: stringExtras };
+}
+
+/**
+ * The station contract's terminal line: `LORE_NODE_RESULT: {"outcome": ...,
+ * "extras": {...}}`, or the legacy bare word. Null on absence or malformation —
+ * a malformed line is not a formatting slip to shrug off, though: see
+ * {@link malformedNodeResultLine}, which is how the node fails instead.
+ */
+export function parseNodeResult(output?: string): NodeResult | null {
+  const payload = lastNodeResultPayload(output);
+
+  return payload === null ? null : nodeResultFromPayload(payload);
+}
+
+/**
+ * The offending line when a marker is PRESENT but says nothing usable.
+ *
+ * The `success` default exists for an agent that prints NO marker. An agent that
+ * printed one and was misheard is a different thing entirely — that is the
+ * failure this surfaces, so a recipe whose contract has drifted reports itself
+ * instead of passing every node.
+ */
+export function malformedNodeResultLine(output?: string): string | null {
+  const payload = lastNodeResultPayload(output);
+
+  if (payload === null || nodeResultFromPayload(payload) !== null) {
+    return null;
+  }
+
+  return `LORE_NODE_RESULT: ${payload}`.substring(0, 200);
 }
 
 const failureKind = (node: NodeKind): string =>
@@ -135,6 +176,30 @@ export function stationNodeOutcome(
 
   if (stationResult) {
     return stationResult;
+  }
+
+  // Spoken but misheard. Falling through to the default made an agent's objection
+  // a `success` and skipped the human decision point its edge exists for (#1469) —
+  // and the recipe bug behind it left no trace anywhere.
+  const malformed = malformedNodeResultLine(status.output);
+
+  if (malformed) {
+    const detail = `unparseable LORE_NODE_RESULT line: ${malformed}`.substring(
+      0,
+      300,
+    );
+
+    return {
+      outcome: "failed",
+      // Not a classified infrastructure failure: this is a recipe/contract bug, and
+      // `unknown` is the class that never trips the account-wide dispatch gate.
+      failureClass: "unknown",
+      failureDetail: detail,
+      extras: {
+        "Lore-Validation-Status": `${failureKind(node)}-failed`,
+        "Lore-Validation-Summary": detail,
+      },
+    };
   }
 
   if (parseReviewVerdict(status.output) === "changes_requested") {
