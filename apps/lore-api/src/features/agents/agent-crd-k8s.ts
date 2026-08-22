@@ -3,7 +3,7 @@
 // object-param CustomObjectsApi like the Floor's KubeCatalogApi: create, or replace with
 // the live resourceVersion when the resource already exists.
 
-import { loadKube } from "@re-cinq/lore-shared";
+import { agentsNamespace, loadKube } from "@re-cinq/lore-shared";
 import { preserveUnownedFields, type CrdPair } from "./agent-crd.js";
 
 const GROUP = "agents.re-cinq.com";
@@ -11,8 +11,7 @@ const VERSION = "v1alpha1";
 const DEF_PLURAL = "agentdefinitions";
 const STATION_PLURAL = "stations";
 
-const namespace = (): string =>
-  process.env.LORE_AGENTS_NAMESPACE ?? "ai-agents";
+const namespace = (): string => agentsNamespace();
 
 const statusOf = (err: unknown): number | undefined => {
   const e = err as { code?: number; response?: { statusCode?: number } };

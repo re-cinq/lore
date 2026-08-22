@@ -1,4 +1,4 @@
-import { errorMessage, loadKube } from "@re-cinq/lore-shared";
+import { agentsNamespace, errorMessage, loadKube } from "@re-cinq/lore-shared";
 /**
  * Agent CR (agents.re-cinq.com) processing (ADR-031). The decisions that differ
  * from a LoreTask (Agent.status carries no changedFiles / reviewResult / taskType,
@@ -66,10 +66,6 @@ import { PlatformGitHub } from "@re-cinq/lore-shared/project/lib/platform-github
 const GROUP = "agents.re-cinq.com";
 const VERSION = "v1alpha1";
 const PLURAL = "agents";
-
-export function agentsNamespace(): string {
-  return process.env.LORE_AGENTS_NAMESPACE ?? "ai-agents";
-}
 
 /** Agent output can be large — keep only the tail for issue/PR bodies. */
 function tailOutput(output: string, limit = 60000): string {

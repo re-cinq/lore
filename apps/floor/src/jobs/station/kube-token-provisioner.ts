@@ -5,7 +5,11 @@
 // allowlist). All Kubernetes calls use the object-param client (like k8s-loretask.ts).
 
 import type { AgentDefinition, Station } from "@re-cinq/agent-contracts";
-import { loadKube, type LoreTaskSpec } from "@re-cinq/lore-shared";
+import {
+  agentsNamespace,
+  loadKube,
+  type LoreTaskSpec,
+} from "@re-cinq/lore-shared";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import type { TokenProvisioner } from "./agent-backend.js";
 import {
@@ -128,10 +132,7 @@ export class GithubTokenMinter implements TokenMinter {
 }
 
 export class KubeSecretKeyWriter implements SecretKeyWriter {
-  constructor(
-    private readonly namespace = process.env.LORE_AGENTS_NAMESPACE ??
-      "ai-agents",
-  ) {}
+  constructor(private readonly namespace = agentsNamespace()) {}
 
   private async core() {
     const { KubeConfig, CoreV1Api } = await import("@kubernetes/client-node");
@@ -191,10 +192,7 @@ export class KubeSecretKeyWriter implements SecretKeyWriter {
 }
 
 export class KubeCatalogApi implements CatalogApi {
-  constructor(
-    private readonly namespace = process.env.LORE_AGENTS_NAMESPACE ??
-      "ai-agents",
-  ) {}
+  constructor(private readonly namespace = agentsNamespace()) {}
 
   private async api() {
     const { KubeConfig, CustomObjectsApi } =

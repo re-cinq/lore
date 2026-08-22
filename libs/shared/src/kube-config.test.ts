@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  agentsNamespace,
   kubeConfigSource,
   loadKube,
   type KubeConfigLoader,
@@ -76,5 +77,17 @@ describe("loadKube", () => {
     loadKube(loader, {});
 
     expect(loader.loaded).toBe("default");
+  });
+});
+
+describe("agentsNamespace", () => {
+  it("returns ai-agents when LORE_AGENTS_NAMESPACE is unset", () => {
+    expect(agentsNamespace({})).toBe("ai-agents");
+  });
+
+  it("returns the configured namespace when LORE_AGENTS_NAMESPACE is set", () => {
+    expect(agentsNamespace({ LORE_AGENTS_NAMESPACE: "agents-staging" })).toBe(
+      "agents-staging",
+    );
   });
 });

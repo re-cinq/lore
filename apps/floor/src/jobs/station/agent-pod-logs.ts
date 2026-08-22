@@ -9,7 +9,7 @@ import {
   VERSION,
   type Agent as AgentCr,
 } from "@re-cinq/agent-contracts";
-import { loadKube } from "@re-cinq/lore-shared";
+import { agentsNamespace, loadKube } from "@re-cinq/lore-shared";
 
 const PLURAL = "agents";
 
@@ -149,7 +149,7 @@ function unavailable(
  *  KubeAgentApi. */
 export class KubePodLogs implements PodLogSource {
   private namespace(): string {
-    return process.env.LORE_AGENTS_NAMESPACE ?? "ai-agents";
+    return agentsNamespace();
   }
 
   private async kubeConfig() {
@@ -274,10 +274,7 @@ export function assembleArchivedLog(entries: LogEntry[]): string | null {
  *  Auth via Workload Identity (ADC); any failure degrades to null so the
  *  agent-logs endpoint never 500s on a logging hiccup. */
 export class CloudLoggingPodLogs implements PodLogArchive {
-  constructor(
-    private readonly namespace = process.env.LORE_AGENTS_NAMESPACE ??
-      "ai-agents",
-  ) {}
+  constructor(private readonly namespace = agentsNamespace()) {}
 
   async logsForJob(
     jobName: string,

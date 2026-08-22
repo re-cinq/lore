@@ -9,7 +9,11 @@
 
 import { KubeConfig, Watch, CustomObjectsApi } from "@kubernetes/client-node";
 import type { Agent as AgentCr } from "@re-cinq/agent-contracts";
-import { loadKube, selectStationBackend } from "@re-cinq/lore-shared";
+import {
+  agentsNamespace,
+  loadKube,
+  selectStationBackend,
+} from "@re-cinq/lore-shared";
 import { pipeline, taskStore } from "../kernel/queues.js";
 import { insertEvent } from "../main-loop/store.js";
 import { mapAgentToEvent } from "./k8s-map.js";
@@ -21,11 +25,8 @@ const PLURAL = "agents";
 const PRUNE_AFTER_MS = 60 * 60 * 1000;
 const LIST_PAGE_LIMIT = 50;
 
-function ns(): string {
-  return process.env.LORE_AGENTS_NAMESPACE ?? "ai-agents";
-}
 function watchPath(): string {
-  return `/apis/${GROUP}/${VERSION}/namespaces/${ns()}/${PLURAL}`;
+  return `/apis/${GROUP}/${VERSION}/namespaces/${agentsNamespace()}/${PLURAL}`;
 }
 
 async function emitForAgent(agent: AgentCr): Promise<void> {

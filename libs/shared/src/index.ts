@@ -389,6 +389,7 @@ export {
 export { isBusinessHours } from "./business-hours.js";
 export { isAlreadyExistsError } from "./k8s-errors.js";
 export {
+  agentsNamespace,
   kubeConfigSource,
   loadKube,
   type KubeConfigSource,
