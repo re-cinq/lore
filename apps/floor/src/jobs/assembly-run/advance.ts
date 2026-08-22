@@ -148,12 +148,16 @@ export async function advanceLine(
   assemblyLineId: string,
   deps: AdvanceDeps,
 ): Promise<void> {
+  /// todo: make sure the variable names are named based on what they store,
+  /// not based on what they are used for. For example, the variable "row" is actually an assembly run, not a row.
   const row = await deps.assemblyRuns.getById(assemblyLineId);
 
   if (!row || row.status !== "running") {
     return;
   }
 
+  /// todo: make sure the variable names are named based on what they store, not based on what they are used for.
+  /// For example, the variable "graph" is actually a run graph, not a graph.
   const graph = await graphForRun(row, deps.definitions);
 
   if (!graph) {

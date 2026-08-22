@@ -18,6 +18,9 @@ import type { AssemblyRunRecord } from "@re-cinq/lore-shared/project/assembly-ru
 
 /** The catalog loads only on the fallback path — a row carrying its clone never
  *  pays for it (the loader is memoized, but even the await is skipped). */
+/// todo: make sure the function names express what they do.
+/// For example, the function "graphForRun" is actually resolving a run graph for a run,
+/// not a graph for a run. A better name would be "resolveRunGraph" or "getRunGraph". Search for other functions that are named based on what they are used for, not based on what they actually do.
 export async function graphForRun(
   row: Pick<AssemblyRunRecord, "graph" | "blueprintName">,
   definitions: () => Promise<ReadonlyMap<string, AssemblyLine>>,

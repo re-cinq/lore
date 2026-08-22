@@ -49,10 +49,12 @@ export function refineFeature(
   });
 }
 
+/// todo: this must also send the latest form answers to the server so they will be added to the context
 export function createSpecFile(
   repo: string,
   id: string,
 ): Promise<ApiResult<{ task_id?: string } & RunIdCarrier>> {
+  /// todo: rename this endpoint to something like "createSpecFile" because it does not finalize the feature, it just moves the context in the assembly run to the next station and starts it. The user still needs to review the PR for the spec and provide feedback on the assembly run.
   return apiFetch("lore-api", `${base(repo)}/${id}/finalize`, {
     method: "POST",
     body: {},
