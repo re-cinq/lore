@@ -1,0 +1,10 @@
+# CI fixture: exercises the seeded catalog's conditional blocks, which are now
+# rendered by `tpl` from files/catalog-seed.yaml rather than from a template.
+#
+# That indirection is the thing worth a fixture. The mcp_servers and skills blocks
+# inside the generated file are guarded on these two URLs, both unset by default —
+# so a defaults-only render never evaluates them, and a malformed guard would reach
+# a cluster as a ConfigMap full of half-rendered YAML that only kubectl rejects,
+# inside a PRE-upgrade hook, i.e. as a stalled deploy.
+loreMcpUrl: https://lore-mcp.ci.invalid
+loreSkillsUrl: https://lore-api.ci.invalid/skills

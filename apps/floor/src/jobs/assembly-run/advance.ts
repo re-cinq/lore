@@ -21,15 +21,18 @@ import {
   type StageOutcome,
 } from "@re-cinq/lore-assembly-lines";
 import { graphForRun } from "@re-cinq/lore-assembly-lines";
-import type { RunGraphNode } from "@re-cinq/lore-shared/project/assembly-runs/run-graph.js";
 import {
   nodeAgentName,
-  nodeAgentSpec,
-  nodeStationSpec,
+  stationRunInputFor,
   type FloorAssemblyRunTask,
 } from "./floor-assembly-run.js";
 import { isFailureOutcome } from "./notify-failure.js";
-import { roundContent } from "./round-content.js";
+import {
+  nodeLaunchSpec,
+  priorOutcomeOf,
+  resolveNodeDispatch,
+  type ResolveConversationFn,
+} from "./launch-spec.js";
 import {
   decidePrStamp,
   decideStampFailure,
@@ -67,12 +70,7 @@ export interface AdvanceDeps {
   /** Resolve a node's `continues` declaration into the conversation this run should
    *  continue and save as. Optional seam — a composition without it simply never
    *  continues, which is the pre-feature behaviour. */
-  resolveConversation?: (
-    node: RunGraphNode,
-    task: FloorAssemblyRunTask,
-    iteration: number,
-    priorOutcome: string | null,
-  ) => Promise<LoreTaskSpec["conversation"] | undefined>;
+  resolveConversation?: ResolveConversationFn;
   /** Close the line's backing pipeline task — and, for a planning round, its feature
    *  iteration — so a failed line stops reading as "still running" everywhere
    *  downstream. Optional seam, same as notifyFailure. */
@@ -113,14 +111,6 @@ export function lineOutcomeFromVisits(visits: NodeVisit[]): {
   return failed
     ? { outcome: "failed", reason: nodeFailureReason(failed) }
     : { outcome: "completed" };
-}
-
-/** The outcome of a node's most recent recorded visit, or null if it has never run.
- *  Distinguishes a retry (its own last attempt failed) from a next round. */
-function priorOutcomeOf(visits: NodeVisit[], nodeId: string): string | null {
-  const own = visits.filter((v) => v.nodeId === nodeId);
-
-  return own.length ? (own[own.length - 1].outcome ?? null) : null;
 }
 
 function visitFailed(outcome: StageOutcome | null): boolean {
@@ -225,23 +215,18 @@ export async function advanceLine(
     return;
   }
   const task = taskFromRow(row);
-  // Resolved BEFORE the prompt: whether this run resumes a conversation decides how
-  // much round content the prompt must carry. Only agent nodes hold one — a station
-  // runs a deterministic command.
-  const conversation =
-    node.type === "agent" && deps.resolveConversation
-      ? await deps.resolveConversation(
-          node,
-          task,
-          transition.iteration,
-          priorOutcomeOf(visits, transition.nodeId),
-        )
-      : undefined;
-  // The round content BOTH fields carry. The recipe the pod runs renders
-  // {description}, so setting only the prompt hands a resumed round the full draft
-  // again — and the two disagreeing about what this run is working from is a bug in
-  // either direction.
-  const content = roundContent(task, conversation);
+  // Resolved BEFORE the row, because the row RECORDS it: the prompt and round
+  // content a pod runs on otherwise exist only on an Agent CR that is pruned
+  // after the run, and "what was this node given" then has no answer at all.
+  const dispatch = await resolveNodeDispatch(
+    {
+      node,
+      task,
+      iteration: transition.iteration,
+      priorOutcome: priorOutcomeOf(visits, transition.nodeId),
+    },
+    deps,
+  );
   // Row before CR: a crash in between leaves an open row the reaper resolves by
   // reading the (deterministically named) CR; a rowless CR would be invisible.
   // The row is also what MINTS the station-run id — a converged duplicate returns
@@ -252,23 +237,8 @@ export async function advanceLine(
     nodeId: node.id,
     iteration: transition.iteration,
     agentCrName: nodeAgentName(assemblyLineId, node.id, transition.iteration),
+    input: stationRunInputFor(node, task, dispatch.content, dispatch.prompt),
   });
-
-  // Iteration rides into the CR name + labels so a revisited node runs a fresh pod.
-  const spec =
-    node.type === "agent"
-      ? nodeAgentSpec(
-          node,
-          { ...task, description: content },
-          deps.resolvePrompt(node.prompt_ref ?? node.type, content),
-          transition.iteration,
-          stationRunId,
-        )
-      : nodeStationSpec(node, task, transition.iteration, stationRunId);
-
-  if (conversation) {
-    spec.conversation = conversation;
-  }
 
   // A human station's worker is outside the pod system — a person in the wizard,
   // or a reviewer on the PR page. The row is what parks the walk and lets the graph
@@ -278,7 +248,18 @@ export async function advanceLine(
     return;
   }
 
-  await deps.launch(spec);
+  // Iteration rides into the CR name + labels so a revisited node runs a fresh pod.
+  // The builder is shared with the reaper's relaunch: two of them is how the
+  // conversation and the round content went missing on that door (#1466).
+  await deps.launch(
+    nodeLaunchSpec(dispatch, {
+      node,
+      task,
+      iteration: transition.iteration,
+      stationRunId,
+      priorOutcome: priorOutcomeOf(visits, transition.nodeId),
+    }),
+  );
 }
 
 /** Close the row, reclaim the token, and settle the detect fan-out's job_run. */

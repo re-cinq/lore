@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { toTranscriptRow, toTranscriptRows } from "./transcript-rows";
+import type { NodeInputView } from "./transcript-rows";
 import type { RunStreamEvent } from "./run-stream-types";
 
 function event(over: Partial<RunStreamEvent> = {}): RunStreamEvent {
@@ -191,5 +192,95 @@ describe("toTranscriptRows", () => {
 
   it("returns no rows for an empty event list", () => {
     expect(toTranscriptRows([])).toEqual([]);
+  });
+});
+
+describe("the transcript opens with what the node was GIVEN", () => {
+  const input = (iteration: number, over: Partial<NodeInputView> = {}) => ({
+    iteration,
+    description: `brief ${iteration}`,
+    prompt: `prompt ${iteration}`,
+    params: null,
+    repo: "o/r",
+    ref: "feat/x",
+    ...over,
+  });
+
+  it("puts the node's input before every event row", () => {
+    const rows = toTranscriptRows(
+      [event({ id: "1", eventType: "message" })],
+      [input(1)],
+    );
+
+    expect(rows[0]).toMatchObject({ kind: "input", iteration: 1 });
+    expect(rows[1]).toMatchObject({ kind: "message" });
+  });
+
+  it("renders only the input row for a visit that has produced no events yet", () => {
+    // The headline case: dispatched, pod still pending. Before this the panel
+    // showed "No agent events" over a node that had been handed a full brief.
+    expect(toTranscriptRows([], [input(1)])).toEqual([
+      expect.objectContaining({ kind: "input", iteration: 1 }),
+    ]);
+  });
+
+  it("places a revisit's input directly after its iteration divider", () => {
+    const rows = toTranscriptRows(
+      [
+        event({ id: "1", eventType: "init", iteration: 1 }),
+        event({ id: "2", eventType: "init", iteration: 2 }),
+      ],
+      [input(1), input(2)],
+    );
+    const kinds = rows.map(
+      (r) => `${r.kind}:${"iteration" in r ? r.iteration : ""}`,
+    );
+
+    expect(kinds).toEqual([
+      "input:1",
+      "init:1",
+      "iteration:2",
+      "input:2",
+      "init:2",
+    ]);
+  });
+
+  it("appends the input of an iteration whose events have not arrived yet", () => {
+    const rows = toTranscriptRows(
+      [event({ id: "1", eventType: "init", iteration: 1 })],
+      [input(1), input(2)],
+    );
+
+    expect(rows[rows.length - 1]).toMatchObject({
+      kind: "input",
+      iteration: 2,
+    });
+  });
+
+  it("emits no input row when the visit predates input recording", () => {
+    expect(
+      toTranscriptRows([event({ id: "1", eventType: "message" })], []),
+    ).toEqual(toTranscriptRows([event({ id: "1", eventType: "message" })]));
+  });
+
+  it("marks an input whose stored prompt or description was truncated", () => {
+    const rows = toTranscriptRows(
+      [],
+      [input(1, { prompt: "p…[truncated, 20000 bytes]" })],
+    );
+
+    expect(rows[0]).toMatchObject({ kind: "input", truncated: true });
+    expect(toTranscriptRows([], [input(2)])[0]).toMatchObject({
+      truncated: false,
+    });
+  });
+
+  it("summarises the input by its description head", () => {
+    const rows = toTranscriptRows(
+      [],
+      [input(1, { description: "x".repeat(300) })],
+    );
+
+    expect((rows[0] as { summary: string }).summary.length).toBeLessThan(300);
   });
 });

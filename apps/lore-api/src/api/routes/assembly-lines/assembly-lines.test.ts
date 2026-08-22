@@ -199,6 +199,44 @@ describe("assembly-line reads", () => {
       expect((res.result as { runs: unknown[] }).runs).toHaveLength(1);
     });
 
+    it("carries each visit's recorded input, and null for a visit that predates it", async () => {
+      const runs = new InMemoryAssemblyRuns();
+      const id = await runs.start({
+        blueprintName: "code-review",
+        repo: "re-cinq/lore",
+      });
+
+      await runs.ensureStationRun({
+        assemblyRunId: id,
+        nodeId: "review",
+        iteration: 1,
+        input: {
+          description: "review it",
+          prompt: "you are a reviewer",
+          params: null,
+          repo: "re-cinq/lore",
+          ref: "feat/x",
+        },
+      });
+      await runs.ensureStationRun({
+        assemblyRunId: id,
+        nodeId: "done",
+        iteration: 1,
+      });
+      const server = await servePort(runs);
+
+      const res = await server.inject(`/api/assembly-lines/${id}/nodes`);
+      const nodes = (res.result as { nodes: Array<{ input: unknown }> }).nodes;
+
+      expect(nodes[0].input).toMatchObject({
+        description: "review it",
+        prompt: "you are a reviewer",
+      });
+      // A pre-column visit must still validate against the response schema.
+      expect(nodes[1].input).toBeNull();
+      expect(res.statusCode).toBe(200);
+    });
+
     it("returns an empty list on a pre-0025 database", async () => {
       const pool = makePool();
 

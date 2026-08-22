@@ -1,3 +1,4 @@
+import type { StationRunInput } from "../../models/station-run.js";
 import { enforceTrue } from "../../lib/enforce.js";
 import { randomUUID } from "node:crypto";
 import { resolveResumePrefix } from "./resume.js";
@@ -29,6 +30,7 @@ export interface SeedAssemblyLineNode {
   nodeId: string;
   iteration: number;
   agentCrName: string | null;
+  input: StationRunInput | null;
   outcome: string | null;
   failureClass: string | null;
   failureDetail: string | null;
@@ -217,6 +219,7 @@ export class InMemoryAssemblyRuns implements AssemblyRunsPort {
       nodeId: input.nodeId,
       iteration: input.iteration,
       agentCrName: input.agentCrName ?? null,
+      input: input.input ?? null,
       outcome: null,
       failureClass: null,
       failureDetail: null,

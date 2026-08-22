@@ -1,6 +1,7 @@
 import type { Pool } from "pg";
 import type { ServerRoute } from "@hapi/hapi";
 import { z } from "zod";
+import { StationRunInputSchema } from "@re-cinq/lore-shared/models/station-run.js";
 import { bearerScope } from "../../../server/plugins/bearer-scope.js";
 import { zodResponse } from "../../../server/plugins/zod-response.js";
 import { zodValidate } from "../../../server/plugins/zod-validate.js";
@@ -187,6 +188,9 @@ const StationRunRowSchema = z.object({
   outcome: z.string().nullable(),
   agent_cr_name: z.string().nullable(),
   station_run_id: z.string().nullable(),
+  /** What the visit was dispatched with. Null for visits recorded before the
+   *  column existed — "not captured", not "no input". */
+  input: StationRunInputSchema.nullable(),
   commit_sha: z.string().nullable(),
   started_at: z.string(),
   finished_at: z.string().nullable(),
@@ -332,6 +336,7 @@ export function assemblyLineRoutes(
               iteration: visit.iteration,
               outcome: visit.outcome,
               agent_cr_name: visit.agentCrName,
+              input: visit.input,
               commit_sha: visit.commitSha,
               started_at: visit.startedAt.toISOString(),
               finished_at: visit.finishedAt?.toISOString() ?? null,

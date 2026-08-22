@@ -2159,6 +2159,15 @@ export interface components {
         outcome: string | null;
         agent_cr_name: string | null;
         station_run_id: string | null;
+        input: {
+          description: string;
+          prompt: string | null;
+          params: {
+            [key: string]: string;
+          } | null;
+          repo: string;
+          ref: string;
+        } | null;
         commit_sha: string | null;
         started_at: string;
         finished_at: string | null;
