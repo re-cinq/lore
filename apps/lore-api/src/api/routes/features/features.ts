@@ -111,6 +111,7 @@ function enforcePool(pool: Pool | null): Pool {
  * A feature whose planning predates the merged line resolves no open parked line
  * and keeps the old path, or it strands mid-plan.
  */
+/// todo: we don't care about legacy features here. We must work only with assembly runs.
 async function resolveDispatch(
   project: {
     assemblyRuns: Pick<AssemblyRuns, "listForSubject" | "listStationRuns">;
@@ -554,6 +555,8 @@ export function featuresRoutes(getPool: () => Pool | null): ServerRoute[] {
       /// todo: the "finalize" term is incorrect here because this endpoint just moves the context in the assembly run to the next station and starts it.
       /// one of the next steps are to review a PR for the spec, so the user still needs to provide feedback on the assembly run.
       /// you must rename the endpoint to something like "createSpecFile"
+      /// todo: this handler must also get any form response like it gets in the iteration and add it to the context, and continue with the run instead of
+      /// doing analyze again
       path: `${BASE}/{id}/finalize`,
       options: {
         ...zodResponse(bearerScope("write"), FinalizeStartedSchema, {
