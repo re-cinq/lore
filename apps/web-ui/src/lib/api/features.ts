@@ -49,15 +49,18 @@ export function refineFeature(
   });
 }
 
-/// todo: this must also send the latest form answers to the server so they will be added to the context
+/** Accept the plan. `userAnswers` carries whatever the author typed into the form
+ *  before pressing accept — they fill it in and accept in one motion, and those
+ *  answers belong in the plan the tail nodes turn into a spec. */
 export function createSpecFile(
   repo: string,
   id: string,
+  userAnswers: unknown,
 ): Promise<ApiResult<{ task_id?: string } & RunIdCarrier>> {
   /// todo: rename this endpoint to something like "createSpecFile" because it does not finalize the feature, it just moves the context in the assembly run to the next station and starts it. The user still needs to review the PR for the spec and provide feedback on the assembly run.
   return apiFetch("lore-api", `${base(repo)}/${id}/finalize`, {
     method: "POST",
-    body: {},
+    body: { user_answers: userAnswers },
   });
 }
 

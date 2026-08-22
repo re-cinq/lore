@@ -46,7 +46,7 @@ export default function PlanningWizard({
     userAnswers: SectionAnswers,
     fromIteration?: number,
   ) => Promise<void>;
-  onFinalize: () => Promise<void>;
+  onFinalize: (userAnswers: SectionAnswers) => Promise<void>;
   onCreateDraft: (title: string, prompt: string) => void;
   /** What to show once the lifecycle stops moving. The parent owns it — it needs the
    *  decomposition rows, which the poll does not carry — but the WIZARD decides when,
@@ -119,10 +119,14 @@ export default function PlanningWizard({
       await fetchLatest();
     });
 
+  // The author fills the form and accepts in one motion, so the accept carries the
+  // same answers a refine would. Sending nothing dropped the last thing they said
+  // about the plan before it became a spec.
   const submitCreateSpecFile = () =>
     startTransition(async () => {
       setFinalizing(true);
-      await onFinalize();
+      await onFinalize(toUserAnswers(feedback));
+      setFeedback(emptyFeedback());
       await fetchLatest();
     });
 

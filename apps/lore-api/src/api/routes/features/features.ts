@@ -525,6 +525,7 @@ export function featuresRoutes(getPool: () => Pool | null): ServerRoute[] {
         run(h, async () => {
           const repo = repoOf(request.params);
           const id = request.params.id;
+          const body = request.payload as { user_answers?: unknown };
           const project = await projectFor(repo);
           const features = project.features;
           const feature = await features.get(id);
@@ -536,6 +537,10 @@ export function featuresRoutes(getPool: () => Pool | null): ServerRoute[] {
             apiError(409),
             `cannot finalize a feature in '${feature.status}' state`,
           );
+          // The author fills the form and accepts in one motion, so the accept
+          // carries answers exactly as a refine does. Dropping them left the last
+          // thing the author said about the plan out of the plan.
+          const answers = parseSectionAnswers(body.user_answers);
           // Accepting is the author station reporting `success`: the spec work runs
           // on the SAME line, so what follows the accept is an edge, not a new run.
           /// TODO: what is the meaning of the "dispatch" term in this context? it is very confusing and we need a better name for the function and the variable
@@ -553,7 +558,7 @@ export function featuresRoutes(getPool: () => Pool | null): ServerRoute[] {
                   title: feature.title,
                   originalPrompt: feature.original_prompt,
                   priorGap: latestReadyGap(feature.iterations),
-                  answers: null,
+                  answers,
                 }),
                 // An omitted key SURVIVES the shallow merge, so both refine
                 // leftovers are nulled outright rather than left to steer.

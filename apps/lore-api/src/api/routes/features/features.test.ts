@@ -896,7 +896,7 @@ describe("accepting the plan delivers the accepted plan to the tail nodes", () =
     iterations,
   });
 
-  const acceptOn = async (iterations: unknown[]) => {
+  const acceptOn = async (iterations: unknown[], body: unknown = {}) => {
     const pool = makePool();
 
     pool.query.mockResolvedValue({ rows: [{ id: "1" }] });
@@ -923,7 +923,7 @@ describe("accepting the plan delivers the accepted plan to the tail nodes", () =
       method: "POST",
       url: `${base}/f1/finalize`,
       headers: AUTH,
-      payload: JSON.stringify({}),
+      payload: JSON.stringify(body),
     });
     const insert = pool.query.mock.calls.find((c) =>
       String(c[0]).includes("pipeline.events"),
@@ -968,6 +968,30 @@ describe("accepting the plan delivers the accepted plan to the tail nodes", () =
     expect(description).toContain("PULL MODEL");
     // The accept carries no author feedback: nothing to comment with.
     expect(description).not.toContain("<UserComment");
+  });
+
+  it("carries the answers the author typed before accepting, not just the draft", async () => {
+    // The author fills the form and presses "Create spec PR" in one motion. Those
+    // answers were dropped on the floor: analyse-specs and write saw the draft
+    // alone, so the last thing the author said about the plan never reached the
+    // nodes that turn it into a spec.
+    const event = await acceptOn(
+      [
+        {
+          ...readyIteration({
+            sections: [{ title: "Overview", content: "PULL MODEL" }],
+            draft_spec_markdown: "d1",
+          }),
+          iteration: 1,
+          task_id: "task-1",
+        },
+      ],
+      { user_answers: { free_form: "keep the pull model, drop the poller" } },
+    );
+
+    expect(event.args?.description).toContain(
+      "keep the pull model, drop the poller",
+    );
   });
 
   it("renders the LATEST ready round, not the first — a re-accept after a bounce-back reads the newest draft", async () => {

@@ -184,6 +184,25 @@ describe("pressing Create the spec PR", () => {
     expect(finalize).toHaveBeenCalledTimes(1);
   });
 
+  it("carries what the author typed before pressing accept", async () => {
+    // The author fills the form and accepts in one motion. Those answers used to
+    // go nowhere: the accept sent an empty body, so the last thing the author said
+    // about the plan never reached the nodes that turn it into a spec.
+    const { finalize } = mount(parked);
+
+    await userEvent.type(
+      screen.getByPlaceholderText(/free-form direction/i),
+      "drop the poller",
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: /create the spec pr/i }),
+    );
+
+    expect(finalize).toHaveBeenCalledWith(
+      expect.objectContaining({ free_form: "drop the poller" }),
+    );
+  });
+
   it("replaces the decision with the spec phase, and shows the graph", async () => {
     // The two bugs the author actually hit: a row of DISABLED buttons ("press one and
     // the other says waiting"), and the run graph disappearing — it rendered only

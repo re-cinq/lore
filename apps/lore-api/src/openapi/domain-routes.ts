@@ -82,6 +82,9 @@ export const DOMAIN_BODIES: Record<string, DomainBody> = {
   // features — hand-rolled (enforceFeatureInput / parseSectionAnswers / parseGapResult).
   "POST /api/repos/{owner}/{repo}/features": { freeform: true },
   "POST /api/repos/{owner}/{repo}/features/{id}/iterations": { freeform: true },
+  // Accepting carries the same `user_answers` a refine does — the author fills the
+  // form and accepts in one motion, and those answers belong in the accepted plan.
+  "POST /api/repos/{owner}/{repo}/features/{id}/finalize": { freeform: true },
   "POST /api/repos/{owner}/{repo}/features/{id}/iterations/{n}/result": {
     freeform: true,
   },
@@ -96,7 +99,6 @@ export const DOMAIN_BODIES: Record<string, DomainBody> = {
  */
 export const BODYLESS_WRITES = new Set<string>([
   "POST /api/repos/{owner}/{repo}/webhook/ensure",
-  "POST /api/repos/{owner}/{repo}/features/{id}/finalize",
   // The job to run is the path param; a courier posts it with no body at all.
   "POST /api/maintenance/{job}",
 ]);

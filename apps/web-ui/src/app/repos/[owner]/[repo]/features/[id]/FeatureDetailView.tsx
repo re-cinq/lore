@@ -98,7 +98,7 @@ export default function FeatureDetailView({
     userAnswers: SectionAnswers,
     fromIteration?: number,
   ) => Promise<void>;
-  onCreateSpecFile: () => Promise<void>;
+  onCreateSpecFile: (userAnswers: SectionAnswers) => Promise<void>;
   split: (title: string, prompt: string) => Promise<void>;
   del: () => Promise<void>;
 }) {
