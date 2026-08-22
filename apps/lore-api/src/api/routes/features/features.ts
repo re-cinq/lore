@@ -41,15 +41,10 @@ import {
 } from "./features-schema.js";
 
 /**
- * /api/repos/:owner/:repo/features[...] — the smart feature-planning surface.
- * Reads go through project.features; lifecycle/task-spawning writes create
- * feature rows and kick feature-planning / feature-finalize Stations. The pod
- * posts each round's GapResult back to .../iterations/:n/result. See
- * specs/7-feature-planning/ and ADR-027.
- *
- * Scope: GET read; POST and DELETE write. (DELETE was historically under-scoped
- * to `read` — the old scope map only listed GET / POST / PUT, so a read token
- * could delete a feature — now raised to `write`.)
+ * /api/repos/:owner/:repo/features[...] — the feature-planning surface. Writes
+ * kick feature-planning / feature-finalize Stations; the pod posts each round's
+ * GapResult back to .../iterations/:n/result. GET is `read`, POST and DELETE are
+ * `write`. See specs/7-feature-planning/ and ADR-027.
  */
 
 const BASE = "/api/repos/{owner}/{repo}/features";
@@ -62,12 +57,8 @@ const repoOf = (p: Record<string, string>) => `${p.owner}/${p.repo}`;
 // hapi parses the payload natively (ADR-034); the 2 MB cap surfaces as a 413.
 const WRITE_PAYLOAD = { maxBytes: 2 * 1_048_576 } as const;
 
-/**
- * Map a handler throw to the legacy dispatcher's outcome: ValidationError → 400,
- * else → 500. A Boom passes straight through — `apiError` guards throw one
- * carrying the status they mean, and reshaping that to 500 would turn every
- * refusal in these handlers into a server fault.
- */
+/** ValidationError → 400, else → 500. A Boom passes through: it already carries
+ *  the status its guard meant, and reshaping it would make every refusal a fault. */
 async function run(
   h: ResponseToolkit,
   fn: () => Promise<ResponseObject>,
@@ -87,8 +78,8 @@ async function run(
   }
 }
 
-/** The resume event is the round. Without a pool it cannot be written, and a 202
- *  would tell the author their round started when nothing did. */
+/** The resume event IS the round: without a pool, a 202 would tell the author
+ *  their round started when nothing did. */
 function enforcePool(pool: Pool | null): Pool {
   enforceTrue(
     pool !== null,
@@ -100,16 +91,12 @@ function enforcePool(pool: Pool | null): Pool {
 }
 
 /**
- * Where this round goes: back to the node the feature's line is parked on, or down
- * the legacy path that mints a line per round (FR6.21).
+ * Where this round goes: the node the feature's line is parked on, or the legacy
+ * path that mints a line per round (FR6.21).
  *
- * The line is found by SUBJECT KEY — the same string the Floor stamps at launch —
- * never through the first round's task. That task owns the line only while round 1
- * succeeds: a failed round 1 makes round 2 mint a task and line of its own, and a
- * resolver keyed on the first task then finds only the finished line and takes the
- * legacy path forever (#1462). Newest line wins, exactly as `featureRunId` reads.
- * A feature whose planning predates the merged line resolves no open parked line
- * and keeps the old path, or it strands mid-plan.
+ * Found by SUBJECT KEY, never through the first round's task — a failed round 1
+ * lets round 2 mint its own line, after which a task-keyed resolver sees only the
+ * finished one and takes the legacy path forever (#1462). Newest line wins.
  */
 /// todo: we don't care about legacy features here. We must work only with assembly runs.
 async function resolveDispatch(
@@ -140,17 +127,9 @@ async function resolveDispatch(
 }
 
 /**
- * The run already working this feature, or null.
- *
- * Asked ONLY on the path that would start a new one. The resume path reports to a
- * node the open run is PARKED on — that run being open is the precondition for
- * resuming it, not a reason to refuse — so guarding there would reject every
- * ordinary refine and accept.
- *
- * Finalize is the only caller: refine's legacy arm already holds `roundInFlight`,
- * an iteration-scoped guard for the same double-click, and two overlapping guards
- * in one handler is a precedence question nobody should have to answer. That
- * finalize had NO equivalent is why it was the endpoint that duplicated.
+ * The run already working this feature, or null. Asked ONLY where a NEW run would
+ * start: the resume path needs an open run, so guarding there would reject every
+ * ordinary refine. Finalize is the only caller — refine has `roundInFlight`.
  */
 async function runAlreadyWorking(
   project: { assemblyRuns: Pick<AssemblyRuns, "findOpenBySubject"> },
@@ -164,16 +143,10 @@ async function runAlreadyWorking(
 }
 
 /**
- * The run the feature page should draw: the NEWEST run for this feature.
- *
- * This used to resolve through the first round's task and then filter to the
- * `feature-planning` blueprint, which excluded by name every other line a feature
- * can start. A finalize run is a different task AND a different blueprint, so
- * pressing "Create spec PR" started work the page had no way to see — it kept
- * drawing the planning run, and looked like nothing had happened.
- *
- * Newest wins rather than newest-OPEN: a feature whose run has finished must still
- * show that run (and its failure reason) rather than falling back to silence.
+ * The run the feature page draws: the NEWEST run for this feature, whatever
+ * blueprint it is — filtering to `feature-planning` hid the finalize run, so
+ * "Create spec PR" looked like nothing happened. Newest, not newest-OPEN: a
+ * finished run must still show, failure reason and all.
  */
 async function featureRunId(
   project: { assemblyRuns: Pick<AssemblyRuns, "listForSubject"> },
@@ -186,11 +159,8 @@ async function featureRunId(
   return runs[0]?.id ?? null;
 }
 
-/**
- * Kick a feature-planning Station for the next round of a feature. `repoFullName`
- * MUST be the `owner/repo` slug — it lands verbatim in `target_repo`, which the
- * pod clones as `github.com/<target_repo>.git`.
- */
+/** Kick a feature-planning Station. `repoFullName` MUST be the `owner/repo` slug:
+ *  it lands verbatim in `target_repo`, cloned as `github.com/<target_repo>.git`. */
 async function kickPlanning(
   repoFullName: string,
   featureId: string,
@@ -204,8 +174,7 @@ async function kickPlanning(
     "feature-planning",
     repoFullName,
     "ui",
-    // Both forms ride along: whether the run resumes the previous round's
-    // conversation is only known at dispatch, in the Floor, so it picks there.
+    // Both ride along: only the Floor knows at dispatch whether to resume.
     {
       feature_id: featureId,
       iteration,
@@ -301,11 +270,8 @@ export function featuresRoutes(getPool: () => Pool | null): ServerRoute[] {
         }),
     },
 
-    // GET .../features/:id/status — the planning wizard's 4s poll in one call.
-    //
-    // Deliberately NOT a `?view=` param on GET :id — that route carries EVERY
-    // round's gap_result (mockup markup plus a repo stylesheet each), which must
-    // not be re-sent every four seconds.
+    // GET .../features/:id/status — the wizard's 4s poll. NOT a `?view=` on GET
+    // :id, which carries every round's gap_result — too big to re-send that often.
     {
       method: "GET",
       path: `${BASE}/{id}/status`,
@@ -325,8 +291,7 @@ export function featuresRoutes(getPool: () => Pool | null): ServerRoute[] {
             feature: row,
             latest_iteration: iterations[iterations.length - 1] ?? null,
             last_ready_iteration: latestReadyIteration(iterations),
-            // The run the graph hangs on. From round 2 a resumed round mints no
-            // task, so only the OWNING task — the first round's — can resolve it.
+            // The run the graph hangs on; a resumed round mints no task of its own.
             ...runIdBothSpellings(await featureRunId(project, feature.id)),
           });
         }),
@@ -344,9 +309,8 @@ export function featuresRoutes(getPool: () => Pool | null): ServerRoute[] {
         run(h, async () => {
           const project = await projectFor(repoOf(request.params));
 
-          // An unknown id is NOT an empty tree. The empty list is for a feature
-          // that exists and has not been decomposed yet; conflating the two would
-          // report success for a typo.
+          // An unknown id is NOT an empty tree — that is a feature not yet
+          // decomposed, and conflating them reports success for a typo.
           enforceTrue(
             await project.features.get(request.params.id),
             apiError(404),
@@ -419,12 +383,8 @@ export function featuresRoutes(getPool: () => Pool | null): ServerRoute[] {
           }
 
           const answers = parseSectionAnswers(body.user_answers);
-          // Rewind: continue from the round the author picked rather than the
-          // latest. Both the prompt's draft and the conversation to resume come
-          // from that ONE round, so a rewind cannot half-happen.
-          // A REWIND is the author naming a round; the basis is resolved for every
-          // round either way (it supplies the prior draft). Only the first is a
-          // rewind, and conflating them makes every round claim to be one.
+          // A rewind is the AUTHOR naming a round; a basis is resolved either way.
+          // Conflating them makes every round claim to be a rewind.
           const rewoundTo =
             typeof body.from_iteration === "number"
               ? body.from_iteration
@@ -462,14 +422,10 @@ export function featuresRoutes(getPool: () => Pool | null): ServerRoute[] {
                 description,
                 round_feedback: roundFeedback,
                 iteration: row.iteration,
-                // Rewind on a merged line: a resumed round mints no task, so the round
-                // can only be named by the iteration it ran as. Sent on EVERY round —
-                // null when the author did not rewind — because the resume MERGES into
-                // the line's args rather than replacing them, so an omitted key would
-                // leave an earlier rewind still steering. It must be the round the
-                // AUTHOR NAMED, never the ordinary basis: the resolver honours a rewind
-                // literally, so claiming one on an ordinary round drops the
-                // conversation whenever that basis never archived.
+                // Sent on EVERY round (null when there was no rewind): the resume
+                // MERGES into the line's args, so an omitted key would leave an
+                // earlier rewind still steering. Must be the round the AUTHOR named
+                // — the resolver honours a rewind literally.
                 resume_from_iteration:
                   rewoundTo === undefined
                     ? null
@@ -524,16 +480,15 @@ export function featuresRoutes(getPool: () => Pool | null): ServerRoute[] {
             "iteration must be a non-negative integer",
           );
 
-          // Confirm the feature belongs to this repo before any write — feature.id
-          // is a global UUID, so without this a write-token holder could POST a
-          // forged result against another repo's feature.
+          // feature.id is a global UUID: without this repo check a write-token
+          // holder could forge a result against another repo's feature.
           const features = (await projectFor(repoOf(request.params))).features;
           const feature = await features.get(id);
 
           enforceTrue(feature, apiError(404), "feature not found");
 
-          // Shared with the Floor's artifact-event handler so a round reads the
-          // same however the pod delivered it (applyGapResult).
+          // Shared with the Floor's artifact-event handler, so a round reads the
+          // same however the pod delivered it.
           const applied = await applyGapResult(
             features,
             id,
@@ -592,19 +547,16 @@ export function featuresRoutes(getPool: () => Pool | null): ServerRoute[] {
               dispatch,
               "success",
               {
-                // The tail nodes read args.description as "the accepted plan"; without
-                // this the shallow merge leaves the LAST REFINE's brief — the
-                // round-before-accepted draft plus the author's objections — as what
-                // analyse-specs and write see (#1470).
+                // Tail nodes read args.description as "the accepted plan"; without
+                // this the shallow merge leaves the last refine's brief there (#1470).
                 description: composePlanningPrompt({
                   title: feature.title,
                   originalPrompt: feature.original_prompt,
                   priorGap: latestReadyGap(feature.iterations),
                   answers: null,
                 }),
-                // Shallow merge: an omitted key SURVIVES (see the refine arm's
-                // resume_from_iteration comment), so both refine leftovers are
-                // nulled outright rather than left to steer later rounds.
+                // An omitted key SURVIVES the shallow merge, so both refine
+                // leftovers are nulled outright rather than left to steer.
                 round_feedback: null,
                 resume_from_iteration: null,
               },
@@ -612,20 +564,15 @@ export function featuresRoutes(getPool: () => Pool | null): ServerRoute[] {
 
             return h.response(runIdBothSpellings(dispatch.lineId)).code(202);
           }
-          // Starting a fresh run for a feature something is already working is the
-          // duplicate this endpoint used to accept without a murmur: `canFinalize`
-          // gates on feature.status, which does not move until a PR lands ~18
-          // minutes later, so every click inside that window minted another task,
-          // another run, another branch and another spec PR. The run id rides the
-          // 409 so the caller can show the work already in flight instead of an
-          // error — a duplicate press means "show me", not "you broke something".
+          // `canFinalize` gates on feature.status, which does not move until a PR
+          // lands ~18min later, so every click in that window used to mint another
+          // task, run, branch and spec PR. The id rides the 409 because a duplicate
+          // press means "show me", not "you broke something".
           const inFlight = await runAlreadyWorking(project, id);
 
-          // `runIdBothSpellings` is generic over `string | null`, so the run id
-          // can be composed before the guard decides — which is what lets this
-          // read as a precondition at all. `prefer-api-error` skips the shape on
-          // its own (the refusal reads what the test narrows), because without
-          // type information it cannot tell this case from the ones that break.
+          // Composable before the guard decides because `runIdBothSpellings` is
+          // generic over `string | null`. `prefer-api-error` skips this shape —
+          // without type information it cannot tell it from the ones that break.
           enforceTrue(
             !inFlight,
             apiError(409, runIdBothSpellings(inFlight)),
