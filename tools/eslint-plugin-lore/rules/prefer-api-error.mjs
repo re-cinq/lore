@@ -40,19 +40,32 @@ import {
 } from "./lib/guard-shape.mjs";
 
 const ENFORCE_SOURCE = "@re-cinq/lore-shared/lib/enforce.js";
-const LORE_API_SRC_MARKER = "/apps/lore-api/src/";
-const API_ERROR_PATH = "server/api-error.js";
 
-/** Where `apiError` lives relative to the file being fixed, or null off lore-api. */
+/**
+ * Each hapi server owns its own `apiError`. They cannot share one: the helper
+ * builds a Boom, and `libs/shared` deliberately carries no hapi dependency — it
+ * is installed in the lean MCP adapter, which exists precisely not to drag the
+ * servers' deps along (ADR-032, and the same reasoning `http/raw-body.ts`
+ * states for refusing even a type-only hapi import).
+ */
+const API_ERROR_HOMES = [
+  ["/apps/lore-api/src/", "server/api-error.js"],
+  ["/apps/floor/src/", "delivery/http/api-error.js"],
+];
+
+/** Where `apiError` lives relative to the file being fixed, or null where none does. */
 function apiErrorSourceFor(filename) {
   const unix = filename.replace(/\\/g, "/");
-  const idx = unix.indexOf(LORE_API_SRC_MARKER);
-  if (idx === -1) return null;
-  const srcRoot = unix.slice(0, idx + LORE_API_SRC_MARKER.length);
-  const rel = path
-    .relative(path.dirname(unix), `${srcRoot}${API_ERROR_PATH}`)
-    .replace(/\\/g, "/");
-  return rel.startsWith(".") ? rel : `./${rel}`;
+  for (const [marker, target] of API_ERROR_HOMES) {
+    const idx = unix.indexOf(marker);
+    if (idx === -1) continue;
+    const srcRoot = unix.slice(0, idx + marker.length);
+    const rel = path
+      .relative(path.dirname(unix), `${srcRoot}${target}`)
+      .replace(/\\/g, "/");
+    return rel.startsWith(".") ? rel : `./${rel}`;
+  }
+  return null;
 }
 
 /**
@@ -132,7 +145,7 @@ export default {
     );
     const apiErrorImport = importInjector(
       sourceCode.ast,
-      apiErrorSource ?? API_ERROR_PATH,
+      apiErrorSource ?? "api-error.js",
       (value) => value.endsWith("api-error.js"),
     );
 

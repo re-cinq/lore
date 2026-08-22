@@ -61,7 +61,7 @@ describe("POST /api/webhook/ci-tests", () => {
     const res = await authed(JSON.stringify({ repo: "re-cinq/lore" })); // missing commit
 
     expect(res.statusCode).toBe(400);
-    expect(res.result).toMatchObject({ message: "missing commit" });
+    expect(res.result).toMatchObject({ error: "missing commit" });
   });
 
   it("returns 500 when the event insert fails (so the sender redelivers)", async () => {

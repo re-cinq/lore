@@ -11,7 +11,7 @@
  */
 
 import { timingSafeEqual } from "node:crypto";
-import Boom from "@hapi/boom";
+import { apiError } from "./api-error.js";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import type { Server, ServerAuthScheme } from "@hapi/hapi";
 
@@ -36,12 +36,7 @@ const bearerScheme: ServerAuthScheme = (_server, options) => {
 
   return {
     authenticate(request, h) {
-      enforceTrue(
-        token,
-        (message) =>
-          new Boom.Boom(message, { statusCode: unconfiguredStatusCode }),
-        unconfiguredMessage,
-      );
+      enforceTrue(token, apiError(unconfiguredStatusCode), unconfiguredMessage);
       const header = request.headers.authorization;
       const provided = (Array.isArray(header) ? header[0] : header)?.replace(
         "Bearer ",
@@ -50,7 +45,7 @@ const bearerScheme: ServerAuthScheme = (_server, options) => {
 
       enforceTrue(
         provided !== undefined && tokensMatch(provided, token),
-        Boom.unauthorized,
+        apiError(401),
         "unauthorized",
       );
 

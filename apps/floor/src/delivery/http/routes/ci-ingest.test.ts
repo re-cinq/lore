@@ -63,7 +63,7 @@ describe("POST /api/webhook/ci-ingest", () => {
     );
 
     expect(res.statusCode).toBe(400);
-    expect((res.result as { message?: string }).message).toContain(
+    expect((res.result as { error?: string }).error).toContain(
       "unsupported kind(s): bogus",
     );
   });

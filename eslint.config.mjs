@@ -89,12 +89,11 @@ export default tseslint.config(
   },
 
   // An HTTP refusal is a precondition, so it goes through the same bouncer as
-  // every other guard. Scoped to lore-api because that is where `apiError` —
-  // the one owner of the `{ error }` envelope — lives; the Floor's routes have
-  // the same pattern and want the same treatment once they have a helper of
-  // their own to point at.
+  // every other guard. Scoped to the two hapi servers — the rule rewrites to
+  // `apiError`, and each server owns its own copy of that helper (shared cannot
+  // hold it without dragging @hapi/boom into the lean MCP adapter, ADR-032).
   {
-    files: ["apps/lore-api/src/**/*.ts"],
+    files: ["apps/lore-api/src/**/*.ts", "apps/floor/src/**/*.ts"],
     rules: { "lore/prefer-api-error": "error" },
   },
 

@@ -8,7 +8,7 @@
 
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
-import Boom from "@hapi/boom";
+import { apiError } from "../api-error.js";
 import type { ServerRoute } from "@hapi/hapi";
 import { mapGitHubEvent } from "../../../listeners/github-map.js";
 import { insertEventList } from "../../../main-loop/store.js";
@@ -42,16 +42,16 @@ export const githubWebhookRoute: ServerRoute = {
 
     enforceTrue(
       secret,
-      Boom.serverUnavailable,
+      apiError(503),
       "webhook secret not configured", // TODO: message should be more actionable, e.g. "set LORE_WEBHOOK_SECRET on lore floor app."
     );
-    enforceTrue(signature, Boom.unauthorized, "missing signature"); // TODO: message should be more actionable, e.g. "GitHub webhook must send x-hub-signature-256 header."
+    enforceTrue(signature, apiError(401), "missing signature"); // TODO: message should be more actionable, e.g. "GitHub webhook must send x-hub-signature-256 header."
     enforceTrue(
       verifyGitHubSignature(secret, signature, raw),
-      Boom.unauthorized,
+      apiError(401),
       "invalid signature",
     ); // TODO: message should be more actionable, e.g. "GitHub webhook signature verification failed; check LORE_WEBHOOK_SECRET and GitHub webhook secret match."
-    enforceTrue(eventType, Boom.badRequest, "missing x-github-event header");
+    enforceTrue(eventType, apiError(400), "missing x-github-event header");
 
     const events = mapGitHubEvent(eventType, parseJsonBody(raw), deliveryId);
 

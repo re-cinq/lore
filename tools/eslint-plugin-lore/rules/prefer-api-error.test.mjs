@@ -135,14 +135,26 @@ ruleTester.run("prefer-api-error", rule, {
       filename: "/repo/apps/lore-api/src/server/thing.ts",
     },
     {
-      // outside lore-api the pattern is still wrong, but the rule cannot know
-      // where apiError lives, so it reports without a fix
+      // the Floor keeps its own helper — it cannot share lore-api's, and shared
+      // must not carry @hapi/boom into the lean MCP adapter (ADR-032). Its
+      // routes sit one level below it, so the path is relative to the file.
+      code: handler(
+        `if (!row) { return h.response({ error: "not found" }).code(404); }`,
+      ),
+      output: `${ENFORCE}\nimport { apiError } from "../api-error.js";\n${handler(
+        `enforceTrue(row, apiError(404), "not found");`,
+      )}`,
+      errors: [{ messageId: "preferApiError" }],
+      filename: "/repo/apps/floor/src/delivery/http/routes/thing.ts",
+    },
+    {
+      // an app with no helper of its own is still reported, just without a fix
       code: handler(
         `if (!row) { return h.response({ error: "not found" }).code(404); }`,
       ),
       output: null,
       errors: [{ messageId: "preferApiError" }],
-      filename: "/repo/apps/floor/src/delivery/http/routes/thing.ts",
+      filename: "/repo/apps/mcp-server/src/thing.ts",
     },
   ],
 });

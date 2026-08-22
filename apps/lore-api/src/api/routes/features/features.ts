@@ -621,14 +621,16 @@ export function featuresRoutes(getPool: () => Pool | null): ServerRoute[] {
           // error — a duplicate press means "show me", not "you broke something".
           const inFlight = await runAlreadyWorking(project, id);
 
-          if (inFlight) {
-            return h
-              .response({
-                error: "a run is already in flight for this feature",
-                ...runIdBothSpellings(inFlight),
-              })
-              .code(409);
-          }
+          // `runIdBothSpellings` is generic over `string | null`, so the run id
+          // can be composed before the guard decides — which is what lets this
+          // read as a precondition at all. `prefer-api-error` skips the shape on
+          // its own (the refusal reads what the test narrows), because without
+          // type information it cannot tell this case from the ones that break.
+          enforceTrue(
+            !inFlight,
+            apiError(409, runIdBothSpellings(inFlight)),
+            "a run is already in flight for this feature",
+          );
           const task = await createTask(
             `Finalize feature: ${feature.title}`,
             "feature-finalize",

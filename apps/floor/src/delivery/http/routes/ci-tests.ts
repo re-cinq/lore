@@ -7,7 +7,7 @@
  */
 
 import { enforceOk } from "@re-cinq/lore-shared/lib/enforce.js";
-import Boom from "@hapi/boom";
+import { apiError } from "../api-error.js";
 import type { ServerRoute } from "@hapi/hapi";
 import {
   mapCiTests,
@@ -23,9 +23,9 @@ export const ciTestsRoute: ServerRoute = {
   handler: async (request, h) => {
     const mapped = mapCiTests(parseJsonBody<CiTestsBody>(rawBody(request)));
 
-    // A validation failure is a client error — Boom.badRequest surfaces the
+    // A validation failure is a client error — a 400 surfaces the
     // mapper's 400 + message instead of a generic 500.
-    enforceOk(mapped, Boom.badRequest);
+    enforceOk(mapped, apiError(400));
 
     await insertEventList(mapped.events, "ci-tests");
 

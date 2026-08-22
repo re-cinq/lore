@@ -18,7 +18,7 @@
 // planning line; `stationInherited` puts it in the response rather than leaving it to
 // be reconstructed from YAML.
 
-import Boom from "@hapi/boom";
+import { apiError } from "../api-error.js";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import type { ServerRoute } from "@hapi/hapi";
 import {
@@ -86,7 +86,7 @@ export function assemblyRunReadRoute(
     handler: async (request) => {
       const line = await assemblyRuns().getById(request.params.id);
 
-      enforceTrue(line !== null, Boom.notFound, "assembly line not found");
+      enforceTrue(line !== null, apiError(404), "assembly line not found");
       const [rows, graph] = await Promise.all([
         assemblyRuns().listStationRuns(line.id),
         // The run's own clone; a blueprint loaded by name only for rows stamped

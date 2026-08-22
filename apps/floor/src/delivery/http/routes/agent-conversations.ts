@@ -1,3 +1,5 @@
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
+import { apiError, rethrowBoom } from "../api-error.js";
 // The conversation registry a run pod talks to (ai-agent-subsystem#188).
 //
 // GET  /api/agent-conversations/{id} — the prior run's state archive, which the pod's
@@ -65,17 +67,17 @@ export const agentConversationFetchRoute: ServerRoute = {
       const record = await conversations().byConversationId(request.params.id);
       const archive = conversationArchive();
 
-      if (!record?.objectKey || !archive) {
-        return h.response({ error: "not found" }).code(404);
-      }
+      enforceTrue(record?.objectKey && archive, apiError(404), "not found");
       const bytes = await archive.readBytes(record.objectKey);
 
-      if (!bytes) {
-        return h.response({ error: "not found" }).code(404);
-      }
+      enforceTrue(bytes, apiError(404), "not found");
 
       return h.response(Buffer.from(bytes)).type("application/gzip").code(200);
     } catch (err) {
+      // A guard above already answered 404 deliberately; only an unexpected
+      // failure belongs in the warn below.
+      rethrowBoom(err);
+
       // A failed restore must never fail the RUN — the pod's fetch is best-effort and
       // degrades to a fresh conversation, so answering 404 keeps that path honest.
       console.warn(`[agent-conversations] fetch failed: ${errorMessage(err)}`);
