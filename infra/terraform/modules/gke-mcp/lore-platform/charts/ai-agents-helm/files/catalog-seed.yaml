@@ -1487,14 +1487,14 @@ spec:
 apiVersion: agents.re-cinq.com/v1alpha1
 kind: AgentDefinition
 metadata:
-  name: feature-finalize
+  name: spec-write
   labels:
     app.kubernetes.io/managed-by: lore-catalog-seed
   namespace: {{ .Values.namespace }}
   annotations:
     helm.sh/resource-policy: keep
 spec:
-  description: Lore feature-finalize task recipe (seeded).
+  description: Lore spec-write task recipe (seeded).
   model: claude-sonnet-4-6
   prompt: |-
     Finalize a planned feature into a committable specification. The Context
@@ -1539,14 +1539,14 @@ spec:
 apiVersion: agents.re-cinq.com/v1alpha1
 kind: Station
 metadata:
-  name: feature-finalize
+  name: spec-write
   labels:
     app.kubernetes.io/managed-by: lore-catalog-seed
   namespace: {{ .Values.namespace }}
   annotations:
     helm.sh/resource-policy: keep
 spec:
-  agentDefRef: feature-finalize
+  agentDefRef: spec-write
   deadlineMinutes: 15
   template:
     spec:

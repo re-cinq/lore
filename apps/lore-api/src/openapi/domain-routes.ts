@@ -84,6 +84,10 @@ export const DOMAIN_BODIES: Record<string, DomainBody> = {
   "POST /api/repos/{owner}/{repo}/features/{id}/iterations": { freeform: true },
   // Accepting carries the same `user_answers` a refine does — the author fills the
   // form and accepts in one motion, and those answers belong in the accepted plan.
+  // Both paths while the UI catches up; `/finalize` retires after the UI deploys.
+  "POST /api/repos/{owner}/{repo}/features/{id}/create-spec-file": {
+    freeform: true,
+  },
   "POST /api/repos/{owner}/{repo}/features/{id}/finalize": { freeform: true },
   "POST /api/repos/{owner}/{repo}/features/{id}/iterations/{n}/result": {
     freeform: true,

@@ -230,15 +230,15 @@ describe("the merged line's agent nodes name their own recipes", () => {
       push: nodes.get("push"),
     }).toEqual({
       analyse: "spec-analysis",
-      write: "feature-finalize",
-      push: "feature-finalize",
+      write: "spec-write",
+      push: "spec-write",
     });
   });
 });
 
 describe("feature-planning after the spec PR is pushed", () => {
   // The decomposition tail. It used to be a SECOND line, started by minting a
-  // `feature-decompose` task when a `feature-finalize` PR merged — a predicate that
+  // `feature-decompose` task when the spec PR merged — a predicate that
   // stopped matching the moment finalize became a resume of this line, so nothing
   // decomposed and nothing said so. Merging the tail in makes the merge a node
   // outcome like any other.

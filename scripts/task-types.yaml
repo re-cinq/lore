@@ -81,7 +81,7 @@ task_types:
     model: claude-sonnet-4-6
 
   # The `push` node of every assembly line that produces a PR (implementation,
-  # general, gap-fill, feature-finalize, feature-planning) names this recipe via
+  # general, gap-fill, spec-write, feature-planning) names this recipe via
   # `prompt_ref: push-only`. It did not exist until #1329 — `buildPrompt` fell back
   # to `general`, so every push node ran "complete the following task" against the
   # whole description, edited files, committed, and exited 0 without ever pushing.
@@ -700,7 +700,7 @@ task_types:
       event: spec.plan
       path: target/spec-plan.json
 
-  feature-finalize:
+  spec-write:
     prompt_template: |
       Finalize a planned feature into a committable specification. The Context
       section contains the accumulated draft spec and the planning timeline.

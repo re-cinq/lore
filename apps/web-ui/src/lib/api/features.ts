@@ -57,8 +57,7 @@ export function createSpecFile(
   id: string,
   userAnswers: unknown,
 ): Promise<ApiResult<{ task_id?: string } & RunIdCarrier>> {
-  /// todo: rename this endpoint to something like "createSpecFile" because it does not finalize the feature, it just moves the context in the assembly run to the next station and starts it. The user still needs to review the PR for the spec and provide feedback on the assembly run.
-  return apiFetch("lore-api", `${base(repo)}/${id}/finalize`, {
+  return apiFetch("lore-api", `${base(repo)}/${id}/create-spec-file`, {
     method: "POST",
     body: { user_answers: userAnswers },
   });

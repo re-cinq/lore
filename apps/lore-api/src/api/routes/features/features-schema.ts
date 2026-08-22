@@ -168,7 +168,7 @@ export const RoundStartedSchema = z.object({
   assembly_line_id: z.string().optional(),
 });
 
-export const FinalizeStartedSchema = z.object({
+export const SpecFileStartedSchema = z.object({
   task_id: z.string().optional(),
   assembly_run_id: z.string().optional(),
   /** @deprecated the pre-rename spelling. Drop once no deployed READER still

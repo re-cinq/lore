@@ -34,7 +34,7 @@ import {
   FeatureWithIterationsSchema,
   FeatureCreatedSchema,
   RoundStartedSchema,
-  FinalizeStartedSchema,
+  SpecFileStartedSchema,
   FeatureSchema,
   OkSchema,
   runIdBothSpellings,
@@ -490,77 +490,85 @@ export function featuresRoutes(getPool: () => Pool | null): ServerRoute[] {
         }),
     },
 
-    // POST .../features/:id/finalize — kick the finalize Station.
-    {
-      method: "POST",
-      /// todo: the "finalize" term is incorrect here because this endpoint just moves the context in the assembly run to the next station and starts it.
-      /// one of the next steps are to review a PR for the spec, so the user still needs to provide feedback on the assembly run.
-      /// you must rename the endpoint to something like "createSpecFile"
-      /// todo: this handler must also get any form response like it gets in the iteration and add it to the context, and continue with the run instead of
-      /// doing analyze again
-      path: `${BASE}/{id}/finalize`,
-      options: {
-        ...zodResponse(bearerScope("write"), FinalizeStartedSchema, {
-          name: "FinalizeStarted",
-          status: 202,
-          errors: [404, 409],
-        }),
-        payload: WRITE_PAYLOAD,
-      },
-      handler: (request, h) =>
-        run(h, async () => {
-          const repo = repoOf(request.params);
-          const id = request.params.id;
-          const body = request.payload as { user_answers?: unknown };
-          const project = await projectFor(repo);
-          const features = project.features;
-          const feature = await features.get(id);
+    // POST .../features/:id/create-spec-file — accept the plan and let the SAME
+    // line walk on to the spec work. It was `/finalize`, which named neither what
+    // it does nor when: nothing is final here, the run simply moves to the next
+    // station and a human still reviews the spec PR that comes out. Served at both
+    // paths while the UI catches up (expand/contract, as #1423 and #1270 do) —
+    // lore-api and web-ui are separate workloads of the umbrella chart and are
+    // never atomically in step.
+    ...[`${BASE}/{id}/create-spec-file`, `${BASE}/{id}/finalize`].map(
+      (path): ServerRoute => ({
+        method: "POST",
+        path,
+        options: {
+          ...zodResponse(bearerScope("write"), SpecFileStartedSchema, {
+            name: "SpecFileStarted",
+            status: 202,
+            errors: [404, 409],
+          }),
+          payload: WRITE_PAYLOAD,
+        },
+        handler: (request, h) =>
+          run(h, async () => {
+            const repo = repoOf(request.params);
+            const id = request.params.id;
+            const body = request.payload as { user_answers?: unknown };
+            const project = await projectFor(repo);
+            const features = project.features;
+            const feature = await features.get(id);
 
-          enforceTrue(feature, apiError(404), "feature not found");
+            enforceTrue(feature, apiError(404), "feature not found");
 
-          enforceTrue(
-            canFinalize(feature.status),
-            apiError(409),
-            `cannot finalize a feature in '${feature.status}' state`,
-          );
-          // The author fills the form and accepts in one motion, so the accept
-          // carries answers exactly as a refine does. Dropping them left the last
-          // thing the author said about the plan out of the plan.
-          const answers = parseSectionAnswers(body.user_answers);
-          // Accepting is the author station reporting `success`: the spec work runs
-          // on the SAME line, so what follows the accept is an edge, not a new run.
-          const { runId, parked } = await findParkedAuthorNode(project, id);
+            enforceTrue(
+              canFinalize(feature.status),
+              apiError(409),
+              `cannot finalize a feature in '${feature.status}' state`,
+            );
+            // The author fills the form and accepts in one motion, so the accept
+            // carries answers exactly as a refine does. Dropping them left the last
+            // thing the author said about the plan out of the plan.
+            const answers = parseSectionAnswers(body.user_answers);
+            // Accepting is the author station reporting `success`: the spec work runs
+            // on the SAME line, so what follows the accept is an edge, not a new run.
+            const { runId, parked } = await findParkedAuthorNode(project, id);
 
-          // ONE guard, and it is structural. `canFinalize` reads feature.status,
-          // which does not move until a PR lands ~18min later, so it cannot tell a
-          // second press from a first; the parked node can — reporting an outcome
-          // to the author node is what un-parks it, so the second press finds
-          // nothing to report to. The run id rides the refusal because a duplicate
-          // press means "show me", not "you broke something".
-          enforceTrue(
-            parked,
-            apiError(409, runIdBothSpellings(runId)),
-            "no plan is waiting to be accepted — this feature's line is not parked on the author",
-          );
+            // ONE guard, and it is structural. `canFinalize` reads feature.status,
+            // which does not move until a PR lands ~18min later, so it cannot tell a
+            // second press from a first; the parked node can — reporting an outcome
+            // to the author node is what un-parks it, so the second press finds
+            // nothing to report to. The run id rides the refusal because a duplicate
+            // press means "show me", not "you broke something".
+            enforceTrue(
+              parked,
+              apiError(409, runIdBothSpellings(runId)),
+              "no plan is waiting to be accepted — this feature's line is not parked on the author",
+            );
 
-          await reportToParkedNode(enforcePool(getPool()), parked, "success", {
-            // Tail nodes read args.description as "the accepted plan"; without
-            // this the shallow merge leaves the last refine's brief there (#1470).
-            description: composePlanningPrompt({
-              title: feature.title,
-              originalPrompt: feature.original_prompt,
-              priorGap: latestReadyGap(feature.iterations),
-              answers,
-            }),
-            // An omitted key SURVIVES the shallow merge, so both refine
-            // leftovers are nulled outright rather than left to steer.
-            round_feedback: null,
-            resume_from_iteration: null,
-          });
+            await reportToParkedNode(
+              enforcePool(getPool()),
+              parked,
+              "success",
+              {
+                // Tail nodes read args.description as "the accepted plan"; without
+                // this the shallow merge leaves the last refine's brief there (#1470).
+                description: composePlanningPrompt({
+                  title: feature.title,
+                  originalPrompt: feature.original_prompt,
+                  priorGap: latestReadyGap(feature.iterations),
+                  answers,
+                }),
+                // An omitted key SURVIVES the shallow merge, so both refine
+                // leftovers are nulled outright rather than left to steer.
+                round_feedback: null,
+                resume_from_iteration: null,
+              },
+            );
 
-          return h.response(runIdBothSpellings(parked.lineId)).code(202);
-        }),
-    },
+            return h.response(runIdBothSpellings(parked.lineId)).code(202);
+          }),
+      }),
+    ),
 
     // POST .../features/:id/split — create a child draft from a split suggestion.
     {
