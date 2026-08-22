@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, it, expect } from "vitest";
+import { afterAll, beforeAll, describe, it, expect, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import SpendView, {
   budgetOutlook,
@@ -478,6 +478,21 @@ describe("SpendView top-up form", () => {
 });
 
 describe("SpendView runout wording", () => {
+  // The runway is burn rate over the window from the anchor to NOW, so with a
+  // fixed anchor and a real clock the expected sentence changes by one day every
+  // day: these assertions went red on main at a date rollover, with no code
+  // change (#1475). Freezing the clock makes the window the fixture, not the
+  // calendar.
+  const NOW = new Date("2026-08-21T00:00:00Z");
+
+  beforeAll(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(NOW);
+  });
+  afterAll(() => {
+    vi.useRealTimers();
+  });
+
   const withDaysLeft = (spent: number, remaining: number) => ({
     ledger_total_usd: spent + remaining,
     spent_since_usd: spent,
