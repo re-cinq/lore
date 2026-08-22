@@ -11,8 +11,8 @@
 # were never raised and the next station read an empty bag (#1468). A server-side
 # apply compares against what is actually there, so drift cannot outlive a deploy.
 #
-# Weight -2: strictly AFTER the crd-upgrade hook (-4), or a stale schema would
-# prune these fields on the way in and recreate the very incident above.
+# The two objects are weighted apart: the ConfigMap (-3) must exist before the Job
+# (-2) mounts it, and both run after the crd-upgrade hook (-4) — see the Job below.
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -26,6 +26,8 @@ data:
   catalog.yaml: |
 {{ tpl (.Files.Get "files/catalog-seed.yaml") . | indent 4 }}
 ---
+# Weight -2: strictly AFTER the crd-upgrade hook (-4), or a stale schema would
+# prune these fields on the way in and recreate the very incident above.
 apiVersion: batch/v1
 kind: Job
 metadata:
