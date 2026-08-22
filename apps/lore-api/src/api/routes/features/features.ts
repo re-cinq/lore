@@ -91,29 +91,32 @@ function enforcePool(pool: Pool | null): Pool {
 }
 
 /**
- * Where this round goes: the node the feature's line is parked on, or the legacy
- * path that mints a line per round (FR6.21).
+ * The `author` node this feature's planning line is parked on, plus the line it
+ * belongs to — the ONE way a round or an accept gets in.
  *
- * Found by SUBJECT KEY, never through the first round's task — a failed round 1
- * lets round 2 mint its own line, after which a task-keyed resolver sees only the
- * finished one and takes the legacy path forever (#1462). Newest line wins.
+ * The line is found by SUBJECT KEY, never through the first round's task: a failed
+ * round 1 lets round 2 mint its own line, after which a task-keyed resolver sees
+ * only the finished one (#1462). Newest line wins.
+ *
+ * `runId` is reported even when nothing is parked, so a refusal can name the run
+ * that IS working the feature instead of only saying no.
  */
-/// todo: we don't care about legacy features here. We must work only with assembly runs.
-async function resolveDispatch(
+async function findParkedAuthorNode(
   project: {
     assemblyRuns: Pick<AssemblyRuns, "listForSubject" | "listStationRuns">;
   },
   featureId: string,
-): Promise<
-  { kind: "legacy" } | ({ kind: "resume"; lineId: string } & ParkedTarget)
-> {
+): Promise<{
+  runId: string | null;
+  parked: ({ lineId: string } & ParkedTarget) | null;
+}> {
   const lines = await project.assemblyRuns.listForSubject(
     featureSubject(featureId),
   );
   const line = lines.find((l) => l.blueprintName === PLANNING_DEFINITION);
 
   if (!line) {
-    return { kind: "legacy" };
+    return { runId: null, parked: null };
   }
   const decision = decideRoundDispatch(
     line.status,
@@ -121,25 +124,17 @@ async function resolveDispatch(
     line.graph,
   );
 
-  return decision.kind === "resume"
-    ? { ...decision, lineId: line.id }
-    : { kind: "legacy" };
-}
-
-/**
- * The run already working this feature, or null. Asked ONLY where a NEW run would
- * start: the resume path needs an open run, so guarding there would reject every
- * ordinary refine. Finalize is the only caller — refine has `roundInFlight`.
- */
-async function runAlreadyWorking(
-  project: { assemblyRuns: Pick<AssemblyRuns, "findOpenBySubject"> },
-  featureId: string,
-): Promise<string | null> {
-  const open = await project.assemblyRuns.findOpenBySubject(
-    featureSubject(featureId),
-  );
-
-  return open?.id ?? null;
+  return {
+    runId: line.id,
+    parked:
+      decision.kind === "resume"
+        ? {
+            nodeId: decision.nodeId,
+            iteration: decision.iteration,
+            lineId: line.id,
+          }
+        : null,
+  };
 }
 
 /**
@@ -401,59 +396,50 @@ export function featuresRoutes(getPool: () => Pool | null): ServerRoute[] {
             priorGap,
             answers,
           });
-          const dispatch = await resolveDispatch(project, id);
+          const { runId, parked } = await findParkedAuthorNode(project, id);
+
+          // Asked BEFORE the round row is written: a refused refine that had already
+          // appended an iteration would leave a round nothing will ever run.
+          enforceTrue(
+            parked,
+            apiError(409, runIdBothSpellings(runId)),
+            "no planning round is waiting on you — a refinement reports to the author node, and this feature's line is not parked there",
+          );
           const row = await features.appendIteration(
             id,
             answers,
             basis.basis?.iteration ?? null,
           );
-          const roundFeedback = composeRoundFeedback({
-            round: row.iteration,
-            priorGap,
-            answers,
-          });
 
-          if (dispatch.kind === "resume") {
-            await reportToParkedNode(
-              enforcePool(getPool()),
-              dispatch,
-              "changes_requested",
-              {
-                description,
-                round_feedback: roundFeedback,
-                iteration: row.iteration,
-                // Sent on EVERY round (null when there was no rewind): the resume
-                // MERGES into the line's args, so an omitted key would leave an
-                // earlier rewind still steering. Must be the round the AUTHOR named
-                // — the resolver honours a rewind literally.
-                resume_from_iteration:
-                  rewoundTo === undefined
-                    ? null
-                    : (basis.basis?.iteration ?? null),
-              },
-            );
-
-            return h
-              .response({
-                iteration: row.iteration,
-                ...runIdBothSpellings(dispatch.lineId),
-                task_id: null,
-              })
-              .code(202);
-          }
-          const taskId = await kickPlanning(
-            repo,
-            id,
-            row.iteration,
-            description,
-            roundFeedback,
-            basis.basis?.task_id ?? null,
+          await reportToParkedNode(
+            enforcePool(getPool()),
+            parked,
+            "changes_requested",
+            {
+              description,
+              round_feedback: composeRoundFeedback({
+                round: row.iteration,
+                priorGap,
+                answers,
+              }),
+              iteration: row.iteration,
+              // Sent on EVERY round (null when there was no rewind): the resume
+              // MERGES into the line's args, so an omitted key would leave an
+              // earlier rewind still steering. Must be the round the AUTHOR named
+              // — the resolver honours a rewind literally.
+              resume_from_iteration:
+                rewoundTo === undefined
+                  ? null
+                  : (basis.basis?.iteration ?? null),
+            },
           );
 
-          await features.attachIterationTask(id, row.iteration, taskId);
-
           return h
-            .response({ task_id: taskId, iteration: row.iteration })
+            .response({
+              iteration: row.iteration,
+              ...runIdBothSpellings(parked.lineId),
+              task_id: null,
+            })
             .code(202);
         }),
     },
@@ -543,56 +529,36 @@ export function featuresRoutes(getPool: () => Pool | null): ServerRoute[] {
           const answers = parseSectionAnswers(body.user_answers);
           // Accepting is the author station reporting `success`: the spec work runs
           // on the SAME line, so what follows the accept is an edge, not a new run.
-          /// TODO: what is the meaning of the "dispatch" term in this context? it is very confusing and we need a better name for the function and the variable
-          const dispatch = await resolveDispatch(project, id);
+          const { runId, parked } = await findParkedAuthorNode(project, id);
 
-          if (dispatch.kind === "resume") {
-            await reportToParkedNode(
-              enforcePool(getPool()),
-              dispatch,
-              "success",
-              {
-                // Tail nodes read args.description as "the accepted plan"; without
-                // this the shallow merge leaves the last refine's brief there (#1470).
-                description: composePlanningPrompt({
-                  title: feature.title,
-                  originalPrompt: feature.original_prompt,
-                  priorGap: latestReadyGap(feature.iterations),
-                  answers,
-                }),
-                // An omitted key SURVIVES the shallow merge, so both refine
-                // leftovers are nulled outright rather than left to steer.
-                round_feedback: null,
-                resume_from_iteration: null,
-              },
-            );
-
-            return h.response(runIdBothSpellings(dispatch.lineId)).code(202);
-          }
-          // `canFinalize` gates on feature.status, which does not move until a PR
-          // lands ~18min later, so every click in that window used to mint another
-          // task, run, branch and spec PR. The id rides the 409 because a duplicate
+          // ONE guard, and it is structural. `canFinalize` reads feature.status,
+          // which does not move until a PR lands ~18min later, so it cannot tell a
+          // second press from a first; the parked node can — reporting an outcome
+          // to the author node is what un-parks it, so the second press finds
+          // nothing to report to. The run id rides the refusal because a duplicate
           // press means "show me", not "you broke something".
-          const inFlight = await runAlreadyWorking(project, id);
-
-          // Composable before the guard decides because `runIdBothSpellings` is
-          // generic over `string | null`. `prefer-api-error` skips this shape —
-          // without type information it cannot tell it from the ones that break.
           enforceTrue(
-            !inFlight,
-            apiError(409, runIdBothSpellings(inFlight)),
-            "a run is already in flight for this feature",
-          );
-          const task = await createTask(
-            `Finalize feature: ${feature.title}`,
-            "feature-finalize",
-            repo,
-            "ui",
-            { feature_id: id, slug: feature.slug },
-            "immediate",
+            parked,
+            apiError(409, runIdBothSpellings(runId)),
+            "no plan is waiting to be accepted — this feature's line is not parked on the author",
           );
 
-          return h.response({ task_id: task.task_id }).code(202);
+          await reportToParkedNode(enforcePool(getPool()), parked, "success", {
+            // Tail nodes read args.description as "the accepted plan"; without
+            // this the shallow merge leaves the last refine's brief there (#1470).
+            description: composePlanningPrompt({
+              title: feature.title,
+              originalPrompt: feature.original_prompt,
+              priorGap: latestReadyGap(feature.iterations),
+              answers,
+            }),
+            // An omitted key SURVIVES the shallow merge, so both refine
+            // leftovers are nulled outright rather than left to steer.
+            round_feedback: null,
+            resume_from_iteration: null,
+          });
+
+          return h.response(runIdBothSpellings(parked.lineId)).code(202);
         }),
     },
 
