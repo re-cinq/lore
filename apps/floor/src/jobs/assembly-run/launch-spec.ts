@@ -55,7 +55,12 @@ export function priorOutcomeOf(
   visits: ReadonlyArray<{ nodeId: string; outcome: string | null }>,
   nodeId: string,
 ): string | null {
-  const own = visits.filter((v) => v.nodeId === nodeId && v.outcome !== null);
+  // The predicate NARROWS: "recorded" is exactly "has an outcome", and saying so in
+  // the type is what stops a later reader reintroducing the open row this excludes.
+  const own = visits.filter(
+    (v): v is { nodeId: string; outcome: string } =>
+      v.nodeId === nodeId && v.outcome !== null,
+  );
 
   return own.length ? own[own.length - 1].outcome : null;
 }
