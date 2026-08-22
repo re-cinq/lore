@@ -588,6 +588,23 @@ export function featuresRoutes(getPool: () => Pool | null): ServerRoute[] {
               enforcePool(getPool()),
               dispatch,
               "success",
+              {
+                // The tail nodes read args.description as "the accepted plan"; without
+                // this the shallow merge leaves the LAST REFINE's brief — the
+                // round-before-accepted draft plus the author's objections — as what
+                // analyse-specs and write see (#1470).
+                description: composePlanningPrompt({
+                  title: feature.title,
+                  originalPrompt: feature.original_prompt,
+                  priorGap: latestReadyGap(feature.iterations),
+                  answers: null,
+                }),
+                // Shallow merge: an omitted key SURVIVES (see the refine arm's
+                // resume_from_iteration comment), so both refine leftovers are
+                // nulled outright rather than left to steer later rounds.
+                round_feedback: null,
+                resume_from_iteration: null,
+              },
             );
 
             return h.response(runIdBothSpellings(dispatch.lineId)).code(202);
