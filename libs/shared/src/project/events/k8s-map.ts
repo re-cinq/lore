@@ -4,22 +4,18 @@
  * task-id + phase so repeated MODIFIED notifications and re-list catch-ups
  * collapse to one row. No `@kubernetes/client-node` or `@re-cinq/agent-contracts`
  * import here — keeps the mapper unit-testable; the label is the CR contract,
- * and the label NAMES come from floor-assembly-run, the module that stamps them.
+ * and the label NAMES are the shared CR contract (agent-cr-labels).
  */
 
-import type { EventInput } from "../main-loop/types.js";
-import { k8sDedupeKey, k8sAgentNodeDedupeKey } from "../main-loop/dedupe.js";
+import type { EventInsert } from "../../events.js";
+import { k8sDedupeKey, k8sAgentNodeDedupeKey } from "./dedupe.js";
 import {
   ASSEMBLY_RUN_ID_LABEL,
   LEGACY_ASSEMBLY_LINE_ID_LABEL,
   NODE_ID_LABEL,
   NODE_ITERATION_LABEL,
-} from "../jobs/assembly-run/floor-assembly-run.js";
-
-/** Mirror of agent-watcher-logic's TASK_ID_LABEL (the AgentCrBackend sets it on
- *  every CR). A mirror, not an import: agent-watcher-logic drags the task worker
- *  in with it, and this mapper stays dependency-light. */
-const TASK_ID_LABEL = "lore.re-cinq.com/task-id";
+  TASK_ID_LABEL,
+} from "./agent-cr-labels.js";
 
 /** The terminal CR phases that produce an event, mapped to their event action. */
 const TERMINAL_ACTIONS = { Succeeded: "succeeded", Failed: "failed" } as const;
@@ -39,7 +35,7 @@ export interface AgentLike {
   status?: { phase?: string };
 }
 
-export function mapAgentToEvent(agent: AgentLike): EventInput | null {
+export function mapAgentToEvent(agent: AgentLike): EventInsert | null {
   const phase = agent.status?.phase;
 
   if (phase !== "Succeeded" && phase !== "Failed") {

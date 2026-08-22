@@ -16,7 +16,7 @@ import {
 } from "@re-cinq/lore-shared";
 import { pipeline, taskStore } from "../kernel/queues.js";
 import { insertEvent } from "../main-loop/store.js";
-import { mapAgentToEvent } from "./k8s-map.js";
+import { mapAgentToEvent } from "@re-cinq/lore-shared/project/events/k8s-map.js";
 import { makeAgentsApi } from "../jobs/watcher/agent-watcher.js";
 
 const GROUP = "agents.re-cinq.com";

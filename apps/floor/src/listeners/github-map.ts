@@ -7,7 +7,7 @@
  */
 
 import type { EventInput } from "../main-loop/types.js";
-import { githubDedupeKey } from "../main-loop/dedupe.js";
+import { githubDedupeKey } from "@re-cinq/lore-shared/project/events/dedupe.js";
 
 const PR_REVIEW_TRIGGER_ACTIONS = new Set([
   "synchronize",

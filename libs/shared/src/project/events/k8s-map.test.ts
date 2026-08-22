@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { mapAgentToEvent } from "./k8s-map.js";
-import { ASSEMBLY_RUN_ID_LABEL } from "../jobs/assembly-run/floor-assembly-run.js";
+import { ASSEMBLY_RUN_ID_LABEL } from "./agent-cr-labels.js";
 
 const LABEL = "lore.re-cinq.com/task-id";
 const AL_LABEL = "lore.re-cinq.com/assembly-line-id";

@@ -8,6 +8,13 @@ import { serializeStationInput } from "@re-cinq/lore-shared/station-input.js";
 import { stationName } from "../agent/agent-catalog.js";
 import { truncateForStorage } from "../agent/agent-run-events.js";
 import type { StationRunInput } from "@re-cinq/lore-shared/models/station-run.js";
+import {
+  ASSEMBLY_RUN_ID_LABEL,
+  LEGACY_ASSEMBLY_LINE_ID_LABEL,
+  NODE_ID_LABEL,
+  NODE_ITERATION_LABEL,
+  STATION_RUN_ID_LABEL,
+} from "@re-cinq/lore-shared/project/events/agent-cr-labels.js";
 
 export interface FloorAssemblyRunTask {
   taskId: string;
@@ -43,23 +50,16 @@ export function nodeAgentName(
   return iteration > 1 ? `${base}-${iteration}` : base;
 }
 
-/** The CR name only carries a 12-char prefix; these labels carry the full identity
- *  so the k8s watch maps a terminal node CR back to its (line, node, iteration).
- *
- *  The label written on every CR since the writer flip (#1255, deployed
- *  2026-08-17). */
-export const ASSEMBLY_RUN_ID_LABEL = "lore.re-cinq.com/assembly-run-id";
-/** No longer written — kept as a READER (k8s-map, agent-watcher) for CRs created
- *  before the flip, which can outlive a rollout by up to a node's whole timeout.
- *  Legacy readers stay per FR6.44. */
-export const LEGACY_ASSEMBLY_LINE_ID_LABEL =
-  "lore.re-cinq.com/assembly-line-id";
-export const NODE_ID_LABEL = "lore.re-cinq.com/node-id";
-export const NODE_ITERATION_LABEL = "lore.re-cinq.com/node-iteration";
-/** The station run this pod IS (FR6.39). The three labels above name the visit
- *  compositely; this one names it outright, so a pod found in the cluster maps
- *  back to its telemetry without re-deriving anything from the CR name. */
-export const STATION_RUN_ID_LABEL = "lore.re-cinq.com/station-run-id";
+/** The CR labels are a contract with the event-router, which reads them back off
+ *  a terminal CR — so they live in shared, not here where only the writer is.
+ *  Re-exported because this module's callers have always imported them from it. */
+export {
+  ASSEMBLY_RUN_ID_LABEL,
+  LEGACY_ASSEMBLY_LINE_ID_LABEL,
+  NODE_ID_LABEL,
+  NODE_ITERATION_LABEL,
+  STATION_RUN_ID_LABEL,
+};
 
 function nodeLabels(
   node: RunGraphNode,

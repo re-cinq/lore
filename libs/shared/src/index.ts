@@ -159,7 +159,13 @@ export {
   specSlugFromBranch,
   type ParsedTask,
 } from "./tasks.js";
-export { insertEvent, eventRepo, type EventInsert } from "./events.js";
+export {
+  insertEvent,
+  eventRepo,
+  SOURCES,
+  type EventInsert,
+  type EventSource,
+} from "./events.js";
 export {
   formatTrailers,
   formatValidatesTrailer,
