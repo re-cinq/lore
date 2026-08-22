@@ -4,6 +4,7 @@ import {
   type Project,
 } from "@re-cinq/lore-shared";
 import { getPool } from "@re-cinq/lore-server-core/platform/db.js";
+import { pipelineRepositories } from "./pipeline-boot.js";
 
 /**
  * Per-repo Project composition root for the Lore API. The memory backend defaults
@@ -22,5 +23,7 @@ const NO_OP_DGRAPH = {
 export function projectFor(repo: string): Promise<Project> {
   const dgraph = createDgraphClient(process.env) ?? NO_OP_DGRAPH;
 
-  return createProject(repo, getPool(), dgraph, process.env);
+  return createProject(repo, getPool(), dgraph, process.env, {
+    pipeline: pipelineRepositories(),
+  });
 }

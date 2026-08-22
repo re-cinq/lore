@@ -43,10 +43,20 @@ export async function createProject(
 
   ports.set("chunks", new PgChunks(pgPool));
 
+  // The pipeline.* tables are org-wide, so a caller that already built the
+  // bundle passes it in and every repo shares those adapters. The fallback
+  // keeps a caller that has not (tests, bootstrap) working exactly as before.
+  if (providers.pipeline) {
+    ports.set("pipeline", providers.pipeline);
+  }
+
   const { PgAssemblyRuns } =
     await import("../assembly-runs/assembly-runs-pg.js");
 
-  ports.set("assemblyRuns", new PgAssemblyRuns(pgPool));
+  ports.set(
+    "assemblyRuns",
+    providers.pipeline?.assemblyRuns ?? new PgAssemblyRuns(pgPool),
+  );
 
   const { PlatformGitHub } = await import("./platform-github.js");
   const github = new PlatformGitHub(env);
@@ -112,7 +122,7 @@ export async function createProject(
 
   const { PgAudit } = await import("../audit/audit-pg.js");
 
-  ports.set("audit", new PgAudit(pgPool));
+  ports.set("audit", providers.pipeline?.audit ?? new PgAudit(pgPool));
 
   const { PgUsage } = await import("../usage/usage-pg.js");
 
@@ -129,7 +139,11 @@ export async function createProject(
 
   if (env.LORE_DB_HOST) {
     // The real pg pool returns rowCount; PgPool's narrow type omits it.
-    ports.set("leases", new DbLeaseBackend(pgPool as unknown as LeasePool));
+    ports.set(
+      "leases",
+      providers.pipeline?.leases ??
+        new DbLeaseBackend(pgPool as unknown as LeasePool),
+    );
   } else {
     const os = await import("node:os");
     const path = await import("node:path");
