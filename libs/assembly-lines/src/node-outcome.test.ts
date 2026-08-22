@@ -239,6 +239,19 @@ describe("an outcome line that was spoken is never silently a success", () => {
     ).toBeNull();
   });
 
+  it("treats a bare LORE_NODE_RESULT: with nothing after it as spoken but empty", () => {
+    // The station printed the marker and then said nothing. That is not "no
+    // marker" — it is a contract the recipe half-followed, and the node must
+    // report it rather than pass.
+    expect(malformedNodeResultLine("LORE_NODE_RESULT:")).not.toBeNull();
+    expect(
+      stationNodeOutcome(agentNode, {
+        phase: "Succeeded",
+        output: "LORE_NODE_RESULT:",
+      }),
+    ).toMatchObject({ outcome: "failed" });
+  });
+
   it("fails a node whose LORE_NODE_RESULT is present but unparseable, instead of silently succeeding", () => {
     const result = stationNodeOutcome(agentNode, {
       phase: "Succeeded",
