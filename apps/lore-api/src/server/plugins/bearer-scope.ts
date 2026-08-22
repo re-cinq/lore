@@ -15,6 +15,7 @@ import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
  */
 
 import Boom from "@hapi/boom";
+import { apiError } from "../api-error.js";
 import type { Server, ServerAuthScheme, RouteOptions } from "@hapi/hapi";
 import type { Pool } from "pg";
 import { resolveTokenScopes, type TokenScope } from "../../api/routes/auth.js";
@@ -28,15 +29,10 @@ export function bearerScope(
   return { auth: STRATEGY, plugins: { [STRATEGY]: { scope } } };
 }
 
-function denied(statusCode: 401 | 403, error: string): Boom.Boom {
-  const boom = new Boom.Boom(error, { statusCode });
-
-  // Replace Boom's { statusCode, error, message } envelope with the legacy
-  // dispatcher's exact body so migrated routes stay byte-for-byte compatible.
-  boom.output.payload = { error } as unknown as Boom.Payload;
-
-  return boom;
-}
+// The `{ error }` envelope every Lore client parses; `apiError` owns that stomp
+// so the auth scheme, zod validation and the routes cannot drift apart.
+const denied = (statusCode: 401 | 403, error: string): Boom.Boom =>
+  apiError(statusCode)(error);
 
 const scheme =
   (getPool: () => Pool | null): ServerAuthScheme =>

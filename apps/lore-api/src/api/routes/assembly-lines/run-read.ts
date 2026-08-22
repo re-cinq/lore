@@ -1,6 +1,6 @@
 import { zodResponse } from "../../../server/plugins/zod-response.js";
 import { z } from "zod";
-import Boom from "@hapi/boom";
+import { apiError } from "../../../server/api-error.js";
 import type { ServerRoute } from "@hapi/hapi";
 import type { Pool } from "pg";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
@@ -106,13 +106,13 @@ export function runReadRoute(
       // thing, and an injected port has no pool to check.
       enforceTrue(
         runs !== undefined || pool !== null,
-        Boom.serverUnavailable,
+        apiError(503),
         "database unavailable",
       );
       const port = runs ?? new PgAssemblyRuns(pool as Pool);
       const line = await port.getById(request.params.id);
 
-      enforceTrue(line !== null, Boom.notFound, "assembly run not found");
+      enforceTrue(line !== null, apiError(404), "assembly run not found");
       const [rows, graph] = await Promise.all([
         port.listStationRuns(line.id),
         // The run's own clone; a blueprint loaded by name only for rows stamped
