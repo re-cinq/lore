@@ -16,6 +16,7 @@ import { finishNodeTerminal, normalizeAgentStatus } from "./node-terminal.js";
 import { notifyLineFailure } from "./notify-failure.js";
 import { BillingAlertThrottle, maybeAlertBilling } from "./billing-alert.js";
 import { llmDispatchGate } from "./llm-dispatch-gate.js";
+import { artifactsFromTerminalOutput } from "../agent/artifact-args.js";
 import {
   codeReviewOnCommentTriaged,
   type CommentContext,
@@ -67,12 +68,17 @@ export function createNodeEventHandler(deps: NodeEventDeps): EventHandler {
     // Unwrap the NDJSON envelope once, here: every text parser below (the outcome
     // precedence and the review findings alike) must read the agent text, not the
     // stream that carries it.
-    const status = normalizeAgentStatus(
-      (await deps.readAgentStatus(agentName)) ?? {
-        phase: String(params.phase ?? ""),
-      },
-    );
-    const result = stationNodeOutcome(node, status);
+    const rawStatus = (await deps.readAgentStatus(agentName)) ?? {
+      phase: String(params.phase ?? ""),
+    };
+    const status = normalizeAgentStatus(rawStatus);
+    // Delivery rides the advancing event, and lands BEFORE the walk moves: the
+    // sink these artifacts normally arrive on is a separate HTTP post racing this
+    // one, so nothing ordered the merge before the next node's dispatch, and the
+    // next station could read an arg its predecessor had already produced and
+    // simply not find it. Merging the same content twice is a no-op, so the sink
+    // stays the fast path.
+    const result = await deliverTerminalArtifacts(row, node, rawStatus, deps);
 
     // An account-out-of-credits failure downs every LLM node at once; surface it
     // once to operators (the seam throttles + classifies) before the per-line
@@ -88,6 +94,44 @@ export function createNodeEventHandler(deps: NodeEventDeps): EventHandler {
     );
 
     await routeCommentTriage(row, nodeId, result);
+  };
+}
+
+/**
+ * Merge the artifacts a terminal node declared, then decide its outcome.
+ *
+ * Shared by BOTH terminal doors — the node event and the reaper's resolve — because
+ * a dropped event means the reaper is the only one who will ever see this output,
+ * and an artifact delivered on one door but not the other is a difference nobody
+ * could predict from the run.
+ *
+ * A declared artifact the agent never produced FAILS the node: advancing hands the
+ * next station an empty bag, which it reads as "my predecessor decided nothing"
+ * rather than as the delivery failure it is.
+ */
+export async function deliverTerminalArtifacts(
+  row: AssemblyRunRecord,
+  node: { type: string },
+  rawStatus: AgentNodeStatus,
+  deps: Pick<AdvanceDeps, "assemblyRuns">,
+): Promise<NodeResult> {
+  const { args, missing } = artifactsFromTerminalOutput(rawStatus.output);
+
+  if (Object.keys(args).length > 0) {
+    await deps.assemblyRuns.mergeArgs(row.id, args);
+  }
+  const result = stationNodeOutcome(node, normalizeAgentStatus(rawStatus));
+
+  if (missing.length === 0 || result.outcome === "failed") {
+    return result;
+  }
+  const detail = `declared artifact not produced: ${missing.join(", ")}`;
+
+  return {
+    outcome: "failed",
+    failureClass: "unknown",
+    failureDetail: detail,
+    extras: { "Lore-Validation-Summary": detail },
   };
 }
 

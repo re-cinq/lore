@@ -325,3 +325,65 @@ describe("createNodeEventHandler", () => {
     expect(await h.port.getById(id)).toMatchObject({ outcome: "completed" });
   });
 });
+
+describe("a declared artifact is delivered before the walk advances", () => {
+  const fileLine = (over: Record<string, unknown> = {}) =>
+    JSON.stringify({
+      source: { task: "t1" },
+      event: {
+        kind: "file",
+        event: "spec.plan",
+        path: "target/spec-plan.json",
+        content: '{"updates":[]}',
+        ...over,
+      },
+    });
+
+  const openRun = async (h: ReturnType<typeof harness>, output: string) => {
+    const { id, crName } = await reviewInFlight(h);
+
+    h.statusByName[crName] = { phase: "Succeeded", output };
+
+    return { id, crName };
+  };
+
+  it("merges a declared artifact from the terminal status into the line's args before the walk advances", async () => {
+    const h = harness();
+    const { id, crName } = await openRun(h, `{"type":"log"}\n${fileLine()}`);
+
+    await h.handler(params(id, crName));
+
+    expect((await h.port.getById(id))?.args).toMatchObject({
+      spec_plan: '{"updates":[]}',
+    });
+  });
+
+  it("a sink delivery that already merged the artifact leaves the terminal merge a no-op", async () => {
+    const h = harness();
+    const { id, crName } = await openRun(h, fileLine());
+
+    // The sink is the fast path and normally wins; the terminal merge writes the
+    // same content, so ordering between them changes nothing.
+    await h.port.mergeArgs(id, { spec_plan: '{"updates":[]}' });
+    await h.handler(params(id, crName));
+
+    expect((await h.port.getById(id))?.args).toMatchObject({
+      spec_plan: '{"updates":[]}',
+    });
+  });
+
+  it("fails the node when its declared artifact was never produced, instead of advancing without it", async () => {
+    const h = harness();
+    const { id, crName } = await openRun(
+      h,
+      fileLine({ content: null, reason: "file not found" }),
+    );
+
+    await h.handler(params(id, crName));
+
+    const visits = await h.port.listStationRuns(id);
+
+    expect(visits[0]).toMatchObject({ outcome: "failed" });
+    expect(visits[0].failureDetail).toContain("spec.plan (file not found)");
+  });
+});

@@ -391,3 +391,46 @@ describe("relaunch label parity", () => {
     );
   });
 });
+
+describe("the reaper's resolve door delivers artifacts too", () => {
+  it("merges a declared artifact when the terminal event was dropped, exactly as the event door does", async () => {
+    // A dropped event makes THIS the only door that will ever read the output. An
+    // artifact delivered on one door and not the other is a difference nobody
+    // could predict from the run.
+    const h = harness();
+    const id = await h.port.start({
+      blueprintName: "code-review",
+      repo: "o/r",
+      taskId: "t1",
+      args: {},
+    });
+
+    await h.port.markRunning(id);
+    const crName = `${id.substring(0, 12)}-review`;
+
+    await h.port.ensureStationRun({
+      assemblyRunId: id,
+      nodeId: "review",
+      iteration: 1,
+      agentCrName: crName,
+    });
+    h.statusByName[crName] = {
+      phase: "Succeeded",
+      output: JSON.stringify({
+        source: { task: "t1" },
+        event: {
+          kind: "file",
+          event: "spec.plan",
+          path: "target/spec-plan.json",
+          content: '{"updates":[]}',
+        },
+      }),
+    };
+
+    await assemblyLineReaperJob(h.deps);
+
+    expect((await h.port.getById(id))?.args).toMatchObject({
+      spec_plan: '{"updates":[]}',
+    });
+  });
+});

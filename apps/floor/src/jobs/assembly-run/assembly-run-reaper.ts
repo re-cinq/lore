@@ -15,7 +15,6 @@
 
 import {
   isHumanStation,
-  stationNodeOutcome,
   type AgentNodeStatus,
 } from "@re-cinq/lore-assembly-lines";
 import { graphForRun } from "@re-cinq/lore-assembly-lines";
@@ -25,7 +24,10 @@ import { advanceLine, finishLine, taskFromRow } from "./advance.js";
 import { finishNodeTerminal, normalizeAgentStatus } from "./node-terminal.js";
 import { nodeAgentSpec, nodeStationSpec } from "./floor-assembly-run.js";
 import { runOutcomeFromTaskStatus } from "../watcher/agent-watcher-logic.js";
-import type { NodeEventDeps } from "./node-event-handler.js";
+import {
+  deliverTerminalArtifacts,
+  type NodeEventDeps,
+} from "./node-event-handler.js";
 
 /** Reaper deps: the walk deps plus the backing-task status read used to sweep a
  *  crash-orphaned single-CR (definition-less) run row. */
@@ -178,7 +180,16 @@ export async function assemblyLineReaperJob(
         // A dropped event lands here instead — it owes the PR the same review and
         // check the event path would have posted, off the same resolved outcome.
         const status = normalizeAgentStatus(recovery.status);
-        const result = stationNodeOutcome(node, status);
+        // ...and it owes the next node the artifacts this one produced. A dropped
+        // event means THIS is the only door that will ever read this output, so an
+        // artifact delivered on the event path and not here is a difference nobody
+        // could predict from the run.
+        const result = await deliverTerminalArtifacts(
+          row,
+          node,
+          recovery.status,
+          deps,
+        );
 
         // ...and it owes operators the same alert. A billing outage recovered
         // through this slower door raised nothing at all before, so whether the
