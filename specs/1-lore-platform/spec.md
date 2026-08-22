@@ -568,8 +568,8 @@ The system MUST gate task types per-repo based on demonstrated
 reliability. ([validated by `pipeline-tasks.trust.test.ts:37`](libs/shared/src/pipeline-tasks.trust.test.ts#L37))
 
 - FR-15.1: `settings.trust.level` controls which task types are
-  allowed: `docs` (gap-fill/runbook/onboard + feature-planning/
-  feature-finalize per ADR-027), `tests` (+review),
+  allowed: `docs` (gap-fill/runbook/onboard + feature-planning
+  per ADR-027), `tests` (+review),
   `implementation` (+implementation/feature-request/general),
   `full` (all). `onboard` is allowed at every tier — it produces a
   docs-only scaffolding PR and duplicate protection lives in its own
