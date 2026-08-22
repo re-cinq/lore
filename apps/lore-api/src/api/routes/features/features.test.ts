@@ -1004,5 +1004,9 @@ describe("accepting the plan delivers the accepted plan to the tail nodes", () =
       round_feedback: null,
       resume_from_iteration: null,
     });
+    // This round produced no gap, so there is no draft to render — the brief
+    // degrades to the feature's own request rather than to nothing at all.
+    expect(event.args?.description).toContain("Cluster Dispatch");
+    expect(event.args?.description).not.toContain("<CurrentDraftSpec>");
   });
 });
