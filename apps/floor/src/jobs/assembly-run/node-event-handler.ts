@@ -9,7 +9,7 @@ import {
   stationNodeOutcome,
   type AgentNodeStatus,
 } from "@re-cinq/lore-assembly-lines";
-import { graphForRun } from "@re-cinq/lore-assembly-lines";
+import { resolveRunGraph } from "@re-cinq/lore-assembly-lines";
 import type { EventHandler } from "../../main-loop/types.js";
 import { advanceLine, type AdvanceDeps } from "./advance.js";
 import { finishNodeTerminal, normalizeAgentStatus } from "./node-terminal.js";
@@ -58,7 +58,7 @@ export function createNodeEventHandler(deps: NodeEventDeps): EventHandler {
       return;
     }
 
-    const graph = await graphForRun(row, deps.definitions);
+    const graph = await resolveRunGraph(row, deps.definitions);
     const node = graph?.nodes.find((n) => n.id === nodeId);
 
     if (!node) {

@@ -46,7 +46,7 @@ export function createStartEventHandler(
       "assembly_run.start event params missing assemblyRunId",
     );
     // Branch/args/description ride in the row itself — the walk reads them via
-    // taskFromRow, so the event only needs identity + routing fields. (The
+    // taskFromAssemblyRun, so the event only needs identity + routing fields. (The
     // pre-rename `definitionName` fallback was deleted 2026-08-18, #1272, one
     // retention window after the writer flip.)
     const blueprintName = String(params.blueprintName ?? "");

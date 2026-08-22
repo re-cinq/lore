@@ -17,9 +17,9 @@ import {
   isHumanStation,
   type AgentNodeStatus,
 } from "@re-cinq/lore-assembly-lines";
-import { graphForRun } from "@re-cinq/lore-assembly-lines";
+import { resolveRunGraph } from "@re-cinq/lore-assembly-lines";
 import type { StationRunRecord } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
-import { advanceLine, finishLine, taskFromRow } from "./advance.js";
+import { advanceLine, finishLine, taskFromAssemblyRun } from "./advance.js";
 import { finishNodeTerminal, normalizeAgentStatus } from "./node-terminal.js";
 import {
   nodeLaunchSpec,
@@ -117,7 +117,7 @@ export async function assemblyLineReaperJob(
     try {
       // Same rule the walk follows (FR6.38): reaping a run against a
       // since-edited graph would resolve a node the run never had.
-      const graph = await graphForRun(row, deps.definitions);
+      const graph = await resolveRunGraph(row, deps.definitions);
 
       if (!graph) {
         // Single-CR run record (FR6.8): normally the agent-watcher closes it, but
@@ -263,7 +263,7 @@ export async function assemblyLineReaperJob(
 
         const relaunchInput = {
           node,
-          task: taskFromRow(row),
+          task: taskFromAssemblyRun(row),
           iteration: openNode.iteration,
           stationRunId: openNode.stationRunId,
           priorOutcome: priorOutcomeOf(nodes, openNode.nodeId),

@@ -27,6 +27,7 @@ export function roundContent(
   if (!conversation?.id) {
     return task.description;
   }
+
   const feedback = task.args?.round_feedback;
 
   return typeof feedback === "string" && feedback.trim()

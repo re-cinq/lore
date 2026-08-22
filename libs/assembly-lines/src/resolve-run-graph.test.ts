@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import type { AssemblyLine } from "@re-cinq/lore-assembly-lines";
 import type { RunGraph } from "@re-cinq/lore-shared/project/assembly-runs/run-graph.js";
-import { graphForRun } from "./graph-for-run.js";
+import { resolveRunGraph } from "./resolve-run-graph.js";
 
 const storedGraph: RunGraph = {
   name: "code-review",
@@ -28,9 +28,9 @@ const blueprint: AssemblyLine = {
   edges: [],
 };
 
-describe("graphForRun", () => {
+describe("resolveRunGraph", () => {
   it("returns the stored clone without ever loading the catalog", async () => {
-    const graph = await graphForRun(
+    const graph = await resolveRunGraph(
       { graph: storedGraph, blueprintName: "code-review" },
       () => {
         throw new Error(
@@ -43,7 +43,7 @@ describe("graphForRun", () => {
   });
 
   it("snapshots the blueprint by name for a row stamped before clones existed", async () => {
-    const graph = await graphForRun(
+    const graph = await resolveRunGraph(
       { graph: null, blueprintName: "code-review" },
       async () => new Map([["code-review", blueprint]]),
     );
@@ -59,7 +59,7 @@ describe("graphForRun", () => {
   });
 
   it("returns undefined for a graph-less row whose blueprint no longer exists", async () => {
-    const graph = await graphForRun(
+    const graph = await resolveRunGraph(
       { graph: null, blueprintName: "deleted-blueprint" },
       async () => new Map<string, AssemblyLine>(),
     );

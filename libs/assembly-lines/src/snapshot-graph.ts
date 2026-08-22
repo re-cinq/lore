@@ -16,7 +16,7 @@
 //   * the result is a FAITHFUL copy — the blueprint's own field names, plus the
 //     resolved station. Renaming them into another convention would buy nothing
 //     and cost a translation layer on every read; keeping them means the walk
-//     (`nextTransition`) consumes a stored graph and a freshly loaded one through
+//     (`getNextTransition`) consumes a stored graph and a freshly loaded one through
 //     the same structural type. The shape itself is `RunGraph`, owned by
 //     `@re-cinq/lore-shared` (the persisted wire format lives with the port that
 //     stores it); this package depends on shared, so it imports the type instead

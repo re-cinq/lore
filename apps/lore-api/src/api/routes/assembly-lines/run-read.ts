@@ -5,7 +5,7 @@ import type { ServerRoute } from "@hapi/hapi";
 import type { Pool } from "pg";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import {
-  graphForRun,
+  resolveRunGraph,
   loadBuiltinAssemblyLines,
   type AssemblyLine,
 } from "@re-cinq/lore-assembly-lines";
@@ -117,7 +117,7 @@ export function runReadRoute(
         port.listStationRuns(line.id),
         // The run's own clone; a blueprint loaded by name only for rows stamped
         // before clones existed (same rule as the walk and the reaper).
-        graphForRun(line, load),
+        resolveRunGraph(line, load),
       ]);
 
       return {

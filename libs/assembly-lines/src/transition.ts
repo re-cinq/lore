@@ -1,6 +1,6 @@
 // Pure transition logic for the event-driven walk: the executor's edge selection
 // and back-edge accounting, replayed over persisted node rows instead of an
-// in-process loop. `nextTransition` derives "what happens next" purely from the
+// in-process loop. `getNextTransition` derives "what happens next" purely from the
 // definition + the visit history, so duplicate/concurrent advancers converge and
 // a Floor restart loses nothing (spec 6-dark-factory FR6).
 
@@ -78,7 +78,7 @@ export function selectEdge(
  * rules picked out the same edges — and stopped being true with the human-gated
  * unbounded back-edge, where a person decides each pass and no budget applies.
  */
-export function nextTransition(
+export function getNextTransition(
   assemblyLine: WalkGraph,
   visits: NodeVisit[],
   maxNodes = DEFAULT_MAX_NODES,

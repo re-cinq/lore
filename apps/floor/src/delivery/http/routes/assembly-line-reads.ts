@@ -30,7 +30,7 @@ import {
   resolveRoute,
   type RunGraphNode,
 } from "@re-cinq/lore-shared/project/assembly-runs/run-graph.js";
-import { graphForRun } from "@re-cinq/lore-assembly-lines";
+import { resolveRunGraph } from "@re-cinq/lore-assembly-lines";
 import { assemblyRuns } from "../../../kernel/queues.js";
 
 interface NodeRow {
@@ -91,7 +91,7 @@ export function assemblyRunReadRoute(
         assemblyRuns().listStationRuns(line.id),
         // The run's own clone; a blueprint loaded by name only for rows stamped
         // before clones existed (same rule as the walk and the reaper).
-        graphForRun(line, load),
+        resolveRunGraph(line, load),
       ]);
 
       return {
