@@ -1,0 +1,91 @@
+{{- if .Values.seedCatalog }}
+# pre-install/pre-upgrade hook: server-side-apply the seeded AgentDefinition and
+# Station catalog so RECIPE CHANGES — and repairs — reach live clusters.
+#
+# The catalog used to be plain templates. Helm computes a custom resource's patch
+# by diffing the PREVIOUS rendered manifest against the new one; it never reads
+# live state. So an object the API server silently pruned on write (a lagging CRD
+# schema, #1301) stays pruned through every later deploy whose rendered text
+# happens not to have changed. That is how `spec-analysis` and `feature-decompose`
+# ran for eight days without their `output.watch`, so the artifacts they declared
+# were never raised and the next station read an empty bag (#1468). A server-side
+# apply compares against what is actually there, so drift cannot outlive a deploy.
+#
+# The two objects are weighted apart: the ConfigMap (-3) must exist before the Job
+# (-2) mounts it, and both run after the crd-upgrade hook (-4) — see the Job below.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Chart.Name }}-catalog-seed
+  namespace: {{ .Values.namespace }}
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-weight": "-3"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+data:
+  catalog.yaml: |
+{{ tpl (.Files.Get "files/catalog-seed.yaml") . | indent 4 }}
+---
+# Weight -2: strictly AFTER the crd-upgrade hook (-4), or a stale schema would
+# prune these fields on the way in and recreate the very incident above.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Chart.Name }}-catalog-seed
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: {{ .Chart.Name }}-catalog-seed
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-weight": "-2"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 2
+  # Same reasoning as the crd-upgrade hook: applying a few dozen namespaced
+  # objects takes seconds, and a Job that cannot even start would otherwise
+  # stall every umbrella deploy behind it while reporting only a helm timeout.
+  activeDeadlineSeconds: 120
+  template:
+    metadata:
+      labels:
+        app: {{ .Chart.Name }}-catalog-seed
+    spec:
+      restartPolicy: Never
+      serviceAccountName: {{ .Chart.Name }}-catalog-seed
+      containers:
+        - name: apply-catalog
+          image: {{ .Values.crdUpgrade.image | quote }}
+          # Distroless (entrypoint /bin/kubectl, no /bin/sh) — invoke kubectl
+          # directly, never through a shell wrapper.
+          #
+          # --force-conflicts: these objects are currently owned by helm's
+          # client-side manager, so the first server-side apply must take that
+          # ownership or every field would report a conflict. The consequence is
+          # deliberate and is ADR-031's stated semantic: while seedCatalog is
+          # true the chart owns seeded recipes, and an operator who wants the UI
+          # to own them sets seedCatalog=false. Per-repo override recipes are
+          # separate objects and are never touched.
+          command: ["/bin/kubectl"]
+          args:
+            - "apply"
+            - "--server-side"
+            - "--force-conflicts"
+            - "-n"
+            - {{ .Values.namespace | quote }}
+            - "-f"
+            - "/catalog/catalog.yaml"
+          volumeMounts:
+            - name: catalog
+              mountPath: /catalog
+              readOnly: true
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+      volumes:
+        - name: catalog
+          configMap:
+            name: {{ .Chart.Name }}-catalog-seed
+{{- end }}

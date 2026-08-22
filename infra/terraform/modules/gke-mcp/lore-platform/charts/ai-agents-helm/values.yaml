@@ -16,9 +16,12 @@ crdUpgrade:
   #   curl -sIL https://registry.k8s.io/v2/kubectl/manifests/<tag>
   image: registry.k8s.io/kubectl:v1.31.0
 
-# Seed the initial AgentDefinition/Station catalog from scripts/task-types.yaml
-# (templates/catalog.yaml). Operators set this false after first install so they
-# stop re-seeding — the web UI owns the recipes thereafter (re-cinq/lore#698).
+# Seed the AgentDefinition/Station catalog generated from scripts/task-types.yaml
+# (files/catalog-seed.yaml, server-side-applied by the catalog-seed pre-upgrade
+# hook). While true the CHART owns the seeded recipes and re-asserts every field
+# each deploy, which is what stops a pruned or hand-edited field surviving one
+# (#1468); set false to hand ownership to the web UI (re-cinq/lore#698). Per-repo
+# override recipes are separate objects and are never touched either way.
 seedCatalog: true
 
 # Where seeded agents stream their NDJSON run output for cost accounting (D8, #687):
