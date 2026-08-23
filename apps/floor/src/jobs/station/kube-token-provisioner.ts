@@ -18,7 +18,7 @@ import {
   catalogLookupName,
   injectRepoToken,
   perTaskStation,
-} from "./per-task-token.js";
+} from "@re-cinq/lore-shared";
 
 const GROUP = "agents.re-cinq.com";
 const VERSION = "v1alpha1";

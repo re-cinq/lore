@@ -14,7 +14,7 @@ import type {
   StationBackend,
   StationLaunchResult,
 } from "@re-cinq/lore-shared";
-import { needsToken } from "./per-task-token.js";
+import { needsToken } from "@re-cinq/lore-shared";
 
 export const TASK_ID_LABEL = "lore.re-cinq.com/task-id";
 export const TASK_TYPE_LABEL = "lore.re-cinq.com/task-type";

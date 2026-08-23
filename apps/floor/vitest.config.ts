@@ -28,7 +28,6 @@ export default defineConfig({
         "src/jobs/station/agent-backend.ts",
         "src/jobs/station/agent-cr-station-backend.ts",
         "src/jobs/station/http-context-source.ts",
-        "src/jobs/station/per-task-token.ts",
         "src/jobs/watcher/agent-watcher-logic.ts",
       ],
       thresholds: {

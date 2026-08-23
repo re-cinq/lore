@@ -25,6 +25,15 @@ export {
 } from "./chunker.js";
 export { redactSecrets } from "./redact.js";
 export {
+  tokenSecretKey,
+  perTaskName,
+  needsToken,
+  catalogLookupName,
+  injectRepoToken,
+  perTaskStation,
+} from "./cluster/per-task-token.js";
+export { preserveUnownedFields } from "./cluster/preserve-unowned.js";
+export {
   writeEpisode,
   writeEpisodeWithCuration,
   type WriteEpisodeDeps,
