@@ -32,6 +32,10 @@ locals {
   # Deployments, not run pods, so the ClusterIP is reachable and no public hop
   # is involved — only GitHub reaches the router from outside, via its ingress.
   event_router_in_cluster = "http://lore-event-router.lore-event-router.svc.cluster.local:8080"
+
+  # In-cluster base URL of the stations service (ADR-024 service stations). Only
+  # the Floor calls it — nothing reaches it from outside, so there is no ingress.
+  stations_in_cluster = "http://lore-stations.lore-stations.svc.cluster.local:8080"
 }
 
 resource "helm_release" "lore_platform" {
@@ -66,6 +70,9 @@ resource "helm_release" "lore_platform" {
         # back to writing pipeline.events directly, which is right on a laptop
         # and wrong here — the fallback logs which way it resolved.
         EVENT_ROUTER_URL = local.event_router_in_cluster
+        # Where the Floor RUNS a station (ADR-024). It keeps the schedule and the
+        # job_runs row; the work is over there.
+        STATIONS_URL = local.stations_in_cluster
       }
       dbPasswordSecret        = { name = "lore-db-password", key = "password" }
       anthropicKeySecret      = { name = "lore-anthropic-key", key = "anthropic-api-key" }
@@ -202,6 +209,20 @@ resource "helm_release" "lore_platform" {
       loreSkillsUrl = var.lore_mcp_url != "" ? "${local.lore_mcp_in_cluster}/skills" : ""
     }
 
+    # ---- Stations (lore-stations namespace) ----
+    # Standalone units of work, one endpoint each. It holds a pool ON PURPOSE —
+    # that is the point of the service form: a station beside the data asks the
+    # data instead of paying for an HTTP seam per method.
+    "lore-stations" = {
+      env = {
+        LORE_DB_HOST = "lore-db-rw.lore-db.svc.cluster.local"
+        LORE_DB_PORT = "5432"
+        LORE_DB_NAME = "lore"
+        LORE_DB_USER = "lore"
+        PORT         = "8080"
+      }
+    }
+
     # ---- Event router (lore-event-router namespace) ----
     # The one writer of pipeline.events (ADR-044): the GitHub webhook ingress and
     # the Agent CR watch. Its DB credentials are its own; its ingest token is the
@@ -226,6 +247,7 @@ resource "helm_release" "lore_platform" {
     kubernetes_namespace.lore_db,
     kubernetes_namespace.ai_agents,
     kubernetes_namespace.lore_event_router,
+    kubernetes_namespace.lore_stations,
     kubernetes_service_account.lore_ui,
     kubectl_manifest.lore_db_cluster,
     kubectl_manifest.es_ai_agents_secrets,

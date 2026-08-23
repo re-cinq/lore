@@ -884,3 +884,149 @@ resource "kubectl_manifest" "es_event_router_internal_token" {
 
   depends_on = [kubectl_manifest.cluster_secret_store]
 }
+
+# --------------------------------------------------------------------------
+# Stations (lore-stations namespace) — ADR-024 service stations
+#
+# All materialized from the SAME GCP secrets the other services read. The
+# ingest token in particular MUST match the Floor's, or every station call it
+# makes is refused 401. merge-check merges PRs and comments on issues, so it
+# needs the GitHub App triple; the Anthropic key is optional (absent → the
+# episode is written, the auto-curation step is skipped).
+# --------------------------------------------------------------------------
+
+resource "kubectl_manifest" "es_stations_db_password" {
+  yaml_body = yamlencode({
+    apiVersion = "external-secrets.io/v1beta1"
+    kind       = "ExternalSecret"
+    metadata = {
+      name      = "lore-stations-db-password"
+      namespace = "lore-stations"
+    }
+    spec = {
+      refreshInterval = "1h"
+      secretStoreRef = {
+        name = "gcp-secret-manager"
+        kind = "ClusterSecretStore"
+      }
+      target = {
+        name = "lore-stations-db-password"
+      }
+      data = [
+        {
+          secretKey = "password"
+          remoteRef = {
+            key = "lore-db-password"
+          }
+        },
+      ]
+    }
+  })
+
+  depends_on = [kubectl_manifest.cluster_secret_store]
+}
+
+resource "kubectl_manifest" "es_stations_internal_token" {
+  yaml_body = yamlencode({
+    apiVersion = "external-secrets.io/v1beta1"
+    kind       = "ExternalSecret"
+    metadata = {
+      name      = "lore-agent-internal-token"
+      namespace = "lore-stations"
+    }
+    spec = {
+      refreshInterval = "1h"
+      secretStoreRef = {
+        name = "gcp-secret-manager"
+        kind = "ClusterSecretStore"
+      }
+      target = {
+        name = "lore-agent-internal-token"
+      }
+      data = [
+        {
+          secretKey = "token"
+          remoteRef = {
+            key = "lore-agent-internal-token"
+          }
+        },
+      ]
+    }
+  })
+
+  depends_on = [kubectl_manifest.cluster_secret_store]
+}
+
+resource "kubectl_manifest" "es_stations_github_app" {
+  yaml_body = yamlencode({
+    apiVersion = "external-secrets.io/v1beta1"
+    kind       = "ExternalSecret"
+    metadata = {
+      name      = "lore-stations-github-app"
+      namespace = "lore-stations"
+    }
+    spec = {
+      refreshInterval = "1h"
+      secretStoreRef = {
+        name = "gcp-secret-manager"
+        kind = "ClusterSecretStore"
+      }
+      target = {
+        name = "lore-stations-github-app"
+      }
+      data = [
+        {
+          secretKey = "app-id"
+          remoteRef = {
+            key = "lore-github-app-id"
+          }
+        },
+        {
+          secretKey = "private-key"
+          remoteRef = {
+            key = "lore-github-app-private-key"
+          }
+        },
+        {
+          secretKey = "installation-id"
+          remoteRef = {
+            key = "lore-github-app-installation-id"
+          }
+        },
+      ]
+    }
+  })
+
+  depends_on = [kubectl_manifest.cluster_secret_store]
+}
+
+resource "kubectl_manifest" "es_stations_anthropic_key" {
+  yaml_body = yamlencode({
+    apiVersion = "external-secrets.io/v1beta1"
+    kind       = "ExternalSecret"
+    metadata = {
+      name      = "lore-stations-anthropic-key"
+      namespace = "lore-stations"
+    }
+    spec = {
+      refreshInterval = "1h"
+      secretStoreRef = {
+        name = "gcp-secret-manager"
+        kind = "ClusterSecretStore"
+      }
+      target = {
+        name = "lore-stations-anthropic-key"
+      }
+      data = [
+        {
+          secretKey = "anthropic-api-key"
+          remoteRef = {
+            key = "lore-anthropic-api-key"
+          }
+        },
+      ]
+    }
+  })
+
+  depends_on = [kubectl_manifest.cluster_secret_store]
+}

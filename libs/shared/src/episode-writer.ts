@@ -8,9 +8,9 @@
  */
 
 import { createHash } from "node:crypto";
-import { redactSecrets, Llm } from "@re-cinq/lore-shared";
-import type { MemoryLifecyclePort } from "@re-cinq/lore-shared/project/memory/memory-lifecycle-port.js";
-import { memoryLifecycle } from "../../kernel/queues.js";
+import { redactSecrets } from "./redact.js";
+import { Llm } from "./llm/llm.js";
+import type { MemoryLifecyclePort } from "./project/memory/memory-lifecycle-port.js";
 
 export interface WriteEpisodeDeps {
   memory: MemoryLifecyclePort;
@@ -23,6 +23,10 @@ export type CurationDeps = WriteEpisodeDeps;
  * Deduplicates via content_hash.
  */
 export async function writeEpisode(
+  // Deps FIRST: this used to default to the Floor's `memoryLifecycle()`
+  // singleton, which is exactly what stopped it being callable from anywhere
+  // else. Two processes write episodes now, so each names its own store.
+  deps: WriteEpisodeDeps,
   content: string,
   source: string,
   ref: string,
@@ -30,7 +34,6 @@ export async function writeEpisode(
   // episodes have always been written under) — kept for continuity, not stale
   // vocabulary. Do not rename without migrating existing rows.
   agentId: string = "loretask-watcher",
-  deps: WriteEpisodeDeps = { memory: memoryLifecycle() },
 ): Promise<string | null> {
   try {
     // Privacy filter: strip secrets/keys before storing in org-wide memory
@@ -54,15 +57,15 @@ export async function writeEpisode(
  * The lesson is stored as a memory entry for future search.
  */
 export async function writeEpisodeWithCuration(
+  deps: CurationDeps,
   content: string,
   source: string,
   ref: string,
   agentId: string = "loretask-watcher",
   taskId?: string,
-  deps: CurationDeps = { memory: memoryLifecycle() },
 ): Promise<void> {
   // Write the episode first (always)
-  const episodeId = await writeEpisode(content, source, ref, agentId, deps);
+  const episodeId = await writeEpisode(deps, content, source, ref, agentId);
 
   // Skip curation if no API key or episode was a duplicate
   if (!episodeId || !process.env.ANTHROPIC_API_KEY) {

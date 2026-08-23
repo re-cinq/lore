@@ -512,7 +512,7 @@ cooperation. ([validated by `session-tracker.test.ts:193`](libs/server-core/src/
 - FR-12.5: After every pipeline task completion (PR, no-changes,
   failure), an episode is automatically written. For high-signal
   events (PRs, failures), Haiku extracts a lesson and stores it
-  as `auto-curation/{ref}` memory. ([validated by `episode-writer.test.ts:78`](apps/floor/src/jobs/lib/episode-writer.test.ts#L78))
+  as `auto-curation/{ref}` memory. ([validated by `episode-writer.test.ts:78`](libs/shared/src/episode-writer.test.ts#L78))
 
 ### FR-13: Autonomous Review Loop (Phase 1, opt-in)
 
@@ -579,7 +579,7 @@ reliability. ([validated by `pipeline-tasks.trust.test.ts:37`](libs/shared/src/p
   `docs → tests → implementation → full` and resetting the merge counter on
   each promotion. A repo already at `full`, or carrying no level at all, is
   left untouched rather than banking a counter with nothing to spend it on.
-  The default level is `implementation` for backward compatibility. ([validated by `trust-ladder.test.ts:5`](apps/floor/src/jobs/merge/trust-ladder.test.ts#L5), [`trust-ladder.test.ts:14`](apps/floor/src/jobs/merge/trust-ladder.test.ts#L14), [`trust-ladder.test.ts:23`](apps/floor/src/jobs/merge/trust-ladder.test.ts#L23), [`trust-ladder.test.ts:38`](apps/floor/src/jobs/merge/trust-ladder.test.ts#L38), [`trust-ladder.test.ts:47`](apps/floor/src/jobs/merge/trust-ladder.test.ts#L47), [`trust-ladder.test.ts:56`](apps/floor/src/jobs/merge/trust-ladder.test.ts#L56))
+  The default level is `implementation` for backward compatibility. ([validated by `trust-ladder.test.ts:5`](apps/stations/src/stations/trust-ladder.test.ts#L5), [`trust-ladder.test.ts:14`](apps/stations/src/stations/trust-ladder.test.ts#L14), [`trust-ladder.test.ts:23`](apps/stations/src/stations/trust-ladder.test.ts#L23), [`trust-ladder.test.ts:38`](apps/stations/src/stations/trust-ladder.test.ts#L38), [`trust-ladder.test.ts:47`](apps/stations/src/stations/trust-ladder.test.ts#L47), [`trust-ladder.test.ts:56`](apps/stations/src/stations/trust-ladder.test.ts#L56))
 
 ### FR-16: Prompt Caching on Agent LLM Calls (Phase 1)
 
@@ -639,7 +639,7 @@ non-terminal states and resolve them without manual intervention. ([validated by
   detection and the state write, the write is a no-op. ([validated by `task-store-pg.test.ts:74`](libs/shared/src/project/tasks/task-store-pg.test.ts#L74))
 - FR-18.4: A failure episode is written for each stuck task so the
   auto-curation pipeline can surface patterns (e.g. a task type that
-  consistently times out). ([validated by `episode-writer.test.ts:78`](apps/floor/src/jobs/lib/episode-writer.test.ts#L78), [`episode-writer.test.ts:12`](apps/floor/src/jobs/lib/episode-writer.test.ts#L12))
+  consistently times out). ([validated by `episode-writer.test.ts:78`](libs/shared/src/episode-writer.test.ts#L78), [`episode-writer.test.ts:12`](libs/shared/src/episode-writer.test.ts#L12))
 
 ### FR-19: Task Detail UI (Phase 1)
 

@@ -428,7 +428,7 @@ async function awaitApprovalIfRequired(
   issueNumber: number | null,
 ): Promise<boolean> {
   const { requiresApproval, getApprovalLabel } =
-    await import("../dark-factory/approval.js");
+    await import("@re-cinq/lore-shared");
 
   if (!requiresApproval(task.task_type, targetRepo)) {
     return false;

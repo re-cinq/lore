@@ -12,6 +12,7 @@
 import { getPool } from "./db.js";
 import { createPipelineRepositories } from "@re-cinq/lore-shared/project/pipeline/pipeline-repositories-pg.js";
 import type { PipelineRepositories } from "@re-cinq/lore-shared";
+import { StationClient } from "@re-cinq/lore-shared/project/stations/station-client.js";
 import {
   selectEventQueue,
   selectEventReporter,
@@ -126,3 +127,15 @@ export const eventQueue = (): EventQueueRepository =>
   (eventQueueSingleton ??= selectEventQueue({
     local: () => pipeline().eventQueue,
   }));
+
+let stationClientSingleton: StationClient | undefined;
+
+/**
+ * The stations service (ADR-024's service-endpoint form). The Floor still owns
+ * WHEN a station runs; this is how it says so.
+ */
+export const stationClient = (): StationClient =>
+  (stationClientSingleton ??= new StationClient(
+    process.env.STATIONS_URL ?? "",
+    process.env.LORE_INGEST_TOKEN,
+  ));

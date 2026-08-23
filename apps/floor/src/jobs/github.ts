@@ -25,7 +25,7 @@ import {
   decideResumeFromClosedPr,
   eventReport,
   resumeDecomposition,
-} from "./merge/decompose-resume.js";
+} from "@re-cinq/lore-shared/project/assembly-runs/decompose-resume.js";
 import type { EventHandler } from "../main-loop/types.js";
 
 /** Resolve the backing pipeline task for a PR and re-evaluate auto-merge (no-op if none). */

@@ -8,6 +8,7 @@
     "apps/event-router",
     "apps/floor",
     "apps/lore-api",
+    "apps/stations",
     "apps/lore-station",
     "apps/mcp-server",
     "apps/vscode-extension"

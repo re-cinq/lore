@@ -1,7 +1,7 @@
 import { initOtel, shutdownOtel } from "./otel-init.js";
 import { createShutdown } from "./shutdown.js";
 import { Llm } from "@re-cinq/lore-shared";
-import { initPool } from "./kernel/db.js";
+import { getPool, initPool } from "./kernel/db.js";
 import { awaitSoleFloor } from "./kernel/single-instance.js";
 import { usage } from "./kernel/queues.js";
 import { loadTaskTypes } from "./kernel/config.js";
@@ -11,7 +11,7 @@ import {
   getJobStatus,
 } from "./main-loop/scheduling/scheduler.js";
 import { startHealthServer } from "./delivery/http/server.js";
-import { loadApprovalConfig } from "./jobs/dark-factory/approval.js";
+import { loadApprovalConfig } from "@re-cinq/lore-shared";
 
 // Event bus (the 3 layers). Layer 1 listeners: the GitHub webhook (mounted on the
 // health server), the k8s Agent-CR watch, and the cron emitters below. Layer 2: the
@@ -38,7 +38,7 @@ async function main(): Promise<void> {
     console.warn("[floor] Could not load task types:", err);
   }
 
-  await loadApprovalConfig();
+  await loadApprovalConfig(getPool());
 
   const recovered = await recoverStaleTasks();
 

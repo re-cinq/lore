@@ -1,3 +1,11 @@
+// Moved from the Floor (ADR-024's service-endpoint station form). A once-a-minute
+// sweep over merged/closed PRs is a unit of work with one summary line, and it
+// needed none of what a pod gives an assembly-line node — but it does need 25
+// data calls, which is exactly why it belongs beside the data rather than behind
+// an HTTP seam.
+//
+// Only its imports changed.
+
 import { errorMessage } from "@re-cinq/lore-shared";
 import {
   eventReporter,
@@ -5,11 +13,14 @@ import {
   taskStore,
   settings,
   memoryLifecycle,
-} from "../../kernel/queues.js";
-import { getPool } from "../../kernel/db.js";
-import { eventReport, resumeDecomposition } from "./decompose-resume.js";
-import { projectFor } from "../../composition/project-boot.js";
-import { writeEpisodeWithCuration } from "../lib/episode-writer.js";
+} from "../kernel/queues.js";
+import { getPool } from "../kernel/db.js";
+import {
+  eventReport,
+  resumeDecomposition,
+} from "@re-cinq/lore-shared/project/assembly-runs/decompose-resume.js";
+import { projectFor } from "../kernel/project-boot.js";
+import { writeEpisodeWithCuration } from "@re-cinq/lore-shared";
 import { nextTrust } from "./trust-ladder.js";
 import {
   parseTasks,
@@ -303,6 +314,7 @@ async function handleMergedTask(
     const episode = `Task ${task.task_type} on ${task.target_repo}: PR #${task.pr_number} merged.\nFiles changed: ${stats.files_changed}, +${stats.additions}/-${stats.deletions}\nReview comments: ${stats.comments}\nTime to merge: ${timeToMerge}h\nDescription: ${task.description.substring(0, 200)}`;
 
     await writeEpisodeWithCuration(
+      { memory: memoryLifecycle() },
       episode,
       "ci",
       `${task.target_repo}/${task.id}`,
@@ -366,6 +378,7 @@ async function handleRejectedTask(task: MergeableTask): Promise<void> {
     detected_by: "merge-check",
   });
   await writeEpisodeWithCuration(
+    { memory: memoryLifecycle() },
     `Task ${task.task_type} on ${task.target_repo}: PR #${task.pr_number} was closed without merge (rejected).\nDescription: ${task.description.substring(0, 200)}`,
     "ci",
     `${task.target_repo}/${task.id}`,

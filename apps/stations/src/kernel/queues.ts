@@ -1,0 +1,45 @@
+// The org-wide `pipeline.*` repositories, bound to this service's pool.
+//
+// Lazy for the usual reason: `getPool()` throws until `initPool()` has run at
+// boot. Never call at module scope.
+
+import { createPipelineRepositories } from "@re-cinq/lore-shared/project/pipeline/pipeline-repositories-pg.js";
+import type { PipelineRepositories } from "@re-cinq/lore-shared";
+import { PgTaskStore } from "@re-cinq/lore-shared/project/tasks/task-store-pg.js";
+import { PgSettings } from "@re-cinq/lore-shared/project/settings/settings-pg.js";
+import { PgMemoryLifecycle } from "@re-cinq/lore-shared/project/memory/memory-lifecycle-pg.js";
+import { selectEventReporter } from "@re-cinq/lore-shared/project/events/select-event-reporter.js";
+import type { EventReporter } from "@re-cinq/lore-shared/project/events/event-queue-port.js";
+import { getPool } from "./db.js";
+
+let pipelineSingleton: PipelineRepositories | undefined;
+
+export const pipelineRepositories = (): PipelineRepositories =>
+  (pipelineSingleton ??= createPipelineRepositories(getPool()));
+
+/** The name the moved stations already used for it. */
+export const pipeline = pipelineRepositories;
+
+let taskStoreSingleton: PgTaskStore | undefined;
+let settingsSingleton: PgSettings | undefined;
+let memoryLifecycleSingleton: PgMemoryLifecycle | undefined;
+let eventReporterSingleton: EventReporter | undefined;
+
+/** Repo-agnostic task record ops (`pipeline.tasks`). */
+export const taskStore = (): PgTaskStore =>
+  (taskStoreSingleton ??= new PgTaskStore(getPool()));
+
+/** Org-wide `lore.repos` record reads/writes. */
+export const settings = (): PgSettings =>
+  (settingsSingleton ??= new PgSettings(getPool()));
+
+/** memory.* lifecycle — the episode/curation write surface. */
+export const memoryLifecycle = (): PgMemoryLifecycle =>
+  (memoryLifecycleSingleton ??= new PgMemoryLifecycle(getPool()));
+
+/** Where this service reports events. Stations produce them (a resume, a
+ *  decomposition) and, like every producer, go through the router (ADR-044). */
+export const eventReporter = (): EventReporter =>
+  (eventReporterSingleton ??= selectEventReporter({
+    local: () => pipelineRepositories().eventQueue,
+  }));

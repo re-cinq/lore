@@ -45,7 +45,7 @@ This ADR adds a feature-decompose agent that runs in-process when a feature's sp
 > become steps in the graph rather than gaps between runs.
 >
 > **The trigger becomes a resume, not an insert.**
-> [merge-check.ts](../apps/floor/src/jobs/merge/merge-check.ts) resolves the line via
+> [merge-check.ts](../apps/stations/src/stations/merge-check.ts) resolves the line via
 > `findOpenByPr` ([assembly-lines-port.ts](../libs/shared/src/project/assembly-runs/assembly-runs-port.ts))
 > and reports to the parked node with an `assembly_run.resume` event, handled by the
 > existing [resume-event-handler.ts](../apps/floor/src/jobs/assembly-run/resume-event-handler.ts).

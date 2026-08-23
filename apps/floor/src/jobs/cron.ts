@@ -5,14 +5,12 @@
  * heavy batch jobs (reindex/eval/gap-detect …) are handled separately.
  */
 
-import { mergeCheckJob } from "./merge/merge-check.js";
-import { approvalCheckJob } from "./dark-factory/approval-check.js";
 import { specTaskExecutorJob } from "./task/spec-task-executor.js";
 import { staleTaskCheckJob } from "./task/stale-task-check.js";
 import { featurePlanningReaperJob } from "./task/feature-planning-reaper.js";
 import { leaseReaperJob } from "../main-loop/lease/lease-reaper.js";
 import { pruneHandled } from "../main-loop/store.js";
-import { pipeline } from "../kernel/queues.js";
+import { pipeline, stationClient } from "../kernel/queues.js";
 import { reconcileAgents } from "../listeners/agent-reconcile.js";
 import type { EventHandler } from "../main-loop/types.js";
 
@@ -63,8 +61,18 @@ const fromJob =
     await job();
   };
 
-export const mergeCheck = fromJob(mergeCheckJob);
-export const approvalCheck = fromJob(approvalCheckJob);
+/**
+ * Run a station that lives in the stations service.
+ *
+ * The Floor keeps the schedule, the `job_runs` row and the overlap guard; the
+ * work itself moved (ADR-024's service-endpoint station form). A refusal
+ * propagates so the scheduler records a failed run rather than a silent no-op.
+ */
+const fromStation = (name: string): EventHandler =>
+  fromJob(() => stationClient().run(name));
+
+export const mergeCheck = fromStation("merge-check");
+export const approvalCheck = fromStation("approval-check");
 export const specTaskExecutor = fromJob(specTaskExecutorJob);
 export const staleTaskCheck = fromJob(staleTaskCheckJob);
 export const featurePlanningReaper = fromJob(featurePlanningReaperJob);

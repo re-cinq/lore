@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: lore-stations
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: lore-stations
+spec:
+  type: {{ .Values.service.type }}
+  selector:
+    app: lore-stations
+  ports:
+    - name: http
+      port: {{ .Values.service.port }}
+      targetPort: http
+      protocol: TCP

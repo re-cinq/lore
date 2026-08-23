@@ -114,7 +114,7 @@ side effect of their work. The system handles curation.
   `embedding` (vector), `created_at`.
 - FR-1.3: Episodes are immutable once written. No updates.
 - FR-1.4: Content deduplication via content hash — writing the
-  same content twice for the same agent is a no-op. ([validated by `episode-writer.test.ts:26`](apps/floor/src/jobs/lib/episode-writer.test.ts#L26))
+  same content twice for the same agent is a no-op. ([validated by `episode-writer.test.ts:26`](libs/shared/src/episode-writer.test.ts#L26))
 
 ### FR-2: lore_write_episode MCP Tool
 

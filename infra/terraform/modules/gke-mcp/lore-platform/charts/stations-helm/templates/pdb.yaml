@@ -1,0 +1,14 @@
+{{- if .Values.podDisruptionBudget.enabled }}
+# An unannounced eviction mid-sweep loses that sweep's remaining work until the
+# next tick; the PDB makes Autopilot ask first.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: lore-stations
+  namespace: {{ .Values.namespace }}
+spec:
+  minAvailable: {{ .Values.podDisruptionBudget.minAvailable }}
+  selector:
+    matchLabels:
+      app: lore-stations
+{{- end }}

@@ -12,15 +12,15 @@
  * author's accept already uses, so there is no second execution path to keep alive.
  */
 
-import type { EventReporter } from "@re-cinq/lore-shared/project/events/event-queue-port.js";
-import type { AssemblyRunsPort } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
-import type { RunGraph } from "@re-cinq/lore-shared/project/assembly-runs/run-graph.js";
+import type { EventReporter } from "../events/event-queue-port.js";
+import type { AssemblyRunsPort } from "./assembly-runs-port.js";
+import type { RunGraph } from "./run-graph.js";
 import {
   parkedHumanNode,
   reportToParkedNode,
   type ParkedNode,
   type ParkedTarget,
-} from "@re-cinq/lore-shared/project/assembly-runs/parked-node.js";
+} from "./parked-node.js";
 
 /** The spec-PR park is a `pr_review` station, located by TYPE from the run's own
  *  graph — a renamed wait node keeps resuming (the pr_merged join died of a

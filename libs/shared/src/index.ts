@@ -25,6 +25,19 @@ export {
 } from "./chunker.js";
 export { redactSecrets } from "./redact.js";
 export {
+  writeEpisode,
+  writeEpisodeWithCuration,
+  type WriteEpisodeDeps,
+  type CurationDeps,
+} from "./episode-writer.js";
+export {
+  loadApprovalConfig,
+  requiresApproval,
+  getApprovalLabel,
+  getApprovalConfig,
+  type ApprovalConfig,
+} from "./approval-config.js";
+export {
   extractSection,
   stripCommentsAndWhitespace,
   sectionIsEmpty,

@@ -6,18 +6,18 @@ import {
   writeEpisode,
   writeEpisodeWithCuration,
   type WriteEpisodeDeps,
-} from "./episode-writer.js";
+} from "@re-cinq/lore-shared";
 
 describe("writeEpisode", () => {
   it("redacts secrets before storing the episode", async () => {
     const memory = new InMemoryMemoryLifecycle();
 
     await writeEpisode(
+      { memory },
       `deploy token ghp_${"a".repeat(36)}`,
       "ci",
       "re-cinq/lore/1",
       "agent",
-      { memory },
     );
     expect(memory.episodes[0].content).toContain("[REDACTED:api-key]");
     expect(memory.episodes[0].content).not.toContain("ghp_");
@@ -26,11 +26,11 @@ describe("writeEpisode", () => {
   it("returns the episode id then null on a duplicate", async () => {
     const deps: WriteEpisodeDeps = { memory: new InMemoryMemoryLifecycle() };
 
-    expect(await writeEpisode("same body", "ci", "r", "agent", deps)).toBe(
+    expect(await writeEpisode(deps, "same body", "ci", "r", "agent")).toBe(
       "episode-1",
     );
     expect(
-      await writeEpisode("same body", "ci", "r", "agent", deps),
+      await writeEpisode(deps, "same body", "ci", "r", "agent"),
     ).toBeNull();
   });
 
@@ -42,7 +42,7 @@ describe("writeEpisode", () => {
     } as unknown as MemoryLifecyclePort;
 
     expect(
-      await writeEpisode("body", "ci", "r", "agent", { memory }),
+      await writeEpisode({ memory }, "body", "ci", "r", "agent"),
     ).toBeNull();
   });
 });
@@ -79,12 +79,12 @@ describe("writeEpisodeWithCuration", () => {
     const d = deps("Always rebuild shared before the agent build.");
 
     await writeEpisodeWithCuration(
+      d.deps,
       "outcome",
       "ci",
       "re-cinq/lore#42",
       "merge-check",
       "t1",
-      d.deps,
     );
     expect(curated(d.memory, "auto-curation/re-cinq/lore_42")).toMatchObject({
       agent_id: "merge-check",
@@ -97,12 +97,12 @@ describe("writeEpisodeWithCuration", () => {
     const d = deps("A lesson.");
 
     await writeEpisodeWithCuration(
+      d.deps,
       "outcome",
       "ci",
       "r",
       "merge-check",
       "t1",
-      d.deps,
     );
     expect(d.fake.calls).toHaveLength(0);
     expect(d.memory.memories).toHaveLength(0);
@@ -113,20 +113,20 @@ describe("writeEpisodeWithCuration", () => {
     const d = deps("A real lesson learned.");
 
     await writeEpisodeWithCuration(
+      d.deps,
       "same",
       "ci",
       "r",
       "merge-check",
       "t1",
-      d.deps,
     );
     await writeEpisodeWithCuration(
+      d.deps,
       "same",
       "ci",
       "r",
       "merge-check",
       "t1",
-      d.deps,
     );
     expect(d.fake.calls).toHaveLength(1);
   });
@@ -135,24 +135,24 @@ describe("writeEpisodeWithCuration", () => {
     const skip = deps("SKIP");
 
     await writeEpisodeWithCuration(
+      skip.deps,
       "outcome",
       "ci",
       "r1",
       "merge-check",
       "t1",
-      skip.deps,
     );
     expect(skip.memory.memories).toHaveLength(0);
 
     const short = deps("nope");
 
     await writeEpisodeWithCuration(
+      short.deps,
       "outcome",
       "ci",
       "r2",
       "merge-check",
       "t1",
-      short.deps,
     );
     expect(short.memory.memories).toHaveLength(0);
   });

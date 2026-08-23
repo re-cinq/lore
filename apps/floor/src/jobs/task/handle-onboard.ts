@@ -10,9 +10,10 @@ import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 
 import { Llm } from "@re-cinq/lore-shared";
 import { projectFor } from "../../composition/project-boot.js";
+import { memoryLifecycle } from "../../kernel/queues.js";
 import { settings } from "../../kernel/queues.js";
 import { fetchRepoContext } from "./repo-context.js";
-import { writeEpisode } from "../lib/episode-writer.js";
+import { writeEpisode } from "@re-cinq/lore-shared";
 import {
   summarizeFailures,
   TaskFailure,
@@ -489,6 +490,7 @@ export async function handleOnboard(
 
   // Auto-capture onboarding as episode
   writeEpisode(
+    { memory: memoryLifecycle() },
     `Repo ${targetRepo} onboarded\nGenerated: ${committed.join(", ")}\nPR: ${pr.url}`,
     "ci",
     `${targetRepo}/${task.id}`,

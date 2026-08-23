@@ -1,6 +1,10 @@
-import { pipeline } from "../../kernel/queues.js";
-import { projectFor } from "../../composition/project-boot.js";
-import { getApprovalLabel } from "./approval.js";
+// Moved from the Floor unchanged (ADR-024's service-endpoint station form): a
+// cron sweep is a unit of work with one clear result, and it needed none of what
+// a pod gives an assembly-line node. Only its imports changed.
+
+import { getApprovalLabel } from "@re-cinq/lore-shared";
+import { pipeline } from "../kernel/queues.js";
+import { projectFor } from "../kernel/project-boot.js";
 
 export async function approvalCheckJob(): Promise<string> {
   const tasks = await pipeline().taskQueue.awaitingApproval();
