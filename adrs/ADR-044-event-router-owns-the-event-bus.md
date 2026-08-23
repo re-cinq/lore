@@ -183,6 +183,34 @@ authority, so this adds no dependency and needs no database.
   cost of this decision is concentrated in the queue and the handful of
   genuinely DB-backed ports, not spread across every call site.
 
+## Amendment (2026-08-23): the Floor keeps its pool
+
+The second half of this ADR — "the Floor loses its pool" — was planned as a set
+of lore-api routes covering the ~70 repository methods the Floor calls. That
+count was the signal that the cut was wrong: 152 of the Floor's ~164 data calls
+are made by job handlers, not by the Floor, so the plan amounted to tunnelling
+each handler's data through HTTP to keep it running in a process it did not
+belong in.
+
+Those routes are not being built. Instead, handlers that are self-contained
+units of work move to where the data already is — see
+[ADR-024](./ADR-024-ubiquitous-language-execution-model.md)'s service-station
+amendment, and `apps/stations`. The first two, `merge-check` and
+`approval-check`, moved verbatim.
+
+The Floor therefore keeps its pool for now: `task/` (49 data calls) and
+`watcher/` (39) are station-startup and cluster-authority infrastructure, and
+stay. Everything in the first half of this ADR — the event-router owning
+`pipeline.events`, every producer reporting to it, the Floor claiming and acking
+over HTTP — is unaffected and shipped.
+
+Multi-cluster, the original motivation, is left open. Should it be taken up, the
+cheaper cut is the mirror of the one rejected here: the Floor's **cluster**
+surface is 15 calls across 7 operation types (`get`/`list`/`create`/`delete`/
+`replace` CustomObject, `readNamespacedPodLog`, `listNamespacedPod`), so
+extracting a thin per-cluster agent and leaving the brain central costs far less
+than moving the data. Recorded so it need not be measured again.
+
 ## Alternatives considered
 
 - **Keep the listeners in the Floor and give it an HTTP write path only.**
