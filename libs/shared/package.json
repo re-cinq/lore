@@ -18,6 +18,10 @@
       "types": "./dist/http/*.d.ts",
       "default": "./dist/http/*.js"
     },
+    "./cluster/*.js": {
+      "types": "./dist/cluster/*.d.ts",
+      "default": "./dist/cluster/*.js"
+    },
     "./db/*.js": {
       "types": "./dist/db/*.d.ts",
       "default": "./dist/db/*.js"

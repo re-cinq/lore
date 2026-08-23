@@ -10,6 +10,8 @@ const getLineById = vi.fn();
 const insertEvent = vi.fn();
 
 vi.mock("../kernel/queues.js", () => ({
+  // The logs route resolves the cluster agent from here.
+  clusterAgent: () => ({}),
   taskStore: () => ({ getById }),
   assemblyRuns: () => ({ getById: getLineById }),
 }));

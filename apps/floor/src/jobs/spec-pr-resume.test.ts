@@ -16,6 +16,8 @@ const query = vi.fn();
 const reported = vi.fn();
 
 vi.mock("../kernel/queues.js", () => ({
+  // The logs route resolves the cluster agent from here.
+  clusterAgent: () => ({}),
   pipeline: () => ({
     assemblyRuns: { findOpenByPr, listStationRuns },
     taskQueue: {},

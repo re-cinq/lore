@@ -1181,7 +1181,7 @@ share one persistence surface instead of inline SQL. ([validated by `task-queue.
     single-sourced `chunkSchemaOrOrgShared` (never the per-repo memoized
     resolver, which would serve the pre-change schema for its TTL), no-ops
     when resolution falls back to `org_shared`, and lets a relocation error
-    propagate so the event loop retries the idempotent move ([validated by `repo-team-changed.test.ts:47`](apps/floor/src/jobs/repo-team-changed.test.ts#L47), [`repo-team-changed.test.ts:66`](apps/floor/src/jobs/repo-team-changed.test.ts#L66), [`repo-team-changed.test.ts:81`](apps/floor/src/jobs/repo-team-changed.test.ts#L81), [`repo-team-changed.test.ts:89`](apps/floor/src/jobs/repo-team-changed.test.ts#L89), [`repo-team-changed.test.ts:102`](apps/floor/src/jobs/repo-team-changed.test.ts#L102))
+    propagate so the event loop retries the idempotent move ([validated by `repo-team-changed.test.ts:49`](apps/floor/src/jobs/repo-team-changed.test.ts#L49), [`repo-team-changed.test.ts:68`](apps/floor/src/jobs/repo-team-changed.test.ts#L68), [`repo-team-changed.test.ts:83`](apps/floor/src/jobs/repo-team-changed.test.ts#L83), [`repo-team-changed.test.ts:91`](apps/floor/src/jobs/repo-team-changed.test.ts#L91), [`repo-team-changed.test.ts:104`](apps/floor/src/jobs/repo-team-changed.test.ts#L104))
 
 ## Non-Functional Requirements
 

@@ -88,6 +88,55 @@ entry is the whole declaration.
 The Floor keeps the schedule, the `job_runs` row and the overlap guard — it
 still owns *when* a station runs; it stops owning *what* the station does.
 
+### Cluster authority is exercised through a per-cluster agent (amendment 2026-08-24)
+
+The Floor holds a Kubernetes client no longer. `apps/cluster-agent` is the only
+process that talks to a given cluster's API; the Floor and lore-api reach it
+over HTTP through the ports they already used, so their call sites kept their
+shape.
+
+The cut is the mirror of the station one. There, work moved TO the data; here,
+the cluster moves AWAY from it. The Floor's data surface is ~145 calls across
+~70 methods and its cluster surface is a dozen operations — so the cheap
+extraction was never the data, and a satellite cluster becomes a small agent
+rather than a second brain.
+
+Every route is a DOMAIN operation, not a Kubernetes verb, because three of the
+underlying interactions are read-modify-write pairs. Exposing `get` and
+`replace` separately would invite a caller to split a pair across the network
+and lose the update; no `resourceVersion` ever crosses the wire.
+
+- A CR that already exists reports `created:false` rather than failing, so a
+  redelivered dispatch is idempotent. ([validated by reports created:false for a CR that already exists, so a retry is idempotent](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L85))
+- A missing CR is an ordinary answer — `found:false` at 200, not a 404 that
+  would be indistinguishable from the route itself being absent. ([validated by answers 200 with found:false for a missing CR, not 404](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L104), [`cluster.test.ts:174`](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L174))
+- The list serves ONE apiserver page per call and the caller drives `continue`.
+  A one-shot list is not a convenience: 180 accumulated CRs at ~1.4MB of status
+  each blew Node's heap and crash-looped the Floor on 2026-07-24. ([validated by passes the caller's continue token straight through, one page per call](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L115), [`cluster.test.ts:128`](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L128), [`cluster.test.ts:335`](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L335), [`cluster.test.ts:318`](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L318))
+- The status subresource is patched in ONE call, so its read-modify-write
+  cannot be split across the network. ([validated by patches the status subresource in one call, so the read-modify-write cannot be split](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L139), [`cluster.test.ts:232`](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L232), [`cluster.test.ts:244`](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L244))
+- Provisioning is ONE call — catalog read, GitHub mint, Secret write and the
+  per-task clone together. The agent mints, so no GitHub token crosses the
+  network; the cost accepted is that the App private key lives in the agent.
+  ([validated by provisions in one call — catalog read, mint, secret write and clone together](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L186), [`cluster.test.ts:197`](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L197), [`cluster.test.ts:287`](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L287))
+- A catalog pair is applied in one call, so create-409-replace cannot be split.
+  ([validated by applies a catalog pair in one call, so create-409-replace cannot be split](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L211), [`cluster.test.ts:298`](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L298), [`cluster.test.ts:309`](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L309), [`cluster.test.ts:328`](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L328))
+- The log tail is clamped by the AGENT, because the Floor's clamp no longer
+  protects this process's heap. ([validated by clamps the tail server-side rather than trusting the caller](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L164), [`cluster.test.ts:267`](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L267), [`cluster.test.ts:277`](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L277), [`cluster.test.ts:257`](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L257))
+- Every route requires the same bearer token every other service-to-service
+  call presents. ([validated by refuses every route without a bearer token](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L223))
+- A CR the controller has not stamped yet reads as Pending rather than absent —
+  the distinction a watcher acts on. ([validated by a CR the controller has not stamped yet maps to Pending, not absence](apps/cluster-agent/src/kernel/kube-agent-api.test.ts#L6), [`kube-agent-api.test.ts:16`](apps/cluster-agent/src/kernel/kube-agent-api.test.ts#L16))
+- An empty minted token is refused where the cause is legible, rather than
+  written as a present-but-useless Secret key that fails later inside a pod's
+  init container. ([validated by throws naming the repo and the App vars when the token comes back empty](apps/cluster-agent/src/kernel/kube-token-provisioner.test.ts#L13), [`kube-token-provisioner.test.ts:5`](apps/cluster-agent/src/kernel/kube-token-provisioner.test.ts#L5))
+
+The Role this service carries also closes two gaps the Floor had been silently
+living with: it never held `delete` on `agents` or `agents/status`, yet issued
+both at sites that swallowed the failure — which is why the CR prune could
+never actually shrink the pile it was written to shrink.
+  ([validated by deletes a CR — the verb the Floor's RBAC never granted](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L151))
+
 Hierarchy: **Factory ⊃ Floor(s) ⊃ AssemblyLines ⊃ Stations ⊃ Agents** — the design
 side; its runtime shadow is **AssemblyRun ⊃ StationRuns ⊃ Agents**.
 

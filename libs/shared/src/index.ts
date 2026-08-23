@@ -33,6 +33,25 @@ export {
   perTaskStation,
 } from "./cluster/per-task-token.js";
 export { preserveUnownedFields } from "./cluster/preserve-unowned.js";
+export type { AgentNodeStatus } from "./cluster/agent-node-status.js";
+export type {
+  AgentApi,
+  AgentStatusReader,
+  TokenProvisioner,
+  TokenCleanup,
+} from "./cluster/cluster-ports.js";
+export type {
+  AgentPodInfo,
+  PodSummary,
+  PodLogSource,
+} from "./cluster/pod-logs-port.js";
+export {
+  ClusterAgentClient,
+  HttpAgentApi,
+  HttpPodLogSource,
+  HttpTokenProvisioner,
+  HttpAgentCatalog,
+} from "./cluster/cluster-agent-client.js";
 export {
   writeEpisode,
   writeEpisodeWithCuration,

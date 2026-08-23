@@ -8,9 +8,9 @@ import {
   VERSION,
   type Agent as AgentCr,
 } from "@re-cinq/agent-contracts";
-import type { AgentNodeStatus } from "@re-cinq/lore-assembly-lines";
+import type { AgentNodeStatus } from "@re-cinq/lore-shared";
 import { agentsNamespace, loadKube } from "@re-cinq/lore-shared";
-import type { AgentApi } from "./agent-backend.js";
+import type { AgentApi } from "@re-cinq/lore-shared";
 
 const PLURAL = "agents";
 

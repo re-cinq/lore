@@ -4,35 +4,16 @@
 // output (tool calls, messages, result). Logs vanish when the pod is
 // garbage-collected — callers surface `available:false` rather than an error.
 
-import {
-  GROUP,
-  VERSION,
-  type Agent as AgentCr,
-} from "@re-cinq/agent-contracts";
-import { agentsNamespace, loadKube } from "@re-cinq/lore-shared";
-
-const PLURAL = "agents";
-
-export interface AgentPodInfo {
-  phase: string | null;
-  jobName: string | null;
-}
-
-export interface PodSummary {
-  name: string;
-  creationTimestamp?: string;
-}
-
-/** The Kubernetes IO seam — the live impl talks to CoreV1Api/CustomObjectsApi;
- *  tests supply an in-memory double. */
-export interface PodLogSource {
-  /** Agent CR phase + jobName by name; null when the CR does not exist. */
-  agentInfo(name: string): Promise<AgentPodInfo | null>;
-  /** Pods for a Job (via the `job-name` label). */
-  podsForJob(jobName: string): Promise<PodSummary[]>;
-  /** A pod's logs, optionally tail-limited. */
-  podLog(podName: string, tailLines?: number): Promise<string>;
-}
+// The Kubernetes half moved to the cluster agent; what stays is the pure
+// orchestration — which pod is the latest, and what "no pod yet" means — plus
+// the GCP archive fallback, which was never Kubernetes.
+export type {
+  AgentPodInfo,
+  PodSummary,
+  PodLogSource,
+} from "@re-cinq/lore-shared";
+import { agentsNamespace } from "@re-cinq/lore-shared";
+import type { PodSummary, PodLogSource } from "@re-cinq/lore-shared";
 
 export type AgentLogsReason = "no-agent" | "no-job" | "no-pod";
 
@@ -145,88 +126,6 @@ function unavailable(
   return { available: false, logs: null, phase, podName: null, reason };
 }
 
-/** Live PodLogSource over @kubernetes/client-node, same lazy-import pattern as
- *  KubeAgentApi. */
-export class KubePodLogs implements PodLogSource {
-  private namespace(): string {
-    return agentsNamespace();
-  }
-
-  private async kubeConfig() {
-    const { KubeConfig } = await import("@kubernetes/client-node");
-    const kc = new KubeConfig();
-
-    loadKube(kc);
-
-    return kc;
-  }
-
-  private async core() {
-    const { CoreV1Api } = await import("@kubernetes/client-node");
-
-    return (await this.kubeConfig()).makeApiClient(CoreV1Api);
-  }
-
-  private async customObjects() {
-    const { CustomObjectsApi } = await import("@kubernetes/client-node");
-
-    return (await this.kubeConfig()).makeApiClient(CustomObjectsApi);
-  }
-
-  async agentInfo(name: string): Promise<AgentPodInfo | null> {
-    const api = await this.customObjects();
-
-    try {
-      const obj = (await api.getNamespacedCustomObject({
-        group: GROUP,
-        version: VERSION,
-        namespace: this.namespace(),
-        plural: PLURAL,
-        name,
-      })) as AgentCr;
-
-      return {
-        phase: obj.status?.phase ?? null,
-        jobName: obj.status?.jobName ?? null,
-      };
-    } catch (err) {
-      const e = err as { code?: number; response?: { statusCode?: number } };
-
-      if (e?.code === 404 || e?.response?.statusCode === 404) {
-        return null;
-      }
-      throw err;
-    }
-  }
-
-  async podsForJob(jobName: string): Promise<PodSummary[]> {
-    const api = await this.core();
-    const res = await api.listNamespacedPod({
-      namespace: this.namespace(),
-      labelSelector: podSelectorForJob(jobName),
-    });
-
-    return (res.items ?? []).map((pod) => ({
-      name: pod.metadata?.name ?? "",
-      creationTimestamp: pod.metadata?.creationTimestamp
-        ? new Date(pod.metadata.creationTimestamp).toISOString()
-        : undefined,
-    }));
-  }
-
-  async podLog(podName: string, tailLines?: number): Promise<string> {
-    const api = await this.core();
-
-    return api.readNamespacedPodLog({
-      name: podName,
-      namespace: this.namespace(),
-      tailLines,
-    });
-  }
-}
-
-/** One Cloud Logging entry — a container log line is either a raw `textPayload`
- *  or a structured `jsonPayload` (agents that log JSON). */
 export interface LogEntry {
   textPayload?: string;
   jsonPayload?: { message?: string } & Record<string, unknown>;

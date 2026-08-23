@@ -1,0 +1,286 @@
+/**
+ * The cluster's Kubernetes surface, as HTTP.
+ *
+ * Every route is a DOMAIN operation, not a Kubernetes verb. Three of the
+ * underlying interactions are read-modify-write pairs — the status subresource,
+ * the Secret key (5× 409 retry), the catalog apply (create → 409 → get-rv →
+ * replace) — and exposing `get` and `replace` separately would invite a caller
+ * to split a pair across the network and lose the update. No `resourceVersion`
+ * ever crosses the wire.
+ *
+ * The list is ONE apiserver page per call, with the caller driving `continue`.
+ * A one-shot list is not a convenience here: 180 accumulated CRs at ~1.4MB of
+ * status each blew Node's heap and crash-looped the Floor on 2026-07-24.
+ */
+
+import { z } from "zod";
+import type { ServerRoute } from "@hapi/hapi";
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
+import type {
+  Agent as AgentCr,
+  AgentDefinition,
+  Station,
+} from "@re-cinq/agent-contracts";
+import type { AgentPodInfo, PodSummary } from "@re-cinq/lore-shared";
+import type { LoreTaskSpec } from "@re-cinq/lore-shared";
+import { rawBody } from "@re-cinq/lore-shared/http/raw-body.js";
+import { apiError } from "../api-error.js";
+import { enforceBearer } from "../bearer.js";
+
+/** The apiserver's own page ceiling for this service. A caller asking for more
+ *  is refused rather than quietly served a smaller page — a silent clamp is how
+ *  a caller comes to believe it read everything. */
+const MAX_PAGE = 100;
+/** Log tail ceiling. Clamped HERE because the Floor's clamp no longer protects
+ *  this process's heap. */
+const MAX_TAIL = 10_000;
+
+export interface ClusterDeps {
+  agents: {
+    create(cr: AgentCr): Promise<{ name: string; created: boolean }>;
+    get(name: string): Promise<AgentCr | null>;
+    list(opts: {
+      labelSelector?: string;
+      limit: number;
+      continue?: string;
+    }): Promise<{ items: AgentCr[]; continueToken?: string }>;
+    remove(name: string): Promise<void>;
+    patchStatus(name: string, patch: Record<string, unknown>): Promise<void>;
+  };
+  pods: {
+    agentInfo(name: string): Promise<AgentPodInfo | null>;
+    podsForJob(jobName: string): Promise<PodSummary[]>;
+    podLog(podName: string, tailLines?: number): Promise<string>;
+  };
+  tokens: {
+    provision(spec: LoreTaskSpec): Promise<string | undefined>;
+    cleanup(taskId: string): Promise<void>;
+  };
+  catalog: {
+    applyPair(pair: {
+      agentDefinition: AgentDefinition;
+      station: Station;
+    }): Promise<void>;
+    deletePair(name: string): Promise<void>;
+  };
+}
+
+export interface ClusterRoutesDeps {
+  /** A thunk: the Kubernetes clients are built lazily, after boot. */
+  deps: () => ClusterDeps;
+  bearerToken?: string;
+}
+
+const StatusPatch = z.object({ patch: z.record(z.unknown()) });
+const CatalogPair = z.object({
+  agentDefinition: z.record(z.unknown()),
+  station: z.record(z.unknown()),
+});
+
+function body<T>(raw: string, schema: z.ZodType<T>, what: string): T {
+  let json: unknown;
+
+  try {
+    json = JSON.parse(raw);
+  } catch (err) {
+    throw apiError(400)(`invalid JSON in ${what}: ${(err as Error).message}`);
+  }
+  const parsed = schema.safeParse(json);
+
+  enforceTrue(
+    parsed.success,
+    apiError(400),
+    `not a ${what}: ${parsed.error?.issues.map((i) => `${i.path.join(".") || "(body)"} ${i.message}`).join("; ")}`,
+  );
+
+  return parsed.data;
+}
+
+export function clusterRoutes(opts: ClusterRoutesDeps): ServerRoute[] {
+  const guard = (headers: Record<string, unknown>): void =>
+    enforceBearer(headers, opts.bearerToken);
+  const raw = { auth: false as const, payload: { parse: false as const } };
+
+  return [
+    {
+      method: "POST",
+      path: "/api/cluster/agents",
+      options: raw,
+      handler: async (request, h) => {
+        guard(request.headers);
+        const cr = JSON.parse(rawBody(request)) as AgentCr;
+
+        return h.response(await opts.deps().agents.create(cr)).code(200);
+      },
+    },
+    {
+      // 200 with `found:false` rather than 404: "no such CR" is an ordinary
+      // answer to this question, and a 404 would be indistinguishable from the
+      // route itself being absent.
+      method: "GET",
+      path: "/api/cluster/agents/{name}",
+      options: { auth: false },
+      handler: async (request, h) => {
+        guard(request.headers);
+        const cr = await opts.deps().agents.get(request.params.name);
+
+        return h.response({ found: cr !== null, cr }).code(200);
+      },
+    },
+    {
+      method: "GET",
+      path: "/api/cluster/agents",
+      options: { auth: false },
+      handler: async (request, h) => {
+        guard(request.headers);
+        const q = request.query as Record<string, string | undefined>;
+        const limit = Number(q.limit ?? MAX_PAGE);
+
+        enforceTrue(
+          Number.isInteger(limit) && limit > 0 && limit <= MAX_PAGE,
+          apiError(400),
+          `limit must be an integer in 1..${MAX_PAGE} — a larger page is what blew the heap on 2026-07-24`,
+        );
+
+        return h
+          .response(
+            await opts.deps().agents.list({
+              labelSelector: q.labelSelector,
+              limit,
+              continue: q.continue,
+            }),
+          )
+          .code(200);
+      },
+    },
+    {
+      method: "DELETE",
+      path: "/api/cluster/agents/{name}",
+      options: { auth: false },
+      handler: async (request, h) => {
+        guard(request.headers);
+        await opts.deps().agents.remove(request.params.name);
+
+        return h.response().code(204);
+      },
+    },
+    {
+      method: "PATCH",
+      path: "/api/cluster/agents/{name}/status",
+      options: raw,
+      handler: async (request, h) => {
+        guard(request.headers);
+        const { patch } = body(rawBody(request), StatusPatch, "status patch");
+
+        await opts.deps().agents.patchStatus(request.params.name, patch);
+
+        return h.response().code(204);
+      },
+    },
+    {
+      method: "GET",
+      path: "/api/cluster/agents/{name}/pod-info",
+      options: { auth: false },
+      handler: async (request, h) => {
+        guard(request.headers);
+        const info = await opts.deps().pods.agentInfo(request.params.name);
+
+        return h
+          .response({
+            found: info !== null,
+            phase: info?.phase ?? null,
+            jobName: info?.jobName ?? null,
+          })
+          .code(200);
+      },
+    },
+    {
+      method: "GET",
+      path: "/api/cluster/jobs/{jobName}/pods",
+      options: { auth: false },
+      handler: async (request, h) => {
+        guard(request.headers);
+
+        return h
+          .response({
+            pods: await opts.deps().pods.podsForJob(request.params.jobName),
+          })
+          .code(200);
+      },
+    },
+    {
+      method: "GET",
+      path: "/api/cluster/pods/{podName}/log",
+      options: { auth: false },
+      handler: async (request, h) => {
+        guard(request.headers);
+        const asked = Number(
+          (request.query as Record<string, string | undefined>).tail ??
+            MAX_TAIL,
+        );
+        const tail = Number.isInteger(asked) && asked > 0 ? asked : MAX_TAIL;
+
+        return h
+          .response({
+            logs: await opts
+              .deps()
+              .pods.podLog(request.params.podName, Math.min(tail, MAX_TAIL)),
+          })
+          .code(200);
+      },
+    },
+    {
+      // ONE call: catalog read → mint the GitHub token → write the Secret key
+      // (409-retried) → clone the pt-* pair. The mint happens here so no GitHub
+      // token ever crosses the network.
+      method: "POST",
+      path: "/api/cluster/per-task-tokens",
+      options: raw,
+      handler: async (request, h) => {
+        guard(request.headers);
+        const spec = JSON.parse(rawBody(request)) as LoreTaskSpec;
+        const name = await opts.deps().tokens.provision(spec);
+
+        return h.response({ name: name ?? null }).code(200);
+      },
+    },
+    {
+      method: "DELETE",
+      path: "/api/cluster/per-task-tokens/{taskId}",
+      options: { auth: false },
+      handler: async (request, h) => {
+        guard(request.headers);
+        await opts.deps().tokens.cleanup(request.params.taskId);
+
+        return h.response().code(204);
+      },
+    },
+    {
+      method: "POST",
+      path: "/api/cluster/catalog/pairs",
+      options: raw,
+      handler: async (request, h) => {
+        guard(request.headers);
+        const pair = body(rawBody(request), CatalogPair, "catalog pair");
+
+        await opts.deps().catalog.applyPair({
+          agentDefinition: pair.agentDefinition as unknown as AgentDefinition,
+          station: pair.station as unknown as Station,
+        });
+
+        return h.response().code(204);
+      },
+    },
+    {
+      method: "DELETE",
+      path: "/api/cluster/catalog/pairs/{name}",
+      options: { auth: false },
+      handler: async (request, h) => {
+        guard(request.headers);
+        await opts.deps().catalog.deletePair(request.params.name);
+
+        return h.response().code(204);
+      },
+    },
+  ];
+}
