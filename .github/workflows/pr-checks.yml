@@ -124,7 +124,7 @@ jobs:
           # a recipe edit lands without regenerating the catalog. The script builds
           # floor + regenerates itself, so it only needs shared + assembly-lines prebuilt.
           - name: catalog-drift
-            build: npm run build -w @re-cinq/lore-shared && npm run build -w @re-cinq/lore-assembly-lines
+            build: npm run build -w @re-cinq/lore-shared && npm run build -w @re-cinq/lore-assembly-lines && npm run build -w @re-cinq/lore-stations
             test: bash scripts/check-catalog-drift.sh
           # web-ui's builtin assembly-line graphs are GENERATED from the YAMLs —
           # it is outside the workspace and carries no YAML parser, so it needs a
@@ -141,7 +141,7 @@ jobs:
           # without regenerating. Needs shared + server-core prebuilt; the script
           # builds lore-api itself.
           - name: openapi-drift
-            build: npm run build -w @re-cinq/lore-shared && npm run build -w @re-cinq/lore-server-core && npm run build -w @re-cinq/lore-assembly-lines
+            build: npm run build -w @re-cinq/lore-shared && npm run build -w @re-cinq/lore-server-core && npm run build -w @re-cinq/lore-assembly-lines && npm run build -w @re-cinq/lore-stations
             test: bash scripts/check-openapi-drift.sh
           # Skill-docs guard. /lore-help renders each platform skill from that
           # skill's own `## Help` block, so a skill without one is invisible in
