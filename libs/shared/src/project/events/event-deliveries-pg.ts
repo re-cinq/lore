@@ -25,6 +25,9 @@ export class PgEventDeliveries implements EventDeliveriesPort {
     subscriber: string,
     subscriptions: EventSubscription[],
   ): Promise<void> {
+    // An empty set is treated as "nothing to say", not "unsubscribe from
+    // everything": a boot that computed its handlers wrongly would otherwise
+    // silently take the subscriber off the bus.
     if (subscriptions.length === 0) {
       return;
     }
@@ -43,6 +46,17 @@ export class PgEventDeliveries implements EventDeliveriesPort {
         subscriptions.map((s) => s.eventName),
         subscriptions.map((s) => s.visibilityTimeoutSeconds ?? null),
       ],
+    );
+
+    // A boot registration declares the subscriber's WHOLE set, so a name absent
+    // from it is a handler that was removed. Left behind, it keeps drawing
+    // deliveries no one can run, each retried to the ladder and dead-lettered.
+    // Scoped to this subscriber: the others' rows are none of its business.
+    await this.pool.query(
+      `DELETE FROM pipeline.event_subscriptions
+        WHERE subscriber = $1
+          AND event_name <> ALL($2::text[])`,
+      [subscriber, subscriptions.map((s) => s.eventName)],
     );
   }
 
@@ -130,26 +144,36 @@ export class PgEventDeliveries implements EventDeliveriesPort {
   }
 
   async pruneHandled(olderThanDays: number): Promise<number> {
-    const { rows } = await this.pool.query(
-      `WITH gone AS (
-         DELETE FROM pipeline.event_deliveries
-          WHERE status IN ('done', 'dead')
-            AND handled_at < now() - ($1::int || ' days')::interval
-        RETURNING id, event_id
-       )
-       DELETE FROM pipeline.events e
+    // Two statements, deliberately, where one CTE used to be. Composed, the
+    // event DELETE read the pre-delete snapshot — so the deliveries collected
+    // in the same statement still looked present and their event survived to
+    // the next sweep — and it was gated on `EXISTS (SELECT 1 FROM gone)`, which
+    // meant a quiet sweep that pruned no delivery collected no event at all
+    // and pipeline.events grew without bound. Prune is janitorial; it does not
+    // need one transaction, and at worst an event waits for the next run.
+    const { rows: deliveries } = await this.pool.query<{ id: string }>(
+      `DELETE FROM pipeline.event_deliveries
+        WHERE status IN ('done', 'dead')
+          AND handled_at < now() - ($1::int || ' days')::interval
+       RETURNING id`,
+      [olderThanDays],
+    );
+
+    await this.pool.query(
+      `DELETE FROM pipeline.events e
         WHERE e.captured_at < now() - ($1::int || ' days')::interval
           -- Never collect an event something is still owed a delivery of.
           AND NOT EXISTS (
             SELECT 1 FROM pipeline.event_deliveries d WHERE d.event_id = e.id
-          )
-          AND EXISTS (SELECT 1 FROM gone)
-       RETURNING (SELECT count(*)::int FROM gone) AS pruned`,
+          )`,
       [olderThanDays],
     );
 
-    return (rows[0] as { pruned?: number } | undefined)?.pruned ?? 0;
+    // The DELIVERIES pruned, per the port: the event collection is bookkeeping
+    // behind it, and counting both would make the number mean two things.
+    return deliveries.length;
   }
+
 
   async orphanedEvents(withinMinutes: number): Promise<OrphanedEvents[]> {
     const { rows } = await this.pool.query<{

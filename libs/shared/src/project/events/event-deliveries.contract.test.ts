@@ -225,6 +225,33 @@ function contract(name: string, make: () => EventDeliveriesPort): void {
       ]);
     });
 
+    it("drops a name the subscriber no longer handles, so a removed handler stops being delivered", async () => {
+      const port = make();
+      const [s, kept, removed] = [sub(), evt(), evt()];
+
+      await port.subscribe(s, [{ eventName: kept }, { eventName: removed }]);
+      // The next boot ships without the second handler.
+      await port.subscribe(s, [{ eventName: kept }]);
+      await port.insert({ eventName: kept, source: "internal" });
+      await port.insert({ eventName: removed, source: "internal" });
+
+      expect((await port.claim(s, 10)).map((d) => d.event_name)).toEqual([
+        kept,
+      ]);
+    });
+
+    it("leaves another subscriber's names alone when one re-registers", async () => {
+      const port = make();
+      const [mine, theirs, eventName] = [sub(), sub(), evt()];
+
+      await port.subscribe(mine, [{ eventName }]);
+      await port.subscribe(theirs, [{ eventName }]);
+      await port.subscribe(mine, [{ eventName }]);
+      await port.insert({ eventName, source: "internal" });
+
+      expect(await port.claim(theirs, 10)).toHaveLength(1);
+    });
+
     it("never collects an event a subscriber is still owed a delivery of", async () => {
       const port = make();
       const [s, eventName] = [sub(), evt()];
@@ -234,6 +261,48 @@ function contract(name: string, make: () => EventDeliveriesPort): void {
       await port.pruneHandled(0);
 
       expect(await port.claim(s, 10)).toHaveLength(1);
+    });
+
+    it("returns the deliveries pruned, so a sweep that collected no event still reports its work", async () => {
+      const port = make();
+      const [s, eventName] = [sub(), evt()];
+
+      await port.subscribe(s, [{ eventName }]);
+      await port.insert({ eventName, source: "internal" });
+
+      const [delivery] = await port.claim(s, 10);
+
+      await port.markDone(delivery.id);
+
+      expect(await port.pruneHandled(0)).toBe(1);
+    });
+
+    it("collects the event in the same sweep that prunes its last delivery", async () => {
+      const port = make();
+      const [s, eventName] = [sub(), evt()];
+
+      await port.subscribe(s, [{ eventName }]);
+      await port.insert({ eventName, source: "internal" });
+
+      const [delivery] = await port.claim(s, 10);
+
+      await port.markDone(delivery.id);
+      await port.pruneHandled(0);
+
+      expect(await port.orphanedEvents(60)).toEqual([]);
+    });
+
+    it("collects an old event owed nothing even when no delivery was pruned", async () => {
+      const port = make();
+      const eventName = evt();
+
+      // Nothing subscribes, so the event gets no deliveries at all — the shape
+      // that used to accumulate forever, since collection was gated on having
+      // pruned a delivery in the same sweep.
+      await port.insert({ eventName, source: "internal" });
+      await port.pruneHandled(0);
+
+      expect(await port.orphanedEvents(60)).toEqual([]);
     });
 
     it("holds back an excluded name so a busy serial family's rows stay pending", async () => {

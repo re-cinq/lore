@@ -18,7 +18,9 @@ export const SubscribeBody = z.object({
     .array(
       z.object({
         eventName: z.string().min(1),
-        visibilityTimeoutSeconds: z.number().int().positive().optional(),
+        // nonnegative, not positive: both adapters accept 0 (reap immediately),
+        // so `positive` would 400 over HTTP a budget the store honours in-process.
+        visibilityTimeoutSeconds: z.number().int().nonnegative().optional(),
       }),
     )
     .min(1),

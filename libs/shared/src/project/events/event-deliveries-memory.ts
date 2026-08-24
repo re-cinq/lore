@@ -40,16 +40,22 @@ export class InMemoryEventDeliveries implements EventDeliveriesPort {
     subscriber: string,
     subscriptions: EventSubscription[],
   ): Promise<void> {
-    const owned =
-      this.subscriptions.get(subscriber) ?? new Map<string, number>();
-
-    for (const s of subscriptions) {
-      owned.set(
-        s.eventName,
-        s.visibilityTimeoutSeconds ?? DEFAULT_VISIBILITY_SECONDS,
-      );
+    // Replaces rather than merges: a boot registration declares the whole set,
+    // so a name it omits is a handler that was removed. An empty set says
+    // nothing at all, so as not to take a mis-booted subscriber off the bus.
+    if (subscriptions.length === 0) {
+      return;
     }
-    this.subscriptions.set(subscriber, owned);
+
+    this.subscriptions.set(
+      subscriber,
+      new Map(
+        subscriptions.map((s) => [
+          s.eventName,
+          s.visibilityTimeoutSeconds ?? DEFAULT_VISIBILITY_SECONDS,
+        ]),
+      ),
+    );
   }
 
   async insert(input: EventInsert): Promise<void> {
@@ -189,6 +195,9 @@ export class InMemoryEventDeliveries implements EventDeliveriesPort {
   }
 
   async pruneHandled(olderThanDays: number): Promise<number> {
+    // Inclusive, unlike the strict `<` the SQL uses, because this clock does not
+    // tick: with olderThanDays 0 the cutoff IS the handled_at just written, and a
+    // strict compare would keep a row Postgres collects (its now() has moved on).
     const cutoff = this.now() - olderThanDays * 86_400_000;
     const before = this.deliveries.length;
 
@@ -197,7 +206,7 @@ export class InMemoryEventDeliveries implements EventDeliveriesPort {
         !(
           (d.status === "done" || d.status === "dead") &&
           d.handled_at !== null &&
-          Date.parse(d.handled_at) < cutoff
+          Date.parse(d.handled_at) <= cutoff
         ),
     );
 
@@ -205,7 +214,7 @@ export class InMemoryEventDeliveries implements EventDeliveriesPort {
     const live = new Set(this.deliveries.map((d) => d.event_id));
 
     this.events = this.events.filter(
-      (e) => live.has(e.id) || Date.parse(e.captured_at) >= cutoff,
+      (e) => live.has(e.id) || Date.parse(e.captured_at) > cutoff,
     );
 
     return before - this.deliveries.length;
