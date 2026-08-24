@@ -1,6 +1,10 @@
 import Hapi from "@hapi/hapi";
 import { describe, expect, it } from "vitest";
-import { maintenanceRoute, type MaintenanceJobs } from "./maintenance.js";
+import {
+  maintenanceJobs,
+  maintenanceRoute,
+  type MaintenanceJobs,
+} from "./maintenance.js";
 
 async function serverWith(jobs: MaintenanceJobs): Promise<Hapi.Server> {
   const server = Hapi.server();
@@ -69,5 +73,25 @@ describe("POST /api/maintenance/{job}", () => {
     await server.inject(POST("importance-decay"));
 
     expect(ran).toEqual(["importance-decay"]);
+  });
+});
+
+describe("the maintenance jobs derive from the station registry", () => {
+  it("answers for every cron-triggered station rather than a hand-written list", () => {
+    const names = Object.keys(maintenanceJobs(() => null)).sort();
+
+    expect(names).toEqual([
+      "anthropic-cost-sync",
+      "importance-decay",
+      "memory-ttl",
+    ]);
+  });
+
+  it("does not advertise a station it cannot run, so the failure is unreachable", () => {
+    // approval-check declares a cron reconciler, but reaching a repo needs a
+    // GitHub App lore-api does not have — so it is not exposed here at all.
+    expect(Object.keys(maintenanceJobs(() => null))).not.toContain(
+      "approval-check",
+    );
   });
 });

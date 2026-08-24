@@ -8,7 +8,7 @@
 
 import { getApprovalLabel } from "@re-cinq/lore-shared";
 import type { StationHost, StationRepo } from "@re-cinq/lore-station-registry";
-import { pipeline } from "./queues.js";
+import { cost, memoryLifecycle, pipeline } from "./queues.js";
 import { projectFor } from "./project-boot.js";
 
 const AWAITING_APPROVAL = "awaiting_approval";
@@ -31,8 +31,15 @@ async function repoFor(repo: string): Promise<StationRepo> {
   };
 }
 
+/**
+ * This service holds a pool AND a GitHub App, so it serves every port — the
+ * scheduled data operations as readily as the repo sweeps. lore-api's host
+ * serves only the data half and says so; nothing here needs to.
+ */
 export const stationHost = (): StationHost => ({
   awaitingApproval: () => pipeline().taskQueue.awaitingApproval(),
   approvalLabel: getApprovalLabel,
   repoFor,
+  memoryLifecycle,
+  cost,
 });

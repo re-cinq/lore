@@ -12,7 +12,10 @@
  */
 
 import type { StationModule } from "./lib/station.js";
+import { anthropicCostSync } from "./stations/anthropic-cost-sync/manifest.js";
 import { approvalCheck } from "./stations/approval-check/manifest.js";
+import { importanceDecayStation } from "./stations/importance-decay/manifest.js";
+import { memoryTtl } from "./stations/memory-ttl/manifest.js";
 import { validate } from "./stations/validate/manifest.js";
 import { retrospective } from "./stations/retrospective/manifest.js";
 import { detect } from "./stations/detect/manifest.js";
@@ -22,11 +25,14 @@ import { issues } from "./stations/issues/manifest.js";
 
 /** The single list. A folder missing from it fails the registry's own test. */
 export const STATION_NAMES = [
+  "anthropic-cost-sync",
   "approval-check",
   "comment-triage",
   "detect",
+  "importance-decay",
   "ingest",
   "issues",
+  "memory-ttl",
   "retrospective",
   "validate",
 ] as const;
@@ -34,11 +40,14 @@ export const STATION_NAMES = [
 export type StationName = (typeof STATION_NAMES)[number];
 
 export const STATIONS: Record<StationName, StationModule> = {
+  "anthropic-cost-sync": anthropicCostSync,
   "approval-check": approvalCheck,
   "comment-triage": commentTriage,
   detect,
+  "importance-decay": importanceDecayStation,
   ingest,
   issues,
+  "memory-ttl": memoryTtl,
   retrospective,
   validate,
 };

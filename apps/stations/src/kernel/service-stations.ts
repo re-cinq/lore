@@ -13,7 +13,22 @@
  * remaining gap is visible and tested.
  */
 
-import { STATIONS, isSweepModule } from "@re-cinq/lore-station-registry";
+import {
+  STATIONS,
+  hostCanRun,
+  isSweepModule,
+  type StationPortName,
+} from "@re-cinq/lore-station-registry";
+
+/** This service holds a pool AND a GitHub App, so it serves every port. */
+const SERVED: readonly StationPortName[] = [
+  "awaitingApproval",
+  "approvalLabel",
+  "repoFor",
+  "memoryLifecycle",
+  "cost",
+];
+
 import type { StationHost } from "@re-cinq/lore-station-registry";
 import type { Station } from "../delivery/routes/stations.js";
 import { mergeCheckJob } from "../stations/merge-check.js";
@@ -39,6 +54,7 @@ export function serviceStations(
   const fromRegistry = Object.values(STATIONS)
     .filter(isSweepModule)
     .filter(hasHttpTrigger)
+    .filter((mod) => hostCanRun(mod.manifest, SERVED))
     .map((mod): [string, Station] => [
       mod.manifest.name,
       () => mod.run({ trigger: "http", host }),

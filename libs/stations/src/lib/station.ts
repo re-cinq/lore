@@ -25,6 +25,8 @@ import type {
 } from "@re-cinq/lore-assembly-lines";
 import type { NodeResult } from "@re-cinq/lore-assembly-lines";
 import type { StationInput } from "@re-cinq/lore-shared/station-input.js";
+import type { MemoryLifecyclePort } from "@re-cinq/lore-shared/project/memory/memory-lifecycle-port.js";
+import type { CostPort } from "@re-cinq/lore-shared/project/cost/cost-port.js";
 
 /** Where a node station's work physically runs. */
 export type StationRuntime =
@@ -75,12 +77,30 @@ export interface HttpTrigger {
 export type StationTrigger =
   NodeTrigger | HumanTrigger | EventTrigger | CronTrigger | HttpTrigger;
 
+/** The ports a station may ask its host for. */
+export type StationPortName = keyof StationHost;
+
 export interface StationManifest {
   /** The folder name, the registry key, and the URL segment. One string. */
   readonly name: string;
   readonly description: string;
   readonly triggers: readonly StationTrigger[];
+  /**
+   * The host ports this station reaches for.
+   *
+   * Declared so a host can expose exactly the stations it can actually RUN.
+   * Without it, lore-api — which has a pool but no GitHub App — advertised a
+   * repo sweep it could only fail, and the failure was reachable from the
+   * outside rather than impossible.
+   */
+  readonly requires?: readonly StationPortName[];
 }
+
+/** True when this host serves every port the station asks for. */
+export const hostCanRun = (
+  manifest: StationManifest,
+  served: readonly StationPortName[],
+): boolean => (manifest.requires ?? []).every((p) => served.includes(p));
 
 /** Everything a pod station is given beyond its input. */
 export interface StationEnv {
@@ -98,6 +118,13 @@ export interface StationEnv {
  * Narrow on purpose — it grows one method at a time, as a sweep needs it, so it
  * stays a description of what stations actually use rather than a mirror of the
  * host's whole surface.
+ *
+ * Not every host can serve every port, and that is fine: lore-api runs the
+ * scheduled data operations and has no GitHub App, while the stations service
+ * runs the repo sweeps. A host declares what it cannot serve with
+ * {@link unsupportedPort}, so calling it fails by NAME at the call site rather
+ * than as `undefined is not a function` — and a station only ever reaches for
+ * what its own trigger implies it needs.
  */
 export interface StationHost {
   /** Tasks parked on a human approving their issue. */
@@ -108,6 +135,10 @@ export interface StationHost {
   approvalLabel(): string;
   /** The per-repo surface a sweep acts through. */
   repoFor(repo: string): Promise<StationRepo>;
+  /** memory.* lifecycle: expiry, decay, consolidation. */
+  memoryLifecycle(): MemoryLifecyclePort;
+  /** pipeline.anthropic_cost_daily, for the cost import. */
+  cost(): CostPort;
 }
 
 /** What a sweep may do to one repo. */
@@ -173,3 +204,19 @@ export const isNodeModule = (mod: StationModule): mod is NodeStationModule =>
 /** True when the module runs standalone work rather than a node visit. */
 export const isSweepModule = (mod: StationModule): mod is SweepStationModule =>
   "run" in mod && nodeTriggers(mod.manifest).length === 0;
+
+/**
+ * A port this host does not serve.
+ *
+ * Returns a function that throws when CALLED, naming both the port and the host,
+ * rather than a cast that claims the host is something it is not. A station
+ * reaching a port its host cannot serve is a wiring bug, and this is what makes
+ * it say so.
+ */
+export const unsupportedPort = (port: string, host: string): (() => never) => {
+  return () => {
+    throw new Error(
+      `station port "${port}" is not served by the ${host} host — a station needing it must run somewhere that has it`,
+    );
+  };
+};

@@ -20,6 +20,7 @@ export const approvalCheck: SweepStationModule = {
       { kind: "cron", schedule: "23 * * * *" },
       { kind: "http" },
     ],
+    requires: ["awaitingApproval", "approvalLabel", "repoFor"],
   },
   run: (ctx) => runApprovalCheck(ctx.host),
 };

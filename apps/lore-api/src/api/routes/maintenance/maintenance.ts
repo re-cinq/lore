@@ -1,10 +1,20 @@
 import type { ServerRoute } from "@hapi/hapi";
 import { apiError } from "../../../server/api-error.js";
 import { z } from "zod";
+import {
+  STATIONS,
+  hostCanRun,
+  isSweepModule,
+  unsupportedPort,
+  type StationHost,
+  type StationPortName,
+} from "@re-cinq/lore-station-registry";
+
+/** What this process can serve: a pool, and no code host. */
+const SERVED: readonly StationPortName[] = ["memoryLifecycle", "cost"];
+
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { PgMemoryLifecycle } from "@re-cinq/lore-shared/project/memory/memory-lifecycle-pg.js";
-import { importanceDecay } from "../../../features/maintenance/importance-decay.js";
-import { anthropicCostSyncJob } from "../../../features/maintenance/cost/anthropic-cost-sync.js";
 import { PgCost } from "@re-cinq/lore-shared/project/cost/cost-pg.js";
 import type { Pool } from "pg";
 import { bearerScope } from "../../../server/plugins/bearer-scope.js";
@@ -35,7 +45,18 @@ const MaintenanceResponse = z.object({
   summary: z.string(),
 });
 
-/** The registry, bound to a pool. A job is added here when it leaves the Floor. */
+/**
+ * The jobs this service answers for, DERIVED from the shared station registry.
+ *
+ * It used to be a hand-written map — the third of three registries that shared a
+ * signature and could not check each other. The jobs themselves now live one
+ * folder each in @re-cinq/lore-station-registry with the rest of the stations;
+ * this only binds them to the pool THIS process holds, because a station is
+ * given its data rather than resolving it.
+ *
+ * Deployment is unchanged: the courier CronJob still posts
+ * /api/maintenance/<job> here, on the same schedules.
+ */
 export function maintenanceJobs(getPool: () => Pool | null): MaintenanceJobs {
   const pool = (): Pool => {
     const p = getPool();
@@ -45,22 +66,32 @@ export function maintenanceJobs(getPool: () => Pool | null): MaintenanceJobs {
     return p;
   };
 
-  return {
-    // Was the Floor's `memory_ttl` job — 14 lines around one DELETE, with its
-    // own CronJob pod built from the coordinator's image.
-    "memory-ttl": async () => {
-      const count = await new PgMemoryLifecycle(pool()).expireMemories();
+  // Resolved lazily, per call: the pool may not exist when the route is built.
+  //
+  // This host serves the two data ports and says so about the rest. lore-api has
+  // no GitHub App, so a repo sweep cannot run here — and only cron-triggered
+  // stations are exposed below, so none ever asks.
+  const host = (): StationHost => ({
+    memoryLifecycle: () => new PgMemoryLifecycle(pool()),
+    cost: () => new PgCost(pool()),
+    awaitingApproval: unsupportedPort("awaitingApproval", "lore-api"),
+    approvalLabel: unsupportedPort("approvalLabel", "lore-api"),
+    repoFor: unsupportedPort("repoFor", "lore-api"),
+  });
 
-      return `Cleaned up ${count} expired memories`;
-    },
-
-    // Was the Floor's `importance_decay` job (#1350).
-    "importance-decay": () => importanceDecay(new PgMemoryLifecycle(pool())),
-
-    // Was the Floor's `anthropic_cost_sync` job (#1348). Reads the Anthropic
-    // Admin API and upserts daily rows — an import, not coordination.
-    "anthropic-cost-sync": () => anthropicCostSyncJob(new PgCost(pool())),
-  };
+  return Object.fromEntries(
+    Object.values(STATIONS)
+      .filter(isSweepModule)
+      .filter((mod) => mod.manifest.triggers.some((t) => t.kind === "cron"))
+      // Only what this host can actually RUN. Without it lore-api advertised the
+      // repo sweep it has no GitHub App for, so the failure was reachable from
+      // outside rather than impossible.
+      .filter((mod) => hostCanRun(mod.manifest, SERVED))
+      .map((mod) => [
+        mod.manifest.name,
+        () => mod.run({ trigger: "cron", host: host() }),
+      ]),
+  );
 }
 
 export function maintenanceRoute(jobs: MaintenanceJobs): ServerRoute {
