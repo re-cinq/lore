@@ -9,6 +9,7 @@ import type {
   AgentDefinition,
   Station,
 } from "@re-cinq/agent-contracts";
+import { collectPages, type Page } from "../lib/paginate.js";
 import type { AgentNodeStatus } from "./agent-node-status.js";
 import type {
   AgentApi,
@@ -83,10 +84,7 @@ export class HttpAgentApi implements AgentApi, AgentStatusReader {
     // today is one busy hour away from not fitting, and the failure of a
     // silently-truncated list is that it returns the WRONG answer rather than
     // an error — the caller acts on a subset it believes is the whole set.
-    const items: AgentCr[] = [];
-    let continueToken: string | undefined;
-
-    do {
+    return collectPages<AgentCr>((continueToken?: string) => {
       const q = new URLSearchParams({
         labelSelector: selector,
         limit: String(PAGE_LIMIT),
@@ -96,16 +94,12 @@ export class HttpAgentApi implements AgentApi, AgentStatusReader {
         q.set("continue", continueToken);
       }
 
-      const page = await this.client.call<{
-        items: AgentCr[];
-        continueToken?: string;
-      }>("GET", `/agents?${q}`);
-
-      items.push(...(page?.items ?? []));
-      continueToken = page?.continueToken;
-    } while (continueToken);
-
-    return items;
+      // `call` answers undefined for a 204; an empty page ends the walk, where
+      // a thrown TypeError would end the caller.
+      return this.client
+        .call<Page<AgentCr>>("GET", `/agents?${q}`)
+        .then((page) => page ?? { items: [] });
+    });
   }
 
   /** One page. The caller drives `continue` — see the route's comment on why a

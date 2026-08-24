@@ -20,6 +20,7 @@
 import type { Agent as AgentCr } from "@re-cinq/agent-contracts";
 import { HttpAgentApi } from "@re-cinq/lore-shared";
 import { mapAgentToEvent } from "@re-cinq/lore-shared/project/events/k8s-map.js";
+import { forEachPage } from "@re-cinq/lore-shared/lib/paginate.js";
 import { clusterAgent, pipeline, taskStore } from "../kernel/queues.js";
 import { insertEvent } from "../main-loop/store.js";
 
@@ -46,17 +47,11 @@ export async function forEachAgentPage(
   lister: AgentLister,
   onPage: (items: AgentCr[]) => Promise<void>,
 ): Promise<void> {
-  let continueToken: string | undefined;
-
-  do {
-    const page = await lister.listPage({
-      limit: LIST_PAGE_LIMIT,
-      continue: continueToken,
-    });
-
-    await onPage(page.items);
-    continueToken = page.continueToken;
-  } while (continueToken);
+  await forEachPage<AgentCr>(
+    (continueToken) =>
+      lister.listPage({ limit: LIST_PAGE_LIMIT, continue: continueToken }),
+    onPage,
+  );
 }
 
 /** Safety net: list CRs, re-emit for terminal ones whose work is still in flight, prune old. */
