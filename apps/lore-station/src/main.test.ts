@@ -1,5 +1,6 @@
 import { describe, it, expect, afterEach } from "vitest";
-import { runStation, type StationRunner } from "./main.js";
+import { runStation } from "./main.js";
+import type { NodeStationRun } from "@re-cinq/lore-station-registry";
 import { Llm } from "@re-cinq/lore-shared/llm/llm.js";
 import { FakeLlm } from "@re-cinq/lore-shared/llm/fake-llm.js";
 
@@ -14,7 +15,12 @@ const inputJson = JSON.stringify({
   params: {},
 });
 
-const runners = (runner: StationRunner) => ({ fake: runner });
+/** The seam is a RESOLVER now, not a map: the registry owns type-to-station, so
+ *  this hands back one runner for the type under test and nothing for any other. */
+const runners =
+  (runner: NodeStationRun) =>
+  (type: string): NodeStationRun | undefined =>
+    type === "fake" ? runner : undefined;
 
 afterEach(() => Llm.configure({}));
 

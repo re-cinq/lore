@@ -15,7 +15,7 @@ import {
 import { createStationProject, type Project } from "@re-cinq/lore-shared";
 import { eventLine, type NodeResult } from "@re-cinq/lore-assembly-lines";
 import type { StationInput } from "@re-cinq/lore-shared/station-input.js";
-import type { StationEnv } from "./validate.js";
+import type { StationEnv } from "../../lib/station.js";
 
 const DETECT_SUMMARY_MAX = 200;
 

@@ -104,6 +104,16 @@ const AssemblyLineSchema = z.strictObject({
   edges: z.array(EdgeSchema),
 });
 
+/**
+ * Every node type a blueprint may name.
+ *
+ * Exported so the station registry can be bound to it: the runner map and this
+ * enum were parallel lists with no compile-time link, so a type added here with
+ * no runner reached a pod and died there with `unknown station type`.
+ */
+export const NODE_TYPES = NodeType.options;
+export type NodeTypeValue = z.infer<typeof NodeType>;
+
 export type AssemblyLineNode = z.infer<typeof NodeSchema>;
 export type AssemblyLineEdge = z.infer<typeof EdgeSchema>;
 export type AssemblyLine = z.infer<typeof AssemblyLineSchema>;

@@ -5,49 +5,35 @@
 // tool_config.command with the rendered station_input appended. Exit 0 with the
 // LORE_NODE_RESULT terminal line for any node outcome (success AND failed);
 // exit 1 with is_error for infrastructure failures.
+//
+// A SHIM. The stations themselves live in @re-cinq/lore-station-registry, one
+// folder each, shared with the pooled service — this process only turns argv
+// into a call and a result into the terminal line. The local runner map it used
+// to keep was a `Record<string, …>` parallel to the NodeType enum with nothing
+// checking one against the other, so a type with no runner arrived here and died
+// at runtime; resolution now goes through the registry, which cannot drift.
 
-import { join } from "node:path";
 import { Llm } from "@re-cinq/lore-shared/llm/llm.js";
-import {
-  parseStationInput,
-  type StationInput,
-} from "@re-cinq/lore-shared/station-input.js";
-import { UsageTrackingLlm } from "./llm-usage-tracker.js";
+import { parseStationInput } from "@re-cinq/lore-shared/station-input.js";
+import { UsageTrackingLlm } from "@re-cinq/lore-station-registry/lib/llm-usage-tracker.js";
 import { resultLine, eventLine } from "@re-cinq/lore-assembly-lines";
-import { runValidateStation, type StationEnv } from "./stations/validate.js";
-import { runGateStation } from "./stations/gate.js";
-import { runGithubActionStation } from "./stations/github-action.js";
-import { runRetrospectiveStation } from "./stations/retrospective.js";
-import { runDetectStation } from "./stations/detect.js";
-import { runCommentTriageStation } from "./stations/comment-triage.js";
-import { runIngestStation } from "./stations/ingest.js";
-import { runIssuesStation } from "./stations/issues.js";
-import type { NodeResult } from "@re-cinq/lore-assembly-lines";
+import {
+  nodeStationFor,
+  type NodeStationRun,
+  type StationEnv,
+} from "@re-cinq/lore-station-registry";
 
-export type StationRunner = (
-  input: StationInput,
-  env: StationEnv,
-) => Promise<NodeResult>;
-
-export const stations: Record<string, StationRunner> = {
-  validate: runValidateStation,
-  gate: runGateStation,
-  github_action: runGithubActionStation,
-  retrospective: runRetrospectiveStation,
-  detect: runDetectStation,
-  "comment-triage": runCommentTriageStation,
-  ingest: (input, env) =>
-    runIngestStation(input, { workspaceDir: join(env.workspaceDir, "target") }),
-  issues: (input) => runIssuesStation(input),
-};
+/** Resolve by node type; the registry owns the type-to-station mapping. */
+const runnerFor = (type: string): NodeStationRun | undefined =>
+  nodeStationFor(type)?.run;
 
 export async function runStation(
   type: string,
   inputJson: string,
   env: StationEnv,
-  runners: Record<string, StationRunner> = stations,
+  resolve: (type: string) => NodeStationRun | undefined = runnerFor,
 ): Promise<{ line: string; exitCode: number }> {
-  const runner = runners[type];
+  const runner = resolve(type);
 
   if (!runner) {
     return {

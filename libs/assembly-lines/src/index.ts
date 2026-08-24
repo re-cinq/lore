@@ -46,6 +46,8 @@ export {
   type AssemblyLineNode,
   type AssemblyLineEdge,
   type EdgeConditionValue,
+  NODE_TYPES,
+  type NodeTypeValue,
 } from "./loader.js";
 
 export { loadBuiltinAssemblyLines } from "./builtin-assembly-lines.js";

@@ -12,12 +12,9 @@ import {
   type NodeResult,
 } from "@re-cinq/lore-assembly-lines";
 import type { StationInput } from "@re-cinq/lore-shared/station-input.js";
+import type { StationEnv } from "../../lib/station.js";
 
 const execFile = promisify(execFileCb);
-
-export interface StationEnv {
-  workspaceDir: string;
-}
 
 /** Changed files vs the clone's default branch, to scope lint/typecheck; undefined
  *  (validate everything) when the diff can't be derived (fresh branch, no origin). */

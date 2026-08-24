@@ -47,6 +47,7 @@ subscribe" has no expressible meaning on the current substrate.
   `Record<StationName, StationModule>`, replacing the three hand-maintained
   registries. The folder name is the station name is the registry key is the URL
   segment — one string, not four.
+  ([validated by registers every station folder, so adding one and forgetting the barrel fails here](libs/stations/src/index.test.ts#L25), [`index.test.ts:29`](libs/stations/src/index.test.ts#L29), [`index.test.ts:33`](libs/stations/src/index.test.ts#L33))
 
 - **FR2 — a station declares its triggers.** Each station's manifest names how
   work reaches it, covering all five classes in one declaration: an
@@ -56,6 +57,7 @@ subscribe" has no expressible meaning on the current substrate.
   A station may declare several. The manifest is the single source for the
   clone-requiring node types and the cron emitter set, which are duplicated
   today.
+  ([validated by declares at least one trigger per station, so none is unreachable](libs/stations/src/index.test.ts#L41), [`index.test.ts:94`](libs/stations/src/index.test.ts#L94), [`index.test.ts:105`](libs/stations/src/index.test.ts#L105), [`index.test.ts:115`](libs/stations/src/index.test.ts#L115))
 
 - **FR3 — the contract discriminates rather than merges.** A node station keeps
   `(input, env) => Promise<NodeResult>` and a sweep station keeps
@@ -63,6 +65,7 @@ subscribe" has no expressible meaning on the current substrate.
   handler shape, so a folder declaring a cron trigger cannot export a node
   runner. Neither existing signature changes, so every moved station moves
   without an edit.
+  ([validated by pairs a node manifest with a node runner, never a sweep's](libs/stations/src/index.test.ts#L83))
 
 - **FR4 — drift is a compile error, not a runtime death.** The registry's
   `Record<StationName, StationModule>` makes a missing module fail typechecking;
@@ -71,6 +74,7 @@ subscribe" has no expressible meaning on the current substrate.
   a discovery test asserts the folder listing equals the barrel, that no two
   manifests claim the same name or node type, and that every declared cron
   schedule parses.
+  ([validated by has a station for every dispatchable node type, so none dies at runtime](libs/stations/src/index.test.ts#L57), [`index.test.ts:67`](libs/stations/src/index.test.ts#L67), [`index.test.ts:75`](libs/stations/src/index.test.ts#L75), [`node-station-lookup.test.ts:11`](libs/stations/src/node-station-lookup.test.ts#L11), [`node-station-lookup.test.ts:15`](libs/stations/src/node-station-lookup.test.ts#L15), [`node-station-lookup.test.ts:21`](libs/stations/src/node-station-lookup.test.ts#L21), [`node-station-lookup.test.ts:25`](libs/stations/src/node-station-lookup.test.ts#L25))
 
 - **FR5 — untrusted execution decides what may pool, not credentials.** A
   station that executes code or reads content it did not author runs in its own

@@ -1,7 +1,7 @@
 {
   "name": "@re-cinq/lore-station",
   "version": "0.1.0",
-  "description": "Station pod entrypoint — runs one assembly-line node per pod (validate/detect/…), speaking the station contract (station_input JSON in, LORE_NODE_RESULT line out)",
+  "description": "Station pod entrypoint \u2014 runs one assembly-line node per pod (validate/detect/\u2026), speaking the station contract (station_input JSON in, LORE_NODE_RESULT line out)",
   "type": "module",
   "main": "dist/main.js",
   "bin": {
@@ -15,7 +15,8 @@
   "dependencies": {
     "@re-cinq/lore-assembly-lines": "*",
     "@re-cinq/lore-shared": "*",
-    "zod": "^3.24.1"
+    "zod": "^3.24.1",
+    "@re-cinq/lore-station-registry": "*"
   },
   "devDependencies": {
     "typescript": "^7.0.2",

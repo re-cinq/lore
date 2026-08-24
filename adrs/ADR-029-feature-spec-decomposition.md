@@ -56,7 +56,7 @@ This ADR adds a feature-decompose agent that runs in-process when a feature's sp
 >
 > **Execution moved to a pod.** "In-process in the coordinator" was superseded by the
 > station cutover (ADR-031): `decompose` is an agent node and `issues` is a station
-> ([issues.ts](../apps/lore-station/src/stations/issues.ts)) reaching the database over
+> ([issues.ts](../libs/stations/src/stations/issues/issues.ts)) reaching the database over
 > HTTP, so the coordinator-credentials argument below no longer applies.
 >
 > **Alternative rejected.** Keep two lines and widen the kick predicate to also match a
