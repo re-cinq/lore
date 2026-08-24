@@ -189,7 +189,7 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + agen
     (`success`/`failed`/`changes_requested`) via `stationNodeOutcome` in the Floor's node-event
     handler; a forced Floor restart loses nothing because the walk is derived from the persisted
     `pipeline.assembly_line_nodes` rows, not held in memory — the original lease-heartbeat +
-    stage-trailer-resume mechanics are retired (6-dark-factory FR6.9) ([validated by `node-outcome.test.ts:35`](libs/assembly-lines/src/node-outcome.test.ts#L34), [`advance.test.ts:362`](apps/floor/src/jobs/assembly-run/advance.test.ts#L363))
+    stage-trailer-resume mechanics are retired (6-dark-factory FR6.9) ([validated by `node-outcome.test.ts:35`](libs/assembly-lines/src/node-outcome.test.ts#L34), [`advance.test.ts:362`](apps/floor/src/jobs/assembly-run/advance.test.ts#L364))
 12. A `github-action` assembly line node dispatches the referenced GitHub Actions run and gates on its
     conclusion.
 13. The cutover is reversible: flipping the cluster gate off routes new tasks back to LoreTask with

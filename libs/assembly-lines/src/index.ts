@@ -16,6 +16,11 @@ export {
 } from "./node-types.js";
 
 export {
+  NodeResultSchema,
+  type ParsedNodeResult,
+} from "./node-result-schema.js";
+
+export {
   stationNodeOutcome,
   parseNodeResult,
   parseReviewVerdict,

@@ -11,6 +11,7 @@
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import type { AssemblyRunsPort } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
 import type { NodeResult, StageOutcome } from "@re-cinq/lore-assembly-lines";
+import { NodeResultSchema } from "@re-cinq/lore-assembly-lines";
 import type { EventHandler } from "../../main-loop/types.js";
 
 const OUTCOMES: ReadonlySet<string> = new Set<StageOutcome>([
@@ -75,9 +76,32 @@ export function createResumeEventHandler(
       nodeId,
       iteration:
         typeof params.iteration === "number" ? params.iteration : undefined,
-      result: { outcome: outcome as StageOutcome },
+      result: resumedResult(params, outcome as StageOutcome),
     });
   };
+}
+
+/**
+ * What the resumed node actually produced.
+ *
+ * A HUMAN station reports a decision and nothing else, so the bare outcome is
+ * the whole result and the fallback is not a degradation. A station reporting
+ * from a process produces more, and the walk routes on it: a triage node's
+ * entire output is `extras.action`, and `failureClass` decides whether a failure
+ * spends a retry budget or parks agent dispatch account-wide. Sending only the
+ * outcome — which this did — silently discarded both.
+ *
+ * Parsed rather than cast: the result arrives as JSON from another process, and
+ * a malformed one must fail the event (which retries) instead of advancing the
+ * walk on a result nothing can route.
+ */
+function resumedResult(
+  params: Record<string, unknown>,
+  outcome: StageOutcome,
+): NodeResult {
+  return params.result === undefined || params.result === null
+    ? { outcome }
+    : NodeResultSchema.parse(params.result);
 }
 
 /** Composed production handler for the registry. Deps are resolved lazily so

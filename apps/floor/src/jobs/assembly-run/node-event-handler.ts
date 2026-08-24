@@ -94,8 +94,6 @@ export function createNodeEventHandler(deps: NodeEventDeps): EventHandler {
       { row, node, nodeId, iteration, result, output: status.output },
       deps,
     );
-
-    await routeCommentTriage(row, nodeId, result);
   };
 }
 
@@ -233,6 +231,11 @@ export async function productionNodeEventDeps(): Promise<NodeEventDeps> {
   return {
     assemblyRuns: pipeline().assemblyRuns,
     definitions: loadBuiltinAssemblyLines,
+    // Wired HERE so it reaches every door: the CR event, the reaper's resolve,
+    // and a station reporting over `assembly_run.resume`. It used to be called
+    // by the CR handler alone, so a triage node the REAPER resolved never
+    // started its follow-up, silently.
+    onNodeFinished: routeCommentTriage,
     launch: async (spec) => {
       await agentCrBackend().launch(spec);
     },

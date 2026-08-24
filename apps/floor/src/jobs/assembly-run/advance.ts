@@ -54,6 +54,21 @@ export interface AdvanceDeps {
   resolvePrompt: (promptRef: string, description: string) => string;
   /** Reclaim the run's per-task token once the line is terminal. */
   cleanupToken: (runTaskId: string) => Promise<void>;
+  /**
+   * React to a node FINISHING, whichever door reported it.
+   *
+   * Injected rather than called directly so this module keeps importing only its
+   * own folder — the shape `alertBilling` already uses. It is wired once, in
+   * `productionNodeEventDeps`, which every door resolves its deps from: the CR
+   * event, the reaper's resolve, and a station reporting over `assembly_run.resume`.
+   * Routing that lived on ONE door meant a triage node resolved by the reaper
+   * silently never started its follow-up.
+   */
+  onNodeFinished?: (
+    row: AssemblyRunRecord,
+    nodeId: string,
+    result: NodeResult,
+  ) => Promise<void>;
   /** Detection-line bookkeeping: close the `args.job_run_id` pipeline.job_runs row
    *  with the line's terminal state (the fan-out pre-created it). */
   jobRuns: {
@@ -356,7 +371,44 @@ export async function finishNodeAndAdvance(
   }
 
   await maybeStampPr(input.assemblyLineId, input.nodeId, input.result, deps);
+  await reactToNodeFinished(
+    input.assemblyLineId,
+    input.nodeId,
+    input.result,
+    deps,
+  );
   await advanceLine(input.assemblyLineId, deps);
+}
+
+/**
+ * Run the node-finished reaction, and never let it stop the walk.
+ *
+ * A follow-up that cannot be started is worth a log line; a run parked forever
+ * because the thing that reads its result threw is not. Same bias as
+ * `maybeStampPr`, for the same reason.
+ */
+async function reactToNodeFinished(
+  assemblyLineId: string,
+  nodeId: string,
+  result: NodeResult,
+  deps: AdvanceDeps,
+): Promise<void> {
+  if (!deps.onNodeFinished) {
+    return;
+  }
+
+  try {
+    const row = await deps.assemblyRuns.getById(assemblyLineId);
+
+    if (row) {
+      await deps.onNodeFinished(row, nodeId, result);
+    }
+  } catch (err) {
+    console.warn(
+      `[assembly-run] node-finished reaction failed for ${nodeId}:`,
+      (err as Error).message,
+    );
+  }
 }
 
 /** Record the PR a successful `push` node produced, before the walk moves on.

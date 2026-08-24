@@ -105,6 +105,22 @@ export async function reportToParkedNode(
   target: ParkedTarget,
   outcome: "success" | "changes_requested" | "failed",
   args: Record<string, unknown> = {},
+  /**
+   * What the worker produced, when it produced more than a decision.
+   *
+   * A HUMAN station reports an outcome and nothing else, which is why this is
+   * optional. A station running in a process produces extras the walk routes on
+   * and a failure class that decides whether a failure spends a retry budget —
+   * omitting them would advance the walk on a result it cannot read.
+   *
+   * `unknown`, not `NodeResult`: assembly-lines depends on THIS package, so
+   * naming its type here would invert the layering and add a phantom dependency
+   * that only resolves because the monorepo hoists. This function's job is to
+   * carry the payload; the Floor validates it on receipt (NodeResultSchema),
+   * which is where a malformed one must fail anyway — it arrives as JSON from
+   * another process, so the sender's type proves nothing about it.
+   */
+  result?: unknown,
 ): Promise<void> {
   await reporter.insert({
     eventName: RUN_RESUME_EVENT,
@@ -115,6 +131,7 @@ export async function reportToParkedNode(
       iteration: target.iteration,
       outcome,
       args,
+      ...(result ? { result } : {}),
     },
   });
 }

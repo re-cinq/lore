@@ -122,9 +122,16 @@ subscribe" has no expressible meaning on the current substrate.
 - **FR10 — a pooled node reports through the path a person already uses.** A
   node dispatched to the pooled service reports its outcome over the same resume
   channel a human station reports through, converging on the same terminal
-  handling as a pod. That channel must carry the whole node result — its extras,
+  handling as a pod. That channel carries the whole node result — its extras,
   failure class and usage — not the outcome alone, because downstream routing
-  reads those fields.
+  reads those fields; a human station, which produces only a decision, still
+  reports the bare outcome. The result is validated on arrival rather than cast,
+  since it crosses a process boundary as JSON, and a malformed one fails the
+  event instead of advancing the walk on something nothing can route.
+  Reactions to a node finishing run for EVERY door — the pod's terminal event,
+  the reaper's resolve, and a resumed report — rather than for whichever one
+  happened to call them, and a reaction that throws never stops the walk.
+  ([validated by accepts an outcome on its own, which is all a human station reports](libs/assembly-lines/src/node-result-schema.test.ts#L11), [`node-result-schema.test.ts:17`](libs/assembly-lines/src/node-result-schema.test.ts#L17), [`node-result-schema.test.ts:26`](libs/assembly-lines/src/node-result-schema.test.ts#L26), [`node-result-schema.test.ts:39`](libs/assembly-lines/src/node-result-schema.test.ts#L39), [`node-result-schema.test.ts:43`](libs/assembly-lines/src/node-result-schema.test.ts#L43), [`node-result-schema.test.ts:49`](libs/assembly-lines/src/node-result-schema.test.ts#L49), [`node-result-schema.test.ts:57`](libs/assembly-lines/src/node-result-schema.test.ts#L57), [`node-result-schema.test.ts:71`](libs/assembly-lines/src/node-result-schema.test.ts#L71), [`resume-event-handler.test.ts:118`](apps/floor/src/jobs/assembly-run/resume-event-handler.test.ts#L118), [`resume-event-handler.test.ts:135`](apps/floor/src/jobs/assembly-run/resume-event-handler.test.ts#L135), [`resume-event-handler.test.ts:156`](apps/floor/src/jobs/assembly-run/resume-event-handler.test.ts#L156), [`resume-event-handler.test.ts:164`](apps/floor/src/jobs/assembly-run/resume-event-handler.test.ts#L164), [`advance.test.ts:1064`](apps/floor/src/jobs/assembly-run/advance.test.ts#L1064), [`advance.test.ts:1093`](apps/floor/src/jobs/assembly-run/advance.test.ts#L1093))
 
 - **FR11 — detection is short units, not one long one.** No detection work runs
   as a long-lived unit or requires a pod for a deadline. The three detectors that

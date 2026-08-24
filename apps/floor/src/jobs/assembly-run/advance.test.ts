@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import type { NodeResult } from "@re-cinq/lore-assembly-lines";
 import { InMemoryAssemblyRuns } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-memory.js";
 import type { LoreTaskSpec } from "@re-cinq/lore-shared";
 import {
@@ -1056,5 +1057,61 @@ describe("the visit's row records what it was dispatched with", () => {
       repo: "re-cinq/lore",
       ref: "feat/x",
     });
+  });
+});
+
+describe("a node finishing reaches its follow-up from every door", () => {
+  it("hands the finished node's result to the reaction hook", async () => {
+    const port = new InMemoryAssemblyRuns();
+    const id = await runningLine(port);
+    const { deps } = makeDeps(port);
+    const seen: Array<{ nodeId: string; result: NodeResult }> = [];
+
+    deps.onNodeFinished = async (_row, nodeId, result) => {
+      seen.push({ nodeId, result });
+    };
+
+    await advanceLine(id, deps);
+    await finishNodeAndAdvance(
+      {
+        assemblyLineId: id,
+        nodeId: "review",
+        iteration: 1,
+        result: { outcome: "success", extras: { action: "address" } },
+      },
+      deps,
+    );
+
+    expect(seen).toEqual([
+      {
+        nodeId: "review",
+        result: { outcome: "success", extras: { action: "address" } },
+      },
+    ]);
+  });
+
+  it("advances the walk even when the reaction throws, so routing cannot wedge a run", async () => {
+    const port = new InMemoryAssemblyRuns();
+    const id = await runningLine(port);
+    const { deps } = makeDeps(port);
+
+    deps.onNodeFinished = async () => {
+      throw new Error("routing is down");
+    };
+
+    await advanceLine(id, deps);
+    await finishNodeAndAdvance(
+      {
+        assemblyLineId: id,
+        nodeId: "review",
+        iteration: 1,
+        result: { outcome: "success" },
+      },
+      deps,
+    );
+
+    expect(port.nodes.find((n) => n.nodeId === "review")?.outcome).toBe(
+      "success",
+    );
   });
 });
