@@ -143,6 +143,25 @@ export class PgEventDeliveries implements EventDeliveriesPort {
     return rows.length;
   }
 
+  async reconcileDeliveries(withinMinutes: number): Promise<number> {
+    // The same INSERT…SELECT fan-out composes, widened from one event to a
+    // window of them. ON CONFLICT is what makes a boot-time repair free to run
+    // when there was nothing to repair.
+    const { rows } = await this.pool.query<{ id: string }>(
+      `INSERT INTO pipeline.event_deliveries
+              (event_id, subscriber, event_name, visibility_timeout_seconds)
+       SELECT e.id, s.subscriber, e.event_name, s.visibility_timeout_seconds
+         FROM pipeline.events e
+         JOIN pipeline.event_subscriptions s ON s.event_name = e.event_name
+        WHERE e.captured_at > now() - ($1::int || ' minutes')::interval
+       ON CONFLICT (event_id, subscriber) DO NOTHING
+       RETURNING id`,
+      [withinMinutes],
+    );
+
+    return rows.length;
+  }
+
   async pruneHandled(olderThanDays: number): Promise<number> {
     // Two statements, deliberately, where one CTE used to be. Composed, the
     // event DELETE read the pre-delete snapshot — so the deliveries collected

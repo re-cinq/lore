@@ -6,6 +6,7 @@ import type { StationDrainDeps } from "./loop-boot.js";
 function deps(over: Partial<StationDrainDeps> = {}): StationDrainDeps {
   return {
     subscribe: async () => {},
+    reconcileDeliveries: async () => 0,
     claim: async () => [],
     markDone: async () => {},
     markFailed: async () => {},
@@ -99,5 +100,41 @@ describe("startStationDrain", () => {
         { attempts: 2, delayMs: 1 },
       ),
     ).rejects.toThrow(/fetch failed/);
+  });
+
+  it("reconciles AFTER registering, so events published before it booted are picked up", async () => {
+    const order: string[] = [];
+    const timer = await startStationDrain(
+      deps({
+        subscribe: async () => {
+          order.push("subscribe");
+        },
+        reconcileDeliveries: async () => {
+          order.push("reconcile");
+
+          return 2;
+        },
+      }),
+      1,
+      new Map(),
+    );
+
+    clearInterval(timer);
+    expect(order).toEqual(["subscribe", "reconcile"]);
+  });
+
+  it("drains even when the reconcile fails, since it is a repair and not a precondition", async () => {
+    const timer = await startStationDrain(
+      deps({
+        reconcileDeliveries: async () => {
+          throw new Error("router blipped");
+        },
+      }),
+      1,
+      new Map(),
+    );
+
+    expect(timer).toBeDefined();
+    clearInterval(timer);
   });
 });

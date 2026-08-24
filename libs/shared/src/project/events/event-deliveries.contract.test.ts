@@ -252,6 +252,46 @@ function contract(name: string, make: () => EventDeliveriesPort): void {
       expect(await port.claim(theirs, 10)).toHaveLength(1);
     });
 
+    it("reconciles an event captured BEFORE the subscription existed, which ordering alone loses", async () => {
+      const port = make();
+      const [s, eventName] = [sub(), evt()];
+
+      // The deploy-window shape: the producer is live and publishing while the
+      // consumer has not registered yet. Fan-out reads the subscription set at
+      // insert, so this event gets no delivery at all.
+      await port.insert({ eventName, source: "internal" });
+      await port.subscribe(s, [{ eventName }]);
+
+      expect(await port.claim(s, 10)).toHaveLength(0);
+      expect(await port.reconcileDeliveries(60)).toBe(1);
+      expect((await port.claim(s, 10)).map((d) => d.event_name)).toEqual([
+        eventName,
+      ]);
+    });
+
+    it("creates no second delivery for an event already delivered", async () => {
+      const port = make();
+      const [s, eventName] = [sub(), evt()];
+
+      await port.subscribe(s, [{ eventName }]);
+      await port.insert({ eventName, source: "internal" });
+
+      expect(await port.reconcileDeliveries(60)).toBe(0);
+      expect(await port.claim(s, 10)).toHaveLength(1);
+    });
+
+    it("leaves an event no one subscribes to alone, so it stays visible as an orphan", async () => {
+      const port = make();
+      const eventName = evt();
+
+      await port.insert({ eventName, source: "internal" });
+
+      expect(await port.reconcileDeliveries(60)).toBe(0);
+      expect(
+        (await port.orphanedEvents(60)).map((o) => o.event_name),
+      ).toContain(eventName);
+    });
+
     it("never collects an event a subscriber is still owed a delivery of", async () => {
       const port = make();
       const [s, eventName] = [sub(), evt()];

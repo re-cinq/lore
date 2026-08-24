@@ -24,6 +24,8 @@ async function main(): Promise<void> {
   // the reaper times it out, and `merge_step` has no pod to fall back to.
   const drain = await startStationDrain({
     subscribe: (subscriber, subs) => deliveries().subscribe(subscriber, subs),
+    reconcileDeliveries: (withinMinutes) =>
+      deliveries().reconcileDeliveries(withinMinutes),
     claim: (subscriber, limit, exclude) =>
       deliveries().claim(subscriber, limit, exclude),
     markDone: (id) => deliveries().markDone(id),

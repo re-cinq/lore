@@ -16,9 +16,10 @@ import {
   startEventLoop,
   type EventHandler,
 } from "@re-cinq/lore-shared/project/events/drain-loop.js";
-import type {
-  EventDeliveryRow,
-  EventSubscription,
+import {
+  RECONCILE_WINDOW_MINUTES,
+  type EventDeliveryRow,
+  type EventSubscription,
 } from "@re-cinq/lore-shared/project/events/event-deliveries-port.js";
 import { buildStationHandlers } from "./handlers.js";
 import { stationSubscriptions, STATIONS_SUBSCRIBER } from "./subscriptions.js";
@@ -36,6 +37,7 @@ export interface StationDrainDeps {
   markDone(id: string): Promise<void>;
   markFailed(id: string, error: string, backoffSeconds: number): Promise<void>;
   markDead(id: string, error: string): Promise<void>;
+  reconcileDeliveries(withinMinutes: number): Promise<number>;
 }
 
 /** How hard boot tries to register before giving up. */
@@ -87,6 +89,25 @@ export async function startStationDrain(
   // BEFORE the loop, and awaited: fan-out reads the subscription set at INSERT
   // time, so an event captured before this lands is delivered to nobody.
   await subscribeWithRetry(deps, retry);
+
+  // AFTER registering, because it repairs what fan-out could not do BEFORE the
+  // registration existed: a producer that rolled out first published into a bus
+  // this service had not subscribed to, and those events have no delivery row
+  // that anything else would ever create. Swallowed on purpose — it is a repair,
+  // not a precondition, and a drainer that cannot repair should still drain.
+  try {
+    const repaired = await deps.reconcileDeliveries(RECONCILE_WINDOW_MINUTES);
+
+    if (repaired > 0) {
+      console.log(
+        `[stations] reconciled ${repaired} deliveries missed before this boot registered`,
+      );
+    }
+  } catch (err) {
+    console.warn(
+      `[stations] boot reconcile failed (${(err as Error).message}) — draining anyway`,
+    );
+  }
 
   return startEventLoop(
     {

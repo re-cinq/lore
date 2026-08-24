@@ -83,6 +83,11 @@ export function subscribe(subscriptions: EventSubscription[]): Promise<void> {
   return deliveries().subscribe(FLOOR_SUBSCRIBER, subscriptions);
 }
 
+/** Repair deliveries fan-out could not create — see the port's contract. */
+export function reconcileDeliveries(withinMinutes: number): Promise<number> {
+  return deliveries().reconcileDeliveries(withinMinutes);
+}
+
 /** Atomically claim up to `limit` of this Floor's runnable deliveries. */
 export function claimBatch(
   limit: number,

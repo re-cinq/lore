@@ -18,6 +18,7 @@ import type { FailBody, DeadBody } from "./event-queue-wire.js";
 import type {
   DeliveryClaimBody,
   OrphanBody,
+  ReconcileBody,
   SubscribeBody,
 } from "./event-deliveries-wire.js";
 
@@ -95,6 +96,16 @@ export class HttpEventDeliveries
     );
 
     return pruned;
+  }
+
+  async reconcileDeliveries(withinMinutes: number): Promise<number> {
+    const body: ReconcileBody = { withinMinutes };
+    const { reconciled } = await this.call<{ reconciled: number }>(
+      "/api/deliveries/reconcile",
+      body,
+    );
+
+    return reconciled;
   }
 
   async orphanedEvents(withinMinutes: number): Promise<OrphanedEvents[]> {

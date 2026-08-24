@@ -78,13 +78,29 @@ export class InMemoryEventDeliveries implements EventDeliveriesPort {
     };
 
     this.events.push(event);
+    this.fanOut(event);
+  }
+
+  /**
+   * One delivery per subscriber of this event, skipping any that already exists.
+   *
+   * Shared by the insert path and the boot reconcile so the two cannot disagree
+   * about what a delivery looks like — the skip is what the store's
+   * (event_id, subscriber) uniqueness gives the real adapter for free.
+   */
+  private fanOut(event: StoredEvent): number {
+    let created = 0;
 
     for (const [subscriber, owned] of this.subscriptions) {
       const timeout = owned.get(event.event_name);
+      const exists = this.deliveries.some(
+        (d) => d.event_id === event.id && d.subscriber === subscriber,
+      );
 
-      if (timeout === undefined) {
+      if (timeout === undefined || exists) {
         continue;
       }
+      created++;
       this.deliveries.push({
         id: String(++this.deliverySeq),
         event_id: event.id,
@@ -97,11 +113,21 @@ export class InMemoryEventDeliveries implements EventDeliveriesPort {
         attempts: 0,
         error: null,
         claimed_at: null,
-        next_attempt_at: iso,
+        next_attempt_at: event.captured_at,
         handled_at: null,
         visibility_timeout_seconds: timeout,
       });
     }
+
+    return created;
+  }
+
+  async reconcileDeliveries(withinMinutes: number): Promise<number> {
+    const since = this.now() - withinMinutes * 60_000;
+
+    return this.events
+      .filter((e) => Date.parse(e.captured_at) >= since)
+      .reduce((created, e) => created + this.fanOut(e), 0);
   }
 
   async claim(

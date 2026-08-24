@@ -21,6 +21,7 @@ import {
 import {
   DeliveryClaimBody,
   OrphanBody,
+  ReconcileBody,
   SubscribeBody,
 } from "@re-cinq/lore-shared/project/events/event-deliveries-wire.js";
 import { rawBody } from "@re-cinq/lore-shared/http/raw-body.js";
@@ -161,6 +162,27 @@ export function eventDeliveryRoutes(
         return h
           .response({
             pruned: await deps.deliveries().pruneHandled(olderThanDays),
+          })
+          .code(200);
+      },
+    },
+    {
+      method: "POST",
+      path: "/api/deliveries/reconcile",
+      options: NO_BODY,
+      handler: async (request, h) => {
+        guard(request.headers);
+        const { withinMinutes } = parseBody(
+          rawBody(request),
+          ReconcileBody,
+          "reconcile",
+        );
+
+        return h
+          .response({
+            reconciled: await deps
+              .deliveries()
+              .reconcileDeliveries(withinMinutes),
           })
           .code(200);
       },

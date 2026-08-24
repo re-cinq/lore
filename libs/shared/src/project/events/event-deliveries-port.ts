@@ -89,4 +89,31 @@ export interface EventDeliveriesPort {
    * dead-letter and is now silence. This is what makes it audible.
    */
   orphanedEvents(withinMinutes: number): Promise<OrphanedEvents[]>;
+  /**
+   * Create the deliveries that fan-out could not, and return how many.
+   *
+   * Fan-out reads the subscription set at INSERT time, so an event captured
+   * while a subscriber was not yet registered is delivered to nobody — and
+   * nothing else ever creates that row. That is the deploy window: a producer
+   * rolls out before its consumer and the events between them are lost with no
+   * error line, which is the one failure mode of this design that can stop the
+   * factory silently. Running this at boot, after registering, repairs it.
+   *
+   * Idempotent through the same (event_id, subscriber) uniqueness fan-out uses,
+   * so it is safe to run on every boot and safe to run concurrently.
+   *
+   * `withinMinutes` MUST stay well inside the prune window. An event whose
+   * delivery was pruned still has its row for a moment, and reconciling that far
+   * back would recreate the delivery and run the handler a second time.
+   */
+  reconcileDeliveries(withinMinutes: number): Promise<number>;
 }
+
+/**
+ * How far back a boot looks for events it was never delivered.
+ *
+ * Comfortably longer than a rollout, and FAR shorter than the prune window, for
+ * the reason {@link EventDeliveriesPort.reconcileDeliveries} gives. Declared
+ * here rather than in either drainer: both use it, and they must agree.
+ */
+export const RECONCILE_WINDOW_MINUTES = 60;

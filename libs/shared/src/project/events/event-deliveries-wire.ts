@@ -36,6 +36,13 @@ export const OrphanBody = z.object({
   withinMinutes: z.number().int().positive(),
 });
 
+/** Same one field as {@link OrphanBody}, named apart because they are two calls:
+ *  one reports the gap, the other closes it, and their windows differ. */
+export const ReconcileBody = z.object({
+  withinMinutes: z.number().int().positive(),
+});
+
 export type SubscribeBody = z.infer<typeof SubscribeBody>;
+export type ReconcileBody = z.infer<typeof ReconcileBody>;
 export type DeliveryClaimBody = z.infer<typeof DeliveryClaimBody>;
 export type OrphanBody = z.infer<typeof OrphanBody>;
