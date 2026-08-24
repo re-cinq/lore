@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { handleOne, drainOnce, type LoopDeps } from "./loop.js";
 import type { EventRow, EventHandler } from "./types.js";
 
@@ -279,5 +279,50 @@ describe("drainOnce serial families", () => {
     // released the slot (the hung row itself is the reaper's to re-queue)
     expect(excludesSeen).toEqual([[], []]);
     expect(rec.done).toEqual([]);
+  });
+});
+
+describe("dead-lettering is audible", () => {
+  it("names the event and the reason when a delivery is given up on", async () => {
+    const rec = recorder();
+    const err = vi.spyOn(console, "error").mockImplementation(() => {});
+    const throwing: EventHandler = async () => {
+      throw new Error("boom");
+    };
+
+    await handleOne(
+      row({ event_name: "github.issues.labeled", attempts: 5 }),
+      deps(throwing, rec),
+    );
+
+    expect(err.mock.calls[0]?.[0]).toContain("github.issues.labeled");
+    expect(err.mock.calls[0]?.[0]).toContain("boom");
+    err.mockRestore();
+  });
+
+  it("names the event when nothing is registered to handle it", async () => {
+    const rec = recorder();
+    const err = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await handleOne(
+      row({ event_name: "nobody.handles.this" }),
+      deps(undefined, rec),
+    );
+
+    expect(err.mock.calls[0]?.[0]).toContain("nobody.handles.this");
+    err.mockRestore();
+  });
+
+  it("says nothing when a failure is still inside its retry budget", async () => {
+    const rec = recorder();
+    const err = vi.spyOn(console, "error").mockImplementation(() => {});
+    const throwing: EventHandler = async () => {
+      throw new Error("transient");
+    };
+
+    await handleOne(row({ attempts: 1 }), deps(throwing, rec));
+
+    expect(err).not.toHaveBeenCalled();
+    err.mockRestore();
   });
 });

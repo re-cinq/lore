@@ -105,8 +105,11 @@ subscribe" has no expressible meaning on the current substrate.
   whose name no subscriber has claimed produces no deliveries, which is silent
   where the previous behaviour was a loud dead-letter, so it is reported: a query
   surfaces recent events with zero deliveries, and a boot-time reconcile creates
-  missing deliveries for events younger than the prune horizon.
-  ([validated by delivers nothing for an event nobody subscribed to](libs/shared/src/project/events/event-deliveries.contract.test.ts#L113), [`event-deliveries.contract.test.ts:187`](libs/shared/src/project/events/event-deliveries.contract.test.ts#L187), [`event-deliveries.contract.test.ts:256`](libs/shared/src/project/events/event-deliveries.contract.test.ts#L256), [`cron.test.ts:129`](apps/floor/src/jobs/cron.test.ts#L129), [`cron.test.ts:143`](apps/floor/src/jobs/cron.test.ts#L143), [`cron.test.ts:151`](apps/floor/src/jobs/cron.test.ts#L151))
+  missing deliveries for events younger than the prune horizon. Giving up on a
+  delivery is reported the same way and for the same reason: dead-lettering
+  wrote the row and said nothing, so work the bus had abandoned left no trace
+  before the prune deleted it a week later.
+  ([validated by delivers nothing for an event nobody subscribed to](libs/shared/src/project/events/event-deliveries.contract.test.ts#L113), [`event-deliveries.contract.test.ts:187`](libs/shared/src/project/events/event-deliveries.contract.test.ts#L187), [`event-deliveries.contract.test.ts:256`](libs/shared/src/project/events/event-deliveries.contract.test.ts#L256), [`cron.test.ts:129`](apps/floor/src/jobs/cron.test.ts#L129), [`cron.test.ts:143`](apps/floor/src/jobs/cron.test.ts#L143), [`cron.test.ts:151`](apps/floor/src/jobs/cron.test.ts#L151), [`loop.test.ts:286`](apps/floor/src/main-loop/loop.test.ts#L286), [`loop.test.ts:303`](apps/floor/src/main-loop/loop.test.ts#L303), [`loop.test.ts:316`](apps/floor/src/main-loop/loop.test.ts#L316))
 
 - **FR9 — a delivery carries its own deadline.** The visibility timeout is
   stamped per delivery from the subscribing station's declared timeout rather

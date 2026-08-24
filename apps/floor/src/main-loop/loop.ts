@@ -59,12 +59,35 @@ const SERIAL_FAMILIES: ReadonlySet<string> = new Set();
 /** Serial families with a handler in flight, shared across drain ticks. */
 const busyFamilies = new Set<string>();
 
+/**
+ * Give up on a delivery, out loud.
+ *
+ * Dead-lettering used to write the row and say nothing, so work the bus had
+ * abandoned left no trace anywhere an operator looks — the row itself is deleted
+ * by the hourly prune a week later. Every failure mode this platform has actually
+ * suffered was silent; this one costs a log line to stop being.
+ */
+async function deadLetter(
+  deps: LoopDeps,
+  ev: EventRow,
+  reason: string,
+): Promise<void> {
+  console.error(
+    `[events] dead-lettered ${ev.event_name} (delivery ${ev.id}, event ${ev.event_id}) after ${ev.attempts} attempt(s): ${reason}`,
+  );
+  await deps.markDead(ev.id, reason);
+}
+
 export async function handleOne(ev: EventRow, deps: LoopDeps): Promise<void> {
   const handler = deps.resolve(ev.event_name);
 
   if (!handler) {
     // Unknown name = config error, not transient → dead immediately.
-    await deps.markDead(ev.id, `no handler for ${ev.event_name}`);
+    //
+    // Since the Floor consumes DELIVERIES it only receives what it subscribed
+    // to, so reaching here means the subscription set and the registry have
+    // drifted apart — which they are derived from each other to prevent.
+    await deadLetter(deps, ev, `no handler for ${ev.event_name}`);
 
     return;
   }
@@ -82,7 +105,7 @@ export async function handleOne(ev: EventRow, deps: LoopDeps): Promise<void> {
     if (decision.kind === "retry") {
       await deps.markFailed(ev.id, message, decision.backoffSeconds);
     } else {
-      await deps.markDead(ev.id, message);
+      await deadLetter(deps, ev, message);
     }
   }
 }
