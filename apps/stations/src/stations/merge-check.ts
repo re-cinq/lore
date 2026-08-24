@@ -14,7 +14,7 @@ import {
   settings,
   memoryLifecycle,
 } from "../kernel/queues.js";
-import { getPool } from "../kernel/db.js";
+import { getPool } from "@re-cinq/lore-shared/db/pg-pool.js";
 import {
   eventReport,
   resumeDecomposition,

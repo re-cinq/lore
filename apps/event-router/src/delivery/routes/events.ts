@@ -27,8 +27,12 @@ import type { ServerRoute } from "@hapi/hapi";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { SOURCES, type EventInsert } from "@re-cinq/lore-shared";
 import { rawBody } from "@re-cinq/lore-shared/http/raw-body.js";
-import { apiError } from "../api-error.js";
-import { enforceBearer } from "../bearer.js";
+import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
+import {
+  parseBody,
+  parseJsonBody,
+} from "@re-cinq/lore-shared/http/json-body.js";
+import { enforceBearer } from "@re-cinq/lore-shared/http/bearer.js";
 import { mapGitHubEvent } from "@re-cinq/lore-shared/project/events/github-map.js";
 
 /** The reported-event body. `source` is the closed vocabulary rather than a
@@ -71,8 +75,7 @@ export function eventsRoute(deps: EventsRouteDeps): ServerRoute {
     options: { auth: false, payload: { parse: false } },
     handler: async (request, h) => {
       const raw = rawBody(request);
-      const signature = request.headers["x-hub-signature-256"] as
-        string | undefined;
+      const signature = githubSignature(request.headers);
 
       const events = signature
         ? fromGitHub(request.headers, raw, signature, deps)
@@ -92,6 +95,15 @@ export function eventsRoute(deps: EventsRouteDeps): ServerRoute {
         .code(202);
     },
   };
+}
+
+/** GitHub's own signature header, when it sent one. Its presence — not its
+ *  validity — is what selects the branch; validity is the branch's own first
+ *  act. Named so the choice reads as a question rather than a header lookup. */
+function githubSignature(headers: Record<string, unknown>): string | undefined {
+  const sig = headers["x-hub-signature-256"];
+
+  return typeof sig === "string" ? sig : undefined;
 }
 
 /** The GitHub branch: verify over the raw body, then map. */
@@ -119,7 +131,11 @@ function fromGitHub(
   );
   enforceTrue(eventType, apiError(400), "missing x-github-event header");
 
-  return mapGitHubEvent(eventType, parseJson(raw), deliveryId);
+  return mapGitHubEvent(
+    eventType,
+    parseJsonBody(raw, "webhook body"),
+    deliveryId,
+  );
 }
 
 /** The reporting branch: bearer token, then the generic shape. */
@@ -128,29 +144,7 @@ function fromReporter(
   headers: Record<string, unknown>,
   deps: EventsRouteDeps,
 ): EventInsert {
-  enforceBearer(headers, deps.bearerToken);
+  enforceBearer(headers, deps.bearerToken, "event-router");
 
-  const parsed = ReportedEvent.safeParse(parseJson(raw));
-
-  enforceTrue(
-    parsed.success,
-    apiError(400),
-    `not a reportable event: ${parsed.error?.issues.map((i) => `${i.path.join(".") || "(body)"} ${i.message}`).join("; ")}`,
-  );
-
-  return parsed.data;
-}
-
-function parseJson<T = unknown>(raw: string): T {
-  try {
-    return JSON.parse(raw) as T;
-  } catch (err) {
-    // `JSON.parse` rejects only with SyntaxError, so there is no non-Error case
-    // to guard — and a guard for one would be a branch no test could ever reach.
-    // V8 names the offending position, which is worth more than anything this
-    // could re-derive.
-    throw apiError(400)(
-      `invalid JSON in event body: ${(err as Error).message}`,
-    );
-  }
+  return parseBody(raw, ReportedEvent, "reportable event");
 }

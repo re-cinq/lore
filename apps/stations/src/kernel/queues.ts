@@ -10,7 +10,7 @@ import { PgSettings } from "@re-cinq/lore-shared/project/settings/settings-pg.js
 import { PgMemoryLifecycle } from "@re-cinq/lore-shared/project/memory/memory-lifecycle-pg.js";
 import { selectEventReporter } from "@re-cinq/lore-shared/project/events/select-event-reporter.js";
 import type { EventReporter } from "@re-cinq/lore-shared/project/events/event-queue-port.js";
-import { getPool } from "./db.js";
+import { getPool } from "@re-cinq/lore-shared/db/pg-pool.js";
 
 let pipelineSingleton: PipelineRepositories | undefined;
 

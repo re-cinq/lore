@@ -1,12 +1,13 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { Llm, FakeLlm } from "@re-cinq/lore-shared";
-import { InMemoryMemoryLifecycle } from "@re-cinq/lore-shared/project/memory/memory-lifecycle-memory.js";
-import type { MemoryLifecyclePort } from "@re-cinq/lore-shared/project/memory/memory-lifecycle-port.js";
+import { Llm } from "./llm/llm.js";
+import { FakeLlm } from "./llm/fake-llm.js";
+import { InMemoryMemoryLifecycle } from "./project/memory/memory-lifecycle-memory.js";
+import type { MemoryLifecyclePort } from "./project/memory/memory-lifecycle-port.js";
 import {
   writeEpisode,
   writeEpisodeWithCuration,
   type WriteEpisodeDeps,
-} from "@re-cinq/lore-shared";
+} from "./episode-writer.js";
 
 describe("writeEpisode", () => {
   it("redacts secrets before storing the episode", async () => {

@@ -348,7 +348,7 @@ extraction, with no agent cooperation needed. ([validated by `session-dump.test.
 
 After every task completion (PR created, no-changes, failure), an episode is
 automatically written via `episode-writer.ts`, and for high-signal events Haiku
-extracts a "lesson learned" stored as an `auto-curation/{ref}` memory. ([validated by `episode-writer.test.ts:78`](libs/shared/src/episode-writer.test.ts#L78))
+extracts a "lesson learned" stored as an `auto-curation/{ref}` memory. ([validated by `episode-writer.test.ts:79`](libs/shared/src/episode-writer.test.ts#L79))
 
 ## TTL and Expiration
 
@@ -424,7 +424,7 @@ Decision: the following capabilities were added beyond the original spec:
   returns another repo's memory (listings filtered to the bound scope). ([validated by `memory.test.ts:57`](libs/shared/src/project/memory/memory.test.ts#L57), [`memory-store-bridge.test.ts:54`](libs/shared/src/project/memory/memory-store-bridge.test.ts#L54))
 - All memory writes pass through `sanitizeContent()` / `redactSecrets()`
   to strip API keys, JWTs, private keys, connection strings, and
-  bearer tokens before storage. ([validated by `redact.test.ts:5`](libs/shared/src/redact.test.ts#L5), [`episode-writer.test.ts:12`](libs/shared/src/episode-writer.test.ts#L12))
+  bearer tokens before storage. ([validated by `redact.test.ts:5`](libs/shared/src/redact.test.ts#L5), [`episode-writer.test.ts:13`](libs/shared/src/episode-writer.test.ts#L13))
 - Audit trail is immutable. ([validated by `memory.test.ts:186`](libs/server-core/src/features/memory/memory.test.ts#L186))
 
 ## Operational Targets (Background)

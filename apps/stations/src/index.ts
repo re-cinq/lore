@@ -6,7 +6,7 @@
  */
 
 import { loadApprovalConfig } from "@re-cinq/lore-shared";
-import { getPool, initPool } from "./kernel/db.js";
+import { getPool, initPool } from "@re-cinq/lore-shared/db/pg-pool.js";
 import { startServer } from "./delivery/server.js";
 
 const PORT = parseInt(process.env.PORT ?? "8080", 10);

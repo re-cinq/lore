@@ -512,7 +512,7 @@ cooperation. ([validated by `session-tracker.test.ts:193`](libs/server-core/src/
 - FR-12.5: After every pipeline task completion (PR, no-changes,
   failure), an episode is automatically written. For high-signal
   events (PRs, failures), Haiku extracts a lesson and stores it
-  as `auto-curation/{ref}` memory. ([validated by `episode-writer.test.ts:78`](libs/shared/src/episode-writer.test.ts#L78))
+  as `auto-curation/{ref}` memory. ([validated by `episode-writer.test.ts:79`](libs/shared/src/episode-writer.test.ts#L79))
 
 ### FR-13: Autonomous Review Loop (Phase 1, opt-in)
 
@@ -639,7 +639,7 @@ non-terminal states and resolve them without manual intervention. ([validated by
   detection and the state write, the write is a no-op. ([validated by `task-store-pg.test.ts:74`](libs/shared/src/project/tasks/task-store-pg.test.ts#L74))
 - FR-18.4: A failure episode is written for each stuck task so the
   auto-curation pipeline can surface patterns (e.g. a task type that
-  consistently times out). ([validated by `episode-writer.test.ts:78`](libs/shared/src/episode-writer.test.ts#L78), [`episode-writer.test.ts:12`](libs/shared/src/episode-writer.test.ts#L12))
+  consistently times out). ([validated by `episode-writer.test.ts:79`](libs/shared/src/episode-writer.test.ts#L79), [`episode-writer.test.ts:13`](libs/shared/src/episode-writer.test.ts#L13))
 
 ### FR-19: Task Detail UI (Phase 1)
 

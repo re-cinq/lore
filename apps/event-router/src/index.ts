@@ -4,7 +4,7 @@
  * handlers, no Agent CR dispatch (ADR-044).
  */
 
-import { initPool, getPool } from "./kernel/db.js";
+import { initPool, getPool } from "@re-cinq/lore-shared/db/pg-pool.js";
 import { pipeline } from "./kernel/queues.js";
 import { startServer } from "./delivery/server.js";
 import { startK8sWatch } from "./listeners/k8s-watch.js";

@@ -15,8 +15,8 @@
 
 import type { ServerRoute } from "@hapi/hapi";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
-import { apiError } from "../api-error.js";
-import { enforceBearer } from "../bearer.js";
+import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
+import { enforceBearer } from "@re-cinq/lore-shared/http/bearer.js";
 
 /** A station: no input, one summary line. Exactly the shape the jobs that move
  *  here already had (`(): Promise<string>`), which is why moving them is a move. */

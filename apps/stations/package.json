@@ -1,7 +1,7 @@
 {
   "name": "@re-cinq/lore-stations",
   "version": "0.1.0",
-  "description": "Lore stations — standalone units of work, one endpoint each (ADR-024 service-endpoint stations)",
+  "description": "Lore stations \u2014 standalone units of work, one endpoint each (ADR-024 service-endpoint stations)",
   "type": "module",
   "main": "dist/index.js",
   "scripts": {
@@ -13,7 +13,6 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@hapi/boom": "^10.0.1",
     "@hapi/hapi": "21.4.9",
     "@octokit/auth-app": "^7.1.0",
     "@re-cinq/lore-shared": "*",

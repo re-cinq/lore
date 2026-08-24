@@ -11,7 +11,7 @@
 
 import { createPipelineRepositories } from "@re-cinq/lore-shared/project/pipeline/pipeline-repositories-pg.js";
 import type { PipelineRepositories } from "@re-cinq/lore-shared";
-import { getPool } from "./db.js";
+import { getPool } from "@re-cinq/lore-shared/db/pg-pool.js";
 
 let pipelineSingleton: PipelineRepositories | undefined;
 

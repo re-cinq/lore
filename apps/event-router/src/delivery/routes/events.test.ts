@@ -128,7 +128,7 @@ describe("POST /api/events — the bearer branch", () => {
 
     expect(res.statusCode).toBe(400);
     expect((res.result as { error: string }).error).toMatch(
-      /invalid JSON in event body/,
+      /invalid JSON in reportable event/,
     );
     expect(inserted).toEqual([]);
   });

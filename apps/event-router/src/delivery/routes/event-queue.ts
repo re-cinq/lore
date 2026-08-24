@@ -13,11 +13,10 @@
 
 import { z } from "zod";
 import type { ServerRoute } from "@hapi/hapi";
-import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import type { EventQueueRepository } from "@re-cinq/lore-shared/project/events/event-queue-port.js";
 import { rawBody } from "@re-cinq/lore-shared/http/raw-body.js";
-import { apiError } from "../api-error.js";
-import { enforceBearer } from "../bearer.js";
+import { parseBody } from "@re-cinq/lore-shared/http/json-body.js";
+import { enforceBearer } from "@re-cinq/lore-shared/http/bearer.js";
 
 const Claim = z.object({
   limit: z.number().int().positive(),
@@ -38,26 +37,6 @@ export interface EventQueueRoutesDeps {
   bearerToken?: string;
 }
 
-/** Parse a body against a schema, refusing with the reason rather than a bare 400. */
-function body<T>(raw: string, schema: z.ZodType<T>, what: string): T {
-  let json: unknown;
-
-  try {
-    json = JSON.parse(raw);
-  } catch (err) {
-    throw apiError(400)(`invalid JSON in ${what}: ${(err as Error).message}`);
-  }
-  const parsed = schema.safeParse(json);
-
-  enforceTrue(
-    parsed.success,
-    apiError(400),
-    `not a ${what}: ${parsed.error?.issues.map((i) => `${i.path.join(".") || "(body)"} ${i.message}`).join("; ")}`,
-  );
-
-  return parsed.data;
-}
-
 export function eventQueueRoutes(deps: EventQueueRoutesDeps): ServerRoute[] {
   const guard = (headers: Record<string, unknown>): void =>
     enforceBearer(headers, deps.bearerToken);
@@ -69,7 +48,7 @@ export function eventQueueRoutes(deps: EventQueueRoutesDeps): ServerRoute[] {
       options: { auth: false, payload: { parse: false } },
       handler: async (request, h) => {
         guard(request.headers);
-        const { limit, excludeEventNames } = body(
+        const { limit, excludeEventNames } = parseBody(
           rawBody(request),
           Claim,
           "claim",
@@ -101,7 +80,7 @@ export function eventQueueRoutes(deps: EventQueueRoutesDeps): ServerRoute[] {
       options: { auth: false, payload: { parse: false } },
       handler: async (request, h) => {
         guard(request.headers);
-        const { error, backoffSeconds } = body(
+        const { error, backoffSeconds } = parseBody(
           rawBody(request),
           Failure,
           "failure",
@@ -121,7 +100,7 @@ export function eventQueueRoutes(deps: EventQueueRoutesDeps): ServerRoute[] {
       options: { auth: false, payload: { parse: false } },
       handler: async (request, h) => {
         guard(request.headers);
-        const { error } = body(rawBody(request), Dead, "dead-letter");
+        const { error } = parseBody(rawBody(request), Dead, "dead-letter");
 
         await deps.queue().markDead(request.params.id, error);
 
@@ -134,7 +113,7 @@ export function eventQueueRoutes(deps: EventQueueRoutesDeps): ServerRoute[] {
       options: { auth: false, payload: { parse: false } },
       handler: async (request, h) => {
         guard(request.headers);
-        const { timeoutSeconds } = body(rawBody(request), Reap, "reap");
+        const { timeoutSeconds } = parseBody(rawBody(request), Reap, "reap");
 
         return h
           .response({ reaped: await deps.queue().reapStuck(timeoutSeconds) })
@@ -147,7 +126,7 @@ export function eventQueueRoutes(deps: EventQueueRoutesDeps): ServerRoute[] {
       options: { auth: false, payload: { parse: false } },
       handler: async (request, h) => {
         guard(request.headers);
-        const { olderThanDays } = body(rawBody(request), Prune, "prune");
+        const { olderThanDays } = parseBody(rawBody(request), Prune, "prune");
 
         return h
           .response({ pruned: await deps.queue().pruneHandled(olderThanDays) })

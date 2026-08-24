@@ -11,7 +11,7 @@ import {
   createDgraphClient,
   type Project,
 } from "@re-cinq/lore-shared";
-import { getPool } from "./db.js";
+import { getPool } from "@re-cinq/lore-shared/db/pg-pool.js";
 import { pipelineRepositories } from "./queues.js";
 
 /** Satisfies the type and throws loudly if a station unexpectedly reaches for

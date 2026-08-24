@@ -9,7 +9,7 @@
  */
 
 import type { ServerRoute } from "@hapi/hapi";
-import { isDbAvailable } from "../../kernel/db.js";
+import { isDbAvailable } from "@re-cinq/lore-shared/db/pg-pool.js";
 
 const startTime = Date.now();
 

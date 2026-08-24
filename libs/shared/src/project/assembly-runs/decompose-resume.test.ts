@@ -6,8 +6,8 @@
 // feature planned on the merged line was ever decomposed — silently.
 
 import { describe, it, expect } from "vitest";
-import { InMemoryAssemblyRuns } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-memory.js";
-import type { ParkedTarget } from "@re-cinq/lore-shared/project/assembly-runs/parked-node.js";
+import { InMemoryAssemblyRuns } from "./assembly-runs-memory.js";
+import type { ParkedTarget } from "./parked-node.js";
 import {
   decideMergeResume,
   decideResumeFromClosedPr,
