@@ -9,6 +9,9 @@ on:
       # a lib-only change must rebuild so station pods don't run stale kernel code.
       - 'libs/shared/**'
       - 'libs/assembly-lines/**'
+      # The stations THEMSELVES live here now; this image is a shim over them, so
+      # a station change that did not rebuild it would ship nothing at all.
+      - 'libs/stations/**'
       - '.github/workflows/build-lore-station.yml'
   workflow_dispatch:
 

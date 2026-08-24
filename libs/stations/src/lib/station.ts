@@ -87,7 +87,38 @@ export interface StationEnv {
   workspaceDir: string;
 }
 
-/** Why a sweep ran, for a station reachable more than one way. */
+/**
+ * The data a sweep reaches through, supplied by whichever process hosts it.
+ *
+ * A facade rather than each sweep importing kernel singletons: this package is
+ * shared with a pod that has no pool, so a station that resolved its own
+ * database could not live here at all. It is also what lets the sweeps be tested
+ * without one.
+ *
+ * Narrow on purpose — it grows one method at a time, as a sweep needs it, so it
+ * stays a description of what stations actually use rather than a mirror of the
+ * host's whole surface.
+ */
+export interface StationHost {
+  /** Tasks parked on a human approving their issue. */
+  awaitingApproval(): Promise<
+    Array<{ id: string; target_repo: string; issue_number: number }>
+  >;
+  /** The label that counts as approval, per configuration. */
+  approvalLabel(): string;
+  /** The per-repo surface a sweep acts through. */
+  repoFor(repo: string): Promise<StationRepo>;
+}
+
+/** What a sweep may do to one repo. */
+export interface StationRepo {
+  labelsOn(issueNumber: number): Promise<string[]>;
+  approve(taskId: string): Promise<void>;
+  removeLabel(issueNumber: number, label: string): Promise<void>;
+  comment(issueNumber: number, body: string): Promise<void>;
+}
+
+/** Why a sweep ran, and what it reaches data through. */
 export interface SweepContext {
   readonly trigger: "cron" | "event" | "http";
   /** The delivered event, on an event trigger. */
@@ -96,6 +127,7 @@ export interface SweepContext {
     readonly params: Readonly<Record<string, unknown>>;
     readonly eventId: string;
   };
+  readonly host: StationHost;
 }
 
 /** One visit to a node: the pod contract, unchanged. */

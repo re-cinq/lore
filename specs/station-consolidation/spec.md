@@ -185,6 +185,16 @@ subscribe" has no expressible meaning on the current substrate.
   wrong row, or none.
   ([validated by passes the EVENT id as meta, not the delivery's, so a by-reference payload resolves](apps/floor/src/main-loop/loop.test.ts#L111))
 
+- **FR17 — a station is given its data, never resolves it.** A station that needs
+  a database or a code host receives those ports from whichever process hosts it,
+  rather than importing that process's singletons. This is what lets one registry
+  hold every station: the package is shared with a pod that has no pool, so a
+  station reaching for one could not live in it — and a consequence is that the
+  sweeps become testable without a database at all. The URL surface is DERIVED
+  from the manifests rather than hand-listed, so what a station declares and what
+  the service answers to cannot disagree.
+  ([validated by reports nothing to do when no task is waiting](libs/stations/src/stations/approval-check/approval-check.test.ts#L51), [`approval-check.test.ts:57`](libs/stations/src/stations/approval-check/approval-check.test.ts#L57), [`approval-check.test.ts:65`](libs/stations/src/stations/approval-check/approval-check.test.ts#L65), [`approval-check.test.ts:74`](libs/stations/src/stations/approval-check/approval-check.test.ts#L74), [`approval-check.test.ts:82`](libs/stations/src/stations/approval-check/approval-check.test.ts#L82), [`approval-check.test.ts:91`](libs/stations/src/stations/approval-check/approval-check.test.ts#L91), [`service-stations.test.ts:17`](apps/stations/src/kernel/service-stations.test.ts#L17), [`service-stations.test.ts:29`](apps/stations/src/kernel/service-stations.test.ts#L29), [`service-stations.test.ts:39`](apps/stations/src/kernel/service-stations.test.ts#L39), [`service-stations.test.ts:45`](apps/stations/src/kernel/service-stations.test.ts#L45))
+
 ## Non-goals
 
 - **Merging the pod runtime away.** Three station types must stay pods (FR5) and

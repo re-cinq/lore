@@ -12,6 +12,7 @@
  */
 
 import type { StationModule } from "./lib/station.js";
+import { approvalCheck } from "./stations/approval-check/manifest.js";
 import { validate } from "./stations/validate/manifest.js";
 import { gate } from "./stations/gate/manifest.js";
 import { githubAction } from "./stations/github-action/manifest.js";
@@ -23,6 +24,7 @@ import { issues } from "./stations/issues/manifest.js";
 
 /** The single list. A folder missing from it fails the registry's own test. */
 export const STATION_NAMES = [
+  "approval-check",
   "comment-triage",
   "detect",
   "gate",
@@ -36,6 +38,7 @@ export const STATION_NAMES = [
 export type StationName = (typeof STATION_NAMES)[number];
 
 export const STATIONS: Record<StationName, StationModule> = {
+  "approval-check": approvalCheck,
   "comment-triage": commentTriage,
   detect,
   gate,

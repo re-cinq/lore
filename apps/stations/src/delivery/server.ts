@@ -9,7 +9,8 @@
 import Hapi from "@hapi/hapi";
 import { stationsRoute } from "./routes/stations.js";
 import { healthRoute } from "./routes/health.js";
-import { stations } from "../registry.js";
+import { serviceStations } from "../kernel/service-stations.js";
+import { stationHost } from "../kernel/station-host.js";
 
 export function buildServer(opts: { port?: number } = {}): Hapi.Server {
   const server = Hapi.server({ port: opts.port ?? 0, host: "0.0.0.0" });
@@ -28,7 +29,7 @@ export function buildServer(opts: { port?: number } = {}): Hapi.Server {
 
   server.route([
     stationsRoute({
-      registry: () => stations,
+      registry: () => serviceStations(stationHost()),
       bearerToken: process.env.LORE_INGEST_TOKEN,
     }),
     healthRoute(),
@@ -43,7 +44,7 @@ export async function startServer(port: number): Promise<() => Promise<void>> {
   try {
     await server.start();
     console.log(
-      `[stations] listening on :${port} — ${[...stations.keys()].join(", ")}`,
+      `[stations] listening on :${port} — ${[...serviceStations(stationHost()).keys()].join(", ")}`,
     );
 
     return () => server.stop();
