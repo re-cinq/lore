@@ -24,8 +24,9 @@ import type {
 import type { AgentPodInfo, PodSummary } from "@re-cinq/lore-shared";
 import type { LoreTaskSpec } from "@re-cinq/lore-shared";
 import { rawBody } from "@re-cinq/lore-shared/http/raw-body.js";
-import { apiError } from "../api-error.js";
-import { enforceBearer } from "../bearer.js";
+import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
+import { parseBody } from "@re-cinq/lore-shared/http/json-body.js";
+import { enforceBearer } from "@re-cinq/lore-shared/http/bearer.js";
 
 /** The apiserver's own page ceiling for this service. A caller asking for more
  *  is refused rather than quietly served a smaller page — a silent clamp is how
@@ -76,25 +77,6 @@ const CatalogPair = z.object({
   agentDefinition: z.record(z.unknown()),
   station: z.record(z.unknown()),
 });
-
-function body<T>(raw: string, schema: z.ZodType<T>, what: string): T {
-  let json: unknown;
-
-  try {
-    json = JSON.parse(raw);
-  } catch (err) {
-    throw apiError(400)(`invalid JSON in ${what}: ${(err as Error).message}`);
-  }
-  const parsed = schema.safeParse(json);
-
-  enforceTrue(
-    parsed.success,
-    apiError(400),
-    `not a ${what}: ${parsed.error?.issues.map((i) => `${i.path.join(".") || "(body)"} ${i.message}`).join("; ")}`,
-  );
-
-  return parsed.data;
-}
 
 export function clusterRoutes(opts: ClusterRoutesDeps): ServerRoute[] {
   const guard = (headers: Record<string, unknown>): void =>
@@ -170,7 +152,11 @@ export function clusterRoutes(opts: ClusterRoutesDeps): ServerRoute[] {
       options: raw,
       handler: async (request, h) => {
         guard(request.headers);
-        const { patch } = body(rawBody(request), StatusPatch, "status patch");
+        const { patch } = parseBody(
+          rawBody(request),
+          StatusPatch,
+          "status patch",
+        );
 
         await opts.deps().agents.patchStatus(request.params.name, patch);
 
@@ -261,7 +247,7 @@ export function clusterRoutes(opts: ClusterRoutesDeps): ServerRoute[] {
       options: raw,
       handler: async (request, h) => {
         guard(request.headers);
-        const pair = body(rawBody(request), CatalogPair, "catalog pair");
+        const pair = parseBody(rawBody(request), CatalogPair, "catalog pair");
 
         await opts.deps().catalog.applyPair({
           agentDefinition: pair.agentDefinition as unknown as AgentDefinition,

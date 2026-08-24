@@ -113,6 +113,11 @@ and lose the update; no `resourceVersion` ever crosses the wire.
 - The list serves ONE apiserver page per call and the caller drives `continue`.
   A one-shot list is not a convenience: 180 accumulated CRs at ~1.4MB of status
   each blew Node's heap and crash-looped the Floor on 2026-07-24. ([validated by passes the caller's continue token straight through, one page per call](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L115), [`cluster.test.ts:128`](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L128), [`cluster.test.ts:335`](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L335), [`cluster.test.ts:318`](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L318))
+- The paging the route requires is walked by the CLIENT, not pushed onto every
+  caller: `listByLabel` follows `continue` to the end and returns the whole
+  match. A truncated list is worse than a failed one — it answers, and the
+  caller acts on a subset it believes is complete.
+  ([validated by returns every page's items, not just the first](libs/shared/src/cluster/cluster-agent-client.test.ts#L30), [`cluster-agent-client.test.ts:42`](libs/shared/src/cluster/cluster-agent-client.test.ts#L42), [`cluster-agent-client.test.ts:56`](libs/shared/src/cluster/cluster-agent-client.test.ts#L56), [`cluster-agent-client.test.ts:64`](libs/shared/src/cluster/cluster-agent-client.test.ts#L64))
 - The status subresource is patched in ONE call, so its read-modify-write
   cannot be split across the network. ([validated by patches the status subresource in one call, so the read-modify-write cannot be split](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L139), [`cluster.test.ts:232`](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L232), [`cluster.test.ts:244`](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L244))
 - Provisioning is ONE call — catalog read, GitHub mint, Secret write and the
@@ -381,8 +386,14 @@ that no property of the Floor justified.
 **The Floor has exactly three exclusive powers.** Code that needs none of them does
 not belong in the Floor process:
 
-1. **Cluster authority** — the Kubernetes API, Agent CR dispatch, per-task pod
-   tokens, pod logs. Only the Floor holds the credentials and the RBAC.
+1. **Cluster authority** — Agent CR dispatch, per-task pod tokens, pod logs.
+   *Revised 2026-08-24:* when this test was written the Floor held the Kubernetes
+   credentials and the RBAC itself. It no longer does — the amendment above moved
+   both to `apps/cluster-agent`, and the Floor's Role is deleted. The power the
+   Floor keeps is the **authority**, not the credential: it decides what to
+   dispatch, when to prune, and whose token to mint, and it exercises that
+   decision over HTTP against exactly one cluster agent. That distinction is what
+   lets a Floor coordinate a cluster it cannot reach a Kubernetes API in.
 2. **The drain loop** — the single-instance `pipeline.events` claim
    (`FOR UPDATE SKIP LOCKED`), leases, and the reapers. Only the Floor is pinned
    to one replica and may therefore coordinate.
@@ -400,16 +411,24 @@ The test is deliberately about *powers*, not about cadence or weight. "It is a
 nightly batch" and "it needs a long-running process" were the two arguments that
 put every squatter where it is, and neither is a property only the Floor has.
 
-**Three pinned exceptions** — they fail the test on a reading of the code but pass
-on the mechanism, and a later cleanup must not evict them:
+**Pinned exceptions** — they fail the test on a reading of the code but pass on
+the mechanism, and a later cleanup must not evict them. Three were pinned in
+2026-08; one has since been retired by the work it predicted:
 
 - The `/api/agent-events` NDJSON sink and the SSE stream are **welded** by the
   in-process bus. Splitting them requires PG `LISTEN`/`NOTIFY` first (ADR-037
   names it as the multi-replica swap); moving either alone goes dark.
-- `/api/agent-logs` reads pod logs through the Kubernetes API — power 1. `lore-ui`
-  holds no such RBAC.
-- `/api/webhook/github` could move to `lore-api`, but it feeds the drain loop
-  directly; relocating it buys a network hop and a new failure mode.
+- `/api/agent-logs` serves pod logs. *Revised 2026-08-24:* it no longer reads the
+  Kubernetes API — it asks the cluster agent, which holds the `pods/log` RBAC the
+  Floor gave up. The exception survives, but on a weaker footing: it is now a
+  proxy in front of a proxy, kept only because `lore-ui` must not learn a second
+  service's address. Give it a reason to move and it should move.
+- ~~`/api/webhook/github`~~ — **retired 2026-08-24.** It moved to
+  `apps/event-router` as one branch of `POST /api/events`
+  ([ADR-044](./ADR-044-event-router-owns-the-event-bus.md)). The exception argued
+  that relocating it "buys a network hop and a new failure mode"; that was true
+  while the Floor owned the events table, and stopped being true once the router
+  did. The hop the exception feared is now the hop the Floor pays anyway.
 
 **Consequence.** After the eviction the Floor is: the drain loop and its reapers,
 the listeners, the AssemblyRun walk, the Station/pod machinery, the Agent-CR

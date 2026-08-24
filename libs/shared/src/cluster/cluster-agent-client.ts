@@ -63,6 +63,10 @@ export class ClusterAgentClient {
 }
 
 /** {@link AgentApi} + {@link AgentStatusReader} over the agent. */
+/** The route rejects anything above 100; asking for exactly that many keeps the
+ *  walk to the fewest round trips it can make. */
+const PAGE_LIMIT = 100;
+
 export class HttpAgentApi implements AgentApi, AgentStatusReader {
   constructor(private readonly client: ClusterAgentClient) {}
 
@@ -75,12 +79,33 @@ export class HttpAgentApi implements AgentApi, AgentStatusReader {
   }
 
   async listByLabel(selector: string): Promise<AgentCr[]> {
-    const page = await this.client.call<{ items: AgentCr[] }>(
-      "GET",
-      `/agents?labelSelector=${encodeURIComponent(selector)}&limit=100`,
-    );
+    // Walked, not truncated. A label selector narrow enough to fit one page
+    // today is one busy hour away from not fitting, and the failure of a
+    // silently-truncated list is that it returns the WRONG answer rather than
+    // an error — the caller acts on a subset it believes is the whole set.
+    const items: AgentCr[] = [];
+    let continueToken: string | undefined;
 
-    return page?.items ?? [];
+    do {
+      const q = new URLSearchParams({
+        labelSelector: selector,
+        limit: String(PAGE_LIMIT),
+      });
+
+      if (continueToken) {
+        q.set("continue", continueToken);
+      }
+
+      const page = await this.client.call<{
+        items: AgentCr[];
+        continueToken?: string;
+      }>("GET", `/agents?${q}`);
+
+      items.push(...(page?.items ?? []));
+      continueToken = page?.continueToken;
+    } while (continueToken);
+
+    return items;
   }
 
   /** One page. The caller drives `continue` — see the route's comment on why a

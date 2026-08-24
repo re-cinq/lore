@@ -4,6 +4,7 @@
 // must be able to describe the service without a cluster present (tests do
 // exactly that).
 
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { KubeConfig, CustomObjectsApi } from "@kubernetes/client-node";
 import {
   agentsNamespace,
@@ -61,7 +62,18 @@ export function clusterDeps(): ClusterDeps {
             plural: PLURAL,
             name,
           })) as never;
-        } catch {
+        } catch (err) {
+          // Only a 404 means "no such CR". An RBAC denial, a 5xx or a dead
+          // socket must NOT be laundered into `found: false` — that is the
+          // shape a caller reads as "already gone" and stops asking about,
+          // which is exactly how the Floor's missing `delete` verb stayed
+          // invisible for forty days.
+          enforceTrue(
+            isNotFound(err),
+            Error,
+            describeK8sError("get", name, err),
+          );
+
           return null;
         }
       },
@@ -93,7 +105,17 @@ export function clusterDeps(): ClusterDeps {
             plural: PLURAL,
             name,
           })
-          .catch(() => {});
+          .catch((err) => {
+            // A delete that lost a race is a success — the CR is gone either
+            // way. Anything else is reported: the caller swallows prune
+            // failures by design, so this log is the only place a denied or
+            // failing delete can still be seen.
+            enforceTrue(
+              isNotFound(err),
+              Error,
+              describeK8sError("delete", name, err),
+            );
+          });
       },
       // The read and the replace stay together, on this side of the network.
       patchStatus: async (name, patch) => {
@@ -159,4 +181,29 @@ function mergeOntoLive<T extends AgentDefinition | Station>(
   desired: T,
 ): T {
   return live ? preserveUnownedFields(live, desired) : desired;
+}
+
+/** The apiserver's status code, wherever this client version happens to put it. */
+function statusOf(err: unknown): number | undefined {
+  const e = err as {
+    code?: number;
+    statusCode?: number;
+    response?: { statusCode?: number };
+  };
+
+  return e?.code ?? e?.statusCode ?? e?.response?.statusCode;
+}
+
+function isNotFound(err: unknown): boolean {
+  return statusOf(err) === 404;
+}
+
+/** Name the verb and the status, because "Forbidden" alone does not say which
+ *  Role is missing which rule. */
+function describeK8sError(verb: string, name: string, err: unknown): string {
+  const status = statusOf(err);
+  const detail =
+    status === 403 ? " — the cluster-agent Role is missing this rule" : "";
+
+  return `${verb} agents/${name} failed with ${status ?? "no status"}${detail}: ${(err as Error).message}`;
 }
