@@ -68,6 +68,10 @@ The worked implementation this ADR cites rather than restates:
 - `ai-agent-subsystem/.github/workflows/publish-contracts.yml` (with the PA-17 caveat above)
 - `ai-agent-subsystem/scripts/check-contracts-version.sh`
 
+## Recorded exception: private repos publish without provenance
+
+npm provenance attestation requires a public source repository. `re-cinq/bowman-ui` was decided private at scaffold time (decider: Loredana Moanga, 2026-08-24), so its release workflow omits `--provenance` and carries a comment naming that decision. Everything else in this convention still applies to it. If the repo is later made public, `--provenance` is restored in the same PR that flips visibility, and this exception paragraph shrinks to a historical note.
+
 ## What this ADR does not decide
 
 Private packages, prerelease versions and dist-tags, and publishing more than one package from one repo. A repo that needs any of these opens a new decision rather than stretching this one.
