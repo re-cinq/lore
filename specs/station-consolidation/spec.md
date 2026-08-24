@@ -149,9 +149,7 @@ subscribe" has no expressible meaning on the current substrate.
   pass, and an explicit per-repository cap replaces the rate limit the old
   deadline was accidentally providing.
 
-  **Not yet implemented.** The detector that needs a model was running without
-  the credential to make the call; that is fixed (FR19), so the work happens
-  again, but it still runs as one long unit rather than short ones.
+  ([validated by starts one unit per specification, not one per repository](apps/stations/src/stations/backfill-scan/backfill-scan.test.ts#L14), [`backfill-scan.test.ts:33`](apps/stations/src/stations/backfill-scan/backfill-scan.test.ts#L33), [`backfill-scan.test.ts:53`](apps/stations/src/stations/backfill-scan/backfill-scan.test.ts#L53), [`backfill-scan.test.ts:63`](apps/stations/src/stations/backfill-scan/backfill-scan.test.ts#L63), [`backfill-scan.test.ts:86`](apps/stations/src/stations/backfill-scan/backfill-scan.test.ts#L86), [`detect.test.ts:47`](apps/stations/src/stations/detect/detect.test.ts#L47), [`detect.test.ts:78`](apps/stations/src/stations/detect/detect.test.ts#L78))
 
 - **FR12 — a merged pull request walks an assembly line.** The work that follows
   a merge is a line of recorded steps rather than one function behind swallowing

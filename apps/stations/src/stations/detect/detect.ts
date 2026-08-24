@@ -19,32 +19,55 @@ import type { StationEnv } from "../lib/station.js";
 
 const DETECT_SUMMARY_MAX = 200;
 
-type Detector = (repo: string, project: Project) => Promise<string>;
+/** `specPath` narrows a detector to ONE specification. Only the backfill honours
+ *  it today; the others are already short enough to run whole-repo. */
+type Detector = (
+  repo: string,
+  project: Project,
+  specPath?: string,
+) => Promise<string>;
 
 const detectors: Record<string, Detector> = {
   spec_drift: (repo, project) => specDriftJob({ repoFilter: repo, project }),
   gap_detection: (repo, project) => gapDetectJob({ repoFilter: repo, project }),
   spec_coverage_validate: (repo, project) =>
     validateSpecCoverageJob({ repoFilter: repo, project }),
-  spec_coverage_backfill: (repo, project) =>
-    specCoverageBackfillJob({ repoFilter: repo, project }),
+  // The long one: an LLM judge over every candidate statement, at a 30-minute
+  // budget. `specPathFilter` was declared and never set by anything, which is
+  // the seam that lets one node do one specification.
+  spec_coverage_backfill: (repo, project, specPath) =>
+    specCoverageBackfillJob({
+      repoFilter: repo,
+      project,
+      specPathFilter: specPath,
+    }),
 };
 
 export async function runDetectStation(
   input: StationInput,
   _env?: StationEnv,
   makeProject: (repo: string) => Project = (repo) => createStationProject(repo),
+  registry: Record<string, Detector> = detectors,
 ): Promise<NodeResult> {
   const jobRef = input.params.job_ref;
-  const detector = jobRef ? detectors[jobRef] : undefined;
+  const detector = jobRef ? registry[jobRef] : undefined;
 
   enforceTrue(
     detector,
     Error,
     `detect station: no detector for job_ref "${jobRef}"`,
   );
-  console.log(eventLine(`detect ${jobRef} on ${input.repo}`));
-  const summary = await detector(input.repo, makeProject(input.repo));
+  console.log(
+    eventLine(
+      `detect ${jobRef} on ${input.repo}${input.params.spec_path ? ` (${input.params.spec_path})` : ""}`,
+    ),
+  );
+  const specPath = input.params.spec_path;
+  const summary = await detector(
+    input.repo,
+    makeProject(input.repo),
+    specPath,
+  );
 
   console.log(eventLine(summary.slice(0, DETECT_SUMMARY_MAX)));
 

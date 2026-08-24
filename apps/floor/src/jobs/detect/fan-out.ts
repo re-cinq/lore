@@ -253,7 +253,3 @@ export const specCoverageValidateTick = productionTick(
   specRepos,
 );
 
-export const specCoverageBackfillTick = productionTick(
-  "spec-coverage-backfill",
-  activeSpecRepos,
-);

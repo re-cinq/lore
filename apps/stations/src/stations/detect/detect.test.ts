@@ -42,3 +42,53 @@ describe("runDetectStation", () => {
     ).rejects.toThrow(/no detector for job_ref "nope"/);
   });
 });
+
+describe("runDetectStation sharding", () => {
+  it("narrows the backfill to the one spec its node was given", async () => {
+    const seen: Array<string | undefined> = [];
+    const project = {
+      chunks: {
+        specChunksForBackfill: async () => {
+          seen.push("listed");
+
+          return [];
+        },
+      },
+    } as unknown as Project;
+
+    await runDetectStation(
+      input({
+        params: {
+          job_ref: "spec_coverage_backfill",
+          spec_path: "specs/a/spec.md",
+        },
+      }),
+      undefined,
+      () => project,
+      { spec_coverage_backfill: async (_repo, _p, specPath) => {
+          seen.push(specPath);
+
+          return "ok";
+        } },
+    );
+
+    expect(seen).toEqual(["specs/a/spec.md"]);
+  });
+
+  it("runs the whole repo when no spec is named, which is what a full sweep is", async () => {
+    const seen: Array<string | undefined> = [];
+
+    await runDetectStation(
+      input({ params: { job_ref: "spec_coverage_backfill" } }),
+      undefined,
+      () => ({}) as Project,
+      { spec_coverage_backfill: async (_repo, _p, specPath) => {
+          seen.push(specPath);
+
+          return "ok";
+        } },
+    );
+
+    expect(seen).toEqual([undefined]);
+  });
+});

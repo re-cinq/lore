@@ -73,6 +73,16 @@ const fromStation = (name: string): EventHandler =>
 
 export const mergeCheck = fromStation("merge-check");
 export const approvalCheck = fromStation("approval-check");
+
+/**
+ * The weekly link backfill fans out per SPECIFICATION, not per repository.
+ *
+ * It was one job per repo at a 30-minute budget, judging every candidate
+ * statement of every spec with a model — so a failure cost the whole repo's pass
+ * and the deadline was the only thing bounding how many PRs it opened. The scan
+ * starts one unit per spec, under a cap that is now a number someone chose.
+ */
+export const specCoverageBackfill = fromStation("backfill-scan");
 export const specTaskExecutor = fromJob(specTaskExecutorJob);
 export const staleTaskCheck = fromJob(staleTaskCheckJob);
 export const featurePlanningReaper = fromJob(featurePlanningReaperJob);
