@@ -24,7 +24,6 @@ import { rawBody } from "@re-cinq/lore-shared/http/raw-body.js";
 import { parseBody } from "@re-cinq/lore-shared/http/json-body.js";
 import { enforceBearer } from "@re-cinq/lore-shared/http/bearer.js";
 
-
 export interface EventQueueRoutesDeps {
   /** A THUNK: routes are built before the pool exists, and resolving the queue
    *  here would make `buildServer` demand a database just to describe itself. */
@@ -108,7 +107,11 @@ export function eventQueueRoutes(deps: EventQueueRoutesDeps): ServerRoute[] {
       options: { auth: false, payload: { parse: false } },
       handler: async (request, h) => {
         guard(request.headers);
-        const { timeoutSeconds } = parseBody(rawBody(request), ReapBody, "reap");
+        const { timeoutSeconds } = parseBody(
+          rawBody(request),
+          ReapBody,
+          "reap",
+        );
 
         return h
           .response({ reaped: await deps.queue().reapStuck(timeoutSeconds) })
@@ -121,7 +124,11 @@ export function eventQueueRoutes(deps: EventQueueRoutesDeps): ServerRoute[] {
       options: { auth: false, payload: { parse: false } },
       handler: async (request, h) => {
         guard(request.headers);
-        const { olderThanDays } = parseBody(rawBody(request), PruneBody, "prune");
+        const { olderThanDays } = parseBody(
+          rawBody(request),
+          PruneBody,
+          "prune",
+        );
 
         return h
           .response({ pruned: await deps.queue().pruneHandled(olderThanDays) })
