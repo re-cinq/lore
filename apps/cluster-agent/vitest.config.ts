@@ -11,7 +11,12 @@ export default defineConfig({
       // tail clamp. The Kubernetes adapters and the composition root are
       // excluded: they cannot run without a cluster.
       include: ["src/delivery/routes/cluster.ts"],
-      thresholds: { lines: 100, branches: 100, functions: 100, statements: 100 },
+      thresholds: {
+        lines: 100,
+        branches: 100,
+        functions: 100,
+        statements: 100,
+      },
     },
   },
 });

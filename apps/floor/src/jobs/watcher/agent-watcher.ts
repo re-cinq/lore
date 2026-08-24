@@ -76,17 +76,15 @@ function tailOutput(output: string, limit = 60000): string {
  *  so the assembly-line completion path reclaims a station line's token (its shared token
  *  can only be freed once the whole line is done — no per-node cleanup is safe). */
 export function cleanupPerTaskToken(taskId: string): Promise<void> {
-  return new HttpTokenProvisioner(clusterAgent())
-    .cleanup(taskId)
-    .catch((err) =>
-      // Swallowed as before — a task must settle even if reclaim fails — but
-      // LOGGED now. This used to hide a 403 the Floor's RBAC never granted, and
-      // an unreachable agent would look exactly the same.
-      console.warn(
-        `[agent-watcher] token cleanup for ${taskId} failed:`,
-        (err as Error).message,
-      ),
-    );
+  return new HttpTokenProvisioner(clusterAgent()).cleanup(taskId).catch((err) =>
+    // Swallowed as before — a task must settle even if reclaim fails — but
+    // LOGGED now. This used to hide a 403 the Floor's RBAC never granted, and
+    // an unreachable agent would look exactly the same.
+    console.warn(
+      `[agent-watcher] token cleanup for ${taskId} failed:`,
+      (err as Error).message,
+    ),
+  );
 }
 
 // ── Slack batching (per invocation) ──────────
