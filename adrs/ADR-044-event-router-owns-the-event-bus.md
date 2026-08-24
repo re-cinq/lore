@@ -64,6 +64,13 @@ ADR-024 pins to it and reaches every byte of its data over HTTP.
 - GitHub is recognised by its own `X-Hub-Signature-256` header and
   authenticated by HMAC over the raw body — it carries no bearer token and is
   never asked for one. ([validated by captures a signed webhook without any bearer token](apps/event-router/src/delivery/routes/events.test.ts#L37))
+- A Floor calling any of the three new services presents the SERVICE-TO-SERVICE
+  token (`LORE_AGENT_INTERNAL_TOKEN`), not the org-wide ingest token, falling
+  back to the latter only for local dev where one token serves both ends. The
+  charts mount the internal token; a client sending the ingest one answered 401
+  on every call — the event drain, station runs and agent dispatch at once
+  (2026-08-24 cutover). Each end was correct alone; only the pair was wrong.
+  ([validated by prefers the service-to-service token over the org ingest token](libs/shared/src/http/internal-token.test.ts#L5), [`internal-token.test.ts:14`](libs/shared/src/http/internal-token.test.ts#L14), [`internal-token.test.ts:18`](libs/shared/src/http/internal-token.test.ts#L18), [`internal-token.test.ts:22`](libs/shared/src/http/internal-token.test.ts#L22))
 - A webhook whose signature does not verify is refused and writes nothing.
   ([validated by refuses a webhook whose signature does not match the secret](apps/event-router/src/delivery/routes/events.test.ts#L60))
 - Every other producer authenticates with a bearer token and reports the

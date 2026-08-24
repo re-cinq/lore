@@ -11,6 +11,7 @@
 // deployment that means to route and has lost `EVENT_ROUTER_URL` would write
 // directly and look healthy, so the choice is logged once at construction.
 
+import { internalToken } from "../../http/internal-token.js";
 import { HttpEventReporter } from "./event-reporter-http.js";
 import { HttpEventQueue } from "./event-queue-http.js";
 import type {
@@ -50,7 +51,7 @@ export function selectEventReporter(deps: SelectReporterDeps): EventReporter {
   }
   log(`[events] reporting to the event-router at ${url}`);
 
-  return new HttpEventReporter(url, env.LORE_INGEST_TOKEN);
+  return new HttpEventReporter(url, internalToken(env));
 }
 
 export interface SelectQueueDeps {
@@ -81,5 +82,5 @@ export function selectEventQueue(deps: SelectQueueDeps): EventQueueRepository {
   }
   log(`[events] draining through the event-router at ${url}`);
 
-  return new HttpEventQueue(url, env.LORE_INGEST_TOKEN);
+  return new HttpEventQueue(url, internalToken(env));
 }

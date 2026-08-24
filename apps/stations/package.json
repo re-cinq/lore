@@ -10,7 +10,8 @@
     "dev": "tsc --watch",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "start:watch": "node --watch-path=./dist --watch-path=../../libs/shared/dist dist/index.js"
   },
   "dependencies": {
     "@hapi/hapi": "21.4.9",
