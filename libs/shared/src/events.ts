@@ -7,9 +7,24 @@
  */
 import type { PgPool } from "./memory-store.js";
 
+/**
+ * Who produced an event. Names are usually `source.subject.action`, and the
+ * prefix is globally unique so a name on one source can never collide with
+ * another (`github.pull_request.closed` vs `kubernetes.agent.succeeded`).
+ *
+ * Exception: the `assembly_run.*` family is subject-first, because an assembly
+ * run is a primary concept whose start events come from several producers, all
+ * with `source: "internal"`.
+ */
+export const SOURCES = ["github", "kubernetes", "cron", "internal"] as const;
+export type EventSource = (typeof SOURCES)[number];
+
+/** What a producer inserts. `source` is the closed set above rather than a bare
+ *  string: an event whose source is a typo reaches no handler and is discovered
+ *  only by its absence. */
 export interface EventInsert {
   eventName: string;
-  source: string;
+  source: EventSource;
   params?: Record<string, unknown>;
   dedupeKey?: string;
 }

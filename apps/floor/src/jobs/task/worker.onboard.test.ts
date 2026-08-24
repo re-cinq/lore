@@ -46,7 +46,10 @@ vi.mock("../../kernel/db.js", () => ({
   query: (...a: unknown[]) => query(...a),
   getPool: () => ({ query: async () => ({ rows: [] }) }),
 }));
-vi.mock("../lib/episode-writer.js", () => ({
+// Spread the real barrel: episode-writer moved into it, and replacing the whole
+// module would take every other export down with it.
+vi.mock("@re-cinq/lore-shared", async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   writeEpisode: (...a: unknown[]) => writeEpisode(...a),
 }));
 

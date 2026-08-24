@@ -12,6 +12,15 @@
 import { getPool } from "./db.js";
 import { createPipelineRepositories } from "@re-cinq/lore-shared/project/pipeline/pipeline-repositories-pg.js";
 import type { PipelineRepositories } from "@re-cinq/lore-shared";
+import { StationClient } from "@re-cinq/lore-shared/project/stations/station-client.js";
+import {
+  selectEventQueue,
+  selectEventReporter,
+} from "@re-cinq/lore-shared/project/events/select-event-reporter.js";
+import type {
+  EventQueueRepository,
+  EventReporter,
+} from "@re-cinq/lore-shared/project/events/event-queue-port.js";
 import { PgTaskStore } from "@re-cinq/lore-shared/project/tasks/task-store-pg.js";
 import { PgUsage } from "@re-cinq/lore-shared/project/usage/usage-pg.js";
 import { PgConversations } from "@re-cinq/lore-shared/project/conversations/conversations-pg.js";
@@ -89,3 +98,44 @@ export const chunks = (): PgChunks =>
  */
 export const memoryLifecycle = (): PgMemoryLifecycle =>
   (memoryLifecycleSingleton ??= new PgMemoryLifecycle(getPool()));
+
+let eventReporterSingleton: EventReporter | undefined;
+
+/**
+ * Where this Floor reports events (ADR-044). The event-router owns
+ * `pipeline.events`, so in a cluster this is an HTTP reporter; with no
+ * `EVENT_ROUTER_URL` (local `npm start`) it falls back to the pool.
+ *
+ * Memoized so the resolution logs once per boot rather than once per event.
+ */
+export const eventReporter = (): EventReporter =>
+  (eventReporterSingleton ??= selectEventReporter({
+    local: () => pipeline().eventQueue,
+  }));
+
+let eventQueueSingleton: EventQueueRepository | undefined;
+
+/**
+ * The queue this Floor DRAINS (ADR-044). The router owns `pipeline.events`, so
+ * in a cluster the loop claims and acks over HTTP; with no `EVENT_ROUTER_URL`
+ * (local `npm start`) it falls back to the pool.
+ *
+ * The claim stays atomic either way — `FOR UPDATE SKIP LOCKED` is one statement
+ * server-side, and going over HTTP only carries the request to it.
+ */
+export const eventQueue = (): EventQueueRepository =>
+  (eventQueueSingleton ??= selectEventQueue({
+    local: () => pipeline().eventQueue,
+  }));
+
+let stationClientSingleton: StationClient | undefined;
+
+/**
+ * The stations service (ADR-024's service-endpoint form). The Floor still owns
+ * WHEN a station runs; this is how it says so.
+ */
+export const stationClient = (): StationClient =>
+  (stationClientSingleton ??= new StationClient(
+    process.env.STATIONS_URL ?? "",
+    process.env.LORE_INGEST_TOKEN,
+  ));

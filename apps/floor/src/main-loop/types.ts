@@ -4,15 +4,11 @@
  * `EventHandler` is a task/job (layer 3) keyed by event_name in the registry.
  */
 
-import type { EventSource } from "./event-names.js";
-
-export interface EventInput {
-  eventName: string;
-  source: EventSource;
-  params?: Record<string, unknown>;
-  /** Idempotency key; insert is ON CONFLICT DO NOTHING when set. */
-  dedupeKey?: string;
-}
+// What a listener inserts. The shape is the shared `EventInsert` — it was
+// declared identically in both places until the event-router made a producer
+// outside this process real, and two declarations of one wire shape is how they
+// drift. `EventInput` stays as the name Floor's ~20 listener modules import.
+export type { EventInsert as EventInput } from "@re-cinq/lore-shared";
 
 // The claimed-row shape is single-sourced from the shared event-queue port
 // (project.events); the loop/store here operate on exactly that row.

@@ -8,7 +8,7 @@
 
 import { registerJob } from "../main-loop/scheduling/scheduler.js";
 import { insertEvent } from "../main-loop/store.js";
-import { cronDedupeKey } from "../main-loop/dedupe.js";
+import { cronDedupeKey } from "@re-cinq/lore-shared/project/events/dedupe.js";
 
 /** Register a scheduled job that only emits its tick event (the loop runs the work). */
 export function registerCronEmitter(name: string, cron: string): void {

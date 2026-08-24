@@ -38,10 +38,55 @@ commits the platform to the manufacturing metaphor; this names the rest of it.
 | **Floor** | the coordinator runtime: dispatches Agents onto Stations, runs AssemblyLines, reaps leases | 1 → N |
 | **AssemblyLine** | the **blueprint** — an authored, versioned, content-hashed graph of Stations that hand off / wait on each other (amendment 2026-08-14) | per task type |
 | **AssemblyRun** | one **execution** of an AssemblyLine, carrying a clone of the blueprint it runs (amendment 2026-08-14) | per attempt |
-| **Station** | the unit that runs exactly one node's work (a K8s Job pod, or a local sandbox/worktree) — an LLM Agent, a deterministic station run (validate/detect/…, ADR-031 amendment), *or* a **human station** whose worker is a person and whose `route` names the page they work on | per node |
+| **Station** | the unit that runs one piece of work — an LLM Agent, a deterministic station run (validate/detect/…, ADR-031 amendment), a **human station** whose worker is a person and whose `route` names the page they work on, or a **service station** reached by name over HTTP (amendment 2026-08-23) | per node, or standalone |
 | **StationRun** | one **visit** to a Station within an AssemblyRun — `(run, node, iteration)`, identified by a `station_run_id` (amendment 2026-08-14) | per node-run |
 | **Agent** | one ephemeral run of the Claude CLI/API + a prompt (context + task) | per Station |
 | **Agent definition** | the stored *config* an Agent runs from — model, timeout, prompt, execution image — resolved per repo (project row → org default → `task-types.yaml`) | per task-type (× repo) |
+
+### A Station's execution forms (amendment 2026-08-23)
+
+A Station is a unit of work; *how* it runs is a separate question, and there are
+four answers. The table above listed three; this names the fourth and says when
+each applies.
+
+| form | dispatched by | holds a pool | for |
+|---|---|---|---|
+| K8s Job pod | an AssemblyLine node | no — the station HTTP seam | nodes needing isolation, a workspace clone, per-node identity, a deadline |
+| local sandbox / worktree | the local runner | no | developer machines |
+| human station | a person, via `route` | n/a | author review, PR merge |
+| **service station** | an HTTP call, `POST /api/stations/{name}` | **yes** | standalone work: the cron sweeps |
+
+The fourth exists because the first was being paid for work that did not need
+it. A once-a-minute sweep has no workspace to clone, no node identity, and no
+deadline worth a CR — yet to be a Station at all it had to be wrapped in a
+one-node AssemblyLine with a `retrospective` marker, and then, because a pod
+holds no database, reach its data through an HTTP seam. `merge-check` alone
+would have needed ~23 new methods on that seam. A Station that sits beside the
+data just asks the data.
+
+A service station is named, not authored: the name is the URL, and the registry
+entry is the whole declaration.
+
+- The named station runs and reports one summary line — the same
+  `(): Promise<string>` these jobs always had, which the Floor's scheduler
+  writes into the `pipeline.job_runs` row it already opens. ([validated by runs the named station and returns the summary it reported](apps/stations/src/delivery/routes/stations.test.ts#L31))
+- A name nothing answers to is refused with the registry's contents, rather than
+  failing somewhere inside an undefined call. ([validated by refuses a name no station answers to, rather than 500-ing on undefined](apps/stations/src/delivery/routes/stations.test.ts#L38))
+- Running a station requires the same token every other service-to-service call
+  presents. ([validated by refuses a caller with no bearer token](apps/stations/src/delivery/routes/stations.test.ts#L45))
+- A station already running refuses the second caller rather than sweeping
+  twice. The Floor is a single replica today, so this is what makes a second one
+  — or a retried tick — safe rather than a double sweep. ([validated by refuses a second concurrent run of the same station](apps/stations/src/delivery/routes/stations.test.ts#L54))
+- The guard releases after the run, including after a FAILED one: a station that
+  threw must not stay latched, or one bad run wedges it until the process
+  restarts. ([validated by frees the latch after a run so the next tick is not locked out forever](apps/stations/src/delivery/routes/stations.test.ts#L79), [`stations.test.ts:85`](apps/stations/src/delivery/routes/stations.test.ts#L85))
+- The caller and the route are two halves of one contract, so they are exercised
+  against each other: the summary comes back for the `job_runs` row, and every
+  refusal throws rather than resolving to an empty success that would log a
+  sweep which never ran. ([validated by returns the summary the station reported, for the job_runs row](apps/stations/src/delivery/routes/station-client-roundtrip.test.ts#L40), [`station-client-roundtrip.test.ts:46`](apps/stations/src/delivery/routes/station-client-roundtrip.test.ts#L46), [`station-client-roundtrip.test.ts:52`](apps/stations/src/delivery/routes/station-client-roundtrip.test.ts#L52), [`station-client-roundtrip.test.ts:62`](apps/stations/src/delivery/routes/station-client-roundtrip.test.ts#L62))
+
+The Floor keeps the schedule, the `job_runs` row and the overlap guard — it
+still owns *when* a station runs; it stops owning *what* the station does.
 
 Hierarchy: **Factory ⊃ Floor(s) ⊃ AssemblyLines ⊃ Stations ⊃ Agents** — the design
 side; its runtime shadow is **AssemblyRun ⊃ StationRuns ⊃ Agents**.

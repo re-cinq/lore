@@ -1,0 +1,64 @@
+# Namespace this subchart's resources are deployed into (umbrella spans namespaces).
+namespace: lore-event-router
+
+# One replica is enough and more is not obviously safe: two routers both hold a
+# Kubernetes watch, so a terminal CR would be observed twice. The dedupe key
+# collapses those to one row, so this is a cost question rather than a
+# correctness one — but there is no reason to pay it yet.
+replicaCount: 1
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+image:
+  repository: ghcr.io/re-cinq/lore-event-router
+  tag: latest
+  pullPolicy: Always
+
+imagePullSecrets:
+  - name: ghcr-pull-secret
+
+service:
+  type: ClusterIP
+  port: 8080
+
+resources:
+  limits:
+    cpu: "300m"
+    # A GitHub push delivery can reach 25MB and is read as a raw body before it
+    # is parsed, so the ceiling is set by the largest webhook rather than by
+    # steady-state load.
+    memory: 512Mi
+  requests:
+    cpu: "50m"
+    memory: 256Mi
+
+env:
+  LORE_DB_HOST: lore-db-rw.lore-db.svc.cluster.local
+  LORE_DB_PORT: "5432"
+  LORE_DB_NAME: lore
+  LORE_DB_USER: lore
+  PORT: "8080"
+  # The watch only runs where there are Agent CRs to watch.
+  LORE_STATION_BACKEND: "k8s"
+  LORE_AGENTS_NAMESPACE: ai-agents
+
+# The namespace the watch Role is granted in — must equal env.LORE_AGENTS_NAMESPACE.
+agentsNamespace: ai-agents
+
+dbPasswordSecret:
+  name: lore-event-router-db-password
+  key: password
+
+# Verifies the HMAC on GitHub's webhook branch. Must equal the secret configured
+# on each repo's webhook, or every delivery is refused 401.
+webhookSecret:
+  name: lore-event-router-webhook
+  key: webhook-secret
+
+# The token the REPORTING branch accepts, and the one every producer (Floor,
+# lore-api) presents. Both ends read the same secret.
+ingestTokenSecret:
+  name: lore-agent-internal-token
+  key: token

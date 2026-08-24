@@ -1,4 +1,4 @@
-import { errorMessage, loadKube } from "@re-cinq/lore-shared";
+import { agentsNamespace, errorMessage, loadKube } from "@re-cinq/lore-shared";
 /**
  * Agent CR (agents.re-cinq.com) processing (ADR-031). The decisions that differ
  * from a LoreTask (Agent.status carries no changedFiles / reviewResult / taskType,
@@ -22,11 +22,13 @@ import {
   projectFor,
   assemblyLineNames,
 } from "../../composition/project-boot.js";
-import { pipeline, taskStore, settings } from "../../kernel/queues.js";
 import {
-  writeEpisode,
-  writeEpisodeWithCuration,
-} from "../lib/episode-writer.js";
+  memoryLifecycle,
+  pipeline,
+  taskStore,
+  settings,
+} from "../../kernel/queues.js";
+import { writeEpisode, writeEpisodeWithCuration } from "@re-cinq/lore-shared";
 import { tryAutoMergeForCompletedTask } from "../merge/auto-merge-trigger.js";
 import {
   ASSEMBLY_RUN_ID_LABEL,
@@ -66,10 +68,6 @@ import { PlatformGitHub } from "@re-cinq/lore-shared/project/lib/platform-github
 const GROUP = "agents.re-cinq.com";
 const VERSION = "v1alpha1";
 const PLURAL = "agents";
-
-export function agentsNamespace(): string {
-  return process.env.LORE_AGENTS_NAMESPACE ?? "ai-agents";
-}
 
 /** Agent output can be large — keep only the tail for issue/PR bodies. */
 function tailOutput(output: string, limit = 60000): string {
@@ -561,6 +559,7 @@ async function handleSucceededChanges(ctx: AgentContext): Promise<void> {
         );
       }
       writeEpisode(
+        { memory: memoryLifecycle() },
         `Task ${taskType} on ${target_repo} completed (no changes)\nDescription: ${description.substring(0, 500)}\nOutput: ${output.substring(0, 2000)}`,
         "ci",
         `${target_repo}/${taskId}`,
@@ -644,6 +643,7 @@ async function handleSucceededChanges(ctx: AgentContext): Promise<void> {
     console.log(`[agent-watcher] Task ${taskId} → PR ${pr.url}`);
     ctx.slack.queue(targetRepo, taskId, "pr", pr.url);
     writeEpisodeWithCuration(
+      { memory: memoryLifecycle() },
       `Task ${taskType} on ${targetRepo}: created PR ${pr.url}\nChanged files: ${changedFiles}\nDescription: ${description.substring(0, 500)}`,
       "ci",
       `${targetRepo}/${taskId}`,
@@ -811,6 +811,7 @@ async function handleFailure(ctx: AgentContext, reason: string): Promise<void> {
       `${taskType}: ${reason.substring(0, 200)}`,
     );
     writeEpisodeWithCuration(
+      { memory: memoryLifecycle() },
       `Task failed on ${targetRepo}: ${taskType}\n\nDescription: ${description}\n\nFailure: ${reason}\n\nOutput:\n${output.slice(-2000)}`,
       "ci",
       `${targetRepo}/${taskId}`,

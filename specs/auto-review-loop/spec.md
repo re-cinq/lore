@@ -288,11 +288,11 @@ and the webhook/verdict plumbing it rides on.
 
 6. The GitHub webhook maps `pull_request.closed` to `github.pull_request.closed` carrying
    `merged`/`branch`/`merge_commit_sha`/`labels` — for both a merged and a closed-without-merge PR —
-   so code-review can finish its line. ([validated by `github-map.test.ts:24`](apps/floor/src/listeners/github-map.test.ts#L24), [`github-map.test.ts:54`](apps/floor/src/listeners/github-map.test.ts#L54))
+   so code-review can finish its line. ([validated by `github-map.test.ts:24`](libs/shared/src/project/events/github-map.test.ts#L24), [`github-map.test.ts:54`](libs/shared/src/project/events/github-map.test.ts#L54))
 
 7. A human reply arrives as a created `pull_request_review_comment` mapped to
    `github.pull_request_review_comment.created` with author/id/body; a non-created review comment is
-   ignored. ([validated by `github-map.test.ts:187`](apps/floor/src/listeners/github-map.test.ts#L187), [`github-map.test.ts:214`](apps/floor/src/listeners/github-map.test.ts#L214), [`github-map.test.ts:246`](apps/floor/src/listeners/github-map.test.ts#L246))
+   ignored. ([validated by `github-map.test.ts:187`](libs/shared/src/project/events/github-map.test.ts#L187), [`github-map.test.ts:214`](libs/shared/src/project/events/github-map.test.ts#L214), [`github-map.test.ts:246`](libs/shared/src/project/events/github-map.test.ts#L246))
 
 8. The watcher parses the agent's review verdict from stdout: `REVIEW_RESULT:APPROVED` → `approved`,
    `CHANGES_REQUESTED` (with trailing feedback) → `changes_requested`, and no marker or absent output
@@ -410,11 +410,11 @@ The code-review assembly line is the sole reviewer (ADR-012 amendment): a **deep
 - A `code-review-recheck` node's changes-requested verdict is posted as a formal `REQUEST_CHANGES` review. ([validated by](apps/floor/src/jobs/assembly-run/node-terminal.test.ts#L837))
 - A `code-review-recheck` node's approving verdict is posted as a formal `APPROVE` review. ([validated by](apps/floor/src/jobs/assembly-run/node-terminal.test.ts#L851))
 
-### `apps/floor/src/listeners/github-map.test.ts`
+### `libs/shared/src/project/events/github-map.test.ts`
 
-- returns nothing for a check with no backing PRs. ([validated by](apps/floor/src/listeners/github-map.test.ts#L286))
-- returns nothing when the repository is missing. ([validated by](apps/floor/src/listeners/github-map.test.ts#L334))
-- returns nothing for an unhandled event type. ([validated by](apps/floor/src/listeners/github-map.test.ts#L344))
+- returns nothing for a check with no backing PRs. ([validated by](libs/shared/src/project/events/github-map.test.ts#L286))
+- returns nothing when the repository is missing. ([validated by](libs/shared/src/project/events/github-map.test.ts#L334))
+- returns nothing for an unhandled event type. ([validated by](libs/shared/src/project/events/github-map.test.ts#L344))
 
 ### `apps/lore-station/src/stations/comment-triage.test.ts`
 

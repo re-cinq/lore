@@ -9,7 +9,7 @@ import {
   type Agent as AgentCr,
 } from "@re-cinq/agent-contracts";
 import type { AgentNodeStatus } from "@re-cinq/lore-assembly-lines";
-import { loadKube } from "@re-cinq/lore-shared";
+import { agentsNamespace, loadKube } from "@re-cinq/lore-shared";
 import type { AgentApi } from "./agent-backend.js";
 
 const PLURAL = "agents";
@@ -39,7 +39,7 @@ export function statusFromAgentCr(obj: AgentCr): AgentNodeStatus {
 
 export class KubeAgentApi implements AgentApi {
   private namespace(): string {
-    return process.env.LORE_AGENTS_NAMESPACE ?? "ai-agents";
+    return agentsNamespace();
   }
 
   private async customObjects() {

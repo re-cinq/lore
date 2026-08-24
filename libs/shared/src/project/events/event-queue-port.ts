@@ -32,6 +32,15 @@ export interface EventRow {
  * ones. Single-sourced here so the event-bus SQL has one home; the Floor loop,
  * registry, and scheduler keep their orchestration.
  */
+/**
+ * The producer half, alone.
+ *
+ * A producer needs to report and nothing else, and after ADR-044 it may not even
+ * hold a pool — the Pg adapter and the HTTP reporter both satisfy this, so a
+ * producer's dependency says "somewhere to report", not "the queue".
+ */
+export type EventReporter = Pick<EventQueueRepository, "insert">;
+
 export interface EventQueueRepository {
   /** Insert one event, collapsing a redelivery when `dedupeKey` is set. */
   insert(input: EventInsert): Promise<void>;

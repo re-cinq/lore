@@ -25,6 +25,19 @@ export {
 } from "./chunker.js";
 export { redactSecrets } from "./redact.js";
 export {
+  writeEpisode,
+  writeEpisodeWithCuration,
+  type WriteEpisodeDeps,
+  type CurationDeps,
+} from "./episode-writer.js";
+export {
+  loadApprovalConfig,
+  requiresApproval,
+  getApprovalLabel,
+  getApprovalConfig,
+  type ApprovalConfig,
+} from "./approval-config.js";
+export {
   extractSection,
   stripCommentsAndWhitespace,
   sectionIsEmpty,
@@ -159,7 +172,13 @@ export {
   specSlugFromBranch,
   type ParsedTask,
 } from "./tasks.js";
-export { insertEvent, eventRepo, type EventInsert } from "./events.js";
+export {
+  insertEvent,
+  eventRepo,
+  SOURCES,
+  type EventInsert,
+  type EventSource,
+} from "./events.js";
 export {
   formatTrailers,
   formatValidatesTrailer,
@@ -389,6 +408,7 @@ export {
 export { isBusinessHours } from "./business-hours.js";
 export { isAlreadyExistsError } from "./k8s-errors.js";
 export {
+  agentsNamespace,
   kubeConfigSource,
   loadKube,
   type KubeConfigSource,

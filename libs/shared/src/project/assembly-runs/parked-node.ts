@@ -11,8 +11,7 @@
 // at all — it minted a fresh task instead, on a predicate that silently stopped
 // matching (specs/6-dark-factory FR6.32).
 
-import type { Pool } from "pg";
-import { insertEvent } from "../../events.js";
+import type { EventReporter } from "../events/event-queue-port.js";
 import { RUN_RESUME_EVENT } from "./run-events.js";
 import type { RunGraph } from "./run-graph.js";
 
@@ -102,12 +101,12 @@ export interface ParkedTarget {
  * fails to land loses the work, and the caller's 202 would claim it started.
  */
 export async function reportToParkedNode(
-  pool: Pool,
+  reporter: EventReporter,
   target: ParkedTarget,
   outcome: "success" | "changes_requested" | "failed",
   args: Record<string, unknown> = {},
 ): Promise<void> {
-  await insertEvent(pool, {
+  await reporter.insert({
     eventName: RUN_RESUME_EVENT,
     source: "internal",
     params: {

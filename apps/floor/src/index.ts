@@ -1,7 +1,7 @@
 import { initOtel, shutdownOtel } from "./otel-init.js";
 import { createShutdown } from "./shutdown.js";
 import { Llm } from "@re-cinq/lore-shared";
-import { initPool } from "./kernel/db.js";
+import { getPool, initPool } from "./kernel/db.js";
 import { awaitSoleFloor } from "./kernel/single-instance.js";
 import { usage } from "./kernel/queues.js";
 import { loadTaskTypes } from "./kernel/config.js";
@@ -11,7 +11,7 @@ import {
   getJobStatus,
 } from "./main-loop/scheduling/scheduler.js";
 import { startHealthServer } from "./delivery/http/server.js";
-import { loadApprovalConfig } from "./jobs/dark-factory/approval.js";
+import { loadApprovalConfig } from "@re-cinq/lore-shared";
 
 // Event bus (the 3 layers). Layer 1 listeners: the GitHub webhook (mounted on the
 // health server), the k8s Agent-CR watch, and the cron emitters below. Layer 2: the
@@ -22,7 +22,6 @@ import { startEventLoop } from "./main-loop/loop.js";
 import { startEventReaper } from "./main-loop/reaper.js";
 import { registerCronEmitter } from "./listeners/scheduler-emitter.js";
 import { CRON_EMITTERS } from "./listeners/cron-emitters.js";
-import { startK8sWatch } from "./listeners/k8s-watch.js";
 
 async function main(): Promise<void> {
   console.log("[floor] Lore Floor Service starting...");
@@ -39,7 +38,7 @@ async function main(): Promise<void> {
     console.warn("[floor] Could not load task types:", err);
   }
 
-  await loadApprovalConfig();
+  await loadApprovalConfig(getPool());
 
   const recovered = await recoverStaleTasks();
 
@@ -80,7 +79,6 @@ async function main(): Promise<void> {
   startEventReaper();
 
   // ── Layer 1: the k8s Agent-CR watch (emits kubernetes.agent.* events) ──
-  startK8sWatch();
 
   // ── Layer 1: cron emitters. Each scheduled tick INSERTs a cron.<name>.tick event;
   // the loop runs the handler. The set is single-sourced in cron-emitters.ts (the
