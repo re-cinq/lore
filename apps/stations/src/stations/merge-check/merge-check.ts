@@ -6,19 +6,15 @@
 //
 // Only its imports changed.
 
-import { errorMessage } from "@re-cinq/lore-shared";
 import {
-  eventReporter,
   pipeline,
   taskStore,
   settings,
   memoryLifecycle,
 } from "../../kernel/queues.js";
 import { getPool } from "@re-cinq/lore-shared/db/pg-pool.js";
-import {
-  eventReport,
-  resumeDecomposition,
-} from "@re-cinq/lore-shared/project/assembly-runs/decompose-resume.js";
+import { startMergeLine } from "./start-merge-line.js";
+import {} from "@re-cinq/lore-shared/project/assembly-runs/decompose-resume.js";
 import { projectFor } from "../../kernel/project-boot.js";
 import { writeEpisodeWithCuration } from "@re-cinq/lore-shared";
 import { nextTrust } from "../lib/trust-ladder.js";
@@ -39,7 +35,7 @@ import type { MergeableTask } from "@re-cinq/lore-shared/project/tasks/task-queu
  * both upsert identically — the fallback used to hand-roll an insert-only loop,
  * which diverged (no update-on-existing, different created_by).
  */
-async function syncSpecTasksFromMerge(task: {
+export async function syncSpecTasksFromMerge(task: {
   id: string;
   target_repo: string;
   target_branch: string | null;
@@ -158,7 +154,15 @@ export async function mergeCheckJob(): Promise<string> {
       const project = await projectFor(task.target_repo);
 
       if (await project.pulls.isMerged(task.pr_number)) {
-        await handleMergedTask(project, task);
+        // The sweep NOTICES the merge; the line does the work. Nine steps
+        // behind five swallowing catches became nine recorded visits whose
+        // failures route forward — a throw in `promoteTrust` no longer skips
+        // `resume-planning` and strands a feature's planning line.
+        await startMergeLine(task, {
+          findOpenBySubject: (repo, key) =>
+            pipeline().assemblyRuns.findOpenBySubject(repo, key),
+          start: (input) => pipeline().assemblyRuns.start(input),
+        });
         tasksMerged++;
         console.log(
           `[job] merge-check: task ${task.id} PR #${task.pr_number} merged`,
@@ -227,7 +231,7 @@ export function decideFeatureImplemented(result: StatusFlipResult): boolean {
  * is left for a human to reconcile. No-op for non-spec-tasks, groupless tasks,
  * incomplete groups, or unresolvable features.
  */
-async function maybeFlipSpecStatus(
+export async function maybeFlipSpecStatus(
   project: Project,
   task: MergeableTask,
 ): Promise<void> {
@@ -269,104 +273,6 @@ async function maybeFlipSpecStatus(
 
 /** A merged task: mark merged, close its Issue, capture the outcome episode + stats,
  *  boost contributing memory, promote trust, and kick spec-sync / decompose. */
-async function handleMergedTask(
-  project: Project,
-  task: MergeableTask,
-): Promise<void> {
-  await taskStore().setStatus(task.id, "merged");
-  await taskStore().recordEvent(task.id, "pr-created", "merged", {
-    merged_by: "merge-check",
-  });
-
-  // spec-status-upkeep (FR1): when this merge completes a feature's task group,
-  // flip the spec's status header to Implemented and mark the feature done.
-  try {
-    await maybeFlipSpecStatus(project, task);
-  } catch (err) {
-    console.error(
-      `[job] merge-check: spec-status flip failed for ${task.id}: ${errorMessage(err)}`,
-    );
-  }
-
-  // Close the GitHub Issue if still open
-  if (task.issue_number) {
-    try {
-      await project.issues.comment(
-        task.issue_number,
-        `PR #${task.pr_number} merged.`,
-      );
-      await project.issues.close(task.issue_number, "completed");
-    } catch {
-      /* best effort */
-    }
-  }
-
-  // Capture PR outcome as episode for learning
-  try {
-    const stats = await project.pulls.getStats(task.pr_number);
-    const timeToMerge = stats.merged_at
-      ? Math.round(
-          (new Date(stats.merged_at).getTime() -
-            new Date(stats.created_at).getTime()) /
-            3600000,
-        )
-      : null;
-    const episode = `Task ${task.task_type} on ${task.target_repo}: PR #${task.pr_number} merged.\nFiles changed: ${stats.files_changed}, +${stats.additions}/-${stats.deletions}\nReview comments: ${stats.comments}\nTime to merge: ${timeToMerge}h\nDescription: ${task.description.substring(0, 200)}`;
-
-    await writeEpisodeWithCuration(
-      { memory: memoryLifecycle() },
-      episode,
-      "ci",
-      `${task.target_repo}/${task.id}`,
-      "merge-check",
-      task.id,
-    );
-    await settings().bumpOutcomeStats(
-      task.target_repo,
-      stats.files_changed,
-      timeToMerge || 0,
-    );
-  } catch {
-    /* outcome capture is best-effort */
-  }
-
-  await applyOutcomeFeedback(task.id, "boost");
-  await promoteTrust(task.target_repo);
-
-  // For feature-request tasks, auto-sync spec-tasks from tasks.md
-  if (task.task_type === "feature-request") {
-    try {
-      await syncSpecTasksFromMerge(task);
-    } catch (err) {
-      console.error(
-        `[job] merge-check: spec-task sync failed for ${task.id}: ${errorMessage(err)}`,
-      );
-    }
-  }
-
-  // When a spec PR merges, the line that pushed it is parked on its `merged` wait
-  // node — resume it, and decomposition runs as the tail of that same line
-  // (ADR-029 amendment, FR6.32). Nothing is minted: the old kick created a
-  // feature-decompose task on a task-type predicate that stopped matching the
-  // moment finalize became a resume, so nothing decomposed and nothing said so.
-  const pool = getPool();
-
-  if (task.pr_number && pool) {
-    try {
-      await resumeDecomposition(
-        { repo: task.target_repo, prNumber: task.pr_number },
-        {
-          assemblyRuns: pipeline().assemblyRuns,
-          report: eventReport(eventReporter()),
-        },
-      );
-    } catch (err) {
-      console.error(
-        `[job] merge-check: could not resume decomposition for ${task.id}: ${errorMessage(err)}`,
-      );
-    }
-  }
-}
 
 /** A PR closed without merging: mark failed and penalize contributing memory. */
 async function handleRejectedTask(task: MergeableTask): Promise<void> {
@@ -390,7 +296,7 @@ async function handleRejectedTask(task: MergeableTask): Promise<void> {
 
 /** Boost or penalize a task's contributing facts/memories (PR-outcome feedback).
  *  Best-effort; single source for the previously duplicated boost/penalize blocks. */
-async function applyOutcomeFeedback(
+export async function applyOutcomeFeedback(
   taskId: string,
   action: "boost" | "penalize",
 ): Promise<void> {
@@ -428,7 +334,7 @@ async function applyOutcomeFeedback(
 /** Progressive trust: bank one successful merge, promoting a level when the
  *  threshold is reached. The ladder itself is `nextTrust` — this only writes
  *  what it decides. Best-effort: a failure here must not fail a merge. */
-async function promoteTrust(targetRepo: string): Promise<void> {
+export async function promoteTrust(targetRepo: string): Promise<void> {
   try {
     const repoSettings = await settings().rawSettings(targetRepo);
 

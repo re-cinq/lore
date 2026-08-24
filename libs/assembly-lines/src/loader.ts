@@ -20,6 +20,10 @@ const NodeType = z.enum([
   // an agent: the judgement (which stories, which labels) already happened upstream,
   // and this only writes what the artifact says.
   "issues",
+  // One step of the merge line. Parameterised by `job_ref` rather than split into
+  // nine node types, the way `detect` is: they share a shape and differ only in
+  // which piece of post-merge work they do.
+  "merge_step",
   // Stations whose worker is OUTSIDE the pod system — a PERSON. They dispatch
   // nothing and park the run until the page named by `route` reports an outcome,
   // over HTTP, on the same station contract a pod reports over stdout. The TYPE
@@ -137,6 +141,7 @@ const PRODUCIBLE_OUTCOMES: Record<
   "comment-triage": ["success", "failed"],
   ingest: ["success", "failed"],
   issues: ["success", "changes_requested", "failed"],
+  merge_step: ["success", "failed"],
   // accept / merged, refine, and abandoned — a person can do all three.
   feature_review: ["success", "changes_requested", "failed"],
   pr_review: ["success", "changes_requested", "failed"],

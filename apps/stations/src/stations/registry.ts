@@ -17,6 +17,7 @@ import { approvalCheck } from "./approval-check/manifest.js";
 import { importanceDecayStation } from "./importance-decay/manifest.js";
 import { memoryTtl } from "./memory-ttl/manifest.js";
 import { mergeCheck } from "./merge-check/manifest.js";
+import { mergeStep } from "./merge-step/manifest.js";
 import { validate } from "./validate/manifest.js";
 import { retrospective } from "./retrospective/manifest.js";
 import { detect } from "./detect/manifest.js";
@@ -35,6 +36,7 @@ export const STATION_NAMES = [
   "issues",
   "memory-ttl",
   "merge-check",
+  "merge-step",
   "retrospective",
   "validate",
 ] as const;
@@ -51,6 +53,7 @@ export const STATIONS: Record<StationName, StationModule> = {
   issues,
   "memory-ttl": memoryTtl,
   "merge-check": mergeCheck,
+  "merge-step": mergeStep,
   retrospective,
   validate,
 };

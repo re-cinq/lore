@@ -623,6 +623,7 @@ describe("loadAssemblyLineDir — bundled assemblyLines", () => {
       "general",
       "implementation",
       "ingest",
+      "merge",
       "spec-coverage-backfill",
       "spec-coverage-validate",
       "spec-drift",
