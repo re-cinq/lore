@@ -36,18 +36,74 @@
   color: var(--danger);
 }
 
-/* Collapsed by default: recording a balance is occasional, reading one is
-   constant, and an always-open form would push the figures down the page. */
+/* The balance section holds ONE card, so the `flex: 1` every other card wants
+   stretched it across the whole page — a single figure with an acre of empty
+   space beside it. Sized to its content instead, and allowed to shrink on
+   narrow screens rather than forcing a horizontal scroll. */
+.balanceCard {
+  flex: 0 1 auto;
+  min-width: 260px;
+  max-width: 360px;
+}
+
+/* Collapsed once there is a figure to read; opened by the view when the ledger
+   is empty, because recording the balance is then the only thing this screen
+   can usefully do and hiding it behind a triangle made it look absent. */
 .recordDetails {
   margin-bottom: 24px;
+}
+
+.recordDetails summary {
+  cursor: pointer;
+  font-weight: bold;
+  padding: 4px 0;
 }
 
 .recordForm {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
   max-width: 420px;
-  margin-top: 8px;
+  margin-top: 12px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-surface);
+}
+
+/* Global styles give inputs a font and a focus ring and nothing else, so these
+   rendered as raw browser controls next to a carefully typeset page. */
+.recordForm input {
+  padding: 7px 10px;
+  margin-bottom: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  color: var(--text);
+  font-size: var(--fs-sm);
+}
+
+.recordForm input:hover {
+  border-color: var(--border-hover);
+}
+
+.recordForm label {
+  font-size: var(--fs-sm);
+  font-weight: bold;
+}
+
+/* Date and time are one fact split across two controls, so they sit on one
+   row — and wrap together rather than separately when there is no space. */
+.fieldRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.fieldRow > div {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 150px;
 }
 
 /* The form's rules, stated rather than inferred. Muted and small: it is

@@ -16,9 +16,9 @@ const num = (n: number) => Number(n).toLocaleString();
  *  `YYYY-MM-DD` string as a Date makes it UTC midnight, which is the previous
  *  day for every viewer west of Greenwich. */
 const day = (isoDay: string) => {
-  const [y, m, d] = isoDay.split("-").map(Number);
+  const [y, m, d] = isoDay.split("-");
 
-  return new Date(y, m - 1, d).toLocaleDateString();
+  return `${d}-${m}-${y}`;
 };
 
 const tableByHeading = (heading: string): HTMLElement => {
@@ -169,9 +169,7 @@ describe("SpendView", () => {
     render(<SpendView {...loreOnly} />);
     const table = tableByHeading("Daily Cost (This Month)");
 
-    expect(
-      within(table).getByText(new Date("2026-08-07").toLocaleDateString()),
-    ).toBeInTheDocument();
+    expect(within(table).getByText(day("2026-08-07"))).toBeInTheDocument();
     expect(within(table).getByText(usd(14.24))).toBeInTheDocument();
     expect(within(table).getByText(num(32))).toBeInTheDocument();
   });
@@ -219,11 +217,18 @@ describe("SpendView", () => {
     render(<SpendView {...withAdminKey} />);
     expect(screen.getByText("Billed cost (Anthropic)")).toBeInTheDocument();
     expect(screen.getByText(usd(1234.5))).toBeInTheDocument();
-    expect(
-      screen.getByText(
-        `as of ${new Date("2026-08-07T10:00:00.000Z").toLocaleString()}`,
-      ),
-    ).toBeInTheDocument();
+    // Asserted by SHAPE, not by rebuilding the string the way the view does:
+    // a mirrored helper would agree with any format change and catch nothing.
+    // Hardcoding the rendered text is no good either — the stamp is a real
+    // instant shown in local time, so `10:00Z` reads 10:00 on CI (UTC) and
+    // 12:00 in Amsterdam, and the assertion would only hold in one timezone.
+    // The month and year survive any real offset, and the slash is the tell
+    // that someone reverted to `toLocaleString`.
+    const asOf = screen.getByText(/^as of /).textContent ?? "";
+
+    expect(asOf).toMatch(/^as of \d{2}-\d{2}-\d{4} \d{2}:\d{2}$/);
+    expect(asOf).toContain("-08-2026");
+    expect(asOf).not.toContain("/");
     expect(
       within(tableByHeading("Anthropic Billed by Model (MTD)")).getByText(
         "claude-opus-4",
@@ -299,7 +304,8 @@ describe("SpendView", () => {
   it("dates the billed-through day in local time, not the UTC instant", () => {
     // `new Date("2026-08-07")` is UTC midnight, which renders as the 6th for
     // every viewer west of Greenwich: an off-by-one day inside the fix for an
-    // off-by-one day.
+    // off-by-one day. Formatted from the string's parts, so no Date is built
+    // and no timezone can shift it.
     render(
       <SpendView
         {...withAdminKey}
@@ -309,7 +315,7 @@ describe("SpendView", () => {
     );
 
     expect(screen.getByText(/billed through/).textContent).toContain(
-      new Date(2026, 7, 7).toLocaleDateString(),
+      "07-08-2026",
     );
   });
 
@@ -339,16 +345,17 @@ describe("SpendView", () => {
     screen.getByRole("heading", { name: "Balance", level: 2 })
       .nextElementSibling as HTMLElement;
 
-  it("renders the remaining balance above the month-to-date figures", () => {
-    // Position is the point: "how much is left" is what the page is opened
-    // for, and everything below it is context for that one number.
+  it("renders the remaining balance below the month-to-date figures", () => {
+    // Position is deliberate: the balance is month-to-date spend subtracted
+    // from what was recorded, so it reads better after those figures than
+    // before them.
     render(<SpendView {...loreOnly} budget={budget} />);
 
     const headings = screen
       .getAllByRole("heading", { level: 2 })
       .map((h) => h.textContent);
 
-    expect(headings.indexOf("Balance")).toBeLessThan(
+    expect(headings.indexOf("Balance")).toBeGreaterThan(
       headings.indexOf("Month to Date"),
     );
     expect(within(balanceCard()).getByText(usd(187.5))).toBeTruthy();
@@ -563,8 +570,9 @@ describe("SpendView top-up legend", () => {
     render(<SpendView {...loreOnly} recordAction={recordAction} />);
 
     expect(
-      screen.getByText(/blank counts from the start of today/),
+      screen.getByText(/Leave both blank to count from the start of today/),
     ).toBeTruthy();
+    // The wording it replaces, which read equally as "defaults to now".
     expect(screen.queryByText(/defaults to today/)).toBeNull();
   });
 
