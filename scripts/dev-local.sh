@@ -182,7 +182,10 @@ log "Building shared, runner, server-core, lore-api, mcp-server, agent..."
 npm run build
 
 # 5. Run everything with live reload — one slot per process so -k kills all.
-#    Each TS service gets a tsc --watch (recompile) + node --watch (restart) pair.
+#    Each TS service gets a tsc --watch (recompile) + node --watch (restart) PAIR.
+#    Both halves, always: node --watch watches ./dist, so a service given only the
+#    restart half watches a directory nothing recompiles and an edit to its source
+#    changes nothing until the next manual build.
 #    start:watch watches both ./dist and ../shared/dist, so a shared-package edit
 #    recompiles (shared tsc) and restarts the dependent services too.
 #
@@ -223,8 +226,8 @@ set -m
 # LORE_AGENT_SKILLS_DIR is explicit because the gateway otherwise resolves the
 # bundle relative to cwd, and concurrently runs from the repo root.
 npx concurrently -k \
-  -n "shared,core,api-tsc,api,mcp-tsc,skills,agent-tsc,agent,router,stations,cluster,ui" \
-  -c "blue,gray,green,greenBright,yellow,white,magenta,magentaBright,red,redBright,yellowBright,cyan" \
+  -n "shared,core,api-tsc,api,mcp-tsc,skills,agent-tsc,agent,router-tsc,router,stations-tsc,stations,cluster-tsc,cluster,ui" \
+  -c "blue,gray,green,greenBright,yellow,white,magenta,magentaBright,red,red,redBright,redBright,yellowBright,yellowBright,cyan" \
   "npm run dev -w @re-cinq/lore-shared" \
   "npm run dev -w @re-cinq/lore-server-core" \
   "npm run dev -w @re-cinq/lore-api" \
@@ -233,8 +236,11 @@ npx concurrently -k \
   "LORE_MCP_HTTP=1 LORE_MCP_PORT=3002 LORE_AGENT_SKILLS_DIR=$ROOT/apps/mcp-server/agent-skills npm run start -w @re-cinq/lore-mcp" \
   "npm run dev -w @re-cinq/lore-floor" \
   "npm run start:watch -w @re-cinq/lore-floor" \
+  "npm run dev -w @re-cinq/lore-event-router" \
   "PORT=3003 npm run start:watch -w @re-cinq/lore-event-router" \
+  "npm run dev -w @re-cinq/lore-stations" \
   "PORT=3004 npm run start:watch -w @re-cinq/lore-stations" \
+  "npm run dev -w @re-cinq/lore-cluster-agent" \
   "PORT=3005 npm run start:watch -w @re-cinq/lore-cluster-agent" \
   "npm --prefix apps/web-ui run dev" &
 STACK_PGID=$!
