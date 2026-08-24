@@ -126,9 +126,12 @@ Optionally set `GITHUB_ALLOWED_ORG` in the same file to restrict login to one or
 ```
 lore/
 ├── apps/                       # deployable services
-│   ├── floor/                  # Floor — coordinator runtime (TypeScript: task runner, scheduler, controllers)
+│   ├── floor/                  # Floor — coordinator runtime (drain loop, AssemblyRun walk, dispatch, SSE)
+│   ├── event-router/           # Sole writer of pipeline.events — one front door + the claim API (ADR-044)
+│   ├── cluster-agent/          # The only process that talks to this cluster's Kubernetes API
 │   ├── lore-api/               # Remote REST backend (/api/*) on GKE — DB / GitHub / GCS / tree-sitter
-│   ├── mcp-server/             # Local stdio MCP adapter — proxies every op to the Lore API
+│   ├── stations/               # Service stations — POST /api/stations/{name} (merge-check, approval-check)
+│   ├── mcp-server/             # Local stdio MCP adapter (+ the in-cluster lore-mcp HTTP gateway)
 │   ├── lore-station/           # Station pod image (runs one non-agent assembly-line node per pod)
 │   ├── lore-code-trace/        # Go binary — runs a repo's test suite in CI and posts the trace
 │   ├── web-ui/                 # Next.js dashboard (repo-centric UI, GitHub OAuth)
@@ -138,8 +141,9 @@ lore/
 │   ├── server-core/            # @re-cinq/lore-server-core — light business logic shared by both deployables
 │   └── assembly-lines/         # @re-cinq/lore-assembly-lines — assembly-line loader, graph, node outcomes
 ├── infra/                      # deploy & runtime
-│   ├── terraform/modules/      # Terraform + the `lore-platform` umbrella Helm chart
-│   │                           #   (floor / lore-api / ui / lore-db / ai-agents subcharts)
+│   ├── terraform/modules/      # Terraform + the `lore-platform` umbrella Helm chart (9 subcharts:
+│   │                           #   floor / event-router / cluster-agent / lore-api / lore-mcp /
+│   │                           #   stations / ui / lore-db / ai-agents)
 │   └── compose.yaml            # Local Postgres + Dgraph for the dev stack
 ├── scripts/                    # install.sh, lore-doctor, infra setup scripts
 ├── adrs/                       # Architecture decision records (MADR format)
@@ -147,10 +151,15 @@ lore/
 ├── runbooks/                   # Incident & operational runbooks
 ├── teams/                      # Per-team CLAUDE.md overrides
 ├── docs/                       # Guides (using-lore, building-lore)
-└── .github/workflows/          # CI: build + push containers for Floor, MCP, UI
+└── .github/workflows/          # CI: build + push containers for Floor, Lore API, MCP, station, UI
 ```
 
-npm workspaces cover `libs/*` and the TypeScript apps (`floor`, `lore-api`, `lore-station`, `mcp-server`, `vscode-extension`). `web-ui` is a standalone Next.js app (its own lockfile, not a workspace), and `lore-code-trace` is a Go module.
+npm workspaces cover `libs/*` and the TypeScript apps (`cluster-agent`, `event-router`, `floor`, `lore-api`, `stations`, `lore-station`, `mcp-server`, `vscode-extension`) — the root `package.json` names each one explicitly rather than globbing `apps/*`. `web-ui` is a standalone Next.js app (its own lockfile, not a workspace), and `lore-code-trace` is a Go module.
+
+> **Gap worth knowing.** `event-router`, `cluster-agent`, and `stations` each have a
+> `Dockerfile` and a Helm subchart, but no `build-*.yml` workflow — their chart values
+> still read `tag: latest` while every CI-built service is pinned to a short SHA. Their
+> images are built by hand today; a change to one of them does not ship by merging.
 
 ## Tech stack
 
@@ -159,6 +168,8 @@ npm workspaces cover `libs/*` and the TypeScript apps (`floor`, `lore-api`, `lor
 | MCP Server | TypeScript, `@modelcontextprotocol/sdk`, Zod |
 | Lore API | TypeScript, `@hapi/hapi` (REST), Zod, `pg`, Octokit, tree-sitter |
 | Floor | TypeScript, `@anthropic-ai/sdk`, Claude Code (headless) |
+| event-router / stations | TypeScript, `@hapi/hapi`, Zod, `pg` |
+| cluster-agent | TypeScript, `@hapi/hapi`, `@kubernetes/client-node` (the only app that holds it, besides the event-router's watch) |
 | Web UI | Next.js 15, NextAuth v4 (GitHub OAuth) |
 | Database | PostgreSQL 16 + pgvector (CloudNativePG) |
 | Embeddings | Vertex AI `text-embedding-005` (768 dim) |

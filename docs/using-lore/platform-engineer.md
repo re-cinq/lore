@@ -8,7 +8,7 @@ If you're standing up Lore for the first time, deploy the backend first, then co
 
 ## Tasks via the Web UI or API
 
-A product owner or platform engineer creates a task through the dashboard. The Floor processes it — either via a direct API call (simple tasks) or by dispatching `Agent` CRs on the ai-agent-subsystem in the `ai-agents` namespace (complex tasks; one pod per assembly-line node, advanced by the event-driven Floor walk).
+A product owner or platform engineer creates a task through the dashboard. The Floor processes it — either via a direct API call (simple tasks) or by dispatching `Agent` CRs on the ai-agent-subsystem in the `ai-agents` namespace (complex tasks; one pod per assembly-line node, advanced by the event-driven Floor walk). The Floor holds no Kubernetes client of its own: dispatch, pod logs, and per-task tokens all go through the **cluster-agent** service.
 
 <p align="center"><img src="../../badges/flow2-webui.svg" width="600" alt="Tasks via Web UI or API" /></p>
 
@@ -105,7 +105,7 @@ Each onboarded repo has configurable settings at `LORE_UI_DOMAIN/repos/{owner}/{
 
 Platform configuration lives at `LORE_UI_DOMAIN/settings`:
 
-- **API URL** — the external MCP server endpoint
+- **API URL** — the external Lore API endpoint (`LORE_API_URL`); the local MCP adapter proxies every operation to it
 - **Ingest Token** — shared auth token for API calls (legacy single-token mode)
 - **Regenerate Token** — rotates the token (invalidates all existing)
 - **Dev Install Command** — copy-paste for new developer onboarding
