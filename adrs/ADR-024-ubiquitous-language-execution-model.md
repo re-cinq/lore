@@ -131,6 +131,18 @@ and lose the update; no `resourceVersion` ever crosses the wire.
   written as a present-but-useless Secret key that fails later inside a pod's
   init container. ([validated by throws naming the repo and the App vars when the token comes back empty](apps/cluster-agent/src/kernel/kube-token-provisioner.test.ts#L13), [`kube-token-provisioner.test.ts:5`](apps/cluster-agent/src/kernel/kube-token-provisioner.test.ts#L5))
 
+
+The callers keep their behaviour, not just their shape. A CR that no longer
+exists is an ordinary answer and stops the work; anything else throws so the
+drain loop retries rather than marking the event handled — the distinction the
+Floor used to make by sniffing a 404 out of a Kubernetes error.
+  ([validated by treats a pruned CR as nothing to do — no processing, no throw](apps/floor/src/jobs/kubernetes.test.ts#L26), [`kubernetes.test.ts:35`](apps/floor/src/jobs/kubernetes.test.ts#L35), [`kubernetes.test.ts:46`](apps/floor/src/jobs/kubernetes.test.ts#L46), [`kubernetes.test.ts:62`](apps/floor/src/jobs/kubernetes.test.ts#L62))
+
+The reconcile pass keeps paging, and its seam narrowed with the cut: it now
+depends on one page-fetch method rather than a slice of a Kubernetes client, so
+a test fakes the thing it actually needs.
+  ([validated by walks every page via the continue token and passes the page limit](apps/floor/src/listeners/agent-reconcile.test.ts#L56), [`agent-reconcile.test.ts:79`](apps/floor/src/listeners/agent-reconcile.test.ts#L79), [`agent-reconcile.test.ts:92`](apps/floor/src/listeners/agent-reconcile.test.ts#L92))
+
 The Role this service carries also closes two gaps the Floor had been silently
 living with: it never held `delete` on `agents` or `agents/status`, yet issued
 both at sites that swallowed the failure — which is why the CR prune could

@@ -10,92 +10,69 @@
  *     which is the one failure this pass exists to survive.
  *   - Deciding whether a terminal CR is still worth re-emitting reads business
  *     state — is this run open, is this task still running — that the router has
- *     no other reason to know. The Floor already holds both that state and a
- *     Kubernetes client for dispatch, so the pass costs it a list and nothing
- *     more.
+ *     no other reason to know. The Floor holds that state; the cluster reads it
+ *     needs go through the cluster agent.
  *
  * Re-emits go through the router like every other Floor-side report; a backstop
  * does not get to bypass the one writer.
  */
 
-import type { CustomObjectsApi } from "@kubernetes/client-node";
 import type { Agent as AgentCr } from "@re-cinq/agent-contracts";
-import { agentsNamespace } from "@re-cinq/lore-shared";
+import { HttpAgentApi } from "@re-cinq/lore-shared";
 import { mapAgentToEvent } from "@re-cinq/lore-shared/project/events/k8s-map.js";
-import { pipeline, taskStore } from "../kernel/queues.js";
+import { clusterAgent, pipeline, taskStore } from "../kernel/queues.js";
 import { insertEvent } from "../main-loop/store.js";
-import { makeAgentsApi } from "../jobs/watcher/agent-watcher.js";
 
-const GROUP = "agents.re-cinq.com";
-const VERSION = "v1alpha1";
-const PLURAL = "agents";
 const PRUNE_AFTER_MS = 60 * 60 * 1000;
 const LIST_PAGE_LIMIT = 50;
 
-/** The slice of CustomObjectsApi the paginated list needs; tests fake this. */
-export type AgentLister = Pick<CustomObjectsApi, "listNamespacedCustomObject">;
-
-interface AgentListPage {
-  items?: AgentCr[];
-  // The wire field is `continue`; custom-object responses are raw JSON, but the
-  // client's model mapper would surface `_continue` — read whichever is present.
-  metadata?: {
+/** The one call the paged walk makes. Narrowed from a CustomObjectsApi slice to
+ *  exactly this, so a test fakes one method rather than a Kubernetes client. */
+export interface AgentLister {
+  listPage(opts: {
+    limit: number;
     continue?: string;
-    _continue?: string;
-    resourceVersion?: string;
-  };
+  }): Promise<{ items: AgentCr[]; continueToken?: string }>;
 }
 
 /**
- * Walk the Agent CRs one page at a time, returning the list's resourceVersion.
+ * Walk the Agent CRs one page at a time.
  * Never holds (or JSON.parses) the whole namespace at once: 180 accumulated CRs
  * (~1.4MB of status each) in a single unpaginated LIST blew Node's heap and
  * crash-looped the Floor on 2026-07-24 — and because the pruner only ran inside
  * that same list pass, the pile could never shrink again.
  */
 export async function forEachAgentPage(
-  k8sApi: AgentLister,
-  namespace: string,
+  lister: AgentLister,
   onPage: (items: AgentCr[]) => Promise<void>,
-): Promise<string | undefined> {
+): Promise<void> {
   let continueToken: string | undefined;
-  let resourceVersion: string | undefined;
 
   do {
-    const page = (await k8sApi.listNamespacedCustomObject({
-      group: GROUP,
-      version: VERSION,
-      namespace,
-      plural: PLURAL,
+    const page = await lister.listPage({
       limit: LIST_PAGE_LIMIT,
-      _continue: continueToken,
-    })) as AgentListPage;
+      continue: continueToken,
+    });
 
-    await onPage(page.items ?? []);
-    continueToken = page.metadata?._continue ?? page.metadata?.continue;
-    resourceVersion = page.metadata?.resourceVersion ?? resourceVersion;
+    await onPage(page.items);
+    continueToken = page.continueToken;
   } while (continueToken);
-
-  return resourceVersion;
 }
 
 /** Safety net: list CRs, re-emit for terminal ones whose work is still in flight, prune old. */
 export async function reconcileAgents(
-  api: { k8sApi: CustomObjectsApi; namespace: string } = makeAgentsApi(),
+  cluster: HttpAgentApi = new HttpAgentApi(clusterAgent()),
 ): Promise<void> {
-  const { k8sApi, namespace } = api;
-
-  await forEachAgentPage(k8sApi, namespace, async (agents) => {
+  await forEachAgentPage(cluster, async (agents) => {
     for (const agent of agents) {
-      await reconcileAgent(agent, k8sApi, namespace);
+      await reconcileAgent(agent, cluster);
     }
   });
 }
 
 async function reconcileAgent(
   agent: AgentCr,
-  k8sApi: CustomObjectsApi,
-  namespace: string,
+  cluster: HttpAgentApi,
 ): Promise<void> {
   const ev = mapAgentToEvent(agent as never);
 
@@ -122,15 +99,18 @@ async function reconcileAgent(
       await insertEvent(ev).catch(() => {});
     }
   }
-  await pruneIfOld(agent, k8sApi, namespace);
+  await pruneIfOld(agent, cluster);
 }
 
-/** Delete a terminal CR an hour after it finished — cluster housekeeping, which
- *  is the Floor's own authority. */
+/** Delete a terminal CR an hour after it finished.
+ *
+ *  The delete goes through the cluster agent, whose Role actually grants it. The
+ *  Floor's never did — `agent-launcher` has create/get/list/watch and no
+ *  `delete` — so every prune since this pass was written has been a swallowed
+ *  403, which is why the pile the header describes could never shrink. */
 async function pruneIfOld(
   agent: AgentCr,
-  k8sApi: CustomObjectsApi,
-  namespace: string,
+  cluster: HttpAgentApi,
 ): Promise<void> {
   const status = agent.status ?? {};
 
@@ -147,16 +127,12 @@ async function pruneIfOld(
   if (!name) {
     return;
   }
-  await k8sApi
-    .deleteNamespacedCustomObject({
-      group: GROUP,
-      version: VERSION,
-      namespace,
-      plural: PLURAL,
-      name,
-    })
-    .catch(() => {});
+  await cluster
+    .remove(name)
+    .catch((err) =>
+      console.warn(
+        `[agent-reconcile] prune of ${name} failed:`,
+        (err as Error).message,
+      ),
+    );
 }
-
-/** The namespace the pass lists, for callers building their own api handle. */
-export { agentsNamespace };
