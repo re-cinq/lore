@@ -8,7 +8,10 @@
 
 import { SERVICE_NODE_EVENT } from "@re-cinq/lore-shared/project/events/service-node-event.js";
 import type { EventHandler } from "@re-cinq/lore-shared/project/events/drain-loop.js";
-import { runPublishedNode, type PublishedNode } from "../kernel/run-node.js";
+import {
+  runPublishedNode,
+  parsePublishedNode,
+} from "../kernel/run-node.js";
 import { STATIONS } from "../stations/registry.js";
 import {
   isSweepModule,
@@ -32,7 +35,7 @@ const runNode: EventHandler = async (params) => {
   const { eventReporter } = await import("../kernel/queues.js");
 
   await runPublishedNode(
-    params as unknown as PublishedNode,
+    parsePublishedNode(params),
     (target, outcome, args, result) =>
       reportToParkedNode(eventReporter(), target, outcome, args, result),
   );

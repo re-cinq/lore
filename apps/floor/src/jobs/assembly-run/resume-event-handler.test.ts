@@ -174,3 +174,33 @@ describe("a resumed node reports its whole result, not only its outcome", () => 
     ).rejects.toThrow();
   });
 });
+
+describe("the guarded outcome and the result's outcome must agree", () => {
+  it("rejects a result whose outcome differs from the one the guard checked", async () => {
+    const { handler } = harness();
+
+    await expect(
+      handler(
+        params({
+          nodeId: "triage",
+          outcome: "success",
+          result: { outcome: "failed" },
+        }),
+      ),
+    ).rejects.toThrow(/success.*failed|failed.*success/);
+  });
+
+  it("accepts the result when both spell the same outcome", async () => {
+    const { handler, finished } = harness();
+
+    await handler(
+      params({
+        nodeId: "triage",
+        outcome: "failed",
+        result: { outcome: "failed", failureClass: "unknown" },
+      }),
+    );
+
+    expect(finished[0]?.outcome).toBe("failed");
+  });
+});

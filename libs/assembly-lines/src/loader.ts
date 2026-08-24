@@ -186,6 +186,9 @@ export class AssemblyLineLoadError extends Error {
  * violations, producible outcomes with no matching edge, or back-edges
  * without `iteration_max`.
  */
+/** Node types whose handler is named by `job_ref`, not by the type alone. */
+const PARAMETERISED_NODE_TYPES = new Set(["detect", "merge_step"]);
+
 export function parseAssemblyLine(
   yamlSrc: string,
   source = "<inline>",
@@ -325,12 +328,14 @@ function validateAssemblyLine(wf: AssemblyLine, source: string): void {
     );
   }
 
-  // A detect node without its job reference can't be dispatched — reject at load.
+  // Both node types are PARAMETERISED by `job_ref` — one type, many handlers —
+  // so without it there is nothing to dispatch. Reject at load rather than at
+  // the pod, where the line is already half-walked.
   for (const n of wf.nodes) {
     enforceTrue(
-      n.type !== "detect" || n.job_ref,
+      !PARAMETERISED_NODE_TYPES.has(n.type) || n.job_ref,
       Error,
-      `detect node "${n.id}" requires job_ref`,
+      `${n.type} node "${n.id}" requires job_ref`,
     );
   }
 

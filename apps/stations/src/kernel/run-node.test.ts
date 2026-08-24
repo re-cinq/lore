@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { runPublishedNode } from "./run-node.js";
+import { runPublishedNode, parsePublishedNode } from "./run-node.js";
 import type { NodeResult } from "@re-cinq/lore-assembly-lines";
 
 const EVENT = {
@@ -85,5 +85,27 @@ describe("runPublishedNode", () => {
 
     expect(seen.reported[0]?.result).toMatchObject({ outcome: "failed" });
     expect(seen.reported[0]?.result?.failureDetail).toContain("nosuchtype");
+  });
+});
+
+describe("parsePublishedNode", () => {
+  it("returns the node when the payload carries every field", () => {
+    expect(parsePublishedNode(EVENT)).toMatchObject({
+      stationRunId: "sr-1",
+      nodeId: "file",
+      iteration: 1,
+    });
+  });
+
+  it("names the missing field rather than handing a station undefined", () => {
+    const { assemblyLineId: _dropped, ...missing } = EVENT;
+
+    expect(() => parsePublishedNode(missing)).toThrow(/assemblyLineId/);
+  });
+
+  it("defaults absent params to an empty set, since a node may take none", () => {
+    const { params: _none, ...bare } = EVENT;
+
+    expect(parsePublishedNode(bare).params).toEqual({});
   });
 });

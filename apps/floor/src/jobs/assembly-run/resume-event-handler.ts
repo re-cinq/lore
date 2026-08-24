@@ -99,9 +99,23 @@ function resumedResult(
   params: Record<string, unknown>,
   outcome: StageOutcome,
 ): NodeResult {
-  return params.result === undefined || params.result === null
-    ? { outcome }
-    : NodeResultSchema.parse(params.result);
+  if (params.result === undefined || params.result === null) {
+    return { outcome };
+  }
+
+  const result = NodeResultSchema.parse(params.result);
+
+  // Both fields carry the outcome, and only `params.outcome` passed the OUTCOMES
+  // guard above — so a result spelling a different one would walk an edge that
+  // was never checked. They come from the same sender, so disagreeing is a bug
+  // in it, and the event failing is how that becomes visible.
+  enforceTrue(
+    result.outcome === outcome,
+    Error,
+    `assembly_line.resume disagrees with itself: outcome "${outcome}" but result.outcome "${result.outcome}"`,
+  );
+
+  return result;
 }
 
 /** Composed production handler for the registry. Deps are resolved lazily so

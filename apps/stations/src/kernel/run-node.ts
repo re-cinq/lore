@@ -12,6 +12,8 @@
  * up to five more times behind the walk's back.
  */
 
+import { z } from "zod";
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import {
   nodeStationFor,
   type NodeStationRun,
@@ -20,16 +22,41 @@ import {
 import type { NodeResult } from "@re-cinq/lore-assembly-lines";
 import type { StationInput } from "@re-cinq/lore-shared/station-input.js";
 
-export interface PublishedNode {
-  stationRunId: string;
-  assemblyLineId: string;
-  nodeId: string;
-  iteration: number;
-  nodeType: string;
-  repo: string;
-  branch: string;
-  taskId: string | null;
-  params: Record<string, string>;
+/**
+ * The published node's shape, parsed rather than asserted.
+ *
+ * These params crossed a process boundary: the Floor wrote them, Postgres
+ * stored them as jsonb, the router handed them back. A cast through `unknown`
+ * makes the compiler agree to whatever arrives, so a field the publisher stops
+ * sending reaches a station as `undefined` and fails somewhere further in,
+ * wearing the station's name rather than the publisher's. Parsing at the door
+ * names the field instead.
+ */
+export const PublishedNode = z.object({
+  stationRunId: z.string().min(1),
+  assemblyLineId: z.string().min(1),
+  nodeId: z.string().min(1),
+  iteration: z.number().int().nonnegative(),
+  nodeType: z.string().min(1),
+  repo: z.string(),
+  branch: z.string(),
+  taskId: z.string().nullable().default(null),
+  // A node may legitimately take none.
+  params: z.record(z.string(), z.string()).default({}),
+});
+
+export type PublishedNode = z.infer<typeof PublishedNode>;
+
+export function parsePublishedNode(payload: unknown): PublishedNode {
+  const parsed = PublishedNode.safeParse(payload);
+
+  enforceTrue(
+    parsed.success,
+    Error,
+    `station.run payload is not a node: ${parsed.success ? "" : parsed.error.issues.map((i) => `${i.path.join(".")} ${i.message}`).join("; ")}`,
+  );
+
+  return parsed.data;
 }
 
 /** Reports a node's outcome to the parked visit — `reportToParkedNode`'s shape. */
