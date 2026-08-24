@@ -22,7 +22,8 @@ export function runBackfillScan(_ctx: SweepContext): Promise<string> {
     // Onboarded repos, filtered to those that actually have specs by the
     // per-repo listing below — rather than a second definition of "a repo with
     // specs" living here alongside the Floor's.
-    repos: async () => (await settings().onboardedRepos()).map((r) => r.full_name),
+    repos: async () =>
+      (await settings().onboardedRepos()).map((r) => r.full_name),
     specsFor: async (repo) =>
       (await (await projectFor(repo)).chunks.specChunksForBackfill()).map(
         (s) => s.filePath,

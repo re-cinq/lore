@@ -65,11 +65,13 @@ describe("runDetectStation sharding", () => {
       }),
       undefined,
       () => project,
-      { spec_coverage_backfill: async (_repo, _p, specPath) => {
+      {
+        spec_coverage_backfill: async (_repo, _p, specPath) => {
           seen.push(specPath);
 
           return "ok";
-        } },
+        },
+      },
     );
 
     expect(seen).toEqual(["specs/a/spec.md"]);
@@ -82,11 +84,13 @@ describe("runDetectStation sharding", () => {
       input({ params: { job_ref: "spec_coverage_backfill" } }),
       undefined,
       () => ({}) as Project,
-      { spec_coverage_backfill: async (_repo, _p, specPath) => {
+      {
+        spec_coverage_backfill: async (_repo, _p, specPath) => {
           seen.push(specPath);
 
           return "ok";
-        } },
+        },
+      },
     );
 
     expect(seen).toEqual([undefined]);

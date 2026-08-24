@@ -17,9 +17,10 @@ import {
   resolveRoundBasis,
   latestReadyIteration,
 } from "@re-cinq/lore-shared/project/features/features-port.js";
-import { decideRoundDispatch } from "@re-cinq/lore-shared/feature-planning/round-dispatch.js";
-import type { AssemblyRuns } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs.js";
-import { featureSubject } from "@re-cinq/lore-shared/project/assembly-runs/subject-keys.js";
+import {
+  featureRunId,
+  findParkedAuthorNode,
+} from "@re-cinq/lore-shared/project/features/planning-run.js";
 import { reportToParkedNode } from "@re-cinq/lore-shared/project/assembly-runs/parked-node.js";
 import { eventReporterFor } from "../event-reporter.js";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
@@ -49,11 +50,7 @@ import {
  */
 
 const BASE = "/api/repos/{owner}/{repo}/features";
-/** The definition whose line owns a feature's planning for its whole life. */
-const PLANNING_DEFINITION = "feature-planning";
 
-/** The node a resumed round completes, and the number it completes it at. */
-type ParkedTarget = { nodeId: string; iteration: number };
 const repoOf = (p: Record<string, string>) => `${p.owner}/${p.repo}`;
 // hapi parses the payload natively (ADR-034); the 2 MB cap surfaces as a 413.
 const WRITE_PAYLOAD = { maxBytes: 2 * 1_048_576 } as const;
@@ -77,70 +74,6 @@ async function run(
       .response({ error: err instanceof Error ? err.message : String(err) })
       .code(500);
   }
-}
-
-/**
- * The `author` node this feature's planning line is parked on, plus the line it
- * belongs to — the ONE way a round or an accept gets in.
- *
- * The line is found by SUBJECT KEY, never through the first round's task: a failed
- * round 1 lets round 2 mint its own line, after which a task-keyed resolver sees
- * only the finished one (#1462). Newest line wins.
- *
- * `runId` is reported even when nothing is parked, so a refusal can name the run
- * that IS working the feature instead of only saying no.
- */
-async function findParkedAuthorNode(
-  project: {
-    assemblyRuns: Pick<AssemblyRuns, "listForSubject" | "listStationRuns">;
-  },
-  featureId: string,
-): Promise<{
-  runId: string | null;
-  parked: ({ lineId: string } & ParkedTarget) | null;
-}> {
-  const lines = await project.assemblyRuns.listForSubject(
-    featureSubject(featureId),
-  );
-  const line = lines.find((l) => l.blueprintName === PLANNING_DEFINITION);
-
-  if (!line) {
-    return { runId: null, parked: null };
-  }
-  const decision = decideRoundDispatch(
-    line.status,
-    await project.assemblyRuns.listStationRuns(line.id),
-    line.graph,
-  );
-
-  return {
-    runId: line.id,
-    parked:
-      decision.kind === "resume"
-        ? {
-            nodeId: decision.nodeId,
-            iteration: decision.iteration,
-            lineId: line.id,
-          }
-        : null,
-  };
-}
-
-/**
- * The run the feature page draws: the NEWEST run for this feature, whatever
- * blueprint it is — filtering to `feature-planning` hid the finalize run, so
- * "Create spec PR" looked like nothing happened. Newest, not newest-OPEN: a
- * finished run must still show, failure reason and all.
- */
-async function featureRunId(
-  project: { assemblyRuns: Pick<AssemblyRuns, "listForSubject"> },
-  featureId: string,
-): Promise<string | null> {
-  const runs = await project.assemblyRuns.listForSubject(
-    featureSubject(featureId),
-  );
-
-  return runs[0]?.id ?? null;
 }
 
 /** Kick a feature-planning Station. `repoFullName` MUST be the `owner/repo` slug:
@@ -276,7 +209,9 @@ export function featuresRoutes(getPool: () => Pool | null): ServerRoute[] {
             latest_iteration: iterations[iterations.length - 1] ?? null,
             last_ready_iteration: latestReadyIteration(iterations),
             // The run the graph hangs on; a resumed round mints no task of its own.
-            ...runIdBothSpellings(await featureRunId(project, feature.id)),
+            ...runIdBothSpellings(
+              await featureRunId(project.assemblyRuns, feature.id),
+            ),
           });
         }),
     },
@@ -385,7 +320,10 @@ export function featuresRoutes(getPool: () => Pool | null): ServerRoute[] {
             priorGap,
             answers,
           });
-          const { runId, parked } = await findParkedAuthorNode(project, id);
+          const { runId, parked } = await findParkedAuthorNode(
+            project.assemblyRuns,
+            id,
+          );
 
           // Asked BEFORE the round row is written: a refused refine that had already
           // appended an iteration would leave a round nothing will ever run.
@@ -520,7 +458,10 @@ export function featuresRoutes(getPool: () => Pool | null): ServerRoute[] {
             const answers = parseSectionAnswers(body.user_answers);
             // Accepting is the author station reporting `success`: the spec work runs
             // on the SAME line, so what follows the accept is an edge, not a new run.
-            const { runId, parked } = await findParkedAuthorNode(project, id);
+            const { runId, parked } = await findParkedAuthorNode(
+              project.assemblyRuns,
+              id,
+            );
 
             // ONE guard, and it is structural. `canFinalize` reads feature.status,
             // which does not move until a PR lands ~18min later, so it cannot tell a

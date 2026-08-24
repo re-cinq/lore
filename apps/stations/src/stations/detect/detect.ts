@@ -63,11 +63,7 @@ export async function runDetectStation(
     ),
   );
   const specPath = input.params.spec_path;
-  const summary = await detector(
-    input.repo,
-    makeProject(input.repo),
-    specPath,
-  );
+  const summary = await detector(input.repo, makeProject(input.repo), specPath);
 
   console.log(eventLine(summary.slice(0, DETECT_SUMMARY_MAX)));
 

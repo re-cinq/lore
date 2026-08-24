@@ -252,4 +252,3 @@ export const specCoverageValidateTick = productionTick(
   "spec-coverage-validate",
   specRepos,
 );
-

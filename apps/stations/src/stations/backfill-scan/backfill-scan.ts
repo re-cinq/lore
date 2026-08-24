@@ -28,9 +28,7 @@ export interface BackfillScanDeps {
   startBackfill(repo: string, specPath: string): Promise<string>;
 }
 
-export async function scanForBackfill(
-  deps: BackfillScanDeps,
-): Promise<string> {
+export async function scanForBackfill(deps: BackfillScanDeps): Promise<string> {
   let started = 0;
   let heldBack = 0;
   let failed = 0;
@@ -59,7 +57,9 @@ export async function scanForBackfill(
   const parts = [`started ${started} spec unit(s)`];
 
   if (heldBack > 0) {
-    parts.push(`${heldBack} held back over the ${BACKFILL_SPECS_PER_REPO}/repo cap`);
+    parts.push(
+      `${heldBack} held back over the ${BACKFILL_SPECS_PER_REPO}/repo cap`,
+    );
   }
 
   if (failed > 0) {

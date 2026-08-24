@@ -32,8 +32,9 @@ describe("scanForBackfill", () => {
 
   it("caps how many specs one repository may open in a run", async () => {
     const started: string[] = [];
-    const many = Array.from({ length: BACKFILL_SPECS_PER_REPO + 5 }, (_, i) =>
-      `specs/s${i}/spec.md`,
+    const many = Array.from(
+      { length: BACKFILL_SPECS_PER_REPO + 5 },
+      (_, i) => `specs/s${i}/spec.md`,
     );
 
     await scanForBackfill(
@@ -51,8 +52,9 @@ describe("scanForBackfill", () => {
   });
 
   it("says how many it held back, so a silent truncation cannot read as full coverage", async () => {
-    const many = Array.from({ length: BACKFILL_SPECS_PER_REPO + 3 }, (_, i) =>
-      `specs/s${i}/spec.md`,
+    const many = Array.from(
+      { length: BACKFILL_SPECS_PER_REPO + 3 },
+      (_, i) => `specs/s${i}/spec.md`,
     );
 
     const summary = await scanForBackfill(deps({ specsFor: async () => many }));

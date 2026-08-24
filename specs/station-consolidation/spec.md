@@ -226,6 +226,17 @@ subscribe" has no expressible meaning on the current substrate.
   telling the walk it was handled.
   ([validated by declares the LLM secret for a station whose recipe says it needs one](apps/floor/src/jobs/agent/agent-catalog.test.ts#L420), [`comment-triage.test.ts:73`](apps/stations/src/stations/comment-triage/comment-triage.test.ts#L73), [`comment-triage.test.ts:90`](apps/stations/src/stations/comment-triage/comment-triage.test.ts#L90), [`comment-triage.test.ts:71`](libs/shared/src/review/comment-triage.test.ts#L71))
 
+- **FR20 — the planning station's work is not the route's.** Resolving which run
+  a feature is on, deciding whether its line waits on the author, and sequencing a
+  refinement round are orchestration over ports, and live where they can be tested
+  without a server. Two orderings in that sequence are load-bearing and asserted
+  rather than described: the parked node is resolved BEFORE a round row is
+  appended, since a refusal that already appended one leaves a round nothing will
+  run; and the round is appended before it is reported, so the report names a
+  round that exists. The routes keep what is theirs — the paths, the scopes, the
+  payload limits and the status codes.
+  ([validated by names the newest run whatever blueprint it is, so a finalize run still shows](libs/shared/src/project/features/planning-run.test.ts#L16), [`planning-run.test.ts:28`](libs/shared/src/project/features/planning-run.test.ts#L28), [`planning-run.test.ts:34`](libs/shared/src/project/features/planning-run.test.ts#L34), [`planning-run.test.ts:43`](libs/shared/src/project/features/planning-run.test.ts#L43), [`planning-run.test.ts:55`](libs/shared/src/project/features/planning-run.test.ts#L55), [`refinement-round.test.ts:31`](libs/shared/src/project/features/refinement-round.test.ts#L31), [`refinement-round.test.ts:48`](libs/shared/src/project/features/refinement-round.test.ts#L48), [`refinement-round.test.ts:58`](libs/shared/src/project/features/refinement-round.test.ts#L58), [`refinement-round.test.ts:66`](libs/shared/src/project/features/refinement-round.test.ts#L66))
+
 ## Non-goals
 
 - **Merging the pod runtime away.** Three station types must stay pods (FR5) and
