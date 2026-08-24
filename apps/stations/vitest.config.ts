@@ -11,7 +11,12 @@ export default defineConfig({
       // the moved stations themselves are excluded — the stations keep the tests
       // they arrived with, and the rest cannot run without a database.
       include: ["src/delivery/routes/stations.ts"],
-      thresholds: { lines: 100, branches: 100, functions: 100, statements: 100 },
+      thresholds: {
+        lines: 100,
+        branches: 100,
+        functions: 100,
+        statements: 100,
+      },
     },
   },
 });

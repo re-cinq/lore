@@ -28,10 +28,7 @@ import {
   taskStore,
   settings,
 } from "../../kernel/queues.js";
-import {
-  writeEpisode,
-  writeEpisodeWithCuration,
-} from "@re-cinq/lore-shared";
+import { writeEpisode, writeEpisodeWithCuration } from "@re-cinq/lore-shared";
 import { tryAutoMergeForCompletedTask } from "../merge/auto-merge-trigger.js";
 import {
   ASSEMBLY_RUN_ID_LABEL,
