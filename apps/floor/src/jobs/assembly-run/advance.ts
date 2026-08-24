@@ -21,7 +21,7 @@ import {
   type StageOutcome,
 } from "@re-cinq/lore-assembly-lines";
 import { resolveRunGraph } from "@re-cinq/lore-assembly-lines";
-import { nodeStationFor } from "@re-cinq/lore-station-registry";
+import { nodeStationFor } from "@re-cinq/lore-stations";
 
 /** Published when a node's station runs in the pooled service rather than a pod.
  *  Subject-first like the rest of the assembly_run family: several producers,

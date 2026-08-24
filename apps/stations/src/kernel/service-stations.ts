@@ -6,11 +6,6 @@
  * manifest cannot disagree. The hand-written map this replaces was one of the
  * three that could not check each other.
  *
- * `merge-check` is still local. It is about to be decomposed into the nodes of a
- * merge assembly line (specs/station-consolidation FR12), and converting its ~25
- * data calls to ports first, only to split them apart immediately after, would
- * be work done twice. It is listed HERE rather than left implicit so the
- * remaining gap is visible and tested.
  */
 
 import {
@@ -18,7 +13,7 @@ import {
   hostCanRun,
   isSweepModule,
   type StationPortName,
-} from "@re-cinq/lore-station-registry";
+} from "../stations/index.js";
 
 /** This service holds a pool AND a GitHub App, so it serves every port. */
 const SERVED: readonly StationPortName[] = [
@@ -29,9 +24,8 @@ const SERVED: readonly StationPortName[] = [
   "cost",
 ];
 
-import type { StationHost } from "@re-cinq/lore-station-registry";
+import type { StationHost } from "../stations/index.js";
 import type { Station } from "../delivery/routes/stations.js";
-import { mergeCheckJob } from "../stations/merge-check.js";
 
 const hasHttpTrigger = (mod: {
   manifest: { triggers: readonly { kind: string }[] };
@@ -60,10 +54,7 @@ export function serviceStations(
       () => mod.run({ trigger: "http", host }),
     ]);
 
-  memo = new Map<string, Station>([
-    ...fromRegistry,
-    ["merge-check", mergeCheckJob],
-  ]);
+  memo = new Map<string, Station>(fromRegistry);
 
   return memo;
 }

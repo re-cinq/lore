@@ -3,7 +3,7 @@ import type { components } from "@/lib/api/schema";
 // renders. Pure — the page does the DB read, this shapes it.
 //
 // The context_bundle contract is owned by the `issues` STATION
-// (apps/lore-station/src/stations/issues.ts), not by the retired in-process
+// (apps/stations/src/stations/issues/issues.ts), not by the retired in-process
 // feature-decompose handler this used to name. That drift is what made the view
 // permanently empty: the station published the agent's own `id` and no
 // `feature_id`, so the page's `context_bundle->>'feature_id'` filter matched

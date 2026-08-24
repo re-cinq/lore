@@ -579,7 +579,7 @@ reliability. ([validated by `pipeline-tasks.trust.test.ts:37`](libs/shared/src/p
   `docs → tests → implementation → full` and resetting the merge counter on
   each promotion. A repo already at `full`, or carrying no level at all, is
   left untouched rather than banking a counter with nothing to spend it on.
-  The default level is `implementation` for backward compatibility. ([validated by `trust-ladder.test.ts:5`](apps/stations/src/stations/trust-ladder.test.ts#L5), [`trust-ladder.test.ts:14`](apps/stations/src/stations/trust-ladder.test.ts#L14), [`trust-ladder.test.ts:23`](apps/stations/src/stations/trust-ladder.test.ts#L23), [`trust-ladder.test.ts:38`](apps/stations/src/stations/trust-ladder.test.ts#L38), [`trust-ladder.test.ts:47`](apps/stations/src/stations/trust-ladder.test.ts#L47), [`trust-ladder.test.ts:56`](apps/stations/src/stations/trust-ladder.test.ts#L56))
+  The default level is `implementation` for backward compatibility. ([validated by `trust-ladder.test.ts:5`](apps/stations/src/stations/lib/trust-ladder.test.ts#L5), [`trust-ladder.test.ts:14`](apps/stations/src/stations/lib/trust-ladder.test.ts#L14), [`trust-ladder.test.ts:23`](apps/stations/src/stations/lib/trust-ladder.test.ts#L23), [`trust-ladder.test.ts:38`](apps/stations/src/stations/lib/trust-ladder.test.ts#L38), [`trust-ladder.test.ts:47`](apps/stations/src/stations/lib/trust-ladder.test.ts#L47), [`trust-ladder.test.ts:56`](apps/stations/src/stations/lib/trust-ladder.test.ts#L56))
 
 ### FR-16: Prompt Caching on Agent LLM Calls (Phase 1)
 

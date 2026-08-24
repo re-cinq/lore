@@ -4,14 +4,13 @@ on:
   push:
     branches: [main]
     paths:
-      - 'apps/lore-station/**'
+      # The pod image is built from apps/stations (Dockerfile.pod): the stations
+      # themselves live there, one folder each, shared with the pooled service.
+      - 'apps/stations/**'
       # The compiled shared + assembly-lines packages are bundled into the image —
       # a lib-only change must rebuild so station pods don't run stale kernel code.
       - 'libs/shared/**'
       - 'libs/assembly-lines/**'
-      # The stations THEMSELVES live here now; this image is a shim over them, so
-      # a station change that did not rebuild it would ship nothing at all.
-      - 'libs/stations/**'
       - '.github/workflows/build-lore-station.yml'
   workflow_dispatch:
 
@@ -48,7 +47,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: apps/lore-station/Dockerfile
+          file: apps/stations/Dockerfile.pod
           push: true
           tags: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest

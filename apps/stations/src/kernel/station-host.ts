@@ -7,7 +7,7 @@
  */
 
 import { getApprovalLabel } from "@re-cinq/lore-shared";
-import type { StationHost, StationRepo } from "@re-cinq/lore-station-registry";
+import type { StationHost, StationRepo } from "../stations/index.js";
 import { cost, memoryLifecycle, pipeline } from "./queues.js";
 import { projectFor } from "./project-boot.js";
 

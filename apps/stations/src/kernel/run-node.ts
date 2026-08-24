@@ -16,7 +16,7 @@ import {
   nodeStationFor,
   type NodeStationRun,
   type StationEnv,
-} from "@re-cinq/lore-station-registry";
+} from "../stations/index.js";
 import type { NodeResult } from "@re-cinq/lore-assembly-lines";
 import type { StationInput } from "@re-cinq/lore-shared/station-input.js";
 

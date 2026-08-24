@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { serviceStations, resetServiceStations } from "./service-stations.js";
-import { STATIONS } from "@re-cinq/lore-station-registry";
-import type { StationHost } from "@re-cinq/lore-station-registry";
+import { STATIONS } from "../stations/index.js";
+import type { StationHost } from "../stations/index.js";
 
 const host = {
   awaitingApproval: async () => [],

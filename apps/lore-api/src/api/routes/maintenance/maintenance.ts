@@ -8,7 +8,7 @@ import {
   unsupportedPort,
   type StationHost,
   type StationPortName,
-} from "@re-cinq/lore-station-registry";
+} from "@re-cinq/lore-stations";
 
 /** What this process can serve: a pool, and no code host. */
 const SERVED: readonly StationPortName[] = ["memoryLifecycle", "cost"];
@@ -50,7 +50,7 @@ const MaintenanceResponse = z.object({
  *
  * It used to be a hand-written map — the third of three registries that shared a
  * signature and could not check each other. The jobs themselves now live one
- * folder each in @re-cinq/lore-station-registry with the rest of the stations;
+ * folder each in @re-cinq/lore-stations with the rest of the stations;
  * this only binds them to the pool THIS process holds, because a station is
  * given its data rather than resolving it.
  *

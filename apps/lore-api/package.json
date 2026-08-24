@@ -41,7 +41,7 @@
     "yaml": "^2.7.0",
     "zod": "^3.24.2",
     "zod-to-json-schema": "^3.25.1",
-    "@re-cinq/lore-station-registry": "*"
+    "@re-cinq/lore-stations": "*"
   },
   "devDependencies": {
     "@types/hapi__hapi": "^20.0.13",

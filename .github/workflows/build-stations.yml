@@ -9,11 +9,10 @@ on:
       # change must rebuild + redeploy, or the cluster runs stale shared code
       # while main is green.
       - 'libs/shared/**'
-      # Both are compiled into this image since the registry moved to a lib: the
-      # service hosts the stations that declare an http trigger. A station change
-      # rebuilds BOTH images now — this one and lore-station.
+      # Compiled into this image: the node stations share this package with the
+      # sweeps. A station change rebuilds BOTH images — this one and the pod
+      # image, which is built from the same source by Dockerfile.pod.
       - 'libs/assembly-lines/**'
-      - 'libs/stations/**'
       - 'infra/terraform/modules/gke-mcp/lore-platform/charts/stations-helm/**'
       # Parent umbrella chart — a Chart.yaml/values.yaml change redeploys.
       - 'infra/terraform/modules/gke-mcp/lore-platform/Chart.yaml'
