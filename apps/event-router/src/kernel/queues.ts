@@ -12,8 +12,16 @@
 import { createPipelineRepositories } from "@re-cinq/lore-shared/project/pipeline/pipeline-repositories-pg.js";
 import type { PipelineRepositories } from "@re-cinq/lore-shared";
 import { getPool } from "@re-cinq/lore-shared/db/pg-pool.js";
+import { PgEventDeliveries } from "@re-cinq/lore-shared/project/events/event-deliveries-pg.js";
 
 let pipelineSingleton: PipelineRepositories | undefined;
 
 export const pipeline = (): PipelineRepositories =>
   (pipelineSingleton ??= createPipelineRepositories(getPool()));
+
+let deliveriesSingleton: PgEventDeliveries | undefined;
+
+/** The delivery side of the bus, lazy for the same reason as the pipeline
+ *  bundle: `getPool()` throws until `initPool()` has run. */
+export const deliveries = (): PgEventDeliveries =>
+  (deliveriesSingleton ??= new PgEventDeliveries(getPool()));

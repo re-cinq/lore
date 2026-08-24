@@ -154,6 +154,15 @@ subscribe" has no expressible meaning on the current substrate.
   consequence the pooled service holds no model credential at all, and a
   curation that fails is retried and visible instead of swallowed.
 
+- **FR15 — a subscriber that holds no pool consumes over HTTP.** Registration,
+  claim, ack, fail, dead-letter, reap and the orphan report are all reachable
+  from a process with no database, carrying the subscriber's declared timeout
+  across the wire, and every one of them requires the same bearer token the rest
+  of the service-to-service surface does. The client and the routes are two
+  halves of one contract written apart, so they are exercised against each other
+  rather than each against its own idea of the other.
+  ([validated by registers a subscription and claims back the event it asked for](apps/event-router/src/delivery/routes/event-deliveries-roundtrip.test.ts#L50), [`event-deliveries-roundtrip.test.ts:63`](apps/event-router/src/delivery/routes/event-deliveries-roundtrip.test.ts#L63), [`event-deliveries-roundtrip.test.ts:74`](apps/event-router/src/delivery/routes/event-deliveries-roundtrip.test.ts#L74), [`event-deliveries-roundtrip.test.ts:87`](apps/event-router/src/delivery/routes/event-deliveries-roundtrip.test.ts#L87), [`event-deliveries-roundtrip.test.ts:100`](apps/event-router/src/delivery/routes/event-deliveries-roundtrip.test.ts#L100), [`event-deliveries-roundtrip.test.ts:111`](apps/event-router/src/delivery/routes/event-deliveries-roundtrip.test.ts#L111), [`event-deliveries-roundtrip.test.ts:122`](apps/event-router/src/delivery/routes/event-deliveries-roundtrip.test.ts#L122), [`event-deliveries-roundtrip.test.ts:130`](apps/event-router/src/delivery/routes/event-deliveries-roundtrip.test.ts#L130))
+
 ## Non-goals
 
 - **Merging the pod runtime away.** Three station types must stay pods (FR5) and
