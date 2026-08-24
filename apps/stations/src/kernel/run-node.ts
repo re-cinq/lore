@@ -39,7 +39,12 @@ export const PublishedNode = z.object({
   iteration: z.number().int().nonnegative(),
   nodeType: z.string().min(1),
   repo: z.string(),
-  branch: z.string(),
+  // Nullable because a run may legitimately have no branch — every detect-family
+  // run in production does. Rejecting it here would dead-letter the delivery
+  // after five silent retries; a station that actually needs a branch fails on
+  // its own terms instead, which is a recorded node outcome rather than a
+  // vanished one.
+  branch: z.string().nullable().default(null),
   taskId: z.string().nullable().default(null),
   // A node may legitimately take none.
   params: z.record(z.string(), z.string()).default({}),
@@ -88,7 +93,7 @@ export async function runPublishedNode(
     node_id: event.nodeId,
     node_type: event.nodeType,
     repo: event.repo,
-    branch: event.branch,
+    branch: event.branch ?? "",
     task_id: event.taskId,
     params: event.params,
   };

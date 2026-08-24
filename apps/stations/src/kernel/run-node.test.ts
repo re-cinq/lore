@@ -108,4 +108,8 @@ describe("parsePublishedNode", () => {
 
     expect(parsePublishedNode(bare).params).toEqual({});
   });
+
+  it("accepts the null branch a detect-family run carries, rather than dead-lettering it", () => {
+    expect(parsePublishedNode({ ...EVENT, branch: null }).branch).toBeNull();
+  });
 });
