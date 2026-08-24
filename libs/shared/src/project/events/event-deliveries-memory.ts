@@ -98,12 +98,18 @@ export class InMemoryEventDeliveries implements EventDeliveriesPort {
     }
   }
 
-  async claim(subscriber: string, limit: number): Promise<EventDeliveryRow[]> {
+  async claim(
+    subscriber: string,
+    limit: number,
+    excludeEventNames: string[] = [],
+  ): Promise<EventDeliveryRow[]> {
     const now = this.now();
+    const held = new Set(excludeEventNames);
     const runnable = this.deliveries
       .filter(
         (d) =>
           d.subscriber === subscriber &&
+          !held.has(d.event_name) &&
           (d.status === "pending" || d.status === "failed") &&
           Date.parse(d.next_attempt_at) <= now,
       )

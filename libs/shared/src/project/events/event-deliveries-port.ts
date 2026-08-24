@@ -56,8 +56,19 @@ export interface EventDeliveriesPort {
   ): Promise<void>;
   /** Insert one event, fanning it out to its subscribers in the same statement. */
   insert(input: EventInsert): Promise<void>;
-  /** Atomically claim up to `limit` of THIS subscriber's runnable deliveries. */
-  claim(subscriber: string, limit: number): Promise<EventDeliveryRow[]>;
+  /**
+   * Atomically claim up to `limit` of THIS subscriber's runnable deliveries.
+   *
+   * `excludeEventNames` holds back a busy serial family at CLAIM time, so its
+   * waiting rows stay `pending` — parking them in `processing` behind an
+   * in-process queue would get them reaped as presumed-dead and re-run
+   * concurrently anyway.
+   */
+  claim(
+    subscriber: string,
+    limit: number,
+    excludeEventNames?: string[],
+  ): Promise<EventDeliveryRow[]>;
   markDone(id: string): Promise<void>;
   markFailed(id: string, error: string, backoffSeconds: number): Promise<void>;
   markDead(id: string, error: string): Promise<void>;

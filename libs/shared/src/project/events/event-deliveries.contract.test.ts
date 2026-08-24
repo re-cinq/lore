@@ -236,6 +236,23 @@ function contract(name: string, make: () => EventDeliveriesPort): void {
       expect(await port.claim(s, 10)).toHaveLength(1);
     });
 
+    it("holds back an excluded name so a busy serial family's rows stay pending", async () => {
+      const port = make();
+      const [s, busy, free] = [sub(), evt(), evt()];
+
+      await port.subscribe(s, [{ eventName: busy }, { eventName: free }]);
+      await port.insert({ eventName: busy, source: "internal" });
+      await port.insert({ eventName: free, source: "internal" });
+
+      expect(
+        (await port.claim(s, 10, [busy])).map((d) => d.event_name),
+      ).toEqual([free]);
+      // Held back, not consumed: it is still there for the next drain.
+      expect((await port.claim(s, 10)).map((d) => d.event_name)).toEqual([
+        busy,
+      ]);
+    });
+
     it("reports an event no subscriber claimed, so the silent case is visible", async () => {
       const port = make();
       const eventName = evt();

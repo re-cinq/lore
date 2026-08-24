@@ -131,7 +131,7 @@ home for per-unit isolation, hard deadlines, and kill-that-kills is a station po
   force-pass self-chunking tree listing, and the spec_trace handler no longer
   needs a dgraph client at all (the `LORE_DGRAPH_HTTP` check remains only as
   the feature gate).
-  ([validated by `spec-trace-dispatch:86`](apps/floor/src/jobs/spec-trace/spec-trace-dispatch.test.ts#L87), [`spec-trace-dispatch:237`](apps/floor/src/jobs/spec-trace/spec-trace-dispatch.test.ts#L239), [`spec-trace-dispatch:251`](apps/floor/src/jobs/spec-trace/spec-trace-dispatch.test.ts#L253), [`loop.test.ts:152`](apps/floor/src/main-loop/loop.test.ts#L152); implemented by [`loop.ts:53`](apps/floor/src/main-loop/loop.ts#L53), [`internal.ts:18`](apps/floor/src/jobs/internal.ts#L18))
+  ([validated by `spec-trace-dispatch:86`](apps/floor/src/jobs/spec-trace/spec-trace-dispatch.test.ts#L87), [`spec-trace-dispatch:237`](apps/floor/src/jobs/spec-trace/spec-trace-dispatch.test.ts#L239), [`spec-trace-dispatch:251`](apps/floor/src/jobs/spec-trace/spec-trace-dispatch.test.ts#L253), [`loop.test.ts:157`](apps/floor/src/main-loop/loop.test.ts#L157); implemented by [`loop.ts:53`](apps/floor/src/main-loop/loop.ts#L53), [`internal.ts:18`](apps/floor/src/jobs/internal.ts#L18))
 
 - **FR7 — catalog.** A `def-ingest` recipe is seeded like the other builtins
   (`scripts/task-types.yaml` `stations:` → gen-catalog + migration), with

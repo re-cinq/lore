@@ -70,7 +70,10 @@ export async function handleOne(ev: EventRow, deps: LoopDeps): Promise<void> {
   }
 
   try {
-    await handler(ev.params ?? {}, { eventId: ev.id });
+    // event_id, NOT id: `id` addresses the DELIVERY (what ack/fail/dead take),
+    // while a handler citing an event — the ingest station fetches a large
+    // payload by reference as `payload_event_id` — needs the event itself.
+    await handler(ev.params ?? {}, { eventId: ev.event_id });
     await deps.markDone(ev.id);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

@@ -16,9 +16,12 @@ import { internalToken } from "@re-cinq/lore-shared/http/internal-token.js";
 import { StationClient } from "@re-cinq/lore-shared/project/stations/station-client.js";
 import { ClusterAgentClient } from "@re-cinq/lore-shared";
 import {
+  selectEventDeliveries,
   selectEventQueue,
   selectEventReporter,
 } from "@re-cinq/lore-shared/project/events/select-event-reporter.js";
+import type { EventDeliveriesPort } from "@re-cinq/lore-shared/project/events/event-deliveries-port.js";
+import { PgEventDeliveries } from "@re-cinq/lore-shared/project/events/event-deliveries-pg.js";
 import type {
   EventQueueRepository,
   EventReporter,
@@ -128,6 +131,22 @@ let eventQueueSingleton: EventQueueRepository | undefined;
 export const eventQueue = (): EventQueueRepository =>
   (eventQueueSingleton ??= selectEventQueue({
     local: () => pipeline().eventQueue,
+  }));
+
+let deliveriesSingleton: EventDeliveriesPort | undefined;
+
+/**
+ * The DELIVERIES this Floor consumes (ADR-044 amendment).
+ *
+ * The Floor is one subscriber among several now rather than the drainer, so it
+ * claims its own copies of the events it registered for. Its former ability to
+ * receive an event it had no handler for — and dead-letter it on the spot, with
+ * no retry — is gone by construction: nothing it did not subscribe to is ever
+ * delivered to it.
+ */
+export const deliveries = (): EventDeliveriesPort =>
+  (deliveriesSingleton ??= selectEventDeliveries({
+    local: () => new PgEventDeliveries(getPool()),
   }));
 
 let stationClientSingleton: StationClient | undefined;

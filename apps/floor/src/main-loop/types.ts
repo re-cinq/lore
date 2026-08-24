@@ -10,9 +10,12 @@
 // drift. `EventInput` stays as the name Floor's ~20 listener modules import.
 export type { EventInsert as EventInput } from "@re-cinq/lore-shared";
 
-// The claimed-row shape is single-sourced from the shared event-queue port
-// (project.events); the loop/store here operate on exactly that row.
-export type { EventRow } from "@re-cinq/lore-shared/project/events/event-queue-port.js";
+// The claimed-row shape is single-sourced from the shared events ports. Since
+// ADR-044's delivery amendment the Floor claims its OWN delivery of an event
+// rather than the shared queue row, so `EventRow` is that delivery — it carries
+// both `id` (the delivery, which is what ack/fail/dead address) and `event_id`
+// (the event, which is what a handler passing a payload BY REFERENCE must cite).
+export type { EventDeliveryRow as EventRow } from "@re-cinq/lore-shared/project/events/event-deliveries-port.js";
 
 /** A layer-3 handler. Self-sources its own deps (DB pool, platform); params carry the event payload. */
 /** Row identity a handler may need (e.g. to hand a large payload off by

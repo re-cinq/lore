@@ -5,18 +5,19 @@ import type { EventRow, EventHandler } from "./types.js";
 function row(overrides: Partial<EventRow> = {}): EventRow {
   return {
     id: "1",
+    event_id: "100",
+    subscriber: "floor",
     event_name: "cron.merge_check.tick",
     source: "cron",
     params: {},
     repo: null,
-    dedupe_key: null,
     status: "processing",
     attempts: 1,
     error: null,
-    captured_at: "",
     claimed_at: "",
     next_attempt_at: "",
     handled_at: null,
+    visibility_timeout_seconds: 600,
     ...overrides,
   };
 }
@@ -107,15 +108,19 @@ describe("handleOne", () => {
     expect(seen).toEqual({ repo: "re-cinq/lore", pr_number: 7 });
   });
 
-  it("passes the event id as meta so a handler can hand the payload off by reference", async () => {
+  it("passes the EVENT id as meta, not the delivery's, so a by-reference payload resolves", async () => {
     const rec = recorder();
     let metaSeen: { eventId: string } | undefined;
     const capture: EventHandler = async (_params, meta) => {
       metaSeen = meta;
     };
 
-    await handleOne(row({ id: "4711" }), deps(capture, rec));
-    expect(metaSeen).toEqual({ eventId: "4711" });
+    // The two differ since the Floor claims its own delivery: `id` addresses the
+    // delivery (ack/fail/dead take it) and `event_id` the event. A handler that
+    // cites the event — the ingest station fetches a large payload as
+    // `payload_event_id` — given the delivery id would read the wrong row.
+    await handleOne(row({ id: "4711", event_id: "100" }), deps(capture, rec));
+    expect(metaSeen).toEqual({ eventId: "100" });
   });
 });
 

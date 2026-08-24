@@ -44,6 +44,10 @@ CREATE TABLE IF NOT EXISTS pipeline.event_deliveries (
   -- refuse to delete an event that still has an unhandled one.
   event_id        BIGINT NOT NULL REFERENCES pipeline.events(id) ON DELETE CASCADE,
   subscriber      TEXT   NOT NULL,
+  -- Denormalized from the event. The claim FILTERS on it (holding back a busy
+  -- serial family) and runs every second, so reaching into pipeline.events for
+  -- it would put a subquery on the hottest path in the bus.
+  event_name      TEXT   NOT NULL,
   status          TEXT   NOT NULL DEFAULT 'pending',
   attempts        INT    NOT NULL DEFAULT 0,
   error           TEXT,
@@ -59,6 +63,7 @@ CREATE TABLE IF NOT EXISTS pipeline.event_deliveries (
 -- drainer paginates through everyone else's pending rows on each 1s tick.
 CREATE INDEX IF NOT EXISTS event_deliveries_claim_idx
   ON pipeline.event_deliveries (subscriber, next_attempt_at, id)
+  INCLUDE (event_name)
   WHERE status IN ('pending', 'failed');
 
 -- The reaper's scan: rows left in flight by a crashed claimer.

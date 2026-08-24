@@ -20,6 +20,7 @@ import { loadApprovalConfig } from "@re-cinq/lore-shared";
 import { buildRegistry, resolve } from "./main-loop/registry.js";
 import { startEventLoop } from "./main-loop/loop.js";
 import { startEventReaper } from "./main-loop/reaper.js";
+import { subscribe } from "./main-loop/store.js";
 import { registerCronEmitter } from "./listeners/scheduler-emitter.js";
 import { CRON_EMITTERS } from "./listeners/cron-emitters.js";
 
@@ -72,8 +73,15 @@ async function main(): Promise<void> {
   // would report the outgoing Floor's successor as down.
   await awaitSoleFloor();
 
-  // ── Layer 2: the drain loop + reaper over pipeline.events ──
+  // ── Layer 2: the drain loop + reaper over this Floor's deliveries ──
   const registry = buildRegistry();
+
+  // BEFORE the loop, and awaited: fan-out reads the subscription set at INSERT
+  // time, so an event captured before this lands is delivered to nobody and
+  // simply sits there. The registry is the subscription set by construction —
+  // deriving it means the Floor cannot subscribe to something it cannot handle,
+  // nor handle something it never asked for.
+  await subscribe([...registry.keys()].map((eventName) => ({ eventName })));
 
   startEventLoop((name) => resolve(registry, name));
   startEventReaper();

@@ -46,8 +46,12 @@ export class HttpEventDeliveries
     await this.call("/api/subscriptions", body);
   }
 
-  async claim(subscriber: string, limit: number): Promise<EventDeliveryRow[]> {
-    const body: DeliveryClaimBody = { subscriber, limit };
+  async claim(
+    subscriber: string,
+    limit: number,
+    excludeEventNames: string[] = [],
+  ): Promise<EventDeliveryRow[]> {
+    const body: DeliveryClaimBody = { subscriber, limit, excludeEventNames };
     const { deliveries } = await this.call<{ deliveries: EventDeliveryRow[] }>(
       "/api/deliveries/claim",
       body,

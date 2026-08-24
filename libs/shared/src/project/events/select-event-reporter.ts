@@ -14,6 +14,8 @@
 import { internalToken } from "../../http/internal-token.js";
 import { HttpEventReporter } from "./event-reporter-http.js";
 import { HttpEventQueue } from "./event-queue-http.js";
+import { HttpEventDeliveries } from "./event-deliveries-http.js";
+import type { EventDeliveriesPort } from "./event-deliveries-port.js";
 import type {
   EventQueueRepository,
   EventReporter,
@@ -83,4 +85,38 @@ export function selectEventQueue(deps: SelectQueueDeps): EventQueueRepository {
   log(`[events] draining through the event-router at ${url}`);
 
   return new HttpEventQueue(url, internalToken(env));
+}
+
+export interface SelectDeliveriesDeps {
+  /** The pool-backed deliveries to fall back to. */
+  local: () => EventDeliveriesPort;
+  env?: NodeJS.ProcessEnv;
+  log?: (message: string) => void;
+}
+
+/**
+ * Resolve the DELIVERY side for a subscriber, the same three ways as above.
+ *
+ * Separate from the queue for the same reason the queue is separate from the
+ * reporter: a subscriber consumes its own copies of events, which is a different
+ * privilege from draining the shared queue, and only a process that subscribes
+ * asks for this.
+ */
+export function selectEventDeliveries(
+  deps: SelectDeliveriesDeps,
+): EventDeliveriesPort {
+  const env = deps.env ?? process.env;
+  const log = deps.log ?? console.log;
+  const url = env.EVENT_ROUTER_URL;
+
+  if (!url) {
+    log(
+      "[events] EVENT_ROUTER_URL unset — consuming deliveries directly (local mode)",
+    );
+
+    return deps.local();
+  }
+  log(`[events] consuming deliveries through the event-router at ${url}`);
+
+  return new HttpEventDeliveries(url, internalToken(env));
 }

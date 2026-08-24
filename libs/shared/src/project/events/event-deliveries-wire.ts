@@ -27,6 +27,7 @@ export const SubscribeBody = z.object({
 export const DeliveryClaimBody = z.object({
   subscriber: z.string().min(1),
   limit: z.number().int().positive(),
+  excludeEventNames: z.array(z.string()).optional(),
 });
 
 export const OrphanBody = z.object({

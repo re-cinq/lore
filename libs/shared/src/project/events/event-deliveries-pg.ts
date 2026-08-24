@@ -50,7 +50,11 @@ export class PgEventDeliveries implements EventDeliveriesPort {
     return insertEvent(this.pool, input);
   }
 
-  async claim(subscriber: string, limit: number): Promise<EventDeliveryRow[]> {
+  async claim(
+    subscriber: string,
+    limit: number,
+    excludeEventNames: string[] = [],
+  ): Promise<EventDeliveryRow[]> {
     // Same shape as the queue's claim — one statement, FOR UPDATE SKIP LOCKED —
     // so two replicas of one subscriber still receive disjoint batches. The join
     // carries the payload, because a handler with a delivery and no event has
@@ -63,17 +67,17 @@ export class PgEventDeliveries implements EventDeliveriesPort {
            WHERE subscriber = $1
              AND status IN ('pending', 'failed')
              AND next_attempt_at <= now()
+             AND event_name <> ALL($3::text[])
            ORDER BY next_attempt_at, id
            FOR UPDATE SKIP LOCKED
            LIMIT $2)
-        RETURNING d.id, d.event_id, d.subscriber, d.status, d.attempts, d.error,
-                  d.claimed_at, d.next_attempt_at, d.handled_at,
-                  d.visibility_timeout_seconds,
-                  (SELECT e.event_name FROM pipeline.events e WHERE e.id = d.event_id) AS event_name,
+        RETURNING d.id, d.event_id, d.subscriber, d.event_name, d.status,
+                  d.attempts, d.error, d.claimed_at, d.next_attempt_at,
+                  d.handled_at, d.visibility_timeout_seconds,
                   (SELECT e.source     FROM pipeline.events e WHERE e.id = d.event_id) AS source,
                   (SELECT e.params     FROM pipeline.events e WHERE e.id = d.event_id) AS params,
                   (SELECT e.repo       FROM pipeline.events e WHERE e.id = d.event_id) AS repo`,
-      [subscriber, limit],
+      [subscriber, limit, excludeEventNames],
     );
 
     return rows;
