@@ -21,8 +21,15 @@ import {
   type StageOutcome,
 } from "@re-cinq/lore-assembly-lines";
 import { resolveRunGraph } from "@re-cinq/lore-assembly-lines";
+import { nodeStationFor } from "@re-cinq/lore-station-registry";
+
+/** Published when a node's station runs in the pooled service rather than a pod.
+ *  Subject-first like the rest of the assembly_run family: several producers,
+ *  one subject. */
+export const SERVICE_NODE_EVENT = "station.run";
 import {
   nodeAgentName,
+  stationNodeParams,
   stationRunInputFor,
   type FloorAssemblyRunTask,
 } from "./floor-assembly-run.js";
@@ -69,6 +76,40 @@ export interface AdvanceDeps {
     nodeId: string,
     result: NodeResult,
   ) => Promise<void>;
+  /**
+   * Publish a node for the pooled service to claim, instead of giving it a pod.
+   *
+   * A station whose manifest says `runtime: "service"` needs none of what a pod
+   * provides — no workspace clone, no per-node identity, no deadline of its own —
+   * and a pod per DB write or per HTTP POST is the waste the service form exists
+   * to remove. The service reports the outcome back over `assembly_run.resume`,
+   * the same channel a person reports through, so the walk converges either way.
+   *
+   * Optional seam, like notifyFailure: a composition without it simply never
+   * dispatches a service node, which the reaper then times out visibly.
+   */
+  publishNode?: (event: {
+    eventName: string;
+    params: Record<string, unknown>;
+    dedupeKey?: string;
+  }) => Promise<void>;
+  /**
+   * Record what a finished run did, as an episode.
+   *
+   * This was the `retrospective` station's job and it never ran: every blueprint
+   * names retrospective as its EXIT, and the walk finishes AT the exit rather
+   * than dispatching it — 248 recorded node visits, none of them a retrospective.
+   * So no assembly run has ever written one. It happens here instead, where the
+   * run actually ends, which is also where the Floor already does its terminal
+   * bookkeeping.
+   *
+   * Optional seam, like notifyFailure.
+   */
+  recordRunEpisode?: (
+    run: AssemblyRunRecord,
+    outcome: string,
+    reason: string | undefined,
+  ) => Promise<void>;
   /** Detection-line bookkeeping: close the `args.job_run_id` pipeline.job_runs row
    *  with the line's terminal state (the fan-out pre-created it). */
   jobRuns: {
@@ -112,7 +153,7 @@ export interface AdvanceDeps {
 }
 
 /** A walk that reached exit still failed as a whole when a node failed on the way
- *  (every definition routes `failed` edges toward exit so the retrospective runs) —
+ *  (every definition routes `failed` edges toward exit so the run settles) —
  *  "completed" would render a green check over a failed review. */
 export function lineOutcomeFromVisits(visits: NodeVisit[]): {
   outcome: "completed" | "failed";
@@ -266,6 +307,33 @@ export async function advanceLine(
     return;
   }
 
+  // A station that runs in the pooled service is PUBLISHED, not launched: the row
+  // above already exists, so the service has something to report against, and the
+  // dedupe key is that row — a redelivered event cannot run the node twice.
+  if (
+    nodeStationFor(node.type)?.manifest.triggers.some(
+      (t) => t.kind === "node" && t.runtime === "service",
+    )
+  ) {
+    await deps.publishNode?.({
+      eventName: SERVICE_NODE_EVENT,
+      dedupeKey: `station-run:${stationRunId}`,
+      params: {
+        stationRunId,
+        assemblyLineId,
+        nodeId: node.id,
+        iteration: transition.iteration,
+        nodeType: node.type,
+        repo: assemblyRun.repo,
+        branch: assemblyRun.branch,
+        taskId: assemblyRun.taskId ?? null,
+        params: stationNodeParams(node, task),
+      },
+    });
+
+    return;
+  }
+
   // Iteration rides into the CR name + labels so a revisited node runs a fresh pod.
   // The builder is shared with the reaper's relaunch: two of them is how the
   // conversation and the round content went missing on that door (#1466).
@@ -287,6 +355,20 @@ export async function finishLine(
   reason: string | undefined,
   deps: AdvanceDeps,
 ): Promise<void> {
+  // Telemetry, so it never decides whether the run closes: a run whose episode
+  // could not be written is still a finished run, and swallowing here is the same
+  // bias maybeStampPr takes for the same reason.
+  if (deps.recordRunEpisode) {
+    try {
+      await deps.recordRunEpisode(assemblyRun, outcome, reason);
+    } catch (err) {
+      console.warn(
+        `[assembly-run] episode for ${assemblyRun.id} not recorded:`,
+        (err as Error).message,
+      );
+    }
+  }
+
   const jobRunId = assemblyRun.args.job_run_id;
 
   // Settle the detect fan-out's job_run BEFORE closing the row: if the row close

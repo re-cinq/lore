@@ -46,6 +46,37 @@ edges:
     on: always
 `);
 
+const triageThenIssues: AssemblyLine = parseAssemblyLine(`
+name: triage-then-issues
+description: a pod station, then one the pooled service runs
+version: 1
+entry: triage
+exit: done
+nodes:
+  - id: triage
+    type: comment-triage
+  - id: file
+    type: issues
+  - id: done
+    type: retrospective
+edges:
+  - from: triage
+    to: file
+    on: success
+  - from: triage
+    to: done
+    on: failed
+  - from: file
+    to: done
+    on: success
+  - from: file
+    to: done
+    on: changes_requested
+  - from: file
+    to: done
+    on: failed
+`);
+
 const commentTriageLike: AssemblyLine = parseAssemblyLine(`
 name: comment-triage
 description: classify a PR comment
@@ -129,6 +160,7 @@ function makeDeps(port: InMemoryAssemblyRuns) {
       new Map<string, AssemblyLine>([
         ["code-review", codeReviewLike],
         ["comment-triage", commentTriageLike],
+        ["triage-then-issues", triageThenIssues],
         ["push-then-wait", pushThenWait],
       ]),
     launch: async (spec) => {
@@ -1113,5 +1145,173 @@ describe("a node finishing reaches its follow-up from every door", () => {
     expect(port.nodes.find((n) => n.nodeId === "review")?.outcome).toBe(
       "success",
     );
+  });
+});
+
+describe("a node whose station runs in the pooled service is not given a pod", () => {
+  it("publishes the node for the service to claim instead of launching a CR", async () => {
+    const port = new InMemoryAssemblyRuns();
+    const id = await port.start({
+      blueprintName: "triage-then-issues",
+      repo: "re-cinq/lore",
+      branch: "feat/x",
+      args: { description: "d" },
+    });
+
+    await port.markRunning(id);
+
+    const { deps, launched } = makeDeps(port);
+    const published: Array<{
+      eventName: string;
+      params: Record<string, unknown>;
+    }> = [];
+
+    deps.publishNode = async (ev) => {
+      published.push(ev);
+    };
+
+    await advanceLine(id, deps); // launches triage (a pod station)
+    await finishNodeAndAdvance(
+      {
+        assemblyLineId: id,
+        nodeId: "triage",
+        iteration: 1,
+        result: { outcome: "success" },
+      },
+      deps,
+    );
+
+    // `done` is a retrospective: one HTTP POST, which the pooled service runs.
+    expect(published.map((e) => e.eventName)).toEqual(["station.run"]);
+    expect(launched.map((l) => l.name)).toEqual([
+      `${id.substring(0, 12)}-triage`,
+    ]);
+  });
+
+  it("publishes an open node once, and keys it to the visit rather than the node", async () => {
+    const port = new InMemoryAssemblyRuns();
+    const id = await port.start({
+      blueprintName: "triage-then-issues",
+      repo: "re-cinq/lore",
+      branch: "feat/x",
+      args: { description: "d" },
+    });
+
+    await port.markRunning(id);
+
+    const { deps } = makeDeps(port);
+    const published: Array<{ dedupeKey?: string }> = [];
+
+    deps.publishNode = async (ev) => {
+      published.push(ev);
+    };
+
+    await advanceLine(id, deps);
+    await finishNodeAndAdvance(
+      {
+        assemblyLineId: id,
+        nodeId: "triage",
+        iteration: 1,
+        result: { outcome: "success" },
+      },
+      deps,
+    );
+    // Re-driving the walk is what a redelivered terminal event does. The node is
+    // still OPEN, so the walk returns await and publishes nothing a second time —
+    // the dedupe key is the belt to that braces, keying the visit rather than the
+    // node, so a revisit at a later iteration is still its own unit of work.
+    await advanceLine(id, deps);
+
+    expect(published).toHaveLength(1);
+    expect(published[0]?.dedupeKey).toMatch(/^station-run:.+/);
+  });
+
+  it("still gives a pod station its pod, so isolation is not quietly withdrawn", async () => {
+    const port = new InMemoryAssemblyRuns();
+    const id = await runningLine(port);
+    const { deps, launched } = makeDeps(port);
+    const published: unknown[] = [];
+
+    deps.publishNode = async (ev) => {
+      published.push(ev);
+    };
+
+    await advanceLine(id, deps); // `review` is an agent node
+
+    expect(published).toEqual([]);
+    expect(launched).toHaveLength(1);
+  });
+});
+
+describe("a finished run records what happened", () => {
+  it("writes the run's episode when the line reaches its exit", async () => {
+    const port = new InMemoryAssemblyRuns();
+    const id = await runningLine(port);
+    const { deps } = makeDeps(port);
+    const episodes: Array<{ runId: string; outcome: string }> = [];
+
+    deps.recordRunEpisode = async (run, outcome) => {
+      episodes.push({ runId: run.id, outcome });
+    };
+
+    await advanceLine(id, deps);
+    await finishNodeAndAdvance(
+      {
+        assemblyLineId: id,
+        nodeId: "review",
+        iteration: 1,
+        result: { outcome: "success" },
+      },
+      deps,
+    );
+
+    expect(episodes).toEqual([{ runId: id, outcome: "completed" }]);
+  });
+
+  it("records a failed run too, which is the one worth reading later", async () => {
+    const port = new InMemoryAssemblyRuns();
+    const id = await runningLine(port);
+    const { deps } = makeDeps(port);
+    const episodes: Array<{ outcome: string }> = [];
+
+    deps.recordRunEpisode = async (_run, outcome) => {
+      episodes.push({ outcome });
+    };
+
+    await advanceLine(id, deps);
+    await finishNodeAndAdvance(
+      {
+        assemblyLineId: id,
+        nodeId: "review",
+        iteration: 1,
+        result: { outcome: "failed" },
+      },
+      deps,
+    );
+
+    expect(episodes.map((e) => e.outcome)).toEqual(["failed"]);
+  });
+
+  it("closes the run even when recording the episode throws, since telemetry is not the work", async () => {
+    const port = new InMemoryAssemblyRuns();
+    const id = await runningLine(port);
+    const { deps } = makeDeps(port);
+
+    deps.recordRunEpisode = async () => {
+      throw new Error("memory is down");
+    };
+
+    await advanceLine(id, deps);
+    await finishNodeAndAdvance(
+      {
+        assemblyLineId: id,
+        nodeId: "review",
+        iteration: 1,
+        result: { outcome: "success" },
+      },
+      deps,
+    );
+
+    expect((await port.getById(id))?.status).toBe("finished");
   });
 });
