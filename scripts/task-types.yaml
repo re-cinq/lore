@@ -828,15 +828,9 @@ stations:
   validate:
     command: ["lore-station", "validate"]
     timeout_minutes: 15
-  gate:
-    command: ["lore-station", "gate"]
-    timeout_minutes: 5
   retrospective:
     command: ["lore-station", "retrospective"]
     timeout_minutes: 10
-  github_action:
-    command: ["lore-station", "github_action"]
-    timeout_minutes: 60
   detect:
     command: ["lore-station", "detect"]
     timeout_minutes: 30

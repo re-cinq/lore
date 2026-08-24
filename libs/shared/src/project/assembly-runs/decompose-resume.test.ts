@@ -52,7 +52,7 @@ describe("decideMergeResume", () => {
           nodes: [
             {
               id: "push",
-              type: "github_action",
+              type: "validate",
               station: "def-github-action",
               station_inherited: true,
             },

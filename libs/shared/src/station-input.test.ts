@@ -100,7 +100,7 @@ describe("the run-id dual-key window (FR6.41 readers-first)", () => {
       serializeStationInput({
         assembly_run_id: "al-9",
         node_id: "n",
-        node_type: "gate",
+        node_type: "validate",
         repo: "o/r",
         branch: "b",
         task_id: null,
@@ -119,7 +119,7 @@ describe("the run-id dual-key window (FR6.41 readers-first)", () => {
       parseStationInput(
         JSON.stringify({
           node_id: "n",
-          node_type: "gate",
+          node_type: "validate",
           repo: "o/r",
           branch: "b",
           task_id: null,

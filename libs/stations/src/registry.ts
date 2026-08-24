@@ -14,8 +14,6 @@
 import type { StationModule } from "./lib/station.js";
 import { approvalCheck } from "./stations/approval-check/manifest.js";
 import { validate } from "./stations/validate/manifest.js";
-import { gate } from "./stations/gate/manifest.js";
-import { githubAction } from "./stations/github-action/manifest.js";
 import { retrospective } from "./stations/retrospective/manifest.js";
 import { detect } from "./stations/detect/manifest.js";
 import { commentTriage } from "./stations/comment-triage/manifest.js";
@@ -27,8 +25,6 @@ export const STATION_NAMES = [
   "approval-check",
   "comment-triage",
   "detect",
-  "gate",
-  "github-action",
   "ingest",
   "issues",
   "retrospective",
@@ -41,8 +37,6 @@ export const STATIONS: Record<StationName, StationModule> = {
   "approval-check": approvalCheck,
   "comment-triage": commentTriage,
   detect,
-  gate,
-  "github-action": githubAction,
   ingest,
   issues,
   retrospective,

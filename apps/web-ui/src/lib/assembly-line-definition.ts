@@ -13,9 +13,7 @@
 export type DefinitionNodeType =
   | "agent"
   | "validate"
-  | "gate"
   | "retrospective"
-  | "github_action"
   | "detect"
   | "comment-triage"
   | "ingest"

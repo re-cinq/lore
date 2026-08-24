@@ -20,7 +20,16 @@ describe("parseTaskTypesFile", () => {
 
     expect(parsed.drift).toEqual([]);
     expect(Object.keys(parsed.taskTypes)).toHaveLength(16);
-    expect(Object.keys(parsed.stations)).toHaveLength(8);
+    // The NAMES, not a count: a bare number says a station went and not which,
+    // and the recipes here have to stay in step with the station registry.
+    expect(Object.keys(parsed.stations).sort()).toEqual([
+      "comment-triage",
+      "detect",
+      "ingest",
+      "issues",
+      "retrospective",
+      "validate",
+    ]);
   });
 
   it("reads an explicit target_repo: null as null, not as an absent field", () => {

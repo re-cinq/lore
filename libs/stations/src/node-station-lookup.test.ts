@@ -3,18 +3,18 @@ import { nodeStationFor } from "./node-station-lookup.js";
 
 /**
  * A blueprint names a node TYPE; the registry is keyed by the station's folder
- * NAME. They mostly coincide and, for the two that do not, an underscore is the
- * whole difference — which is exactly the kind of near-miss that reached a pod
- * and died there with `unknown station type`.
+ * NAME. They coincide today, but not every station HAS a node type — a sweep has
+ * a folder and a URL and no node at all — so resolving by folder name would let
+ * a blueprint dispatch a node that cannot exist.
  */
 describe("nodeStationFor", () => {
   it("finds a station whose folder name matches the node type", () => {
     expect(nodeStationFor("validate")?.manifest.name).toBe("validate");
   });
 
-  it("finds a station whose node type differs from its folder name by an underscore", () => {
-    expect(nodeStationFor("github_action")?.manifest.name).toBe(
-      "github-action",
+  it("finds a station by its exact node type, hyphen and all", () => {
+    expect(nodeStationFor("comment-triage")?.manifest.name).toBe(
+      "comment-triage",
     );
   });
 
@@ -22,9 +22,9 @@ describe("nodeStationFor", () => {
     expect(nodeStationFor("agent")).toBeUndefined();
   });
 
-  it("returns nothing for a name that is a station's FOLDER but not its node type", () => {
-    // "github-action" is the folder; the type is "github_action". Resolving the
-    // folder name here would let a blueprint typo dispatch successfully.
-    expect(nodeStationFor("github-action")).toBeUndefined();
+  it("returns nothing for a station NAME that is not also a node type", () => {
+    // approval-check is a sweep: it has a folder and a URL, but no node type.
+    // Resolving it here would let a blueprint dispatch a node that cannot exist.
+    expect(nodeStationFor("approval-check")).toBeUndefined();
   });
 });

@@ -12,9 +12,7 @@ import {
 const NodeType = z.enum([
   "agent",
   "validate",
-  "gate",
   "retrospective",
-  "github_action",
   "detect",
   "comment-triage",
   "ingest",
@@ -134,9 +132,7 @@ const PRODUCIBLE_OUTCOMES: Record<
 > = {
   agent: ["success", "changes_requested", "failed"],
   validate: ["success", "failed"],
-  gate: ["success", "failed"],
   retrospective: ["success", "failed"],
-  github_action: ["success", "failed"],
   detect: ["success", "failed"],
   "comment-triage": ["success", "failed"],
   ingest: ["success", "failed"],
