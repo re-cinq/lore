@@ -4,14 +4,9 @@
 // must be able to describe the service without a cluster present (tests do
 // exactly that).
 
-import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { KubeConfig, CustomObjectsApi } from "@kubernetes/client-node";
-import {
-  agentsNamespace,
-  loadKube,
-  preserveUnownedFields,
-} from "@re-cinq/lore-shared";
-import type { AgentDefinition, Station } from "@re-cinq/agent-contracts";
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
+import { agentsNamespace, loadKube } from "@re-cinq/lore-shared";
 import { PlatformGitHub } from "@re-cinq/lore-shared/project/lib/platform-github.js";
 import { KubeAgentApi } from "./kube-agent-api.js";
 import { KubePodLogs } from "./kube-pod-logs.js";
@@ -22,6 +17,8 @@ import {
   KubeCatalogApi,
 } from "./kube-token-provisioner.js";
 import type { ClusterDeps } from "../delivery/routes/cluster.js";
+import { isNotFound, describeK8sError } from "./k8s-errors.js";
+import { applyCatalogPair, patchAgentStatus } from "./paired-writes.js";
 
 const GROUP = "agents.re-cinq.com";
 const VERSION = "v1alpha1";
@@ -117,26 +114,8 @@ export function clusterDeps(): ClusterDeps {
             );
           });
       },
-      // The read and the replace stay together, on this side of the network.
-      patchStatus: async (name, patch) => {
-        const co = customObjects();
-        const args = {
-          group: GROUP,
-          version: VERSION,
-          namespace: agentsNamespace(),
-          plural: PLURAL,
-          name,
-        };
-        const current = (await co.getNamespacedCustomObjectStatus(args)) as {
-          status?: Record<string, unknown>;
-          [k: string]: unknown;
-        };
-
-        await co.replaceNamespacedCustomObjectStatus({
-          ...args,
-          body: { ...current, status: { ...current.status, ...patch } },
-        });
-      },
+      patchStatus: (name, patch) =>
+        patchAgentStatus(customObjects(), name, patch),
     },
     pods: {
       agentInfo: (name) => pods.agentInfo(name),
@@ -150,20 +129,8 @@ export function clusterDeps(): ClusterDeps {
     catalog: {
       // create → 409 → get-for-resourceVersion → replace, with the live
       // object's unrendered fields carried across. One call, one side.
-      applyPair: async ({ agentDefinition, station }) => {
-        await catalog.applyAgentDefinition(
-          mergeOntoLive(
-            await catalog.getAgentDefinition(agentDefinition.metadata!.name!),
-            agentDefinition,
-          ),
-        );
-        await catalog.applyStation(
-          mergeOntoLive(
-            await catalog.getStation(station.metadata!.name!),
-            station,
-          ),
-        );
-      },
+      //
+      applyPair: (pair) => applyCatalogPair(catalog, pair),
       // Station first: the AgentDefinition is what a dispatch looks up, so
       // removing it last never leaves a recipe pointing at a missing station.
       deletePair: async (name) => {
@@ -174,36 +141,4 @@ export function clusterDeps(): ClusterDeps {
   };
 
   return singleton;
-}
-
-function mergeOntoLive<T extends AgentDefinition | Station>(
-  live: unknown,
-  desired: T,
-): T {
-  return live ? preserveUnownedFields(live, desired) : desired;
-}
-
-/** The apiserver's status code, wherever this client version happens to put it. */
-function statusOf(err: unknown): number | undefined {
-  const e = err as {
-    code?: number;
-    statusCode?: number;
-    response?: { statusCode?: number };
-  };
-
-  return e?.code ?? e?.statusCode ?? e?.response?.statusCode;
-}
-
-function isNotFound(err: unknown): boolean {
-  return statusOf(err) === 404;
-}
-
-/** Name the verb and the status, because "Forbidden" alone does not say which
- *  Role is missing which rule. */
-function describeK8sError(verb: string, name: string, err: unknown): string {
-  const status = statusOf(err);
-  const detail =
-    status === 403 ? " — the cluster-agent Role is missing this rule" : "";
-
-  return `${verb} agents/${name} failed with ${status ?? "no status"}${detail}: ${(err as Error).message}`;
 }

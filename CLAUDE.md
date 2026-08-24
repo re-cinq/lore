@@ -62,9 +62,10 @@ success, 1 on failure.
 **Helm charts** for K8s deployments. All nine service workloads ship as
 ONE umbrella chart, `lore-platform` (vendoring floor/event-router/cluster-agent/
 lore-api/lore-mcp/stations/ui/lore-db/ai-agents subcharts under `charts/`); one
-`helm_release.lore_platform` deploys them. Note that event-router, cluster-agent,
-and stations have no `build-*.yml` CI workflow yet — their chart values read
-`tag: latest` and their images are built by hand.
+`helm_release.lore_platform` deploys them. Every service has a `build-*.yml`
+workflow that builds its image and deploys it into the umbrella release via
+`scripts/ci/deploy-lore-platform.sh`; chart values read `tag: latest` only as a
+never-used default, because that script pins the short SHA with `--set-string`.
 Values files should have sane defaults. No hardcoded secrets — use
 K8s Secrets.
 

@@ -100,6 +100,3 @@ export class KubePodLogs implements PodLogSource {
     });
   }
 }
-
-/** One Cloud Logging entry — a container log line is either a raw `textPayload`
- *  or a structured `jsonPayload` (agents that log JSON). */

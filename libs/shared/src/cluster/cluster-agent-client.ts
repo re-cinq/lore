@@ -63,11 +63,11 @@ export class ClusterAgentClient {
   }
 }
 
-/** {@link AgentApi} + {@link AgentStatusReader} over the agent. */
 /** The route rejects anything above 100; asking for exactly that many keeps the
  *  walk to the fewest round trips it can make. */
 const PAGE_LIMIT = 100;
 
+/** {@link AgentApi} + {@link AgentStatusReader} over the agent. */
 export class HttpAgentApi implements AgentApi, AgentStatusReader {
   constructor(private readonly client: ClusterAgentClient) {}
 

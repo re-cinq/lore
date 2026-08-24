@@ -73,9 +73,17 @@ export interface ClusterRoutesDeps {
 }
 
 const StatusPatch = z.object({ patch: z.record(z.unknown()) });
+// `metadata.name` is required, not merely hoped for: the apply reads it to
+// fetch the live object, so a body without one becomes a TypeError deep in a
+// Kubernetes call instead of the 400 it is. The rest of each CR stays open —
+// this route forwards recipes it deliberately does not model.
+const NamedCr = z
+  .object({ metadata: z.object({ name: z.string().min(1) }).passthrough() })
+  .passthrough();
+
 const CatalogPair = z.object({
-  agentDefinition: z.record(z.unknown()),
-  station: z.record(z.unknown()),
+  agentDefinition: NamedCr,
+  station: NamedCr,
 });
 
 export function clusterRoutes(opts: ClusterRoutesDeps): ServerRoute[] {
