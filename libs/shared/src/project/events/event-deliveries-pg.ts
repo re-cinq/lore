@@ -174,7 +174,6 @@ export class PgEventDeliveries implements EventDeliveriesPort {
     return deliveries.length;
   }
 
-
   async orphanedEvents(withinMinutes: number): Promise<OrphanedEvents[]> {
     const { rows } = await this.pool.query<{
       event_name: string;

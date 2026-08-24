@@ -12,11 +12,25 @@
  * that holds neither credential (ADR-031 D6/D7) — so nothing here may reach for
  * a database, a client, or a credential. A station that needs data is GIVEN it.
  *
- * It lives in a LIB rather than in either app because an app cannot import
- * another app, and one registry has to be reachable from both. (It does not, on
- * its own, slim the pod image: the scoped `npm ci` still installs the hoisted
- * root tree, so the pod ships pg and octokit it never uses either way. Keeping
- * this package free of them is what makes fixing that possible later.)
+ * It lives in `apps/stations` — the app that RUNS the stations — and both the
+ * Floor and lore-api import it from there. That inverts the usual deployable
+ * boundary, and it is a known debt rather than a design: an app importing
+ * another app resolves only because npm hoists the workspace.
+ *
+ * It is survivable today because of what actually crosses. The Floor reads
+ * `.manifest` and never a handler — a node's runtime and its timeout budget —
+ * so nothing about a station's implementation reaches it. lore-api is the real
+ * offender: its maintenance route still CALLS `.run`, which is the leftover the
+ * cutover meant to remove.
+ *
+ * The fix, when it is taken, is the split the plan named: manifests reachable
+ * from a lib, handlers staying in their station's folder here. It is not taken
+ * yet because it separates a station's manifest from its folder, and one folder
+ * per station is the property this consolidation exists to give.
+ *
+ * (Nothing here may reach for a database, a client, or a credential regardless:
+ * this file is imported by BOTH runtimes, the long-lived service that holds a
+ * pool and a GitHub App, and the one-shot pod that holds neither.)
  */
 
 import type {

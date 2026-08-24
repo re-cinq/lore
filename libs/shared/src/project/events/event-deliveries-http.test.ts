@@ -72,7 +72,9 @@ describe("HttpEventDeliveries sends what the router parses", () => {
 
     expect(SubscribeBody.parse(sent[0]?.body)).toEqual({
       subscriber: "stations",
-      subscriptions: [{ eventName: "station.run", visibilityTimeoutSeconds: 0 }],
+      subscriptions: [
+        { eventName: "station.run", visibilityTimeoutSeconds: 0 },
+      ],
     });
   });
 
@@ -101,6 +103,9 @@ describe("HttpEventDeliveries sends what the router parses", () => {
 
     await port.markDone("d-1");
 
-    expect(sent[0]).toEqual({ path: "/api/deliveries/d-1/ack", body: undefined });
+    expect(sent[0]).toEqual({
+      path: "/api/deliveries/d-1/ack",
+      body: undefined,
+    });
   });
 });

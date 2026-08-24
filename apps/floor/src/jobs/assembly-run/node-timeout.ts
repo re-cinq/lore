@@ -30,8 +30,9 @@ export const nodeTimeoutMinutes = ({
  * the station that has to finish inside it.
  */
 export function stationBudgetFor(nodeType: string): number | undefined {
-  const trigger = nodeStationFor(nodeType)
-    ?.manifest.triggers.find((t) => t.kind === "node" && t.nodeType === nodeType);
+  const trigger = nodeStationFor(nodeType)?.manifest.triggers.find(
+    (t) => t.kind === "node" && t.nodeType === nodeType,
+  );
 
   return trigger?.kind === "node" ? trigger.timeoutMinutes : undefined;
 }

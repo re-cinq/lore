@@ -1,10 +1,7 @@
 import type { ResponseToolkit, ResponseObject, ServerRoute } from "@hapi/hapi";
 import type { Pool } from "pg";
 import { applyGapResult } from "@re-cinq/lore-shared/feature-planning/apply-gap-result.js";
-import {
-  composePlanningPrompt,
-  composeRoundFeedback,
-} from "@re-cinq/lore-shared/feature-planning/planning-prompt.js";
+import { composePlanningPrompt } from "@re-cinq/lore-shared/feature-planning/planning-prompt.js";
 import {
   enforceFeatureInput,
   parseSectionAnswers,
@@ -14,7 +11,6 @@ import {
   roundInFlight,
   canFinalize,
   latestReadyGap,
-  resolveRoundBasis,
   latestReadyIteration,
 } from "@re-cinq/lore-shared/project/features/features-port.js";
 import {

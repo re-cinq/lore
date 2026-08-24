@@ -13,10 +13,7 @@
 //                                   converges on the next launch/finish)
 //   - single-CR (definition-less) row, backing task terminal → close from status
 
-import {
-  nodeTimeoutMinutes,
-  stationBudgetFor,
-} from "./node-timeout.js";
+import { nodeTimeoutMinutes, stationBudgetFor } from "./node-timeout.js";
 import {
   isHumanStation,
   type AgentNodeStatus,

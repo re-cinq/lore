@@ -27,7 +27,6 @@ import { nodeStationFor } from "@re-cinq/lore-stations";
  *  Subject-first like the rest of the assembly_run family: several producers,
  *  one subject. */
 
-
 /** True when this node type's station runs in the pooled service, not a pod. */
 const isServiceNode = (nodeType: string): boolean =>
   nodeStationFor(nodeType)?.manifest.triggers.some(
