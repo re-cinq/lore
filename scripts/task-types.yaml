@@ -837,6 +837,11 @@ stations:
   comment-triage:
     command: ["lore-station", "comment-triage"]
     timeout_minutes: 5
+    # It classifies a human comment with a model, so its pod needs the LLM
+    # credential. Without it the call failed, the failure was swallowed into
+    # "ignore", and the station reported SUCCESS -- every PR comment dropped,
+    # silently. Verified in the built image before this line existed.
+    needs_model: true
   issues:
     command: ["lore-station", "issues"]
     # Files one Issue per story and one spec-task per task over the Lore API — no

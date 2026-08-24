@@ -205,6 +205,17 @@ subscribe" has no expressible meaning on the current substrate.
   is telemetry, so a failure to record never decides whether the run closes.
   ([validated by writes the run's episode when the line reaches its exit](apps/floor/src/jobs/assembly-run/advance.test.ts#L1247), [`advance.test.ts:1271`](apps/floor/src/jobs/assembly-run/advance.test.ts#L1271), [`advance.test.ts:1295`](apps/floor/src/jobs/assembly-run/advance.test.ts#L1295))
 
+- **FR19 — a station that calls a model is given a credential, and says so when
+  it cannot.** A station's recipe declares whether it needs the model credential,
+  and only those that do receive one — a key a deterministic station never uses is
+  surface for nothing. A station that cannot reach a model reports a FAILED node
+  naming the cause, rather than a plausible default. Comment triage did the
+  opposite on both counts: its pod carried no model credential and the image ships
+  no CLI to fall back to, so every classification failed, was swallowed into
+  `ignore`, and reported SUCCESS — silently dropping every human PR comment and
+  telling the walk it was handled.
+  ([validated by declares the LLM secret for a station whose recipe says it needs one](apps/floor/src/jobs/agent/agent-catalog.test.ts#L420), [`comment-triage.test.ts:73`](apps/stations/src/stations/comment-triage/comment-triage.test.ts#L73), [`comment-triage.test.ts:90`](apps/stations/src/stations/comment-triage/comment-triage.test.ts#L90), [`comment-triage.test.ts:71`](libs/shared/src/review/comment-triage.test.ts#L71))
+
 ## Non-goals
 
 - **Merging the pod runtime away.** Three station types must stay pods (FR5) and

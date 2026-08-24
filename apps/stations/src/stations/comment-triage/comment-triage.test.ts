@@ -68,3 +68,34 @@ describe("runCommentTriageStation", () => {
     });
   });
 });
+
+describe("runCommentTriageStation when the model is unreachable", () => {
+  it("fails the node naming the cause, rather than reporting an ignorable comment", async () => {
+    Llm.setInstance({
+      vendor: "throwing",
+      complete: () => Promise.reject(new Error("no model credential")),
+      completeWithTool: () => Promise.reject(new Error("no model credential")),
+    });
+
+    const result = await runCommentTriageStation(
+      input({ comment_body: "please fix the typo", pr_number: "7" }),
+    );
+
+    expect(result).toMatchObject({
+      outcome: "failed",
+      failureDetail: expect.stringContaining("no model credential"),
+    });
+  });
+
+  it("carries no action on a failure, so nothing downstream routes on a guess", async () => {
+    Llm.setInstance({
+      vendor: "throwing",
+      complete: () => Promise.reject(new Error("down")),
+      completeWithTool: () => Promise.reject(new Error("down")),
+    });
+
+    const result = await runCommentTriageStation(input({ comment_body: "hm" }));
+
+    expect(result.extras?.action).toBeUndefined();
+  });
+});

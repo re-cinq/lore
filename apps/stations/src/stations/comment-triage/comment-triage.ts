@@ -12,11 +12,24 @@ export async function runCommentTriageStation(
   input: StationInput,
 ): Promise<NodeResult> {
   const p = input.params;
-  const decision = await classifyComment({
-    body: p.comment_body ?? "",
-    isReply: Boolean(p.in_reply_to_id),
-    prNumber: Number(p.pr_number) || 0,
-  });
+  let decision;
+
+  try {
+    decision = await classifyComment({
+      body: p.comment_body ?? "",
+      isReply: Boolean(p.in_reply_to_id),
+      prNumber: Number(p.pr_number) || 0,
+    });
+  } catch (err) {
+    // A comment that could not be classified is a FAILED node, not an ignorable
+    // comment. Reporting success with action `ignore` — which is what a swallowed
+    // failure used to do — drops the comment and tells the walk it was handled.
+    return {
+      outcome: "failed",
+      failureClass: "unknown",
+      failureDetail: `comment triage could not classify: ${(err as Error).message}`,
+    };
+  }
 
   return {
     outcome: "success",

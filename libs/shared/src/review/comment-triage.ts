@@ -53,31 +53,36 @@ const TOOL_SCHEMA = {
   required: ["action", "reason"],
 } as const;
 
+/**
+ * Classify one PR comment into a single follow-up action.
+ *
+ * A model failure PROPAGATES. It used to be swallowed into `ignore`, which the
+ * station then reported as success — so with no model credential in a station
+ * pod (they carry only LORE_INGEST_TOKEN, and the image ships no CLI to fall
+ * back to) every human comment was silently classified as ignorable and no
+ * follow-up ever started. `ignore` now means the model said ignore.
+ */
 export async function classifyComment(
   ctx: CommentContext,
 ): Promise<TriageDecision> {
-  try {
-    const { data, ...usage } = await Llm.instance.completeWithTool<{
-      action?: string;
-      reason?: string;
-    }>({
-      prompt: buildPrompt(ctx),
-      systemPrompt: SYSTEM_PROMPT,
-      model: TRIAGE_MODEL,
-      jobName: "comment-triage",
-      toolName: "triage_comment",
-      toolDescription: "Classify the PR comment into a single Lore action.",
-      toolSchema: TOOL_SCHEMA,
-    });
+  const { data, ...usage } = await Llm.instance.completeWithTool<{
+    action?: string;
+    reason?: string;
+  }>({
+    prompt: buildPrompt(ctx),
+    systemPrompt: SYSTEM_PROMPT,
+    model: TRIAGE_MODEL,
+    jobName: "comment-triage",
+    toolName: "triage_comment",
+    toolDescription: "Classify the PR comment into a single Lore action.",
+    toolSchema: TOOL_SCHEMA,
+  });
 
-    return {
-      action: isAction(data?.action) ? data.action : "ignore",
-      reason: data?.reason ?? "",
-      usage,
-    };
-  } catch {
-    return { action: "ignore", reason: "triage failed" };
-  }
+  return {
+    action: isAction(data?.action) ? data.action : "ignore",
+    reason: data?.reason ?? "",
+    usage,
+  };
 }
 
 function buildPrompt(ctx: CommentContext): string {

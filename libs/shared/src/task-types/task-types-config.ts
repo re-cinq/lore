@@ -64,6 +64,15 @@ export const StationConfigSchema = z.object({
   /** Pod-template labels a NetworkPolicy selects. MUST ride the template, not the
    *  Station name — the per-task triple renames the Station to `pt-<id>`. */
   pod_labels: z.record(z.string()).optional(),
+  /**
+   * This station calls a model, so its pod needs the LLM credential.
+   *
+   * Off by default: most stations are deterministic and a credential they never
+   * use is surface for nothing. But a station that DOES call one and is not
+   * given it fails in the worst way — comment-triage swallowed the failure into
+   * `ignore` and reported success, silently dropping every human PR comment.
+   */
+  needs_model: z.boolean().optional(),
 });
 
 export type StationConfig = z.infer<typeof StationConfigSchema>;
