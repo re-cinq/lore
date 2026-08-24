@@ -1030,3 +1030,89 @@ resource "kubectl_manifest" "es_stations_anthropic_key" {
 
   depends_on = [kubectl_manifest.cluster_secret_store]
 }
+
+# --------------------------------------------------------------------------
+# Cluster agent (lore-cluster-agent namespace) — ADR-024
+#
+# No database credential: this service holds no pool. It DOES hold the GitHub
+# App triple, because it mints the per-task installation token itself so no
+# token crosses the network — the trade recorded in the ADR is that the App
+# private key now lives here as well as on the Floor.
+#
+# The ingest token must match the Floor's and lore-api's, or every call they
+# make is refused 401.
+# --------------------------------------------------------------------------
+
+resource "kubectl_manifest" "es_cluster_agent_internal_token" {
+  yaml_body = yamlencode({
+    apiVersion = "external-secrets.io/v1beta1"
+    kind       = "ExternalSecret"
+    metadata = {
+      name      = "lore-agent-internal-token"
+      namespace = "lore-cluster-agent"
+    }
+    spec = {
+      refreshInterval = "1h"
+      secretStoreRef = {
+        name = "gcp-secret-manager"
+        kind = "ClusterSecretStore"
+      }
+      target = {
+        name = "lore-agent-internal-token"
+      }
+      data = [
+        {
+          secretKey = "token"
+          remoteRef = {
+            key = "lore-agent-internal-token"
+          }
+        },
+      ]
+    }
+  })
+
+  depends_on = [kubectl_manifest.cluster_secret_store]
+}
+
+resource "kubectl_manifest" "es_cluster_agent_github_app" {
+  yaml_body = yamlencode({
+    apiVersion = "external-secrets.io/v1beta1"
+    kind       = "ExternalSecret"
+    metadata = {
+      name      = "lore-cluster-agent-github-app"
+      namespace = "lore-cluster-agent"
+    }
+    spec = {
+      refreshInterval = "1h"
+      secretStoreRef = {
+        name = "gcp-secret-manager"
+        kind = "ClusterSecretStore"
+      }
+      target = {
+        name = "lore-cluster-agent-github-app"
+      }
+      data = [
+        {
+          secretKey = "app-id"
+          remoteRef = {
+            key = "lore-github-app-id"
+          }
+        },
+        {
+          secretKey = "private-key"
+          remoteRef = {
+            key = "lore-github-app-private-key"
+          }
+        },
+        {
+          secretKey = "installation-id"
+          remoteRef = {
+            key = "lore-github-app-installation-id"
+          }
+        },
+      ]
+    }
+  })
+
+  depends_on = [kubectl_manifest.cluster_secret_store]
+}

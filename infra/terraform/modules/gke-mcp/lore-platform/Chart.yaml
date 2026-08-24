@@ -3,7 +3,7 @@ name: lore-platform
 description: |
   The Lore platform as a single deployable Helm chart. Aggregates the
   application workloads as vendored subcharts (charts/): floor, mcp, ui,
-  lore-db add-ons, the ai-agent subsystem, the event-router, and the stations service.
+  lore-db add-ons, the ai-agent subsystem, the event-router, the stations service, and the cluster agent.
 
   Subcharts are vendored (physically present under charts/) rather than pulled
   from a repository, so `helm template`/`helm install` work with no
@@ -21,6 +21,7 @@ description: |
     ai-agents: {...}
     lore-event-router: {...}
     lore-stations: {...}
+    lore-cluster-agent: {...}
 
   Cluster, namespaces, ExternalSecrets, ingresses, the CNPG cluster CR, and the
   Dgraph StatefulSet remain owned by Terraform (infra/terraform/*.tf).
@@ -46,4 +47,6 @@ dependencies:
   - name: lore-event-router
     version: "0.1.0"
   - name: lore-stations
+    version: "0.1.0"
+  - name: lore-cluster-agent
     version: "0.1.0"

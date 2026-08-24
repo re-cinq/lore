@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: lore-cluster-agent
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: lore-cluster-agent
+spec:
+  type: {{ .Values.service.type }}
+  selector:
+    app: lore-cluster-agent
+  ports:
+    - name: http
+      port: {{ .Values.service.port }}
+      targetPort: http
+      protocol: TCP
