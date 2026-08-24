@@ -38,16 +38,55 @@ export interface StationDrainDeps {
   markDead(id: string, error: string): Promise<void>;
 }
 
+/** How hard boot tries to register before giving up. */
+export interface SubscribeRetry {
+  attempts: number;
+  delayMs: number;
+}
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * Register, retrying a transient refusal.
+ *
+ * This service and the router come up together — under `npm start` they race,
+ * and in a cluster a rollout reorders them — so the first attempt can hit a
+ * router that is not listening yet. Fataling on that leaves the service dead
+ * with the router healthy seconds later, which is what happens without this.
+ * Retrying does not weaken the guard below: the boot still fails if the last
+ * attempt fails, because a drainer claiming an unregistered set looks exactly
+ * like one with nothing to do.
+ */
+async function subscribeWithRetry(
+  deps: StationDrainDeps,
+  retry: SubscribeRetry,
+): Promise<void> {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      await deps.subscribe(STATIONS_SUBSCRIBER, stationSubscriptions());
+
+      return;
+    } catch (err) {
+      if (attempt >= retry.attempts) {
+        throw err;
+      }
+      console.warn(
+        `[stations] subscribe attempt ${attempt}/${retry.attempts} failed (${(err as Error).message}) — retrying`,
+      );
+      await sleep(retry.delayMs * attempt);
+    }
+  }
+}
+
 export async function startStationDrain(
   deps: StationDrainDeps,
   intervalMs = 1000,
   handlers: Map<string, EventHandler> = buildStationHandlers(),
+  retry: SubscribeRetry = { attempts: 10, delayMs: 1000 },
 ): Promise<NodeJS.Timeout> {
   // BEFORE the loop, and awaited: fan-out reads the subscription set at INSERT
-  // time, so an event captured before this lands is delivered to nobody. A
-  // failure here must stop the boot rather than leave a drainer claiming an
-  // empty set forever, which looks exactly like having nothing to do.
-  await deps.subscribe(STATIONS_SUBSCRIBER, stationSubscriptions());
+  // time, so an event captured before this lands is delivered to nobody.
+  await subscribeWithRetry(deps, retry);
 
   return startEventLoop(
     {

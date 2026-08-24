@@ -272,7 +272,10 @@ subscribe" has no expressible meaning on the current substrate.
   backlog; it registers BEFORE it drains, because fan-out reads the subscription
   set when an event is inserted; and it refuses to start if it cannot register,
   since a drainer with an empty subscription set looks exactly like one with
-  nothing to do. Its subscriptions are derived from the manifests, so a station
+  nothing to do. That refusal retries first: this service and the router come up
+  together, so the first attempt can reach a router not yet listening, and
+  fataling on that leaves the service dead with the router healthy seconds later.
+  The boot still fails if the last attempt does. Its subscriptions are derived from the manifests, so a station
   declaring an event trigger is subscribed by that declaration alone, and the
   published-node budget is the slowest service node's, so a delivery is not
   reaped mid-run. It drains through the SAME loop as the Floor — one retry
@@ -283,7 +286,7 @@ subscribe" has no expressible meaning on the current substrate.
   legitimately send is accepted: a run may carry no branch — every detect-family
   run does — and refusing that would dead-letter the delivery after five silent
   retries rather than letting the station fail on its own terms, recorded.
-  ([validated by claims the published-node event, without which a service-form node never runs](apps/stations/src/drain/subscriptions.test.ts#L8), [`subscriptions.test.ts:14`](apps/stations/src/drain/subscriptions.test.ts#L14), [`subscriptions.test.ts:26`](apps/stations/src/drain/subscriptions.test.ts#L26), [`subscriptions.test.ts:32`](apps/stations/src/drain/subscriptions.test.ts#L32), [`subscriptions.test.ts:47`](apps/stations/src/drain/subscriptions.test.ts#L47), [`loop-boot.test.ts:17`](apps/stations/src/drain/loop-boot.test.ts#L17), [`loop-boot.test.ts:39`](apps/stations/src/drain/loop-boot.test.ts#L39), [`loop-boot.test.ts:51`](apps/stations/src/drain/loop-boot.test.ts#L51), [`run-node.test.ts:92`](apps/stations/src/kernel/run-node.test.ts#L92), [`run-node.test.ts:100`](apps/stations/src/kernel/run-node.test.ts#L100), [`run-node.test.ts:106`](apps/stations/src/kernel/run-node.test.ts#L106), [`run-node.test.ts:112`](apps/stations/src/kernel/run-node.test.ts#L112))
+  ([validated by claims the published-node event, without which a service-form node never runs](apps/stations/src/drain/subscriptions.test.ts#L8), [`subscriptions.test.ts:14`](apps/stations/src/drain/subscriptions.test.ts#L14), [`subscriptions.test.ts:26`](apps/stations/src/drain/subscriptions.test.ts#L26), [`subscriptions.test.ts:32`](apps/stations/src/drain/subscriptions.test.ts#L32), [`subscriptions.test.ts:47`](apps/stations/src/drain/subscriptions.test.ts#L47), [`loop-boot.test.ts:17`](apps/stations/src/drain/loop-boot.test.ts#L17), [`loop-boot.test.ts:39`](apps/stations/src/drain/loop-boot.test.ts#L39), [`loop-boot.test.ts:51`](apps/stations/src/drain/loop-boot.test.ts#L51), [`run-node.test.ts:92`](apps/stations/src/kernel/run-node.test.ts#L92), [`run-node.test.ts:100`](apps/stations/src/kernel/run-node.test.ts#L100), [`run-node.test.ts:106`](apps/stations/src/kernel/run-node.test.ts#L106), [`run-node.test.ts:112`](apps/stations/src/kernel/run-node.test.ts#L112), [`loop-boot.test.ts:18`](apps/stations/src/drain/loop-boot.test.ts#L18), [`loop-boot.test.ts:55`](apps/stations/src/drain/loop-boot.test.ts#L55), [`loop-boot.test.ts:70`](apps/stations/src/drain/loop-boot.test.ts#L70), [`loop-boot.test.ts:89`](apps/stations/src/drain/loop-boot.test.ts#L89))
 
 - **FR22 — a node published to the service is never also given a pod.** A service
   dispatch records NO agent CR name, because none will exist, and the reaper reads

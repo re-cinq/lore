@@ -1,3 +1,4 @@
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { describe, it, expect } from "vitest";
 import { startStationDrain } from "./loop-boot.js";
 import type { StationDrainDeps } from "./loop-boot.js";
@@ -44,6 +45,9 @@ describe("startStationDrain", () => {
             throw new Error("router unreachable");
           },
         }),
+        1,
+        new Map(),
+        { attempts: 1, delayMs: 0 },
       ),
     ).rejects.toThrow("router unreachable");
   });
@@ -61,5 +65,39 @@ describe("startStationDrain", () => {
 
     clearInterval(timer);
     expect(seen).toEqual(["stations"]);
+  });
+
+  it("retries a subscribe the router refused, since both boot at once", async () => {
+    let attempts = 0;
+    const timer = await startStationDrain(
+      deps({
+        subscribe: async () => {
+          attempts++;
+
+          enforceTrue(attempts >= 3, Error, "fetch failed");
+        },
+      }),
+      1,
+      new Map(),
+      { attempts: 5, delayMs: 1 },
+    );
+
+    clearInterval(timer);
+    expect(attempts).toBe(3);
+  });
+
+  it("gives up after the last attempt, so a drainer never claims an unregistered set", async () => {
+    await expect(
+      startStationDrain(
+        deps({
+          subscribe: async () => {
+            throw new Error("fetch failed");
+          },
+        }),
+        1,
+        new Map(),
+        { attempts: 2, delayMs: 1 },
+      ),
+    ).rejects.toThrow(/fetch failed/);
   });
 });
