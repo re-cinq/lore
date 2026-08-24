@@ -37,6 +37,10 @@ locals {
   # the Floor calls it — nothing reaches it from outside, so there is no ingress.
   stations_in_cluster = "http://lore-stations.lore-stations.svc.cluster.local:8080"
 
+  # The Lore API as its in-cluster peers reach it. The web-ui already hardcoded
+  # this string; naming it once stops the two drifting.
+  lore_api_in_cluster = "http://lore-api.lore-api.svc.cluster.local:3000"
+
   # In-cluster base URL of the cluster agent (ADR-024). Only the Floor and
   # lore-api call it, and its NetworkPolicy allows ingress from those two
   # namespaces only — nothing reaches it from outside, so there is no ingress.
@@ -151,7 +155,7 @@ resource "helm_release" "lore_platform" {
         GITHUB_ALLOWED_ORG = var.github_org
         NEXTAUTH_URL       = var.lore_ui_url
         LORE_LOG_BUCKET    = "lore-task-logs-${var.project_id}"
-        LORE_API_URL       = "http://lore-api.lore-api.svc.cluster.local:3000"
+        LORE_API_URL       = local.lore_api_in_cluster
       }
       dbPasswordSecret  = { name = "lore-db-password", key = "password" }
       ingestTokenSecret = { name = "lore-ingest-token", key = "token" }
@@ -250,7 +254,10 @@ resource "helm_release" "lore_platform" {
         # wrong here — the fallback logs which way it resolved.
         EVENT_ROUTER_URL = local.event_router_in_cluster
         # A station reads and writes through the Lore API where it holds no pool.
-        LORE_API_URL = var.lore_api_url
+        # The IN-CLUSTER address, like every other in-cluster caller: the
+        # external URL would leave the cluster and come back through the
+        # ingress for a call between two pods in it.
+        LORE_API_URL = local.lore_api_in_cluster
       }
     }
 
