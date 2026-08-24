@@ -14,6 +14,10 @@
 //   - single-CR (definition-less) row, backing task terminal → close from status
 
 import {
+  nodeTimeoutMinutes,
+  stationBudgetFor,
+} from "./node-timeout.js";
+import {
   isHumanStation,
   type AgentNodeStatus,
 } from "@re-cinq/lore-assembly-lines";
@@ -195,7 +199,12 @@ export async function assemblyLineReaperJob(
         : null;
       const recovery = decideNodeRecovery({
         node: openNode,
-        timeoutMinutes: node.timeout_minutes,
+        // The station's own budget, not the global sixty, when the YAML is
+        // silent — every merge.yaml node is, and merge_step declares five.
+        timeoutMinutes: nodeTimeoutMinutes({
+          yaml: node.timeout_minutes,
+          manifest: stationBudgetFor(node.type),
+        }),
         status,
         nodeType: node.type,
         nowMs,

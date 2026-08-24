@@ -6,6 +6,7 @@
  * dead-lettering and the visibility budget.
  */
 
+import { SERVICE_NODE_EVENT } from "@re-cinq/lore-shared/project/events/service-node-event.js";
 import type { EventHandler } from "@re-cinq/lore-shared/project/events/drain-loop.js";
 import { runPublishedNode, type PublishedNode } from "../kernel/run-node.js";
 import { STATIONS } from "../stations/registry.js";
@@ -16,7 +17,7 @@ import {
 import { stationHost } from "../kernel/station-host.js";
 
 /** Published by the walk when a node's station runs here rather than in a pod. */
-export const SERVICE_NODE_EVENT = "station.run";
+
 
 /**
  * Run a node the walk published for this service.

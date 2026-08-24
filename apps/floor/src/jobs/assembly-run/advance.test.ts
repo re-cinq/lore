@@ -1122,6 +1122,31 @@ describe("a node finishing reaches its follow-up from every door", () => {
     ]);
   });
 
+  it("does not react twice when a redelivered event finds the node already closed", async () => {
+    const port = new InMemoryAssemblyRuns();
+    const id = await runningLine(port);
+    const { deps } = makeDeps(port);
+    const seen: string[] = [];
+
+    deps.onNodeFinished = async (_row, nodeId) => {
+      seen.push(nodeId);
+    };
+
+    await advanceLine(id, deps);
+
+    const finish = {
+      assemblyLineId: id,
+      nodeId: "review",
+      iteration: 1,
+      result: { outcome: "success" as const, extras: { action: "address" } },
+    };
+
+    await finishNodeAndAdvance(finish, deps);
+    await finishNodeAndAdvance(finish, deps);
+
+    expect(seen).toEqual(["review"]);
+  });
+
   it("advances the walk even when the reaction throws, so routing cannot wedge a run", async () => {
     const port = new InMemoryAssemblyRuns();
     const id = await runningLine(port);

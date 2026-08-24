@@ -9,7 +9,7 @@
 import type { EventSubscription } from "@re-cinq/lore-shared/project/events/event-deliveries-port.js";
 import { STATIONS } from "../stations/registry.js";
 import { nodeTriggers } from "../stations/lib/station.js";
-import { SERVICE_NODE_EVENT } from "./handlers.js";
+import { SERVICE_NODE_EVENT } from "@re-cinq/lore-shared/project/events/service-node-event.js";
 
 /**
  * One subscriber per ROLE, not per replica: two stations pods are the same

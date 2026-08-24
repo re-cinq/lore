@@ -26,7 +26,7 @@ import { nodeStationFor } from "@re-cinq/lore-stations";
 /** Published when a node's station runs in the pooled service rather than a pod.
  *  Subject-first like the rest of the assembly_run family: several producers,
  *  one subject. */
-export const SERVICE_NODE_EVENT = "station.run";
+
 
 /** True when this node type's station runs in the pooled service, not a pod. */
 const isServiceNode = (nodeType: string): boolean =>
@@ -40,6 +40,10 @@ import {
   stationRunInputFor,
   type FloorAssemblyRunTask,
 } from "./floor-assembly-run.js";
+import {
+  SERVICE_NODE_EVENT,
+  serviceNodeDedupeKey,
+} from "@re-cinq/lore-shared/project/events/service-node-event.js";
 import { lineWritesOwnEpisode } from "./run-episode.js";
 import { isFailureOutcome } from "./notify-failure.js";
 import {
@@ -330,7 +334,7 @@ export async function advanceLine(
   if (runsInService) {
     await deps.publishNode?.({
       eventName: SERVICE_NODE_EVENT,
-      dedupeKey: `station-run:${stationRunId}`,
+      dedupeKey: serviceNodeDedupeKey(stationRunId),
       params: {
         stationRunId,
         assemblyLineId,
@@ -453,8 +457,13 @@ export async function finishNodeAndAdvance(
         )
       : forNode.filter((n) => n.outcome === null).at(-1);
 
-  if (target) {
-    await deps.assemblyRuns.finishStationRunOnce(
+  // The CAS answer, not a discarded side effect: `false` means another delivery
+  // already closed this node, and `undefined` target means it was closed before
+  // this one even read. Either way the follow-up ALREADY fired, and firing it
+  // again re-routes a comment-triage result that was routed a moment ago.
+  const closedHere =
+    target !== undefined &&
+    (await deps.assemblyRuns.finishStationRunOnce(
       target.id,
       input.result.outcome,
       undefined,
@@ -462,16 +471,22 @@ export async function finishNodeAndAdvance(
         failureClass: input.result.failureClass,
         failureDetail: input.result.failureDetail,
       },
+    ));
+
+  // The once-only effects are gated on having won the CAS; the walk is NOT.
+  // advanceLine re-derives its next step from the node rows, so running it again
+  // is a no-op when the first delivery got there — and the recovery when that
+  // delivery closed the node and then died before advancing.
+  if (closedHere) {
+    await maybeStampPr(input.assemblyLineId, input.nodeId, input.result, deps);
+    await reactToNodeFinished(
+      input.assemblyLineId,
+      input.nodeId,
+      input.result,
+      deps,
     );
   }
 
-  await maybeStampPr(input.assemblyLineId, input.nodeId, input.result, deps);
-  await reactToNodeFinished(
-    input.assemblyLineId,
-    input.nodeId,
-    input.result,
-    deps,
-  );
   await advanceLine(input.assemblyLineId, deps);
 }
 

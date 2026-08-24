@@ -1,7 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { stationSubscriptions, STATIONS_SUBSCRIBER } from "./subscriptions.js";
 import { STATIONS } from "../stations/registry.js";
-import { SERVICE_NODE_EVENT, buildStationHandlers } from "./handlers.js";
+import { SERVICE_NODE_EVENT } from "@re-cinq/lore-shared/project/events/service-node-event.js";
+import { buildStationHandlers } from "./handlers.js";
 
 describe("what the stations service subscribes to", () => {
   it("claims the published-node event, without which a service-form node never runs", () => {
