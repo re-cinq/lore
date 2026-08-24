@@ -34,8 +34,12 @@ function secretEquals(a: string, b: string): boolean {
 /**
  * Refuse the request unless it carries the expected bearer token.
  *
- * `service` names the deployment whose env var is missing, so a 503 says which
- * knob to turn rather than that "a token" is unset.
+ * `service` names the deployment whose env var is missing, so the refusal says
+ * which knob to turn rather than that "a token" is unset.
+ *
+ * An unconfigured token is a 500, not a 503: 503 tells the caller to retry, and
+ * no amount of retrying supplies a missing env var. The fix is a redeploy, and
+ * the status should say so.
  */
 export function enforceBearer(
   headers: Record<string, unknown>,
@@ -46,7 +50,7 @@ export function enforceBearer(
 
   enforceTrue(
     token,
-    apiError(503),
+    apiError(500),
     `token not configured — set LORE_INGEST_TOKEN on the ${service} deployment`,
   );
   enforceTrue(
