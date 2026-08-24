@@ -84,6 +84,7 @@ subscribe" has no expressible meaning on the current substrate.
   cloned working tree and alone holds graph-store egress), and comment triage
   (which feeds human-authored text to a model). Deterministic work over data the
   platform itself produced may pool.
+  ([validated by keeps validate in its own pod](apps/stations/src/stations/registry.test.ts#L139), [`registry.test.ts:149`](apps/stations/src/stations/registry.test.ts#L149))
 
 - **FR6 — an event is delivered per subscriber.** Each subscribed consumer gets
   its own delivery row for an event, claimed and retried independently, so two
@@ -149,7 +150,7 @@ subscribe" has no expressible meaning on the current substrate.
   pass, and an explicit per-repository cap replaces the rate limit the old
   deadline was accidentally providing.
 
-  ([validated by starts one unit per specification, not one per repository](apps/stations/src/stations/backfill-scan/backfill-scan.test.ts#L14), [`backfill-scan.test.ts:33`](apps/stations/src/stations/backfill-scan/backfill-scan.test.ts#L33), [`backfill-scan.test.ts:53`](apps/stations/src/stations/backfill-scan/backfill-scan.test.ts#L53), [`backfill-scan.test.ts:63`](apps/stations/src/stations/backfill-scan/backfill-scan.test.ts#L63), [`backfill-scan.test.ts:86`](apps/stations/src/stations/backfill-scan/backfill-scan.test.ts#L86), [`detect.test.ts:47`](apps/stations/src/stations/detect/detect.test.ts#L47), [`detect.test.ts:78`](apps/stations/src/stations/detect/detect.test.ts#L78))
+  ([validated by starts one unit per specification, not one per repository](apps/stations/src/stations/backfill-scan/backfill-scan.test.ts#L14), [`backfill-scan.test.ts:33`](apps/stations/src/stations/backfill-scan/backfill-scan.test.ts#L33), [`backfill-scan.test.ts:54`](apps/stations/src/stations/backfill-scan/backfill-scan.test.ts#L54), [`backfill-scan.test.ts:65`](apps/stations/src/stations/backfill-scan/backfill-scan.test.ts#L65), [`backfill-scan.test.ts:88`](apps/stations/src/stations/backfill-scan/backfill-scan.test.ts#L88), [`detect.test.ts:47`](apps/stations/src/stations/detect/detect.test.ts#L47), [`detect.test.ts:80`](apps/stations/src/stations/detect/detect.test.ts#L80))
 
 - **FR12 — a merged pull request walks an assembly line.** The work that follows
   a merge is a line of recorded steps rather than one function behind swallowing
@@ -176,8 +177,10 @@ subscribe" has no expressible meaning on the current substrate.
   task is a step of its own, reached by the same event from every caller that
   finishes work, rather than an inline call appended to whoever noticed. The
   episode itself is written by the caller and carries no model call. As a
-  consequence the pooled service holds no model credential at all, and a
-  curation that fails is retried and visible instead of swallowed.
+  consequence a curation that fails is a recorded step rather than a swallowed
+  one. It is a node of the merge line; the two callers that still curate inline
+  when an agent run finishes are not yet routed through it.
+  ([validated by carries every step the merged-PR handler did](libs/assembly-lines/src/merge-line.test.ts#L19), [`merge-step.test.ts:32`](apps/stations/src/stations/merge-step/merge-step.test.ts#L32))
 
 - **FR15 — a subscriber that holds no pool consumes over HTTP.** Registration,
   claim, ack, fail, dead-letter, reap and the orphan report are all reachable
@@ -235,7 +238,7 @@ subscribe" has no expressible meaning on the current substrate.
   run; and the round is appended before it is reported, so the report names a
   round that exists. The routes keep what is theirs — the paths, the scopes, the
   payload limits and the status codes.
-  ([validated by names the newest run whatever blueprint it is, so a finalize run still shows](libs/shared/src/project/features/planning-run.test.ts#L16), [`planning-run.test.ts:28`](libs/shared/src/project/features/planning-run.test.ts#L28), [`planning-run.test.ts:34`](libs/shared/src/project/features/planning-run.test.ts#L34), [`planning-run.test.ts:43`](libs/shared/src/project/features/planning-run.test.ts#L43), [`planning-run.test.ts:55`](libs/shared/src/project/features/planning-run.test.ts#L55), [`refinement-round.test.ts:31`](libs/shared/src/project/features/refinement-round.test.ts#L31), [`refinement-round.test.ts:48`](libs/shared/src/project/features/refinement-round.test.ts#L48), [`refinement-round.test.ts:58`](libs/shared/src/project/features/refinement-round.test.ts#L58), [`refinement-round.test.ts:66`](libs/shared/src/project/features/refinement-round.test.ts#L66))
+  ([validated by names the newest run whatever blueprint it is, so a finalize run still shows](libs/shared/src/project/features/planning-run.test.ts#L25), [`planning-run.test.ts:37`](libs/shared/src/project/features/planning-run.test.ts#L37), [`planning-run.test.ts:43`](libs/shared/src/project/features/planning-run.test.ts#L43), [`planning-run.test.ts:52`](libs/shared/src/project/features/planning-run.test.ts#L52), [`planning-run.test.ts:64`](libs/shared/src/project/features/planning-run.test.ts#L64), [`refinement-round.test.ts:34`](libs/shared/src/project/features/refinement-round.test.ts#L34), [`refinement-round.test.ts:53`](libs/shared/src/project/features/refinement-round.test.ts#L53), [`refinement-round.test.ts:64`](libs/shared/src/project/features/refinement-round.test.ts#L64), [`refinement-round.test.ts:72`](libs/shared/src/project/features/refinement-round.test.ts#L72))
 
 ## Non-goals
 
