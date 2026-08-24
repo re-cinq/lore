@@ -120,3 +120,39 @@ describe("declared triggers are usable as declared", () => {
     expect(impossible).toEqual([]);
   });
 });
+
+describe("what may run in the pooled service", () => {
+  /**
+   * The pooled service holds the GitHub App private key, the database password
+   * and a model credential. A station that executes code it did not write, reads
+   * a working tree it did not produce, or feeds untrusted text to a model must
+   * not share that process — it runs in its own pod, where a compromise reaches
+   * one run's scoped token and nothing else.
+   */
+  const MUST_BE_ISOLATED = {
+    validate: "runs the target repo's own lint and typecheck commands",
+    ingest: "reads a cloned working tree and alone holds graph-store egress",
+    "comment-triage": "feeds human-authored comment text to a model",
+  } as const;
+
+  it.each(Object.entries(MUST_BE_ISOLATED))(
+    "keeps %s in its own pod — %s",
+    (name) => {
+      const triggers = nodeTriggers(
+        STATIONS[name as keyof typeof STATIONS].manifest,
+      );
+
+      expect(triggers.map((t) => t.runtime)).toEqual(["pod"]);
+    },
+  );
+
+  it("asks for a cloned workspace only where something actually needs one", () => {
+    const cloning = Object.values(STATIONS)
+      .flatMap((mod) => nodeTriggers(mod.manifest))
+      .filter((t) => t.clone === true)
+      .map((t) => t.nodeType)
+      .sort();
+
+    expect(cloning).toEqual(["ingest", "validate"]);
+  });
+});

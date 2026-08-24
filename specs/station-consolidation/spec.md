@@ -138,13 +138,20 @@ subscribe" has no expressible meaning on the current substrate.
   ([validated by accepts an outcome on its own, which is all a human station reports](libs/assembly-lines/src/node-result-schema.test.ts#L11), [`node-result-schema.test.ts:17`](libs/assembly-lines/src/node-result-schema.test.ts#L17), [`node-result-schema.test.ts:26`](libs/assembly-lines/src/node-result-schema.test.ts#L26), [`node-result-schema.test.ts:39`](libs/assembly-lines/src/node-result-schema.test.ts#L39), [`node-result-schema.test.ts:43`](libs/assembly-lines/src/node-result-schema.test.ts#L43), [`node-result-schema.test.ts:49`](libs/assembly-lines/src/node-result-schema.test.ts#L49), [`node-result-schema.test.ts:57`](libs/assembly-lines/src/node-result-schema.test.ts#L57), [`node-result-schema.test.ts:71`](libs/assembly-lines/src/node-result-schema.test.ts#L71), [`resume-event-handler.test.ts:118`](apps/floor/src/jobs/assembly-run/resume-event-handler.test.ts#L118), [`resume-event-handler.test.ts:135`](apps/floor/src/jobs/assembly-run/resume-event-handler.test.ts#L135), [`resume-event-handler.test.ts:156`](apps/floor/src/jobs/assembly-run/resume-event-handler.test.ts#L156), [`resume-event-handler.test.ts:164`](apps/floor/src/jobs/assembly-run/resume-event-handler.test.ts#L164), [`advance.test.ts:1096`](apps/floor/src/jobs/assembly-run/advance.test.ts#L1096), [`advance.test.ts:1125`](apps/floor/src/jobs/assembly-run/advance.test.ts#L1125), [`advance.test.ts:1152`](apps/floor/src/jobs/assembly-run/advance.test.ts#L1152), [`advance.test.ts:1191`](apps/floor/src/jobs/assembly-run/advance.test.ts#L1191), [`advance.test.ts:1215`](apps/floor/src/jobs/assembly-run/advance.test.ts#L1229), [`run-node.test.ts:34`](apps/stations/src/kernel/run-node.test.ts#L34), [`run-node.test.ts:48`](apps/stations/src/kernel/run-node.test.ts#L48), [`run-node.test.ts:68`](apps/stations/src/kernel/run-node.test.ts#L68), [`run-node.test.ts:81`](apps/stations/src/kernel/run-node.test.ts#L81))
 
 - **FR11 — detection is short units, not one long one.** No detection work runs
-  as a long-lived unit or requires a pod for a deadline. The three detectors that
-  make no model calls run as ordinary subscribed handlers, one per repository per
-  tick. The one that judges statements with a model is sharded to the unit its
-  own code already produces — one specification per unit, each opening its own
-  pull request — so a failure costs one specification rather than a whole
-  repository pass, and an explicit per-repository cap replaces the rate limit
-  that the old deadline was accidentally providing.
+  as a long-lived unit or requires a pod merely to obtain a deadline. Two of the
+  four detectors — the missing-context sweep and the link validator — touch no
+  model at all and are short enough to be ordinary subscribed handlers, one per
+  repository per tick. The drift detector reaches for a model only on its
+  fallback path, when a specification is absent from the graph. The link
+  backfiller judges every candidate with one, and is sharded to the unit its own
+  code already produces — one specification per unit, each opening its own pull
+  request — so a failure costs one specification rather than a whole repository
+  pass, and an explicit per-repository cap replaces the rate limit the old
+  deadline was accidentally providing.
+
+  **Not yet implemented.** The detector that needs a model was running without
+  the credential to make the call; that is fixed (FR19), so the work happens
+  again, but it still runs as one long unit rather than short ones.
 
 - **FR12 — a merged pull request walks an assembly line.** The work that follows
   a merge is a line of recorded steps rather than one function behind swallowing
@@ -157,11 +164,15 @@ subscribe" has no expressible meaning on the current substrate.
   and the periodic sweep becomes a reconciler for merges whose webhook was lost.
   ([validated by routes a failed step FORWARD, so one failure cannot skip the steps after it](libs/assembly-lines/src/merge-line.test.ts#L34), [`merge-line.test.ts:19`](libs/assembly-lines/src/merge-line.test.ts#L19), [`merge-line.test.ts:48`](libs/assembly-lines/src/merge-line.test.ts#L48), [`merge-line.test.ts:52`](libs/assembly-lines/src/merge-line.test.ts#L52), [`merge-step.test.ts:32`](apps/stations/src/stations/merge-step/merge-step.test.ts#L32), [`merge-step.test.ts:46`](apps/stations/src/stations/merge-step/merge-step.test.ts#L46), [`merge-step.test.ts:65`](apps/stations/src/stations/merge-step/merge-step.test.ts#L65), [`merge-step.test.ts:81`](apps/stations/src/stations/merge-step/merge-step.test.ts#L81), [`merge-step.test.ts:95`](apps/stations/src/stations/merge-step/merge-step.test.ts#L95), [`merge-step.test.ts:112`](apps/stations/src/stations/merge-step/merge-step.test.ts#L112), [`merge-step.test.ts:129`](apps/stations/src/stations/merge-step/merge-step.test.ts#L129), [`merge-step.test.ts:135`](apps/stations/src/stations/merge-step/merge-step.test.ts#L135), [`start-merge-line.test.ts:16`](apps/stations/src/stations/merge-check/start-merge-line.test.ts#L16), [`start-merge-line.test.ts:37`](apps/stations/src/stations/merge-check/start-merge-line.test.ts#L37), [`start-merge-line.test.ts:54`](apps/stations/src/stations/merge-check/start-merge-line.test.ts#L54))
 
-- **FR13 — a model call is an agent node.** Stations receive one credential and
-  it is not a model credential; the agent node is the seam that carries model
-  auth and streams its own cost accounting. So every model call in the factory
-  runs on an agent node, and no station — pooled or pod — makes one. A station
-  that needs a judgement starts a line whose judging step is an agent node.
+- **FR13 — a model call runs where a compromise is contained.** The original
+  form of this requirement said every model call must be an agent node, because
+  stations carried no model credential. That was the wiring, not a principle, and
+  the principle is narrower: what must not share a process is untrusted input or
+  untrusted execution AND the org's credentials. A station pod holds neither the
+  code host's key nor the database, so a model call there is contained; the
+  pooled service holds both, so one there is not. A station therefore declares
+  whether it needs a model credential (FR19) and, if it does, runs in a pod.
+  ([validated by keeps comment-triage in its own pod](apps/stations/src/stations/registry.test.ts#L139), [`registry.test.ts:149`](apps/stations/src/stations/registry.test.ts#L149))
 
 - **FR14 — curation is a node, not a tail.** Extracting a lesson from a finished
   task is a step of its own, reached by the same event from every caller that

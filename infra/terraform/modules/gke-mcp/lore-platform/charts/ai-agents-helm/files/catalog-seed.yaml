@@ -1926,6 +1926,8 @@ spec:
     secrets:
       - name: LORE_INGEST_TOKEN
         ref: LORE_INGEST_TOKEN
+      - name: {{ .Values.agentLlmSecretKey }}
+        ref: {{ .Values.agentLlmSecretKey }}
 ---
 apiVersion: agents.re-cinq.com/v1alpha1
 kind: Station
