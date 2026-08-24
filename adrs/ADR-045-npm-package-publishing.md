@@ -74,4 +74,4 @@ npm provenance attestation requires a public source repository. `re-cinq/bowman-
 
 ## What this ADR does not decide
 
-Private packages, prerelease versions and dist-tags, and publishing more than one package from one repo. A repo that needs any of these opens a new decision rather than stretching this one.
+Publishing private npm packages (restricted registry access — distinct from the private-source-repo exception above, which still publishes publicly), prerelease versions and dist-tags, and publishing more than one package from one repo. A repo that needs any of these opens a new decision rather than stretching this one.
