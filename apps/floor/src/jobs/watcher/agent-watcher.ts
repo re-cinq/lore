@@ -1,4 +1,3 @@
-import { agentsNamespace, errorMessage, loadKube } from "@re-cinq/lore-shared";
 /**
  * Agent CR (agents.re-cinq.com) processing (ADR-031). The decisions that differ
  * from a LoreTask (Agent.status carries no changedFiles / reviewResult / taskType,
@@ -15,7 +14,6 @@ import { agentsNamespace, errorMessage, loadKube } from "@re-cinq/lore-shared";
  * and prunes old terminal CRs.
  */
 
-import { KubeConfig, CustomObjectsApi } from "@kubernetes/client-node";
 import type { Agent as AgentCr } from "@re-cinq/agent-contracts";
 import { resultTextFromOutput } from "@re-cinq/lore-assembly-lines";
 import {
@@ -58,16 +56,11 @@ import {
   taskPageUrl,
 } from "./agent-watcher-logic.js";
 import {
-  KubeTokenProvisioner,
-  GithubTokenMinter,
-  KubeSecretKeyWriter,
-  KubeCatalogApi,
-} from "../station/kube-token-provisioner.js";
-import { PlatformGitHub } from "@re-cinq/lore-shared/project/lib/platform-github.js";
-
-const GROUP = "agents.re-cinq.com";
-const VERSION = "v1alpha1";
-const PLURAL = "agents";
+  errorMessage,
+  HttpAgentApi,
+  HttpTokenProvisioner,
+} from "@re-cinq/lore-shared";
+import { clusterAgent } from "../../kernel/queues.js";
 
 /** Agent output can be large — keep only the tail for issue/PR bodies. */
 function tailOutput(output: string, limit = 60000): string {
@@ -81,13 +74,15 @@ function tailOutput(output: string, limit = 60000): string {
  *  so the assembly-line completion path reclaims a station line's token (its shared token
  *  can only be freed once the whole line is done — no per-node cleanup is safe). */
 export function cleanupPerTaskToken(taskId: string): Promise<void> {
-  return new KubeTokenProvisioner(
-    new GithubTokenMinter(new PlatformGitHub(process.env)),
-    new KubeSecretKeyWriter(),
-    new KubeCatalogApi(),
-  )
-    .cleanup(taskId)
-    .catch(() => {});
+  return new HttpTokenProvisioner(clusterAgent()).cleanup(taskId).catch((err) =>
+    // Swallowed as before — a task must settle even if reclaim fails — but
+    // LOGGED now. This used to hide a 403 the Floor's RBAC never granted, and
+    // an unreachable agent would look exactly the same.
+    console.warn(
+      `[agent-watcher] token cleanup for ${taskId} failed:`,
+      (err as Error).message,
+    ),
+  );
 }
 
 // ── Slack batching (per invocation) ──────────
@@ -267,55 +262,30 @@ async function commentFailureOnIssue(
   }
 }
 
-/** Mark an Agent's status so the watcher does not re-process it. Best effort. */
+/** Mark an Agent's status so the watcher does not re-process it.
+ *
+ *  ONE call now: the read-modify-write happens agent-side, so it cannot be
+ *  split across the network. Still best-effort — the CR may already be pruned —
+ *  but LOGGED, because this catch spent its life hiding a 403 the Floor's RBAC
+ *  never granted (`agents/status` was never in any Role bound to it). */
 async function patchAgentStatus(
-  k8sApi: CustomObjectsApi,
+  cluster: HttpAgentApi,
   name: string,
   patch: Record<string, unknown>,
 ): Promise<void> {
-  const namespace = agentsNamespace();
-
-  try {
-    const current = (await k8sApi.getNamespacedCustomObjectStatus({
-      group: GROUP,
-      version: VERSION,
-      namespace,
-      plural: PLURAL,
-      name,
-    })) as { status?: Record<string, unknown>; [key: string]: unknown };
-
-    await k8sApi.replaceNamespacedCustomObjectStatus({
-      group: GROUP,
-      version: VERSION,
-      namespace,
-      plural: PLURAL,
-      name,
-      body: { ...current, status: { ...current.status, ...patch } },
-    });
-  } catch {
-    /* best effort — CR may already be cleaned up */
-  }
-}
-
-/** Construct the Agent CR API client + namespace (in-cluster, or the developer's
- *  kubeconfig when the Floor runs on a laptop against minikube). */
-export function makeAgentsApi(): {
-  k8sApi: CustomObjectsApi;
-  namespace: string;
-} {
-  const kc = new KubeConfig();
-
-  loadKube(kc);
-
-  return {
-    k8sApi: kc.makeApiClient(CustomObjectsApi),
-    namespace: agentsNamespace(),
-  };
+  await cluster
+    .patchStatus(name, patch)
+    .catch((err) =>
+      console.warn(
+        `[agent-watcher] status patch for ${name} failed:`,
+        (err as Error).message,
+      ),
+    );
 }
 
 /** The derived context threaded through the per-outcome handlers. */
 interface AgentContext {
-  k8sApi: CustomObjectsApi;
+  cluster: HttpAgentApi;
   taskId: string;
   taskType: string;
   branch: string;
@@ -363,7 +333,7 @@ async function finishSingleCrRunRows(
  */
 export async function processAgentCr(
   agent: AgentCr,
-  k8sApi: CustomObjectsApi,
+  cluster: HttpAgentApi,
 ): Promise<void> {
   const status = agent.status ?? {};
   const phase = status.phase;
@@ -386,7 +356,7 @@ export async function processAgentCr(
   }
 
   const ctx: AgentContext = {
-    k8sApi,
+    cluster,
     taskId,
     taskType: taskTypeOf(agent) ?? "general",
     branch: agent.spec?.branch ?? "",
@@ -463,7 +433,7 @@ async function handleSucceededChanges(ctx: AgentContext): Promise<void> {
     description,
     output,
     name,
-    k8sApi,
+    cluster,
   } = ctx;
   const taskUrl = taskPageUrl(taskId, process.env.LORE_UI_URL);
   const logsRef = taskUrl ? `See [logs](${taskUrl})` : "See logs";
@@ -490,7 +460,7 @@ async function handleSucceededChanges(ctx: AgentContext): Promise<void> {
         await taskStore().recordEvent(taskId, "running", "completed", {
           feature_planning: true,
         });
-        await patchAgentStatus(k8sApi, name, { prUrl: "feature-planning" });
+        await patchAgentStatus(cluster, name, { prUrl: "feature-planning" });
       } catch (err) {
         console.error(
           `[agent-watcher] feature-planning completion failed for ${taskId}: ${errorMessage(err)}`,
@@ -545,7 +515,7 @@ async function handleSucceededChanges(ctx: AgentContext): Promise<void> {
         no_changes: true,
         issue_number,
       });
-      await patchAgentStatus(k8sApi, name, {
+      await patchAgentStatus(cluster, name, {
         prUrl: "no-changes",
         issueNumber: issue_number,
       });
@@ -577,8 +547,6 @@ async function handleSucceededChanges(ctx: AgentContext): Promise<void> {
   }
 
   // Open a PR from the pushed branch.
-  const namespace = agentsNamespace();
-
   try {
     const { issue_number, target_repo } = await getIssueNumber(taskId);
     const footer = prFooter({ issueNumber: issue_number, taskId });
@@ -612,7 +580,7 @@ async function handleSucceededChanges(ctx: AgentContext): Promise<void> {
       pr_url: pr.url,
     });
     await linkPrToIssue(target_repo, issue_number, pr.url);
-    await patchAgentStatus(k8sApi, name, {
+    await patchAgentStatus(cluster, name, {
       prUrl: pr.url,
       prNumber: pr.number,
     });
@@ -730,13 +698,7 @@ async function handleSucceededChanges(ctx: AgentContext): Promise<void> {
         .catch(() => {});
 
       try {
-        await k8sApi.deleteNamespacedCustomObject({
-          group: GROUP,
-          version: VERSION,
-          namespace,
-          plural: PLURAL,
-          name,
-        });
+        await cluster.remove(name);
       } catch {
         /* already gone */
       }

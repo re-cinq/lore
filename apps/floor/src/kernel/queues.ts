@@ -13,6 +13,7 @@ import { getPool } from "./db.js";
 import { createPipelineRepositories } from "@re-cinq/lore-shared/project/pipeline/pipeline-repositories-pg.js";
 import type { PipelineRepositories } from "@re-cinq/lore-shared";
 import { StationClient } from "@re-cinq/lore-shared/project/stations/station-client.js";
+import { ClusterAgentClient } from "@re-cinq/lore-shared";
 import {
   selectEventQueue,
   selectEventReporter,
@@ -137,5 +138,17 @@ let stationClientSingleton: StationClient | undefined;
 export const stationClient = (): StationClient =>
   (stationClientSingleton ??= new StationClient(
     process.env.STATIONS_URL ?? "",
+    process.env.LORE_INGEST_TOKEN,
+  ));
+
+let clusterAgentSingleton: ClusterAgentClient | undefined;
+
+/**
+ * This cluster's agent — the only process that talks to its Kubernetes API.
+ * The Floor decides WHAT to dispatch; the agent performs it.
+ */
+export const clusterAgent = (): ClusterAgentClient =>
+  (clusterAgentSingleton ??= new ClusterAgentClient(
+    process.env.CLUSTER_AGENT_URL ?? "",
     process.env.LORE_INGEST_TOKEN,
   ));

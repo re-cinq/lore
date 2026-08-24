@@ -12,6 +12,8 @@ import {
 import { resolveRunGraph } from "@re-cinq/lore-assembly-lines";
 import type { EventHandler } from "../../main-loop/types.js";
 import { advanceLine, type AdvanceDeps } from "./advance.js";
+import { HttpAgentApi } from "@re-cinq/lore-shared";
+import { clusterAgent } from "../../kernel/queues.js";
 import { finishNodeTerminal, normalizeAgentStatus } from "./node-terminal.js";
 import { notifyLineFailure } from "./notify-failure.js";
 import { BillingAlertThrottle, maybeAlertBilling } from "./billing-alert.js";
@@ -213,7 +215,6 @@ export async function productionNodeEventDeps(): Promise<NodeEventDeps> {
     { agentCrBackend, projectFor },
     { buildNodePrompt },
     { cleanupPerTaskToken },
-    { KubeAgentApi },
     { settleTaskForLine },
     { resolveConversation },
     { stampLinePr },
@@ -223,12 +224,11 @@ export async function productionNodeEventDeps(): Promise<NodeEventDeps> {
     import("../../composition/project-boot.js"),
     import("../../kernel/config.js"),
     import("../watcher/agent-watcher.js"),
-    import("../station/kube-agent-api.js"),
     import("./settle-task.js"),
     import("./resolve-conversation.js"),
     import("./spec-pr.js"),
   ]);
-  const kubeApi = new KubeAgentApi();
+  const cluster = new HttpAgentApi(clusterAgent());
 
   return {
     assemblyRuns: pipeline().assemblyRuns,
@@ -276,7 +276,7 @@ export async function productionNodeEventDeps(): Promise<NodeEventDeps> {
         features: project.features,
       });
     },
-    readAgentStatus: (name) => kubeApi.getStatus(name),
+    readAgentStatus: (name) => cluster.getStatus(name),
     llmGate: llmDispatchGate,
     alertBilling: async (repo, nodeType, status) => {
       await maybeAlertBilling(repo, nodeType, status, {

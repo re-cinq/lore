@@ -11,14 +11,14 @@ import {
   type LoreTaskSpec,
 } from "@re-cinq/lore-shared";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
-import type { TokenProvisioner } from "./agent-backend.js";
+import type { TokenProvisioner } from "@re-cinq/lore-shared";
 import {
   tokenSecretKey,
   perTaskName,
   catalogLookupName,
   injectRepoToken,
   perTaskStation,
-} from "./per-task-token.js";
+} from "@re-cinq/lore-shared";
 
 const GROUP = "agents.re-cinq.com";
 const VERSION = "v1alpha1";

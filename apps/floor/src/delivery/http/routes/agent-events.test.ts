@@ -8,6 +8,8 @@ const insertBatch = vi.fn();
 const write = vi.fn();
 
 vi.mock("../../../kernel/queues.js", () => ({
+  // The logs route resolves the cluster agent from here.
+  clusterAgent: () => ({}),
   usage: () => ({ logLlmCall }),
   pipeline: () => ({
     agentRunEvents: { insertBatch },

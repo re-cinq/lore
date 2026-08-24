@@ -36,6 +36,11 @@ locals {
   # In-cluster base URL of the stations service (ADR-024 service stations). Only
   # the Floor calls it — nothing reaches it from outside, so there is no ingress.
   stations_in_cluster = "http://lore-stations.lore-stations.svc.cluster.local:8080"
+
+  # In-cluster base URL of the cluster agent (ADR-024). Only the Floor and
+  # lore-api call it, and its NetworkPolicy allows ingress from those two
+  # namespaces only — nothing reaches it from outside, so there is no ingress.
+  cluster_agent_in_cluster = "http://lore-cluster-agent.lore-cluster-agent.svc.cluster.local:8080"
 }
 
 resource "helm_release" "lore_platform" {
@@ -73,6 +78,9 @@ resource "helm_release" "lore_platform" {
         # Where the Floor RUNS a station (ADR-024). It keeps the schedule and the
         # job_runs row; the work is over there.
         STATIONS_URL = local.stations_in_cluster
+        # The Floor performs no Kubernetes operation itself any more; it asks
+        # the cluster agent (ADR-024).
+        CLUSTER_AGENT_URL = local.cluster_agent_in_cluster
       }
       dbPasswordSecret        = { name = "lore-db-password", key = "password" }
       anthropicKeySecret      = { name = "lore-anthropic-key", key = "anthropic-api-key" }
@@ -104,6 +112,9 @@ resource "helm_release" "lore_platform" {
         LORE_DB_USER     = "lore"
         LORE_DGRAPH_HTTP = local.dgraph_http_url
         LORE_AGENT_URL   = "http://lore-floor.lore-floor.svc.cluster.local:8080"
+        # The /agents editor's catalog saves land through the cluster agent —
+        # lore-api holds no Kubernetes client (ADR-024).
+        CLUSTER_AGENT_URL = local.cluster_agent_in_cluster
         # Rendered onto UI-authored agent recipes (#1080): the live Lore MCP gateway
         # and the run-telemetry sink, so a repo that overrides its recipe through
         # /agents keeps the mid-run memory/context access and the cost accounting a
@@ -209,6 +220,17 @@ resource "helm_release" "lore_platform" {
       loreSkillsUrl = var.lore_mcp_url != "" ? "${local.lore_mcp_in_cluster}/skills" : ""
     }
 
+    # ---- Cluster agent (lore-cluster-agent namespace) ----
+    # The only process that talks to this cluster's Kubernetes API. Holds no
+    # database; holds the GitHub App triple, because it mints the per-task token
+    # itself so no token crosses the network.
+    "lore-cluster-agent" = {
+      agentsNamespace = "ai-agents"
+      env = {
+        PORT = "8080"
+      }
+    }
+
     # ---- Stations (lore-stations namespace) ----
     # Standalone units of work, one endpoint each. It holds a pool ON PURPOSE —
     # that is the point of the service form: a station beside the data asks the
@@ -248,6 +270,7 @@ resource "helm_release" "lore_platform" {
     kubernetes_namespace.ai_agents,
     kubernetes_namespace.lore_event_router,
     kubernetes_namespace.lore_stations,
+    kubernetes_namespace.lore_cluster_agent,
     kubernetes_service_account.lore_ui,
     kubectl_manifest.lore_db_cluster,
     kubectl_manifest.es_ai_agents_secrets,

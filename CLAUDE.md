@@ -59,9 +59,13 @@ clear error messages.
 idempotent — safe to re-run. Prefix output with `[lore]`. Exit 0 on
 success, 1 on failure.
 
-**Helm charts** for K8s deployments. All five service workloads ship as
-ONE umbrella chart, `lore-platform` (vendoring floor/lore-api/ui/lore-db/ai-agents
-subcharts under `charts/`); one `helm_release.lore_platform` deploys them.
+**Helm charts** for K8s deployments. All nine service workloads ship as
+ONE umbrella chart, `lore-platform` (vendoring floor/event-router/cluster-agent/
+lore-api/lore-mcp/stations/ui/lore-db/ai-agents subcharts under `charts/`); one
+`helm_release.lore_platform` deploys them. Every service has a `build-*.yml`
+workflow that builds its image and deploys it into the umbrella release via
+`scripts/ci/deploy-lore-platform.sh`; chart values read `tag: latest` only as a
+never-used default, because that script pins the short SHA with `--set-string`.
 Values files should have sane defaults. No hardcoded secrets — use
 K8s Secrets.
 
@@ -358,10 +362,14 @@ types (vitest reads source, tsc reads `dist`).
 
 ## GKE Deployment
 
-Five service workloads on GKE (one umbrella chart, `lore-platform`):
+Nine service workloads on GKE (one umbrella chart, `lore-platform`, spanning a namespace per subchart):
 - PostgreSQL + pgvector: `lore-db` namespace
 - The Floor (coordinator): `lore-floor` namespace
+- event-router (sole writer of `pipeline.events`, ADR-044): `lore-event-router` namespace
+- cluster-agent (the only process holding a Kubernetes client): `lore-cluster-agent` namespace
 - Lore API server (remote REST): `lore-api` namespace
+- lore-mcp gateway (MCP over HTTP for agent pods): `lore-api` namespace
+- stations (service stations, `POST /api/stations/{name}`): `lore-stations` namespace
 - Web UI: `lore-ui` namespace
 - ai-agent-subsystem (agent-cr controller + Agents): `ai-agents` namespace
 

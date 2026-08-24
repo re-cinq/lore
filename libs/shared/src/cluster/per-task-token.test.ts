@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type { AgentDefinition, Station } from "@re-cinq/agent-contracts";
-import type { LoreTaskSpec } from "@re-cinq/lore-shared";
+import type { LoreTaskSpec } from "../project/agents/k8s-port.js";
 import {
   tokenSecretKey,
   perTaskName,

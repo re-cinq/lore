@@ -15,6 +15,8 @@ const insertTurns = vi.fn();
 const write = vi.fn();
 
 vi.mock("../../../kernel/queues.js", () => ({
+  // The logs route resolves the cluster agent from here.
+  clusterAgent: () => ({}),
   usage: () => ({ logLlmCall }),
   agentRunEvents: () => ({ insertBatch }),
   agentRunTurns: () => ({ insertBatch: insertTurns }),

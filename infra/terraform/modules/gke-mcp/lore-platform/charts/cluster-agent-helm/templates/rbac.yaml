@@ -1,0 +1,61 @@
+# The ONE Role that touches this cluster's agent resources.
+#
+# Two verbs here were missing from the Floor's Roles while the Floor was issuing
+# them, at sites that swallowed the failure — so a 403 was indistinguishable
+# from "already gone":
+#
+#   * `delete` on agents — `agent-launcher` granted create/get/list/watch only,
+#     yet the hourly prune and the needs-human-help path both delete. The
+#     reconcile pass exists to stop Agent CRs accumulating (180 of them blew
+#     Node's heap on 2026-07-24); without `delete` the pile could never shrink.
+#   * `agents/status` — only the controller's Role had it, yet the Floor's
+#     `patchAgentStatus` writes it to stop re-processing a terminal CR.
+#
+# Both are granted here, and the callers now log rather than swallow, so the
+# next such gap is visible instead of silent.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: lore-cluster-agent
+  namespace: {{ .Values.agentsNamespace }}
+rules:
+  - apiGroups: ["agents.re-cinq.com"]
+    resources: ["agents"]
+    verbs: ["create", "get", "list", "watch", "delete"]
+  - apiGroups: ["agents.re-cinq.com"]
+    resources: ["agents/status"]
+    verbs: ["get", "update"]
+  # The catalog: `def-*` recipes and the per-task `pt-*` clones.
+  - apiGroups: ["agents.re-cinq.com"]
+    resources: ["agentdefinitions", "stations"]
+    verbs: ["get", "list", "create", "update", "patch", "delete"]
+  # Pod logs, served on demand for the run view. Read-only.
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list"]
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get"]
+  # ONE named Secret — the per-task GitHub tokens. Not `secrets` at large: this
+  # service mints and writes one key per task and has no business reading
+  # anything else in the namespace.
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: ["agent-secrets"]
+    verbs: ["get", "update", "patch"]
+---
+# Cross-namespace: the Deployment lives in its own namespace and acts on the
+# agents one.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: lore-cluster-agent
+  namespace: {{ .Values.agentsNamespace }}
+subjects:
+  - kind: ServiceAccount
+    name: lore-cluster-agent
+    namespace: {{ .Values.namespace }}
+roleRef:
+  kind: Role
+  name: lore-cluster-agent
+  apiGroup: rbac.authorization.k8s.io

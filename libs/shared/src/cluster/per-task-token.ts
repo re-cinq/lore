@@ -8,8 +8,8 @@
 // KubeTokenProvisioner.
 
 import type { AgentDefinition, Station } from "@re-cinq/agent-contracts";
-import type { LoreTaskSpec } from "@re-cinq/lore-shared";
-import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
+import type { LoreTaskSpec } from "../project/agents/k8s-port.js";
+import { enforceTrue } from "../lib/enforce.js";
 
 const TASK_ID_LABEL = "lore.re-cinq.com/task-id";
 
