@@ -12,6 +12,7 @@
 import { getPool } from "./db.js";
 import { createPipelineRepositories } from "@re-cinq/lore-shared/project/pipeline/pipeline-repositories-pg.js";
 import type { PipelineRepositories } from "@re-cinq/lore-shared";
+import { internalToken } from "@re-cinq/lore-shared/http/internal-token.js";
 import { StationClient } from "@re-cinq/lore-shared/project/stations/station-client.js";
 import { ClusterAgentClient } from "@re-cinq/lore-shared";
 import {
@@ -138,7 +139,7 @@ let stationClientSingleton: StationClient | undefined;
 export const stationClient = (): StationClient =>
   (stationClientSingleton ??= new StationClient(
     process.env.STATIONS_URL ?? "",
-    process.env.LORE_INGEST_TOKEN,
+    internalToken(),
   ));
 
 let clusterAgentSingleton: ClusterAgentClient | undefined;
@@ -150,5 +151,5 @@ let clusterAgentSingleton: ClusterAgentClient | undefined;
 export const clusterAgent = (): ClusterAgentClient =>
   (clusterAgentSingleton ??= new ClusterAgentClient(
     process.env.CLUSTER_AGENT_URL ?? "",
-    process.env.LORE_INGEST_TOKEN,
+    internalToken(),
   ));
