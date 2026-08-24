@@ -6,26 +6,13 @@
  * 202 fast so GitHub's delivery doesn't time out.
  */
 
-import { createHmac, timingSafeEqual } from "node:crypto";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { apiError } from "../api-error.js";
 import type { ServerRoute } from "@hapi/hapi";
 import { mapGitHubEvent } from "@re-cinq/lore-shared/project/events/github-map.js";
+import { verifyGitHubSignature } from "@re-cinq/lore-shared/http/github-signature.js";
 import { insertEventList } from "../../../main-loop/store.js";
 import { rawBody, parseJsonBody } from "../raw-body.js";
-
-export function verifyGitHubSignature(
-  secret: string,
-  signature: string,
-  body: string,
-): boolean {
-  const expected =
-    "sha256=" + createHmac("sha256", secret).update(body).digest("hex");
-  const sigBuf = Buffer.from(signature);
-  const expBuf = Buffer.from(expected);
-
-  return sigBuf.length === expBuf.length && timingSafeEqual(sigBuf, expBuf);
-}
 
 export const githubWebhookRoute: ServerRoute = {
   method: "POST",
@@ -45,7 +32,9 @@ export const githubWebhookRoute: ServerRoute = {
     // more to diagnose than the sentence that says which two secrets disagree.
     enforceTrue(
       secret,
-      apiError(503),
+      // 500, not 503: 503 tells GitHub to redeliver, and no number of
+      // redeliveries supplies a missing env var. The fix is a redeploy.
+      apiError(500),
       "webhook secret not configured — set LORE_WEBHOOK_SECRET on the lore-floor deployment",
     );
     enforceTrue(

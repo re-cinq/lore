@@ -21,7 +21,6 @@
  * collapses to one row.
  */
 
-import { createHmac, timingSafeEqual } from "node:crypto";
 import { z } from "zod";
 import type { ServerRoute } from "@hapi/hapi";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
@@ -34,6 +33,7 @@ import {
 } from "@re-cinq/lore-shared/http/json-body.js";
 import { enforceBearer } from "@re-cinq/lore-shared/http/bearer.js";
 import { mapGitHubEvent } from "@re-cinq/lore-shared/project/events/github-map.js";
+import { verifyGitHubSignature } from "@re-cinq/lore-shared/http/github-signature.js";
 
 /** The reported-event body. `source` is the closed vocabulary rather than a
  *  string: an event whose source is a typo reaches no handler, and is then found
@@ -51,19 +51,6 @@ export interface EventsRouteDeps {
   webhookSecret?: string;
   /** The token the reporting branch accepts; absent means it is unconfigured. */
   bearerToken?: string;
-}
-
-export function verifyGitHubSignature(
-  secret: string,
-  signature: string,
-  body: string,
-): boolean {
-  const expected =
-    "sha256=" + createHmac("sha256", secret).update(body).digest("hex");
-  const sigBuf = Buffer.from(signature);
-  const expBuf = Buffer.from(expected);
-
-  return sigBuf.length === expBuf.length && timingSafeEqual(sigBuf, expBuf);
 }
 
 export function eventsRoute(deps: EventsRouteDeps): ServerRoute {
@@ -121,7 +108,9 @@ function fromGitHub(
   // more to diagnose than the sentence saying which two secrets disagree.
   enforceTrue(
     deps.webhookSecret,
-    apiError(503),
+    // 500, not 503: 503 tells GitHub to redeliver, and no number of
+    // redeliveries supplies a missing env var. The fix is a redeploy.
+    apiError(500),
     "webhook secret not configured — set LORE_WEBHOOK_SECRET on the event-router deployment",
   );
   enforceTrue(
