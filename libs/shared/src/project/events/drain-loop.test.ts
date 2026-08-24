@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
-import { handleOne, drainOnce, type LoopDeps } from "./loop.js";
-import type { EventRow, EventHandler } from "./types.js";
+import { handleOne, drainOnce, type LoopDeps } from "./drain-loop.js";
+import type { EventRow, EventHandler } from "./drain-loop.js";
 
 function row(overrides: Partial<EventRow> = {}): EventRow {
   return {

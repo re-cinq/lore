@@ -242,6 +242,15 @@ resource "helm_release" "lore_platform" {
         LORE_DB_NAME = "lore"
         LORE_DB_USER = "lore"
         PORT         = "8080"
+        # This service DRAINS as well as serving: the walk publishes a node whose
+        # station runs here, and without a router to claim it from, the visit
+        # sits open until the reaper times it out. `merge_step` has no pod recipe
+        # to fall back to, so this is a prerequisite rather than a tuning knob.
+        # Unset falls back to the local pool, which is right on a laptop and
+        # wrong here — the fallback logs which way it resolved.
+        EVENT_ROUTER_URL = local.event_router_in_cluster
+        # A station reads and writes through the Lore API where it holds no pool.
+        LORE_API_URL = var.lore_api_url
       }
     }
 

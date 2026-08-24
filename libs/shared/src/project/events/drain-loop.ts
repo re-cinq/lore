@@ -6,8 +6,21 @@
  */
 
 import { decideRetry } from "./retry.js";
-import { claimBatch, markDone, markFailed, markDead } from "./store.js";
-import type { EventHandler, EventRow } from "./types.js";
+import type { EventDeliveryRow as EventRow } from "./event-deliveries-port.js";
+
+/** Row identity a handler may need (e.g. to hand a large payload off by
+ *  reference instead of copying it); handlers that don't care ignore it. */
+export interface EventMeta {
+  eventId: string;
+}
+
+/** A handler: self-sources its own deps; params carry the event payload. */
+export type EventHandler = (
+  params: Record<string, unknown>,
+  meta?: EventMeta,
+) => Promise<void>;
+
+export type { EventRow };
 
 export interface LoopDeps {
   resolve: (eventName: string) => EventHandler | undefined;
@@ -168,18 +181,15 @@ export async function drainOnce(deps: LoopDeps): Promise<number> {
 }
 
 /** Wire the real store + start the 1s drain. Returns the timer for shutdown/tests. */
+/**
+ * Start draining. The STORE is passed in, not imported: two processes drain now
+ * — the Floor its own deliveries, the stations service its own — and a loop that
+ * reached for one of them could only ever serve that one.
+ */
 export function startEventLoop(
-  resolve: (eventName: string) => EventHandler | undefined,
+  deps: LoopDeps,
   intervalMs = 1000,
 ): NodeJS.Timeout {
-  const deps: LoopDeps = {
-    resolve,
-    claim: claimBatch,
-    markDone,
-    markFailed,
-    markDead,
-  };
-
   console.log("[events] drain loop started");
 
   return setInterval(() => {

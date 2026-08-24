@@ -18,7 +18,13 @@ import { loadApprovalConfig } from "@re-cinq/lore-shared";
 // drain loop + reaper over pipeline.events. Layer 3: the registry's handlers (the
 // existing tasks/jobs). See apps/floor/README.md + ADR-015.
 import { buildRegistry, resolve } from "./main-loop/registry.js";
-import { startEventLoop } from "./main-loop/loop.js";
+import { startEventLoop } from "@re-cinq/lore-shared/project/events/drain-loop.js";
+import {
+  claimBatch,
+  markDead,
+  markDone,
+  markFailed,
+} from "./main-loop/store.js";
 import { startEventReaper } from "./main-loop/reaper.js";
 import { subscribe } from "./main-loop/store.js";
 import { registerCronEmitter } from "./listeners/scheduler-emitter.js";
@@ -83,7 +89,15 @@ async function main(): Promise<void> {
   // nor handle something it never asked for.
   await subscribe([...registry.keys()].map((eventName) => ({ eventName })));
 
-  startEventLoop((name) => resolve(registry, name));
+  // The store is passed in now: the stations service drains its own deliveries
+  // through the same loop, so the loop cannot reach for one process's store.
+  startEventLoop({
+    resolve: (name) => resolve(registry, name),
+    claim: claimBatch,
+    markDone,
+    markFailed,
+    markDead,
+  });
   startEventReaper();
 
   // ── Layer 1: the k8s Agent-CR watch (emits kubernetes.agent.* events) ──

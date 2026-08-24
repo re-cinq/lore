@@ -114,7 +114,7 @@ subscribe" has no expressible meaning on the current substrate.
   delivery is reported the same way and for the same reason: dead-lettering
   wrote the row and said nothing, so work the bus had abandoned left no trace
   before the prune deleted it a week later.
-  ([validated by delivers nothing for an event nobody subscribed to](libs/shared/src/project/events/event-deliveries.contract.test.ts#L113), [`event-deliveries.contract.test.ts:187`](libs/shared/src/project/events/event-deliveries.contract.test.ts#L187), [`event-deliveries.contract.test.ts:256`](libs/shared/src/project/events/event-deliveries.contract.test.ts#L256), [`cron.test.ts:129`](apps/floor/src/jobs/cron.test.ts#L129), [`cron.test.ts:143`](apps/floor/src/jobs/cron.test.ts#L143), [`cron.test.ts:151`](apps/floor/src/jobs/cron.test.ts#L151), [`loop.test.ts:286`](apps/floor/src/main-loop/loop.test.ts#L286), [`loop.test.ts:303`](apps/floor/src/main-loop/loop.test.ts#L303), [`loop.test.ts:316`](apps/floor/src/main-loop/loop.test.ts#L316))
+  ([validated by delivers nothing for an event nobody subscribed to](libs/shared/src/project/events/event-deliveries.contract.test.ts#L113), [`event-deliveries.contract.test.ts:187`](libs/shared/src/project/events/event-deliveries.contract.test.ts#L187), [`event-deliveries.contract.test.ts:256`](libs/shared/src/project/events/event-deliveries.contract.test.ts#L256), [`cron.test.ts:129`](apps/floor/src/jobs/cron.test.ts#L129), [`cron.test.ts:143`](apps/floor/src/jobs/cron.test.ts#L143), [`cron.test.ts:151`](apps/floor/src/jobs/cron.test.ts#L151), [`drain-loop.test.ts:286`](libs/shared/src/project/events/drain-loop.test.ts#L286), [`drain-loop.test.ts:303`](libs/shared/src/project/events/drain-loop.test.ts#L303), [`drain-loop.test.ts:316`](libs/shared/src/project/events/drain-loop.test.ts#L316))
 
 - **FR9 — a delivery carries its own deadline.** The visibility timeout is
   stamped per delivery from the subscribing station's declared timeout rather
@@ -196,7 +196,7 @@ subscribe" has no expressible meaning on the current substrate.
   handing a large payload onward by reference — is given the event's own id. A
   consumer handed the delivery's id where the event's was meant would read the
   wrong row, or none.
-  ([validated by passes the EVENT id as meta, not the delivery's, so a by-reference payload resolves](apps/floor/src/main-loop/loop.test.ts#L111))
+  ([validated by passes the EVENT id as meta, not the delivery's, so a by-reference payload resolves](libs/shared/src/project/events/drain-loop.test.ts#L111))
 
 - **FR17 — a station is given its data, never resolves it.** A station that needs
   a database or a code host receives those ports from whichever process hosts it,
@@ -239,6 +239,20 @@ subscribe" has no expressible meaning on the current substrate.
   round that exists. The routes keep what is theirs — the paths, the scopes, the
   payload limits and the status codes.
   ([validated by names the newest run whatever blueprint it is, so a finalize run still shows](libs/shared/src/project/features/planning-run.test.ts#L25), [`planning-run.test.ts:37`](libs/shared/src/project/features/planning-run.test.ts#L37), [`planning-run.test.ts:43`](libs/shared/src/project/features/planning-run.test.ts#L43), [`planning-run.test.ts:52`](libs/shared/src/project/features/planning-run.test.ts#L52), [`planning-run.test.ts:64`](libs/shared/src/project/features/planning-run.test.ts#L64), [`refinement-round.test.ts:34`](libs/shared/src/project/features/refinement-round.test.ts#L34), [`refinement-round.test.ts:53`](libs/shared/src/project/features/refinement-round.test.ts#L53), [`refinement-round.test.ts:64`](libs/shared/src/project/features/refinement-round.test.ts#L64), [`refinement-round.test.ts:72`](libs/shared/src/project/features/refinement-round.test.ts#L72))
+
+- **FR21 — a published node is claimed by the service that runs it.** The
+  process hosting service-form stations drains its own deliveries, so a node the
+  walk publishes is picked up rather than left open until the reaper times it
+  out. It subscribes under one name for the whole service, since replicas share a
+  backlog; it registers BEFORE it drains, because fan-out reads the subscription
+  set when an event is inserted; and it refuses to start if it cannot register,
+  since a drainer with an empty subscription set looks exactly like one with
+  nothing to do. Its subscriptions are derived from the manifests, so a station
+  declaring an event trigger is subscribed by that declaration alone, and the
+  published-node budget is the slowest service node's, so a delivery is not
+  reaped mid-run. It drains through the SAME loop as the Floor — one retry
+  ladder, one attempt cap, one dead-letter rule.
+  ([validated by claims the published-node event, without which a service-form node never runs](apps/stations/src/drain/subscriptions.test.ts#L7), [`subscriptions.test.ts:13`](apps/stations/src/drain/subscriptions.test.ts#L13), [`subscriptions.test.ts:25`](apps/stations/src/drain/subscriptions.test.ts#L25), [`subscriptions.test.ts:31`](apps/stations/src/drain/subscriptions.test.ts#L31), [`subscriptions.test.ts:46`](apps/stations/src/drain/subscriptions.test.ts#L46), [`loop-boot.test.ts:17`](apps/stations/src/drain/loop-boot.test.ts#L17), [`loop-boot.test.ts:39`](apps/stations/src/drain/loop-boot.test.ts#L39), [`loop-boot.test.ts:51`](apps/stations/src/drain/loop-boot.test.ts#L51))
 
 ## Non-goals
 
