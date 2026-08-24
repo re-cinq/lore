@@ -13,7 +13,7 @@ import type {
   AssemblyRunRecord,
   AssemblyRunsPort,
 } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
-import type { AgentFileEvent } from "./agent-events.js";
+import { parseAgentSink, type AgentFileEvent } from "./agent-events.js";
 
 /** The features API owns this one — see deliverPlanningResult. */
 const OWNED_ELSEWHERE = new Set(["planning.result"]);
@@ -72,4 +72,51 @@ function newestOpen(lines: AssemblyRunRecord[]): AssemblyRunRecord | undefined {
   return [...lines]
     .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
     .at(-1);
+}
+
+/** What one terminal status says about the artifacts its node declared: the args
+ *  to merge, and the names of any the agent never produced. */
+export interface TerminalArtifacts {
+  args: Record<string, string>;
+  /** `<event> (<reason>)` per declared-but-absent artifact — the node's failure
+   *  detail, because advancing without it hands the next node an empty bag. */
+  missing: string[];
+}
+
+/**
+ * The artifacts carried by an Agent CR's RAW terminal output.
+ *
+ * The sink these events normally arrive on is a separate HTTP post racing the
+ * Kubernetes event the walk advances on, so nothing ordered the merge before the
+ * next node's dispatch — the next station could read an arg the pod had already
+ * produced and simply not find it. The same events are in `status.output`, which
+ * the terminal handler already reads, so delivery can ride the advancing event
+ * instead of hoping to beat it. Merging the same content twice is a no-op, which
+ * is what lets the sink stay the fast path.
+ *
+ * Must be given the RAW output: `normalizeAgentStatus` replaces it with the
+ * agent's result text, which no longer parses as a stream.
+ */
+export function artifactsFromTerminalOutput(
+  rawOutput: string | undefined,
+): TerminalArtifacts {
+  const args: Record<string, string> = {};
+  const missing: string[] = [];
+
+  for (const fileEvent of parseAgentSink(rawOutput ?? "", false, false)
+    .fileEvents) {
+    if (OWNED_ELSEWHERE.has(fileEvent.event)) {
+      continue;
+    }
+
+    if (fileEvent.content !== null) {
+      args[argNameForEvent(fileEvent.event)] = fileEvent.content;
+    } else {
+      missing.push(
+        `${fileEvent.event} (${fileEvent.reason ?? "not produced"})`,
+      );
+    }
+  }
+
+  return { args, missing };
 }

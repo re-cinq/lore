@@ -2,7 +2,7 @@
  * When a spec PR merges, resume the line that was waiting for it.
  *
  * This replaces `decideDecomposeKick`, which minted a `feature-decompose` task and
- * fired only for a `feature-finalize` task. The moment finalize became a RESUME of
+ * fired only for a separate finalize task. The moment the accept became a RESUME of
  * the planning line the owning task became `feature-planning`, the predicate stopped
  * matching, and **no feature planned on the merged line was ever decomposed** —
  * silently, with nothing logged (specs/6-dark-factory FR6.32).

@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, it, expect } from "vitest";
+import { afterAll, beforeAll, describe, it, expect, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import SpendView, {
   budgetOutlook,
@@ -19,18 +19,6 @@ const day = (isoDay: string) => {
   const [y, m, d] = isoDay.split("-");
 
   return `${d}-${m}-${y}`;
-};
-
-/** Mirrors the view's `stamp`: a real instant, so it keeps its clock but is
- *  rendered day-month-year in the viewer's own timezone. */
-const stamp = (iso: string) => {
-  const t = new Date(iso);
-  const pad = (n: number) => String(n).padStart(2, "0");
-
-  return (
-    `${pad(t.getDate())}-${pad(t.getMonth() + 1)}-${t.getFullYear()} ` +
-    `${pad(t.getHours())}:${pad(t.getMinutes())}`
-  );
 };
 
 const tableByHeading = (heading: string): HTMLElement => {
@@ -229,9 +217,18 @@ describe("SpendView", () => {
     render(<SpendView {...withAdminKey} />);
     expect(screen.getByText("Billed cost (Anthropic)")).toBeInTheDocument();
     expect(screen.getByText(usd(1234.5))).toBeInTheDocument();
-    expect(
-      screen.getByText(`as of ${stamp("2026-08-07T10:00:00.000Z")}`),
-    ).toBeInTheDocument();
+    // Asserted by SHAPE, not by rebuilding the string the way the view does:
+    // a mirrored helper would agree with any format change and catch nothing.
+    // Hardcoding the rendered text is no good either — the stamp is a real
+    // instant shown in local time, so `10:00Z` reads 10:00 on CI (UTC) and
+    // 12:00 in Amsterdam, and the assertion would only hold in one timezone.
+    // The month and year survive any real offset, and the slash is the tell
+    // that someone reverted to `toLocaleString`.
+    const asOf = screen.getByText(/^as of /).textContent ?? "";
+
+    expect(asOf).toMatch(/^as of \d{2}-\d{2}-\d{4} \d{2}:\d{2}$/);
+    expect(asOf).toContain("-08-2026");
+    expect(asOf).not.toContain("/");
     expect(
       within(tableByHeading("Anthropic Billed by Model (MTD)")).getByText(
         "claude-opus-4",
@@ -488,6 +485,21 @@ describe("SpendView top-up form", () => {
 });
 
 describe("SpendView runout wording", () => {
+  // The runway is burn rate over the window from the anchor to NOW, so with a
+  // fixed anchor and a real clock the expected sentence changes by one day every
+  // day: these assertions went red on main at a date rollover, with no code
+  // change (#1475). Freezing the clock makes the window the fixture, not the
+  // calendar.
+  const NOW = new Date("2026-08-21T00:00:00Z");
+
+  beforeAll(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(NOW);
+  });
+  afterAll(() => {
+    vi.useRealTimers();
+  });
+
   const withDaysLeft = (spent: number, remaining: number) => ({
     ledger_total_usd: spent + remaining,
     spent_since_usd: spent,

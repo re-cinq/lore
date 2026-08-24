@@ -133,7 +133,7 @@ function mount(initial: object, over: Partial<FeatureWithIterations> = {}) {
       feature={feature(over)}
       timeoutMinutes={15}
       refine={vi.fn().mockResolvedValue(undefined)}
-      finalize={finalize}
+      onFinalize={finalize}
       onCreateDraft={vi.fn()}
       settledView={<div data-testid="settled" />}
     />,
@@ -182,6 +182,25 @@ describe("pressing Create the spec PR", () => {
     );
 
     expect(finalize).toHaveBeenCalledTimes(1);
+  });
+
+  it("carries what the author typed before pressing accept", async () => {
+    // The author fills the form and accepts in one motion. Those answers used to
+    // go nowhere: the accept sent an empty body, so the last thing the author said
+    // about the plan never reached the nodes that turn it into a spec.
+    const { finalize } = mount(parked);
+
+    await userEvent.type(
+      screen.getByPlaceholderText(/free-form direction/i),
+      "drop the poller",
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: /create the spec pr/i }),
+    );
+
+    expect(finalize).toHaveBeenCalledWith(
+      expect.objectContaining({ free_form: "drop the poller" }),
+    );
   });
 
   it("replaces the decision with the spec phase, and shows the graph", async () => {

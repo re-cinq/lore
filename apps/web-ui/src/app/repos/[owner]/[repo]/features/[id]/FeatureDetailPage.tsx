@@ -17,7 +17,7 @@ import PlatformOutageBanner from "./PlatformOutageBanner";
 import { getPlatformLlmStatus } from "@/lib/api/platform-status";
 import {
   refineFeatureAction,
-  finalizeFeatureAction,
+  handleCreateSpecFile,
   splitFeatureAction,
   deleteFeatureAction,
 } from "./actions";
@@ -82,7 +82,7 @@ export default async function FeatureDetailPage({
         timeoutMinutes={planningTimeoutMinutes}
         decomposition={decomposition}
         refine={refineFeatureAction.bind(null, fullName, id)}
-        finalize={finalizeFeatureAction.bind(null, fullName, id)}
+        onCreateSpecFile={handleCreateSpecFile.bind(null, fullName, id)}
         split={splitFeatureAction.bind(null, fullName, id)}
         del={deleteFeatureAction.bind(null, fullName, id)}
       />

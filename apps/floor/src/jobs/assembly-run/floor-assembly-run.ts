@@ -6,6 +6,8 @@ import type { RunGraphNode } from "@re-cinq/lore-shared/project/assembly-runs/ru
 import type { LoreTaskSpec } from "@re-cinq/lore-shared";
 import { serializeStationInput } from "@re-cinq/lore-shared/station-input.js";
 import { stationName } from "../agent/agent-catalog.js";
+import { truncateForStorage } from "../agent/agent-run-events.js";
+import type { StationRunInput } from "@re-cinq/lore-shared/models/station-run.js";
 
 export interface FloorAssemblyRunTask {
   taskId: string;
@@ -84,6 +86,83 @@ function cloneRef(task: FloorAssemblyRunTask): string {
   return typeof ref === "string" && ref.length > 0 ? ref : task.branch;
 }
 
+/**
+ * The knob/args map a station node's pod receives as `station_input.params`.
+ *
+ * Extracted so the visit's recorded input can name the SAME map the pod was
+ * handed — a second copy of this rule would let the two drift, and the record
+ * would then describe a dispatch that never happened.
+ */
+export function stationNodeParams(
+  node: RunGraphNode,
+  task: FloorAssemblyRunTask,
+): Record<string, string> {
+  const params: Record<string, string> = {};
+
+  // Line args (string/number) ride into params so a station reads its input without
+  // a DB round-trip — e.g. the comment-triage station's comment_body/in_reply_to_id.
+  for (const [key, value] of Object.entries(task.args ?? {})) {
+    if (typeof value === "string" || typeof value === "number") {
+      params[key] = String(value);
+    }
+  }
+
+  for (const field of STATION_PARAM_FIELDS) {
+    const value = node[field];
+
+    if (typeof value === "string" && value.length > 0) {
+      params[field] = value;
+    }
+  }
+
+  return params;
+}
+
+/** Write-time caps for the recorded input. Generous enough to hold a real round
+ *  brief and a real prompt whole; bounded so one visit cannot dominate the table.
+ *  A capped value carries `truncateForStorage`'s marker, which is the same marker
+ *  the transcript's truncated badge already keys on. */
+const INPUT_DESCRIPTION_MAX_BYTES = 4_096;
+const INPUT_PROMPT_MAX_BYTES = 16_384;
+const INPUT_PARAM_MAX_BYTES = 1_024;
+
+/**
+ * What this visit is being dispatched WITH, bounded for storage.
+ *
+ * Recorded because the Agent CR — the only place the prompt and description ever
+ * existed — is pruned after the run, so "what was this node given" became
+ * unanswerable exactly when someone needed to ask. `context` is deliberately
+ * absent: it is assembled later, in the launch backend, and is an order of
+ * magnitude larger than everything here put together.
+ */
+export function stationRunInputFor(
+  node: RunGraphNode,
+  task: FloorAssemblyRunTask,
+  content: string,
+  prompt: string | null,
+): StationRunInput {
+  const params =
+    node.type === "agent"
+      ? null
+      : Object.fromEntries(
+          Object.entries(stationNodeParams(node, task)).map(([key, value]) => [
+            key,
+            truncateForStorage(value, INPUT_PARAM_MAX_BYTES),
+          ]),
+        );
+
+  return {
+    description: truncateForStorage(content, INPUT_DESCRIPTION_MAX_BYTES),
+    prompt:
+      prompt === null
+        ? null
+        : truncateForStorage(prompt, INPUT_PROMPT_MAX_BYTES),
+    params,
+    repo: task.targetRepo,
+    ref: cloneRef(task),
+  };
+}
+
 /** Pure: the Agent dispatch spec for one agent-node. Prompt is resolved per node; model
  *  from the node (else inherited); repo/branch/description from the task. */
 export function nodeAgentSpec(
@@ -139,23 +218,7 @@ export function nodeStationSpec(
   iteration = 1,
   stationRunId?: string,
 ): LoreTaskSpec {
-  const params: Record<string, string> = {};
-
-  // Line args (string/number) ride into params so a station reads its input without
-  // a DB round-trip — e.g. the comment-triage station's comment_body/in_reply_to_id.
-  for (const [key, value] of Object.entries(task.args ?? {})) {
-    if (typeof value === "string" || typeof value === "number") {
-      params[key] = String(value);
-    }
-  }
-
-  for (const field of STATION_PARAM_FIELDS) {
-    const value = node[field];
-
-    if (typeof value === "string" && value.length > 0) {
-      params[field] = value;
-    }
-  }
+  const params = stationNodeParams(node, task);
 
   return {
     taskId: task.taskId,

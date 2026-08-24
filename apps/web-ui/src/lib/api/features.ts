@@ -49,13 +49,17 @@ export function refineFeature(
   });
 }
 
-export function finalizeFeature(
+/** Accept the plan. `userAnswers` carries whatever the author typed into the form
+ *  before pressing accept — they fill it in and accept in one motion, and those
+ *  answers belong in the plan the tail nodes turn into a spec. */
+export function createSpecFile(
   repo: string,
   id: string,
+  userAnswers: unknown,
 ): Promise<ApiResult<{ task_id?: string } & RunIdCarrier>> {
-  return apiFetch("lore-api", `${base(repo)}/${id}/finalize`, {
+  return apiFetch("lore-api", `${base(repo)}/${id}/create-spec-file`, {
     method: "POST",
-    body: {},
+    body: { user_answers: userAnswers },
   });
 }
 

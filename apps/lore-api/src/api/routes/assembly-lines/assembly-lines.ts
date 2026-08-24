@@ -1,6 +1,9 @@
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import type { Pool } from "pg";
+import { rethrowBoom, apiError } from "../../../server/api-error.js";
 import type { ServerRoute } from "@hapi/hapi";
 import { z } from "zod";
+import { StationRunInputSchema } from "@re-cinq/lore-shared/models/station-run.js";
 import { bearerScope } from "../../../server/plugins/bearer-scope.js";
 import { zodResponse } from "../../../server/plugins/zod-response.js";
 import { zodValidate } from "../../../server/plugins/zod-validate.js";
@@ -187,6 +190,9 @@ const StationRunRowSchema = z.object({
   outcome: z.string().nullable(),
   agent_cr_name: z.string().nullable(),
   station_run_id: z.string().nullable(),
+  /** What the visit was dispatched with. Null for visits recorded before the
+   *  column existed — "not captured", not "no input". */
+  input: StationRunInputSchema.nullable(),
   commit_sha: z.string().nullable(),
   started_at: z.string(),
   finished_at: z.string().nullable(),
@@ -272,9 +278,7 @@ export function assemblyLineRoutes(
       handler: async (request, h) => {
         const pool = getPool();
 
-        if (!pool) {
-          return h.response({ error: DB_UNAVAILABLE }).code(503);
-        }
+        enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
         const { status, repo, blueprint, task_id, subject_key, limit } =
           request.query as unknown as RunsQuery;
         const port = portFor(pool);
@@ -318,9 +322,7 @@ export function assemblyLineRoutes(
       handler: async (request, h) => {
         const pool = getPool();
 
-        if (!pool) {
-          return h.response({ error: DB_UNAVAILABLE }).code(503);
-        }
+        enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
 
         try {
           const visits = await portFor(pool).listStationRuns(request.params.id);
@@ -332,6 +334,7 @@ export function assemblyLineRoutes(
               iteration: visit.iteration,
               outcome: visit.outcome,
               agent_cr_name: visit.agentCrName,
+              input: visit.input,
               commit_sha: visit.commitSha,
               started_at: visit.startedAt.toISOString(),
               finished_at: visit.finishedAt?.toISOString() ?? null,
@@ -357,9 +360,7 @@ export function assemblyLineRoutes(
       handler: async (request, h) => {
         const pool = getPool();
 
-        if (!pool) {
-          return h.response({ error: DB_UNAVAILABLE }).code(503);
-        }
+        enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
 
         // `pipeline.agent_run_turns`, NOT `pipeline.llm_calls`: the cost table is
         // authoritative and carries dollars, but a row lands only when an agent
@@ -416,25 +417,21 @@ export function assemblyLineRoutes(
       handler: async (request, h) => {
         const pool = getPool();
 
-        if (!pool) {
-          return h.response({ error: DB_UNAVAILABLE }).code(503);
-        }
+        enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
 
         try {
           const run = await portFor(pool).getById(request.params.id);
 
-          if (!run) {
-            return h.response({ error: "Run not found" }).code(404);
-          }
+          enforceTrue(run, apiError(404), "Run not found");
           const enrichment = await enrichmentById(pool, [run]);
 
           return h.response(toRunRow(run, enrichment.get(run.id), true));
         } catch (err) {
-          if (missingTable(err)) {
-            // Same answer as "no such run": a database with no table holds none,
-            // and the id resolver falls through to treating it as a task id.
-            return h.response({ error: "Run not found" }).code(404);
-          }
+          // A guard's refusal already carries its status; only an unexpected failure
+          // is this block's to shape.
+          rethrowBoom(err);
+
+          enforceTrue(!missingTable(err), apiError(404), "Run not found");
 
           throw err;
         }

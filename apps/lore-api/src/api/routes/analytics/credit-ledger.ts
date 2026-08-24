@@ -1,3 +1,5 @@
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
+import { apiError } from "../../../server/api-error.js";
 /**
  * `POST /api/spend/credits` — record money added to the Anthropic account.
  *
@@ -112,9 +114,7 @@ export function creditLedgerRoute(getPool: () => Pool | null): ServerRoute {
     handler: async (request, h) => {
       const pool = getPool();
 
-      if (!pool) {
-        return h.response({ error: DB_UNAVAILABLE }).code(503);
-      }
+      enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
 
       const {
         amount_usd,
@@ -156,9 +156,11 @@ export function creditLedgerRoute(getPool: () => Pool | null): ServerRoute {
         // The table arrives with migration 0045. A cluster that has not
         // deployed it yet should say so plainly — the figure is unrecordable,
         // not the request malformed.
-        if ((err as { code?: string }).code === UNDEFINED_TABLE) {
-          return h.response({ error: DB_UNAVAILABLE }).code(503);
-        }
+        enforceTrue(
+          (err as { code?: string }).code !== UNDEFINED_TABLE,
+          apiError(503),
+          DB_UNAVAILABLE,
+        );
 
         throw err;
       }

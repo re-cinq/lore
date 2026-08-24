@@ -12,7 +12,7 @@
  * cache), so a second wrap would only hide it going stale.
  */
 
-import Boom from "@hapi/boom";
+import { apiError } from "../api-error.js";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { loadBuiltinAssemblyLines } from "@re-cinq/lore-assembly-lines";
 import type { ServerRoute } from "@hapi/hapi";
@@ -31,7 +31,7 @@ export function assemblyLineDefinitionsRoute(
 
       enforceTrue(
         definition,
-        Boom.notFound,
+        apiError(404),
         `no assembly line definition "${request.params.name}"`,
       );
 

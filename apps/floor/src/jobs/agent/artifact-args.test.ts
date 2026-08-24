@@ -1,6 +1,10 @@
 import { describe, it, expect } from "vitest";
 import { InMemoryAssemblyRuns } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-memory.js";
-import { argNameForEvent, deliverArtifact } from "./artifact-args.js";
+import {
+  argNameForEvent,
+  artifactsFromTerminalOutput,
+  deliverArtifact,
+} from "./artifact-args.js";
 import type { AgentFileEvent } from "./agent-events.js";
 
 const fileEvent = (over: Partial<AgentFileEvent> = {}): AgentFileEvent => ({
@@ -98,5 +102,62 @@ describe("deliverArtifact", () => {
     expect(
       await deliverArtifact(fileEvent(), { assemblyRuns: lines }),
     ).toMatchObject({ outcome: "skipped" });
+  });
+});
+
+describe("artifactsFromTerminalOutput", () => {
+  const fileLine = (over: Record<string, unknown>) =>
+    JSON.stringify({
+      source: { task: "t1" },
+      event: {
+        kind: "file",
+        event: "spec.plan",
+        path: "target/x.json",
+        ...over,
+      },
+    });
+
+  it("reads the declared artifacts out of a terminal status, so delivery rides the advancing event", () => {
+    // The sink is a SEPARATE HTTP post racing the k8s event the walk advances on.
+    // The same file events are in status.output, which the handler already reads —
+    // so the artifact can arrive with the outcome instead of hoping to beat it.
+    expect(
+      artifactsFromTerminalOutput(
+        `{"type":"log","message":"working"}\n${fileLine({ content: '{"updates":[]}' })}`,
+      ),
+    ).toEqual({
+      args: { spec_plan: '{"updates":[]}' },
+      missing: [],
+    });
+  });
+
+  it("names an artifact the agent declared and never produced, rather than advancing without it", () => {
+    expect(
+      artifactsFromTerminalOutput(
+        fileLine({ content: null, reason: "file not found" }),
+      ),
+    ).toEqual({
+      args: {},
+      missing: ["spec.plan (file not found)"],
+    });
+  });
+
+  it("leaves the planning result to the handler that owns it", () => {
+    expect(
+      artifactsFromTerminalOutput(
+        fileLine({ event: "planning.result", content: "{}" }),
+      ),
+    ).toEqual({ args: {}, missing: [] });
+  });
+
+  it("finds nothing in a status that carries no artifacts at all", () => {
+    expect(artifactsFromTerminalOutput(undefined)).toEqual({
+      args: {},
+      missing: [],
+    });
+    expect(artifactsFromTerminalOutput("plain text, not ndjson")).toEqual({
+      args: {},
+      missing: [],
+    });
   });
 });

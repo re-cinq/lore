@@ -367,7 +367,7 @@ function validateAssemblyLine(wf: AssemblyLine, source: string): void {
   }
 
   // Every outcome a node can produce must route somewhere — an uncovered
-  // outcome would otherwise crash the walk at runtime (`nextTransition`'s
+  // outcome would otherwise crash the walk at runtime (`getNextTransition`'s
   // no-edge failure) instead of failing here at load.
   for (const n of wf.nodes) {
     const missing = uncoveredOutcomes(wf, n);

@@ -1,7 +1,8 @@
 # Code generated from scripts/task-types.yaml by gen-catalog. DO NOT EDIT.
-# Seeded catalog (ADR-031, re-cinq/lore#698). Guarded by .Values.seedCatalog so
-# operators stop re-seeding after first install; the web UI owns these thereafter.
-{{- if .Values.seedCatalog }}
+# Seeded catalog (ADR-031, re-cinq/lore#698). Lives at files/catalog-seed.yaml and is
+# applied server-side by the catalog-seed pre-upgrade hook (templates/catalog-seed-job.yaml),
+# which runs AFTER the CRD hook so a lagging schema cannot prune these fields (#1468).
+# .Values.seedCatalog gates the hook, not this file.
 ---
 apiVersion: agents.re-cinq.com/v1alpha1
 kind: AgentDefinition
@@ -1409,8 +1410,8 @@ spec:
 
     Print exactly one of these as your LAST line:
 
-        LORE_NODE_RESULT: success
-        LORE_NODE_RESULT: changes_requested
+        LORE_NODE_RESULT: {"outcome": "success"}
+        LORE_NODE_RESULT: {"outcome": "changes_requested"}
 
     Request changes when the plan cannot be mapped as it stands — it contradicts
     an existing spec or ADR, it is ambiguous in a way that changes WHICH spec is
@@ -1486,14 +1487,14 @@ spec:
 apiVersion: agents.re-cinq.com/v1alpha1
 kind: AgentDefinition
 metadata:
-  name: feature-finalize
+  name: spec-write
   labels:
     app.kubernetes.io/managed-by: lore-catalog-seed
   namespace: {{ .Values.namespace }}
   annotations:
     helm.sh/resource-policy: keep
 spec:
-  description: Lore feature-finalize task recipe (seeded).
+  description: Lore spec-write task recipe (seeded).
   model: claude-sonnet-4-6
   prompt: |-
     Finalize a planned feature into a committable specification. The Context
@@ -1538,14 +1539,14 @@ spec:
 apiVersion: agents.re-cinq.com/v1alpha1
 kind: Station
 metadata:
-  name: feature-finalize
+  name: spec-write
   labels:
     app.kubernetes.io/managed-by: lore-catalog-seed
   namespace: {{ .Values.namespace }}
   annotations:
     helm.sh/resource-policy: keep
 spec:
-  agentDefRef: feature-finalize
+  agentDefRef: spec-write
   deadlineMinutes: 15
   template:
     spec:
@@ -2257,4 +2258,3 @@ spec:
               cpu: "1"
               memory: 1Gi
               ephemeral-storage: 4Gi
-{{- end }}

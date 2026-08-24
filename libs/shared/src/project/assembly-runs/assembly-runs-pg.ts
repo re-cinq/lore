@@ -1,3 +1,4 @@
+import { StationRunInputSchema } from "../../models/station-run.js";
 import { enforceTrue } from "../../lib/enforce.js";
 import { resolveResumePrefix } from "./resume.js";
 import { RUN_START_EVENT } from "./run-events.js";
@@ -185,7 +186,7 @@ export class PgAssemblyRuns implements AssemblyRunsPort {
     // `failure_class` / `failure_detail` are dropped alongside `agent_cr_name`,
     // and for the same reason: all three describe the ATTEMPT that is over, not
     // the history the fork inherits. Copying the verdict would be worse than
-    // untidy — `nextTransition` replays every visit from the entry node and
+    // untidy — `getNextTransition` replays every visit from the entry node and
     // fails the run on a permanent failure it meets on a revisit edge, so an
     // inherited `anthropic-credit` visit anywhere in the copied prefix kills the
     // fork on its first `advanceLine`. That is exactly the operation someone
@@ -215,10 +216,10 @@ export class PgAssemblyRuns implements AssemblyRunsPort {
        ), copied AS (
          INSERT INTO pipeline.station_runs
            (assembly_run_id, node_id, iteration, outcome, failure_class,
-            failure_detail, agent_cr_name, commit_sha, started_at, finished_at)
+            failure_detail, agent_cr_name, input, commit_sha, started_at, finished_at)
          SELECT al.id,
                 n.node_id, n.iteration, n.outcome, NULL,
-                NULL, NULL, n.commit_sha, n.started_at, n.finished_at
+                NULL, NULL, n.input, n.commit_sha, n.started_at, n.finished_at
            FROM pipeline.station_runs n, al
           WHERE n.assembly_run_id = $7
             AND n.id <= $9::bigint
@@ -298,16 +299,17 @@ export class PgAssemblyRuns implements AssemblyRunsPort {
     // row as absent under its snapshot and returns zero rows. `xmax = 0` is true
     // only for a fresh insert, so it distinguishes create from converged duplicate.
     const { rows } = await this.pool.query(
-      `INSERT INTO pipeline.station_runs (assembly_run_id, node_id, iteration, agent_cr_name)
-       VALUES ($1, $2, $3, $4)
+      `INSERT INTO pipeline.station_runs (assembly_run_id, node_id, iteration, agent_cr_name, input)
+       VALUES ($1, $2, $3, $4, $5::jsonb)
        ON CONFLICT (assembly_run_id, node_id, iteration)
-         DO UPDATE SET node_id = EXCLUDED.node_id
+         DO UPDATE SET input = COALESCE(pipeline.station_runs.input, EXCLUDED.input)
        RETURNING id, station_run_id, (xmax = 0) AS created`,
       [
         input.assemblyRunId,
         input.nodeId,
         input.iteration,
         input.agentCrName ?? null,
+        input.input ? JSON.stringify(input.input) : null,
       ],
     );
 
@@ -357,7 +359,7 @@ export class PgAssemblyRuns implements AssemblyRunsPort {
     const { rows } = await this.pool.query(
       `SELECT id, station_run_id, assembly_run_id, node_id, iteration, outcome,
               failure_class, failure_detail,
-              agent_cr_name, commit_sha, started_at, finished_at
+              agent_cr_name, input, commit_sha, started_at, finished_at
          FROM pipeline.station_runs
         WHERE assembly_run_id = $1
         ORDER BY id`,
@@ -590,6 +592,7 @@ function toNodeRecord(row: {
   failure_class: string | null;
   failure_detail: string | null;
   agent_cr_name: string | null;
+  input: unknown;
   commit_sha: string | null;
   started_at: Date;
   finished_at: Date | null;
@@ -604,6 +607,12 @@ function toNodeRecord(row: {
     failureClass: row.failure_class,
     failureDetail: row.failure_detail,
     agentCrName: row.agent_cr_name,
+    // A shape the schema rejects reads as "not captured" rather than throwing:
+    // this column is diagnostics, and a bad row must not break the walk that
+    // reads the visits beside it.
+    input: StationRunInputSchema.nullable()
+      .catch(null)
+      .parse(row.input ?? null),
     commitSha: row.commit_sha,
     startedAt: row.started_at,
     finishedAt: row.finished_at,

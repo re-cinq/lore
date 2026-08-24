@@ -1,3 +1,5 @@
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
+import { apiError } from "../../../server/api-error.js";
 import type { Pool } from "pg";
 import type { ServerRoute } from "@hapi/hapi";
 import { z } from "zod";
@@ -63,9 +65,7 @@ export function repoSettingsRoute(getPool: () => Pool | null): ServerRoute {
     handler: async (request, h) => {
       const pool = getPool();
 
-      if (!pool) {
-        return h.response({ error: DB_UNAVAILABLE }).code(503);
-      }
+      enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
       const repo = `${request.params.owner}/${request.params.repo}`;
       const body = request.payload as RepoSettingsBody;
 
@@ -74,9 +74,7 @@ export function repoSettingsRoute(getPool: () => Pool | null): ServerRoute {
         [repo],
       );
 
-      if (rows.length === 0) {
-        return h.response({ error: "Repo not found" }).code(404);
-      }
+      enforceTrue(rows.length !== 0, apiError(404), "Repo not found");
       const existing = rows[0];
 
       const darkFactory = (body.settings as { dark_factory?: unknown })
@@ -88,20 +86,14 @@ export function repoSettingsRoute(getPool: () => Pool | null): ServerRoute {
         // merged unexamined.
         const parsed = safeParseDarkFactory(darkFactory);
 
-        if (!parsed.ok) {
-          return h
-            .response({ error: "invalid dark_factory settings" })
-            .code(400);
-        }
+        enforceTrue(parsed.ok, apiError(400), "invalid dark_factory settings");
         const touched = twoKeyFieldsTouched(parsed.value);
 
-        if (touched.length > 0) {
-          return h
-            .response({
-              error: `privileged dark-factory fields (${touched.join(", ")}) are written through PUT /api/repos/${repo}/settings/dark-factory, which requires the CODEOWNER approval PR`,
-            })
-            .code(403);
-        }
+        enforceTrue(
+          touched.length <= 0,
+          apiError(403),
+          `privileged dark-factory fields (${touched.join(", ")}) are written through PUT /api/repos/${repo}/settings/dark-factory, which requires the CODEOWNER approval PR`,
+        );
       }
 
       const updates: string[] = [];
@@ -120,9 +112,7 @@ export function repoSettingsRoute(getPool: () => Pool | null): ServerRoute {
         );
       }
 
-      if (updates.length === 0) {
-        return h.response({ error: "No fields to update" }).code(400);
-      }
+      enforceTrue(updates.length !== 0, apiError(400), "No fields to update");
       values.push(repo);
       await pool.query(
         `UPDATE lore.repos SET ${updates.join(", ")} WHERE full_name = $${values.length}`,

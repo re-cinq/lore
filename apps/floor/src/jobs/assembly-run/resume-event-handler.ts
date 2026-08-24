@@ -83,18 +83,15 @@ export function createResumeEventHandler(
 /** Composed production handler for the registry. Deps are resolved lazily so
  *  importing the registry never forces the DB pool or the K8s client. */
 export const assemblyLineResume: EventHandler = async (params) => {
-  const [
-    { assemblyRuns },
-    { finishNodeAndAdvance },
-    { productionNodeEventDeps },
-  ] = await Promise.all([
-    import("../../kernel/queues.js"),
-    import("./advance.js"),
-    import("./node-event-handler.js"),
-  ]);
+  const [{ pipeline }, { finishNodeAndAdvance }, { productionNodeEventDeps }] =
+    await Promise.all([
+      import("../../kernel/queues.js"),
+      import("./advance.js"),
+      import("./node-event-handler.js"),
+    ]);
 
   const handler = createResumeEventHandler({
-    assemblyRuns: assemblyRuns(),
+    assemblyRuns: pipeline().assemblyRuns,
     // The SAME deps the node-event handler advances with: a station reporting from a
     // browser and one reporting from a pod must walk the graph identically.
     finishNodeAndAdvance: async (input) =>

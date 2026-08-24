@@ -81,6 +81,10 @@ export type {
   AgentRunTurnNodeRef,
 } from "./agent-run-turns/agent-run-turns-port.js";
 
+// Type only — the Pg composition stays off the barrel so the light runtimes
+// never take on `pg`.
+export type { PipelineRepositories } from "./pipeline/pipeline-repositories.js";
+
 export type {
   NotifyPort,
   NotifyLevel,

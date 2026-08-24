@@ -12,14 +12,14 @@
 import { anthropicCreditsExhausted } from "@re-cinq/lore-shared/llm/credit-probe.js";
 import { projectFor } from "../../composition/project-boot.js";
 import { buildPrompt, getTaskTypeConfig } from "../../kernel/config.js";
-import { taskQueue } from "../../kernel/queues.js";
+import { pipeline } from "../../kernel/queues.js";
 import { setStatus, insertEvent } from "./task-helpers.js";
 
 const MAX_CONCURRENT_PER_GROUP = 3;
 
 export async function specTaskExecutorJob(): Promise<string> {
   // Find all ready spec-tasks (dependencies satisfied)
-  const readyTasks = await taskQueue().findReadySpecTasks();
+  const readyTasks = await pipeline().taskQueue.findReadySpecTasks();
 
   if (readyTasks.length === 0) {
     return "No ready spec-tasks";
@@ -31,7 +31,7 @@ export async function specTaskExecutorJob(): Promise<string> {
   // The cap is applied per task_group_id in the dispatch loop below — one busy
   // group must not starve another (the former global gate did exactly that).
   const runningByGroup = new Map<string, number>();
-  const runningRows = await taskQueue().countRunningSpecTasksByGroup();
+  const runningRows = await pipeline().taskQueue.countRunningSpecTasksByGroup();
 
   for (const row of runningRows) {
     runningByGroup.set(row.task_group_id, parseInt(row.cnt, 10));
@@ -65,7 +65,7 @@ export async function specTaskExecutorJob(): Promise<string> {
     }
 
     // Atomic claim: set to running only if still pending
-    const claimed = await taskQueue().claimSpecTask(task.id);
+    const claimed = await pipeline().taskQueue.claimSpecTask(task.id);
 
     if (!claimed) {
       continue;

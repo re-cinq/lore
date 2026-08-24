@@ -69,6 +69,14 @@ terminal detection keys on it, and its `result` text lands in
 - `outcome`: `success` | `changes_requested` | `failed`. **`failed` is a normal
   result** — it routes the assembly line's `failed` edge; exit 0 with
   `is_error:false`.
+- The marker is read from the LAST **line-start** `LORE_NODE_RESULT:` in the
+  result text, so a station may quote or explain its own contract in passing and
+  still be judged by its final word. The JSON object above is canonical; a bare
+  `LORE_NODE_RESULT: changes_requested` is accepted as a legacy form because a
+  deployed recipe taught it. A marker that is present but parses to neither —
+  bad JSON, or an outcome outside the three — **fails the node** carrying the
+  offending line, rather than falling through to `success`: the success default
+  is for a station that printed no marker at all (#1469).
 - `extras`: optional string→string map returned to the Floor alongside the
   outcome (stage commits were retired with the in-process walk — extras are NOT
   persisted as trailers). Specific keys drive routing: e.g. the comment-triage

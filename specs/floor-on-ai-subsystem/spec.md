@@ -183,13 +183,13 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + agen
     double-wrapped `{source, event: {source, event}}` lines observed on this sink — one further
     level, merging the two `source` objects with outer precedence so the terminal result at
     `.event.event` still yields its cost row. That peel MUST be bounded at two levels rather than
-    looping, so a third envelope layer is left intact as the event and yields no row. ([validated by `agent-events.test.ts:15`](apps/floor/src/jobs/agent/agent-events.test.ts#L15), [`agent-events.test.ts:39`](apps/floor/src/jobs/agent/agent-events.test.ts#L40), [`agent-events.test.ts:51`](apps/floor/src/jobs/agent/agent-events.test.ts#L52), [`agent-events.test.ts:62`](apps/floor/src/jobs/agent/agent-events.test.ts#L63), [`agent-events.test.ts:72`](apps/floor/src/jobs/agent/agent-events.test.ts#L73), [`agent-events.test.ts:79`](apps/floor/src/jobs/agent/agent-events.test.ts#L80), [`agent-events.test.ts:142`](apps/floor/src/jobs/agent/agent-events.test.ts#L144), [`agent-events.test.ts:64`](apps/floor/src/delivery/http/routes/agent-events.test.ts#L65), [`agent-events.test.ts:72`](apps/floor/src/delivery/http/routes/agent-events.test.ts#L77), [`agent-events.test.ts:142`](apps/floor/src/jobs/agent/agent-events.test.ts#L144), [`agent-events.test.ts:131`](apps/floor/src/jobs/agent/agent-events.test.ts#L132), [`agent-output.test.ts:183`](libs/assembly-lines/src/agent-output.test.ts#L183), [`agent-output.test.ts:189`](libs/assembly-lines/src/agent-output.test.ts#L189), [`agent-output.test.ts:198`](libs/assembly-lines/src/agent-output.test.ts#L198), [`agent-output.test.ts:213`](libs/assembly-lines/src/agent-output.test.ts#L213), [`agent-output.test.ts:222`](libs/assembly-lines/src/agent-output.test.ts#L222), [`agent-output.test.ts:231`](libs/assembly-lines/src/agent-output.test.ts#L231), [`agent-output.test.ts:242`](libs/assembly-lines/src/agent-output.test.ts#L242), [`agent-output.test.ts:253`](libs/assembly-lines/src/agent-output.test.ts#L253), [`agent-output.test.ts:259`](libs/assembly-lines/src/agent-output.test.ts#L259), [`agent-events.test.ts:91`](apps/floor/src/jobs/agent/agent-events.test.ts#L92), [`agent-events.test.ts:118`](apps/floor/src/jobs/agent/agent-events.test.ts#L120); implemented by [`agent-output.ts:80`](libs/assembly-lines/src/agent-output.ts#L80))
+    looping, so a third envelope layer is left intact as the event and yields no row. ([validated by `agent-events.test.ts:15`](apps/floor/src/jobs/agent/agent-events.test.ts#L15), [`agent-events.test.ts:39`](apps/floor/src/jobs/agent/agent-events.test.ts#L40), [`agent-events.test.ts:51`](apps/floor/src/jobs/agent/agent-events.test.ts#L52), [`agent-events.test.ts:62`](apps/floor/src/jobs/agent/agent-events.test.ts#L63), [`agent-events.test.ts:72`](apps/floor/src/jobs/agent/agent-events.test.ts#L73), [`agent-events.test.ts:79`](apps/floor/src/jobs/agent/agent-events.test.ts#L80), [`agent-events.test.ts:142`](apps/floor/src/jobs/agent/agent-events.test.ts#L144), [`agent-events.test.ts:64`](apps/floor/src/delivery/http/routes/agent-events.test.ts#L67), [`agent-events.test.ts:72`](apps/floor/src/delivery/http/routes/agent-events.test.ts#L79), [`agent-events.test.ts:142`](apps/floor/src/jobs/agent/agent-events.test.ts#L144), [`agent-events.test.ts:131`](apps/floor/src/jobs/agent/agent-events.test.ts#L132), [`agent-output.test.ts:183`](libs/assembly-lines/src/agent-output.test.ts#L183), [`agent-output.test.ts:189`](libs/assembly-lines/src/agent-output.test.ts#L189), [`agent-output.test.ts:198`](libs/assembly-lines/src/agent-output.test.ts#L198), [`agent-output.test.ts:213`](libs/assembly-lines/src/agent-output.test.ts#L213), [`agent-output.test.ts:222`](libs/assembly-lines/src/agent-output.test.ts#L222), [`agent-output.test.ts:231`](libs/assembly-lines/src/agent-output.test.ts#L231), [`agent-output.test.ts:242`](libs/assembly-lines/src/agent-output.test.ts#L242), [`agent-output.test.ts:253`](libs/assembly-lines/src/agent-output.test.ts#L253), [`agent-output.test.ts:259`](libs/assembly-lines/src/agent-output.test.ts#L259), [`agent-events.test.ts:91`](apps/floor/src/jobs/agent/agent-events.test.ts#L92), [`agent-events.test.ts:118`](apps/floor/src/jobs/agent/agent-events.test.ts#L120); implemented by [`agent-output.ts:80`](libs/assembly-lines/src/agent-output.ts#L80))
 
 11. *(restated late 2026-07)* A node CR's terminal status maps to a node outcome
     (`success`/`failed`/`changes_requested`) via `stationNodeOutcome` in the Floor's node-event
     handler; a forced Floor restart loses nothing because the walk is derived from the persisted
     `pipeline.assembly_line_nodes` rows, not held in memory — the original lease-heartbeat +
-    stage-trailer-resume mechanics are retired (6-dark-factory FR6.9) ([validated by `node-outcome.test.ts:34`](libs/assembly-lines/src/node-outcome.test.ts#L33), [`advance.test.ts:362`](apps/floor/src/jobs/assembly-run/advance.test.ts#L363))
+    stage-trailer-resume mechanics are retired (6-dark-factory FR6.9) ([validated by `node-outcome.test.ts:35`](libs/assembly-lines/src/node-outcome.test.ts#L34), [`advance.test.ts:362`](apps/floor/src/jobs/assembly-run/advance.test.ts#L363))
 12. A `github-action` assembly line node dispatches the referenced GitHub Actions run and gates on its
     conclusion.
 13. The cutover is reversible: flipping the cluster gate off routes new tasks back to LoreTask with
@@ -210,7 +210,7 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + agen
     `timeout_minutes`. ([validated by accepts station_ref and timeout_minutes on a node](libs/assembly-lines/src/loader.test.ts#L520))
 
 17. `nodeStationSpec` builds the CR spec: stationRef, `parameters.station_input` JSON
-    (assembly_line_id/node_id/node_type/repo/branch/task_id/params). ([validated by station-flagged node types dispatch a station CR](apps/floor/src/jobs/assembly-run/floor-assembly-run.test.ts#L130), [honors an explicit station_ref override](apps/floor/src/jobs/assembly-run/floor-assembly-run.test.ts#L172), [agent nodes thread station_ref too — a renamed recipe (code-review-refine) still resolves](apps/floor/src/jobs/assembly-run/floor-assembly-run.test.ts#L102))
+    (assembly_line_id/node_id/node_type/repo/branch/task_id/params). ([validated by station-flagged node types dispatch a station CR](apps/floor/src/jobs/assembly-run/floor-assembly-run.test.ts#L134), [honors an explicit station_ref override](apps/floor/src/jobs/assembly-run/floor-assembly-run.test.ts#L176), [agent nodes thread station_ref too — a renamed recipe (code-review-refine) still resolves](apps/floor/src/jobs/assembly-run/floor-assembly-run.test.ts#L106))
 
 18. A station pod ends with the claude-style result line carrying `LORE_NODE_RESULT: {outcome,
     extras}`; the Floor's `parseNodeResult` maps it (precedence: LORE_NODE_RESULT → REVIEW_RESULT →
@@ -221,13 +221,13 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + agen
     `is_error:true` so the CR fails, and MUST refuse (enforce-throw) to wrap a payload that is
     already a wrapped agent output line — the envelope is applied exactly once, never nested.
     `eventLine` emits the non-terminal log events the result scan skips over.
-    ([validated by parseNodeResult tests](libs/assembly-lines/src/node-outcome.test.ts#L19), [`agent-output.test.ts:270`](libs/assembly-lines/src/agent-output.test.ts#L270), [`agent-output.test.ts:281`](libs/assembly-lines/src/agent-output.test.ts#L281), [`agent-output.test.ts:293`](libs/assembly-lines/src/agent-output.test.ts#L293), [`agent-output.test.ts:301`](libs/assembly-lines/src/agent-output.test.ts#L301), [`agent-output.test.ts:311`](libs/assembly-lines/src/agent-output.test.ts#L311), [`agent-output.test.ts:319`](libs/assembly-lines/src/agent-output.test.ts#L319), [`agent-output.test.ts:329`](libs/assembly-lines/src/agent-output.test.ts#L329); implemented by [`agent-output.ts:180`](libs/assembly-lines/src/agent-output.ts#L180))
+    ([validated by parseNodeResult tests](libs/assembly-lines/src/node-outcome.test.ts#L20), [`agent-output.test.ts:270`](libs/assembly-lines/src/agent-output.test.ts#L270), [`agent-output.test.ts:281`](libs/assembly-lines/src/agent-output.test.ts#L281), [`agent-output.test.ts:293`](libs/assembly-lines/src/agent-output.test.ts#L293), [`agent-output.test.ts:301`](libs/assembly-lines/src/agent-output.test.ts#L301), [`agent-output.test.ts:311`](libs/assembly-lines/src/agent-output.test.ts#L311), [`agent-output.test.ts:319`](libs/assembly-lines/src/agent-output.test.ts#L319), [`agent-output.test.ts:329`](libs/assembly-lines/src/agent-output.test.ts#L329); implemented by [`agent-output.ts:180`](libs/assembly-lines/src/agent-output.ts#L180))
 
 19. Cutover complete: every non-agent node on the Floor-assembly-line path dispatches a station
     (no `LORE_STATION_NODES` flag, no in-process node handlers on that path); the in-process
     supervisor path (gap-fill/runbook), untouched at cutover time, has since been removed too —
     gap-fill runs on the Floor AssemblyLine and runbook as a single Agent CR, both via
-    `handleClaudeCodeTask` with no Floor-side clone or App token. ([validated by every non-agent node dispatches a station CR](apps/floor/src/jobs/assembly-run/floor-assembly-run.test.ts#L130))
+    `handleClaudeCodeTask` with no Floor-side clone or App token. ([validated by every non-agent node dispatches a station CR](apps/floor/src/jobs/assembly-run/floor-assembly-run.test.ts#L134))
 
 20. `scripts/task-types.yaml` `stations:` seeds `def-<type>` AgentDefinition/Station pairs (exec
     model, `{station_input}` prompt, lore-station image via `.Values.stationImage`, deadline
@@ -241,7 +241,16 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + agen
     `tool_config.command`, station image, deadline default 15, RFC-1123-sanitised name, no ANTHROPIC
     secret — station recipes instead carry the `LORE_API_URL` env + `LORE_INGEST_TOKEN` secret every
     lore-station pod needs for its HTTP reads/writes); `buildCatalog` emits both kinds per type in
-    order and `catalogChartYaml` guards the seed behind `.Values.seedCatalog`
+    order and `catalogChartYaml` emits them for the `catalog-seed` PRE-UPGRADE HOOK
+    (`files/catalog-seed.yaml`, applied `--server-side --force-conflicts` AFTER the
+    CRD hook so a lagging schema cannot prune a field on the way in). They were plain
+    templates until #1468: helm patches a custom resource by diffing the PREVIOUS
+    rendered manifest against the new one and never reads live state, so two recipes
+    that lost `output.watch` to a stale CRD schema stayed pruned through every later
+    deploy — their rendered text had not changed, so the patch was empty. While
+    `.Values.seedCatalog` is true the chart therefore OWNS the seeded recipes and
+    re-asserts them each deploy (an operator who wants the UI to own them sets it
+    false; per-repo override recipes are separate objects and untouched)
     (`resource-policy: keep`) and templates the sink URL / API URL / namespace /
     image / LLM-credential key from helm values (no sentinel leaks). An agent recipe
     declares exactly ONE LLM credential — `.Values.agentLlmSecretKey` as both the
@@ -250,7 +259,7 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + agen
     fail every run pod at container creation rather than acting as a fallback. GKE
     supplies `ANTHROPIC_API_KEY` (the values.yaml default), a laptop minikube supplies
     `CLAUDE_CODE_OAUTH_TOKEN`, and the `claude` CLI accepts either from its
-    environment. ([validated by station catalog tests](apps/floor/src/jobs/agent/agent-catalog.test.ts#L227), [`agent-catalog.test.ts:20`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L20), [`agent-catalog.test.ts:62`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L62), [`agent-catalog.test.ts:80`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L80), [`agent-catalog.test.ts:112`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L112), [`agent-catalog.test.ts:120`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L120), [`agent-catalog.test.ts:148`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L148), [`agent-catalog.test.ts:156`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L156), [`agent-catalog.test.ts:174`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L174), [`agent-catalog.test.ts:180`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L180), [`agent-catalog.test.ts:184`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L184), [`agent-catalog.test.ts:193`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L193), [`agent-catalog.test.ts:210`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L210), [`agent-catalog.test.ts:214`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L214), [`agent-catalog.test.ts:227`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L227), [`agent-catalog.test.ts:260`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L260), [`agent-catalog.test.ts:327`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L327), [`agent-catalog.test.ts:342`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L342))
+    environment. ([validated by station catalog tests](apps/floor/src/jobs/agent/agent-catalog.test.ts#L233), [`agent-catalog.test.ts:20`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L20), [`agent-catalog.test.ts:62`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L62), [`agent-catalog.test.ts:80`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L80), [`agent-catalog.test.ts:112`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L112), [`agent-catalog.test.ts:120`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L120), [`agent-catalog.test.ts:148`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L148), [`agent-catalog.test.ts:156`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L156), [`agent-catalog.test.ts:174`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L174), [`agent-catalog.test.ts:186`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L186), [`agent-catalog.test.ts:182`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L182), [`agent-catalog.test.ts:190`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L190), [`agent-catalog.test.ts:199`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L199), [`agent-catalog.test.ts:216`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L216), [`agent-catalog.test.ts:220`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L220), [`agent-catalog.test.ts:233`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L233), [`agent-catalog.test.ts:266`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L266), [`agent-catalog.test.ts:333`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L333), [`agent-catalog.test.ts:348`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L348))
 
 21. Custom station images honor [station-contract.md](../6-dark-factory/contracts/station-contract.md).
 
@@ -303,7 +312,7 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + agen
     `<source>/settings.json`. A laptop minikube therefore points the value at the mcp
     adapter running in HTTP-gateway mode on the host
     (`http://host.minikube.internal:3002/skills`, served by `npm start`) rather than
-    leaving it empty ([validated by `agent-catalog.test.ts:198`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L198); implemented by [`agent-catalog.ts:363`](apps/floor/src/jobs/agent/agent-catalog.ts#L363))
+    leaving it empty ([validated by `agent-catalog.test.ts:204`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L204); implemented by [`agent-catalog.ts:363`](apps/floor/src/jobs/agent/agent-catalog.ts#L363))
 
 27. *(added 2026-08-10)* The agent container MUST run in the cloned repo
     (`/workspace/target`), not the base image's default directory. Left unset, the
@@ -352,7 +361,7 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + agen
     declares none keeps the base deny alone. The declared denies are dormant under
     the current `permission_mode: "bypass"` (the CLI skips deny-rule evaluation in
     that mode) and become enforced when the family moves to an enforcing mode
-    ([validated by `agent-catalog.test.ts:365`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L365), [`agent-catalog.test.ts:375`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L375), [`agent-catalog.test.ts:381`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L381); implemented by [`agent-catalog.ts:166`](apps/floor/src/jobs/agent/agent-catalog.ts#L166), [`agent-catalog.ts:209`](apps/floor/src/jobs/agent/agent-catalog.ts#L209))
+    ([validated by `agent-catalog.test.ts:371`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L371), [`agent-catalog.test.ts:381`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L381), [`agent-catalog.test.ts:387`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L387); implemented by [`agent-catalog.ts:166`](apps/floor/src/jobs/agent/agent-catalog.ts#L166), [`agent-catalog.ts:209`](apps/floor/src/jobs/agent/agent-catalog.ts#L209))
 
 ## Out of scope
 
@@ -396,7 +405,7 @@ These statements pin the deterministic Floor glue that wraps the subsystem.
   trailing slashes stripped) that the watcher embeds as the "See [logs](…)" copy in Lore-managed issue
   bodies — the task page's log viewer is the canonical surface, replacing the browser-unclickable
   `gs://` object URL (#1294). When no UI base URL is configured it returns undefined and the copy
-  degrades to plain "See logs" rather than fabricating a dead link. ([validated by `agent-watcher-logic.test.ts:157`](apps/floor/src/jobs/watcher/agent-watcher-logic.test.ts#L157), [`agent-watcher-logic.test.ts:163`](apps/floor/src/jobs/watcher/agent-watcher-logic.test.ts#L163), [`agent-watcher-logic.test.ts:169`](apps/floor/src/jobs/watcher/agent-watcher-logic.test.ts#L169), [`agent-watcher-logic.test.ts:173`](apps/floor/src/jobs/watcher/agent-watcher-logic.test.ts#L173))
+  degrades to plain "See logs" rather than fabricating a dead link. ([validated by `agent-watcher-logic.test.ts:150`](apps/floor/src/jobs/watcher/agent-watcher-logic.test.ts#L150), [`agent-watcher-logic.test.ts:156`](apps/floor/src/jobs/watcher/agent-watcher-logic.test.ts#L156), [`agent-watcher-logic.test.ts:162`](apps/floor/src/jobs/watcher/agent-watcher-logic.test.ts#L162), [`agent-watcher-logic.test.ts:166`](apps/floor/src/jobs/watcher/agent-watcher-logic.test.ts#L166))
 - **Station failure diagnostic.** When a station CR fails, `stationLogTail` surfaces the tail of the
   pod output where the git/clone error lives: it drops blank lines, bounds to the last `maxLines`, and
   returns empty for empty output. ([validated by `finalize-station-run.test.ts:5`](apps/floor/src/jobs/task/finalize-station-run.test.ts#L5), [`finalize-station-run.test.ts:18`](apps/floor/src/jobs/task/finalize-station-run.test.ts#L18), [`finalize-station-run.test.ts:22`](apps/floor/src/jobs/task/finalize-station-run.test.ts#L22))

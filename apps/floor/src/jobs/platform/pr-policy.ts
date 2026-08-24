@@ -14,7 +14,7 @@ import type { ResolvedDarkFactorySettings } from "@re-cinq/lore-shared";
 import type { PullRequests } from "@re-cinq/lore-shared/project/pulls/pull-requests.js";
 import type { TaskPrInfo } from "@re-cinq/lore-shared/project/tasks/task-queue-port.js";
 import { projectFor } from "../../composition/project-boot.js";
-import { taskQueue, settings } from "../../kernel/queues.js";
+import { pipeline, settings } from "../../kernel/queues.js";
 
 /** PR coordinates for one task id (the auto-merge policy lookup). */
 export interface PrInfoReader {
@@ -92,7 +92,7 @@ export async function resolvePrForTaskFromDb(
   taskId: string,
   darkFactorySettings: ResolvedDarkFactorySettings,
   deps: PrPolicyDeps = {
-    tasks: taskQueue(),
+    tasks: pipeline().taskQueue,
     repos: settings(),
     pullsFor: defaultPullsFor,
   },

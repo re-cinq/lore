@@ -1,4 +1,6 @@
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { zodResponse } from "../../../server/plugins/zod-response.js";
+import { rethrowBoom, apiError } from "../../../server/api-error.js";
 import { z } from "zod";
 import { errorMessage } from "@re-cinq/lore-shared";
 import type { ServerRoute } from "@hapi/hapi";
@@ -29,9 +31,7 @@ export function eventPayloadRoute(getPool: () => Pool | null): ServerRoute {
         const repo = `${request.params.owner}/${request.params.repo}`;
         const pool = getPool();
 
-        if (!pool) {
-          return h.response({ error: "db not configured" }).code(503);
-        }
+        enforceTrue(pool, apiError(503), "db not configured");
         const { rows } = await pool.query(
           `SELECT params->'payload' AS payload, repo
              FROM pipeline.events
@@ -41,12 +41,18 @@ export function eventPayloadRoute(getPool: () => Pool | null): ServerRoute {
         const row = rows[0] as
           { payload: unknown; repo: string | null } | undefined;
 
-        if (!row || row.payload == null || row.repo !== repo) {
-          return h.response({ error: "not found" }).code(404);
-        }
+        enforceTrue(
+          row && row.payload != null && row.repo === repo,
+          apiError(404),
+          "not found",
+        );
 
         return h.response(row.payload as object);
       } catch (err) {
+        // A guard's refusal already carries its status; only an unexpected failure
+        // is this block's to shape.
+        rethrowBoom(err);
+
         return h.response({ error: errorMessage(err) }).code(500);
       }
     },

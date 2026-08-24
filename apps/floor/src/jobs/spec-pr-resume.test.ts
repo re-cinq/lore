@@ -15,10 +15,12 @@ const listStationRuns = vi.fn();
 const query = vi.fn();
 
 vi.mock("../kernel/queues.js", () => ({
-  assemblyRuns: () => ({ findOpenByPr, listStationRuns }),
+  pipeline: () => ({
+    assemblyRuns: { findOpenByPr, listStationRuns },
+    taskQueue: {},
+  }),
   settings: () => ({}),
   taskStore: () => ({}),
-  taskQueue: () => ({}),
 }));
 
 vi.mock("../kernel/db.js", () => ({ getPool: () => ({ query }) }));

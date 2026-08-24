@@ -1,4 +1,6 @@
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { zodResponse } from "../../../server/plugins/zod-response.js";
+import { rethrowBoom, apiError } from "../../../server/api-error.js";
 import type { ServerRoute } from "@hapi/hapi";
 import { z } from "zod";
 import { mergePersistentFeatures } from "@re-cinq/lore-shared";
@@ -60,9 +62,7 @@ export function traceRoute(): ServerRoute {
     handler: async (request, h) => {
       const kind = request.params.kind;
 
-      if (!TRACE_KINDS.has(kind)) {
-        return h.response({ error: "not found" }).code(404);
-      }
+      enforceTrue(TRACE_KINDS.has(kind), apiError(404), "not found");
       const { path: filePath = "" } = request.query as TraceQuery;
 
       try {
@@ -115,9 +115,7 @@ export function traceRoute(): ServerRoute {
           );
         }
 
-        if (!filePath) {
-          return h.response({ error: "path query param required" }).code(400);
-        }
+        enforceTrue(filePath, apiError(400), "path query param required");
 
         if (kind === "document") {
           return h.response(await trace.document(filePath));
@@ -129,6 +127,10 @@ export function traceRoute(): ServerRoute {
 
         return h.response({ source: await trace.source(filePath) });
       } catch (err) {
+        // A guard's refusal already carries its status; only an unexpected failure
+        // is this block's to shape.
+        rethrowBoom(err);
+
         return h
           .response({ error: err instanceof Error ? err.message : String(err) })
           .code(500);

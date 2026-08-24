@@ -19,12 +19,14 @@
  */
 
 import { projectFor } from "../../composition/project-boot.js";
-import { taskQueue, taskStore } from "../../kernel/queues.js";
+import { pipeline, taskStore } from "../../kernel/queues.js";
 
 const STALE_THRESHOLD_HOURS = 6;
 
 export async function staleTaskCheckJob(): Promise<string> {
-  const rows = await taskQueue().findStaleRunning(STALE_THRESHOLD_HOURS);
+  const rows = await pipeline().taskQueue.findStaleRunning(
+    STALE_THRESHOLD_HOURS,
+  );
 
   if (rows.length === 0) {
     return `No stale tasks (threshold ${STALE_THRESHOLD_HOURS}h)`;

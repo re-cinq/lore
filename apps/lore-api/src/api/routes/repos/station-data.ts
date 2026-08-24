@@ -1,4 +1,6 @@
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import type { ServerRoute } from "@hapi/hapi";
+import { rethrowBoom, apiError } from "../../../server/api-error.js";
 import { z } from "zod";
 import { projectFor } from "../../../platform/project-boot.js";
 import { wireSchema } from "@re-cinq/lore-shared/lib/wire-schema.js";
@@ -279,13 +281,15 @@ export function stationDataRoutes(): ServerRoute[] {
         try {
           const ref = (request.query.ref as string | undefined) ?? "";
 
-          if (!ref) {
-            return h.response({ error: "ref required" }).code(400);
-          }
+          enforceTrue(ref, apiError(400), "ref required");
           const p = await projectFor(repoOf(request.params));
 
           return h.response({ conclusion: await p.pulls.ciConclusion(ref) });
         } catch (err) {
+          // A guard's refusal already carries its status; only an unexpected failure
+          // is this block's to shape.
+          rethrowBoom(err);
+
           return fail(h, err);
         }
       },
@@ -301,17 +305,21 @@ export function stationDataRoutes(): ServerRoute[] {
         try {
           const q = request.query as Record<string, string | undefined>;
 
-          if (!q.task_type || !q.spec_path) {
-            return h
-              .response({ error: "task_type + spec_path required" })
-              .code(400);
-          }
+          enforceTrue(
+            q.task_type && q.spec_path,
+            apiError(400),
+            "task_type + spec_path required",
+          );
           const p = await projectFor(repoOf(request.params));
 
           return h.response({
             tasks: await p.tasks.driftTasksForSpec(q.task_type, q.spec_path),
           });
         } catch (err) {
+          // A guard's refusal already carries its status; only an unexpected failure
+          // is this block's to shape.
+          rethrowBoom(err);
+
           return fail(h, err);
         }
       },
@@ -327,11 +335,11 @@ export function stationDataRoutes(): ServerRoute[] {
         try {
           const q = request.query as Record<string, string | undefined>;
 
-          if (!q.task_type || !q.description_prefix) {
-            return h
-              .response({ error: "task_type + description_prefix required" })
-              .code(400);
-          }
+          enforceTrue(
+            q.task_type && q.description_prefix,
+            apiError(400),
+            "task_type + description_prefix required",
+          );
           const statuses = (q.statuses ?? "").split(",").filter(Boolean);
           const p = await projectFor(repoOf(request.params));
 
@@ -343,6 +351,10 @@ export function stationDataRoutes(): ServerRoute[] {
             }),
           });
         } catch (err) {
+          // A guard's refusal already carries its status; only an unexpected failure
+          // is this block's to shape.
+          rethrowBoom(err);
+
           return fail(h, err);
         }
       },

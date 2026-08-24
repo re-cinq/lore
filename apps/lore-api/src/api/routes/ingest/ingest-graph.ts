@@ -1,3 +1,5 @@
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
+import { apiError } from "../../../server/api-error.js";
 import { zodResponse } from "../../../server/plugins/zod-response.js";
 /**
  * `POST /api/repos/:o/:r/ingest-graph` — the REST/curl/CI (re-)projection
@@ -59,13 +61,11 @@ export function ingestGraphRoute(getPool: () => Pool | null): ServerRoute {
         body.kinds && body.kinds.length > 0 ? body.kinds : ["specs", "adrs"];
       const unsupported = requested.filter((k) => !DOC_KINDS.has(k));
 
-      if (unsupported.length > 0) {
-        return h
-          .response({
-            error: `unsupported kind(s): ${unsupported.join(", ")} — only specs/adrs project here; test projection is CI-only (the lore-code-trace binary posts to the Floor ci-tests ingress)`,
-          })
-          .code(400);
-      }
+      enforceTrue(
+        unsupported.length <= 0,
+        apiError(400),
+        `unsupported kind(s): ${unsupported.join(", ")} — only specs/adrs project here; test projection is CI-only (the lore-code-trace binary posts to the Floor ci-tests ingress)`,
+      );
 
       // Each doc kind → fire-and-forget projection trigger.
       const pool = getPool();

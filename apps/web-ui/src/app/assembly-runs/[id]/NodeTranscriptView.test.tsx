@@ -192,3 +192,74 @@ describe("per-node scroll retention", () => {
     expect(offsets).toEqual({});
   });
 });
+
+describe("the input row", () => {
+  const inputRow = (
+    over: Partial<Extract<TranscriptRow, { kind: "input" }>> = {},
+  ): TranscriptRow => ({
+    kind: "input",
+    iteration: 1,
+    summary: "review the PR",
+    description: "review the PR, carefully",
+    prompt: "you are a reviewer",
+    params: [],
+    repo: "o/r",
+    ref: "feat/x",
+    truncated: false,
+    ...over,
+  });
+
+  it("renders the input as the first row of the transcript", () => {
+    render(
+      <NodeTranscriptView
+        nodeId="review"
+        rows={[inputRow(), message("1", "starting")]}
+        droppedCount={0}
+      />,
+    );
+
+    expect(screen.getAllByRole("listitem")[0]).toHaveTextContent("Input");
+  });
+
+  it("collapses the prompt behind a details disclosure with the description head as its summary", () => {
+    render(
+      <NodeTranscriptView
+        nodeId="review"
+        rows={[inputRow()]}
+        droppedCount={0}
+      />,
+    );
+
+    expect(screen.getByText("review the PR")).toBeInTheDocument();
+    // Present but folded away: a 16KB prompt must not bury the transcript.
+    expect(
+      screen.getByText("you are a reviewer").closest("details"),
+    ).not.toBeNull();
+  });
+
+  it("shows the truncated badge on a capped input", () => {
+    render(
+      <NodeTranscriptView
+        nodeId="review"
+        rows={[inputRow({ truncated: true })]}
+        droppedCount={0}
+      />,
+    );
+
+    expect(screen.getByText("truncated")).toBeInTheDocument();
+  });
+
+  it("lists a station node's params and the cloned repo and ref", () => {
+    render(
+      <NodeTranscriptView
+        nodeId="detect"
+        rows={[inputRow({ prompt: null, params: [["job_ref", "spec_drift"]] })]}
+        droppedCount={0}
+      />,
+    );
+
+    expect(screen.getByText("job_ref")).toBeInTheDocument();
+    expect(screen.getByText("spec_drift")).toBeInTheDocument();
+    expect(screen.getByText("o/r @ feat/x")).toBeInTheDocument();
+  });
+});

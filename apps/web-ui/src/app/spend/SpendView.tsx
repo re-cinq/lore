@@ -77,8 +77,11 @@ const num = (n: number) => Number(n).toLocaleString();
  * viewer west of Greenwich — a date that is simply wrong for half the people
  * reading it.
  *
- * A fixed order rather than the viewer's locale, so two people looking at this
- * page together see the same thing and `08-09` is never ambiguous between them.
+ * Day-month-year is a DELIBERATE locale override, not an accident of where it
+ * was written. `toLocaleDateString` renders the same day differently for two
+ * people reading this page together — `08-09` is the 8th of September to one
+ * and the 9th of August to the other — and a spend figure people compare out
+ * loud cannot afford that. One fixed order, the same for every viewer.
  */
 const day = (isoDay: string) => {
   const [y, m, d] = isoDay.split("-");

@@ -260,6 +260,78 @@ describe.each(IMPLEMENTATIONS)(
       expect(duplicate.nodeRowId).toBe(first.nodeRowId);
     });
 
+    it("ensureStationRun persists the input it is given and listStationRuns returns it", async () => {
+      const { port, repo } = make();
+      const id = await port.start({ blueprintName: "code-review", repo });
+
+      await port.ensureStationRun({
+        assemblyRunId: id,
+        nodeId: "review",
+        iteration: 1,
+        input: {
+          description: "review the PR",
+          prompt: "you are a reviewer",
+          params: null,
+          repo,
+          ref: "lore/impl-1",
+        },
+      });
+
+      expect((await port.listStationRuns(id))[0].input).toEqual({
+        description: "review the PR",
+        prompt: "you are a reviewer",
+        params: null,
+        repo,
+        ref: "lore/impl-1",
+      });
+    });
+
+    it("a converged duplicate keeps the first visit's input rather than overwriting it", async () => {
+      // The relaunch door dispatches the same visit again; the row already names
+      // what that visit was given, and the second call must not rewrite history.
+      const { port, repo } = make();
+      const id = await port.start({ blueprintName: "code-review", repo });
+      const base = { assemblyRunId: id, nodeId: "review", iteration: 1 };
+
+      await port.ensureStationRun({
+        ...base,
+        input: {
+          description: "first",
+          prompt: null,
+          params: null,
+          repo,
+          ref: "b",
+        },
+      });
+      await port.ensureStationRun({
+        ...base,
+        input: {
+          description: "second",
+          prompt: null,
+          params: null,
+          repo,
+          ref: "b",
+        },
+      });
+
+      expect((await port.listStationRuns(id))[0].input).toMatchObject({
+        description: "first",
+      });
+    });
+
+    it("a visit recorded without input reads back null", async () => {
+      const { port, repo } = make();
+      const id = await port.start({ blueprintName: "code-review", repo });
+
+      await port.ensureStationRun({
+        assemblyRunId: id,
+        nodeId: "review",
+        iteration: 1,
+      });
+
+      expect((await port.listStationRuns(id))[0].input).toBeNull();
+    });
+
     it("a revisited node is a different visit with its own station run id", async () => {
       const { port, repo } = make();
       const id = await port.start({ blueprintName: "code-review", repo });
@@ -788,7 +860,7 @@ describe.each(IMPLEMENTATIONS)(
       });
 
       // The copied row keeps WHAT happened and drops the classification of WHY,
-      // which belongs to the attempt that is over. `nextTransition` replays the
+      // which belongs to the attempt that is over. `getNextTransition` replays the
       // copied prefix and refuses a retry on a permanent failure — inherit the
       // verdict and a fork taken to rerun a credit failure dies of the failure
       // it exists to get past, on its first advance, right after someone tops

@@ -18,7 +18,7 @@ import type { AssemblyRunRecord } from "@re-cinq/lore-shared/project/assembly-ru
 
 /** The catalog loads only on the fallback path — a row carrying its clone never
  *  pays for it (the loader is memoized, but even the await is skipped). */
-export async function graphForRun(
+export async function resolveRunGraph(
   row: Pick<AssemblyRunRecord, "graph" | "blueprintName">,
   definitions: () => Promise<ReadonlyMap<string, AssemblyLine>>,
 ): Promise<RunGraph | undefined> {

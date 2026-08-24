@@ -278,3 +278,35 @@ for the run's duration, not only the one-shot pre-run context hydration:
   reach a public endpoint under this policy. No NetworkPolicy change is needed. The gateway itself is a
   normal Deployment (not under `agent-job-egress`), so gateway→lore-api uses the in-cluster ClusterIP
   while agent→gateway is public `:443`.
+
+## Amendment (2026-08-21): the seeded catalog is applied, not templated
+
+The seeded AgentDefinition/Station objects shipped as plain Helm templates. That
+made "the chart declares the recipes" true at render time and false at cluster
+time, because Helm patches a custom resource by diffing the PREVIOUS rendered
+manifest against the new one — it never reads live state. Two failures compose
+into an outage that reports nothing:
+
+1. Helm's native `crds/` handling is install-only, so a live CRD can lag the
+   chart, and the API server then silently PRUNES any field the stale schema
+   does not know (#1301). `output.watch` was pruned from `spec-analysis` and
+   `feature-decompose` the day it was added.
+2. No later deploy repaired them. Their rendered text had not changed, so every
+   subsequent upgrade computed an empty patch — including the deploys that
+   followed the CRD fix. The recipes ran for eight days declaring no artifact,
+   so `spec-plan.json` was never raised and the next station read an empty bag
+   (#1468); nothing anywhere reported a difference between chart and cluster.
+
+The catalog therefore moves out of `templates/` into `files/catalog-seed.yaml`,
+applied by a `pre-install,pre-upgrade` hook Job running
+`kubectl apply --server-side --force-conflicts`, weighted strictly after the
+crd-upgrade hook. A server-side apply compares against what is actually there,
+so pruning or hand-editing cannot outlive a deploy. `helm.sh/resource-policy:
+keep` (already on every object) covers the transition upgrade, where the objects
+leave the release manifest before the hook re-applies them.
+
+The consequence is this ADR's original semantic finally made real: while
+`.Values.seedCatalog` is true the CHART owns the seeded recipes and re-asserts
+every field each deploy, so a UI edit to a seeded recipe reverts. An operator who
+wants the UI to own them sets `seedCatalog: false` — the switch this ADR always
+described. Per-repo override recipes are separate objects and are never touched.

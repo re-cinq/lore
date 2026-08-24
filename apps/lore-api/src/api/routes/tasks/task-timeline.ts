@@ -1,3 +1,5 @@
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
+import { apiError } from "../../../server/api-error.js";
 import { zodResponse } from "../../../server/plugins/zod-response.js";
 import { z } from "zod";
 import type { Pool } from "pg";
@@ -90,9 +92,7 @@ export function timelineRoute(getPool: () => Pool | null): ServerRoute {
     handler: async (request, h) => {
       const pool = getPool();
 
-      if (!pool) {
-        return h.response({ error: "database unavailable" }).code(503);
-      }
+      enforceTrue(pool, apiError(503), "database unavailable");
       const taskId = request.params.id;
 
       let task:
@@ -120,9 +120,7 @@ export function timelineRoute(getPool: () => Pool | null): ServerRoute {
         return h.response({ error: "internal" }).code(500);
       }
 
-      if (!task) {
-        return h.response({ error: "task_not_found" }).code(404);
-      }
+      enforceTrue(task, apiError(404), "task_not_found");
 
       const repo = task.target_repo;
       const branch = task.target_branch;

@@ -6418,10 +6418,10 @@
         }
       }
     },
-    "/api/repos/{owner}/{repo}/features/{id}/finalize": {
+    "/api/repos/{owner}/{repo}/features/{id}/create-spec-file": {
       "post": {
-        "operationId": "post_api_repos_owner_repo_features_id_finalize",
-        "summary": "POST /api/repos/{owner}/{repo}/features/{id}/finalize",
+        "operationId": "post_api_repos_owner_repo_features_id_create-spec-file",
+        "summary": "POST /api/repos/{owner}/{repo}/features/{id}/create-spec-file",
         "tags": ["Features"],
         "security": [
           {
@@ -6435,7 +6435,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/FinalizeStarted"
+                  "$ref": "#/components/schemas/SpecFileStarted"
                 }
               }
             }
@@ -6491,7 +6491,105 @@
               "type": "string"
             }
           }
-        ]
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/repos/{owner}/{repo}/features/{id}/finalize": {
+      "post": {
+        "operationId": "post_api_repos_owner_repo_features_id_finalize",
+        "summary": "POST /api/repos/{owner}/{repo}/features/{id}/finalize",
+        "tags": ["Features"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "202": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpecFileStarted"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "write",
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        }
       }
     },
     "/api/repos/{owner}/{repo}/features/{id}/split": {
@@ -8020,6 +8118,51 @@
                 "station_run_id": {
                   "type": ["string", "null"]
                 },
+                "input": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "description": {
+                          "type": "string"
+                        },
+                        "prompt": {
+                          "type": ["string", "null"]
+                        },
+                        "params": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "additionalProperties": {
+                                "type": "string"
+                              }
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "repo": {
+                          "type": "string"
+                        },
+                        "ref": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "description",
+                        "prompt",
+                        "params",
+                        "repo",
+                        "ref"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
                 "commit_sha": {
                   "type": ["string", "null"]
                 },
@@ -8036,6 +8179,7 @@
                 "outcome",
                 "agent_cr_name",
                 "station_run_id",
+                "input",
                 "commit_sha",
                 "started_at",
                 "finished_at"
@@ -12082,7 +12226,7 @@
         "required": ["iteration"],
         "additionalProperties": false
       },
-      "FinalizeStarted": {
+      "SpecFileStarted": {
         "type": "object",
         "properties": {
           "task_id": {

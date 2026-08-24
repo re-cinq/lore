@@ -1,3 +1,5 @@
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
+import { apiError } from "../../../server/api-error.js";
 import { zodResponse } from "../../../server/plugins/zod-response.js";
 import { errorMessage } from "@re-cinq/lore-shared";
 import type { Pool } from "pg";
@@ -45,9 +47,7 @@ export function taskGroupRoute(getPool: () => Pool | null): ServerRoute {
     handler: async (request, h) => {
       const pool = getPool();
 
-      if (!pool) {
-        return h.response({ error: DB_UNAVAILABLE }).code(503);
-      }
+      enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
 
       const { id } = request.params as unknown as GroupParams;
 

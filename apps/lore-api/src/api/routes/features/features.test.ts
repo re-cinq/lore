@@ -145,7 +145,10 @@ describe("features routes", () => {
     expect(createTask).not.toHaveBeenCalled();
   });
 
-  it("kicks the finalize task from a spec-ready feature", async () => {
+  it("refuses to accept a spec-ready feature whose line is not parked on the author", async () => {
+    // There is no second way in. A feature with no parked author node is refused
+    // rather than started fresh — minting a run per press is the duplicate this
+    // endpoint used to accept without a murmur (#1366).
     useProject(
       fakeFeatures({
         get: vi.fn().mockResolvedValue({
@@ -157,11 +160,10 @@ describe("features routes", () => {
         }),
       }),
     );
-    vi.mocked(createTask).mockResolvedValue({ task_id: "fin" } as never);
     const res = await req("POST", `${base}/f1/finalize`, {});
 
-    expect(res.statusCode).toBe(202);
-    expect(res.result).toEqual({ task_id: "fin" });
+    expect(res.statusCode).toBe(409);
+    expect(createTask).not.toHaveBeenCalled();
   });
 
   it("reports a later round to the node its line is parked on, minting no task", async () => {
@@ -219,7 +221,10 @@ describe("features routes", () => {
     expect(JSON.stringify(insert)).toContain("changes_requested");
   });
 
-  it("rewinds to the round the author chose, carrying its draft and its task", async () => {
+  it("rewinds to the round the author chose, carrying its draft", async () => {
+    const pool = makePool();
+
+    pool.query.mockResolvedValue({ rows: [{ id: "1" }] });
     const round1 = {
       ...readyIteration({
         sections: [{ title: "Overview", content: "ROUND ONE" }],
@@ -243,28 +248,40 @@ describe("features routes", () => {
           .mockResolvedValue({ id: "f1", iterations: [round1, round2] }),
         appendIteration: vi.fn().mockResolvedValue({ id: "it3", iteration: 3 }),
       }),
+      fakeAssemblyLines({
+        listForSubject: vi.fn().mockResolvedValue([
+          {
+            id: "line-1",
+            blueprintName: "feature-planning",
+            status: "running",
+          },
+        ]),
+        listStationRuns: vi
+          .fn()
+          .mockResolvedValue([
+            { nodeId: "author", iteration: 2, outcome: null },
+          ]),
+      }),
     );
 
-    vi.mocked(createTask).mockResolvedValue({ task_id: "t3" } as never);
-
-    const res = await req("POST", `${base}/f1/iterations`, {
-      from_iteration: 1,
+    const res = await buildServer(() => pool as never).inject({
+      method: "POST",
+      url: `${base}/f1/iterations`,
+      headers: AUTH,
+      payload: JSON.stringify({ from_iteration: 1 }),
     });
 
     expect(res.statusCode).toBe(202);
     // The new round records where it forked from — without it the history is a
     // list pretending to be a tree.
     expect(features.appendIteration).toHaveBeenCalledWith("f1", null, 1);
-    const bundle = vi.mocked(createTask).mock.calls[0][4] as Record<
-      string,
-      unknown
-    >;
+    const insert = pool.query.mock.calls.find((c) =>
+      String(c[0]).includes("events"),
+    );
+    const event = JSON.stringify(insert);
 
-    expect(bundle.resume_from_task).toBe("task-round-1");
-    const prompt = vi.mocked(createTask).mock.calls[0][0];
-
-    expect(prompt).toContain("ROUND ONE");
-    expect(prompt).not.toContain("ROUND TWO");
+    expect(event).toContain("ROUND ONE");
+    expect(event).not.toContain("ROUND TWO");
   });
 
   it("rejects rewinding to a round that produced no result", async () => {
@@ -570,14 +587,16 @@ describe("accepting the plan resumes the parked node", () => {
     });
   });
 
-  it("still kicks a finalize task for a feature whose planning predates the merged line", async () => {
+  it("refuses a feature whose planning predates the merged line rather than starting a run of its own", async () => {
+    // The accepted cost of retiring the legacy path: a feature planned before the
+    // merged line has no parked node and cannot be accepted. It STRANDS visibly
+    // instead of quietly minting a second line per press.
     useProject(fakeFeatures({ get: vi.fn().mockResolvedValue(specReady) }));
-    vi.mocked(createTask).mockResolvedValue({ task_id: "fin" } as never);
 
     const res = await req("POST", `${base}/f1/finalize`, {});
 
-    expect(res.statusCode).toBe(202);
-    expect(res.result).toEqual({ task_id: "fin" });
+    expect(res.statusCode).toBe(409);
+    expect(createTask).not.toHaveBeenCalled();
   });
 
   describe("GET .../features/:id/status — the wizard's poll", () => {
@@ -750,14 +769,27 @@ describe("finalize refuses to start a second run for one feature", () => {
     iterations: [],
   };
 
-  it("answers 409 naming the run already in flight, and mints no task", async () => {
+  it("answers 409 naming the run already working the feature, and mints no task", async () => {
+    // The second press. Reporting an outcome to the author node is what UN-PARKS
+    // it, so the press that follows an accept finds nothing to report to — the
+    // guard is the graph's own state, not a status column that lags 18 minutes.
     useProject(
       fakeFeatures({ get: vi.fn().mockResolvedValue(specReady) }),
       fakeAssemblyLines({
-        findOpenBySubject: vi.fn().mockResolvedValue({ id: "run-live" }),
+        listForSubject: vi.fn().mockResolvedValue([
+          {
+            id: "run-live",
+            blueprintName: "feature-planning",
+            status: "running",
+          },
+        ]),
+        listStationRuns: vi
+          .fn()
+          .mockResolvedValue([
+            { nodeId: "author", iteration: 1, outcome: "success" },
+          ]),
       }),
     );
-    vi.mocked(createTask).mockClear();
 
     const res = await req("POST", `${base}/f1/finalize`, {});
 
@@ -772,36 +804,58 @@ describe("finalize refuses to start a second run for one feature", () => {
     expect(createTask).not.toHaveBeenCalled();
   });
 
-  it("kicks the task when nothing is working the feature", async () => {
+  it("reports to the parked node and mints no task when the plan is waiting", async () => {
+    const pool = makePool();
+
+    pool.query.mockResolvedValue({ rows: [{ id: "1" }] });
     useProject(
       fakeFeatures({ get: vi.fn().mockResolvedValue(specReady) }),
       fakeAssemblyLines({
-        findOpenBySubject: vi.fn().mockResolvedValue(null),
+        listForSubject: vi.fn().mockResolvedValue([
+          {
+            id: "run-live",
+            blueprintName: "feature-planning",
+            status: "running",
+          },
+        ]),
+        listStationRuns: vi
+          .fn()
+          .mockResolvedValue([
+            { nodeId: "author", iteration: 1, outcome: null },
+          ]),
       }),
     );
-    vi.mocked(createTask).mockResolvedValue({ task_id: "fin" } as never);
 
-    const res = await req("POST", `${base}/f1/finalize`, {});
+    const res = await buildServer(() => pool as never).inject({
+      method: "POST",
+      url: `${base}/f1/finalize`,
+      headers: AUTH,
+      payload: JSON.stringify({}),
+    });
 
     expect(res.statusCode).toBe(202);
-    expect(res.result).toEqual({ task_id: "fin" });
+    expect(res.result).toMatchObject({
+      assembly_run_id: "run-live",
+      assembly_line_id: "run-live",
+    });
+    // A task here would start a SECOND line for the same feature.
+    expect(createTask).not.toHaveBeenCalled();
   });
 
   it("asks about THIS feature's subject, not some other feature's", async () => {
-    const findOpenBySubject = vi.fn().mockResolvedValue(null);
+    const listForSubject = vi.fn().mockResolvedValue([]);
 
     useProject(
       fakeFeatures({ get: vi.fn().mockResolvedValue(specReady) }),
-      fakeAssemblyLines({ findOpenBySubject }),
+      fakeAssemblyLines({ listForSubject }),
     );
-    vi.mocked(createTask).mockResolvedValue({ task_id: "fin" } as never);
 
     await req("POST", `${base}/f1/finalize`, {});
 
     // The Floor stamps this exact string in AssemblyLineStationBackend.launch. If
-    // the two ever spell it differently the guard silently matches nothing, which
-    // looks identical to "no run in flight" — the bug it exists to prevent.
-    expect(findOpenBySubject).toHaveBeenCalledWith("feature:f1");
+    // the two ever spell it differently the lookup silently matches nothing, which
+    // looks identical to "nothing is parked" — the bug it exists to prevent.
+    expect(listForSubject).toHaveBeenCalledWith("feature:f1");
   });
 });
 
@@ -874,5 +928,163 @@ describe("the dispatch finds the line by SUBJECT, not by the first round's task"
     // The same string the Floor stamps at launch — a second spelling would match
     // nothing and read as "no line", which is this bug wearing another key.
     expect(listForSubject).toHaveBeenCalledWith("feature:f1");
+  });
+});
+
+describe("accepting the plan delivers the accepted plan to the tail nodes", () => {
+  useRateLimitSafeClock();
+  beforeEach(() => {
+    process.env.LORE_INGEST_TOKEN = LEGACY_TOKEN;
+    vi.clearAllMocks();
+  });
+  afterEach(() => {
+    process.env = { ...originalEnv };
+  });
+
+  const acceptedFeature = (iterations: unknown[]) => ({
+    id: "f1",
+    status: "spec-ready",
+    title: "Cluster Dispatch",
+    original_prompt: "run stations anywhere",
+    slug: "cluster-dispatch",
+    iterations,
+  });
+
+  const acceptOn = async (iterations: unknown[], body: unknown = {}) => {
+    const pool = makePool();
+
+    pool.query.mockResolvedValue({ rows: [{ id: "1" }] });
+    useProject(
+      fakeFeatures({
+        get: vi.fn().mockResolvedValue(acceptedFeature(iterations)),
+      }),
+      fakeAssemblyLines({
+        listForSubject: vi.fn().mockResolvedValue([
+          {
+            id: "line-1",
+            blueprintName: "feature-planning",
+            status: "running",
+          },
+        ]),
+        listStationRuns: vi
+          .fn()
+          .mockResolvedValue([
+            { nodeId: "author", iteration: 2, outcome: null },
+          ]),
+      }),
+    );
+    const res = await buildServer(() => pool as never).inject({
+      method: "POST",
+      url: `${base}/f1/finalize`,
+      headers: AUTH,
+      payload: JSON.stringify(body),
+    });
+    const insert = pool.query.mock.calls.find((c) =>
+      String(c[0]).includes("pipeline.events"),
+    );
+    const params = (insert?.[1] ?? []) as string[];
+
+    enforceTrue(
+      Boolean(params[2]),
+      Error,
+      `no event: ${res.statusCode} ${JSON.stringify(res.result)}`,
+    );
+
+    return JSON.parse(params[2]) as {
+      nodeId?: string;
+      outcome?: string;
+      args?: {
+        description?: string;
+        round_feedback?: string | null;
+        resume_from_iteration?: number | null;
+      };
+    };
+  };
+
+  it("carries the accepted round's draft as the line's description, in the form the tail prompts expect", async () => {
+    const event = await acceptOn([
+      {
+        ...readyIteration({
+          sections: [{ title: "Overview", content: "PULL MODEL" }],
+          draft_spec_markdown: "d1",
+        }),
+        iteration: 1,
+        task_id: "task-1",
+      },
+    ]);
+
+    expect(event).toMatchObject({ nodeId: "author", outcome: "success" });
+    const description = event.args?.description ?? "";
+
+    expect(description).toContain("<Title>\nCluster Dispatch\n</Title>");
+    expect(description).toContain("run stations anywhere");
+    expect(description).toContain("<CurrentDraftSpec>");
+    expect(description).toContain("PULL MODEL");
+    // The accept carries no author feedback: nothing to comment with.
+    expect(description).not.toContain("<UserComment");
+  });
+
+  it("carries the answers the author typed before accepting, not just the draft", async () => {
+    // The author fills the form and presses "Create spec PR" in one motion. Those
+    // answers were dropped on the floor: analyse-specs and write saw the draft
+    // alone, so the last thing the author said about the plan never reached the
+    // nodes that turn it into a spec.
+    const event = await acceptOn(
+      [
+        {
+          ...readyIteration({
+            sections: [{ title: "Overview", content: "PULL MODEL" }],
+            draft_spec_markdown: "d1",
+          }),
+          iteration: 1,
+          task_id: "task-1",
+        },
+      ],
+      { user_answers: { free_form: "keep the pull model, drop the poller" } },
+    );
+
+    expect(event.args?.description).toContain(
+      "keep the pull model, drop the poller",
+    );
+  });
+
+  it("renders the LATEST ready round, not the first — a re-accept after a bounce-back reads the newest draft", async () => {
+    const event = await acceptOn([
+      {
+        ...readyIteration({
+          sections: [{ title: "Overview", content: "ROUND ONE" }],
+          draft_spec_markdown: "d1",
+        }),
+        iteration: 1,
+        task_id: "task-1",
+      },
+      {
+        ...readyIteration({
+          sections: [{ title: "Overview", content: "ROUND TWO" }],
+          draft_spec_markdown: "d2",
+        }),
+        iteration: 2,
+        task_id: null,
+      },
+    ]);
+    const description = event.args?.description ?? "";
+
+    expect(description).toContain("ROUND TWO");
+    expect(description).not.toContain("ROUND ONE");
+  });
+
+  it("nulls round_feedback and resume_from_iteration so the shallow merge cannot leave the last refine steering", async () => {
+    const event = await acceptOn([
+      { ...readyIteration(null), iteration: 1, task_id: "task-1" },
+    ]);
+
+    expect(event.args).toMatchObject({
+      round_feedback: null,
+      resume_from_iteration: null,
+    });
+    // This round produced no gap, so there is no draft to render — the brief
+    // degrades to the feature's own request rather than to nothing at all.
+    expect(event.args?.description).toContain("Cluster Dispatch");
+    expect(event.args?.description).not.toContain("<CurrentDraftSpec>");
   });
 });

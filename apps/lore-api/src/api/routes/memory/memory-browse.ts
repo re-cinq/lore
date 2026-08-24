@@ -1,3 +1,5 @@
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
+import { apiError } from "../../../server/api-error.js";
 import type { Pool } from "pg";
 import type { ServerRoute } from "@hapi/hapi";
 import { z } from "zod";
@@ -188,9 +190,7 @@ export function memoryBrowseRoutes(getPool: () => Pool | null): ServerRoute[] {
       handler: async (request, h) => {
         const pool = getPool();
 
-        if (!pool) {
-          return h.response({ error: DB_UNAVAILABLE }).code(503);
-        }
+        enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
         const { entity, type, show_invalid } =
           request.query as unknown as GraphBrowseQuery;
 
@@ -259,9 +259,7 @@ export function memoryBrowseRoutes(getPool: () => Pool | null): ServerRoute[] {
       handler: async (_request, h) => {
         const pool = getPool();
 
-        if (!pool) {
-          return h.response({ error: DB_UNAVAILABLE }).code(503);
-        }
+        enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
         const { rows } = await pool.query(`
           SELECT sp.id, sp.name, sp.created_by, sp.created_at,
                  count(m.id)::int as entry_count,
@@ -287,18 +285,14 @@ export function memoryBrowseRoutes(getPool: () => Pool | null): ServerRoute[] {
       handler: async (request, h) => {
         const pool = getPool();
 
-        if (!pool) {
-          return h.response({ error: DB_UNAVAILABLE }).code(503);
-        }
+        enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
         const { rows } = await pool.query(
           `SELECT id, name, created_by, created_at
              FROM memory.shared_pools WHERE name = $1`,
           [request.params.name],
         );
 
-        if (rows.length === 0) {
-          return h.response({ error: "Pool not found" }).code(404);
-        }
+        enforceTrue(rows.length !== 0, apiError(404), "Pool not found");
         const { rows: entries } = await pool.query(
           `SELECT m.id, m.key, m.value, m.agent_id, m.version, m.created_at
              FROM memory.memories m
@@ -327,9 +321,7 @@ export function memoryBrowseRoutes(getPool: () => Pool | null): ServerRoute[] {
       handler: async (request, h) => {
         const pool = getPool();
 
-        if (!pool) {
-          return h.response({ error: DB_UNAVAILABLE }).code(503);
-        }
+        enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
         const { source, agent, limit, offset } =
           request.query as unknown as EpisodesQuery;
 
@@ -386,9 +378,7 @@ export function memoryBrowseRoutes(getPool: () => Pool | null): ServerRoute[] {
       handler: async (request, h) => {
         const pool = getPool();
 
-        if (!pool) {
-          return h.response({ error: DB_UNAVAILABLE }).code(503);
-        }
+        enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
         const { q } = request.query as unknown as MemorySearchQuery;
 
         // Lexical, not semantic: this is the search PAGE, which ranks by
@@ -448,9 +438,7 @@ export function memoryBrowseRoutes(getPool: () => Pool | null): ServerRoute[] {
       handler: async (request, h) => {
         const pool = getPool();
 
-        if (!pool) {
-          return h.response({ error: DB_UNAVAILABLE }).code(503);
-        }
+        enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
         const { agent, limit } = request.query as unknown as MemoriesQuery;
 
         const { rows: memories } = await pool.query<{
