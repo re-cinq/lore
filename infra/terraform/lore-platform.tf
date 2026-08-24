@@ -111,6 +111,10 @@ resource "helm_release" "lore_platform" {
       }
       webhookSecret       = { name = "lore-webhook-secret", key = "secret" }
       internalTokenSecret = { name = "lore-agent-internal-token", key = "token" }
+      # The cost-sync maintenance job's org admin key (#1348). The es_mcp_anthropic
+      # ExternalSecret only carries the anthropic-admin-key entry when
+      # var.anthropic_admin_api_key is set; the env stays optional either way.
+      anthropicAdminKeySecret = { name = "lore-anthropic-key", key = "anthropic-admin-key" }
     }
 
     # ---- Web UI (lore-ui namespace) ----
