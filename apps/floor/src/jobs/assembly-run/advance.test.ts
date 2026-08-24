@@ -1315,3 +1315,46 @@ describe("a finished run records what happened", () => {
     expect((await port.getById(id))?.status).toBe("finished");
   });
 });
+
+describe("a service-form node's visit names no CR", () => {
+  it("writes a null agent_cr_name, which is what stops the reaper relaunching it as a pod", async () => {
+    const port = new InMemoryAssemblyRuns();
+    const id = await port.start({
+      blueprintName: "triage-then-issues",
+      repo: "re-cinq/lore",
+      branch: "feat/x",
+      args: { description: "d" },
+    });
+
+    await port.markRunning(id);
+
+    const { deps } = makeDeps(port);
+
+    deps.publishNode = async () => {};
+
+    await advanceLine(id, deps);
+    await finishNodeAndAdvance(
+      {
+        assemblyLineId: id,
+        nodeId: "triage",
+        iteration: 1,
+        result: { outcome: "success" },
+      },
+      deps,
+    );
+
+    expect(port.nodes.find((n) => n.nodeId === "file")?.agentCrName).toBeNull();
+  });
+
+  it("still names the CR for a pod node, which the reaper resolves by that name", async () => {
+    const port = new InMemoryAssemblyRuns();
+    const id = await runningLine(port);
+    const { deps } = makeDeps(port);
+
+    await advanceLine(id, deps);
+
+    expect(port.nodes.find((n) => n.nodeId === "review")?.agentCrName).toBe(
+      `${id.substring(0, 12)}-review`,
+    );
+  });
+});

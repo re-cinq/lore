@@ -67,7 +67,7 @@ export function eventDeliveryRoutes(
       options: NO_BODY,
       handler: async (request, h) => {
         guard(request.headers);
-        const { subscriber, limit } = parseBody(
+        const { subscriber, limit, excludeEventNames } = parseBody(
           rawBody(request),
           DeliveryClaimBody,
           "claim",
@@ -75,7 +75,13 @@ export function eventDeliveryRoutes(
 
         return h
           .response({
-            deliveries: await deps.deliveries().claim(subscriber, limit),
+            // The exclusion is READ, not just parsed: a busy serial family is
+            // held back at claim time so its waiting rows stay `pending`.
+            // Dropping it here handed the caller the very rows it asked to be
+            // spared, which is the concurrent execution the exclusion prevents.
+            deliveries: await deps
+              .deliveries()
+              .claim(subscriber, limit, excludeEventNames ?? []),
           })
           .code(200);
       },

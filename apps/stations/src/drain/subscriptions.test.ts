@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { stationSubscriptions, STATIONS_SUBSCRIBER } from "./subscriptions.js";
 import { STATIONS } from "../stations/registry.js";
-import { SERVICE_NODE_EVENT } from "./handlers.js";
+import { SERVICE_NODE_EVENT, buildStationHandlers } from "./handlers.js";
 
 describe("what the stations service subscribes to", () => {
   it("claims the published-node event, without which a service-form node never runs", () => {
@@ -45,5 +45,25 @@ describe("what the stations service subscribes to", () => {
 
   it("names one subscriber for the whole service, since two replicas share a backlog", () => {
     expect(STATIONS_SUBSCRIBER).toBe("stations");
+  });
+});
+
+describe("every subscription has something to handle it", () => {
+  it("maps a handler for each name it subscribes to, so nothing dead-letters on arrival", () => {
+    const handlers = buildStationHandlers();
+    const unhandled = stationSubscriptions()
+      .map((s) => s.eventName)
+      .filter((name) => !handlers.has(name));
+
+    expect(unhandled).toEqual([]);
+  });
+
+  it("handles no name it did not subscribe to, which it would never receive", () => {
+    const subscribed = new Set(stationSubscriptions().map((s) => s.eventName));
+    const orphans = [...buildStationHandlers().keys()].filter(
+      (name) => !subscribed.has(name),
+    );
+
+    expect(orphans).toEqual([]);
   });
 });

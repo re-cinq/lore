@@ -16,7 +16,7 @@
   "scripts": {
     "dev-setup": "bash scripts/dev-setup.sh",
     "start": "bash scripts/dev-local.sh",
-    "build": "npm run build -w @re-cinq/lore-shared && npm run build -w @re-cinq/lore-assembly-lines && npm run build -w @re-cinq/lore-server-core && npm run build -w @re-cinq/lore-api && npm run build -w @re-cinq/lore-mcp && npm run build -w @re-cinq/lore-floor && npm run build -w @re-cinq/lore-event-router && npm run build -w @re-cinq/lore-stations && npm run build -w @re-cinq/lore-cluster-agent",
+    "build": "npm run build -w @re-cinq/lore-shared && npm run build -w @re-cinq/lore-assembly-lines && npm run build -w @re-cinq/lore-stations && npm run build -w @re-cinq/lore-server-core && npm run build -w @re-cinq/lore-api && npm run build -w @re-cinq/lore-mcp && npm run build -w @re-cinq/lore-floor && npm run build -w @re-cinq/lore-event-router && npm run build -w @re-cinq/lore-cluster-agent",
     "typecheck:drift": "tsc -p scripts/type-drift/tsconfig.drift.json",
     "lint": "eslint .",
     "format": "eslint . --fix && prettier --write \"apps/**/*.{ts,tsx,mjs,cjs,js,json}\" \"libs/**/*.{ts,tsx,mjs,cjs,js,json}\" \"scripts/**/*.{ts,mts,cts,mjs,cjs,js}\"",

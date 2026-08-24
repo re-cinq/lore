@@ -87,6 +87,16 @@ export function decideNodeRecovery(input: {
     return { kind: "timeout" };
   }
 
+  // A node dispatched to the POOLED SERVICE has no CR, and never had one: it was
+  // published on the bus. Relaunching it would create an Agent CR for work the
+  // service is still holding — for `merge_step` that fails every tick because no
+  // recipe is seeded for it, and for a type that IS seeded the pod and the queued
+  // delivery would BOTH run: duplicate Issues, duplicate episodes. It is timed out
+  // above like anything else, so a lost delivery still surfaces.
+  if (input.node.agentCrName === null) {
+    return { kind: "wait" };
+  }
+
   // Absence — and only absence, a 404 — is the crash-between-row-and-launch case.
   // An existing CR the controller has not stamped reports `Pending` and falls
   // through to `wait` below.

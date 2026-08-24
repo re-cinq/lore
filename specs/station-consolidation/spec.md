@@ -254,6 +254,24 @@ subscribe" has no expressible meaning on the current substrate.
   ladder, one attempt cap, one dead-letter rule.
   ([validated by claims the published-node event, without which a service-form node never runs](apps/stations/src/drain/subscriptions.test.ts#L7), [`subscriptions.test.ts:13`](apps/stations/src/drain/subscriptions.test.ts#L13), [`subscriptions.test.ts:25`](apps/stations/src/drain/subscriptions.test.ts#L25), [`subscriptions.test.ts:31`](apps/stations/src/drain/subscriptions.test.ts#L31), [`subscriptions.test.ts:46`](apps/stations/src/drain/subscriptions.test.ts#L46), [`loop-boot.test.ts:17`](apps/stations/src/drain/loop-boot.test.ts#L17), [`loop-boot.test.ts:39`](apps/stations/src/drain/loop-boot.test.ts#L39), [`loop-boot.test.ts:51`](apps/stations/src/drain/loop-boot.test.ts#L51))
 
+- **FR22 — a node published to the service is never also given a pod.** A service
+  dispatch records NO agent CR name, because none will exist, and the reaper reads
+  that: a missing CR on a POD visit is the crash-between-row-and-launch case and is
+  relaunched, while relaunching a service visit would run a pod ALONGSIDE the
+  delivery still queued for it — duplicate issues, duplicate episodes — or, for a
+  node type with no seeded recipe, fail on every tick. A service visit is still
+  timed out at its budget, so a lost delivery surfaces rather than parking forever.
+  ([validated by waits rather than relaunching it as a pod, since no pod was ever meant to exist](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L602), [`assembly-run-reaper.test.ts:618`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L618), [`assembly-run-reaper.test.ts:630`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L630), [`advance.test.ts:1320`](apps/floor/src/jobs/assembly-run/advance.test.ts#L1320), [`advance.test.ts:1349`](apps/floor/src/jobs/assembly-run/advance.test.ts#L1349))
+
+- **FR23 — what a subscriber asks for, it can handle and does receive.** Every
+  name a process subscribes to has a handler, derived from the same manifests the
+  subscription set is: subscribing without handling is worse than not subscribing,
+  because the delivery arrives, finds no handler and is dead-lettered on the spot
+  while a slower reconciler masks the gap. And the claim's serial-family exclusion
+  survives the wire — a route that parsed the request without reading it handed
+  back the very rows the caller asked to be spared.
+  ([validated by maps a handler for each name it subscribes to, so nothing dead-letters on arrival](apps/stations/src/drain/subscriptions.test.ts#L52), [`subscriptions.test.ts:61`](apps/stations/src/drain/subscriptions.test.ts#L61), [`event-deliveries-roundtrip.test.ts:143`](apps/event-router/src/delivery/routes/event-deliveries-roundtrip.test.ts#L143))
+
 ## Non-goals
 
 - **Merging the pod runtime away.** Three station types must stay pods (FR5) and

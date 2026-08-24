@@ -79,7 +79,16 @@ export interface StationRunStartInput {
   assemblyRunId: string;
   nodeId: string;
   iteration: number;
-  agentCrName?: string;
+  /**
+   * The CR this visit dispatched, or NULL when it will never have one.
+   *
+   * Null is not "unknown": it says the node runs in the pooled service and was
+   * published on the bus. The reaper reads exactly that — a missing CR on a POD
+   * visit is the crash-between-row-and-launch case and gets relaunched, while
+   * relaunching a service visit would run a pod alongside the delivery still
+   * queued for it.
+   */
+  agentCrName?: string | null;
   /** What this visit is being dispatched WITH — recorded once, by the first
    *  writer: a converged duplicate (the relaunch door re-dispatching the same
    *  visit) keeps what the row already says rather than rewriting history. */

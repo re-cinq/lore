@@ -138,3 +138,25 @@ describe("HttpEventDeliveries against the router's own routes", () => {
     await expect(anon.subscribe(FLOOR, [{ eventName: "e" }])).rejects.toThrow();
   });
 });
+
+describe("the claim's serial-family exclusion survives the wire", () => {
+  it("holds back an excluded name, and leaves it claimable once it is not", async () => {
+    await client.subscribe(FLOOR, [
+      { eventName: "busy" },
+      { eventName: "free" },
+    ]);
+    await client.insert({ eventName: "busy", source: "internal" });
+    await client.insert({ eventName: "free", source: "internal" });
+
+    // The client sends the exclusion; a route that parsed the body without
+    // reading it would drop it silently and hand back BOTH — which is exactly
+    // the concurrent execution the exclusion exists to prevent.
+    const first = await client.claim(FLOOR, 10, ["busy"]);
+
+    expect(first.map((d) => d.event_name)).toEqual(["free"]);
+
+    const second = await client.claim(FLOOR, 10);
+
+    expect(second.map((d) => d.event_name)).toEqual(["busy"]);
+  });
+});

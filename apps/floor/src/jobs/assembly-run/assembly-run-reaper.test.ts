@@ -579,3 +579,63 @@ describe("the reaper's resolve door delivers artifacts too", () => {
     });
   });
 });
+
+describe("a node whose station runs in the pooled service", () => {
+  const MINUTE = 60_000;
+  /** A service dispatch writes no CR name: there is no pod to name. */
+  const serviceNode = (ageMinutes: number) => ({
+    id: "1",
+    stationRunId: "station-run-1",
+    assemblyRunId: "al-1",
+    nodeId: "settle",
+    iteration: 1,
+    outcome: null,
+    failureClass: null,
+    failureDetail: null,
+    agentCrName: null,
+    input: null,
+    commitSha: null,
+    startedAt: new Date(Date.now() - ageMinutes * MINUTE),
+    finishedAt: null,
+  });
+
+  it("waits rather than relaunching it as a pod, since no pod was ever meant to exist", () => {
+    // Relaunching creates an Agent CR for a node the stations service is still
+    // holding: `def-merge-step` is seeded nowhere so it errors every tick, and
+    // for a type that IS seeded both the pod and the queued delivery would run —
+    // duplicate Issues, duplicate episodes.
+    expect(
+      decideNodeRecovery({
+        node: serviceNode(3),
+        timeoutMinutes: 5,
+        status: null,
+        nodeType: "merge_step",
+        nowMs: Date.now(),
+      }),
+    ).toEqual({ kind: "wait" });
+  });
+
+  it("still times it out past its budget, so a lost delivery does not park forever", () => {
+    expect(
+      decideNodeRecovery({
+        node: serviceNode(60),
+        timeoutMinutes: 5,
+        status: null,
+        nodeType: "merge_step",
+        nowMs: Date.now(),
+      }),
+    ).toEqual({ kind: "timeout" });
+  });
+
+  it("relaunches a POD node with no CR, which is the crash-between-row-and-launch case", () => {
+    expect(
+      decideNodeRecovery({
+        node: { ...serviceNode(3), agentCrName: "a1b2c3d4-validate" },
+        timeoutMinutes: 15,
+        status: null,
+        nodeType: "validate",
+        nowMs: Date.now(),
+      }),
+    ).toEqual({ kind: "relaunch" });
+  });
+});

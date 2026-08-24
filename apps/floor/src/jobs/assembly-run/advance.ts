@@ -27,6 +27,13 @@ import { nodeStationFor } from "@re-cinq/lore-stations";
  *  Subject-first like the rest of the assembly_run family: several producers,
  *  one subject. */
 export const SERVICE_NODE_EVENT = "station.run";
+
+/** True when this node type's station runs in the pooled service, not a pod. */
+const isServiceNode = (nodeType: string): boolean =>
+  nodeStationFor(nodeType)?.manifest.triggers.some(
+    (t) => t.kind === "node" && t.runtime === "service",
+  ) === true;
+
 import {
   nodeAgentName,
   stationNodeParams,
@@ -291,11 +298,20 @@ export async function advanceLine(
   // The row is also what MINTS the station-run id — a converged duplicate returns
   // the id already minted, so a re-dispatch of the same visit carries the same
   // label rather than a second identity.
+  //
+  // A node the POOLED SERVICE will run names no CR, because none will exist. That
+  // null is what the reaper reads: a missing CR for a POD node is the
+  // crash-between-row-and-launch case and is relaunched, while a service node
+  // relaunched as a pod would run alongside the delivery still queued for it —
+  // duplicate Issues, duplicate episodes.
+  const runsInService = isServiceNode(node.type);
   const { stationRunId } = await deps.assemblyRuns.ensureStationRun({
     assemblyRunId: assemblyLineId,
     nodeId: node.id,
     iteration: transition.iteration,
-    agentCrName: nodeAgentName(assemblyLineId, node.id, transition.iteration),
+    agentCrName: runsInService
+      ? null
+      : nodeAgentName(assemblyLineId, node.id, transition.iteration),
     input: stationRunInputFor(node, task, dispatch.content, dispatch.prompt),
   });
 
@@ -310,11 +326,7 @@ export async function advanceLine(
   // A station that runs in the pooled service is PUBLISHED, not launched: the row
   // above already exists, so the service has something to report against, and the
   // dedupe key is that row — a redelivered event cannot run the node twice.
-  if (
-    nodeStationFor(node.type)?.manifest.triggers.some(
-      (t) => t.kind === "node" && t.runtime === "service",
-    )
-  ) {
+  if (runsInService) {
     await deps.publishNode?.({
       eventName: SERVICE_NODE_EVENT,
       dedupeKey: `station-run:${stationRunId}`,
