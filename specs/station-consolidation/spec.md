@@ -85,7 +85,9 @@ subscribe" has no expressible meaning on the current substrate.
   its own delivery row for an event, claimed and retried independently, so two
   consumers can react to one event and neither can starve or steal from the
   other. A consumer that was offline drains its own backlog when it returns
-  rather than missing what happened while it was down.
+  rather than missing what happened while it was down. An event is never collected while a
+  subscriber is still owed a delivery of it.
+  ([validated by delivers one event to every subscriber that asked for it](libs/shared/src/project/events/event-deliveries.contract.test.ts#L72), [`event-deliveries.contract.test.ts:84`](libs/shared/src/project/events/event-deliveries.contract.test.ts#L84), [`event-deliveries.contract.test.ts:97`](libs/shared/src/project/events/event-deliveries.contract.test.ts#L97), [`event-deliveries.contract.test.ts:123`](libs/shared/src/project/events/event-deliveries.contract.test.ts#L123), [`event-deliveries.contract.test.ts:134`](libs/shared/src/project/events/event-deliveries.contract.test.ts#L134), [`event-deliveries.contract.test.ts:144`](libs/shared/src/project/events/event-deliveries.contract.test.ts#L144), [`event-deliveries.contract.test.ts:159`](libs/shared/src/project/events/event-deliveries.contract.test.ts#L159), [`event-deliveries.contract.test.ts:173`](libs/shared/src/project/events/event-deliveries.contract.test.ts#L173), [`event-deliveries.contract.test.ts:228`](libs/shared/src/project/events/event-deliveries.contract.test.ts#L228), [`event-deliveries.contract.test.ts:56`](libs/shared/src/project/events/event-deliveries.contract.test.ts#L56))
 
 - **FR7 — fan-out is single-sourced and reaches every writer.** The clause that
   creates delivery rows is defined once in TypeScript and composed into the same
@@ -103,6 +105,7 @@ subscribe" has no expressible meaning on the current substrate.
   where the previous behaviour was a loud dead-letter, so it is reported: a query
   surfaces recent events with zero deliveries, and a boot-time reconcile creates
   missing deliveries for events younger than the prune horizon.
+  ([validated by delivers nothing for an event nobody subscribed to](libs/shared/src/project/events/event-deliveries.contract.test.ts#L113), [`event-deliveries.contract.test.ts:187`](libs/shared/src/project/events/event-deliveries.contract.test.ts#L187), [`event-deliveries.contract.test.ts:239`](libs/shared/src/project/events/event-deliveries.contract.test.ts#L239))
 
 - **FR9 — a delivery carries its own deadline.** The visibility timeout is
   stamped per delivery from the subscribing station's declared timeout rather
@@ -110,6 +113,7 @@ subscribe" has no expressible meaning on the current substrate.
   Under a single global ten-minute timeout, a longer handler is re-queued while
   still running and executes concurrently with itself until its attempts are
   exhausted.
+  ([validated by stamps the subscriber's declared timeout on the delivery](libs/shared/src/project/events/event-deliveries.contract.test.ts#L198), [`event-deliveries.contract.test.ts:210`](libs/shared/src/project/events/event-deliveries.contract.test.ts#L210))
 
 - **FR10 — a pooled node reports through the path a person already uses.** A
   node dispatched to the pooled service reports its outcome over the same resume
