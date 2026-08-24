@@ -14,6 +14,8 @@ function deps(over: Partial<RefinementRoundDeps> = {}): RefinementRoundDeps {
 
   return {
     order,
+    invalidBasis: (message: string) => new Error(message),
+    notParked: () => () => new Error("not parked"),
     parkedNode: async () => ({
       runId: "r-1",
       parked: { lineId: "r-1", nodeId: "author", iteration: 1 },
@@ -36,7 +38,7 @@ describe("startRefinementRound", () => {
 
     const result = await startRefinementRound(
       FEATURE,
-      { answers: {}, rewoundTo: undefined },
+      { answers: null, rewoundTo: undefined },
       deps({
         report: async (target, outcome) => {
           reported.push({ nodeId: target.nodeId, outcome });
@@ -56,7 +58,7 @@ describe("startRefinementRound", () => {
     }) as RefinementRoundDeps & { order: string[] };
 
     await expect(
-      startRefinementRound(FEATURE, { answers: {} }, d),
+      startRefinementRound(FEATURE, { answers: null }, d),
     ).rejects.toThrow(/not parked/);
     expect(d.order).toEqual([]);
   });
@@ -64,7 +66,7 @@ describe("startRefinementRound", () => {
   it("appends the round before reporting it, so the report names a round that exists", async () => {
     const d = deps() as RefinementRoundDeps & { order: string[] };
 
-    await startRefinementRound(FEATURE, { answers: {} }, d);
+    await startRefinementRound(FEATURE, { answers: null }, d);
 
     expect(d.order).toEqual(["append", "report"]);
   });
@@ -74,7 +76,7 @@ describe("startRefinementRound", () => {
 
     await startRefinementRound(
       FEATURE,
-      { answers: {}, rewoundTo: undefined },
+      { answers: null, rewoundTo: undefined },
       deps({
         report: async (_t, _o, a) => {
           args.push(a);
@@ -83,5 +85,39 @@ describe("startRefinementRound", () => {
     );
 
     expect(args[0]).toHaveProperty("resume_from_iteration", null);
+  });
+
+  it("throws the caller's invalid-basis error, so a route answers 400 not 500", async () => {
+    const invalid = new Error("bad basis");
+
+    await expect(
+      startRefinementRound(
+        { ...FEATURE, iterations: [{ iteration: 1 }] },
+        { answers: null, rewoundTo: 99 },
+        deps({ invalidBasis: () => invalid }),
+      ),
+    ).rejects.toThrow(invalid);
+  });
+
+  it("throws the caller's not-parked error naming the run, so a route answers 409", async () => {
+    const conflict = new Error("not parked");
+    const named: Array<string | null> = [];
+
+    await expect(
+      startRefinementRound(
+        FEATURE,
+        { answers: null },
+        deps({
+          parkedNode: async () => ({ runId: "r-9", parked: null }),
+          notParked: (runId) => {
+            named.push(runId);
+
+            return () => conflict;
+          },
+        }),
+      ),
+    ).rejects.toThrow(conflict);
+
+    expect(named).toEqual(["r-9"]);
   });
 });

@@ -21,6 +21,7 @@ import {
   featureRunId,
   findParkedAuthorNode,
 } from "@re-cinq/lore-shared/project/features/planning-run.js";
+import { startRefinementRound } from "@re-cinq/lore-shared/project/features/refinement-round.js";
 import { reportToParkedNode } from "@re-cinq/lore-shared/project/assembly-runs/parked-node.js";
 import { eventReporterFor } from "../event-reporter.js";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
@@ -308,63 +309,38 @@ export function featuresRoutes(getPool: () => Pool | null): ServerRoute[] {
             typeof body.from_iteration === "number"
               ? body.from_iteration
               : undefined;
-          const basis = resolveRoundBasis(feature.iterations, rewoundTo);
 
-          if (!basis.ok) {
-            return h.response({ error: basis.error }).code(400);
-          }
-          const priorGap = basis.basis?.gap_result ?? null;
-          const description = composePlanningPrompt({
-            title: feature.title,
-            originalPrompt: feature.original_prompt,
-            priorGap,
-            answers,
-          });
-          const { runId, parked } = await findParkedAuthorNode(
-            project.assemblyRuns,
-            id,
-          );
-
-          // Asked BEFORE the round row is written: a refused refine that had already
-          // appended an iteration would leave a round nothing will ever run.
-          enforceTrue(
-            parked,
-            apiError(409, runIdBothSpellings(runId)),
-            "no planning round is waiting on you — a refinement reports to the author node, and this feature's line is not parked there",
-          );
-          const row = await features.appendIteration(
-            id,
-            answers,
-            basis.basis?.iteration ?? null,
-          );
-
-          await reportToParkedNode(
-            eventReporterFor(getPool()),
-            parked,
-            "changes_requested",
+          // The sequence — and its two load-bearing orderings — lives in shared,
+          // under test. The route contributes only what is HTTP: which error is
+          // a 400 and which a 409.
+          const round = await startRefinementRound(
+            feature,
+            { answers, rewoundTo },
             {
-              description,
-              round_feedback: composeRoundFeedback({
-                round: row.iteration,
-                priorGap,
-                answers,
-              }),
-              iteration: row.iteration,
-              // Sent on EVERY round (null when there was no rewind): the resume
-              // MERGES into the line's args, so an omitted key would leave an
-              // earlier rewind still steering. Must be the round the AUTHOR named
-              // — the resolver honours a rewind literally.
-              resume_from_iteration:
-                rewoundTo === undefined
-                  ? null
-                  : (basis.basis?.iteration ?? null),
+              invalidBasis: apiError(400),
+              notParked: (runId) => apiError(409, runIdBothSpellings(runId)),
+              parkedNode: (featureId) =>
+                findParkedAuthorNode(project.assemblyRuns, featureId),
+              appendIteration: (featureId, roundAnswers, basisIteration) =>
+                features.appendIteration(
+                  featureId,
+                  roundAnswers,
+                  basisIteration,
+                ),
+              report: (target, outcome, args) =>
+                reportToParkedNode(
+                  eventReporterFor(getPool()),
+                  target,
+                  outcome,
+                  args,
+                ),
             },
           );
 
           return h
             .response({
-              iteration: row.iteration,
-              ...runIdBothSpellings(parked.lineId),
+              iteration: round.iteration,
+              ...runIdBothSpellings(round.runId),
               task_id: null,
             })
             .code(202);

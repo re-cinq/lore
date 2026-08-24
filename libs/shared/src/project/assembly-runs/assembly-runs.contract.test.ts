@@ -757,6 +757,25 @@ describe.each(IMPLEMENTATIONS)(
       expect(await port.findOpenBySubject(repo, "feature:six")).toBeNull();
     });
 
+    it("countBySubject counts settled runs, so a re-starting sweep can be capped", async () => {
+      const { port, repo } = make();
+
+      expect(await port.countBySubject(repo, "merge:t-1")).toBe(0);
+
+      for (const _attempt of [1, 2]) {
+        const id = await port.start({
+          blueprintName: "merge",
+          repo,
+          subjectKey: "merge:t-1",
+        });
+
+        await port.finish(id, "failed");
+      }
+
+      expect(await port.countBySubject(repo, "merge:t-1")).toBe(2);
+      expect(await port.countBySubject(repo, "merge:other")).toBe(0);
+    });
+
     it("findOpenBySubject returns null for a subject nothing is working", async () => {
       const { port, repo } = make();
 

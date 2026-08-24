@@ -40,6 +40,7 @@ import {
   stationRunInputFor,
   type FloorAssemblyRunTask,
 } from "./floor-assembly-run.js";
+import { lineWritesOwnEpisode } from "./run-episode.js";
 import { isFailureOutcome } from "./notify-failure.js";
 import {
   nodeLaunchSpec,
@@ -370,7 +371,7 @@ export async function finishLine(
   // Telemetry, so it never decides whether the run closes: a run whose episode
   // could not be written is still a finished run, and swallowing here is the same
   // bias maybeStampPr takes for the same reason.
-  if (deps.recordRunEpisode) {
+  if (deps.recordRunEpisode && !lineWritesOwnEpisode(assemblyRun.graph)) {
     try {
       await deps.recordRunEpisode(assemblyRun, outcome, reason);
     } catch (err) {

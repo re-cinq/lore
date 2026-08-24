@@ -7,6 +7,7 @@ const TASK = { id: "t-1", target_repo: "o/r", pr_number: 7 };
 function deps(over: Partial<StartMergeLineDeps> = {}): StartMergeLineDeps {
   return {
     findOpenBySubject: async () => null,
+    countBySubject: async () => 0,
     start: async () => "run-1",
     ...over,
   };
@@ -68,5 +69,33 @@ describe("startMergeLine", () => {
 
     expect(started).toEqual([]);
     expect(runId).toBeNull();
+  });
+
+  it("starts nothing after 3 finished lines for this task, so a failing settle cannot loop forever", async () => {
+    const started: unknown[] = [];
+
+    const runId = await startMergeLine(
+      TASK,
+      deps({
+        countBySubject: async () => 3,
+        start: async (input) => {
+          started.push(input);
+
+          return "run-4";
+        },
+      }),
+    );
+
+    expect(started).toEqual([]);
+    expect(runId).toBeNull();
+  });
+
+  it("starts a retry while only 2 lines have finished for this task", async () => {
+    const runId = await startMergeLine(
+      TASK,
+      deps({ countBySubject: async () => 2 }),
+    );
+
+    expect(runId).toBe("run-1");
   });
 });

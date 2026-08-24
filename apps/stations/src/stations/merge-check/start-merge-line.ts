@@ -17,6 +17,7 @@ export interface MergeLineTask {
 }
 
 export interface StartMergeLineDeps {
+  countBySubject(repo: string, subjectKey: string): Promise<number>;
   findOpenBySubject(
     repo: string,
     subjectKey: string,
@@ -31,6 +32,17 @@ export interface StartMergeLineDeps {
   }): Promise<string>;
 }
 
+/**
+ * How many merge lines one task may burn before the sweep stops re-starting it.
+ *
+ * `settle` is the line's only hard stop, and it fails BEFORE the task is marked
+ * merged — so the task stays in `mergeableTasks()` and the per-minute sweep
+ * would start a fresh ten-node line every minute, forever, with no backoff.
+ * A few retries absorb a transient database blip; past that the failure is
+ * recorded on three runs and re-running it only burns the factory.
+ */
+export const MAX_MERGE_LINE_ATTEMPTS = 3;
+
 /** One line per task, whoever notices the merge first. */
 export const mergeSubject = (taskId: string): string => `merge:${taskId}`;
 
@@ -41,6 +53,13 @@ export async function startMergeLine(
   const subjectKey = mergeSubject(task.id);
 
   if (await deps.findOpenBySubject(task.target_repo, subjectKey)) {
+    return null;
+  }
+
+  if (
+    (await deps.countBySubject(task.target_repo, subjectKey)) >=
+    MAX_MERGE_LINE_ATTEMPTS
+  ) {
     return null;
   }
 

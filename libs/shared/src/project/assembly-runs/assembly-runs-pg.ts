@@ -426,6 +426,17 @@ export class PgAssemblyRuns implements AssemblyRunsPort {
     return rows[0] ? toOpenSummary(rows[0]) : null;
   }
 
+  async countBySubject(repo: string, subjectKey: string): Promise<number> {
+    const { rows } = await this.pool.query<{ n: string }>(
+      `SELECT count(*)::text AS n
+         FROM pipeline.assembly_runs
+        WHERE repo = $1 AND subject_key = $2`,
+      [repo, subjectKey],
+    );
+
+    return Number(rows[0]?.n ?? 0);
+  }
+
   async mergeArgs(id: string, patch: Record<string, unknown>): Promise<void> {
     // Merged in SQL, not read-modify-write: two nodes can produce artifacts within
     // the same tick, and a JS-side merge would let the second read stale args and

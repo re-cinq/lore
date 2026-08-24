@@ -161,6 +161,8 @@ export async function mergeCheckJob(): Promise<string> {
         await startMergeLine(task, {
           findOpenBySubject: (repo, key) =>
             pipeline().assemblyRuns.findOpenBySubject(repo, key),
+          countBySubject: (repo, key) =>
+            pipeline().assemblyRuns.countBySubject(repo, key),
           start: (input) => pipeline().assemblyRuns.start(input),
         });
         tasksMerged++;

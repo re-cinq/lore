@@ -13,12 +13,13 @@
  * enough for its ordering to be asserted rather than described.
  */
 
-import { enforceTrue } from "../../lib/enforce.js";
+import { enforceTrue, type ErrorType } from "../../lib/enforce.js";
 import {
   composePlanningPrompt,
   composeRoundFeedback,
 } from "../../feature-planning/planning-prompt.js";
 import { resolveRoundBasis } from "./features-port.js";
+import type { SectionAnswers } from "../../feature-planning/planning-prompt.js";
 import type { ParkedAuthorNode } from "./planning-run.js";
 
 export interface RefinementFeature {
@@ -29,16 +30,26 @@ export interface RefinementFeature {
 }
 
 export interface RefinementInput {
-  answers: Record<string, unknown>;
+  /** Null when the author submitted no sections — passed through as-is, since
+   *  the prompt composer distinguishes it from an empty answer set. */
+  answers: SectionAnswers | null;
   /** The round the AUTHOR named, when this is a rewind rather than a next step. */
   rewoundTo?: number;
 }
 
 export interface RefinementRoundDeps {
+  /**
+   * The errors the CALLER wants thrown. The sequence knows a basis is invalid
+   * and knows the line is not parked; only the caller knows those are a 400 and
+   * a 409. Injecting them is what lets an HTTP route delegate the ordering here
+   * instead of re-implementing it to keep its status codes.
+   */
+  invalidBasis: ErrorType;
+  notParked(runId: string | null): ErrorType;
   parkedNode(featureId: string): Promise<ParkedAuthorNode>;
   appendIteration(
     featureId: string,
-    answers: Record<string, unknown>,
+    answers: SectionAnswers | null,
     basisIteration: number | null,
   ): Promise<{ iteration: number }>;
   report(
@@ -60,21 +71,21 @@ export async function startRefinementRound(
 ): Promise<RefinementRoundResult> {
   const basis = resolveRoundBasis(feature.iterations as never, input.rewoundTo);
 
-  enforceTrue(basis.ok, Error, basis.ok ? "" : basis.error);
+  enforceTrue(basis.ok, deps.invalidBasis, basis.ok ? "" : basis.error);
 
   const priorGap = basis.basis?.gap_result ?? null;
   const description = composePlanningPrompt({
     title: feature.title,
     originalPrompt: feature.original_prompt,
     priorGap,
-    answers: input.answers as never,
+    answers: input.answers,
   });
 
-  const { parked } = await deps.parkedNode(feature.id);
+  const { runId, parked } = await deps.parkedNode(feature.id);
 
   enforceTrue(
     parked,
-    Error,
+    deps.notParked(runId),
     "no planning round is waiting on you — a refinement reports to the author node, and this feature's line is not parked there",
   );
 
@@ -89,7 +100,7 @@ export async function startRefinementRound(
     round_feedback: composeRoundFeedback({
       round: row.iteration,
       priorGap,
-      answers: input.answers as never,
+      answers: input.answers,
     }),
     iteration: row.iteration,
     // Sent on EVERY round (null when there was no rewind): the resume MERGES
