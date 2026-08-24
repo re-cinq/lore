@@ -218,6 +218,72 @@ surface is 15 calls across 7 operation types (`get`/`list`/`create`/`delete`/
 extracting a thin per-cluster agent and leaving the brain central costs far less
 than moving the data. Recorded so it need not be measured again.
 
+## Amendment (2026-08-24): a delivery row per subscriber
+
+This ADR describes `pipeline.events` as a queue with one drainer. That is what it
+is — one row per event, claimed `FOR UPDATE SKIP LOCKED` — and it means exactly
+one consumer ever sees a given event. So a second consumer cannot be added by
+configuration: any process that drains alongside the Floor STEALS its rows, and
+one that finds no handler for a stolen name dead-letters it immediately, with no
+retry, because an unknown name is a config error rather than a transient one.
+
+Stations need to react to events they name. That requires fan-out, which a work
+queue does not have, so `pipeline.event_deliveries` carries one row per
+`(event, subscriber)` and the claim moves onto it. Subscribers declare what they
+want in `pipeline.event_subscriptions` and register at boot; the Floor becomes
+one subscriber among several rather than the drainer.
+
+The property this buys that motivated it: a subscriber that was down does not
+miss what happened. Its delivery rows accumulate and it drains its own backlog
+when it returns — where a shared queue would have handed those events to whoever
+was awake.
+
+It also removes a footgun rather than relocating it. A consumer now only ever
+receives names it subscribed to, so "no handler for this event" stops being
+reachable. The failure it is replaced by is quieter and must be instrumented: an
+event whose name nobody subscribed to gets no deliveries at all and simply sits
+until pruned, so recent events with zero deliveries are surfaced, and a boot-time
+reconcile creates the deliveries a subscriber missed between deploying and
+registering.
+
+### The "sole writer" claim, resolved rather than restated
+
+The decision above says every producer reports through the router. Three writers
+do not, and cannot:
+`insertStart`/`insertForkRerun` in
+[assembly-runs-pg.ts](../libs/shared/src/project/assembly-runs/assembly-runs-pg.ts)
+write `assembly_run.start` inside the same CTE as the run row it names, because a
+run row without its start event never runs and an event naming a run that does
+not exist is worse; and a settings write in
+[repo-settings.ts](../apps/lore-api/src/api/routes/repos/repo-settings.ts) rolls
+its own insert with no such excuse.
+
+Fan-out therefore cannot live in the router's handler, or the atomic writers
+would produce events with no deliveries and every assembly line in the factory
+would stop with nothing logged. It is instead ONE exported SQL clause composed
+into the same statement as each insert. The third writer loses its hand-rolled
+insert and calls the shared one, so what remains is two writers that must be
+atomic and one shared definition of what an insert means.
+
+A database trigger would have made this unforgettable, and is rejected: the
+schema is pure DDL across every migration, so a trigger would be the first stored
+procedure in the system — untestable by the unit suite, invisible to TypeScript,
+and revisable only through a migration runner that is append-only and
+skip-by-filename, where editing an applied file is silently inert. The
+forgettability is closed in CI instead, by a test that fails when an event-insert
+site neither is the shared writer nor composes the shared clause.
+
+### The reaper's timeout stops being global
+
+`VISIBILITY_TIMEOUT_SECONDS` presumed every handler dead at ten minutes,
+regardless of the budget its work declared. A longer handler was re-queued while
+still running, executed concurrently with itself, and burned its attempts until
+it dead-lettered — on every run, deterministically. The delivery row carries the
+timeout its subscriber declared, so a handler is presumed dead at its own budget.
+No handler exceeds the old ceiling today, which is why this never fired; it is
+fixed now because the table is being created now and the next long handler should
+fail loudly rather than silently double-execute.
+
 ## Alternatives considered
 
 - **Keep the listeners in the Floor and give it an HTTP write path only.**
