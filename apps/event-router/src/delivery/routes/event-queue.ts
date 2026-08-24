@@ -11,24 +11,19 @@
  * still get disjoint batches, exactly as two in-process callers did.
  */
 
-import { z } from "zod";
 import type { ServerRoute } from "@hapi/hapi";
 import type { EventQueueRepository } from "@re-cinq/lore-shared/project/events/event-queue-port.js";
+import {
+  ClaimBody,
+  DeadBody,
+  FailBody,
+  PruneBody,
+  ReapBody,
+} from "@re-cinq/lore-shared/project/events/event-queue-wire.js";
 import { rawBody } from "@re-cinq/lore-shared/http/raw-body.js";
 import { parseBody } from "@re-cinq/lore-shared/http/json-body.js";
 import { enforceBearer } from "@re-cinq/lore-shared/http/bearer.js";
 
-const Claim = z.object({
-  limit: z.number().int().positive(),
-  excludeEventNames: z.array(z.string()).optional(),
-});
-const Failure = z.object({
-  error: z.string(),
-  backoffSeconds: z.number().int().nonnegative(),
-});
-const Dead = z.object({ error: z.string() });
-const Reap = z.object({ timeoutSeconds: z.number().int().nonnegative() });
-const Prune = z.object({ olderThanDays: z.number().int().nonnegative() });
 
 export interface EventQueueRoutesDeps {
   /** A THUNK: routes are built before the pool exists, and resolving the queue
@@ -50,7 +45,7 @@ export function eventQueueRoutes(deps: EventQueueRoutesDeps): ServerRoute[] {
         guard(request.headers);
         const { limit, excludeEventNames } = parseBody(
           rawBody(request),
-          Claim,
+          ClaimBody,
           "claim",
         );
 
@@ -82,7 +77,7 @@ export function eventQueueRoutes(deps: EventQueueRoutesDeps): ServerRoute[] {
         guard(request.headers);
         const { error, backoffSeconds } = parseBody(
           rawBody(request),
-          Failure,
+          FailBody,
           "failure",
         );
 
@@ -100,7 +95,7 @@ export function eventQueueRoutes(deps: EventQueueRoutesDeps): ServerRoute[] {
       options: { auth: false, payload: { parse: false } },
       handler: async (request, h) => {
         guard(request.headers);
-        const { error } = parseBody(rawBody(request), Dead, "dead-letter");
+        const { error } = parseBody(rawBody(request), DeadBody, "dead-letter");
 
         await deps.queue().markDead(request.params.id, error);
 
@@ -113,7 +108,7 @@ export function eventQueueRoutes(deps: EventQueueRoutesDeps): ServerRoute[] {
       options: { auth: false, payload: { parse: false } },
       handler: async (request, h) => {
         guard(request.headers);
-        const { timeoutSeconds } = parseBody(rawBody(request), Reap, "reap");
+        const { timeoutSeconds } = parseBody(rawBody(request), ReapBody, "reap");
 
         return h
           .response({ reaped: await deps.queue().reapStuck(timeoutSeconds) })
@@ -126,7 +121,7 @@ export function eventQueueRoutes(deps: EventQueueRoutesDeps): ServerRoute[] {
       options: { auth: false, payload: { parse: false } },
       handler: async (request, h) => {
         guard(request.headers);
-        const { olderThanDays } = parseBody(rawBody(request), Prune, "prune");
+        const { olderThanDays } = parseBody(rawBody(request), PruneBody, "prune");
 
         return h
           .response({ pruned: await deps.queue().pruneHandled(olderThanDays) })

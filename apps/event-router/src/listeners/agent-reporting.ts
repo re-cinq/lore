@@ -8,6 +8,7 @@
 import type { Agent as AgentCr } from "@re-cinq/agent-contracts";
 import type { EventInsert } from "@re-cinq/lore-shared";
 import { mapAgentToEvent } from "@re-cinq/lore-shared/project/events/k8s-map.js";
+import { forEachPage } from "@re-cinq/lore-shared/lib/paginate.js";
 import type { CustomObjectsApi } from "@kubernetes/client-node";
 
 export const GROUP = "agents.re-cinq.com";
@@ -44,10 +45,9 @@ export async function forEachAgentPage(
   namespace: string,
   onPage: (items: AgentCr[]) => Promise<void>,
 ): Promise<string | undefined> {
-  let continueToken: string | undefined;
   let resourceVersion: string | undefined;
 
-  do {
+  await forEachPage<AgentCr>(async (continueToken?: string) => {
     const page = (await k8sApi.listNamespacedCustomObject({
       group: GROUP,
       version: VERSION,
@@ -57,10 +57,15 @@ export async function forEachAgentPage(
       _continue: continueToken,
     })) as AgentListPage;
 
-    await onPage(page.items ?? []);
-    continueToken = page.metadata?._continue ?? page.metadata?.continue;
+    // Captured here rather than returned by the walk: the resourceVersion is
+    // this caller's concern (it seeds the watch), not pagination's.
     resourceVersion = page.metadata?.resourceVersion ?? resourceVersion;
-  } while (continueToken);
+
+    return {
+      items: page.items ?? [],
+      continueToken: page.metadata?._continue ?? page.metadata?.continue,
+    };
+  }, onPage);
 
   return resourceVersion;
 }

@@ -10,6 +10,13 @@
 
 import { HttpEventReporter } from "./event-reporter-http.js";
 import type { EventQueueRepository, EventRow } from "./event-queue-port.js";
+import type {
+  ClaimBody,
+  DeadBody,
+  FailBody,
+  PruneBody,
+  ReapBody,
+} from "./event-queue-wire.js";
 
 export class HttpEventQueue
   extends HttpEventReporter
@@ -31,9 +38,10 @@ export class HttpEventQueue
     limit: number,
     excludeEventNames: string[] = [],
   ): Promise<EventRow[]> {
+    const body: ClaimBody = { limit, excludeEventNames };
     const { events } = await this.call<{ events: EventRow[] }>(
       "/api/events/claim",
-      { limit, excludeEventNames },
+      body,
     );
 
     return events;
@@ -48,28 +56,32 @@ export class HttpEventQueue
     error: string,
     backoffSeconds: number,
   ): Promise<void> {
-    await this.call(`/api/events/${encodeURIComponent(id)}/fail`, {
-      error,
-      backoffSeconds,
-    });
+    const body: FailBody = { error, backoffSeconds };
+
+    await this.call(`/api/events/${encodeURIComponent(id)}/fail`, body);
   }
 
   async markDead(id: string, error: string): Promise<void> {
-    await this.call(`/api/events/${encodeURIComponent(id)}/dead`, { error });
+    const body: DeadBody = { error };
+
+    await this.call(`/api/events/${encodeURIComponent(id)}/dead`, body);
   }
 
   async reapStuck(timeoutSeconds: number): Promise<number> {
-    const { reaped } = await this.call<{ reaped: number }>("/api/events/reap", {
-      timeoutSeconds,
-    });
+    const body: ReapBody = { timeoutSeconds };
+    const { reaped } = await this.call<{ reaped: number }>(
+      "/api/events/reap",
+      body,
+    );
 
     return reaped;
   }
 
   async pruneHandled(olderThanDays: number): Promise<number> {
+    const body: PruneBody = { olderThanDays };
     const { pruned } = await this.call<{ pruned: number }>(
       "/api/events/prune",
-      { olderThanDays },
+      body,
     );
 
     return pruned;

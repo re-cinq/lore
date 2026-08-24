@@ -8,21 +8,6 @@ import {
 
 const TASK = "lore.re-cinq.com/task-id";
 
-/** Records what the watch reported, standing in for the router's insert. */
-function recorder(): {
-  reported: EventInsert[];
-  insert: (e: EventInsert) => Promise<void>;
-} {
-  const reported: EventInsert[] = [];
-
-  return {
-    reported,
-    insert: async (e) => {
-      reported.push(e);
-    },
-  };
-}
-
 /** A lister over fixed pages, echoing the `continue` protocol the real API uses. */
 function pagedLister(
   pages: { items: unknown[]; next?: string }[],
@@ -42,17 +27,21 @@ function pagedLister(
 
 describe("reportForAgent", () => {
   it("reports a terminal Agent CR as its kubernetes event", async () => {
-    const sink = recorder();
+    const reported: EventInsert[] = [];
 
     await reportForAgent(
       {
         metadata: { name: "cr-1", labels: { [TASK]: "task-1" } },
         status: { phase: "Succeeded" },
       } as never,
-      sink,
+      {
+        insert: async (e) => {
+          reported.push(e);
+        },
+      },
     );
 
-    expect(sink.reported).toEqual([
+    expect(reported).toEqual([
       {
         eventName: "kubernetes.agent.succeeded",
         source: "kubernetes",
@@ -63,17 +52,21 @@ describe("reportForAgent", () => {
   });
 
   it("reports nothing for a CR that has not reached a terminal phase", async () => {
-    const sink = recorder();
+    const reported: EventInsert[] = [];
 
     await reportForAgent(
       {
         metadata: { name: "cr-1", labels: { [TASK]: "task-1" } },
         status: { phase: "Running" },
       } as never,
-      sink,
+      {
+        insert: async (e) => {
+          reported.push(e);
+        },
+      },
     );
 
-    expect(sink.reported).toEqual([]);
+    expect(reported).toEqual([]);
   });
 
   it("swallows a failed report so one bad CR cannot end the watch", async () => {
