@@ -724,7 +724,10 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
                   id
                   isResolved
                   isOutdated
-                  comments(first: 100) { nodes { databaseId } }
+                  comments(first: 100) {
+                    pageInfo { hasNextPage }
+                    nodes { databaseId }
+                  }
                 }
               }
             }
@@ -738,16 +741,24 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
         break;
       }
 
-      threads.push(
-        ...page.nodes.map((n) => ({
+      for (const n of page.nodes) {
+        // The accepted cap (a 100+-comment thread is out of scope) — but say so
+        // when it actually bites, or a failed databaseId join reads as "no
+        // thread" instead of "comment past the cap".
+        if (n.comments.pageInfo?.hasNextPage) {
+          console.warn(
+            `[github] review thread ${n.id} on ${repo}#${number} has >100 comments — late comments will not join by databaseId`,
+          );
+        }
+        threads.push({
           id: n.id,
           isResolved: n.isResolved,
           isOutdated: n.isOutdated,
           comments: n.comments.nodes.map((c) => ({
             databaseId: c.databaseId,
           })),
-        })),
-      );
+        });
+      }
       hasNextPage = page.pageInfo.hasNextPage;
       cursor = page.pageInfo.endCursor;
     }
@@ -1075,7 +1086,10 @@ interface ReviewThreadsResponse {
           id: string;
           isResolved: boolean;
           isOutdated: boolean;
-          comments: { nodes: Array<{ databaseId: number | null }> };
+          comments: {
+            pageInfo?: { hasNextPage: boolean };
+            nodes: Array<{ databaseId: number | null }>;
+          };
         }>;
       };
     };
