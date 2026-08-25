@@ -501,6 +501,13 @@ The code-review assembly line is the sole reviewer (ADR-012 amendment): a **deep
 - returns null when the block is not valid JSON. ([validated by](libs/shared/src/review/review-findings.test.ts#L46))
 - returns null when a finding has an unknown label. ([validated by](libs/shared/src/review/review-findings.test.ts#L50))
 - returns null when the verdict is missing. ([validated by](libs/shared/src/review/review-findings.test.ts#L61))
+- treats an optional field written as `null` as absent, because that is what a
+  model means by it — read as a value, ONE null failed its type check and the
+  ENTIRE block was discarded, so a review that found ten things posted none and
+  its node failed with the findings lost. ([validated by](libs/shared/src/review/review-findings.test.ts#L79))
+- keeps every other finding when one carries a null optional. ([validated by](libs/shared/src/review/review-findings.test.ts#L85))
+- still rejects a wrong TYPE in an optional field: this widens what counts as
+  absent, not what counts as valid. ([validated by](libs/shared/src/review/review-findings.test.ts#L93))
 
 ### `libs/shared/src/review/review-summary.test.ts`
 

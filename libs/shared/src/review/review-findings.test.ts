@@ -64,3 +64,33 @@ describe("parseReviewFindings", () => {
     expect(parseReviewFindings(output)).toBeNull();
   });
 });
+
+describe("an optional field written as null", () => {
+  // Models write `"suggestion": null` for a finding that has no suggestion, which
+  // is the same statement as omitting the key. Read as a VALUE, it fails the type
+  // check, `every` fails, and the whole block is discarded — so a review that
+  // found ten things posts none of them and its node fails. That happened six
+  // times on one PR on 2026-08-25 before anyone could see the findings.
+  const block = (finding: string) =>
+    ["```REVIEW_FINDINGS", `{"verdict":"changes_requested","summary":"s","findings":[${finding}]}`, "```"].join("\n");
+
+  const base = '"path":"a.ts","line":1,"subject":"s","label":"issue"';
+
+  it("accepts null where the field is optional, since null and absent say the same thing", () => {
+    const parsed = parseReviewFindings(block(`{${base},"suggestion":null}`));
+
+    expect(parsed?.findings).toHaveLength(1);
+  });
+
+  it("keeps every OTHER finding when one carries a null optional", () => {
+    const parsed = parseReviewFindings(
+      block(`{${base},"suggestion":null},{${base},"suggestion":"do x"}`),
+    );
+
+    expect(parsed?.findings).toHaveLength(2);
+  });
+
+  it("still rejects a wrong TYPE in an optional field", () => {
+    expect(parseReviewFindings(block(`{${base},"suggestion":42}`))).toBeNull();
+  });
+});
