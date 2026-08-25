@@ -10,7 +10,7 @@ Once you've run `scripts/install.sh`, there's nothing to configure per repo. Ope
 
 ## Get org context in Claude Code
 
-After `install.sh`, Claude Code automatically loads org context for whatever repo you're in. The MCP server runs locally over stdio and proxies every operation to the GKE backend, so the knowledge you and your teammates accumulate is shared org-wide. There is no offline mode — the backend must be reachable, and the install script sets `LORE_API_URL` for you.
+After `install.sh`, Claude Code automatically loads org context for whatever repo you're in. The [MCP server](../../apps/mcp-server/README.md) runs locally over stdio and proxies every operation to the GKE backend, so the knowledge you and your teammates accumulate is shared org-wide. There is no offline mode — the backend must be reachable, and the install script sets `LORE_API_URL` for you.
 
 Every session follows an enforced workflow so agents never re-solve a problem the org already solved:
 

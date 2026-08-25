@@ -31,7 +31,7 @@
 
 The review-reactor (addressing reviewer feedback on PRs) is **not** a scheduled job — it is webhook/event-driven off GitHub PR-review events (ADR-015). The detection family (gap detection, spec drift, spec coverage validate/backfill) runs as in-process cron emitters that fan out per-repo assembly lines rather than executing the sweep inline (ADR-019 amendment).
 
-An emitter never runs the job itself: it inserts a `cron.<name>.tick` event through the event-router, and the Floor's drain loop dispatches the registered handler. That indirection is what lets a handler live somewhere else entirely — merge check and approval check are ticks on the Floor and work in the stations service. The emitter set is single-sourced in `apps/floor/src/listeners/cron-emitters.ts`, and a cross-check test derives handler coverage from it, so an emitter added without a handler fails the build.
+An emitter never runs the job itself: it inserts a `cron.<name>.tick` event through the [event-router](../../apps/event-router/README.md), and the [Floor](../../apps/floor/README.md)'s drain loop dispatches the registered handler. That indirection is what lets a handler live somewhere else entirely — merge check and approval check are ticks on the Floor and work in the [stations service](../../apps/stations/README.md). The emitter set is single-sourced in `apps/floor/src/listeners/cron-emitters.ts`, and a cross-check test derives handler coverage from it, so an emitter added without a handler fails the build.
 
 ---
 
