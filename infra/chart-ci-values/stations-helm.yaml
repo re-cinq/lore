@@ -10,7 +10,7 @@
 courierJobs:
   - name: ci-bodyless
     schedule: "0 * * * *"
-    path: /api/maintenance/ci-example
+    path: /api/stations/ci-example
   - name: ci-with-body
     schedule: "30 5 * * *"
     path: /api/assembly-runs
