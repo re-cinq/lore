@@ -37,9 +37,7 @@ test("classifies 'release: already exists' as contention", () => {
 
 test("classifies the name-reuse variant as contention", () => {
   assert.equal(
-    isContention(
-      'Error: cannot re-use a name that is still in use',
-    ),
+    isContention("Error: cannot re-use a name that is still in use"),
     true,
   );
 });
