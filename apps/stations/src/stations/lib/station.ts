@@ -63,11 +63,19 @@ export interface NodeTrigger {
   timeoutMinutes: number;
 }
 
-/** A person does the work; the run parks until the page at `route` reports. */
+/**
+ * A person does the work; the run parks until that person reports.
+ *
+ * No `route`. The page a run parks on belongs to the NODE: the YAML declares it
+ * per node, the loader rejects a human node without one, it is snapshotted into
+ * the run graph and resolved from that run's args by `resolveRoute`. A
+ * station-level route would be a second declaration with no reader — `feature_review`
+ * parks on the feature page and `pr_review` on `{args.pr_url}`, so the station
+ * could not name one anyway.
+ */
 export interface HumanTrigger {
   kind: "human";
   nodeType: NodeTypeValue;
-  route: string;
 }
 
 /** The bus delivers these names to this station's subscriber. */

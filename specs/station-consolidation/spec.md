@@ -47,7 +47,7 @@ subscribe" has no expressible meaning on the current substrate.
   `Record<StationName, StationModule>`, replacing the three hand-maintained
   registries. The folder name is the station name is the registry key is the URL
   segment — one string, not four.
-  ([validated by registers every station folder, so adding one and forgetting the barrel fails here](apps/stations/src/stations/registry.test.ts#L25), [`index.test.ts:29`](apps/stations/src/stations/registry.test.ts#L29), [`index.test.ts:33`](apps/stations/src/stations/registry.test.ts#L33))
+  ([validated by registers every station folder, so adding one and forgetting the barrel fails here](apps/stations/src/stations/registry.test.ts#L26), [`index.test.ts:29`](apps/stations/src/stations/registry.test.ts#L30), [`index.test.ts:33`](apps/stations/src/stations/registry.test.ts#L34))
 
 - **FR2 — a station declares its triggers.** Each station's manifest names how
   work reaches it, covering all five classes in one declaration: an
@@ -56,8 +56,15 @@ subscribe" has no expressible meaning on the current substrate.
   subscription (by event name), a `cron` schedule, and a synchronous `http` call.
   A station may declare several. The manifest is the single source for the
   clone-requiring node types and the cron emitter set, which are duplicated
-  today.
-  ([validated by declares at least one trigger per station, so none is unreachable](apps/stations/src/stations/registry.test.ts#L41), [`index.test.ts:94`](apps/stations/src/stations/registry.test.ts#L94), [`index.test.ts:105`](apps/stations/src/stations/registry.test.ts#L105), [`index.test.ts:115`](apps/stations/src/stations/registry.test.ts#L115))
+  today. A HUMAN station is registered like any other — manifest only, no
+  handler, because its worker is a person — so `HUMAN_STATION_TYPES`, which lives
+  in a library that cannot import the station app, is cross-checked against the
+  manifest set rather than maintained beside it. That trigger names the node type
+  and nothing else: the page a run parks on belongs to the NODE, declared per
+  node in the blueprint and resolved from that run's args, and one station's
+  nodes park in different places — so a station-level route would be a second
+  declaration with no reader.
+  ([validated by declares at least one trigger per station, so none is unreachable](apps/stations/src/stations/registry.test.ts#L42), [`index.test.ts:94`](apps/stations/src/stations/registry.test.ts#L95), [`index.test.ts:105`](apps/stations/src/stations/registry.test.ts#L106), [`index.test.ts:115`](apps/stations/src/stations/registry.test.ts#L116), [`registry.test.ts:162`](apps/stations/src/stations/registry.test.ts#L162), [`registry.test.ts:180`](apps/stations/src/stations/registry.test.ts#L180))
 
 - **FR3 — the contract discriminates rather than merges.** A node station keeps
   `(input, env) => Promise<NodeResult>` and a sweep station keeps
@@ -65,7 +72,7 @@ subscribe" has no expressible meaning on the current substrate.
   handler shape, so a folder declaring a cron trigger cannot export a node
   runner. Neither existing signature changes, so every moved station moves
   without an edit.
-  ([validated by pairs a node manifest with a node runner, never a sweep's](apps/stations/src/stations/registry.test.ts#L83))
+  ([validated by pairs a node manifest with a node runner, never a sweep's](apps/stations/src/stations/registry.test.ts#L84))
 
 - **FR4 — drift is a compile error, not a runtime death.** The registry's
   `Record<StationName, StationModule>` makes a missing module fail typechecking;
@@ -74,7 +81,7 @@ subscribe" has no expressible meaning on the current substrate.
   a discovery test asserts the folder listing equals the barrel, that no two
   manifests claim the same name or node type, and that every declared cron
   schedule parses.
-  ([validated by has a station for every dispatchable node type, so none dies at runtime](apps/stations/src/stations/registry.test.ts#L57), [`index.test.ts:67`](apps/stations/src/stations/registry.test.ts#L67), [`index.test.ts:75`](apps/stations/src/stations/registry.test.ts#L75), [`node-station-lookup.test.ts:11`](apps/stations/src/stations/node-station-lookup.test.ts#L11), [`node-station-lookup.test.ts:15`](apps/stations/src/stations/node-station-lookup.test.ts#L15), [`node-station-lookup.test.ts:21`](apps/stations/src/stations/node-station-lookup.test.ts#L21), [`node-station-lookup.test.ts:25`](apps/stations/src/stations/node-station-lookup.test.ts#L25))
+  ([validated by has a station for every dispatchable node type, so none dies at runtime](apps/stations/src/stations/registry.test.ts#L58), [`index.test.ts:67`](apps/stations/src/stations/registry.test.ts#L68), [`index.test.ts:75`](apps/stations/src/stations/registry.test.ts#L76), [`node-station-lookup.test.ts:11`](apps/stations/src/stations/node-station-lookup.test.ts#L11), [`node-station-lookup.test.ts:15`](apps/stations/src/stations/node-station-lookup.test.ts#L15), [`node-station-lookup.test.ts:21`](apps/stations/src/stations/node-station-lookup.test.ts#L21), [`node-station-lookup.test.ts:25`](apps/stations/src/stations/node-station-lookup.test.ts#L25))
 
 - **FR5 — untrusted execution decides what may pool, not credentials.** A
   station that executes code or reads content it did not author runs in its own
@@ -84,7 +91,7 @@ subscribe" has no expressible meaning on the current substrate.
   cloned working tree and alone holds graph-store egress), and comment triage
   (which feeds human-authored text to a model). Deterministic work over data the
   platform itself produced may pool.
-  ([validated by keeps validate in its own pod](apps/stations/src/stations/registry.test.ts#L139), [`registry.test.ts:149`](apps/stations/src/stations/registry.test.ts#L149))
+  ([validated by keeps validate in its own pod](apps/stations/src/stations/registry.test.ts#L139), [`registry.test.ts:150`](apps/stations/src/stations/registry.test.ts#L150))
 
 - **FR6 — an event is delivered per subscriber.** Each subscribed consumer gets
   its own delivery row for an event, claimed and retried independently, so two
@@ -186,7 +193,7 @@ subscribe" has no expressible meaning on the current substrate.
   code host's key nor the database, so a model call there is contained; the
   pooled service holds both, so one there is not. A station therefore declares
   whether it needs a model credential (FR19) and, if it does, runs in a pod.
-  ([validated by keeps comment-triage in its own pod](apps/stations/src/stations/registry.test.ts#L139), [`registry.test.ts:149`](apps/stations/src/stations/registry.test.ts#L149))
+  ([validated by keeps comment-triage in its own pod](apps/stations/src/stations/registry.test.ts#L139), [`registry.test.ts:150`](apps/stations/src/stations/registry.test.ts#L150))
 
 - **FR14 — curation is a node, not a tail.** Extracting a lesson from a finished
   task is a step of its own, reached by the same event from every caller that
