@@ -72,7 +72,11 @@ describe("an optional field written as null", () => {
   // found ten things posts none of them and its node fails. That happened six
   // times on one PR on 2026-08-25 before anyone could see the findings.
   const block = (finding: string) =>
-    ["```REVIEW_FINDINGS", `{"verdict":"changes_requested","summary":"s","findings":[${finding}]}`, "```"].join("\n");
+    [
+      "```REVIEW_FINDINGS",
+      `{"verdict":"changes_requested","summary":"s","findings":[${finding}]}`,
+      "```",
+    ].join("\n");
 
   const base = '"path":"a.ts","line":1,"subject":"s","label":"issue"';
 
