@@ -89,6 +89,7 @@ describe("AssemblyLineStationBackend", () => {
     expect(first.ref).not.toBe(second.ref);
     expect(port.rows).toHaveLength(2);
   });
+
   it("an implementation-loop task declares the repo's backlog as its subject", async () => {
     const port = new InMemoryAssemblyRuns();
     const backend = new AssemblyLineStationBackend(port);
@@ -97,6 +98,7 @@ describe("AssemblyLineStationBackend", () => {
 
     expect(port.rows[0]).toMatchObject({ subjectKey: "backlog" });
   });
+
   it("a feature's run declares that feature as its subject", async () => {
     const port = new InMemoryAssemblyRuns();
     const backend = new AssemblyLineStationBackend(port);
