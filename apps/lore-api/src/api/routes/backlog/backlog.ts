@@ -1,7 +1,11 @@
 import type { Pool } from "pg";
 import type { ServerRoute } from "@hapi/hapi";
 import type { IssueRef } from "@re-cinq/lore-shared";
-import { orderBacklog, PRIORITY_LABELS } from "@re-cinq/lore-shared";
+import {
+  orderBacklog,
+  PRIORITY_LABELS,
+  BACKLOG_LABEL_SEED,
+} from "@re-cinq/lore-shared";
 import { OPEN_TASK_STATES } from "@re-cinq/lore-shared/project/tasks/task-store-port.js";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { apiError } from "../../../server/api-error.js";
@@ -174,6 +178,23 @@ export function implementationLoopRoutes(
             WHERE full_name = $1`,
           [repo, enabled],
         );
+
+        // Opting in seeds the loop's label taxonomy (FR1/FR7). Onboarding
+        // seeds it for NEW repos; this covers every repo onboarded before the
+        // feature existed, so enabling is the only gesture a human needs.
+        // createLabels is create-or-ignore-existing, and a code-host hiccup
+        // must not fail the settings write that already committed.
+        if (enabled) {
+          try {
+            await (
+              await projectFor(repo)
+            ).issues.createLabels(BACKLOG_LABEL_SEED);
+          } catch (err) {
+            console.warn(
+              `[implementation-loop] label seeding for ${repo} failed: ${(err as Error).message}`,
+            );
+          }
+        }
 
         return h.response({ ok: true as const, enabled }).code(200);
       },
