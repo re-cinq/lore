@@ -15,6 +15,7 @@ on:
       - 'infra/terraform/modules/gke-mcp/lore-platform/values.yaml'
       - '.github/workflows/build-cluster-agent.yml'
       - 'scripts/ci/deploy-lore-platform.sh'
+      - 'scripts/ci/helm-lock-contention.sh'
   workflow_dispatch:
 
 concurrency:

@@ -156,6 +156,15 @@ jobs:
           # the index. Pure markdown check — no build needed.
           - name: skill-help
             test: bash scripts/check-skill-help.sh
+          # The scripts' OWN tests. `scripts/**/*.test.mjs` had no CI home at all:
+          # install-contract, lore-merge-settings and (until this entry) the deploy
+          # classifier ran nowhere, so a broken guard stayed green. Only
+          # check-bootstrap-columns ran, and only from migrations.yml.
+          # Files are passed explicitly via find: node 22 resolves a bare directory
+          # as a module entry point and dies with MODULE_NOT_FOUND, the same trap
+          # the eslint-rules entry below documents.
+          - name: scripts
+            test: find scripts -name '*.test.mjs' -print0 | xargs -0 node --test
           # The lint rules' OWN tests. Every rule in tools/eslint-plugin-lore has a
           # RuleTester suite, and until now nothing ran them — so a rule could start
           # over-reporting, stop reporting, or crash on an edge-case AST and nothing
