@@ -13,7 +13,7 @@ vi.mock("../../kernel/queues.js", () => ({
   }),
 }));
 
-vi.mock("../platform/pr-policy.js", () => ({
+vi.mock("./pr-policy.js", () => ({
   resolvePrForTaskFromDb: (...args: unknown[]) =>
     resolvePrForTaskFromDbMock(...args),
 }));

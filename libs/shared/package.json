@@ -46,6 +46,10 @@
       "types": "./dist/error-classify.d.ts",
       "default": "./dist/error-classify.js"
     },
+    "./k8s-pod-failure.js": {
+      "types": "./dist/k8s-pod-failure.d.ts",
+      "default": "./dist/k8s-pod-failure.js"
+    },
     "./feature-planning/*.js": {
       "types": "./dist/feature-planning/*.d.ts",
       "default": "./dist/feature-planning/*.js"

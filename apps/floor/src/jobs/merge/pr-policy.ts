@@ -1,10 +1,15 @@
 /**
- * PR-state → AutoMergePolicyInputs lookup, shared between the in-agent
- * orchestrator (gap-fill / runbook retrospective handler) and the
- * watcher-side trigger (cluster-path impl / general / review). Same
- * function, two callers — keeping the policy build in one place
- * prevents drift in the gates that decide which dark-mode PRs
- * auto-merge.
+ * PR-state → AutoMergePolicyInputs lookup for the auto-merge gate.
+ *
+ * It sits beside its ONE caller, `auto-merge-trigger.ts`. It used to have two —
+ * the in-agent orchestrator was the other — but that path was deleted with the
+ * in-process supervisor (#805), and the header kept claiming a second caller
+ * that no longer existed.
+ *
+ * It does not move to a station or to shared, for the same reason the rest of
+ * `jobs/merge/` does not: merge authority is Floor-side by decision (ADR-016),
+ * never inside a pod that also runs repo content. This reads the state that
+ * authority is exercised on, so it belongs on the same side of that line.
  *
  * PR state is read through the Project facade's `pulls` (paginated inside the
  * shared adapter), not a hand-built Octokit — the auto-merge gate must see every

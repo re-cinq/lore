@@ -433,6 +433,10 @@ export {
   type StepFailure,
   type ClassifiedFailure,
 } from "./error-classify.js";
+export {
+  isTransientInfraFailure,
+  MAX_INFRA_RETRIES,
+} from "./k8s-pod-failure.js";
 export { isBusinessHours } from "./business-hours.js";
 export { isAlreadyExistsError } from "./k8s-errors.js";
 export {

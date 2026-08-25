@@ -35,7 +35,7 @@ import {
 import {
   isTransientInfraFailure,
   MAX_INFRA_RETRIES,
-} from "../platform/infra-failure.js";
+} from "@re-cinq/lore-shared/k8s-pod-failure.js";
 import {
   buildReviewFixDescription,
   formatReviewFeedback,
