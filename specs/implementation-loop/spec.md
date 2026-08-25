@@ -79,8 +79,8 @@ A fourth gap sits underneath the "wait until the PR has no outstanding comments"
 
 ## FR7 — Per-repo enable toggle
 
-- `lore.repos.settings` gains an `implementation_loop` block with an `enabled` boolean.
-- The setting is read through a pure predicate that defaults to disabled by omission, mirroring `autoReviewEnabled` in `apps/floor/src/jobs/review/should-auto-review.ts`. A repo that has never heard of this feature never runs it.
+- `lore.repos.settings` gains an `implementation_loop` block with an `enabled` boolean. ([validated by enabled true](../../apps/floor/src/jobs/backlog/implementation-loop-enabled.test.ts#L5), [validated by non-boolean enabled rejected](../../apps/floor/src/jobs/backlog/implementation-loop-enabled.test.ts#L26))
+- The setting is read through a pure predicate that defaults to disabled by omission, mirroring `autoReviewEnabled` in `apps/floor/src/jobs/review/should-auto-review.ts`. A repo that has never heard of this feature never runs it. ([validated by absent block disabled](../../apps/floor/src/jobs/backlog/implementation-loop-enabled.test.ts#L18), [validated by explicit false disabled](../../apps/floor/src/jobs/backlog/implementation-loop-enabled.test.ts#L11), [validated by null settings disabled](../../apps/floor/src/jobs/backlog/implementation-loop-enabled.test.ts#L22), [validated by string blob parsed](../../apps/floor/src/jobs/backlog/implementation-loop-enabled.test.ts#L32))
 - The toggle lives at the top level of the settings object, not inside `dark_factory`. It confers no merge authority, so it must not be dragged behind the two-key CODEOWNERS ceremony that guards the dark-factory privileged fields.
 - Disabling the toggle stops new tickets from being picked. It does not cancel a run already in flight; that run finishes normally and simply is not followed by another.
 
