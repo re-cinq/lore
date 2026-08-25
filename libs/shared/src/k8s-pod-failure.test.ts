@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { isTransientInfraFailure } from "./infra-failure.js";
+import { isTransientInfraFailure } from "./k8s-pod-failure.js";
 
 describe("isTransientInfraFailure", () => {
   it("classifies BackoffLimitExceeded as transient infra", () => {

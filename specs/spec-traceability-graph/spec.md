@@ -17,7 +17,7 @@ The Spec Traceability Graph is a derived Dgraph projection giving a queryable, b
 
 There is no queryable, bidirectional, sentence-level map from a spec to
 the tests and code that implement it. Drift detection today
-([`spec-coverage-validate`](../../apps/floor/src/application/jobs/scheduled/spec-coverage-validate.ts))
+([`spec-coverage-validate`](../../libs/shared/src/detect/spec-coverage-validate.ts))
 only catches **link rot** — a test link whose file was deleted or whose
 line moved out of range. It cannot catch the case that matters most:
 
@@ -169,7 +169,7 @@ which ships first. Phasing in [`plan.md`](./plan.md).
 
 The projection sets the per-statement `violated`/`drifted` flags above; the
 weekly `spec_drift` detection
-([spec-drift.ts](../../apps/floor/src/jobs/spec-trace/spec-drift/spec-drift.ts),
+([spec-drift.ts](../../libs/shared/src/detect/spec-drift.ts),
 run per repo as the `detect` node of the `spec-drift` assembly line, fanned out
 by the `cron.spec_drift.tick` handler in
 [fan-out.ts](../../apps/floor/src/jobs/detect/fan-out.ts) — ADR-019 amendment) is the
@@ -179,7 +179,7 @@ the decision.
 
 - **Graph-primary.** When a spec is projected, drift is decided from its
   `violated`/`drifted` statements — deterministic, statement-level
-  ([decideGraphDrift](../../apps/floor/src/application/jobs/cron/spec-drift-rules.ts)).
+  ([decideGraphDrift](../../libs/shared/src/detect/spec-drift-rules.ts)).
   A spec whose statements all resolve is **not** drifted (the former
   symbol-membership heuristic flagged clean specs like `GET /healthz` as fully
   diverged because endpoints/fields/methods aren't top-level symbols).
@@ -189,12 +189,12 @@ the decision.
   task ages out on a short cooldown instead of suppressing drift forever; a
   per-run cap bounds the batch; transient infra failures
   (`BackoffLimitExceeded`/`CreateContainerConfigError`) re-queue a bounded number
-  of times ([infra-failure.ts](../../apps/floor/src/application/jobs/infra-failure.ts),
-  [loretask-watcher.ts](../../apps/floor/src/application/jobs/scheduled/loretask-watcher.ts))
+  of times ([k8s-pod-failure.ts](../../libs/shared/src/k8s-pod-failure.ts),
+  [agent-watcher.ts](../../apps/floor/src/jobs/watcher/agent-watcher.ts))
   rather than filing a terminal `lore-failed` issue.
-- **Actionable issue copy** ([issue-body.ts](../../apps/floor/src/application/task-processing/issue-body.ts)):
+- **Actionable issue copy** ([issue-body.ts](../../apps/floor/src/jobs/task/issue-body.ts)):
   the drifted statements verbatim, a static remediation guidance block
-  ([drift-issue-guidance.ts](../../apps/floor/src/application/jobs/cron/drift-issue-guidance.ts)),
+  ([drift-issue-guidance.ts](../../apps/floor/src/jobs/spec-trace/spec-drift/drift-issue-guidance.ts)),
   `created by spec-drift`, and a `Lore-Task` trailer that links to the deployed
   task page.
 
@@ -322,7 +322,7 @@ invariant), so the projection is lossless by construction.
 
 18. The issue footer links the `Lore-Task` trailer to the deployed task page when a UI url is set and stays a bare uuid otherwise; graph-detected drifted statements (with their validated-by links) are listed verbatim, and heuristic runs list their missing symbols instead. ([validated by `links to the deployed task page when a UI url is set`](apps/floor/src/jobs/task/issue-body.test.ts#L5), [validated by `returns the bare uuid when no UI url is configured`](apps/floor/src/jobs/task/issue-body.test.ts#L17), [validated by `lists graph-detected drifted statements verbatim when present`](apps/floor/src/jobs/task/issue-body.test.ts#L56), [validated by `renders the validated-by link path for a graph-detected statement`](apps/floor/src/jobs/task/issue-body.test.ts#L71), [validated by `lists heuristic missing symbols when no graph statements rode in the bundle`](apps/floor/src/jobs/task/issue-body.test.ts#L96))
 
-19. Transient infra failures (`BackoffLimitExceeded`, `CreateContainerConfigError`) are classified for bounded re-queue; a validation failure is not. ([validated by `classifies BackoffLimitExceeded as transient infra`](apps/floor/src/jobs/platform/infra-failure.test.ts#L5), [validated by `classifies CreateContainerConfigError as transient infra`](apps/floor/src/jobs/platform/infra-failure.test.ts#L13), [validated by `does not classify a validation failure as transient infra`](apps/floor/src/jobs/platform/infra-failure.test.ts#L17))
+19. Transient infra failures (`BackoffLimitExceeded`, `CreateContainerConfigError`) are classified for bounded re-queue; a validation failure is not. ([validated by `classifies BackoffLimitExceeded as transient infra`](libs/shared/src/k8s-pod-failure.test.ts#L5), [validated by `classifies CreateContainerConfigError as transient infra`](libs/shared/src/k8s-pod-failure.test.ts#L13), [validated by `does not classify a validation failure as transient infra`](libs/shared/src/k8s-pod-failure.test.ts#L17))
 
 ### Projection, ingest & read units (additional)
 

@@ -63,7 +63,7 @@ Closes the review loop by automatically running an agent review after an impleme
 >    which re-decides the verdict on the updated diff and re-submits it. Auto-merge reads
 >    the bot's **latest** decision, so a later `REQUEST_CHANGES` overrides an earlier
 >    `APPROVE` and vice-versa
->    ([`pr-policy.ts`](../apps/floor/src/jobs/platform/pr-policy.ts)).
+>    ([`pr-policy.ts`](../apps/floor/src/jobs/merge/pr-policy.ts)).
 >
 > **Self-approval limit.** GitHub 422s when the review author is the PR author, so the bot
 > cannot `APPROVE` its **own** PR; that post degrades to a plain comment and auto-merge
