@@ -346,20 +346,43 @@ async function resolveRepliedThread(
       ports.audit,
     );
 
+  let thread: ReviewThread | null;
+
   try {
-    const threads = await pulls.listReviewThreads(prNumber);
-    const thread = findThreadForComment(threads, inReplyTo);
-
-    if (!thread) {
-      await audit({ reason: "no_thread_for_comment" }, false);
-
-      return;
-    }
-    await pulls.resolveReviewThread(thread.id);
-    await audit({ thread_id: thread.id }, true);
+    thread = findThreadForComment(
+      await pulls.listReviewThreads(prNumber),
+      inReplyTo,
+    );
   } catch (err) {
-    await audit({ reason: "error", error: (err as Error).message }, false);
+    await audit(
+      { reason: "list_failed", error: (err as Error).message },
+      false,
+    );
+
+    return;
   }
+
+  if (!thread) {
+    await audit({ reason: "no_thread_for_comment" }, false);
+
+    return;
+  }
+
+  try {
+    await pulls.resolveReviewThread(thread.id);
+  } catch (err) {
+    await audit(
+      {
+        reason: "resolve_failed",
+        thread_id: thread.id,
+        error: (err as Error).message,
+      },
+      false,
+    );
+
+    return;
+  }
+  await audit({ thread_id: thread.id }, true);
 }
 
 /**

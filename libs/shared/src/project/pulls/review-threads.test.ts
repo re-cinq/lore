@@ -26,3 +26,11 @@ describe("findThreadForComment", () => {
     expect(findThreadForComment(threads, 0)).toBeNull();
   });
 });
+
+describe("findThreadForComment resolved threads", () => {
+  it("skips an already-resolved thread even when the comment id matches", () => {
+    const resolved = { ...thread("PRRT_1", [10]), isResolved: true };
+
+    expect(findThreadForComment([resolved], 10)).toBeNull();
+  });
+});

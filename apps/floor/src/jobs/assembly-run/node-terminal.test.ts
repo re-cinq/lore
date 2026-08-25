@@ -964,7 +964,12 @@ describe("postReplyFromNode thread resolution", () => {
       {
         event_type: "review_thread_resolve_failed",
         repo: "re-cinq/lore",
-        payload: { pr_number: 841, in_reply_to_id: 55, error: "GraphQL down" },
+        payload: {
+          pr_number: 841,
+          in_reply_to_id: 55,
+          reason: "list_failed",
+          error: "GraphQL down",
+        },
       },
     ]);
   });
@@ -1009,5 +1014,44 @@ describe("postReplyFromNode thread resolution", () => {
 
     expect(outcome).toBe("posted");
     expect(p.entries).toEqual([]);
+  });
+});
+
+describe("postReplyFromNode resolve mutation failure", () => {
+  it("audits resolve_failed with the thread id when the mutation throws", async () => {
+    const p = replyPorts();
+    const poster: ReplyPoster = {
+      ...p.poster,
+      listReviewThreads: async () => [
+        {
+          id: "PRRT_9",
+          isResolved: false,
+          isOutdated: false,
+          comments: [{ databaseId: 55 }],
+        },
+      ],
+      resolveReviewThread: async () => {
+        throw new Error("mutation denied");
+      },
+    };
+
+    const outcome = await postReplyFromNode(
+      row({ pr_number: 841, in_reply_to_id: 55, intent: "address" }),
+      refineNode,
+      replyText("Fixed."),
+      { poster, audit: p.audit },
+    );
+
+    expect(outcome).toBe("posted");
+    expect(p.entries).toMatchObject([
+      {
+        event_type: "review_thread_resolve_failed",
+        payload: {
+          reason: "resolve_failed",
+          thread_id: "PRRT_9",
+          error: "mutation denied",
+        },
+      },
+    ]);
   });
 });
