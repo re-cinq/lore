@@ -10,7 +10,9 @@ import { LORE_BLOCKED_LABEL, PRIORITY_LABELS } from "./labels.js";
  * Eligible = open, exactly one `priority:*` label, no `lore:blocked`. More
  * than one priority label is ineligible on purpose: the ambiguity surfaces to
  * a human instead of being guessed at. Order: high → medium → low, ties by
- * oldest createdAt (undated candidates sort last).
+ * oldest createdAt (undated candidates sort last). The FR1 "no open
+ * Lore-authored PR" clause is the loop driver's guard, not a filter here — it
+ * needs task and PR state this function deliberately does not see.
  */
 export function selectNextIssue(issues: readonly IssueRef[]): IssueRef | null {
   const eligible = issues.flatMap((issue) => {
@@ -29,10 +31,20 @@ export function selectNextIssue(issues: readonly IssueRef[]): IssueRef | null {
   eligible.sort(
     (a, b) =>
       a.rank - b.rank ||
-      createdAtOrder(a.issue).localeCompare(createdAtOrder(b.issue)),
+      compareIso(createdAtOrder(a.issue), createdAtOrder(b.issue)),
   );
 
   return eligible[0]?.issue ?? null;
+}
+
+/** Plain lexicographic compare — correct for ISO timestamps, and not subject
+ *  to whatever collation locale the process happens to run under. */
+function compareIso(a: string, b: string): number {
+  if (a < b) {
+    return -1;
+  }
+
+  return a > b ? 1 : 0;
 }
 
 function priorityRank(labels: readonly string[]): number | null {

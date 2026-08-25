@@ -73,7 +73,7 @@ describe("the implementation-loop line", () => {
   });
 
   it("closes a blocked ticket through the same retrospective exit as a ready one", () => {
-    for (const outcome of ["success", "changes_requested"]) {
+    for (const outcome of ["success", "changes_requested", "failed"]) {
       const t = getNextTransition(line, [
         visit("implement", "success"),
         visit("validate", "success"),
@@ -83,6 +83,14 @@ describe("the implementation-loop line", () => {
 
       expect(t).toMatchObject({ kind: "launch", nodeId: "retrospective" });
     }
+  });
+
+  it("routes implement changes_requested straight to retrospective", () => {
+    const t = getNextTransition(line, [
+      visit("implement", "changes_requested"),
+    ]);
+
+    expect(t).toMatchObject({ kind: "launch", nodeId: "retrospective" });
   });
 
   it("finishes at done after the retrospective", () => {
