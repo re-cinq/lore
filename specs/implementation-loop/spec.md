@@ -44,14 +44,14 @@ A fourth gap sits underneath the "wait until the PR has no outstanding comments"
 
 ## FR3 — The assembly line definition
 
-- A new definition `implementation-loop` is added to `libs/assembly-lines/src/assembly-lines/`.
-- Its nodes are `implement` (agent), `validate`, `push`, `await-pr` (human station of type `pr_review`), `retrospective`, and `done`.
-- The happy path is `implement` to `validate` to `push` to `await-pr` to `retrospective` to `done`.
-- `implement` retries itself once on `failed` via a back-edge with `iteration_max: 1`; a second failure routes to `retrospective`.
-- `await-pr` resuming with `success` means the PR is ready and the ticket is complete; resuming with `changes_requested` means the ticket is blocked. Both route to `retrospective` so the run always closes through the same exit.
-- `await-pr` declares `route: "{args.pr_url}"`, satisfying the loader's requirement that a human station carry a route built only from `{args.*}` placeholders.
-- The definition introduces no new node type. `implement` is an ordinary `agent` node; `validate`, `push` and `retrospective` reuse the existing station recipes unchanged.
-- Every outcome each node can produce has an outgoing edge, because `selectEdge` in `libs/assembly-lines/src/transition.ts` does not fall through when no edge matches.
+- A new definition `implementation-loop` is added to `libs/assembly-lines/src/assembly-lines/`. ([validated by happy path walk](../../libs/assembly-lines/src/implementation-loop-line.test.ts#L31))
+- Its nodes are `implement` (agent), `validate`, `push`, `await-pr` (human station of type `pr_review`), `retrospective`, and `done`. ([validated by pr_review park](../../libs/assembly-lines/src/implementation-loop-line.test.ts#L41))
+- The happy path is `implement` to `validate` to `push` to `await-pr` to `retrospective` to `done`. ([validated by finishes at done](../../libs/assembly-lines/src/implementation-loop-line.test.ts#L96))
+- `implement` retries itself once on `failed` via a back-edge with `iteration_max: 1`. A second failure fails the run with outcome `iteration_max` — `getNextTransition` refuses an exhausted back-edge rather than consulting a further `failed` edge, exactly as the existing `implementation` line behaves — and the driver then marks the ticket blocked (FR8); the retrospective is skipped on that path. ([validated by second failure fails the run](../../libs/assembly-lines/src/implementation-loop-line.test.ts#L57))
+- `await-pr` resuming with `success` means the PR is ready and the ticket is complete; resuming with `changes_requested` means the ticket is blocked. Both route to `retrospective` so the run always closes through the same exit. ([validated by one exit for both](../../libs/assembly-lines/src/implementation-loop-line.test.ts#L75))
+- `await-pr` declares `route: "{args.pr_url}"`, satisfying the loader's requirement that a human station carry a route built only from `{args.*}` placeholders. ([validated by pr_review park](../../libs/assembly-lines/src/implementation-loop-line.test.ts#L41))
+- The definition introduces no new node type. `implement` is an ordinary `agent` node; `validate`, `push` and `retrospective` reuse the existing station recipes unchanged. ([validated by implementation-tdd recipe](../../libs/assembly-lines/src/implementation-loop-line.test.ts#L50))
+- Every outcome each node can produce has an outgoing edge, because `selectEdge` in `libs/assembly-lines/src/transition.ts` does not fall through when no edge matches. ([validated by changes_requested routes to retrospective](../../libs/assembly-lines/src/implementation-loop-line.test.ts#L88))
 
 ## FR4 — Waiting on the pull request
 
@@ -75,12 +75,12 @@ A fourth gap sits underneath the "wait until the PR has no outstanding comments"
 - The prompt requires a failing test before any implementation: red, then green, then refactor. No production edit precedes a red bar.
 - The prompt requires that each test carry an inline traceability link on the spec or ADR statement it validates, in the repository's established parenthetical form, and that the test descriptor stamp the corresponding spec anchor so the test interface surfaces it.
 - The prompt requires that a change completing a `specs/<name>/spec.md` update that spec's `| Status |` header row in the same branch.
-- A `prompt_ref` naming no recipe is a build failure via the existing drift guard, and `buildNodePrompt` throws rather than silently substituting the `general` prompt.
+- A `prompt_ref` naming no recipe is a build failure via the existing drift guard, and `buildNodePrompt` throws rather than silently substituting the `general` prompt. ([validated by prompt_ref drift guard](../../libs/assembly-lines/src/prompt-refs.test.ts#L53))
 
 ## FR7 — Per-repo enable toggle
 
-- `lore.repos.settings` gains an `implementation_loop` block with an `enabled` boolean.
-- The setting is read through a pure predicate that defaults to disabled by omission, mirroring `autoReviewEnabled` in `apps/floor/src/jobs/review/should-auto-review.ts`. A repo that has never heard of this feature never runs it.
+- `lore.repos.settings` gains an `implementation_loop` block with an `enabled` boolean. ([validated by enabled true](../../apps/floor/src/jobs/backlog/implementation-loop-enabled.test.ts#L5), [validated by non-boolean enabled rejected](../../apps/floor/src/jobs/backlog/implementation-loop-enabled.test.ts#L26))
+- The setting is read through a pure predicate that defaults to disabled by omission, mirroring `autoReviewEnabled` in `apps/floor/src/jobs/review/should-auto-review.ts`. A repo that has never heard of this feature never runs it. ([validated by absent block disabled](../../apps/floor/src/jobs/backlog/implementation-loop-enabled.test.ts#L18), [validated by explicit false disabled](../../apps/floor/src/jobs/backlog/implementation-loop-enabled.test.ts#L11), [validated by null settings disabled](../../apps/floor/src/jobs/backlog/implementation-loop-enabled.test.ts#L22), [validated by string blob parsed](../../apps/floor/src/jobs/backlog/implementation-loop-enabled.test.ts#L32))
 - The toggle lives at the top level of the settings object, not inside `dark_factory`. It confers no merge authority, so it must not be dragged behind the two-key CODEOWNERS ceremony that guards the dark-factory privileged fields.
 - Disabling the toggle stops new tickets from being picked. It does not cancel a run already in flight; that run finishes normally and simply is not followed by another.
 
