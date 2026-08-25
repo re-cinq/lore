@@ -103,6 +103,7 @@ describe("PlatformGitHub paginated reads + helpers", () => {
         title: "Slow queries",
         state: "open",
         labels: [{ name: "priority:high" }, "bug"],
+        html_url: "https://gh/i/12",
         created_at: "2026-08-02T09:00:00Z",
       },
       {
@@ -123,6 +124,7 @@ describe("PlatformGitHub paginated reads + helpers", () => {
         title: "Slow queries",
         state: "open",
         labels: ["priority:high", "bug"],
+        url: "https://gh/i/12",
         createdAt: "2026-08-02T09:00:00Z",
       },
     ]);
