@@ -294,6 +294,7 @@ describe("/api/repos/{owner}/{repo}/implementation-loop", () => {
     const res = await put({ enabled: false }, pool);
 
     expect(res.statusCode).toBe(200);
+    expect(JSON.parse(res.payload)).toEqual({ ok: true, enabled: false });
     expect(projectFor).not.toHaveBeenCalled();
   });
 

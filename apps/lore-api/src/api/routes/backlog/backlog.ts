@@ -186,12 +186,12 @@ export function implementationLoopRoutes(
         // must not fail the settings write that already committed.
         if (enabled) {
           try {
-            await (
-              await projectFor(repo)
-            ).issues.createLabels(BACKLOG_LABEL_SEED);
+            const project = await projectFor(repo);
+
+            await project.issues.createLabels(BACKLOG_LABEL_SEED);
           } catch (err) {
             console.warn(
-              `[implementation-loop] label seeding for ${repo} failed: ${(err as Error).message}`,
+              `[implementation-loop] label seeding for ${repo} failed: ${String(err)}`,
             );
           }
         }
