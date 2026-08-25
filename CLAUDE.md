@@ -610,7 +610,13 @@ write rows: the GitHub webhook ingress moved into the Floor
 (`POST /api/webhook/github`, HMAC-verified, maps to `github.*` events); a
 Kubernetes watch on Agent CRs emits `kubernetes.agent.{succeeded,failed}`
 on terminal phase (replacing the polled `agent_watcher`, with a reconcile
-cron as the dropped-event safety net); the in-process scheduler emits
+cron as the dropped-event safety net). That watch runs in **cluster-agent**,
+not the router: a WATCH is the one cluster capability that cannot be a
+request — Kubernetes streams it down a connection the process opens
+outward — so cluster-agent owns it and reports terminal phases onward to
+the router over HTTP. One cluster-agent per cluster reporting inward is
+what lets there be more than one execution cluster; a router that watched
+directly could only ever see the one it runs in. The in-process scheduler emits
 `cron.<job>.tick`; mcp-server's post-ingest triggers insert
 `internal.ingest.*` (was `POST /api/trigger/*`). **Layer 2 — the loop**
 atomically claims runnable rows (`FOR UPDATE SKIP LOCKED`), dispatches by

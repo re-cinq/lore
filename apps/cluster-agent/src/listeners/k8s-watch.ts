@@ -49,12 +49,12 @@ let backoffMs = 1000;
 export function startK8sWatch(deps: WatchDeps): void {
   if (selectStationBackend(process.env) !== "k8s") {
     console.log(
-      "[event-router] k8s watch disabled (station backend is not k8s)",
+      "[cluster-agent] k8s watch disabled (station backend is not k8s)",
     );
 
     return;
   }
-  console.log("[event-router] k8s Agent-CR watch started");
+  console.log("[cluster-agent] k8s Agent-CR watch started");
   void runWatchForever(deps);
 }
 
@@ -65,7 +65,7 @@ async function runWatchForever(deps: WatchDeps): Promise<void> {
       backoffMs = 1000; // clean end → reset backoff
     } catch (err) {
       console.error(
-        `[event-router] k8s watch dropped (reconnect in ${backoffMs}ms):`,
+        `[cluster-agent] k8s watch dropped (reconnect in ${backoffMs}ms):`,
         (err as Error).message,
       );
     }

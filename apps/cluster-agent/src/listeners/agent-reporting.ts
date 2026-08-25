@@ -18,6 +18,14 @@ const LIST_PAGE_LIMIT = 50;
 
 export interface WatchDeps {
   insert: (event: EventInsert) => Promise<void>;
+  /** How hard to retry a report. Omitted, one attempt — the shape a test wants. */
+  retry?: ReportRetry;
+}
+
+/** Bounded retry for one report. */
+export interface ReportRetry {
+  attempts: number;
+  delayMs: number;
 }
 
 /** The slice of CustomObjectsApi the paginated list needs; tests fake this. */
@@ -87,12 +95,30 @@ export async function reportForAgent(
   if (!ev) {
     return;
   }
-  await deps
-    .insert(ev)
-    .catch((err) =>
-      console.error(
-        "[event-router] k8s report failed:",
-        (err as Error).message,
-      ),
-    );
+  const { attempts, delayMs } = deps.retry ?? { attempts: 1, delayMs: 0 };
+
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    try {
+      await deps.insert(ev);
+
+      return;
+    } catch (err) {
+      // Retried, not swallowed on the first try: this insert used to be a write
+      // on this process's own pool and is now a POST to the event-router, so a
+      // blip is ordinary. Safe to repeat — every event mapAgentToEvent produces
+      // carries a dedupeKey, so a duplicate reaching the router is a no-op.
+      if (attempt === attempts) {
+        // Never thrown: the watch loop must survive one bad report. The event is
+        // lost at this point, and the Floor's reconcile cron is what still
+        // catches it — which is why that backstop stays off this process.
+        console.error(
+          `[cluster-agent] k8s report failed after ${attempts} attempts:`,
+          (err as Error).message,
+        );
+
+        return;
+      }
+      await new Promise((resolve) => setTimeout(resolve, delayMs * attempt));
+    }
+  }
 }

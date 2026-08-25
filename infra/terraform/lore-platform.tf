@@ -232,6 +232,13 @@ resource "helm_release" "lore_platform" {
       agentsNamespace = "ai-agents"
       env = {
         PORT = "8080"
+        # This process also PUSHES: it owns the Agent-CR watch (a WATCH is the one
+        # cluster capability that cannot be a request — Kubernetes streams down a
+        # connection opened outward) and reports terminal phases to the router.
+        # Unset, the watch does not start and says so; the symptom would otherwise
+        # be silence — no terminal event on the bus, every node waiting for the
+        # reaper.
+        EVENT_ROUTER_URL = local.event_router_in_cluster
       }
     }
 

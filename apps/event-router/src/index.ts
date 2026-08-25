@@ -1,13 +1,12 @@
 /**
- * The event-router process: open the pool, serve the front door, watch the
- * cluster. It produces events and nothing else — no drain loop, no job
- * handlers, no Agent CR dispatch (ADR-044).
+ * The event-router process: open the pool and serve the front door. It produces
+ * events and nothing else — no drain loop, no job handlers, no Agent CR dispatch
+ * (ADR-044), and since 2026-08-25 no Kubernetes watch either: that moved to
+ * cluster-agent, which is the process that may hold a cluster client.
  */
 
 import { initPool, getPool } from "@re-cinq/lore-shared/db/pg-pool.js";
-import { pipeline } from "./kernel/queues.js";
 import { startServer } from "./delivery/server.js";
-import { startK8sWatch } from "./listeners/k8s-watch.js";
 
 const PORT = parseInt(process.env.PORT ?? "8080", 10);
 
@@ -15,8 +14,6 @@ async function main(): Promise<void> {
   initPool();
 
   const stopServer = await startServer(PORT);
-
-  startK8sWatch({ insert: (event) => pipeline().eventQueue.insert(event) });
 
   // One owner for the lifecycle: the server registers no handler of its own, so
   // a shutdown that stops serving but never exits cannot happen here.
