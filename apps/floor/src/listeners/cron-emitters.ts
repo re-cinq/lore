@@ -21,6 +21,11 @@ export interface CronEmitter {
 
 export const CRON_EMITTERS: CronEmitter[] = [
   { name: "merge_check", schedule: "*/1 * * * *" },
+  {
+    name: "pr_ready_check",
+    schedule: "*/2 * * * *",
+    note: "resume implementation-loop runs parked at await-pr once the PR is green and thread-clean",
+  },
   { name: "approval_check", schedule: "*/1 * * * *" },
   { name: "spec_task_executor", schedule: "*/1 * * * *" },
   { name: "stale_task_check", schedule: "17 * * * *" },

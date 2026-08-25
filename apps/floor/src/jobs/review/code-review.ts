@@ -30,16 +30,7 @@ import { shouldAutoReview } from "./should-auto-review.js";
 import { loreTaskRef } from "../task/issue-body.js";
 import { reviewSubject } from "@re-cinq/lore-shared/project/assembly-runs/subject-keys.js";
 
-/** The definitions THIS choreography owns. A PR's close ends these and nothing
- *  else: other lines may carry the same `pr_number` without having asked to be
- *  ended by it — a feature-planning line parks on `merged` waiting for exactly the
- *  event that used to kill it. */
-const REVIEW_DEFINITIONS = [
-  "code-review",
-  "code-review-recheck",
-  "code-review-reply",
-  "comment-triage",
-] as const;
+import { REVIEW_DEFINITIONS } from "@re-cinq/lore-shared/review/review-definitions.js";
 
 /** A GitHub App / bot login ends with `[bot]`; only human actors drive the review. */
 export function isBotActor(login: string): boolean {
