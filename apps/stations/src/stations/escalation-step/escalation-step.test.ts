@@ -95,3 +95,43 @@ describe("runEscalationStep — notify", () => {
     });
   });
 });
+
+describe("filing the issue survives a transient refusal", () => {
+  it("retries and succeeds, so a 503 does not degrade a real escalation to audit-only", async () => {
+    // The function this replaced retried three times (1s/4s). Without it, one
+    // blip from GitHub sends the human a Slack line instead of the Issue —
+    // silently, because audit_only is a legitimate outcome and looks like one.
+    let attempts = 0;
+
+    const result = await runEscalationStep(
+      "file-issue",
+      "t-1",
+      deps({
+        createIssue: async () => {
+          attempts++;
+
+          return attempts < 3
+            ? Promise.reject(new Error("503 upstream"))
+            : Promise.resolve({ number: 7, url: "https://gh/o/r/issues/7" });
+        },
+        retry: { attempts: 5, delayMs: 1 },
+      }),
+    );
+
+    expect(attempts).toBe(3);
+    expect(result.outcome).toBe("success");
+  });
+
+  it("gives up after the last attempt, so the line still reaches notify", async () => {
+    const result = await runEscalationStep(
+      "file-issue",
+      "t-1",
+      deps({
+        createIssue: async () => Promise.reject(new Error("503 upstream")),
+        retry: { attempts: 2, delayMs: 1 },
+      }),
+    );
+
+    expect(result.outcome).toBe("failed");
+  });
+});

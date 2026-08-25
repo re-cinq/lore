@@ -705,7 +705,10 @@ async function handleSucceededChanges(ctx: AgentContext): Promise<void> {
       await startEscalationLine(
         { id: taskId, repo: targetRepo, branch },
         {
-          reason: "supervisor_panic",
+          // The reason computed twelve lines up, not a generic panic: the Issue
+          // title carries this to a human, and "the supervisor panicked" sends
+          // them hunting a crash when the agent simply produced no commits.
+          reason: isNoCommits ? "no_code_changes" : "pr_already_exists",
           diagnostic: `createPR failed: ${reason}. ${msg.substring(0, 500)}`,
         },
         {

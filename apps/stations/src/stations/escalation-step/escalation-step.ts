@@ -27,7 +27,11 @@ export interface EscalationStepDeps {
     body: string,
   ): Promise<{ number: number; url?: string }>;
   writeAudit(entry: Record<string, unknown>): Promise<void>;
-  notify(message: string, channel: string): Promise<void>;
+  /** Send at the escalation level. No channel argument: there is one level this
+   *  station ever sends at, and the sole implementation ignored the parameter. */
+  notify(message: string): Promise<void>;
+  /** How hard to try the Issue before degrading to audit-only. */
+  retry?: { attempts: number; delayMs: number };
   /** The line's args, carrying what earlier steps produced. */
   params?: Record<string, string>;
 }
@@ -44,25 +48,39 @@ async function fileIssue(
 ): Promise<NodeResult> {
   const title = `[lore] needs-human-help: ${input.reason} on ${input.branchName}`;
 
-  try {
-    const issue = await deps.createIssue(
-      input.repo,
-      title,
-      renderEscalationBody(input),
-    );
+  const { attempts, delayMs } = deps.retry ?? { attempts: 3, delayMs: 1000 };
+  let lastError = "";
 
-    return {
-      outcome: "success",
-      // Carried in extras so `notify` can name the Issue. Absent is the signal
-      // that the Issue surface failed, which is what selects the audit-only text.
-      extras: {
-        issue_url: issue.url ?? "",
-        issue_number: String(issue.number),
-      },
-    };
-  } catch (err) {
-    return failed(`could not open the issue: ${(err as Error).message}`);
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    try {
+      const issue = await deps.createIssue(
+        input.repo,
+        title,
+        renderEscalationBody(input),
+      );
+
+      return {
+        outcome: "success",
+        // Carried in extras so `notify` can name the Issue. Absent is the signal
+        // that the Issue surface failed, which is what selects the audit-only text.
+        extras: {
+          issue_url: issue.url ?? "",
+          issue_number: String(issue.number),
+        },
+      };
+    } catch (err) {
+      // Retried rather than degraded on the first refusal. Falling through to
+      // audit_only is a legitimate outcome and LOOKS like one, so a single blip
+      // from GitHub would quietly turn a real escalation into a Slack line.
+      lastError = (err as Error).message;
+
+      if (attempt < attempts) {
+        await new Promise((resolve) => setTimeout(resolve, delayMs * attempt));
+      }
+    }
   }
+
+  return failed(`could not open the issue: ${lastError}`);
 }
 
 async function notify(
@@ -89,7 +107,6 @@ async function notify(
       ? `🚨 Lore needs human help (${input.reason}) — ${issueUrl}`
       : // No Issue to point at, so the message carries the diagnostic itself.
         `🚨 Lore needs human help (${input.reason}) on ${input.branchName}\n\n${input.diagnostic ?? ""}`,
-    "escalation",
   );
 
   return { outcome: "success" };

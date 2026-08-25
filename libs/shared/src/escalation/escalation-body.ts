@@ -11,11 +11,20 @@
  * the body, and whatever decides to escalate builds the input.
  */
 
+/**
+ * Why a human is being asked for. It reaches them in the Issue title, so it has
+ * to be the actual cause — "supervisor_panic" on a run that simply produced no
+ * commits sends someone looking for a crash that did not happen.
+ */
 export type EscalationReason =
   | "validation_failed_twice"
   | "bot_review_failed_parse"
   | "supervisor_panic"
-  | "iteration_max_exceeded";
+  | "iteration_max_exceeded"
+  /** The agent finished cleanly and changed nothing. */
+  | "no_code_changes"
+  /** A PR for this branch was already open, so the run had nowhere to land. */
+  | "pr_already_exists";
 
 export interface ContributingRef {
   type: "fact" | "memory";

@@ -67,7 +67,7 @@ export async function runEscalationStepNode(
     // Best-effort, but REAL: the audit entry above is the durable record and a
     // Slack outage must not fail the step, so the send is caught — but a station
     // whose whole job is telling a human must actually try.
-    notify: async (message) => {
+    notify: async (message: string) => {
       await (
         await projectFor(input.repo)
       ).notify
