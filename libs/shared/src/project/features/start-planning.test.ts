@@ -2,7 +2,9 @@ import { describe, it, expect } from "vitest";
 import { planningTaskArgs, startFeaturePlanning } from "./start-planning.js";
 import type { StartPlanningDeps } from "./start-planning.js";
 
-function deps(over: Partial<StartPlanningDeps> = {}): StartPlanningDeps {
+function deps(
+  over: Partial<StartPlanningDeps> = {},
+): StartPlanningDeps & { order: string[] } {
   const order: string[] = [];
 
   return {
@@ -26,7 +28,7 @@ function deps(over: Partial<StartPlanningDeps> = {}): StartPlanningDeps {
       order.push("attach");
     },
     ...over,
-  } as StartPlanningDeps & { order: string[] };
+  };
 }
 
 describe("planningTaskArgs", () => {
@@ -65,7 +67,7 @@ describe("planningTaskArgs", () => {
 
 describe("startFeaturePlanning", () => {
   it("appends the round BEFORE kicking it, so the task names an iteration that exists", async () => {
-    const d = deps() as StartPlanningDeps & { order: string[] };
+    const d = deps();
 
     await startFeaturePlanning(
       { repo: "o/r", title: "A feature", prompt: "make it good" },
@@ -89,7 +91,7 @@ describe("startFeaturePlanning", () => {
       createPlanningTask: async () => {
         throw new Error("queue is down");
       },
-    }) as StartPlanningDeps & { order: string[] };
+    });
 
     await expect(
       startFeaturePlanning(
