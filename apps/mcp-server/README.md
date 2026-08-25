@@ -45,7 +45,9 @@ the returned `mcp-session-id` header), `GET`/`DELETE /mcp` (stream / close a
 session), and `GET /healthz`. **Hardening:** bearer auth on every `/mcp`
 request; request bodies capped at 1 MB (`413` over the cap); malformed JSON →
 `400`; the per-session server map is bounded (oldest evicted) so a dropped
-connection can't leak it.
+connection can't leak it. The gateway also serves the (unauthenticated)
+agent-skills registry at `/skills/*` (`src/server/skills-registry.ts`) — not
+part of MCP; the ai-agent-subsystem init fetches it.
 
 Run it locally:
 
@@ -96,7 +98,8 @@ npm test  -w @re-cinq/lore-mcp     # unit tests (vitest)
 
 Depends on `@re-cinq/lore-shared` — build it first, or use the root
 `npm run build`. For the full local stack run `npm start` from the repo root;
-the MCP server then listens on `:3001`.
+the MCP HTTP gateway then listens on `:3002` (`:3001` is `lore-api`, the
+backend it proxies to).
 
 ## Deploy
 
