@@ -147,3 +147,46 @@ describe("forEachAgentPage", () => {
     expect(resourceVersion).toBeUndefined();
   });
 });
+
+describe("reportForAgent over a network", () => {
+  const succeeded = {
+    metadata: { name: "a-1", labels: { "lore.re-cinq.com/task-id": "t-1" } },
+    status: { phase: "Succeeded" },
+  } as never;
+
+  it("retries a failed insert, since the report now crosses a network", async () => {
+    // The insert used to be a write on this process's own pool. It is now an
+    // HTTP POST to the event-router, so a blip is expected rather than
+    // exceptional — and a dropped terminal event leaves its node open until the
+    // reaper, which is the failure the event bus exists to remove.
+    let attempts = 0;
+
+    await reportForAgent(succeeded, {
+      insert: async () => {
+        attempts++;
+
+        return attempts < 3
+          ? Promise.reject(new Error("ECONNREFUSED"))
+          : Promise.resolve();
+      },
+      retry: { attempts: 5, delayMs: 1 },
+    });
+
+    expect(attempts).toBe(3);
+  });
+
+  it("gives up after the last attempt without throwing, so one bad report cannot stop the watch", async () => {
+    let attempts = 0;
+
+    await reportForAgent(succeeded, {
+      insert: async () => {
+        attempts++;
+
+        return Promise.reject(new Error("ECONNREFUSED"));
+      },
+      retry: { attempts: 2, delayMs: 1 },
+    });
+
+    expect(attempts).toBe(2);
+  });
+});

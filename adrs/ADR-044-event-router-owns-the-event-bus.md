@@ -90,17 +90,39 @@ ADR-024 pins to it and reaches every byte of its data over HTTP.
 
 ### The watch reports what it observes
 
-- A terminal Agent CR becomes its kubernetes event. ([validated by reports a terminal Agent CR as its kubernetes event](apps/event-router/src/listeners/agent-reporting.test.ts#L44))
+**Amendment (2026-08-25): the watch moved to cluster-agent.** This ADR recorded
+the router as the process holding it, which put a Kubernetes client in two
+places and contradicted the standing invariant that cluster-agent is the only
+one. The exception looked justified — a WATCH is reachable only from inside its
+own cluster — but that is the argument for the move, not against it: the process
+inside the cluster IS cluster-agent. The decisive consequence is scale. A router
+that watches directly can only ever watch the cluster it runs in; one
+cluster-agent per cluster, each reporting terminal phases inward over HTTP, is
+what allows more than one execution cluster. The router keeps its place as the
+sole WRITER of `pipeline.events` — cluster-agent reports through the same
+`POST /api/events` front door every other producer uses, so nothing about this
+boundary changes except who opens the connection.
+
+A report is now a network call rather than a write on the reporting process's own
+pool, so it retries before giving up. Every event `mapAgentToEvent` produces
+carries a `dedupeKey`, which is what makes repeating one safe.
+
+- A terminal Agent CR becomes its kubernetes event. ([validated by reports a terminal Agent CR as its kubernetes event](apps/cluster-agent/src/listeners/agent-reporting.test.ts#L44))
 - A CR that has not reached a terminal phase reports nothing, so the repeated
   MODIFIED notifications a running pod generates cost one map and no row.
-  ([validated by reports nothing for a CR that has not reached a terminal phase](apps/event-router/src/listeners/agent-reporting.test.ts#L65))
+  ([validated by reports nothing for a CR that has not reached a terminal phase](apps/cluster-agent/src/listeners/agent-reporting.test.ts#L65))
 - A failed report is swallowed here, unlike everywhere else this repo reports
   events: the caller is a watch callback with nobody to return a status to, so
   throwing would end the stream over one CR, and the Floor's reconcile pass
-  re-emits what was missed. ([validated by swallows a failed report so one bad CR cannot end the watch](apps/event-router/src/listeners/agent-reporting.test.ts#L79))
+  re-emits what was missed. ([validated by swallows a failed report so one bad CR cannot end the watch](apps/cluster-agent/src/listeners/agent-reporting.test.ts#L79))
+- A report retries before it is given up on, because it now crosses a network
+  rather than writing to this process's own pool — and a dropped terminal event
+  leaves its node open until the reaper, which is the failure the bus exists to
+  remove. Repeating one is safe: every event `mapAgentToEvent` produces carries a
+  `dedupeKey`. ([validated by retries a failed insert, since the report now crosses a network](apps/cluster-agent/src/listeners/agent-reporting.test.ts#L157), [`agent-reporting.test.ts:178`](apps/cluster-agent/src/listeners/agent-reporting.test.ts#L178))
 - The catch-up pass walks the namespace one page at a time. 180 accumulated CRs
   in a single unpaginated LIST blew Node's heap and crash-looped the Floor on
-  2026-07-24. ([validated by walks every page rather than holding the namespace at once](apps/event-router/src/listeners/agent-reporting.test.ts#L99), [`agent-reporting.test.ts:119`](apps/event-router/src/listeners/agent-reporting.test.ts#L119), [`agent-reporting.test.ts:144`](apps/event-router/src/listeners/agent-reporting.test.ts#L144))
+  2026-07-24. ([validated by walks every page rather than holding the namespace at once](apps/cluster-agent/src/listeners/agent-reporting.test.ts#L99), [`agent-reporting.test.ts:119`](apps/cluster-agent/src/listeners/agent-reporting.test.ts#L119), [`agent-reporting.test.ts:144`](apps/cluster-agent/src/listeners/agent-reporting.test.ts#L144))
 
 ### The router serves the drain loop
 

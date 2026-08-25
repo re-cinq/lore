@@ -5,9 +5,7 @@
  */
 
 import { initPool, getPool } from "@re-cinq/lore-shared/db/pg-pool.js";
-import { pipeline } from "./kernel/queues.js";
 import { startServer } from "./delivery/server.js";
-import { startK8sWatch } from "./listeners/k8s-watch.js";
 
 const PORT = parseInt(process.env.PORT ?? "8080", 10);
 
@@ -15,8 +13,6 @@ async function main(): Promise<void> {
   initPool();
 
   const stopServer = await startServer(PORT);
-
-  startK8sWatch({ insert: (event) => pipeline().eventQueue.insert(event) });
 
   // One owner for the lifecycle: the server registers no handler of its own, so
   // a shutdown that stops serving but never exits cannot happen here.
