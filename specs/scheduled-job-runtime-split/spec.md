@@ -233,9 +233,16 @@ VALUES ('cron.spec_drift.tick', 'cron', '{"repo":"re-cinq/lore"}');
   `issues`, human stations) and none of them is "do a data operation". A
   one-node line for a single `DELETE` would put a station pod and a Floor walk
   between the alarm and one statement, so the courier posts
-  `POST /api/maintenance/<job>` instead and lore-api runs it next to the
+  `POST /api/stations/<name>` instead and the station runs it next to the
   database it writes. Work with steps still starts a line — only the courier's
   path differs.
+
+  *(Amended 2026-08-25.)* That endpoint was `POST /api/maintenance/<job>` on
+  lore-api, which meant lore-api resolved the station registry and executed
+  another app's handlers to serve it. The stations service already answers
+  `POST /api/stations/<name>` for the very same modules, so the route was
+  redundant rather than misplaced: it is deleted, and the courier — and its
+  schedule — moved to the chart of the service that does the work.
 - **FR9.1 — The endpoint runs the job named in the path and returns its
   summary.** `200` with `{ job, summary }`, the summary being the one-line
   string that was `pipeline.job_runs.result_summary`. An unknown job name is
