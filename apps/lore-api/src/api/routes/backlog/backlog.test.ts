@@ -242,6 +242,9 @@ describe("/api/repos/{owner}/{repo}/implementation-loop", () => {
     pool.query
       .mockResolvedValueOnce({ rows: [{ full_name: "re-cinq/lore" }] })
       .mockResolvedValue({ rows: [] });
+    vi.mocked(projectFor).mockResolvedValue({
+      issues: { createLabels: async () => {} },
+    } as never);
 
     const res = await put({ enabled: true }, pool);
 
@@ -252,6 +255,61 @@ describe("/api/repos/{owner}/{repo}/implementation-loop", () => {
     );
 
     expect(String(update?.[0])).toContain("implementation_loop");
+  });
+
+  it("enabling seeds the priority and lore:blocked labels on the repo", async () => {
+    const pool = makePool();
+
+    pool.query
+      .mockResolvedValueOnce({ rows: [{ full_name: "re-cinq/lore" }] })
+      .mockResolvedValue({ rows: [] });
+    const seeded: Array<{ name: string }> = [];
+
+    vi.mocked(projectFor).mockResolvedValue({
+      issues: {
+        createLabels: async (labels: Array<{ name: string }>) => {
+          seeded.push(...labels);
+        },
+      },
+    } as never);
+
+    const res = await put({ enabled: true }, pool);
+
+    expect(res.statusCode).toBe(200);
+    expect(seeded.map((l) => l.name)).toEqual([
+      "priority:high",
+      "priority:medium",
+      "priority:low",
+      "lore:blocked",
+    ]);
+  });
+
+  it("disabling seeds nothing", async () => {
+    const pool = makePool();
+
+    pool.query
+      .mockResolvedValueOnce({ rows: [{ full_name: "re-cinq/lore" }] })
+      .mockResolvedValue({ rows: [] });
+
+    const res = await put({ enabled: false }, pool);
+
+    expect(res.statusCode).toBe(200);
+    expect(JSON.parse(res.payload)).toEqual({ ok: true, enabled: false });
+    expect(projectFor).not.toHaveBeenCalled();
+  });
+
+  it("a label-seeding failure does not fail the toggle write", async () => {
+    const pool = makePool();
+
+    pool.query
+      .mockResolvedValueOnce({ rows: [{ full_name: "re-cinq/lore" }] })
+      .mockResolvedValue({ rows: [] });
+    vi.mocked(projectFor).mockRejectedValue(new Error("github down"));
+
+    const res = await put({ enabled: true }, pool);
+
+    expect(res.statusCode).toBe(200);
+    expect(JSON.parse(res.payload)).toEqual({ ok: true, enabled: true });
   });
 
   it("PUT rejects a payload without a boolean enabled", async () => {
