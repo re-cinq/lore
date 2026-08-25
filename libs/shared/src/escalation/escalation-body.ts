@@ -11,14 +11,6 @@
  * the body, and whatever decides to escalate builds the input.
  */
 
-export interface IssueCreator {
-  create(
-    title: string,
-    body: string,
-    labels?: string[],
-  ): Promise<{ number: number; url?: string }>;
-}
-
 export type EscalationReason =
   | "validation_failed_twice"
   | "bot_review_failed_parse"
@@ -45,39 +37,16 @@ export interface EscalateInput {
    * failing test output). Inlined into the Issue body verbatim.
    */
   failingPhaseOutput?: string;
-  /** Issue-creation surface — defaults to the Project facade for `repo`. */
-  issues?: IssueCreator;
-  /**
-   * Slack-style notifier. Wired by the caller to whatever notification
-   * surface is configured. Called with `level=escalation`. Receives the
-   * full body when Issue creation degraded to audit_only.
-   */
-  notify?: (msg: string, level: "escalation") => Promise<void> | void;
 }
-
-export type EscalateOutcome = "issue_created" | "audit_only";
-
-export interface EscalateResult {
-  outcome: EscalateOutcome;
-  issueNumber?: number;
-  issueUrl?: string;
-}
-
-// Two retries after the initial call (3 attempts total, ~5s tail). The supervisor
-// lease is held while we wait, and the audit_only fallback already preserves the
-// diagnostic in Slack — a longer tail doesn't buy reliability proportional to the
-// lease-hold cost.
 
 /**
- * Escalate a stuck task to humans. Per FR3.8 + research R3:
- *  1. Compose a structured Issue body with branch link, diagnostic,
- *     failing phase output, and contributing refs.
- *  2. Try to open a GitHub Issue (3 attempts, backoff 1s/4s).
- *  3. On success: write `escalation_issued` audit entry naming the
- *     issue; fire a Slack-equivalent notification.
- *  4. On final failure: write the audit entry with `outcome:
- *     audit_only` and inline the full body into the Slack
- *     notification (so a human still sees the diagnostic somewhere).
+ * The Issue body a human reads: branch link, commit log, diagnostic, the failing
+ * phase output when there is one, and the facts and memories that fed the
+ * attempt. Per FR3.8.
+ *
+ * Pure. Which surfaces this reaches — the Issue, the audit log, the notification
+ * channels — is the escalation LINE's business, and the ports that were once
+ * fields on this input are now that station's deps.
  */
 export function renderEscalationBody(input: EscalateInput): string {
   const lines: string[] = [

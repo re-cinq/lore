@@ -11,7 +11,6 @@ import type { StationInput } from "@re-cinq/lore-shared/station-input.js";
 import type { EscalateInput } from "@re-cinq/lore-shared/escalation/escalation-body.js";
 import { runEscalationStep } from "./escalation-step.js";
 import { projectFor } from "../../kernel/project-boot.js";
-import { taskStore } from "../../kernel/queues.js";
 
 /**
  * Everything the diagnostic is rendered from, read once per step.
@@ -24,8 +23,6 @@ function escalationInputFrom(
   input: StationInput,
 ): (taskId: string) => Promise<EscalateInput> {
   return async (taskId) => {
-    const row = await taskStore().getById(taskId);
-
     return {
       taskId,
       repo: input.repo,
@@ -35,7 +32,6 @@ function escalationInputFrom(
       reason: (input.params.reason ??
         "supervisor_panic") as EscalateInput["reason"],
       diagnostic: input.params.diagnostic ?? "",
-      taskDescription: row?.description ?? undefined,
       contributingRefs: [],
     };
   };
@@ -68,10 +64,21 @@ export async function runEscalationStepNode(
     writeAudit: async (entry) => {
       await (await projectFor(input.repo)).audit.write(entry as never);
     },
-    // Notification is best-effort by design: the audit entry above is the
-    // durable record, and a Slack outage must not fail the step that carries
-    // the diagnostic.
-    notify: async () => {},
+    // Best-effort, but REAL: the audit entry above is the durable record and a
+    // Slack outage must not fail the step, so the send is caught — but a station
+    // whose whole job is telling a human must actually try.
+    notify: async (message) => {
+      await (
+        await projectFor(input.repo)
+      ).notify
+        .notify("escalation", message)
+        .catch((err: Error) =>
+          console.warn(
+            `[escalation] notify failed for ${input.repo}:`,
+            err.message,
+          ),
+        );
+    },
     params: input.params,
   });
 }

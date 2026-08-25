@@ -4,8 +4,6 @@
 
 Read it top to bottom for the full picture, or jump to the section you're touching.
 
-<p align="center"><img src="../../badges/architecture.svg" width="680" alt="Architecture overview" /></p>
-
 ---
 
 ## System topology
@@ -14,57 +12,7 @@ How the pieces connect at runtime. The local MCP server proxies every operation 
 
 Two boundaries are load-bearing and enforced by credentials rather than convention. **`event-router` is the only writer of `pipeline.events`** ([ADR-044](../../adrs/ADR-044-event-router-owns-the-event-bus.md)): every producer reports to its one front door, and the Floor claims work back over HTTP. **`cluster-agent` is the only process that talks to this cluster's Kubernetes API** — the Floor holds no Kubernetes client at all, and reaches dispatch, pod logs, and per-task tokens through it.
 
-```mermaid
-flowchart TB
-    subgraph local["Developer machine"]
-        CC["Claude Code"]
-        MCPL["Lore MCP server<br/>(stdio, local)"]
-        LR["Local task runner<br/>(worktrees, background Claude Code)"]
-        CC <-->|"MCP protocol"| MCPL
-        MCPL -.->|"spawns"| LR
-    end
-
-    subgraph gke["GKE cluster"]
-        MCP["Lore API<br/>(REST, /api/*)"]
-        GW["lore-mcp gateway<br/>(MCP over HTTP, for agent pods)"]
-        ER["event-router<br/>sole writer of pipeline.events"]
-        AGENT["Floor<br/>drain loop + walk + dispatch + SSE"]
-        CA["cluster-agent<br/>the only k8s client"]
-        ST["stations<br/>POST /api/stations/{name}"]
-        CTRL["agent-controller<br/>(ai-agent-subsystem, ai-agents ns)"]
-        POD["Agent CR pods<br/>(one per assembly-line node)"]
-        UI["Web UI (Next.js)"]
-        DB[("PostgreSQL + pgvector<br/>chunks · memory · pipeline")]
-    end
-
-    subgraph github["GitHub"]
-        GH["Repos · PRs · Issues"]
-        GHA["Actions:<br/>lore-ingest.yml · lore-tests.yml"]
-    end
-
-    SLACK["Slack /lore"]
-
-    MCPL -->|"proxy all ops (LORE_API_URL)"| MCP
-    GHA -->|"POST /api/ingest (changed files)"| MCP
-    GH -->|"webhooks: PR · review · comment"| ER
-    SLACK -->|"slash command"| MCP
-    MCP -->|"read / write"| DB
-    MCP -->|"report internal.ingest.*"| ER
-    UI -->|"typed clients, no pool"| MCP
-    ER -->|"owns the table"| DB
-    ER -->|"watches Agent CRs"| CTRL
-    AGENT -->|"claim / ack over HTTP"| ER
-    AGENT -->|"poll pending tasks"| DB
-    AGENT -->|"run a service station"| ST
-    ST --> DB
-    AGENT -->|"dispatch: create CR"| CA
-    CA -->|"create / list / delete CR · pod logs"| CTRL
-    CTRL -->|"spawn"| POD
-    POD -->|"live MCP (scoped)"| GW
-    POD -->|"stream NDJSON telemetry"| AGENT
-    POD -->|"commit + push"| GH
-    AGENT -->|"open PR (GitHub App)"| GH
-```
+<p align="center"><img src="../../badges/architecture.svg" width="720" alt="System topology: developer machine, the nine GKE services, GitHub and Slack" /></p>
 
 > **Webhook cutover, in progress.** The event-router's public ingress serves `/api/events` and is standing, but `LORE_WEBHOOK_URL` still points onboarded repos at the Floor's `/api/webhook/github`. Either door is correct today — the Floor's route no longer writes to the database, it reports through the router like every other producer — and the repos get re-pointed before that route is deleted. Reversing that order would drop deliveries.
 
