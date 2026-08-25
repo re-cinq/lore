@@ -107,7 +107,7 @@ A fourth gap sits underneath the "wait until the PR has no outstanding comments"
 - Each ticket entry carries the issue number, issue URL, title, priority, PR URL when one exists, and its state. ([validated by ticket entry shape](../../apps/lore-api/src/api/routes/backlog/backlog.test.ts#L66))
 - A write endpoint sets the toggle under the admin bearer scope. ([validated by PUT flips the toggle](../../apps/lore-api/src/api/routes/backlog/backlog.test.ts#L204), [validated by non-boolean rejected](../../apps/lore-api/src/api/routes/backlog/backlog.test.ts#L222))
 - Both endpoints declare zod request and response contracts so the generated OpenAPI document and the web-ui types stay in step; the committed `openapi.json` and `schema.d.ts` are regenerated with the change.
-- The web-ui client aliases the generated component schema rather than re-declaring the response shape by hand.
+- The web-ui client aliases the generated component schema rather than re-declaring the response shape by hand, and speaks to the two endpoints through the shared `apiFetch`. ([validated by GET path](../../apps/web-ui/src/lib/api/backlog.test.ts#L28), [validated by PUT body](../../apps/web-ui/src/lib/api/backlog.test.ts#L38))
 
 ## Alternatives Rejected
 
