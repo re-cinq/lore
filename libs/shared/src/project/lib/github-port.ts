@@ -15,6 +15,9 @@ export interface IssueRef {
   state: IssueState;
   labels: string[];
   url?: string;
+  /** ISO timestamp — the backlog picker's tie-break. Optional: only the
+   *  octokit adapter populates it. */
+  createdAt?: string;
 }
 
 export interface IssueFilter {

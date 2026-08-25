@@ -132,3 +132,28 @@ describe("handleOnboard", () => {
     );
   });
 });
+
+describe("handleOnboard backlog label seeding", () => {
+  it("seeds the priority taxonomy and lore:blocked alongside the dispatch labels", async () => {
+    await handleOnboard(
+      { id: "task-1" } as unknown as PipelineTask,
+      "re-cinq/app",
+      "lore/onboard",
+      undefined,
+      null,
+    );
+
+    const seeded = fakeIssues.createLabels.mock.calls.flat(2) as Array<{
+      name: string;
+    }>;
+
+    expect(seeded.map((l) => l.name)).toEqual(
+      expect.arrayContaining([
+        "priority:high",
+        "priority:medium",
+        "priority:low",
+        "lore:blocked",
+      ]),
+    );
+  });
+});

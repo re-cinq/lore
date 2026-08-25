@@ -75,6 +75,7 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
         labels: i.labels
           .map((l) => (typeof l === "string" ? l : (l.name ?? "")))
           .filter(Boolean),
+        createdAt: i.created_at,
       }));
   }
 
