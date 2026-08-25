@@ -263,7 +263,7 @@ export function registerPipelineTools(server: McpServer) {
 
   server.tool(
     "lore_get_pipeline_status",
-    "Returns one pipeline task's full record (status + ordered event timeline) as JSON, by UUID. Instead: lore_list_pipeline_tasks for a multi-task listing; lore_get_pr_status for the live GitHub PR/CI verdict; lore_get_task_logs for raw log bytes; lore_list_task_group for a group rollup.",
+    "Returns one pipeline task's full record (status + ordered event timeline) as JSON, by UUID. Instead: lore_list_pipeline_tasks for a multi-task listing; lore_get_pr_status for the live GitHub PR/CI verdict; lore_get_task_logs for the execution transcript; lore_list_task_group for a group rollup.",
     {
       task_id: z.string(),
     },
@@ -669,14 +669,14 @@ export function registerPipelineTools(server: McpServer) {
 
   server.tool(
     "lore_get_task_logs",
-    "Fetches raw execution output for one pipeline task (by UUID), returning {logs, next_offset, complete, cursor?}. Pass next_offset back as offset (and cursor back verbatim, when present) to poll incrementally. Instead: lore_get_job_logs (job_name + run_id) for scheduled CronJob run logs.",
+    "Fetches one pipeline task's execution transcript (by UUID), returning {logs, next_offset, complete, cursor?}. Tasks with recorded agent turns return NDJSON — one {source, event} stream-json envelope per line from the turn store; tasks with no recorded turns fall back to the raw captured output. Responses may be capped: pass next_offset back as offset (and cursor back verbatim, when present) and poll until complete is true. Instead: lore_get_job_logs (job_name + run_id) for scheduled CronJob run logs.",
     {
       task_id: z.string(),
       offset: z
         .number()
         .default(0)
         .describe(
-          "Byte offset to start reading from; pass previous next_offset to poll incrementally.",
+          "UTF-16 code-unit offset (not bytes) into the flattened transcript; pass previous next_offset to poll incrementally.",
         ),
       cursor: z
         .string()
@@ -687,7 +687,7 @@ export function registerPipelineTools(server: McpServer) {
     },
     async ({ task_id, offset, cursor }) => {
       try {
-        // Logs live server-side in GCS; proxy the read. The API resolves the
+        // Logs live server-side (turn store, GCS fallback); proxy the read. The API resolves the
         // task's repo from task_id — the local adapter holds no DB to look it up,
         // so calling getTask() here would throw "Pipeline database not configured".
         const apiUrl = process.env.LORE_API_URL;

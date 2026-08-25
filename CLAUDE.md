@@ -589,9 +589,9 @@ repo-specific configuration from polluting other repos.
 `/api/webhook/incident` for PagerDuty/Opsgenie) surfaces recent
 incidents in `lore_assemble_context` at priority 1.
 
-**Developer tools**: `lore_get_task_logs` MCP tool reads task logs from
-GCS (no UI needed). `lore_my_usage` shows per-developer token usage
-(today/7-day/30-day).
+**Developer tools**: `lore_get_task_logs` MCP tool reads a task's
+execution transcript (no UI needed). `lore_my_usage` shows per-developer
+token usage (today/7-day/30-day).
 
 **Autonomous review loop** (opt-in per repo via `auto_review` setting):
 - After implementation PR is created, watcher auto-creates a review

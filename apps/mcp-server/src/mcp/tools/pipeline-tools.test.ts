@@ -7,7 +7,7 @@ import {
   afterEach,
   vi,
 } from "vitest";
-import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { z, type ZodTypeAny } from "zod";
@@ -459,5 +459,31 @@ describe("pipeline tools that proxy to lore-api", () => {
       texts.every((t) => t.includes("Lore API not configured")),
     );
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("lore_get_task_logs description spec parity", () => {
+  it("matches the spec's verbatim description block", async () => {
+    const captured: Record<string, string> = {};
+    const { registerPipelineTools } = await import("./pipeline-tools.js");
+
+    registerPipelineTools({
+      tool(name: string, desc: string) {
+        captured[name] = desc;
+      },
+    } as never);
+    const spec = readFileSync(
+      new URL(
+        "../../../../../specs/mcp-tools/get-task-logs/spec.md",
+        import.meta.url,
+      ),
+      "utf-8",
+    );
+    const verbatimBlock =
+      /\*\*description\*\* \(verbatim\):\n\n```text\n([\s\S]*?)\n```/.exec(
+        spec,
+      )?.[1] ?? "";
+
+    expect(captured["lore_get_task_logs"]).toBe(verbatimBlock);
   });
 });

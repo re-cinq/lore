@@ -70,7 +70,7 @@ tool's spec + this section together are sufficient to recreate the handler.
 | `lore_retry_task` | [spec](retry-task/spec.md) | Retry a failed task. | shared |
 | `lore_list_task_group` | [spec](list-task-group/spec.md) | List tasks in a multi-repo group. | shared |
 | `lore_get_pr_status` | [spec](get-pr-status/spec.md) | Computed PR status for a task. | shared |
-| `lore_get_task_logs` | [spec](get-task-logs/spec.md) | Read a task's logs from GCS. | shared |
+| `lore_get_task_logs` | [spec](get-task-logs/spec.md) | Read a task's execution transcript. | shared |
 | `lore_get_job_logs` | [spec](get-job-logs/spec.md) | Read a job run's logs from GCS. | shared |
 | `lore_sync_tasks` | [spec](sync-tasks/spec.md) | Sync task state into the DB. | shared |
 | `lore_ready_tasks` | [spec](ready-tasks/spec.md) | List tasks ready to run. | shared |

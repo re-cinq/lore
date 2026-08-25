@@ -68,7 +68,7 @@ Hand a job to Lore's background agents; they open a pull request for review.
 | `lore_get_pipeline_status` | Checks how a job is going. | ☁️ Cloud | |
 | `lore_list_pipeline_tasks` | Lists recent jobs. | ☁️ Cloud | |
 | `lore_list_pending_tasks` | Shows jobs waiting to be picked up. | ☁️ Cloud | |
-| `lore_get_task_logs` | Reads a job's output log. | ☁️ Cloud | ⚡ Cached (once the job finishes) |
+| `lore_get_task_logs` | Reads a task's execution transcript. | ☁️ Cloud | ⚡ Cached (once the task finishes) |
 | `lore_get_job_logs` | Reads a scheduled background job's log. | ☁️ Cloud | ⚡ Cached |
 | `lore_get_pr_status` | Checks a pull request's status on GitHub. | ☁️ GitHub | |
 | `lore_cancel_task` / `lore_retry_task` | Stops or retries a job. | ☁️ Cloud (service-side) | |
