@@ -8,6 +8,7 @@
 import { describe, it, expect } from "vitest";
 import { readdirSync } from "node:fs";
 import { NODE_TYPES } from "@re-cinq/lore-assembly-lines";
+import { HUMAN_STATION_TYPES } from "@re-cinq/lore-assembly-lines";
 import { STATIONS, STATION_NAMES } from "./registry.js";
 import { nodeTriggers, isNodeModule } from "./lib/station.js";
 
@@ -154,5 +155,34 @@ describe("what may run in the pooled service", () => {
       .sort();
 
     expect(cloning).toEqual(["ingest", "validate"]);
+  });
+});
+
+describe("human stations are registered like any other", () => {
+  it("declares a manifest for every human station type the loader knows", () => {
+    // HUMAN_STATION_TYPES lives in libs/assembly-lines, which cannot import this
+    // app — so the two are a parallel list, and this is what stops them drifting.
+    // A human station missing here is the quietest gap there is: the run parks
+    // on it and nothing tells anyone whose move it is.
+    const declared = new Set(
+      Object.values(STATIONS).flatMap((mod) =>
+        mod.manifest.triggers
+          .filter((t) => t.kind === "human")
+          .map((t) => t.nodeType),
+      ),
+    );
+
+    expect([...HUMAN_STATION_TYPES].filter((t) => !declared.has(t))).toEqual(
+      [],
+    );
+  });
+
+  it("gives a human station no run, because its worker is a person", () => {
+    const humans = Object.values(STATIONS).filter((mod) =>
+      mod.manifest.triggers.some((t) => t.kind === "human"),
+    );
+
+    expect(humans.length).toBeGreaterThan(0);
+    expect(humans.filter((mod) => "run" in mod)).toEqual([]);
   });
 });
