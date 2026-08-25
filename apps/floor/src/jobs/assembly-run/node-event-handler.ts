@@ -245,6 +245,11 @@ export async function productionNodeEventDeps(): Promise<NodeEventDeps> {
     cleanupToken: cleanupPerTaskToken,
     jobRuns: pipeline().jobRuns,
     notifyFailure: notifyLineFailure,
+    onRunClosed: async (run, outcome, reason) => {
+      const { loopRunClosed } = await import("../backlog/loop-run-closed.js");
+
+      await loopRunClosed(run, outcome, reason);
+    },
     // Publish a service-form node for the pooled stations service to claim,
     // rather than giving a DB write or an HTTP POST a pod of its own.
     publishNode: (event) =>

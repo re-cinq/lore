@@ -70,6 +70,14 @@ export interface AdvanceDeps {
   /** Dispatch one node's Agent CR (agentCrBackend().launch — 409 is a no-op). */
   launch: (spec: LoreTaskSpec) => Promise<void>;
   resolvePrompt: (promptRef: string, description: string) => string;
+  /** Post-close hook for choreography that re-arms on a run's terminal state
+   *  (the implementation loop's driver). Winning finisher only, best-effort —
+   *  a throw here never un-finishes the run. Optional seam like notifyFailure. */
+  onRunClosed?(
+    run: AssemblyRunRecord,
+    outcome: string,
+    reason?: string,
+  ): Promise<void>;
   /** Reclaim the run's per-task token once the line is terminal. */
   cleanupToken: (runTaskId: string) => Promise<void>;
   /**
@@ -421,6 +429,14 @@ export async function finishLine(
   // post-completion path returns early for node CRs, so nobody else ever closes it.
   if (closedNow && deps.settleTask) {
     await deps.settleTask(assemblyRun, outcome, reason);
+  }
+
+  if (closedNow && deps.onRunClosed) {
+    try {
+      await deps.onRunClosed(assemblyRun, outcome, reason);
+    } catch (err) {
+      console.error("[on-run-closed] hook threw:", (err as Error).message);
+    }
   }
 
   // Only the winning finisher tells the user — losers would duplicate the Slack

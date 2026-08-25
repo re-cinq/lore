@@ -21,6 +21,11 @@ export interface CronEmitter {
 
 export const CRON_EMITTERS: CronEmitter[] = [
   { name: "merge_check", schedule: "*/1 * * * *" },
+  {
+    name: "implementation_loop",
+    schedule: "*/5 * * * *",
+    note: "safety net for the backlog loop driver; the terminal hook re-emits it per repo for gapless re-arm",
+  },
   { name: "approval_check", schedule: "*/1 * * * *" },
   { name: "spec_task_executor", schedule: "*/1 * * * *" },
   { name: "stale_task_check", schedule: "17 * * * *" },
