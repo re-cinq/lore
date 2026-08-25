@@ -17,6 +17,7 @@ const state: {
   reviewCall?: Record<string, unknown>;
   prData?: Record<string, unknown>;
   treeData?: Record<string, unknown>;
+  issuesData?: Array<Record<string, unknown>>;
 } = { files: [], checkRuns: [], token: "" };
 
 vi.mock("octokit", () => ({
@@ -40,6 +41,7 @@ vi.mock("octokit", () => ({
       checks: { listForRef: async () => state.checkRuns },
       git: { getTree: async () => ({ data: state.treeData }) },
       issues: {
+        listForRepo: async () => state.issuesData ?? [],
         createLabel: async () => {
           if (state.labelError) {
             throw state.labelError;
@@ -75,8 +77,41 @@ describe("PlatformGitHub paginated reads + helpers", () => {
     state.reviewCall = undefined;
     state.prData = undefined;
     state.treeData = undefined;
+    state.issuesData = undefined;
   });
   afterEach(() => vi.clearAllMocks());
+
+  it("listIssues maps created_at to createdAt and drops pull requests", async () => {
+    state.issuesData = [
+      {
+        number: 12,
+        title: "Slow queries",
+        state: "open",
+        labels: [{ name: "priority:high" }, "bug"],
+        created_at: "2026-08-02T09:00:00Z",
+      },
+      {
+        number: 13,
+        title: "A PR, not an issue",
+        state: "open",
+        labels: [],
+        created_at: "2026-08-03T09:00:00Z",
+        pull_request: {},
+      },
+    ];
+    const issues = await gh().listIssues("re-cinq/lore");
+
+    expect(issues).toEqual([
+      {
+        repo: "re-cinq/lore",
+        number: 12,
+        title: "Slow queries",
+        state: "open",
+        labels: ["priority:high", "bug"],
+        createdAt: "2026-08-02T09:00:00Z",
+      },
+    ]);
+  });
 
   it("listFiles returns every changed filename (paginated past one page)", async () => {
     state.files = Array.from({ length: 31 }, (_, i) => ({

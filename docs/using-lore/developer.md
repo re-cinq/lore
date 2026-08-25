@@ -65,6 +65,15 @@ The label determines the task type:
 - `lore:review` → review task
 - `lore:runbook` → runbook task
 
+Separate from the routing labels above, the implementation loop (`specs/implementation-loop/spec.md`) reads a priority taxonomy. These labels are a queue ordering, not a dispatch: applying one opts the issue into the repo's backlog loop when `implementation_loop.enabled` is on, and no second `lore` label is needed.
+
+- `priority:high` → worked first
+- `priority:medium` → worked after every `priority:high`
+- `priority:low` → worked when nothing else is queued
+- `lore:blocked` → set by the loop when a ticket gets stuck; makes the issue ineligible until a human removes it
+
+An issue carrying more than one `priority:*` label is skipped rather than resolved to the highest, so the ambiguity surfaces to a human.
+
 If an active task already exists for the Issue, Lore comments with the existing task ID instead of starting a duplicate. Issue templates ("Lore: Implementation", "Lore: Review", "Lore: General Task") are added during onboarding.
 
 This requires a webhook on the GitHub App — `POST https://LORE_API_DOMAIN/api/webhook/github` with the HMAC secret from `LORE_WEBHOOK_SECRET` — subscribed to:

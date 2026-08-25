@@ -487,3 +487,12 @@ export {
   type ValidationResult,
   type ValidationExec,
 } from "./repo-validation/repo-validation.js";
+
+// The implementation loop's backlog: pure queue ordering + label taxonomy (FR1).
+export {
+  selectNextIssue,
+  PRIORITY_LABELS,
+  LORE_BLOCKED_LABEL,
+  BACKLOG_LABEL_SEED,
+  type PriorityLabel,
+} from "./backlog/index.js";
