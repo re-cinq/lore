@@ -14,6 +14,7 @@ import type {
 function fakePulls(
   pulls: PullRef[],
   merged: Array<{ number: number; method?: MergeMethod }>,
+  resolutions: string[] = [],
 ): PullRequestsPort {
   return {
     list: async (repo) => pulls.filter((p) => p.repo === repo),
@@ -56,7 +57,7 @@ function fakePulls(
       },
     ],
     resolveReviewThread: async (threadId) => {
-      merged.push({ number: -1, method: threadId as MergeMethod });
+      resolutions.push(threadId);
     },
     listIssueComments: async () => [],
     listCommits: async () => [{ sha: "abc", message: "feat", date: "t" }],
@@ -143,8 +144,8 @@ describe("PullRequests", () => {
 
 describe("PullRequests review threads", () => {
   it("delegates listReviewThreads repo-bound and resolveReviewThread by node id", async () => {
-    const recorded: Array<{ number: number; method?: MergeMethod }> = [];
-    const pr = new PullRequests("re-cinq/lore", fakePulls([], recorded));
+    const resolutions: string[] = [];
+    const pr = new PullRequests("re-cinq/lore", fakePulls([], [], resolutions));
 
     expect(await pr.listReviewThreads(7)).toEqual([
       {
@@ -157,6 +158,6 @@ describe("PullRequests review threads", () => {
 
     await pr.resolveReviewThread("PRRT_7");
 
-    expect(recorded).toEqual([{ number: -1, method: "PRRT_7" }]);
+    expect(resolutions).toEqual(["PRRT_7"]);
   });
 });
