@@ -1,5 +1,5 @@
 import type { PipelineTask } from "@re-cinq/lore-shared";
-import { errorMessage } from "@re-cinq/lore-shared";
+import { errorMessage, BACKLOG_LABEL_SEED } from "@re-cinq/lore-shared";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 /**
  * Onboard handler (per-file LLM calls).
@@ -455,6 +455,7 @@ export async function handleOnboard(
         color: "D93F0B",
         description: "Lore: runbook task",
       },
+      ...BACKLOG_LABEL_SEED,
     ]);
     console.log(`[floor] Created Lore dispatch labels on ${targetRepo}`);
   } catch (err) {
