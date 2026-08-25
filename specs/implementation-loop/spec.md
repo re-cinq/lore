@@ -94,12 +94,12 @@ A fourth gap sits underneath the "wait until the PR has no outstanding comments"
 
 ## FR9 — The repo tab
 
-- A new tab appears in the repo tab row alongside Features, routed under `/repos/{owner}/{repo}/`.
-- The page follows the container and view split used throughout `apps/web-ui/src/app/repos/[owner]/[repo]/features/`: a server component performs the read and a client view renders pure props. The view performs no I/O.
-- The top section carries the enable/disable control and reflects the current toggle state.
-- Below it the page shows three groups in order: the ticket currently being worked, with links to its issue and its PR; the ordered queue of tickets that will be picked next; and recently addressed tickets, each with links to its issue and its PR.
+- A new tab appears in the repo tab row alongside Features, labelled Backlog, routed at `/repos/{owner}/{repo}/implementation-loop`.
+- The page follows the container and view split used throughout `apps/web-ui/src/app/repos/[owner]/[repo]/features/`: a server component performs the read and a client view renders pure props. The view performs no I/O — the toggle write goes back up through a bound server action. ([validated by toggle through the bound action](../../apps/web-ui/src/app/repos/[owner]/[repo]/implementation-loop/ImplementationLoopView.test.tsx#L76))
+- The top section carries the enable/disable control and reflects the current toggle state. ([validated by disabled shows Enable](../../apps/web-ui/src/app/repos/[owner]/[repo]/implementation-loop/ImplementationLoopView.test.tsx#L50))
+- Below it the page shows three groups in order: the ticket currently being worked, with links to its issue and its PR; the ordered queue of tickets that will be picked next; and recently addressed tickets, each with links to its issue and its PR. An empty queue explains the priority labels that feed it. ([validated by current with links](../../apps/web-ui/src/app/repos/[owner]/[repo]/implementation-loop/ImplementationLoopView.test.tsx#L36), [validated by ordered queue rendered](../../apps/web-ui/src/app/repos/[owner]/[repo]/implementation-loop/ImplementationLoopView.test.tsx#L50), [validated by recent with state](../../apps/web-ui/src/app/repos/[owner]/[repo]/implementation-loop/ImplementationLoopView.test.tsx#L84), [validated by empty queue explains labels](../../apps/web-ui/src/app/repos/[owner]/[repo]/implementation-loop/ImplementationLoopView.test.tsx#L70))
 - When the loop is disabled the page still renders the queue, so a developer can see what would be worked before switching it on. The API keeps that possible by serving the queue regardless of the toggle. ([validated by disabled still serves the queue](../../apps/lore-api/src/api/routes/backlog/backlog.test.ts#L146))
-- When no ticket is in flight the current section states that plainly rather than rendering an empty container.
+- When no ticket is in flight the current section states that plainly rather than rendering an empty container. ([validated by plain empty-state text](../../apps/web-ui/src/app/repos/[owner]/[repo]/implementation-loop/ImplementationLoopView.test.tsx#L30))
 
 ## FR10 — API contract
 
@@ -107,7 +107,7 @@ A fourth gap sits underneath the "wait until the PR has no outstanding comments"
 - Each ticket entry carries the issue number, issue URL, title, priority, PR URL when one exists, and its state. ([validated by ticket entry shape](../../apps/lore-api/src/api/routes/backlog/backlog.test.ts#L66))
 - A write endpoint sets the toggle under the admin bearer scope. ([validated by PUT flips the toggle](../../apps/lore-api/src/api/routes/backlog/backlog.test.ts#L239), [validated by non-boolean rejected](../../apps/lore-api/src/api/routes/backlog/backlog.test.ts#L257))
 - Both endpoints declare zod request and response contracts so the generated OpenAPI document and the web-ui types stay in step; the committed `openapi.json` and `schema.d.ts` are regenerated with the change.
-- The web-ui client aliases the generated component schema rather than re-declaring the response shape by hand.
+- The web-ui client aliases the generated component schema rather than re-declaring the response shape by hand, and speaks to the two endpoints through the shared `apiFetch`. ([validated by GET path](../../apps/web-ui/src/lib/api/backlog.test.ts#L28), [validated by PUT body](../../apps/web-ui/src/lib/api/backlog.test.ts#L38))
 
 ## Alternatives Rejected
 
