@@ -52,6 +52,49 @@ task_types:
     execution_mode: claude-code
     model: claude-sonnet-4-6
 
+  # The implementation-loop line's `implement` node (specs/implementation-loop
+  # FR6). Forked from `implementation` — which the implementation line still
+  # uses untouched — with the test-first discipline made mandatory.
+  implementation-tdd:
+    prompt_template: |
+      You are editing files in a git repository. Your job is to implement
+      the ticket below test-first by reading and editing the actual source
+      files.
+
+      TEST-FIRST, NON-NEGOTIABLE:
+      - Before ANY production edit, write the smallest failing test for the
+        behaviour you are about to add and RUN it. Red first.
+      - Then write the least production code that makes it pass. Green.
+      - Then refactor with the tests staying green. Repeat per behaviour.
+      - No production edit may precede a red bar. If you cannot express the
+        behaviour as a test, say so in the PR body instead of skipping it.
+
+      TRACEABILITY:
+      - Each test validates a statement in a spec or ADR. Add the inline
+        parenthetical on that statement in the repository's established form —
+        `Statement. ([validated by name](path/to/test.ts#L42))` — and re-verify
+        every existing #Lnn link on the statements you touch, since inserting
+        a test shifts the lines below it.
+      - Stamp the test's spec anchor (the "specs/<path>#<ordinal>" it
+        validates) so the repo's tests.list surfaces it as the descriptor's
+        `spec` field and the VALIDATED_BY link is established automatically —
+        see `.lore/test-commands.yml` for how this repo exposes descriptors.
+
+      RULES:
+      - Use your Read tool to read files before editing
+      - Use your Edit or Write tool to modify files — do NOT just describe changes
+      - Work through files one at a time
+      - Start immediately with the first failing test
+      - If this work completes what a `specs/<name>/spec.md` describes, update
+        that spec's `| Status |` header row in the same branch (Draft ->
+        Implemented/Shipped) so the status never lags the code
+
+      Ticket: {description}
+    timeout_minutes: 90
+    review_required: true
+    execution_mode: claude-code
+    model: claude-sonnet-4-6
+
   # The implementation line's `address` node (`prompt_ref: address-feedback`) —
   # the second recipe the silent fallback hid (#1329). It ran `general` too, so a
   # CHANGES_REQUESTED review sent the agent back in with "complete the following

@@ -245,6 +245,109 @@ spec:
 apiVersion: agents.re-cinq.com/v1alpha1
 kind: AgentDefinition
 metadata:
+  name: implementation-tdd
+  labels:
+    app.kubernetes.io/managed-by: lore-catalog-seed
+  namespace: {{ .Values.namespace }}
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  description: Lore implementation-tdd task recipe (seeded).
+  model: claude-sonnet-4-6
+  prompt: |-
+    You are editing files in a git repository. Your job is to implement
+    the ticket below test-first by reading and editing the actual source
+    files.
+
+    TEST-FIRST, NON-NEGOTIABLE:
+    - Before ANY production edit, write the smallest failing test for the
+      behaviour you are about to add and RUN it. Red first.
+    - Then write the least production code that makes it pass. Green.
+    - Then refactor with the tests staying green. Repeat per behaviour.
+    - No production edit may precede a red bar. If you cannot express the
+      behaviour as a test, say so in the PR body instead of skipping it.
+
+    TRACEABILITY:
+    - Each test validates a statement in a spec or ADR. Add the inline
+      parenthetical on that statement in the repository's established form —
+      `Statement. ([validated by name](path/to/test.ts#L42))` — and re-verify
+      every existing #Lnn link on the statements you touch, since inserting
+      a test shifts the lines below it.
+    - Stamp the test's spec anchor (the "specs/<path>#<ordinal>" it
+      validates) so the repo's tests.list surfaces it as the descriptor's
+      `spec` field and the VALIDATED_BY link is established automatically —
+      see `.lore/test-commands.yml` for how this repo exposes descriptors.
+
+    RULES:
+    - Use your Read tool to read files before editing
+    - Use your Edit or Write tool to modify files — do NOT just describe changes
+    - Work through files one at a time
+    - Start immediately with the first failing test
+    - If this work completes what a `specs/<name>/spec.md` describes, update
+      that spec's `| Status |` header row in the same branch (Draft ->
+      Implemented/Shipped) so the status never lags the code
+
+    Ticket: {description}
+
+    {context}
+  permission_mode: bypass
+  max_turns: 40
+  resources:
+    secrets:
+      - name: {{ .Values.agentLlmSecretKey }}
+        ref: {{ .Values.agentLlmSecretKey }}
+{{- if .Values.loreMcpUrl }}
+    mcp_servers:
+      - name: lore
+        transport: http
+        url: {{ .Values.loreMcpUrl }}
+        headers_secret: lore-mcp-auth
+{{- end }}
+{{- if .Values.loreSkillsUrl }}
+    skills:
+      - lore-context
+    skills_source: {{ .Values.loreSkillsUrl }}
+{{- end }}
+  disallowed_tools:
+    - mcp__lore__lore_create_pipeline_task
+  output:
+    sinks:
+      - type: stdout
+      - type: http
+        url: {{ .Values.agentEventsUrl }}
+        headers_secret: agent-events-auth
+---
+apiVersion: agents.re-cinq.com/v1alpha1
+kind: Station
+metadata:
+  name: implementation-tdd
+  labels:
+    app.kubernetes.io/managed-by: lore-catalog-seed
+  namespace: {{ .Values.namespace }}
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  agentDefRef: implementation-tdd
+  deadlineMinutes: 90
+  template:
+    spec:
+      containers:
+        - name: agent
+          image: node:22-bookworm
+          workingDir: /workspace/target
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+              ephemeral-storage: 2Gi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+              ephemeral-storage: 4Gi
+---
+apiVersion: agents.re-cinq.com/v1alpha1
+kind: AgentDefinition
+metadata:
   name: address-feedback
   labels:
     app.kubernetes.io/managed-by: lore-catalog-seed
