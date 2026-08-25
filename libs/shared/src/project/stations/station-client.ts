@@ -13,6 +13,9 @@
  *  cannot hold a scheduler slot indefinitely. */
 const TIMEOUT_MS = 120_000;
 
+/** What the station route answers when one run is already in flight. */
+const STATION_ALREADY_RUNNING = 409;
+
 export class StationClient {
   constructor(
     private readonly baseUrl: string,
@@ -34,6 +37,15 @@ export class StationClient {
       `${this.baseUrl}/api/stations/${encodeURIComponent(name)}`,
       { method: "POST", headers, signal: AbortSignal.timeout(TIMEOUT_MS) },
     );
+
+    // 409 is the station's own overlap latch: a tick arrived while the previous
+    // run was still going. That is a SKIP, not a failure — the work is not lost,
+    // the next tick takes it. Raised as an error it spends the drain loop's
+    // retry ladder and dead-letters, once a minute, for as long as the sweep
+    // runs longer than its interval.
+    if (res.status === STATION_ALREADY_RUNNING) {
+      return "skipped: already running";
+    }
 
     if (!res.ok) {
       throw new Error(`station "${name}" failed: ${res.status}`);
