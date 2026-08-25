@@ -1,6 +1,7 @@
 import type { CiConclusion } from "@re-cinq/lore-shared/project/pulls/pull-requests-port.js";
 import type { ReviewThread } from "@re-cinq/lore-shared/project/pulls/pull-requests-port.js";
 import type { RunGraph } from "@re-cinq/lore-shared/project/assembly-runs/run-graph.js";
+import { REVIEW_DEFINITIONS } from "@re-cinq/lore-shared/review/review-definitions.js";
 import {
   parkedHumanNode,
   type ParkedNode,
@@ -126,9 +127,17 @@ export async function prReadyCheckJob(): Promise<string> {
   const { projectFor } = await import("../../kernel/project-boot.js");
   const { reportToParkedNode } =
     await import("@re-cinq/lore-shared/project/assembly-runs/parked-node.js");
-  const { REVIEW_DEFINITIONS } =
-    await import("@re-cinq/lore-shared/review/review-definitions.js");
   const OPEN = ["queued", "running"] as const;
+  // One Project per repo per sweep — three PR reads per run would otherwise
+  // rebuild the same repo facade three times.
+  const projects = new Map<string, ReturnType<typeof projectFor>>();
+  const projectOf = (repo: string) => {
+    const cached = projects.get(repo) ?? projectFor(repo);
+
+    projects.set(repo, cached);
+
+    return cached;
+  };
 
   return prReadyCheckSweep({
     listOpenLoopRuns: () =>
@@ -138,11 +147,11 @@ export async function prReadyCheckJob(): Promise<string> {
       }),
     listStationRuns: (runId) => pipeline().assemblyRuns.listStationRuns(runId),
     getPrHeadSha: async (repo, number) =>
-      (await (await projectFor(repo)).pulls.get(number))?.headSha ?? null,
+      (await (await projectOf(repo)).pulls.get(number))?.headSha ?? null,
     ciConclusion: async (repo, ref) =>
-      (await projectFor(repo)).pulls.ciConclusion(ref),
+      (await projectOf(repo)).pulls.ciConclusion(ref),
     listReviewThreads: async (repo, number) =>
-      (await projectFor(repo)).pulls.listReviewThreads(number),
+      (await projectOf(repo)).pulls.listReviewThreads(number),
     countOpenReviewRuns: async (repo, number) =>
       (
         await pipeline().assemblyRuns.listSummaries({

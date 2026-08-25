@@ -63,3 +63,11 @@ describe("decidePrReady", () => {
     ).toEqual({ kind: "blocked", reason: "unresolved_threads" });
   });
 });
+
+describe("decidePrReady with no checks configured", () => {
+  it("blocks on unresolved threads even when ci is none — green covers only the CI half", () => {
+    expect(
+      decidePrReady({ ci: "none", threads: [thread()], openReviewRunCount: 0 }),
+    ).toEqual({ kind: "blocked", reason: "unresolved_threads" });
+  });
+});
