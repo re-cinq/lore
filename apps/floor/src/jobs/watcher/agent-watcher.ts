@@ -55,6 +55,7 @@ import {
   type ReviewResult,
   decideFeatureLink,
   taskPageUrl,
+  stampPrOnOpenRuns,
 } from "./agent-watcher-logic.js";
 import {
   errorMessage,
@@ -577,6 +578,7 @@ async function handleSucceededChanges(ctx: AgentContext): Promise<void> {
       target_branch: branch,
       log_url: taskUrl,
     });
+    await stampPrOnOpenRuns(pipeline().assemblyRuns, taskId, pr);
     await taskStore().recordEvent(taskId, "running", "pr-created", {
       pr_url: pr.url,
     });

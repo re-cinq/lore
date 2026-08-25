@@ -167,3 +167,50 @@ describe("taskPageUrl", () => {
     expect(taskPageUrl("t-1", "")).toBeUndefined();
   });
 });
+
+import { stampPrOnOpenRuns } from "./agent-watcher-logic.js";
+
+describe("stampPrOnOpenRuns", () => {
+  const runs = [
+    { id: "run-1", status: "running" },
+    { id: "run-2", status: "completed" },
+    { id: "run-3", status: "queued" },
+  ];
+
+  it("merges pr_url and pr_number onto every open run of the task", async () => {
+    const patched: Array<{ id: string; patch: Record<string, unknown> }> = [];
+
+    await stampPrOnOpenRuns(
+      {
+        listForTask: async () => runs,
+        mergeArgs: async (id, patch) => {
+          patched.push({ id, patch });
+        },
+      },
+      "task-9",
+      { url: "https://gh/pr/12", number: 12 },
+    );
+
+    expect(patched).toEqual([
+      { id: "run-1", patch: { pr_url: "https://gh/pr/12", pr_number: 12 } },
+      { id: "run-3", patch: { pr_url: "https://gh/pr/12", pr_number: 12 } },
+    ]);
+  });
+
+  it("does nothing when the task has no open run", async () => {
+    const patched: string[] = [];
+
+    await stampPrOnOpenRuns(
+      {
+        listForTask: async () => [{ id: "run-1", status: "completed" }],
+        mergeArgs: async (id) => {
+          patched.push(id);
+        },
+      },
+      "task-9",
+      { url: "https://gh/pr/12", number: 12 },
+    );
+
+    expect(patched).toEqual([]);
+  });
+});
