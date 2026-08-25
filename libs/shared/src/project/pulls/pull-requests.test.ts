@@ -47,6 +47,17 @@ function fakePulls(
       },
     ],
     listComments: async () => [],
+    listReviewThreads: async (_repo, number) => [
+      {
+        id: `PRRT_${number}`,
+        isResolved: false,
+        isOutdated: false,
+        comments: [{ databaseId: 900 }],
+      },
+    ],
+    resolveReviewThread: async (threadId) => {
+      merged.push({ number: -1, method: threadId as MergeMethod });
+    },
     listIssueComments: async () => [],
     listCommits: async () => [{ sha: "abc", message: "feat", date: "t" }],
     isMerged: async (_repo, number) => number === 7,
@@ -127,5 +138,25 @@ describe("PullRequests", () => {
     ]);
     expect(await facade.isMerged(7)).toBe(true);
     expect(await facade.isMerged(3)).toBe(false);
+  });
+});
+
+describe("PullRequests review threads", () => {
+  it("delegates listReviewThreads repo-bound and resolveReviewThread by node id", async () => {
+    const recorded: Array<{ number: number; method?: MergeMethod }> = [];
+    const pr = new PullRequests("re-cinq/lore", fakePulls([], recorded));
+
+    expect(await pr.listReviewThreads(7)).toEqual([
+      {
+        id: "PRRT_7",
+        isResolved: false,
+        isOutdated: false,
+        comments: [{ databaseId: 900 }],
+      },
+    ]);
+
+    await pr.resolveReviewThread("PRRT_7");
+
+    expect(recorded).toEqual([{ number: -1, method: "PRRT_7" }]);
   });
 });

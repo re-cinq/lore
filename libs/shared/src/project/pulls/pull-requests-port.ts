@@ -80,6 +80,22 @@ export interface CheckRun {
   conclusion: string | null;
 }
 
+/** One inline comment inside a review thread — the GraphQL node, REST-mappable. */
+export interface ReviewThreadComment {
+  /** REST review-comment id (GraphQL `databaseId`) — the join key back to
+   *  {@link ReviewComment.id}, so a reply posted over REST can find its thread. */
+  databaseId: number | null;
+}
+
+/** One PR review thread. GraphQL-only surface: resolution state has no REST
+ *  read, so `id` is the GraphQL node id — pass it to `resolveReviewThread`. */
+export interface ReviewThread {
+  id: string;
+  isResolved: boolean;
+  isOutdated: boolean;
+  comments: ReviewThreadComment[];
+}
+
 export interface PullStats {
   files_changed: number;
   additions: number;
@@ -144,4 +160,9 @@ export interface PullRequestsPort {
   /** Every check run for a ref — paginated, raw. The gate predicate stays in the caller
    *  (pr-policy needs `every(success|skipped)`, stricter than ciConclusion). */
   listChecks(repo: string, ref: string): Promise<CheckRun[]>;
+  /** Every review thread on a PR — GraphQL, since resolution has no REST read. */
+  listReviewThreads(repo: string, number: number): Promise<ReviewThread[]>;
+  /** Mark one thread resolved. `threadId` is the globally unique GraphQL node
+   *  id from listReviewThreads, so no repo parameter is needed. */
+  resolveReviewThread(threadId: string): Promise<void>;
 }
