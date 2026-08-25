@@ -1,7 +1,8 @@
 /**
- * The event-router process: open the pool, serve the front door, watch the
- * cluster. It produces events and nothing else — no drain loop, no job
- * handlers, no Agent CR dispatch (ADR-044).
+ * The event-router process: open the pool and serve the front door. It produces
+ * events and nothing else — no drain loop, no job handlers, no Agent CR dispatch
+ * (ADR-044), and since 2026-08-25 no Kubernetes watch either: that moved to
+ * cluster-agent, which is the process that may hold a cluster client.
  */
 
 import { initPool, getPool } from "@re-cinq/lore-shared/db/pg-pool.js";
