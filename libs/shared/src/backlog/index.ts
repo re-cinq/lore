@@ -1,4 +1,4 @@
-export { selectNextIssue } from "./select-next-issue.js";
+export { selectNextIssue, orderBacklog } from "./select-next-issue.js";
 export {
   PRIORITY_LABELS,
   LORE_BLOCKED_LABEL,

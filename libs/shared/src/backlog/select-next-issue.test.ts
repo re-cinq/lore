@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { IssueRef } from "../project/lib/github-port.js";
-import { selectNextIssue } from "./select-next-issue.js";
+import { orderBacklog, selectNextIssue } from "./select-next-issue.js";
 
 function issue(overrides: Partial<IssueRef> & { number: number }): IssueRef {
   return {
@@ -124,5 +124,22 @@ describe("selectNextIssue", () => {
     ];
 
     expect(selectNextIssue(issues)?.number).toBe(4);
+  });
+});
+
+describe("orderBacklog", () => {
+  it("returns every eligible issue in queue order, not just the head", () => {
+    const issues = [
+      issue({ number: 1, labels: ["priority:low"] }),
+      issue({ number: 2, labels: ["priority:high", "lore:blocked"] }),
+      issue({ number: 3, labels: ["priority:medium"] }),
+      issue({
+        number: 4,
+        labels: ["priority:medium"],
+        createdAt: "2026-07-01T00:00:00Z",
+      }),
+    ];
+
+    expect(orderBacklog(issues).map((i) => i.number)).toEqual([4, 3, 1]);
   });
 });

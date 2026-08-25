@@ -491,6 +491,7 @@ export {
 // The implementation loop's backlog: pure queue ordering + label taxonomy (FR1).
 export {
   selectNextIssue,
+  orderBacklog,
   PRIORITY_LABELS,
   LORE_BLOCKED_LABEL,
   BACKLOG_LABEL_SEED,
