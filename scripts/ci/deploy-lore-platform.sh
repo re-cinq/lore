@@ -53,7 +53,14 @@ if [ -n "$VALUES_OVERLAY" ]; then
 fi
 HOME_NS="lore-floor" # the umbrella release record lives here
 STALE_SECS=300       # a pending revision older than this is from a dead run, not an active deploy
-ATTEMPTS=12
+# 12 x 30s was six minutes of headroom, which is less than the queue it has to
+# wait through. A libs/shared change rebuilds EVERY service, so eight deploys
+# serialize on one release at roughly a minute each; on 2026-08-25 the
+# event-router correctly retried the lock eleven times and then ran out of
+# budget with two deploys still ahead of it. Twenty-four covers a full fan-out
+# with room to spare, and costs nothing when there is no contention — the loop
+# exits on the first successful upgrade.
+ATTEMPTS=24
 ERRLOG="$(mktemp)"
 
 # Clear a pending-* revision secret ONLY if it is older than STALE_SECS — i.e. a
