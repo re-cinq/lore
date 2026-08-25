@@ -12,6 +12,11 @@ on:
       # The compiled assembly-lines kernel is bundled too (the agent imports
       # @re-cinq/lore-assembly-lines) — an assembly-lines-only change must rebuild + redeploy.
       - 'libs/assembly-lines/**'
+      # The station registry is COMPILED INTO this image (the walk reads a node's
+      # runtime from it / lore-api derives its maintenance jobs from it), so a
+      # registry change must rebuild it — a filter that missed this would leave
+      # CI green while the fix never ships.
+      - 'apps/stations/**'
       # Chart or workflow changes need a redeploy too.
       - 'infra/terraform/modules/gke-mcp/lore-platform/charts/floor-helm/**'
       # Parent umbrella chart — a Chart.yaml/values.yaml change redeploys.

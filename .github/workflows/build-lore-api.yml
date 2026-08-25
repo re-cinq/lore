@@ -11,6 +11,11 @@ on:
       # fix lived in shared/ only, so the server never rebuilt and prod stayed broken).
       - 'libs/shared/**'
       - 'libs/server-core/**'
+      # The station registry is COMPILED INTO this image (the walk reads a node's
+      # runtime from it / lore-api derives its maintenance jobs from it), so a
+      # registry change must rebuild it — a filter that missed this would leave
+      # CI green while the fix never ships.
+      - 'apps/stations/**'
       # The lore-code-trace Go binary is baked into this image and served at
       # /dist — a binary-only change must rebuild + redeploy, or every repo's
       # CI keeps downloading the old binary (rediscovered 2026-07-24: the
@@ -33,6 +38,11 @@ on:
       - 'apps/lore-api/**'
       - 'libs/shared/**'
       - 'libs/server-core/**'
+      # The station registry is COMPILED INTO this image (the walk reads a node's
+      # runtime from it / lore-api derives its maintenance jobs from it), so a
+      # registry change must rebuild it — a filter that missed this would leave
+      # CI green while the fix never ships.
+      - 'apps/stations/**'
       - 'apps/lore-code-trace/**'
       - 'infra/terraform/modules/gke-mcp/lore-platform/charts/lore-api-helm/**'
       - 'infra/terraform/modules/gke-mcp/lore-platform/Chart.yaml'

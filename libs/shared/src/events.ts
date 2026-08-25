@@ -6,6 +6,7 @@
  * The structural `PgPool` keeps `pg` out of shared's dependency surface.
  */
 import type { PgPool } from "./memory-store.js";
+import { fanOutClause } from "./project/events/fan-out.js";
 
 /**
  * Who produced an event. Names are usually `source.subject.action`, and the
@@ -45,10 +46,19 @@ export async function insertEvent(
   pool: PgPool,
   ev: EventInsert,
 ): Promise<void> {
+  // One statement, not two: the fan-out reads the event CTE, so a deduplicated
+  // insert returns no row and therefore delivers to nobody. See fan-out.ts for
+  // why this is composed here rather than run by a trigger or by the router.
   await pool.query(
-    `INSERT INTO pipeline.events (event_name, source, params, repo, dedupe_key)
-     VALUES ($1, $2, $3::jsonb, $4, $5)
-     ON CONFLICT (dedupe_key) WHERE dedupe_key IS NOT NULL DO NOTHING`,
+    `WITH ev AS (
+       INSERT INTO pipeline.events (event_name, source, params, repo, dedupe_key)
+       VALUES ($1, $2, $3::jsonb, $4, $5)
+       ON CONFLICT (dedupe_key) WHERE dedupe_key IS NOT NULL DO NOTHING
+       RETURNING id, event_name
+     ), fan AS (
+       ${fanOutClause("ev")}
+     )
+     SELECT 1`,
     [
       ev.eventName,
       ev.source,

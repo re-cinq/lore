@@ -79,7 +79,16 @@ export interface StationRunStartInput {
   assemblyRunId: string;
   nodeId: string;
   iteration: number;
-  agentCrName?: string;
+  /**
+   * The CR this visit dispatched, or NULL when it will never have one.
+   *
+   * Null is not "unknown": it says the node runs in the pooled service and was
+   * published on the bus. The reaper reads exactly that — a missing CR on a POD
+   * visit is the crash-between-row-and-launch case and gets relaunched, while
+   * relaunching a service visit would run a pod alongside the delivery still
+   * queued for it.
+   */
+  agentCrName?: string | null;
   /** What this visit is being dispatched WITH — recorded once, by the first
    *  writer: a converged duplicate (the relaunch door re-dispatching the same
    *  visit) keeps what the row already says rather than rewriting history. */
@@ -230,6 +239,16 @@ export interface AssemblyRunsPort {
     repo: string,
     subjectKey: string,
   ): Promise<OpenRunSummary | null>;
+  /**
+   * How many runs — open or settled — have ever worked this subject.
+   *
+   * {@link findOpenBySubject} answers "is one in flight", which is the wrong
+   * question for a caller that re-starts on a timer: a line that fails at its
+   * first node settles, so the open lookup is empty again a minute later and
+   * the caller starts another. Counting every attempt is what lets such a
+   * caller stop.
+   */
+  countBySubject(repo: string, subjectKey: string): Promise<number>;
   /**
    * Open (`queued`/`running`) assembly lines whose `args.pr_number` matches — the
    * PR-scoped lookup the code-review choreography uses. NOT only code-review lines:

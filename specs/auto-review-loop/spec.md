@@ -330,7 +330,7 @@ The code-review assembly line is the sole reviewer (ADR-012 amendment): a **deep
 
 ### `apps/floor/src/jobs/assembly-run/advance.test.ts`
 
-- A code-review-recheck line opts out of the branch-overlap guard, so a push landing while a review or reply line still holds the PR branch is not silently dropped as `lease_held` (the verdict update always runs). ([validated by](apps/floor/src/jobs/assembly-run/advance.test.ts#L941))
+- A code-review-recheck line opts out of the branch-overlap guard, so a push landing while a review or reply line still holds the PR branch is not silently dropped as `lease_held` (the verdict update always runs). ([validated by](apps/floor/src/jobs/assembly-run/advance.test.ts#L974))
 
 ### `apps/floor/src/jobs/merge/auto-merge.test.ts`
 
@@ -416,11 +416,11 @@ The code-review assembly line is the sole reviewer (ADR-012 amendment): a **deep
 - returns nothing when the repository is missing. ([validated by](libs/shared/src/project/events/github-map.test.ts#L334))
 - returns nothing for an unhandled event type. ([validated by](libs/shared/src/project/events/github-map.test.ts#L344))
 
-### `apps/lore-station/src/stations/comment-triage.test.ts`
+### `apps/stations/src/stations/comment-triage/comment-triage.test.ts`
 
-- emits the classified action in LORE_NODE_RESULT extras. ([validated by](apps/lore-station/src/stations/comment-triage.test.ts#L22))
-- defaults to ignore when classification fails. ([validated by](apps/lore-station/src/stations/comment-triage.test.ts#L41))
-- reports the classification call's usage on the node result, so the cost sink records the triage spend. ([validated by](apps/lore-station/src/stations/comment-triage.test.ts#L51))
+- emits the classified action in LORE_NODE_RESULT extras. ([validated by](apps/stations/src/stations/comment-triage/comment-triage.test.ts#L22))
+- defaults to ignore when classification fails. ([validated by](apps/stations/src/stations/comment-triage/comment-triage.test.ts#L41))
+- reports the classification call's usage on the node result, so the cost sink records the triage spend. ([validated by](apps/stations/src/stations/comment-triage/comment-triage.test.ts#L51))
 
 ### `apps/web-ui/src/app/assembly-runs/[id]/TriggerReviewButton.test.tsx`
 
@@ -428,10 +428,10 @@ The code-review assembly line is the sole reviewer (ADR-012 amendment): a **deep
 
 ### `libs/assembly-lines/src/loader.test.ts`
 
-- code-review is a suggestion-only review→done graph (no refine/auto-commit). ([validated by](libs/assembly-lines/src/loader.test.ts#L632))
-- gap-fill is a linear flow with retrospective + done as exit pair. ([validated by](libs/assembly-lines/src/loader.test.ts#L680))
-- assemblyLinesDir actually exists on disk (sanity check). ([validated by](libs/assembly-lines/src/loader.test.ts#L713))
-- code-review-recheck is a fast Haiku recheck→done graph routing every verdict to done. ([validated by](libs/assembly-lines/src/loader.test.ts#L915))
+- code-review is a suggestion-only review→done graph (no refine/auto-commit). ([validated by](libs/assembly-lines/src/loader.test.ts#L654))
+- gap-fill is a linear flow with retrospective + done as exit pair. ([validated by](libs/assembly-lines/src/loader.test.ts#L702))
+- assemblyLinesDir actually exists on disk (sanity check). ([validated by](libs/assembly-lines/src/loader.test.ts#L735))
+- code-review-recheck is a fast Haiku recheck→done graph routing every verdict to done. ([validated by](libs/assembly-lines/src/loader.test.ts#L937))
 
 ### `libs/shared/src/project/assembly-runs/assembly-runs.test.ts`
 

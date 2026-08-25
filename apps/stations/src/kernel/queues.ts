@@ -7,6 +7,10 @@ import { createPipelineRepositories } from "@re-cinq/lore-shared/project/pipelin
 import type { PipelineRepositories } from "@re-cinq/lore-shared";
 import { PgTaskStore } from "@re-cinq/lore-shared/project/tasks/task-store-pg.js";
 import { PgSettings } from "@re-cinq/lore-shared/project/settings/settings-pg.js";
+import { PgCost } from "@re-cinq/lore-shared/project/cost/cost-pg.js";
+import { PgEventDeliveries } from "@re-cinq/lore-shared/project/events/event-deliveries-pg.js";
+import type { EventDeliveriesPort } from "@re-cinq/lore-shared/project/events/event-deliveries-port.js";
+import { selectEventDeliveries } from "@re-cinq/lore-shared/project/events/select-event-reporter.js";
 import { PgMemoryLifecycle } from "@re-cinq/lore-shared/project/memory/memory-lifecycle-pg.js";
 import { selectEventReporter } from "@re-cinq/lore-shared/project/events/select-event-reporter.js";
 import type { EventReporter } from "@re-cinq/lore-shared/project/events/event-queue-port.js";
@@ -23,6 +27,8 @@ export const pipeline = pipelineRepositories;
 let taskStoreSingleton: PgTaskStore | undefined;
 let settingsSingleton: PgSettings | undefined;
 let memoryLifecycleSingleton: PgMemoryLifecycle | undefined;
+let costSingleton: PgCost | undefined;
+let deliveriesSingleton: EventDeliveriesPort | undefined;
 let eventReporterSingleton: EventReporter | undefined;
 
 /** Repo-agnostic task record ops (`pipeline.tasks`). */
@@ -39,7 +45,22 @@ export const memoryLifecycle = (): PgMemoryLifecycle =>
 
 /** Where this service reports events. Stations produce them (a resume, a
  *  decomposition) and, like every producer, go through the router (ADR-044). */
+/** pipeline.anthropic_cost_daily — the cost import's write surface. */
+export const cost = (): PgCost => (costSingleton ??= new PgCost(getPool()));
+
 export const eventReporter = (): EventReporter =>
   (eventReporterSingleton ??= selectEventReporter({
     local: () => pipelineRepositories().eventQueue,
+  }));
+
+/**
+ * The deliveries this service consumes.
+ *
+ * Resolved the same three ways every other bus client is: over HTTP to the
+ * event-router where one is configured, and against the local pool otherwise so
+ * `npm start` keeps working with no router in front of it.
+ */
+export const deliveries = (): EventDeliveriesPort =>
+  (deliveriesSingleton ??= selectEventDeliveries({
+    local: () => new PgEventDeliveries(getPool()),
   }));

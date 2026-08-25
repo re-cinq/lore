@@ -40,7 +40,8 @@
     "web-tree-sitter": "^0.24.7",
     "yaml": "^2.7.0",
     "zod": "^3.24.2",
-    "zod-to-json-schema": "^3.25.1"
+    "zod-to-json-schema": "^3.25.1",
+    "@re-cinq/lore-stations": "*"
   },
   "devDependencies": {
     "@types/hapi__hapi": "^20.0.13",

@@ -121,7 +121,7 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + agen
 | NEW `apps/lore-station/` + Dockerfile + `build-lore-station.yml` | The `lore-station` station-pod image (validate; more node types phased in) |
 | `scripts/task-types.yaml` `stations:` + `gen-catalog` + migration `0027` | Seed `def-<type>` station recipes (D9) |
 | `apps/floor` `nodeStationSpec` + always-station handlers | Station dispatch spec; every non-agent node dispatches a station (D9) |
-| `libs/shared/src/detect/*` (relocated) + `apps/lore-station/src/stations/*` | Detector cores moved to shared (facade-driven); one station module per node type |
+| `libs/shared/src/detect/*` (relocated) + `apps/stations/src/stations/*` | Detector cores moved to shared (facade-driven); one station module per node type |
 | `apps/lore-api` chunks + station-data endpoints + `createStationProject` | Pod-side HTTP surface: chunk reads, issues/tasks/pulls/settings, so a station never touches Postgres/App creds (D7) |
 
 ## Acceptance Criteria
@@ -189,7 +189,7 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + agen
     (`success`/`failed`/`changes_requested`) via `stationNodeOutcome` in the Floor's node-event
     handler; a forced Floor restart loses nothing because the walk is derived from the persisted
     `pipeline.assembly_line_nodes` rows, not held in memory — the original lease-heartbeat +
-    stage-trailer-resume mechanics are retired (6-dark-factory FR6.9) ([validated by `node-outcome.test.ts:35`](libs/assembly-lines/src/node-outcome.test.ts#L34), [`advance.test.ts:362`](apps/floor/src/jobs/assembly-run/advance.test.ts#L363))
+    stage-trailer-resume mechanics are retired (6-dark-factory FR6.9) ([validated by `node-outcome.test.ts:35`](libs/assembly-lines/src/node-outcome.test.ts#L34), [`advance.test.ts:396`](apps/floor/src/jobs/assembly-run/advance.test.ts#L396))
 12. A `github-action` assembly line node dispatches the referenced GitHub Actions run and gates on its
     conclusion.
 13. The cutover is reversible: flipping the cluster gate off routes new tasks back to LoreTask with
@@ -259,7 +259,7 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + agen
     fail every run pod at container creation rather than acting as a fallback. GKE
     supplies `ANTHROPIC_API_KEY` (the values.yaml default), a laptop minikube supplies
     `CLAUDE_CODE_OAUTH_TOKEN`, and the `claude` CLI accepts either from its
-    environment. ([validated by station catalog tests](apps/floor/src/jobs/agent/agent-catalog.test.ts#L233), [`agent-catalog.test.ts:20`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L20), [`agent-catalog.test.ts:62`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L62), [`agent-catalog.test.ts:80`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L80), [`agent-catalog.test.ts:112`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L112), [`agent-catalog.test.ts:120`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L120), [`agent-catalog.test.ts:148`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L148), [`agent-catalog.test.ts:156`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L156), [`agent-catalog.test.ts:174`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L174), [`agent-catalog.test.ts:186`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L186), [`agent-catalog.test.ts:182`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L182), [`agent-catalog.test.ts:190`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L190), [`agent-catalog.test.ts:199`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L199), [`agent-catalog.test.ts:216`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L216), [`agent-catalog.test.ts:220`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L220), [`agent-catalog.test.ts:233`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L233), [`agent-catalog.test.ts:266`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L266), [`agent-catalog.test.ts:333`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L333), [`agent-catalog.test.ts:348`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L348))
+    environment. ([validated by station catalog tests](apps/floor/src/jobs/agent/agent-catalog.test.ts#L234), [`agent-catalog.test.ts:21`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L21), [`agent-catalog.test.ts:63`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L63), [`agent-catalog.test.ts:81`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L81), [`agent-catalog.test.ts:113`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L113), [`agent-catalog.test.ts:121`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L121), [`agent-catalog.test.ts:149`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L149), [`agent-catalog.test.ts:157`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L157), [`agent-catalog.test.ts:175`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L175), [`agent-catalog.test.ts:187`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L187), [`agent-catalog.test.ts:183`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L183), [`agent-catalog.test.ts:191`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L191), [`agent-catalog.test.ts:200`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L200), [`agent-catalog.test.ts:217`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L217), [`agent-catalog.test.ts:221`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L221), [`agent-catalog.test.ts:234`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L234), [`agent-catalog.test.ts:267`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L267), [`agent-catalog.test.ts:334`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L334), [`agent-catalog.test.ts:349`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L349))
 
 21. Custom station images honor [station-contract.md](../6-dark-factory/contracts/station-contract.md).
 
@@ -269,7 +269,7 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + agen
     `success` with a no-tooling `Lore-Validation: none` extra on an empty repo, `gate` echoes the
     `condition_ref` (`none` when absent), `github_action` times out to `failed` after its CI poll
     budget, and `detect` dispatches by `job_ref` returning the detector's capped summary (throwing on
-    an unknown `job_ref`). ([validated by `validate.test.ts:39`](apps/lore-station/src/stations/validate.test.ts#L39), [`stations.test.ts:18`](apps/lore-station/src/stations/stations.test.ts#L18), [`stations.test.ts:40`](apps/lore-station/src/stations/stations.test.ts#L40), [`stations.test.ts:61`](apps/lore-station/src/stations/stations.test.ts#L61), [`stations.test.ts:78`](apps/lore-station/src/stations/stations.test.ts#L78), [`station-input.test.ts:23`](libs/shared/src/station-input.test.ts#L23), [`station-input.test.ts:35`](libs/shared/src/station-input.test.ts#L35), [`station-input.test.ts:50`](libs/shared/src/station-input.test.ts#L50), [`station-input.test.ts:67`](libs/shared/src/station-input.test.ts#L67), [`station-input.test.ts:75`](libs/shared/src/station-input.test.ts#L75), [`station-input.test.ts:83`](libs/shared/src/station-input.test.ts#L83), [`station-input.test.ts:98`](libs/shared/src/station-input.test.ts#L98), [`station-input.test.ts:117`](libs/shared/src/station-input.test.ts#L117))
+    an unknown `job_ref`). ([validated by `validate.test.ts:39`](apps/stations/src/stations/validate/validate.test.ts#L39), [`gate.test.ts:17`](apps/stations/src/stations/gate/gate.test.ts#L17), [`github-action.test.ts:23`](apps/stations/src/stations/github-action/github-action.test.ts#L23), [`detect.test.ts:18`](apps/stations/src/stations/detect/detect.test.ts#L18), [`detect.test.ts:35`](apps/stations/src/stations/detect/detect.test.ts#L35), [`station-input.test.ts:23`](libs/shared/src/station-input.test.ts#L23), [`station-input.test.ts:35`](libs/shared/src/station-input.test.ts#L35), [`station-input.test.ts:50`](libs/shared/src/station-input.test.ts#L50), [`station-input.test.ts:67`](libs/shared/src/station-input.test.ts#L67), [`station-input.test.ts:75`](libs/shared/src/station-input.test.ts#L75), [`station-input.test.ts:83`](libs/shared/src/station-input.test.ts#L83), [`station-input.test.ts:98`](libs/shared/src/station-input.test.ts#L98), [`station-input.test.ts:117`](libs/shared/src/station-input.test.ts#L117))
 
 23. *(added 2026-07-31)* A station that makes its own LLM calls (comment-triage today) MUST report
     their usage for cost accounting despite having no Postgres (D7): the node result carries the
@@ -279,7 +279,7 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + agen
     assembly-line attempt via the CR name — which is how the run list's Cost column covers
     station-only lines. The usage rides the envelope only, never the `LORE_NODE_RESULT` payload; a
     usage-less terminal line stays byte-identical to the pre-usage envelope, and a failed
-    classification reports no usage. ([validated by `agent-output.test.ts:354`](libs/assembly-lines/src/agent-output.test.ts#L354), [`agent-output.test.ts:369`](libs/assembly-lines/src/agent-output.test.ts#L369), [`agent-output.test.ts:380`](libs/assembly-lines/src/agent-output.test.ts#L380), [`agent-events.test.ts:160`](apps/floor/src/jobs/agent/agent-events.test.ts#L162), [`agent-events.test.ts:193`](apps/floor/src/jobs/agent/agent-events.test.ts#L196), [`comment-triage.test.ts:51`](apps/lore-station/src/stations/comment-triage.test.ts#L51), [`comment-triage.test.ts:49`](libs/shared/src/review/comment-triage.test.ts#L49), [`comment-triage.test.ts:71`](libs/shared/src/review/comment-triage.test.ts#L71); implemented by [`agent-output.ts:180`](libs/assembly-lines/src/agent-output.ts#L180))
+    classification reports no usage. ([validated by `agent-output.test.ts:354`](libs/assembly-lines/src/agent-output.test.ts#L354), [`agent-output.test.ts:369`](libs/assembly-lines/src/agent-output.test.ts#L369), [`agent-output.test.ts:380`](libs/assembly-lines/src/agent-output.test.ts#L380), [`agent-events.test.ts:160`](apps/floor/src/jobs/agent/agent-events.test.ts#L162), [`agent-events.test.ts:193`](apps/floor/src/jobs/agent/agent-events.test.ts#L196), [`comment-triage.test.ts:51`](apps/stations/src/stations/comment-triage/comment-triage.test.ts#L51), [`comment-triage.test.ts:49`](libs/shared/src/review/comment-triage.test.ts#L49), [`comment-triage.test.ts:71`](libs/shared/src/review/comment-triage.test.ts#L71); implemented by [`agent-output.ts:180`](libs/assembly-lines/src/agent-output.ts#L180))
 
 24. *(added 2026-07-31)* Station LLM usage is captured **generically**: `runStation` wraps the
     process-wide `Llm` in a usage-tracking decorator around every runner, so a station whose model
@@ -291,7 +291,7 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + agen
     after the run. The two cost transports are code-enforced exclusive: when the process has a
     configured UsagePort (`Llm.usageConfigured` — the per-call transport), `runStation` installs no
     tracker and suppresses all terminal-line usage, explicit `NodeResult.usage` included, so the
-    same call is never counted by both. ([validated by `main.test.ts:22`](apps/lore-station/src/main.test.ts#L22), [`main.test.ts:56`](apps/lore-station/src/main.test.ts#L56), [`main.test.ts:89`](apps/lore-station/src/main.test.ts#L89), [`main.test.ts:113`](apps/lore-station/src/main.test.ts#L113), [`main.test.ts:128`](apps/lore-station/src/main.test.ts#L128), [`main.test.ts:142`](apps/lore-station/src/main.test.ts#L142); implemented by [`llm-usage-tracker.ts:17`](apps/lore-station/src/llm-usage-tracker.ts#L17))
+    same call is never counted by both. ([validated by `main.test.ts:28`](apps/stations/src/cli/main.test.ts#L28), [`main.test.ts:62`](apps/stations/src/cli/main.test.ts#L62), [`main.test.ts:95`](apps/stations/src/cli/main.test.ts#L95), [`main.test.ts:119`](apps/stations/src/cli/main.test.ts#L119), [`main.test.ts:134`](apps/stations/src/cli/main.test.ts#L134), [`main.test.ts:148`](apps/stations/src/cli/main.test.ts#L148); implemented by [`llm-usage-tracker.ts:17`](apps/stations/src/stations/lib/llm-usage-tracker.ts#L17))
 
 25. *(added 2026-08-03, #1026)* `HttpContextSource.assemble` (D5 hydration) is fail-soft but never
     silent: it returns undefined without fetching when the API is unconfigured, returns the
@@ -312,7 +312,7 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + agen
     `<source>/settings.json`. A laptop minikube therefore points the value at the mcp
     adapter running in HTTP-gateway mode on the host
     (`http://host.minikube.internal:3002/skills`, served by `npm start`) rather than
-    leaving it empty ([validated by `agent-catalog.test.ts:204`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L204); implemented by [`agent-catalog.ts:363`](apps/floor/src/jobs/agent/agent-catalog.ts#L363))
+    leaving it empty ([validated by `agent-catalog.test.ts:205`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L205); implemented by [`agent-catalog.ts:363`](apps/floor/src/jobs/agent/agent-catalog.ts#L363))
 
 27. *(added 2026-08-10)* The agent container MUST run in the cloned repo
     (`/workspace/target`), not the base image's default directory. Left unset, the
@@ -324,7 +324,7 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + agen
     so the run reported success while the round it existed for failed with no result
     posted. Read-only recipes (the review family) opt out via `repo_workdir: false` —
     see statement 31 (#1160)
-    ([validated by `agent-catalog.test.ts:138`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L138); implemented by [`agent-catalog.ts:211`](apps/floor/src/jobs/agent/agent-catalog.ts#L211))
+    ([validated by `agent-catalog.test.ts:139`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L139); implemented by [`agent-catalog.ts:211`](apps/floor/src/jobs/agent/agent-catalog.ts#L211))
 
 28. *(added 2026-08-10)* A run whose deliverable is a **file** MUST declare it, so the
     artifact can leave the pod. The subsystem streams what an agent *says*
@@ -336,7 +336,7 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + agen
     delivery path. `feature-planning` declares `planning.result` →
     `target/result.json`; the path resolves against `WORKSPACE_DIR`, not the agent's
     cwd. A recipe whose deliverable is its own output declares nothing
-    ([validated by `agent-catalog.test.ts:94`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L94), [`agent-catalog.test.ts:105`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L105); implemented by [`agent-catalog.ts:173`](apps/floor/src/jobs/agent/agent-catalog.ts#L173))
+    ([validated by `agent-catalog.test.ts:95`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L95), [`agent-catalog.test.ts:106`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L106); implemented by [`agent-catalog.ts:173`](apps/floor/src/jobs/agent/agent-catalog.ts#L173))
 
 29. *(added 2026-08-10)* The Floor MUST project those artifact events off the
     telemetry sink. The sink carries every run's events, so a file event with no name
@@ -361,7 +361,7 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + agen
     declares none keeps the base deny alone. The declared denies are dormant under
     the current `permission_mode: "bypass"` (the CLI skips deny-rule evaluation in
     that mode) and become enforced when the family moves to an enforcing mode
-    ([validated by `agent-catalog.test.ts:371`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L371), [`agent-catalog.test.ts:381`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L381), [`agent-catalog.test.ts:387`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L387); implemented by [`agent-catalog.ts:166`](apps/floor/src/jobs/agent/agent-catalog.ts#L166), [`agent-catalog.ts:209`](apps/floor/src/jobs/agent/agent-catalog.ts#L209))
+    ([validated by `agent-catalog.test.ts:372`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L372), [`agent-catalog.test.ts:382`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L382), [`agent-catalog.test.ts:388`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L388); implemented by [`agent-catalog.ts:166`](apps/floor/src/jobs/agent/agent-catalog.ts#L166), [`agent-catalog.ts:209`](apps/floor/src/jobs/agent/agent-catalog.ts#L209))
 
 ## Out of scope
 

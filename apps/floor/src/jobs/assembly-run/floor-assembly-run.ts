@@ -236,7 +236,7 @@ export function nodeStationSpec(
     clone: CLONING_STATION_TYPES.has(node.type),
     parameters: {
       // Written through the shared writer, not an object literal: the shape is a
-      // contract with `apps/lore-station`, a separately built and deployed image,
+      // contract with the pod image built from `apps/stations` (Dockerfile.pod),
       // and it used to be spelled out independently on each side. A sweep once
       // renamed this side's `assembly_line_id` and left the pod's parser alone,
       // which would have failed every station run. Now a key that exists on only

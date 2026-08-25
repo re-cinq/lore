@@ -11,7 +11,8 @@
  * what let the whole write and consume path move without touching them.
  */
 
-import { eventQueue, eventReporter } from "../kernel/queues.js";
+import { deliveries, eventReporter } from "../kernel/queues.js";
+import type { EventSubscription } from "@re-cinq/lore-shared/project/events/event-deliveries-port.js";
 import type { EventInput, EventRow } from "./types.js";
 
 /**
@@ -64,16 +65,39 @@ async function logAndRethrow<T>(work: Promise<T>, label: string): Promise<T> {
   }
 }
 
-/** Atomically claim up to `limit` runnable rows: pending/failed past their backoff. */
+/**
+ * The name this Floor consumes under.
+ *
+ * One subscriber per ROLE, not per replica: two Floors are the same consumer and
+ * must share a backlog, exactly as two drainers shared the queue. `SKIP LOCKED`
+ * still gives them disjoint batches.
+ */
+export const FLOOR_SUBSCRIBER = "floor";
+
+/**
+ * Register what this Floor reacts to. Called at boot BEFORE the loop starts,
+ * because fan-out reads the subscription set at insert time: an event captured
+ * before this lands is delivered to nobody and simply sits there.
+ */
+export function subscribe(subscriptions: EventSubscription[]): Promise<void> {
+  return deliveries().subscribe(FLOOR_SUBSCRIBER, subscriptions);
+}
+
+/** Repair deliveries fan-out could not create — see the port's contract. */
+export function reconcileDeliveries(withinMinutes: number): Promise<number> {
+  return deliveries().reconcileDeliveries(withinMinutes);
+}
+
+/** Atomically claim up to `limit` of this Floor's runnable deliveries. */
 export function claimBatch(
   limit: number,
   excludeEventNames: string[] = [],
 ): Promise<EventRow[]> {
-  return eventQueue().claimBatch(limit, excludeEventNames);
+  return deliveries().claim(FLOOR_SUBSCRIBER, limit, excludeEventNames);
 }
 
 export function markDone(id: string): Promise<void> {
-  return eventQueue().markDone(id);
+  return deliveries().markDone(id);
 }
 
 export function markFailed(
@@ -81,19 +105,30 @@ export function markFailed(
   error: string,
   backoffSeconds: number,
 ): Promise<void> {
-  return eventQueue().markFailed(id, error, backoffSeconds);
+  return deliveries().markFailed(id, error, backoffSeconds);
 }
 
 export function markDead(id: string, error: string): Promise<void> {
-  return eventQueue().markDead(id, error);
+  return deliveries().markDead(id, error);
 }
 
-/** Reset rows stuck in `processing` (claimer crashed) back to failed so they re-run. */
-export function reapStuck(timeoutSeconds: number): Promise<number> {
-  return eventQueue().reapStuck(timeoutSeconds);
+/**
+ * Return deliveries a crashed claimer left in flight.
+ *
+ * Takes no timeout: each row is judged against the budget its own subscriber
+ * declared, rather than one global ceiling that presumed every handler dead at
+ * ten minutes regardless of the work.
+ */
+export function reapStuck(): Promise<number> {
+  return deliveries().reapStuck();
 }
 
-/** Delete old terminal rows to keep the claim index small. */
+/** Delete old terminal deliveries to keep the claim index small. */
 export function pruneHandled(olderThanDays: number): Promise<number> {
-  return eventQueue().pruneHandled(olderThanDays);
+  return deliveries().pruneHandled(olderThanDays);
+}
+
+/** Events captured recently that no subscriber received — the silent case. */
+export function orphanedEvents(withinMinutes: number) {
+  return deliveries().orphanedEvents(withinMinutes);
 }

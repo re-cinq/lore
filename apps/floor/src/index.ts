@@ -18,8 +18,16 @@ import { loadApprovalConfig } from "@re-cinq/lore-shared";
 // drain loop + reaper over pipeline.events. Layer 3: the registry's handlers (the
 // existing tasks/jobs). See apps/floor/README.md + ADR-015.
 import { buildRegistry, resolve } from "./main-loop/registry.js";
-import { startEventLoop } from "./main-loop/loop.js";
+import { startEventLoop } from "@re-cinq/lore-shared/project/events/drain-loop.js";
+import {
+  claimBatch,
+  markDead,
+  markDone,
+  markFailed,
+} from "./main-loop/store.js";
 import { startEventReaper } from "./main-loop/reaper.js";
+import { subscribe, reconcileDeliveries } from "./main-loop/store.js";
+import { RECONCILE_WINDOW_MINUTES } from "@re-cinq/lore-shared/project/events/event-deliveries-port.js";
 import { registerCronEmitter } from "./listeners/scheduler-emitter.js";
 import { CRON_EMITTERS } from "./listeners/cron-emitters.js";
 
@@ -72,10 +80,43 @@ async function main(): Promise<void> {
   // would report the outgoing Floor's successor as down.
   await awaitSoleFloor();
 
-  // ── Layer 2: the drain loop + reaper over pipeline.events ──
+  // ── Layer 2: the drain loop + reaper over this Floor's deliveries ──
   const registry = buildRegistry();
 
-  startEventLoop((name) => resolve(registry, name));
+  // BEFORE the loop, and awaited: fan-out reads the subscription set at INSERT
+  // time, so an event captured before this lands is delivered to nobody and
+  // simply sits there. The registry is the subscription set by construction —
+  // deriving it means the Floor cannot subscribe to something it cannot handle,
+  // nor handle something it never asked for.
+  await subscribe([...registry.keys()].map((eventName) => ({ eventName })));
+
+  // AFTER registering: an event captured while this Floor was not subscribed —
+  // a name added by this very deploy, or the window before the first boot
+  // registered at all — has no delivery row, and nothing else would ever create
+  // one. A repair, not a precondition, so a failure here never stops the loop.
+  try {
+    const repaired = await reconcileDeliveries(RECONCILE_WINDOW_MINUTES);
+
+    if (repaired > 0) {
+      console.log(
+        `[floor] reconciled ${repaired} deliveries missed before this boot registered`,
+      );
+    }
+  } catch (err) {
+    console.warn(
+      `[floor] boot reconcile failed (${(err as Error).message}) — draining anyway`,
+    );
+  }
+
+  // The store is passed in now: the stations service drains its own deliveries
+  // through the same loop, so the loop cannot reach for one process's store.
+  startEventLoop({
+    resolve: (name) => resolve(registry, name),
+    claim: claimBatch,
+    markDone,
+    markFailed,
+    markDead,
+  });
   startEventReaper();
 
   // ── Layer 1: the k8s Agent-CR watch (emits kubernetes.agent.* events) ──

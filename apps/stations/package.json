@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "description": "Lore stations \u2014 standalone units of work, one endpoint each (ADR-024 service-endpoint stations)",
   "type": "module",
-  "main": "dist/index.js",
+  "main": "./dist/stations/index.js",
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",
@@ -19,7 +19,8 @@
     "@re-cinq/lore-shared": "*",
     "octokit": "^4.1.0",
     "pg": "^8.13.0",
-    "zod": "^3.24.2"
+    "zod": "^3.24.2",
+    "@re-cinq/lore-assembly-lines": "*"
   },
   "devDependencies": {
     "@types/hapi__hapi": "^20.0.13",
@@ -28,5 +29,19 @@
     "@vitest/coverage-v8": "^4.1.10",
     "typescript": "^7.0.2",
     "vitest": "^4.1.10"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/stations/index.d.ts",
+      "default": "./dist/stations/index.js"
+    },
+    "./*.js": {
+      "types": "./dist/*.d.ts",
+      "default": "./dist/*.js"
+    }
+  },
+  "types": "./dist/stations/index.d.ts",
+  "bin": {
+    "lore-station": "./dist/cli/main.js"
   }
 }

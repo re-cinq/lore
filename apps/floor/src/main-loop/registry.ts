@@ -117,7 +117,7 @@ export function buildRegistry(): Map<string, EventHandler> {
     // ── Detection fan-out (tick → one per-repo assembly-line start each) ──
     ["cron.gap_detection.tick", detect.gapDetectionTick],
     ["cron.spec_drift.tick", detect.specDriftTick],
-    ["cron.spec_coverage_backfill.tick", detect.specCoverageBackfillTick],
+    ["cron.spec_coverage_backfill.tick", cron.specCoverageBackfill],
     ["cron.spec_coverage_validate.tick", detect.specCoverageValidateTick],
   ]);
 }

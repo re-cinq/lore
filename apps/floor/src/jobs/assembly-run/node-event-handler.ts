@@ -94,8 +94,6 @@ export function createNodeEventHandler(deps: NodeEventDeps): EventHandler {
       { row, node, nodeId, iteration, result, output: status.output },
       deps,
     );
-
-    await routeCommentTriage(row, nodeId, result);
   };
 }
 
@@ -210,7 +208,7 @@ export { advanceLine };
  *  advance, and the reaper tick. */
 export async function productionNodeEventDeps(): Promise<NodeEventDeps> {
   const [
-    { pipeline, taskStore, conversations },
+    { pipeline, taskStore, conversations, eventReporter, memoryLifecycle },
     { loadBuiltinAssemblyLines },
     { agentCrBackend, projectFor },
     { buildNodePrompt },
@@ -233,6 +231,11 @@ export async function productionNodeEventDeps(): Promise<NodeEventDeps> {
   return {
     assemblyRuns: pipeline().assemblyRuns,
     definitions: loadBuiltinAssemblyLines,
+    // Wired HERE so it reaches every door: the CR event, the reaper's resolve,
+    // and a station reporting over `assembly_run.resume`. It used to be called
+    // by the CR handler alone, so a triage node the REAPER resolved never
+    // started its follow-up, silently.
+    onNodeFinished: routeCommentTriage,
     launch: async (spec) => {
       await agentCrBackend().launch(spec);
     },
@@ -242,6 +245,29 @@ export async function productionNodeEventDeps(): Promise<NodeEventDeps> {
     cleanupToken: cleanupPerTaskToken,
     jobRuns: pipeline().jobRuns,
     notifyFailure: notifyLineFailure,
+    // Publish a service-form node for the pooled stations service to claim,
+    // rather than giving a DB write or an HTTP POST a pod of its own.
+    publishNode: (event) =>
+      eventReporter().insert({ ...event, source: "internal" }),
+    // What the retrospective station was for and never did: every blueprint names
+    // it as the EXIT, and the walk finishes at the exit rather than dispatching
+    // it, so no run has ever written one.
+    recordRunEpisode: async (run, outcome, reason) => {
+      const { writeEpisode } = await import("@re-cinq/lore-shared");
+
+      await writeEpisode(
+        { memory: memoryLifecycle() },
+        [
+          `Assembly run ${run.blueprintName} on ${run.repo} ${outcome}.`,
+          `Branch: ${run.branch ?? "(none)"}`,
+          reason ? `Reason: ${reason}` : "",
+        ]
+          .filter((l) => l.length > 0)
+          .join("\n"),
+        "assembly-run",
+        `${run.repo}/${run.id}`,
+      );
+    },
     resolveConversation: (node, task, iteration, priorOutcome) =>
       resolveConversation(
         node,

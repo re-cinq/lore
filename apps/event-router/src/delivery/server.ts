@@ -11,8 +11,9 @@
 import Hapi from "@hapi/hapi";
 import { eventsRoute } from "./routes/events.js";
 import { eventQueueRoutes } from "./routes/event-queue.js";
+import { eventDeliveryRoutes } from "./routes/event-deliveries.js";
 import { healthRoute } from "./routes/health.js";
-import { pipeline } from "../kernel/queues.js";
+import { pipeline, deliveries } from "../kernel/queues.js";
 
 // GitHub caps webhook payloads at 25 MB. Bound it there rather than at hapi's
 // 1 MB default, which would reject the large push deliveries that work today.
@@ -45,6 +46,12 @@ export function buildServer(opts: { port?: number } = {}): Hapi.Server {
     }),
     ...eventQueueRoutes({
       queue: () => pipeline().eventQueue,
+      bearerToken: process.env.LORE_INGEST_TOKEN,
+    }),
+    // Lazy for the same reason the queue's thunk is: the pool does not exist
+    // when the routes are described.
+    ...eventDeliveryRoutes({
+      deliveries: () => deliveries(),
       bearerToken: process.env.LORE_INGEST_TOKEN,
     }),
     healthRoute(),

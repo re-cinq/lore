@@ -9,7 +9,7 @@ import { specTaskExecutorJob } from "./task/spec-task-executor.js";
 import { staleTaskCheckJob } from "./task/stale-task-check.js";
 import { featurePlanningReaperJob } from "./task/feature-planning-reaper.js";
 import { leaseReaperJob } from "../main-loop/lease/lease-reaper.js";
-import { pruneHandled } from "../main-loop/store.js";
+import { pruneHandled, orphanedEvents } from "../main-loop/store.js";
 import { pipeline, stationClient } from "../kernel/queues.js";
 import { reconcileAgents } from "../listeners/agent-reconcile.js";
 import type { EventHandler } from "../main-loop/types.js";
@@ -73,6 +73,16 @@ const fromStation = (name: string): EventHandler =>
 
 export const mergeCheck = fromStation("merge-check");
 export const approvalCheck = fromStation("approval-check");
+
+/**
+ * The weekly link backfill fans out per SPECIFICATION, not per repository.
+ *
+ * It was one job per repo at a 30-minute budget, judging every candidate
+ * statement of every spec with a model — so a failure cost the whole repo's pass
+ * and the deadline was the only thing bounding how many PRs it opened. The scan
+ * starts one unit per spec, under a cap that is now a number someone chose.
+ */
+export const specCoverageBackfill = fromStation("backfill-scan");
 export const specTaskExecutor = fromJob(specTaskExecutorJob);
 export const staleTaskCheck = fromJob(staleTaskCheckJob);
 export const featurePlanningReaper = fromJob(featurePlanningReaperJob);
@@ -138,13 +148,33 @@ export const llmCreditProbe: EventHandler = async () => {
   );
 };
 
+/** How far back the orphan report looks. Matches this handler's hourly tick, so
+ *  consecutive runs neither skip a window nor re-report the same events. */
+const ORPHAN_WINDOW_MINUTES = 60;
+
 /** Housekeeping: drop old terminal event rows so the claim index stays small, and
  *  reap agent run events past the 14-day retention horizon (FR1.13). */
 export const eventsPrune: EventHandler = async () => {
   const n = await pruneHandled(7);
 
   if (n > 0) {
-    console.log(`[events] pruned ${n} handled event(s)`);
+    console.log(`[events] pruned ${n} handled delivery(ies)`);
+  }
+
+  // The failure the delivery model introduces: an event name nobody subscribed
+  // to used to be a LOUD dead-letter and is now silence — no deliveries, no
+  // handler, no row anyone looks at. Reporting it is what keeps a producer whose
+  // consumer was never deployed from failing invisibly.
+  const orphaned = await orphanedEvents(ORPHAN_WINDOW_MINUTES);
+
+  if (orphaned.length > 0) {
+    const detail = orphaned
+      .map((o) => `${o.event_name} x${o.count}`)
+      .join(", ");
+
+    console.error(
+      `[events] ${orphaned.length} event name(s) reached nobody in the last ${ORPHAN_WINDOW_MINUTES}m — no subscriber is registered for: ${detail}`,
+    );
   }
 
   const runEvents = await pipeline().agentRunEvents.pruneOld(

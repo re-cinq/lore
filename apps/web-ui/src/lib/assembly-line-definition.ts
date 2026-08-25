@@ -13,13 +13,13 @@
 export type DefinitionNodeType =
   | "agent"
   | "validate"
-  | "gate"
   | "retrospective"
-  | "github_action"
   | "detect"
   | "comment-triage"
   | "ingest"
   | "issues"
+  // One step of the merge line, parameterised by job_ref.
+  | "merge_step"
   // Stations whose worker is a PERSON. The type names the form contract; `route`
   // names the page it lives on (FR6.40).
   | "feature_review"

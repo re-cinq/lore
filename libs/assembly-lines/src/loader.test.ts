@@ -561,6 +561,27 @@ edges: []
     ).toThrow(/Schema violation/);
   });
 
+  it("rejects a merge_step node without job_ref", () => {
+    expect(() =>
+      parseAssemblyLine(`
+name: merge
+description: d
+version: 1
+entry: settle
+exit: done
+nodes:
+  - id: settle
+    type: merge_step
+  - id: done
+    type: retrospective
+edges:
+  - from: settle
+    to: done
+    on: success
+`),
+    ).toThrow(/merge_step node "settle" requires job_ref/);
+  });
+
   it("rejects a detect node without job_ref", () => {
     expect(() =>
       parseAssemblyLine(`
@@ -623,6 +644,7 @@ describe("loadAssemblyLineDir — bundled assemblyLines", () => {
       "general",
       "implementation",
       "ingest",
+      "merge",
       "spec-coverage-backfill",
       "spec-coverage-validate",
       "spec-drift",
