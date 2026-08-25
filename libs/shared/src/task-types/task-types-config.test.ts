@@ -138,3 +138,18 @@ describe("warnOnDrift", () => {
     ]);
   });
 });
+
+describe("the implementation-tdd recipe", () => {
+  it("demands red before green, inline validated-by links, and the status flip, leaving implementation untouched", () => {
+    const parsed = parseTaskTypesFile(COMMITTED);
+    const tdd = parsed.taskTypes["implementation-tdd"]?.prompt_template ?? "";
+
+    expect(tdd).toContain("failing test");
+    expect(tdd).toContain("Red first");
+    expect(tdd).toContain("validated by");
+    expect(tdd).toContain("| Status |");
+    expect(parsed.taskTypes["implementation"]?.prompt_template).not.toContain(
+      "Red first",
+    );
+  });
+});

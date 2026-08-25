@@ -105,3 +105,12 @@ describe("the implementation-loop line", () => {
     expect(t).toEqual({ kind: "finish" });
   });
 });
+
+describe("the implementation-loop line has no address node", () => {
+  it("carries no address node — review comments belong to the code-review choreography", () => {
+    expect(line.nodes.find((n) => n.id === "address")).toBeUndefined();
+    expect(
+      line.nodes.find((n) => n.prompt_ref === "address-feedback"),
+    ).toBeUndefined();
+  });
+});
