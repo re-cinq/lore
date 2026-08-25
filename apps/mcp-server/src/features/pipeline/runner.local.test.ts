@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import * as os from "node:os";
@@ -16,6 +16,8 @@ import {
   buildTurnLines,
   batchTurnLines,
   dropOversizedTurnLines,
+  ingestTurns,
+  type LocalTask,
   type LocalRunnerConfig,
   type PendingTask,
 } from "./runner.local.js";
@@ -445,5 +447,64 @@ describe("dropOversizedTurnLines", () => {
       kept: [],
       oversized: 1,
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// ingestTurns — each relayed batch carries its cumulative line offset so the
+// relay can key lines by transcript position (#1389)
+// ---------------------------------------------------------------------------
+
+describe("ingestTurns x-turn-offset header", () => {
+  const localTask: LocalTask = {
+    taskId: "task-1",
+    pid: 1,
+    branch: "fix/x",
+    repo: "re-cinq/lore",
+    worktreePath: "/tmp/worktree",
+    logFile: "/tmp/task-1.log",
+    startedAt: "2026-08-19T00:00:00.000Z",
+    status: "completed",
+  };
+  const rawLogs = Array.from({ length: 2001 }, (_, i) =>
+    JSON.stringify({ type: "assistant", i }),
+  ).join("\n");
+  const env = process.env;
+
+  beforeEach(() => {
+    env.LORE_API_URL = "http://lore-api.test";
+    env.LORE_INGEST_TOKEN = "test-token";
+  });
+
+  afterEach(() => {
+    delete env.LORE_API_URL;
+    delete env.LORE_INGEST_TOKEN;
+    vi.unstubAllGlobals();
+  });
+
+  it("stamps each batch with its cumulative line offset", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 200 });
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    await ingestTurns(localTask, rawLogs);
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[0][1].headers["x-turn-offset"]).toBe("0");
+    expect(fetchMock.mock.calls[1][1].headers["x-turn-offset"]).toBe("2000");
+  });
+
+  it("advances the offset past a failed batch so later lines keep their positions", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: false, status: 502 })
+      .mockResolvedValue({ ok: true, status: 200 });
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    await ingestTurns(localTask, rawLogs);
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[1][1].headers["x-turn-offset"]).toBe("2000");
   });
 });

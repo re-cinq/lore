@@ -71,12 +71,13 @@ export class PgAgentRunTurns implements AgentRunTurnsRepository {
       station_run_id: row.carried?.stationRunId ?? null,
       event_type: row.eventType,
       envelope: row.envelope,
+      dedup_key: row.dedupKey ?? null,
     }));
 
     const { rows: inserted } = await this.pool.query<AgentRunTurnDbRow>(
       `INSERT INTO pipeline.agent_run_turns (
          task_id, agent_cr_name, assembly_line_id, station_run_id, node_id,
-         iteration, event_type, envelope
+         iteration, event_type, envelope, dedup_key
        )
        -- Every branch keys on the SAME predicate, so the identity comes whole
        -- from one source — see agent-run-events-pg for why mixing is worse than
@@ -91,10 +92,12 @@ export class PgAgentRunTurns implements AgentRunTurnsRepository {
               CASE WHEN v.assembly_run_id IS NULL
                    THEN correlated.iteration ELSE v.iteration END,
               v.event_type,
-              v.envelope::jsonb
+              v.envelope::jsonb,
+              v.dedup_key
        FROM jsonb_to_recordset($1::jsonb) AS v(
          task_id TEXT, agent_cr_name TEXT, assembly_run_id UUID, node_id TEXT,
-         iteration INT, station_run_id UUID, event_type TEXT, envelope TEXT
+         iteration INT, station_run_id UUID, event_type TEXT, envelope TEXT,
+         dedup_key TEXT
        )
        -- Same rule as agent_run_events: CR names are unique per line, so the
        -- DESC tie-break only fires when two DIFFERENT lines collide on their
@@ -109,6 +112,14 @@ export class PgAgentRunTurns implements AgentRunTurnsRepository {
          ORDER BY node.id DESC
          LIMIT 1
        ) correlated ON true
+       -- Re-ingest dedup (#1389): a duplicate dedup_key skips its row, never
+       -- fails the batch. Deliberately NO arbiter target: naming the partial
+       -- index would 42P10-fail every insert on a database where the column
+       -- exists but the index was dropped by hand — the bare form degrades
+       -- that to duplicates instead of total turn loss. The cost: conflicts
+       -- on ANY future unique index on this table would be swallowed here
+       -- and mis-attributed to turn_deduped.
+       ON CONFLICT DO NOTHING
        RETURNING *`,
       [JSON.stringify(batch)],
     );

@@ -356,6 +356,7 @@ describe("PgAgentRunTurns adapter", () => {
         station_run_id: null,
         event_type: "assistant",
         envelope,
+        dedup_key: null,
       },
     ]);
   });
@@ -485,5 +486,83 @@ describe("compareTurnIdAscending", () => {
 
   it("orders by numeric value rather than by string order", () => {
     expect(compareTurnIdAscending(at("10"), at("9"))).toBeGreaterThan(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Re-ingest dedup (#1389): a relayed line carries a dedupKey; a key already
+// stored skips its row silently (skip-not-fail), a null key never dedups.
+// ---------------------------------------------------------------------------
+
+describe("InMemoryAgentRunTurns dedup", () => {
+  it("skips a re-inserted batch whose dedup keys are already stored", async () => {
+    const repo = new InMemoryAgentRunTurns();
+    const batch = [turn({ dedupKey: "key-1" }), turn({ dedupKey: "key-2" })];
+
+    const first = await repo.insertBatch(batch);
+    const second = await repo.insertBatch(batch);
+
+    expect(first).toHaveLength(2);
+    expect(second).toEqual([]);
+    expect(repo.rows).toHaveLength(2);
+  });
+
+  it("skips the second of two rows carrying the same key within one batch", async () => {
+    const repo = new InMemoryAgentRunTurns();
+
+    const rows = await repo.insertBatch([
+      turn({ dedupKey: "key-1", eventType: "first" }),
+      turn({ dedupKey: "key-1", eventType: "second" }),
+    ]);
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.eventType).toBe("first");
+  });
+
+  it("never dedups rows carrying no dedup key, even byte-identical ones", async () => {
+    const repo = new InMemoryAgentRunTurns();
+
+    await repo.insertBatch([turn()]);
+    await repo.insertBatch([turn()]);
+
+    expect(repo.rows).toHaveLength(2);
+  });
+
+  it("frees a pruned row's key so a later re-ingest stores the line again", async () => {
+    let now = new Date("2026-08-01T00:00:00.000Z");
+    const repo = new InMemoryAgentRunTurns({ now: () => now });
+
+    await repo.insertBatch([turn({ dedupKey: "key-1" })]);
+    now = new Date("2026-09-15T00:00:00.000Z");
+    await repo.pruneOld(30);
+
+    expect(await repo.insertBatch([turn({ dedupKey: "key-1" })])).toHaveLength(
+      1,
+    );
+  });
+});
+
+describe("PgAgentRunTurns dedup", () => {
+  it("binds the dedup key and skips conflicts without naming an arbiter index", async () => {
+    const { pool, calls } = fakePool([[]]);
+
+    await new PgAgentRunTurns(pool).insertBatch([turn({ dedupKey: "key-1" })]);
+
+    expect(calls[0]?.text).toContain("ON CONFLICT DO NOTHING");
+    expect(calls[0]?.text).not.toContain("ON CONFLICT (");
+    expect(calls[0]?.text).toContain("dedup_key TEXT");
+    expect(JSON.parse(String(calls[0]?.params?.[0]))[0]).toMatchObject({
+      dedup_key: "key-1",
+    });
+  });
+
+  it("binds a null dedup key for a row that carries none", async () => {
+    const { pool, calls } = fakePool([[]]);
+
+    await new PgAgentRunTurns(pool).insertBatch([turn()]);
+
+    expect(JSON.parse(String(calls[0]?.params?.[0]))[0]).toMatchObject({
+      dedup_key: null,
+    });
   });
 });

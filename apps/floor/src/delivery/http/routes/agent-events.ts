@@ -44,7 +44,8 @@ type AnomalyKind =
   | "run_events_failed"
   | "run_turns_failed"
   | "turn_dropped_redaction"
-  | "turn_dropped_cap";
+  | "turn_dropped_cap"
+  | "turn_deduped";
 
 /** Counts ingest anomalies so a silent problem shows on a dashboard. No-op
  *  until the OTEL SDK is registered (otel-init), so free in tests. */
@@ -211,7 +212,20 @@ async function recordRunTurns(
   rows: readonly AgentRunTurnInsert[],
 ): Promise<number> {
   try {
-    return (await pipeline().agentRunTurns.insertBatch(rows)).length;
+    const inserted = (await pipeline().agentRunTurns.insertBatch(rows)).length;
+    const deduped = rows.length - inserted;
+
+    if (deduped > 0) {
+      // Expected on a relay retry (#1389), but still counted: every path on
+      // which a sent turn does not become a row is visible, and this is the
+      // only one that could ever swallow a legitimate line.
+      countAnomaly("turn_deduped", deduped);
+      console.warn(
+        `[floor] ${deduped} turn(s) skipped as already-stored duplicates`,
+      );
+    }
+
+    return inserted;
   } catch (err) {
     countAnomaly("run_turns_failed");
     console.warn(`[floor] agent_run_turns skipped: ${errorMessage(err)}`);

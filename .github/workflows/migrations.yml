@@ -166,6 +166,44 @@ jobs:
           SQL
           echo "[migrate] 0035 fixture assertions OK"
 
+      # 0042 adds re-ingest dedup for the turn store (#1389): a duplicate
+      # dedup_key must skip its row — intra-statement and across statements —
+      # while NULL keys (cluster ingest) must never dedup. Proven here because
+      # the unit suites assert the SQL text only, never live ON CONFLICT
+      # semantics against the partial unique index.
+      - name: Fixture — 0042 dedups turn re-ingest without failing the batch
+        run: |
+          set -eu
+          docker exec -i "$LORE_PG_CONTAINER" psql -U lore -d lore -v ON_ERROR_STOP=1 <<'SQL'
+          INSERT INTO pipeline.agent_run_turns (task_id, event_type, envelope, dedup_key)
+          VALUES ('fixture-1389', 'assistant', '{"event":1}'::jsonb, 'key-a'),
+                 ('fixture-1389', 'assistant', '{"event":1}'::jsonb, 'key-a'),
+                 ('fixture-1389', 'assistant', '{"event":2}'::jsonb, NULL),
+                 ('fixture-1389', 'assistant', '{"event":2}'::jsonb, NULL)
+          ON CONFLICT DO NOTHING;
+          INSERT INTO pipeline.agent_run_turns (task_id, event_type, envelope, dedup_key)
+          VALUES ('fixture-1389', 'assistant', '{"event":1}'::jsonb, 'key-a')
+          ON CONFLICT DO NOTHING;
+          DO $$
+          DECLARE
+            keyed INTEGER;
+            unkeyed INTEGER;
+          BEGIN
+            SELECT count(*) INTO keyed FROM pipeline.agent_run_turns
+            WHERE task_id = 'fixture-1389' AND dedup_key = 'key-a';
+            IF keyed <> 1 THEN
+              RAISE EXCEPTION 'expected exactly 1 keyed row after 3 inserts of key-a, got %', keyed;
+            END IF;
+            SELECT count(*) INTO unkeyed FROM pipeline.agent_run_turns
+            WHERE task_id = 'fixture-1389' AND dedup_key IS NULL;
+            IF unkeyed <> 2 THEN
+              RAISE EXCEPTION 'NULL dedup keys must never dedup: expected 2 rows, got %', unkeyed;
+            END IF;
+            DELETE FROM pipeline.agent_run_turns WHERE task_id = 'fixture-1389';
+          END $$;
+          SQL
+          echo "[migrate] 0042 fixture assertions OK"
+
       - name: Re-apply the newest migration (idempotency must hold)
         run: |
           set -eu

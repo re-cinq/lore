@@ -45,6 +45,13 @@ export interface AgentRunTurnInsert {
    * statement; readers get it back parsed.
    */
   envelope: string;
+  /**
+   * Idempotency key for re-ingested lines (#1389): the task-turns relay stamps
+   * one per relayed line, so a retried POST skips rows already stored instead
+   * of duplicating the transcript. Null/absent (every non-relay producer)
+   * means "never dedup" — the fidelity default.
+   */
+  dedupKey?: string | null;
 }
 
 /**
@@ -90,8 +97,10 @@ export interface AgentRunTurnsRepository {
    * Insert a batch, resolving `agentCrName` to (`assemblyLineId`, `nodeId`,
    * `iteration`) against `pipeline.station_runs` at write time. A turn
    * that correlates to nothing is still inserted, with `agentCrName` retained
-   * and the three correlated fields left null. Returns the persisted rows
-   * ascending by id.
+   * and the three correlated fields left null. A row whose non-null `dedupKey`
+   * is already stored is skipped silently — never a batch failure. Returns the
+   * rows THIS CALL inserted, ascending by id; skipped duplicates are persisted
+   * (from their first ingest) but not returned.
    */
   insertBatch(rows: readonly AgentRunTurnInsert[]): Promise<AgentRunTurnRow[]>;
   /** One assembly line's turns with id > afterId, ascending, capped. */
