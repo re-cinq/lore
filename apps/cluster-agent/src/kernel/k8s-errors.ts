@@ -11,9 +11,28 @@ export function statusOf(err: unknown): number | undefined {
     code?: number;
     statusCode?: number;
     response?: { statusCode?: number };
+    body?: { code?: number };
+    message?: unknown;
   };
+  const structured =
+    e?.code ?? e?.statusCode ?? e?.response?.statusCode ?? e?.body?.code;
 
-  return e?.code ?? e?.statusCode ?? e?.response?.statusCode;
+  if (structured !== undefined) {
+    return structured;
+  }
+
+  // Last resort: the client surfaces some statuses ONLY as prose. A Secret write
+  // that loses an optimistic-concurrency race arrives as
+  // `HTTP-Code: 409\nMessage: Unknown API Status Code!\nBody: "{…}"` with every
+  // structured field undefined — so `isConflict` said false, the retry in
+  // `mutate()` that exists for exactly that race never fired, and
+  // per-task-tokens 500'd whenever two agents provisioned at once (2026-08-25).
+  // Anchored to the client's own prefix so an unrelated message carrying a
+  // number cannot be read as a status.
+  const message = typeof e?.message === "string" ? e.message : "";
+  const fromMessage = /^HTTP-Code:\s*(\d{3})\b/m.exec(message);
+
+  return fromMessage ? Number(fromMessage[1]) : undefined;
 }
 
 export function isNotFound(err: unknown): boolean {
