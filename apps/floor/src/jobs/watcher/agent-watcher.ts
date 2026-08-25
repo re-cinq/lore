@@ -16,6 +16,7 @@
 
 import type { Agent as AgentCr } from "@re-cinq/agent-contracts";
 import { resultTextFromOutput } from "@re-cinq/lore-assembly-lines";
+import { startEscalationLine } from "@re-cinq/lore-shared/escalation/start-escalation-line.js";
 import {
   projectFor,
   assemblyLineNames,
@@ -696,6 +697,30 @@ async function handleSucceededChanges(ctx: AgentContext): Promise<void> {
           error: msg.substring(0, 500),
         })
         .catch(() => {});
+
+      // Tell a human. The status above is a row nobody reads unprompted; the
+      // escalation line is the channel ADR-016 designed for dark mode, and it
+      // had no caller at all between #805 and now. Swallowed, because failing to
+      // ESCALATE a failure must not itself become the failure.
+      await startEscalationLine(
+        { id: taskId, repo: targetRepo, branch },
+        {
+          reason: "supervisor_panic",
+          diagnostic: `createPR failed: ${reason}. ${msg.substring(0, 500)}`,
+        },
+        {
+          findOpenBySubject: (repo: string, key: string) =>
+            pipeline().assemblyRuns.findOpenBySubject(repo, key),
+          countBySubject: (repo: string, key: string) =>
+            pipeline().assemblyRuns.countBySubject(repo, key),
+          start: (input) => pipeline().assemblyRuns.start(input),
+        },
+      ).catch((err) =>
+        console.error(
+          `[agent-watcher] escalation for ${taskId} not started:`,
+          (err as Error).message,
+        ),
+      );
 
       try {
         await cluster.remove(name);

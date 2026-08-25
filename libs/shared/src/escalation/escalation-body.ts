@@ -1,9 +1,16 @@
-import { withBackoff } from "@re-cinq/lore-shared/lib/backoff.js";
-import { projectFor } from "../../composition/project-boot.js";
-import { writeAuditLog } from "../lib/audit.js";
+/**
+ * What a human is told when a task needs them, and the shape it is told in.
+ *
+ * The PURE half of what used to be `apps/floor/src/jobs/platform/escalation.ts`:
+ * the input a diagnostic is rendered from, and the rendering itself. The
+ * SEQUENCE that used to wrap it — file the Issue, fall back to audit-only,
+ * notify — is now `escalation.yaml`, where each step is a recorded visit and
+ * the fallback is an edge rather than a catch block.
+ *
+ * It lives in shared because both ends need it: the escalation station renders
+ * the body, and whatever decides to escalate builds the input.
+ */
 
-/** The minimum issue-creation surface escalate needs — the Project facade's
- *  `issues` satisfies it; injectable for tests. */
 export interface IssueCreator {
   create(
     title: string,
@@ -60,7 +67,6 @@ export interface EscalateResult {
 // lease is held while we wait, and the audit_only fallback already preserves the
 // diagnostic in Slack — a longer tail doesn't buy reliability proportional to the
 // lease-hold cost.
-const RETRY_DELAYS_MS = [1000, 4000];
 
 /**
  * Escalate a stuck task to humans. Per FR3.8 + research R3:
@@ -72,77 +78,6 @@ const RETRY_DELAYS_MS = [1000, 4000];
  *  4. On final failure: write the audit entry with `outcome:
  *     audit_only` and inline the full body into the Slack
  *     notification (so a human still sees the diagnostic somewhere).
- */
-export async function escalate(input: EscalateInput): Promise<EscalateResult> {
-  const body = renderEscalationBody(input);
-  const title = `[lore] needs-human-help: ${input.reason} on ${input.branchName}`;
-
-  const issues = input.issues ?? (await projectFor(input.repo)).issues;
-  const issue = await createIssueWithBackoff(issues, title, body);
-
-  if (issue.success) {
-    await writeAuditLogSafe({
-      event_type: "escalation_issued",
-      task_id: input.taskId,
-      repo: input.repo,
-      payload: {
-        branch_name: input.branchName,
-        reason: input.reason,
-        outcome: "issue_created" as EscalateOutcome,
-        issue_number: issue.issueNumber,
-        issue_url: issue.issueUrl,
-        issued_at: new Date().toISOString(),
-      },
-    });
-
-    if (input.notify) {
-      await Promise.resolve(
-        input.notify(
-          `🚨 Lore needs human help (${input.reason}) — ${issue.issueUrl}`,
-          "escalation",
-        ),
-      );
-    }
-
-    return {
-      outcome: "issue_created",
-      issueNumber: issue.issueNumber,
-      issueUrl: issue.issueUrl,
-    };
-  }
-
-  // Degrade to audit-only path. Slack must carry the diagnostic since
-  // the Issue surface failed.
-  await writeAuditLogSafe({
-    event_type: "escalation_issued",
-    task_id: input.taskId,
-    repo: input.repo,
-    payload: {
-      branch_name: input.branchName,
-      reason: input.reason,
-      outcome: "audit_only" as EscalateOutcome,
-      issue_creation_error: issue.error.message,
-      issued_at: new Date().toISOString(),
-    },
-  });
-
-  if (input.notify) {
-    await Promise.resolve(
-      input.notify(
-        `🚨 Lore needs human help (${input.reason}) — Issue creation failed.\n\n${body}`,
-        "escalation",
-      ),
-    );
-  }
-
-  return { outcome: "audit_only" };
-}
-
-/**
- * Pure body renderer (exported for testing / for callers that want to
- * preview the message before firing). Includes a clickable link to
- * `git log <branch>` so the human can inspect partial work directly
- * without re-deriving where the supervisor stopped.
  */
 export function renderEscalationBody(input: EscalateInput): string {
   const lines: string[] = [
@@ -188,43 +123,3 @@ export function renderEscalationBody(input: EscalateInput): string {
   return lines.join("\n");
 }
 
-interface CreateIssueResult {
-  success: true;
-  issueNumber: number;
-  issueUrl: string;
-}
-interface CreateIssueFailure {
-  success: false;
-  error: Error;
-}
-
-async function createIssueWithBackoff(
-  issues: IssueCreator,
-  title: string,
-  body: string,
-): Promise<CreateIssueResult | CreateIssueFailure> {
-  try {
-    const issue = await withBackoff(
-      () => issues.create(title, body, ["needs-human-help", "lore-managed"]),
-      { delaysMs: RETRY_DELAYS_MS },
-    );
-
-    return {
-      success: true,
-      issueNumber: issue.number,
-      issueUrl: issue.url ?? "",
-    };
-  } catch (err) {
-    return { success: false, error: err as Error };
-  }
-}
-
-async function writeAuditLogSafe(
-  entry: Parameters<typeof writeAuditLog>[0],
-): Promise<void> {
-  try {
-    await writeAuditLog(entry);
-  } catch (err) {
-    console.warn("[escalate] audit log write failed:", (err as Error).message);
-  }
-}

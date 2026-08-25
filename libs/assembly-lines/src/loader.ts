@@ -24,6 +24,7 @@ const NodeType = z.enum([
   // nine node types, the way `detect` is: they share a shape and differ only in
   // which piece of post-merge work they do.
   "merge_step",
+  "escalation_step",
   // Stations whose worker is OUTSIDE the pod system — a PERSON. They dispatch
   // nothing and park the run until the page named by `route` reports an outcome,
   // over HTTP, on the same station contract a pod reports over stdout. The TYPE
@@ -142,6 +143,7 @@ const PRODUCIBLE_OUTCOMES: Record<
   ingest: ["success", "failed"],
   issues: ["success", "changes_requested", "failed"],
   merge_step: ["success", "failed"],
+  escalation_step: ["success", "failed"],
   // accept / merged, refine, and abandoned — a person can do all three.
   feature_review: ["success", "changes_requested", "failed"],
   pr_review: ["success", "changes_requested", "failed"],
@@ -187,7 +189,11 @@ export class AssemblyLineLoadError extends Error {
  * without `iteration_max`.
  */
 /** Node types whose handler is named by `job_ref`, not by the type alone. */
-const PARAMETERISED_NODE_TYPES = new Set(["detect", "merge_step"]);
+const PARAMETERISED_NODE_TYPES = new Set([
+  "detect",
+  "merge_step",
+  "escalation_step",
+]);
 
 export function parseAssemblyLine(
   yamlSrc: string,

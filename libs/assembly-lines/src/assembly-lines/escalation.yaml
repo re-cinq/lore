@@ -1,0 +1,37 @@
+name: escalation
+description: >
+  Tell a human that a task needs them. Started when a task transitions to
+  needs-human-help, keyed by that task so two writers racing cannot file two
+  Issues at the same person.
+version: 1
+entry: file-issue
+exit: done
+
+nodes:
+  - id: file-issue
+    type: escalation_step
+    job_ref: file-issue
+    description: >
+      Open the needs-human-help Issue carrying the diagnostic, the branch link
+      and the refs that contributed to the run.
+
+  - id: notify
+    type: escalation_step
+    job_ref: notify
+    description: >
+      Post to the repo's configured channels and write the escalation_issued
+      audit entry.
+
+  - id: done
+    type: retrospective
+    description: Terminal marker.
+
+edges:
+  # BOTH outcomes route forward, as on the merge line. A failure to file the
+  # Issue is precisely when the notification matters most — that combination
+  # used to be a catch block reaching for an audit-only fallback, and it is an
+  # edge here so the fallback is a recorded visit rather than a log line.
+  - { from: file-issue, to: notify, on: success }
+  - { from: file-issue, to: notify, on: failed }
+  - { from: notify, to: done, on: success }
+  - { from: notify, to: done, on: failed }
