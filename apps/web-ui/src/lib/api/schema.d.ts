@@ -1821,6 +1821,11 @@ export interface components {
                 };
               };
               auto_review?: boolean;
+              implementation_loop?: {
+                enabled?: boolean;
+              } & {
+                [key: string]: unknown;
+              };
               cross_repo?: boolean;
               cross_repo_repos?: string[];
               slack_channel_id?: string;
@@ -1894,6 +1899,11 @@ export interface components {
               };
             };
             auto_review?: boolean;
+            implementation_loop?: {
+              enabled?: boolean;
+            } & {
+              [key: string]: unknown;
+            };
             cross_repo?: boolean;
             cross_repo_repos?: string[];
             slack_channel_id?: string;
