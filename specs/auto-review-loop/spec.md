@@ -454,12 +454,12 @@ The code-review assembly line is the sole reviewer (ADR-012 amendment): a **deep
 ### `libs/shared/src/project/lib/platform-github.test.ts`
 
 - exposes the github port name. ([validated by](libs/shared/src/project/lib/platform-github.test.ts#L79))
-- createLabels swallows a 422 (already exists) and continues. ([validated by](libs/shared/src/project/lib/platform-github.test.ts#L168))
-- createLabels rethrows a non-422 error. ([validated by](libs/shared/src/project/lib/platform-github.test.ts#L175))
-- createReview posts one review with the mapped comments array. ([validated by](libs/shared/src/project/lib/platform-github.test.ts#L182))
-- get exposes the PR head sha as headSha. ([validated by](libs/shared/src/project/lib/platform-github.test.ts#L205))
-- listReviewThreads maps GraphQL thread nodes (id, resolution, outdated flag, comment databaseIds) and stitches pages past the first cursor. ([validated by](libs/shared/src/project/lib/platform-github.test.ts#L256))
-- resolveReviewThread sends the GraphQL mutation carrying the thread node id. ([validated by](libs/shared/src/project/lib/platform-github.test.ts#L306))
+- createLabels swallows a 422 (already exists) and continues. ([validated by](libs/shared/src/project/lib/platform-github.test.ts#L170))
+- createLabels rethrows a non-422 error. ([validated by](libs/shared/src/project/lib/platform-github.test.ts#L177))
+- createReview posts one review with the mapped comments array. ([validated by](libs/shared/src/project/lib/platform-github.test.ts#L184))
+- get exposes the PR head sha as headSha. ([validated by](libs/shared/src/project/lib/platform-github.test.ts#L207))
+- listReviewThreads maps GraphQL thread nodes (id, resolution, outdated flag, comment databaseIds) and stitches pages past the first cursor. ([validated by](libs/shared/src/project/lib/platform-github.test.ts#L258))
+- resolveReviewThread sends the GraphQL mutation carrying the thread node id. ([validated by](libs/shared/src/project/lib/platform-github.test.ts#L308))
 
 ### `libs/shared/src/project/pulls/pull-requests.test.ts`
 
