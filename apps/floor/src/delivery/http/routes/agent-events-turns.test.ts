@@ -52,6 +52,7 @@ beforeEach(() => {
 
 afterEach(() => {
   process.env.LORE_AGENT_INTERNAL_TOKEN = ORIG_TOKEN ?? "";
+  vi.restoreAllMocks();
 });
 
 describe("POST /api/agent-events turn store", () => {
@@ -168,8 +169,6 @@ describe("POST /api/agent-events deduped-turn signal (#1389)", () => {
   it("warns with a count when the store skips already-ingested duplicates", async () => {
     insertTurns.mockResolvedValue([]);
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-
-    warn.mockClear();
 
     const res = await post(RESULT_LINE);
 
