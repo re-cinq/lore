@@ -8,12 +8,18 @@ describe("implementationLoopEnabled", () => {
     ).toBe(true);
   });
 
-  it("returns false when enabled is false, the block is absent, or settings are null", () => {
+  it("returns false when enabled is explicitly false", () => {
     expect(
       implementationLoopEnabled({ implementation_loop: { enabled: false } }),
     ).toBe(false);
     expect(implementationLoopEnabled({ implementation_loop: {} })).toBe(false);
+  });
+
+  it("returns false when the implementation_loop block is absent", () => {
     expect(implementationLoopEnabled({})).toBe(false);
+  });
+
+  it("returns false when settings are null", () => {
     expect(implementationLoopEnabled(null)).toBe(false);
   });
 
