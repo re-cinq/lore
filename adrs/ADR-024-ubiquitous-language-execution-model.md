@@ -128,6 +128,12 @@ and lose the update; no `resourceVersion` ever crosses the wire.
   a station that does not exist. ([validated by writes the station before the agent definition that points at it](apps/cluster-agent/src/kernel/paired-writes.test.ts#L120), [`paired-writes.test.ts:128`](apps/cluster-agent/src/kernel/paired-writes.test.ts#L128), [`paired-writes.test.ts:147`](apps/cluster-agent/src/kernel/paired-writes.test.ts#L147))
 - A refusal is read by its status, never collapsed: 404 is absence, 403 names
   the Role rule that is missing, anything else is a failure. ([validated by reads the code this client version sets](apps/cluster-agent/src/kernel/k8s-errors.test.ts#L13), [`k8s-errors.test.ts:17`](apps/cluster-agent/src/kernel/k8s-errors.test.ts#L17), [`k8s-errors.test.ts:21`](apps/cluster-agent/src/kernel/k8s-errors.test.ts#L21), [`k8s-errors.test.ts:25`](apps/cluster-agent/src/kernel/k8s-errors.test.ts#L25), [`k8s-errors.test.ts:31`](apps/cluster-agent/src/kernel/k8s-errors.test.ts#L31), [`k8s-errors.test.ts:38`](apps/cluster-agent/src/kernel/k8s-errors.test.ts#L38), [`k8s-errors.test.ts:47`](apps/cluster-agent/src/kernel/k8s-errors.test.ts#L47), [`k8s-errors.test.ts:59`](apps/cluster-agent/src/kernel/k8s-errors.test.ts#L59), [`k8s-errors.test.ts:69`](apps/cluster-agent/src/kernel/k8s-errors.test.ts#L69))
+- The status is read wherever this client puts it, including out of the message,
+  which is the only place it appears for some refusals. A Secret write that loses
+  an optimistic-concurrency race arrives as `HTTP-Code: 409 / Unknown API Status
+  Code!` with every structured field undefined; read as no status at all, the
+  retry that exists for exactly that race never fires, and provisioning fails
+  whenever two agents start at once. ([validated by reads 409 out of the message when it is nowhere else](apps/cluster-agent/src/kernel/k8s-errors.test.ts#L87), [`k8s-errors.test.ts:91`](apps/cluster-agent/src/kernel/k8s-errors.test.ts#L91), [`k8s-errors.test.ts:96`](apps/cluster-agent/src/kernel/k8s-errors.test.ts#L96))
 - Provisioning is ONE call — catalog read, GitHub mint, Secret write and the
   per-task clone together. The agent mints, so no GitHub token crosses the
   network; the cost accepted is that the App private key lives in the agent.

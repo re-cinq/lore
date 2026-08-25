@@ -72,3 +72,29 @@ describe("describeK8sError", () => {
     );
   });
 });
+
+describe("a status carried only in the message", () => {
+  // The shape the client actually throws for a Secret write that lost an
+  // optimistic-concurrency race. Verbatim from production, 2026-08-25: the 409
+  // is nowhere structured, so `code`/`statusCode`/`response.statusCode` are all
+  // undefined and isConflict said false. The mutate() retry that exists for
+  // exactly this case therefore never fired, per-task-tokens 500'd, and no agent
+  // could be launched while several provisioned at once.
+  const asClientThrowsIt = new Error(
+    'HTTP-Code: 409\nMessage: Unknown API Status Code!\nBody: "{\\"kind\\":\\"Status\\",\\"status\\":\\"Failure\\",\\"message\\":\\"Operation cannot be fulfilled on secrets \\\\\\"agent-secrets\\\\\\": the object has been modified\\",\\"reason\\":\\"Conflict\\",\\"code\\":409}"',
+  );
+
+  it("reads 409 out of the message when it is nowhere else", () => {
+    expect(isConflict(asClientThrowsIt)).toBe(true);
+  });
+
+  it("still prefers a structured status when there is one", () => {
+    expect(isConflict({ code: 409 })).toBe(true);
+    expect(isConflict({ response: { statusCode: 409 } })).toBe(true);
+  });
+
+  it("does not read a 409 out of an unrelated message", () => {
+    expect(isConflict(new Error("connection reset"))).toBe(false);
+    expect(isConflict(new Error("HTTP-Code: 404"))).toBe(false);
+  });
+});
