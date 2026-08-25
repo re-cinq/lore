@@ -17,7 +17,7 @@ The Spec Traceability Graph is a derived Dgraph projection giving a queryable, b
 
 There is no queryable, bidirectional, sentence-level map from a spec to
 the tests and code that implement it. Drift detection today
-([`spec-coverage-validate`](../../apps/floor/src/application/jobs/scheduled/spec-coverage-validate.ts))
+([`spec-coverage-validate`](../../libs/shared/src/detect/spec-coverage-validate.ts))
 only catches **link rot** — a test link whose file was deleted or whose
 line moved out of range. It cannot catch the case that matters most:
 
@@ -169,7 +169,7 @@ which ships first. Phasing in [`plan.md`](./plan.md).
 
 The projection sets the per-statement `violated`/`drifted` flags above; the
 weekly `spec_drift` detection
-([spec-drift.ts](../../apps/floor/src/jobs/spec-trace/spec-drift/spec-drift.ts),
+([spec-drift.ts](../../libs/shared/src/detect/spec-drift.ts),
 run per repo as the `detect` node of the `spec-drift` assembly line, fanned out
 by the `cron.spec_drift.tick` handler in
 [fan-out.ts](../../apps/floor/src/jobs/detect/fan-out.ts) — ADR-019 amendment) is the
@@ -179,7 +179,7 @@ the decision.
 
 - **Graph-primary.** When a spec is projected, drift is decided from its
   `violated`/`drifted` statements — deterministic, statement-level
-  ([decideGraphDrift](../../apps/floor/src/application/jobs/cron/spec-drift-rules.ts)).
+  ([decideGraphDrift](../../libs/shared/src/detect/spec-drift-rules.ts)).
   A spec whose statements all resolve is **not** drifted (the former
   symbol-membership heuristic flagged clean specs like `GET /healthz` as fully
   diverged because endpoints/fields/methods aren't top-level symbols).
@@ -190,11 +190,11 @@ the decision.
   per-run cap bounds the batch; transient infra failures
   (`BackoffLimitExceeded`/`CreateContainerConfigError`) re-queue a bounded number
   of times ([k8s-pod-failure.ts](../../libs/shared/src/k8s-pod-failure.ts),
-  [loretask-watcher.ts](../../apps/floor/src/application/jobs/scheduled/loretask-watcher.ts))
+  [agent-watcher.ts](../../apps/floor/src/jobs/watcher/agent-watcher.ts))
   rather than filing a terminal `lore-failed` issue.
-- **Actionable issue copy** ([issue-body.ts](../../apps/floor/src/application/task-processing/issue-body.ts)):
+- **Actionable issue copy** ([issue-body.ts](../../apps/floor/src/jobs/task/issue-body.ts)):
   the drifted statements verbatim, a static remediation guidance block
-  ([drift-issue-guidance.ts](../../apps/floor/src/application/jobs/cron/drift-issue-guidance.ts)),
+  ([drift-issue-guidance.ts](../../apps/floor/src/jobs/spec-trace/spec-drift/drift-issue-guidance.ts)),
   `created by spec-drift`, and a `Lore-Task` trailer that links to the deployed
   task page.
 
