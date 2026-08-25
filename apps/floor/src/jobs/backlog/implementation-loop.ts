@@ -36,11 +36,15 @@ export interface LoopTickDeps {
  * the highest-priority eligible issue and mint one `implementation-loop` task.
  * The standard machinery does the rest — the worker claims it, the assembly
  * line runs, the watcher opens the PR. Serialisation is the subject key: an
- * open run holding the repo's backlog subject skips the repo, and the
- * mint-to-run gap is covered by the picked issue's active task (a cross-issue
- * race past both guards start-or-JOINs on the unique `(repo, subject_key)`
- * index and settles as a joined task). An empty backlog does nothing and
- * leaves nothing behind. One broken repo never stops the sweep.
+ * open run holding the repo's backlog subject skips the repo, and the picked
+ * issue's task guard covers the rest: activeTaskByIssue counts every task not
+ * failed/cancelled, so it spans the mint-to-run gap AND keeps an addressed
+ * ticket — completed, PR open, awaiting a human merge — from being re-picked,
+ * which is FR1's "no open Lore-authored PR already referencing it" clause in
+ * practice. (A cross-issue race past both guards start-or-JOINs on the unique
+ * `(repo, subject_key)` index and settles as a joined task.) An empty backlog
+ * does nothing and leaves nothing behind. One broken repo never stops the
+ * sweep.
  */
 export function createImplementationLoopTickHandler(
   deps: LoopTickDeps,
