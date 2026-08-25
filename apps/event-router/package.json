@@ -1,0 +1,30 @@
+{
+  "name": "@re-cinq/lore-event-router",
+  "version": "0.1.0",
+  "description": "Lore event router \u2014 the one writer of pipeline.events (GitHub webhooks + the Agent CR watch)",
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsc --watch",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "test:watch": "vitest",
+    "start:watch": "node --watch-path=./dist --watch-path=../../libs/shared/dist dist/index.js"
+  },
+  "dependencies": {
+    "@hapi/hapi": "21.4.9",
+    "@re-cinq/lore-shared": "*",
+    "pg": "^8.13.0",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@types/hapi__hapi": "^20.0.13",
+    "@types/node": "^22.13.10",
+    "@types/pg": "^8.11.0",
+    "@vitest/coverage-v8": "^4.1.10",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.10"
+  }
+}

@@ -4,11 +4,19 @@ const pruneHandled = vi.fn<(days: number) => Promise<number>>();
 const pruneOld = vi.fn<(days: number) => Promise<number>>();
 const pruneTurns = vi.fn<(days: number) => Promise<number>>();
 
+const orphanedEvents =
+  vi.fn<
+    (minutes: number) => Promise<{ event_name: string; count: number }[]>
+  >();
+
 vi.mock("../main-loop/store.js", () => ({
   pruneHandled: (days: number) => pruneHandled(days),
+  orphanedEvents: (minutes: number) => orphanedEvents(minutes),
 }));
 
 vi.mock("../kernel/queues.js", () => ({
+  // The logs route resolves the cluster agent from here.
+  clusterAgent: () => ({}),
   pipeline: () => ({
     agentRunEvents: { pruneOld: (days: number) => pruneOld(days) },
     agentRunTurns: { pruneOld: (days: number) => pruneTurns(days) },
@@ -23,6 +31,7 @@ beforeEach(() => {
   pruneHandled.mockReset().mockResolvedValue(0);
   pruneOld.mockReset().mockResolvedValue(0);
   pruneTurns.mockReset().mockResolvedValue(0);
+  orphanedEvents.mockReset().mockResolvedValue([]);
 });
 
 afterEach(() => {
@@ -113,5 +122,35 @@ describe("eventsPrune turn retention override", () => {
     expect(String(warn.mock.calls[0]?.[0])).toContain(
       "LORE_AGENT_RUN_TURN_RETENTION_DAYS=0",
     );
+  });
+});
+
+describe("eventsPrune orphan report", () => {
+  it("names every event that reached no subscriber, with its count", async () => {
+    const err = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    orphanedEvents.mockResolvedValue([
+      { event_name: "internal.repo.team_changed", count: 3 },
+      { event_name: "github.issues.labeled", count: 1 },
+    ]);
+    await eventsPrune({}, { eventId: "1" });
+
+    expect(err.mock.calls[0]?.[0]).toContain(
+      "internal.repo.team_changed x3, github.issues.labeled x1",
+    );
+  });
+
+  it("says nothing when every event reached a subscriber", async () => {
+    const err = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await eventsPrune({}, { eventId: "1" });
+
+    expect(err).not.toHaveBeenCalled();
+  });
+
+  it("looks back exactly one hour, matching its own tick, so no window is skipped or doubled", async () => {
+    await eventsPrune({}, { eventId: "1" });
+
+    expect(orphanedEvents).toHaveBeenCalledWith(60);
   });
 });

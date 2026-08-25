@@ -533,23 +533,6 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/api/maintenance/{job}": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** POST /api/maintenance/{job} */
-    post: operations["post_api_maintenance_job"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
   "/api/tasks/by-pr/{owner}/{repo}/{number}": {
     parameters: {
       query?: never;
@@ -1760,6 +1743,24 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/repos/{owner}/{repo}/implementation-loop": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** GET /api/repos/{owner}/{repo}/implementation-loop */
+    get: operations["get_api_repos_owner_repo_implementation-loop"];
+    /** PUT /api/repos/{owner}/{repo}/implementation-loop */
+    put: operations["put_api_repos_owner_repo_implementation-loop"];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1838,6 +1839,11 @@ export interface components {
                 };
               };
               auto_review?: boolean;
+              implementation_loop?: {
+                enabled?: boolean;
+              } & {
+                [key: string]: unknown;
+              };
               cross_repo?: boolean;
               cross_repo_repos?: string[];
               slack_channel_id?: string;
@@ -1911,6 +1917,11 @@ export interface components {
               };
             };
             auto_review?: boolean;
+            implementation_loop?: {
+              enabled?: boolean;
+            } & {
+              [key: string]: unknown;
+            };
             cross_repo?: boolean;
             cross_repo_repos?: string[];
             slack_channel_id?: string;
@@ -2228,10 +2239,6 @@ export interface components {
       nodes: {
         [key: string]: unknown;
       }[];
-    };
-    MaintenanceResult: {
-      job: string;
-      summary: string;
     };
     TaskByPr: {
       task_id: string;
@@ -3339,6 +3346,38 @@ export interface components {
       created_at: string;
       updated_at: string;
     };
+    ImplementationLoop: {
+      enabled: boolean;
+      current: {
+        issue_number: number;
+        issue_url: string | null;
+        title: string;
+        priority: string | null;
+        pr_url: string | null;
+        state: string;
+      } | null;
+      next: {
+        issue_number: number;
+        issue_url: string | null;
+        title: string;
+        priority: string | null;
+        pr_url: string | null;
+        state: string;
+      }[];
+      recent: {
+        issue_number: number;
+        issue_url: string | null;
+        title: string;
+        priority: string | null;
+        pr_url: string | null;
+        state: string;
+      }[];
+    };
+    ImplementationLoopToggle: {
+      /** @constant */
+      ok: true;
+      enabled: boolean;
+    };
   };
   responses: {
     /** @description Malformed or invalid request */
@@ -4282,34 +4321,6 @@ export interface operations {
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];
       404: components["responses"]["NotFound"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  post_api_maintenance_job: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        job: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Job completed */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["MaintenanceResult"];
-        };
-      };
-      400: components["responses"]["BadRequest"];
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      413: components["responses"]["PayloadTooLarge"];
       429: components["responses"]["RateLimited"];
       503: components["responses"]["ServiceUnavailable"];
     };
@@ -6735,6 +6746,68 @@ export interface operations {
       403: components["responses"]["Forbidden"];
       404: components["responses"]["NotFound"];
       409: components["responses"]["Conflict"];
+      413: components["responses"]["PayloadTooLarge"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "get_api_repos_owner_repo_implementation-loop": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        owner: string;
+        repo: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The repo's backlog loop: toggle state, the ticket being worked, the ordered queue, and recently addressed tickets. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ImplementationLoop"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "put_api_repos_owner_repo_implementation-loop": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        owner: string;
+        repo: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          enabled: boolean;
+        };
+      };
+    };
+    responses: {
+      /** @description Enable or disable the repo's backlog loop. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ImplementationLoopToggle"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
       413: components["responses"]["PayloadTooLarge"];
       429: components["responses"]["RateLimited"];
       503: components["responses"]["ServiceUnavailable"];

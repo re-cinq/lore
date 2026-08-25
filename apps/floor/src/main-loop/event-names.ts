@@ -1,13 +1,8 @@
 /**
- * Event sources for the Floor event bus. Event names are usually
- * `source.subject.action`, where the source prefix is globally unique so a name
- * on one source can never collide with another (e.g. `github.pull_request.closed`
- * vs `kubernetes.agent.succeeded`). The registry keys on the full name.
- *
- * Exception: the `assembly_line.*` family is subject-first, not source-prefixed —
- * the assembly line is a primary concept whose start events come from multiple
- * producers (worker, station backend, future API), all with `source: "internal"`.
+ * Event sources moved to `@re-cinq/lore-shared` when the event-router became a
+ * separate deployable (ADR-044): a producer outside this process has to name a
+ * source too, and a vocabulary only one speaker can see is not a vocabulary.
+ * Re-exported because Floor's modules have always imported it from here.
  */
 
-export const SOURCES = ["github", "kubernetes", "cron", "internal"] as const;
-export type EventSource = (typeof SOURCES)[number];
+export { SOURCES, type EventSource } from "@re-cinq/lore-shared";

@@ -430,7 +430,11 @@ describe("reviewNodeResultOverride", () => {
       },
     );
 
-    expect(result).toEqual({ outcome: "failed" });
+    expect(result).toMatchObject({
+      outcome: "failed",
+      failureClass: "unknown",
+      failureDetail: /reached no verdict/,
+    });
   });
 
   it("keeps a verdict-carrying result even without a findings block (legitimate minimal approve)", () => {
@@ -454,7 +458,14 @@ describe("reviewNodeResultOverride", () => {
       { outcome: "success" },
     );
 
-    expect(result).toEqual({ outcome: "failed" });
+    // The reason is the point. Recorded bare, this renders as `node "recheck"
+    // failed` — indistinguishable from an evicted pod or a dry account, and it
+    // sent two reviewers hunting an infrastructure outage that was not there.
+    expect(result).toMatchObject({
+      outcome: "failed",
+      failureClass: "unknown",
+      failureDetail: /changes_requested.*nothing was posted/,
+    });
   });
 
   it("keeps the result when findings were posted", () => {
@@ -860,5 +871,187 @@ describe("postReviewFromNode for the fast re-check node", () => {
 
     expect(outcome).toBe("posted");
     expect(p.reviews[0]?.input.event).toBe("APPROVE");
+  });
+});
+
+describe("postReplyFromNode thread resolution", () => {
+  function threadPorts(overrides: Partial<ReplyPoster> = {}) {
+    const p = replyPorts();
+    const resolved: string[] = [];
+    const poster: ReplyPoster = {
+      ...p.poster,
+      listReviewThreads: async () => [
+        {
+          id: "PRRT_9",
+          isResolved: false,
+          isOutdated: false,
+          comments: [{ databaseId: 55 }],
+        },
+      ],
+      resolveReviewThread: async (threadId) => {
+        resolved.push(threadId);
+      },
+      ...overrides,
+    };
+
+    return { ...p, poster, resolved };
+  }
+
+  it("resolves the replied thread on an address intent", async () => {
+    const p = threadPorts();
+
+    const outcome = await postReplyFromNode(
+      row({ pr_number: 841, in_reply_to_id: 55, intent: "address" }),
+      refineNode,
+      replyText("Done — pushed a1b2c3d."),
+      { poster: p.poster, audit: p.audit },
+    );
+
+    expect(outcome).toBe("posted");
+    expect(p.resolved).toEqual(["PRRT_9"]);
+    expect(p.entries).toMatchObject([
+      {
+        event_type: "review_thread_resolved",
+        repo: "re-cinq/lore",
+        payload: { pr_number: 841, thread_id: "PRRT_9" },
+      },
+    ]);
+  });
+
+  it("leaves the thread open on an answer intent", async () => {
+    const p = threadPorts();
+
+    await postReplyFromNode(
+      row({ pr_number: 841, in_reply_to_id: 55, intent: "answer" }),
+      refineNode,
+      replyText("It is intentional, see ADR-016."),
+      { poster: p.poster, audit: p.audit },
+    );
+
+    expect(p.resolved).toEqual([]);
+  });
+
+  it("resolves nothing on the plain-comment fallback, which has no thread", async () => {
+    const p = threadPorts();
+
+    await postReplyFromNode(
+      row({ pr_number: 841, intent: "address" }),
+      refineNode,
+      replyText("Fixed."),
+      { poster: p.poster, audit: p.audit },
+    );
+
+    expect(p.resolved).toEqual([]);
+  });
+
+  it("still reports posted and audits when the thread listing throws", async () => {
+    const p = threadPorts({
+      listReviewThreads: async () => {
+        throw new Error("GraphQL down");
+      },
+    });
+
+    const outcome = await postReplyFromNode(
+      row({ pr_number: 841, in_reply_to_id: 55, intent: "address" }),
+      refineNode,
+      replyText("Fixed."),
+      { poster: p.poster, audit: p.audit },
+    );
+
+    expect(outcome).toBe("posted");
+    expect(p.resolved).toEqual([]);
+    expect(p.entries).toMatchObject([
+      {
+        event_type: "review_thread_resolve_failed",
+        repo: "re-cinq/lore",
+        payload: {
+          pr_number: 841,
+          in_reply_to_id: 55,
+          reason: "list_failed",
+          error: "GraphQL down",
+        },
+      },
+    ]);
+  });
+
+  it("audits a no-match instead of resolving some other thread", async () => {
+    const p = threadPorts({
+      listReviewThreads: async () => [
+        {
+          id: "PRRT_OTHER",
+          isResolved: false,
+          isOutdated: false,
+          comments: [{ databaseId: 777 }],
+        },
+      ],
+    });
+
+    await postReplyFromNode(
+      row({ pr_number: 841, in_reply_to_id: 55, intent: "address" }),
+      refineNode,
+      replyText("Fixed."),
+      { poster: p.poster, audit: p.audit },
+    );
+
+    expect(p.resolved).toEqual([]);
+    expect(p.entries).toMatchObject([
+      {
+        event_type: "review_thread_resolve_failed",
+        payload: { reason: "no_thread_for_comment" },
+      },
+    ]);
+  });
+
+  it("skips resolution silently for a poster without the thread methods", async () => {
+    const p = replyPorts();
+
+    const outcome = await postReplyFromNode(
+      row({ pr_number: 841, in_reply_to_id: 55, intent: "address" }),
+      refineNode,
+      replyText("Fixed."),
+      { poster: p.poster, audit: p.audit },
+    );
+
+    expect(outcome).toBe("posted");
+    expect(p.entries).toEqual([]);
+  });
+});
+
+describe("postReplyFromNode resolve mutation failure", () => {
+  it("audits resolve_failed with the thread id when the mutation throws", async () => {
+    const p = replyPorts();
+    const poster: ReplyPoster = {
+      ...p.poster,
+      listReviewThreads: async () => [
+        {
+          id: "PRRT_9",
+          isResolved: false,
+          isOutdated: false,
+          comments: [{ databaseId: 55 }],
+        },
+      ],
+      resolveReviewThread: async () => {
+        throw new Error("mutation denied");
+      },
+    };
+
+    const outcome = await postReplyFromNode(
+      row({ pr_number: 841, in_reply_to_id: 55, intent: "address" }),
+      refineNode,
+      replyText("Fixed."),
+      { poster, audit: p.audit },
+    );
+
+    expect(outcome).toBe("posted");
+    expect(p.entries).toMatchObject([
+      {
+        event_type: "review_thread_resolve_failed",
+        payload: {
+          reason: "resolve_failed",
+          thread_id: "PRRT_9",
+          error: "mutation denied",
+        },
+      },
+    ]);
   });
 });

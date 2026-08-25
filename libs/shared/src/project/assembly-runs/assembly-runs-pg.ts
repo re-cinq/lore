@@ -1,6 +1,7 @@
 import { StationRunInputSchema } from "../../models/station-run.js";
 import { enforceTrue } from "../../lib/enforce.js";
 import { resolveResumePrefix } from "./resume.js";
+import { fanOutClause } from "../events/fan-out.js";
 import { RUN_START_EVENT } from "./run-events.js";
 import type { RunGraph } from "./run-graph.js";
 import type { AssemblyRunQuery } from "./assembly-runs-port.js";
@@ -124,6 +125,9 @@ export class PgAssemblyRuns implements AssemblyRunsPort {
                 ),
                 $3, '${RUN_START_EVENT}:' || al.id
          FROM al
+         RETURNING id, event_name
+       ), fan AS (
+         ${fanOutClause("ev")}
        )
        SELECT id FROM al`,
       [
@@ -213,6 +217,9 @@ export class PgAssemblyRuns implements AssemblyRunsPort {
                 ),
                 $3, '${RUN_START_EVENT}:' || al.id
          FROM al
+         RETURNING id, event_name
+       ), fan AS (
+         ${fanOutClause("ev")}
        ), copied AS (
          INSERT INTO pipeline.station_runs
            (assembly_run_id, node_id, iteration, outcome, failure_class,
@@ -417,6 +424,17 @@ export class PgAssemblyRuns implements AssemblyRunsPort {
     );
 
     return rows[0] ? toOpenSummary(rows[0]) : null;
+  }
+
+  async countBySubject(repo: string, subjectKey: string): Promise<number> {
+    const { rows } = await this.pool.query<{ n: string }>(
+      `SELECT count(*)::text AS n
+         FROM pipeline.assembly_runs
+        WHERE repo = $1 AND subject_key = $2`,
+      [repo, subjectKey],
+    );
+
+    return Number(rows[0]?.n ?? 0);
   }
 
   async mergeArgs(id: string, patch: Record<string, unknown>): Promise<void> {

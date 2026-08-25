@@ -142,22 +142,14 @@ controller:
 imagePullSecrets:
   - name: ghcr-pull-secret
 
-# The cross-namespace caller allowed to create/get/watch Agents and to update the
-# single agent-secrets Secret (the Lore Floor). Its ServiceAccount lives in another
-# namespace; we bind it to the in-namespace agent-launcher + secret-writer Roles.
-floor:
-  serviceAccount: lore-floor
-  namespace: lore-floor
+# NOTE: the `floor` and `mcpServer` cross-namespace RBAC that used to live here is
+# gone (ADR-024, 2026-08-24). Neither the Floor nor lore-api talks to Kubernetes
+# any more — `apps/cluster-agent` does, under its own Role in this namespace, and
+# it is the only ServiceAccount that needs a binding here.
 
-# The cross-namespace MCP server allowed to manage the catalog recipes — the /agents
-# editor's saves apply AgentDefinition/Station CRDs here (re-cinq/lore#698). The
-# lore-api pod runs under its namespace's default ServiceAccount.
-mcpServer:
-  serviceAccount: default
-  namespace: lore-api
-
-# The single ESO-managed Secret the run pods mount allowlisted keys from. The Floor
-# PATCHes short-lived per-task GitHub tokens into it (see re-cinq/lore#685).
+# The single ESO-managed Secret the run pods mount allowlisted keys from. The
+# CLUSTER AGENT PATCHes short-lived per-task GitHub tokens into it (see
+# re-cinq/lore#685); it used to be the Floor.
 agentSecretsName: agent-secrets
 
 # The agent-secrets key holding the agent's LLM credential, used as BOTH the secret key

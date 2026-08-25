@@ -33,7 +33,9 @@ import type { AuditPort } from "@re-cinq/lore-shared/project/audit/audit-port.js
 import type {
   IssueComment,
   ReviewComment,
+  ReviewThread,
 } from "@re-cinq/lore-shared/project/pulls/pull-requests-port.js";
+import { findThreadForComment } from "@re-cinq/lore-shared/project/pulls/review-threads.js";
 
 /**
  * Unwrap the Agent output envelope so every text parser downstream reads the
@@ -117,7 +119,27 @@ export function reviewNodeResultOverride(
   result: NodeResult,
 ): NodeResult {
   if (post === "no_findings" && parseReviewVerdict(output) !== "success") {
-    return { outcome: "failed" };
+    // WHY it failed, not just that it did. Recorded bare — which this did — the
+    // node renders as `node "recheck" failed` with no class and no detail, which
+    // is exactly how an evicted pod, a dry account and a token mismatch render.
+    // On 2026-08-24 that cost two reviewers a hunt for an infrastructure outage
+    // that did not exist; the review had simply found something and failed to
+    // publish it.
+    const verdict = parseReviewVerdict(output);
+
+    return {
+      outcome: "failed",
+      // `unknown`, not an invented class: FailureCategory is the closed taxonomy
+      // of INFRASTRUCTURE failures that drive retry and the account-wide dispatch
+      // gate. This is a recipe/contract bug, and `unknown` is what node-outcome
+      // already uses for that — the diagnosis belongs in the detail, which is the
+      // part that was missing.
+      failureClass: "unknown",
+      failureDetail:
+        verdict === "changes_requested"
+          ? "the review reached changes_requested but nothing was posted to the PR — its findings block did not parse, so the findings are lost"
+          : "the review posted no findings and reached no verdict — it never got far enough to judge the diff",
+    };
   }
 
   return result;
@@ -242,6 +264,10 @@ export interface ReplyPoster {
   comment(number: number, body: string): Promise<void>;
   listComments?(number: number): Promise<ReviewComment[]>;
   listIssueComments?(number: number): Promise<IssueComment[]>;
+  /** Optional like the reads above — a poster without the thread methods just
+   *  skips resolution (fail open; specs/implementation-loop FR5). */
+  listReviewThreads?(number: number): Promise<ReviewThread[]>;
+  resolveReviewThread?(threadId: string): Promise<void>;
 }
 
 /** Ports the reply post writes through (production resolves both from the
@@ -279,6 +305,84 @@ function replyRunMarker(
   iteration: number,
 ): string {
   return `<!-- lore-reply-run: ${assemblyLineId}/${nodeId}/${iteration} -->`;
+}
+
+/**
+ * Resolve the thread a reply just landed in, best-effort (FR5): only on the
+ * `address` intent — an `answer` leaves the human mid-conversation and their
+ * thread open — and never failing the post that succeeded. The REST reply knows
+ * only its comment id; GraphQL thread nodes carry each comment's databaseId,
+ * so findThreadForComment joins the two. Every failure mode lands in the audit
+ * log under one event with a reason discriminator.
+ */
+async function resolveRepliedThread(
+  row: AssemblyRunRecord,
+  pulls: ReplyPoster,
+  prNumber: number,
+  inReplyTo: number,
+  ports: ReplyPorts,
+): Promise<void> {
+  if (row.args.intent !== "address") {
+    return;
+  }
+
+  if (!pulls.listReviewThreads || !pulls.resolveReviewThread) {
+    return;
+  }
+  const audit = (payload: Record<string, unknown>, resolved: boolean) =>
+    writeAuditLog(
+      {
+        event_type: resolved
+          ? "review_thread_resolved"
+          : "review_thread_resolve_failed",
+        repo: row.repo,
+        payload: {
+          pr_number: prNumber,
+          assembly_run_id: row.id,
+          in_reply_to_id: inReplyTo,
+          ...payload,
+        },
+      },
+      ports.audit,
+    );
+
+  let thread: ReviewThread | null;
+
+  try {
+    thread = findThreadForComment(
+      await pulls.listReviewThreads(prNumber),
+      inReplyTo,
+    );
+  } catch (err) {
+    await audit(
+      { reason: "list_failed", error: (err as Error).message },
+      false,
+    );
+
+    return;
+  }
+
+  if (!thread) {
+    await audit({ reason: "no_thread_for_comment" }, false);
+
+    return;
+  }
+
+  try {
+    await pulls.resolveReviewThread(thread.id);
+  } catch (err) {
+    await audit(
+      {
+        reason: "resolve_failed",
+        thread_id: thread.id,
+        error: (err as Error).message,
+      },
+      false,
+    );
+
+    return;
+  }
+  await audit({ thread_id: thread.id }, true);
 }
 
 /**
@@ -343,6 +447,7 @@ export async function postReplyFromNode(
 
     if (inReplyTo > 0) {
       await pulls.replyToReviewComment(prNumber, inReplyTo, stamped);
+      await resolveRepliedThread(row, pulls, prNumber, inReplyTo, ports);
     } else {
       await pulls.comment(prNumber, stamped);
     }

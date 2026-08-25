@@ -53,7 +53,7 @@ jobs:
       # subpaths (e.g. @re-cinq/lore-server-core/platform/db.js → dist). Both libs
       # must be built before the suite runs (same rationale as test.yml).
       - name: Build libs
-        run: npm run build -w @re-cinq/lore-shared && npm run build -w @re-cinq/lore-server-core && npm run build -w @re-cinq/lore-assembly-lines
+        run: npm run build -w @re-cinq/lore-shared && npm run build -w @re-cinq/lore-server-core && npm run build -w @re-cinq/lore-assembly-lines && npm run build -w @re-cinq/lore-stations
 
       # The schema comes from the SAME place production gets it: the baseline
       # setup-*.sh scripts plus ui-helm/migrations in filename order, which is

@@ -1,0 +1,93 @@
+name: merge
+description: >
+  Everything that must happen once a task's PR merges. It was one function behind
+  five swallowing try/catch blocks and three unguarded awaits, so a throw in the
+  middle skipped every step after it — including the one that un-parks a feature's
+  planning line, which a trust-ladder blip could therefore strand forever.
+version: 1
+entry: settle
+exit: done
+
+# Every step except `settle` routes BOTH success and failed to the next one. The
+# steps do not depend on each other's results, so a failing step is RECORDED and
+# the line walks on — the independence the old code faked with try/catch, but as
+# data. Only `settle` is a genuine precondition: everything downstream assumes the
+# task is merged, so its failure ends the line.
+nodes:
+  - id: settle
+    type: merge_step
+    job_ref: settle
+    description: Mark the task merged and record the transition.
+
+  - id: spec-status
+    type: merge_step
+    job_ref: spec-status
+    description: Flip the spec's status header when this merge completes a feature.
+
+  - id: close-issue
+    type: merge_step
+    job_ref: close-issue
+    description: Comment on the task's Issue and close it.
+
+  - id: outcome-stats
+    type: merge_step
+    job_ref: outcome-stats
+    description: Record the PR's shape as an episode and bump the repo's outcome stats.
+
+  - id: curate
+    type: merge_step
+    job_ref: curate
+    description: Extract a reusable lesson from the merge, for later search.
+
+  - id: memory-feedback
+    type: merge_step
+    job_ref: memory-feedback
+    description: Boost the facts and memories that contributed to this task.
+
+  - id: trust
+    type: merge_step
+    job_ref: trust
+    description: Advance the repo's trust level if this merge earns it.
+
+  - id: spec-tasks
+    type: merge_step
+    job_ref: spec-tasks
+    description: Sync spec-tasks from a merged feature-request's tasks.md.
+
+  - id: resume-planning
+    type: merge_step
+    job_ref: resume-planning
+    description: Resume the planning line parked on this spec PR.
+
+  - id: done
+    type: retrospective
+    description: Terminal marker (the walk halts on exit).
+
+edges:
+  # The one hard stop: nothing downstream is meaningful if the task is not merged.
+  - { from: settle, to: spec-status, on: success }
+  - { from: settle, to: done, on: failed }
+
+  - { from: spec-status, to: close-issue, on: success }
+  - { from: spec-status, to: close-issue, on: failed }
+
+  - { from: close-issue, to: outcome-stats, on: success }
+  - { from: close-issue, to: outcome-stats, on: failed }
+
+  - { from: outcome-stats, to: curate, on: success }
+  - { from: outcome-stats, to: curate, on: failed }
+
+  - { from: curate, to: memory-feedback, on: success }
+  - { from: curate, to: memory-feedback, on: failed }
+
+  - { from: memory-feedback, to: trust, on: success }
+  - { from: memory-feedback, to: trust, on: failed }
+
+  - { from: trust, to: spec-tasks, on: success }
+  - { from: trust, to: spec-tasks, on: failed }
+
+  - { from: spec-tasks, to: resume-planning, on: success }
+  - { from: spec-tasks, to: resume-planning, on: failed }
+
+  - { from: resume-planning, to: done, on: success }
+  - { from: resume-planning, to: done, on: failed }

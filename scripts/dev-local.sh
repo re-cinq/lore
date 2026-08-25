@@ -5,7 +5,8 @@ set -euo pipefail
 #   Postgres (docker) + shared (tsc --watch) + mcp-server + agent + web-ui.
 # Idempotent — safe to re-run. Ctrl-C tears everything down (concurrently -k).
 #
-# Ports after start: web-ui :3000, mcp-server :3001, agent :8080, Postgres :5432.
+# Ports after start: web-ui :3000, mcp-server :3001, skills :3002, event-router :3003,
+# stations :3004, cluster-agent :3005, agent :8080, Postgres :5432.
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
@@ -15,13 +16,14 @@ fail() { echo "[lore] ERROR: $*" >&2; exit 1; }
 
 # Kill any stale Lore stack from a previous `npm start`. node --watch children
 # ignore plain SIGTERM and can survive a rough exit, then hold the service ports
-# (web-ui :3000, mcp-server :3001, skills :3002, agent :8080) so the next run dies
+# (web-ui :3000, mcp-server :3001, skills :3002, event-router :3003, stations :3004,
+# cluster-agent :3005, agent :8080) so the next run dies
 # with EADDRINUSE. Free those ports here. Postgres :5432 / Dgraph :8081 are
 # docker-managed, so we leave them alone. Idempotent: a no-op when nothing runs.
 free_stale_ports() {
   command -v lsof >/dev/null 2>&1 || { log "lsof not found — skipping stale-instance cleanup"; return 0; }
   local port pids
-  for port in 3000 3001 3002 8080; do
+  for port in 3000 3001 3002 3003 3004 3005 8080; do
     pids="$(lsof -ti "tcp:$port" -sTCP:LISTEN 2>/dev/null || true)"
     [ -n "$pids" ] || continue
     log "Port $port held by a stale instance (PID $(echo "$pids" | tr '\n' ' ')) — stopping it"
@@ -93,6 +95,20 @@ export LORE_FLOOR_URL="${LORE_FLOOR_URL:-http://localhost:8080}"
 #     locally-run task transcripts to the Floor's /api/agent-events sink through
 #     it. Unset, the relay answers 503 and local-run transcripts stay on disk.
 export LORE_AGENT_URL="${LORE_AGENT_URL:-http://localhost:8080}"
+
+# 2d. The three service deployables the Floor talks to over HTTP (ADR-044 /
+#     ADR-024). Running them locally is not a nicety: on 2026-08-24 the Floor
+#     shipped sending LORE_INGEST_TOKEN while all three charts mounted
+#     LORE_AGENT_INTERNAL_TOKEN, and every call 401'd in production. Each end was
+#     correct alone; only the pair was wrong, and nothing local exercised the
+#     pair. It does now.
+#
+#     Both ends read LORE_AGENT_INTERNAL_TOKEN here, defaulting to the same
+#     LORE_INGEST_TOKEN above so a local run needs one token, not two.
+export LORE_AGENT_INTERNAL_TOKEN="${LORE_AGENT_INTERNAL_TOKEN:-$LORE_INGEST_TOKEN}"
+export EVENT_ROUTER_URL="${EVENT_ROUTER_URL:-http://localhost:3003}"
+export STATIONS_URL="${STATIONS_URL:-http://localhost:3004}"
+export CLUSTER_AGENT_URL="${CLUSTER_AGENT_URL:-http://localhost:3005}"
 
 # Station execution. Tasks run as Agent CRs on the ai-agent-subsystem (agent-cr),
 # which needs a Kubernetes cluster. The default `inprocess` keeps the lightweight
@@ -166,7 +182,10 @@ log "Building shared, runner, server-core, lore-api, mcp-server, agent..."
 npm run build
 
 # 5. Run everything with live reload — one slot per process so -k kills all.
-#    Each TS service gets a tsc --watch (recompile) + node --watch (restart) pair.
+#    Each TS service gets a tsc --watch (recompile) + node --watch (restart) PAIR.
+#    Both halves, always: node --watch watches ./dist, so a service given only the
+#    restart half watches a directory nothing recompiles and an edit to its source
+#    changes nothing until the next manual build.
 #    start:watch watches both ./dist and ../shared/dist, so a shared-package edit
 #    recompiles (shared tsc) and restarts the dependent services too.
 #
@@ -207,8 +226,8 @@ set -m
 # LORE_AGENT_SKILLS_DIR is explicit because the gateway otherwise resolves the
 # bundle relative to cwd, and concurrently runs from the repo root.
 npx concurrently -k \
-  -n "shared,core,api-tsc,api,mcp-tsc,skills,agent-tsc,agent,ui" \
-  -c "blue,gray,green,greenBright,yellow,white,magenta,magentaBright,cyan" \
+  -n "shared,core,api-tsc,api,mcp-tsc,skills,agent-tsc,agent,router-tsc,router,stations-tsc,stations,cluster-tsc,cluster,ui" \
+  -c "blue,gray,green,greenBright,yellow,white,magenta,magentaBright,red,red,redBright,redBright,yellowBright,yellowBright,cyan" \
   "npm run dev -w @re-cinq/lore-shared" \
   "npm run dev -w @re-cinq/lore-server-core" \
   "npm run dev -w @re-cinq/lore-api" \
@@ -217,6 +236,12 @@ npx concurrently -k \
   "LORE_MCP_HTTP=1 LORE_MCP_PORT=3002 LORE_AGENT_SKILLS_DIR=$ROOT/apps/mcp-server/agent-skills npm run start -w @re-cinq/lore-mcp" \
   "npm run dev -w @re-cinq/lore-floor" \
   "npm run start:watch -w @re-cinq/lore-floor" \
+  "npm run dev -w @re-cinq/lore-event-router" \
+  "PORT=3003 npm run start:watch -w @re-cinq/lore-event-router" \
+  "npm run dev -w @re-cinq/lore-stations" \
+  "PORT=3004 npm run start:watch -w @re-cinq/lore-stations" \
+  "npm run dev -w @re-cinq/lore-cluster-agent" \
+  "PORT=3005 npm run start:watch -w @re-cinq/lore-cluster-agent" \
   "npm --prefix apps/web-ui run dev" &
 STACK_PGID=$!
 set +m

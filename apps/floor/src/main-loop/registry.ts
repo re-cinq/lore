@@ -10,6 +10,7 @@ import * as github from "../jobs/github.js";
 import * as internal from "../jobs/internal.js";
 import * as cron from "../jobs/cron.js";
 import * as detect from "../jobs/detect/fan-out.js";
+import { implementationLoopTick } from "../jobs/backlog/implementation-loop.js";
 import * as kubernetes from "../jobs/kubernetes.js";
 import { assemblyLineStart } from "../jobs/assembly-run/start-event-handler.js";
 import { assemblyLineResume } from "../jobs/assembly-run/resume-event-handler.js";
@@ -104,6 +105,8 @@ export function buildRegistry(): Map<string, EventHandler> {
 
     // ── Cron (in-process scheduler emits the tick; loop runs it) ──
     ["cron.merge_check.tick", cron.mergeCheck],
+    ["cron.implementation_loop.tick", implementationLoopTick],
+    ["cron.pr_ready_check.tick", cron.prReadyCheck],
     ["cron.approval_check.tick", cron.approvalCheck],
     ["cron.spec_task_executor.tick", cron.specTaskExecutor],
     ["cron.stale_task_check.tick", cron.staleTaskCheck],
@@ -117,7 +120,7 @@ export function buildRegistry(): Map<string, EventHandler> {
     // ── Detection fan-out (tick → one per-repo assembly-line start each) ──
     ["cron.gap_detection.tick", detect.gapDetectionTick],
     ["cron.spec_drift.tick", detect.specDriftTick],
-    ["cron.spec_coverage_backfill.tick", detect.specCoverageBackfillTick],
+    ["cron.spec_coverage_backfill.tick", cron.specCoverageBackfill],
     ["cron.spec_coverage_validate.tick", detect.specCoverageValidateTick],
   ]);
 }

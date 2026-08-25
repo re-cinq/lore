@@ -77,8 +77,10 @@ export const stationName = (name: string): string =>
 // list: GKE supplies ANTHROPIC_API_KEY (the values.yaml default), a laptop minikube
 // supplies CLAUDE_CODE_OAUTH_TOKEN instead. The `claude` CLI reads either from its
 // environment, so the vendor never has to know which one it got. catalogChartYaml swaps
-// the sentinel for the helm value. Stations (exec vendor, no model call) omit it.
-const LLM_SECRET_SENTINEL = "__LLM_SECRET_KEY__";
+// the sentinel for the helm value. A station gets it only when its recipe says
+// `needs_model` — most are deterministic and a key they never use is surface for
+// nothing.
+export const LLM_SECRET_SENTINEL = "__LLM_SECRET_KEY__";
 const AGENT_SECRETS: NonNullable<
   NonNullable<NonNullable<AgentDefinition["spec"]>["resources"]>["secrets"]
 > = [{ name: LLM_SECRET_SENTINEL, ref: LLM_SECRET_SENTINEL }];
@@ -256,7 +258,14 @@ export function buildStationDefinition(
             value,
           })),
         ],
-        secrets: [{ name: "LORE_INGEST_TOKEN", ref: "LORE_INGEST_TOKEN" }],
+        // A model credential only where the station actually calls a model.
+        // "Stations omit it" held while every station was deterministic; one
+        // that classifies a comment is not, and without the key it failed
+        // invisibly.
+        secrets: [
+          { name: "LORE_INGEST_TOKEN", ref: "LORE_INGEST_TOKEN" },
+          ...(cfg.needs_model ? AGENT_SECRETS : []),
+        ],
       },
     },
   };

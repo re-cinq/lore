@@ -13,7 +13,8 @@ import { Llm } from "@re-cinq/lore-shared";
 import { resolveChunkSchemaForRepo } from "@re-cinq/lore-shared/project/chunks/chunk-schema.js";
 import { projectFor } from "../../composition/project-boot.js";
 import { fetchRepoContext } from "./repo-context.js";
-import { writeEpisode } from "../lib/episode-writer.js";
+import { writeEpisode } from "@re-cinq/lore-shared";
+import { memoryLifecycle } from "../../kernel/queues.js";
 import {
   slugify,
   setStatus,
@@ -191,6 +192,7 @@ Mark parallelizable tasks with [P]. Include file paths based on the actual proje
 
   // Auto-capture feature-request as episode
   writeEpisode(
+    { memory: memoryLifecycle() },
     `Feature request spec generated for ${targetRepo}\nPM intent: ${pmIntent.substring(0, 300)}\nArtifacts: ${committed.join(", ")}\nPR: ${pr.url}`,
     "ci",
     `${targetRepo}/${task.id}`,

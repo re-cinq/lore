@@ -1,0 +1,47 @@
+{
+  "name": "@re-cinq/lore-stations",
+  "version": "0.1.0",
+  "description": "Lore stations \u2014 standalone units of work, one endpoint each (ADR-024 service-endpoint stations)",
+  "type": "module",
+  "main": "./dist/stations/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsc --watch",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "test:watch": "vitest",
+    "start:watch": "node --watch-path=./dist --watch-path=../../libs/shared/dist dist/index.js"
+  },
+  "dependencies": {
+    "@hapi/hapi": "21.4.9",
+    "@octokit/auth-app": "^7.1.0",
+    "@re-cinq/lore-shared": "*",
+    "octokit": "^4.1.0",
+    "pg": "^8.13.0",
+    "zod": "^3.24.2",
+    "@re-cinq/lore-assembly-lines": "*"
+  },
+  "devDependencies": {
+    "@types/hapi__hapi": "^20.0.13",
+    "@types/node": "^22.13.10",
+    "@types/pg": "^8.11.0",
+    "@vitest/coverage-v8": "^4.1.10",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.10"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/stations/index.d.ts",
+      "default": "./dist/stations/index.js"
+    },
+    "./*.js": {
+      "types": "./dist/*.d.ts",
+      "default": "./dist/*.js"
+    }
+  },
+  "types": "./dist/stations/index.d.ts",
+  "bin": {
+    "lore-station": "./dist/cli/main.js"
+  }
+}

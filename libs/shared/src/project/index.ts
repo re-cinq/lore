@@ -36,8 +36,11 @@ export type {
   PullRef,
   PRReviewEvent,
   MergeMethod,
+  ReviewThread,
+  ReviewThreadComment,
 } from "./pulls/pull-requests-port.js";
 export { PullRequests } from "./pulls/pull-requests.js";
+export { findThreadForComment } from "./pulls/review-threads.js";
 
 export type { SettingsPort } from "./settings/settings-port.js";
 export { Settings } from "./settings/settings.js";

@@ -167,7 +167,7 @@ The system MUST maintain a registry of onboarded repos. ([validated by `repos.te
 
 ### FR-2: Repo Onboarding via PR
 
-The system MUST onboard new repos by creating a PR. ([validated by `worker.onboard.test.ts:109`](apps/floor/src/jobs/task/worker.onboard.test.ts#L109))
+The system MUST onboard new repos by creating a PR. ([validated by `worker.onboard.test.ts:112`](apps/floor/src/jobs/task/worker.onboard.test.ts#L112))
 
 - FR-2.1: "Add Repo" button in the UI shows repos from the GitHub
   App installation that aren't onboarded yet. The onboard page renders
@@ -176,10 +176,10 @@ The system MUST onboard new repos by creating a PR. ([validated by `worker.onboa
   the typed repo name while surfacing an action error on a failed
   submit. ([validated by `OnboardView.test.tsx:9`](apps/web-ui/src/app/onboard/OnboardView.test.tsx#L9), [`OnboardView.test.tsx:21`](apps/web-ui/src/app/onboard/OnboardView.test.tsx#L21), [`OnboardView.test.tsx:36`](apps/web-ui/src/app/onboard/OnboardView.test.tsx#L36), [`OnboardView.test.tsx:44`](apps/web-ui/src/app/onboard/OnboardView.test.tsx#L44), [`OnboardView.test.tsx:60`](apps/web-ui/src/app/onboard/OnboardView.test.tsx#L60), [`OnboardView.test.tsx:81`](apps/web-ui/src/app/onboard/OnboardView.test.tsx#L81))
 - FR-2.2: Lore creates a per-task branch (`lore/onboard/<slug>-<id8>`) on the
-  target repo before committing. ([validated by `worker.onboard.test.ts:109`](apps/floor/src/jobs/task/worker.onboard.test.ts#L109))
+  target repo before committing. ([validated by `worker.onboard.test.ts:112`](apps/floor/src/jobs/task/worker.onboard.test.ts#L112))
 - FR-2.3: Commits the onboarding files onto that branch — the ingest and
   spec-impact workflows, static scaffolding, and the LLM-drafted AGENTS.md,
-  PR template, pr-description-check workflow, and `.specify/spec.md`. ([validated by `worker.onboard.test.ts:92`](apps/floor/src/jobs/task/worker.onboard.test.ts#L92))
+  PR template, pr-description-check workflow, and `.specify/spec.md`. ([validated by `worker.onboard.test.ts:95`](apps/floor/src/jobs/task/worker.onboard.test.ts#L95))
 - FR-2.4: Opens a PR per repo with the canonical onboarding path and
   content, counting only the repos where a PR was actually opened,
   tolerating per-repo failures/nulls, and evicting the cached
@@ -323,7 +323,7 @@ The system MUST reorganize the UI around repos. ([validated by `HomeView.test.ts
 
 ### FR-5: Onboarding PR Content
 
-The onboarding PR scaffolds a target repo with deterministic files committed verbatim plus LLM-drafted files generated from a fixed prompt against the repo's context and reviewed by the owner in the PR. ([validated by `worker.onboard.test.ts:92`](apps/floor/src/jobs/task/worker.onboard.test.ts#L92), [`worker.onboard.test.ts:109`](apps/floor/src/jobs/task/worker.onboard.test.ts#L109))
+The onboarding PR scaffolds a target repo with deterministic files committed verbatim plus LLM-drafted files generated from a fixed prompt against the repo's context and reviewed by the owner in the PR. ([validated by `worker.onboard.test.ts:95`](apps/floor/src/jobs/task/worker.onboard.test.ts#L95), [`worker.onboard.test.ts:112`](apps/floor/src/jobs/task/worker.onboard.test.ts#L112))
 
 - FR-5.1: The context-ingest and advisory spec-impact workflows are committed
   verbatim — `.github/workflows/lore-ingest.yml` and
@@ -396,7 +396,7 @@ every repo. ([validated by `AuditView.test.tsx:31`](apps/web-ui/src/app/audit/Au
   covering every day after it, worded "today" only when that really is one
   day and "over N days since" when the sync has fallen further behind,
   shown only when billed data is present and the unbilled spend is
-  non-zero. ([validated by `SpendView.test.tsx:120`](apps/web-ui/src/app/spend/SpendView.test.tsx#L120), [`SpendView.test.tsx:136`](apps/web-ui/src/app/spend/SpendView.test.tsx#L136), [`SpendView.test.tsx:145`](apps/web-ui/src/app/spend/SpendView.test.tsx#L145), [`SpendView.test.tsx:156`](apps/web-ui/src/app/spend/SpendView.test.tsx#L156), [`SpendView.test.tsx:168`](apps/web-ui/src/app/spend/SpendView.test.tsx#L168), [`SpendView.test.tsx:179`](apps/web-ui/src/app/spend/SpendView.test.tsx#L179), [`SpendView.test.tsx:190`](apps/web-ui/src/app/spend/SpendView.test.tsx#L190), [`SpendView.test.tsx:218`](apps/web-ui/src/app/spend/SpendView.test.tsx#L218), [`SpendView.test.tsx:239`](apps/web-ui/src/app/spend/SpendView.test.tsx#L239), [`SpendView.test.tsx:249`](apps/web-ui/src/app/spend/SpendView.test.tsx#L249), [`SpendView.test.tsx:264`](apps/web-ui/src/app/spend/SpendView.test.tsx#L264), [`SpendView.test.tsx:280`](apps/web-ui/src/app/spend/SpendView.test.tsx#L280), [`SpendView.test.tsx:299`](apps/web-ui/src/app/spend/SpendView.test.tsx#L299), [`SpendView.test.tsx:316`](apps/web-ui/src/app/spend/SpendView.test.tsx#L316), [`SpendView.test.tsx:272`](apps/web-ui/src/app/spend/SpendView.test.tsx#L272))
+  non-zero. ([validated by `SpendView.test.tsx:120`](apps/web-ui/src/app/spend/SpendView.test.tsx#L120), [`SpendView.test.tsx:145`](apps/web-ui/src/app/spend/SpendView.test.tsx#L145), [`SpendView.test.tsx:156`](apps/web-ui/src/app/spend/SpendView.test.tsx#L156), [`SpendView.test.tsx:168`](apps/web-ui/src/app/spend/SpendView.test.tsx#L168), [`SpendView.test.tsx:177`](apps/web-ui/src/app/spend/SpendView.test.tsx#L177), [`SpendView.test.tsx:188`](apps/web-ui/src/app/spend/SpendView.test.tsx#L188), [`SpendView.test.tsx:188`](apps/web-ui/src/app/spend/SpendView.test.tsx#L188), [`SpendView.test.tsx:216`](apps/web-ui/src/app/spend/SpendView.test.tsx#L216), [`SpendView.test.tsx:244`](apps/web-ui/src/app/spend/SpendView.test.tsx#L244), [`SpendView.test.tsx:254`](apps/web-ui/src/app/spend/SpendView.test.tsx#L254), [`SpendView.test.tsx:269`](apps/web-ui/src/app/spend/SpendView.test.tsx#L269), [`SpendView.test.tsx:285`](apps/web-ui/src/app/spend/SpendView.test.tsx#L285), [`SpendView.test.tsx:304`](apps/web-ui/src/app/spend/SpendView.test.tsx#L304), [`SpendView.test.tsx:322`](apps/web-ui/src/app/spend/SpendView.test.tsx#L322), [`SpendView.test.tsx:277`](apps/web-ui/src/app/spend/SpendView.test.tsx#L277))
 - FR-6.7: The knowledge-graph force layout (`lib/graph-layout`) seeds
   feature positions within a radius at distinct spots (larger features
   further out), partitions links into connected components, places

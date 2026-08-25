@@ -1,0 +1,5 @@
+apiVersion: v2
+name: lore-event-router
+description: Lore Event Router — the one writer of pipeline.events (GitHub webhooks + the Agent CR watch)
+version: 0.1.0
+appVersion: "0.1.0"

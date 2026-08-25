@@ -12,6 +12,20 @@
 import { getPool } from "./db.js";
 import { createPipelineRepositories } from "@re-cinq/lore-shared/project/pipeline/pipeline-repositories-pg.js";
 import type { PipelineRepositories } from "@re-cinq/lore-shared";
+import { internalToken } from "@re-cinq/lore-shared/http/internal-token.js";
+import { StationClient } from "@re-cinq/lore-shared/project/stations/station-client.js";
+import { ClusterAgentClient } from "@re-cinq/lore-shared";
+import {
+  selectEventDeliveries,
+  selectEventQueue,
+  selectEventReporter,
+} from "@re-cinq/lore-shared/project/events/select-event-reporter.js";
+import type { EventDeliveriesPort } from "@re-cinq/lore-shared/project/events/event-deliveries-port.js";
+import { PgEventDeliveries } from "@re-cinq/lore-shared/project/events/event-deliveries-pg.js";
+import type {
+  EventQueueRepository,
+  EventReporter,
+} from "@re-cinq/lore-shared/project/events/event-queue-port.js";
 import { PgTaskStore } from "@re-cinq/lore-shared/project/tasks/task-store-pg.js";
 import { PgUsage } from "@re-cinq/lore-shared/project/usage/usage-pg.js";
 import { PgConversations } from "@re-cinq/lore-shared/project/conversations/conversations-pg.js";
@@ -89,3 +103,72 @@ export const chunks = (): PgChunks =>
  */
 export const memoryLifecycle = (): PgMemoryLifecycle =>
   (memoryLifecycleSingleton ??= new PgMemoryLifecycle(getPool()));
+
+let eventReporterSingleton: EventReporter | undefined;
+
+/**
+ * Where this Floor reports events (ADR-044). The event-router owns
+ * `pipeline.events`, so in a cluster this is an HTTP reporter; with no
+ * `EVENT_ROUTER_URL` (local `npm start`) it falls back to the pool.
+ *
+ * Memoized so the resolution logs once per boot rather than once per event.
+ */
+export const eventReporter = (): EventReporter =>
+  (eventReporterSingleton ??= selectEventReporter({
+    local: () => pipeline().eventQueue,
+  }));
+
+let eventQueueSingleton: EventQueueRepository | undefined;
+
+/**
+ * The queue this Floor DRAINS (ADR-044). The router owns `pipeline.events`, so
+ * in a cluster the loop claims and acks over HTTP; with no `EVENT_ROUTER_URL`
+ * (local `npm start`) it falls back to the pool.
+ *
+ * The claim stays atomic either way — `FOR UPDATE SKIP LOCKED` is one statement
+ * server-side, and going over HTTP only carries the request to it.
+ */
+export const eventQueue = (): EventQueueRepository =>
+  (eventQueueSingleton ??= selectEventQueue({
+    local: () => pipeline().eventQueue,
+  }));
+
+let deliveriesSingleton: EventDeliveriesPort | undefined;
+
+/**
+ * The DELIVERIES this Floor consumes (ADR-044 amendment).
+ *
+ * The Floor is one subscriber among several now rather than the drainer, so it
+ * claims its own copies of the events it registered for. Its former ability to
+ * receive an event it had no handler for — and dead-letter it on the spot, with
+ * no retry — is gone by construction: nothing it did not subscribe to is ever
+ * delivered to it.
+ */
+export const deliveries = (): EventDeliveriesPort =>
+  (deliveriesSingleton ??= selectEventDeliveries({
+    local: () => new PgEventDeliveries(getPool()),
+  }));
+
+let stationClientSingleton: StationClient | undefined;
+
+/**
+ * The stations service (ADR-024's service-endpoint form). The Floor still owns
+ * WHEN a station runs; this is how it says so.
+ */
+export const stationClient = (): StationClient =>
+  (stationClientSingleton ??= new StationClient(
+    process.env.STATIONS_URL ?? "",
+    internalToken(),
+  ));
+
+let clusterAgentSingleton: ClusterAgentClient | undefined;
+
+/**
+ * This cluster's agent — the only process that talks to its Kubernetes API.
+ * The Floor decides WHAT to dispatch; the agent performs it.
+ */
+export const clusterAgent = (): ClusterAgentClient =>
+  (clusterAgentSingleton ??= new ClusterAgentClient(
+    process.env.CLUSTER_AGENT_URL ?? "",
+    internalToken(),
+  ));

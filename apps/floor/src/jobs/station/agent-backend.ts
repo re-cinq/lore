@@ -14,19 +14,15 @@ import type {
   StationBackend,
   StationLaunchResult,
 } from "@re-cinq/lore-shared";
-import { needsToken } from "./per-task-token.js";
+import { needsToken } from "@re-cinq/lore-shared";
 
 export const TASK_ID_LABEL = "lore.re-cinq.com/task-id";
 export const TASK_TYPE_LABEL = "lore.re-cinq.com/task-type";
 
 /** Kubernetes operations on `Agent` CRs, returning structured results (no throw on
  *  409). The live implementation is KubeAgentApi; tests use an in-memory fake. */
-export interface AgentApi {
-  /** Create the Agent; `created:false` when it already exists (409). */
-  create(agent: AgentCr): Promise<{ name: string; created: boolean }>;
-  /** Agents matching a Kubernetes label selector. */
-  listByLabel(selector: string): Promise<AgentCr[]>;
-}
+export type { AgentApi, TokenProvisioner } from "@re-cinq/lore-shared";
+import type { AgentApi, TokenProvisioner } from "@re-cinq/lore-shared";
 
 /** Deterministic per-task Agent name, so a re-launch is idempotent (409). */
 export function agentCrName(taskId: string): string {
@@ -46,9 +42,6 @@ export interface ContextSource {
  *  referencing it). Returns the per-task Station name the Agent should run on, or
  *  undefined to fall back to the catalog Station. The mint/PATCH/apply IO lives in
  *  KubeTokenProvisioner; the clone transforms it uses are pure (per-task-token.ts). */
-export interface TokenProvisioner {
-  provision(spec: LoreTaskSpec): Promise<string | undefined>;
-}
 
 /** Map a LoreTaskSpec to an `Agent` CR body. The recipe (model/prompt/tools) lives
  *  on the Station the task type resolves to; per-run carries only parameters —

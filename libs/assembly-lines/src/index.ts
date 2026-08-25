@@ -16,6 +16,11 @@ export {
 } from "./node-types.js";
 
 export {
+  NodeResultSchema,
+  type ParsedNodeResult,
+} from "./node-result-schema.js";
+
+export {
   stationNodeOutcome,
   parseNodeResult,
   parseReviewVerdict,
@@ -30,7 +35,6 @@ export {
   unwrapAttribution,
 } from "./agent-output.js";
 
-export { ciOutcome, type CiConclusion } from "./github-action-handler.js";
 export { resolveRunGraph } from "./resolve-run-graph.js";
 
 export {
@@ -41,6 +45,8 @@ export {
   type AssemblyLineNode,
   type AssemblyLineEdge,
   type EdgeConditionValue,
+  NODE_TYPES,
+  type NodeTypeValue,
 } from "./loader.js";
 
 export { loadBuiltinAssemblyLines } from "./builtin-assembly-lines.js";

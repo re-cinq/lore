@@ -59,9 +59,13 @@ clear error messages.
 idempotent — safe to re-run. Prefix output with `[lore]`. Exit 0 on
 success, 1 on failure.
 
-**Helm charts** for K8s deployments. All five service workloads ship as
-ONE umbrella chart, `lore-platform` (vendoring floor/lore-api/ui/lore-db/ai-agents
-subcharts under `charts/`); one `helm_release.lore_platform` deploys them.
+**Helm charts** for K8s deployments. All nine service workloads ship as
+ONE umbrella chart, `lore-platform` (vendoring floor/event-router/cluster-agent/
+lore-api/lore-mcp/stations/ui/lore-db/ai-agents subcharts under `charts/`); one
+`helm_release.lore_platform` deploys them. Every service has a `build-*.yml`
+workflow that builds its image and deploys it into the umbrella release via
+`scripts/ci/deploy-lore-platform.sh`; chart values read `tag: latest` only as a
+never-used default, because that script pins the short SHA with `--set-string`.
 Values files should have sane defaults. No hardcoded secrets — use
 K8s Secrets.
 
@@ -91,7 +95,7 @@ status pill — a stale header misreports the org's backlog.
 - `apps/floor/src/main-loop/lease/lease-reaper.ts` — 60s tick deletes leases >5min past expiry, writes `lease_expired` audit entries
 - `apps/floor/src/jobs/dark-factory/dark-factory-baseline.ts` — pre-feature 30-day counter snapshot per repo, written to `pipeline.dark_factory_baseline` for SC1/SC4/SC6 deltas
 - `apps/floor/src/jobs/dark-factory/dark-factory.ts` — `decideIssueCreate()` and `decideReviewMode()` pure helpers + DB-backed `shouldCreateIssue()` / `resolveReviewMode()` wrappers
-- `apps/floor/src/jobs/platform/escalation.ts` — `escalate()` creates the `needs-human-help` Issue with diagnostic, branch link, contributing refs; falls back to audit-only Slack inline if Issue creation fails (3-attempt backoff)
+- `libs/shared/src/escalation/escalation-body.ts` + `libs/assembly-lines/src/assembly-lines/escalation.yaml` — telling a human a task needs them. The BODY (diagnostic, branch link, contributing refs) is pure and shared; the SEQUENCE is a two-node line, `file-issue → notify`, where both steps route both outcomes forward — a failure to reach the Issue surface is exactly when the notification must still carry the whole diagnostic, so what was a catch-block fallback is an edge. Started by `startEscalationLine` from the failure the agent watcher notices, keyed by task so two noticers file one Issue, and capped so a task stuck failed is not reported forever. The old `jobs/platform/escalation.ts` had no callers from #805 until this line existed.
 - `libs/shared/src/models/` — **the single source of truth for every persisted shape** (32 tables, 308 columns). One file per entity: a Zod schema, the type inferred from it, and a `ColumnMap` binding each camelCase field to the snake_case column that stores it. Adapters build their SELECT lists with `selectList()` and map rows with `fromRow()`; API contracts derive their stored fields with `wireSchema()`, so one declaration reaches from the column to the generated web-ui type. `models.test.ts` discovers the folder rather than taking a registry, and FAILS on a table model whose schema will not resolve
 - `libs/shared/src/path-match.ts` — `allPathsMatch()` minimatch wrapper; returns true only when **every** changed path matches at least one allowlist glob
 - `libs/shared/src/project/notify/notify.ts` — `decideNotify()` filters notifications by `dark_factory.notify` channel list
@@ -116,6 +120,7 @@ status pill — a stale header misreports the org's backlog.
 - `specs/assembly-line-run-viz/spec.md` — live assembly-line run observability (Shipped): projects every claude stream-json line POSTed to `POST /api/agent-events` into `pipeline.agent_run_events` (write-time truncation + `file_paths` extraction, correlated to `station_runs` via `source.agent` == `agent_cr_name`, 14-day prune), streams it over SSE at `GET /api/agent-events/stream/{assemblyRunId}` with catch-up-then-live and a row-id cursor, and renders the definition DAG live. Deliberately no `node_status` event type — node state seeds from `pipeline.station_runs`. Adding the first `([validated by …])` link REQUIRES flipping its `| Status |` row to `In Progress`, or `eslint .` goes red repo-wide
 - `adrs/` — architecture decision records (MADR format)
 - `adrs/ADR-037-sse-run-observability.md` — SSE (not WebSocket, not polling) for run observability; the stack's first streaming transport. In-process pub/sub sound ONLY under the Floor's `replicaCount: 1` pin (an admitted limitation — the chart defers the lease coordination HA needs), with PG LISTEN/NOTIFY named as the multi-replica swap behind the same subscribe API. Durability lives in the table, not the bus. Records that the raw stream is NOT discarded — since #1148 it lives in `pipeline.agent_run_turns` (`specs/turn-level-transcript-store`, readable at `GET /api/agent-turns/{assemblyRunId}`); the earlier fire-and-forget GCS archive is retired (amendment in the ADR)
+- `adrs/ADR-045-npm-package-publishing.md` — the npm publishing convention for `@re-cinq` product packages (manifest shape, `v*` tag releases, tokenless trusted publishing over OIDC, the tag-matches-version guard, the first-publish token caveat, PA-17 hardening); reference implementation is `ai-agent-subsystem/packages/agent-contracts`
 - `teams/` — per-team CLAUDE.md files
 - `libs/shared/src/project/lib/github-port.ts` — the `GitHubPort` / `PullRequestsPort` the Project facade reads through (branch, commit, PR, issue, repo content). The old floor `CodePlatform`/`GitHubPlatform` were removed once floor consolidated onto this shared surface.
 - `libs/shared/src/project/lib/platform-github.ts` — the single octokit adapter implementing both ports (App-or-token auth, paginated reads, `getInstallationToken`); the only production octokit importer. Floor's duplicate adapter was deleted.
@@ -358,10 +363,14 @@ types (vitest reads source, tsc reads `dist`).
 
 ## GKE Deployment
 
-Five service workloads on GKE (one umbrella chart, `lore-platform`):
+Nine service workloads on GKE (one umbrella chart, `lore-platform`, spanning a namespace per subchart):
 - PostgreSQL + pgvector: `lore-db` namespace
 - The Floor (coordinator): `lore-floor` namespace
+- event-router (sole writer of `pipeline.events`, ADR-044): `lore-event-router` namespace
+- cluster-agent (the only process holding a Kubernetes client): `lore-cluster-agent` namespace
 - Lore API server (remote REST): `lore-api` namespace
+- lore-mcp gateway (MCP over HTTP for agent pods): `lore-api` namespace
+- stations (service stations, `POST /api/stations/{name}`): `lore-stations` namespace
 - Web UI: `lore-ui` namespace
 - ai-agent-subsystem (agent-cr controller + Agents): `ai-agents` namespace
 
@@ -601,7 +610,13 @@ write rows: the GitHub webhook ingress moved into the Floor
 (`POST /api/webhook/github`, HMAC-verified, maps to `github.*` events); a
 Kubernetes watch on Agent CRs emits `kubernetes.agent.{succeeded,failed}`
 on terminal phase (replacing the polled `agent_watcher`, with a reconcile
-cron as the dropped-event safety net); the in-process scheduler emits
+cron as the dropped-event safety net). That watch runs in **cluster-agent**,
+not the router: a WATCH is the one cluster capability that cannot be a
+request — Kubernetes streams it down a connection the process opens
+outward — so cluster-agent owns it and reports terminal phases onward to
+the router over HTTP. One cluster-agent per cluster reporting inward is
+what lets there be more than one execution cluster; a router that watched
+directly could only ever see the one it runs in. The in-process scheduler emits
 `cron.<job>.tick`; mcp-server's post-ingest triggers insert
 `internal.ingest.*` (was `POST /api/trigger/*`). **Layer 2 — the loop**
 atomically claims runnable rows (`FOR UPDATE SKIP LOCKED`), dispatches by

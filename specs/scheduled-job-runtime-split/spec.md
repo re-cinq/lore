@@ -233,17 +233,24 @@ VALUES ('cron.spec_drift.tick', 'cron', '{"repo":"re-cinq/lore"}');
   `issues`, human stations) and none of them is "do a data operation". A
   one-node line for a single `DELETE` would put a station pod and a Floor walk
   between the alarm and one statement, so the courier posts
-  `POST /api/maintenance/<job>` instead and lore-api runs it next to the
+  `POST /api/stations/<name>` instead and the station runs it next to the
   database it writes. Work with steps still starts a line — only the courier's
   path differs.
+
+  *(Amended 2026-08-25.)* That endpoint was `POST /api/maintenance/<job>` on
+  lore-api, which meant lore-api resolved the station registry and executed
+  another app's handlers to serve it. The stations service already answers
+  `POST /api/stations/<name>` for the very same modules, so the route was
+  redundant rather than misplaced: it is deleted, and the courier — and its
+  schedule — moved to the chart of the service that does the work.
 - **FR9.1 — The endpoint runs the job named in the path and returns its
   summary.** `200` with `{ job, summary }`, the summary being the one-line
   string that was `pipeline.job_runs.result_summary`. An unknown job name is
-  `404` — a courier typo must not read as success. ([validated by `maintenance.test.ts:24`](apps/lore-api/src/api/routes/maintenance/maintenance.test.ts#L24), [`maintenance.test.ts:36`](apps/lore-api/src/api/routes/maintenance/maintenance.test.ts#L36), [`maintenance.test.ts:57`](apps/lore-api/src/api/routes/maintenance/maintenance.test.ts#L57))
+  `404` — a courier typo must not read as success. ([validated by `maintenance.test.ts:28`](apps/lore-api/src/api/routes/maintenance/maintenance.test.ts#L28), [`maintenance.test.ts:40`](apps/lore-api/src/api/routes/maintenance/maintenance.test.ts#L40), [`maintenance.test.ts:61`](apps/lore-api/src/api/routes/maintenance/maintenance.test.ts#L61))
 - **FR9.2 — A failing job answers with a status and nothing else.** The
   courier's only channel is an HTTP status, and a job's error can carry
   connection strings and hostnames; the detail is logged where operators look
-  and never returned. ([validated by `maintenance.test.ts:43`](apps/lore-api/src/api/routes/maintenance/maintenance.test.ts#L43))
+  and never returned. ([validated by `maintenance.test.ts:47`](apps/lore-api/src/api/routes/maintenance/maintenance.test.ts#L47))
 - **FR9.4 — Importance decay follows the same route.** Scoring memories against
   the half-life model and evicting past the per-agent cap is scoring plus
   database writes, so it runs in lore-api. Behaviour is carried over unchanged:
@@ -254,12 +261,12 @@ VALUES ('cron.spec_drift.tick', 'cron', '{"repo":"re-cinq/lore"}');
   facts to `stale` stays non-fatal — failing the run over it would leave a
   completed eviction unreported. Memories are scored against one clock read
   once for the whole batch, so two agents cannot rank the same memory
-  differently within a run. ([validated by `importance-decay.test.ts:32`](apps/lore-api/src/features/maintenance/importance-decay.test.ts#L32), [`importance-decay.test.ts:44`](apps/lore-api/src/features/maintenance/importance-decay.test.ts#L44), [`importance-decay.test.ts:54`](apps/lore-api/src/features/maintenance/importance-decay.test.ts#L54), [`importance-decay.test.ts:67`](apps/lore-api/src/features/maintenance/importance-decay.test.ts#L67), [`importance-decay.test.ts:79`](apps/lore-api/src/features/maintenance/importance-decay.test.ts#L79), [`importance-decay.test.ts:107`](apps/lore-api/src/features/maintenance/importance-decay.test.ts#L107))
+  differently within a run. ([validated by `importance-decay.test.ts:32`](apps/stations/src/stations/importance-decay/importance-decay.test.ts#L32), [`importance-decay.test.ts:44`](apps/stations/src/stations/importance-decay/importance-decay.test.ts#L44), [`importance-decay.test.ts:54`](apps/stations/src/stations/importance-decay/importance-decay.test.ts#L54), [`importance-decay.test.ts:67`](apps/stations/src/stations/importance-decay/importance-decay.test.ts#L67), [`importance-decay.test.ts:79`](apps/stations/src/stations/importance-decay/importance-decay.test.ts#L79), [`importance-decay.test.ts:107`](apps/stations/src/stations/importance-decay/importance-decay.test.ts#L107))
 - **FR9.5 — The Anthropic cost sync follows, credential and all.** Reading the
   Anthropic org billing reports and upserting daily rows is an import, not
   coordination, so it runs in lore-api; the `ANTHROPIC_ADMIN_KEY` secret
   reference moves to that deployment with it and stays optional, so an unset key
-  makes the job report a skip rather than fail. ([validated by `anthropic-cost-sync.test.ts:10`](apps/lore-api/src/features/maintenance/cost/anthropic-cost-sync.test.ts#L10))
+  makes the job report a skip rather than fail. ([validated by `anthropic-cost-sync.test.ts:10`](apps/stations/src/stations/anthropic-cost-sync/anthropic-cost-sync.test.ts#L10))
 - **FR9.3 — `memory_ttl` is the first job to move.** Its 14 lines around one
   `expireMemories()` call, and the CronJob pod built from the Floor's image that
   ran them, are deleted; the schedule is unchanged. The registry in
@@ -304,7 +311,7 @@ VALUES ('cron.spec_drift.tick', 'cron', '{"repo":"re-cinq/lore"}');
    successful run passes the handler result to `completeJobRun`; and
    `getJobStatus` reports `idle` plus the in-memory last-attempt timestamp
    (`null` before the first attempt in this process).
-   ([validated by `scheduler.test.ts:42`](apps/floor/src/main-loop/scheduling/scheduler.test.ts#L44), [`scheduler.test.ts:66`](apps/floor/src/main-loop/scheduling/scheduler.test.ts#L68), [`scheduler.test.ts:79`](apps/floor/src/main-loop/scheduling/scheduler.test.ts#L81), [`scheduler.test.ts:95`](apps/floor/src/main-loop/scheduling/scheduler.test.ts#L97), [`scheduler.test.ts:111`](apps/floor/src/main-loop/scheduling/scheduler.test.ts#L113), [`scheduler.test.ts:126`](apps/floor/src/main-loop/scheduling/scheduler.test.ts#L128))
+   ([validated by `scheduler.test.ts:42`](apps/floor/src/main-loop/scheduling/scheduler.test.ts#L46), [`scheduler.test.ts:66`](apps/floor/src/main-loop/scheduling/scheduler.test.ts#L70), [`scheduler.test.ts:79`](apps/floor/src/main-loop/scheduling/scheduler.test.ts#L83), [`scheduler.test.ts:95`](apps/floor/src/main-loop/scheduling/scheduler.test.ts#L99), [`scheduler.test.ts:111`](apps/floor/src/main-loop/scheduling/scheduler.test.ts#L115), [`scheduler.test.ts:126`](apps/floor/src/main-loop/scheduling/scheduler.test.ts#L130))
 
 2. Ten CronJobs exist, one per batch job, with schedules exactly matching the
    prior in-process schedules.
@@ -329,7 +336,7 @@ VALUES ('cron.spec_drift.tick', 'cron', '{"repo":"re-cinq/lore"}');
    parses the Admin cost/usage report — cents-string amount → dollars, 1h + 5m ephemeral
    cache-creation buckets summed, cost joined to tokens per date+model), and `context_reindex`
    selects only the doc seed roots (`CLAUDE.md`/`AGENTS.md`/`adrs/`/`specs/<feature>`/`.specify`),
-   excluding source code, root docs, and binary/unsupported files. ([validated by `ttl-cleanup.test.ts:25`](apps/floor/src/jobs/memory/ttl-cleanup/ttl-cleanup.test.ts#L25), [`ttl-cleanup.test.ts:34`](apps/floor/src/jobs/memory/ttl-cleanup/ttl-cleanup.test.ts#L34), [`anthropic-cost-sync.test.ts:10`](apps/lore-api/src/features/maintenance/cost/anthropic-cost-sync.test.ts#L10), [`anthropic-cost.test.ts:9`](apps/lore-api/src/features/maintenance/cost/anthropic-cost.test.ts#L9), [`anthropic-cost.test.ts:37`](apps/lore-api/src/features/maintenance/cost/anthropic-cost.test.ts#L37), [`anthropic-cost.test.ts:75`](apps/lore-api/src/features/maintenance/cost/anthropic-cost.test.ts#L75), [`reindex-seed.test.ts:5`](apps/floor/src/jobs/context-jobs/reindex/reindex-seed.test.ts#L5), [`reindex-seed.test.ts:30`](apps/floor/src/jobs/context-jobs/reindex/reindex-seed.test.ts#L30), [`reindex-seed.test.ts:36`](apps/floor/src/jobs/context-jobs/reindex/reindex-seed.test.ts#L36))
+   excluding source code, root docs, and binary/unsupported files. ([validated by `ttl-cleanup.test.ts:25`](apps/floor/src/jobs/memory/ttl-cleanup/ttl-cleanup.test.ts#L25), [`ttl-cleanup.test.ts:34`](apps/floor/src/jobs/memory/ttl-cleanup/ttl-cleanup.test.ts#L34), [`anthropic-cost-sync.test.ts:10`](apps/stations/src/stations/anthropic-cost-sync/anthropic-cost-sync.test.ts#L10), [`anthropic-cost.test.ts:9`](apps/stations/src/stations/anthropic-cost-sync/anthropic-cost.test.ts#L9), [`anthropic-cost.test.ts:37`](apps/stations/src/stations/anthropic-cost-sync/anthropic-cost.test.ts#L37), [`anthropic-cost.test.ts:75`](apps/stations/src/stations/anthropic-cost-sync/anthropic-cost.test.ts#L75), [`reindex-seed.test.ts:5`](apps/floor/src/jobs/context-jobs/reindex/reindex-seed.test.ts#L5), [`reindex-seed.test.ts:30`](apps/floor/src/jobs/context-jobs/reindex/reindex-seed.test.ts#L30), [`reindex-seed.test.ts:36`](apps/floor/src/jobs/context-jobs/reindex/reindex-seed.test.ts#L36))
 
 10. The detection-family cron tick fans out one per-repo assembly line (2026-07 amendment):
    `detectBranchName` keys each run `detect/<definition>/<repo>` (the old lease key, now the

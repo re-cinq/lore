@@ -1,0 +1,5 @@
+apiVersion: v2
+name: lore-cluster-agent
+description: Lore cluster agent — the only process that talks to this cluster's Kubernetes API
+version: 0.1.0
+appVersion: "0.1.0"

@@ -7,6 +7,8 @@ const store = new InMemoryConversations();
 let archive: InMemoryArchive | null = new InMemoryArchive();
 
 vi.mock("../../../kernel/queues.js", () => ({
+  // The logs route resolves the cluster agent from here.
+  clusterAgent: () => ({}),
   usage: () => ({ logLlmCall: vi.fn() }),
   agentRunEvents: () => ({ insertBatch: vi.fn() }),
   auditLog: () => ({ write: vi.fn() }),

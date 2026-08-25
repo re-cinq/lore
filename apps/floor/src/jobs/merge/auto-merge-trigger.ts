@@ -22,7 +22,7 @@
  */
 import { resolveDarkFactorySettings } from "@re-cinq/lore-shared";
 import { settings as settingsRepo, taskStore } from "../../kernel/queues.js";
-import { resolvePrForTaskFromDb } from "../platform/pr-policy.js";
+import { resolvePrForTaskFromDb } from "./pr-policy.js";
 import { evaluateAndMerge, type AutoMergeDecision } from "./auto-merge.js";
 
 export async function tryAutoMergeForCompletedTask(opts: {

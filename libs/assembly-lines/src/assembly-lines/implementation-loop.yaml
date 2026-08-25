@@ -1,0 +1,84 @@
+# One ticket per run (specs/implementation-loop FR3). The loop is NOT a
+# back-edge here — the loader refuses an unbounded cycle unless a human station
+# gates it, and an iteration_max would cap a repo's backlog at a literal
+# integer. The Floor driver re-arms instead: it starts the next run when this
+# one reaches a terminal state (FR2).
+name: implementation-loop
+description: Work one backlog ticket test-first, open a PR, park until it is green with no unresolved review threads. Never merges.
+version: 1
+entry: implement
+exit: done
+
+nodes:
+  - id: implement
+    type: agent
+    prompt_ref: implementation-tdd
+    model: claude-sonnet-4-6
+    description: Implement the ticket test-first; red before green.
+
+  - id: validate
+    type: validate
+    description: Run lint + typecheck on changed files.
+
+  - id: push
+    type: agent
+    prompt_ref: push-only
+    description: Open or update the PR.
+
+  - id: await-pr
+    # Parks with no Agent CR; pr-ready-check resumes it with success (green +
+    # zero unresolved threads) or changes_requested (blocked). Review comments
+    # are handled by the code-review choreography, not by this line (FR5).
+    type: pr_review
+    route: "{args.pr_url}"
+    description: Waiting on CI and review threads — the PR view is the station.
+
+  - id: retrospective
+    type: retrospective
+    description: Episode + curated memory.
+
+  - id: done
+    type: retrospective
+    description: Terminal marker.
+
+edges:
+  - from: implement
+    to: validate
+    on: success
+  - from: implement
+    to: implement
+    on: failed
+    iteration_max: 1
+  - from: implement
+    to: retrospective
+    on: changes_requested
+  - from: validate
+    to: push
+    on: success
+  - from: validate
+    to: implement
+    on: failed
+    iteration_max: 1
+  - from: push
+    to: await-pr
+    on: success
+  - from: push
+    to: retrospective
+    on: failed
+  - from: push
+    to: retrospective
+    on: changes_requested
+  # success = ticket done, changes_requested = ticket blocked; both close
+  # through the same exit so the driver sees one terminal shape (FR3).
+  - from: await-pr
+    to: retrospective
+    on: success
+  - from: await-pr
+    to: retrospective
+    on: changes_requested
+  - from: await-pr
+    to: retrospective
+    on: failed
+  - from: retrospective
+    to: done
+    on: always

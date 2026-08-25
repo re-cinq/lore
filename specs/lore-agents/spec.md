@@ -75,7 +75,7 @@ no-ops on a fresh DB that already built the new name from 0015. ([validated by `
 - **FR6 — Runner fetches over the API.** `AgentDefsHttp` resolves an agent by
   fetching the agent-definitions endpoint with the bearer token and is read-only. ([validated by `agent-defs-http.test.ts:78`](libs/shared/src/project/agents/agent-defs-http.test.ts#L78))
 - **FR7 — Facade delegation.** `project.agentDefs` delegates the definition methods
-  to the wired port, bound to the facade's repo. ([validated by delegates create/delete to the defs port with the bound repo](libs/shared/src/project/agents/agent-defs.test.ts#L48))
+  to the wired port, bound to the facade's repo. ([validated by delegates create/delete to the defs port with the bound repo](libs/shared/src/project/agents/agent-defs.test.ts#L68))
 - **FR8 — Request validation + image gate.** The schema normalizes the body and
   flags a write that sets a non-empty `image` (two-key field), normalizing a full
   body onto null-for-absent fields, rejecting an over-ceiling timeout, keeping only

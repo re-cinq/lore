@@ -19,8 +19,17 @@ describe("parseTaskTypesFile", () => {
     const parsed = parseTaskTypesFile(COMMITTED);
 
     expect(parsed.drift).toEqual([]);
-    expect(Object.keys(parsed.taskTypes)).toHaveLength(16);
-    expect(Object.keys(parsed.stations)).toHaveLength(8);
+    expect(Object.keys(parsed.taskTypes)).toHaveLength(17);
+    // The NAMES, not a count: a bare number says a station went and not which,
+    // and the recipes here have to stay in step with the station registry.
+    expect(Object.keys(parsed.stations).sort()).toEqual([
+      "comment-triage",
+      "detect",
+      "ingest",
+      "issues",
+      "retrospective",
+      "validate",
+    ]);
   });
 
   it("reads an explicit target_repo: null as null, not as an absent field", () => {
@@ -127,5 +136,20 @@ describe("warnOnDrift", () => {
       "[floor] /config/task-types.yaml does not match the task-type schema: " +
         "task_types.general: model — Required; stations.ingest: command — Required",
     ]);
+  });
+});
+
+describe("the implementation-tdd recipe", () => {
+  it("demands red before green, inline validated-by links, and the status flip, leaving implementation untouched", () => {
+    const parsed = parseTaskTypesFile(COMMITTED);
+    const tdd = parsed.taskTypes["implementation-tdd"]?.prompt_template ?? "";
+
+    expect(tdd).toContain("failing test");
+    expect(tdd).toContain("Red first");
+    expect(tdd).toContain("validated by");
+    expect(tdd).toContain("| Status |");
+    expect(parsed.taskTypes["implementation"]?.prompt_template).not.toContain(
+      "Red first",
+    );
   });
 });

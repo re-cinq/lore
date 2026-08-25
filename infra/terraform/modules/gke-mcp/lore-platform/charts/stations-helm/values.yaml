@@ -1,0 +1,93 @@
+# Namespace this subchart's resources are deployed into (umbrella spans namespaces).
+namespace: lore-stations
+
+# One replica: each station carries an in-process latch that stops a second
+# concurrent run of itself, and that guard is per-process. Two replicas would
+# each hold their own, so a retried tick could sweep twice. Raising this needs a
+# shared lock first.
+replicaCount: 1
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+image:
+  repository: ghcr.io/re-cinq/lore-stations
+  tag: latest
+  pullPolicy: Always
+
+imagePullSecrets:
+  - name: ghcr-pull-secret
+
+service:
+  type: ClusterIP
+  port: 8080
+
+resources:
+  limits:
+    cpu: "500m"
+    # merge-check walks every mergeable task and talks to GitHub for each; the
+    # ceiling is set by the widest sweep rather than steady state.
+    memory: 512Mi
+  requests:
+    cpu: "50m"
+    memory: 256Mi
+
+env:
+  LORE_DB_HOST: lore-db-rw.lore-db.svc.cluster.local
+  LORE_DB_PORT: "5432"
+  LORE_DB_NAME: lore
+  LORE_DB_USER: lore
+  PORT: "8080"
+
+dbPasswordSecret:
+  name: lore-stations-db-password
+  key: password
+
+# The token stations accept, and the one the Floor presents when it calls them.
+# Both ends read the same secret.
+ingestTokenSecret:
+  name: lore-agent-internal-token
+  key: token
+
+# GitHub App triple — merge-check merges PRs, comments on issues and reads CI.
+githubAppSecret:
+  name: lore-stations-github-app
+  appIdKey: app-id
+  privateKeyKey: private-key
+  installationIdKey: installation-id
+
+# Optional: auto-curation asks Haiku for a lesson after a merge. Absent → the
+# episode is still written, the curation step is skipped.
+anthropicKeySecret:
+  name: lore-stations-anthropic-key
+  key: anthropic-api-key
+
+# path is per-entry because the two kinds of scheduled work land in different
+# places: work with STEPS posts /api/assembly-runs and runs as a real assembly
+# line; a single data operation posts /api/stations/<job> and runs inside
+# lore-api. Neither runs in a coordinator, which is the point.
+courier:
+  # Pinned by DIGEST, not by tag: this container is handed the org ingest token,
+  # and a tag is mutable — `8.11.1` can be repointed at a different image without
+  # anything in this repo changing. The tag is kept alongside the digest for
+  # human legibility; the digest is what Kubernetes resolves.
+  image: curlimages/curl:8.11.1@sha256:c1fe1679c34d9784c1b0d1e5f62ac0a79fca01fb6377cdd33e90473c6f9f9a69
+courierJobs:
+  # Was the Floor's memory_ttl CronJob (#1351): a single DELETE that had its own
+  # pod built from the coordinator's image. Same hour, same work, two hops.
+  - name: memory-ttl
+    schedule: "0 * * * *"
+    path: /api/stations/memory-ttl
+  # Was the Floor's importance_decay CronJob (#1350).
+  - name: importance-decay
+    schedule: "0 5 * * *"
+    path: /api/stations/importance-decay
+  # Was the Floor's anthropic_cost_sync CronJob (#1348). Daily, deliberately:
+  # the cost report only changes once a day (buckets close at UTC midnight and
+  # the in-progress day is never emitted), so one sync after the day settles is
+  # sufficient — see ADR-043.
+  - name: anthropic-cost-sync
+    schedule: "0 7 * * *"
+    path: /api/stations/anthropic-cost-sync
+

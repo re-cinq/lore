@@ -39,10 +39,6 @@ import { taskViewRoutes } from "../api/routes/tasks/task-views.js";
 import { assemblyLineRoutes } from "../api/routes/assembly-lines/assembly-lines.js";
 import { startRunRoute } from "../api/routes/assembly-lines/start-run.js";
 import { runReadRoute } from "../api/routes/assembly-lines/run-read.js";
-import {
-  maintenanceRoute,
-  maintenanceJobs,
-} from "../api/routes/maintenance/maintenance.js";
 import { taskByPrRoute } from "../api/routes/tasks/task-by-pr.js";
 import {
   taskLogsGetRoute,
@@ -99,6 +95,7 @@ import { stationDataRoutes } from "../api/routes/repos/station-data.js";
 import { traceAdrsRoute } from "../api/routes/trace/trace-adrs.js";
 import { traceSpecsRoute } from "../api/routes/trace/trace-specs.js";
 import { featuresRoutes } from "../api/routes/features/features.js";
+import { implementationLoopRoutes } from "../api/routes/backlog/backlog.js";
 import { openApiJsonRoute, docsRoute } from "../api/routes/openapi/openapi.js";
 
 // 1 MB body cap applied to every native route via the server payload default.
@@ -132,7 +129,6 @@ export function routeList(getPool: () => Pool | null): ServerRoute[] {
     ...assemblyLineRoutes(getPool),
     startRunRoute(),
     runReadRoute(getPool),
-    maintenanceRoute(maintenanceJobs(getPool)),
     taskByPrRoute(getPool),
     taskLogsGetRoute(getPool),
     jobRunLogsRoute(),
@@ -181,6 +177,7 @@ export function routeList(getPool: () => Pool | null): ServerRoute[] {
     openApiJsonRoute(getPool),
     docsRoute(getPool),
     ...featuresRoutes(getPool),
+    ...implementationLoopRoutes(getPool),
   ];
 }
 

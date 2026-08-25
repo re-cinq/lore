@@ -7,8 +7,9 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 COPY libs/shared/package.json ./libs/shared/
 COPY libs/assembly-lines/package.json ./libs/assembly-lines/
+COPY apps/stations/package.json ./apps/stations/
 COPY apps/floor/package.json ./apps/floor/
-RUN npm ci --ignore-scripts --workspace=@re-cinq/lore-shared --workspace=@re-cinq/lore-assembly-lines --workspace=@re-cinq/lore-floor
+RUN npm ci --ignore-scripts --workspace=@re-cinq/lore-shared --workspace=@re-cinq/lore-assembly-lines --workspace=@re-cinq/lore-stations --workspace=@re-cinq/lore-floor
 
 # Build shared
 COPY libs/shared/tsconfig.json ./libs/shared/
@@ -20,6 +21,12 @@ RUN npm run build --workspace=@re-cinq/lore-shared
 COPY libs/assembly-lines/tsconfig.json ./libs/assembly-lines/
 COPY libs/assembly-lines/src ./libs/assembly-lines/src
 RUN npm run build --workspace=@re-cinq/lore-assembly-lines
+
+# The station registry: the walk reads a node's RUNTIME from it to decide whether
+# to give the node a pod or publish it for the pooled service.
+COPY apps/stations/tsconfig.json ./apps/stations/
+COPY apps/stations/src ./apps/stations/src
+RUN npm run build --workspace=@re-cinq/lore-stations
 
 # Build agent
 COPY apps/floor/tsconfig.json ./apps/floor/
@@ -38,6 +45,10 @@ RUN apt-get update \
 # /app/libs mirrors the repo so node_modules/@re-cinq/{lore-shared,lore-assembly-lines}
 # → ../../libs/{shared,runner} resolve at runtime.
 COPY --from=builder /app/libs ./libs
+# apps/stations is an APP, so it is not under /app/libs — it needs its own copy
+# for node_modules/@re-cinq/lore-stations to resolve at runtime.
+COPY --from=builder /app/apps/stations/dist ./apps/stations/dist
+COPY --from=builder /app/apps/stations/package.json ./apps/stations/
 COPY --from=builder /app/apps/floor/dist ./dist
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/apps/floor/package.json ./

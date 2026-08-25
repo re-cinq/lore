@@ -1,0 +1,28 @@
+# Only the Floor and lore-api may reach this service.
+#
+# `LORE_INGEST_TOKEN` is a shared credential, and this service can mutate the
+# cluster — so anything holding that token could dispatch or delete an Agent CR
+# if it could reach the port. The token is the authentication; this is the
+# reachability, and the two are not the same control.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: lore-cluster-agent-ingress
+  namespace: {{ .Values.namespace }}
+spec:
+  podSelector:
+    matchLabels:
+      app: lore-cluster-agent
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: lore-floor
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: lore-api
+      ports:
+        - protocol: TCP
+          port: {{ .Values.service.port }}

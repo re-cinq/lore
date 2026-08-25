@@ -1,0 +1,54 @@
+# Namespace this subchart's resources are deployed into (umbrella spans namespaces).
+namespace: lore-cluster-agent
+
+# The namespace it acts on. Must match the ai-agents subchart's namespace, since
+# that is where Agent CRs, the token Secret and the catalog live.
+agentsNamespace: ai-agents
+
+# Stateless and idempotent — `create` is keyed on a deterministic name and
+# returns created:false on 409 — so this could scale out. Kept at 1 because
+# nothing needs it to yet.
+replicaCount: 1
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+image:
+  repository: ghcr.io/re-cinq/lore-cluster-agent
+  tag: latest
+  pullPolicy: Always
+
+imagePullSecrets:
+  - name: ghcr-pull-secret
+
+service:
+  type: ClusterIP
+  port: 8080
+
+resources:
+  limits:
+    cpu: "300m"
+    # Pod logs are read tail-limited into memory (the tail is clamped at 10k
+    # lines server-side), and CR lists are capped at one 100-item page.
+    memory: 256Mi
+  requests:
+    cpu: "50m"
+    memory: 128Mi
+
+env:
+  PORT: "8080"
+
+# The token every caller (Floor, lore-api) presents. Same secret on both ends.
+ingestTokenSecret:
+  name: lore-agent-internal-token
+  key: token
+
+# The GitHub App triple. This service MINTS the per-task installation token
+# itself, so no GitHub token ever crosses the network — the trade recorded in
+# ADR-024 is that the App private key lives here as well as on the Floor.
+githubAppSecret:
+  name: lore-cluster-agent-github-app
+  appIdKey: app-id
+  privateKeyKey: private-key
+  installationIdKey: installation-id

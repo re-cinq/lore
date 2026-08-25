@@ -12,15 +12,24 @@ import type {
 } from "@re-cinq/lore-shared";
 import type { AssemblyRunsPort } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
-import { featureSubject } from "@re-cinq/lore-shared/project/assembly-runs/subject-keys.js";
+import {
+  backlogSubject,
+  featureSubject,
+} from "@re-cinq/lore-shared/project/assembly-runs/subject-keys.js";
 
 /** The subject a task's run works on, or undefined when it declares none.
  *
- *  A feature is the only subject a task carries today. The STRING comes from the
- *  shared builder, not from a template here: lore-api reads runs by the same key,
- *  and two independent spellings would not fail to compile — they would just never
- *  match, which reads as "nothing in flight". */
+ *  The STRING comes from the shared builder, not from a template here: lore-api
+ *  and the loop driver read runs by the same key, and two independent spellings
+ *  would not fail to compile — they would just never match, which reads as
+ *  "nothing in flight". A feature task works its feature; an implementation-loop
+ *  task works the repo's backlog, which is what serialises the loop to one
+ *  ticket per repo (implementation-loop FR2). */
 function subjectKeyFor(spec: LoreTaskSpec): string | undefined {
+  if (spec.taskType === "implementation-loop") {
+    return backlogSubject();
+  }
+
   return spec.featureId ? featureSubject(spec.featureId) : undefined;
 }
 

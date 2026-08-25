@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { resolveNodeStation } from "./node-station.js";
+import { builtinStationName, resolveNodeStation } from "./node-station.js";
 
 const node = (over: Record<string, unknown> = {}) =>
   ({ id: "n", type: "agent", ...over }) as never;
@@ -31,10 +31,15 @@ describe("resolveNodeStation", () => {
     ).toEqual({ station: "def-validate", inherited: true });
   });
 
+  // Asserted on `builtinStationName` directly rather than through a node: every
+  // surviving underscored node type is a HUMAN station, which dispatches nothing,
+  // so there is no node left to reach this through. The rule still holds and
+  // still matters — a CR name is RFC-1123 — so it keeps its own test rather than
+  // riding on a type that happens to exist.
   it("dashes an underscored node type, as an RFC-1123 name requires", () => {
-    expect(
-      resolveNodeStation(node({ type: "github_action" }), "implementation"),
-    ).toMatchObject({ station: "def-github-action" });
+    expect(builtinStationName("some_underscored_type")).toBe(
+      "def-some-underscored-type",
+    );
   });
 
   it("reports no station for a human station, whose worker is a person", () => {

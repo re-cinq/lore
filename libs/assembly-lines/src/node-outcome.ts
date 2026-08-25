@@ -10,20 +10,8 @@ import { classifyError } from "@re-cinq/lore-shared/error-classify.js";
 import type { NodeResult, StageOutcome } from "./node-types.js";
 
 /** The slice of an Agent's status the outcome mapping reacts to. */
-export interface AgentNodeStatus {
-  phase?: string;
-  output?: string;
-  failureReason?: string;
-  /**
-   * The agent's OWN terminal error text, lifted off the raw NDJSON stream before
-   * anything unwrapped it (`terminalErrorText`). It has to be carried separately
-   * because `output` is normalized at the read boundary, and the unwrapped text
-   * no longer parses as a stream — so a reader downstream of the unwrap could
-   * only see the Job-level `failureReason`, which says `BackoffLimitExceeded`
-   * however the agent actually died.
-   */
-  errorText?: string;
-}
+export type { AgentNodeStatus } from "@re-cinq/lore-shared/cluster/agent-node-status.js";
+import type { AgentNodeStatus } from "@re-cinq/lore-shared/cluster/agent-node-status.js";
 
 const OUTCOMES = new Set<StageOutcome>([
   "success",

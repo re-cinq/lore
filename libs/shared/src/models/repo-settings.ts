@@ -39,6 +39,12 @@ export const RepoSettingsSchema = z
     task_types: z.array(z.string()).optional(),
     task_overrides: z.record(TaskOverrideSchema).optional(),
     auto_review: z.boolean().optional(),
+    // Top-level on purpose: the loop never merges, so it stays outside the
+    // two-key dark_factory ceremony (implementation-loop FR7).
+    implementation_loop: z
+      .object({ enabled: z.boolean().optional() })
+      .passthrough()
+      .optional(),
     cross_repo: z.boolean().optional(),
     cross_repo_repos: z.array(z.string()).optional(),
     slack_channel_id: z.string().optional(),

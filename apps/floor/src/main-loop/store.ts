@@ -1,17 +1,33 @@
 /**
- * The pipeline.events data layer. The SQL now lives once in the shared
- * `PgEventQueue` (`@re-cinq/lore-shared/project/events`); this module is the
- * thin Floor-side delegation so producers/loop/reaper keep their existing
- * imports. Producers insert (idempotent via dedupe_key); the loop claims a batch
- * atomically (FOR UPDATE SKIP LOCKED) and transitions each row done/failed/dead;
- * the reaper recovers rows stuck in `processing` by a crash.
+ * The Floor's view of `pipeline.events` — a table it no longer owns (ADR-044).
+ *
+ * Both halves go through the event-router: producers insert (idempotent via
+ * dedupe_key), the loop claims a batch and transitions each row
+ * done/failed/dead, the reaper recovers rows a crash left in `processing`. The
+ * claim is still atomic — `FOR UPDATE SKIP LOCKED` is one statement, and it now
+ * runs on the router's side of the call rather than this one.
+ *
+ * This module stays as the seam every Floor caller already imports, which is
+ * what let the whole write and consume path move without touching them.
  */
 
-import { pipeline } from "../kernel/queues.js";
+import { deliveries, eventReporter } from "../kernel/queues.js";
+import type { EventSubscription } from "@re-cinq/lore-shared/project/events/event-deliveries-port.js";
 import type { EventInput, EventRow } from "./types.js";
 
+/**
+ * Report an event.
+ *
+ * Goes through the event-router (ADR-044), not the pool: `pipeline.events` has
+ * one writer, and this is the single seam every Floor producer — the cron
+ * emitter, the CI ingress, the reconcile pass — already inserts through, so
+ * routing it here routes all of them.
+ *
+ * The consume side below reports through the router too — the Floor drains a
+ * queue it neither owns nor writes to.
+ */
 export function insertEvent(input: EventInput): Promise<void> {
-  return pipeline().eventQueue.insert(input);
+  return eventReporter().insert(input);
 }
 
 /**
@@ -49,16 +65,39 @@ async function logAndRethrow<T>(work: Promise<T>, label: string): Promise<T> {
   }
 }
 
-/** Atomically claim up to `limit` runnable rows: pending/failed past their backoff. */
+/**
+ * The name this Floor consumes under.
+ *
+ * One subscriber per ROLE, not per replica: two Floors are the same consumer and
+ * must share a backlog, exactly as two drainers shared the queue. `SKIP LOCKED`
+ * still gives them disjoint batches.
+ */
+export const FLOOR_SUBSCRIBER = "floor";
+
+/**
+ * Register what this Floor reacts to. Called at boot BEFORE the loop starts,
+ * because fan-out reads the subscription set at insert time: an event captured
+ * before this lands is delivered to nobody and simply sits there.
+ */
+export function subscribe(subscriptions: EventSubscription[]): Promise<void> {
+  return deliveries().subscribe(FLOOR_SUBSCRIBER, subscriptions);
+}
+
+/** Repair deliveries fan-out could not create — see the port's contract. */
+export function reconcileDeliveries(withinMinutes: number): Promise<number> {
+  return deliveries().reconcileDeliveries(withinMinutes);
+}
+
+/** Atomically claim up to `limit` of this Floor's runnable deliveries. */
 export function claimBatch(
   limit: number,
   excludeEventNames: string[] = [],
 ): Promise<EventRow[]> {
-  return pipeline().eventQueue.claimBatch(limit, excludeEventNames);
+  return deliveries().claim(FLOOR_SUBSCRIBER, limit, excludeEventNames);
 }
 
 export function markDone(id: string): Promise<void> {
-  return pipeline().eventQueue.markDone(id);
+  return deliveries().markDone(id);
 }
 
 export function markFailed(
@@ -66,19 +105,30 @@ export function markFailed(
   error: string,
   backoffSeconds: number,
 ): Promise<void> {
-  return pipeline().eventQueue.markFailed(id, error, backoffSeconds);
+  return deliveries().markFailed(id, error, backoffSeconds);
 }
 
 export function markDead(id: string, error: string): Promise<void> {
-  return pipeline().eventQueue.markDead(id, error);
+  return deliveries().markDead(id, error);
 }
 
-/** Reset rows stuck in `processing` (claimer crashed) back to failed so they re-run. */
-export function reapStuck(timeoutSeconds: number): Promise<number> {
-  return pipeline().eventQueue.reapStuck(timeoutSeconds);
+/**
+ * Return deliveries a crashed claimer left in flight.
+ *
+ * Takes no timeout: each row is judged against the budget its own subscriber
+ * declared, rather than one global ceiling that presumed every handler dead at
+ * ten minutes regardless of the work.
+ */
+export function reapStuck(): Promise<number> {
+  return deliveries().reapStuck();
 }
 
-/** Delete old terminal rows to keep the claim index small. */
+/** Delete old terminal deliveries to keep the claim index small. */
 export function pruneHandled(olderThanDays: number): Promise<number> {
-  return pipeline().eventQueue.pruneHandled(olderThanDays);
+  return deliveries().pruneHandled(olderThanDays);
+}
+
+/** Events captured recently that no subscriber received — the silent case. */
+export function orphanedEvents(withinMinutes: number) {
+  return deliveries().orphanedEvents(withinMinutes);
 }

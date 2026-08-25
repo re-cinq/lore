@@ -1,3 +1,4 @@
+import { insertEvent } from "@re-cinq/lore-shared";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { apiError } from "../../../server/api-error.js";
 import type { Pool } from "pg";
@@ -125,11 +126,13 @@ export function repoSettingsRoute(getPool: () => Pool | null): ServerRoute {
       // that rather than failing a write that already happened.
       if (body.team !== undefined && (body.team || null) !== existing.team) {
         try {
-          await pool.query(
-            `INSERT INTO pipeline.events (event_name, source, params, repo)
-             VALUES ('internal.repo.team_changed', 'internal', $1::jsonb, $2)`,
-            [JSON.stringify({ repo }), repo],
-          );
+          // Through the shared writer, not a hand-rolled INSERT: that is what
+          // fans the event out to its subscribers (libs/shared/.../fan-out.ts).
+          await insertEvent(pool, {
+            eventName: "internal.repo.team_changed",
+            source: "internal",
+            params: { repo },
+          });
         } catch (err) {
           console.error(
             `[settings] team_changed event insert failed for ${repo} (nightly reindex will relocate):`,

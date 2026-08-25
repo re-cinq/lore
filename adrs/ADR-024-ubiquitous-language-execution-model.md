@@ -38,10 +38,135 @@ commits the platform to the manufacturing metaphor; this names the rest of it.
 | **Floor** | the coordinator runtime: dispatches Agents onto Stations, runs AssemblyLines, reaps leases | 1 → N |
 | **AssemblyLine** | the **blueprint** — an authored, versioned, content-hashed graph of Stations that hand off / wait on each other (amendment 2026-08-14) | per task type |
 | **AssemblyRun** | one **execution** of an AssemblyLine, carrying a clone of the blueprint it runs (amendment 2026-08-14) | per attempt |
-| **Station** | the unit that runs exactly one node's work (a K8s Job pod, or a local sandbox/worktree) — an LLM Agent, a deterministic station run (validate/detect/…, ADR-031 amendment), *or* a **human station** whose worker is a person and whose `route` names the page they work on | per node |
+| **Station** | the unit that runs one piece of work — an LLM Agent, a deterministic station run (validate/detect/…, ADR-031 amendment), a **human station** whose worker is a person and whose `route` names the page they work on, or a **service station** reached by name over HTTP (amendment 2026-08-23) | per node, or standalone |
 | **StationRun** | one **visit** to a Station within an AssemblyRun — `(run, node, iteration)`, identified by a `station_run_id` (amendment 2026-08-14) | per node-run |
 | **Agent** | one ephemeral run of the Claude CLI/API + a prompt (context + task) | per Station |
 | **Agent definition** | the stored *config* an Agent runs from — model, timeout, prompt, execution image — resolved per repo (project row → org default → `task-types.yaml`) | per task-type (× repo) |
+
+### A Station's execution forms (amendment 2026-08-23)
+
+A Station is a unit of work; *how* it runs is a separate question, and there are
+four answers. The table above listed three; this names the fourth and says when
+each applies.
+
+| form | dispatched by | holds a pool | for |
+|---|---|---|---|
+| K8s Job pod | an AssemblyLine node | no — the station HTTP seam | nodes needing isolation, a workspace clone, per-node identity, a deadline |
+| local sandbox / worktree | the local runner | no | developer machines |
+| human station | a person, via `route` | n/a | author review, PR merge |
+| **service station** | an HTTP call, `POST /api/stations/{name}` | **yes** | standalone work: the cron sweeps |
+
+The fourth exists because the first was being paid for work that did not need
+it. A once-a-minute sweep has no workspace to clone, no node identity, and no
+deadline worth a CR — yet to be a Station at all it had to be wrapped in a
+one-node AssemblyLine with a `retrospective` marker, and then, because a pod
+holds no database, reach its data through an HTTP seam. `merge-check` alone
+would have needed ~23 new methods on that seam. A Station that sits beside the
+data just asks the data.
+
+A service station is named, not authored: the name is the URL, and the registry
+entry is the whole declaration.
+
+- The named station runs and reports one summary line — the same
+  `(): Promise<string>` these jobs always had, which the Floor's scheduler
+  writes into the `pipeline.job_runs` row it already opens. ([validated by runs the named station and returns the summary it reported](apps/stations/src/delivery/routes/stations.test.ts#L31))
+- A name nothing answers to is refused with the registry's contents, rather than
+  failing somewhere inside an undefined call. ([validated by refuses a name no station answers to, rather than 500-ing on undefined](apps/stations/src/delivery/routes/stations.test.ts#L38))
+- Running a station requires the same token every other service-to-service call
+  presents. ([validated by refuses a caller with no bearer token](apps/stations/src/delivery/routes/stations.test.ts#L45))
+- A station already running refuses the second caller rather than sweeping
+  twice. The Floor is a single replica today, so this is what makes a second one
+  — or a retried tick — safe rather than a double sweep. ([validated by refuses a second concurrent run of the same station](apps/stations/src/delivery/routes/stations.test.ts#L54))
+- The guard releases after the run, including after a FAILED one: a station that
+  threw must not stay latched, or one bad run wedges it until the process
+  restarts. ([validated by frees the latch after a run so the next tick is not locked out forever](apps/stations/src/delivery/routes/stations.test.ts#L79), [`stations.test.ts:85`](apps/stations/src/delivery/routes/stations.test.ts#L85))
+- The caller and the route are two halves of one contract, so they are exercised
+  against each other: the summary comes back for the `job_runs` row, and every
+  refusal throws rather than resolving to an empty success that would log a
+  sweep which never ran. ([validated by returns the summary the station reported, for the job_runs row](apps/stations/src/delivery/routes/station-client-roundtrip.test.ts#L40), [`station-client-roundtrip.test.ts:46`](apps/stations/src/delivery/routes/station-client-roundtrip.test.ts#L46), [`station-client-roundtrip.test.ts:52`](apps/stations/src/delivery/routes/station-client-roundtrip.test.ts#L52), [`station-client-roundtrip.test.ts:62`](apps/stations/src/delivery/routes/station-client-roundtrip.test.ts#L62))
+
+The Floor keeps the schedule, the `job_runs` row and the overlap guard — it
+still owns *when* a station runs; it stops owning *what* the station does.
+
+### Cluster authority is exercised through a per-cluster agent (amendment 2026-08-24)
+
+The Floor holds a Kubernetes client no longer. `apps/cluster-agent` is the only
+process that talks to a given cluster's API; the Floor and lore-api reach it
+over HTTP through the ports they already used, so their call sites kept their
+shape.
+
+The cut is the mirror of the station one. There, work moved TO the data; here,
+the cluster moves AWAY from it. The Floor's data surface is ~145 calls across
+~70 methods and its cluster surface is a dozen operations — so the cheap
+extraction was never the data, and a satellite cluster becomes a small agent
+rather than a second brain.
+
+Every route is a DOMAIN operation, not a Kubernetes verb, because three of the
+underlying interactions are read-modify-write pairs. Exposing `get` and
+`replace` separately would invite a caller to split a pair across the network
+and lose the update; no `resourceVersion` ever crosses the wire.
+
+- A CR that already exists reports `created:false` rather than failing, so a
+  redelivered dispatch is idempotent. ([validated by reports created:false for a CR that already exists, so a retry is idempotent](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L85))
+- A missing CR is an ordinary answer — `found:false` at 200, not a 404 that
+  would be indistinguishable from the route itself being absent. ([validated by answers 200 with found:false for a missing CR, not 404](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L104), [`cluster.test.ts:174`](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L174))
+- The list serves ONE apiserver page per call and the caller drives `continue`.
+  A one-shot list is not a convenience: 180 accumulated CRs at ~1.4MB of status
+  each blew Node's heap and crash-looped the Floor on 2026-07-24. ([validated by passes the caller's continue token straight through, one page per call](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L115), [`cluster.test.ts:128`](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L128), [`cluster.test.ts:335`](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L335), [`cluster.test.ts:318`](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L318))
+- The paging the route requires is walked by the CLIENT, not pushed onto every
+  caller: `listByLabel` follows `continue` to the end and returns the whole
+  match. A truncated list is worse than a failed one — it answers, and the
+  caller acts on a subset it believes is complete.
+  ([validated by returns every page's items, not just the first](libs/shared/src/cluster/cluster-agent-client.test.ts#L30), [`cluster-agent-client.test.ts:42`](libs/shared/src/cluster/cluster-agent-client.test.ts#L42), [`cluster-agent-client.test.ts:56`](libs/shared/src/cluster/cluster-agent-client.test.ts#L56), [`cluster-agent-client.test.ts:64`](libs/shared/src/cluster/cluster-agent-client.test.ts#L64))
+- The status subresource is patched in ONE call, so its read-modify-write
+  cannot be split across the network — and RETRIED on conflict, because keeping
+  the pair whole stops a caller splitting it but not the ai-agent controller
+  writing `status.phase` in between. The loser of that race merges its patch
+  onto the winner's status rather than overwriting it. ([validated by merges the patch onto the live status and replaces once](apps/cluster-agent/src/kernel/paired-writes.test.ts#L49), [`paired-writes.test.ts:62`](apps/cluster-agent/src/kernel/paired-writes.test.ts#L62), [`paired-writes.test.ts:73`](apps/cluster-agent/src/kernel/paired-writes.test.ts#L73), [`paired-writes.test.ts:82`](apps/cluster-agent/src/kernel/paired-writes.test.ts#L82), [`cluster.test.ts:139`](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L139), [`cluster.test.ts:232`](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L232), [`cluster.test.ts:244`](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L244))
+- A catalog pair is written station-first and deleted station-last, so an
+  AgentDefinition — the thing a dispatch looks up — is never visible pointing at
+  a station that does not exist. ([validated by writes the station before the agent definition that points at it](apps/cluster-agent/src/kernel/paired-writes.test.ts#L120), [`paired-writes.test.ts:128`](apps/cluster-agent/src/kernel/paired-writes.test.ts#L128), [`paired-writes.test.ts:147`](apps/cluster-agent/src/kernel/paired-writes.test.ts#L147))
+- A refusal is read by its status, never collapsed: 404 is absence, 403 names
+  the Role rule that is missing, anything else is a failure. ([validated by reads the code this client version sets](apps/cluster-agent/src/kernel/k8s-errors.test.ts#L13), [`k8s-errors.test.ts:17`](apps/cluster-agent/src/kernel/k8s-errors.test.ts#L17), [`k8s-errors.test.ts:21`](apps/cluster-agent/src/kernel/k8s-errors.test.ts#L21), [`k8s-errors.test.ts:25`](apps/cluster-agent/src/kernel/k8s-errors.test.ts#L25), [`k8s-errors.test.ts:31`](apps/cluster-agent/src/kernel/k8s-errors.test.ts#L31), [`k8s-errors.test.ts:38`](apps/cluster-agent/src/kernel/k8s-errors.test.ts#L38), [`k8s-errors.test.ts:47`](apps/cluster-agent/src/kernel/k8s-errors.test.ts#L47), [`k8s-errors.test.ts:59`](apps/cluster-agent/src/kernel/k8s-errors.test.ts#L59), [`k8s-errors.test.ts:69`](apps/cluster-agent/src/kernel/k8s-errors.test.ts#L69))
+- The status is read wherever this client puts it, including out of the message,
+  which is the only place it appears for some refusals. A Secret write that loses
+  an optimistic-concurrency race arrives as `HTTP-Code: 409 / Unknown API Status
+  Code!` with every structured field undefined; read as no status at all, the
+  retry that exists for exactly that race never fires, and provisioning fails
+  whenever two agents start at once. ([validated by reads 409 out of the message when it is nowhere else](apps/cluster-agent/src/kernel/k8s-errors.test.ts#L87), [`k8s-errors.test.ts:91`](apps/cluster-agent/src/kernel/k8s-errors.test.ts#L91), [`k8s-errors.test.ts:96`](apps/cluster-agent/src/kernel/k8s-errors.test.ts#L96))
+- Provisioning is ONE call — catalog read, GitHub mint, Secret write and the
+  per-task clone together. The agent mints, so no GitHub token crosses the
+  network; the cost accepted is that the App private key lives in the agent.
+  ([validated by provisions in one call — catalog read, mint, secret write and clone together](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L186), [`cluster.test.ts:197`](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L197), [`cluster.test.ts:287`](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L287))
+- A catalog pair is applied in one call, so create-409-replace cannot be split.
+  ([validated by applies a catalog pair in one call, so create-409-replace cannot be split](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L211), [`cluster.test.ts:298`](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L298), [`cluster.test.ts:309`](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L309), [`cluster.test.ts:328`](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L328))
+- The log tail is clamped by the AGENT, because the Floor's clamp no longer
+  protects this process's heap. ([validated by clamps the tail server-side rather than trusting the caller](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L164), [`cluster.test.ts:267`](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L267), [`cluster.test.ts:277`](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L277), [`cluster.test.ts:257`](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L257))
+- Every route requires the same bearer token every other service-to-service
+  call presents. ([validated by refuses every route without a bearer token](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L223))
+- A CR the controller has not stamped yet reads as Pending rather than absent —
+  the distinction a watcher acts on. ([validated by a CR the controller has not stamped yet maps to Pending, not absence](apps/cluster-agent/src/kernel/kube-agent-api.test.ts#L6), [`kube-agent-api.test.ts:16`](apps/cluster-agent/src/kernel/kube-agent-api.test.ts#L16))
+- An empty minted token is refused where the cause is legible, rather than
+  written as a present-but-useless Secret key that fails later inside a pod's
+  init container. ([validated by throws naming the repo and the App vars when the token comes back empty](apps/cluster-agent/src/kernel/kube-token-provisioner.test.ts#L13), [`kube-token-provisioner.test.ts:5`](apps/cluster-agent/src/kernel/kube-token-provisioner.test.ts#L5))
+
+
+The callers keep their behaviour, not just their shape. A CR that no longer
+exists is an ordinary answer and stops the work; anything else throws so the
+drain loop retries rather than marking the event handled — the distinction the
+Floor used to make by sniffing a 404 out of a Kubernetes error.
+  ([validated by treats a pruned CR as nothing to do — no processing, no throw](apps/floor/src/jobs/kubernetes.test.ts#L26), [`kubernetes.test.ts:35`](apps/floor/src/jobs/kubernetes.test.ts#L35), [`kubernetes.test.ts:46`](apps/floor/src/jobs/kubernetes.test.ts#L46), [`kubernetes.test.ts:62`](apps/floor/src/jobs/kubernetes.test.ts#L62))
+
+The reconcile pass keeps paging, and its seam narrowed with the cut: it now
+depends on one page-fetch method rather than a slice of a Kubernetes client, so
+a test fakes the thing it actually needs.
+  ([validated by walks every page via the continue token and passes the page limit](apps/floor/src/listeners/agent-reconcile.test.ts#L56), [`agent-reconcile.test.ts:79`](apps/floor/src/listeners/agent-reconcile.test.ts#L79), [`agent-reconcile.test.ts:92`](apps/floor/src/listeners/agent-reconcile.test.ts#L92))
+
+The Role this service carries also closes two gaps the Floor had been silently
+living with: it never held `delete` on `agents` or `agents/status`, yet issued
+both at sites that swallowed the failure — which is why the CR prune could
+never actually shrink the pile it was written to shrink.
+  ([validated by deletes a CR — the verb the Floor's RBAC never granted](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L151))
 
 Hierarchy: **Factory ⊃ Floor(s) ⊃ AssemblyLines ⊃ Stations ⊃ Agents** — the design
 side; its runtime shadow is **AssemblyRun ⊃ StationRuns ⊃ Agents**.
@@ -275,8 +400,14 @@ that no property of the Floor justified.
 **The Floor has exactly three exclusive powers.** Code that needs none of them does
 not belong in the Floor process:
 
-1. **Cluster authority** — the Kubernetes API, Agent CR dispatch, per-task pod
-   tokens, pod logs. Only the Floor holds the credentials and the RBAC.
+1. **Cluster authority** — Agent CR dispatch, per-task pod tokens, pod logs.
+   *Revised 2026-08-24:* when this test was written the Floor held the Kubernetes
+   credentials and the RBAC itself. It no longer does — the amendment above moved
+   both to `apps/cluster-agent`, and the Floor's Role is deleted. The power the
+   Floor keeps is the **authority**, not the credential: it decides what to
+   dispatch, when to prune, and whose token to mint, and it exercises that
+   decision over HTTP against exactly one cluster agent. That distinction is what
+   lets a Floor coordinate a cluster it cannot reach a Kubernetes API in.
 2. **The drain loop** — the single-instance `pipeline.events` claim
    (`FOR UPDATE SKIP LOCKED`), leases, and the reapers. Only the Floor is pinned
    to one replica and may therefore coordinate.
@@ -294,16 +425,24 @@ The test is deliberately about *powers*, not about cadence or weight. "It is a
 nightly batch" and "it needs a long-running process" were the two arguments that
 put every squatter where it is, and neither is a property only the Floor has.
 
-**Three pinned exceptions** — they fail the test on a reading of the code but pass
-on the mechanism, and a later cleanup must not evict them:
+**Pinned exceptions** — they fail the test on a reading of the code but pass on
+the mechanism, and a later cleanup must not evict them. Three were pinned in
+2026-08; one has since been retired by the work it predicted:
 
 - The `/api/agent-events` NDJSON sink and the SSE stream are **welded** by the
   in-process bus. Splitting them requires PG `LISTEN`/`NOTIFY` first (ADR-037
   names it as the multi-replica swap); moving either alone goes dark.
-- `/api/agent-logs` reads pod logs through the Kubernetes API — power 1. `lore-ui`
-  holds no such RBAC.
-- `/api/webhook/github` could move to `lore-api`, but it feeds the drain loop
-  directly; relocating it buys a network hop and a new failure mode.
+- `/api/agent-logs` serves pod logs. *Revised 2026-08-24:* it no longer reads the
+  Kubernetes API — it asks the cluster agent, which holds the `pods/log` RBAC the
+  Floor gave up. The exception survives, but on a weaker footing: it is now a
+  proxy in front of a proxy, kept only because `lore-ui` must not learn a second
+  service's address. Give it a reason to move and it should move.
+- ~~`/api/webhook/github`~~ — **retired 2026-08-24.** It moved to
+  `apps/event-router` as one branch of `POST /api/events`
+  ([ADR-044](./ADR-044-event-router-owns-the-event-bus.md)). The exception argued
+  that relocating it "buys a network hop and a new failure mode"; that was true
+  while the Floor owned the events table, and stopped being true once the router
+  did. The hop the exception feared is now the hop the Floor pays anyway.
 
 **Consequence.** After the eviction the Floor is: the drain loop and its reapers,
 the listeners, the AssemblyRun walk, the Station/pod machinery, the Agent-CR

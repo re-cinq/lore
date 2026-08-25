@@ -97,7 +97,7 @@ describe("parkedHumanNode", () => {
       parkedHumanNode(
         "running",
         [node("await-spec-merge", 1, null)],
-        graphWith(["push", "github_action"], ["await-spec-merge", "pr_review"]),
+        graphWith(["push", "validate"], ["await-spec-merge", "pr_review"]),
         "pr_review",
         "merged",
       ),

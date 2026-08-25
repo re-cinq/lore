@@ -375,6 +375,12 @@ export class InMemoryAssemblyRuns implements AssemblyRunsPort {
     return open ? toOpenSummary(open) : null;
   }
 
+  async countBySubject(repo: string, subjectKey: string): Promise<number> {
+    return this.rows.filter(
+      (r) => r.repo === repo && r.subjectKey === subjectKey,
+    ).length;
+  }
+
   async mergeArgs(id: string, patch: Record<string, unknown>): Promise<void> {
     const row = this.rows.find((r) => r.id === id);
 

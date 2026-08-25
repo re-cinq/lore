@@ -6,6 +6,7 @@ import {
   catalogChartYaml,
   type AgentCatalogConfig,
   buildStationDefinition,
+  LLM_SECRET_SENTINEL,
   buildStationStation,
   type StationCatalogConfig,
 } from "./agent-catalog.js";
@@ -77,7 +78,7 @@ describe("buildAgentDefinition", () => {
     });
   });
 
-  it("station recipes swap ANTHROPIC (exec vendor, no model call) for the Lore API pair every lore-station pod needs", () => {
+  it("a deterministic station recipe swaps ANTHROPIC for the Lore API pair every station pod needs", () => {
     const resources = buildStationDefinition("validate", {
       command: ["lore-station", "validate"],
       timeout_minutes: 15,
@@ -411,6 +412,20 @@ describe("buildStationDefinition without a command", () => {
       new Error(
         'station "ingest" has no command — task-types.yaml is missing a field the catalog needs',
       ),
+    );
+  });
+});
+
+describe("a station that makes a model call gets a model credential", () => {
+  it("declares the LLM secret for a station whose recipe says it needs one", () => {
+    const def = buildStationDefinition("comment-triage", {
+      command: ["lore-station", "comment-triage"],
+      timeout_minutes: 5,
+      needs_model: true,
+    });
+
+    expect(def.spec?.resources?.secrets?.map((s) => s.name)).toContain(
+      LLM_SECRET_SENTINEL,
     );
   });
 });
