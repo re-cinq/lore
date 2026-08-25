@@ -430,7 +430,11 @@ describe("reviewNodeResultOverride", () => {
       },
     );
 
-    expect(result).toEqual({ outcome: "failed" });
+    expect(result).toMatchObject({
+      outcome: "failed",
+      failureClass: "unknown",
+      failureDetail: /reached no verdict/,
+    });
   });
 
   it("keeps a verdict-carrying result even without a findings block (legitimate minimal approve)", () => {
@@ -454,7 +458,14 @@ describe("reviewNodeResultOverride", () => {
       { outcome: "success" },
     );
 
-    expect(result).toEqual({ outcome: "failed" });
+    // The reason is the point. Recorded bare, this renders as `node "recheck"
+    // failed` — indistinguishable from an evicted pod or a dry account, and it
+    // sent two reviewers hunting an infrastructure outage that was not there.
+    expect(result).toMatchObject({
+      outcome: "failed",
+      failureClass: "unknown",
+      failureDetail: /changes_requested.*nothing was posted/,
+    });
   });
 
   it("keeps the result when findings were posted", () => {
