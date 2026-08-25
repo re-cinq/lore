@@ -117,7 +117,27 @@ export function reviewNodeResultOverride(
   result: NodeResult,
 ): NodeResult {
   if (post === "no_findings" && parseReviewVerdict(output) !== "success") {
-    return { outcome: "failed" };
+    // WHY it failed, not just that it did. Recorded bare — which this did — the
+    // node renders as `node "recheck" failed` with no class and no detail, which
+    // is exactly how an evicted pod, a dry account and a token mismatch render.
+    // On 2026-08-24 that cost two reviewers a hunt for an infrastructure outage
+    // that did not exist; the review had simply found something and failed to
+    // publish it.
+    const verdict = parseReviewVerdict(output);
+
+    return {
+      outcome: "failed",
+      // `unknown`, not an invented class: FailureCategory is the closed taxonomy
+      // of INFRASTRUCTURE failures that drive retry and the account-wide dispatch
+      // gate. This is a recipe/contract bug, and `unknown` is what node-outcome
+      // already uses for that — the diagnosis belongs in the detail, which is the
+      // part that was missing.
+      failureClass: "unknown",
+      failureDetail:
+        verdict === "changes_requested"
+          ? "the review reached changes_requested but nothing was posted to the PR — its findings block did not parse, so the findings are lost"
+          : "the review posted no findings and reached no verdict — it never got far enough to judge the diff",
+    };
   }
 
   return result;
