@@ -644,6 +644,7 @@ describe("loadAssemblyLineDir — bundled assemblyLines", () => {
       "gap-fill",
       "general",
       "implementation",
+      "implementation-loop",
       "ingest",
       "merge",
       "spec-coverage-backfill",
