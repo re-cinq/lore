@@ -6,14 +6,12 @@
 // outcome "failed" as its normal result. Consumed by the Floor's node-event
 // handler + reaper and (parseNodeResult) by the lore-station pod itself.
 
+import { classifyError } from "@re-cinq/lore-shared/error-classify.js";
 import type { NodeResult, StageOutcome } from "./node-types.js";
 
 /** The slice of an Agent's status the outcome mapping reacts to. */
-export interface AgentNodeStatus {
-  phase?: string;
-  output?: string;
-  failureReason?: string;
-}
+export type { AgentNodeStatus } from "@re-cinq/lore-shared/cluster/agent-node-status.js";
+import type { AgentNodeStatus } from "@re-cinq/lore-shared/cluster/agent-node-status.js";
 
 const OUTCOMES = new Set<StageOutcome>([
   "success",
@@ -41,24 +39,35 @@ export function parseReviewVerdict(
 }
 
 /**
- * The station contract's terminal line: `LORE_NODE_RESULT: {"outcome": ...,
- * "extras": {...}}`. Null on absence or any malformation — callers fall back to
- * the older signals rather than failing the node over a formatting slip.
+ * The payload of the LAST line-start `LORE_NODE_RESULT:` marker, or null.
+ *
+ * Line-start and last-wins together are what make the marker safe to DISCUSS: an
+ * agent quoting its own contract mid-sentence decides nothing, and one that
+ * explains the marker and then prints it is read by its final word. The payload is
+ * one physical line — the contract's own shape, and all `JSON.parse` accepts here.
  */
-export function parseNodeResult(output?: string): NodeResult | null {
-  const match = output?.match(/LORE_NODE_RESULT:\s*(\{.*\})/);
+function lastNodeResultPayload(output?: string): string | null {
+  const matches = [
+    ...(output ?? "").matchAll(/^LORE_NODE_RESULT:[ \t]*(.*)$/gm),
+  ];
 
-  if (!match) {
-    return null;
+  return matches.length ? matches[matches.length - 1][1].trim() : null;
+}
+
+function nodeResultFromPayload(payload: string): NodeResult | null {
+  // The bare word is legacy but LIVE: a deployed recipe instructs exactly it, and
+  // rejecting it turned a station's objection into a silent success (#1469).
+  if (OUTCOMES.has(payload as StageOutcome)) {
+    return { outcome: payload as StageOutcome, extras: {} };
   }
-  let payload: unknown;
+  let parsed: unknown;
 
   try {
-    payload = JSON.parse(match[1]);
+    parsed = JSON.parse(payload);
   } catch {
     return null;
   }
-  const { outcome, extras } = payload as {
+  const { outcome, extras } = parsed as {
     outcome?: string;
     extras?: Record<string, unknown>;
   };
@@ -78,23 +87,33 @@ export function parseNodeResult(output?: string): NodeResult | null {
 }
 
 /**
- * A CR failure whose text is the Anthropic account running dry (`Credit balance
- * is too low`, `insufficient credits`) — an operator-actionable, not
- * code-actionable, failure: it takes down EVERY LLM node (review/refine/triage/
- * implementation) at once until the account is topped up, so the Floor routes it
- * to a dedicated throttled Slack alert instead of one PR comment per drowned run.
+ * The station contract's terminal line: `LORE_NODE_RESULT: {"outcome": ...,
+ * "extras": {...}}`, or the legacy bare word. Null on absence or malformation —
+ * a malformed line is not a formatting slip to shrug off, though: see
+ * {@link malformedNodeResultLine}, which is how the node fails instead.
  */
-export function isBillingError(text: string | null | undefined): boolean {
-  if (!text) {
-    return false;
-  }
-  const lower = text.toLowerCase();
+export function parseNodeResult(output?: string): NodeResult | null {
+  const payload = lastNodeResultPayload(output);
 
-  return (
-    (lower.includes("credit") && lower.includes("balance")) ||
-    lower.includes("credit balance too low") ||
-    lower.includes("insufficient credit")
-  );
+  return payload === null ? null : nodeResultFromPayload(payload);
+}
+
+/**
+ * The offending line when a marker is PRESENT but says nothing usable.
+ *
+ * The `success` default exists for an agent that prints NO marker. An agent that
+ * printed one and was misheard is a different thing entirely — that is the
+ * failure this surfaces, so a recipe whose contract has drifted reports itself
+ * instead of passing every node.
+ */
+export function malformedNodeResultLine(output?: string): string | null {
+  const payload = lastNodeResultPayload(output);
+
+  if (payload === null || nodeResultFromPayload(payload) !== null) {
+    return null;
+  }
+
+  return `LORE_NODE_RESULT: ${payload}`.substring(0, 200);
 }
 
 const failureKind = (node: NodeKind): string =>
@@ -115,13 +134,29 @@ export function stationNodeOutcome(
   status: AgentNodeStatus,
 ): NodeResult {
   if (status.phase === "Failed") {
+    // Precedence is the whole point: the agent's own last words first, the
+    // Job-level reason only when it never got to speak. Reading `failureReason`
+    // first classified every death as `BackoffLimitExceeded` — which is how a
+    // dry Anthropic account reached an author as a retry-budget message.
+    //
+    // `||`, not `??`: `terminalErrorText` answers `parsed.result` for any line
+    // with `is_error`, and an agent that errors with an EMPTY result string
+    // would otherwise win the precedence with nothing to say — classifying as
+    // `unknown`, emitting an empty summary, and discarding the Job-level reason
+    // that was the only information anyone had. "Said nothing" is not "spoke".
+    const detail = (
+      status.errorText ||
+      status.failureReason ||
+      `${failureKind(node)} run failed`
+    ).substring(0, 300);
+
     return {
       outcome: "failed",
+      failureClass: classifyError(detail).category,
+      failureDetail: detail,
       extras: {
         "Lore-Validation-Status": `${failureKind(node)}-failed`,
-        "Lore-Validation-Summary": (
-          status.failureReason ?? `${failureKind(node)} run failed`
-        ).substring(0, 300),
+        "Lore-Validation-Summary": detail,
       },
     };
   }
@@ -129,6 +164,30 @@ export function stationNodeOutcome(
 
   if (stationResult) {
     return stationResult;
+  }
+
+  // Spoken but misheard. Falling through to the default made an agent's objection
+  // a `success` and skipped the human decision point its edge exists for (#1469) —
+  // and the recipe bug behind it left no trace anywhere.
+  const malformed = malformedNodeResultLine(status.output);
+
+  if (malformed) {
+    const detail = `unparseable LORE_NODE_RESULT line: ${malformed}`.substring(
+      0,
+      300,
+    );
+
+    return {
+      outcome: "failed",
+      // Not a classified infrastructure failure: this is a recipe/contract bug, and
+      // `unknown` is the class that never trips the account-wide dispatch gate.
+      failureClass: "unknown",
+      failureDetail: detail,
+      extras: {
+        "Lore-Validation-Status": `${failureKind(node)}-failed`,
+        "Lore-Validation-Summary": detail,
+      },
+    };
   }
 
   if (parseReviewVerdict(status.output) === "changes_requested") {

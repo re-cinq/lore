@@ -23,6 +23,14 @@ export interface StationLaunchResult {
   ref: string;
   /** false = already exists (k8s 409) or not started. */
   launched: boolean;
+  /**
+   * Set when this dispatch JOINED a run already working the same subject instead
+   * of starting one (see `AssemblyRunStartInput.subjectKey`). Distinct from a
+   * plain `launched: false`, which also covers a crash-recovery re-dispatch onto
+   * the task's OWN existing CR: that task still completes through its own run,
+   * whereas a joined task never will and must be settled by the caller.
+   */
+  joinedRun?: string;
   /** Synchronous backends (docker) resolve completion here; async (k8s) omit it
    *  and the watcher resolves completion from the CR status later. */
   completion?: StationCompletion;

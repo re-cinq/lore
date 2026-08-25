@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import {
   refineFeature,
-  finalizeFeature,
+  createSpecFile,
   splitFeature,
   deleteFeature,
 } from "@/lib/api/features";
@@ -36,15 +36,16 @@ export async function refineFeatureAction(
   revalidatePath(`/repos/${fullName}/features/${id}`);
 }
 
-export async function finalizeFeatureAction(
+export async function handleCreateSpecFile(
   fullName: string,
   id: string,
+  userAnswers: SectionAnswers,
 ): Promise<void> {
-  console.log("finalizing feature");
-  enforceOk("Finalizing the spec", await finalizeFeature(fullName, id));
-  console.log("finalized feature");
+  enforceOk(
+    "Creating the spec file",
+    await createSpecFile(fullName, id, userAnswers),
+  );
   revalidatePath(`/repos/${fullName}/features/${id}`);
-  console.log("revalidated path");
 }
 
 export async function splitFeatureAction(

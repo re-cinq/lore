@@ -13,10 +13,23 @@
  * an unbounded read.
  */
 
-import { agentRunTurns } from "../../../kernel/queues.js";
+import { pipeline } from "../../../kernel/queues.js";
 import { parseAfter, parseLimit } from "./agent-events-history.js";
 import type { ServerRoute } from "@hapi/hapi";
 import type { AgentRunTurnRow } from "@re-cinq/lore-shared";
+
+/**
+ * Both turn routes read one row past the requested page: an exactly-full page
+ * alone cannot say whether rows follow, and the explicit `hasMore` flag is
+ * what lets the web-ui walks end on the server's answer instead of comparing
+ * page length against a client-side copy of MAX_LIMIT (#1310). Sound because
+ * the cursor is exclusive (`id > after`) over a stable `ORDER BY id ASC`.
+ */
+export const PAGE_LOOKAHEAD = 1;
+
+export function pageWithLookahead(rows: AgentRunTurnRow[], limit: number) {
+  return { turns: rows.slice(0, limit), hasMore: rows.length > limit };
+}
 
 export function agentTurnsHistoryRoute(turns?: {
   listByLine: (
@@ -30,13 +43,14 @@ export function agentTurnsHistoryRoute(turns?: {
     path: "/api/agent-turns/{assemblyRunId}",
     options: { auth: "ingest-token" },
     handler: async (request, h) => {
-      const rows = await (turns ?? agentRunTurns()).listByLine(
+      const limit = parseLimit(request.query.limit);
+      const rows = await (turns ?? pipeline().agentRunTurns).listByLine(
         request.params.assemblyRunId,
         parseAfter(request.query.after),
-        parseLimit(request.query.limit),
+        limit + PAGE_LOOKAHEAD,
       );
 
-      return h.response({ turns: rows }).code(200);
+      return h.response(pageWithLookahead(rows, limit)).code(200);
     },
   };
 }

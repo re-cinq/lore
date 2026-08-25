@@ -18,14 +18,34 @@ import {
 
 const originalEnv = { ...process.env };
 
+/** What the port answers with: the `Repo` model, in the model's own casing. */
+const RECORD = {
+  id: "r1",
+  owner: "re-cinq",
+  name: "lore",
+  fullName: "re-cinq/lore",
+  team: "platform",
+  onboardedAt: "2026-01-01",
+  lastIngestedAt: "2026-08-01",
+  onboardingPrUrl: null,
+  onboardingPrMerged: true,
+  settings: { trust: { level: "tests" } },
+  outcomeStats: null,
+};
+
+/** What the ROUTE publishes: the same record keyed by its columns. */
 const ROW = {
+  id: "r1",
+  owner: "re-cinq",
+  name: "lore",
   full_name: "re-cinq/lore",
   team: "platform",
-  settings: { trust: { level: "tests" } },
   onboarded_at: "2026-01-01",
   last_ingested_at: "2026-08-01",
   onboarding_pr_url: null,
   onboarding_pr_merged: true,
+  settings: { trust: { level: "tests" } },
+  outcome_stats: null,
 };
 
 describe("GET /api/repos/{owner}/{repo}", () => {
@@ -47,7 +67,7 @@ describe("GET /api/repos/{owner}/{repo}", () => {
   }
 
   it("returns the repo record", async () => {
-    fakeSettings.record.mockResolvedValue(ROW);
+    fakeSettings.record.mockResolvedValue(RECORD);
 
     const res = await get();
 
@@ -56,7 +76,7 @@ describe("GET /api/repos/{owner}/{repo}", () => {
   });
 
   it("reads the row for the owner/repo pair in the path", async () => {
-    fakeSettings.record.mockResolvedValue(ROW);
+    fakeSettings.record.mockResolvedValue(RECORD);
 
     await get();
 

@@ -82,30 +82,6 @@ export const commentTriageDefinition: AssemblyLineDefinition = {
   ],
 };
 
-export const featureFinalizeDefinition: AssemblyLineDefinition = {
-  name: "feature-finalize",
-  description:
-    "Turn the accepted plan into spec files: decide which specs to amend and which to create (analyse), apply that change set (write), then push so the watcher opens the spec PR. No code.",
-  version: 1,
-  entry: "analyse",
-  exit: "done",
-  nodes: [
-    { id: "analyse", type: "agent" },
-    { id: "write", type: "agent" },
-    { id: "push", type: "agent" },
-    { id: "done", type: "retrospective" },
-  ],
-  edges: [
-    { from: "analyse", to: "write", on: "success" },
-    { from: "analyse", to: "done", on: "changes_requested" },
-    { from: "analyse", to: "done", on: "failed" },
-    { from: "write", to: "push", on: "success" },
-    { from: "write", to: "analyse", on: "changes_requested", iteration_max: 1 },
-    { from: "write", to: "done", on: "failed" },
-    { from: "push", to: "done", on: "always" },
-  ],
-};
-
 export const featurePlanningDefinition: AssemblyLineDefinition = {
   name: "feature-planning",
   description:
@@ -344,7 +320,6 @@ export const builtinDefinitions: AssemblyLineDefinition[] = [
   codeReviewRecheckDefinition,
   codeReviewReplyDefinition,
   commentTriageDefinition,
-  featureFinalizeDefinition,
   featurePlanningDefinition,
   gapDetectDefinition,
   gapFillDefinition,

@@ -6,6 +6,7 @@ import {
   catalogChartYaml,
   type AgentCatalogConfig,
   buildStationDefinition,
+  LLM_SECRET_SENTINEL,
   buildStationStation,
   type StationCatalogConfig,
 } from "./agent-catalog.js";
@@ -77,7 +78,7 @@ describe("buildAgentDefinition", () => {
     });
   });
 
-  it("station recipes swap ANTHROPIC (exec vendor, no model call) for the Lore API pair every lore-station pod needs", () => {
+  it("a deterministic station recipe swaps ANTHROPIC for the Lore API pair every station pod needs", () => {
     const resources = buildStationDefinition("validate", {
       command: ["lore-station", "validate"],
       timeout_minutes: 15,
@@ -171,11 +172,17 @@ describe("buildCatalog", () => {
 describe("catalogChartYaml", () => {
   const out = catalogChartYaml({ implementation: impl });
 
-  it("guards the seed behind .Values.seedCatalog and keeps it on uninstall", () => {
+  it("emits an unguarded doc stream — the catalog-seed hook owns the seedCatalog gate — and keeps every object on uninstall", () => {
+    // The docs moved out of templates/ into a file the pre-upgrade hook applies
+    // server-side, because Helm diffs RENDERED manifests and so never repairs an
+    // object the API server pruned (#1468). The gate moved with the hook.
     expect(out).toContain("DO NOT EDIT.");
-    expect(out).toContain("{{- if .Values.seedCatalog }}");
-    expect(out).toContain("{{- end }}");
+    expect(out).not.toContain("{{- if .Values.seedCatalog }}");
     expect(out).toContain("helm.sh/resource-policy: keep");
+  });
+  it("names its generated home and the hook that applies it in the header, so a reader of the file finds the mechanism", () => {
+    expect(out).toContain("files/catalog-seed.yaml");
+    expect(out).toContain("catalog-seed");
   });
   it("templates the agent-events sink URL with the helm value (no sentinel leaks)", () => {
     expect(out).toContain("url: {{ .Values.agentEventsUrl }}");
@@ -386,5 +393,39 @@ describe("read-only review recipes (#1160)", () => {
     ).spec.containers;
 
     expect(containers[0].workingDir).toBeUndefined();
+  });
+});
+
+describe("buildAgentDefinition without a prompt", () => {
+  it("throws naming the task type rather than seeding an empty recipe", () => {
+    expect(() => buildAgentDefinition("gap-fill", {})).toThrow(
+      new Error(
+        'task type "gap-fill" has no prompt_template — task-types.yaml is missing a field the catalog needs',
+      ),
+    );
+  });
+});
+
+describe("buildStationDefinition without a command", () => {
+  it("throws naming the station rather than seeding a pod with nothing to run", () => {
+    expect(() => buildStationDefinition("ingest", {})).toThrow(
+      new Error(
+        'station "ingest" has no command — task-types.yaml is missing a field the catalog needs',
+      ),
+    );
+  });
+});
+
+describe("a station that makes a model call gets a model credential", () => {
+  it("declares the LLM secret for a station whose recipe says it needs one", () => {
+    const def = buildStationDefinition("comment-triage", {
+      command: ["lore-station", "comment-triage"],
+      timeout_minutes: 5,
+      needs_model: true,
+    });
+
+    expect(def.spec?.resources?.secrets?.map((s) => s.name)).toContain(
+      LLM_SECRET_SENTINEL,
+    );
   });
 });

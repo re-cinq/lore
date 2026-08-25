@@ -61,3 +61,29 @@ describe("createTask trust gate", () => {
     ).rejects.toThrow(/not allowed at trust level "docs"/);
   });
 });
+
+describe("implementation-loop trust", () => {
+  it("allows an implementation-loop task at trust level implementation", async () => {
+    const { pool } = poolWithTrust("implementation");
+
+    const result = await createTask(pool, {
+      description: "work the backlog",
+      taskType: "implementation-loop",
+      targetRepo: "o/r",
+    });
+
+    expect(result).toMatchObject({ task_id: "task-1" });
+  });
+
+  it("refuses an implementation-loop task at trust level tests", async () => {
+    const { pool } = poolWithTrust("tests");
+
+    await expect(
+      createTask(pool, {
+        description: "work the backlog",
+        taskType: "implementation-loop",
+        targetRepo: "o/r",
+      }),
+    ).rejects.toThrow(/not allowed at trust level "tests"/);
+  });
+});

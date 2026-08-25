@@ -27,7 +27,7 @@ Registered via `server.tool` ([registration + handler](apps/mcp-server/src/mcp/t
 - **description** (verbatim):
 
 ```text
-Fetches one pipeline task's execution transcript (by UUID), returning {logs, next_offset, complete}. Tasks with recorded agent turns return NDJSON — one {source, event} stream-json envelope per line from the turn store; tasks with no recorded turns fall back to the raw captured output. Responses may be capped: pass next_offset back as offset and poll until complete is true. Instead: lore_get_job_logs (job_name + run_id) for scheduled CronJob run logs.
+Fetches one pipeline task's execution transcript (by UUID), returning {logs, next_offset, complete, cursor?}. Tasks with recorded agent turns return NDJSON — one {source, event} stream-json envelope per line from the turn store; tasks with no recorded turns fall back to the raw captured output. Responses may be capped: pass next_offset back as offset (and cursor back verbatim, when present) and poll until complete is true. Instead: lore_get_job_logs (job_name + run_id) for scheduled CronJob run logs.
 ```
 
 ### Input schema (Zod)
@@ -36,6 +36,7 @@ Fetches one pipeline task's execution transcript (by UUID), returning {logs, nex
 |-------|------|----------|---------|--------------------|
 | `task_id` | string | yes | — | UUID of the pipeline task. |
 | `offset` | number | no | `0` | UTF-16 code-unit offset (not bytes) into the flattened transcript; pass previous `next_offset` to poll incrementally. |
+| `cursor` | string | no | — | Opaque resume cursor from the previous response; pass it back only together with that response's `next_offset` as `offset`. Omit it when reading from any other offset. |
 
 ## Behavior
 

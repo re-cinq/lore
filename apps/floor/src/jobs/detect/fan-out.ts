@@ -16,11 +16,14 @@
 import type { AssemblyRunsPort } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
 import { loadBuiltinAssemblyLines } from "@re-cinq/lore-assembly-lines";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
+import { detectSubject } from "@re-cinq/lore-shared/project/assembly-runs/subject-keys.js";
 import type { EventHandler } from "../../main-loop/types.js";
 import { query } from "../../kernel/db.js";
-import { assemblyRuns, jobRuns } from "../../kernel/queues.js";
+import { pipeline } from "../../kernel/queues.js";
 
-/** The old lease key, now the overlap-guard key (advanceLine defers duplicates). */
+/** The line's branch: a synthetic ref no `git checkout` resolves — detect nodes
+ *  read through the API and clone nothing. It used to double as the overlap-guard
+ *  key; guarding now rides {@link detectSubject}, and this is only a branch. */
 export function detectBranchName(blueprintName: string, repo: string): string {
   return `detect/${blueprintName}/${repo}`;
 }
@@ -164,6 +167,20 @@ export function createDetectTickHandler(
     const jobRef = await deps.jobRef();
 
     for (const repo of repos) {
+      // Asked BEFORE the job_run is minted, not after the start comes back joined:
+      // a job_run created for work that turns out to be already running has no
+      // owner to close it (there is no job_runs reaper) and would sit open forever.
+      const inFlight = await deps.assemblyRuns.findOpenBySubject(
+        repo,
+        detectSubject(blueprintName, repo),
+      );
+
+      if (inFlight) {
+        console.log(
+          `[detect] ${blueprintName}: ${repo} already running as ${inFlight.id}, skipping`,
+        );
+        continue;
+      }
       const jobRunId = await deps.jobRuns.start(`${jobRef}:${repo}`);
 
       // start() throwing mid-loop (the case the header blesses for tick retry)
@@ -176,6 +193,7 @@ export function createDetectTickHandler(
           blueprintName,
           repo,
           branch: detectBranchName(blueprintName, repo),
+          subjectKey: detectSubject(blueprintName, repo),
           args: { job_run_id: jobRunId },
         });
       } catch (err) {
@@ -186,6 +204,23 @@ export function createDetectTickHandler(
           )
           .catch(() => {});
         throw err;
+      }
+
+      // The pre-check above closes the common case, not the race: two ticks can both
+      // read "nothing in flight" before either calls start(). The loser's start()
+      // JOINS the winner's run, and its job_run — already minted — has no owner to
+      // close it and no reaper to find it. The run carries the job_run_id of
+      // whichever tick actually started it, so a mismatch IS the join.
+      const startedRun = await deps.assemblyRuns.getById(id);
+
+      if (startedRun && startedRun.args.job_run_id !== jobRunId) {
+        await deps.jobRuns
+          .fail(jobRunId, `superseded — ${repo} is already running as ${id}`)
+          .catch(() => {});
+        console.log(
+          `[detect] ${blueprintName}: ${repo} joined ${id}; job_run ${jobRunId} closed`,
+        );
+        continue;
       }
 
       console.log(
@@ -202,8 +237,8 @@ const productionTick =
   ): EventHandler =>
   (params) =>
     createDetectTickHandler(blueprintName, {
-      assemblyRuns: assemblyRuns(),
-      jobRuns: jobRuns(),
+      assemblyRuns: pipeline().assemblyRuns,
+      jobRuns: pipeline().jobRuns,
       jobRef: () => builtinJobRef(blueprintName),
       listTargetRepos,
     })(params);
@@ -216,9 +251,4 @@ export const gapDetectionTick = productionTick("gap-detect", onboardedRepos);
 export const specCoverageValidateTick = productionTick(
   "spec-coverage-validate",
   specRepos,
-);
-
-export const specCoverageBackfillTick = productionTick(
-  "spec-coverage-backfill",
-  activeSpecRepos,
 );

@@ -1,3 +1,7 @@
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
+import { apiError } from "../../../server/api-error.js";
+import { zodResponse } from "../../../server/plugins/zod-response.js";
+import { z } from "zod";
 import type { Pool } from "pg";
 import type { ServerRoute } from "@hapi/hapi";
 import { parseTrailers } from "@re-cinq/lore-shared";
@@ -6,17 +10,25 @@ import { bearerScope } from "../../../server/plugins/bearer-scope.js";
 
 const LORE_TASK_TRAILER_RE = /^Lore-Task:\s*([0-9a-f-]+)\s*$/im;
 
+/** Which task a PR belongs to, and where the trailer was found. */
+const TaskByPrSchema = z.object({
+  task_id: z.string(),
+  trailer_source: z.enum(["db", "pr_body", "final_commit"]),
+});
+
 export function taskByPrRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "GET",
     path: "/api/tasks/by-pr/{owner}/{repo}/{number}",
-    options: bearerScope("read"),
+    options: zodResponse(bearerScope("read"), TaskByPrSchema, {
+      name: "TaskByPr",
+      description: "The task a pull request belongs to",
+      errors: [404],
+    }),
     handler: async (request, h) => {
       const pool = getPool();
 
-      if (!pool) {
-        return h.response({ error: "database unavailable" }).code(503);
-      }
+      enforceTrue(pool, apiError(503), "database unavailable");
 
       const owner = request.params.owner;
       const repoName = request.params.repo;
@@ -24,9 +36,11 @@ export function taskByPrRoute(getPool: () => Pool | null): ServerRoute {
       // The legacy matcher constrained the PR segment to `[0-9]+`; hapi's `{number}`
       // does not, so reject a non-numeric segment here rather than let a `NaN`
       // reach the DB/GitHub lookup (which would surface as a confusing 404/500).
-      if (!/^[0-9]+$/.test(request.params.number)) {
-        return h.response({ error: "invalid pr number" }).code(400);
-      }
+      enforceTrue(
+        /^[0-9]+$/.test(request.params.number),
+        apiError(400),
+        "invalid pr number",
+      );
       const prNumber = Number.parseInt(request.params.number, 10);
       const repo = `${owner}/${repoName}`;
 
@@ -82,9 +96,11 @@ export function taskByPrRoute(getPool: () => Pool | null): ServerRoute {
 
         return h.response({ error: "no_trailer_found" }).code(404);
       } catch (err) {
-        if ((err as { status?: number }).status === 404) {
-          return h.response({ error: "pr_not_found" }).code(404);
-        }
+        enforceTrue(
+          (err as { status?: number }).status !== 404,
+          apiError(404),
+          "pr_not_found",
+        );
         console.error("[by-pr] GitHub fallback failed:", err);
 
         return h.response({ error: "github_api" }).code(500);

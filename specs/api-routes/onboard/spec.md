@@ -82,7 +82,7 @@ onboarding PR opens and cleared by the Floor's merge-check when that PR is close
 without merging, so a rejected onboarding does not refuse the repo forever. ([validated by `nulls the onboarding PR url by row id when that PR closed unmerged`](libs/shared/src/project/settings/settings-pg.test.ts#L95))
 
 The web-ui onboard form and the repo-page re-onboard button take the same lock
-through their own mirror of the guard, which decides identically. ([validated by `takes the per-repo advisory lock before reading the guard state`](apps/web-ui/src/lib/onboard.test.ts#L56), [`shares the advisory-lock key so both apps serialize on it`](apps/web-ui/src/lib/onboard-guard.parity.test.ts#L47))
+through their own mirror of the guard, which decides identically. ([validated by `takes the per-repo advisory lock before reading the guard state`](apps/web-ui/src/lib/onboard.test.ts#L50), [`shares the advisory-lock key so both apps serialize on it`](apps/web-ui/src/lib/onboard-guard.parity.test.ts#L47))
 
 ## Output
 

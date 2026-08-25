@@ -1,3 +1,5 @@
+import type { Assert, KeysAreColumns } from "../../lib/row.js";
+import { EVENT_COLUMNS, type Event } from "../../models/event.js";
 import type { EventInsert } from "../../events.js";
 
 export type { EventInsert };
@@ -30,6 +32,15 @@ export interface EventRow {
  * ones. Single-sourced here so the event-bus SQL has one home; the Floor loop,
  * registry, and scheduler keep their orchestration.
  */
+/**
+ * The producer half, alone.
+ *
+ * A producer needs to report and nothing else, and after ADR-044 it may not even
+ * hold a pool — the Pg adapter and the HTTP reporter both satisfy this, so a
+ * producer's dependency says "somewhere to report", not "the queue".
+ */
+export type EventReporter = Pick<EventQueueRepository, "insert">;
+
 export interface EventQueueRepository {
   /** Insert one event, collapsing a redelivery when `dedupeKey` is set. */
   insert(input: EventInsert): Promise<void>;
@@ -49,3 +60,14 @@ export interface EventQueueRepository {
   /** Delete terminal rows older than `olderThanDays`; returns the count. */
   pruneHandled(olderThanDays: number): Promise<number>;
 }
+
+/**
+ * `EventRow` is the `Event` MODEL in the stored spelling — every key it declares
+ * is a column of `pipeline.events`, asserted at compile time. The two are not
+ * one type because the queue reads timestamps as the strings pg hands back for
+ * this table, while the model states them as `Date`; the KEYS are what can rot,
+ * and those are held together here.
+ */
+type _EventRowKeysAreColumns = Assert<
+  KeysAreColumns<EventRow, Event, typeof EVENT_COLUMNS>
+>;

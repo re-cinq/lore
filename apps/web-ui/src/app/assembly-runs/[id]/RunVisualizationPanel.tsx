@@ -329,15 +329,24 @@ export default function RunVisualizationPanel({
 
   const selected =
     selectedNodeId === null ? null : displayState.nodeStates[selectedNodeId];
-  const rows = useMemo(
-    () => (selected ? toTranscriptRows(selected.transcript) : []),
-    [selected],
-  );
   // The selected node's walk rows in execution order — the inspector's attempt
   // history and the source of its per-attempt pod-log panels.
   const selectedRows = useMemo(
     () => nodes.filter((node) => node.nodeId === selectedNodeId),
     [nodes, selectedNodeId],
+  );
+  // What each visit was GIVEN is per-visit STATE, like its outcome — it rides the
+  // walk rows, not the event stream, because no pod ever echoes its own prompt.
+  const nodeInputs = useMemo(
+    () =>
+      selectedRows.flatMap((node) =>
+        node.input ? [{ iteration: node.iteration, ...node.input }] : [],
+      ),
+    [selectedRows],
+  );
+  const rows = useMemo(
+    () => (selected ? toTranscriptRows(selected.transcript, nodeInputs) : []),
+    [selected, nodeInputs],
   );
   const selectedAttempts = useMemo(
     () => stepViews(definition, selectedRows, reason),

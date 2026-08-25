@@ -1,3 +1,5 @@
+import { z } from "zod";
+import { zodResponse } from "../../../server/plugins/zod-response.js";
 import { errorMessage } from "@re-cinq/lore-shared";
 import type { Pool } from "pg";
 import type { ServerRoute } from "@hapi/hapi";
@@ -6,6 +8,16 @@ import { createTask } from "@re-cinq/lore-server-core/features/pipeline/pipeline
 import { rawBody } from "../../../server/raw-body.js";
 
 /** Constant-time HMAC compare for the Slack `v0=…` signature. */
+/**
+ * Slack renders whatever this returns in the channel, so the body is Slack's
+ * message format rather than ours — `response_type` plus text or blocks.
+ */
+const SlackAckSchema = z.object({
+  response_type: z.string().optional(),
+  text: z.string().optional(),
+  blocks: z.array(z.unknown()).optional(),
+});
+
 export function verifySlackSignature(
   secret: string,
   timestamp: string,
@@ -26,7 +38,14 @@ export function slackWebhookRoute(getPool: () => Pool | null): ServerRoute {
     method: "POST",
     path: "/api/webhook/slack",
     // Auth-exempt: Slack verifies itself via the HMAC signature below.
-    options: { auth: false, payload: { parse: false } },
+    options: zodResponse(
+      { auth: false, payload: { parse: false } },
+      SlackAckSchema,
+      {
+        name: "SlackAck",
+        description: "The message Slack renders back in the channel",
+      },
+    ),
     handler: async (request, h) => {
       const body = rawBody(request);
       const slackSecret = process.env.LORE_SLACK_SIGNING_SECRET;

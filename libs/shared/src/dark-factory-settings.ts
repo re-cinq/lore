@@ -1,13 +1,15 @@
 /**
- * Canonical dark-factory settings types + resolver. Shared between
- * mcp-server (writes the JSONB), agent (reads + applies), and the
- * forthcoming GKE Job pod runner (reads via env). Centralized here so
- * the three consumers cannot drift.
+ * The dark-factory settings types + resolver.
  *
- * The Zod schema for input validation lives in the mcp-server (it's
- * the only edge that accepts raw user input). Both consumers depend
- * on the same {@link ResolvedDarkFactorySettings} shape and the same
- * defaulting logic.
+ * This module is DEPENDENCY-FREE on purpose. `apps/web-ui` reaches it by
+ * relative file path (it cannot import `@re-cinq/lore-shared`), so anything
+ * imported here has to exist in web-ui's own lockfile — and web-ui has no zod.
+ * That is why the shapes are plain interfaces here rather than inferred from the
+ * schema in `models/dark-factory-settings.ts`.
+ *
+ * The two cannot drift: the model imports these types and asserts, at compile
+ * time, that its schema infers exactly them. The dependency runs one way —
+ * model → this file — so the zero-dep boundary holds.
  */
 
 export type TrustLevel = "docs" | "tests" | "implementation" | "full";
@@ -22,6 +24,14 @@ export interface DarkFactoryAutoMerge {
   require_bot_approval?: boolean;
 }
 
+/**
+ * Per-repo execution knobs. `image` is the container image a task's Station
+ * runs in (ADR-025).
+ */
+export interface DarkFactoryExecution {
+  image?: string;
+}
+
 export interface DarkFactorySettings {
   enabled?: boolean;
   create_issue?: CreateIssueMode;
@@ -29,14 +39,6 @@ export interface DarkFactorySettings {
   review?: ReviewMode;
   notify?: NotifyChannel[];
   execution?: DarkFactoryExecution;
-}
-
-/**
- * Per-repo execution knobs. `image` is the container image a task's Station
- * runs in (ADR-025). All tasks run on the ai-agent-subsystem (`agent-cr`).
- */
-export interface DarkFactoryExecution {
-  image?: string;
 }
 
 export interface ResolvedDarkFactorySettings {

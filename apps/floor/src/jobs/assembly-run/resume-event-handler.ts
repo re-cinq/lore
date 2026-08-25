@@ -11,6 +11,7 @@
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import type { AssemblyRunsPort } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
 import type { NodeResult, StageOutcome } from "@re-cinq/lore-assembly-lines";
+import { NodeResultSchema } from "@re-cinq/lore-assembly-lines";
 import type { EventHandler } from "../../main-loop/types.js";
 
 const OUTCOMES: ReadonlySet<string> = new Set<StageOutcome>([
@@ -75,26 +76,60 @@ export function createResumeEventHandler(
       nodeId,
       iteration:
         typeof params.iteration === "number" ? params.iteration : undefined,
-      result: { outcome: outcome as StageOutcome },
+      result: resumedResult(params, outcome as StageOutcome),
     });
   };
+}
+
+/**
+ * What the resumed node actually produced.
+ *
+ * A HUMAN station reports a decision and nothing else, so the bare outcome is
+ * the whole result and the fallback is not a degradation. A station reporting
+ * from a process produces more, and the walk routes on it: a triage node's
+ * entire output is `extras.action`, and `failureClass` decides whether a failure
+ * spends a retry budget or parks agent dispatch account-wide. Sending only the
+ * outcome — which this did — silently discarded both.
+ *
+ * Parsed rather than cast: the result arrives as JSON from another process, and
+ * a malformed one must fail the event (which retries) instead of advancing the
+ * walk on a result nothing can route.
+ */
+function resumedResult(
+  params: Record<string, unknown>,
+  outcome: StageOutcome,
+): NodeResult {
+  if (params.result === undefined || params.result === null) {
+    return { outcome };
+  }
+
+  const result = NodeResultSchema.parse(params.result);
+
+  // Both fields carry the outcome, and only `params.outcome` passed the OUTCOMES
+  // guard above — so a result spelling a different one would walk an edge that
+  // was never checked. They come from the same sender, so disagreeing is a bug
+  // in it, and the event failing is how that becomes visible.
+  enforceTrue(
+    result.outcome === outcome,
+    Error,
+    `assembly_line.resume disagrees with itself: outcome "${outcome}" but result.outcome "${result.outcome}"`,
+  );
+
+  return result;
 }
 
 /** Composed production handler for the registry. Deps are resolved lazily so
  *  importing the registry never forces the DB pool or the K8s client. */
 export const assemblyLineResume: EventHandler = async (params) => {
-  const [
-    { assemblyRuns },
-    { finishNodeAndAdvance },
-    { productionNodeEventDeps },
-  ] = await Promise.all([
-    import("../../kernel/queues.js"),
-    import("./advance.js"),
-    import("./node-event-handler.js"),
-  ]);
+  const [{ pipeline }, { finishNodeAndAdvance }, { productionNodeEventDeps }] =
+    await Promise.all([
+      import("../../kernel/queues.js"),
+      import("./advance.js"),
+      import("./node-event-handler.js"),
+    ]);
 
   const handler = createResumeEventHandler({
-    assemblyRuns: assemblyRuns(),
+    assemblyRuns: pipeline().assemblyRuns,
     // The SAME deps the node-event handler advances with: a station reporting from a
     // browser and one reporting from a pod must walk the graph identically.
     finishNodeAndAdvance: async (input) =>

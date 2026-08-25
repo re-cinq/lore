@@ -1,6 +1,8 @@
 export const dynamic = "force-dynamic";
 import { getSpend } from "@/lib/api/activity";
+import { recordTopUpAction } from "./actions";
 import SpendView, {
+  type BudgetRow,
   type OrgMtdRow,
   type OrgByModelRow,
   type OrgDailyRow,
@@ -16,11 +18,21 @@ export default async function SpendPage() {
   // One call: ten month-to-date aggregates that only ever render together.
   const result = await getSpend();
   const empty = {
+    // Null, not a zeroed shape: a failed read has not established that the
+    // balance is nothing, and the view renders the two states differently.
+    budget: null,
     org_available: false,
-    org_mtd: { billed_usd: 0, input_tokens: 0, output_tokens: 0, as_of: null },
+    org_mtd: {
+      billed_usd: 0,
+      input_tokens: 0,
+      output_tokens: 0,
+      as_of: null,
+      billed_through: null,
+    },
     org_by_model: [],
     org_daily: [],
-    lore_today_usd: 0,
+    lore_unbilled_usd: 0,
+    lore_unbilled_days: 0,
     lore_mtd: {
       computed_usd: 0,
       calls: 0,
@@ -34,11 +46,13 @@ export default async function SpendPage() {
     lore_by_task_type: [],
   };
   const spend = (result.status === "ok" ? result.data : empty) as unknown as {
+    budget: BudgetRow;
     org_available: boolean;
     org_mtd: OrgMtdRow;
     org_by_model: OrgByModelRow[];
     org_daily: OrgDailyRow[];
-    lore_today_usd: number;
+    lore_unbilled_usd: number;
+    lore_unbilled_days: number;
     lore_mtd: LoreMtdRow;
     lore_by_model: LoreByModelRow[];
     lore_by_kind: LoreByKindRow[];
@@ -49,9 +63,12 @@ export default async function SpendPage() {
 
   return (
     <SpendView
+      budget={spend.budget}
+      recordAction={recordTopUpAction}
       orgMtd={spend.org_mtd}
       orgAvailable={spend.org_available}
-      loreTodayUsd={spend.lore_today_usd}
+      loreUnbilledUsd={spend.lore_unbilled_usd}
+      loreUnbilledDays={spend.lore_unbilled_days}
       orgByModel={spend.org_by_model}
       orgDaily={spend.org_daily}
       loreMtd={spend.lore_mtd}

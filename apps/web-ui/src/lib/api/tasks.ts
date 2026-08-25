@@ -1,6 +1,7 @@
 import "server-only";
 import { apiFetch } from "./client";
 import type { ApiResult } from "./result";
+import type { components } from "./schema";
 
 // The task operations the UI needs, typed at one place. These replace direct
 // `pipeline.tasks` / `pipeline.task_events` SQL in the /api/tasks/[id]/* proxy
@@ -10,21 +11,14 @@ import type { ApiResult } from "./result";
 
 /** The task fields the UI reads. `GET /api/task/{id}` returns the whole row
  *  plus its events; this names only what the proxies actually use. */
-export interface Task {
-  id: string;
-  status: string;
-  priority: string;
-  target_repo: string;
-  pr_number: number | null;
-  pr_url: string | null;
-}
+// The task and run shapes are aliases over the OpenAPI document lore-api
+// generates from its route contracts (ADR-035) — which are themselves derived
+// from the shared models plus their column maps. One declaration reaches from
+// the column to this type; check-openapi-drift.sh fails CI when it goes stale.
 
-export interface TaskRun {
-  id: string;
-  status: string;
-  outcome: string | null;
-  created_at: string;
-}
+export type Task = components["schemas"]["TaskDetail"];
+
+export type TaskRun = components["schemas"]["TaskRunList"]["runs"][number];
 
 export interface TaskLogs {
   logs: string | null;
@@ -32,13 +26,7 @@ export interface TaskLogs {
   totalSize: number;
 }
 
-export interface CreatedTask {
-  task_id: string;
-  task_type: string;
-  status: string;
-  priority: string;
-  created_at: string;
-}
+export type CreatedTask = components["schemas"]["StationTaskCreated"];
 
 /**
  * Queue a task. lore-api inserts the row and its pending `task_events` entry and

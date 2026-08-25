@@ -18,6 +18,7 @@ function lineRow(
     taskId: null,
     repo: "re-cinq/lore",
     branch: "fix/thing",
+    subjectKey: null,
     args: { pr_number: 862 },
     status: "failed",
     outcome: "error",

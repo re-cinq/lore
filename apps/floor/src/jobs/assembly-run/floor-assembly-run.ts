@@ -6,6 +6,15 @@ import type { RunGraphNode } from "@re-cinq/lore-shared/project/assembly-runs/ru
 import type { LoreTaskSpec } from "@re-cinq/lore-shared";
 import { serializeStationInput } from "@re-cinq/lore-shared/station-input.js";
 import { stationName } from "../agent/agent-catalog.js";
+import { truncateForStorage } from "../agent/agent-run-events.js";
+import type { StationRunInput } from "@re-cinq/lore-shared/models/station-run.js";
+import {
+  ASSEMBLY_RUN_ID_LABEL,
+  LEGACY_ASSEMBLY_LINE_ID_LABEL,
+  NODE_ID_LABEL,
+  NODE_ITERATION_LABEL,
+  STATION_RUN_ID_LABEL,
+} from "@re-cinq/lore-shared/project/events/agent-cr-labels.js";
 
 export interface FloorAssemblyRunTask {
   taskId: string;
@@ -41,23 +50,16 @@ export function nodeAgentName(
   return iteration > 1 ? `${base}-${iteration}` : base;
 }
 
-/** The CR name only carries a 12-char prefix; these labels carry the full identity
- *  so the k8s watch maps a terminal node CR back to its (line, node, iteration).
- *
- *  The label written on every CR since the writer flip (#1255, deployed
- *  2026-08-17). */
-export const ASSEMBLY_RUN_ID_LABEL = "lore.re-cinq.com/assembly-run-id";
-/** No longer written — kept as a READER (k8s-map, agent-watcher) for CRs created
- *  before the flip, which can outlive a rollout by up to a node's whole timeout.
- *  Legacy readers stay per FR6.44. */
-export const LEGACY_ASSEMBLY_LINE_ID_LABEL =
-  "lore.re-cinq.com/assembly-line-id";
-export const NODE_ID_LABEL = "lore.re-cinq.com/node-id";
-export const NODE_ITERATION_LABEL = "lore.re-cinq.com/node-iteration";
-/** The station run this pod IS (FR6.39). The three labels above name the visit
- *  compositely; this one names it outright, so a pod found in the cluster maps
- *  back to its telemetry without re-deriving anything from the CR name. */
-export const STATION_RUN_ID_LABEL = "lore.re-cinq.com/station-run-id";
+/** The CR labels are a contract with the event-router, which reads them back off
+ *  a terminal CR — so they live in shared, not here where only the writer is.
+ *  Re-exported because this module's callers have always imported them from it. */
+export {
+  ASSEMBLY_RUN_ID_LABEL,
+  LEGACY_ASSEMBLY_LINE_ID_LABEL,
+  NODE_ID_LABEL,
+  NODE_ITERATION_LABEL,
+  STATION_RUN_ID_LABEL,
+};
 
 function nodeLabels(
   node: RunGraphNode,
@@ -82,6 +84,83 @@ function cloneRef(task: FloorAssemblyRunTask): string {
   const ref = task.args?.ref;
 
   return typeof ref === "string" && ref.length > 0 ? ref : task.branch;
+}
+
+/**
+ * The knob/args map a station node's pod receives as `station_input.params`.
+ *
+ * Extracted so the visit's recorded input can name the SAME map the pod was
+ * handed — a second copy of this rule would let the two drift, and the record
+ * would then describe a dispatch that never happened.
+ */
+export function stationNodeParams(
+  node: RunGraphNode,
+  task: FloorAssemblyRunTask,
+): Record<string, string> {
+  const params: Record<string, string> = {};
+
+  // Line args (string/number) ride into params so a station reads its input without
+  // a DB round-trip — e.g. the comment-triage station's comment_body/in_reply_to_id.
+  for (const [key, value] of Object.entries(task.args ?? {})) {
+    if (typeof value === "string" || typeof value === "number") {
+      params[key] = String(value);
+    }
+  }
+
+  for (const field of STATION_PARAM_FIELDS) {
+    const value = node[field];
+
+    if (typeof value === "string" && value.length > 0) {
+      params[field] = value;
+    }
+  }
+
+  return params;
+}
+
+/** Write-time caps for the recorded input. Generous enough to hold a real round
+ *  brief and a real prompt whole; bounded so one visit cannot dominate the table.
+ *  A capped value carries `truncateForStorage`'s marker, which is the same marker
+ *  the transcript's truncated badge already keys on. */
+const INPUT_DESCRIPTION_MAX_BYTES = 4_096;
+const INPUT_PROMPT_MAX_BYTES = 16_384;
+const INPUT_PARAM_MAX_BYTES = 1_024;
+
+/**
+ * What this visit is being dispatched WITH, bounded for storage.
+ *
+ * Recorded because the Agent CR — the only place the prompt and description ever
+ * existed — is pruned after the run, so "what was this node given" became
+ * unanswerable exactly when someone needed to ask. `context` is deliberately
+ * absent: it is assembled later, in the launch backend, and is an order of
+ * magnitude larger than everything here put together.
+ */
+export function stationRunInputFor(
+  node: RunGraphNode,
+  task: FloorAssemblyRunTask,
+  content: string,
+  prompt: string | null,
+): StationRunInput {
+  const params =
+    node.type === "agent"
+      ? null
+      : Object.fromEntries(
+          Object.entries(stationNodeParams(node, task)).map(([key, value]) => [
+            key,
+            truncateForStorage(value, INPUT_PARAM_MAX_BYTES),
+          ]),
+        );
+
+  return {
+    description: truncateForStorage(content, INPUT_DESCRIPTION_MAX_BYTES),
+    prompt:
+      prompt === null
+        ? null
+        : truncateForStorage(prompt, INPUT_PROMPT_MAX_BYTES),
+    params,
+    repo: task.targetRepo,
+    ref: cloneRef(task),
+  };
 }
 
 /** Pure: the Agent dispatch spec for one agent-node. Prompt is resolved per node; model
@@ -139,23 +218,7 @@ export function nodeStationSpec(
   iteration = 1,
   stationRunId?: string,
 ): LoreTaskSpec {
-  const params: Record<string, string> = {};
-
-  // Line args (string/number) ride into params so a station reads its input without
-  // a DB round-trip — e.g. the comment-triage station's comment_body/in_reply_to_id.
-  for (const [key, value] of Object.entries(task.args ?? {})) {
-    if (typeof value === "string" || typeof value === "number") {
-      params[key] = String(value);
-    }
-  }
-
-  for (const field of STATION_PARAM_FIELDS) {
-    const value = node[field];
-
-    if (typeof value === "string" && value.length > 0) {
-      params[field] = value;
-    }
-  }
+  const params = stationNodeParams(node, task);
 
   return {
     taskId: task.taskId,
@@ -173,7 +236,7 @@ export function nodeStationSpec(
     clone: CLONING_STATION_TYPES.has(node.type),
     parameters: {
       // Written through the shared writer, not an object literal: the shape is a
-      // contract with `apps/lore-station`, a separately built and deployed image,
+      // contract with the pod image built from `apps/stations` (Dockerfile.pod),
       // and it used to be spelled out independently on each side. A sweep once
       // renamed this side's `assembly_line_id` and left the pod's parser alone,
       // which would have failed every station run. Now a key that exists on only

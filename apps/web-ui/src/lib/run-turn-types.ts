@@ -11,6 +11,13 @@
 // `eventType` stays `string | null`, never a union: the port deliberately does
 // not narrow the raw stream-json kind, so a kind this client has never seen is
 // still rendered under its own name instead of dropped.
+//
+// DECISION (#1419): structural, not debt. The Floor serves this shape — the read
+// is GET /api/agent-turns/{assemblyRunId}, registered in delivery/http/server.ts
+// and reached through web-ui's own proxy route — and the Floor generates no
+// OpenAPI document: no generator, no zodResponse call, so there is nothing for a
+// generated type to come from. Revisit if the Floor gains a document, or if
+// #1347 moves this read to lore-api.
 
 export interface AgentRunTurn {
   id: string;

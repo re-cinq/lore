@@ -1,4 +1,5 @@
 import styles from "./AnalyticsView.module.css";
+import type { components } from "@/lib/api/schema";
 
 export interface TaskSummary {
   total: number;
@@ -7,43 +8,17 @@ export interface TaskSummary {
   active: number;
 }
 
-export interface LatencyStats {
-  tool: string;
-  call_count: number;
-  p50_ms: number;
-  p95_ms: number;
-  p99_ms: number;
-}
+// Aliases over the /api/analytics-overview contract. Five of these are SQL
+// aggregates the route states directly; `JobRun` is a `pipeline.job_runs` row,
+// so its fields reach here from that table's model.
 
-export interface UsageByTaskType {
-  task_type: string;
-  task_count: number;
-  total_input_tokens: number;
-  total_output_tokens: number;
-}
+type Overview = components["schemas"]["AnalyticsOverview"];
 
-export interface UsageByRepo {
-  target_repo: string;
-  task_count: number;
-}
-
-export interface DailyUsage {
-  day: string;
-  calls: number;
-  input_tokens: number;
-  output_tokens: number;
-}
-
-export interface JobRun {
-  id: string;
-  job_name: string;
-  started_at: string;
-  completed_at: string | null;
-  status: string;
-  result_summary: string | null;
-  error: string | null;
-  log_path: string | null;
-}
+export type LatencyStats = Overview["latency_stats"][number];
+export type UsageByTaskType = Overview["usage_by_task_type"][number];
+export type UsageByRepo = Overview["usage_by_repo"][number];
+export type DailyUsage = Overview["daily_usage"][number];
+export type JobRun = Overview["job_runs"][number];
 
 export interface AnalyticsViewProps {
   taskSummary: TaskSummary | null;

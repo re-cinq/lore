@@ -11,6 +11,7 @@
 
 import {
   resultTextFromOutput,
+  terminalErrorText,
   parseReviewVerdict,
   type AgentNodeStatus,
   type NodeResult,
@@ -32,19 +33,34 @@ import type { AuditPort } from "@re-cinq/lore-shared/project/audit/audit-port.js
 import type {
   IssueComment,
   ReviewComment,
+  ReviewThread,
 } from "@re-cinq/lore-shared/project/pulls/pull-requests-port.js";
+import { findThreadForComment } from "@re-cinq/lore-shared/project/pulls/review-threads.js";
 
 /**
  * Unwrap the Agent output envelope so every text parser downstream reads the
  * agent text rather than the NDJSON that carries it. Idempotent for already-plain
  * output, so it is safe at any read boundary.
+ *
+ * It also LIFTS the terminal error text while the raw stream is still here to
+ * read. `terminalErrorText` needs the `is_error` result line, which only exists
+ * before the unwrap — so every reader downstream saw `null` and fell back to the
+ * CR's Job-level `failureReason` (`BackoffLimitExceeded…`) whatever the agent
+ * actually said. That is why FR6.14's billing alert never fired once in
+ * production: the classifier was reading a string that could never be a billing
+ * error. Lifting it here fixes both doors at once, since the node-event handler
+ * and the reaper both normalize before they classify.
  */
 export function normalizeAgentStatus(status: AgentNodeStatus): AgentNodeStatus {
   if (status.output === undefined) {
     return status;
   }
+  // Idempotent: a second pass over already-unwrapped text finds no result line,
+  // so it must not erase what the first pass lifted.
+  const errorText = terminalErrorText(status.output) ?? status.errorText;
+  const unwrapped = { ...status, output: resultTextFromOutput(status.output) };
 
-  return { ...status, output: resultTextFromOutput(status.output) };
+  return errorText === undefined ? unwrapped : { ...unwrapped, errorText };
 }
 
 export interface NodeTerminalInput {
@@ -77,19 +93,53 @@ export type ReviewPostOutcome =
   "posted" | "already_posted" | "no_findings" | "post_failed" | "not_review";
 
 /**
- * The outage shape: the review produced neither findings nor a verdict (e.g. the
- * agent could not read the diff), yet the CR exited 0 — recording `success` would
- * finish the line green ("Approved." on an unreviewed PR). A verdict without a
- * findings block stays untouched: that is a legitimate minimal approve. A
- * `post_failed` also stays — the verdict is real, and the throw is audited.
+ * The outage shape: the review published nothing, yet the CR exited 0 —
+ * recording `success` would finish the line green ("Approved." on an unreviewed
+ * PR).
+ *
+ * `no_findings` means `maybePostReview` could parse neither a REVIEW_FINDINGS
+ * block nor a bare approval, so it covers three cases, and only one of them is
+ * benign:
+ *
+ * - **no verdict either** — the agent never reached a conclusion (it could not
+ *   read the diff). Fails.
+ * - **verdict `changes_requested`** — the review HAD something to say and could
+ *   not say it. This is what #1401 was: the model emitted a findings block whose
+ *   `body` carried unescaped quotes, `JSON.parse` died, nothing reached the PR,
+ *   and the check went green while four findings (one blocking) were lost. Fails.
+ * - **verdict `success`** — a legitimate minimal approve, which
+ *   `approvedWithoutFindings` posts, so this combination does not arise in
+ *   practice. Left untouched anyway: approving nothing harms nothing.
+ *
+ * A `post_failed` also stays — the verdict is real, and the throw is audited.
  */
 export function reviewNodeResultOverride(
   post: ReviewPostOutcome,
   output: string | undefined,
   result: NodeResult,
 ): NodeResult {
-  if (post === "no_findings" && parseReviewVerdict(output) === null) {
-    return { outcome: "failed" };
+  if (post === "no_findings" && parseReviewVerdict(output) !== "success") {
+    // WHY it failed, not just that it did. Recorded bare — which this did — the
+    // node renders as `node "recheck" failed` with no class and no detail, which
+    // is exactly how an evicted pod, a dry account and a token mismatch render.
+    // On 2026-08-24 that cost two reviewers a hunt for an infrastructure outage
+    // that did not exist; the review had simply found something and failed to
+    // publish it.
+    const verdict = parseReviewVerdict(output);
+
+    return {
+      outcome: "failed",
+      // `unknown`, not an invented class: FailureCategory is the closed taxonomy
+      // of INFRASTRUCTURE failures that drive retry and the account-wide dispatch
+      // gate. This is a recipe/contract bug, and `unknown` is what node-outcome
+      // already uses for that — the diagnosis belongs in the detail, which is the
+      // part that was missing.
+      failureClass: "unknown",
+      failureDetail:
+        verdict === "changes_requested"
+          ? "the review reached changes_requested but nothing was posted to the PR — its findings block did not parse, so the findings are lost"
+          : "the review posted no findings and reached no verdict — it never got far enough to judge the diff",
+    };
   }
 
   return result;
@@ -214,6 +264,10 @@ export interface ReplyPoster {
   comment(number: number, body: string): Promise<void>;
   listComments?(number: number): Promise<ReviewComment[]>;
   listIssueComments?(number: number): Promise<IssueComment[]>;
+  /** Optional like the reads above — a poster without the thread methods just
+   *  skips resolution (fail open; specs/implementation-loop FR5). */
+  listReviewThreads?(number: number): Promise<ReviewThread[]>;
+  resolveReviewThread?(threadId: string): Promise<void>;
 }
 
 /** Ports the reply post writes through (production resolves both from the
@@ -251,6 +305,84 @@ function replyRunMarker(
   iteration: number,
 ): string {
   return `<!-- lore-reply-run: ${assemblyLineId}/${nodeId}/${iteration} -->`;
+}
+
+/**
+ * Resolve the thread a reply just landed in, best-effort (FR5): only on the
+ * `address` intent — an `answer` leaves the human mid-conversation and their
+ * thread open — and never failing the post that succeeded. The REST reply knows
+ * only its comment id; GraphQL thread nodes carry each comment's databaseId,
+ * so findThreadForComment joins the two. Every failure mode lands in the audit
+ * log under one event with a reason discriminator.
+ */
+async function resolveRepliedThread(
+  row: AssemblyRunRecord,
+  pulls: ReplyPoster,
+  prNumber: number,
+  inReplyTo: number,
+  ports: ReplyPorts,
+): Promise<void> {
+  if (row.args.intent !== "address") {
+    return;
+  }
+
+  if (!pulls.listReviewThreads || !pulls.resolveReviewThread) {
+    return;
+  }
+  const audit = (payload: Record<string, unknown>, resolved: boolean) =>
+    writeAuditLog(
+      {
+        event_type: resolved
+          ? "review_thread_resolved"
+          : "review_thread_resolve_failed",
+        repo: row.repo,
+        payload: {
+          pr_number: prNumber,
+          assembly_run_id: row.id,
+          in_reply_to_id: inReplyTo,
+          ...payload,
+        },
+      },
+      ports.audit,
+    );
+
+  let thread: ReviewThread | null;
+
+  try {
+    thread = findThreadForComment(
+      await pulls.listReviewThreads(prNumber),
+      inReplyTo,
+    );
+  } catch (err) {
+    await audit(
+      { reason: "list_failed", error: (err as Error).message },
+      false,
+    );
+
+    return;
+  }
+
+  if (!thread) {
+    await audit({ reason: "no_thread_for_comment" }, false);
+
+    return;
+  }
+
+  try {
+    await pulls.resolveReviewThread(thread.id);
+  } catch (err) {
+    await audit(
+      {
+        reason: "resolve_failed",
+        thread_id: thread.id,
+        error: (err as Error).message,
+      },
+      false,
+    );
+
+    return;
+  }
+  await audit({ thread_id: thread.id }, true);
 }
 
 /**
@@ -315,6 +447,7 @@ export async function postReplyFromNode(
 
     if (inReplyTo > 0) {
       await pulls.replyToReviewComment(prNumber, inReplyTo, stamped);
+      await resolveRepliedThread(row, pulls, prNumber, inReplyTo, ports);
     } else {
       await pulls.comment(prNumber, stamped);
     }

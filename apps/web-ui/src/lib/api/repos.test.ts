@@ -9,6 +9,7 @@ vi.mock("server-only", () => ({}));
 const {
   getRepo,
   listRepos,
+  listAllRepos,
   onboardRepo,
   getOrgSettings,
   putOrgSettings,
@@ -136,5 +137,71 @@ describe("repo writes and org settings", () => {
       "/api/repos/re-cinq/lore/settings",
     );
     expect(fetchMock.mock.calls[0][1].method).toEqual("PUT");
+  });
+});
+
+describe("listAllRepos", () => {
+  const page = (repos: string[], total: number) =>
+    new Response(
+      JSON.stringify({
+        repos: repos.map((full_name) => ({ full_name })),
+        total,
+      }),
+    );
+
+  it("asks for a second page when the first does not hold every repo", async () => {
+    fetchMock
+      .mockResolvedValueOnce(page(["a/1", "a/2"], 3))
+      .mockResolvedValueOnce(page(["a/3"], 3));
+
+    const result = await listAllRepos();
+
+    expect(fetchMock.mock.calls.map((c) => new URL(c[0]).search)).toEqual([
+      "?limit=100&offset=0",
+      "?limit=100&offset=2",
+    ]);
+    expect(result).toEqual({
+      status: "ok",
+      data: {
+        repos: [
+          { full_name: "a/1" },
+          { full_name: "a/2" },
+          { full_name: "a/3" },
+        ],
+        total: 3,
+      },
+    });
+  });
+
+  it("stops after one call when that page holds them all", async () => {
+    fetchMock.mockResolvedValueOnce(page(["a/1"], 1));
+
+    await listAllRepos();
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("stops rather than looping when a page comes back empty", async () => {
+    fetchMock.mockResolvedValue(page([], 500));
+
+    const result = await listAllRepos();
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(result).toEqual({ status: "ok", data: { repos: [], total: 500 } });
+  });
+
+  it("returns the failure instead of a short list when a later page fails", async () => {
+    fetchMock
+      .mockResolvedValueOnce(page(["a/1", "a/2"], 3))
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ error: "upstream down" }), {
+          status: 503,
+        }),
+      );
+
+    expect(await listAllRepos()).toMatchObject({
+      status: "error",
+      code: 503,
+    });
   });
 });

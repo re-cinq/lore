@@ -106,7 +106,7 @@ available to agents — the authoritative interface.
   preserved in history but excluded from search). ([validated by `memory.test.ts:170`](libs/server-core/src/features/memory/memory.test.ts#L170))
 
 - **`lore_list_memories(agent_id?, limit?, offset?)`** — paginated listing
-  of active (non-deleted, non-expired) memories for an agent. ([validated by `memory.test.ts:200`](libs/server-core/src/features/memory/memory.test.ts#L200), [`memory.test.ts:234`](apps/lore-api/src/api/routes/memory/memory.test.ts#L234))
+  of active (non-deleted, non-expired) memories for an agent. ([validated by `memory.test.ts:200`](libs/server-core/src/features/memory/memory.test.ts#L200), [`memory.test.ts:234`](apps/lore-api/src/api/routes/memory/memory.test.ts#L223))
 
 ### Semantic Search
 
@@ -219,11 +219,16 @@ Mirrors each write to `memories`, preserving full history queryable via
 
 - Eviction of old invalidated facts is **scoped to one agent**. The decay job
   counts invalidated facts per agent and calls the delete once per agent that is
-  over the cap, passing that agent's excess — so the delete must filter on
-  `agent_id`, in SQL and not only by `LIMIT`. A table-wide delete answering a
-  per-agent quota takes the oldest facts anywhere, which means one agent's quota
-  can be filled entirely from another agent's rows and an agent **under** the cap
-  can lose facts it should have kept. ([validated by `memory-lifecycle.test.ts:560`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L560), [`memory-lifecycle.test.ts:571`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L571), [`memory-lifecycle.test.ts:582`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L582))
+  over the cap, passing that agent's excess — so the delete must filter by agent
+  in SQL and not only by `LIMIT`. A table-wide delete answering a per-agent quota
+  takes the oldest facts anywhere, which means one agent's quota can be filled
+  entirely from another agent's rows and an agent **under** the cap can lose
+  facts it should have kept. It filters THROUGH THE SOURCE: `memory.facts` has no
+  `agent_id` column, and a fact belongs to whichever agent owns the memory or
+  episode it was extracted from — the same join the per-agent count already
+  groups by. Naming a bare `agent_id` on the facts table reads correctly and
+  raises `42703` against the real schema, which a fake pool that answers every
+  statement will not catch. ([validated by `memory-lifecycle.test.ts:560`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L560), [`memory-lifecycle.test.ts:571`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L571), [`memory-lifecycle.test.ts:582`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L582), [`memory-lifecycle.test.ts:607`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L607))
 
 #### Confidence lifecycle
 
@@ -343,7 +348,7 @@ extraction, with no agent cooperation needed. ([validated by `session-dump.test.
 
 After every task completion (PR created, no-changes, failure), an episode is
 automatically written via `episode-writer.ts`, and for high-signal events Haiku
-extracts a "lesson learned" stored as an `auto-curation/{ref}` memory. ([validated by `episode-writer.test.ts:78`](apps/floor/src/jobs/lib/episode-writer.test.ts#L78))
+extracts a "lesson learned" stored as an `auto-curation/{ref}` memory. ([validated by `episode-writer.test.ts:79`](libs/shared/src/episode-writer.test.ts#L79))
 
 ## TTL and Expiration
 
@@ -359,7 +364,7 @@ When PostgreSQL is unavailable, the key-value memory operations
 (`write`/`read`/`search`/`delete`/`list`) fall back transparently to
 `~/.lore/memory/` on disk (`memory-file.ts`) — reads and writes continue with
 degraded search (no vector similarity); availability is decided by whether a
-Postgres pool has been configured via `setMemoryPool`. ([validated by `memory.test.ts:43`](libs/server-core/src/features/memory/memory.test.ts#L43), [`memory.test.ts:48`](libs/server-core/src/features/memory/memory.test.ts#L48), [`memory-file.test.ts:37`](libs/server-core/src/features/memory/memory-file.test.ts#L37), [`memory-file.test.ts:50`](libs/server-core/src/features/memory/memory-file.test.ts#L50), [`memory-file.test.ts:64`](libs/server-core/src/features/memory/memory-file.test.ts#L64), [`memory-file.test.ts:86`](libs/server-core/src/features/memory/memory-file.test.ts#L86), [`memory-file.test.ts:100`](libs/server-core/src/features/memory/memory-file.test.ts#L100))
+Postgres pool has been configured via `setMemoryPool`. ([validated by `memory.test.ts:43`](libs/server-core/src/features/memory/memory.test.ts#L43), [`memory.test.ts:48`](libs/server-core/src/features/memory/memory.test.ts#L48), [`memory-file.test.ts:37`](libs/server-core/src/features/memory/memory-file.test.ts#L37), [`memory-file.test.ts:50`](libs/server-core/src/features/memory/memory-file.test.ts#L50), [`memory-file.test.ts:64`](libs/server-core/src/features/memory/memory-file.test.ts#L64), [`memory-file.test.ts:93`](libs/server-core/src/features/memory/memory-file.test.ts#L93), [`memory-file.test.ts:107`](libs/server-core/src/features/memory/memory-file.test.ts#L107))
 
 Tools without a file representation proxy to the GKE server over
 `LORE_API_URL` instead: `lore_write_episode` (`POST /api/episode`) and
@@ -419,7 +424,7 @@ Decision: the following capabilities were added beyond the original spec:
   returns another repo's memory (listings filtered to the bound scope). ([validated by `memory.test.ts:57`](libs/shared/src/project/memory/memory.test.ts#L57), [`memory-store-bridge.test.ts:54`](libs/shared/src/project/memory/memory-store-bridge.test.ts#L54))
 - All memory writes pass through `sanitizeContent()` / `redactSecrets()`
   to strip API keys, JWTs, private keys, connection strings, and
-  bearer tokens before storage. ([validated by `redact.test.ts:5`](libs/shared/src/redact.test.ts#L5), [`episode-writer.test.ts:12`](apps/floor/src/jobs/lib/episode-writer.test.ts#L12))
+  bearer tokens before storage. ([validated by `redact.test.ts:5`](libs/shared/src/redact.test.ts#L5), [`episode-writer.test.ts:13`](libs/shared/src/episode-writer.test.ts#L13))
 - Audit trail is immutable. ([validated by `memory.test.ts:186`](libs/server-core/src/features/memory/memory.test.ts#L186))
 
 ## Operational Targets (Background)

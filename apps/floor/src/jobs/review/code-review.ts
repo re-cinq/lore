@@ -28,17 +28,9 @@ import type { TriageAction } from "@re-cinq/lore-shared/review/comment-triage.js
 import { projectFor } from "../../composition/project-boot.js";
 import { shouldAutoReview } from "./should-auto-review.js";
 import { loreTaskRef } from "../task/issue-body.js";
+import { reviewSubject } from "@re-cinq/lore-shared/project/assembly-runs/subject-keys.js";
 
-/** The definitions THIS choreography owns. A PR's close ends these and nothing
- *  else: other lines may carry the same `pr_number` without having asked to be
- *  ended by it — a feature-planning line parks on `merged` waiting for exactly the
- *  event that used to kill it. */
-const REVIEW_DEFINITIONS = [
-  "code-review",
-  "code-review-recheck",
-  "code-review-reply",
-  "comment-triage",
-] as const;
+import { REVIEW_DEFINITIONS } from "@re-cinq/lore-shared/review/review-definitions.js";
 
 /** A GitHub App / bot login ends with `[bot]`; only human actors drive the review. */
 export function isBotActor(login: string): boolean {
@@ -160,7 +152,11 @@ export interface CodeReviewProject {
   assemblyRuns: {
     start(
       blueprintName: string,
-      opts: { branch?: string; args?: Record<string, unknown> },
+      opts: {
+        branch?: string;
+        subjectKey?: string;
+        args?: Record<string, unknown>;
+      },
     ): Promise<string>;
     finishOpenByPr(
       prNumber: number,
@@ -263,6 +259,11 @@ export async function startReview(
   }
   const id = await project.assemblyRuns.start("code-review", {
     branch: pr.branch,
+    // One review run per PR. Keyed on the PR rather than its branch: the branch is
+    // a shared workspace — recheck, reply and triage lines all ride it and are MEANT
+    // to overlap — so a branch key made a review defer to whichever comment line
+    // happened to be open. They now declare no subject and are unaffected.
+    subjectKey: reviewSubject(input.prNumber),
     args: {
       pr_number: input.prNumber,
       mode: "review",

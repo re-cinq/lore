@@ -1,6 +1,11 @@
 import type { RunGraph } from "./run-graph.js";
+import type {
+  AssemblyRun,
+  AssemblyRunStatus,
+} from "../../models/assembly-run.js";
+import type { StationRun, StationRunInput } from "../../models/station-run.js";
 
-export type AssemblyRunStatus = "queued" | "running" | "finished" | "failed";
+export type { AssemblyRunStatus };
 
 /**
  * The filter `list` accepts. Every field is optional and ANDed; an empty query
@@ -16,6 +21,10 @@ export interface AssemblyRunQuery {
   taskId?: string;
   /** Matches `args->>'pr_number'`. */
   prNumber?: number;
+  /** Every run for one subject, whatever its blueprint — "what has worked on
+   *  this feature", which nothing could ask for while the only key was a task id
+   *  and a blueprint name. */
+  subjectKey?: string;
   createdAfter?: Date;
   /** Defaults to 50. */
   limit?: number;
@@ -35,6 +44,24 @@ export interface AssemblyRunStartInput {
   branch?: string;
   taskId?: string;
   args?: Record<string, unknown>;
+  /**
+   * What this run is working ON — `feature:<uuid>`, `detect:<blueprint>:<repo>`,
+   * `ingest:<kind>:<ref>[:<chunk>]`. At most one OPEN run may hold a given
+   * (repo, subjectKey), so `start` is start-or-JOIN: a second caller for a
+   * subject already in flight gets the id of the run already working it rather
+   * than a second run.
+   *
+   * The SUBJECT, never the action. `feature:<id>` is what lets one query find
+   * that feature's planning run and its finalize run; `feature:<id>:finalize`
+   * would guard repeat finalizes while still allowing two lines to work one
+   * feature at once, which is the thing that actually went wrong.
+   *
+   * Optional, and opt-in by design: a run with no key is unconstrained. Lines
+   * that are MEANT to overlap — comment-triage and code-review-reply carry
+   * distinct human comments on one branch — simply pass nothing, which replaces
+   * the old opt-out-by-blueprint-name list.
+   */
+  subjectKey?: string;
   /** Content hash of the definition the caller loaded. Required with
    *  {@link resumeFrom} — it is the drift guard's left-hand side. */
   blueprintHash?: string;
@@ -52,24 +79,39 @@ export interface StationRunStartInput {
   assemblyRunId: string;
   nodeId: string;
   iteration: number;
-  agentCrName?: string;
+  /**
+   * The CR this visit dispatched, or NULL when it will never have one.
+   *
+   * Null is not "unknown": it says the node runs in the pooled service and was
+   * published on the bus. The reaper reads exactly that — a missing CR on a POD
+   * visit is the crash-between-row-and-launch case and gets relaunched, while
+   * relaunching a service visit would run a pod alongside the delivery still
+   * queued for it.
+   */
+  agentCrName?: string | null;
+  /** What this visit is being dispatched WITH — recorded once, by the first
+   *  writer: a converged duplicate (the relaunch door re-dispatching the same
+   *  visit) keeps what the row already says rather than rewriting history. */
+  input?: StationRunInput;
 }
 
-export interface StationRunRecord {
-  /** The row's physical id — ALSO its visit order, which the replay depends on. */
-  id: string;
-  /** The station run's public identity: what telemetry and cost rows key on
-   *  instead of string-matching an Agent CR name (FR6.39). */
-  stationRunId: string;
-  assemblyRunId: string;
-  nodeId: string;
-  iteration: number;
-  outcome: string | null;
-  agentCrName: string | null;
-  commitSha: string | null;
-  startedAt: Date;
-  finishedAt: Date | null;
+/**
+ * WHY a visit failed, recorded alongside its outcome. Optional because only a
+ * `failed` outcome has one — and because the alternative, a fifth positional
+ * argument, would have every existing two-argument caller reading as if it were
+ * declining to classify.
+ */
+export interface StationRunFailure {
+  failureClass?: string;
+  failureDetail?: string;
 }
+
+/**
+ * One `pipeline.station_runs` row. The shape is the `StationRun` model — see
+ * `libs/shared/src/models/station-run.ts` for the columns it binds and why a
+ * visit carries two ids.
+ */
+export type StationRunRecord = StationRun;
 
 /** The overlap guard's row: everything it compares, nothing it does not. */
 export interface OpenRunSummary {
@@ -77,38 +119,27 @@ export interface OpenRunSummary {
   status: "queued" | "running";
   repo: string;
   branch: string | null;
+  subjectKey: string | null;
   createdAt: Date;
 }
 
-export interface AssemblyRunRecord {
-  id: string;
-  blueprintName: string;
-  taskId: string | null;
-  repo: string;
-  branch: string | null;
-  args: Record<string, unknown>;
-  status: "queued" | "running" | "finished" | "failed";
-  outcome: string | null;
-  reason: string | null;
-  /** Content hash of the blueprint this run executed; null for rows that
-   *  predate the column or whose blueprint never resolved. */
-  blueprintHash: string | null;
-  /** The blueprint's graph as THIS run recorded it — what the walk and every
-   *  reader work from. Null for rows started before the clone existed, which
-   *  fall back to resolving the blueprint by name (FR6.38). */
-  graph: RunGraph | null;
-  /** Fork parentage — null for a line that was not forked. */
-  resumedFromRunId: string | null;
-  resumedFromNodeId: string | null;
-  /** Node rows copied from the fork source, fixed at fork time (0 for a plain
-   *  start). The overlap guard's "no work of its own yet" test compares the
-   *  line's CURRENT row count against this; recomputing the prefix instead
-   *  would let a back-edge revisit re-arm the guard mid-walk. */
-  inheritedNodeCount: number;
-  createdAt: Date;
-  startedAt: Date | null;
-  finishedAt: Date | null;
-}
+/**
+ * One `pipeline.assembly_runs` row. The shape is the `AssemblyRun` model — see
+ * `libs/shared/src/models/assembly-run.ts` for the columns it binds, the
+ * blueprint-clone `graph`, and why `repo` is the `owner/repo` string.
+ */
+export type AssemblyRunRecord = AssemblyRun;
+
+/**
+ * A run WITHOUT its blueprint clone.
+ *
+ * The browse list renders tables that never draw the graph, so reading up to
+ * `limit` clones per page is transfer paid for nothing. Stated as a narrower
+ * TYPE rather than as a `graph: null` on the full record: a null that means "not
+ * read" is indistinguishable from a null that means "this run predates clones",
+ * and the second is a real state a reader has to handle.
+ */
+export type AssemblyRunSummary = Omit<AssemblyRunRecord, "graph">;
 
 /**
  * `pipeline.assembly_runs` + `pipeline.station_runs` — first-class
@@ -165,6 +196,9 @@ export interface AssemblyRunsPort {
    * openness. Newest first, id as the tiebreak so the order is total.
    */
   list(query: AssemblyRunQuery): Promise<AssemblyRunRecord[]>;
+  /** {@link list}, selecting the same runs in the same order but without the
+   *  blueprint clone — for readers that list runs rather than draw them. */
+  listSummaries(query: AssemblyRunQuery): Promise<AssemblyRunSummary[]>;
   listForTask(taskId: string): Promise<AssemblyRunRecord[]>;
   /**
    * Event-driven transition primitives: the walk state is derived from node rows,
@@ -179,6 +213,7 @@ export interface AssemblyRunsPort {
     nodeRowId: string,
     outcome: string,
     commitSha?: string,
+    failure?: StationRunFailure,
   ): Promise<boolean>;
   /** The line's node rows in visit order (row id). */
   listStationRuns(assemblyRunId: string): Promise<StationRunRecord[]>;
@@ -191,6 +226,29 @@ export interface AssemblyRunsPort {
    * OTHER branches.
    */
   findOpenOnBranch(repo: string, branch: string): Promise<OpenRunSummary[]>;
+  /**
+   * The open run working this subject, or null.
+   *
+   * At most one can exist — the store enforces it — so this returns a single row
+   * rather than a list, unlike {@link findOpenOnBranch}, whose branch key never
+   * carried that guarantee. Callers answer "already in flight" with the id they
+   * get back, which is what lets a rejected duplicate request still name the run
+   * the caller should be watching.
+   */
+  findOpenBySubject(
+    repo: string,
+    subjectKey: string,
+  ): Promise<OpenRunSummary | null>;
+  /**
+   * How many runs — open or settled — have ever worked this subject.
+   *
+   * {@link findOpenBySubject} answers "is one in flight", which is the wrong
+   * question for a caller that re-starts on a timer: a line that fails at its
+   * first node settles, so the open lookup is empty again a minute later and
+   * the caller starts another. Counting every attempt is what lets such a
+   * caller stop.
+   */
+  countBySubject(repo: string, subjectKey: string): Promise<number>;
   /**
    * Open (`queued`/`running`) assembly lines whose `args.pr_number` matches — the
    * PR-scoped lookup the code-review choreography uses. NOT only code-review lines:

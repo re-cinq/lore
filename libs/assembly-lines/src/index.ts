@@ -16,10 +16,14 @@ export {
 } from "./node-types.js";
 
 export {
+  NodeResultSchema,
+  type ParsedNodeResult,
+} from "./node-result-schema.js";
+
+export {
   stationNodeOutcome,
   parseNodeResult,
   parseReviewVerdict,
-  isBillingError,
   type AgentNodeStatus,
 } from "./node-outcome.js";
 
@@ -31,7 +35,7 @@ export {
   unwrapAttribution,
 } from "./agent-output.js";
 
-export { ciOutcome, type CiConclusion } from "./github-action-handler.js";
+export { resolveRunGraph } from "./resolve-run-graph.js";
 
 export {
   loadAssemblyLineDir,
@@ -41,6 +45,8 @@ export {
   type AssemblyLineNode,
   type AssemblyLineEdge,
   type EdgeConditionValue,
+  NODE_TYPES,
+  type NodeTypeValue,
 } from "./loader.js";
 
 export { loadBuiltinAssemblyLines } from "./builtin-assembly-lines.js";
@@ -80,7 +86,12 @@ export {
 
 export {
   selectEdge,
-  nextTransition,
+  getNextTransition,
   type NodeVisit,
   type Transition,
 } from "./transition.js";
+export {
+  isPermanentNodeFailure,
+  nodeFailureReason,
+  type NodeFailure,
+} from "./failure-reason.js";

@@ -10,7 +10,7 @@ Once you've run `scripts/install.sh`, there's nothing to configure per repo. Ope
 
 ## Get org context in Claude Code
 
-After `install.sh`, Claude Code automatically loads org context for whatever repo you're in. The MCP server runs locally over stdio and proxies every operation to the GKE backend, so the knowledge you and your teammates accumulate is shared org-wide. There is no offline mode — the backend must be reachable, and the install script sets `LORE_API_URL` for you.
+After `install.sh`, Claude Code automatically loads org context for whatever repo you're in. The [MCP server](../../apps/mcp-server/README.md) runs locally over stdio and proxies every operation to the GKE backend, so the knowledge you and your teammates accumulate is shared org-wide. There is no offline mode — the backend must be reachable, and the install script sets `LORE_API_URL` for you.
 
 Every session follows an enforced workflow so agents never re-solve a problem the org already solved:
 
@@ -64,6 +64,15 @@ The label determines the task type:
 - `lore:implementation` → implementation task (runs on the ai-agent-subsystem)
 - `lore:review` → review task
 - `lore:runbook` → runbook task
+
+Separate from the routing labels above, the implementation loop (`specs/implementation-loop/spec.md`) reads a priority taxonomy. These labels are a queue ordering, not a dispatch: applying one opts the issue into the repo's backlog loop when `implementation_loop.enabled` is on, and no second `lore` label is needed.
+
+- `priority:high` → worked first
+- `priority:medium` → worked after every `priority:high`
+- `priority:low` → worked when nothing else is queued
+- `lore:blocked` → set by the loop when a ticket gets stuck; makes the issue ineligible until a human removes it
+
+An issue carrying more than one `priority:*` label is skipped rather than resolved to the highest, so the ambiguity surfaces to a human.
 
 If an active task already exists for the Issue, Lore comments with the existing task ID instead of starting a duplicate. Issue templates ("Lore: Implementation", "Lore: Review", "Lore: General Task") are added during onboarding.
 

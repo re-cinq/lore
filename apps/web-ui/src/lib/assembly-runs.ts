@@ -12,28 +12,21 @@
 import type { RunGraph } from "./run-graph";
 import { apiFetch } from "./api/client";
 import { sumTurnUsage, type RunTokens, type TurnUsageRow } from "./run-tokens";
+import type { components } from "./api/schema";
 
-/** Raw run row: pipeline.assembly_runs LEFT JOIN pipeline.tasks + a cost lateral. */
-export interface AssemblyRunRow {
-  id: string;
-  blueprint_name: string;
+/**
+ * Raw run row, as lore-api serves it. NOT restated here: it is an alias over the
+ * OpenAPI document generated from that route's own contract (ADR-035), so the
+ * shape has one declaration and `scripts/check-openapi-drift.sh` fails CI when
+ * the generated artifact goes stale.
+ */
+export type AssemblyRunRow = Omit<
+  components["schemas"]["AssemblyRunDetail"],
+  "graph"
+> & {
   /** The blueprint clone this run recorded (FR6.38); null for pre-clone rows. */
-  graph: RunGraph | null;
-  task_id: string | null;
-  repo: string;
-  branch: string | null;
-  status: string;
-  outcome: string | null;
-  reason: string | null;
-  created_at: string;
-  started_at: string | null;
-  finished_at: string | null;
-  args_pr_number: number | null;
-  pr_url: string | null;
-  task_pr_number: number | null;
-  created_by: string | null;
-  cost_usd: number | null;
-}
+  graph?: RunGraph | null;
+};
 
 export interface AssemblyRun {
   id: string;
@@ -54,14 +47,17 @@ export interface AssemblyRun {
   costUsd: number | null;
 }
 
-export interface AssemblyRunNodeRow {
-  node_id: string;
-  iteration: number;
-  outcome: string | null;
-  agent_cr_name: string | null;
-  commit_sha: string | null;
-  started_at: string;
-  finished_at: string | null;
+export type AssemblyRunNodeRow =
+  components["schemas"]["StationRunList"]["nodes"][number];
+
+/** What a visit was GIVEN, as the run page reads it. Mirrors the lore-api
+ *  response shape (web-ui declares its own row types — it imports no server code). */
+export interface StationRunInput {
+  description: string;
+  prompt: string | null;
+  params: Record<string, string> | null;
+  repo: string;
+  ref: string;
 }
 
 export interface AssemblyRunNode {
@@ -69,6 +65,10 @@ export interface AssemblyRunNode {
   iteration: number;
   outcome: string | null;
   agentCrName: string | null;
+  /** Null for a visit dispatched before the input was recorded. Optional for the
+   *  same reason `startedAt` is: test doubles need not set it, the mapper always
+   *  does. */
+  input?: StationRunInput | null;
   commitSha: string | null;
   durationSeconds: number | null;
   /** When the node began — surfaced so a running node shows how long it has been
@@ -126,6 +126,7 @@ export function toAssemblyRunNode(row: AssemblyRunNodeRow): AssemblyRunNode {
     iteration: row.iteration,
     outcome: row.outcome,
     agentCrName: row.agent_cr_name,
+    input: row.input ?? null,
     commitSha: row.commit_sha,
     durationSeconds: durationSeconds(row.started_at, row.finished_at),
     startedAt: row.started_at,

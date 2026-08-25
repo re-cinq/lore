@@ -15,9 +15,9 @@ export async function GET(
     if (record.status !== "ok") {
       return upstreamError("Settings", record);
     }
-    const { full_name, team, settings } = record.data;
+    const { team, settings } = record.data;
 
-    return NextResponse.json({ full_name, team, settings });
+    return NextResponse.json({ full_name: fullName, team, settings });
   } catch (err) {
     return serverError("settings.GET", err);
   }

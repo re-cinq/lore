@@ -1,3 +1,4 @@
+import { zodResponse } from "../../../server/plugins/zod-response.js";
 import { errorMessage } from "@re-cinq/lore-shared";
 import type { Pool } from "pg";
 import type { ServerRoute } from "@hapi/hapi";
@@ -40,14 +41,28 @@ const SEPARATOR = "\n\n---\n\n";
 // The same chars-per-token heuristic the assembly engine's truncateText uses.
 const CHARS_PER_TOKEN = 4;
 
+/**
+ * Assembled context. `text` is the block an agent is handed; `sections` and
+ * `trace` appear only on the debug path, which is why both are optional.
+ */
+const AssembledContextSchema = z.object({
+  text: z.string().nullable(),
+  sections: z.unknown().optional(),
+  trace: z.unknown().optional(),
+});
+
 export function contextRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "GET",
     path: "/api/context",
-    options: {
-      ...bearerScope("read"),
-      validate: { query: zodValidate(ContextQuery) },
-    },
+    options: zodResponse(
+      {
+        ...bearerScope("read"),
+        validate: { query: zodValidate(ContextQuery) },
+      },
+      AssembledContextSchema,
+      { name: "AssembledContext", description: "The assembled context block" },
+    ),
     handler: async (request, h) => {
       const pool = getPool();
       const {

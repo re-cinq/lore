@@ -7,7 +7,7 @@
  */
 
 import { enforceOk } from "@re-cinq/lore-shared/lib/enforce.js";
-import Boom from "@hapi/boom";
+import { apiError } from "../api-error.js";
 import type { ServerRoute } from "@hapi/hapi";
 import {
   mapCiIngest,
@@ -21,11 +21,13 @@ export const ciIngestRoute: ServerRoute = {
   path: "/api/webhook/ci-ingest",
   options: { auth: "ingest-token", payload: { parse: false } },
   handler: async (request, h) => {
-    const mapped = mapCiIngest(parseJsonBody<CiIngestBody>(rawBody(request)));
+    const mapped = mapCiIngest(
+      parseJsonBody<CiIngestBody>(rawBody(request), "ci-ingest"),
+    );
 
-    // A validation failure is a client error — Boom.badRequest surfaces the
+    // A validation failure is a client error — a 400 surfaces the
     // mapper's 400 + message instead of a generic 500.
-    enforceOk(mapped, Boom.badRequest);
+    enforceOk(mapped, apiError(400));
 
     // Each insert is idempotent only via dedupe_key, which doc projection omits on
     // purpose (force must re-run); the loop does the work — return 202 fast.

@@ -9,7 +9,7 @@
 
 import { describe, it, expect } from "vitest";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
-import { nextTransition, type NodeVisit } from "./transition.js";
+import { getNextTransition, type NodeVisit } from "./transition.js";
 import { loadBuiltinAssemblyLines } from "./builtin-assembly-lines.js";
 import type { AssemblyLine } from "./loader.js";
 
@@ -32,7 +32,7 @@ describe("feature-planning author loop", () => {
     // The line does NOT finish when the agent succeeds — it hands over to the
     // person. A line that ended here is the old one-line-per-round shape.
     expect(
-      nextTransition(await planning(), [visit("analyze", 1, "success")]),
+      getNextTransition(await planning(), [visit("analyze", 1, "success")]),
     ).toEqual({ kind: "launch", nodeId: "author", iteration: 1 });
   });
 
@@ -40,7 +40,7 @@ describe("feature-planning author loop", () => {
     // No outcome yet: the walk must sit still rather than treat the open node as
     // finished. The reaper's wait exemption is what keeps it sitting.
     expect(
-      nextTransition(await planning(), [
+      getNextTransition(await planning(), [
         visit("analyze", 1, "success"),
         visit("author", 1, null),
       ]),
@@ -49,7 +49,7 @@ describe("feature-planning author loop", () => {
 
   it("runs another round when the author asks for changes", async () => {
     expect(
-      nextTransition(await planning(), [
+      getNextTransition(await planning(), [
         visit("analyze", 1, "success"),
         visit("author", 1, "changes_requested"),
       ]),
@@ -68,7 +68,7 @@ describe("feature-planning author loop", () => {
       visits.push(visit("author", round, "changes_requested"));
     }
 
-    expect(nextTransition(line, visits)).toEqual({
+    expect(getNextTransition(line, visits)).toEqual({
       kind: "launch",
       nodeId: "analyze",
       iteration: 26,
@@ -78,7 +78,7 @@ describe("feature-planning author loop", () => {
   it("moves on when the author accepts the plan", async () => {
     // Accepting no longer ends the line: the spec work follows on the SAME line.
     expect(
-      nextTransition(await planning(), [
+      getNextTransition(await planning(), [
         visit("analyze", 1, "success"),
         visit("author", 1, "success"),
       ]),
@@ -87,7 +87,7 @@ describe("feature-planning author loop", () => {
 
   it("ends the line when the author abandons the feature", async () => {
     expect(
-      nextTransition(await planning(), [
+      getNextTransition(await planning(), [
         visit("analyze", 1, "success"),
         visit("author", 1, "failed"),
       ]),
@@ -98,7 +98,7 @@ describe("feature-planning author loop", () => {
     // A node's storage identity is (nodeId, iteration), and the Agent CR name is
     // derived from it. Reusing iteration 1 for round 2 would collide on both.
     expect(
-      nextTransition(await planning(), [
+      getNextTransition(await planning(), [
         visit("analyze", 1, "success"),
         visit("author", 1, "changes_requested"),
         visit("analyze", 2, "success"),
@@ -110,7 +110,7 @@ describe("feature-planning author loop", () => {
     // An agent node can produce this outcome, so the graph must route it; planning
     // asks for no review, so it reaches the author exactly as success does.
     expect(
-      nextTransition(await planning(), [
+      getNextTransition(await planning(), [
         visit("analyze", 1, "changes_requested"),
       ]),
     ).toEqual({ kind: "launch", nodeId: "author", iteration: 1 });
@@ -124,7 +124,7 @@ describe("feature-planning after the author accepts", () => {
   ];
 
   it("analyses which specs change before anything writes one", async () => {
-    expect(nextTransition(await planning(), accepted)).toEqual({
+    expect(getNextTransition(await planning(), accepted)).toEqual({
       kind: "launch",
       nodeId: "analyse-specs",
       iteration: 1,
@@ -137,7 +137,7 @@ describe("feature-planning after the author accepts", () => {
     // the line and settle-task faked a task failure to surface the objection; now it
     // is an ordinary edge to the station whose worker is the author.
     expect(
-      nextTransition(await planning(), [
+      getNextTransition(await planning(), [
         ...accepted,
         visit("analyse-specs", 1, "changes_requested"),
       ]),
@@ -146,7 +146,7 @@ describe("feature-planning after the author accepts", () => {
 
   it("writes the specs once the analysis lands", async () => {
     expect(
-      nextTransition(await planning(), [
+      getNextTransition(await planning(), [
         ...accepted,
         visit("analyse-specs", 1, "success"),
       ]),
@@ -155,7 +155,7 @@ describe("feature-planning after the author accepts", () => {
 
   it("returns an unusable change set to the analysis, once", async () => {
     expect(
-      nextTransition(await planning(), [
+      getNextTransition(await planning(), [
         ...accepted,
         visit("analyse-specs", 1, "success"),
         visit("write", 1, "changes_requested"),
@@ -167,7 +167,7 @@ describe("feature-planning after the author accepts", () => {
     // Two agents disagreeing without a referee will do so all day. The author's own
     // loop is unbounded because a person decides each pass; this one is not.
     expect(
-      nextTransition(await planning(), [
+      getNextTransition(await planning(), [
         ...accepted,
         visit("analyse-specs", 1, "success"),
         visit("write", 1, "changes_requested"),
@@ -179,7 +179,7 @@ describe("feature-planning after the author accepts", () => {
 
   it("pushes the branch so the watcher opens the spec PR", async () => {
     expect(
-      nextTransition(await planning(), [
+      getNextTransition(await planning(), [
         ...accepted,
         visit("analyse-specs", 1, "success"),
         visit("write", 1, "success"),
@@ -196,7 +196,7 @@ describe("feature-planning after the author accepts", () => {
     // still unique — but it is why a first-ever `write` row can read as iteration 7
     // on a feature that took six rounds.
     expect(
-      nextTransition(await planning(), [
+      getNextTransition(await planning(), [
         visit("analyze", 1, "success"),
         visit("author", 1, "changes_requested"),
         visit("analyze", 2, "success"),
@@ -230,15 +230,15 @@ describe("the merged line's agent nodes name their own recipes", () => {
       push: nodes.get("push"),
     }).toEqual({
       analyse: "spec-analysis",
-      write: "feature-finalize",
-      push: "feature-finalize",
+      write: "spec-write",
+      push: "spec-write",
     });
   });
 });
 
 describe("feature-planning after the spec PR is pushed", () => {
   // The decomposition tail. It used to be a SECOND line, started by minting a
-  // `feature-decompose` task when a `feature-finalize` PR merged — a predicate that
+  // `feature-decompose` task when the spec PR merged — a predicate that
   // stopped matching the moment finalize became a resume of this line, so nothing
   // decomposed and nothing said so. Merging the tail in makes the merge a node
   // outcome like any other.
@@ -251,7 +251,7 @@ describe("feature-planning after the spec PR is pushed", () => {
   ];
 
   it("parks on the merged node once the branch is pushed", async () => {
-    expect(nextTransition(await planning(), pushed)).toEqual({
+    expect(getNextTransition(await planning(), pushed)).toEqual({
       kind: "launch",
       nodeId: "merged",
       iteration: 1,
@@ -262,13 +262,16 @@ describe("feature-planning after the spec PR is pushed", () => {
     // The person reviewing the spec PR is this node's worker, exactly as the author
     // is the `author` node's. An open PR is not a stalled line.
     expect(
-      nextTransition(await planning(), [...pushed, visit("merged", 1, null)]),
+      getNextTransition(await planning(), [
+        ...pushed,
+        visit("merged", 1, null),
+      ]),
     ).toEqual({ kind: "await" });
   });
 
   it("decomposes the spec once the PR merges", async () => {
     expect(
-      nextTransition(await planning(), [
+      getNextTransition(await planning(), [
         ...pushed,
         visit("merged", 1, "success"),
       ]),
@@ -280,7 +283,7 @@ describe("feature-planning after the spec PR is pushed", () => {
     // so only that person can answer it — the same reasoning that routes the spec
     // analysis's question to the author instead of ending the line.
     expect(
-      nextTransition(await planning(), [
+      getNextTransition(await planning(), [
         ...pushed,
         visit("merged", 1, "changes_requested"),
       ]),
@@ -291,7 +294,7 @@ describe("feature-planning after the spec PR is pushed", () => {
     // Not a failure of the machine — the feature was abandoned or superseded. It
     // still needs an edge, because selectEdge does not fall through.
     expect(
-      nextTransition(await planning(), [
+      getNextTransition(await planning(), [
         ...pushed,
         visit("merged", 1, "failed"),
       ]),
@@ -300,7 +303,7 @@ describe("feature-planning after the spec PR is pushed", () => {
 
   it("files the issues once the decomposition lands", async () => {
     expect(
-      nextTransition(await planning(), [
+      getNextTransition(await planning(), [
         ...pushed,
         visit("merged", 1, "success"),
         visit("decompose", 1, "success"),
@@ -312,7 +315,7 @@ describe("feature-planning after the spec PR is pushed", () => {
     // decompose has no upstream NODE — its input is a spec a human merged, so a spec
     // it cannot break down is a question for the author, not something to re-run.
     expect(
-      nextTransition(await planning(), [
+      getNextTransition(await planning(), [
         ...pushed,
         visit("merged", 1, "success"),
         visit("decompose", 1, "changes_requested"),
@@ -325,7 +328,7 @@ describe("feature-planning after the spec PR is pushed", () => {
     // where a label the repo does not have actually shows. It sends the artifact
     // back rather than letting GitHub CREATE an invented label on the spot.
     expect(
-      nextTransition(await planning(), [
+      getNextTransition(await planning(), [
         ...pushed,
         visit("merged", 1, "success"),
         visit("decompose", 1, "success"),
@@ -336,7 +339,7 @@ describe("feature-planning after the spec PR is pushed", () => {
 
   it("fails the line rather than let issues and decompose argue twice", async () => {
     expect(
-      nextTransition(await planning(), [
+      getNextTransition(await planning(), [
         ...pushed,
         visit("merged", 1, "success"),
         visit("decompose", 1, "success"),
@@ -349,7 +352,7 @@ describe("feature-planning after the spec PR is pushed", () => {
 
   it("finishes once the issues are filed", async () => {
     expect(
-      nextTransition(await planning(), [
+      getNextTransition(await planning(), [
         ...pushed,
         visit("merged", 1, "success"),
         visit("decompose", 1, "success"),
@@ -364,7 +367,7 @@ describe("feature-planning after the spec PR is pushed", () => {
     // is the entire point, since the old shape needed a fresh task at the merge and
     // that task was never created.
     expect(
-      nextTransition(await planning(), [
+      getNextTransition(await planning(), [
         visit("analyze", 1, "success"),
         visit("author", 1, "changes_requested"),
         visit("analyze", 2, "success"),

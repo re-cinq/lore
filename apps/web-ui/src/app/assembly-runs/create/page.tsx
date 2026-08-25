@@ -1,5 +1,5 @@
 export const dynamic = "force-dynamic";
-import { listRepos } from "@/lib/api/repos";
+import { listAllRepos, reposOrThrow } from "@/lib/api/repos";
 import { createTask as queueTask } from "@/lib/api/tasks";
 import { getSession } from "@/lib/session";
 import { revalidatePath } from "next/cache";
@@ -41,13 +41,10 @@ async function createTask(formData: FormData) {
 }
 
 export default async function CreateTaskPage() {
-  const repoList = await listRepos();
-  const onboardedRepos =
-    repoList.status === "ok"
-      ? repoList.data.repos
-          .map((repo) => ({ full_name: repo.full_name }))
-          .sort((a, b) => a.full_name.localeCompare(b.full_name))
-      : [];
+  const repoList = reposOrThrow(await listAllRepos());
+  const onboardedRepos = repoList.repos
+    .map((repo) => ({ full_name: repo.full_name }))
+    .sort((a, b) => a.full_name.localeCompare(b.full_name));
 
   return (
     <AssemblyRunCreateView

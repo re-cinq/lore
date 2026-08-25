@@ -1,4 +1,6 @@
 import { enforceTrue } from "../../lib/enforce.js";
+import { selectList, fromRow } from "../../lib/row.js";
+import { REPO_COLUMNS } from "../../models/repo.js";
 import type { PgPool } from "../../memory-store.js";
 import {
   resolveDarkFactorySettings,
@@ -77,14 +79,12 @@ export class PgSettings implements SettingsPort {
   }
 
   async record(repo: string): Promise<RepoRecord | null> {
-    const { rows } = await this.pool.query<RepoRecord>(
-      `SELECT full_name, team, settings, onboarded_at, last_ingested_at,
-              onboarding_pr_url, onboarding_pr_merged
-         FROM lore.repos WHERE full_name = $1`,
+    const { rows } = await this.pool.query<Record<string, unknown>>(
+      `SELECT ${selectList(REPO_COLUMNS)} FROM lore.repos WHERE full_name = $1`,
       [repo],
     );
 
-    return rows[0] ?? null;
+    return rows[0] ? fromRow<RepoRecord>(REPO_COLUMNS, rows[0]) : null;
   }
 
   async rawSettings(repo: string): Promise<Record<string, unknown> | null> {

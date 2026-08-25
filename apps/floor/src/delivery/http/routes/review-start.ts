@@ -8,7 +8,7 @@
  */
 
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
-import Boom from "@hapi/boom";
+import { apiError } from "../api-error.js";
 import type { ServerRoute } from "@hapi/hapi";
 import { projectFor } from "../../../composition/project-boot.js";
 import { startReview } from "../../../jobs/review/code-review.js";
@@ -24,13 +24,16 @@ export const reviewStartRoute: ServerRoute = {
   path: "/api/review/start",
   options: { auth: "ingest-token", payload: { parse: false } },
   handler: async (request, h) => {
-    const body = parseJsonBody<ReviewStartBody>(rawBody(request));
+    const body = parseJsonBody<ReviewStartBody>(
+      rawBody(request),
+      "review-start",
+    );
 
     enforceTrue(
       typeof body.repo === "string" &&
         body.repo.length > 0 &&
         typeof body.pr_number === "number",
-      Boom.badRequest,
+      apiError(400),
       "repo and pr_number are required",
     );
     const project = await projectFor(body.repo as string);

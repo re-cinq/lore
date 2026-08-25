@@ -16,7 +16,7 @@ import type { AssemblyLine } from "./loader.js";
 import { isHumanStation } from "./human-station.js";
 
 /** The builtin Station for a node type. Underscores are not valid in an RFC-1123
- *  resource name, so `github_action` becomes `def-github-action`. */
+ *  resource name, so `comment-triage` stays `def-comment-triage`. */
 export const builtinStationName = (nodeType: string): string =>
   `def-${nodeType.replaceAll("_", "-")}`;
 

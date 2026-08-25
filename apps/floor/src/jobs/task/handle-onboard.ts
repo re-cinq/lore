@@ -1,5 +1,5 @@
 import type { PipelineTask } from "@re-cinq/lore-shared";
-import { errorMessage } from "@re-cinq/lore-shared";
+import { errorMessage, BACKLOG_LABEL_SEED } from "@re-cinq/lore-shared";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 /**
  * Onboard handler (per-file LLM calls).
@@ -10,9 +10,10 @@ import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 
 import { Llm } from "@re-cinq/lore-shared";
 import { projectFor } from "../../composition/project-boot.js";
+import { memoryLifecycle } from "../../kernel/queues.js";
 import { settings } from "../../kernel/queues.js";
 import { fetchRepoContext } from "./repo-context.js";
-import { writeEpisode } from "../lib/episode-writer.js";
+import { writeEpisode } from "@re-cinq/lore-shared";
 import {
   summarizeFailures,
   TaskFailure,
@@ -454,6 +455,7 @@ export async function handleOnboard(
         color: "D93F0B",
         description: "Lore: runbook task",
       },
+      ...BACKLOG_LABEL_SEED,
     ]);
     console.log(`[floor] Created Lore dispatch labels on ${targetRepo}`);
   } catch (err) {
@@ -489,6 +491,7 @@ export async function handleOnboard(
 
   // Auto-capture onboarding as episode
   writeEpisode(
+    { memory: memoryLifecycle() },
     `Repo ${targetRepo} onboarded\nGenerated: ${committed.join(", ")}\nPR: ${pr.url}`,
     "ci",
     `${targetRepo}/${task.id}`,

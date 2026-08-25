@@ -1,60 +1,61 @@
 /**
- * Floor-side singletons for the shared, repo-agnostic queue repositories.
- * They bind the agent's Postgres pool to the `@re-cinq/lore-shared` adapters
- * that single-source the `pipeline.tasks` / `pipeline.events` claim + sweep SQL.
+ * Floor-side singletons for the shared, repo-agnostic repositories: `pipeline()`
+ * for the whole `pipeline.*` bundle (ADR-024), plus one accessor each for the
+ * tables that sit outside it.
  *
  * Lazy because `getPool()` throws until `initPool()` has run at startup — the
  * accessor defers construction to first use (after the pool exists), mirroring
- * how the kernel repositories defer their first `query`. Jobs default their
- * injected dependency to these so tests can swap in the shared InMemory doubles.
+ * how the kernel repositories defer their first `query`. Never call one at
+ * module scope. Jobs default their injected dependency to these so tests can
+ * swap in the shared InMemory doubles.
  */
 import { getPool } from "./db.js";
-import { PgEventQueue } from "@re-cinq/lore-shared/project/events/event-queue-pg.js";
-import { PgTaskQueue } from "@re-cinq/lore-shared/project/tasks/task-queue-pg.js";
-import { PgTaskStore } from "@re-cinq/lore-shared/project/tasks/task-store-pg.js";
-import { PgAssemblyRuns } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-pg.js";
+import { createPipelineRepositories } from "@re-cinq/lore-shared/project/pipeline/pipeline-repositories-pg.js";
+import type { PipelineRepositories } from "@re-cinq/lore-shared";
+import { internalToken } from "@re-cinq/lore-shared/http/internal-token.js";
+import { StationClient } from "@re-cinq/lore-shared/project/stations/station-client.js";
+import { ClusterAgentClient } from "@re-cinq/lore-shared";
 import {
-  DbLeaseBackend,
-  type LeasePool,
-} from "@re-cinq/lore-shared/project/leases/lease-backends.js";
-import { PgAudit } from "@re-cinq/lore-shared/project/audit/audit-pg.js";
+  selectEventDeliveries,
+  selectEventQueue,
+  selectEventReporter,
+} from "@re-cinq/lore-shared/project/events/select-event-reporter.js";
+import type { EventDeliveriesPort } from "@re-cinq/lore-shared/project/events/event-deliveries-port.js";
+import { PgEventDeliveries } from "@re-cinq/lore-shared/project/events/event-deliveries-pg.js";
+import type {
+  EventQueueRepository,
+  EventReporter,
+} from "@re-cinq/lore-shared/project/events/event-queue-port.js";
+import { PgTaskStore } from "@re-cinq/lore-shared/project/tasks/task-store-pg.js";
 import { PgUsage } from "@re-cinq/lore-shared/project/usage/usage-pg.js";
-import { PgJobRuns } from "@re-cinq/lore-shared/project/job-runs/job-runs-pg.js";
-import { PgAgentRunEvents } from "@re-cinq/lore-shared/project/agent-run-events/agent-run-events-pg.js";
 import { PgConversations } from "@re-cinq/lore-shared/project/conversations/conversations-pg.js";
-import { PgAgentRunTurns } from "@re-cinq/lore-shared/project/agent-run-turns/agent-run-turns-pg.js";
 import { PgEvalRuns } from "@re-cinq/lore-shared/project/evals/evals-pg.js";
 import { PgCost } from "@re-cinq/lore-shared/project/cost/cost-pg.js";
 import { PgContextCore } from "@re-cinq/lore-shared/project/context-core/context-core-pg.js";
-import { PgBaseline } from "@re-cinq/lore-shared/project/baseline/baseline-pg.js";
 import { PgSettings } from "@re-cinq/lore-shared/project/settings/settings-pg.js";
 import { PgChunks } from "@re-cinq/lore-shared/project/chunks/chunks-pg.js";
 import { PgMemoryLifecycle } from "@re-cinq/lore-shared/project/memory/memory-lifecycle-pg.js";
 
-let eventQueueSingleton: PgEventQueue | undefined;
-let taskQueueSingleton: PgTaskQueue | undefined;
+let pipelineSingleton: PipelineRepositories | undefined;
 let taskStoreSingleton: PgTaskStore | undefined;
-let assemblyRunsSingleton: PgAssemblyRuns | undefined;
-let leaseBackendSingleton: DbLeaseBackend | undefined;
-let auditLogSingleton: PgAudit | undefined;
 let usageSingleton: PgUsage | undefined;
-let jobRunsSingleton: PgJobRuns | undefined;
-let agentRunEventsSingleton: PgAgentRunEvents | undefined;
 let conversationsSingleton: PgConversations | undefined;
-let agentRunTurnsSingleton: PgAgentRunTurns | undefined;
 let evalRunsSingleton: PgEvalRuns | undefined;
 let costSingleton: PgCost | undefined;
 let contextCoreSingleton: PgContextCore | undefined;
-let baselineSingleton: PgBaseline | undefined;
 let settingsSingleton: PgSettings | undefined;
 let chunksSingleton: PgChunks | undefined;
 let memoryLifecycleSingleton: PgMemoryLifecycle | undefined;
 
-export const eventQueue = (): PgEventQueue =>
-  (eventQueueSingleton ??= new PgEventQueue(getPool()));
-
-export const taskQueue = (): PgTaskQueue =>
-  (taskQueueSingleton ??= new PgTaskQueue(getPool()));
+/**
+ * The org-wide `pipeline.*` repositories — the task queue, the event queue,
+ * assembly runs, job runs, audit, leases, and the agent-run event + turn
+ * telemetry — bound to the pool as ONE bundle (ADR-024). lore-api binds the
+ * same bundle through `project.pipeline`, so both deployables construct these
+ * adapters exactly one way.
+ */
+export const pipeline = (): PipelineRepositories =>
+  (pipelineSingleton ??= createPipelineRepositories(getPool()));
 
 /**
  * Repo-agnostic task *record* surface (create / by-id reads + status writes /
@@ -65,43 +66,12 @@ export const taskQueue = (): PgTaskQueue =>
 export const taskStore = (): PgTaskStore =>
   (taskStoreSingleton ??= new PgTaskStore(getPool()));
 
-/**
- * First-class assembly line runs (pipeline.assembly_runs + _nodes), repo-agnostic.
- * The event-loop handler and watchers reach the rows through this; a job that
- * holds a Project uses `project.assemblyRuns` instead.
- */
-export const assemblyRuns = (): PgAssemblyRuns =>
-  (assemblyRunsSingleton ??= new PgAssemblyRuns(getPool()));
-
-/** The cluster lease backend (its reap side feeds the lease-reaper). */
-export const leaseBackend = (): DbLeaseBackend =>
-  // The real pg pool returns rowCount; LeasePool's narrow type omits it.
-  (leaseBackendSingleton ??= new DbLeaseBackend(
-    getPool() as unknown as LeasePool,
-  ));
-
-/** Append-only audit writer, repo-agnostic (used where no Project is in scope). */
-export const auditLog = (): PgAudit =>
-  (auditLogSingleton ??= new PgAudit(getPool()));
-
 /** LLM-call accounting, repo-agnostic (the agent-events telemetry sink + health). */
 export const usage = (): PgUsage => (usageSingleton ??= new PgUsage(getPool()));
-
-/** Scheduled-job run ledger (pipeline.job_runs), bound by the scheduler. */
-export const jobRuns = (): PgJobRuns =>
-  (jobRunsSingleton ??= new PgJobRuns(getPool()));
-
-/** Per-tool-call agent telemetry (pipeline.agent_run_events). */
-export const agentRunEvents = (): PgAgentRunEvents =>
-  (agentRunEventsSingleton ??= new PgAgentRunEvents(getPool()));
 
 /** Conversations a run can continue (pipeline.agent_conversations). */
 export const conversations = (): PgConversations =>
   (conversationsSingleton ??= new PgConversations(getPool()));
-/** Full-fidelity run transcripts (pipeline.agent_run_turns), written on every
- *  agent-events POST and read by the turn history route. */
-export const agentRunTurns = (): PgAgentRunTurns =>
-  (agentRunTurnsSingleton ??= new PgAgentRunTurns(getPool()));
 
 /** Eval-run results (pipeline.eval_runs), written by the eval-runner cron. */
 export const evalRuns = (): PgEvalRuns =>
@@ -113,10 +83,6 @@ export const cost = (): PgCost => (costSingleton ??= new PgCost(getPool()));
 /** Context-core promotion history (pipeline.context_core_history). */
 export const contextCore = (): PgContextCore =>
   (contextCoreSingleton ??= new PgContextCore(getPool()));
-
-/** Dark-factory pre-feature baseline snapshots + stats (pipeline.dark_factory_baseline). */
-export const baseline = (): PgBaseline =>
-  (baselineSingleton ??= new PgBaseline(getPool()));
 
 /**
  * Org-wide lore.repos record reads/writes (settings JSONB, team, onboarded set,
@@ -137,3 +103,72 @@ export const chunks = (): PgChunks =>
  */
 export const memoryLifecycle = (): PgMemoryLifecycle =>
   (memoryLifecycleSingleton ??= new PgMemoryLifecycle(getPool()));
+
+let eventReporterSingleton: EventReporter | undefined;
+
+/**
+ * Where this Floor reports events (ADR-044). The event-router owns
+ * `pipeline.events`, so in a cluster this is an HTTP reporter; with no
+ * `EVENT_ROUTER_URL` (local `npm start`) it falls back to the pool.
+ *
+ * Memoized so the resolution logs once per boot rather than once per event.
+ */
+export const eventReporter = (): EventReporter =>
+  (eventReporterSingleton ??= selectEventReporter({
+    local: () => pipeline().eventQueue,
+  }));
+
+let eventQueueSingleton: EventQueueRepository | undefined;
+
+/**
+ * The queue this Floor DRAINS (ADR-044). The router owns `pipeline.events`, so
+ * in a cluster the loop claims and acks over HTTP; with no `EVENT_ROUTER_URL`
+ * (local `npm start`) it falls back to the pool.
+ *
+ * The claim stays atomic either way — `FOR UPDATE SKIP LOCKED` is one statement
+ * server-side, and going over HTTP only carries the request to it.
+ */
+export const eventQueue = (): EventQueueRepository =>
+  (eventQueueSingleton ??= selectEventQueue({
+    local: () => pipeline().eventQueue,
+  }));
+
+let deliveriesSingleton: EventDeliveriesPort | undefined;
+
+/**
+ * The DELIVERIES this Floor consumes (ADR-044 amendment).
+ *
+ * The Floor is one subscriber among several now rather than the drainer, so it
+ * claims its own copies of the events it registered for. Its former ability to
+ * receive an event it had no handler for — and dead-letter it on the spot, with
+ * no retry — is gone by construction: nothing it did not subscribe to is ever
+ * delivered to it.
+ */
+export const deliveries = (): EventDeliveriesPort =>
+  (deliveriesSingleton ??= selectEventDeliveries({
+    local: () => new PgEventDeliveries(getPool()),
+  }));
+
+let stationClientSingleton: StationClient | undefined;
+
+/**
+ * The stations service (ADR-024's service-endpoint form). The Floor still owns
+ * WHEN a station runs; this is how it says so.
+ */
+export const stationClient = (): StationClient =>
+  (stationClientSingleton ??= new StationClient(
+    process.env.STATIONS_URL ?? "",
+    internalToken(),
+  ));
+
+let clusterAgentSingleton: ClusterAgentClient | undefined;
+
+/**
+ * This cluster's agent — the only process that talks to its Kubernetes API.
+ * The Floor decides WHAT to dispatch; the agent performs it.
+ */
+export const clusterAgent = (): ClusterAgentClient =>
+  (clusterAgentSingleton ??= new ClusterAgentClient(
+    process.env.CLUSTER_AGENT_URL ?? "",
+    internalToken(),
+  ));

@@ -1,3 +1,6 @@
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
+import { zodResponse } from "../../../server/plugins/zod-response.js";
+import { rethrowBoom, apiError } from "../../../server/api-error.js";
 import {
   errorMessage,
   cancelPipelineTask,
@@ -59,20 +62,33 @@ async function refusable<T extends object>(
   }
 }
 
+/**
+ * One POST multiplexes create, cancel, retry, run-now, revise and set-priority,
+ * so the contract is the union of what those answer — the created task, or the
+ * transition's own acknowledgement.
+ */
+const TaskWriteSchema = z.record(z.unknown());
+
 export function taskPostRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "POST",
     path: "/api/task",
-    options: {
-      ...bearerScope("task"),
-      validate: { payload: zodValidate(TaskBody) },
-    },
+    options: zodResponse(
+      {
+        ...bearerScope("task"),
+        validate: { payload: zodValidate(TaskBody) },
+      },
+      TaskWriteSchema,
+      {
+        name: "TaskWriteResult",
+        description: "The created task, or the transition's acknowledgement",
+        errors: [400, 404, 409],
+      },
+    ),
     handler: async (request, h) => {
       const pool = getPool();
 
-      if (!pool) {
-        return h.response({ error: DB_UNAVAILABLE }).code(503);
-      }
+      enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
 
       try {
         const parsed = request.payload as TaskBody;
@@ -146,11 +162,11 @@ export function taskPostRoute(getPool: () => Pool | null): ServerRoute {
             "cancelled",
           ];
 
-          if (!allowedStatuses.includes(parsed.status)) {
-            return h
-              .response({ error: `invalid status: ${parsed.status}` })
-              .code(400);
-          }
+          enforceTrue(
+            allowedStatuses.includes(parsed.status),
+            apiError(400),
+            `invalid status: ${parsed.status}`,
+          );
           const setClauses = ["status = $1", "updated_at = now()"];
           const values: unknown[] = [parsed.status];
 
@@ -187,21 +203,22 @@ export function taskPostRoute(getPool: () => Pool | null): ServerRoute {
           created_by,
         } = parsed;
 
-        if (!description?.trim()) {
-          return h.response({ error: "description is required" }).code(400);
-        }
+        // `typeof` first so the assertion narrows `description` itself — an
+        // optional-chained CALL is not a reference TS can carry a narrowing on.
+        enforceTrue(
+          typeof description === "string" && description.trim() !== "",
+          apiError(400),
+          "description is required",
+        );
 
         // Onboarding is guarded (duplicate onboard tasks each file their own
         // Issue and race their own PR — #968), and the guard lives in the
         // /api/onboard transaction. Refuse here rather than route around it.
-        if (task_type === "onboard") {
-          return h
-            .response({
-              error:
-                "onboard tasks are created via POST /api/onboard, which guards against duplicates",
-            })
-            .code(400);
-        }
+        enforceTrue(
+          task_type !== "onboard",
+          apiError(400),
+          "onboard tasks are created via POST /api/onboard, which guards against duplicates",
+        );
         const validTypes = getTaskTypes();
         const resolvedType = validTypes.includes(task_type || "")
           ? task_type
@@ -218,6 +235,10 @@ export function taskPostRoute(getPool: () => Pool | null): ServerRoute {
 
         return h.response(result);
       } catch (err) {
+        // A guard's refusal already carries its status; only an unexpected failure
+        // is this block's to shape.
+        rethrowBoom(err);
+
         console.error("[api/task] error:", errorMessage(err));
 
         return h.response({ error: errorMessage(err) }).code(500);

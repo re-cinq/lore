@@ -1,3 +1,6 @@
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
+import { apiError } from "../../../server/api-error.js";
+import { zodResponse } from "../../../server/plugins/zod-response.js";
 import type { Pool } from "pg";
 import type { Request, ServerRoute } from "@hapi/hapi";
 import { createHmac, timingSafeEqual } from "node:crypto";
@@ -21,6 +24,12 @@ function safeEqual(a: string, b: string): boolean {
  * comma-delimited list of `v1=<hex>` signatures (more than one during secret
  * rotation). Accept the request if any entry matches.
  */
+/** The incident was recorded against a repo. */
+const IncidentRecordedSchema = z.object({
+  ok: z.literal(true),
+  repo: z.string(),
+});
+
 export function verifyPagerDutySignature(
   secret: string,
   header: string | undefined,
@@ -134,16 +143,23 @@ export function incidentWebhookRoute(getPool: () => Pool | null): ServerRoute {
     path: "/api/webhook/incident",
     // Auth-exempt from the bearer-scope strategy: this route verifies senders
     // itself (PagerDuty HMAC or an Opsgenie shared token) below.
-    options: { auth: false, payload: { parse: false } },
+    options: zodResponse(
+      { auth: false, payload: { parse: false } },
+      IncidentRecordedSchema,
+      {
+        name: "IncidentRecorded",
+        description: "The incident was attached to a repo",
+      },
+    ),
     handler: async (request, h) => {
       const secret = process.env.LORE_INCIDENT_WEBHOOK_SECRET;
       const token = process.env.LORE_INCIDENT_WEBHOOK_TOKEN;
 
-      if (!secret && !token) {
-        return h
-          .response({ error: "incident webhook not configured" })
-          .code(503);
-      }
+      enforceTrue(
+        secret || token,
+        apiError(503),
+        "incident webhook not configured",
+      );
 
       const body = rawBody(request);
       const sigHeader = request.headers["x-pagerduty-signature"];
@@ -153,37 +169,35 @@ export function incidentWebhookRoute(getPool: () => Pool | null): ServerRoute {
       const presented = presentedToken(request);
       const tokenOk = !!token && !!presented && safeEqual(presented, token);
 
-      if (!signatureOk && !tokenOk) {
-        return h.response({ error: "unauthorized" }).code(401);
-      }
+      enforceTrue(signatureOk || tokenOk, apiError(401), "unauthorized");
 
       const result = parseIncident(body, Date.now());
 
+      // Not a precondition: `result.error` exists only inside this branch, so
+      // hoisting the read into an enforce argument would type-error.
       if ("error" in result) {
         return h.response({ error: result.error }).code(400);
       }
 
       const pool = getPool();
 
-      if (!pool) {
-        return h.response({ error: "database unavailable" }).code(503);
-      }
+      enforceTrue(pool, apiError(503), "database unavailable");
 
       try {
         await pool.query(
           `UPDATE lore.repos
-           SET settings = jsonb_set(
-             COALESCE(settings, '{}'),
-             '{incidents}',
-             (SELECT jsonb_agg(elem) FROM (
-               SELECT elem FROM jsonb_array_elements(
-                 COALESCE(settings->'incidents', '[]') || $2::jsonb
-               ) AS elem
-               ORDER BY elem->>'date' DESC
-               LIMIT 10
-             ) sub)
-           )
-           WHERE full_name = $1`,
+             SET settings = jsonb_set(
+               COALESCE(settings, '{}'),
+               '{incidents}',
+               (SELECT jsonb_agg(elem) FROM (
+                 SELECT elem FROM jsonb_array_elements(
+                   COALESCE(settings->'incidents', '[]') || $2::jsonb
+                 ) AS elem
+                 ORDER BY elem->>'date' DESC
+                 LIMIT 10
+               ) sub)
+             )
+             WHERE full_name = $1`,
           [result.repo, JSON.stringify(result.entry)],
         );
 

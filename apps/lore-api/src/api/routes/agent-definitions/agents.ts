@@ -1,6 +1,10 @@
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import type { Pool } from "pg";
+import { rethrowBoom, apiError } from "../../../server/api-error.js";
 import type { ServerRoute } from "@hapi/hapi";
 import type { AgentDefinition } from "@re-cinq/lore-shared";
+import { ResolvedAgentDefinitionSchema } from "@re-cinq/lore-shared/models/agent-definition.js";
+import { z } from "zod";
 import { projectFor } from "../../../platform/project-boot.js";
 import {
   parseAgentInput,
@@ -13,6 +17,7 @@ import {
   deleteAgentCrds,
 } from "../../../features/agents/agent-crd-k8s.js";
 import { bearerScope } from "../../../server/plugins/bearer-scope.js";
+import { zodResponse } from "../../../server/plugins/zod-response.js";
 import { checkApproval } from "../two-key.js";
 
 /**
@@ -26,6 +31,32 @@ import { checkApproval } from "../two-key.js";
 const BASE = "/api/repos/{owner}/{repo}/agent-definitions";
 const repoOf = (params: Record<string, string>) =>
   `${params.owner}/${params.repo}`;
+/** The ceremony that authorised a write — `two_key` when the image was touched. */
+const CeremonySchema = z.object({
+  tier: z.enum(["two_key", "admin"]),
+  pr_ref: z.string().optional(),
+  approver: z.string().optional(),
+});
+
+/** GET answers with ONE definition when a name is given, the list when it is not. */
+const AgentReadSchema = z.union([
+  ResolvedAgentDefinitionSchema,
+  z.object({ agents: z.array(ResolvedAgentDefinitionSchema) }),
+]);
+
+const AgentWrittenSchema = z.object({
+  ok: z.literal(true),
+  agent: ResolvedAgentDefinitionSchema,
+  ceremony: CeremonySchema,
+  crd_applied: z.boolean(),
+});
+
+const AgentDeletedSchema = z.object({
+  ok: z.literal(true),
+  deleted: z.string(),
+  crd_deleted: z.boolean(),
+});
+
 const IMAGE_DETAIL =
   "Changing an agent's execution image requires an X-Lore-Approval-PR header. " +
   "Reference an open PR labeled `dark-factory-approval` by a CODEOWNER.";
@@ -40,11 +71,13 @@ export function agentsGetRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "GET",
     path: `${BASE}/{name?}`,
-    options: bearerScope("read"),
+    options: zodResponse(bearerScope("read"), AgentReadSchema, {
+      name: "AgentDefinitionRead",
+      description: "One resolved agent definition, or the repo's list",
+      errors: [404],
+    }),
     handler: async (request, h) => {
-      if (!getPool()) {
-        return h.response({ error: "database unavailable" }).code(503);
-      }
+      enforceTrue(getPool(), apiError(503), "database unavailable");
       const name = request.params.name as string | undefined;
 
       try {
@@ -53,17 +86,21 @@ export function agentsGetRoute(getPool: () => Pool | null): ServerRoute {
         if (name) {
           const def = await project.agentDefs.resolve(name);
 
-          if (!def) {
-            return h
-              .response({ error: "agent definition not found", name })
-              .code(404);
-          }
+          enforceTrue(
+            def,
+            apiError(404, { name }),
+            "agent definition not found",
+          );
 
           return h.response(def);
         }
 
         return h.response({ agents: await project.agentDefs.list() });
       } catch (err) {
+        // A guard's refusal already carries its status; only an unexpected failure
+        // is this block's to shape.
+        rethrowBoom(err);
+
         console.error("[agents] route failed:", err);
 
         return h.response({ error: "internal" }).code(500);
@@ -76,13 +113,15 @@ export function agentsPostRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "POST",
     path: BASE,
-    options: bearerScope("admin"),
+    options: zodResponse(bearerScope("admin"), AgentWrittenSchema, {
+      name: "AgentDefinitionWritten",
+      description: "The created definition, its ceremony, and the CRD outcome",
+      errors: [400],
+    }),
     handler: async (request, h) => {
       const pool = getPool();
 
-      if (!pool) {
-        return h.response({ error: "database unavailable" }).code(503);
-      }
+      enforceTrue(pool, apiError(503), "database unavailable");
       const repo = repoOf(request.params);
 
       try {
@@ -142,13 +181,15 @@ export function agentsPutRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "PUT",
     path: `${BASE}/{name}`,
-    options: bearerScope("admin"),
+    options: zodResponse(bearerScope("admin"), AgentWrittenSchema, {
+      name: "AgentDefinitionWritten",
+      description: "The updated definition, its ceremony, and the CRD outcome",
+      errors: [400],
+    }),
     handler: async (request, h) => {
       const pool = getPool();
 
-      if (!pool) {
-        return h.response({ error: "database unavailable" }).code(503);
-      }
+      enforceTrue(pool, apiError(503), "database unavailable");
       const repo = repoOf(request.params);
       const name = request.params.name;
 
@@ -209,13 +250,14 @@ export function agentsDeleteRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "DELETE",
     path: `${BASE}/{name}`,
-    options: bearerScope("admin"),
+    options: zodResponse(bearerScope("admin"), AgentDeletedSchema, {
+      name: "AgentDefinitionDeleted",
+      description: "Which definition was removed, and the CRD outcome",
+    }),
     handler: async (request, h) => {
       const pool = getPool();
 
-      if (!pool) {
-        return h.response({ error: "database unavailable" }).code(503);
-      }
+      enforceTrue(pool, apiError(503), "database unavailable");
       const repo = repoOf(request.params);
       const name = request.params.name;
 

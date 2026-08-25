@@ -7,6 +7,13 @@ import type {
   EpisodeInsert,
   AuditLogInsert,
 } from "./memory-lifecycle-port.js";
+import type { Assert, KeysAreColumns } from "../../lib/row.js";
+import {
+  MEMORY_ENTRY_COLUMNS,
+  type MemoryEntry,
+} from "../../models/memory-entry.js";
+import { FACT_COLUMNS, type Fact } from "../../models/fact.js";
+import { EPISODE_COLUMNS, type Episode } from "../../models/episode.js";
 
 // ── In-memory row shapes (modelling the memory.* tables) ─────────────
 
@@ -25,7 +32,14 @@ export interface MemoryLifecycleRow {
   expires_at: string | null;
 }
 
-/** A `memory.facts` row the double tracks. */
+/**
+ * A `memory.facts` row the double tracks.
+ *
+ * `agent_id` and `repo` are NOT columns of that table — a fact reaches its
+ * agent through the memory or episode it came from. They are flattened here so
+ * a seed can state ownership in one line, and the Pg adapter must reproduce
+ * them by joining, never by selecting a column of that name.
+ */
 export interface FactRow {
   id: string;
   agent_id: string;
@@ -372,3 +386,27 @@ export class InMemoryMemoryLifecycle implements MemoryLifecyclePort {
     };
   }
 }
+
+// ── The double's rows ARE the tables' rows ───────────────────────────
+//
+// Type-only, so it costs nothing at runtime and fails `tsc` the moment a shape
+// here names something the table does not have. A double whose rows drifted from
+// the columns is how a `42703` passes its own tests: the in-memory half agrees
+// with the shape, the SQL half disagrees with the database, and both are green.
+
+type _MemoryRowKeysAreColumns = Assert<
+  KeysAreColumns<MemoryLifecycleRow, MemoryEntry, typeof MEMORY_ENTRY_COLUMNS>
+>;
+
+// `agent_id` and `repo` are the documented exceptions: a fact reaches its agent
+// through the memory or episode it came from, so the Pg adapter must produce
+// them by JOINING and never by selecting a column of that name. Listing them
+// here makes the exception a thing someone wrote down rather than a paragraph
+// someone has to believe — and adding a third silently is now a build failure.
+type _FactRowKeysAreColumns = Assert<
+  KeysAreColumns<Omit<FactRow, "agent_id" | "repo">, Fact, typeof FACT_COLUMNS>
+>;
+
+type _EpisodeRowKeysAreColumns = Assert<
+  KeysAreColumns<EpisodeRow, Episode, typeof EPISODE_COLUMNS>
+>;

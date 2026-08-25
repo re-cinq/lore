@@ -46,7 +46,10 @@ vi.mock("../../kernel/db.js", () => ({
   query: (...a: unknown[]) => query(...a),
   getPool: () => ({ query: async () => ({ rows: [] }) }),
 }));
-vi.mock("../lib/episode-writer.js", () => ({
+// Spread the real barrel: episode-writer moved into it, and replacing the whole
+// module would take every other export down with it.
+vi.mock("@re-cinq/lore-shared", async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   writeEpisode: (...a: unknown[]) => writeEpisode(...a),
 }));
 
@@ -126,6 +129,31 @@ describe("handleOnboard", () => {
 
     expect(workflowCall).toBeLessThan(
       fakePulls.open.mock.invocationCallOrder[0],
+    );
+  });
+});
+
+describe("handleOnboard backlog label seeding", () => {
+  it("seeds the priority taxonomy and lore:blocked alongside the dispatch labels", async () => {
+    await handleOnboard(
+      { id: "task-1" } as unknown as PipelineTask,
+      "re-cinq/app",
+      "lore/onboard",
+      undefined,
+      null,
+    );
+
+    const seeded = fakeIssues.createLabels.mock.calls.flat(2) as Array<{
+      name: string;
+    }>;
+
+    expect(seeded.map((l) => l.name)).toEqual(
+      expect.arrayContaining([
+        "priority:high",
+        "priority:medium",
+        "priority:low",
+        "lore:blocked",
+      ]),
     );
   });
 });

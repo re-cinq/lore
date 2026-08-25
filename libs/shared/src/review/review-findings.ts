@@ -112,6 +112,23 @@ function includes<T extends string>(allowed: T[], value: unknown): value is T {
   return typeof value === "string" && (allowed as string[]).includes(value);
 }
 
+/**
+ * An optional field: absent, explicitly null, or of the right type.
+ *
+ * `null` counts as absent because that is what it means here. A model writing
+ * `"suggestion": null` for a finding that has no suggestion is saying the same
+ * thing as omitting the key, and the two spellings must not decide whether a
+ * review reaches the author.
+ *
+ * Read as a VALUE, one null failed its type check, `every` failed with it, and
+ * the ENTIRE block was discarded — so a review that found ten things posted none
+ * and its node failed with the findings lost. That is the shape of #1401, and it
+ * recurred six times on one PR on 2026-08-25 before anyone could read what the
+ * review had actually said.
+ *
+ * A wrong TYPE is still rejected: this widens what counts as absent, not what
+ * counts as valid.
+ */
 function optional(value: unknown, check: (v: unknown) => boolean): boolean {
-  return value === undefined || check(value);
+  return value === undefined || value === null || check(value);
 }

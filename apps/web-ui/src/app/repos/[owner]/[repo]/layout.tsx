@@ -19,6 +19,7 @@ export default async function RepoLayout({
     { href: `${base}/assembled`, label: "Assembled" },
     { href: `${base}/specs`, label: "Specs" },
     { href: `${base}/features`, label: "Features" },
+    { href: `${base}/implementation-loop`, label: "Backlog" },
     { href: `${base}/adrs`, label: "ADRs" },
     { href: `${base}/graph`, label: "Graph" },
     { href: `${base}/agents`, label: "Agents" },

@@ -18,6 +18,14 @@
       "types": "./dist/http/*.d.ts",
       "default": "./dist/http/*.js"
     },
+    "./cluster/*.js": {
+      "types": "./dist/cluster/*.d.ts",
+      "default": "./dist/cluster/*.js"
+    },
+    "./db/*.js": {
+      "types": "./dist/db/*.d.ts",
+      "default": "./dist/db/*.js"
+    },
     "./detect/*.js": {
       "types": "./dist/detect/*.d.ts",
       "default": "./dist/detect/*.js"
@@ -34,6 +42,18 @@
       "types": "./dist/commit-trailers.d.ts",
       "default": "./dist/commit-trailers.js"
     },
+    "./error-classify.js": {
+      "types": "./dist/error-classify.d.ts",
+      "default": "./dist/error-classify.js"
+    },
+    "./k8s-pod-failure.js": {
+      "types": "./dist/k8s-pod-failure.d.ts",
+      "default": "./dist/k8s-pod-failure.js"
+    },
+    "./escalation/*.js": {
+      "types": "./dist/escalation/*.d.ts",
+      "default": "./dist/escalation/*.js"
+    },
     "./feature-planning/*.js": {
       "types": "./dist/feature-planning/*.d.ts",
       "default": "./dist/feature-planning/*.js"
@@ -49,6 +69,14 @@
     "./lib/*.js": {
       "types": "./dist/lib/*.d.ts",
       "default": "./dist/lib/*.js"
+    },
+    "./models/*.js": {
+      "types": "./dist/models/*.d.ts",
+      "default": "./dist/models/*.js"
+    },
+    "./task-types/*.js": {
+      "types": "./dist/task-types/*.d.ts",
+      "default": "./dist/task-types/*.js"
     },
     "./spec-link-parser.js": {
       "types": "./dist/spec-link-parser.d.ts",
@@ -88,6 +116,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",
     "@google-cloud/storage": "^7.19.0",
+    "@hapi/boom": "^10.0.1",
     "@opentelemetry/api": "^1.9.0",
     "dgraph-js-http": "^23.0.0-rc1",
     "libsodium-wrappers": "^0.8.2",
@@ -99,6 +128,7 @@
   },
   "devDependencies": {
     "@octokit/auth-app": "^7.1.0",
+    "@re-cinq/agent-contracts": "^0.10.0",
     "@types/node": "^22.13.10",
     "@types/pg": "^8.20.0",
     "@vitest/coverage-v8": "^4.1.10",

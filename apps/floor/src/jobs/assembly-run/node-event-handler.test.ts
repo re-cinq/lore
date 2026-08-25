@@ -7,6 +7,8 @@ import {
   type AgentNodeStatus,
 } from "@re-cinq/lore-assembly-lines";
 import { createNodeEventHandler } from "./node-event-handler.js";
+import { BillingAlertThrottle, maybeAlertBilling } from "./billing-alert.js";
+import { LlmDispatchGate } from "./llm-dispatch-gate.js";
 
 const line: AssemblyLine = parseAssemblyLine(`
 name: code-review
@@ -43,22 +45,64 @@ function harness() {
   const launched: LoreTaskSpec[] = [];
   const statusByName: Record<string, AgentNodeStatus | null> = {};
   const billingAlerts: Array<{ repo: string; nodeType: string }> = [];
+  const deps = {
+    assemblyRuns: port,
+    definitions: async () => new Map([["code-review", line]]),
+    launch: async (spec: LoreTaskSpec) => {
+      launched.push(spec);
+    },
+    resolvePrompt: (ref: string) => `prompt:${ref}`,
+    cleanupToken: async () => {},
+    jobRuns: { complete: async () => {}, fail: async () => {} },
+    readAgentStatus: async (name: string) => statusByName[name] ?? null,
+    alertBilling: async (repo: string, nodeType: string) => {
+      billingAlerts.push({ repo, nodeType });
+    },
+  };
+
+  return {
+    port,
+    launched,
+    statusByName,
+    billingAlerts,
+    deps,
+    handler: createNodeEventHandler(deps),
+  };
+}
+
+/**
+ * The same handler with the REAL `maybeAlertBilling` behind the seam instead of
+ * a recorder.
+ *
+ * This composition is the one nobody tested, and the gap was the bug (#1455):
+ * `billing-alert.test.ts` fed the pure function raw NDJSON, `harness()` above
+ * stubs the seam out entirely, and in between them the handler normalizes the
+ * status — destroying the very result line the alert needed. Both suites were
+ * green for months while the alert never fired once in production.
+ */
+function alertingHarness() {
+  const port = new InMemoryAssemblyRuns();
+  const sent: string[] = [];
+  const statusByName: Record<string, AgentNodeStatus | null> = {};
   const handler = createNodeEventHandler({
     assemblyRuns: port,
     definitions: async () => new Map([["code-review", line]]),
-    launch: async (spec) => {
-      launched.push(spec);
-    },
+    launch: async () => {},
     resolvePrompt: (ref) => `prompt:${ref}`,
     cleanupToken: async () => {},
     jobRuns: { complete: async () => {}, fail: async () => {} },
     readAgentStatus: async (name) => statusByName[name] ?? null,
-    alertBilling: async (repo, nodeType) => {
-      billingAlerts.push({ repo, nodeType });
+    alertBilling: async (repo, nodeType, status) => {
+      await maybeAlertBilling(repo, nodeType, status, {
+        notify: async (_level, message) => {
+          sent.push(message);
+        },
+        throttle: new BillingAlertThrottle(60_000, () => 0),
+      });
     },
   });
 
-  return { port, launched, statusByName, billingAlerts, handler };
+  return { port, sent, statusByName, handler, launched: [] as LoreTaskSpec[] };
 }
 
 async function reviewInFlight(h: ReturnType<typeof harness>) {
@@ -121,6 +165,73 @@ describe("createNodeEventHandler", () => {
     await h.handler(params(id, crName, "Failed"));
 
     expect(h.billingAlerts).toEqual([{ repo: "o/r", nodeType: "agent" }]);
+  });
+
+  it("alerts through the real billing path when the pod died out of credits", async () => {
+    const h = alertingHarness();
+    const { id, crName } = await reviewInFlight(
+      h as unknown as ReturnType<typeof harness>,
+    );
+
+    // Exactly what the cluster wrote for agent-job-3f05f9c7-cd2-analyze-2.
+    h.statusByName[crName] = {
+      phase: "Failed",
+      failureReason:
+        "BackoffLimitExceeded: Job has reached the specified backoff limit",
+      output: [
+        JSON.stringify({
+          type: "result",
+          is_error: true,
+          subtype: "success",
+          terminal_reason: "api_error",
+          api_error_status: 400,
+          result: "Credit balance is too low",
+        }),
+        JSON.stringify({ kind: "lifecycle", exitCode: 1, status: "failed" }),
+      ].join("\n"),
+    };
+    await h.handler(params(id, crName, "Failed"));
+
+    expect(h.sent).toHaveLength(1);
+    expect(h.sent[0]).toContain("Credit balance is too low");
+    expect(h.sent[0]).toContain("out of credits");
+  });
+
+  it("trips the dispatch gate when a node died of a dry account", async () => {
+    const h = harness();
+    const gate = new LlmDispatchGate(() => new Date());
+    const { id, crName } = await reviewInFlight(h);
+
+    h.statusByName[crName] = {
+      phase: "Failed",
+      failureReason: "BackoffLimitExceeded",
+      output: JSON.stringify({
+        type: "result",
+        is_error: true,
+        result: "Credit balance is too low",
+      }),
+    };
+    await createNodeEventHandler({ ...h.deps, llmGate: gate })(
+      params(id, crName, "Failed"),
+    );
+
+    expect(gate.isBlocked()).toEqual(true);
+  });
+
+  it("leaves the dispatch gate alone for a failure that is only this run's", async () => {
+    const h = harness();
+    const gate = new LlmDispatchGate(() => new Date());
+    const { id, crName } = await reviewInFlight(h);
+
+    h.statusByName[crName] = {
+      phase: "Failed",
+      failureReason: "OOMKilled",
+    };
+    await createNodeEventHandler({ ...h.deps, llmGate: gate })(
+      params(id, crName, "Failed"),
+    );
+
+    expect(gate.isBlocked()).toEqual(false);
   });
 
   it("does not fire the billing alert on a successful node", async () => {
@@ -212,5 +323,67 @@ describe("createNodeEventHandler", () => {
 
     expect(h.port.nodes).toHaveLength(1);
     expect(await h.port.getById(id)).toMatchObject({ outcome: "completed" });
+  });
+});
+
+describe("a declared artifact is delivered before the walk advances", () => {
+  const fileLine = (over: Record<string, unknown> = {}) =>
+    JSON.stringify({
+      source: { task: "t1" },
+      event: {
+        kind: "file",
+        event: "spec.plan",
+        path: "target/spec-plan.json",
+        content: '{"updates":[]}',
+        ...over,
+      },
+    });
+
+  const openRun = async (h: ReturnType<typeof harness>, output: string) => {
+    const { id, crName } = await reviewInFlight(h);
+
+    h.statusByName[crName] = { phase: "Succeeded", output };
+
+    return { id, crName };
+  };
+
+  it("merges a declared artifact from the terminal status into the line's args before the walk advances", async () => {
+    const h = harness();
+    const { id, crName } = await openRun(h, `{"type":"log"}\n${fileLine()}`);
+
+    await h.handler(params(id, crName));
+
+    expect((await h.port.getById(id))?.args).toMatchObject({
+      spec_plan: '{"updates":[]}',
+    });
+  });
+
+  it("a sink delivery that already merged the artifact leaves the terminal merge a no-op", async () => {
+    const h = harness();
+    const { id, crName } = await openRun(h, fileLine());
+
+    // The sink is the fast path and normally wins; the terminal merge writes the
+    // same content, so ordering between them changes nothing.
+    await h.port.mergeArgs(id, { spec_plan: '{"updates":[]}' });
+    await h.handler(params(id, crName));
+
+    expect((await h.port.getById(id))?.args).toMatchObject({
+      spec_plan: '{"updates":[]}',
+    });
+  });
+
+  it("fails the node when its declared artifact was never produced, instead of advancing without it", async () => {
+    const h = harness();
+    const { id, crName } = await openRun(
+      h,
+      fileLine({ content: null, reason: "file not found" }),
+    );
+
+    await h.handler(params(id, crName));
+
+    const visits = await h.port.listStationRuns(id);
+
+    expect(visits[0]).toMatchObject({ outcome: "failed" });
+    expect(visits[0].failureDetail).toContain("spec.plan (file not found)");
   });
 });

@@ -7,17 +7,10 @@ import {
 import { loadBuiltinAssemblyLines } from "@re-cinq/lore-assembly-lines";
 import { getPool } from "../kernel/db.js";
 import { AgentCrBackend } from "../jobs/station/agent-backend.js";
-import { KubeAgentApi } from "../jobs/station/kube-agent-api.js";
 import { HttpContextSource } from "../jobs/station/http-context-source.js";
-import {
-  KubeTokenProvisioner,
-  GithubTokenMinter,
-  KubeSecretKeyWriter,
-  KubeCatalogApi,
-} from "../jobs/station/kube-token-provisioner.js";
-import { PlatformGitHub } from "@re-cinq/lore-shared/project/lib/platform-github.js";
+import { HttpAgentApi, HttpTokenProvisioner } from "@re-cinq/lore-shared";
 import { AssemblyLineStationBackend } from "../jobs/assembly-run/assembly-run-station-backend.js";
-import { assemblyRuns } from "../kernel/queues.js";
+import { clusterAgent, pipeline } from "../kernel/queues.js";
 import { AgentCrStationBackend } from "../jobs/station/agent-cr-station-backend.js";
 
 /**
@@ -41,14 +34,12 @@ const NO_OP_DGRAPH = {
  * became the sole path.)
  */
 export function agentCrBackend(): AgentCrBackend {
+  // Both halves now go through the cluster agent: the Floor decides what to
+  // dispatch and provision, the agent performs it. No Kubernetes client here.
   return new AgentCrBackend(
-    new KubeAgentApi(),
+    new HttpAgentApi(clusterAgent()),
     new HttpContextSource(),
-    new KubeTokenProvisioner(
-      new GithubTokenMinter(new PlatformGitHub(process.env)),
-      new KubeSecretKeyWriter(),
-      new KubeCatalogApi(),
-    ),
+    new HttpTokenProvisioner(clusterAgent()),
   );
 }
 
@@ -60,10 +51,10 @@ export function stationBackend(
   return new AgentCrStationBackend(
     // launch() = project.assemblyRuns.start(); the assembly_line.start event
     // handler launches the entry node — the walk advances on agent_node events.
-    new AssemblyLineStationBackend(assemblyRuns()),
+    new AssemblyLineStationBackend(pipeline().assemblyRuns),
     agentBackend,
     assemblyLineDefinitions,
-    assemblyRuns(),
+    pipeline().assemblyRuns,
   );
 }
 
@@ -80,5 +71,8 @@ export async function projectFor(repo: string): Promise<Project> {
   const dgraph = createDgraphClient() ?? NO_OP_DGRAPH;
   const station = stationBackend(await assemblyLineNames());
 
-  return createProject(repo, getPool(), dgraph, process.env, { station });
+  return createProject(repo, getPool(), dgraph, process.env, {
+    station,
+    pipeline: pipeline(),
+  });
 }

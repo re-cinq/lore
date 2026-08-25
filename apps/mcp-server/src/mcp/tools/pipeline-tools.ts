@@ -669,7 +669,7 @@ export function registerPipelineTools(server: McpServer) {
 
   server.tool(
     "lore_get_task_logs",
-    "Fetches one pipeline task's execution transcript (by UUID), returning {logs, next_offset, complete}. Tasks with recorded agent turns return NDJSON — one {source, event} stream-json envelope per line from the turn store; tasks with no recorded turns fall back to the raw captured output. Responses may be capped: pass next_offset back as offset and poll until complete is true. Instead: lore_get_job_logs (job_name + run_id) for scheduled CronJob run logs.",
+    "Fetches one pipeline task's execution transcript (by UUID), returning {logs, next_offset, complete, cursor?}. Tasks with recorded agent turns return NDJSON — one {source, event} stream-json envelope per line from the turn store; tasks with no recorded turns fall back to the raw captured output. Responses may be capped: pass next_offset back as offset (and cursor back verbatim, when present) and poll until complete is true. Instead: lore_get_job_logs (job_name + run_id) for scheduled CronJob run logs.",
     {
       task_id: z.string(),
       offset: z
@@ -678,8 +678,14 @@ export function registerPipelineTools(server: McpServer) {
         .describe(
           "UTF-16 code-unit offset (not bytes) into the flattened transcript; pass previous next_offset to poll incrementally.",
         ),
+      cursor: z
+        .string()
+        .optional()
+        .describe(
+          "Opaque resume cursor from the previous response; pass it back only together with that response's next_offset as offset. Omit it when reading from any other offset.",
+        ),
     },
-    async ({ task_id, offset }) => {
+    async ({ task_id, offset, cursor }) => {
       try {
         // Logs live server-side (turn store, GCS fallback); proxy the read. The API resolves the
         // task's repo from task_id — the local adapter holds no DB to look it up,
@@ -698,10 +704,17 @@ export function registerPipelineTools(server: McpServer) {
           };
         }
         const params = new URLSearchParams({ task_id, offset: String(offset) });
+
+        if (cursor !== undefined) {
+          params.set("cursor", cursor);
+        }
         const proxied = await withReadCache(
           {
             tool: "lore_get_task_logs",
-            args: { task_id, offset },
+            args:
+              cursor === undefined
+                ? { task_id, offset }
+                : { task_id, offset, cursor },
             ttlSeconds: 86400,
           },
           async () => {

@@ -14,6 +14,11 @@ import type { AssemblyRunRow, AssemblyRunNodeRow } from "./assembly-runs";
 const baseRow: AssemblyRunRow = {
   id: "al-1",
   blueprint_name: "implementation",
+  // Served alongside blueprint_name for the rollout window; the generated type
+  // carries it, so a fixture that omitted it was describing a body lore-api
+  // never sends.
+  definition_name: "implementation",
+  subject_key: null,
   graph: null,
   task_id: "task-9",
   repo: "re-cinq/lore",
@@ -98,6 +103,8 @@ describe("toAssemblyRunNode", () => {
       iteration: 1,
       outcome: "success",
       agent_cr_name: "a1b2c3d4-implement",
+      station_run_id: null,
+      input: null,
       commit_sha: "deadbeef",
       started_at: "2026-07-14T10:00:05Z",
       finished_at: "2026-07-14T10:01:05Z",
@@ -108,6 +115,7 @@ describe("toAssemblyRunNode", () => {
       iteration: 1,
       outcome: "success",
       agentCrName: "a1b2c3d4-implement",
+      input: null,
       commitSha: "deadbeef",
       durationSeconds: 60,
       startedAt: "2026-07-14T10:00:05Z",
@@ -120,6 +128,8 @@ describe("toAssemblyRunNode", () => {
         node_id: "review",
         iteration: 1,
         outcome: null,
+        station_run_id: null,
+        input: null,
         agent_cr_name: null,
         commit_sha: null,
         started_at: "2026-07-14T10:00:05Z",

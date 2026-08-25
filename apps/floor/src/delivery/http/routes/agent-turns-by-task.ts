@@ -10,8 +10,9 @@
  * unbounded read.
  */
 
-import { agentRunTurns } from "../../../kernel/queues.js";
+import { pipeline } from "../../../kernel/queues.js";
 import { parseAfter, parseLimit } from "./agent-events-history.js";
+import { PAGE_LOOKAHEAD, pageWithLookahead } from "./agent-turns-history.js";
 import type { ServerRoute } from "@hapi/hapi";
 import type { AgentRunTurnRow } from "@re-cinq/lore-shared";
 
@@ -27,13 +28,14 @@ export function agentTurnsByTaskRoute(turns?: {
     path: "/api/agent-turns/task/{taskId}",
     options: { auth: "ingest-token" },
     handler: async (request, h) => {
-      const rows = await (turns ?? agentRunTurns()).listByTask(
+      const limit = parseLimit(request.query.limit);
+      const rows = await (turns ?? pipeline().agentRunTurns).listByTask(
         request.params.taskId,
         parseAfter(request.query.after),
-        parseLimit(request.query.limit),
+        limit + PAGE_LOOKAHEAD,
       );
 
-      return h.response({ turns: rows }).code(200);
+      return h.response(pageWithLookahead(rows, limit)).code(200);
     },
   };
 }

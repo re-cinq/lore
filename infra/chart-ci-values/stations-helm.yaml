@@ -1,0 +1,21 @@
+# CI fixture: exercises the conditional path a defaults-only render never reaches.
+#
+# Every real `courierJobs` entry is bodyless (memory-ttl, importance-decay,
+# anthropic-cost-sync), so the `{{ if .body }}` block and its Content-Type header
+# are never rendered from default values. Both shapes are covered here.
+#
+# The same applies to any template guarded by an empty list: when courierJobs was
+# `[]`, a defaults-only pass was green against the chomp bug that shipped
+# `emptyDir: {}---`.
+courierJobs:
+  - name: ci-bodyless
+    schedule: "0 * * * *"
+    path: /api/stations/ci-example
+  - name: ci-with-body
+    schedule: "30 5 * * *"
+    path: /api/assembly-runs
+    body:
+      definition: ci-example
+      repo: re-cinq/lore
+      args:
+        lookback_days: 7

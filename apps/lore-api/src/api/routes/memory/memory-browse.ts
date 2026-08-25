@@ -1,6 +1,22 @@
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
+import { apiError } from "../../../server/api-error.js";
 import type { Pool } from "pg";
 import type { ServerRoute } from "@hapi/hapi";
 import { z } from "zod";
+import { wireSchema } from "@re-cinq/lore-shared/lib/wire-schema.js";
+import {
+  SharedPoolSchema,
+  SHARED_POOL_COLUMNS,
+} from "@re-cinq/lore-shared/models/shared-pool.js";
+import {
+  MemoryEntrySchema,
+  MEMORY_ENTRY_COLUMNS,
+} from "@re-cinq/lore-shared/models/memory-entry.js";
+import {
+  EpisodeSchema,
+  EPISODE_COLUMNS,
+} from "@re-cinq/lore-shared/models/episode.js";
+import { zodResponse } from "../../../server/plugins/zod-response.js";
 import { bearerScope } from "../../../server/plugins/bearer-scope.js";
 import { zodValidate } from "../../../server/plugins/zod-validate.js";
 import {
@@ -49,21 +65,132 @@ const MemoriesQuery = z.object({
 
 type MemoriesQuery = z.infer<typeof MemoriesQuery>;
 
+/**
+ * The memory browser's read models. Each shares its stored fields with a model —
+ * derived, so a renamed column cannot leave the contract behind — and states the
+ * COMPUTED ones (counts, previews) that no table holds.
+ */
+const PoolSchema = wireSchema(SharedPoolSchema, SHARED_POOL_COLUMNS);
+
+const PoolListSchema = z.object({
+  pools: z.array(
+    PoolSchema.extend({
+      entry_count: z.number(),
+      agent_count: z.number(),
+    }),
+  ),
+});
+
+const PoolDetailSchema = z.object({
+  pool: PoolSchema,
+  entries: z.array(
+    wireSchema(
+      MemoryEntrySchema.pick({
+        id: true,
+        key: true,
+        value: true,
+        agentId: true,
+        version: true,
+        createdAt: true,
+      }),
+      MEMORY_ENTRY_COLUMNS,
+    ),
+  ),
+});
+
+const EpisodePageSchema = z.object({
+  episodes: z.array(
+    wireSchema(
+      EpisodeSchema.pick({
+        id: true,
+        agentId: true,
+        source: true,
+        ref: true,
+        createdAt: true,
+      }),
+      EPISODE_COLUMNS,
+    ).extend({
+      /** The first 300 characters — the list never ships whole episodes.
+       *  Not nullable: `LEFT()` of a NOT NULL column always yields a string. */
+      content_preview: z.string(),
+      fact_count: z.number(),
+    }),
+  ),
+  total: z.number(),
+});
+
+/**
+ * The knowledge graph as the browser reads it.
+ *
+ * `entities` carries an `edge_count` subquery and `edges` is a three-way join
+ * that reads NAMES rather than ids, so neither is a `memory.entities` or
+ * `memory.edges` row — they are this screen's read models, and the shapes belong
+ * here with the queries.
+ *
+ * `edges` is EMPTY unless an entity is selected: reading them unconditionally is
+ * the explorer's most expensive query, run on every page view.
+ */
+const GraphBrowseSchema = z.object({
+  stats: z.object({
+    entity_count: z.number(),
+    active_edge_count: z.number(),
+    invalidated_edge_count: z.number(),
+  }),
+  entity_types: z.array(z.object({ entity_type: z.string(), cnt: z.number() })),
+  entities: z.array(
+    z.object({
+      id: z.string(),
+      name: z.string(),
+      entity_type: z.string(),
+      repo: z.string().nullable(),
+      updated_at: z.string(),
+      edge_count: z.number(),
+    }),
+  ),
+  edges: z.array(
+    z.object({
+      source_name: z.string(),
+      source_type: z.string(),
+      relation_type: z.string(),
+      target_name: z.string(),
+      target_type: z.string(),
+      valid_from: z.string(),
+      valid_to: z.string().nullable(),
+      source_label: z.string(),
+    }),
+  ),
+});
+
+/** Memories and facts, ranked together — the two carry different fields. */
+const MemorySearchSchema = z.object({
+  results: z.array(z.record(z.unknown())),
+});
+
+/** One agent's memories, each with its version history and extracted facts. */
+const MemoryListSchema = z.object({
+  memories: z.array(z.record(z.unknown())),
+});
+
 export function memoryBrowseRoutes(getPool: () => Pool | null): ServerRoute[] {
   return [
     {
       method: "GET",
       path: "/api/graph-browse",
-      options: {
-        ...bearerScope("read"),
-        validate: { query: zodValidate(GraphBrowseQuery) },
-      },
+      options: zodResponse(
+        {
+          ...bearerScope("read"),
+          validate: { query: zodValidate(GraphBrowseQuery) },
+        },
+        GraphBrowseSchema,
+        {
+          name: "GraphBrowse",
+          description: "Entities and edges of the knowledge graph",
+        },
+      ),
       handler: async (request, h) => {
         const pool = getPool();
 
-        if (!pool) {
-          return h.response({ error: DB_UNAVAILABLE }).code(503);
-        }
+        enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
         const { entity, type, show_invalid } =
           request.query as unknown as GraphBrowseQuery;
 
@@ -125,13 +252,14 @@ export function memoryBrowseRoutes(getPool: () => Pool | null): ServerRoute[] {
     {
       method: "GET",
       path: "/api/pools",
-      options: bearerScope("read"),
+      options: zodResponse(bearerScope("read"), PoolListSchema, {
+        name: "SharedPoolList",
+        description: "Every shared pool, with how much it holds",
+      }),
       handler: async (_request, h) => {
         const pool = getPool();
 
-        if (!pool) {
-          return h.response({ error: DB_UNAVAILABLE }).code(503);
-        }
+        enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
         const { rows } = await pool.query(`
           SELECT sp.id, sp.name, sp.created_by, sp.created_at,
                  count(m.id)::int as entry_count,
@@ -149,22 +277,22 @@ export function memoryBrowseRoutes(getPool: () => Pool | null): ServerRoute[] {
     {
       method: "GET",
       path: "/api/pools/{name}",
-      options: bearerScope("read"),
+      options: zodResponse(bearerScope("read"), PoolDetailSchema, {
+        name: "SharedPoolDetail",
+        description: "One pool and the live entries in it",
+        errors: [404],
+      }),
       handler: async (request, h) => {
         const pool = getPool();
 
-        if (!pool) {
-          return h.response({ error: DB_UNAVAILABLE }).code(503);
-        }
+        enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
         const { rows } = await pool.query(
           `SELECT id, name, created_by, created_at
              FROM memory.shared_pools WHERE name = $1`,
           [request.params.name],
         );
 
-        if (rows.length === 0) {
-          return h.response({ error: "Pool not found" }).code(404);
-        }
+        enforceTrue(rows.length !== 0, apiError(404), "Pool not found");
         const { rows: entries } = await pool.query(
           `SELECT m.id, m.key, m.value, m.agent_id, m.version, m.created_at
              FROM memory.memories m
@@ -182,16 +310,18 @@ export function memoryBrowseRoutes(getPool: () => Pool | null): ServerRoute[] {
     {
       method: "GET",
       path: "/api/episodes",
-      options: {
-        ...bearerScope("read"),
-        validate: { query: zodValidate(EpisodesQuery) },
-      },
+      options: zodResponse(
+        {
+          ...bearerScope("read"),
+          validate: { query: zodValidate(EpisodesQuery) },
+        },
+        EpisodePageSchema,
+        { name: "EpisodePage", description: "A page of ingested episodes" },
+      ),
       handler: async (request, h) => {
         const pool = getPool();
 
-        if (!pool) {
-          return h.response({ error: DB_UNAVAILABLE }).code(503);
-        }
+        enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
         const { source, agent, limit, offset } =
           request.query as unknown as EpisodesQuery;
 
@@ -234,16 +364,21 @@ export function memoryBrowseRoutes(getPool: () => Pool | null): ServerRoute[] {
     {
       method: "GET",
       path: "/api/memory-search",
-      options: {
-        ...bearerScope("read"),
-        validate: { query: zodValidate(MemorySearchQuery) },
-      },
+      options: zodResponse(
+        {
+          ...bearerScope("read"),
+          validate: { query: zodValidate(MemorySearchQuery) },
+        },
+        MemorySearchSchema,
+        {
+          name: "MemorySearchResults",
+          description: "Ranked memories and facts",
+        },
+      ),
       handler: async (request, h) => {
         const pool = getPool();
 
-        if (!pool) {
-          return h.response({ error: DB_UNAVAILABLE }).code(503);
-        }
+        enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
         const { q } = request.query as unknown as MemorySearchQuery;
 
         // Lexical, not semantic: this is the search PAGE, which ranks by
@@ -289,16 +424,21 @@ export function memoryBrowseRoutes(getPool: () => Pool | null): ServerRoute[] {
     {
       method: "GET",
       path: "/api/memories",
-      options: {
-        ...bearerScope("read"),
-        validate: { query: zodValidate(MemoriesQuery) },
-      },
+      options: zodResponse(
+        {
+          ...bearerScope("read"),
+          validate: { query: zodValidate(MemoriesQuery) },
+        },
+        MemoryListSchema,
+        {
+          name: "MemoryList",
+          description: "An agent's memories with versions and facts",
+        },
+      ),
       handler: async (request, h) => {
         const pool = getPool();
 
-        if (!pool) {
-          return h.response({ error: DB_UNAVAILABLE }).code(503);
-        }
+        enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
         const { agent, limit } = request.query as unknown as MemoriesQuery;
 
         const { rows: memories } = await pool.query<{

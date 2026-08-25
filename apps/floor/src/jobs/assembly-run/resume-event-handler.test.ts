@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { InMemoryAssemblyRuns } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-memory.js";
 import { createResumeEventHandler } from "./resume-event-handler.js";
+import type { NodeResult } from "@re-cinq/lore-assembly-lines";
 
 /** Records what the handler did, so the test asserts the PATH, not a mock's shape. */
 function harness() {
@@ -10,6 +11,7 @@ function harness() {
     nodeId: string;
     iteration?: number;
     outcome: string;
+    result: NodeResult;
   }> = [];
   const handler = createResumeEventHandler({
     assemblyRuns: lines,
@@ -19,6 +21,7 @@ function harness() {
         nodeId: input.nodeId,
         iteration: input.iteration,
         outcome: input.result.outcome,
+        result: input.result,
       });
     },
   });
@@ -49,6 +52,7 @@ describe("createResumeEventHandler", () => {
         nodeId: "author",
         iteration: 1,
         outcome: "changes_requested",
+        result: { outcome: "changes_requested" },
       },
     ]);
   });
@@ -107,5 +111,96 @@ describe("createResumeEventHandler", () => {
     const { handler } = harness();
 
     await expect(handler(params({ nodeId: "" }))).rejects.toThrow(/nodeId/);
+  });
+});
+
+describe("a resumed node reports its whole result, not only its outcome", () => {
+  it("carries the extras a follow-up is routed on", async () => {
+    const { handler, finished } = harness();
+
+    await handler(
+      params({
+        nodeId: "triage",
+        outcome: "success",
+        result: { outcome: "success", extras: { action: "address" } },
+      }),
+    );
+
+    expect(finished[0]?.result).toMatchObject({
+      outcome: "success",
+      extras: { action: "address" },
+    });
+  });
+
+  it("carries the failure class the dispatch gate trips on", async () => {
+    const { handler, finished } = harness();
+
+    await handler(
+      params({
+        nodeId: "build",
+        outcome: "failed",
+        result: {
+          outcome: "failed",
+          failureClass: "anthropic-credit",
+          failureDetail: "Credit balance too low",
+        },
+      }),
+    );
+
+    expect(finished[0]?.result).toMatchObject({
+      failureClass: "anthropic-credit",
+      failureDetail: "Credit balance too low",
+    });
+  });
+
+  it("falls back to the bare outcome for a human station, which reports no result", async () => {
+    const { handler, finished } = harness();
+
+    await handler(params());
+
+    expect(finished[0]?.result).toEqual({ outcome: "changes_requested" });
+  });
+
+  it("refuses a result the walk could not route rather than half-applying it", async () => {
+    const { handler } = harness();
+
+    await expect(
+      handler(
+        params({
+          outcome: "success",
+          result: { outcome: "success", extras: { action: 7 } },
+        }),
+      ),
+    ).rejects.toThrow();
+  });
+});
+
+describe("the guarded outcome and the result's outcome must agree", () => {
+  it("rejects a result whose outcome differs from the one the guard checked", async () => {
+    const { handler } = harness();
+
+    await expect(
+      handler(
+        params({
+          nodeId: "triage",
+          outcome: "success",
+          result: { outcome: "failed" },
+        }),
+      ),
+    ).rejects.toThrow(/success.*failed|failed.*success/);
+  });
+
+  it("accepts the result when both spell the same outcome", async () => {
+    const { handler, finished } = harness();
+
+    await handler(
+      params({
+        nodeId: "triage",
+        outcome: "failed",
+        result: { outcome: "failed", failureClass: "unknown" },
+      }),
+    );
+
+    expect(finished[0]?.outcome).toBe("failed");
   });
 });

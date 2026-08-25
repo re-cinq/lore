@@ -7,22 +7,17 @@
 
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { parse } from "yaml";
+import {
+  parseTaskTypesFile,
+  warnOnDrift,
+  type TaskTypeRecipe,
+} from "@re-cinq/lore-shared/task-types/task-types-config.js";
 
-// ── Types ────────────────────────────────────────────────────────────
-
-interface TaskTypeConfig {
-  prompt_template: string;
-  target_repo?: string;
-  timeout_minutes: number;
-  review_required: boolean;
-  // "claude-code" (default, LLM) or "graph-ingest" (deterministic). Absent = claude-code.
-  execution_mode?: string;
-}
+const DEFAULT_PROMPT = "Complete the following task: {description}";
 
 // ── State ────────────────────────────────────────────────────────────
 
-let config: Record<string, TaskTypeConfig> = {};
+let config: Record<string, TaskTypeRecipe> = {};
 
 // ── Public API ───────────────────────────────────────────────────────
 
@@ -43,13 +38,15 @@ export function loadTaskTypes(): void {
 
   for (const p of paths) {
     try {
-      const raw = readFileSync(p, "utf-8");
-      const parsed = parse(raw);
+      const { taskTypes, drift } = parseTaskTypesFile(readFileSync(p, "utf-8"));
 
-      config = parsed.task_types || {};
+      config = taskTypes;
       console.log(
         `[pipeline] Loaded ${Object.keys(config).length} task types from ${p}`,
       );
+      // Same ConfigMap, same #866 risk as the Floor's reader — reported here
+      // too rather than left for whichever process happens to log it.
+      warnOnDrift("[pipeline]", p, drift);
 
       return;
     } catch {
@@ -59,7 +56,7 @@ export function loadTaskTypes(): void {
   console.warn("[pipeline] No task-types.yaml found, using empty config");
 }
 
-export function getTaskTypeConfig(type: string): TaskTypeConfig | null {
+export function getTaskTypeConfig(type: string): TaskTypeRecipe | null {
   return config[type] || null;
 }
 
@@ -72,9 +69,7 @@ export function getDefaultRepo(type: string): string {
 }
 
 export function buildPrompt(type: string, description: string): string {
-  const tmpl =
-    config[type]?.prompt_template ||
-    "Complete the following task: {description}";
+  const tmpl = config[type]?.prompt_template || DEFAULT_PROMPT;
 
   return tmpl.replace("{description}", description);
 }
@@ -89,9 +84,9 @@ export function getTaskTypeConfigForRepo(
     | { task_overrides?: Record<string, Record<string, unknown>> }
     | null
     | undefined,
-): TaskTypeConfig & { model?: string; system_prompt_suffix?: string } {
+): TaskTypeRecipe & { system_prompt_suffix?: string } {
   const base = config[type] || {
-    prompt_template: "Complete the following task: {description}",
+    prompt_template: DEFAULT_PROMPT,
     timeout_minutes: 30,
     review_required: false,
   };
@@ -102,6 +97,8 @@ export function getTaskTypeConfigForRepo(
     ...overrides,
     // Always use base prompt_template unless explicitly overridden
     prompt_template:
-      (overrides.prompt_template as string) || base.prompt_template,
+      (overrides.prompt_template as string) ||
+      base.prompt_template ||
+      DEFAULT_PROMPT,
   };
 }

@@ -1,6 +1,9 @@
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
+import { apiError } from "../../../server/api-error.js";
 import type { Pool } from "pg";
 import type { ServerRoute } from "@hapi/hapi";
 import { z } from "zod";
+import { zodResponse } from "../../../server/plugins/zod-response.js";
 import { bearerScope } from "../../../server/plugins/bearer-scope.js";
 import { zodValidate } from "../../../server/plugins/zod-validate.js";
 import { DB_UNAVAILABLE } from "../common-schemas.js";
@@ -25,18 +28,33 @@ const SettingsBody = z.object({
 
 type SettingsBody = z.infer<typeof SettingsBody>;
 
+/** The org-wide settings document plus how many repos it governs. */
+const OrgSettingsSchema = z.object({
+  settings: z.record(z.unknown()),
+  repo_count: z.number(),
+});
+
+const OkSchema = z.object({ ok: z.literal(true) });
+
+/** How many developers have run a local session against a repo, and when last. */
+const RepoSessionsSchema = z.object({
+  devs: z.number(),
+  last: z.string().nullable(),
+});
+
 export function orgSettingsRoutes(getPool: () => Pool | null): ServerRoute[] {
   return [
     {
       method: "GET",
       path: "/api/settings",
-      options: bearerScope("admin"),
+      options: zodResponse(bearerScope("admin"), OrgSettingsSchema, {
+        name: "OrgSettings",
+        description: "Org-wide settings and the repo count they cover",
+      }),
       handler: async (_request, h) => {
         const pool = getPool();
 
-        if (!pool) {
-          return h.response({ error: DB_UNAVAILABLE }).code(503);
-        }
+        enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
         const { rows: settings } = await pool.query(
           `SELECT key, value, updated_at FROM lore.settings ORDER BY key`,
         );
@@ -54,16 +72,18 @@ export function orgSettingsRoutes(getPool: () => Pool | null): ServerRoute[] {
     {
       method: "PUT",
       path: "/api/settings",
-      options: {
-        ...bearerScope("admin"),
-        validate: { payload: zodValidate(SettingsBody) },
-      },
+      options: zodResponse(
+        {
+          ...bearerScope("admin"),
+          validate: { payload: zodValidate(SettingsBody) },
+        },
+        OkSchema,
+        { name: "OrgSettingsSaved", description: "The settings were written" },
+      ),
       handler: async (request, h) => {
         const pool = getPool();
 
-        if (!pool) {
-          return h.response({ error: DB_UNAVAILABLE }).code(503);
-        }
+        enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
         const { entries } = request.payload as SettingsBody;
 
         const unknown = entries.find((entry) => !WRITABLE_KEYS.has(entry.key));
@@ -94,13 +114,14 @@ export function orgSettingsRoutes(getPool: () => Pool | null): ServerRoute[] {
     {
       method: "GET",
       path: "/api/repos/{owner}/{repo}/sessions",
-      options: bearerScope("read"),
+      options: zodResponse(bearerScope("read"), RepoSessionsSchema, {
+        name: "RepoSessions",
+        description: "Local-session activity against a repo",
+      }),
       handler: async (request, h) => {
         const pool = getPool();
 
-        if (!pool) {
-          return h.response({ error: DB_UNAVAILABLE }).code(503);
-        }
+        enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
         const repo = `${request.params.owner}/${request.params.repo}`;
         const { rows } = await pool.query<{
           devs: number;

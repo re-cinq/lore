@@ -1,0 +1,28 @@
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+
+.section {
+  margin-bottom: 1.5rem;
+}
+
+.ticket {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  padding: 0.4rem 0;
+}
+
+.priority {
+  font-size: 0.8rem;
+  opacity: 0.8;
+}
+
+.state {
+  margin-left: auto;
+  font-size: 0.8rem;
+  opacity: 0.7;
+}

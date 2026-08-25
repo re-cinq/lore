@@ -5,23 +5,34 @@ import {
   maybeAlertBilling,
 } from "./billing-alert.js";
 
-const billingOutput = JSON.stringify({
-  type: "result",
-  is_error: true,
-  result: "Credit balance is too low",
-});
+// What `normalizeAgentStatus` hands the alert in production: the terminal error
+// already lifted off the raw stream, alongside the Job-level reason that says
+// nothing useful. Feeding the raw NDJSON here instead is exactly what hid the
+// never-firing alert (#1455) — the pure function passed while the composition
+// could not.
+const billingStatus = {
+  errorText: "Credit balance is too low",
+  failureReason: "BackoffLimitExceeded: Job has reached the backoff limit",
+};
 
 describe("billingAlertMessage", () => {
   it("names the repo, node type, and the account error for a billing failure", () => {
-    const message = billingAlertMessage("re-cinq/lore", "review", {
-      output: billingOutput,
-      failureReason: "BackoffLimitExceeded: Job has reached the backoff limit",
-    });
+    const message = billingAlertMessage(
+      "re-cinq/lore",
+      "review",
+      billingStatus,
+    );
 
     expect(message).toContain("out of credits");
     expect(message).toContain("Credit balance is too low");
     expect(message).toContain("re-cinq/lore");
     expect(message).toContain("review");
+  });
+
+  it("carries the remediation hint for the credit category", () => {
+    expect(
+      billingAlertMessage("re-cinq/lore", "review", billingStatus),
+    ).toContain("Top up the Anthropic account");
   });
 
   it("falls back to failureReason when the output carries no result line", () => {
@@ -35,12 +46,16 @@ describe("billingAlertMessage", () => {
   it("returns null for a non-billing failure", () => {
     expect(
       billingAlertMessage("re-cinq/lore", "review", {
-        output: JSON.stringify({
-          type: "result",
-          is_error: true,
-          result: "ENOENT: no such file",
-        }),
+        errorText: "ENOENT: no such file",
         failureReason: "deadline",
+      }),
+    ).toBeNull();
+  });
+
+  it("returns null for a rate limit, which is not an empty account", () => {
+    expect(
+      billingAlertMessage("re-cinq/lore", "review", {
+        errorText: "429 rate limit exceeded",
       }),
     ).toBeNull();
   });
@@ -60,7 +75,7 @@ describe("BillingAlertThrottle", () => {
 });
 
 describe("maybeAlertBilling", () => {
-  const status = { output: billingOutput };
+  const status = { errorText: "Credit balance is too low" };
 
   it("sends one throttled alert for a billing failure and reports it sent", async () => {
     const sent: string[] = [];

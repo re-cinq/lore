@@ -19,6 +19,11 @@ export default tseslint.config(
       "!apps/lore-api/src/api/routes/dist/**",
       "**/.next/**",
       "**/node_modules/**",
+      // A git worktree is a SECOND checkout of this repo living inside it
+      // (gitignored, .gitignore:48). Linting it re-reports every finding in the
+      // tree under a path that is not source — 6k duplicate errors, and a
+      // spec-link check that resolves its corpus against the wrong root.
+      "**/.claude/worktrees/**",
       "**/coverage/**",
       "**/.lore-pgdata/**",
       "**/.lore-dgraphdata/**",
@@ -65,10 +70,31 @@ export default tseslint.config(
       "lore/max-boolean-operators": ["error", { max: 2 }],
       "lore/no-io-in-view": "error",
       "lore/require-spec-link": "error",
+      // Repo-WIDE on purpose. A table restated in a port, an adapter or a route
+      // is the same defect as one restated in a view, and scoping this to
+      // web-ui would guard the tier least likely to reach a database. Starts at
+      // `warn`: the existing copies are a decision per type (model it, derive
+      // it, or keep it as a genuine projection), not a codemod. See #1418
+      // and #1421 for the surveys.
+      "lore/no-row-types-outside-models": "warn",
+      // warn, not error: a repo-wide sweep at the time of writing flagged 22
+      // suites — a mix of real copies and tests that legitimately import
+      // nothing (architecture boundaries, migrations, CSS tokens). That list is
+      // a triage queue, and turning it red would block unrelated work.
+      "lore/test-imports-its-subject": "warn",
       "lore/default-export-matches-filename": "error",
       "lore/no-inline-styles": "warn",
       "lore/require-fetch-timeout": "error",
     },
+  },
+
+  // An HTTP refusal is a precondition, so it goes through the same bouncer as
+  // every other guard. Scoped to the two hapi servers — the rule rewrites to
+  // `apiError`, and each server owns its own copy of that helper (shared cannot
+  // hold it without dragging @hapi/boom into the lean MCP adapter, ADR-032).
+  {
+    files: ["apps/lore-api/src/**/*.ts", "apps/floor/src/**/*.ts"],
+    rules: { "lore/prefer-api-error": "error" },
   },
 
   // SVG transforms and measured iframe heights are computed per render — there is

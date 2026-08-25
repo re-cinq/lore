@@ -20,7 +20,7 @@
  */
 
 import { query } from "../../kernel/db.js";
-import { assemblyRuns, agentRunTurns } from "../../kernel/queues.js";
+import { pipeline } from "../../kernel/queues.js";
 import { projectFor, stationBackend } from "../../composition/project-boot.js";
 import {
   decidePlanningRecovery,
@@ -83,7 +83,7 @@ export async function featurePlanningReaperJob(): Promise<string> {
       // transient empty list executed a live round on 2026-08-18 (#1297). The
       // direct probe survives only for legacy rounds with no run row.
       const latestRun = latest?.task_id
-        ? (await assemblyRuns().listForTask(latest.task_id))[0]
+        ? (await pipeline().assemblyRuns.listForTask(latest.task_id))[0]
         : undefined;
       const runOpen =
         latestRun !== undefined &&
@@ -99,7 +99,7 @@ export async function featurePlanningReaperJob(): Promise<string> {
       const lostRound = lostArtifactRound(latest, latestRun, feature.status);
 
       if (lostRound !== null) {
-        const stationRuns = await assemblyRuns().listStationRuns(
+        const stationRuns = await pipeline().assemblyRuns.listStationRuns(
           lostRound.runId,
         );
         const decision = decideArtifactRecovery(
@@ -226,7 +226,7 @@ async function recoverArtifact(
   let cursor = "0";
 
   for (let page = 0; page < RECOVERY_TURN_PAGES_MAX; page++) {
-    const turns = await agentRunTurns().listByLine(
+    const turns = await pipeline().agentRunTurns.listByLine(
       runId,
       cursor,
       RECOVERY_TURN_PAGE,

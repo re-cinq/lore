@@ -1,3 +1,5 @@
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
+import { apiError } from "../../../server/api-error.js";
 /**
  * `GET /dist/lore-code-trace/<os>-<arch>` (+ `/checksums.txt`) — serves the
  * portable test-ingestion binary that ships baked into this image. Onboarded
@@ -35,7 +37,7 @@ export function distRoute(): ServerRoute {
     handler: async (request, h) => {
       const artifact = parseDistArtifact(request.path);
 
-      if (!artifact) {return h.response({ error: "unknown artifact" }).code(404);}
+      enforceTrue(artifact, apiError(404), "unknown artifact");
 
       let data: Buffer;
 

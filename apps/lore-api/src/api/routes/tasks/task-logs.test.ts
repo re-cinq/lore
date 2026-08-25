@@ -116,7 +116,7 @@ describe("/api/task-logs", () => {
         }
         const [, afterId, limit] = params as [string, string, number];
         const page = turnRows
-          .filter((row) => Number(row.id) > Number(afterId))
+          .filter((row) => BigInt(row.id) > BigInt(afterId))
           .slice(0, limit);
 
         return Promise.resolve({ rows: page });
@@ -124,7 +124,10 @@ describe("/api/task-logs", () => {
 
       return pool;
     };
-    const turnRow = (id: number, envelope: Record<string, unknown>) => ({
+    const turnRow = (
+      id: number | string,
+      envelope: Record<string, unknown>,
+    ) => ({
       id: String(id),
       task_id: "t",
       agent_cr_name: null,
@@ -209,6 +212,7 @@ describe("/api/task-logs", () => {
         logs,
         next_offset: logs.length,
         complete: true,
+        cursor: `t:2:${logs.length}`,
       });
       expect(storage.file.exists).not.toHaveBeenCalled();
     });
@@ -242,6 +246,7 @@ describe("/api/task-logs", () => {
         logs: flat.substring(offset),
         next_offset: flat.length,
         complete: true,
+        cursor: `t:2:${flat.length}`,
       });
     });
     it("caps the slice at LOG_SLICE_MAX and stops fetching further pages", async () => {
@@ -302,6 +307,7 @@ describe("/api/task-logs", () => {
         logs: line.repeat(2500),
         next_offset: line.length * 2500,
         complete: true,
+        cursor: `t:2500:${line.length * 2500}`,
       });
       expect(pool.query).toHaveBeenCalledTimes(4);
     });
@@ -331,6 +337,278 @@ describe("/api/task-logs", () => {
         next_offset: 5,
         complete: false,
       });
+    });
+    const get = (pool: unknown, offset: number, cursor?: string) =>
+      inject(
+        {
+          method: "GET",
+          url: `/api/task-logs?task_id=t&offset=${offset}${cursor === undefined ? "" : `&cursor=${encodeURIComponent(cursor)}`}`,
+        },
+        pool,
+      );
+    const turnQueryAfterIds = (pool: ReturnType<typeof makePool>) =>
+      (pool.query.mock.calls as Array<[string, unknown[]]>)
+        .filter(([sql]) => sql.includes("agent_run_turns"))
+        .map(([, params]) => params[1]);
+
+    type SliceBody = {
+      logs: string;
+      next_offset: number;
+      complete: boolean;
+      cursor: string;
+    };
+
+    it("resumes from the returned cursor without re-reading the prefix", async () => {
+      const envelope = { event: { type: "assistant", text: "x".repeat(280) } };
+      const rows = Array.from({ length: 1000 }, (_, i) =>
+        turnRow(i + 1, envelope),
+      );
+      const pool = poolWithTurns(rows, {
+        target_repo: "o/r",
+        status: "completed",
+      });
+      const first = await get(pool, 0);
+      const firstBody = first.result as SliceBody;
+      const line = `${JSON.stringify(envelope)}\n`;
+      const fullRows = Math.floor(LOG_SLICE_MAX / line.length);
+
+      expect(firstBody.cursor).toBe(`t:${fullRows}:${fullRows * line.length}`);
+      pool.query.mockClear();
+      const second = await get(pool, firstBody.next_offset, firstBody.cursor);
+      const secondBody = second.result as SliceBody;
+
+      expect(firstBody.logs + secondBody.logs).toBe(line.repeat(1000));
+      expect(secondBody).toMatchObject({
+        next_offset: line.length * 1000,
+        complete: true,
+        cursor: `t:1000:${line.length * 1000}`,
+      });
+      expect(turnQueryAfterIds(pool)).toEqual([String(fullRows)]);
+    });
+    it("mints the cursor at the row boundary when the cap lands exactly on it", async () => {
+      const base = JSON.stringify({
+        event: { type: "assistant", text: "" },
+      }).length;
+      const envelope = {
+        event: { type: "assistant", text: "y".repeat(255 - base) },
+      };
+      const line = `${JSON.stringify(envelope)}\n`;
+
+      expect(line.length).toBe(256);
+      const rows = Array.from({ length: 1025 }, (_, i) =>
+        turnRow(i + 1, envelope),
+      );
+      const pool = poolWithTurns(rows, {
+        target_repo: "o/r",
+        status: "completed",
+      });
+      const first = await get(pool, 0);
+      const firstBody = first.result as SliceBody;
+
+      expect(firstBody).toMatchObject({
+        next_offset: LOG_SLICE_MAX,
+        complete: false,
+        cursor: `t:1024:${LOG_SLICE_MAX}`,
+      });
+      pool.query.mockClear();
+      const second = await get(pool, LOG_SLICE_MAX, firstBody.cursor);
+
+      expect(second.result).toEqual({
+        logs: line,
+        next_offset: LOG_SLICE_MAX + line.length,
+        complete: true,
+        cursor: `t:1025:${LOG_SLICE_MAX + line.length}`,
+      });
+      expect(turnQueryAfterIds(pool)).toEqual(["1024"]);
+    });
+    it("echoes the cursor unchanged when no new rows arrived", async () => {
+      const envelope = { event: { type: "assistant" } };
+      const line = `${JSON.stringify(envelope)}\n`;
+      const pool = poolWithTurns([turnRow(1, envelope), turnRow(2, envelope)], {
+        target_repo: "o/r",
+        status: "running",
+      });
+      const first = await get(pool, 0);
+
+      expect(first.result).toEqual({
+        logs: line.repeat(2),
+        next_offset: line.length * 2,
+        complete: false,
+        cursor: `t:2:${line.length * 2}`,
+      });
+      const second = await get(pool, line.length * 2, `t:2:${line.length * 2}`);
+
+      expect(second.result).toEqual({
+        logs: "",
+        next_offset: line.length * 2,
+        complete: false,
+        cursor: `t:2:${line.length * 2}`,
+      });
+      expect(storage.file.exists).not.toHaveBeenCalled();
+    });
+    it("ignores a cursor minted for a different task", async () => {
+      const envelope = { event: { type: "assistant" } };
+      const line = `${JSON.stringify(envelope)}\n`;
+      const pool = poolWithTurns([turnRow(1, envelope), turnRow(2, envelope)], {
+        target_repo: "o/r",
+        status: "completed",
+      });
+      const res = await get(pool, line.length, `u:1:${line.length}`);
+
+      expect(res.result).toEqual({
+        logs: line,
+        next_offset: line.length * 2,
+        complete: true,
+        cursor: `t:2:${line.length * 2}`,
+      });
+      expect(turnQueryAfterIds(pool)).toEqual(["0"]);
+    });
+    it("ignores a garbage cursor", async () => {
+      const envelope = { event: { type: "assistant" } };
+      const line = `${JSON.stringify(envelope)}\n`;
+      const pool = poolWithTurns([turnRow(1, envelope), turnRow(2, envelope)], {
+        target_repo: "o/r",
+        status: "completed",
+      });
+      const res = await get(pool, line.length, "not-a-cursor");
+
+      expect(res.result).toEqual({
+        logs: line,
+        next_offset: line.length * 2,
+        complete: true,
+        cursor: `t:2:${line.length * 2}`,
+      });
+      expect(turnQueryAfterIds(pool)).toEqual(["0"]);
+    });
+    it("ignores a cursor whose char count exceeds the offset", async () => {
+      const envelope = { event: { type: "assistant" } };
+      const line = `${JSON.stringify(envelope)}\n`;
+      const pool = poolWithTurns([turnRow(1, envelope), turnRow(2, envelope)], {
+        target_repo: "o/r",
+        status: "completed",
+      });
+      const res = await get(pool, line.length, `t:2:${line.length * 2}`);
+
+      expect(res.result).toEqual({
+        logs: line,
+        next_offset: line.length * 2,
+        complete: true,
+        cursor: `t:2:${line.length * 2}`,
+      });
+      expect(turnQueryAfterIds(pool)).toEqual(["0"]);
+    });
+    it("ignores any cursor at offset zero", async () => {
+      const envelope = { event: { type: "assistant" } };
+      const line = `${JSON.stringify(envelope)}\n`;
+      const pool = poolWithTurns([turnRow(1, envelope), turnRow(2, envelope)], {
+        target_repo: "o/r",
+        status: "completed",
+      });
+      const res = await get(pool, 0, "t:1:0");
+
+      expect(res.result).toEqual({
+        logs: line.repeat(2),
+        next_offset: line.length * 2,
+        complete: true,
+        cursor: `t:2:${line.length * 2}`,
+      });
+      expect(turnQueryAfterIds(pool)).toEqual(["0"]);
+    });
+    it("rescans when the offset is not inside the first resumed row", async () => {
+      const envelope = { event: { type: "assistant" } };
+      const line = `${JSON.stringify(envelope)}\n`;
+      const pool = poolWithTurns(
+        [turnRow(1, envelope), turnRow(2, envelope), turnRow(3, envelope)],
+        { target_repo: "o/r", status: "completed" },
+      );
+      const res = await get(pool, line.length * 3, `t:1:${line.length}`);
+
+      expect(res.result).toEqual({
+        logs: "",
+        next_offset: line.length * 3,
+        complete: true,
+        cursor: `t:3:${line.length * 3}`,
+      });
+      expect(turnQueryAfterIds(pool)).toEqual(["1", "0"]);
+    });
+    it("rescans when the cursor points past every stored row", async () => {
+      const envelope = { event: { type: "assistant" } };
+      const line = `${JSON.stringify(envelope)}\n`;
+      const pool = poolWithTurns([turnRow(1, envelope), turnRow(2, envelope)], {
+        target_repo: "o/r",
+        status: "completed",
+      });
+      const res = await get(pool, line.length * 2, `t:9:${line.length}`);
+
+      expect(res.result).toEqual({
+        logs: "",
+        next_offset: line.length * 2,
+        complete: true,
+        cursor: `t:2:${line.length * 2}`,
+      });
+      expect(turnQueryAfterIds(pool)).toEqual(["9", "0"]);
+    });
+    it("round-trips row ids past the max safe integer without narrowing", async () => {
+      const envelope = { event: { type: "assistant" } };
+      const line = `${JSON.stringify(envelope)}\n`;
+      const pool = poolWithTurns(
+        [
+          turnRow("9007199254740993", envelope),
+          turnRow("9007199254740995", envelope),
+        ],
+        { target_repo: "o/r", status: "running" },
+      );
+      const first = await get(pool, 0);
+
+      expect(first.result).toMatchObject({
+        cursor: `t:9007199254740995:${line.length * 2}`,
+      });
+      const second = await get(
+        pool,
+        line.length * 2,
+        `t:9007199254740995:${line.length * 2}`,
+      );
+
+      expect(second.result).toEqual({
+        logs: "",
+        next_offset: line.length * 2,
+        complete: false,
+        cursor: `t:9007199254740995:${line.length * 2}`,
+      });
+    });
+    it("rejects a cursor whose row id exceeds the PG bigint range", async () => {
+      const envelope = { event: { type: "assistant" } };
+      const line = `${JSON.stringify(envelope)}\n`;
+      const pool = poolWithTurns([turnRow(1, envelope), turnRow(2, envelope)], {
+        target_repo: "o/r",
+        status: "completed",
+      });
+      const res = await get(pool, line.length, "t:99999999999999999999:1");
+
+      expect(res.result).toEqual({
+        logs: line,
+        next_offset: line.length * 2,
+        complete: true,
+        cursor: `t:2:${line.length * 2}`,
+      });
+      expect(turnQueryAfterIds(pool)).toEqual(["0"]);
+    });
+    it("stays on the turn-store path when a resumed task's rows were pruned", async () => {
+      storage.file.exists.mockResolvedValue([true]);
+      storage.file.download.mockResolvedValue([Buffer.from("hello")]);
+      const pool = poolWithTurns([], {
+        target_repo: "o/r",
+        status: "completed",
+      });
+      const res = await get(pool, 10, "t:5:10");
+
+      expect(res.result).toEqual({
+        logs: "",
+        next_offset: 10,
+        complete: true,
+        cursor: "t:5:10",
+      });
+      expect(storage.file.exists).not.toHaveBeenCalled();
     });
   });
 });

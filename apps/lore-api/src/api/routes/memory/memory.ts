@@ -1,3 +1,4 @@
+import { zodResponse } from "../../../server/plugins/zod-response.js";
 import { errorMessage } from "@re-cinq/lore-shared";
 import type { Pool } from "pg";
 import type { ServerRoute } from "@hapi/hapi";
@@ -23,6 +24,11 @@ import { extractFactsForMemory } from "../../../features/memory/fact-extraction.
 import { bearerScope } from "../../../server/plugins/bearer-scope.js";
 import { zodValidate } from "../../../server/plugins/zod-validate.js";
 import { MAX_PAGE_LIMIT } from "../common-schemas.js";
+import { wireSchema } from "@re-cinq/lore-shared/lib/wire-schema.js";
+import {
+  MemoryEntrySchema,
+  MEMORY_ENTRY_COLUMNS,
+} from "@re-cinq/lore-shared/models/memory-entry.js";
 
 const version = z.union([z.string(), z.number()]).optional();
 // Non-coerced (unlike common-schemas' clampedLimit/offsetParam): this is a JSON
@@ -76,14 +82,116 @@ const MemoryBody = z.discriminatedUnion("action", [
 
 type MemoryBody = z.infer<typeof MemoryBody>;
 
+const MemoryVersionSchema = z.object({
+  version: z.number(),
+  value: z.string(),
+  created_at: z.string(),
+});
+
+/**
+ * One listed memory: the pool path's projection, keyed by the columns that store
+ * it and derived from the model so a renamed column cannot leave this
+ * declaration behind. `created_at` is restated as the STRING the wire carries —
+ * the model types it as the `Date` the driver returns, which is the value BEFORE
+ * serialization — and `has_facts` is computed per row rather than stored.
+ */
+const MemoryListEntrySchema = wireSchema(
+  MemoryEntrySchema.pick({
+    key: true,
+    agentId: true,
+    repo: true,
+    version: true,
+    ttlSeconds: true,
+  }),
+  MEMORY_ENTRY_COLUMNS,
+).extend({
+  created_at: z.string(),
+  has_facts: z.boolean(),
+});
+
+/**
+ * One POST multiplexes write, read, search, delete and list, and each answers a
+ * different shape.
+ *
+ * Declared as the UNION of the five rather than as the open document it was.
+ * A union still makes a generated client narrow — but it narrows over five named
+ * shapes instead of over nothing, which is the difference between a contract and
+ * a shrug. `read` is itself two answers: one version, or every version.
+ *
+ * `zodResponse` is documentation-only, so nothing here validates at runtime and
+ * a named union can be wrong SILENTLY where the open document could not be wrong
+ * at all. `memory-contract.test.ts` is what makes it a contract rather than a
+ * claim: it drives the five actions for real and parses every answer through
+ * this schema. Both backends answer ONE shape per action — writing the test is
+ * what surfaced the three places they did not, and the fallback was moved onto
+ * the pool path's answer rather than the union widened to cover both.
+ *
+ * SPLITTING the five actions into five routes is what would buy five precise
+ * contracts, and it is deliberately not done here: the action rides in the BODY,
+ * so every caller — the mcp-server memory tools and the `~/.lore/memory` file
+ * fallback among them — posts to this one path. Moving them is an expand/contract
+ * across a separately-shipped image, not a refactor of this file.
+ */
+export const MemoryOperationSchema = z.union([
+  /** write — the row it landed, from the pool or the file fallback alike. */
+  z.object({
+    key: z.string(),
+    version: z.number(),
+    agent_id: z.string(),
+    created_at: z.string(),
+  }),
+  /** read — the latest version, or one named version. Null when the key holds
+   *  nothing readable. Both answers carry the key: a read states what it read. */
+  z
+    .object({
+      key: z.string(),
+      value: z.string(),
+      version: z.number(),
+      created_at: z.string(),
+    })
+    .nullable(),
+  /** read, `version: "all"` — every version, newest first. */
+  z.array(MemoryVersionSchema),
+  /** search — hits across memories, facts, episodes and the graph. The file
+   *  fallback searches memories only, and says so in the same field. */
+  z.array(
+    z.object({
+      key: z.string(),
+      value: z.string(),
+      score: z.number(),
+      agent_id: z.string(),
+      source: z.enum(["memory", "fact", "episode", "graph"]),
+      id: z.string().optional(),
+      confidence: z.string().optional(),
+    }),
+  ),
+  /** delete — soft-delete acknowledgement. */
+  z.object({ key: z.string(), deleted: z.boolean() }),
+  /** list — a page, with the window the caller asked for echoed back. */
+  z.object({
+    memories: z.array(MemoryListEntrySchema),
+    total: z.number(),
+    limit: z.number(),
+    offset: z.number(),
+  }),
+]);
+
 export function memoryRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "POST",
     path: "/api/memory",
-    options: {
-      ...bearerScope("write"),
-      validate: { payload: zodValidate(MemoryBody) },
-    },
+    options: zodResponse(
+      {
+        ...bearerScope("write"),
+        validate: { payload: zodValidate(MemoryBody) },
+      },
+      MemoryOperationSchema,
+      {
+        name: "MemoryOperationResult",
+        description: "The result of the requested memory action",
+        errors: [400, 404],
+      },
+    ),
     handler: async (request, h) => {
       const pool = getPool();
       const body = request.payload as MemoryBody;

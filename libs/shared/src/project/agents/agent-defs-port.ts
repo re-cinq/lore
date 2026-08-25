@@ -1,3 +1,4 @@
+import type { ResolvedAgentDefinition } from "../../models/agent-definition.js";
 /**
  * Agent DEFINITIONS port — the configuration side, reached via project.agentDefs
  * (distinct from the AgentRunnerPort execution side, project.agents.run()). An
@@ -7,22 +8,13 @@
  * Resolution merges project → org → task-types.yaml.
  */
 
-export interface AgentDefinition {
-  /** Task-type key: general, implementation, review, … */
-  name: string;
-  /** LLM model id; null inherits the next layer (zero-LLM ingest agents stay null). */
-  model: string | null;
-  timeout_minutes: number | null;
-  /** Full prompt template; null inherits the next layer. */
-  prompt: string | null;
-  /** BYO execution image; null inherits the default runner image. */
-  image: string | null;
-  /** "claude-code" (default, LLM) or "graph-ingest" (deterministic, zero-LLM). */
-  execution_mode: string;
-  review_required: boolean;
-  /** Owning repo (lore.repos.id); null = organisation default. */
-  project_id: string | null;
-}
+/**
+ * The resolved per-task-type config. Shape lives with the table it resolves
+ * from, in `libs/shared/src/models/agent-definition.ts`, which also carries the
+ * ROW (`AgentDefinition` there) — this is the merged projection, so it has no
+ * id or timestamps.
+ */
+export type AgentDefinition = ResolvedAgentDefinition;
 
 /** A new/updated definition as submitted by the UI/skill (id + timestamps are server-side). */
 export type AgentDefinitionInput = Omit<AgentDefinition, "project_id">;

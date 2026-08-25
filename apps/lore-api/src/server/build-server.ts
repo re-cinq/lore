@@ -20,6 +20,7 @@ import {
   summarizeCoverage,
 } from "../openapi/build-document.js";
 import { healthzRoute } from "../api/routes/healthz/healthz.js";
+import { llmStatusRoute } from "../api/routes/platform/llm-status.js";
 import { distRoute } from "../api/routes/dist/dist.js";
 import { repoStatusRoute } from "../api/routes/repos/repo-status.js";
 import { reposRoute } from "../api/routes/repos/repos.js";
@@ -37,10 +38,7 @@ import { taskRunsRoute } from "../api/routes/tasks/task-runs.js";
 import { taskViewRoutes } from "../api/routes/tasks/task-views.js";
 import { assemblyLineRoutes } from "../api/routes/assembly-lines/assembly-lines.js";
 import { startRunRoute } from "../api/routes/assembly-lines/start-run.js";
-import {
-  maintenanceRoute,
-  maintenanceJobs,
-} from "../api/routes/maintenance/maintenance.js";
+import { runReadRoute } from "../api/routes/assembly-lines/run-read.js";
 import { taskByPrRoute } from "../api/routes/tasks/task-by-pr.js";
 import {
   taskLogsGetRoute,
@@ -87,6 +85,7 @@ import {
   spendRoute,
   analyticsOverviewRoute,
 } from "../api/routes/analytics/spend.js";
+import { creditLedgerRoute } from "../api/routes/analytics/credit-ledger.js";
 import { agentStatsRoute } from "../api/routes/analytics/agent-stats.js";
 import { impactRoute } from "../api/routes/impact/impact.js";
 import { impactBaseRoute } from "../api/routes/impact/impact-base.js";
@@ -96,6 +95,7 @@ import { stationDataRoutes } from "../api/routes/repos/station-data.js";
 import { traceAdrsRoute } from "../api/routes/trace/trace-adrs.js";
 import { traceSpecsRoute } from "../api/routes/trace/trace-specs.js";
 import { featuresRoutes } from "../api/routes/features/features.js";
+import { implementationLoopRoutes } from "../api/routes/backlog/backlog.js";
 import { openApiJsonRoute, docsRoute } from "../api/routes/openapi/openapi.js";
 
 // 1 MB body cap applied to every native route via the server payload default.
@@ -110,6 +110,7 @@ const MAX_BODY_BYTES = 1_048_576;
 export function routeList(getPool: () => Pool | null): ServerRoute[] {
   return [
     healthzRoute(getPool),
+    llmStatusRoute(getPool),
     distRoute(),
     repoStatusRoute(getPool),
     reposRoute(getPool),
@@ -127,7 +128,7 @@ export function routeList(getPool: () => Pool | null): ServerRoute[] {
     ...taskViewRoutes(getPool),
     ...assemblyLineRoutes(getPool),
     startRunRoute(),
-    maintenanceRoute(maintenanceJobs(getPool)),
+    runReadRoute(getPool),
     taskByPrRoute(getPool),
     taskLogsGetRoute(getPool),
     jobRunLogsRoute(),
@@ -153,8 +154,8 @@ export function routeList(getPool: () => Pool | null): ServerRoute[] {
     webhookStatusRoute(),
     webhookEnsureRoute(),
     webhookSecretRoute(),
-    tokensRoute(getPool),
-    darkFactoryRoute(getPool),
+    ...tokensRoute(getPool),
+    ...darkFactoryRoute(getPool),
     agentsGetRoute(getPool),
     agentsPostRoute(getPool),
     agentsPutRoute(getPool),
@@ -163,6 +164,7 @@ export function routeList(getPool: () => Pool | null): ServerRoute[] {
     analyticsRoute(getPool),
     ...activityRoutes(getPool),
     spendRoute(getPool),
+    creditLedgerRoute(getPool),
     analyticsOverviewRoute(getPool),
     agentStatsRoute(getPool),
     impactRoute(),
@@ -175,6 +177,7 @@ export function routeList(getPool: () => Pool | null): ServerRoute[] {
     openApiJsonRoute(getPool),
     docsRoute(getPool),
     ...featuresRoutes(getPool),
+    ...implementationLoopRoutes(getPool),
   ];
 }
 

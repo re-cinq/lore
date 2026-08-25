@@ -4,19 +4,18 @@
  * `EventHandler` is a task/job (layer 3) keyed by event_name in the registry.
  */
 
-import type { EventSource } from "./event-names.js";
+// What a listener inserts. The shape is the shared `EventInsert` — it was
+// declared identically in both places until the event-router made a producer
+// outside this process real, and two declarations of one wire shape is how they
+// drift. `EventInput` stays as the name Floor's ~20 listener modules import.
+export type { EventInsert as EventInput } from "@re-cinq/lore-shared";
 
-export interface EventInput {
-  eventName: string;
-  source: EventSource;
-  params?: Record<string, unknown>;
-  /** Idempotency key; insert is ON CONFLICT DO NOTHING when set. */
-  dedupeKey?: string;
-}
-
-// The claimed-row shape is single-sourced from the shared event-queue port
-// (project.events); the loop/store here operate on exactly that row.
-export type { EventRow } from "@re-cinq/lore-shared/project/events/event-queue-port.js";
+// The claimed-row shape is single-sourced from the shared events ports. Since
+// ADR-044's delivery amendment the Floor claims its OWN delivery of an event
+// rather than the shared queue row, so `EventRow` is that delivery — it carries
+// both `id` (the delivery, which is what ack/fail/dead address) and `event_id`
+// (the event, which is what a handler passing a payload BY REFERENCE must cite).
+export type { EventDeliveryRow as EventRow } from "@re-cinq/lore-shared/project/events/event-deliveries-port.js";
 
 /** A layer-3 handler. Self-sources its own deps (DB pool, platform); params carry the event payload. */
 /** Row identity a handler may need (e.g. to hand a large payload off by

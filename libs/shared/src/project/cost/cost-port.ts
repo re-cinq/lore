@@ -1,18 +1,11 @@
+import type { AnthropicCostDailyUpsert } from "../../models/anthropic-cost-daily.js";
+
 /**
- * One row in `pipeline.anthropic_cost_daily` — a single day/model billing
- * bucket synced from the Anthropic organization cost + usage reports. The
- * `(bucketDate, model)` pair is the natural key (the table's ON CONFLICT
- * target); `fetchedAt` is stamped server-side with `now()` on every write.
+ * What a writer supplies for one `pipeline.anthropic_cost_daily` bucket. The
+ * shape is the model's upsert projection — `fetchedAt` is stamped server-side
+ * with `now()`, so it is not a caller's to set.
  */
-export interface AnthropicCostDailyRow {
-  bucketDate: string;
-  model: string;
-  costUsd: number;
-  inputTokens: number;
-  outputTokens: number;
-  cacheCreationTokens: number;
-  cacheReadTokens: number;
-}
+export type AnthropicCostDailyRow = AnthropicCostDailyUpsert;
 
 /**
  * The Anthropic daily-cost upsert surface. The cost-sync job writes one row

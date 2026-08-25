@@ -1,41 +1,25 @@
 import "server-only";
 import { apiFetch } from "./client";
 import type { ApiResult } from "./result";
+import type { components } from "./schema";
 
 // The activity reads — memory audit, the event bus, job runs, and a repo's
 // dashboard counts. Each was a direct SELECT in a page body before lore-api
 // grew the endpoints (ADR-032).
 
-export interface MemoryAuditEntry {
-  id: string;
-  agent_id: string | null;
-  operation: string;
-  memory_key: string | null;
-  pool_name: string | null;
-  metadata: Record<string, unknown> | null;
-  created_at: string;
-}
+// None of these row shapes is restated here. Each is an alias over the OpenAPI
+// document lore-api generates from its route contracts (ADR-035), and those
+// contracts are themselves derived from the shared models plus their column
+// maps — so a column, its contract and this type have ONE declaration between
+// them, and check-openapi-drift.sh fails CI when the generated artifact is stale.
 
-export interface RepoEventRow {
-  id: string;
-  event_name: string;
-  source: string;
-  params: Record<string, unknown> | null;
-  status: string;
-  captured_at: string;
-}
+export type MemoryAuditEntry =
+  components["schemas"]["MemoryAuditPage"]["entries"][number];
 
-export interface JobRunRow {
-  id: string;
-  job_name: string;
-  status: string;
-  /** A row always carries its start; the column is NOT NULL. */
-  started_at: string;
-  completed_at: string | null;
-  result_summary: string | null;
-  error: string | null;
-  log_path: string | null;
-}
+export type RepoEventRow =
+  components["schemas"]["RepoEventList"]["events"][number];
+
+export type JobRunRow = components["schemas"]["JobRun"];
 
 /** A page of memory-audit entries plus the unpaged total the pager needs. */
 export function getMemoryAudit(opts: {
@@ -100,13 +84,20 @@ export function getRepoActivityCounts(repo: string): Promise<
  *  own computed figures, and every month-to-date breakdown they render with.
  *  `org_available` is false when the sync has never run — the view hides the
  *  billed sections rather than showing a confident zero. */
+/** What is left of the recorded balance, or null when nobody has recorded one.
+ *  Aliased off the generated contract rather than restated — the neighbouring
+ *  `Record<string, unknown>` entries predate that document. */
+export type SpendBudget = components["schemas"]["Spend"]["budget"];
+
 export function getSpend(): Promise<
   ApiResult<{
+    budget: SpendBudget;
     org_available: boolean;
     org_mtd: Record<string, unknown>;
     org_by_model: Record<string, unknown>[];
     org_daily: Record<string, unknown>[];
-    lore_today_usd: number;
+    lore_unbilled_usd: number;
+    lore_unbilled_days: number;
     lore_mtd: Record<string, unknown>;
     lore_by_model: Record<string, unknown>[];
     lore_by_kind: Record<string, unknown>[];
@@ -116,6 +107,28 @@ export function getSpend(): Promise<
   }>
 > {
   return apiFetch("lore-api", "/api/spend");
+}
+
+/**
+ * Record money added to the Anthropic account. The one write on this screen,
+ * and the only way the remaining figure ever moves upward — Anthropic's Admin
+ * API reports usage and cost but exposes no credit balance, so a top-up is
+ * invisible until someone says it happened.
+ */
+export function recordCreditEntry(entry: {
+  amount_usd: number;
+  effective_date?: string;
+  /** Omitted anchors the entry to the start of its day, which counts the whole
+   *  day against the balance — the safe direction when the clock is unknown. */
+  effective_time?: string;
+  kind?: "opening" | "topup" | "correction";
+  note?: string;
+  recorded_by?: string;
+}): Promise<ApiResult<components["schemas"]["CreditEntryRecorded"]>> {
+  return apiFetch("lore-api", "/api/spend/credits", {
+    method: "POST",
+    body: entry,
+  });
 }
 
 /** The analytics screen's six reads in one call. */

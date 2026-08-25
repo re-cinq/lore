@@ -65,3 +65,15 @@ export function loadKube(
 
   kc.loadFromDefault();
 }
+
+/**
+ * The namespace Agent CRs live in.
+ *
+ * Here rather than at each construction site because the default was restated
+ * eight times across the Floor and lore-api — and a default that appears eight
+ * times is a default that drifts in seven of them. Pure, so it carries no
+ * `@kubernetes/client-node` weight into this module.
+ */
+export function agentsNamespace(env: NodeJS.ProcessEnv = process.env): string {
+  return env.LORE_AGENTS_NAMESPACE ?? "ai-agents";
+}

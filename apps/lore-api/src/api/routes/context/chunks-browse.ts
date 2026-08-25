@@ -1,6 +1,14 @@
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
+import { apiError } from "../../../server/api-error.js";
 import type { Pool } from "pg";
 import type { ServerRoute } from "@hapi/hapi";
 import { z } from "zod";
+import { wireSchema } from "@re-cinq/lore-shared/lib/wire-schema.js";
+import {
+  ChunkSchema,
+  CHUNK_COLUMNS,
+} from "@re-cinq/lore-shared/models/chunk.js";
+import { zodResponse } from "../../../server/plugins/zod-response.js";
 import { bearerScope } from "../../../server/plugins/bearer-scope.js";
 import { zodValidate } from "../../../server/plugins/zod-validate.js";
 import {
@@ -90,21 +98,67 @@ function schemaReaders(pool: Pool) {
   return { getChunkSchemas, repoSchema };
 }
 
+/**
+ * The context browser's chunk row.
+ *
+ * A READ MODEL over `{team}.chunks`, not the row: `content` is truncated to a
+ * preview and `rank` is computed per query, so the fields it does share with the
+ * table are derived from the model and the two computed ones are stated here.
+ */
+const ChunkBrowseSchema = wireSchema(
+  ChunkSchema.pick({
+    id: true,
+    filePath: true,
+    contentType: true,
+    repo: true,
+    metadata: true,
+    content: true,
+    ingestedAt: true,
+  }),
+  CHUNK_COLUMNS,
+).extend({
+  /** `ts_rank` against the search query; 0 when the caller passed none. */
+  rank: z.number().optional(),
+});
+
+const ChunkListSchema = z.object({ chunks: z.array(ChunkBrowseSchema) });
+
+const ChunkByPathSchema = z.object({
+  chunks: z.array(
+    z.object({
+      id: z.string(),
+      content_type: z.string().nullable(),
+      content: z.string(),
+      metadata: z.record(z.unknown()).nullable(),
+      repo: z.string().nullable(),
+    }),
+  ),
+});
+
+const ChunkTypeListSchema = z.object({ types: z.array(z.string()) });
+
+const ChunkSummarySchema = z.object({
+  count: z.number(),
+  convention_files: z.array(z.string()),
+});
+
 export function chunkBrowseRoutes(getPool: () => Pool | null): ServerRoute[] {
   return [
     {
       method: "GET",
       path: "/api/chunks",
-      options: {
-        ...bearerScope("read"),
-        validate: { query: zodValidate(ChunksQuery) },
-      },
+      options: zodResponse(
+        {
+          ...bearerScope("read"),
+          validate: { query: zodValidate(ChunksQuery) },
+        },
+        ChunkListSchema,
+        { name: "ChunkList", description: "A page of ranked context chunks" },
+      ),
       handler: async (request, h) => {
         const pool = getPool();
 
-        if (!pool) {
-          return h.response({ error: DB_UNAVAILABLE }).code(503);
-        }
+        enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
         const { repo, type, q, limit, offset } =
           request.query as unknown as ChunksQuery;
         const { getChunkSchemas, repoSchema } = schemaReaders(pool);
@@ -163,16 +217,18 @@ export function chunkBrowseRoutes(getPool: () => Pool | null): ServerRoute[] {
     {
       method: "GET",
       path: "/api/chunk-types",
-      options: {
-        ...bearerScope("read"),
-        validate: { query: zodValidate(ChunksQuery.pick({ repo: true })) },
-      },
+      options: zodResponse(
+        {
+          ...bearerScope("read"),
+          validate: { query: zodValidate(ChunksQuery.pick({ repo: true })) },
+        },
+        ChunkTypeListSchema,
+        { name: "ChunkTypeList", description: "The content types in scope" },
+      ),
       handler: async (request, h) => {
         const pool = getPool();
 
-        if (!pool) {
-          return h.response({ error: DB_UNAVAILABLE }).code(503);
-        }
+        enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
         const { repo } = request.query as { repo?: string };
         const { getChunkSchemas, repoSchema } = schemaReaders(pool);
 
@@ -214,13 +270,14 @@ export function chunkBrowseRoutes(getPool: () => Pool | null): ServerRoute[] {
     {
       method: "GET",
       path: "/api/repos/{owner}/{repo}/chunk-summary",
-      options: bearerScope("read"),
+      options: zodResponse(bearerScope("read"), ChunkSummarySchema, {
+        name: "RepoChunkSummary",
+        description: "How much context a repo has ingested",
+      }),
       handler: async (request, h) => {
         const pool = getPool();
 
-        if (!pool) {
-          return h.response({ error: DB_UNAVAILABLE }).code(503);
-        }
+        enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
         const repo = `${request.params.owner}/${request.params.repo}`;
         const { repoSchema } = schemaReaders(pool);
         const schema = await repoSchema(repo);
@@ -247,16 +304,21 @@ export function chunkBrowseRoutes(getPool: () => Pool | null): ServerRoute[] {
     {
       method: "GET",
       path: "/api/chunks/by-path",
-      options: {
-        ...bearerScope("read"),
-        validate: { query: zodValidate(ByPathQuery) },
-      },
+      options: zodResponse(
+        {
+          ...bearerScope("read"),
+          validate: { query: zodValidate(ByPathQuery) },
+        },
+        ChunkByPathSchema,
+        {
+          name: "ChunkByPath",
+          description: "Every chunk ingested from one file",
+        },
+      ),
       handler: async (request, h) => {
         const pool = getPool();
 
-        if (!pool) {
-          return h.response({ error: DB_UNAVAILABLE }).code(503);
-        }
+        enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
         const { path, repo } = request.query as unknown as ByPathQuery;
         const { getChunkSchemas, repoSchema } = schemaReaders(pool);
 

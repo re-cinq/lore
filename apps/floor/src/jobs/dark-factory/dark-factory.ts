@@ -1,5 +1,5 @@
 import { settings as settingsRepo } from "../../kernel/queues.js";
-import { requiresApproval } from "./approval.js";
+import { requiresApproval } from "@re-cinq/lore-shared";
 // Canonical types + resolver moved to @re-cinq/lore-shared so all
 // consumers (agent, mcp-server, GKE Job pod runner) share one source.
 import {

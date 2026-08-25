@@ -260,6 +260,78 @@ describe.each(IMPLEMENTATIONS)(
       expect(duplicate.nodeRowId).toBe(first.nodeRowId);
     });
 
+    it("ensureStationRun persists the input it is given and listStationRuns returns it", async () => {
+      const { port, repo } = make();
+      const id = await port.start({ blueprintName: "code-review", repo });
+
+      await port.ensureStationRun({
+        assemblyRunId: id,
+        nodeId: "review",
+        iteration: 1,
+        input: {
+          description: "review the PR",
+          prompt: "you are a reviewer",
+          params: null,
+          repo,
+          ref: "lore/impl-1",
+        },
+      });
+
+      expect((await port.listStationRuns(id))[0].input).toEqual({
+        description: "review the PR",
+        prompt: "you are a reviewer",
+        params: null,
+        repo,
+        ref: "lore/impl-1",
+      });
+    });
+
+    it("a converged duplicate keeps the first visit's input rather than overwriting it", async () => {
+      // The relaunch door dispatches the same visit again; the row already names
+      // what that visit was given, and the second call must not rewrite history.
+      const { port, repo } = make();
+      const id = await port.start({ blueprintName: "code-review", repo });
+      const base = { assemblyRunId: id, nodeId: "review", iteration: 1 };
+
+      await port.ensureStationRun({
+        ...base,
+        input: {
+          description: "first",
+          prompt: null,
+          params: null,
+          repo,
+          ref: "b",
+        },
+      });
+      await port.ensureStationRun({
+        ...base,
+        input: {
+          description: "second",
+          prompt: null,
+          params: null,
+          repo,
+          ref: "b",
+        },
+      });
+
+      expect((await port.listStationRuns(id))[0].input).toMatchObject({
+        description: "first",
+      });
+    });
+
+    it("a visit recorded without input reads back null", async () => {
+      const { port, repo } = make();
+      const id = await port.start({ blueprintName: "code-review", repo });
+
+      await port.ensureStationRun({
+        assemblyRunId: id,
+        nodeId: "review",
+        iteration: 1,
+      });
+
+      expect((await port.listStationRuns(id))[0].input).toBeNull();
+    });
+
     it("a revisited node is a different visit with its own station run id", async () => {
       const { port, repo } = make();
       const id = await port.start({ blueprintName: "code-review", repo });
@@ -289,6 +361,44 @@ describe.each(IMPLEMENTATIONS)(
       expect(await port.finishStationRunOnce(nodeRowId, "success")).toBe(true);
       expect(await port.finishStationRunOnce(nodeRowId, "failed")).toBe(false);
       expect((await port.listStationRuns(id))[0]?.outcome).toBe("success");
+    });
+
+    it("records the failure class and detail a classified node failure carried", async () => {
+      const { port, repo } = make();
+      const id = await port.start({ blueprintName: "code-review", repo });
+      const { nodeRowId } = await port.ensureStationRun({
+        assemblyRunId: id,
+        nodeId: "review",
+        iteration: 1,
+      });
+
+      await port.finishStationRunOnce(nodeRowId, "failed", undefined, {
+        failureClass: "anthropic-credit",
+        failureDetail: "Credit balance is too low",
+      });
+
+      expect((await port.listStationRuns(id))[0]).toMatchObject({
+        outcome: "failed",
+        failureClass: "anthropic-credit",
+        failureDetail: "Credit balance is too low",
+      });
+    });
+
+    it("leaves the failure columns null for a node that simply succeeded", async () => {
+      const { port, repo } = make();
+      const id = await port.start({ blueprintName: "code-review", repo });
+      const { nodeRowId } = await port.ensureStationRun({
+        assemblyRunId: id,
+        nodeId: "review",
+        iteration: 1,
+      });
+
+      await port.finishStationRunOnce(nodeRowId, "success");
+
+      expect((await port.listStationRuns(id))[0]).toMatchObject({
+        failureClass: null,
+        failureDetail: null,
+      });
     });
 
     it("listStationRuns returns the run's visits in visit order", async () => {
@@ -386,6 +496,21 @@ describe.each(IMPLEMENTATIONS)(
       expect(
         (await port.list({ repo, status: ["running"] })).map((run) => run.id),
       ).toEqual([running]);
+    });
+
+    it("listSummaries selects the same runs as list, without the graph clone", async () => {
+      const { port, repo } = make();
+      const wanted = await port.start({ blueprintName: "code-review", repo });
+
+      await port.start({ blueprintName: "implementation", repo });
+
+      const summaries = await port.listSummaries({
+        repo,
+        blueprintName: "code-review",
+      });
+
+      expect(summaries.map((run) => run.id)).toEqual([wanted]);
+      expect(summaries[0]).not.toHaveProperty("graph");
     });
 
     it("list caps at the limit", async () => {
@@ -526,6 +651,246 @@ describe.each(IMPLEMENTATIONS)(
 
       expect((await port.listForTask(taskId)).map((run) => run.id)).toEqual([
         id,
+      ]);
+    });
+    it("start with a subject key already open returns the run already in flight", async () => {
+      const { port, repo } = make();
+      const first = await port.start({
+        blueprintName: "feature-planning",
+        repo,
+        subjectKey: "feature:one",
+      });
+      const second = await port.start({
+        blueprintName: "feature-finalize",
+        repo,
+        subjectKey: "feature:one",
+      });
+
+      expect(second).toBe(first);
+    });
+
+    it("start records the subject key on the run it mints", async () => {
+      const { port, repo } = make();
+      const id = await port.start({
+        blueprintName: "feature-planning",
+        repo,
+        subjectKey: "feature:two",
+      });
+
+      expect(await port.getById(id)).toMatchObject({
+        subjectKey: "feature:two",
+      });
+    });
+
+    it("a settled run frees its subject key for the next start", async () => {
+      const { port, repo } = make();
+      const first = await port.start({
+        blueprintName: "feature-planning",
+        repo,
+        subjectKey: "feature:three",
+      });
+
+      await port.finish(first, "completed");
+
+      const second = await port.start({
+        blueprintName: "feature-planning",
+        repo,
+        subjectKey: "feature:three",
+      });
+
+      expect(second).not.toBe(first);
+    });
+
+    it("runs carrying no subject key start independently of each other", async () => {
+      const { port, repo } = make();
+      const first = await port.start({ blueprintName: "comment-triage", repo });
+      const second = await port.start({
+        blueprintName: "comment-triage",
+        repo,
+      });
+
+      expect(second).not.toBe(first);
+    });
+
+    it("the same subject key on two repos is two independent runs", async () => {
+      const { port, repo } = make();
+      const mine = await port.start({
+        blueprintName: "feature-planning",
+        repo,
+        subjectKey: "feature:four",
+      });
+      const theirs = await port.start({
+        blueprintName: "feature-planning",
+        repo: `${repo}-other`,
+        subjectKey: "feature:four",
+      });
+
+      expect(theirs).not.toBe(mine);
+    });
+
+    it("findOpenBySubject returns the open run for that subject", async () => {
+      const { port, repo } = make();
+      const id = await port.start({
+        blueprintName: "feature-planning",
+        repo,
+        subjectKey: "feature:five",
+      });
+
+      expect(await port.findOpenBySubject(repo, "feature:five")).toMatchObject({
+        id,
+        status: "queued",
+        repo,
+        subjectKey: "feature:five",
+      });
+    });
+
+    it("findOpenBySubject returns null once the run is settled", async () => {
+      const { port, repo } = make();
+      const id = await port.start({
+        blueprintName: "feature-planning",
+        repo,
+        subjectKey: "feature:six",
+      });
+
+      await port.finish(id, "completed");
+
+      expect(await port.findOpenBySubject(repo, "feature:six")).toBeNull();
+    });
+
+    it("countBySubject counts settled runs, so a re-starting sweep can be capped", async () => {
+      const { port, repo } = make();
+
+      expect(await port.countBySubject(repo, "merge:t-1")).toBe(0);
+
+      for (const _attempt of [1, 2]) {
+        const id = await port.start({
+          blueprintName: "merge",
+          repo,
+          subjectKey: "merge:t-1",
+        });
+
+        await port.finish(id, "failed");
+      }
+
+      expect(await port.countBySubject(repo, "merge:t-1")).toBe(2);
+      expect(await port.countBySubject(repo, "merge:other")).toBe(0);
+    });
+
+    it("findOpenBySubject returns null for a subject nothing is working", async () => {
+      const { port, repo } = make();
+
+      expect(await port.findOpenBySubject(repo, "feature:absent")).toBeNull();
+    });
+
+    it("list by subject returns that subject's runs whatever blueprint they ran", async () => {
+      const { port, repo } = make();
+      const planning = await port.start({
+        blueprintName: "feature-planning",
+        repo,
+        subjectKey: "feature:seven",
+      });
+
+      await port.finish(planning, "completed");
+
+      const finalize = await port.start({
+        blueprintName: "feature-finalize",
+        repo,
+        subjectKey: "feature:seven",
+      });
+
+      // Membership, not order: both runs are created in the same millisecond here,
+      // and this port documents ties as stable-but-arbitrary in BOTH adapters. The
+      // property under test is that the blueprint name is not a filter — the point
+      // of a subject is finding the run without knowing which line produced it.
+      expect(
+        (await port.list({ repo, subjectKey: "feature:seven" }))
+          .map((r) => r.id)
+          .sort(),
+      ).toEqual([finalize, planning].sort());
+    });
+
+    it("a fork takes over the subject of the run it forks from", async () => {
+      const { port, repo } = make();
+      const source = await port.start({
+        blueprintName: "code-review",
+        repo,
+        subjectKey: "feature:eight",
+      });
+
+      await port.stampBlueprint(source, "hash-1", GRAPH);
+      await port.markRunning(source);
+
+      const { nodeRowId } = await port.ensureStationRun({
+        assemblyRunId: source,
+        nodeId: "review",
+        iteration: 1,
+      });
+
+      await port.finishStationRunOnce(nodeRowId, "success");
+      await port.finish(source, "failed");
+
+      const fork = await port.start({
+        blueprintName: "code-review",
+        repo,
+        blueprintHash: "hash-1",
+        resumeFrom: { lineId: source, nodeId: "review" },
+      });
+
+      // A fork RE-RUNS the same work, so it must hold the guard its source held and
+      // answer the same subject query. Inheriting is safe precisely because forking
+      // is legal only from a terminal run — the key is always free by then.
+      expect(await port.getById(fork)).toMatchObject({
+        subjectKey: "feature:eight",
+      });
+      expect(await port.findOpenBySubject(repo, "feature:eight")).toMatchObject(
+        {
+          id: fork,
+        },
+      );
+    });
+
+    it("a fork inherits the source's visits but not their verdict", async () => {
+      const { port, repo } = make();
+      const source = await port.start({
+        blueprintName: "code-review",
+        repo,
+      });
+
+      await port.stampBlueprint(source, "hash-1", GRAPH);
+      await port.markRunning(source);
+
+      const { nodeRowId } = await port.ensureStationRun({
+        assemblyRunId: source,
+        nodeId: "review",
+        iteration: 1,
+      });
+
+      await port.finishStationRunOnce(nodeRowId, "failed", undefined, {
+        failureClass: "anthropic-credit",
+        failureDetail: "Credit balance too low",
+      });
+      await port.finish(source, "failed");
+
+      const fork = await port.start({
+        blueprintName: "code-review",
+        repo,
+        blueprintHash: "hash-1",
+        resumeFrom: { lineId: source, nodeId: "review" },
+      });
+
+      // The copied row keeps WHAT happened and drops the classification of WHY,
+      // which belongs to the attempt that is over. `getNextTransition` replays the
+      // copied prefix and refuses a retry on a permanent failure — inherit the
+      // verdict and a fork taken to rerun a credit failure dies of the failure
+      // it exists to get past, on its first advance, right after someone tops
+      // the account up.
+      expect(await port.listStationRuns(fork)).toMatchObject([
+        {
+          nodeId: "review",
+          outcome: "failed",
+          failureClass: null,
+          failureDetail: null,
+        },
       ]);
     });
   },

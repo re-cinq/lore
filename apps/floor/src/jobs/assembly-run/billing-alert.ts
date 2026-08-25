@@ -5,39 +5,48 @@
 // text (finishLine downstream carries only a routing reason), so the detection
 // lives here.
 
-import {
-  isBillingError,
-  terminalErrorText,
-} from "@re-cinq/lore-assembly-lines";
+import { classifyError } from "@re-cinq/lore-shared/error-classify.js";
 import type { NotifyLevel } from "@re-cinq/lore-shared/project/notify/notify-port.js";
 
 /** The terminal status slice the alert reads. */
 export interface BillingAlertStatus {
-  output?: string;
+  /** The agent's own last words, lifted from the raw stream by
+   *  `normalizeAgentStatus`. */
+  errorText?: string;
   failureReason?: string;
 }
 
 /**
- * Pure: the operator alert for a billing-classed CR failure, else null. The
- * billing text rides the agent's terminal result line (`Credit balance is too
- * low`); the CR's own `failureReason` is only the Job-level `BackoffLimitExceeded`,
- * so read the result line first and fall back to the reason.
+ * Pure: the operator alert for a billing-classed CR failure, else null.
+ *
+ * The billing text rides the agent's terminal result line (`Credit balance is
+ * too low`); the CR's own `failureReason` is only the Job-level
+ * `BackoffLimitExceeded`, so read the lifted error text first and fall back to
+ * the reason. It reads `errorText` rather than unwrapping `output` itself
+ * because `normalizeAgentStatus` is the ONE owner of that lift — this module
+ * doing its own unwrap on already-unwrapped text is precisely how the alert
+ * silently never fired (#1455).
+ *
+ * The classification comes from the shared `classifyError`, not a local matcher.
+ * Two matchers disagreeing about what "out of credits" means is what the second
+ * one cost us.
  */
 export function billingAlertMessage(
   repo: string,
   nodeType: string,
   status: BillingAlertStatus,
 ): string | null {
-  const text = terminalErrorText(status.output) ?? status.failureReason ?? null;
+  const text = status.errorText ?? status.failureReason ?? "";
+  const { category, hint } = classifyError(text);
 
-  if (!isBillingError(text)) {
+  if (category !== "anthropic-credit") {
     return null;
   }
 
   return (
     `Lore agent runs are failing: the Anthropic account is out of credits ("${text}"). ` +
     `Every LLM node — review, refine, triage, implementation — stays blocked until the ` +
-    `balance is topped up. First seen on ${repo} (${nodeType} node).`
+    `balance is topped up. First seen on ${repo} (${nodeType} node). ${hint}`
   );
 }
 

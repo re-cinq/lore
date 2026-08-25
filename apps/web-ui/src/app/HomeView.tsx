@@ -5,18 +5,26 @@ import FixIngestButton, {
 import Icon from "@/components/Icon";
 import Link from "next/link";
 import styles from "./HomeView.module.css";
+import type { components } from "@/lib/api/schema";
 
-export interface Repo {
-  full_name: string;
-  owner: string;
-  name: string;
-  team: string | null;
-  onboarded_at: string;
-  last_ingested_at: string | null;
-  onboarding_pr_merged: boolean;
-  task_count: number;
-  active_agents: number;
-}
+/**
+ * What this view renders of a repo row — a PICK over the published shape, not a
+ * copy of it. The page reads whole rows from `/api/repos`; naming the nine
+ * fields the card actually shows keeps the component honest about its inputs
+ * while the field TYPES still come from the contract.
+ */
+export type Repo = Pick<
+  components["schemas"]["RepoList"]["repos"][number],
+  | "full_name"
+  | "owner"
+  | "name"
+  | "team"
+  | "onboarded_at"
+  | "last_ingested_at"
+  | "onboarding_pr_merged"
+  | "task_count"
+  | "active_agents"
+>;
 
 export interface HomeViewProps {
   repos: Repo[];

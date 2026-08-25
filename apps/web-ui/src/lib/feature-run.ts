@@ -1,7 +1,12 @@
-// The assembly-line run behind a feature-planning round, shaped for the planning
-// wizard's poll payload. A planning round is a task, and that task's newest
-// assembly line is what the running card visualizes — so the wizard can watch the
-// analyze node work instead of staring at a spinner.
+// The assembly-line run behind a feature, shaped for the planning wizard's poll
+// payload, so the wizard can watch the working node instead of staring at a
+// spinner.
+//
+// WHICH run that is comes from the server, which resolves it by the feature's
+// subject key. It used to be resolved here from a task id, which could only ever
+// find a run some task had started for that round — a finalize run is a different
+// task on a different blueprint, so pressing "Create spec PR" started work this
+// module had no way to name.
 //
 // The definition is resolved here (server-side, no IO) rather than in the client:
 // definitionForRun is pure, and a round that has not recorded a node row yet still
@@ -11,7 +16,6 @@ import type { AssemblyLineDefinition } from "./assembly-line-definition";
 import {
   fetchAssemblyRun,
   fetchAssemblyRunNodes,
-  fetchLatestRunForTask,
   fetchRunTokens,
   type AssemblyRun,
   type AssemblyRunNode,
@@ -67,32 +71,6 @@ export function toFeatureRunPayload(
   };
 }
 
-/**
- * Which task's assembly line the wizard should draw. Pure.
- *
- * Two eras have to work at once. A LEGACY feature mints a task per round, and that
- * round's own line is the one to show — so the round's own task wins whenever it
- * has one. On the MERGED line a refine is a resume: the API answers
- * `task_id: null` and nothing attaches one, so from round 2 onward the latest round
- * names no task, `fetchFeatureRun` was handed null, and the run graph silently
- * vanished for the rest of the feature's life.
- *
- * The fallback is the line's OWNING task — the earliest round that named one, which
- * is how `resolveDispatch` in lore-api finds the same line. An empty string is
- * treated as absent: it is not a task id, and passing it on would resolve nothing
- * while hiding the real owner.
- */
-export function runTaskIdFor(input: {
-  latestIterationTaskId?: string | null;
-  owningTaskId?: string | null;
-}): string | null {
-  return input.latestIterationTaskId || input.owningTaskId || null;
-}
-
-/** The run to visualize for a planning round, or null when the round has no task
- *  yet, no run row yet (pre-0025 DBs included), or the lookup fails. Never throws:
- *  the wizard's poll must keep reporting the round's status even when run
- *  visualization is unavailable. */
 /** The run to visualize, given the line id lore-api already resolved for the
  *  round. Preferred over `fetchFeatureRun`: from round 2 a resumed round mints no
  *  task, so only the server — which knows the OWNING task — can name the line.
@@ -127,30 +105,6 @@ export async function fetchFeatureRunById(
     return haveGraphForRun === run.id && graphIsCacheable(payload)
       ? { ...payload, definition: null, definitionUnchanged: true }
       : payload;
-  } catch {
-    return null;
-  }
-}
-
-export async function fetchFeatureRun(
-  taskId: string | null | undefined,
-): Promise<FeatureRunPayload | null> {
-  if (!taskId) {
-    return null;
-  }
-
-  try {
-    const run = await fetchLatestRunForTask(taskId);
-
-    if (!run) {
-      return null;
-    }
-
-    return toFeatureRunPayload(
-      run,
-      await fetchAssemblyRunNodes(run.id),
-      await fetchRunTokens(run.id),
-    );
   } catch {
     return null;
   }

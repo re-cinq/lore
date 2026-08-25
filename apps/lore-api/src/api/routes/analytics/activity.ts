@@ -1,6 +1,23 @@
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
+import { apiError } from "../../../server/api-error.js";
 import type { Pool } from "pg";
 import type { ServerRoute } from "@hapi/hapi";
 import { z } from "zod";
+import { selectList, pickColumns } from "@re-cinq/lore-shared/lib/row.js";
+import { wireSchema } from "@re-cinq/lore-shared/lib/wire-schema.js";
+import {
+  MemoryAuditEntrySchema,
+  MEMORY_AUDIT_ENTRY_COLUMNS,
+} from "@re-cinq/lore-shared/models/memory-audit-entry.js";
+import {
+  EventSchema,
+  EVENT_COLUMNS,
+} from "@re-cinq/lore-shared/models/event.js";
+import {
+  JobRunSchema,
+  JOB_RUN_COLUMNS,
+} from "@re-cinq/lore-shared/models/job-run.js";
+import { zodResponse } from "../../../server/plugins/zod-response.js";
 import { bearerScope } from "../../../server/plugins/bearer-scope.js";
 import { zodValidate } from "../../../server/plugins/zod-validate.js";
 import {
@@ -57,21 +74,79 @@ async function countOrNull(
   }
 }
 
+/**
+ * The bodies these reads answer with. Each is DERIVED from its model plus that
+ * model's column map, so the published contract and the table state the same
+ * fields: `wireSchema` renames the model's fields to the columns that store
+ * them, which is what the deployed clients read.
+ */
+const EVENT_BROWSE_FIELDS = [
+  "id",
+  "eventName",
+  "source",
+  "params",
+  "status",
+  "capturedAt",
+] as const;
+const EVENT_BROWSE_COLUMNS = pickColumns(EVENT_COLUMNS, EVENT_BROWSE_FIELDS);
+
+const MemoryAuditPageSchema = z.object({
+  entries: z.array(
+    wireSchema(MemoryAuditEntrySchema, MEMORY_AUDIT_ENTRY_COLUMNS),
+  ),
+  total: z.number(),
+});
+
+const EventListSchema = z.object({
+  events: z.array(
+    wireSchema(
+      EventSchema.pick({
+        id: true,
+        eventName: true,
+        source: true,
+        params: true,
+        status: true,
+        capturedAt: true,
+      }),
+      EVENT_COLUMNS,
+    ),
+  ),
+});
+
+/**
+ * Seven-day counters for a repo's activity cards. Each is NULL rather than zero
+ * when its table is absent, so the card can say "unknown" instead of claiming
+ * nothing happened — a database that predates a migration has no rows to count,
+ * which is not the same as a quiet week.
+ */
+const ActivityCountsSchema = z.object({
+  tasks: z.number().nullable(),
+  auto_merged: z.number().nullable(),
+  escalations: z.number().nullable(),
+});
+
+const JobRunReadSchema = wireSchema(JobRunSchema, JOB_RUN_COLUMNS);
+
 export function activityRoutes(getPool: () => Pool | null): ServerRoute[] {
   return [
     {
       method: "GET",
       path: "/api/memory-audit",
-      options: {
-        ...bearerScope("read"),
-        validate: { query: zodValidate(MemoryAuditQuery) },
-      },
+      options: zodResponse(
+        {
+          ...bearerScope("read"),
+          validate: { query: zodValidate(MemoryAuditQuery) },
+        },
+        MemoryAuditPageSchema,
+        {
+          name: "MemoryAuditPage",
+          description: "A page of memory-audit entries",
+        },
+      ),
       handler: async (request, h) => {
         const pool = getPool();
 
-        if (!pool) {
-          return h.response({ error: DB_UNAVAILABLE }).code(503);
-        }
+        enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
         const { agent, operation, zero_results, limit, offset } =
           request.query as unknown as MemoryAuditQuery;
 
@@ -100,7 +175,7 @@ export function activityRoutes(getPool: () => Pool | null): ServerRoute[] {
           params,
         );
         const { rows: entries } = await pool.query(
-          `SELECT id, agent_id, operation, memory_key, pool_name, metadata, created_at
+          `SELECT ${selectList(MEMORY_AUDIT_ENTRY_COLUMNS)}
              FROM memory.audit_log
              ${where}
             ORDER BY created_at DESC
@@ -115,21 +190,23 @@ export function activityRoutes(getPool: () => Pool | null): ServerRoute[] {
     {
       method: "GET",
       path: "/api/events",
-      options: {
-        ...bearerScope("read"),
-        validate: { query: zodValidate(EventsQuery) },
-      },
+      options: zodResponse(
+        {
+          ...bearerScope("read"),
+          validate: { query: zodValidate(EventsQuery) },
+        },
+        EventListSchema,
+        { name: "RepoEventList", description: "A repo's recent events" },
+      ),
       handler: async (request, h) => {
         const pool = getPool();
 
-        if (!pool) {
-          return h.response({ error: DB_UNAVAILABLE }).code(503);
-        }
+        enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
         const { repo, limit, offset } = request.query as unknown as EventsQuery;
 
         try {
           const { rows } = await pool.query(
-            `SELECT id, event_name, source, params, status, captured_at
+            `SELECT ${selectList(EVENT_BROWSE_COLUMNS)}
                FROM pipeline.events
               WHERE repo = $1
               ORDER BY captured_at DESC
@@ -151,16 +228,17 @@ export function activityRoutes(getPool: () => Pool | null): ServerRoute[] {
     {
       method: "GET",
       path: "/api/job-runs/{id}",
-      options: bearerScope("read"),
+      options: zodResponse(bearerScope("read"), JobRunReadSchema, {
+        name: "JobRun",
+        description: "One scheduled-job run",
+        errors: [404],
+      }),
       handler: async (request, h) => {
         const pool = getPool();
 
-        if (!pool) {
-          return h.response({ error: DB_UNAVAILABLE }).code(503);
-        }
+        enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
         const { rows } = await pool.query(
-          `SELECT id, job_name, status, started_at, completed_at,
-                  result_summary, error, log_path
+          `SELECT ${selectList(JOB_RUN_COLUMNS)}
              FROM pipeline.job_runs WHERE id = $1`,
           [request.params.id],
         );
@@ -174,13 +252,14 @@ export function activityRoutes(getPool: () => Pool | null): ServerRoute[] {
     {
       method: "GET",
       path: "/api/repos/{owner}/{repo}/activity-counts",
-      options: bearerScope("read"),
+      options: zodResponse(bearerScope("read"), ActivityCountsSchema, {
+        name: "RepoActivityCounts",
+        description: "Seven-day activity counters for a repo",
+      }),
       handler: async (request, h) => {
         const pool = getPool();
 
-        if (!pool) {
-          return h.response({ error: DB_UNAVAILABLE }).code(503);
-        }
+        enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
         const repo = `${request.params.owner}/${request.params.repo}`;
 
         return h.response({

@@ -11,20 +11,45 @@
  * - `features` and `tokens` are hand-rolled (no single zod schema) — documented as
  *   freeform `object` bodies and recorded as uncovered.
  *
- * It also supplies the concrete verbs for the two `method: "*"` routes, which hapi
- * expresses as a wildcard the document cannot. The drift-guard test cross-checks
- * this table against the live route list so it cannot silently drift.
+ * It also names the concrete verbs of any `method: "*"` route that means to serve
+ * them, which hapi expresses as a wildcard the document cannot. That table is
+ * empty today — see {@link WILDCARD_METHODS}.
  */
 
 import type { ZodType } from "zod";
 import { AgentInputSchema } from "../features/agents/agents-schema.js";
 import { DarkFactorySettingsSchema } from "../features/dark-factory/dark-factory-settings.js";
 
-/** Concrete verbs for `method: "*"` routes, keyed by the hapi path. */
-export const WILDCARD_METHODS: Record<string, string[]> = {
-  "/api/tokens": ["GET", "POST"],
-  "/api/repos/{owner}/{repo}/settings/dark-factory": ["GET", "PUT"],
-};
+/**
+ * Concrete verbs for `method: "*"` routes, keyed by the hapi path.
+ *
+ * EMPTY, and that is the point: `/api/tokens` and the dark-factory settings path
+ * each used to be one wildcard route serving two verbs, which the generator
+ * could only document as the union of both answers. They are split into concrete
+ * per-verb routes now, each declaring its own contract; the wildcard route that
+ * remains at each path is a 405 fallback and documents nothing. A path absent
+ * from this table contributes no operations, which is exactly right for one.
+ *
+ * A future wildcard route that DOES mean to serve real verbs adds its entry here.
+ */
+export const WILDCARD_METHODS: Record<string, string[]> = {};
+
+/**
+ * Paths whose `method: "*"` route exists ONLY to answer 405.
+ *
+ * Every wildcard route must appear here or in {@link WILDCARD_METHODS}, and
+ * `undeclaredWildcards` fails the one that appears in neither. That is what
+ * closes the gap the path-count assertion cannot see: a wildcard meaning to
+ * serve a real verb on a path that is ALREADY documented adds no new path key,
+ * so nothing else notices the operation going missing from the document.
+ *
+ * The claim each entry makes — "this route refuses every verb it receives" — is
+ * held to behaviour by the routes' own 405 tests, not by this list.
+ */
+export const METHOD_NOT_ALLOWED_FALLBACKS: string[] = [
+  "/api/tokens",
+  "/api/repos/{owner}/{repo}/settings/dark-factory",
+];
 
 /** How a domain-validated write route's request body is documented. */
 export type DomainBody =
@@ -57,6 +82,13 @@ export const DOMAIN_BODIES: Record<string, DomainBody> = {
   // features — hand-rolled (enforceFeatureInput / parseSectionAnswers / parseGapResult).
   "POST /api/repos/{owner}/{repo}/features": { freeform: true },
   "POST /api/repos/{owner}/{repo}/features/{id}/iterations": { freeform: true },
+  // Accepting carries the same `user_answers` a refine does — the author fills the
+  // form and accepts in one motion, and those answers belong in the accepted plan.
+  // Both paths while the UI catches up; `/finalize` retires after the UI deploys.
+  "POST /api/repos/{owner}/{repo}/features/{id}/create-spec-file": {
+    freeform: true,
+  },
+  "POST /api/repos/{owner}/{repo}/features/{id}/finalize": { freeform: true },
   "POST /api/repos/{owner}/{repo}/features/{id}/iterations/{n}/result": {
     freeform: true,
   },
@@ -71,7 +103,6 @@ export const DOMAIN_BODIES: Record<string, DomainBody> = {
  */
 export const BODYLESS_WRITES = new Set<string>([
   "POST /api/repos/{owner}/{repo}/webhook/ensure",
-  "POST /api/repos/{owner}/{repo}/features/{id}/finalize",
   // The job to run is the path param; a courier posts it with no body at all.
   "POST /api/maintenance/{job}",
 ]);

@@ -52,25 +52,25 @@ nodes:
 
   - id: write
     type: agent
-    prompt_ref: feature-finalize
-    station_ref: feature-finalize
+    prompt_ref: spec-write
+    station_ref: spec-write
     model: claude-sonnet-4-6
     description: Apply the change set — amend what it says to amend, create what it says to create.
 
   - id: push
     type: agent
     prompt_ref: push-only
-    # No `push-only` Station exists; the old finalize line reached this node with
-    # feature-finalize inherited from its task type, and naming it keeps that exact
-    # recipe. Left inherited, the merged line would run the PLANNING recipe here —
-    # the node meant to commit and push running a prompt that writes result.json.
-    station_ref: feature-finalize
+    # No `push-only` Station exists; the retired finalize line reached this node
+    # with its task type's recipe, and naming `spec-write` keeps that exact one.
+    # Left inherited, the merged line would run the PLANNING recipe here — the node
+    # meant to commit and push running a prompt that writes result.json.
+    station_ref: spec-write
     description: Commit + open/update the PR branch.
 
   # Merging the spec PR is a station outcome like any other — the reviewer is this
   # node's worker, exactly as the author is the `author` node's. Modelling the wait
   # as a node is what lets decomposition follow as an EDGE. It used to be a SECOND
-  # line, started by minting a task when a `feature-finalize` PR merged; the moment
+  # line, started by minting a task when the spec PR merged; the moment
   # finalize became a resume of THIS line that predicate stopped matching, and
   # nothing decomposed, and nothing said so.
   - id: merged

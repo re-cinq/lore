@@ -93,6 +93,8 @@ describe("Workspace", () => {
       ciConclusion: async () => "none" as const,
       listFiles: async () => [],
       listChecks: async () => [],
+      listReviewThreads: async () => [],
+      resolveReviewThread: async () => {},
     });
 
     const pr = await ws.openPr("feat", "Add feature", "body");

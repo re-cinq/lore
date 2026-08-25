@@ -1,21 +1,22 @@
 import "server-only";
 import { apiFetch } from "./client";
 import type { ApiResult } from "./result";
+import type { components } from "./schema";
 
 // The `lore.repos` reads, typed once. Nine call sites across five files each ran
 // their own `SELECT … FROM lore.repos WHERE full_name = $1`, differing only in
 // which columns they asked for; `getRepo` serves the record and each caller
 // picks what it needs.
 
-export interface RepoRecord {
-  full_name: string;
-  team: string | null;
-  settings: Record<string, unknown> | null;
-  onboarded_at: string | null;
-  last_ingested_at: string | null;
-  onboarding_pr_url: string | null;
-  onboarding_pr_merged: boolean;
-}
+// The row shape is NOT restated here. `Repo` is declared once as a model in
+// libs/shared, published into openapi.json by the route that serves it, and
+// generated into ./schema.d.ts — so this is an alias, not a mirror to keep in
+// sync. Timestamps arrive as ISO strings because that is what JSON carries; the
+// server-side model types them as Date.
+export type RepoRecord = components["schemas"]["Repo"];
+
+/** A repo row plus the pipeline counts the repo list renders beside it. */
+export type RepoWithCounts = components["schemas"]["RepoList"]["repos"][number];
 
 /** One repo row. A repo with no row is a 404 result, not a throw — the pages
  *  that read it render "not found" rather than crashing the route. */
@@ -23,11 +24,82 @@ export function getRepo(fullName: string): Promise<ApiResult<RepoRecord>> {
   return apiFetch("lore-api", `/api/repos/${fullName}`);
 }
 
-/** Every onboarded repo, newest first, each row carrying its task count. */
-export function listRepos(): Promise<
-  ApiResult<{ repos: (RepoRecord & { task_count?: number })[]; total: number }>
+/** ONE page of onboarded repos, newest first, each row carrying its task count.
+ *  Answers at most `MAX_PAGE_LIMIT` rows — see {@link listAllRepos}. */
+export function listRepos(
+  limit?: number,
+  offset?: number,
+): Promise<ApiResult<{ repos: RepoWithCounts[]; total: number }>> {
+  const query =
+    limit === undefined && offset === undefined
+      ? ""
+      : `?limit=${limit ?? PAGE}&offset=${offset ?? 0}`;
+
+  return apiFetch("lore-api", `/api/repos${query}`);
+}
+
+/** lore-api CLAMPS `limit` to this, so a bigger ask is silently trimmed rather
+ *  than honoured — paging is the only way past it. Mirrors `MAX_PAGE_LIMIT`. */
+const PAGE = 100;
+
+/**
+ * EVERY onboarded repo, paged.
+ *
+ * `/api/repos` clamps its limit at 100, so a caller that wants a complete list —
+ * a repo picker, a filter dropdown — cannot ask for one. Reading a single page
+ * and treating it as the whole set loses every repo past the hundredth, with
+ * nothing in the UI to say so.
+ *
+ * A failed page returns the FAILURE, never the rows gathered so far: a short
+ * list is indistinguishable from a complete one at the call site, which is the
+ * bug this exists to prevent.
+ */
+export async function listAllRepos(): Promise<
+  ApiResult<{ repos: RepoWithCounts[]; total: number }>
 > {
-  return apiFetch("lore-api", "/api/repos");
+  const repos: RepoWithCounts[] = [];
+
+  for (;;) {
+    const page = await listRepos(PAGE, repos.length);
+
+    if (page.status !== "ok") {
+      return page;
+    }
+    const { total } = page.data;
+
+    repos.push(...page.data.repos);
+
+    // An empty page ends the walk even when `total` disagrees — a count that
+    // outruns the rows (a repo deleted mid-read) would otherwise loop forever.
+    if (page.data.repos.length === 0 || repos.length >= total) {
+      return { status: "ok", data: { repos, total } };
+    }
+  }
+}
+
+/**
+ * The repos from a list read, or a throw naming why there are none.
+ *
+ * Every picker used to answer `[]` when lore-api was unreachable, which renders
+ * as "no repos" — a degraded dependency reported as legitimate empty data. The
+ * home page made that worst of all: its empty state invites you to onboard your
+ * FIRST repo, so an outage told an org with dozens that it had none.
+ *
+ * Throwing puts it in front of the root error boundary instead, which is what
+ * these reads did before they moved behind lore-api.
+ */
+export function reposOrThrow<T>(result: ApiResult<T>): T {
+  if (result.status !== "ok") {
+    throw new Error(
+      `repo list unavailable: ${
+        result.status === "error"
+          ? result.message
+          : "LORE_API_URL not configured"
+      }`,
+    );
+  }
+
+  return result.data;
 }
 
 /** The onboarding result lore-api answers with when the guard clears. */

@@ -2,16 +2,12 @@ import { TimeAgo } from "@/components/TimeAgo";
 import { displayAgentId } from "@/lib/agent-id";
 import { formatEnumLabel } from "@/lib/enum-label";
 import styles from "./EpisodesView.module.css";
+import type { components } from "@/lib/api/schema";
 
-export interface EpisodeRow {
-  id: string;
-  agent_id: string;
-  source: string;
-  ref: string | null;
-  content_preview: string;
-  fact_count: number;
-  created_at: string;
-}
+/** One episode row — `content_preview` is a 300-char slice and `fact_count` an
+ *  aggregate, both stated by the route rather than held by the table. */
+export type EpisodeRow =
+  components["schemas"]["EpisodePage"]["episodes"][number];
 
 export interface EpisodesViewProps {
   /** The active source filter, or undefined for "All sources". */

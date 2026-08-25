@@ -280,21 +280,19 @@ describe("recoverStaleTasks and a line that is legitimately idle", () => {
 });
 
 describe("isFeatureLifecycleType", () => {
-  it("covers planning, finalize and decompose", () => {
+  it("covers planning and decompose", () => {
     // One decision, two consumers: which task types run their own assembly line, and
     // which must NOT open a per-task Issue. decompose was missing from both when its
     // in-process handler was retired, so it would have run without a line and opened
     // an Issue the decompose line then duplicated per story.
     expect(
-      ["feature-planning", "feature-finalize", "feature-decompose"].map(
-        isFeatureLifecycleType,
-      ),
-    ).toEqual([true, true, true]);
+      ["feature-planning", "feature-decompose"].map(isFeatureLifecycleType),
+    ).toEqual([true, true]);
   });
 
   it("excludes the task types that do open their own issue", () => {
     expect(
-      ["implementation", "review", "spec-task", "general"].map(
+      ["implementation", "review", "spec-task", "feature-finalize"].map(
         isFeatureLifecycleType,
       ),
     ).toEqual([false, false, false, false]);

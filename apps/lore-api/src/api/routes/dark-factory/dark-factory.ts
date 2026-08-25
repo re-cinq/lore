@@ -1,4 +1,6 @@
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import type { Pool } from "pg";
+import { rethrowBoom, apiError } from "../../../server/api-error.js";
 import type {
   Request,
   ResponseToolkit,
@@ -12,7 +14,15 @@ import {
   type DarkFactorySettings,
   type TaskOverridesPatch,
 } from "../../../features/dark-factory/dark-factory-settings.js";
+import { PgBaseline } from "@re-cinq/lore-shared/project/baseline/baseline-pg.js";
+import {
+  captureBaselineForRepo,
+  shouldCaptureBaseline,
+} from "../../../features/dark-factory/baseline-capture.js";
 import { projectFor } from "../../../platform/project-boot.js";
+import { z } from "zod";
+import { ResolvedDarkFactorySettingsSchema } from "@re-cinq/lore-shared/models/dark-factory-settings.js";
+import { zodResponse } from "../../../server/plugins/zod-response.js";
 import { bearerScope } from "../../../server/plugins/bearer-scope.js";
 import { checkApproval } from "../two-key.js";
 
@@ -27,33 +37,94 @@ type Ceremony = {
   pr_url?: string;
 };
 
-// One route for both verbs (both admin-scoped) so an unsupported method reaches
-// the 405 fallback rather than a 404 from an unmatched route.
-export function darkFactoryRoute(getPool: () => Pool | null): ServerRoute {
-  return {
-    method: "*",
-    path: DF_PATH,
-    options: bearerScope("admin"),
-    handler: async (request, h) => {
+/**
+ * The dark-factory settings surface. The READ is the fully resolved block — the
+ * model's own resolved projection, so the published contract and the resolver
+ * cannot disagree about which knobs exist. The WRITE echoes what it applied plus
+ * the ceremony that authorised it (ADR-016's two-key gate).
+ */
+const DarkFactoryAppliedSchema = z.object({
+  ok: z.literal(true),
+  applied: ResolvedDarkFactorySettingsSchema,
+  ceremony: z.object({
+    tier: z.enum(["two_key", "admin"]),
+    pr_ref: z.string().optional(),
+    approver: z.string().optional(),
+  }),
+});
+
+/**
+ * GET reads, PUT writes, and each declares its own shape.
+ *
+ * This was ONE `method: "*"` route, so the generator — which stamps a contract
+ * per route and applies it to every verb that route serves — could only declare
+ * the union of the two, leaving a generated client to narrow "resolved settings
+ * or applied change" on a verb that only ever answers one of them.
+ *
+ * The wildcard route stays as a FALLBACK, and only for the 405: hapi answers an
+ * unmatched verb on a matched path with 404, and "you may not DELETE this" is a
+ * better answer than "there is nothing here". It declares no contract, so it
+ * contributes no operation to the document.
+ *
+ * Each route takes the handler for its own verb. Re-dispatching on
+ * `request.method` under three routes that each serve one verb would leave two
+ * arms dead on every request and the 405 arm unreachable from the two that
+ * matter — the split is what makes the dispatch unnecessary. The 405 no longer
+ * waits on the pool either: refusing a verb needs no database.
+ */
+export function darkFactoryRoute(getPool: () => Pool | null): ServerRoute[] {
+  /** Both real verbs need the pool — the GET reads settings through a project
+   *  bound to it — so the one guard is stated once and each verb receives it. */
+  const withPool =
+    (
+      serve: (
+        request: Request,
+        h: ResponseToolkit,
+        pool: Pool,
+        repo: string,
+      ) => Promise<ResponseObject>,
+    ) =>
+    async (request: Request, h: ResponseToolkit) => {
       const pool = getPool();
 
-      if (!pool) {
-        return h.response({ error: "database unavailable" }).code(503);
-      }
-      const repo = repoOf(request.params);
-      const method = request.method.toUpperCase();
+      return pool
+        ? serve(request, h, pool, repoOf(request.params))
+        : h.response({ error: "database unavailable" }).code(503);
+    };
 
-      if (method === "GET") {
-        return handleGet(repo, h);
-      }
-
-      if (method === "PUT") {
-        return handlePut(request, h, pool, repo);
-      }
-
-      return h.response({ error: "method not allowed" }).code(405);
+  return [
+    {
+      method: "GET",
+      path: DF_PATH,
+      options: zodResponse(
+        bearerScope("admin"),
+        ResolvedDarkFactorySettingsSchema,
+        {
+          name: "DarkFactorySettings",
+          description: "Every dark-factory knob, resolved",
+        },
+      ),
+      handler: withPool((_request, h, _pool, repo) => handleGet(repo, h)),
     },
-  };
+    {
+      method: "PUT",
+      path: DF_PATH,
+      options: zodResponse(bearerScope("admin"), DarkFactoryAppliedSchema, {
+        name: "DarkFactorySettingsApplied",
+        description: "What the write applied, and under whose authority",
+        errors: [400, 409],
+      }),
+      handler: withPool(handlePut),
+    },
+    {
+      // Fallback only — a concrete verb above always wins in hapi.
+      method: "*",
+      path: DF_PATH,
+      options: bearerScope("admin"),
+      handler: (_request: Request, h: ResponseToolkit) =>
+        h.response({ error: "method not allowed" }).code(405),
+    },
+  ];
 }
 
 async function handleGet(
@@ -64,12 +135,18 @@ async function handleGet(
     const project = await projectFor(repo);
     const settings = await project.settings.resolveOrNull();
 
-    if (settings === null) {
-      return h.response({ error: "repo not onboarded", repo }).code(404);
-    }
+    enforceTrue(
+      settings !== null,
+      apiError(404, { repo }),
+      "repo not onboarded",
+    );
 
     return h.response(settings);
   } catch (err) {
+    // A guard's refusal already carries its status; only an unexpected failure
+    // is this block's to shape.
+    rethrowBoom(err);
+
     console.error("[dark-factory] GET settings failed:", err);
 
     return h.response({ error: "internal" }).code(500);
@@ -209,6 +286,24 @@ async function handlePut(
       });
 
     await client.query("COMMIT");
+
+    // The pre-enablement snapshot SC1/SC4/SC6 measure against (#1353). Taken
+    // here because this write is the only moment that knows dark mode is being
+    // turned ON: a schedule cannot guarantee the window is pre-enablement, and
+    // one taken afterwards compares the repo against itself.
+    //
+    // After COMMIT and best-effort: the settings change is the user's request
+    // and a failed snapshot must not roll it back or 500 the response.
+    if (shouldCaptureBaseline(prev, next)) {
+      await captureBaselineForRepo(repo, new PgBaseline(pool))
+        .then((summary) => console.log(`[dark-factory] ${summary}`))
+        .catch((err: unknown) =>
+          console.error(
+            `[dark-factory] baseline capture failed for ${repo}:`,
+            err,
+          ),
+        );
+    }
 
     return h.response({ ok: true, applied: next, ceremony });
   } catch (err) {

@@ -1,4 +1,5 @@
 import type { ResolvedDarkFactorySettings } from "../../dark-factory-settings.js";
+import type { Repo } from "../../models/repo.js";
 
 /** An onboarded repo (onboarding_pr_merged = true) and its last reindex stamp. */
 export interface OnboardedRepo {
@@ -6,16 +7,12 @@ export interface OnboardedRepo {
   last_ingested_at: Date | null;
 }
 
-/** One `lore.repos` row, as the UI and the settings routes read it. */
-export interface RepoRecord {
-  full_name: string;
-  team: string | null;
-  settings: Record<string, unknown> | null;
-  onboarded_at: Date | string | null;
-  last_ingested_at: Date | string | null;
-  onboarding_pr_url: string | null;
-  onboarding_pr_merged: boolean;
-}
+/**
+ * One `lore.repos` row. The shape is the `Repo` model — declared once, beside
+ * the columns it binds, rather than restated here where it drifted into a
+ * `Date | string` union trying to be both a row and a JSON payload.
+ */
+export type RepoRecord = Repo;
 
 /** A repo whose onboarding PR is open and unmerged (the merge-check poll set). */
 export interface PendingOnboardingRepo {

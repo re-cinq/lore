@@ -118,3 +118,34 @@ export function taskPageUrl(
 
   return `${uiUrl.replace(/\/+$/, "")}/tasks/${taskId}`;
 }
+
+/** The slice of AssemblyRunsPort the PR stamp needs — kept narrow for tests. */
+export interface PrStampRuns {
+  listForTask(taskId: string): Promise<Array<{ id: string; status: string }>>;
+  mergeArgs(id: string, patch: Record<string, unknown>): Promise<void>;
+}
+
+/**
+ * Persist `{ pr_url, pr_number }` onto the task's open assembly runs at
+ * PR-open (specs/implementation-loop FR3/FR4). The await-pr human station's
+ * `route: "{args.pr_url}"` resolves at read time from these args, so they must
+ * be on the row before the run parks. mergeArgs merges in SQL, so concurrent
+ * node artifacts are not clobbered. Resolution goes through the task — the
+ * PR-keyed lookup (findOpenByPr) matches on args.pr_number, which does not
+ * exist until this very stamp.
+ */
+export async function stampPrOnOpenRuns(
+  runs: PrStampRuns,
+  taskId: string,
+  pr: { url: string; number: number },
+): Promise<void> {
+  const open = (await runs.listForTask(taskId)).filter((row) =>
+    ["queued", "running"].includes(row.status),
+  );
+
+  await Promise.all(
+    open.map((row) =>
+      runs.mergeArgs(row.id, { pr_url: pr.url, pr_number: pr.number }),
+    ),
+  );
+}

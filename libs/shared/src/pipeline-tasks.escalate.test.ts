@@ -9,7 +9,10 @@ import type { PgPool } from "./memory-store.js";
  */
 function poolWithTask(task: Record<string, unknown> | null) {
   const query = vi.fn((sql: string, _params?: unknown[]) => {
-    if (sql.includes("SELECT * FROM pipeline.tasks")) {
+    // Matched on the TABLE, not on `SELECT *`: the read now names the model's
+    // columns, and a matcher pinned to the wildcard answers no rows the moment
+    // the column list becomes explicit.
+    if (sql.includes("FROM pipeline.tasks")) {
       return Promise.resolve({ rows: task === null ? [] : [task] });
     }
 
@@ -104,7 +107,10 @@ describe("reviseTask", () => {
         return Promise.resolve({ rows: [{ id: "revision-1" }] });
       }
 
-      if (sql.includes("SELECT * FROM pipeline.tasks")) {
+      // Matched on the TABLE, not on `SELECT *`: the read now names the model's
+      // columns, and a matcher pinned to the wildcard answers no rows the moment
+      // the column list becomes explicit.
+      if (sql.includes("FROM pipeline.tasks")) {
         return Promise.resolve({ rows: task === null ? [] : [task] });
       }
 

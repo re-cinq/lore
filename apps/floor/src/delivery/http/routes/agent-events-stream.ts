@@ -17,9 +17,9 @@
  * replay heals the gap, so dropping costs latency and never data.
  */
 
-import Boom from "@hapi/boom";
+import { apiError } from "../api-error.js";
 import { PassThrough } from "node:stream";
-import { agentRunEvents } from "../../../kernel/queues.js";
+import { pipeline } from "../../../kernel/queues.js";
 import {
   agentEventBus,
   MAX_BUFFERED_EVENTS,
@@ -223,7 +223,7 @@ export function agentEventsStreamRoute(
         run = streamRunEvents(stream, {
           assemblyLineId,
           after,
-          events: deps?.events ?? agentRunEvents(),
+          events: deps?.events ?? pipeline().agentRunEvents,
           bus: deps?.bus ?? agentEventBus(),
           pageSize: deps?.pageSize,
           heartbeatMs: deps?.heartbeatMs,
@@ -243,7 +243,7 @@ export function agentEventsStreamRoute(
           throw err;
         }
 
-        throw Boom.serverUnavailable("too many subscribers for this run");
+        throw apiError(503)("too many subscribers for this run");
       }
 
       request.raw.req.on("close", run.teardown);

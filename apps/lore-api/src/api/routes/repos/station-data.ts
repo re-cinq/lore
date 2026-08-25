@@ -1,6 +1,14 @@
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import type { ServerRoute } from "@hapi/hapi";
+import { rethrowBoom, apiError } from "../../../server/api-error.js";
 import { z } from "zod";
 import { projectFor } from "../../../platform/project-boot.js";
+import { wireSchema } from "@re-cinq/lore-shared/lib/wire-schema.js";
+import {
+  PipelineTaskSchema,
+  PIPELINE_TASK_COLUMNS,
+} from "@re-cinq/lore-shared/models/pipeline-task.js";
+import { zodResponse } from "../../../server/plugins/zod-response.js";
 import { bearerScope } from "../../../server/plugins/bearer-scope.js";
 import { zodValidate } from "../../../server/plugins/zod-validate.js";
 
@@ -49,6 +57,57 @@ const TaskBody = z.object({
  *   GET  /repos/:o/:r/tasks/open-like?…        → { tasks }     (prefix dedup)
  *   POST /repos/:o/:r/tasks                     → the created task
  */
+/**
+ * The bodies a STATION POD reads. A pod reaches neither Postgres nor the GitHub
+ * App (ADR-031 D6/D7), so these are its whole view of a repo — which is exactly
+ * why they are worth declaring: the pod ships as its own image, and an
+ * undeclared body is one nothing can check across that boundary.
+ */
+const IssueRefSchema = z.object({
+  repo: z.string(),
+  number: z.number(),
+  title: z.string(),
+  state: z.enum(["open", "closed"]),
+  labels: z.array(z.string()),
+  url: z.string().optional(),
+});
+
+const PullRefSchema = z.object({
+  repo: z.string(),
+  number: z.number(),
+  title: z.string(),
+  branch: z.string(),
+  state: z.enum(["open", "closed", "merged"]),
+  labels: z.array(z.string()),
+  url: z.string(),
+  author: z.string().optional(),
+  draft: z.boolean().optional(),
+});
+
+const OnboardedSchema = z.object({ onboarded: z.boolean() });
+const IssueListSchema = z.object({ issues: z.array(IssueRefSchema) });
+const LabelListSchema = z.object({ labels: z.array(z.string()) });
+const OkSchema = z.object({ ok: z.literal(true) });
+const CiConclusionSchema = z.object({
+  conclusion: z.enum(["success", "failure", "pending", "none"]),
+});
+
+/** What `tasks.create` answers with — the queued task's identity, not its row. */
+const StationTaskCreatedSchema = z.object({
+  task_id: z.string(),
+  task_type: z.string(),
+  status: z.string(),
+  priority: z.string(),
+  created_at: z.string(),
+});
+
+/** The task rows a detector compares against — the wire shape, as stored. */
+const StationTaskListSchema = z.object({
+  tasks: z.array(
+    wireSchema(PipelineTaskSchema, PIPELINE_TASK_COLUMNS).partial(),
+  ),
+});
+
 export function stationDataRoutes(): ServerRoute[] {
   const repoOf = (p: Record<string, string>) => `${p.owner}/${p.repo}`;
   const fail = (h: import("@hapi/hapi").ResponseToolkit, err: unknown) =>
@@ -60,7 +119,10 @@ export function stationDataRoutes(): ServerRoute[] {
     {
       method: "GET",
       path: "/api/repos/{owner}/{repo}/onboarded",
-      options: bearerScope("read"),
+      options: zodResponse(bearerScope("read"), OnboardedSchema, {
+        name: "RepoOnboarded",
+        description: "Whether the repo has completed onboarding",
+      }),
       handler: async (request, h) => {
         try {
           const p = await projectFor(repoOf(request.params));
@@ -74,7 +136,10 @@ export function stationDataRoutes(): ServerRoute[] {
     {
       method: "GET",
       path: "/api/repos/{owner}/{repo}/issues",
-      options: bearerScope("read"),
+      options: zodResponse(bearerScope("read"), IssueListSchema, {
+        name: "RepoIssueList",
+        description: "The repo's issues",
+      }),
       handler: async (request, h) => {
         try {
           const state =
@@ -90,7 +155,10 @@ export function stationDataRoutes(): ServerRoute[] {
     {
       method: "GET",
       path: "/api/repos/{owner}/{repo}/labels",
-      options: bearerScope("read"),
+      options: zodResponse(bearerScope("read"), LabelListSchema, {
+        name: "RepoLabelList",
+        description: "The repo's labels",
+      }),
       handler: async (request, h) => {
         try {
           const p = await projectFor(repoOf(request.params));
@@ -104,10 +172,14 @@ export function stationDataRoutes(): ServerRoute[] {
     {
       method: "POST",
       path: "/api/repos/{owner}/{repo}/issues",
-      options: {
-        ...bearerScope("write"),
-        validate: { payload: zodValidate(IssueBody) },
-      },
+      options: zodResponse(
+        {
+          ...bearerScope("write"),
+          validate: { payload: zodValidate(IssueBody) },
+        },
+        IssueRefSchema,
+        { name: "RepoIssueCreated", description: "The issue that was opened" },
+      ),
       handler: async (request, h) => {
         try {
           const { title, body, labels } = request.payload as z.infer<
@@ -124,10 +196,14 @@ export function stationDataRoutes(): ServerRoute[] {
     {
       method: "POST",
       path: "/api/repos/{owner}/{repo}/branches",
-      options: {
-        ...bearerScope("write"),
-        validate: { payload: zodValidate(BranchBody) },
-      },
+      options: zodResponse(
+        {
+          ...bearerScope("write"),
+          validate: { payload: zodValidate(BranchBody) },
+        },
+        OkSchema,
+        { name: "BranchCreated", description: "The branch was created" },
+      ),
       handler: async (request, h) => {
         try {
           const { branch, base } = request.payload as z.infer<
@@ -146,10 +222,14 @@ export function stationDataRoutes(): ServerRoute[] {
     {
       method: "POST",
       path: "/api/repos/{owner}/{repo}/commit",
-      options: {
-        ...bearerScope("write"),
-        validate: { payload: zodValidate(CommitBody) },
-      },
+      options: zodResponse(
+        {
+          ...bearerScope("write"),
+          validate: { payload: zodValidate(CommitBody) },
+        },
+        OkSchema,
+        { name: "CommitCreated", description: "The commit was pushed" },
+      ),
       handler: async (request, h) => {
         try {
           const { branch, path, content, message } = request.payload as z.infer<
@@ -168,10 +248,14 @@ export function stationDataRoutes(): ServerRoute[] {
     {
       method: "POST",
       path: "/api/repos/{owner}/{repo}/pulls",
-      options: {
-        ...bearerScope("write"),
-        validate: { payload: zodValidate(PullBody) },
-      },
+      options: zodResponse(
+        {
+          ...bearerScope("write"),
+          validate: { payload: zodValidate(PullBody) },
+        },
+        PullRefSchema,
+        { name: "PullOpened", description: "The pull request that was opened" },
+      ),
       handler: async (request, h) => {
         try {
           const { branch, title, body, base, labels } =
@@ -189,18 +273,23 @@ export function stationDataRoutes(): ServerRoute[] {
     {
       method: "GET",
       path: "/api/repos/{owner}/{repo}/ci-conclusion",
-      options: bearerScope("read"),
+      options: zodResponse(bearerScope("read"), CiConclusionSchema, {
+        name: "RepoCiConclusion",
+        description: "CI's verdict for a ref",
+      }),
       handler: async (request, h) => {
         try {
           const ref = (request.query.ref as string | undefined) ?? "";
 
-          if (!ref) {
-            return h.response({ error: "ref required" }).code(400);
-          }
+          enforceTrue(ref, apiError(400), "ref required");
           const p = await projectFor(repoOf(request.params));
 
           return h.response({ conclusion: await p.pulls.ciConclusion(ref) });
         } catch (err) {
+          // A guard's refusal already carries its status; only an unexpected failure
+          // is this block's to shape.
+          rethrowBoom(err);
+
           return fail(h, err);
         }
       },
@@ -208,22 +297,29 @@ export function stationDataRoutes(): ServerRoute[] {
     {
       method: "GET",
       path: "/api/repos/{owner}/{repo}/tasks/drift",
-      options: bearerScope("read"),
+      options: zodResponse(bearerScope("read"), StationTaskListSchema, {
+        name: "DriftTaskList",
+        description: "Tasks already open for a spec",
+      }),
       handler: async (request, h) => {
         try {
           const q = request.query as Record<string, string | undefined>;
 
-          if (!q.task_type || !q.spec_path) {
-            return h
-              .response({ error: "task_type + spec_path required" })
-              .code(400);
-          }
+          enforceTrue(
+            q.task_type && q.spec_path,
+            apiError(400),
+            "task_type + spec_path required",
+          );
           const p = await projectFor(repoOf(request.params));
 
           return h.response({
             tasks: await p.tasks.driftTasksForSpec(q.task_type, q.spec_path),
           });
         } catch (err) {
+          // A guard's refusal already carries its status; only an unexpected failure
+          // is this block's to shape.
+          rethrowBoom(err);
+
           return fail(h, err);
         }
       },
@@ -231,16 +327,19 @@ export function stationDataRoutes(): ServerRoute[] {
     {
       method: "GET",
       path: "/api/repos/{owner}/{repo}/tasks/open-like",
-      options: bearerScope("read"),
+      options: zodResponse(bearerScope("read"), StationTaskListSchema, {
+        name: "OpenLikeTaskList",
+        description: "Open tasks matching a prefix",
+      }),
       handler: async (request, h) => {
         try {
           const q = request.query as Record<string, string | undefined>;
 
-          if (!q.task_type || !q.description_prefix) {
-            return h
-              .response({ error: "task_type + description_prefix required" })
-              .code(400);
-          }
+          enforceTrue(
+            q.task_type && q.description_prefix,
+            apiError(400),
+            "task_type + description_prefix required",
+          );
           const statuses = (q.statuses ?? "").split(",").filter(Boolean);
           const p = await projectFor(repoOf(request.params));
 
@@ -252,6 +351,10 @@ export function stationDataRoutes(): ServerRoute[] {
             }),
           });
         } catch (err) {
+          // A guard's refusal already carries its status; only an unexpected failure
+          // is this block's to shape.
+          rethrowBoom(err);
+
           return fail(h, err);
         }
       },
@@ -259,10 +362,14 @@ export function stationDataRoutes(): ServerRoute[] {
     {
       method: "POST",
       path: "/api/repos/{owner}/{repo}/tasks",
-      options: {
-        ...bearerScope("task"),
-        validate: { payload: zodValidate(TaskBody) },
-      },
+      options: zodResponse(
+        {
+          ...bearerScope("task"),
+          validate: { payload: zodValidate(TaskBody) },
+        },
+        StationTaskCreatedSchema,
+        { name: "StationTaskCreated", description: "The task that was queued" },
+      ),
       handler: async (request, h) => {
         try {
           const body = request.payload as z.infer<typeof TaskBody>;

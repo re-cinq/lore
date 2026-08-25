@@ -101,6 +101,25 @@ export async function handleClaudeCodeTask(
     return;
   }
 
+  // A joined dispatch started nothing: another run already held this subject and
+  // is doing the work. The task is therefore DONE in the only sense it can be —
+  // leaving it `running` would strand it until the stale sweep, which is what a
+  // duplicate click used to look like before the subject guard existed.
+  if (result.joinedRun) {
+    // `completed` with NO failure_reason. The task's work IS being done — by the run
+    // it joined — so this is not a failure, and the task page renders any
+    // failure_reason under a "Failure:" heading in failure styling. Writing the
+    // explanation there would show a red failure on a task that succeeded. The why
+    // is durable in the run row and in this log line; the task has nothing of its
+    // own to report.
+    await project.tasks.setStatus(task.id, "completed");
+    console.log(
+      `[floor] task ${task.id} joined run ${result.joinedRun}; nothing dispatched`,
+    );
+
+    return;
+  }
+
   console.log(
     result.started
       ? `[floor] Dispatched Agent CR for task ${task.id}`

@@ -1,3 +1,6 @@
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
+import { apiError } from "../../../server/api-error.js";
+import { zodResponse } from "../../../server/plugins/zod-response.js";
 import { errorMessage } from "@re-cinq/lore-shared";
 import type { Pool } from "pg";
 import type { ServerRoute } from "@hapi/hapi";
@@ -37,20 +40,39 @@ type ReadyQuery = z.infer<typeof ReadyQuery>;
 type ClaimBody = z.infer<typeof ClaimBody>;
 type CompleteBody = z.infer<typeof CompleteBody>;
 
+/** The spec-task DAG's four operations, each answering what it changed. */
+const SpecSyncSchema = z.object({
+  parsed: z.number(),
+  synced: z.number(),
+  created: z.number(),
+});
+const SpecReadySchema = z.object({ tasks: z.array(z.record(z.unknown())) });
+const SpecClaimSchema = z.object({
+  claimed: z.boolean(),
+  task_id: z.string(),
+  agent_id: z.string(),
+});
+const SpecCompleteSchema = z.record(z.unknown());
+
 export function specTasksSyncRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "POST",
     path: "/api/spec-tasks/sync",
-    options: {
-      ...bearerScope("task"),
-      validate: { payload: zodValidate(SyncBody) },
-    },
+    options: zodResponse(
+      {
+        ...bearerScope("task"),
+        validate: { payload: zodValidate(SyncBody) },
+      },
+      SpecSyncSchema,
+      {
+        name: "SpecTasksSynced",
+        description: "How many spec tasks the sync parsed and created",
+      },
+    ),
     handler: async (request, h) => {
       const pool = getPool();
 
-      if (!pool) {
-        return h.response({ error: DB_UNAVAILABLE }).code(503);
-      }
+      enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
 
       const { repo, spec_slug, tasks_markdown } = request.payload as SyncBody;
 
@@ -79,16 +101,21 @@ export function specTasksReadyRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "GET",
     path: "/api/spec-tasks/ready",
-    options: {
-      ...bearerScope("read"),
-      validate: { query: zodValidate(ReadyQuery) },
-    },
+    options: zodResponse(
+      {
+        ...bearerScope("read"),
+        validate: { query: zodValidate(ReadyQuery) },
+      },
+      SpecReadySchema,
+      {
+        name: "SpecTasksReady",
+        description: "Spec tasks whose dependencies have merged",
+      },
+    ),
     handler: async (request, h) => {
       const pool = getPool();
 
-      if (!pool) {
-        return h.response({ error: DB_UNAVAILABLE }).code(503);
-      }
+      enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
 
       const { repo } = request.query as unknown as ReadyQuery;
 
@@ -105,16 +132,18 @@ export function specTasksClaimRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "POST",
     path: "/api/spec-tasks/claim",
-    options: {
-      ...bearerScope("task"),
-      validate: { payload: zodValidate(ClaimBody) },
-    },
+    options: zodResponse(
+      {
+        ...bearerScope("task"),
+        validate: { payload: zodValidate(ClaimBody) },
+      },
+      SpecClaimSchema,
+      { name: "SpecTaskClaimed", description: "Whether the claim succeeded" },
+    ),
     handler: async (request, h) => {
       const pool = getPool();
 
-      if (!pool) {
-        return h.response({ error: DB_UNAVAILABLE }).code(503);
-      }
+      enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
 
       const { task_id, agent_id } = request.payload as ClaimBody;
 
@@ -135,16 +164,21 @@ export function specTasksCompleteRoute(
   return {
     method: "POST",
     path: "/api/spec-tasks/complete",
-    options: {
-      ...bearerScope("task"),
-      validate: { payload: zodValidate(CompleteBody) },
-    },
+    options: zodResponse(
+      {
+        ...bearerScope("task"),
+        validate: { payload: zodValidate(CompleteBody) },
+      },
+      SpecCompleteSchema,
+      {
+        name: "SpecTaskCompleted",
+        description: "The completed task's new state",
+      },
+    ),
     handler: async (request, h) => {
       const pool = getPool();
 
-      if (!pool) {
-        return h.response({ error: DB_UNAVAILABLE }).code(503);
-      }
+      enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
 
       const { task_id } = request.payload as CompleteBody;
 

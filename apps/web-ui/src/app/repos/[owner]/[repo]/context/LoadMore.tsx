@@ -79,7 +79,11 @@ export default function LoadMore({
           key={c.id}
           chunk={c}
           repo={`${owner}/${repo}`}
-          detailHref={`${base}/${encodeURIComponent(c.file_path)}`}
+          detailHref={
+            c.file_path
+              ? `${base}/${encodeURIComponent(c.file_path)}`
+              : undefined
+          }
         />
       ))}
       {more && (

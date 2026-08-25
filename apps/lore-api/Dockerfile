@@ -7,8 +7,10 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 COPY libs/shared/package.json ./libs/shared/
 COPY libs/server-core/package.json ./libs/server-core/
+COPY libs/assembly-lines/package.json ./libs/assembly-lines/
+COPY apps/stations/package.json ./apps/stations/
 COPY apps/lore-api/package.json ./apps/lore-api/
-RUN npm ci --ignore-scripts --workspace=@re-cinq/lore-shared --workspace=@re-cinq/lore-server-core --workspace=@re-cinq/lore-api
+RUN npm ci --ignore-scripts --workspace=@re-cinq/lore-shared --workspace=@re-cinq/lore-server-core --workspace=@re-cinq/lore-assembly-lines --workspace=@re-cinq/lore-stations --workspace=@re-cinq/lore-api
 
 # Build shared
 COPY libs/shared/tsconfig.json ./libs/shared/
@@ -23,6 +25,19 @@ COPY libs/server-core/templates ./libs/server-core/templates
 RUN npm run build --workspace=@re-cinq/lore-server-core
 
 # Build the API
+# The assembly-line definitions the enriched run-read resolves stations from.
+# A previous attempt at this route left this out: the dependency resolved
+# through workspace hoisting locally and did not exist in Docker, so the image
+# failed to build. Its build also copies the YAMLs to dist for the loader.
+COPY libs/assembly-lines/tsconfig.json ./libs/assembly-lines/
+COPY libs/assembly-lines/src ./libs/assembly-lines/src
+RUN npm run build --workspace=@re-cinq/lore-assembly-lines
+
+# The station registry: lore-api derives its maintenance jobs from it.
+COPY apps/stations/tsconfig.json ./apps/stations/
+COPY apps/stations/src ./apps/stations/src
+RUN npm run build --workspace=@re-cinq/lore-stations
+
 COPY apps/lore-api/tsconfig.json ./apps/lore-api/
 COPY apps/lore-api/src ./apps/lore-api/src
 RUN npm run build --workspace=@re-cinq/lore-api
@@ -47,6 +62,10 @@ ENV NODE_ENV=production
 # /app/libs mirrors the repo so the workspace symlinks in node_modules resolve,
 # and libs/server-core/templates is reachable from the compiled package.
 COPY --from=builder /app/libs ./libs
+# apps/stations is an APP, not under /app/libs, so it needs its own copy for
+# node_modules/@re-cinq/lore-stations to resolve at runtime.
+COPY --from=builder /app/apps/stations/dist ./apps/stations/dist
+COPY --from=builder /app/apps/stations/package.json ./apps/stations/
 COPY --from=builder /app/apps/lore-api/package.json ./
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/apps/lore-api/dist ./dist

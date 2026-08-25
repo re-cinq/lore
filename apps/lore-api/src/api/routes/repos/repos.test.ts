@@ -38,13 +38,47 @@ describe("GET /api/repos", () => {
 
     pool.query
       .mockResolvedValueOnce({
-        rows: [{ id: 1, full_name: "re-cinq/lore", task_count: 3 }],
+        rows: [
+          {
+            id: "1",
+            owner: "re-cinq",
+            name: "lore",
+            full_name: "re-cinq/lore",
+            team: "platform",
+            onboarded_at: new Date("2026-08-01T00:00:00Z"),
+            last_ingested_at: null,
+            onboarding_pr_url: null,
+            onboarding_pr_merged: true,
+            settings: {},
+            outcome_stats: null,
+            task_count: 3,
+            active_agents: 1,
+          },
+        ],
       })
       .mockResolvedValueOnce({ rows: [{ total: 1 }] });
     const res = await get("", pool);
 
+    // The body is the `Repo` model keyed by its COLUMNS plus the two computed
+    // counts — mapped through REPO_COLUMNS, not the raw driver row.
     expect(res.result).toEqual({
-      repos: [{ id: 1, full_name: "re-cinq/lore", task_count: 3 }],
+      repos: [
+        {
+          id: "1",
+          owner: "re-cinq",
+          name: "lore",
+          full_name: "re-cinq/lore",
+          team: "platform",
+          onboarded_at: new Date("2026-08-01T00:00:00Z"),
+          last_ingested_at: null,
+          onboarding_pr_url: null,
+          onboarding_pr_merged: true,
+          settings: {},
+          outcome_stats: null,
+          task_count: 3,
+          active_agents: 1,
+        },
+      ],
       total: 1,
       limit: 100,
       offset: 0,

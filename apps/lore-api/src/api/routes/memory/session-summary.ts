@@ -1,3 +1,6 @@
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
+import { zodResponse } from "../../../server/plugins/zod-response.js";
+import { rethrowBoom, apiError } from "../../../server/api-error.js";
 import { errorMessage } from "@re-cinq/lore-shared";
 import type { Pool } from "pg";
 import type { ServerRoute } from "@hapi/hapi";
@@ -21,14 +24,28 @@ const SessionSummaryBody = z.object({
 
 type SessionSummaryBody = z.infer<typeof SessionSummaryBody>;
 
+/** A session summary is ingested, skipped as empty, or recognised as a duplicate. */
+const SessionSummarySchema = z.union([
+  z.object({ status: z.literal("ok"), episode_id: z.string() }),
+  z.object({ status: z.literal("skipped"), reason: z.string() }),
+  z.object({ status: z.literal("duplicate") }),
+]);
+
 export function sessionSummaryRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "POST",
     path: "/api/session-summary",
-    options: {
-      ...bearerScope("write"),
-      validate: { payload: zodValidate(SessionSummaryBody) },
-    },
+    options: zodResponse(
+      {
+        ...bearerScope("write"),
+        validate: { payload: zodValidate(SessionSummaryBody) },
+      },
+      SessionSummarySchema,
+      {
+        name: "SessionSummaryResult",
+        description: "What became of the posted session",
+      },
+    ),
     handler: async (request, h) => {
       const pool = getPool();
 
@@ -49,9 +66,7 @@ export function sessionSummaryRoute(getPool: () => Pool | null): ServerRoute {
         const agent = agent_id || "session-hook";
         const contentHash = createHash("sha256").update(content).digest("hex");
 
-        if (!pool) {
-          return h.response({ error: DB_UNAVAILABLE }).code(503);
-        }
+        enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
 
         const { rows } = await pool.query(
           `INSERT INTO memory.episodes (agent_id, content, content_hash, source, ref)
@@ -83,6 +98,10 @@ export function sessionSummaryRoute(getPool: () => Pool | null): ServerRoute {
 
         return h.response({ status: "ok", episode_id: rows[0].id });
       } catch (err) {
+        // A guard's refusal already carries its status; only an unexpected failure
+        // is this block's to shape.
+        rethrowBoom(err);
+
         return h.response({ error: errorMessage(err) }).code(500);
       }
     },

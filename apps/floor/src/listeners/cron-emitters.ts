@@ -21,6 +21,16 @@ export interface CronEmitter {
 
 export const CRON_EMITTERS: CronEmitter[] = [
   { name: "merge_check", schedule: "*/1 * * * *" },
+  {
+    name: "implementation_loop",
+    schedule: "*/5 * * * *",
+    note: "safety net for the backlog loop driver; the terminal hook re-emits it per repo for gapless re-arm",
+  },
+  {
+    name: "pr_ready_check",
+    schedule: "*/2 * * * *",
+    note: "resume implementation-loop runs parked at await-pr once the PR is green and thread-clean",
+  },
   { name: "approval_check", schedule: "*/1 * * * *" },
   { name: "spec_task_executor", schedule: "*/1 * * * *" },
   { name: "stale_task_check", schedule: "17 * * * *" },
@@ -39,6 +49,11 @@ export const CRON_EMITTERS: CronEmitter[] = [
     name: "lease_reaper",
     schedule: "* * * * *",
     note: "delete leases >5min past expiry, writing a lease_expired audit entry each",
+  },
+  {
+    name: "llm_credit_probe",
+    schedule: "*/5 * * * *",
+    note: "clears the LLM dispatch gate once the Anthropic account can answer again; no-op while dispatch is allowed",
   },
   {
     name: "events_prune",

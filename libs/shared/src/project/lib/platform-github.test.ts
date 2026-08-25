@@ -17,7 +17,10 @@ const state: {
   reviewCall?: Record<string, unknown>;
   prData?: Record<string, unknown>;
   treeData?: Record<string, unknown>;
-} = { files: [], checkRuns: [], token: "" };
+  issuesData?: Array<Record<string, unknown>>;
+  reviewThreadPages?: Array<Record<string, unknown>>;
+  graphqlCalls: Array<{ query: string; vars: Record<string, unknown> }>;
+} = { files: [], checkRuns: [], token: "", graphqlCalls: [] };
 
 vi.mock("octokit", () => ({
   Octokit: class {
@@ -25,6 +28,19 @@ vi.mock("octokit", () => ({
     // construction, so a fake without it models a client that does not exist.
     hook = { before: () => {} };
     auth = async () => ({ token: state.token });
+    graphql = async (query: string, vars: Record<string, unknown>) => {
+      state.graphqlCalls.push({ query, vars });
+
+      if (query.trimStart().startsWith("mutation")) {
+        return { resolveReviewThread: { thread: { id: vars.threadId } } };
+      }
+      const page = (state.reviewThreadPages ?? []).shift() ?? {
+        nodes: [],
+        pageInfo: { hasNextPage: false, endCursor: null },
+      };
+
+      return { repository: { pullRequest: { reviewThreads: page } } };
+    };
     paginate = async (
       fn: (p: unknown) => Promise<unknown[]>,
       params: unknown,
@@ -40,6 +56,7 @@ vi.mock("octokit", () => ({
       checks: { listForRef: async () => state.checkRuns },
       git: { getTree: async () => ({ data: state.treeData }) },
       issues: {
+        listForRepo: async () => state.issuesData ?? [],
         createLabel: async () => {
           if (state.labelError) {
             throw state.labelError;
@@ -75,8 +92,43 @@ describe("PlatformGitHub paginated reads + helpers", () => {
     state.reviewCall = undefined;
     state.prData = undefined;
     state.treeData = undefined;
+    state.issuesData = undefined;
   });
   afterEach(() => vi.clearAllMocks());
+
+  it("listIssues maps created_at to createdAt and drops pull requests", async () => {
+    state.issuesData = [
+      {
+        number: 12,
+        title: "Slow queries",
+        state: "open",
+        labels: [{ name: "priority:high" }, "bug"],
+        html_url: "https://gh/i/12",
+        created_at: "2026-08-02T09:00:00Z",
+      },
+      {
+        number: 13,
+        title: "A PR, not an issue",
+        state: "open",
+        labels: [],
+        created_at: "2026-08-03T09:00:00Z",
+        pull_request: {},
+      },
+    ];
+    const issues = await gh().listIssues("re-cinq/lore");
+
+    expect(issues).toEqual([
+      {
+        repo: "re-cinq/lore",
+        number: 12,
+        title: "Slow queries",
+        state: "open",
+        labels: ["priority:high", "bug"],
+        url: "https://gh/i/12",
+        createdAt: "2026-08-02T09:00:00Z",
+      },
+    ]);
+  });
 
   it("listFiles returns every changed filename (paginated past one page)", async () => {
     state.files = Array.from({ length: 31 }, (_, i) => ({
@@ -191,5 +243,73 @@ describe("PlatformGitHub paginated reads + helpers", () => {
     };
 
     expect(await gh().listTree("re-cinq/lore", "main")).toEqual(["specs/a.md"]);
+  });
+});
+
+describe("PlatformGitHub review threads (GraphQL)", () => {
+  const gh = () => new PlatformGitHub({ GITHUB_TOKEN: "gh-token" });
+
+  beforeEach(() => {
+    state.reviewThreadPages = [];
+    state.graphqlCalls = [];
+  });
+  afterEach(() => vi.clearAllMocks());
+
+  it("listReviewThreads maps nodes and stitches pages past the first cursor", async () => {
+    state.reviewThreadPages = [
+      {
+        nodes: [
+          {
+            id: "PRRT_1",
+            isResolved: false,
+            isOutdated: false,
+            comments: { nodes: [{ databaseId: 101 }, { databaseId: 102 }] },
+          },
+        ],
+        pageInfo: { hasNextPage: true, endCursor: "cursor-1" },
+      },
+      {
+        nodes: [
+          {
+            id: "PRRT_2",
+            isResolved: true,
+            isOutdated: true,
+            comments: { nodes: [{ databaseId: null }] },
+          },
+        ],
+        pageInfo: { hasNextPage: false, endCursor: null },
+      },
+    ];
+
+    const threads = await gh().listReviewThreads("re-cinq/lore", 7);
+
+    expect(threads).toEqual([
+      {
+        id: "PRRT_1",
+        isResolved: false,
+        isOutdated: false,
+        comments: [{ databaseId: 101 }, { databaseId: 102 }],
+      },
+      {
+        id: "PRRT_2",
+        isResolved: true,
+        isOutdated: true,
+        comments: [{ databaseId: null }],
+      },
+    ]);
+    expect(state.graphqlCalls[1]?.vars).toMatchObject({
+      owner: "re-cinq",
+      name: "lore",
+      number: 7,
+      cursor: "cursor-1",
+    });
+  });
+
+  it("resolveReviewThread sends the mutation carrying the thread node id", async () => {
+    await gh().resolveReviewThread("PRRT_42");
+
+    expect(state.graphqlCalls).toHaveLength(1);
+    expect(state.graphqlCalls[0]?.query).toContain("resolveReviewThread");
+    expect(state.graphqlCalls[0]?.vars).toEqual({ threadId: "PRRT_42" });
   });
 });

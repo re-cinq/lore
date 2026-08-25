@@ -9,7 +9,7 @@
  * `{ statusCode, error, message }` shape.
  */
 
-import Boom from "@hapi/boom";
+import { apiError } from "../api-error.js";
 import type { Request, ResponseToolkit } from "@hapi/hapi";
 import type { ZodError, ZodType } from "zod";
 
@@ -61,9 +61,5 @@ export function zodFailAction(
   _h: ResponseToolkit,
   err?: Error,
 ): never {
-  const message = err?.message ?? "invalid request";
-  const boom = Boom.badRequest(message);
-
-  boom.output.payload = { error: message } as unknown as Boom.Payload;
-  throw boom;
+  throw apiError(400)(err?.message ?? "invalid request");
 }

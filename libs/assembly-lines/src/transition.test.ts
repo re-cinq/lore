@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { selectEdge, nextTransition, type NodeVisit } from "./transition.js";
+import { selectEdge, getNextTransition, type NodeVisit } from "./transition.js";
 import { parseAssemblyLine, type AssemblyLine } from "./loader.js";
 import { loadBuiltinAssemblyLines } from "./builtin-assembly-lines.js";
 import type { StageOutcome } from "./node-types.js";
@@ -8,7 +8,7 @@ import type { StageOutcome } from "./node-types.js";
 // deliberately lack failed / changes_requested edges so the runtime
 // no-edge guard below stays exercisable — the loader now rejects a
 // definition whose producible outcomes are uncovered (#946), keeping
-// `nextTransition`'s no-edge failure as defense-in-depth for graphs
+// `getNextTransition`'s no-edge failure as defense-in-depth for graphs
 // that never went through the loader.
 const reviewLoop: AssemblyLine = {
   name: "review-loop",
@@ -68,6 +68,62 @@ const visit = (
   outcome: StageOutcome | null,
 ): NodeVisit => ({ nodeId, iteration, outcome });
 
+// feature-planning.yaml's shape: a node that retries ITSELF once on failure.
+const selfRetry: AssemblyLine = parseAssemblyLine(`
+name: feature-planning
+description: analyze retries itself once, then the author reads the round
+version: 1
+entry: analyze
+exit: done
+nodes:
+  - id: analyze
+    type: agent
+  - id: done
+    type: retrospective
+edges:
+  - from: analyze
+    to: done
+    on: success
+  - from: analyze
+    to: done
+    on: changes_requested
+  - from: analyze
+    to: analyze
+    on: failed
+    iteration_max: 1
+`);
+
+// A line whose `failed` edge routes FORWARD, to the retrospective every
+// definition runs on its way out. Suppressing a permanent failure's RETRY must
+// not suppress its ROUTE, or the line silently skips that work.
+const forwardOnFailed: AssemblyLine = parseAssemblyLine(`
+name: forward-on-failed
+description: review fails forward into the retrospective
+version: 1
+entry: review
+exit: done
+nodes:
+  - id: review
+    type: agent
+  - id: retro
+    type: retrospective
+  - id: done
+    type: retrospective
+edges:
+  - from: review
+    to: done
+    on: success
+  - from: review
+    to: done
+    on: changes_requested
+  - from: review
+    to: retro
+    on: failed
+  - from: retro
+    to: done
+    on: always
+`);
+
 describe("selectEdge", () => {
   it("prefers the exact-outcome edge over always", () => {
     expect(selectEdge(alwaysLoop, "validate", "failed")?.to).toBe("address");
@@ -79,9 +135,82 @@ describe("selectEdge", () => {
   });
 });
 
-describe("nextTransition", () => {
+describe("getNextTransition on a permanent node failure", () => {
+  it("does not retry a node the account has no credit to run", () => {
+    expect(
+      getNextTransition(selfRetry, [
+        {
+          nodeId: "analyze",
+          iteration: 1,
+          outcome: "failed",
+          failureClass: "anthropic-credit",
+          failureDetail: "Credit balance is too low",
+        },
+      ]),
+    ).toMatchObject({ kind: "fail", outcome: "error" });
+  });
+
+  it("names the cause rather than the edge budget it declined to spend", () => {
+    const transition = getNextTransition(selfRetry, [
+      {
+        nodeId: "analyze",
+        iteration: 1,
+        outcome: "failed",
+        failureClass: "anthropic-credit",
+        failureDetail: "Credit balance is too low",
+      },
+    ]);
+
+    expect(transition.kind === "fail" && transition.reason).toContain(
+      "Credit balance is too low",
+    );
+    expect(transition.kind === "fail" && transition.reason).not.toContain(
+      "iteration_max",
+    );
+  });
+
+  it("still retries a rate limit, which a later attempt can clear", () => {
+    expect(
+      getNextTransition(selfRetry, [
+        {
+          nodeId: "analyze",
+          iteration: 1,
+          outcome: "failed",
+          failureClass: "anthropic-rate-limit",
+          failureDetail: "429 rate limit exceeded",
+        },
+      ]),
+    ).toEqual({ kind: "launch", nodeId: "analyze", iteration: 2 });
+  });
+
+  it("still retries an unclassified failure, which is what the budget is for", () => {
+    expect(
+      getNextTransition(selfRetry, [visit("analyze", 1, "failed")]),
+    ).toEqual({
+      kind: "launch",
+      nodeId: "analyze",
+      iteration: 2,
+    });
+  });
+
+  it("still ROUTES a permanent failure forward when the edge is not a retry", () => {
+    expect(
+      getNextTransition(forwardOnFailed, [
+        {
+          nodeId: "review",
+          iteration: 1,
+          outcome: "failed",
+          failureClass: "anthropic-credit",
+          failureDetail: "Credit balance is too low",
+        },
+      ]),
+    ).toEqual({ kind: "launch", nodeId: "retro", iteration: 1 });
+  });
+});
+
+describe("getNextTransition", () => {
   it("launches the entry node at iteration 1 on an empty history", () => {
-    expect(nextTransition(reviewLoop, [])).toEqual({
+    expect(getNextTransition(reviewLoop, [])).toEqual({
       kind: "launch",
       nodeId: "implement",
       iteration: 1,
@@ -89,14 +218,16 @@ describe("nextTransition", () => {
   });
 
   it("awaits while the newest node row is still open", () => {
-    expect(nextTransition(reviewLoop, [visit("implement", 1, null)])).toEqual({
+    expect(
+      getNextTransition(reviewLoop, [visit("implement", 1, null)]),
+    ).toEqual({
       kind: "await",
     });
   });
 
   it("launches the next node after a success outcome", () => {
     expect(
-      nextTransition(reviewLoop, [visit("implement", 1, "success")]),
+      getNextTransition(reviewLoop, [visit("implement", 1, "success")]),
     ).toEqual({ kind: "launch", nodeId: "validate", iteration: 1 });
   });
 
@@ -107,7 +238,7 @@ describe("nextTransition", () => {
       visit("review", 1, "changes_requested"),
     ];
 
-    expect(nextTransition(reviewLoop, visits)).toEqual({
+    expect(getNextTransition(reviewLoop, visits)).toEqual({
       kind: "launch",
       nodeId: "implement",
       iteration: 2,
@@ -121,7 +252,7 @@ describe("nextTransition", () => {
       visit("review", 1, "success"),
     ];
 
-    expect(nextTransition(reviewLoop, visits)).toEqual({ kind: "finish" });
+    expect(getNextTransition(reviewLoop, visits)).toEqual({ kind: "finish" });
   });
 
   it("fails with iteration_max when a back-edge exceeds its budget", () => {
@@ -136,7 +267,7 @@ describe("nextTransition", () => {
       visit("validate", 3, "success"),
       visit("review", 3, "changes_requested"),
     ];
-    const t = nextTransition(reviewLoop, visits);
+    const t = getNextTransition(reviewLoop, visits);
 
     expect(t).toMatchObject({ kind: "fail", outcome: "iteration_max" });
   });
@@ -148,13 +279,13 @@ describe("nextTransition", () => {
       visit("validate", 2, "failed"),
       visit("address", 2, "success"),
     ];
-    const t = nextTransition(alwaysLoop, visits);
+    const t = getNextTransition(alwaysLoop, visits);
 
     expect(t).toMatchObject({ kind: "fail", outcome: "iteration_max" });
   });
 
   it("fails with a no-edge error when no edge matches the outcome", () => {
-    const t = nextTransition(reviewLoop, [visit("implement", 1, "failed")]);
+    const t = getNextTransition(reviewLoop, [visit("implement", 1, "failed")]);
 
     expect(t).toMatchObject({ kind: "fail", outcome: "error" });
     expect((t as { reason: string }).reason).toContain(
@@ -164,7 +295,7 @@ describe("nextTransition", () => {
 
   it("fails when the visit history exceeds maxNodes", () => {
     const visits = [visit("implement", 1, "success")];
-    const t = nextTransition(reviewLoop, visits, 1);
+    const t = getNextTransition(reviewLoop, visits, 1);
 
     expect(t).toMatchObject({ kind: "fail", outcome: "error" });
   });
@@ -176,7 +307,7 @@ describe("nextTransition", () => {
       visit("implement", 1, "success"),
       visit("validate", 2, "success"),
     ];
-    const t = nextTransition(reviewLoop, visits);
+    const t = getNextTransition(reviewLoop, visits);
 
     expect(t).toMatchObject({ kind: "fail", outcome: "error" });
     expect((t as { reason: string }).reason).toContain("diverge");
@@ -186,7 +317,7 @@ describe("nextTransition", () => {
 // The executor parity oracle retired with the in-process walk (its extraction-time
 // parity run covered every builtin YAML). This keeps a live guarantee: an
 // all-success walk of every builtin definition routes node-by-node to finish.
-describe("nextTransition walks every builtin assembly line to finish on success", () => {
+describe("getNextTransition walks every builtin assembly line to finish on success", () => {
   it("routes each builtin definition's success path to the exit", async () => {
     const builtins = await loadBuiltinAssemblyLines();
 
@@ -196,7 +327,7 @@ describe("nextTransition walks every builtin assembly line to finish on success"
       const visits: NodeVisit[] = [];
 
       for (let step = 0; step < 50; step++) {
-        const t = nextTransition(line, visits);
+        const t = getNextTransition(line, visits);
 
         if (t.kind === "finish") {
           break;
@@ -211,7 +342,7 @@ describe("nextTransition walks every builtin assembly line to finish on success"
           });
         }
       }
-      expect(nextTransition(line, visits), line.name).toEqual({
+      expect(getNextTransition(line, visits), line.name).toEqual({
         kind: "finish",
       });
     }
@@ -219,31 +350,6 @@ describe("nextTransition walks every builtin assembly line to finish on success"
 });
 
 describe("rework: a step sends work back to the step that fed it", () => {
-  it("routes write's objection back to analyse, then fails rather than looping", async () => {
-    // The whole point of bounding rework: analyse gets ONE correction. A second
-    // objection has to end the line, or two agents disagreeing spend the day at it.
-    const finalize = (await loadBuiltinAssemblyLines()).get("feature-finalize");
-
-    expect(finalize).toBeDefined();
-    const visits: NodeVisit[] = [
-      { nodeId: "analyse", iteration: 1, outcome: "success" },
-      { nodeId: "write", iteration: 1, outcome: "changes_requested" },
-    ];
-
-    expect(nextTransition(finalize!, visits)).toMatchObject({
-      kind: "launch",
-      nodeId: "analyse",
-      iteration: 2,
-    });
-
-    visits.push(
-      { nodeId: "analyse", iteration: 2, outcome: "success" },
-      { nodeId: "write", iteration: 2, outcome: "changes_requested" },
-    );
-
-    expect(nextTransition(finalize!, visits).kind).toBe("fail");
-  });
-
   it("routes the station's objection back to decompose, then fails rather than looping", async () => {
     // The decompose/issues pair is the TAIL of feature-planning now, not its own
     // line — the objection loop is unchanged, only its home is.
@@ -263,7 +369,7 @@ describe("rework: a step sends work back to the step that fed it", () => {
       { nodeId: "issues", iteration: 1, outcome: "changes_requested" },
     ];
 
-    expect(nextTransition(decompose!, visits)).toMatchObject({
+    expect(getNextTransition(decompose!, visits)).toMatchObject({
       kind: "launch",
       nodeId: "decompose",
       iteration: 2,
@@ -274,19 +380,6 @@ describe("rework: a step sends work back to the step that fed it", () => {
       { nodeId: "issues", iteration: 2, outcome: "changes_requested" },
     );
 
-    expect(nextTransition(decompose!, visits).kind).toBe("fail");
-  });
-
-  it("ends the line when analyse asks the AUTHOR for changes", async () => {
-    // No upstream node to loop to — the input is the plan a human accepted, so the
-    // walk routes straight to the exit. Returning the feature to the author is the
-    // settlement's job, not the graph's.
-    const finalize = (await loadBuiltinAssemblyLines()).get("feature-finalize");
-
-    expect(
-      nextTransition(finalize!, [
-        { nodeId: "analyse", iteration: 1, outcome: "changes_requested" },
-      ]),
-    ).toEqual({ kind: "finish" });
+    expect(getNextTransition(decompose!, visits).kind).toBe("fail");
   });
 });

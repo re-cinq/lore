@@ -5,7 +5,7 @@ import EventsView from "./EventsView";
 import type { RepoEvent } from "./pagination";
 
 const event = (over: Partial<RepoEvent>): RepoEvent => ({
-  id: 1,
+  id: "1",
   event_name: "github.pull_request.opened",
   source: "github",
   params: { repo: "re-cinq/lore" },
@@ -23,13 +23,13 @@ describe("EventsView", () => {
         hasMore={false}
         events={[
           event({
-            id: 1,
+            id: "1",
             event_name: "github.pull_request.opened",
             source: "github",
             status: "done",
           }),
           event({
-            id: 2,
+            id: "2",
             event_name: "internal.ingest.spec_trace",
             source: "internal",
             status: "pending",

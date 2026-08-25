@@ -143,4 +143,34 @@ describe("upstream proxying", () => {
     expect(res.status).toBe(207);
     expect(await res.json()).toEqual({ turns: [{ id: "1" }] });
   });
+
+  it("surfaces a Floor 401 as 502 so it cannot masquerade as the proxy's own auth ladder", async () => {
+    authorized();
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify({ error: "bad token" }), { status: 401 }),
+    );
+
+    const res = await GET(new Request("http://ui/x"), { params });
+
+    expect(res.status).toBe(502);
+    expect(await res.json()).toEqual({ error: "bad token" });
+  });
+
+  it("surfaces a Floor 403 as 502", async () => {
+    authorized();
+    fetchMock.mockResolvedValue(new Response("{}", { status: 403 }));
+
+    const res = await GET(new Request("http://ui/x"), { params });
+
+    expect(res.status).toBe(502);
+  });
+
+  it("passes a non-auth Floor error like 500 through unchanged", async () => {
+    authorized();
+    fetchMock.mockResolvedValue(new Response("{}", { status: 500 }));
+
+    const res = await GET(new Request("http://ui/x"), { params });
+
+    expect(res.status).toBe(500);
+  });
 });

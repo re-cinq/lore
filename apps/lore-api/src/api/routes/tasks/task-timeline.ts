@@ -1,3 +1,7 @@
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
+import { apiError } from "../../../server/api-error.js";
+import { zodResponse } from "../../../server/plugins/zod-response.js";
+import { z } from "zod";
 import type { Pool } from "pg";
 import type { ServerRoute } from "@hapi/hapi";
 import { parseTrailers } from "@re-cinq/lore-shared";
@@ -26,6 +30,19 @@ interface RawCommit {
  * returns the timeline with per-stage durations. Only commits carrying
  * Lore stage trailers contribute.
  */
+/** The branch-as-state view: what each stage committed, and who holds the lease. */
+const TaskTimelineSchema = z.object({
+  task_id: z.string(),
+  branch_name: z.string().nullable(),
+  repo: z.string().nullable(),
+  pr_number: z.number().nullable(),
+  pr_url: z.string().nullable(),
+  pr_state: z.string().nullable(),
+  commits: z.array(z.record(z.unknown())),
+  current_stage: z.string().nullable(),
+  lease: z.record(z.unknown()).nullable().optional(),
+});
+
 export function buildTimeline(
   commitsApi: RawCommit[],
   createdAt: Date,
@@ -67,13 +84,15 @@ export function timelineRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "GET",
     path: "/api/tasks/{id}/timeline",
-    options: bearerScope("read"),
+    options: zodResponse(bearerScope("read"), TaskTimelineSchema, {
+      name: "TaskTimeline",
+      description: "A task's stage commits and lease",
+      errors: [404],
+    }),
     handler: async (request, h) => {
       const pool = getPool();
 
-      if (!pool) {
-        return h.response({ error: "database unavailable" }).code(503);
-      }
+      enforceTrue(pool, apiError(503), "database unavailable");
       const taskId = request.params.id;
 
       let task:
@@ -101,9 +120,7 @@ export function timelineRoute(getPool: () => Pool | null): ServerRoute {
         return h.response({ error: "internal" }).code(500);
       }
 
-      if (!task) {
-        return h.response({ error: "task_not_found" }).code(404);
-      }
+      enforceTrue(task, apiError(404), "task_not_found");
 
       const repo = task.target_repo;
       const branch = task.target_branch;

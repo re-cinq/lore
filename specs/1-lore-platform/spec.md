@@ -225,7 +225,7 @@ system is performing.
   `lore_create_pipeline_task`, so the pod can search memory/context and record
   targeted memory mid-task — not only start pre-hydrated. A shared `lore-mcp`
   gateway serves those tools over MCP-over-HTTP at a public `:443` host (the
-  agent-pod NetworkPolicy allows only public `:443` egress). ([validated by `agent-catalog.test.ts:62`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L62), [`agent-catalog.test.ts:20`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L20))
+  agent-pod NetworkPolicy allows only public `:443` egress). ([validated by `agent-catalog.test.ts:63`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L63), [`agent-catalog.test.ts:21`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L21))
 - The gateway reads each request body defensively: it JSON-parses the body
   (an empty body carries no payload), caps it at 1 MB (`413` over the cap) so an
   authenticated-but-rogue pod cannot exhaust gateway memory, and returns `400`
@@ -394,7 +394,7 @@ The system MUST ingest content from multiple sources into the vector
 store via the Lore Agent service. ([validated by `content-classify.test.ts:5`](libs/shared/src/content-classify.test.ts#L5))
 
 - FR-7.1: Fast path: on-push to main triggers incremental ingestion
-  via pipeline task. ([validated by `ingest-workflow.test.ts:11`](libs/shared/src/ingest-workflow.test.ts#L11), [`ci-ingest.test.ts:28`](apps/floor/src/delivery/http/routes/ci-ingest.test.ts#L28))
+  via pipeline task. ([validated by `ingest-workflow.test.ts:11`](libs/shared/src/ingest-workflow.test.ts#L11), [`ci-ingest.test.ts:78`](apps/floor/src/delivery/http/routes/ci-ingest.test.ts#L78))
 - FR-7.2: Full path: nightly job triggers complete re-index via
   pipeline task. ([validated by `reindex-backfill.test.ts:24`](apps/floor/src/jobs/context-jobs/reindex/reindex-backfill.test.ts#L24), [`reindex-seed.test.ts:5`](apps/floor/src/jobs/context-jobs/reindex/reindex-seed.test.ts#L5))
 - FR-7.3: Content types: code (AST-split), pull requests (diff +
@@ -512,7 +512,7 @@ cooperation. ([validated by `session-tracker.test.ts:193`](libs/server-core/src/
 - FR-12.5: After every pipeline task completion (PR, no-changes,
   failure), an episode is automatically written. For high-signal
   events (PRs, failures), Haiku extracts a lesson and stores it
-  as `auto-curation/{ref}` memory. ([validated by `episode-writer.test.ts:78`](apps/floor/src/jobs/lib/episode-writer.test.ts#L78))
+  as `auto-curation/{ref}` memory. ([validated by `episode-writer.test.ts:79`](libs/shared/src/episode-writer.test.ts#L79))
 
 ### FR-13: Autonomous Review Loop (Phase 1, opt-in)
 
@@ -531,7 +531,7 @@ ai-agent-subsystem per ADR-031). ([validated by `code-review.test.ts:91`](apps/f
 - FR-13.4: When changes are requested, a follow-up round is started on the same
   branch carrying the feedback (the code-review-reply path). ([validated by `code-review.test.ts:113`](apps/floor/src/jobs/review/code-review.test.ts#L113))
 - FR-13.5: After further iterations the loop escalates to human review via a
-  `needs-human-help` Issue, with no further autonomous iterations. ([validated by `escalation.test.ts:87`](apps/floor/src/jobs/platform/escalation.test.ts#L87), [`escalation.test.ts:162`](apps/floor/src/jobs/platform/escalation.test.ts#L162))
+  `needs-human-help` Issue, with no further autonomous iterations. ([validated by opens the issue and carries its url forward for the notify step](apps/stations/src/stations/escalation-step/escalation-step.test.ts#L27), [`escalation-line.test.ts:45`](libs/assembly-lines/src/escalation-line.test.ts#L45))
 - FR-13.6: The primary trigger is GitHub webhooks (ADR-015): the Floor webhook
   ingress maps qualifying `pull_request`, `pull_request_review`, and PR
   `issue_comment` events to the code-review choreography, which starts or
@@ -550,7 +550,7 @@ ai-agent-subsystem per ADR-031). ([validated by `code-review.test.ts:91`](apps/f
 The system MUST detect when specifications diverge from implementation. ([validated by `chunks.test.ts:190`](libs/shared/src/project/chunks/chunks.test.ts#L190), [`chunks.test.ts:212`](libs/shared/src/project/chunks/chunks.test.ts#L212))
 
 - FR-14.1: Weekly job reads spec assertions and checks against
-  current code via AST analysis. ([validated by `fan-out.test.ts:41`](apps/floor/src/jobs/detect/fan-out.test.ts#L41))
+  current code via AST analysis. ([validated by `fan-out.test.ts:41`](apps/floor/src/jobs/detect/fan-out.test.ts#L42))
 - Decision: divergence above 20% of a spec's assertions triggers a `gap-fill`
   pipeline task for the owning team.
 - FR-14.3: Test files and generated files are excluded. ([validated by `chunks.test.ts:887`](libs/shared/src/project/chunks/chunks.test.ts#L887), [`chunks.test.ts:920`](libs/shared/src/project/chunks/chunks.test.ts#L920))
@@ -568,8 +568,8 @@ The system MUST gate task types per-repo based on demonstrated
 reliability. ([validated by `pipeline-tasks.trust.test.ts:37`](libs/shared/src/pipeline-tasks.trust.test.ts#L37))
 
 - FR-15.1: `settings.trust.level` controls which task types are
-  allowed: `docs` (gap-fill/runbook/onboard + feature-planning/
-  feature-finalize per ADR-027), `tests` (+review),
+  allowed: `docs` (gap-fill/runbook/onboard + feature-planning
+  per ADR-027), `tests` (+review),
   `implementation` (+implementation/feature-request/general),
   `full` (all). `onboard` is allowed at every tier — it produces a
   docs-only scaffolding PR and duplicate protection lives in its own
@@ -579,7 +579,7 @@ reliability. ([validated by `pipeline-tasks.trust.test.ts:37`](libs/shared/src/p
   `docs → tests → implementation → full` and resetting the merge counter on
   each promotion. A repo already at `full`, or carrying no level at all, is
   left untouched rather than banking a counter with nothing to spend it on.
-  The default level is `implementation` for backward compatibility. ([validated by `trust-ladder.test.ts:5`](apps/floor/src/jobs/merge/trust-ladder.test.ts#L5), [`trust-ladder.test.ts:14`](apps/floor/src/jobs/merge/trust-ladder.test.ts#L14), [`trust-ladder.test.ts:23`](apps/floor/src/jobs/merge/trust-ladder.test.ts#L23), [`trust-ladder.test.ts:38`](apps/floor/src/jobs/merge/trust-ladder.test.ts#L38), [`trust-ladder.test.ts:47`](apps/floor/src/jobs/merge/trust-ladder.test.ts#L47), [`trust-ladder.test.ts:56`](apps/floor/src/jobs/merge/trust-ladder.test.ts#L56))
+  The default level is `implementation` for backward compatibility. ([validated by `trust-ladder.test.ts:5`](apps/stations/src/stations/lib/trust-ladder.test.ts#L5), [`trust-ladder.test.ts:14`](apps/stations/src/stations/lib/trust-ladder.test.ts#L14), [`trust-ladder.test.ts:23`](apps/stations/src/stations/lib/trust-ladder.test.ts#L23), [`trust-ladder.test.ts:38`](apps/stations/src/stations/lib/trust-ladder.test.ts#L38), [`trust-ladder.test.ts:47`](apps/stations/src/stations/lib/trust-ladder.test.ts#L47), [`trust-ladder.test.ts:56`](apps/stations/src/stations/lib/trust-ladder.test.ts#L56))
 
 ### FR-16: Prompt Caching on Agent LLM Calls (Phase 1)
 
@@ -639,13 +639,13 @@ non-terminal states and resolve them without manual intervention. ([validated by
   detection and the state write, the write is a no-op. ([validated by `task-store-pg.test.ts:74`](libs/shared/src/project/tasks/task-store-pg.test.ts#L74))
 - FR-18.4: A failure episode is written for each stuck task so the
   auto-curation pipeline can surface patterns (e.g. a task type that
-  consistently times out). ([validated by `episode-writer.test.ts:78`](apps/floor/src/jobs/lib/episode-writer.test.ts#L78), [`episode-writer.test.ts:12`](apps/floor/src/jobs/lib/episode-writer.test.ts#L12))
+  consistently times out). ([validated by `episode-writer.test.ts:79`](libs/shared/src/episode-writer.test.ts#L79), [`episode-writer.test.ts:13`](libs/shared/src/episode-writer.test.ts#L13))
 
 ### FR-19: Task Detail UI (Phase 1)
 
 The web UI MUST present a per-task detail view at `/tasks/[id]` that
 surfaces the task's metadata, run attempts, stage timeline, PR status,
-event history, and LLM-call ledger. ([validated by `TaskDetailView.test.tsx:95`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L95))
+event history, and LLM-call ledger. ([validated by `TaskDetailView.test.tsx:96`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L96))
 
 Live sections follow a data-down/actions-up split: pure `*View`
 presentational components are fed by IO `*Panel` containers that own
@@ -655,14 +655,14 @@ fetching and polling. ([validated by `TimelinePanel.test.tsx:82`](apps/web-ui/sr
   description truncated to 80 characters, and the view shows the task
   type, target repo, creator, and a sentence-cased status badge.
   Priority renders as a red badge when `immediate` and falls back to a
-  plain `normal` meta label when empty. ([validated by `TaskDetailView.test.tsx:95`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L95), [`TaskDetailView.test.tsx:114`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L114), [`TaskDetailView.test.tsx:122`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L122), [`TaskDetailView.test.tsx:134`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L134), [`TaskDetailView.test.tsx:141`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L141))
+  plain `normal` meta label when empty. ([validated by `TaskDetailView.test.tsx:96`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L96), [`TaskDetailView.test.tsx:115`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L115), [`TaskDetailView.test.tsx:123`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L123), [`TaskDetailView.test.tsx:135`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L135), [`TaskDetailView.test.tsx:142`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L142))
 - FR-19.2: The agent row, failure row, and review-iterations row each
   render only when their value is present (agent assigned, failure
   reason set, review iteration greater than zero) and are omitted
-  otherwise. ([validated by `TaskDetailView.test.tsx:195`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L195), [`TaskDetailView.test.tsx:201`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L201), [`TaskDetailView.test.tsx:223`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L223), [`TaskDetailView.test.tsx:229`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L229), [`TaskDetailView.test.tsx:235`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L235))
+  otherwise. ([validated by `TaskDetailView.test.tsx:196`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L196), [`TaskDetailView.test.tsx:202`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L202), [`TaskDetailView.test.tsx:224`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L224), [`TaskDetailView.test.tsx:230`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L230), [`TaskDetailView.test.tsx:236`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L236))
 - FR-19.3: The view lists the task's run attempts under a "Runs"
   heading, each linking to its run detail at `/assembly-runs/<run-id>`,
-  and omits the section entirely when the task has no runs. ([validated by `TaskDetailView.test.tsx:66`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L66), [`TaskDetailView.test.tsx:87`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L87))
+  and omits the section entirely when the task has no runs. ([validated by `TaskDetailView.test.tsx:67`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L67), [`TaskDetailView.test.tsx:88`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L88))
 - FR-19.4: In-flight controls follow actions-up: a "Run Now" form
   posting to `/api/tasks/<id>/run-now` appears only for pending
   normal-priority tasks; a "Cancel Task" control appears for
@@ -671,18 +671,18 @@ fetching and polling. ([validated by `TimelinePanel.test.tsx:82`](apps/web-ui/sr
   then reveals a form posting to `/api/tasks/<id>/cancel` that "Keep
   task" backs out of; and a "Give Feedback" form wired to the injected
   server action (with a hidden `task_id`) shows only for a task that has
-  a PR and is not cancelled. ([validated by `TaskDetailView.test.tsx:148`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L148), [`TaskDetailView.test.tsx:159`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L159), [`TaskDetailView.test.tsx:166`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L166), [`TaskDetailView.test.tsx:175`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L175), [`TaskDetailView.test.tsx:188`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L188), [`TaskDetailView.test.tsx:264`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L264), [`TaskDetailView.test.tsx:285`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L285), [`TaskDetailView.test.tsx:292`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L292), [`CancelTaskButton.test.tsx:7`](apps/web-ui/src/app/tasks/[id]/CancelTaskButton.test.tsx#L7), [`CancelTaskButton.test.tsx:17`](apps/web-ui/src/app/tasks/[id]/CancelTaskButton.test.tsx#L17), [`CancelTaskButton.test.tsx:30`](apps/web-ui/src/app/tasks/[id]/CancelTaskButton.test.tsx#L30))
+  a PR and is not cancelled. ([validated by `TaskDetailView.test.tsx:149`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L149), [`TaskDetailView.test.tsx:160`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L160), [`TaskDetailView.test.tsx:167`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L167), [`TaskDetailView.test.tsx:176`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L176), [`TaskDetailView.test.tsx:189`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L189), [`TaskDetailView.test.tsx:265`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L265), [`TaskDetailView.test.tsx:286`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L286), [`TaskDetailView.test.tsx:293`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L293), [`CancelTaskButton.test.tsx:7`](apps/web-ui/src/app/tasks/[id]/CancelTaskButton.test.tsx#L7), [`CancelTaskButton.test.tsx:17`](apps/web-ui/src/app/tasks/[id]/CancelTaskButton.test.tsx#L17), [`CancelTaskButton.test.tsx:30`](apps/web-ui/src/app/tasks/[id]/CancelTaskButton.test.tsx#L30))
 - FR-19.5: When a failed task carries a failed-event with metadata, the
   view renders a "Failure" panel surfacing the error; absent that
-  metadata no panel is shown. ([validated by `TaskDetailView.test.tsx:240`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L240), [`TaskDetailView.test.tsx:257`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L257))
+  metadata no panel is shown. ([validated by `TaskDetailView.test.tsx:241`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L241), [`TaskDetailView.test.tsx:258`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L258))
 - FR-19.6: The event timeline renders one badge per status transition
   (sentence-cased to-status with a from-status arrow), pretty-prints
   event metadata as JSON, and shows an empty-state note when there are
-  no events. ([validated by `TaskDetailView.test.tsx:305`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L305), [`EventTimeline.test.tsx:17`](apps/web-ui/src/app/tasks/[id]/EventTimeline.test.tsx#L17), [`EventTimeline.test.tsx:28`](apps/web-ui/src/app/tasks/[id]/EventTimeline.test.tsx#L28), [`EventTimeline.test.tsx:36`](apps/web-ui/src/app/tasks/[id]/EventTimeline.test.tsx#L36))
+  no events. ([validated by `TaskDetailView.test.tsx:306`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L306), [`EventTimeline.test.tsx:18`](apps/web-ui/src/app/tasks/[id]/EventTimeline.test.tsx#L18), [`EventTimeline.test.tsx:32`](apps/web-ui/src/app/tasks/[id]/EventTimeline.test.tsx#L32), [`EventTimeline.test.tsx:40`](apps/web-ui/src/app/tasks/[id]/EventTimeline.test.tsx#L40))
 - FR-19.7: The LLM-calls table renders one row per call with the model,
   `input / output` token counts, duration, and a status badge (red with
   the error text on failure), and shows an empty-state note in place of
-  the table when there are none. ([validated by `TaskDetailView.test.tsx:333`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L333), [`TaskDetailView.test.tsx:351`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L351), [`TaskDetailView.test.tsx:365`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L365), [`LlmCallsTable.test.tsx:19`](apps/web-ui/src/app/tasks/[id]/LlmCallsTable.test.tsx#L19), [`LlmCallsTable.test.tsx:27`](apps/web-ui/src/app/tasks/[id]/LlmCallsTable.test.tsx#L27), [`LlmCallsTable.test.tsx:35`](apps/web-ui/src/app/tasks/[id]/LlmCallsTable.test.tsx#L35))
+  the table when there are none. ([validated by `TaskDetailView.test.tsx:336`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L336), [`TaskDetailView.test.tsx:354`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L354), [`TaskDetailView.test.tsx:368`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L368), [`LlmCallsTable.test.tsx:19`](apps/web-ui/src/app/tasks/[id]/LlmCallsTable.test.tsx#L19), [`LlmCallsTable.test.tsx:27`](apps/web-ui/src/app/tasks/[id]/LlmCallsTable.test.tsx#L27), [`LlmCallsTable.test.tsx:35`](apps/web-ui/src/app/tasks/[id]/LlmCallsTable.test.tsx#L35))
 - FR-19.8: The pure stage-timeline view renders loading, error
   (`Timeline unavailable: <reason>`), and empty (nothing rendered)
   states from its props, shows "No stage commits yet." when the branch
@@ -779,7 +779,7 @@ fetching and polling. ([validated by `TimelinePanel.test.tsx:82`](apps/web-ui/sr
   and records the transition carrying the priority it replaced.
   `cancelTask` treats `completed`, `merged`, `failed` and `cancelled` as
   terminal — `completed` was missing, so the web UI's own guard refused
-  a click the API accepted. ([validated by `sets priority immediate on a pending task`](libs/shared/src/pipeline-tasks.escalate.test.ts#L25), [`pipeline-tasks.escalate.test.ts:39`](libs/shared/src/pipeline-tasks.escalate.test.ts#L39), [`pipeline-tasks.escalate.test.ts:56`](libs/shared/src/pipeline-tasks.escalate.test.ts#L56), [`pipeline-tasks.escalate.test.ts:64`](libs/shared/src/pipeline-tasks.escalate.test.ts#L64), [`pipeline-tasks.escalate.test.ts:77`](libs/shared/src/pipeline-tasks.escalate.test.ts#L77), [`pipeline-tasks.escalate.test.ts:88`](libs/shared/src/pipeline-tasks.escalate.test.ts#L88))
+  a click the API accepted. ([validated by `sets priority immediate on a pending task`](libs/shared/src/pipeline-tasks.escalate.test.ts#L28), [`pipeline-tasks.escalate.test.ts:42`](libs/shared/src/pipeline-tasks.escalate.test.ts#L42), [`pipeline-tasks.escalate.test.ts:59`](libs/shared/src/pipeline-tasks.escalate.test.ts#L59), [`pipeline-tasks.escalate.test.ts:67`](libs/shared/src/pipeline-tasks.escalate.test.ts#L67), [`pipeline-tasks.escalate.test.ts:80`](libs/shared/src/pipeline-tasks.escalate.test.ts#L80), [`pipeline-tasks.escalate.test.ts:91`](libs/shared/src/pipeline-tasks.escalate.test.ts#L91))
 
 - FR-19.17: lore-api serves one `lore.repos` row at
   `GET /api/repos/{owner}/{repo}` under the `read` scope, reading it
@@ -788,11 +788,11 @@ fetching and polling. ([validated by `TimelinePanel.test.tsx:82`](apps/web-ui/sr
   rather than a per-caller projection: nine web-ui call sites across
   five files each selected a different column subset of this row, and
   projecting per caller would move that duplication into the API
-  instead of removing it. ([validated by `repo-record.test.ts:49`](apps/lore-api/src/api/routes/repos/repo-record.test.ts#L49), [`repo-record.test.ts:58`](apps/lore-api/src/api/routes/repos/repo-record.test.ts#L58), [`repo-record.test.ts:66`](apps/lore-api/src/api/routes/repos/repo-record.test.ts#L66), [`repo-record.test.ts:75`](apps/lore-api/src/api/routes/repos/repo-record.test.ts#L75))
+  instead of removing it. ([validated by `repo-record.test.ts:69`](apps/lore-api/src/api/routes/repos/repo-record.test.ts#L69), [`repo-record.test.ts:78`](apps/lore-api/src/api/routes/repos/repo-record.test.ts#L78), [`repo-record.test.ts:86`](apps/lore-api/src/api/routes/repos/repo-record.test.ts#L86), [`repo-record.test.ts:95`](apps/lore-api/src/api/routes/repos/repo-record.test.ts#L95))
 - FR-19.18: `SettingsPort.record(repo)` is that read — the whole row or
   null — implemented by the Pg adapter against `lore.repos` and by the
   in-memory double over its seeded rows, so a caller that needs more
-  than `rawSettings` or `team` has one place to get it. ([validated by returns the seeded row for an onboarded repo](libs/shared/src/project/settings/settings-record.test.ts#L36), [`settings-record.test.ts:46`](libs/shared/src/project/settings/settings-record.test.ts#L46), [`settings-record.test.ts:54`](libs/shared/src/project/settings/settings-record.test.ts#L54), [`settings-record.test.ts:65`](libs/shared/src/project/settings/settings-record.test.ts#L65))
+  than `rawSettings` or `team` has one place to get it. ([validated by returns the seeded row as the camelCase model](libs/shared/src/project/settings/settings-record.test.ts#L55), [`settings-record.test.ts:66`](libs/shared/src/project/settings/settings-record.test.ts#L66), [`settings-record.test.ts:74`](libs/shared/src/project/settings/settings-record.test.ts#L74), [`settings-record.test.ts:92`](libs/shared/src/project/settings/settings-record.test.ts#L92), [`settings-record.test.ts:104`](libs/shared/src/project/settings/settings-record.test.ts#L104))
 
 - FR-19.19: lore-api serves the run views' four reads under the `read`
   scope — `GET /api/assembly-lines` (filterable by status, repo, or a
@@ -807,7 +807,7 @@ fetching and polling. ([validated by `TimelinePanel.test.tsx:82`](apps/web-ui/sr
   not go down over an unmigrated cluster. Token usage reads
   `pipeline.agent_run_turns`, not `llm_calls`: the cost table is
   authoritative but a row lands only when a run ENDS, which is the
-  moment the card showing the number disappears. ([validated by `assembly-lines.test.ts:36`](apps/lore-api/src/api/routes/assembly-lines/assembly-lines.test.ts#L58), [`assembly-lines.test.ts:40`](apps/lore-api/src/api/routes/assembly-lines/assembly-lines.test.ts#L62), [`assembly-lines.test.ts:52`](apps/lore-api/src/api/routes/assembly-lines/assembly-lines.test.ts#L74), [`assembly-lines.test.ts:84`](apps/lore-api/src/api/routes/assembly-lines/assembly-lines.test.ts#L106), [`assembly-lines.test.ts:93`](apps/lore-api/src/api/routes/assembly-lines/assembly-lines.test.ts#L115), [`assembly-lines.test.ts:104`](apps/lore-api/src/api/routes/assembly-lines/assembly-lines.test.ts#L126), [`assembly-lines.test.ts:173`](apps/lore-api/src/api/routes/assembly-lines/assembly-lines.test.ts#L195), [`assembly-lines.test.ts:183`](apps/lore-api/src/api/routes/assembly-lines/assembly-lines.test.ts#L205), [`assembly-lines.test.ts:193`](apps/lore-api/src/api/routes/assembly-lines/assembly-lines.test.ts#L215), [`assembly-lines.test.ts:205`](apps/lore-api/src/api/routes/assembly-lines/assembly-lines.test.ts#L227), [`assembly-lines.test.ts:225`](apps/lore-api/src/api/routes/assembly-lines/assembly-lines.test.ts#L247), [`assembly-lines.test.ts:237`](apps/lore-api/src/api/routes/assembly-lines/assembly-lines.test.ts#L259), [`assembly-lines.test.ts:257`](apps/lore-api/src/api/routes/assembly-lines/assembly-lines.test.ts#L279), [`assembly-lines.test.ts:267`](apps/lore-api/src/api/routes/assembly-lines/assembly-lines.test.ts#L289))
+  moment the card showing the number disappears. ([validated by `assembly-lines.test.ts:102`](apps/lore-api/src/api/routes/assembly-lines/assembly-lines.test.ts#L102), [`assembly-lines.test.ts:106`](apps/lore-api/src/api/routes/assembly-lines/assembly-lines.test.ts#L106), [`assembly-lines.test.ts:122`](apps/lore-api/src/api/routes/assembly-lines/assembly-lines.test.ts#L122), [`assembly-lines.test.ts:169`](apps/lore-api/src/api/routes/assembly-lines/assembly-lines.test.ts#L169), [`assembly-lines.test.ts:185`](apps/lore-api/src/api/routes/assembly-lines/assembly-lines.test.ts#L185), [`assembly-lines.test.ts:202`](apps/lore-api/src/api/routes/assembly-lines/assembly-lines.test.ts#L240), [`assembly-lines.test.ts:383`](apps/lore-api/src/api/routes/assembly-lines/assembly-lines.test.ts#L421), [`assembly-lines.test.ts:396`](apps/lore-api/src/api/routes/assembly-lines/assembly-lines.test.ts#L434), [`assembly-lines.test.ts:404`](apps/lore-api/src/api/routes/assembly-lines/assembly-lines.test.ts#L442), [`assembly-lines.test.ts:416`](apps/lore-api/src/api/routes/assembly-lines/assembly-lines.test.ts#L454), [`assembly-lines.test.ts:464`](apps/lore-api/src/api/routes/assembly-lines/assembly-lines.test.ts#L240), [`assembly-lines.test.ts:476`](apps/lore-api/src/api/routes/assembly-lines/assembly-lines.test.ts#L514), [`assembly-lines.test.ts:496`](apps/lore-api/src/api/routes/assembly-lines/assembly-lines.test.ts#L534), [`assembly-lines.test.ts:506`](apps/lore-api/src/api/routes/assembly-lines/assembly-lines.test.ts#L544))
 
 - FR-19.20: lore-api serves the activity reads the audit, gaps, events,
   job-run and repo-overview views need, all under the `read` scope:
@@ -854,14 +854,18 @@ fetching and polling. ([validated by `TimelinePanel.test.tsx:82`](apps/web-ui/sr
   `GET /api/analytics-overview` (six reads). Spend draws on BOTH cost
   sources deliberately: `pipeline.anthropic_cost_daily` is Anthropic's
   authoritative billed figure, but its buckets close at UTC midnight and
-  the in-progress day is never emitted, so the billed total always ends
-  at yesterday and `pipeline.llm_calls` — token-exact against the hourly
-  report, available with no admin key — is what brings it current. The
+  the in-progress day is never emitted, so the billed total ends at the
+  last SYNCED day — yesterday when the daily sync is current, earlier
+  when it ran late or failed — and `pipeline.llm_calls` — token-exact
+  against the hourly report, available with no admin key — is what brings
+  it current for every day after `MAX(bucket_date)`, however many that
+  is. Assuming that gap was always exactly one day is what let whole
+  days of spend fall into neither figure. The
   billed reads degrade to empty on a cluster without the table, and
   availability is decided by the `as_of` STAMP rather than a row count:
   only the stamp separates "synced, nothing owed" from "never synced",
   and the view hides the section for the second instead of showing a
-  confident zero. ([validated by [`spend.test.ts:33`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L33), [`spend.test.ts:37`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L37), [`spend.test.ts:49`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L49), [`spend.test.ts:79`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L79), [`spend.test.ts:83`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L83), [`spend.test.ts:99`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L99), [`spend.test.ts:122`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L122), [`spend.test.ts:135`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L135))
+  confident zero. ([validated by [`spend.test.ts:33`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L33), [`spend.test.ts:37`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L37), [`spend.test.ts:49`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L49), [`spend.test.ts:79`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L79), [`spend.test.ts:83`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L83), [`spend.test.ts:108`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L108), [`spend.test.ts:132`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L132), [`spend.test.ts:193`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L193), [`spend.test.ts:209`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L209), [`spend.test.ts:222`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L222), [`spend.test.ts:145`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L145))
 
 - FR-19.24: `reviseTask` is the human feedback loop as ONE seam: it
   queues a follow-up task on the parent's branch and PR at immediate
@@ -873,7 +877,7 @@ fetching and polling. ([validated by `TimelinePanel.test.tsx:82`](apps/web-ui/sr
   UI reaches it through `POST /api/task` with `action: "revise"`; the
   three writes were previously three separate statements in a server
   action, where a dropped event left a parent pointing at a revision the
-  timeline could not explain. ([validated by [`pipeline-tasks.escalate.test.ts:126`](libs/shared/src/pipeline-tasks.escalate.test.ts#L126), [`pipeline-tasks.escalate.test.ts:135`](libs/shared/src/pipeline-tasks.escalate.test.ts#L135), [`pipeline-tasks.escalate.test.ts:155`](libs/shared/src/pipeline-tasks.escalate.test.ts#L155), [`pipeline-tasks.escalate.test.ts:170`](libs/shared/src/pipeline-tasks.escalate.test.ts#L170), [`pipeline-tasks.escalate.test.ts:182`](libs/shared/src/pipeline-tasks.escalate.test.ts#L182), [`pipeline-tasks.escalate.test.ts:202`](libs/shared/src/pipeline-tasks.escalate.test.ts#L202), [`pipeline-tasks.escalate.test.ts:214`](libs/shared/src/pipeline-tasks.escalate.test.ts#L214), [`pipeline-tasks.escalate.test.ts:222`](libs/shared/src/pipeline-tasks.escalate.test.ts#L222))
+  timeline could not explain. ([validated by [`pipeline-tasks.escalate.test.ts:132`](libs/shared/src/pipeline-tasks.escalate.test.ts#L132), [`pipeline-tasks.escalate.test.ts:141`](libs/shared/src/pipeline-tasks.escalate.test.ts#L141), [`pipeline-tasks.escalate.test.ts:161`](libs/shared/src/pipeline-tasks.escalate.test.ts#L161), [`pipeline-tasks.escalate.test.ts:176`](libs/shared/src/pipeline-tasks.escalate.test.ts#L176), [`pipeline-tasks.escalate.test.ts:188`](libs/shared/src/pipeline-tasks.escalate.test.ts#L188), [`pipeline-tasks.escalate.test.ts:208`](libs/shared/src/pipeline-tasks.escalate.test.ts#L208), [`pipeline-tasks.escalate.test.ts:220`](libs/shared/src/pipeline-tasks.escalate.test.ts#L220), [`pipeline-tasks.escalate.test.ts:228`](libs/shared/src/pipeline-tasks.escalate.test.ts#L228))
 
 - FR-19.25: lore-api serves the org-wide `lore.settings` under the
   `admin` scope — `GET /api/settings` (the entries plus the repo count
@@ -884,7 +888,7 @@ fetching and polling. ([validated by `TimelinePanel.test.tsx:82`](apps/web-ui/sr
   stored one alone rather than erasing it, because the form posts every
   field and an untouched secret arrives empty.
   `GET /api/repos/{owner}/{repo}/sessions` answers how many
-  developers have run a local session against a repo. ([validated by [`org-settings.test.ts:44`](apps/lore-api/src/api/routes/repos/org-settings.test.ts#L44), [`org-settings.test.ts:50`](apps/lore-api/src/api/routes/repos/org-settings.test.ts#L50), [`org-settings.test.ts:67`](apps/lore-api/src/api/routes/repos/org-settings.test.ts#L67), [`org-settings.test.ts:83`](apps/lore-api/src/api/routes/repos/org-settings.test.ts#L83), [`org-settings.test.ts:97`](apps/lore-api/src/api/routes/repos/org-settings.test.ts#L97), [`org-settings.test.ts:107`](apps/lore-api/src/api/routes/repos/org-settings.test.ts#L107), [`org-settings.test.ts:118`](apps/lore-api/src/api/routes/repos/org-settings.test.ts#L118), [`org-settings.test.ts:69`](apps/lore-api/src/api/routes/repos/org-settings.test.ts#L69), [`org-settings.test.ts:85`](apps/lore-api/src/api/routes/repos/org-settings.test.ts#L85), [`org-settings.test.ts:99`](apps/lore-api/src/api/routes/repos/org-settings.test.ts#L99), [`org-settings.test.ts:109`](apps/lore-api/src/api/routes/repos/org-settings.test.ts#L109), [`org-settings.test.ts:120`](apps/lore-api/src/api/routes/repos/org-settings.test.ts#L120), [`repos.test.ts:109`](apps/web-ui/src/lib/api/repos.test.ts#L109), [`repos.test.ts:119`](apps/web-ui/src/lib/api/repos.test.ts#L119))
+  developers have run a local session against a repo. ([validated by [`org-settings.test.ts:44`](apps/lore-api/src/api/routes/repos/org-settings.test.ts#L44), [`org-settings.test.ts:50`](apps/lore-api/src/api/routes/repos/org-settings.test.ts#L50), [`org-settings.test.ts:67`](apps/lore-api/src/api/routes/repos/org-settings.test.ts#L67), [`org-settings.test.ts:83`](apps/lore-api/src/api/routes/repos/org-settings.test.ts#L69), [`org-settings.test.ts:97`](apps/lore-api/src/api/routes/repos/org-settings.test.ts#L85), [`org-settings.test.ts:107`](apps/lore-api/src/api/routes/repos/org-settings.test.ts#L107), [`org-settings.test.ts:118`](apps/lore-api/src/api/routes/repos/org-settings.test.ts#L109), [`org-settings.test.ts:69`](apps/lore-api/src/api/routes/repos/org-settings.test.ts#L69), [`org-settings.test.ts:85`](apps/lore-api/src/api/routes/repos/org-settings.test.ts#L85), [`org-settings.test.ts:99`](apps/lore-api/src/api/routes/repos/org-settings.test.ts#L99), [`org-settings.test.ts:109`](apps/lore-api/src/api/routes/repos/org-settings.test.ts#L109), [`org-settings.test.ts:120`](apps/lore-api/src/api/routes/repos/org-settings.test.ts#L120), [`repos.test.ts:110`](apps/web-ui/src/lib/api/repos.test.ts#L110), [`repos.test.ts:120`](apps/web-ui/src/lib/api/repos.test.ts#L120))
 
 - FR-19.26: lore-api serves the context browser's chunk reads —
   `GET /api/chunks` (ranked, org-wide or repo-scoped, one row past the
@@ -900,6 +904,67 @@ fetching and polling. ([validated by `TimelinePanel.test.tsx:82`](apps/web-ui/sr
   disappears the moment it is selected. Moving this read, and the union
   builder with it, is what let web-ui stop holding a Postgres pool at all.
   ([validated by [`chunks-browse.test.ts:62`](apps/lore-api/src/api/routes/context/chunks-browse.test.ts#L62), [`chunks-browse.test.ts:66`](apps/lore-api/src/api/routes/context/chunks-browse.test.ts#L66), [`chunks-browse.test.ts:83`](apps/lore-api/src/api/routes/context/chunks-browse.test.ts#L83), [`chunks-browse.test.ts:97`](apps/lore-api/src/api/routes/context/chunks-browse.test.ts#L97), [`chunks-browse.test.ts:110`](apps/lore-api/src/api/routes/context/chunks-browse.test.ts#L110), [`chunks-browse.test.ts:124`](apps/lore-api/src/api/routes/context/chunks-browse.test.ts#L124), [`chunks-browse.test.ts:138`](apps/lore-api/src/api/routes/context/chunks-browse.test.ts#L138), [`chunks-browse.test.ts:162`](apps/lore-api/src/api/routes/context/chunks-browse.test.ts#L162), [`chunks-browse.test.ts:190`](apps/lore-api/src/api/routes/context/chunks-browse.test.ts#L190), [`chunks-browse.test.ts:212`](apps/lore-api/src/api/routes/context/chunks-browse.test.ts#L212), [`chunks-browse.test.ts:242`](apps/lore-api/src/api/routes/context/chunks-browse.test.ts#L242), [`chunks-browse.test.ts:243`](apps/lore-api/src/api/routes/context/chunks-browse.test.ts#L243))
+
+- FR-19.27: Anthropic's Admin API reports usage and cost and exposes NO
+  credit balance, so what is LEFT cannot be fetched and is instead
+  accumulated in `pipeline.credit_ledger` — an append-only record of money
+  added, written through `POST /api/spend/credits` under the `write` scope
+  and read back on `GET /api/spend` as a `budget` block. The ledger is
+  append-only rather than a single mutable balance row: a wrong entry is
+  compensated with a negative `correction`, never updated, so every write
+  is one atomic INSERT and two people recording a top-up at the same moment
+  cannot lose each other's entry. `remaining` is the recorded total minus
+  spend since the EARLIEST entry, and that window is deliberately not
+  month-to-date like every other figure on the screen — a balance added in
+  June is still money in August, and clipping it to the current month would
+  silently forgive every dollar spent before the 1st. Spend within the
+  window is the same two sources the rest of the page reports side by side,
+  meeting exactly at `billed_through`: billed covers up to and including
+  it, Lore-computed starts strictly after, because an off-by-one there
+  either double-counts a day or drops one and both yield a plausible
+  balance that is wrong. An empty ledger and a missing table both yield a
+  NULL budget rather than a zero one, on the same reasoning that makes
+  `org_available` a stamp rather than a row count — nobody having recorded
+  the balance is a different fact from the balance being nothing.
+  ([`credit-ledger.test.ts:51`](apps/lore-api/src/api/routes/analytics/credit-ledger.test.ts#L51), [`credit-ledger.test.ts:63`](apps/lore-api/src/api/routes/analytics/credit-ledger.test.ts#L63), [`credit-ledger.test.ts:67`](apps/lore-api/src/api/routes/analytics/credit-ledger.test.ts#L67), [`credit-ledger.test.ts:74`](apps/lore-api/src/api/routes/analytics/credit-ledger.test.ts#L74), [`credit-ledger.test.ts:91`](apps/lore-api/src/api/routes/analytics/credit-ledger.test.ts#L91), [`credit-ledger.test.ts:146`](apps/lore-api/src/api/routes/analytics/credit-ledger.test.ts#L146), [`credit-ledger.test.ts:163`](apps/lore-api/src/api/routes/analytics/credit-ledger.test.ts#L163), [`credit-ledger.test.ts:169`](apps/lore-api/src/api/routes/analytics/credit-ledger.test.ts#L169), [`credit-ledger.test.ts:175`](apps/lore-api/src/api/routes/analytics/credit-ledger.test.ts#L175), [`credit-ledger.test.ts:181`](apps/lore-api/src/api/routes/analytics/credit-ledger.test.ts#L181), [`spend.test.ts:254`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L254), [`spend.test.ts:264`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L264), [`spend.test.ts:279`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L279), [`spend.test.ts:300`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L300), [`spend.test.ts:318`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L318), [`spend.test.ts:343`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L343), [`credit-ledger.test.ts:181`](apps/lore-api/src/api/routes/analytics/credit-ledger.test.ts#L181), [`credit-ledger.test.ts:211`](apps/lore-api/src/api/routes/analytics/credit-ledger.test.ts#L211), [`credit-ledger.test.ts:110`](apps/lore-api/src/api/routes/analytics/credit-ledger.test.ts#L110), [`credit-ledger.test.ts:134`](apps/lore-api/src/api/routes/analytics/credit-ledger.test.ts#L134), [`credit-ledger.test.ts:140`](apps/lore-api/src/api/routes/analytics/credit-ledger.test.ts#L140), [`credit-ledger.test.ts:191`](apps/lore-api/src/api/routes/analytics/credit-ledger.test.ts#L191), [`spend.test.ts:366`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L366))
+
+- FR-19.28: `/spend` renders the remaining balance BELOW the
+  month-to-date figures, so the spend it is derived from is read first —
+  the balance is that spend subtracted from what someone recorded, and it
+  lands better after those figures than before them. The card is sized to
+  its content rather than stretched: it is the only card in its row, and
+  the flex rule every other card wants spread one figure across the whole
+  page. Dates render day-month-year in a fixed order rather than the
+  viewer's locale, formatted from the ISO string's own parts and never via
+  `new Date`, which resolves a bare `YYYY-MM-DD` to UTC midnight and so
+  prints the previous day for every viewer west of Greenwich.
+  A null budget renders an em dash and a prompt to record the balance, never
+  a confident `$0.00` — the one placeholder on a page that otherwise degrades
+  to nothing, and it is unfillable by design since no data source publishes a
+  credit balance. A negative remaining is shown as a negative number in the
+  danger colour rather than clamped at zero, because an overrun is the state
+  most worth seeing. Alongside it the view projects an average daily burn
+  since the anchor and how many days the balance covers at that rate,
+  declining to project at all when the projection would be a guess dressed
+  as a number — an anchor in the future, or no spend yet to average — and
+  rounding day differences rather than flooring them, since a
+  daylight-saving boundary makes a calendar day 23 or 25 hours long and
+  flooring that loses a day from the divisor; a single remaining day reads
+  "about a day left" rather than "about 1 days left", which is the line
+  someone reads on the day it matters most. Recording a top-up is a
+  server action that revalidates `/spend` on success, rejecting a blank or
+  non-numeric amount before the request is made — `Number("")` is 0, not
+  NaN, so a blank field would otherwise post a zero entry. The form opens expanded while the ledger is empty and
+  collapses once there is a figure to read: recording the balance is the
+  only useful act on an empty ledger, and hiding it behind a disclosure
+  triangle made the feature look undeployed to its first user. It carries a
+  legend stating what each field does to the arithmetic, because two of the
+  rules are counter-intuitive enough to have been got wrong during this
+  feature’s own review: a blank date anchors to the start of today rather
+  than to now — the label says so instead of saying "defaults to today",
+  which reads either way — and a top-up recorded days late still yields the
+  right figure, since only the opening entry moves the counting window.
+  ([`SpendView.test.tsx:322`](apps/web-ui/src/app/spend/SpendView.test.tsx#L322), [`SpendView.test.tsx:364`](apps/web-ui/src/app/spend/SpendView.test.tsx#L364), [`SpendView.test.tsx:374`](apps/web-ui/src/app/spend/SpendView.test.tsx#L374), [`SpendView.test.tsx:386`](apps/web-ui/src/app/spend/SpendView.test.tsx#L386), [`SpendView.test.tsx:409`](apps/web-ui/src/app/spend/SpendView.test.tsx#L409), [`SpendView.test.tsx:418`](apps/web-ui/src/app/spend/SpendView.test.tsx#L418), [`SpendView.test.tsx:424`](apps/web-ui/src/app/spend/SpendView.test.tsx#L424), [`SpendView.test.tsx:432`](apps/web-ui/src/app/spend/SpendView.test.tsx#L432), [`SpendView.test.tsx:436`](apps/web-ui/src/app/spend/SpendView.test.tsx#L436), [`actions.test.ts:33`](apps/web-ui/src/app/spend/actions.test.ts#L33), [`actions.test.ts:46`](apps/web-ui/src/app/spend/actions.test.ts#L46), [`actions.test.ts:60`](apps/web-ui/src/app/spend/actions.test.ts#L60), [`actions.test.ts:74`](apps/web-ui/src/app/spend/actions.test.ts#L74), [`actions.test.ts:85`](apps/web-ui/src/app/spend/actions.test.ts#L85), [`actions.test.ts:94`](apps/web-ui/src/app/spend/actions.test.ts#L94), [`actions.test.ts:101`](apps/web-ui/src/app/spend/actions.test.ts#L101), [`actions.test.ts:108`](apps/web-ui/src/app/spend/actions.test.ts#L108), [`actions.test.ts:124`](apps/web-ui/src/app/spend/actions.test.ts#L124), [`actions.test.ts:136`](apps/web-ui/src/app/spend/actions.test.ts#L136), [`SpendView.test.tsx:449`](apps/web-ui/src/app/spend/SpendView.test.tsx#L449), [`SpendView.test.tsx:461`](apps/web-ui/src/app/spend/SpendView.test.tsx#L461), [`SpendView.test.tsx:480`](apps/web-ui/src/app/spend/SpendView.test.tsx#L480), [`SpendView.test.tsx:510`](apps/web-ui/src/app/spend/SpendView.test.tsx#L510), [`SpendView.test.tsx:520`](apps/web-ui/src/app/spend/SpendView.test.tsx#L520), [`SpendView.test.tsx:535`](apps/web-ui/src/app/spend/SpendView.test.tsx#L535), [`SpendView.test.tsx:546`](apps/web-ui/src/app/spend/SpendView.test.tsx#L546), [`SpendView.test.tsx:554`](apps/web-ui/src/app/spend/SpendView.test.tsx#L554), [`SpendView.test.tsx:566`](apps/web-ui/src/app/spend/SpendView.test.tsx#L566), [`SpendView.test.tsx:579`](apps/web-ui/src/app/spend/SpendView.test.tsx#L579), [`SpendView.test.tsx:591`](apps/web-ui/src/app/spend/SpendView.test.tsx#L591), [`SpendView.test.tsx:601`](apps/web-ui/src/app/spend/SpendView.test.tsx#L601), [`SpendView.test.tsx:120`](apps/web-ui/src/app/spend/SpendView.test.tsx#L120), [`SpendView.test.tsx:136`](apps/web-ui/src/app/spend/SpendView.test.tsx#L136), [`SpendView.test.tsx:348`](apps/web-ui/src/app/spend/SpendView.test.tsx#L348))
 
 ### FR-20: Project Facade Ports (Phase 1)
 
@@ -1001,7 +1066,7 @@ share one persistence surface instead of inline SQL. ([validated by `task-queue.
   deletes a feature scoped to its repo (returning whether a row was
   removed); the facade stamps the bound repo on every call, and the pure
   helpers gate finalizing to a settled planning state and return the gap
-  of the highest-numbered ready iteration (null when none). ([validated by `features-pg.test.ts:48`](libs/shared/src/project/features/features-pg.test.ts#L48), [`features-pg.test.ts:58`](libs/shared/src/project/features/features-pg.test.ts#L58), [`features-pg.test.ts:95`](libs/shared/src/project/features/features-pg.test.ts#L98), [`features-pg.test.ts:112`](libs/shared/src/project/features/features-pg.test.ts#L115), [`features-pg.test.ts:139`](libs/shared/src/project/features/features-pg.test.ts#L142), [`features-pg.test.ts:148`](libs/shared/src/project/features/features-pg.test.ts#L151), [`features-pg.test.ts:168`](libs/shared/src/project/features/features-pg.test.ts#L171), [`features-pg.test.ts:178`](libs/shared/src/project/features/features-pg.test.ts#L181), [`features.test.ts:45`](libs/shared/src/project/features/features.test.ts#L45), [`features.test.ts:52`](libs/shared/src/project/features/features.test.ts#L52), [`features.test.ts:62`](libs/shared/src/project/features/features.test.ts#L62), [`features.test.ts:72`](libs/shared/src/project/features/features.test.ts#L72), [`features-port.test.ts:28`](libs/shared/src/project/features/features-port.test.ts#L33), [`features-port.test.ts:34`](libs/shared/src/project/features/features-port.test.ts#L39), [`features-port.test.ts:48`](libs/shared/src/project/features/features-port.test.ts#L53), [`features-port.test.ts:58`](libs/shared/src/project/features/features-port.test.ts#L63), [`features-port.test.ts:68`](libs/shared/src/project/features/features-port.test.ts#L73))
+  of the highest-numbered ready iteration (null when none). ([validated by `features-pg.test.ts:48`](libs/shared/src/project/features/features-pg.test.ts#L48), [`features-pg.test.ts:58`](libs/shared/src/project/features/features-pg.test.ts#L58), [`features-pg.test.ts:95`](libs/shared/src/project/features/features-pg.test.ts#L98), [`features-pg.test.ts:112`](libs/shared/src/project/features/features-pg.test.ts#L115), [`features-pg.test.ts:139`](libs/shared/src/project/features/features-pg.test.ts#L142), [`features-pg.test.ts:148`](libs/shared/src/project/features/features-pg.test.ts#L151), [`features-pg.test.ts:168`](libs/shared/src/project/features/features-pg.test.ts#L171), [`features-pg.test.ts:178`](libs/shared/src/project/features/features-pg.test.ts#L181), [`features.test.ts:45`](libs/shared/src/project/features/features.test.ts#L45), [`features.test.ts:52`](libs/shared/src/project/features/features.test.ts#L52), [`features.test.ts:62`](libs/shared/src/project/features/features.test.ts#L62), [`features.test.ts:72`](libs/shared/src/project/features/features.test.ts#L72), [`features-port.test.ts:28`](libs/shared/src/project/features/features-port.test.ts#L33), [`features-port.test.ts:34`](libs/shared/src/project/features/features-port.test.ts#L39), [`features-port.test.ts:48`](libs/shared/src/project/features/features-port.test.ts#L52), [`features-port.test.ts:58`](libs/shared/src/project/features/features-port.test.ts#L62), [`features-port.test.ts:68`](libs/shared/src/project/features/features-port.test.ts#L72))
 - FR-20.9: Feature planning recovery orphans a running round older than
   the window (even while the runtime reports active), leaves a recent
   active round alone, no-ops when a ready round already moved the feature
@@ -1045,7 +1110,7 @@ share one persistence surface instead of inline SQL. ([validated by `task-queue.
   ([validated by `repo-files.test.ts:54`](libs/shared/src/project/repo/repo-files.test.ts#L55), [`repo-files.test.ts:60`](libs/shared/src/project/repo/repo-files.test.ts#L61), [`repo-files.test.ts:66`](libs/shared/src/project/repo/repo-files.test.ts#L67))
 - FR-20.15: The `PullRequests` port lists only the repo's PRs, merges by
   number with the requested method, and exposes PR reads bound to the
-  repo and number. ([validated by `pull-requests.test.ts:70`](libs/shared/src/project/pulls/pull-requests.test.ts#L70), [`pull-requests.test.ts:106`](libs/shared/src/project/pulls/pull-requests.test.ts#L106), [`pull-requests.test.ts:115`](libs/shared/src/project/pulls/pull-requests.test.ts#L115))
+  repo and number. ([validated by `pull-requests.test.ts:81`](libs/shared/src/project/pulls/pull-requests.test.ts#L82), [`pull-requests.test.ts:117`](libs/shared/src/project/pulls/pull-requests.test.ts#L118), [`pull-requests.test.ts:126`](libs/shared/src/project/pulls/pull-requests.test.ts#L127))
 - FR-20.16: The `Issues` port returns the GitHubPort issues for the
   project's repo, creates an issue bound to the repo, and comments,
   closes, and labels by number bound to the repo. ([validated by `issues.test.ts:58`](libs/shared/src/project/issues/issues.test.ts#L59), [`issues.test.ts:102`](libs/shared/src/project/issues/issues.test.ts#L103), [`issues.test.ts:115`](libs/shared/src/project/issues/issues.test.ts#L116))
@@ -1120,13 +1185,13 @@ share one persistence surface instead of inline SQL. ([validated by `task-queue.
     fields the CODEOWNER-approval ceremony guards, so a blanket merge here
     would be a way around that ceremony. The web-ui route forwards to it,
     normalizing a cleared team to null, and passes the refusal through
-    with its status ([validated by forwards a team change to lore-api](apps/web-ui/src/app/api/repos/[owner]/[repo]/settings/route.test.ts#L37), [`route.test.ts:48`](apps/web-ui/src/app/api/repos/[owner]/[repo]/settings/route.test.ts#L48), [`route.test.ts:56`](apps/web-ui/src/app/api/repos/[owner]/[repo]/settings/route.test.ts#L56), [`route.test.ts:66`](apps/web-ui/src/app/api/repos/[owner]/[repo]/settings/route.test.ts#L66), [`route.test.ts:81`](apps/web-ui/src/app/api/repos/[owner]/[repo]/settings/route.test.ts#L81), [`repo-settings.test.ts:39`](apps/lore-api/src/api/routes/repos/repo-settings.test.ts#L39), [`repo-settings.test.ts:43`](apps/lore-api/src/api/routes/repos/repo-settings.test.ts#L43), [`repo-settings.test.ts:51`](apps/lore-api/src/api/routes/repos/repo-settings.test.ts#L51), [`repo-settings.test.ts:69`](apps/lore-api/src/api/routes/repos/repo-settings.test.ts#L69), [`repo-settings.test.ts:86`](apps/lore-api/src/api/routes/repos/repo-settings.test.ts#L86), [`repo-settings.test.ts:100`](apps/lore-api/src/api/routes/repos/repo-settings.test.ts#L100), [`repo-settings.test.ts:118`](apps/lore-api/src/api/routes/repos/repo-settings.test.ts#L118), [`repo-settings.test.ts:133`](apps/lore-api/src/api/routes/repos/repo-settings.test.ts#L133), [`repo-settings.test.ts:147`](apps/lore-api/src/api/routes/repos/repo-settings.test.ts#L147), [`repo-settings.test.ts:165`](apps/lore-api/src/api/routes/repos/repo-settings.test.ts#L165), [`repo-settings.test.ts:182`](apps/lore-api/src/api/routes/repos/repo-settings.test.ts#L182), [`repo-settings.test.ts:196`](apps/lore-api/src/api/routes/repos/repo-settings.test.ts#L196), [`repo-settings.test.ts:74`](apps/lore-api/src/api/routes/repos/repo-settings.test.ts#L74), [`repo-settings.test.ts:91`](apps/lore-api/src/api/routes/repos/repo-settings.test.ts#L91), [`repo-settings.test.ts:105`](apps/lore-api/src/api/routes/repos/repo-settings.test.ts#L105), [`repo-settings.test.ts:123`](apps/lore-api/src/api/routes/repos/repo-settings.test.ts#L123), [`repo-settings.test.ts:138`](apps/lore-api/src/api/routes/repos/repo-settings.test.ts#L138), [`repo-settings.test.ts:154`](apps/lore-api/src/api/routes/repos/repo-settings.test.ts#L154), [`repo-settings.test.ts:174`](apps/lore-api/src/api/routes/repos/repo-settings.test.ts#L174), [`repo-settings.test.ts:191`](apps/lore-api/src/api/routes/repos/repo-settings.test.ts#L191), [`repo-settings.test.ts:205`](apps/lore-api/src/api/routes/repos/repo-settings.test.ts#L205), [`repos.test.ts:130`](apps/web-ui/src/lib/api/repos.test.ts#L130))
+    with its status ([validated by forwards a team change to lore-api](apps/web-ui/src/app/api/repos/[owner]/[repo]/settings/route.test.ts#L37), [`route.test.ts:48`](apps/web-ui/src/app/api/repos/[owner]/[repo]/settings/route.test.ts#L48), [`route.test.ts:56`](apps/web-ui/src/app/api/repos/[owner]/[repo]/settings/route.test.ts#L56), [`route.test.ts:66`](apps/web-ui/src/app/api/repos/[owner]/[repo]/settings/route.test.ts#L66), [`route.test.ts:81`](apps/web-ui/src/app/api/repos/[owner]/[repo]/settings/route.test.ts#L81), [`repo-settings.test.ts:39`](apps/lore-api/src/api/routes/repos/repo-settings.test.ts#L39), [`repo-settings.test.ts:43`](apps/lore-api/src/api/routes/repos/repo-settings.test.ts#L43), [`repo-settings.test.ts:51`](apps/lore-api/src/api/routes/repos/repo-settings.test.ts#L51), [`repo-settings.test.ts:69`](apps/lore-api/src/api/routes/repos/repo-settings.test.ts#L51), [`repo-settings.test.ts:86`](apps/lore-api/src/api/routes/repos/repo-settings.test.ts#L74), [`repo-settings.test.ts:100`](apps/lore-api/src/api/routes/repos/repo-settings.test.ts#L91), [`repo-settings.test.ts:118`](apps/lore-api/src/api/routes/repos/repo-settings.test.ts#L105), [`repo-settings.test.ts:133`](apps/lore-api/src/api/routes/repos/repo-settings.test.ts#L123), [`repo-settings.test.ts:147`](apps/lore-api/src/api/routes/repos/repo-settings.test.ts#L138), [`repo-settings.test.ts:165`](apps/lore-api/src/api/routes/repos/repo-settings.test.ts#L154), [`repo-settings.test.ts:182`](apps/lore-api/src/api/routes/repos/repo-settings.test.ts#L177), [`repo-settings.test.ts:196`](apps/lore-api/src/api/routes/repos/repo-settings.test.ts#L194), [`repo-settings.test.ts:74`](apps/lore-api/src/api/routes/repos/repo-settings.test.ts#L74), [`repo-settings.test.ts:91`](apps/lore-api/src/api/routes/repos/repo-settings.test.ts#L91), [`repo-settings.test.ts:105`](apps/lore-api/src/api/routes/repos/repo-settings.test.ts#L105), [`repo-settings.test.ts:123`](apps/lore-api/src/api/routes/repos/repo-settings.test.ts#L123), [`repo-settings.test.ts:138`](apps/lore-api/src/api/routes/repos/repo-settings.test.ts#L138), [`repo-settings.test.ts:154`](apps/lore-api/src/api/routes/repos/repo-settings.test.ts#L154), [`repo-settings.test.ts:177`](apps/lore-api/src/api/routes/repos/repo-settings.test.ts#L177), [`repo-settings.test.ts:194`](apps/lore-api/src/api/routes/repos/repo-settings.test.ts#L194), [`repo-settings.test.ts:208`](apps/lore-api/src/api/routes/repos/repo-settings.test.ts#L208), [`repos.test.ts:131`](apps/web-ui/src/lib/api/repos.test.ts#L131))
   - The Floor's `team_changed` handler re-reads the team from `lore.repos`
     rather than trusting the event payload, resolves it through the uncached
     single-sourced `chunkSchemaOrOrgShared` (never the per-repo memoized
     resolver, which would serve the pre-change schema for its TTL), no-ops
     when resolution falls back to `org_shared`, and lets a relocation error
-    propagate so the event loop retries the idempotent move ([validated by `repo-team-changed.test.ts:47`](apps/floor/src/jobs/repo-team-changed.test.ts#L47), [`repo-team-changed.test.ts:66`](apps/floor/src/jobs/repo-team-changed.test.ts#L66), [`repo-team-changed.test.ts:81`](apps/floor/src/jobs/repo-team-changed.test.ts#L81), [`repo-team-changed.test.ts:89`](apps/floor/src/jobs/repo-team-changed.test.ts#L89), [`repo-team-changed.test.ts:102`](apps/floor/src/jobs/repo-team-changed.test.ts#L102))
+    propagate so the event loop retries the idempotent move ([validated by `repo-team-changed.test.ts:49`](apps/floor/src/jobs/repo-team-changed.test.ts#L49), [`repo-team-changed.test.ts:68`](apps/floor/src/jobs/repo-team-changed.test.ts#L68), [`repo-team-changed.test.ts:83`](apps/floor/src/jobs/repo-team-changed.test.ts#L83), [`repo-team-changed.test.ts:91`](apps/floor/src/jobs/repo-team-changed.test.ts#L91), [`repo-team-changed.test.ts:104`](apps/floor/src/jobs/repo-team-changed.test.ts#L104))
 
 ## Non-Functional Requirements
 
@@ -1250,7 +1315,7 @@ enforced by benchmarking, infrastructure configuration, and review process.
 - Autonomous review loop (opt-in per repo, webhook-driven per ADR-015).
 - Progressive trust gating.
 - Slack integration (`/lore` slash command + watcher notifications).
-- Web UI (`/onboard`, pipeline status, task logs, analytics, knowledge graph, gaps). ([validated by `GapsView.test.tsx:26`](apps/web-ui/src/app/gaps/GapsView.test.tsx#L26), [`GraphView.test.tsx:35`](apps/web-ui/src/app/graph/GraphView.test.tsx#L35), [`AnalyticsView.test.tsx:116`](apps/web-ui/src/app/analytics/AnalyticsView.test.tsx#L116), [`TaskLogs.test.tsx:149`](apps/web-ui/src/app/tasks/[id]/TaskLogs.test.tsx#L149), [`OnboardView.test.tsx:8`](apps/web-ui/src/app/onboard/OnboardView.test.tsx#L8))
+- Web UI (`/onboard`, pipeline status, task logs, analytics, knowledge graph, gaps). ([validated by `GapsView.test.tsx:26`](apps/web-ui/src/app/gaps/GapsView.test.tsx#L26), [`GraphView.test.tsx:35`](apps/web-ui/src/app/graph/GraphView.test.tsx#L35), [`AnalyticsView.test.tsx:116`](apps/web-ui/src/app/analytics/AnalyticsView.test.tsx#L116), [`TaskLogs.test.tsx:152`](apps/web-ui/src/app/tasks/[id]/TaskLogs.test.tsx#L152), [`OnboardView.test.tsx:8`](apps/web-ui/src/app/onboard/OnboardView.test.tsx#L8))
 - Spec drift detection (Phase 2).
 - Prompt caching on agent LLM calls (ADR-015).
 - Per-template context budgets (ADR-015).

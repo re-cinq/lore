@@ -134,8 +134,8 @@ gcpProject: ""
 # inside the agent image, reusing the same env block as the Deployment
 # (see templates/_env.tpl). Schedules match the in-process pre-split
 # cadence one-for-one. Resources/deadlines override `cronJobDefaults`
-# per entry — heavy LLM/embedding jobs (context_reindex, eval_runner,
-# autoresearch) get bumped from the defaults below.
+# per entry — heavy LLM/embedding jobs (context_reindex, eval_runner) get
+# bumped from the defaults below.
 #
 # Manual run for any of these:
 #   kubectl create job --from=cronjob/<name> manual-$(date +%s)
@@ -196,17 +196,6 @@ cronJobs:
     job: eval_runner
     schedule: "0 3 * * *"
     activeDeadlineSeconds: 7200  # 2h: per-team PromptFoo eval suites
-    resources:
-      requests:
-        cpu: "200m"
-        memory: 1Gi
-      limits:
-        cpu: "1000m"
-        memory: 2Gi
-  - name: autoresearch
-    job: autoresearch
-    schedule: "0 6 * * 1"
-    activeDeadlineSeconds: 7200  # 2h: weekly LLM-driven research synthesis
     resources:
       requests:
         cpu: "200m"

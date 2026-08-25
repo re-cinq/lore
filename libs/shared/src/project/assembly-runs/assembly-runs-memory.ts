@@ -1,3 +1,4 @@
+import type { StationRunInput } from "../../models/station-run.js";
 import { enforceTrue } from "../../lib/enforce.js";
 import { randomUUID } from "node:crypto";
 import { resolveResumePrefix } from "./resume.js";
@@ -7,8 +8,10 @@ import type {
   AssemblyRunQuery,
   AssemblyRunsPort,
   AssemblyRunStartInput,
+  StationRunFailure,
   StationRunStartInput,
   AssemblyRunRecord,
+  AssemblyRunSummary,
   StationRunRecord,
   OpenRunSummary,
 } from "./assembly-runs-port.js";
@@ -27,14 +30,33 @@ export interface SeedAssemblyLineNode {
   nodeId: string;
   iteration: number;
   agentCrName: string | null;
+  input: StationRunInput | null;
   outcome: string | null;
+  failureClass: string | null;
+  failureDetail: string | null;
   commitSha: string | null;
   startedAt: Date;
   finishedAt: Date | null;
 }
 
-/** A fork inherits branch and taskId from its source and its args unless the
- *  caller overrides them; a plain start is passed through untouched. */
+/** The graph-less projection the two open-run reads hand back. */
+function toOpenSummary(row: AssemblyRunRecord): OpenRunSummary {
+  return {
+    id: row.id,
+    status: row.status as "queued" | "running",
+    repo: row.repo,
+    branch: row.branch,
+    subjectKey: row.subjectKey,
+    createdAt: row.createdAt,
+  };
+}
+
+/** A fork inherits branch, taskId and subject from its source and its args unless
+ *  the caller overrides them; a plain start is passed through untouched.
+ *
+ *  The subject rides along because a fork re-runs the SAME work: it must hold the
+ *  guard its source held, and a query for that subject must find it. Forking is
+ *  only legal from a terminal run, so the key is always free by then. */
 function inheritFromSource(
   input: AssemblyRunStartInput,
   source: AssemblyRunRecord | null,
@@ -47,6 +69,7 @@ function inheritFromSource(
     ...input,
     branch: source.branch ?? undefined,
     taskId: source.taskId ?? undefined,
+    subjectKey: input.subjectKey ?? source.subjectKey ?? undefined,
     args: input.args ?? source.args,
   };
 }
@@ -64,6 +87,19 @@ export class InMemoryAssemblyRuns implements AssemblyRunsPort {
   constructor(public clock: () => Date = () => new Date()) {}
 
   async start(input: AssemblyRunStartInput): Promise<string> {
+    // Start-or-JOIN. A subject already in flight yields its run rather than a
+    // second one, so a caller that raced (or a user who clicked twice) ends up
+    // holding the id of the work already happening. The Pg adapter reaches the
+    // same answer from a unique-violation; here the check IS the enforcement,
+    // which is sound because the double is single-threaded.
+    if (input.subjectKey) {
+      const open = await this.findOpenBySubject(input.repo, input.subjectKey);
+
+      if (open) {
+        return open.id;
+      }
+    }
+
     const resumeFrom = input.resumeFrom;
     const source = resumeFrom ? await this.getById(resumeFrom.lineId) : null;
     // Validate the fork BEFORE minting anything, so a rejected resume leaves no
@@ -101,6 +137,12 @@ export class InMemoryAssemblyRuns implements AssemblyRunsPort {
         // correlation joins resolve agent_cr_name -> newest node row, and an
         // echoed name would steal the source's late-arriving rows.
         agentCrName: null,
+        // Nor its VERDICT. `getNextTransition` replays the copied prefix and fails
+        // the run on a permanent failure it meets on a revisit edge, so an
+        // inherited `anthropic-credit` visit would kill the fork on its first
+        // advance — the operation someone performs after topping the account up.
+        failureClass: null,
+        failureDetail: null,
       });
     }
     this.events.push({
@@ -177,7 +219,10 @@ export class InMemoryAssemblyRuns implements AssemblyRunsPort {
       nodeId: input.nodeId,
       iteration: input.iteration,
       agentCrName: input.agentCrName ?? null,
+      input: input.input ?? null,
       outcome: null,
+      failureClass: null,
+      failureDetail: null,
       commitSha: null,
       startedAt: this.clock(),
       finishedAt: null,
@@ -190,12 +235,15 @@ export class InMemoryAssemblyRuns implements AssemblyRunsPort {
     nodeRowId: string,
     outcome: string,
     commitSha?: string,
+    failure?: StationRunFailure,
   ): Promise<void> {
     const node = this.nodes.find((n) => n.id === nodeRowId);
 
     enforceTrue(node, Error, `no assembly line node row "${nodeRowId}"`);
     node.outcome = outcome;
     node.commitSha = commitSha ?? null;
+    node.failureClass = failure?.failureClass ?? null;
+    node.failureDetail = failure?.failureDetail ?? null;
     node.finishedAt = this.clock();
   }
 
@@ -230,6 +278,7 @@ export class InMemoryAssemblyRuns implements AssemblyRunsPort {
     nodeRowId: string,
     outcome: string,
     commitSha?: string,
+    failure?: StationRunFailure,
   ): Promise<boolean> {
     const node = this.nodes.find((n) => n.id === nodeRowId);
 
@@ -237,7 +286,7 @@ export class InMemoryAssemblyRuns implements AssemblyRunsPort {
       return false;
     }
 
-    await this.recordNodeFinish(nodeRowId, outcome, commitSha);
+    await this.recordNodeFinish(nodeRowId, outcome, commitSha, failure);
 
     return true;
   }
@@ -274,7 +323,9 @@ export class InMemoryAssemblyRuns implements AssemblyRunsPort {
             (query.prNumber === undefined ||
               Number(row.args.pr_number) === query.prNumber) &&
             (query.createdAfter === undefined ||
-              row.createdAt >= query.createdAfter),
+              row.createdAt >= query.createdAfter) &&
+            (query.subjectKey === undefined ||
+              row.subjectKey === query.subjectKey),
         )
         // Newest first, id as the tiebreak. The tiebreak buys STABILITY, not
         // insertion order — run ids are random uuids, so two runs created in the
@@ -286,6 +337,15 @@ export class InMemoryAssemblyRuns implements AssemblyRunsPort {
             b.id.localeCompare(a.id),
         )
         .slice(0, query.limit ?? 50)
+    );
+  }
+
+  async listSummaries(query: AssemblyRunQuery): Promise<AssemblyRunSummary[]> {
+    // Same selection, graph dropped — the double must answer the narrower shape
+    // the way Postgres does, or a route tested against it would carry a clone the
+    // deployed read never ships.
+    return (await this.list(query)).map(
+      ({ graph: _graph, ...summary }) => summary,
     );
   }
 
@@ -301,13 +361,24 @@ export class InMemoryAssemblyRuns implements AssemblyRunsPort {
   ): Promise<OpenRunSummary[]> {
     return (await this.listOpen())
       .filter((r) => r.repo === repo && r.branch === branch)
-      .map((r) => ({
-        id: r.id,
-        status: r.status as "queued" | "running",
-        repo: r.repo,
-        branch: r.branch,
-        createdAt: r.createdAt,
-      }));
+      .map(toOpenSummary);
+  }
+
+  async findOpenBySubject(
+    repo: string,
+    subjectKey: string,
+  ): Promise<OpenRunSummary | null> {
+    const open = (await this.listOpen()).find(
+      (r) => r.repo === repo && r.subjectKey === subjectKey,
+    );
+
+    return open ? toOpenSummary(open) : null;
+  }
+
+  async countBySubject(repo: string, subjectKey: string): Promise<number> {
+    return this.rows.filter(
+      (r) => r.repo === repo && r.subjectKey === subjectKey,
+    ).length;
   }
 
   async mergeArgs(id: string, patch: Record<string, unknown>): Promise<void> {
@@ -386,6 +457,7 @@ export class InMemoryAssemblyRuns implements AssemblyRunsPort {
       taskId: input.taskId ?? null,
       repo: input.repo,
       branch: input.branch ?? null,
+      subjectKey: input.subjectKey ?? null,
       args: input.args ?? {},
       graph: null,
       status: "queued",

@@ -36,8 +36,11 @@ export type {
   PullRef,
   PRReviewEvent,
   MergeMethod,
+  ReviewThread,
+  ReviewThreadComment,
 } from "./pulls/pull-requests-port.js";
 export { PullRequests } from "./pulls/pull-requests.js";
+export { findThreadForComment } from "./pulls/review-threads.js";
 
 export type { SettingsPort } from "./settings/settings-port.js";
 export { Settings } from "./settings/settings.js";
@@ -80,6 +83,10 @@ export type {
   AgentRunTurnInsert,
   AgentRunTurnNodeRef,
 } from "./agent-run-turns/agent-run-turns-port.js";
+
+// Type only — the Pg composition stays off the barrel so the light runtimes
+// never take on `pg`.
+export type { PipelineRepositories } from "./pipeline/pipeline-repositories.js";
 
 export type {
   NotifyPort,

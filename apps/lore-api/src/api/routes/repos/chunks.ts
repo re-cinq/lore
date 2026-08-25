@@ -1,3 +1,7 @@
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
+import { zodResponse } from "../../../server/plugins/zod-response.js";
+import { rethrowBoom, apiError } from "../../../server/api-error.js";
+import { z } from "zod";
 import type { ServerRoute } from "@hapi/hapi";
 import { projectFor } from "../../../platform/project-boot.js";
 import { bearerScope } from "../../../server/plugins/bearer-scope.js";
@@ -29,17 +33,22 @@ const CHUNK_KINDS = new Set([
   "stale",
 ]);
 
+/** One route per chunk KIND; the body is whichever collection the kind names. */
+const RepoChunksSchema = z.record(z.unknown());
+
 export function chunksRoute(): ServerRoute {
   return {
     method: "GET",
     path: "/api/repos/{owner}/{repo}/chunks/{kind}",
-    options: bearerScope("read"),
+    options: zodResponse(bearerScope("read"), RepoChunksSchema, {
+      name: "RepoChunks",
+      description: "A chunk collection, shaped by {kind}",
+      errors: [400],
+    }),
     handler: async (request, h) => {
       const kind = request.params.kind;
 
-      if (!CHUNK_KINDS.has(kind)) {
-        return h.response({ error: "not found" }).code(404);
-      }
+      enforceTrue(CHUNK_KINDS.has(kind), apiError(404), "not found");
       const q = request.query as Record<string, string | undefined>;
 
       try {
@@ -63,9 +72,7 @@ export function chunksRoute(): ServerRoute {
           case "has": {
             const contentType = q.content_type;
 
-            if (!contentType) {
-              return h.response({ error: "content_type required" }).code(400);
-            }
+            enforceTrue(contentType, apiError(400), "content_type required");
 
             return h.response({
               has: await chunks.hasChunk(contentType, q.file_suffix),
@@ -79,6 +86,10 @@ export function chunksRoute(): ServerRoute {
           }
         }
       } catch (err) {
+        // A guard's refusal already carries its status; only an unexpected failure
+        // is this block's to shape.
+        rethrowBoom(err);
+
         return h
           .response({ error: err instanceof Error ? err.message : String(err) })
           .code(500);
