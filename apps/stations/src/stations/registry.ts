@@ -27,6 +27,7 @@ import { ingest } from "./ingest/manifest.js";
 import { issues } from "./issues/manifest.js";
 import { featureReview } from "./feature-review/manifest.js";
 import { prReview } from "./pr-review/manifest.js";
+import { escalationStep } from "./escalation-step/manifest.js";
 
 /** The single list. A folder missing from it fails the registry's own test. */
 export const STATION_NAMES = [
@@ -35,6 +36,7 @@ export const STATION_NAMES = [
   "backfill-scan",
   "comment-triage",
   "detect",
+  "escalation-step",
   "feature-review",
   "importance-decay",
   "ingest",
@@ -55,6 +57,7 @@ export const STATIONS: Record<StationName, StationModule> = {
   "backfill-scan": backfillScan,
   "comment-triage": commentTriage,
   detect,
+  "escalation-step": escalationStep,
   "feature-review": featureReview,
   "importance-decay": importanceDecayStation,
   ingest,

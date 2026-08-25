@@ -111,7 +111,11 @@ export async function runPublishedNode(
       iteration: event.iteration,
     },
     result.outcome,
-    {},
+    // Produced args ride the resume's args channel (FR6.17) and are merged into
+    // the line before the walk advances — the pooled-service equivalent of a
+    // pod's sink artifacts. Extras deliberately do not: they are routing and
+    // telemetry, not the next node's brief.
+    result.args ?? {},
     result,
   );
 }

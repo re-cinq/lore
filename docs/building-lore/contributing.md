@@ -130,9 +130,8 @@ lore/
 │   ├── event-router/           # Sole writer of pipeline.events — one front door + the claim API (ADR-044)
 │   ├── cluster-agent/          # The only process that talks to this cluster's Kubernetes API
 │   ├── lore-api/               # Remote REST backend (/api/*) on GKE — DB / GitHub / GCS / tree-sitter
-│   ├── stations/               # Service stations — POST /api/stations/{name} (merge-check, approval-check)
+│   ├── stations/               # Service stations + the lore-station pod image (one non-agent node per pod)
 │   ├── mcp-server/             # Local stdio MCP adapter (+ the in-cluster lore-mcp HTTP gateway)
-│   ├── lore-station/           # Station pod image (runs one non-agent assembly-line node per pod)
 │   ├── lore-code-trace/        # Go binary — runs a repo's test suite in CI and posts the trace
 │   ├── web-ui/                 # Next.js dashboard (repo-centric UI, GitHub OAuth)
 │   └── vscode-extension/       # VS Code extension (spec ↔ code highlighting)
@@ -154,7 +153,9 @@ lore/
 └── .github/workflows/          # CI: build + push containers for Floor, Lore API, MCP, station, UI
 ```
 
-npm workspaces cover `libs/*` and the TypeScript apps (`cluster-agent`, `event-router`, `floor`, `lore-api`, `stations`, `lore-station`, `mcp-server`, `vscode-extension`) — the root `package.json` names each one explicitly rather than globbing `apps/*`. `web-ui` is a standalone Next.js app (its own lockfile, not a workspace), and `lore-code-trace` is a Go module.
+npm workspaces cover `libs/*` and the TypeScript apps (`cluster-agent`, `event-router`, `floor`, `lore-api`, `stations`, `mcp-server`, `vscode-extension`) — the root `package.json` names each one explicitly rather than globbing `apps/*`. `web-ui` is a standalone Next.js app (its own lockfile, not a workspace), and `lore-code-trace` is a Go module. (There is no `apps/lore-station` directory — the `lore-station` pod image builds from `apps/stations`'s `Dockerfile.pod`.)
+
+Each app and library carries its own README with its responsibilities, boundaries, and deploy facts: [`floor`](../../apps/floor/README.md), [`event-router`](../../apps/event-router/README.md), [`cluster-agent`](../../apps/cluster-agent/README.md), [`lore-api`](../../apps/lore-api/README.md), [`stations`](../../apps/stations/README.md), [`mcp-server`](../../apps/mcp-server/README.md), [`lore-code-trace`](../../apps/lore-code-trace/README.md), [`web-ui`](../../apps/web-ui/README.md), [`vscode-extension`](../../apps/vscode-extension/README.md), [`libs/shared`](../../libs/shared/README.md), [`libs/assembly-lines`](../../libs/assembly-lines/README.md), [`libs/server-core`](../../libs/server-core/README.md).
 
 > **Gap worth knowing.** `event-router`, `cluster-agent`, and `stations` each have a
 > `Dockerfile` and a Helm subchart, but no `build-*.yml` workflow — their chart values

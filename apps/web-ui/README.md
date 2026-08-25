@@ -28,15 +28,17 @@ src/
   app/        App Router pages + route handlers (see the tree in CLAUDE.md)
   components/  shared React components
   lib/
-    db.ts      PostgreSQL pool + cross-schema helpers (query, queryOne, queryAllChunks)
+    api/       typed clients over the lore-api routes (types generated from
+               apps/lore-api/openapi.json into schema.d.ts)
     github.ts  GitHub App client for PR status
     theme/     fonts + theme
   middleware.ts
 ```
 
-All DB access goes through [`src/lib/db.ts`](./src/lib/db.ts). The DB user is
-`lore_ui` (read-only on team schemas); `queryAllChunks` fans a query across every
-team schema + `org_shared`. Auth is NextAuth (GitHub).
+The web UI holds **no database pool** — `pg` is not a dependency, and the
+`lore/no-sql-in-web-ui` lint rule runs at `error`. All data access goes through
+the typed clients in [`src/lib/api/`](./src/lib/api) over the lore-api `/api/*`
+routes. Auth is NextAuth (GitHub).
 
 ## Develop
 
@@ -47,13 +49,14 @@ npm test               # vitest + Testing Library (jsdom)
 npm run build          # production build (Next standalone output)
 ```
 
-For the full local stack (Postgres + all four services), run `npm start` from
+For the full local stack (Postgres + every service), run `npm start` from
 the repo root; the UI comes up on `:3000`.
 
 ## Deploy
 
 Built into a container via [`Dockerfile`](./Dockerfile) (Next standalone output)
-and deployed to GKE via Terraform/Helm. The deploy path also runs the ordered,
-idempotent SQL migrations in
-[`infra/.../ui-helm/migrations/`](../../infra) on every UI deploy. See the root
+and deployed to GKE via Terraform/Helm. A pre-install/pre-upgrade Helm hook
+also runs the ordered, idempotent SQL migrations in
+[`infra/.../ui-helm/migrations/`](../../infra) on every deploy of the
+`lore-platform` umbrella (not just UI changes). See the root
 README and [`infra/`](../../infra).

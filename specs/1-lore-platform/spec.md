@@ -531,7 +531,7 @@ ai-agent-subsystem per ADR-031). ([validated by `code-review.test.ts:91`](apps/f
 - FR-13.4: When changes are requested, a follow-up round is started on the same
   branch carrying the feedback (the code-review-reply path). ([validated by `code-review.test.ts:113`](apps/floor/src/jobs/review/code-review.test.ts#L113))
 - FR-13.5: After further iterations the loop escalates to human review via a
-  `needs-human-help` Issue, with no further autonomous iterations. ([validated by `escalation.test.ts:87`](apps/floor/src/jobs/platform/escalation.test.ts#L87), [`escalation.test.ts:162`](apps/floor/src/jobs/platform/escalation.test.ts#L162))
+  `needs-human-help` Issue, with no further autonomous iterations. ([validated by opens the issue and carries its url forward for the notify step](apps/stations/src/stations/escalation-step/escalation-step.test.ts#L27), [`escalation-line.test.ts:45`](libs/assembly-lines/src/escalation-line.test.ts#L45))
 - FR-13.6: The primary trigger is GitHub webhooks (ADR-015): the Floor webhook
   ingress maps qualifying `pull_request`, `pull_request_review`, and PR
   `issue_comment` events to the code-review choreography, which starts or

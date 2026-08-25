@@ -4,8 +4,6 @@
 
 Read it top to bottom for the full picture, or jump to the section you're touching.
 
-<p align="center"><img src="../../badges/architecture.svg" width="680" alt="Architecture overview" /></p>
-
 ---
 
 ## System topology
@@ -14,57 +12,7 @@ How the pieces connect at runtime. The local MCP server proxies every operation 
 
 Two boundaries are load-bearing and enforced by credentials rather than convention. **`event-router` is the only writer of `pipeline.events`** ([ADR-044](../../adrs/ADR-044-event-router-owns-the-event-bus.md)): every producer reports to its one front door, and the Floor claims work back over HTTP. **`cluster-agent` is the only process that talks to this cluster's Kubernetes API** — the Floor holds no Kubernetes client at all, and reaches dispatch, pod logs, and per-task tokens through it.
 
-```mermaid
-flowchart TB
-    subgraph local["Developer machine"]
-        CC["Claude Code"]
-        MCPL["Lore MCP server<br/>(stdio, local)"]
-        LR["Local task runner<br/>(worktrees, background Claude Code)"]
-        CC <-->|"MCP protocol"| MCPL
-        MCPL -.->|"spawns"| LR
-    end
-
-    subgraph gke["GKE cluster"]
-        MCP["Lore API<br/>(REST, /api/*)"]
-        GW["lore-mcp gateway<br/>(MCP over HTTP, for agent pods)"]
-        ER["event-router<br/>sole writer of pipeline.events"]
-        AGENT["Floor<br/>drain loop + walk + dispatch + SSE"]
-        CA["cluster-agent<br/>the only k8s client"]
-        ST["stations<br/>POST /api/stations/{name}"]
-        CTRL["agent-controller<br/>(ai-agent-subsystem, ai-agents ns)"]
-        POD["Agent CR pods<br/>(one per assembly-line node)"]
-        UI["Web UI (Next.js)"]
-        DB[("PostgreSQL + pgvector<br/>chunks · memory · pipeline")]
-    end
-
-    subgraph github["GitHub"]
-        GH["Repos · PRs · Issues"]
-        GHA["Actions:<br/>lore-ingest.yml · lore-tests.yml"]
-    end
-
-    SLACK["Slack /lore"]
-
-    MCPL -->|"proxy all ops (LORE_API_URL)"| MCP
-    GHA -->|"POST /api/ingest (changed files)"| MCP
-    GH -->|"webhooks: PR · review · comment"| ER
-    SLACK -->|"slash command"| MCP
-    MCP -->|"read / write"| DB
-    MCP -->|"report internal.ingest.*"| ER
-    UI -->|"typed clients, no pool"| MCP
-    ER -->|"owns the table"| DB
-    ER -->|"watches Agent CRs"| CTRL
-    AGENT -->|"claim / ack over HTTP"| ER
-    AGENT -->|"poll pending tasks"| DB
-    AGENT -->|"run a service station"| ST
-    ST --> DB
-    AGENT -->|"dispatch: create CR"| CA
-    CA -->|"create / list / delete CR · pod logs"| CTRL
-    CTRL -->|"spawn"| POD
-    POD -->|"live MCP (scoped)"| GW
-    POD -->|"stream NDJSON telemetry"| AGENT
-    POD -->|"commit + push"| GH
-    AGENT -->|"open PR (GitHub App)"| GH
-```
+<p align="center"><img src="../../badges/architecture.svg" width="720" alt="System topology: developer machine, the nine GKE services, GitHub and Slack" /></p>
 
 > **Webhook cutover, in progress.** The event-router's public ingress serves `/api/events` and is standing, but `LORE_WEBHOOK_URL` still points onboarded repos at the Floor's `/api/webhook/github`. Either door is correct today — the Floor's route no longer writes to the database, it reports through the router like every other producer — and the repos get re-pointed before that route is deleted. Reversing that order would drop deliveries.
 
@@ -127,14 +75,14 @@ The full job registry — every schedule and what it does — is in [Scheduled J
 
 | Component | What it does |
 |-----------|-------------|
-| **Lore API** | The remote REST backend (`/api/*`) on GKE (ADR-032). Hybrid search (vector + BM25), agent memory, task CRUD, the push-triggered ingest API, per-client scoped tokens, rate-limited. |
-| **MCP Server** | A thin local stdio adapter that speaks the MCP protocol to Claude Code and proxies every operation to the Lore API via `LORE_API_URL`. Also hosts the local task runner. The same binary runs in-cluster as the **lore-mcp gateway** (`LORE_MCP_HTTP=1`), giving agent pods live scoped Lore access for a whole run rather than a one-shot hydration, and serving the agent-skills registry. |
-| **Floor** | The coordinator, pinned to one replica and holding exactly three powers ([ADR-024](../../adrs/ADR-024-ubiquitous-language-execution-model.md)): the `pipeline.events` drain loop and its reapers, the AssemblyRun walk plus Station dispatch, and the in-process SSE bus behind the live run view. Dispatches complex tasks as `Agent` CRs — one pod per assembly-line node — through the cluster agent, since it holds no Kubernetes client of its own. Emits the cron ticks, creates PRs via the GitHub App, and keeps auto-merge authority (deliberately not delegated to a pod). Every task automatically opens a GitHub Issue on the target repo so developers see what Lore is doing without checking the dashboard; Issues are updated on status changes and closed when the PR is created — unless Dark Factory mode narrows that (see below). |
-| **event-router** | The single owner of `pipeline.events` (ADR-044). One front door, `POST /api/events`, takes every producer: GitHub webhooks authenticated by HMAC over the raw body, and the Kubernetes watch, cron ticks, CI ingest, human-station resumes, and internal ingest triggers by bearer token. It also serves the six claim/ack/fail/dead-letter/reap/prune endpoints the Floor drains through — no endpoint on that side can write an event, because producing and draining are different privileges. Holds the streaming Agent-CR watch that turns a terminal CR into a `kubernetes.agent*` event. |
-| **cluster-agent** | The only process that talks to this cluster's Kubernetes API. Holds no database — every caller brings its own state and asks this for cluster operations only. Each `/api/cluster/*` route is a **domain operation, not a Kubernetes verb**: three of the underlying interactions are read-modify-write pairs, so exposing `get` and `replace` separately would invite a caller to split a pair across the network and lose the update. No `resourceVersion` ever crosses the wire, and lists are one apiserver page per call with the caller driving `continue`. |
-| **stations (service)** | Service stations reached by name over `POST /api/stations/{name}` — currently `merge-check` and `approval-check`. Self-contained units of work that moved to where the data already is instead of being tunnelled through the Floor. It schedules nothing itself: the Floor still owns *when* a station runs; this owns *what* it does. |
+| [**Lore API**](../../apps/lore-api/README.md) | The remote REST backend (`/api/*`) on GKE (ADR-032). Hybrid search (vector + BM25), agent memory, task CRUD, the push-triggered ingest API, per-client scoped tokens, rate-limited. |
+| [**MCP Server**](../../apps/mcp-server/README.md) | A thin local stdio adapter that speaks the MCP protocol to Claude Code and proxies every operation to the Lore API via `LORE_API_URL`. Also hosts the local task runner. The same binary runs in-cluster as the **lore-mcp gateway** (`LORE_MCP_HTTP=1`), giving agent pods live scoped Lore access for a whole run rather than a one-shot hydration, and serving the agent-skills registry. |
+| [**Floor**](../../apps/floor/README.md) | The coordinator, pinned to one replica and holding exactly three powers ([ADR-024](../../adrs/ADR-024-ubiquitous-language-execution-model.md)): the `pipeline.events` drain loop and its reapers, the AssemblyRun walk plus Station dispatch, and the in-process SSE bus behind the live run view. Dispatches complex tasks as `Agent` CRs — one pod per assembly-line node — through the cluster agent, since it holds no Kubernetes client of its own. Emits the cron ticks, creates PRs via the GitHub App, and keeps auto-merge authority (deliberately not delegated to a pod). Every task automatically opens a GitHub Issue on the target repo so developers see what Lore is doing without checking the dashboard; Issues are updated on status changes and closed when the PR is created — unless Dark Factory mode narrows that (see below). |
+| [**event-router**](../../apps/event-router/README.md) | The single owner of `pipeline.events` (ADR-044). One front door, `POST /api/events`, takes every producer: GitHub webhooks authenticated by HMAC over the raw body, and the Kubernetes watch, cron ticks, CI ingest, human-station resumes, and internal ingest triggers by bearer token. It also serves the six claim/ack/fail/dead-letter/reap/prune endpoints the Floor drains through — no endpoint on that side can write an event, because producing and draining are different privileges. Holds the streaming Agent-CR watch that turns a terminal CR into a `kubernetes.agent*` event. |
+| [**cluster-agent**](../../apps/cluster-agent/README.md) | The only process that talks to this cluster's Kubernetes API. Holds no database — every caller brings its own state and asks this for cluster operations only. Each `/api/cluster/*` route is a **domain operation, not a Kubernetes verb**: three of the underlying interactions are read-modify-write pairs, so exposing `get` and `replace` separately would invite a caller to split a pair across the network and lose the update. No `resourceVersion` ever crosses the wire, and lists are one apiserver page per call with the caller driving `continue`. |
+| [**stations (service)**](../../apps/stations/README.md) | Service stations reached by name over `POST /api/stations/{name}` — currently `merge-check` and `approval-check`. Self-contained units of work that moved to where the data already is instead of being tunnelled through the Floor. It schedules nothing itself: the Floor still owns *when* a station runs; this owns *what* it does. |
 | **ai-agent-subsystem** | The external agent-controller (`ai-agents` namespace) watches `Agent` custom resources (→ `Station` PodTemplate → `AgentDefinition` recipe) and stamps an ephemeral Job pod per run. Agent pods clone the target repo, run Claude Code, commit, and push; deterministic nodes (validate/gate/retrospective/detect) run the `lore-station` image via the `exec` vendor. Tasks survive Floor deploys and run in parallel with full isolation. Pods run as non-root with dropped capabilities and an egress-restricted NetworkPolicy. |
-| **Web UI** | Next.js dashboard with GitHub OAuth. Repo-centric view. One-click onboarding. Pipeline monitoring. Analytics dashboard. Global settings. Holds **no** database pool — every read goes through lore-api via typed clients generated from its OpenAPI schema. |
+| [**Web UI**](../../apps/web-ui/README.md) | Next.js dashboard with GitHub OAuth. Repo-centric view. One-click onboarding. Pipeline monitoring. Analytics dashboard. Global settings. Holds **no** database pool — every read goes through lore-api via typed clients generated from its OpenAPI schema. |
 | **PostgreSQL** | CloudNativePG with pgvector. Schema-per-team isolation. HNSW indexes for vector search, GIN for keyword. |
 | **GitHub App** | Reads repo content for onboarding. Creates branches, commits, and PRs. Sets Actions secrets for ingest automation. |
 

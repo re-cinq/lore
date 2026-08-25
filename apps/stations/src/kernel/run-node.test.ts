@@ -113,3 +113,36 @@ describe("parsePublishedNode", () => {
     expect(parsePublishedNode({ ...EVENT, branch: null }).branch).toBeNull();
   });
 });
+
+describe("runPublishedNode produced args", () => {
+  it("forwards result.args as the resume args, so the next node reads them from the line", async () => {
+    const argsSeen: Array<Record<string, unknown>> = [];
+
+    await runPublishedNode(
+      EVENT,
+      async (_target, _outcome, args) => {
+        argsSeen.push(args);
+      },
+      async () => ({
+        outcome: "success",
+        args: { issue_url: "https://gh/o/r/issues/7" },
+      }),
+    );
+
+    expect(argsSeen).toEqual([{ issue_url: "https://gh/o/r/issues/7" }]);
+  });
+
+  it("reports empty args when the station produced none, keeping the merge a no-op", async () => {
+    const argsSeen: Array<Record<string, unknown>> = [];
+
+    await runPublishedNode(
+      EVENT,
+      async (_target, _outcome, args) => {
+        argsSeen.push(args);
+      },
+      async () => ({ outcome: "success" }),
+    );
+
+    expect(argsSeen).toEqual([{}]);
+  });
+});

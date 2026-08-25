@@ -40,23 +40,25 @@ docs/        guides & longer-form docs
 
 npm workspaces are `libs/*` plus each Node app listed explicitly in the root `package.json`. Two apps sit outside them: `web-ui` (standalone Next.js, its own lockfile) and `lore-code-trace` (Go, no `package.json`).
 
+Every app and library documents itself in its own README — the shared code starts at [`libs/shared`](libs/shared/README.md), [`libs/assembly-lines`](libs/assembly-lines/README.md), and [`libs/server-core`](libs/server-core/README.md); the deployables are linked from the table below.
+
 ### Deployables
 
 Nine workloads ship as one umbrella Helm chart, `lore-platform`, which spans a namespace per subchart. Each owns one thing, and the boundaries are enforced by credentials rather than convention.
 
 | Deployable | Namespace | What it owns |
 |---|---|---|
-| **Floor** (`apps/floor`) | `lore-floor` | The three exclusive powers of [ADR-024](adrs/ADR-024-ubiquitous-language-execution-model.md): the `pipeline.events` drain loop and its reapers, the AssemblyRun walk plus Station dispatch, and the in-process SSE bus. Pinned to one replica, because only a single instance may coordinate. Holds **no** Kubernetes client. |
-| **event-router** (`apps/event-router`) | `lore-event-router` | The only writer of `pipeline.events` ([ADR-044](adrs/ADR-044-event-router-owns-the-event-bus.md)). One front door — `POST /api/events` — for every producer, authenticating GitHub by HMAC and everyone else by bearer token, plus the claim/ack/reap endpoints the Floor drains through. |
-| **cluster-agent** (`apps/cluster-agent`) | `lore-cluster-agent` | The only process that talks to this cluster's Kubernetes API. Holds no database; every route under `/api/cluster/*` is a domain operation rather than a Kubernetes verb, so no `resourceVersion` ever crosses the wire. |
-| **lore-api** (`apps/lore-api`) | `lore-api` | The remote REST backend (`/api/*`) — hybrid search, agent memory, task CRUD, ingest ([ADR-032](adrs/ADR-032-split-local-remote-api.md)). No MCP. |
-| **stations** (`apps/stations`) | `lore-stations` | Service stations, reached by name over `POST /api/stations/{name}`. Self-contained units of work that moved to where the data already is rather than being tunnelled through the Floor. |
-| **lore-mcp gateway** (`apps/mcp-server`) | `lore-api` | The same MCP adapter served over HTTP, so agent pods get live scoped Lore access for a whole run instead of a one-shot hydration. Also serves the agent-skills registry. |
-| **web-ui** (`apps/web-ui`) | `lore-ui` | The Next.js dashboard. Holds no database pool — it reads through lore-api. Its chart also runs the ordered SQL migrations hook on every deploy. |
-| **lore-db** | `lore-db` | PostgreSQL + pgvector via CloudNativePG. Schema-per-team isolation. |
-| **ai-agent-subsystem** | `ai-agents` | The external controller that turns an `Agent` custom resource into an ephemeral Job pod. |
+| **Floor** ([`apps/floor`](apps/floor/README.md)) | `lore-floor` | The three exclusive powers of [ADR-024](adrs/ADR-024-ubiquitous-language-execution-model.md): the `pipeline.events` drain loop and its reapers, the AssemblyRun walk plus Station dispatch, and the in-process SSE bus. Pinned to one replica, because only a single instance may coordinate. Holds **no** Kubernetes client. |
+| **event-router** ([`apps/event-router`](apps/event-router/README.md)) | `lore-event-router` | The only writer of `pipeline.events` ([ADR-044](adrs/ADR-044-event-router-owns-the-event-bus.md)). One front door — `POST /api/events` — for every producer, authenticating GitHub by HMAC and everyone else by bearer token, plus the claim/ack/reap endpoints the Floor drains through. |
+| **cluster-agent** ([`apps/cluster-agent`](apps/cluster-agent/README.md)) | `lore-cluster-agent` | The only process that talks to this cluster's Kubernetes API. Holds no database; every route under `/api/cluster/*` is a domain operation rather than a Kubernetes verb, so no `resourceVersion` ever crosses the wire. It also PUSHES: a WATCH is the one cluster capability that cannot be a request, so this owns the Agent-CR watch and reports terminal phases to the event-router over HTTP — which is what lets there be more than one execution cluster. |
+| **lore-api** ([`apps/lore-api`](apps/lore-api/README.md)) | `lore-api` | The remote REST backend (`/api/*`) — hybrid search, agent memory, task CRUD, ingest ([ADR-032](adrs/ADR-032-split-local-remote-api.md)). No MCP. |
+| **stations** ([`apps/stations`](apps/stations/README.md)) | `lore-stations` | Service stations, reached by name over `POST /api/stations/{name}`. Self-contained units of work that moved to where the data already is rather than being tunnelled through the Floor. |
+| **lore-mcp gateway** ([`apps/mcp-server`](apps/mcp-server/README.md)) | `lore-api` | The same MCP adapter served over HTTP, so agent pods get live scoped Lore access for a whole run instead of a one-shot hydration. Also serves the agent-skills registry. |
+| **web-ui** ([`apps/web-ui`](apps/web-ui/README.md)) | `lore-ui` | The Next.js dashboard. Holds no database pool — it reads through lore-api. Its chart also runs the ordered SQL migrations hook on every deploy. |
+| **lore-db** ([`charts/lore-db-helm`](infra/terraform/modules/gke-mcp/lore-platform/charts/lore-db-helm/README.md)) | `lore-db` | PostgreSQL + pgvector via CloudNativePG. Schema-per-team isolation. |
+| **ai-agent-subsystem** ([`charts/ai-agents-helm`](infra/terraform/modules/gke-mcp/lore-platform/charts/ai-agents-helm/README.md)) | `ai-agents` | The external controller that turns an `Agent` custom resource into an ephemeral Job pod. |
 
-Dgraph — the spec-traceability graph — is deployed alongside the umbrella from terraform rather than as a subchart. `apps/mcp-server` also runs on each developer's laptop over stdio; `apps/lore-station` and `apps/lore-code-trace` are an image and a binary, not services.
+Dgraph — the spec-traceability graph — is deployed alongside the umbrella from terraform rather than as a subchart. `apps/mcp-server` also runs on each developer's laptop over stdio; the `lore-station` pod image (built from [`apps/stations`](apps/stations/README.md)) and [`apps/lore-code-trace`](apps/lore-code-trace/README.md) are an image and a binary, not services.
 
 
 ### The context lifecycle

@@ -28,6 +28,14 @@ export interface NodeResult {
   /** Free-form extras (e.g. `Lore-Cost-Tokens`, `Lore-Validation-Status`). */
   extras?: Record<string, string>;
   /**
+   * What this node produced for the next node's brief — merged into the line's
+   * args (the FR6.17 artifact channel) before the walk advances, which is how
+   * the next station finds it in its params. Distinct from `extras`, which the
+   * walk routes on and renders into trailers: an `extras`-only result reaches
+   * the walk but never the downstream node.
+   */
+  args?: Record<string, string>;
+  /**
    * LLM usage of the node's own model calls (stations without Postgres report
    * cost this way). `resultLine` lifts it onto the terminal line's claude-style
    * envelope fields; it is never serialized into the LORE_NODE_RESULT payload.
