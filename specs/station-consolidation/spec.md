@@ -266,11 +266,20 @@ subscribe" has no expressible meaning on the current substrate.
   appended, since a refusal that already appended one leaves a round nothing will
   run; and the round is appended before it is reported, so the report names a
   round that exists. The routes keep what is theirs — the paths, the scopes, the
-  payload limits and the status codes. The sequence throws the refusals its
+  payload limits and the status codes. The FIRST round is the same: creating the
+  feature, appending its round and kicking its task is one sequence, and it too
+  carries a load-bearing ordering — the round row is appended BEFORE the task,
+  because the task names the iteration it belongs to, and the task is attached
+  last because only then does its id exist. A kick that fails attaches nothing,
+  leaving no round pointing at a task that was never created. The args a planning
+  task carries are written in ONE place: they are a contract read by the Floor at
+  dispatch, and a key renamed on one side typechecks cleanly on both while
+  reaching the pod as an absent value — which is the shape every defect this
+  lifecycle has produced took. The sequence throws the refusals its
   CALLER hands it rather than a bare error, which is what lets a route delegate
   the ordering instead of keeping a second copy of it to preserve its own status
   codes.
-  ([validated by names the newest run whatever blueprint it is, so a finalize run still shows](libs/shared/src/project/features/planning-run.test.ts#L25), [`planning-run.test.ts:37`](libs/shared/src/project/features/planning-run.test.ts#L37), [`planning-run.test.ts:43`](libs/shared/src/project/features/planning-run.test.ts#L43), [`planning-run.test.ts:52`](libs/shared/src/project/features/planning-run.test.ts#L52), [`planning-run.test.ts:64`](libs/shared/src/project/features/planning-run.test.ts#L64), [`refinement-round.test.ts:36`](libs/shared/src/project/features/refinement-round.test.ts#L36), [`refinement-round.test.ts:55`](libs/shared/src/project/features/refinement-round.test.ts#L55), [`refinement-round.test.ts:66`](libs/shared/src/project/features/refinement-round.test.ts#L66), [`refinement-round.test.ts:74`](libs/shared/src/project/features/refinement-round.test.ts#L74), [`refinement-round.test.ts:90`](libs/shared/src/project/features/refinement-round.test.ts#L90), [`refinement-round.test.ts:102`](libs/shared/src/project/features/refinement-round.test.ts#L102))
+  ([validated by names the newest run whatever blueprint it is, so a finalize run still shows](libs/shared/src/project/features/planning-run.test.ts#L25), [`planning-run.test.ts:37`](libs/shared/src/project/features/planning-run.test.ts#L37), [`planning-run.test.ts:43`](libs/shared/src/project/features/planning-run.test.ts#L43), [`planning-run.test.ts:52`](libs/shared/src/project/features/planning-run.test.ts#L52), [`planning-run.test.ts:64`](libs/shared/src/project/features/planning-run.test.ts#L64), [`refinement-round.test.ts:36`](libs/shared/src/project/features/refinement-round.test.ts#L36), [`refinement-round.test.ts:55`](libs/shared/src/project/features/refinement-round.test.ts#L55), [`refinement-round.test.ts:66`](libs/shared/src/project/features/refinement-round.test.ts#L66), [`refinement-round.test.ts:74`](libs/shared/src/project/features/refinement-round.test.ts#L74), [`refinement-round.test.ts:90`](libs/shared/src/project/features/refinement-round.test.ts#L90), [`refinement-round.test.ts:102`](libs/shared/src/project/features/refinement-round.test.ts#L102), [`start-planning.test.ts:35`](libs/shared/src/project/features/start-planning.test.ts#L35), [`start-planning.test.ts:42`](libs/shared/src/project/features/start-planning.test.ts#L42), [`start-planning.test.ts:49`](libs/shared/src/project/features/start-planning.test.ts#L49), [`start-planning.test.ts:69`](libs/shared/src/project/features/start-planning.test.ts#L69), [`start-planning.test.ts:80`](libs/shared/src/project/features/start-planning.test.ts#L80), [`start-planning.test.ts:89`](libs/shared/src/project/features/start-planning.test.ts#L89))
 
 - **FR21 — a published node is claimed by the service that runs it.** The
   process hosting service-form stations drains its own deliveries, so a node the

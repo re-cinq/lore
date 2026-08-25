@@ -18,6 +18,10 @@ import {
   findParkedAuthorNode,
 } from "@re-cinq/lore-shared/project/features/planning-run.js";
 import { startRefinementRound } from "@re-cinq/lore-shared/project/features/refinement-round.js";
+import {
+  startFeaturePlanning,
+  type StartPlanningDeps,
+} from "@re-cinq/lore-shared/project/features/start-planning.js";
 import { reportToParkedNode } from "@re-cinq/lore-shared/project/assembly-runs/parked-node.js";
 import { eventReporterFor } from "../event-reporter.js";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
@@ -73,33 +77,25 @@ async function run(
   }
 }
 
-/** Kick a feature-planning Station. `repoFullName` MUST be the `owner/repo` slug:
- *  it lands verbatim in `target_repo`, cloned as `github.com/<target_repo>.git`. */
-async function kickPlanning(
-  repoFullName: string,
-  featureId: string,
-  iteration: number,
-  description: string,
-  roundFeedback?: string,
-  resumeFromTask?: string | null,
-): Promise<string> {
+/** Bind the shared planning sequence to this process's task queue.
+ *  `repo` MUST be the `owner/repo` slug: it lands verbatim in `target_repo`,
+ *  cloned as `github.com/<target_repo>.git`. */
+const createPlanningTask: StartPlanningDeps["createPlanningTask"] = async ({
+  repo,
+  description,
+  args,
+}) => {
   const task = await createTask(
     description,
     "feature-planning",
-    repoFullName,
+    repo,
     "ui",
-    // Both ride along: only the Floor knows at dispatch whether to resume.
-    {
-      feature_id: featureId,
-      iteration,
-      ...(roundFeedback ? { round_feedback: roundFeedback } : {}),
-      ...(resumeFromTask ? { resume_from_task: resumeFromTask } : {}),
-    },
+    args,
     "immediate",
   );
 
   return task.task_id as string;
-}
+};
 
 export function featuresRoutes(getPool: () => Pool | null): ServerRoute[] {
   return [
@@ -145,22 +141,29 @@ export function featuresRoutes(getPool: () => Pool | null): ServerRoute[] {
           );
           const repo = repoOf(request.params);
           const features = (await projectFor(repo)).features;
-          const feature = await features.create({
-            title,
-            prompt,
-            parentFeatureId: body.parent_feature_id,
-          });
-          const row = await features.appendIteration(feature.id, null);
-          const taskId = await kickPlanning(
-            repo,
-            feature.id,
-            row.iteration,
-            prompt,
+          // The sequence and its one load-bearing ordering live in shared,
+          // under test. The route contributes what is HTTP: the payload it
+          // parsed and the 201 it answers with.
+          const started = await startFeaturePlanning(
+            {
+              repo,
+              title,
+              prompt,
+              parentFeatureId: body.parent_feature_id,
+            },
+            {
+              createFeature: (feature) => features.create(feature),
+              appendIteration: (featureId, answers) =>
+                features.appendIteration(featureId, answers),
+              createPlanningTask,
+              attachIterationTask: (featureId, iteration, taskId) =>
+                features.attachIterationTask(featureId, iteration, taskId),
+            },
           );
 
-          await features.attachIterationTask(feature.id, row.iteration, taskId);
-
-          return h.response({ id: feature.id, task_id: taskId }).code(201);
+          return h
+            .response({ id: started.featureId, task_id: started.taskId })
+            .code(201);
         }),
     },
 
