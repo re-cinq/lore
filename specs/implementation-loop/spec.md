@@ -26,12 +26,12 @@ A fourth gap sits underneath the "wait until the PR has no outstanding comments"
 
 ## FR1 — Priority taxonomy and eligibility
 
-- The repo carries four new labels: `priority:high`, `priority:medium`, `priority:low`, and `lore:blocked`.
-- An issue is eligible for the queue when it is open, carries exactly one `priority:*` label, does not carry `lore:blocked`, and has no open Lore-authored PR already referencing it.
-- Queue order is `priority:high` before `priority:medium` before `priority:low`; ties are broken by oldest `created_at` first.
-- An issue carrying no `priority:*` label is never picked. Applying a priority label is the opt-in; no second dispatch label is required.
-- An issue carrying more than one `priority:*` label is treated as ineligible rather than silently resolved to the highest, so the ambiguity surfaces to a human instead of being guessed at.
-- The selection logic is a pure function over a list of issue records, with no I/O, so ordering is testable without GitHub.
+- The repo carries four new labels: `priority:high`, `priority:medium`, `priority:low`, and `lore:blocked`. ([validated by seeds the priority taxonomy](../../apps/floor/src/jobs/task/worker.onboard.test.ts#L137))
+- An issue is eligible for the queue when it is open, carries exactly one `priority:*` label, does not carry `lore:blocked`, and has no open Lore-authored PR already referencing it. ([validated by skips a closed issue](../../libs/shared/src/backlog/select-next-issue.test.ts#L71), [validated by skips lore:blocked](../../libs/shared/src/backlog/select-next-issue.test.ts#L80), [validated by ignores unrelated labels](../../libs/shared/src/backlog/select-next-issue.test.ts#L121))
+- Queue order is `priority:high` before `priority:medium` before `priority:low`; ties are broken by oldest `created_at` first. ([validated by picks priority:high first](../../libs/shared/src/backlog/select-next-issue.test.ts#L30), [validated by picks priority:medium next](../../libs/shared/src/backlog/select-next-issue.test.ts#L40), [validated by breaks a tie by oldest](../../libs/shared/src/backlog/select-next-issue.test.ts#L49), [validated by undated sorts last](../../libs/shared/src/backlog/select-next-issue.test.ts#L108))
+- An issue carrying no `priority:*` label is never picked. Applying a priority label is the opt-in; no second dispatch label is required. ([validated by no priority label returns null](../../libs/shared/src/backlog/select-next-issue.test.ts#L21))
+- An issue carrying more than one `priority:*` label is treated as ineligible rather than silently resolved to the highest, so the ambiguity surfaces to a human instead of being guessed at. ([validated by multiple priority labels ineligible](../../libs/shared/src/backlog/select-next-issue.test.ts#L89), [validated by all-ineligible returns null](../../libs/shared/src/backlog/select-next-issue.test.ts#L98))
+- The selection logic is a pure function over a list of issue records, with no I/O, so ordering is testable without GitHub. ([validated by empty backlog returns null](../../libs/shared/src/backlog/select-next-issue.test.ts#L17))
 
 ## FR2 — The loop is a driver, not a cyclic assembly line
 
