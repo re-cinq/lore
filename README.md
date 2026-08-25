@@ -55,8 +55,8 @@ Nine workloads ship as one umbrella Helm chart, `lore-platform`, which spans a n
 | **stations** ([`apps/stations`](apps/stations/README.md)) | `lore-stations` | Service stations, reached by name over `POST /api/stations/{name}`. Self-contained units of work that moved to where the data already is rather than being tunnelled through the Floor. |
 | **lore-mcp gateway** ([`apps/mcp-server`](apps/mcp-server/README.md)) | `lore-api` | The same MCP adapter served over HTTP, so agent pods get live scoped Lore access for a whole run instead of a one-shot hydration. Also serves the agent-skills registry. |
 | **web-ui** ([`apps/web-ui`](apps/web-ui/README.md)) | `lore-ui` | The Next.js dashboard. Holds no database pool — it reads through lore-api. Its chart also runs the ordered SQL migrations hook on every deploy. |
-| **lore-db** | `lore-db` | PostgreSQL + pgvector via CloudNativePG. Schema-per-team isolation. |
-| **ai-agent-subsystem** | `ai-agents` | The external controller that turns an `Agent` custom resource into an ephemeral Job pod. |
+| **lore-db** ([`charts/lore-db-helm`](infra/terraform/modules/gke-mcp/lore-platform/charts/lore-db-helm/README.md)) | `lore-db` | PostgreSQL + pgvector via CloudNativePG. Schema-per-team isolation. |
+| **ai-agent-subsystem** ([`charts/ai-agents-helm`](infra/terraform/modules/gke-mcp/lore-platform/charts/ai-agents-helm/README.md)) | `ai-agents` | The external controller that turns an `Agent` custom resource into an ephemeral Job pod. |
 
 Dgraph — the spec-traceability graph — is deployed alongside the umbrella from terraform rather than as a subchart. `apps/mcp-server` also runs on each developer's laptop over stdio; the `lore-station` pod image (built from [`apps/stations`](apps/stations/README.md)) and [`apps/lore-code-trace`](apps/lore-code-trace/README.md) are an image and a binary, not services.
 
