@@ -8,6 +8,7 @@ import {
   decideTokenReclaim,
   runOutcomeFromTaskStatus,
   decideFeatureLink,
+  stampPrOnOpenRuns,
 } from "./agent-watcher-logic.js";
 
 describe("taskIdOf / taskTypeOf", () => {
@@ -167,8 +168,6 @@ describe("taskPageUrl", () => {
     expect(taskPageUrl("t-1", "")).toBeUndefined();
   });
 });
-
-import { stampPrOnOpenRuns } from "./agent-watcher-logic.js";
 
 describe("stampPrOnOpenRuns", () => {
   const runs = [

@@ -578,7 +578,15 @@ async function handleSucceededChanges(ctx: AgentContext): Promise<void> {
       target_branch: branch,
       log_url: taskUrl,
     });
-    await stampPrOnOpenRuns(pipeline().assemblyRuns, taskId, pr);
+    // Best-effort AND outside the failure path: the PR is already open, so a
+    // stamp failure must not re-label this as a PR-open failure. A missing
+    // stamp leaves await-pr's route unresolved and pr-ready-check skipping the
+    // run with a log line — visible, recoverable, not fatal.
+    await stampPrOnOpenRuns(pipeline().assemblyRuns, taskId, pr).catch((err) =>
+      console.warn(
+        `[agent-watcher] stampPrOnOpenRuns failed for ${taskId} — await-pr route may be unresolvable: ${errorMessage(err)}`,
+      ),
+    );
     await taskStore().recordEvent(taskId, "running", "pr-created", {
       pr_url: pr.url,
     });
