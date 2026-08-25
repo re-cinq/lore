@@ -40,9 +40,9 @@ export const STATION_NAMES = [
   "ingest",
   "issues",
   "memory-ttl",
-  "pr-review",
   "merge-check",
   "merge-step",
+  "pr-review",
   "retrospective",
   "validate",
 ] as const;
@@ -60,9 +60,9 @@ export const STATIONS: Record<StationName, StationModule> = {
   ingest,
   issues,
   "memory-ttl": memoryTtl,
-  "pr-review": prReview,
   "merge-check": mergeCheck,
   "merge-step": mergeStep,
+  "pr-review": prReview,
   retrospective,
   validate,
 };
