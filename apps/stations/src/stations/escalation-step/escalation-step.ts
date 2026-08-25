@@ -61,10 +61,12 @@ async function fileIssue(
 
       return {
         outcome: "success",
-        // Carried in extras so `notify` can name the Issue. Absent is the signal
-        // that the Issue surface failed, which is what selects the audit-only text.
-        extras: {
-          issue_url: issue.url ?? "",
+        // Produced ARGS, not extras: args are merged into the line and reach
+        // `notify` as its params — extras route the walk and never arrive there.
+        // `issue_url` is set only when there is one; absent is the signal that
+        // selects the audit-only text, so an empty string must not stand in.
+        args: {
+          ...(issue.url ? { issue_url: issue.url } : {}),
           issue_number: String(issue.number),
         },
       };

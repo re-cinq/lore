@@ -29,7 +29,7 @@ describe("runEscalationStep — file-issue", () => {
 
     expect(result).toMatchObject({
       outcome: "success",
-      extras: { issue_url: "https://gh/o/r/issues/7", issue_number: "7" },
+      args: { issue_url: "https://gh/o/r/issues/7", issue_number: "7" },
     });
   });
 
@@ -133,5 +133,21 @@ describe("filing the issue survives a transient refusal", () => {
     );
 
     expect(result.outcome).toBe("failed");
+  });
+});
+
+describe("filing an issue whose surface returns no url", () => {
+  it("omits issue_url so notify reads audit-only, rather than pointing at an empty string", async () => {
+    const result = await runEscalationStep(
+      "file-issue",
+      "t-1",
+      deps({ createIssue: async () => ({ number: 7 }) }),
+    );
+
+    expect(result).toMatchObject({
+      outcome: "success",
+      args: { issue_number: "7" },
+    });
+    expect(result.args).not.toHaveProperty("issue_url");
   });
 });

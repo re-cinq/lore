@@ -77,3 +77,20 @@ describe("NodeResultSchema usage", () => {
     ).toThrow();
   });
 });
+
+describe("produced args", () => {
+  it("carries args across the boundary, so a service node's output reaches the next node", () => {
+    const parsed = NodeResultSchema.parse({
+      outcome: "success",
+      args: { issue_url: "https://gh/o/r/issues/7" },
+    });
+
+    expect(parsed.args).toEqual({ issue_url: "https://gh/o/r/issues/7" });
+  });
+
+  it("refuses a non-string arg value, which could never reach a station's string params", () => {
+    expect(() =>
+      NodeResultSchema.parse({ outcome: "success", args: { n: 7 } }),
+    ).toThrow();
+  });
+});

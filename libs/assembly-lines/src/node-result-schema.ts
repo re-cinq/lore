@@ -43,6 +43,7 @@ const USAGE = z.object({
 export const NodeResultSchema = z.object({
   outcome: OUTCOME,
   extras: z.record(z.string(), z.string()).optional(),
+  args: z.record(z.string(), z.string()).optional(),
   usage: USAGE.optional(),
   failureClass: FAILURE_CLASS.optional(),
   failureDetail: z.string().optional(),
