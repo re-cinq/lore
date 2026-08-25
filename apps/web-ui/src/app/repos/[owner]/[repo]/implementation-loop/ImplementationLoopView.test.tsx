@@ -27,6 +27,20 @@ function renderView(loop: Partial<ImplementationLoop> = {}) {
 }
 
 describe("ImplementationLoopView", () => {
+  it("explains how to queue a ticket and how the loop works", () => {
+    const { getAllByText } = renderView();
+
+    expect(
+      getAllByText(/Label an open issue with exactly one of/).length,
+    ).toBeGreaterThan(0);
+    expect(getAllByText(/priority:high/).length).toBeGreaterThan(0);
+    expect(getAllByText(/lore:blocked/).length).toBeGreaterThan(0);
+    expect(getAllByText(/never merges/).length).toBeGreaterThan(0);
+    expect(
+      getAllByText(/remove the label to re-queue/i).length,
+    ).toBeGreaterThan(0);
+  });
+
   it("says plainly when no ticket is in flight instead of an empty container", () => {
     const { getByText } = renderView();
 
