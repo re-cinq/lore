@@ -52,6 +52,7 @@ A fourth gap sits underneath the "wait until the PR has no outstanding comments"
 - `await-pr` declares `route: "{args.pr_url}"`, satisfying the loader's requirement that a human station carry a route built only from `{args.*}` placeholders. ([validated by pr_review park](../../libs/assembly-lines/src/implementation-loop-line.test.ts#L41))
 - The definition introduces no new node type. `implement` is an ordinary `agent` node; `validate`, `push` and `retrospective` reuse the existing station recipes unchanged. ([validated by implementation-tdd recipe](../../libs/assembly-lines/src/implementation-loop-line.test.ts#L50))
 - Every outcome each node can produce has an outgoing edge, because `selectEdge` in `libs/assembly-lines/src/transition.ts` does not fall through when no edge matches.
+- The PR-open path stamps `{ pr_url, pr_number }` onto the task's open assembly runs through `mergeArgs` (SQL-side merge, so concurrent node artifacts are not clobbered), resolved via the task's `listForTask` — the PR-keyed lookup (`findOpenByPr`) matches on `args.pr_number`, which does not exist until this very stamp. ([validated by stamps open runs](../../apps/floor/src/jobs/watcher/agent-watcher-logic.test.ts#L180), [validated by no open run is a no-op](../../apps/floor/src/jobs/watcher/agent-watcher-logic.test.ts#L200))
 
 ## FR4 — Waiting on the pull request
 
