@@ -30,6 +30,9 @@ const PATH = "/api/repos/{owner}/{repo}/implementation-loop";
 
 const repoOf = (p: Record<string, string>) => `${p.owner}/${p.repo}`;
 
+/** Display cap for the recently-addressed list. */
+const RECENT_LIMIT = 10;
+
 interface LoopTaskRow {
   status: string;
   description: string;
@@ -55,7 +58,7 @@ function taskTicket(
   return {
     issue_number: row.issue_number,
     issue_url: row.issue_url,
-    title: issue?.title ?? row.description.split("\n")[0] ?? "",
+    title: issue?.title ?? row.description.split("\n")[0],
     priority: priorityOf(issue),
     pr_url: row.pr_url,
     state: row.status,
@@ -88,23 +91,34 @@ export function implementationLoopRoutes(
         const enabled =
           (settings as { implementation_loop?: { enabled?: unknown } })
             .implementation_loop?.enabled === true;
+        // 2x the display cap: filtering out the open rows must still leave a
+        // full recent list.
         const { rows: taskRows } = await pool.query<LoopTaskRow>(
           `SELECT status, description, issue_number, issue_url, pr_url
              FROM pipeline.tasks
             WHERE target_repo = $1 AND task_type = 'implementation-loop'
             ORDER BY created_at DESC
-            LIMIT 20`,
+            LIMIT ${RECENT_LIMIT * 2}`,
           [repo],
         );
-        const openIssues = await (
-          await projectFor(repo)
-        ).issues.list({ state: "open" });
+        const project = await projectFor(repo);
+        const openIssues = await project.issues.list({ state: "open" });
         const currentRow = taskRows.find((t) =>
           (OPEN_TASK_STATES as readonly string[]).includes(t.status),
         );
         const current = currentRow ? taskTicket(currentRow, openIssues) : null;
+        // Mirror the driver's eligibility guard: an issue whose task is not
+        // failed/cancelled is either being worked or already addressed with its
+        // PR awaiting a human merge — showing it as "next up" would promise a
+        // pick the driver will never make, and it is what put the same ticket
+        // in next and recent at once.
+        const guardedIssues = new Set(
+          taskRows
+            .filter((t) => !["failed", "cancelled"].includes(t.status))
+            .map((t) => t.issue_number),
+        );
         const next = orderBacklog(openIssues)
-          .filter((i) => i.number !== current?.issue_number)
+          .filter((i) => !guardedIssues.has(i.number))
           .map((i) => ({
             issue_number: i.number,
             issue_url: i.url ?? null,
@@ -118,7 +132,7 @@ export function implementationLoopRoutes(
           .filter(
             (t) => !(OPEN_TASK_STATES as readonly string[]).includes(t.status),
           )
-          .slice(0, 10)
+          .slice(0, RECENT_LIMIT)
           .map((t) => taskTicket(t, openIssues))
           .filter((t): t is Ticket => t !== null);
 

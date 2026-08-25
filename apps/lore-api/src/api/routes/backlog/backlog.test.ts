@@ -201,6 +201,41 @@ describe("/api/repos/{owner}/{repo}/implementation-loop", () => {
     });
   });
 
+  it("keeps an addressed-but-unmerged ticket out of the queue", async () => {
+    const pool = makePool();
+
+    pool.query
+      .mockResolvedValueOnce({
+        rows: [{ settings: { implementation_loop: { enabled: true } } }],
+      })
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            status: "completed",
+            description: "Ticket 5",
+            issue_number: 5,
+            issue_url: "https://gh/i/5",
+            pr_url: "https://gh/pr/50",
+          },
+        ],
+      });
+    vi.mocked(projectFor).mockResolvedValue({
+      issues: {
+        list: async () => [
+          openIssue(5, ["priority:high"], "2026-08-01T00:00:00Z"),
+        ],
+      },
+    } as never);
+
+    const res = await get(pool);
+
+    expect(JSON.parse(res.payload)).toMatchObject({
+      current: null,
+      next: [],
+      recent: [{ issue_number: 5, pr_url: "https://gh/pr/50" }],
+    });
+  });
+
   it("PUT flips the toggle under admin scope and echoes the new state", async () => {
     const pool = makePool();
 
