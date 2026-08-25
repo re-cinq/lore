@@ -14,6 +14,7 @@ on:
       - 'scripts/check-ai-agents-render.sh'
       - 'scripts/check-lore-platform-render.sh'
       - 'scripts/ci/deploy-lore-platform.sh'
+      - 'scripts/ci/helm-lock-contention.sh'
       - 'scripts/task-types.yaml'
       - 'scripts/infra/setup-memory-dgraph-schema.sh'
       - 'scripts/infra/setup-spec-trace-schema.sh'

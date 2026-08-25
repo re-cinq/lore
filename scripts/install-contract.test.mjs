@@ -57,7 +57,10 @@ test("builds shared, server-core and the MCP adapter in one workspace build", ()
   );
   assert.match(
     script,
-    /npm ci --silent 2>&1 \|\| npm install --silent 2>&1/,
+    // --ignore-scripts on BOTH: a dependency's install hook is the supply-chain
+    // seam the keyv/cache-manager compromise came through (#1062). Dropping it
+    // from either half of the fallback reopens it.
+    /npm ci --ignore-scripts --silent 2>&1 \|\| npm install --ignore-scripts --silent 2>&1/,
     "dependencies install via npm ci with an npm install fallback",
   );
 });
@@ -114,16 +117,24 @@ test("installs each platform skill into the user's global skills directory", () 
   );
 });
 
-test("skips installing a platform skill that already exists", () => {
+test("refreshes a changed platform skill rather than skipping it", () => {
+  // Deliberately NOT a skip: a stale installed copy makes /lore-help describe
+  // behaviour that is not installed, and lore-doctor fails on the difference.
+  // Three outcomes, one per state — absent, identical, changed.
   assert.match(
     script,
     /if \[ ! -d "\$dest" \]; then\n\s*cp -r "\$skill_dir" "\$dest"/,
-    "a skill is copied only when its destination is absent",
+    "an absent skill is installed",
   );
   assert.match(
     script,
-    /echo "  Skipped \/\$\(basename "\$skill_dir"\) \(already exists\)"/,
-    "an existing skill destination is reported as skipped",
+    /elif diff -rq "\$skill_dir" "\$dest" >\/dev\/null 2>&1; then\n\s*echo "  Up to date/,
+    "an identical skill is left alone and reported up to date",
+  );
+  assert.match(
+    script,
+    /else\n\s*cp -r "\$skill_dir\/\." "\$dest\/"\n\s*echo "  Updated/,
+    "a CHANGED skill is refreshed in place, not skipped",
   );
 });
 

@@ -33,6 +33,7 @@ on:
       # pods serve stale prompts (incident history in deploy-lore-platform.sh; #866).
       - 'scripts/task-types.yaml'
       - 'scripts/ci/deploy-lore-platform.sh'
+      - 'scripts/ci/helm-lock-contention.sh'
   pull_request:
     paths:
       - 'apps/lore-api/**'
