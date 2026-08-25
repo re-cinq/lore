@@ -14,6 +14,7 @@ import type {
 function fakePulls(
   pulls: PullRef[],
   merged: Array<{ number: number; method?: MergeMethod }>,
+  resolutions: string[] = [],
 ): PullRequestsPort {
   return {
     list: async (repo) => pulls.filter((p) => p.repo === repo),
@@ -47,6 +48,17 @@ function fakePulls(
       },
     ],
     listComments: async () => [],
+    listReviewThreads: async (_repo, number) => [
+      {
+        id: `PRRT_${number}`,
+        isResolved: false,
+        isOutdated: false,
+        comments: [{ databaseId: 900 }],
+      },
+    ],
+    resolveReviewThread: async (threadId) => {
+      resolutions.push(threadId);
+    },
     listIssueComments: async () => [],
     listCommits: async () => [{ sha: "abc", message: "feat", date: "t" }],
     isMerged: async (_repo, number) => number === 7,
@@ -127,5 +139,25 @@ describe("PullRequests", () => {
     ]);
     expect(await facade.isMerged(7)).toBe(true);
     expect(await facade.isMerged(3)).toBe(false);
+  });
+});
+
+describe("PullRequests review threads", () => {
+  it("delegates listReviewThreads repo-bound and resolveReviewThread by node id", async () => {
+    const resolutions: string[] = [];
+    const pr = new PullRequests("re-cinq/lore", fakePulls([], [], resolutions));
+
+    expect(await pr.listReviewThreads(7)).toEqual([
+      {
+        id: "PRRT_7",
+        isResolved: false,
+        isOutdated: false,
+        comments: [{ databaseId: 900 }],
+      },
+    ]);
+
+    await pr.resolveReviewThread("PRRT_7");
+
+    expect(resolutions).toEqual(["PRRT_7"]);
   });
 });

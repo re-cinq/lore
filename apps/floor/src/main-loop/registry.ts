@@ -106,6 +106,7 @@ export function buildRegistry(): Map<string, EventHandler> {
     // ── Cron (in-process scheduler emits the tick; loop runs it) ──
     ["cron.merge_check.tick", cron.mergeCheck],
     ["cron.implementation_loop.tick", implementationLoopTick],
+    ["cron.pr_ready_check.tick", cron.prReadyCheck],
     ["cron.approval_check.tick", cron.approvalCheck],
     ["cron.spec_task_executor.tick", cron.specTaskExecutor],
     ["cron.stale_task_check.tick", cron.staleTaskCheck],

@@ -26,6 +26,7 @@ import { commentTriage } from "./comment-triage/manifest.js";
 import { ingest } from "./ingest/manifest.js";
 import { issues } from "./issues/manifest.js";
 import { featureReview } from "./feature-review/manifest.js";
+import { prReadyCheck } from "./pr-ready-check/manifest.js";
 import { prReview } from "./pr-review/manifest.js";
 import { escalationStep } from "./escalation-step/manifest.js";
 
@@ -44,6 +45,7 @@ export const STATION_NAMES = [
   "memory-ttl",
   "merge-check",
   "merge-step",
+  "pr-ready-check",
   "pr-review",
   "retrospective",
   "validate",
@@ -65,6 +67,7 @@ export const STATIONS: Record<StationName, StationModule> = {
   "memory-ttl": memoryTtl,
   "merge-check": mergeCheck,
   "merge-step": mergeStep,
+  "pr-ready-check": prReadyCheck,
   "pr-review": prReview,
   retrospective,
   validate,

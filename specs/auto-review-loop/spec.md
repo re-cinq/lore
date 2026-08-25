@@ -428,8 +428,8 @@ The code-review assembly line is the sole reviewer (ADR-012 amendment): a **deep
 
 ### `libs/assembly-lines/src/loader.test.ts`
 
-- code-review is a suggestion-only review→done graph (no refine/auto-commit). ([validated by](libs/assembly-lines/src/loader.test.ts#L656))
-- gap-fill is a linear flow with retrospective + done as exit pair. ([validated by](libs/assembly-lines/src/loader.test.ts#L704))
+- code-review is a suggestion-only review→done graph (no refine/auto-commit). ([validated by](libs/assembly-lines/src/loader.test.ts#L655))
+- gap-fill is a linear flow with retrospective + done as exit pair. ([validated by](libs/assembly-lines/src/loader.test.ts#L703))
 - assemblyLinesDir actually exists on disk (sanity check). ([validated by](libs/assembly-lines/src/loader.test.ts#L737))
 - code-review-recheck is a fast Haiku recheck→done graph routing every verdict to done. ([validated by](libs/assembly-lines/src/loader.test.ts#L939))
 
@@ -453,17 +453,20 @@ The code-review assembly line is the sole reviewer (ADR-012 amendment): a **deep
 
 ### `libs/shared/src/project/lib/platform-github.test.ts`
 
-- exposes the github port name. ([validated by](libs/shared/src/project/lib/platform-github.test.ts#L64))
-- createLabels swallows a 422 (already exists) and continues. ([validated by](libs/shared/src/project/lib/platform-github.test.ts#L153))
-- createLabels rethrows a non-422 error. ([validated by](libs/shared/src/project/lib/platform-github.test.ts#L160))
-- createReview posts one review with the mapped comments array. ([validated by](libs/shared/src/project/lib/platform-github.test.ts#L167))
-- get exposes the PR head sha as headSha. ([validated by](libs/shared/src/project/lib/platform-github.test.ts#L190))
+- exposes the github port name. ([validated by](libs/shared/src/project/lib/platform-github.test.ts#L79))
+- createLabels swallows a 422 (already exists) and continues. ([validated by](libs/shared/src/project/lib/platform-github.test.ts#L168))
+- createLabels rethrows a non-422 error. ([validated by](libs/shared/src/project/lib/platform-github.test.ts#L175))
+- createReview posts one review with the mapped comments array. ([validated by](libs/shared/src/project/lib/platform-github.test.ts#L182))
+- get exposes the PR head sha as headSha. ([validated by](libs/shared/src/project/lib/platform-github.test.ts#L205))
+- listReviewThreads maps GraphQL thread nodes (id, resolution, outdated flag, comment databaseIds) and stitches pages past the first cursor. ([validated by](libs/shared/src/project/lib/platform-github.test.ts#L256))
+- resolveReviewThread sends the GraphQL mutation carrying the thread node id. ([validated by](libs/shared/src/project/lib/platform-github.test.ts#L306))
 
 ### `libs/shared/src/project/pulls/pull-requests.test.ts`
 
-- lists only the repo's pull requests. ([validated by](libs/shared/src/project/pulls/pull-requests.test.ts#L70))
-- merges by number with the requested method bound to the repo. ([validated by](libs/shared/src/project/pulls/pull-requests.test.ts#L106))
-- exposes PR reads bound to the repo and number. ([validated by](libs/shared/src/project/pulls/pull-requests.test.ts#L115))
+- lists only the repo's pull requests. ([validated by](libs/shared/src/project/pulls/pull-requests.test.ts#L82))
+- merges by number with the requested method bound to the repo. ([validated by](libs/shared/src/project/pulls/pull-requests.test.ts#L118))
+- exposes PR reads bound to the repo and number. ([validated by](libs/shared/src/project/pulls/pull-requests.test.ts#L127))
+- delegates listReviewThreads repo-bound and resolveReviewThread by node id. ([validated by](libs/shared/src/project/pulls/pull-requests.test.ts#L146))
 
 ### `libs/shared/src/review/review-reply.test.ts`
 
