@@ -92,8 +92,9 @@ slackBotTokenSecret:
 # post to). Optional: body (object -> JSON payload), startingDeadlineSeconds,
 # successfulJobsHistoryLimit, failedJobsHistoryLimit.
 #
-# The Anthropic ORG admin key used by the cost-sync maintenance job. Same secret
-# the Floor read while the job lived there; unset simply makes the job skip.
+# The Anthropic ORG admin key used by the cost-sync maintenance job. Secrets are
+# namespace-scoped, so this names the lore-api-namespace copy that the
+# es_mcp_anthropic ExternalSecret materialises; unset simply makes the job skip.
 anthropicAdminKeySecret:
-  name: lore-floor-anthropic-key
+  name: lore-anthropic-key
   key: anthropic-admin-key
