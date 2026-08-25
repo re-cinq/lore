@@ -20,7 +20,7 @@ export default function ImplementationLoopView({
       <div className={styles.header}>
         <p className="meta">
           The implementation loop works this repo&apos;s backlog one ticket at a
-          time: highest priority first, PR opened, never merged by Lore.
+          time.
         </p>
         <button
           className="button"
@@ -30,6 +30,19 @@ export default function ImplementationLoopView({
           {loop.enabled ? "Disable loop" : "Enable loop"}
         </button>
       </div>
+
+      <p className={`meta ${styles.howTo}`}>
+        Label an open issue with exactly one of <code>priority:high</code>,{" "}
+        <code>priority:medium</code>, or <code>priority:low</code> to queue it —
+        the label is the whole opt-in. While the loop is enabled it picks the
+        highest-priority ticket (oldest first on ties), implements it
+        test-first, opens a pull request, and waits until that PR is green with
+        every review thread resolved before picking the next. It never merges —
+        a human does that, whenever they like. A ticket that gets stuck is
+        labelled <code>lore:blocked</code> with a comment saying why; remove the
+        label to re-queue it. An issue carrying two priority labels is skipped
+        until a human settles the ambiguity.
+      </p>
 
       <section className={styles.section}>
         <h2>Current</h2>
