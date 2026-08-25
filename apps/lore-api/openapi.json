@@ -6624,6 +6624,139 @@
           }
         }
       }
+    },
+    "/api/repos/{owner}/{repo}/implementation-loop": {
+      "get": {
+        "operationId": "get_api_repos_owner_repo_implementation-loop",
+        "summary": "GET /api/repos/{owner}/{repo}/implementation-loop",
+        "tags": ["Repositories"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "The repo's backlog loop: toggle state, the ticket being worked, the ordered queue, and recently addressed tickets.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImplementationLoop"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "read",
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      },
+      "put": {
+        "operationId": "put_api_repos_owner_repo_implementation-loop",
+        "summary": "PUT /api/repos/{owner}/{repo}/implementation-loop",
+        "tags": ["Repositories"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "Enable or disable the repo's backlog loop.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImplementationLoopToggle"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "admin",
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "enabled": {
+                    "type": "boolean"
+                  }
+                },
+                "required": ["enabled"],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -12292,6 +12425,139 @@
           "created_at",
           "updated_at"
         ],
+        "additionalProperties": false
+      },
+      "ImplementationLoop": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "current": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "issue_number": {
+                    "type": "integer"
+                  },
+                  "issue_url": {
+                    "type": ["string", "null"]
+                  },
+                  "title": {
+                    "type": "string"
+                  },
+                  "priority": {
+                    "type": ["string", "null"]
+                  },
+                  "pr_url": {
+                    "type": ["string", "null"]
+                  },
+                  "state": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "issue_number",
+                  "issue_url",
+                  "title",
+                  "priority",
+                  "pr_url",
+                  "state"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "next": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "issue_number": {
+                  "type": "integer"
+                },
+                "issue_url": {
+                  "type": ["string", "null"]
+                },
+                "title": {
+                  "type": "string"
+                },
+                "priority": {
+                  "type": ["string", "null"]
+                },
+                "pr_url": {
+                  "type": ["string", "null"]
+                },
+                "state": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "issue_number",
+                "issue_url",
+                "title",
+                "priority",
+                "pr_url",
+                "state"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "recent": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "issue_number": {
+                  "type": "integer"
+                },
+                "issue_url": {
+                  "type": ["string", "null"]
+                },
+                "title": {
+                  "type": "string"
+                },
+                "priority": {
+                  "type": ["string", "null"]
+                },
+                "pr_url": {
+                  "type": ["string", "null"]
+                },
+                "state": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "issue_number",
+                "issue_url",
+                "title",
+                "priority",
+                "pr_url",
+                "state"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": ["enabled", "current", "next", "recent"],
+        "additionalProperties": false
+      },
+      "ImplementationLoopToggle": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "const": true
+          },
+          "enabled": {
+            "type": "boolean"
+          }
+        },
+        "required": ["ok", "enabled"],
         "additionalProperties": false
       }
     },

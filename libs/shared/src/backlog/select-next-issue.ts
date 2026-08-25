@@ -15,6 +15,12 @@ import { LORE_BLOCKED_LABEL, PRIORITY_LABELS } from "./labels.js";
  * needs task and PR state this function deliberately does not see.
  */
 export function selectNextIssue(issues: readonly IssueRef[]): IssueRef | null {
+  return orderBacklog(issues)[0] ?? null;
+}
+
+/** The whole eligible queue in pick order — what the repo tab renders as
+ *  "next up" (FR9/FR10). Same eligibility and ordering as the picker. */
+export function orderBacklog(issues: readonly IssueRef[]): IssueRef[] {
   const eligible = issues.flatMap((issue) => {
     if (issue.state !== "open") {
       return [];
@@ -34,7 +40,7 @@ export function selectNextIssue(issues: readonly IssueRef[]): IssueRef | null {
       compareIso(createdAtOrder(a.issue), createdAtOrder(b.issue)),
   );
 
-  return eligible[0]?.issue ?? null;
+  return eligible.map((c) => c.issue);
 }
 
 /** Plain lexicographic compare — correct for ISO timestamps, and not subject

@@ -98,14 +98,14 @@ A fourth gap sits underneath the "wait until the PR has no outstanding comments"
 - The page follows the container and view split used throughout `apps/web-ui/src/app/repos/[owner]/[repo]/features/`: a server component performs the read and a client view renders pure props. The view performs no I/O.
 - The top section carries the enable/disable control and reflects the current toggle state.
 - Below it the page shows three groups in order: the ticket currently being worked, with links to its issue and its PR; the ordered queue of tickets that will be picked next; and recently addressed tickets, each with links to its issue and its PR.
-- When the loop is disabled the page still renders the queue, so a developer can see what would be worked before switching it on.
+- When the loop is disabled the page still renders the queue, so a developer can see what would be worked before switching it on. The API keeps that possible by serving the queue regardless of the toggle. ([validated by disabled still serves the queue](../../apps/lore-api/src/api/routes/backlog/backlog.test.ts#L146))
 - When no ticket is in flight the current section states that plainly rather than rendering an empty container.
 
 ## FR10 — API contract
 
-- A read endpoint returns the toggle state, the current ticket, the upcoming queue, and the recently addressed tickets for one repo, under the read bearer scope.
-- Each ticket entry carries the issue number, issue URL, title, priority, PR URL when one exists, and its state.
-- A write endpoint sets the toggle under the admin bearer scope.
+- A read endpoint returns the toggle state, the current ticket, the upcoming queue, and the recently addressed tickets for one repo, under the read bearer scope. The queue is the picker's own ordering (`orderBacklog`), minus the ticket being worked; 503 with no pool, 404 for an unknown repo. ([validated by GET returns all four groups](../../apps/lore-api/src/api/routes/backlog/backlog.test.ts#L66), [validated by ordered queue](../../libs/shared/src/backlog/select-next-issue.test.ts#L131), [validated by current excluded from queue](../../apps/lore-api/src/api/routes/backlog/backlog.test.ts#L170), [validated by addressed ticket out of the queue](../../apps/lore-api/src/api/routes/backlog/backlog.test.ts#L204), [validated by 503 without a pool](../../apps/lore-api/src/api/routes/backlog/backlog.test.ts#L53), [validated by 404 unknown repo](../../apps/lore-api/src/api/routes/backlog/backlog.test.ts#L58))
+- Each ticket entry carries the issue number, issue URL, title, priority, PR URL when one exists, and its state. ([validated by ticket entry shape](../../apps/lore-api/src/api/routes/backlog/backlog.test.ts#L66))
+- A write endpoint sets the toggle under the admin bearer scope. ([validated by PUT flips the toggle](../../apps/lore-api/src/api/routes/backlog/backlog.test.ts#L239), [validated by non-boolean rejected](../../apps/lore-api/src/api/routes/backlog/backlog.test.ts#L257))
 - Both endpoints declare zod request and response contracts so the generated OpenAPI document and the web-ui types stay in step; the committed `openapi.json` and `schema.d.ts` are regenerated with the change.
 - The web-ui client aliases the generated component schema rather than re-declaring the response shape by hand.
 
