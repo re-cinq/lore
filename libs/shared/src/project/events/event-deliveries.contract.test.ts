@@ -263,7 +263,11 @@ function contract(name: string, make: () => EventDeliveriesPort): void {
       await port.subscribe(s, [{ eventName }]);
 
       expect(await port.claim(s, 10)).toHaveLength(0);
-      expect(await port.reconcileDeliveries(60)).toBe(1);
+      // At least this one: the count is global (every subscriber, every event in
+      // the window), so asserting an exact number would couple this case to
+      // whatever else the suite left behind. The claim below is the real
+      // assertion — that THIS subscriber can now receive what it missed.
+      expect(await port.reconcileDeliveries(60)).toBeGreaterThanOrEqual(1);
       expect((await port.claim(s, 10)).map((d) => d.event_name)).toEqual([
         eventName,
       ]);
