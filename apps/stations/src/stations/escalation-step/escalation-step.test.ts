@@ -61,13 +61,13 @@ describe("runEscalationStep — notify", () => {
           audited.push(entry);
         },
       }),
-      params: { issue_url: "https://gh/o/r/issues/7" },
+      params: { issue_url: "https://gh/o/r/issues/7", issue_number: "7" },
     });
 
     expect(sent[0]).toMatch(/issues\/7/);
     expect(audited[0]).toMatchObject({
       event_type: "escalation_issued",
-      payload: { outcome: "issue_created" },
+      payload: { outcome: "issue_created", issue_number: "7" },
     });
   });
 
@@ -89,6 +89,8 @@ describe("runEscalationStep — notify", () => {
       params: {},
     });
 
+    expect(sent[0]).toMatch(/Issue creation failed/);
+    expect(sent[0]).toMatch(/## Lore Pipeline Escalation/);
     expect(sent[0]).toMatch(/lint failed on 3 files/);
     expect(audited[0]).toMatchObject({
       payload: { outcome: "audit_only" },
@@ -137,7 +139,7 @@ describe("filing the issue survives a transient refusal", () => {
 });
 
 describe("filing an issue whose surface returns no url", () => {
-  it("omits issue_url so notify reads audit-only, rather than pointing at an empty string", async () => {
+  it("omits issue_url rather than carrying an empty string forward", async () => {
     const result = await runEscalationStep(
       "file-issue",
       "t-1",
@@ -149,5 +151,29 @@ describe("filing an issue whose surface returns no url", () => {
       args: { issue_number: "7" },
     });
     expect(result.args).not.toHaveProperty("issue_url");
+  });
+});
+
+describe("notify after an issue filed without a url", () => {
+  it("still audits issue_created and names issue #7, since the number proves the filing", async () => {
+    const sent: string[] = [];
+    const audited: Record<string, unknown>[] = [];
+
+    await runEscalationStep("notify", "t-1", {
+      ...deps({
+        notify: async (msg) => {
+          sent.push(msg);
+        },
+        writeAudit: async (entry) => {
+          audited.push(entry);
+        },
+      }),
+      params: { issue_number: "7" },
+    });
+
+    expect(sent[0]).toMatch(/issue #7/);
+    expect(audited[0]).toMatchObject({
+      payload: { outcome: "issue_created", issue_number: "7" },
+    });
   });
 });
