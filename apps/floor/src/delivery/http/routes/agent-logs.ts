@@ -9,11 +9,11 @@
 import type { ServerRoute } from "@hapi/hapi";
 import {
   readAgentLogs,
-  KubePodLogs,
   CloudLoggingPodLogs,
-  type PodLogSource,
   type PodLogArchive,
 } from "../../../jobs/station/agent-pod-logs.js";
+import { HttpPodLogSource, type PodLogSource } from "@re-cinq/lore-shared";
+import { clusterAgent } from "../../../kernel/queues.js";
 
 const DEFAULT_TAIL_LINES = 5000;
 const MAX_TAIL_LINES = 50_000;
@@ -30,7 +30,7 @@ export function parseTail(raw: unknown): number {
 }
 
 export function agentLogsRoute(
-  source: PodLogSource = new KubePodLogs(),
+  source: PodLogSource = new HttpPodLogSource(clusterAgent()),
   archive: PodLogArchive = new CloudLoggingPodLogs(),
 ): ServerRoute {
   return {

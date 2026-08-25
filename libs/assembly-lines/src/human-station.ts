@@ -6,10 +6,16 @@
 // grew its own answer — the web UI kept a hardcoded map of node ids to interface
 // phases, which silently omitted any node nobody remembered to add to it.
 //
-// A human station declares its own type (the form contract) and a `route` (the
-// page that form lives on). Adding one here is the whole registration: the
-// loader will demand its route, the walk will dispatch nothing for it, and the
-// reaper will never time it out.
+// A human station declares its own type — the form contract. Adding one here is
+// NOT the whole registration: it also needs a manifest in `apps/stations`, which
+// is what the registry cross-checks this list against.
+//
+// The `route` is NOT the station's. It belongs to the NODE: the loader demands
+// one on every human node in the blueprint, it is snapshotted into the run graph,
+// and it is resolved from that run's args — because different nodes of the same
+// type park on different pages (`feature_review` on the feature, `pr_review` on
+// `{args.pr_url}`). The walk dispatches nothing for a human node and the reaper
+// never times it out.
 
 /**
  * `feature_review` — the planning wizard's per-section feedback form: accept,

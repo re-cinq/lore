@@ -60,17 +60,28 @@ terraform apply \
   -var='lore_api_url=https://lore-api.example.com' \
   -var='lore_ui_url=https://lore.example.com' \
   -var='lore_ui_hostname=lore.example.com' \
+  -var='lore_mcp_url=https://lore-mcp.example.com' \
+  -var='lore_event_router_hostname=lore-events.example.com' \
   -var='github_org=your-github-org'
 ```
+
+Every hostname variable defaults to empty, which disables the matching ingress — so
+omitting `lore_event_router_hostname` silently leaves GitHub with nowhere to deliver.
+`lore_mcp_url` is what gives agent pods a live MCP endpoint; without it their recipes
+ship without one.
 
 This creates:
 - GCP Secret Manager entries (14 secrets: 13 named values plus the GHCR pull secret)
 - External Secrets Operator (syncs secrets to K8s)
 - GCS bucket for task logs (CMEK encrypted, 30-day retention)
 - KMS key ring + crypto key
-- Helm releases: Floor, MCP Server
-- ai-agent-subsystem: the `Agent` / `Station` / `AgentDefinition` CRDs + agent-controller (`ai-agents` namespace)
-- Web UI deployment + ingress
+- The namespaces, ExternalSecrets, ingresses, the CloudNativePG cluster CR, and the Dgraph StatefulSet
+- **One Helm release, `lore_platform`** — the umbrella chart, whose nine vendored
+  subcharts span a namespace each: Floor (`lore-floor`), event-router
+  (`lore-event-router`), cluster-agent (`lore-cluster-agent`), Lore API (`lore-api`),
+  the lore-mcp gateway (also `lore-api`), the stations service (`lore-stations`),
+  Web UI (`lore-ui`), lore-db (`lore-db`), and the ai-agent-subsystem — the
+  `Agent` / `Station` / `AgentDefinition` CRDs plus agent-controller (`ai-agents`)
 - ConfigMaps for task-types.yaml
 
 ## Step 4: Set Up Database
@@ -87,21 +98,32 @@ that chart's `migrations/README.md`) — no manual `kubectl exec` needed for tho
 
 ## Step 5: Configure Webhooks
 
-For each repo you want to use with GitHub Issue dispatch:
+Webhooks are normally managed for you — the Lore API's `POST /api/repos/:owner/:repo/webhook/ensure`
+creates or re-points a repo's hook at the canonical `LORE_WEBHOOK_URL`, and onboarding
+calls it. Do it by hand only when the App lacks the permission:
 
 ```bash
 gh api repos/OWNER/REPO/hooks --method POST --input - <<EOF
 {
   "name": "web",
   "active": true,
-  "events": ["issues"],
+  "events": ["issues", "pull_request", "pull_request_review", "issue_comment"],
   "config": {
-    "url": "https://your-lore-api.example.com/api/webhook/github",
-    "content_type": "json"
+    "url": "https://lore-events.example.com/api/events",
+    "content_type": "json",
+    "secret": "YOUR_WEBHOOK_SECRET"
   }
 }
 EOF
 ```
+
+The delivery target is the **event-router**, the only writer of `pipeline.events`
+([ADR-044](../adrs/ADR-044-event-router-owns-the-event-bus.md)); it recognises GitHub by
+the `X-Hub-Signature-256` header and verifies the HMAC over the raw body, so the `secret`
+must match `webhook_secret` in `secrets.tfvars` or every delivery is refused. Existing
+installs may still point at the Floor's `/api/webhook/github` on `lore_webhook_hostname`;
+that route still works and reports through the router, and it is retired only once the
+repos are re-pointed.
 
 ## Step 6: Install on a Developer Laptop
 
@@ -176,8 +198,14 @@ The token is also prompted for interactively on first install. Re-run
 ## Verify
 
 ```bash
-# Check deployments
-kubectl get deployments -A | grep lore
+# Check deployments across every namespace the umbrella spans
+kubectl get deployments -A | grep -E 'lore-|ai-agents'
+
+# Or one namespace at a time (kubectl takes a single -n)
+for ns in lore-floor lore-api lore-ui lore-db lore-event-router \
+          lore-stations lore-cluster-agent ai-agents; do
+  echo "== $ns"; kubectl get deployments -n "$ns"
+done
 
 # Check CRDs (ai-agent-subsystem)
 kubectl get crd agents.agents.re-cinq.com stations.agents.re-cinq.com agentdefinitions.agents.re-cinq.com

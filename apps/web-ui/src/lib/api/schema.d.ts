@@ -4,6 +4,23 @@
  */
 
 export interface paths {
+  "/api/platform/llm-status": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** GET /api/platform/llm-status */
+    get: operations["get_api_platform_llm-status"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/repo-status": {
     parameters: {
       query?: never;
@@ -510,23 +527,6 @@ export interface paths {
     get: operations["get_api_assembly-runs_id"];
     put?: never;
     post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/maintenance/{job}": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** POST /api/maintenance/{job} */
-    post: operations["post_api_maintenance_job"];
     delete?: never;
     options?: never;
     head?: never;
@@ -1230,6 +1230,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/spend/credits": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** POST /api/spend/credits */
+    post: operations["post_api_spend_credits"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/analytics-overview": {
     parameters: {
       query?: never;
@@ -1675,6 +1692,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/repos/{owner}/{repo}/features/{id}/create-spec-file": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** POST /api/repos/{owner}/{repo}/features/{id}/create-spec-file */
+    post: operations["post_api_repos_owner_repo_features_id_create-spec-file"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/repos/{owner}/{repo}/features/{id}/finalize": {
     parameters: {
       query?: never;
@@ -1709,12 +1743,37 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/repos/{owner}/{repo}/implementation-loop": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** GET /api/repos/{owner}/{repo}/implementation-loop */
+    get: operations["get_api_repos_owner_repo_implementation-loop"];
+    /** PUT /api/repos/{owner}/{repo}/implementation-loop */
+    put: operations["put_api_repos_owner_repo_implementation-loop"];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
 }
 export type webhooks = Record<string, never>;
 export interface components {
   schemas: {
     Error: {
       error: string;
+    };
+    PlatformLlmStatus: {
+      degraded: boolean;
+      failure_class: string | null;
+      detail: string | null;
+      since: string | null;
+      affected_runs: number;
     };
     RepoStatus: {
       onboarded: boolean;
@@ -1780,6 +1839,11 @@ export interface components {
                 };
               };
               auto_review?: boolean;
+              implementation_loop?: {
+                enabled?: boolean;
+              } & {
+                [key: string]: unknown;
+              };
               cross_repo?: boolean;
               cross_repo_repos?: string[];
               slack_channel_id?: string;
@@ -1853,6 +1917,11 @@ export interface components {
               };
             };
             auto_review?: boolean;
+            implementation_loop?: {
+              enabled?: boolean;
+            } & {
+              [key: string]: unknown;
+            };
             cross_repo?: boolean;
             cross_repo_repos?: string[];
             slack_channel_id?: string;
@@ -2118,6 +2187,15 @@ export interface components {
         outcome: string | null;
         agent_cr_name: string | null;
         station_run_id: string | null;
+        input: {
+          description: string;
+          prompt: string | null;
+          params: {
+            [key: string]: string;
+          } | null;
+          repo: string;
+          ref: string;
+        } | null;
         commit_sha: string | null;
         started_at: string;
         finished_at: string | null;
@@ -2161,10 +2239,6 @@ export interface components {
       nodes: {
         [key: string]: unknown;
       }[];
-    };
-    MaintenanceResult: {
-      job: string;
-      summary: string;
     };
     TaskByPr: {
       task_id: string;
@@ -2218,9 +2292,52 @@ export interface components {
       forwarded: number;
       skipped: number;
     };
-    MemoryOperationResult: {
-      [key: string]: unknown;
-    };
+    MemoryOperationResult:
+      | {
+          key: string;
+          version: number;
+          agent_id: string;
+          created_at: string;
+        }
+      | ({
+          key: string;
+          value: string;
+          version: number;
+          created_at: string;
+        } | null)
+      | {
+          version: number;
+          value: string;
+          created_at: string;
+        }[]
+      | {
+          key: string;
+          value: string;
+          score: number;
+          agent_id: string;
+          /** @enum {string} */
+          source: "memory" | "fact" | "episode" | "graph";
+          id?: string;
+          confidence?: string;
+        }[]
+      | {
+          key: string;
+          deleted: boolean;
+        }
+      | {
+          memories: {
+            key: string;
+            agent_id: string;
+            repo: string | null;
+            version: number;
+            ttl_seconds: number | null;
+            created_at: string;
+            has_facts: boolean;
+          }[];
+          total: number;
+          limit: number;
+          offset: number;
+        };
     GraphBrowse: {
       stats: {
         entity_count: number;
@@ -2287,7 +2404,7 @@ export interface components {
         ref: string | null;
         /** Format: date-time */
         created_at: string;
-        content_preview: string | null;
+        content_preview: string;
         fact_count: number;
       }[];
       total: number;
@@ -2397,76 +2514,73 @@ export interface components {
       secret: string;
       canonicalUrl: string;
     };
-    TokenResponse:
-      | {
-          tokens: {
-            id: string;
-            name: string;
-            scopes: string[];
-            created_by: string;
-            expires_at: string | null;
-            last_used: string | null;
-            /** Format: date-time */
-            created_at: string;
-          }[];
-          total: number;
-          limit: number;
-          offset: number;
-        }
-      | (
-          | {
-              /** @constant */
-              ok: true;
-            }
-          | {
-              id: string;
-              name: string;
-              token: string;
-              scopes: string[];
-              expires_at: string | null;
-            }
-        );
-    DarkFactorySettings:
-      | {
-          enabled: boolean;
-          /** @enum {string} */
-          create_issue: "never" | "on_gate" | "always";
-          auto_merge: {
-            paths: string[];
-            /** @enum {string} */
-            min_trust: "docs" | "tests" | "implementation" | "full";
-            require_green_ci: boolean;
-            require_bot_approval: boolean;
-          };
-          /** @enum {string} */
-          review: "trust_based" | "always" | "never";
-          notify: ("escalation" | "watched" | "all")[];
-        }
+    TokenList: {
+      tokens: {
+        id: string;
+        name: string;
+        scopes: string[];
+        created_by: string;
+        expires_at: string | null;
+        last_used: string | null;
+        /** Format: date-time */
+        created_at: string;
+      }[];
+      total: number;
+      limit: number;
+      offset: number;
+    };
+    TokenWriteResult:
       | {
           /** @constant */
           ok: true;
-          applied: {
-            enabled: boolean;
-            /** @enum {string} */
-            create_issue: "never" | "on_gate" | "always";
-            auto_merge: {
-              paths: string[];
-              /** @enum {string} */
-              min_trust: "docs" | "tests" | "implementation" | "full";
-              require_green_ci: boolean;
-              require_bot_approval: boolean;
-            };
-            /** @enum {string} */
-            review: "trust_based" | "always" | "never";
-            notify: ("escalation" | "watched" | "all")[];
-          };
-          ceremony: {
-            /** @enum {string} */
-            tier: "two_key" | "admin";
-            pr_ref?: string;
-            approver?: string;
-          };
+        }
+      | {
+          id: string;
+          name: string;
+          token: string;
+          scopes: string[];
+          expires_at: string | null;
         };
+    DarkFactorySettings: {
+      enabled: boolean;
+      /** @enum {string} */
+      create_issue: "never" | "on_gate" | "always";
+      auto_merge: {
+        paths: string[];
+        /** @enum {string} */
+        min_trust: "docs" | "tests" | "implementation" | "full";
+        require_green_ci: boolean;
+        require_bot_approval: boolean;
+      };
+      /** @enum {string} */
+      review: "trust_based" | "always" | "never";
+      notify: ("escalation" | "watched" | "all")[];
+    };
+    DarkFactorySettingsApplied: {
+      /** @constant */
+      ok: true;
+      applied: {
+        enabled: boolean;
+        /** @enum {string} */
+        create_issue: "never" | "on_gate" | "always";
+        auto_merge: {
+          paths: string[];
+          /** @enum {string} */
+          min_trust: "docs" | "tests" | "implementation" | "full";
+          require_green_ci: boolean;
+          require_bot_approval: boolean;
+        };
+        /** @enum {string} */
+        review: "trust_based" | "always" | "never";
+        notify: ("escalation" | "watched" | "all")[];
+      };
+      ceremony: {
+        /** @enum {string} */
+        tier: "two_key" | "admin";
+        pr_ref?: string;
+        approver?: string;
+      };
+    };
     AgentDefinitionRead:
       | {
           name: string;
@@ -2569,12 +2683,19 @@ export interface components {
       escalations: number | null;
     };
     Spend: {
+      budget: {
+        ledger_total_usd: number;
+        spent_since_usd: number;
+        remaining_usd: number;
+        anchored_at: string;
+      } | null;
       org_available: boolean;
       org_mtd: {
         billed_usd: number;
         input_tokens: number;
         output_tokens: number;
         as_of: string | null;
+        billed_through: string | null;
       };
       org_by_model: {
         model: string;
@@ -2586,7 +2707,8 @@ export interface components {
         bucket_date: string;
         cost_usd: number;
       }[];
-      lore_today_usd: number;
+      lore_unbilled_usd: number;
+      lore_unbilled_days: number;
       lore_mtd: {
         computed_usd: number;
         calls: number;
@@ -2620,6 +2742,14 @@ export interface components {
         tasks: number;
         cost_usd: number;
       }[];
+    };
+    CreditEntryRecorded: {
+      id: number;
+      effective_at: string;
+      amount_usd: number;
+      kind: string;
+      note: string;
+      actor: string;
     };
     AnalyticsOverview: {
       task_summary: {
@@ -3163,9 +3293,15 @@ export interface components {
       tasks: {
         description: string;
         status: string;
-        context_bundle: {
-          [key: string]: unknown;
-        } | null;
+        context_bundle:
+          | ({
+              story_issue?: number | null;
+              spec_task_id?: string;
+              phase?: number;
+            } & {
+              [key: string]: unknown;
+            })
+          | null;
       }[];
     };
     Ok: {
@@ -3178,7 +3314,7 @@ export interface components {
       assembly_run_id?: string;
       assembly_line_id?: string;
     };
-    FinalizeStarted: {
+    SpecFileStarted: {
       task_id?: string;
       assembly_run_id?: string;
       assembly_line_id?: string;
@@ -3209,6 +3345,38 @@ export interface components {
       created_by: string;
       created_at: string;
       updated_at: string;
+    };
+    ImplementationLoop: {
+      enabled: boolean;
+      current: {
+        issue_number: number;
+        issue_url: string | null;
+        title: string;
+        priority: string | null;
+        pr_url: string | null;
+        state: string;
+      } | null;
+      next: {
+        issue_number: number;
+        issue_url: string | null;
+        title: string;
+        priority: string | null;
+        pr_url: string | null;
+        state: string;
+      }[];
+      recent: {
+        issue_number: number;
+        issue_url: string | null;
+        title: string;
+        priority: string | null;
+        pr_url: string | null;
+        state: string;
+      }[];
+    };
+    ImplementationLoopToggle: {
+      /** @constant */
+      ok: true;
+      enabled: boolean;
     };
   };
   responses: {
@@ -3292,6 +3460,30 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+  "get_api_platform_llm-status": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Whether an account-wide LLM outage is degrading the factory */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["PlatformLlmStatus"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
   "get_api_repo-status": {
     parameters: {
       query?: never;
@@ -4129,34 +4321,6 @@ export interface operations {
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];
       404: components["responses"]["NotFound"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
-  post_api_maintenance_job: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        job: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Job completed */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["MaintenanceResult"];
-        };
-      };
-      400: components["responses"]["BadRequest"];
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      413: components["responses"]["PayloadTooLarge"];
       429: components["responses"]["RateLimited"];
       503: components["responses"]["ServiceUnavailable"];
     };
@@ -5109,16 +5273,15 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description The token list (GET) or the write result (POST) */
+      /** @description A page of active tokens; the hash is never served */
       200: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["TokenResponse"];
+          "application/json": components["schemas"]["TokenList"];
         };
       };
-      400: components["responses"]["BadRequest"];
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];
       429: components["responses"]["RateLimited"];
@@ -5140,13 +5303,13 @@ export interface operations {
       };
     };
     responses: {
-      /** @description The token list (GET) or the write result (POST) */
+      /** @description The revoke acknowledgement, or the created token — served once and never again */
       200: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["TokenResponse"];
+          "application/json": components["schemas"]["TokenWriteResult"];
         };
       };
       400: components["responses"]["BadRequest"];
@@ -5169,7 +5332,7 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description The resolved settings (GET) or the applied change (PUT) */
+      /** @description Every dark-factory knob, resolved */
       200: {
         headers: {
           [name: string]: unknown;
@@ -5178,10 +5341,8 @@ export interface operations {
           "application/json": components["schemas"]["DarkFactorySettings"];
         };
       };
-      400: components["responses"]["BadRequest"];
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];
-      409: components["responses"]["Conflict"];
       429: components["responses"]["RateLimited"];
       503: components["responses"]["ServiceUnavailable"];
     };
@@ -5219,13 +5380,13 @@ export interface operations {
       };
     };
     responses: {
-      /** @description The resolved settings (GET) or the applied change (PUT) */
+      /** @description What the write applied, and under whose authority */
       200: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["DarkFactorySettings"];
+          "application/json": components["schemas"]["DarkFactorySettingsApplied"];
         };
       };
       400: components["responses"]["BadRequest"];
@@ -5557,6 +5718,49 @@ export interface operations {
       };
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  post_api_spend_credits: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          amount_usd: number;
+          effective_date?: string;
+          effective_time?: string;
+          /**
+           * @default topup
+           * @enum {string}
+           */
+          kind?: "opening" | "topup" | "correction";
+          /** @default  */
+          note?: string;
+          /** @default  */
+          recorded_by?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description The balance entry that was recorded */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["CreditEntryRecorded"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      413: components["responses"]["PayloadTooLarge"];
       429: components["responses"]["RateLimited"];
       503: components["responses"]["ServiceUnavailable"];
     };
@@ -6433,6 +6637,44 @@ export interface operations {
       503: components["responses"]["ServiceUnavailable"];
     };
   };
+  "post_api_repos_owner_repo_features_id_create-spec-file": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        owner: string;
+        repo: string;
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          [key: string]: unknown;
+        };
+      };
+    };
+    responses: {
+      /** @description Successful response */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SpecFileStarted"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      409: components["responses"]["Conflict"];
+      413: components["responses"]["PayloadTooLarge"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
   post_api_repos_owner_repo_features_id_finalize: {
     parameters: {
       query?: never;
@@ -6444,7 +6686,13 @@ export interface operations {
       };
       cookie?: never;
     };
-    requestBody?: never;
+    requestBody: {
+      content: {
+        "application/json": {
+          [key: string]: unknown;
+        };
+      };
+    };
     responses: {
       /** @description Successful response */
       202: {
@@ -6452,7 +6700,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["FinalizeStarted"];
+          "application/json": components["schemas"]["SpecFileStarted"];
         };
       };
       400: components["responses"]["BadRequest"];
@@ -6498,6 +6746,68 @@ export interface operations {
       403: components["responses"]["Forbidden"];
       404: components["responses"]["NotFound"];
       409: components["responses"]["Conflict"];
+      413: components["responses"]["PayloadTooLarge"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "get_api_repos_owner_repo_implementation-loop": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        owner: string;
+        repo: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The repo's backlog loop: toggle state, the ticket being worked, the ordered queue, and recently addressed tickets. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ImplementationLoop"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "put_api_repos_owner_repo_implementation-loop": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        owner: string;
+        repo: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          enabled: boolean;
+        };
+      };
+    };
+    responses: {
+      /** @description Enable or disable the repo's backlog loop. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ImplementationLoopToggle"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
       413: components["responses"]["PayloadTooLarge"];
       429: components["responses"]["RateLimited"];
       503: components["responses"]["ServiceUnavailable"];

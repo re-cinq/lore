@@ -11,7 +11,7 @@ function line(overrides: Partial<AssemblyLine> = {}): AssemblyLine {
     exit: "done",
     nodes: [
       { id: "implement", type: "agent", prompt_ref: "implementation" },
-      { id: "done", type: "gate" },
+      { id: "done", type: "validate" },
     ],
     edges: [{ from: "implement", to: "done", on: "always" }],
     ...overrides,
@@ -34,7 +34,7 @@ describe("definitionHash", () => {
       entry: "implement",
       nodes: [
         { prompt_ref: "implementation", type: "agent", id: "implement" },
-        { type: "gate", id: "done" },
+        { type: "validate", id: "done" },
       ],
       version: 1,
       description: "implement a spec",
@@ -54,7 +54,7 @@ describe("definitionHash", () => {
           prompt_ref: "implementation",
           model: undefined,
         },
-        { id: "done", type: "gate", station_ref: undefined },
+        { id: "done", type: "validate", station_ref: undefined },
       ],
     } as unknown as AssemblyLine;
 
@@ -65,7 +65,7 @@ describe("definitionHash", () => {
     const edited = line({
       nodes: [
         { id: "implement", type: "agent", prompt_ref: "implementation-v2" },
-        { id: "done", type: "gate" },
+        { id: "done", type: "validate" },
       ],
     });
 
@@ -100,7 +100,7 @@ describe("definitionHash", () => {
           type: "agent",
           prompt_ref: '[{"id":"implement","type":"agent"}]',
         },
-        { id: "done", type: "gate" },
+        { id: "done", type: "validate" },
       ],
     });
 
@@ -119,7 +119,7 @@ describe("definitionHash ignores prose but not order", () => {
           prompt_ref: "implementation",
           description: "newly documented",
         },
-        { id: "done", type: "gate", description: "also new" },
+        { id: "done", type: "validate", description: "also new" },
       ],
     });
 

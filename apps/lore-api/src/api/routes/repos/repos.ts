@@ -1,3 +1,5 @@
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
+import { apiError } from "../../../server/api-error.js";
 import { errorMessage } from "@re-cinq/lore-shared";
 import { toRow } from "@re-cinq/lore-shared/lib/row.js";
 import { wireSchema } from "@re-cinq/lore-shared/lib/wire-schema.js";
@@ -56,9 +58,7 @@ export function reposRoute(getPool: () => Pool | null): ServerRoute {
     handler: async (request, h) => {
       const pool = getPool();
 
-      if (!pool) {
-        return h.response({ error: DB_UNAVAILABLE }).code(503);
-      }
+      enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
       const { limit, offset } = request.query as unknown as ReposQuery;
 
       try {

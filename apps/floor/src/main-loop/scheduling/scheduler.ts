@@ -1,5 +1,5 @@
 import cronParser from "cron-parser";
-import { jobRuns } from "../../kernel/queues.js";
+import { pipeline } from "../../kernel/queues.js";
 import { startJobRun, completeJobRun, failJobRun } from "./job-run.js";
 
 export interface JobDef {
@@ -45,7 +45,7 @@ async function runDueJobs(label: string): Promise<void> {
       const interval = cronParser.parseExpression(job.cron);
       const prev = interval.prev().toDate();
 
-      const last = await jobRuns().lastRun(job.name);
+      const last = await pipeline().jobRuns.lastRun(job.name);
       const lastRun = last?.startedAt ?? null;
 
       if (!lastRun || lastRun < prev) {

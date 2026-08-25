@@ -166,8 +166,11 @@ describe("PUT /api/repos/{owner}/{repo}/settings", () => {
     );
 
     expect(event?.[1]).toEqual([
+      "internal.repo.team_changed",
+      "internal",
       JSON.stringify({ repo: "re-cinq/lore" }),
       "re-cinq/lore",
+      null,
     ]);
   });
 

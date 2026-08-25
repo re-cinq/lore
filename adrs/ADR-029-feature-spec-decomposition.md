@@ -45,7 +45,7 @@ This ADR adds a feature-decompose agent that runs in-process when a feature's sp
 > become steps in the graph rather than gaps between runs.
 >
 > **The trigger becomes a resume, not an insert.**
-> [merge-check.ts](../apps/floor/src/jobs/merge/merge-check.ts) resolves the line via
+> [merge-check.ts](../apps/stations/src/stations/merge-check/merge-check.ts) resolves the line via
 > `findOpenByPr` ([assembly-lines-port.ts](../libs/shared/src/project/assembly-runs/assembly-runs-port.ts))
 > and reports to the parked node with an `assembly_run.resume` event, handled by the
 > existing [resume-event-handler.ts](../apps/floor/src/jobs/assembly-run/resume-event-handler.ts).
@@ -56,7 +56,7 @@ This ADR adds a feature-decompose agent that runs in-process when a feature's sp
 >
 > **Execution moved to a pod.** "In-process in the coordinator" was superseded by the
 > station cutover (ADR-031): `decompose` is an agent node and `issues` is a station
-> ([issues.ts](../apps/lore-station/src/stations/issues.ts)) reaching the database over
+> ([issues.ts](../apps/stations/src/stations/issues/issues.ts)) reaching the database over
 > HTTP, so the coordinator-credentials argument below no longer applies.
 >
 > **Alternative rejected.** Keep two lines and widen the kick predicate to also match a

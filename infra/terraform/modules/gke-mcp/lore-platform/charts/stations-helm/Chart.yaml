@@ -1,0 +1,5 @@
+apiVersion: v2
+name: lore-stations
+description: Lore stations — standalone units of work, one endpoint each (ADR-024 service stations)
+version: 0.1.0
+appVersion: "0.1.0"

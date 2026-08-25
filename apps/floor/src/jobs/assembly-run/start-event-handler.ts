@@ -46,7 +46,7 @@ export function createStartEventHandler(
       "assembly_run.start event params missing assemblyRunId",
     );
     // Branch/args/description ride in the row itself — the walk reads them via
-    // taskFromRow, so the event only needs identity + routing fields. (The
+    // taskFromAssemblyRun, so the event only needs identity + routing fields. (The
     // pre-rename `definitionName` fallback was deleted 2026-08-18, #1272, one
     // retention window after the writer flip.)
     const blueprintName = String(params.blueprintName ?? "");
@@ -124,7 +124,7 @@ export function createStartEventHandler(
  *  importing the registry never forces the DB pool or the K8s client. */
 export const assemblyLineStart: EventHandler = async (params) => {
   const [
-    { assemblyRuns },
+    { pipeline },
     { loadBuiltinAssemblyLines },
     { advanceLine, productionNodeEventDeps },
   ] = await Promise.all([
@@ -136,7 +136,7 @@ export const assemblyLineStart: EventHandler = async (params) => {
   const { notifyLineFailure } = await import("./notify-failure.js");
 
   const handler = createStartEventHandler({
-    assemblyRuns: assemblyRuns(),
+    assemblyRuns: pipeline().assemblyRuns,
     definitions: loadBuiltinAssemblyLines,
     advance: async (assemblyLineId) =>
       advanceLine(assemblyLineId, await productionNodeEventDeps()),
@@ -159,13 +159,13 @@ async function publishStartCheck(assemblyLineId: string): Promise<void> {
   }
 
   try {
-    const [{ assemblyRuns }, { projectFor }, { publishPrCheck }] =
+    const [{ pipeline }, { projectFor }, { publishPrCheck }] =
       await Promise.all([
         import("../../kernel/queues.js"),
         import("../../composition/project-boot.js"),
         import("./pr-check.js"),
       ]);
-    const row = await assemblyRuns().getById(assemblyLineId);
+    const row = await pipeline().assemblyRuns.getById(assemblyLineId);
 
     if (!row || !(Number(row.args.pr_number) > 0)) {
       return;
@@ -177,7 +177,7 @@ async function publishStartCheck(assemblyLineId: string): Promise<void> {
     const nodes =
       row.status === "queued" || row.status === "running"
         ? []
-        : await assemblyRuns().listStationRuns(assemblyLineId);
+        : await pipeline().assemblyRuns.listStationRuns(assemblyLineId);
     const project = await projectFor(row.repo);
 
     await publishPrCheck(project.repo, row, nodes, process.env.LORE_UI_URL);

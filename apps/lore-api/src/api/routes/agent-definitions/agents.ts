@@ -1,4 +1,6 @@
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import type { Pool } from "pg";
+import { rethrowBoom, apiError } from "../../../server/api-error.js";
 import type { ServerRoute } from "@hapi/hapi";
 import type { AgentDefinition } from "@re-cinq/lore-shared";
 import { ResolvedAgentDefinitionSchema } from "@re-cinq/lore-shared/models/agent-definition.js";
@@ -75,9 +77,7 @@ export function agentsGetRoute(getPool: () => Pool | null): ServerRoute {
       errors: [404],
     }),
     handler: async (request, h) => {
-      if (!getPool()) {
-        return h.response({ error: "database unavailable" }).code(503);
-      }
+      enforceTrue(getPool(), apiError(503), "database unavailable");
       const name = request.params.name as string | undefined;
 
       try {
@@ -86,17 +86,21 @@ export function agentsGetRoute(getPool: () => Pool | null): ServerRoute {
         if (name) {
           const def = await project.agentDefs.resolve(name);
 
-          if (!def) {
-            return h
-              .response({ error: "agent definition not found", name })
-              .code(404);
-          }
+          enforceTrue(
+            def,
+            apiError(404, { name }),
+            "agent definition not found",
+          );
 
           return h.response(def);
         }
 
         return h.response({ agents: await project.agentDefs.list() });
       } catch (err) {
+        // A guard's refusal already carries its status; only an unexpected failure
+        // is this block's to shape.
+        rethrowBoom(err);
+
         console.error("[agents] route failed:", err);
 
         return h.response({ error: "internal" }).code(500);
@@ -117,9 +121,7 @@ export function agentsPostRoute(getPool: () => Pool | null): ServerRoute {
     handler: async (request, h) => {
       const pool = getPool();
 
-      if (!pool) {
-        return h.response({ error: "database unavailable" }).code(503);
-      }
+      enforceTrue(pool, apiError(503), "database unavailable");
       const repo = repoOf(request.params);
 
       try {
@@ -187,9 +189,7 @@ export function agentsPutRoute(getPool: () => Pool | null): ServerRoute {
     handler: async (request, h) => {
       const pool = getPool();
 
-      if (!pool) {
-        return h.response({ error: "database unavailable" }).code(503);
-      }
+      enforceTrue(pool, apiError(503), "database unavailable");
       const repo = repoOf(request.params);
       const name = request.params.name;
 
@@ -257,9 +257,7 @@ export function agentsDeleteRoute(getPool: () => Pool | null): ServerRoute {
     handler: async (request, h) => {
       const pool = getPool();
 
-      if (!pool) {
-        return h.response({ error: "database unavailable" }).code(503);
-      }
+      enforceTrue(pool, apiError(503), "database unavailable");
       const repo = repoOf(request.params);
       const name = request.params.name;
 

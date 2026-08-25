@@ -1,10 +1,10 @@
 import { describe, it, expect } from "vitest";
 import type { AssemblyLineNode } from "./loader.js";
 import {
+  malformedNodeResultLine,
   parseNodeResult,
   parseReviewVerdict,
   stationNodeOutcome,
-  isBillingError,
   type AgentNodeStatus,
 } from "./node-outcome.js";
 
@@ -98,6 +98,8 @@ describe("stationNodeOutcome", () => {
       }),
     ).toEqual({
       outcome: "failed",
+      failureClass: "unknown",
+      failureDetail: "deadline",
       extras: {
         "Lore-Validation-Status": "station-failed",
         "Lore-Validation-Summary": "deadline",
@@ -111,17 +113,77 @@ describe("stationNodeOutcome", () => {
   });
 });
 
-describe("isBillingError", () => {
-  it("matches the Anthropic credit-balance error case-insensitively", () => {
-    expect(isBillingError("Credit balance is too low")).toBe(true);
-    expect(isBillingError("credit balance too low to run")).toBe(true);
-    expect(isBillingError("insufficient credits for this request")).toBe(true);
+describe("stationNodeOutcome failure classification", () => {
+  it("classifies the agent's own terminal text, not the Job-level reason", () => {
+    expect(
+      stationNodeOutcome(
+        { type: "agent" },
+        {
+          phase: "Failed",
+          errorText: "Credit balance is too low",
+          failureReason:
+            "BackoffLimitExceeded: Job has reached the specified backoff limit",
+        },
+      ),
+    ).toMatchObject({
+      outcome: "failed",
+      failureClass: "anthropic-credit",
+      failureDetail: "Credit balance is too low",
+    });
   });
 
-  it("does not match unrelated errors or null", () => {
-    expect(isBillingError("ENOENT: no such file")).toBe(false);
-    expect(isBillingError("rate limit exceeded")).toBe(false);
-    expect(isBillingError(null)).toBe(false);
+  it("falls back to the Job-level reason when the agent printed nothing", () => {
+    expect(
+      stationNodeOutcome(
+        { type: "agent" },
+        {
+          phase: "Failed",
+          failureReason:
+            "BackoffLimitExceeded: Job has reached the specified backoff limit",
+        },
+      ),
+    ).toMatchObject({
+      failureClass: "infra",
+      failureDetail:
+        "BackoffLimitExceeded: Job has reached the specified backoff limit",
+    });
+  });
+
+  it("falls back to the Job-level reason when the agent errored with an empty string", () => {
+    // `terminalErrorText` answers `parsed.result` for any line carrying
+    // `is_error`, and "" is a result. Under `??` that empty string won the
+    // precedence, so the summary went out blank and the only real information —
+    // the Job-level reason — was discarded.
+    expect(
+      stationNodeOutcome(
+        { type: "agent" },
+        {
+          phase: "Failed",
+          errorText: "",
+          failureReason:
+            "BackoffLimitExceeded: Job has reached the specified backoff limit",
+        },
+      ),
+    ).toMatchObject({
+      failureClass: "infra",
+      failureDetail:
+        "BackoffLimitExceeded: Job has reached the specified backoff limit",
+    });
+  });
+
+  it("classifies unknown for a failure with neither text", () => {
+    expect(
+      stationNodeOutcome({ type: "agent" }, { phase: "Failed" }),
+    ).toMatchObject({
+      failureClass: "unknown",
+      failureDetail: "agent run failed",
+    });
+  });
+
+  it("carries no failure class on a successful node", () => {
+    expect(
+      stationNodeOutcome({ type: "agent" }, { phase: "Succeeded" }),
+    ).toEqual({ outcome: "success" });
   });
 });
 
@@ -136,5 +198,76 @@ describe("parseReviewVerdict", () => {
   it("returns null for empty output or no marker", () => {
     expect(parseReviewVerdict(undefined)).toBeNull();
     expect(parseReviewVerdict("just logs, no verdict")).toBeNull();
+  });
+});
+
+describe("an outcome line that was spoken is never silently a success", () => {
+  const agentNode: AssemblyLineNode = {
+    id: "analyse-specs",
+    type: "agent",
+    prompt_ref: "spec-analysis",
+  };
+
+  it("parses the legacy bare-word form the spec-analysis prompt taught", () => {
+    // A deployed recipe instructs exactly this. Rejecting it turned a station's
+    // objection into `success` and skipped the human decision point (#1469).
+    expect(
+      parseNodeResult("JSON is valid.\nLORE_NODE_RESULT: changes_requested"),
+    ).toEqual({ outcome: "changes_requested", extras: {} });
+  });
+
+  it("counts only line-start markers, and the last one when several appear", () => {
+    // An agent quoting its own contract mid-sentence must not decide the node;
+    // an agent that discusses the marker and THEN prints it still succeeds.
+    expect(
+      parseNodeResult("the contract says LORE_NODE_RESULT: failed somewhere"),
+    ).toBeNull();
+    expect(
+      parseNodeResult(
+        'LORE_NODE_RESULT: {"outcome": "failed"}\nLORE_NODE_RESULT: success',
+      ),
+    ).toEqual({ outcome: "success", extras: {} });
+  });
+
+  it("names the malformed line when a marker is present but unparseable", () => {
+    expect(malformedNodeResultLine("LORE_NODE_RESULT: {not json}")).toBe(
+      "LORE_NODE_RESULT: {not json}",
+    );
+    expect(malformedNodeResultLine("no marker at all")).toBeNull();
+    expect(
+      malformedNodeResultLine('LORE_NODE_RESULT: {"outcome": "success"}'),
+    ).toBeNull();
+  });
+
+  it("treats a bare LORE_NODE_RESULT: with nothing after it as spoken but empty", () => {
+    // The station printed the marker and then said nothing. That is not "no
+    // marker" — it is a contract the recipe half-followed, and the node must
+    // report it rather than pass.
+    expect(malformedNodeResultLine("LORE_NODE_RESULT:")).not.toBeNull();
+    expect(
+      stationNodeOutcome(agentNode, {
+        phase: "Succeeded",
+        output: "LORE_NODE_RESULT:",
+      }),
+    ).toMatchObject({ outcome: "failed" });
+  });
+
+  it("fails a node whose LORE_NODE_RESULT is present but unparseable, instead of silently succeeding", () => {
+    const result = stationNodeOutcome(agentNode, {
+      phase: "Succeeded",
+      output: 'LORE_NODE_RESULT: {"outcome": "exploded"}',
+    });
+
+    expect(result).toMatchObject({ outcome: "failed" });
+    expect(result.failureDetail).toContain('{"outcome": "exploded"}');
+  });
+
+  it("routes a bare-word changes_requested as changes_requested", () => {
+    expect(
+      stationNodeOutcome(agentNode, {
+        phase: "Succeeded",
+        output: "spec-plan.json written\nLORE_NODE_RESULT: changes_requested",
+      }),
+    ).toMatchObject({ outcome: "changes_requested" });
   });
 });

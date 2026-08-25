@@ -4,7 +4,7 @@
 // seed mapping (apps/floor agent-catalog.ts) but from the resolved recipe shape; pure +
 // deterministic. The k8s apply/delete is the IO shell (agent-crd-k8s.ts).
 
-import Boom from "@hapi/boom";
+import { apiError } from "../../server/api-error.js";
 import type { AgentDefinition as RecipeDef } from "@re-cinq/lore-shared";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import type {
@@ -18,53 +18,7 @@ const API_VERSION = "agents.re-cinq.com/v1alpha1";
 const BASE_IMAGE = "node:22-bookworm";
 const UI_LABELS = { "app.kubernetes.io/managed-by": "lore-catalog-ui" };
 
-type LooseRecord = Record<string, unknown>;
-
-const rec = (v: unknown): LooseRecord =>
-  typeof v === "object" && v !== null ? (v as LooseRecord) : {};
-
-/**
- * Carry the fields the editor does NOT own from the live object into the body
- * about to replace it (#1301). The /agents mapping builds a CRD from the DB
- * row, which knows nothing of `output.watch` (or `format`/`schema`/`select`,
- * or helm's labels/annotations) — a plain replace therefore amputated the
- * artifact declaration from the feature-planning recipe on 2026-08-13 and
- * killed planning-result delivery platform-wide until 08-18. Rules: the editor
- * owns what it renders (desired wins key-by-key); everything the live object
- * carries that the render does not gets preserved — `metadata.labels`,
- * `metadata.annotations`, and the members of `spec.output` beside `sinks`.
- */
-export function preserveUnownedFields<T extends object>(
-  current: unknown,
-  desired: T,
-): T {
-  const cur = rec(current);
-  const des = rec(desired);
-  const curMeta = rec(cur.metadata);
-  const desMeta = rec(des.metadata);
-  const curSpec = rec(cur.spec);
-  const desSpec = rec(des.spec);
-  const merged: LooseRecord = {
-    ...des,
-    metadata: {
-      ...desMeta,
-      labels: { ...rec(curMeta.labels), ...rec(desMeta.labels) },
-      annotations: {
-        ...rec(curMeta.annotations),
-        ...rec(desMeta.annotations),
-      },
-    },
-  };
-
-  if ("output" in curSpec || "output" in desSpec) {
-    merged.spec = {
-      ...desSpec,
-      output: { ...rec(curSpec.output), ...rec(desSpec.output) },
-    };
-  }
-
-  return merged as T;
-}
+export { preserveUnownedFields } from "@re-cinq/lore-shared";
 
 export interface CrdPair {
   agentDefinition: AgentDefinition;
@@ -153,7 +107,7 @@ function llmSpec(
   // The subsystem rejects a promptless AgentDefinition at admission
   // (ai-agent-subsystem#155). Emitting the spec without one just moved the failure
   // to the apply, where it surfaces as an opaque API-server rejection.
-  enforceTrue(def.prompt, Boom.badRequest, `recipe ${def.name} has no prompt`);
+  enforceTrue(def.prompt, apiError(400), `recipe ${def.name} has no prompt`);
 
   return {
     ...loreResources(mcpUrl),

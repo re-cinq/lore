@@ -1,5 +1,5 @@
 import type { JobRunsPort } from "@re-cinq/lore-shared/project/job-runs/job-runs-port.js";
-import { jobRuns } from "../../kernel/queues.js";
+import { pipeline } from "../../kernel/queues.js";
 
 export interface JobRunOptions {
   logPath?: string;
@@ -7,7 +7,7 @@ export interface JobRunOptions {
 
 export function startJobRun(
   jobName: string,
-  runs: JobRunsPort = jobRuns(),
+  runs: JobRunsPort = pipeline().jobRuns,
 ): Promise<string> {
   return runs.start(jobName);
 }
@@ -16,7 +16,7 @@ export function completeJobRun(
   runId: string,
   summary: string,
   opts: JobRunOptions = {},
-  runs: JobRunsPort = jobRuns(),
+  runs: JobRunsPort = pipeline().jobRuns,
 ): Promise<void> {
   return runs.complete(runId, summary, opts.logPath);
 }
@@ -25,7 +25,7 @@ export function failJobRun(
   runId: string,
   error: string,
   opts: JobRunOptions = {},
-  runs: JobRunsPort = jobRuns(),
+  runs: JobRunsPort = pipeline().jobRuns,
 ): Promise<void> {
   return runs.fail(runId, error, opts.logPath);
 }

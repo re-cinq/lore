@@ -12,8 +12,8 @@
 
 /* Buttons — raised silver chunks that sink on press. The base rule paints them
    with --accent (navy); Win98 buttons are the button-face gray instead. */
-[data-theme-family='chicago'] button,
-[data-theme-family='chicago'] button.btn-secondary {
+[data-theme-family="chicago"] button,
+[data-theme-family="chicago"] button.btn-secondary {
   background: var(--button-face);
   color: var(--text);
   border: none;
@@ -21,17 +21,17 @@
   box-shadow: var(--border-raised-outer), var(--border-raised-inner);
 }
 
-[data-theme-family='chicago'] button:hover,
-[data-theme-family='chicago'] button.btn-secondary:hover {
+[data-theme-family="chicago"] button:hover,
+[data-theme-family="chicago"] button.btn-secondary:hover {
   background: var(--button-face);
   color: var(--text);
 }
 
-[data-theme-family='chicago'] button.danger {
+[data-theme-family="chicago"] button.danger {
   color: var(--danger);
 }
 
-[data-theme-family='chicago'] button:active {
+[data-theme-family="chicago"] button:active {
   box-shadow: var(--border-sunken-outer), var(--border-sunken-inner);
   /* Classic 1px content shove on press: +1 top/left, -1 bottom/right applied to
      the globals.css button padding (8px 16px), so total box size is unchanged.
@@ -40,12 +40,12 @@
 }
 
 /* Text fields — sunken white wells. Checkboxes/radios keep native rendering. */
-[data-theme-family='chicago'] textarea,
-[data-theme-family='chicago'] select,
-[data-theme-family='chicago'] input:not([type='checkbox']):not([type='radio']),
-[data-theme-family='chicago'] .spec-card input,
-[data-theme-family='chicago'] .spec-card select,
-[data-theme-family='chicago'] .spec-card textarea {
+[data-theme-family="chicago"] textarea,
+[data-theme-family="chicago"] select,
+[data-theme-family="chicago"] input:not([type="checkbox"]):not([type="radio"]),
+[data-theme-family="chicago"] .spec-card input,
+[data-theme-family="chicago"] .spec-card select,
+[data-theme-family="chicago"] .spec-card textarea {
   background: var(--field-bg);
   color: var(--text);
   border: none;
@@ -54,36 +54,36 @@
 }
 
 /* Keep the sunken well on focus (the base rule swaps in a glow box-shadow). */
-[data-theme-family='chicago'] .spec-card input:focus,
-[data-theme-family='chicago'] .spec-card select:focus,
-[data-theme-family='chicago'] .spec-card textarea:focus {
+[data-theme-family="chicago"] .spec-card input:focus,
+[data-theme-family="chicago"] .spec-card select:focus,
+[data-theme-family="chicago"] .spec-card textarea:focus {
   border: none;
   box-shadow: var(--border-sunken-outer), var(--border-sunken-inner);
 }
 
 /* Panels & cards — raised silver windows. */
-[data-theme-family='chicago'] .spec-card,
-[data-theme-family='chicago'] .memory-card,
-[data-theme-family='chicago'] .stat-card,
-[data-theme-family='chicago'] .sidebar {
+[data-theme-family="chicago"] .spec-card,
+[data-theme-family="chicago"] .memory-card,
+[data-theme-family="chicago"] .stat-card,
+[data-theme-family="chicago"] .sidebar {
   border: none;
   border-radius: 0;
   box-shadow: var(--border-raised-outer), var(--border-raised-inner);
 }
 
 /* Drop the sidebar's flat right border so it doesn't double with the bevel. */
-[data-theme-family='chicago'] .sidebar {
+[data-theme-family="chicago"] .sidebar {
   border-right: none;
 }
 
 /* Active nav item — painted like a selected title-bar row. */
-[data-theme-family='chicago'] .sidebar nav a.active {
+[data-theme-family="chicago"] .sidebar nav a.active {
   background: var(--accent);
   color: var(--text-on-accent);
 }
 
 /* Tabs — raised page tabs; the active one presses in toward its panel. */
-[data-theme-family='chicago'] .tab-link {
+[data-theme-family="chicago"] .tab-link {
   background: var(--button-face);
   color: var(--text-muted);
   border: none;
@@ -92,18 +92,18 @@
   margin-right: 2px;
 }
 
-[data-theme-family='chicago'] .tab-link.active {
+[data-theme-family="chicago"] .tab-link.active {
   color: var(--text);
   box-shadow: var(--border-sunken-outer), var(--border-sunken-inner);
 }
 
 /* Focus — the Win98 dotted marching-ants rectangle, inset into the control. */
-[data-theme-family='chicago'] a:focus-visible,
-[data-theme-family='chicago'] button:focus-visible,
-[data-theme-family='chicago'] input:focus-visible,
-[data-theme-family='chicago'] select:focus-visible,
-[data-theme-family='chicago'] textarea:focus-visible,
-[data-theme-family='chicago'] [tabindex]:focus-visible {
+[data-theme-family="chicago"] a:focus-visible,
+[data-theme-family="chicago"] button:focus-visible,
+[data-theme-family="chicago"] input:focus-visible,
+[data-theme-family="chicago"] select:focus-visible,
+[data-theme-family="chicago"] textarea:focus-visible,
+[data-theme-family="chicago"] [tabindex]:focus-visible {
   outline: 1px dotted var(--focus-ring);
   outline-offset: -4px;
 }

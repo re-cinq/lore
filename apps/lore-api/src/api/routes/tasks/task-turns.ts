@@ -1,5 +1,7 @@
 import { createHash } from "node:crypto";
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { zodResponse } from "../../../server/plugins/zod-response.js";
+import { rethrowBoom, apiError } from "../../../server/api-error.js";
 import { errorMessage } from "@re-cinq/lore-shared";
 import type { Pool } from "pg";
 import type { ServerRoute } from "@hapi/hapi";
@@ -155,15 +157,15 @@ export function taskTurnsPostRoute(getPool: () => Pool | null): ServerRoute {
       const floorUrl = process.env.LORE_AGENT_URL;
       const internalToken = process.env.LORE_AGENT_INTERNAL_TOKEN;
 
-      if (!floorUrl || !internalToken) {
-        return h.response({ error: "floor relay not configured" }).code(503);
-      }
+      enforceTrue(
+        floorUrl && internalToken,
+        apiError(503),
+        "floor relay not configured",
+      );
 
       const pool = getPool();
 
-      if (!pool) {
-        return h.response({ error: DB_UNAVAILABLE }).code(503);
-      }
+      enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
 
       try {
         // The task id keys everything the sink writes (llm_calls, run events,
@@ -173,9 +175,11 @@ export function taskTurnsPostRoute(getPool: () => Pool | null): ServerRoute {
           [taskId],
         );
 
-        if (rows.length === 0) {
-          return h.response({ error: `task not found: ${taskId}` }).code(404);
-        }
+        enforceTrue(
+          rows.length !== 0,
+          apiError(404),
+          `task not found: ${taskId}`,
+        );
 
         const lines = rawBody(request)
           .split("\n")
@@ -209,6 +213,10 @@ export function taskTurnsPostRoute(getPool: () => Pool | null): ServerRoute {
 
         return h.response({ forwarded: relayable.length, skipped });
       } catch (err) {
+        // A guard's refusal already carries its status; only an unexpected failure
+        // is this block's to shape.
+        rethrowBoom(err);
+
         return h.response({ error: errorMessage(err) }).code(500);
       }
     },

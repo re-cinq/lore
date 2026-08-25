@@ -1,3 +1,5 @@
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
+import { apiError } from "../../../server/api-error.js";
 import type { Pool } from "pg";
 import type { ServerRoute } from "@hapi/hapi";
 import { z } from "zod";
@@ -156,9 +158,7 @@ export function chunkBrowseRoutes(getPool: () => Pool | null): ServerRoute[] {
       handler: async (request, h) => {
         const pool = getPool();
 
-        if (!pool) {
-          return h.response({ error: DB_UNAVAILABLE }).code(503);
-        }
+        enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
         const { repo, type, q, limit, offset } =
           request.query as unknown as ChunksQuery;
         const { getChunkSchemas, repoSchema } = schemaReaders(pool);
@@ -228,9 +228,7 @@ export function chunkBrowseRoutes(getPool: () => Pool | null): ServerRoute[] {
       handler: async (request, h) => {
         const pool = getPool();
 
-        if (!pool) {
-          return h.response({ error: DB_UNAVAILABLE }).code(503);
-        }
+        enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
         const { repo } = request.query as { repo?: string };
         const { getChunkSchemas, repoSchema } = schemaReaders(pool);
 
@@ -279,9 +277,7 @@ export function chunkBrowseRoutes(getPool: () => Pool | null): ServerRoute[] {
       handler: async (request, h) => {
         const pool = getPool();
 
-        if (!pool) {
-          return h.response({ error: DB_UNAVAILABLE }).code(503);
-        }
+        enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
         const repo = `${request.params.owner}/${request.params.repo}`;
         const { repoSchema } = schemaReaders(pool);
         const schema = await repoSchema(repo);
@@ -322,9 +318,7 @@ export function chunkBrowseRoutes(getPool: () => Pool | null): ServerRoute[] {
       handler: async (request, h) => {
         const pool = getPool();
 
-        if (!pool) {
-          return h.response({ error: DB_UNAVAILABLE }).code(503);
-        }
+        enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
         const { path, repo } = request.query as unknown as ByPathQuery;
         const { getChunkSchemas, repoSchema } = schemaReaders(pool);
 

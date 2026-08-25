@@ -1,3 +1,4 @@
+import type { StationRunInput } from "../../models/station-run.js";
 import { enforceTrue } from "../../lib/enforce.js";
 import { randomUUID } from "node:crypto";
 import { resolveResumePrefix } from "./resume.js";
@@ -7,8 +8,10 @@ import type {
   AssemblyRunQuery,
   AssemblyRunsPort,
   AssemblyRunStartInput,
+  StationRunFailure,
   StationRunStartInput,
   AssemblyRunRecord,
+  AssemblyRunSummary,
   StationRunRecord,
   OpenRunSummary,
 } from "./assembly-runs-port.js";
@@ -27,7 +30,10 @@ export interface SeedAssemblyLineNode {
   nodeId: string;
   iteration: number;
   agentCrName: string | null;
+  input: StationRunInput | null;
   outcome: string | null;
+  failureClass: string | null;
+  failureDetail: string | null;
   commitSha: string | null;
   startedAt: Date;
   finishedAt: Date | null;
@@ -131,6 +137,12 @@ export class InMemoryAssemblyRuns implements AssemblyRunsPort {
         // correlation joins resolve agent_cr_name -> newest node row, and an
         // echoed name would steal the source's late-arriving rows.
         agentCrName: null,
+        // Nor its VERDICT. `getNextTransition` replays the copied prefix and fails
+        // the run on a permanent failure it meets on a revisit edge, so an
+        // inherited `anthropic-credit` visit would kill the fork on its first
+        // advance — the operation someone performs after topping the account up.
+        failureClass: null,
+        failureDetail: null,
       });
     }
     this.events.push({
@@ -207,7 +219,10 @@ export class InMemoryAssemblyRuns implements AssemblyRunsPort {
       nodeId: input.nodeId,
       iteration: input.iteration,
       agentCrName: input.agentCrName ?? null,
+      input: input.input ?? null,
       outcome: null,
+      failureClass: null,
+      failureDetail: null,
       commitSha: null,
       startedAt: this.clock(),
       finishedAt: null,
@@ -220,12 +235,15 @@ export class InMemoryAssemblyRuns implements AssemblyRunsPort {
     nodeRowId: string,
     outcome: string,
     commitSha?: string,
+    failure?: StationRunFailure,
   ): Promise<void> {
     const node = this.nodes.find((n) => n.id === nodeRowId);
 
     enforceTrue(node, Error, `no assembly line node row "${nodeRowId}"`);
     node.outcome = outcome;
     node.commitSha = commitSha ?? null;
+    node.failureClass = failure?.failureClass ?? null;
+    node.failureDetail = failure?.failureDetail ?? null;
     node.finishedAt = this.clock();
   }
 
@@ -260,6 +278,7 @@ export class InMemoryAssemblyRuns implements AssemblyRunsPort {
     nodeRowId: string,
     outcome: string,
     commitSha?: string,
+    failure?: StationRunFailure,
   ): Promise<boolean> {
     const node = this.nodes.find((n) => n.id === nodeRowId);
 
@@ -267,7 +286,7 @@ export class InMemoryAssemblyRuns implements AssemblyRunsPort {
       return false;
     }
 
-    await this.recordNodeFinish(nodeRowId, outcome, commitSha);
+    await this.recordNodeFinish(nodeRowId, outcome, commitSha, failure);
 
     return true;
   }
@@ -321,6 +340,15 @@ export class InMemoryAssemblyRuns implements AssemblyRunsPort {
     );
   }
 
+  async listSummaries(query: AssemblyRunQuery): Promise<AssemblyRunSummary[]> {
+    // Same selection, graph dropped — the double must answer the narrower shape
+    // the way Postgres does, or a route tested against it would carry a clone the
+    // deployed read never ships.
+    return (await this.list(query)).map(
+      ({ graph: _graph, ...summary }) => summary,
+    );
+  }
+
   async listOpen(): Promise<AssemblyRunRecord[]> {
     return this.rows
       .filter((r) => r.status === "queued" || r.status === "running")
@@ -345,6 +373,12 @@ export class InMemoryAssemblyRuns implements AssemblyRunsPort {
     );
 
     return open ? toOpenSummary(open) : null;
+  }
+
+  async countBySubject(repo: string, subjectKey: string): Promise<number> {
+    return this.rows.filter(
+      (r) => r.repo === repo && r.subjectKey === subjectKey,
+    ).length;
   }
 
   async mergeArgs(id: string, patch: Record<string, unknown>): Promise<void> {

@@ -11,8 +11,7 @@
 // at all — it minted a fresh task instead, on a predicate that silently stopped
 // matching (specs/6-dark-factory FR6.32).
 
-import type { Pool } from "pg";
-import { insertEvent } from "../../events.js";
+import type { EventReporter } from "../events/event-queue-port.js";
 import { RUN_RESUME_EVENT } from "./run-events.js";
 import type { RunGraph } from "./run-graph.js";
 
@@ -102,12 +101,28 @@ export interface ParkedTarget {
  * fails to land loses the work, and the caller's 202 would claim it started.
  */
 export async function reportToParkedNode(
-  pool: Pool,
+  reporter: EventReporter,
   target: ParkedTarget,
   outcome: "success" | "changes_requested" | "failed",
   args: Record<string, unknown> = {},
+  /**
+   * What the worker produced, when it produced more than a decision.
+   *
+   * A HUMAN station reports an outcome and nothing else, which is why this is
+   * optional. A station running in a process produces extras the walk routes on
+   * and a failure class that decides whether a failure spends a retry budget —
+   * omitting them would advance the walk on a result it cannot read.
+   *
+   * `unknown`, not `NodeResult`: assembly-lines depends on THIS package, so
+   * naming its type here would invert the layering and add a phantom dependency
+   * that only resolves because the monorepo hoists. This function's job is to
+   * carry the payload; the Floor validates it on receipt (NodeResultSchema),
+   * which is where a malformed one must fail anyway — it arrives as JSON from
+   * another process, so the sender's type proves nothing about it.
+   */
+  result?: unknown,
 ): Promise<void> {
-  await insertEvent(pool, {
+  await reporter.insert({
     eventName: RUN_RESUME_EVENT,
     source: "internal",
     params: {
@@ -116,6 +131,7 @@ export async function reportToParkedNode(
       iteration: target.iteration,
       outcome,
       args,
+      ...(result ? { result } : {}),
     },
   });
 }

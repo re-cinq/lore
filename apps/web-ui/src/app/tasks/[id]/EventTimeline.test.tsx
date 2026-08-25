@@ -6,6 +6,7 @@ import type { TaskRuntimeEvent } from "@/lib/task-runtime";
 
 const event = (over: Partial<TaskRuntimeEvent> = {}): TaskRuntimeEvent => ({
   id: "e1",
+  task_id: "task-1",
   from_status: "pending",
   to_status: "running",
   metadata: null,
@@ -17,7 +18,10 @@ describe("EventTimeline", () => {
   it("renders a badge per transition with the from-status", () => {
     render(
       <EventTimeline
-        events={[event(), event({ id: "e2", to_status: "failed" })]}
+        events={[
+          event(),
+          event({ id: "e2", task_id: "task-1", to_status: "failed" }),
+        ]}
       />,
     );
 

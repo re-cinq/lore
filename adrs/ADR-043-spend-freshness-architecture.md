@@ -59,15 +59,20 @@ day-old data.
    Anthropic caller.** The cost report changes once a day, so a single sync
    after the day settles is sufficient. The per-page live read, its Floor
    route (`GET /api/anthropic-cost/live`), and the web-ui mirror rollups
-   (`aggregateMonthToDate` and friends) are removed. ([validated by `anthropic-cost-sync.test.ts:31`](apps/lore-api/src/features/maintenance/cost/anthropic-cost-sync.test.ts#L31), [`anthropic-cost-sync.test.ts:37`](apps/lore-api/src/features/maintenance/cost/anthropic-cost-sync.test.ts#L37), [`anthropic-cost-sync.test.ts:43`](apps/lore-api/src/features/maintenance/cost/anthropic-cost-sync.test.ts#L43))
+   (`aggregateMonthToDate` and friends) are removed. ([validated by `anthropic-cost-sync.test.ts:31`](apps/stations/src/stations/anthropic-cost-sync/anthropic-cost-sync.test.ts#L31), [`anthropic-cost-sync.test.ts:37`](apps/stations/src/stations/anthropic-cost-sync/anthropic-cost-sync.test.ts#L37), [`anthropic-cost-sync.test.ts:43`](apps/stations/src/stations/anthropic-cost-sync/anthropic-cost-sync.test.ts#L43))
 2. **`/spend` reads the database only.** Billed figures come from
    `pipeline.anthropic_cost_daily`; everything current-day comes from
    `pipeline.llm_calls`, which is the only source that can cover today at
    all — and the only one with kind attribution (Anthropic reports by model
-   only). ([validated by `SpendView.test.tsx:164`](apps/web-ui/src/app/spend/SpendView.test.tsx#L164), [`SpendView.test.tsx:183`](apps/web-ui/src/app/spend/SpendView.test.tsx#L183))
-3. **Today is shown as a labeled computed line on the billed card**
-   ("billed through yesterday — + $X today (Lore-computed)"), never silently
-   summed into the authoritative figure. ([validated by `SpendView.test.tsx:214`](apps/web-ui/src/app/spend/SpendView.test.tsx#L214), [`SpendView.test.tsx:223`](apps/web-ui/src/app/spend/SpendView.test.tsx#L223), [`SpendView.test.tsx:231`](apps/web-ui/src/app/spend/SpendView.test.tsx#L231))
+   only). ([validated by `SpendView.test.tsx:190`](apps/web-ui/src/app/spend/SpendView.test.tsx#L190), [`SpendView.test.tsx:216`](apps/web-ui/src/app/spend/SpendView.test.tsx#L216))
+3. **Everything Anthropic has not billed yet is shown as a labeled computed
+   line on the billed card** ("billed through 8/18 — + $47.74 over 2 days
+   since (Lore-computed)"), never silently summed into the authoritative
+   figure. The span is READ from `MAX(bucket_date)`, not assumed to be one
+   day: the consequence below makes a cron outage surface as staleness, and
+   a line hardcoded to "yesterday — + today" reported a one-day gap through
+   an outage of any length, quietly stranding whole days of spend between
+   the two figures. ([validated by `SpendView.test.tsx:249`](apps/web-ui/src/app/spend/SpendView.test.tsx#L249), [`SpendView.test.tsx:269`](apps/web-ui/src/app/spend/SpendView.test.tsx#L269), [`SpendView.test.tsx:277`](apps/web-ui/src/app/spend/SpendView.test.tsx#L277))
 
 ## Consequences
 

@@ -11,6 +11,7 @@ import type {
   PullStats,
   CiConclusion,
   CheckRun,
+  ReviewThread,
 } from "./pull-requests-port.js";
 
 /**
@@ -115,5 +116,15 @@ export class PullRequests {
 
   listChecks(ref: string): Promise<CheckRun[]> {
     return this.pulls.listChecks(this.repo, ref);
+  }
+
+  listReviewThreads(number: number): Promise<ReviewThread[]> {
+    return this.pulls.listReviewThreads(this.repo, number);
+  }
+
+  /** Pass-through (the node id is globally unique) — kept on the facade so
+   *  callers stay on one surface. */
+  resolveReviewThread(threadId: string): Promise<void> {
+    return this.pulls.resolveReviewThread(threadId);
   }
 }

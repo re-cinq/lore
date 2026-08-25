@@ -13,19 +13,25 @@
 //                                   converges on the next launch/finish)
 //   - single-CR (definition-less) row, backing task terminal → close from status
 
+import { nodeTimeoutMinutes, stationBudgetFor } from "./node-timeout.js";
 import {
   isHumanStation,
-  stationNodeOutcome,
   type AgentNodeStatus,
 } from "@re-cinq/lore-assembly-lines";
-import { graphForRun } from "@re-cinq/lore-assembly-lines";
-import type { RunGraphNode } from "@re-cinq/lore-shared/project/assembly-runs/run-graph.js";
+import { resolveRunGraph } from "@re-cinq/lore-assembly-lines";
 import type { StationRunRecord } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
-import { advanceLine, finishLine, taskFromRow } from "./advance.js";
+import { advanceLine, finishLine, taskFromAssemblyRun } from "./advance.js";
 import { finishNodeTerminal, normalizeAgentStatus } from "./node-terminal.js";
-import { nodeAgentSpec, nodeStationSpec } from "./floor-assembly-run.js";
+import {
+  nodeLaunchSpec,
+  priorOutcomeOf,
+  resolveNodeDispatch,
+} from "./launch-spec.js";
 import { runOutcomeFromTaskStatus } from "../watcher/agent-watcher-logic.js";
-import type { NodeEventDeps } from "./node-event-handler.js";
+import {
+  deliverTerminalArtifacts,
+  type NodeEventDeps,
+} from "./node-event-handler.js";
 
 /** Reaper deps: the walk deps plus the backing-task status read used to sweep a
  *  crash-orphaned single-CR (definition-less) run row. */
@@ -38,6 +44,13 @@ const MINUTE_MS = 60_000;
 const DEFAULT_TIMEOUT_MINUTES = 60;
 const TIMEOUT_BUFFER_MINUTES = 2;
 const QUEUED_LIMIT_MINUTES = 30;
+/**
+ * How long after a node's row is minted an absent CR is not yet trusted to mean
+ * "crashed before launch". The row is written BEFORE the CR create, so a tick can
+ * legitimately land between them and race an in-flight provision. Mirror of the
+ * planning reaper's FR-10.4 grace, and generous enough to absorb a flaky kube read.
+ */
+const NODE_STARTUP_GRACE_MS = 2 * MINUTE_MS;
 
 export type NodeRecovery =
   | { kind: "resolve"; status: AgentNodeStatus }
@@ -75,8 +88,23 @@ export function decideNodeRecovery(input: {
     return { kind: "timeout" };
   }
 
+  // A node dispatched to the POOLED SERVICE has no CR, and never had one: it was
+  // published on the bus. Relaunching it would create an Agent CR for work the
+  // service is still holding — for `merge_step` that fails every tick because no
+  // recipe is seeded for it, and for a type that IS seeded the pod and the queued
+  // delivery would BOTH run: duplicate Issues, duplicate episodes. It is timed out
+  // above like anything else, so a lost delivery still surfaces.
+  if (input.node.agentCrName === null) {
+    return { kind: "wait" };
+  }
+
+  // Absence — and only absence, a 404 — is the crash-between-row-and-launch case.
+  // An existing CR the controller has not stamped reports `Pending` and falls
+  // through to `wait` below.
   if (input.status === null) {
-    return { kind: "relaunch" };
+    return input.nowMs - input.node.startedAt.getTime() < NODE_STARTUP_GRACE_MS
+      ? { kind: "wait" }
+      : { kind: "relaunch" };
   }
 
   return { kind: "wait" };
@@ -100,7 +128,7 @@ export async function assemblyLineReaperJob(
     try {
       // Same rule the walk follows (FR6.38): reaping a run against a
       // since-edited graph would resolve a node the run never had.
-      const graph = await graphForRun(row, deps.definitions);
+      const graph = await resolveRunGraph(row, deps.definitions);
 
       if (!graph) {
         // Single-CR run record (FR6.8): normally the agent-watcher closes it, but
@@ -168,7 +196,12 @@ export async function assemblyLineReaperJob(
         : null;
       const recovery = decideNodeRecovery({
         node: openNode,
-        timeoutMinutes: node.timeout_minutes,
+        // The station's own budget, not the global sixty, when the YAML is
+        // silent — every merge.yaml node is, and merge_step declares five.
+        timeoutMinutes: nodeTimeoutMinutes({
+          yaml: node.timeout_minutes,
+          manifest: stationBudgetFor(node.type),
+        }),
         status,
         nodeType: node.type,
         nowMs,
@@ -178,6 +211,27 @@ export async function assemblyLineReaperJob(
         // A dropped event lands here instead — it owes the PR the same review and
         // check the event path would have posted, off the same resolved outcome.
         const status = normalizeAgentStatus(recovery.status);
+        // ...and it owes the next node the artifacts this one produced. A dropped
+        // event means THIS is the only door that will ever read this output, so an
+        // artifact delivered on the event path and not here is a difference nobody
+        // could predict from the run.
+        const result = await deliverTerminalArtifacts(
+          row,
+          node,
+          recovery.status,
+          deps,
+        );
+
+        // ...and it owes operators the same alert. A billing outage recovered
+        // through this slower door raised nothing at all before, so whether the
+        // account-dry alarm fired depended on which door the event came through.
+        if (result.outcome === "failed" && deps.alertBilling) {
+          await deps.alertBilling(row.repo, node.type, status);
+        }
+
+        if (result.failureClass) {
+          deps.llmGate?.trip(result.failureClass, result.failureDetail);
+        }
 
         await finishNodeTerminal(
           {
@@ -185,20 +239,29 @@ export async function assemblyLineReaperJob(
             node,
             nodeId: openNode.nodeId,
             iteration: openNode.iteration,
-            result: stationNodeOutcome(node, status),
+            result,
             output: status.output,
           },
           deps,
         );
         resolved++;
       } else if (recovery.kind === "timeout") {
+        const budget = node.timeout_minutes ?? DEFAULT_TIMEOUT_MINUTES;
+
         await finishNodeTerminal(
           {
             row,
             node,
             nodeId: openNode.nodeId,
             iteration: openNode.iteration,
-            result: { outcome: "failed" },
+            // A node whose pod stopped reporting died of infrastructure, not of
+            // the work — and saying so is the difference between a run somebody
+            // can diagnose later and a bare `failed` with no story at all.
+            result: {
+              outcome: "failed",
+              failureClass: "infra",
+              failureDetail: `${node.type === "agent" ? "agent" : "station"} node timed out after ${budget} minutes without reporting`,
+            },
           },
           deps,
         );
@@ -207,13 +270,25 @@ export async function assemblyLineReaperJob(
           `[assembly-run-reaper] node ${openNode.nodeId} of ${row.id} timed out (${node.type === "agent" ? "agent" : "station"}-timeout)`,
         );
       } else if (recovery.kind === "relaunch") {
+        // The gate applies to the recovery door too. Relaunching an agent CR into
+        // a dry account is the same wasted pod as dispatching a fresh one, and
+        // this arm fires every 60s — it would out-burn the walk itself.
+        if (node.type === "agent" && deps.llmGate?.isBlocked()) {
+          continue;
+        }
+
+        const relaunchInput = {
+          node,
+          task: taskFromAssemblyRun(row),
+          iteration: openNode.iteration,
+          stationRunId: openNode.stationRunId,
+          priorOutcome: priorOutcomeOf(nodes, openNode.nodeId),
+        };
+
         await deps.launch(
-          specForNode(
-            node,
-            row,
-            openNode.iteration,
-            deps,
-            openNode.stationRunId,
+          nodeLaunchSpec(
+            await resolveNodeDispatch(relaunchInput, deps),
+            relaunchInput,
           ),
         );
         relaunched++;
@@ -226,24 +301,4 @@ export async function assemblyLineReaperJob(
   }
 
   return `resolved ${resolved}, relaunched ${relaunched}, timed out ${timedOut}, failed-queued ${failedQueued}, re-advanced ${advanced}, swept-single-cr ${sweptSingleCr} across ${open.length} open line(s)`;
-}
-
-function specForNode(
-  node: RunGraphNode,
-  row: Parameters<typeof taskFromRow>[0],
-  iteration: number,
-  deps: NodeEventDeps,
-  stationRunId?: string,
-) {
-  const task = taskFromRow(row);
-
-  return node.type === "agent"
-    ? nodeAgentSpec(
-        node,
-        task,
-        deps.resolvePrompt(node.prompt_ref ?? node.type, task.description),
-        iteration,
-        stationRunId,
-      )
-    : nodeStationSpec(node, task, iteration, stationRunId);
 }

@@ -1,0 +1,14 @@
+{{- if .Values.podDisruptionBudget.enabled }}
+# An unannounced eviction mid-provision leaves a Secret key and two per-task CRs
+# behind until the task settles and reclaims them; the PDB makes Autopilot ask.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: lore-cluster-agent
+  namespace: {{ .Values.namespace }}
+spec:
+  minAvailable: {{ .Values.podDisruptionBudget.minAvailable }}
+  selector:
+    matchLabels:
+      app: lore-cluster-agent
+{{- end }}

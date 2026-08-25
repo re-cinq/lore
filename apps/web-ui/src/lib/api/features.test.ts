@@ -12,7 +12,7 @@ vi.mock("server-only", () => ({}));
 const {
   createFeature,
   refineFeature,
-  finalizeFeature,
+  createSpecFile,
   splitFeature,
   deleteFeature,
   listFeatures,
@@ -79,14 +79,22 @@ describe("refineFeature", () => {
   });
 });
 
-describe("finalizeFeature", () => {
-  it("posts an empty body to the feature's finalize path", async () => {
-    await finalizeFeature("re-cinq/lore", "f1");
+describe("createSpecFile", () => {
+  it("posts the author's answers to the feature's create-spec-file path", async () => {
+    await createSpecFile("re-cinq/lore", "f1", {
+      free_form: "drop the poller",
+    });
 
+    // Not `/finalize`: nothing is final here — the run moves to the next station
+    // and a human still reviews the spec PR that comes out.
     expect(url()).toEqual(
-      "http://api:3000/api/repos/re-cinq/lore/features/f1/finalize",
+      "http://api:3000/api/repos/re-cinq/lore/features/f1/create-spec-file",
     );
-    expect(body()).toEqual({});
+    // The author fills the form and accepts in one motion; an empty body here
+    // dropped the last thing they said before the plan became a spec.
+    expect(body()).toEqual({
+      user_answers: { free_form: "drop the poller" },
+    });
   });
 });
 

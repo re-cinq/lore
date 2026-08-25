@@ -13,9 +13,11 @@ import {
 } from "@/lib/decomposition-view";
 import type { FeatureWithIterations } from "@/lib/feature-types";
 import FeatureDetailView from "./FeatureDetailView";
+import PlatformOutageBanner from "./PlatformOutageBanner";
+import { getPlatformLlmStatus } from "@/lib/api/platform-status";
 import {
   refineFeatureAction,
-  finalizeFeatureAction,
+  handleCreateSpecFile,
   splitFeatureAction,
   deleteFeatureAction,
 } from "./actions";
@@ -64,19 +66,26 @@ export default async function FeatureDetailPage({
       ? await fetchFeatureRunById(runIdOf(status.data))
       : null;
 
+  // Above the feature's own state, because when this fires the feature's state is
+  // a symptom. Healthy is the overwhelmingly common answer and renders nothing.
+  const platform = await getPlatformLlmStatus();
+
   return (
-    <FeatureDetailView
-      definition={definition}
-      run={run}
-      owner={owner}
-      repo={repo}
-      feature={full}
-      timeoutMinutes={planningTimeoutMinutes}
-      decomposition={decomposition}
-      refine={refineFeatureAction.bind(null, fullName, id)}
-      finalize={finalizeFeatureAction.bind(null, fullName, id)}
-      split={splitFeatureAction.bind(null, fullName, id)}
-      del={deleteFeatureAction.bind(null, fullName, id)}
-    />
+    <>
+      <PlatformOutageBanner status={platform} />
+      <FeatureDetailView
+        definition={definition}
+        run={run}
+        owner={owner}
+        repo={repo}
+        feature={full}
+        timeoutMinutes={planningTimeoutMinutes}
+        decomposition={decomposition}
+        refine={refineFeatureAction.bind(null, fullName, id)}
+        onCreateSpecFile={handleCreateSpecFile.bind(null, fullName, id)}
+        split={splitFeatureAction.bind(null, fullName, id)}
+        del={deleteFeatureAction.bind(null, fullName, id)}
+      />
+    </>
   );
 }

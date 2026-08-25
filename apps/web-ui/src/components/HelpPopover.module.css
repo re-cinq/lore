@@ -45,8 +45,19 @@
   color: var(--text);
   cursor: default;
 }
-.popover :first-child { margin-top: 0; }
-.popover :last-child { margin-bottom: 0; }
-.popover ul { padding-left: 1.2em; margin: 8px 0; }
-.popover li { margin: 4px 0; }
-.popover p { margin: 8px 0; }
+.popover :first-child {
+  margin-top: 0;
+}
+.popover :last-child {
+  margin-bottom: 0;
+}
+.popover ul {
+  padding-left: 1.2em;
+  margin: 8px 0;
+}
+.popover li {
+  margin: 4px 0;
+}
+.popover p {
+  margin: 8px 0;
+}

@@ -1,6 +1,6 @@
 // Pure transition logic for the event-driven walk: the executor's edge selection
 // and back-edge accounting, replayed over persisted node rows instead of an
-// in-process loop. `nextTransition` derives "what happens next" purely from the
+// in-process loop. `getNextTransition` derives "what happens next" purely from the
 // definition + the visit history, so duplicate/concurrent advancers converge and
 // a Floor restart loses nothing (spec 6-dark-factory FR6).
 
@@ -27,12 +27,19 @@ export interface WalkGraph {
   edges: readonly WalkEdge[];
 }
 import type { StageOutcome } from "./node-types.js";
+import { isPermanentNodeFailure, nodeFailureReason } from "./failure-reason.js";
 
 /** One node row's contribution to the walk state (outcome null = still running). */
 export interface NodeVisit {
   nodeId: string;
   iteration: number;
   outcome: StageOutcome | null;
+  /** How the Floor classified this visit's failure, replayed off the persisted
+   *  row (migration 0042). The replay reads it to decide whether a retry could
+   *  ever help; absent for every visit recorded before that column existed, which
+   *  simply reads as "retry as before". */
+  failureClass?: string | null;
+  failureDetail?: string | null;
 }
 
 export type Transition =
@@ -71,7 +78,7 @@ export function selectEdge(
  * rules picked out the same edges — and stopped being true with the human-gated
  * unbounded back-edge, where a person decides each pass and no budget applies.
  */
-export function nextTransition(
+export function getNextTransition(
   assemblyLine: WalkGraph,
   visits: NodeVisit[],
   maxNodes = DEFAULT_MAX_NODES,
@@ -118,6 +125,20 @@ export function nextTransition(
     }
 
     if (chosen.iteration_max !== undefined || visited.has(chosen.to)) {
+      // A retry is the one move that cannot help here: the balance, the
+      // credential or the permission has to change first, so running the node
+      // again buys a second identical failure minutes later and then reports the
+      // EDGE BUDGET as the cause. Refuse the retry and say what actually died.
+      // Only the back-edge is suppressed — a `failed` edge that routes FORWARD
+      // (to a retrospective, to exit) still routes, or a permanent failure would
+      // silently skip the work a line does on its way out.
+      if (isPermanentNodeFailure(visit)) {
+        return {
+          kind: "fail",
+          outcome: "error",
+          reason: `AssemblyLine ${assemblyLine.name}: ${nodeFailureReason(visit)}`,
+        };
+      }
       const key = `${chosen.from}->${chosen.to}`;
       const count = (backEdgeCounts.get(key) ?? 0) + 1;
 

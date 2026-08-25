@@ -10,6 +10,7 @@ import {
   featureSubject,
   ingestSubject,
   reviewSubject,
+  backlogSubject,
 } from "./subject-keys.js";
 
 describe("subject keys", () => {
@@ -50,5 +51,11 @@ describe("subject keys", () => {
     ];
 
     expect(new Set(keys).size).toBe(keys.length);
+  });
+});
+
+describe("backlogSubject", () => {
+  it("is the constant backlog key — the repo is the index's other half", () => {
+    expect(backlogSubject()).toBe("backlog");
   });
 });

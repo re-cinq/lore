@@ -977,7 +977,14 @@ describe("PgAssemblyRuns node-transition primitives", () => {
     expect(sql).toContain("ON CONFLICT (assembly_run_id, node_id, iteration)");
     expect(sql).toContain("DO UPDATE");
     expect(sql).toContain("(xmax = 0) AS created");
-    expect(calls[0]?.params).toEqual(["al-1", "review", 1, "abcd1234-review"]);
+    // The visit's recorded input rides the same insert; null when none was given.
+    expect(calls[0]?.params).toEqual([
+      "al-1",
+      "review",
+      1,
+      "abcd1234-review",
+      null,
+    ]);
   });
 
   it("ensureStationRun reports created:false for a converged duplicate (xmax != 0)", async () => {
@@ -1014,7 +1021,9 @@ describe("PgAssemblyRuns node-transition primitives", () => {
 
     expect(sql).toContain("outcome IS NULL");
     expect(sql).toContain("RETURNING id");
-    expect(calls[0]?.params).toEqual(["success", "sha-1", "42"]);
+    // The failure columns ride the same CAS: a success writes NULLs into them, so
+    // a row can never claim an outcome and a stale cause at the same time.
+    expect(calls[0]?.params).toEqual(["success", "sha-1", "42", null, null]);
   });
 
   it("listStationRuns selects the line's rows ordered by id", async () => {
@@ -1046,6 +1055,7 @@ describe("PgAssemblyRuns node-transition primitives", () => {
         iteration: 1,
         outcome: "success",
         agentCrName: "abcd1234-implement",
+        input: null,
         commitSha: "sha-1",
         startedAt: new Date("2026-07-14T00:00:00Z"),
         finishedAt: new Date("2026-07-14T00:01:00Z"),
@@ -1506,7 +1516,7 @@ describe("PgAssemblyRuns resumeFrom", () => {
     );
   });
 
-  it("copies the source's outcome, commit sha and timestamps but nulls the agent CR name", async () => {
+  it("copies the source's outcome, commit sha and timestamps but not its CR name or verdict", async () => {
     const { pool, calls } = fakePool([
       [sourceRow()],
       NODE_ROWS,
@@ -1516,8 +1526,17 @@ describe("PgAssemblyRuns resumeFrom", () => {
     await new PgAssemblyRuns(pool).start(resumeInput());
     const sql = calls[2]?.text ?? "";
 
+    // `failure_class` / `failure_detail` are dropped with `agent_cr_name`: all
+    // three classify the ATTEMPT that is over. Copying the verdict would fail
+    // the fork on its first advance, because `getNextTransition` replays the copied
+    // prefix and refuses a retry on a permanent failure — so a fork taken to
+    // rerun an `anthropic-credit` failure would die of the failure it exists to
+    // get past.
+    expect(sql).toContain("n.node_id, n.iteration, n.outcome, NULL,");
+    // `input` DOES ride along, unlike the three above: what a visit was given is
+    // history the fork inherits, not a verdict about an attempt that is over.
     expect(sql).toContain(
-      "n.node_id, n.iteration, n.outcome, NULL, n.commit_sha, n.started_at, n.finished_at",
+      "NULL, NULL, n.input, n.commit_sha, n.started_at, n.finished_at",
     );
   });
 

@@ -9,12 +9,16 @@ import {
   stationNodeOutcome,
   type AgentNodeStatus,
 } from "@re-cinq/lore-assembly-lines";
-import { graphForRun } from "@re-cinq/lore-assembly-lines";
+import { resolveRunGraph } from "@re-cinq/lore-assembly-lines";
 import type { EventHandler } from "../../main-loop/types.js";
 import { advanceLine, type AdvanceDeps } from "./advance.js";
+import { HttpAgentApi } from "@re-cinq/lore-shared";
+import { clusterAgent } from "../../kernel/queues.js";
 import { finishNodeTerminal, normalizeAgentStatus } from "./node-terminal.js";
 import { notifyLineFailure } from "./notify-failure.js";
 import { BillingAlertThrottle, maybeAlertBilling } from "./billing-alert.js";
+import { llmDispatchGate } from "./llm-dispatch-gate.js";
+import { artifactsFromTerminalOutput } from "../agent/artifact-args.js";
 import {
   codeReviewOnCommentTriaged,
   type CommentContext,
@@ -56,7 +60,7 @@ export function createNodeEventHandler(deps: NodeEventDeps): EventHandler {
       return;
     }
 
-    const graph = await graphForRun(row, deps.definitions);
+    const graph = await resolveRunGraph(row, deps.definitions);
     const node = graph?.nodes.find((n) => n.id === nodeId);
 
     if (!node) {
@@ -66,12 +70,17 @@ export function createNodeEventHandler(deps: NodeEventDeps): EventHandler {
     // Unwrap the NDJSON envelope once, here: every text parser below (the outcome
     // precedence and the review findings alike) must read the agent text, not the
     // stream that carries it.
-    const status = normalizeAgentStatus(
-      (await deps.readAgentStatus(agentName)) ?? {
-        phase: String(params.phase ?? ""),
-      },
-    );
-    const result = stationNodeOutcome(node, status);
+    const rawStatus = (await deps.readAgentStatus(agentName)) ?? {
+      phase: String(params.phase ?? ""),
+    };
+    const status = normalizeAgentStatus(rawStatus);
+    // Delivery rides the advancing event, and lands BEFORE the walk moves: the
+    // sink these artifacts normally arrive on is a separate HTTP post racing this
+    // one, so nothing ordered the merge before the next node's dispatch, and the
+    // next station could read an arg its predecessor had already produced and
+    // simply not find it. Merging the same content twice is a no-op, so the sink
+    // stays the fast path.
+    const result = await deliverTerminalArtifacts(row, node, rawStatus, deps);
 
     // An account-out-of-credits failure downs every LLM node at once; surface it
     // once to operators (the seam throttles + classifies) before the per-line
@@ -79,14 +88,72 @@ export function createNodeEventHandler(deps: NodeEventDeps): EventHandler {
     if (result.outcome === "failed" && deps.alertBilling) {
       await deps.alertBilling(row.repo, node.type, status);
     }
+    tripGateOnAccountOutage(result, deps);
 
     await finishNodeTerminal(
       { row, node, nodeId, iteration, result, output: status.output },
       deps,
     );
-
-    await routeCommentTriage(row, nodeId, result);
   };
+}
+
+/**
+ * Merge the artifacts a terminal node declared, then decide its outcome.
+ *
+ * Shared by BOTH terminal doors — the node event and the reaper's resolve — because
+ * a dropped event means the reaper is the only one who will ever see this output,
+ * and an artifact delivered on one door but not the other is a difference nobody
+ * could predict from the run.
+ *
+ * A declared artifact the agent never produced FAILS the node: advancing hands the
+ * next station an empty bag, which it reads as "my predecessor decided nothing"
+ * rather than as the delivery failure it is.
+ */
+export async function deliverTerminalArtifacts(
+  row: AssemblyRunRecord,
+  node: { type: string },
+  rawStatus: AgentNodeStatus,
+  deps: Pick<AdvanceDeps, "assemblyRuns">,
+): Promise<NodeResult> {
+  const { args, missing } = artifactsFromTerminalOutput(rawStatus.output);
+
+  if (Object.keys(args).length > 0) {
+    await deps.assemblyRuns.mergeArgs(row.id, args);
+  }
+  const result = stationNodeOutcome(node, normalizeAgentStatus(rawStatus));
+
+  if (missing.length === 0 || result.outcome === "failed") {
+    return result;
+  }
+  const detail = `declared artifact not produced: ${missing.join(", ")}`;
+
+  return {
+    outcome: "failed",
+    failureClass: "unknown",
+    failureDetail: detail,
+    extras: { "Lore-Validation-Summary": detail },
+  };
+}
+
+/**
+ * Stop dispatching agent nodes when THIS failure says the account, not the run,
+ * is down. The gate decides which classes qualify; every other failure passes
+ * through untouched. Logged only on the transition, because the whole point is
+ * that an account outage produces one event and not one per drowned run.
+ */
+function tripGateOnAccountOutage(
+  result: NodeResult,
+  deps: NodeEventDeps,
+): void {
+  if (!result.failureClass) {
+    return;
+  }
+
+  if (deps.llmGate?.trip(result.failureClass, result.failureDetail)) {
+    console.warn(
+      `[llm-dispatch-gate] pausing agent dispatch: ${result.failureDetail ?? result.failureClass}`,
+    );
+  }
 }
 
 /** When a comment-triage node goes terminal, read its classified action and start
@@ -141,12 +208,11 @@ export { advanceLine };
  *  advance, and the reaper tick. */
 export async function productionNodeEventDeps(): Promise<NodeEventDeps> {
   const [
-    { assemblyRuns, jobRuns, taskStore, conversations },
+    { pipeline, taskStore, conversations, eventReporter, memoryLifecycle },
     { loadBuiltinAssemblyLines },
     { agentCrBackend, projectFor },
     { buildNodePrompt },
     { cleanupPerTaskToken },
-    { KubeAgentApi },
     { settleTaskForLine },
     { resolveConversation },
     { stampLinePr },
@@ -156,16 +222,20 @@ export async function productionNodeEventDeps(): Promise<NodeEventDeps> {
     import("../../composition/project-boot.js"),
     import("../../kernel/config.js"),
     import("../watcher/agent-watcher.js"),
-    import("../station/kube-agent-api.js"),
     import("./settle-task.js"),
     import("./resolve-conversation.js"),
     import("./spec-pr.js"),
   ]);
-  const kubeApi = new KubeAgentApi();
+  const cluster = new HttpAgentApi(clusterAgent());
 
   return {
-    assemblyRuns: assemblyRuns(),
+    assemblyRuns: pipeline().assemblyRuns,
     definitions: loadBuiltinAssemblyLines,
+    // Wired HERE so it reaches every door: the CR event, the reaper's resolve,
+    // and a station reporting over `assembly_run.resume`. It used to be called
+    // by the CR handler alone, so a triage node the REAPER resolved never
+    // started its follow-up, silently.
+    onNodeFinished: routeCommentTriage,
     launch: async (spec) => {
       await agentCrBackend().launch(spec);
     },
@@ -173,8 +243,36 @@ export async function productionNodeEventDeps(): Promise<NodeEventDeps> {
     // fails the node instead of silently running `general` (#1329).
     resolvePrompt: buildNodePrompt,
     cleanupToken: cleanupPerTaskToken,
-    jobRuns: jobRuns(),
+    jobRuns: pipeline().jobRuns,
     notifyFailure: notifyLineFailure,
+    onRunClosed: async (run, outcome, reason) => {
+      const { loopRunClosed } = await import("../backlog/loop-run-closed.js");
+
+      await loopRunClosed(run, outcome, reason);
+    },
+    // Publish a service-form node for the pooled stations service to claim,
+    // rather than giving a DB write or an HTTP POST a pod of its own.
+    publishNode: (event) =>
+      eventReporter().insert({ ...event, source: "internal" }),
+    // What the retrospective station was for and never did: every blueprint names
+    // it as the EXIT, and the walk finishes at the exit rather than dispatching
+    // it, so no run has ever written one.
+    recordRunEpisode: async (run, outcome, reason) => {
+      const { writeEpisode } = await import("@re-cinq/lore-shared");
+
+      await writeEpisode(
+        { memory: memoryLifecycle() },
+        [
+          `Assembly run ${run.blueprintName} on ${run.repo} ${outcome}.`,
+          `Branch: ${run.branch ?? "(none)"}`,
+          reason ? `Reason: ${reason}` : "",
+        ]
+          .filter((l) => l.length > 0)
+          .join("\n"),
+        "assembly-run",
+        `${run.repo}/${run.id}`,
+      );
+    },
     resolveConversation: (node, task, iteration, priorOutcome) =>
       resolveConversation(
         node,
@@ -189,7 +287,9 @@ export async function productionNodeEventDeps(): Promise<NodeEventDeps> {
           // Rewind: `args.resume_from_task` names the round the author chose, and the
           // conversation it reserved is keyed by the assembly line that ran it.
           linesForTask: async (taskId) =>
-            (await assemblyRuns().listForTask(taskId)).map((line) => line.id),
+            (await pipeline().assemblyRuns.listForTask(taskId)).map(
+              (line) => line.id,
+            ),
         },
         priorOutcome,
       ),
@@ -203,11 +303,12 @@ export async function productionNodeEventDeps(): Promise<NodeEventDeps> {
 
       await stampLinePr(row, {
         pulls: project.pulls,
-        assemblyRuns: assemblyRuns(),
+        assemblyRuns: pipeline().assemblyRuns,
         features: project.features,
       });
     },
-    readAgentStatus: (name) => kubeApi.getStatus(name),
+    readAgentStatus: (name) => cluster.getStatus(name),
+    llmGate: llmDispatchGate,
     alertBilling: async (repo, nodeType, status) => {
       await maybeAlertBilling(repo, nodeType, status, {
         notify: async (level, message) =>

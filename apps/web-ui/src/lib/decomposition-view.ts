@@ -1,22 +1,16 @@
+import type { components } from "@/lib/api/schema";
 // Group a feature's spec-task rows (ADR-029) into the story tree the detail view
 // renders. Pure — the page does the DB read, this shapes it.
 //
 // The context_bundle contract is owned by the `issues` STATION
-// (apps/lore-station/src/stations/issues.ts), not by the retired in-process
+// (apps/stations/src/stations/issues/issues.ts), not by the retired in-process
 // feature-decompose handler this used to name. That drift is what made the view
 // permanently empty: the station published the agent's own `id` and no
 // `feature_id`, so the page's `context_bundle->>'feature_id'` filter matched
 // nothing at all.
 
-export interface DecompTaskRow {
-  description: string;
-  status: string;
-  context_bundle: {
-    spec_task_id?: string;
-    story_issue?: number;
-    phase?: number;
-  } | null;
-}
+export type DecompTaskRow =
+  components["schemas"]["FeatureDecomposition"]["tasks"][number];
 
 export interface DecompTask {
   specTaskId: string;

@@ -5,7 +5,7 @@ import {
   type StationInput,
 } from "./station-input.js";
 
-// This used to live in apps/lore-station beside a SECOND declaration of the
+// This used to live beside the pod entrypoint, next to a SECOND declaration of the
 // shape, with a comment asking whoever edited it to keep two fixtures "in
 // lockstep" by hand. One module owns the shape now, so lockstep is the type
 // system's job rather than a reader's.
@@ -100,7 +100,7 @@ describe("the run-id dual-key window (FR6.41 readers-first)", () => {
       serializeStationInput({
         assembly_run_id: "al-9",
         node_id: "n",
-        node_type: "gate",
+        node_type: "validate",
         repo: "o/r",
         branch: "b",
         task_id: null,
@@ -119,7 +119,7 @@ describe("the run-id dual-key window (FR6.41 readers-first)", () => {
       parseStationInput(
         JSON.stringify({
           node_id: "n",
-          node_type: "gate",
+          node_type: "validate",
           repo: "o/r",
           branch: "b",
           task_id: null,

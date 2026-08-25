@@ -47,3 +47,11 @@ export function ingestSubject(
 
   return chunk ? `${base}:${chunk}` : base;
 }
+
+/** One backlog loop run per repo (implementation-loop FR2). The subject is the
+ *  repo's backlog itself, and the repo is the guard's other half — the unique
+ *  index is on `(repo, subject_key)` — so the key carries no repo, exactly as
+ *  `reviewSubject` carries none. */
+export function backlogSubject(): string {
+  return "backlog";
+}

@@ -15,6 +15,7 @@ on:
       - ".github/workflows/build-mcp-server.yml"
       - "scripts/task-types.yaml"
       - "scripts/ci/deploy-lore-platform.sh"
+      - 'scripts/ci/helm-lock-contention.sh'
   pull_request:
     paths:
       - "apps/mcp-server/**"
@@ -26,6 +27,7 @@ on:
       - ".github/workflows/build-mcp-server.yml"
       - "scripts/task-types.yaml"
       - "scripts/ci/deploy-lore-platform.sh"
+      - 'scripts/ci/helm-lock-contention.sh'
   workflow_dispatch:
 
 concurrency:

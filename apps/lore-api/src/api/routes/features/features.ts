@@ -1,10 +1,7 @@
 import type { ResponseToolkit, ResponseObject, ServerRoute } from "@hapi/hapi";
 import type { Pool } from "pg";
 import { applyGapResult } from "@re-cinq/lore-shared/feature-planning/apply-gap-result.js";
-import {
-  composePlanningPrompt,
-  composeRoundFeedback,
-} from "@re-cinq/lore-shared/feature-planning/planning-prompt.js";
+import { composePlanningPrompt } from "@re-cinq/lore-shared/feature-planning/planning-prompt.js";
 import {
   enforceFeatureInput,
   parseSectionAnswers,
@@ -14,15 +11,21 @@ import {
   roundInFlight,
   canFinalize,
   latestReadyGap,
-  resolveRoundBasis,
   latestReadyIteration,
 } from "@re-cinq/lore-shared/project/features/features-port.js";
-import { decideRoundDispatch } from "@re-cinq/lore-shared/feature-planning/round-dispatch.js";
-import type { AssemblyRunsPort } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
-import type { AssemblyRuns } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs.js";
-import { featureSubject } from "@re-cinq/lore-shared/project/assembly-runs/subject-keys.js";
+import {
+  featureRunId,
+  findParkedAuthorNode,
+} from "@re-cinq/lore-shared/project/features/planning-run.js";
+import { startRefinementRound } from "@re-cinq/lore-shared/project/features/refinement-round.js";
+import {
+  startFeaturePlanning,
+  type StartPlanningDeps,
+} from "@re-cinq/lore-shared/project/features/start-planning.js";
 import { reportToParkedNode } from "@re-cinq/lore-shared/project/assembly-runs/parked-node.js";
+import { eventReporterFor } from "../event-reporter.js";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
+import { apiError, rethrowBoom } from "../../../server/api-error.js";
 import { projectFor } from "../../../platform/project-boot.js";
 import { createTask } from "@re-cinq/lore-server-core/features/pipeline/pipeline.js";
 import { bearerScope } from "../../../server/plugins/bearer-scope.js";
@@ -34,35 +37,27 @@ import {
   FeatureWithIterationsSchema,
   FeatureCreatedSchema,
   RoundStartedSchema,
-  FinalizeStartedSchema,
+  SpecFileStartedSchema,
   FeatureSchema,
   OkSchema,
   runIdBothSpellings,
 } from "./features-schema.js";
 
 /**
- * /api/repos/:owner/:repo/features[...] — the smart feature-planning surface.
- * Reads go through project.features; lifecycle/task-spawning writes create
- * feature rows and kick feature-planning / feature-finalize Stations. The pod
- * posts each round's GapResult back to .../iterations/:n/result. See
- * specs/7-feature-planning/ and ADR-027.
- *
- * Scope: GET read; POST and DELETE write. (DELETE was historically under-scoped
- * to `read` — the old scope map only listed GET / POST / PUT, so a read token
- * could delete a feature — now raised to `write`.)
+ * /api/repos/:owner/:repo/features[...] — the feature-planning surface. Writes
+ * kick feature-planning / feature-finalize Stations; the pod posts each round's
+ * GapResult back to .../iterations/:n/result. GET is `read`, POST and DELETE are
+ * `write`. See specs/7-feature-planning/ and ADR-027.
  */
 
 const BASE = "/api/repos/{owner}/{repo}/features";
-/** The definition whose line owns a feature's planning for its whole life. */
-const PLANNING_DEFINITION = "feature-planning";
 
-/** The node a resumed round completes, and the number it completes it at. */
-type ParkedTarget = { nodeId: string; iteration: number };
 const repoOf = (p: Record<string, string>) => `${p.owner}/${p.repo}`;
 // hapi parses the payload natively (ADR-034); the 2 MB cap surfaces as a 413.
 const WRITE_PAYLOAD = { maxBytes: 2 * 1_048_576 } as const;
 
-/** Map a handler throw to the legacy dispatcher's outcome: ValidationError → 400, else → 500. */
+/** ValidationError → 400, else → 500. A Boom passes through: it already carries
+ *  the status its guard meant, and reshaping it would make every refusal a fault. */
 async function run(
   h: ResponseToolkit,
   fn: () => Promise<ResponseObject>,
@@ -70,6 +65,8 @@ async function run(
   try {
     return await fn();
   } catch (err) {
+    rethrowBoom(err);
+
     if (err instanceof ValidationError) {
       return h.response({ error: err.message }).code(400);
     }
@@ -80,145 +77,25 @@ async function run(
   }
 }
 
-/** The resume event is the round. Without a pool it cannot be written, and a 202
- *  would tell the author their round started when nothing did. */
-function enforcePool(pool: Pool | null): Pool {
-  enforceTrue(
-    pool !== null,
-    Error,
-    "no database pool: cannot report the round to its assembly line",
-  );
-
-  return pool;
-}
-
-/**
- * Where this round goes: back to the node the feature's line is parked on, or down
- * the legacy path that mints a line per round (FR6.21).
- *
- * The line is found through the FIRST round's task, which is the line's owner for
- * its whole life. A feature whose planning predates the merged line has no parked
- * node and must keep the old path, or it strands mid-plan.
- */
-async function resolveDispatch(
-  project: {
-    assemblyRuns: Pick<AssemblyRunsPort, "listForTask" | "listStationRuns">;
-  },
-  iterations: readonly { iteration: number; task_id: string | null }[],
-): Promise<
-  { kind: "legacy" } | ({ kind: "resume"; lineId: string } & ParkedTarget)
-> {
-  const taskId = firstTaskId(iterations);
-
-  if (!taskId) {
-    return { kind: "legacy" };
-  }
-  const lines = await project.assemblyRuns.listForTask(taskId);
-  const line = lines.find((l) => l.blueprintName === PLANNING_DEFINITION);
-
-  if (!line) {
-    return { kind: "legacy" };
-  }
-  const decision = decideRoundDispatch(
-    line.status,
-    await project.assemblyRuns.listStationRuns(line.id),
-    line.graph,
-  );
-
-  return decision.kind === "resume"
-    ? { ...decision, lineId: line.id }
-    : { kind: "legacy" };
-}
-
-/**
- * Kick a feature-planning Station for the next round of a feature. `repoFullName`
- * MUST be the `owner/repo` slug — it lands verbatim in `target_repo`, which the
- * pod clones as `github.com/<target_repo>.git`.
- */
-/** The task that owns a feature's line: the FIRST round's. Later rounds are
- *  resumes that mint no task, so nothing after it can identify the line. */
-function firstTaskId(
-  iterations: readonly { iteration: number; task_id: string | null }[],
-): string | null {
-  return (
-    [...iterations].sort((a, b) => a.iteration - b.iteration)[0]?.task_id ??
-    null
-  );
-}
-
-/**
- * The run already working this feature, or null.
- *
- * Asked ONLY on the path that would start a new one. The resume path reports to a
- * node the open run is PARKED on — that run being open is the precondition for
- * resuming it, not a reason to refuse — so guarding there would reject every
- * ordinary refine and accept.
- *
- * Finalize is the only caller: refine's legacy arm already holds `roundInFlight`,
- * an iteration-scoped guard for the same double-click, and two overlapping guards
- * in one handler is a precedence question nobody should have to answer. That
- * finalize had NO equivalent is why it was the endpoint that duplicated.
- */
-async function runAlreadyWorking(
-  project: { assemblyRuns: Pick<AssemblyRuns, "findOpenBySubject"> },
-  featureId: string,
-): Promise<string | null> {
-  const open = await project.assemblyRuns.findOpenBySubject(
-    featureSubject(featureId),
-  );
-
-  return open?.id ?? null;
-}
-
-/**
- * The run the feature page should draw: the NEWEST run for this feature.
- *
- * This used to resolve through the first round's task and then filter to the
- * `feature-planning` blueprint, which excluded by name every other line a feature
- * can start. A finalize run is a different task AND a different blueprint, so
- * pressing "Create spec PR" started work the page had no way to see — it kept
- * drawing the planning run, and looked like nothing had happened.
- *
- * Newest wins rather than newest-OPEN: a feature whose run has finished must still
- * show that run (and its failure reason) rather than falling back to silence.
- */
-async function featureRunId(
-  project: { assemblyRuns: Pick<AssemblyRuns, "listForSubject"> },
-  featureId: string,
-): Promise<string | null> {
-  const runs = await project.assemblyRuns.listForSubject(
-    featureSubject(featureId),
-  );
-
-  return runs[0]?.id ?? null;
-}
-
-async function kickPlanning(
-  repoFullName: string,
-  featureId: string,
-  iteration: number,
-  description: string,
-  roundFeedback?: string,
-  resumeFromTask?: string | null,
-): Promise<string> {
+/** Bind the shared planning sequence to this process's task queue.
+ *  `repo` MUST be the `owner/repo` slug: it lands verbatim in `target_repo`,
+ *  cloned as `github.com/<target_repo>.git`. */
+const createPlanningTask: StartPlanningDeps["createPlanningTask"] = async ({
+  repo,
+  description,
+  args,
+}) => {
   const task = await createTask(
     description,
     "feature-planning",
-    repoFullName,
+    repo,
     "ui",
-    // Both forms ride along: whether the run resumes the previous round's
-    // conversation is only known at dispatch, in the Floor, so it picks there.
-    {
-      feature_id: featureId,
-      iteration,
-      ...(roundFeedback ? { round_feedback: roundFeedback } : {}),
-      ...(resumeFromTask ? { resume_from_task: resumeFromTask } : {}),
-    },
+    args,
     "immediate",
   );
 
   return task.task_id as string;
-}
+};
 
 export function featuresRoutes(getPool: () => Pool | null): ServerRoute[] {
   return [
@@ -264,22 +141,29 @@ export function featuresRoutes(getPool: () => Pool | null): ServerRoute[] {
           );
           const repo = repoOf(request.params);
           const features = (await projectFor(repo)).features;
-          const feature = await features.create({
-            title,
-            prompt,
-            parentFeatureId: body.parent_feature_id,
-          });
-          const row = await features.appendIteration(feature.id, null);
-          const taskId = await kickPlanning(
-            repo,
-            feature.id,
-            row.iteration,
-            prompt,
+          // The sequence and its one load-bearing ordering live in shared,
+          // under test. The route contributes what is HTTP: the payload it
+          // parsed and the 201 it answers with.
+          const started = await startFeaturePlanning(
+            {
+              repo,
+              title,
+              prompt,
+              parentFeatureId: body.parent_feature_id,
+            },
+            {
+              createFeature: (feature) => features.create(feature),
+              appendIteration: (featureId, answers) =>
+                features.appendIteration(featureId, answers),
+              createPlanningTask,
+              attachIterationTask: (featureId, iteration, taskId) =>
+                features.attachIterationTask(featureId, iteration, taskId),
+            },
           );
 
-          await features.attachIterationTask(feature.id, row.iteration, taskId);
-
-          return h.response({ id: feature.id, task_id: taskId }).code(201);
+          return h
+            .response({ id: started.featureId, task_id: started.taskId })
+            .code(201);
         }),
     },
 
@@ -297,19 +181,14 @@ export function featuresRoutes(getPool: () => Pool | null): ServerRoute[] {
             await projectFor(repoOf(request.params))
           ).features.get(request.params.id);
 
-          if (!feature) {
-            return h.response({ error: "feature not found" }).code(404);
-          }
+          enforceTrue(feature, apiError(404), "feature not found");
 
           return h.response(feature);
         }),
     },
 
-    // GET .../features/:id/status — the planning wizard's 4s poll in one call.
-    //
-    // Deliberately NOT a `?view=` param on GET :id — that route carries EVERY
-    // round's gap_result (mockup markup plus a repo stylesheet each), which must
-    // not be re-sent every four seconds.
+    // GET .../features/:id/status — the wizard's 4s poll. NOT a `?view=` on GET
+    // :id, which carries every round's gap_result — too big to re-send that often.
     {
       method: "GET",
       path: `${BASE}/{id}/status`,
@@ -322,18 +201,17 @@ export function featuresRoutes(getPool: () => Pool | null): ServerRoute[] {
           const project = await projectFor(repoOf(request.params));
           const feature = await project.features.get(request.params.id);
 
-          if (!feature) {
-            return h.response({ error: "feature not found" }).code(404);
-          }
+          enforceTrue(feature, apiError(404), "feature not found");
           const { iterations, ...row } = feature;
 
           return h.response({
             feature: row,
             latest_iteration: iterations[iterations.length - 1] ?? null,
             last_ready_iteration: latestReadyIteration(iterations),
-            // The run the graph hangs on. From round 2 a resumed round mints no
-            // task, so only the OWNING task — the first round's — can resolve it.
-            ...runIdBothSpellings(await featureRunId(project, feature.id)),
+            // The run the graph hangs on; a resumed round mints no task of its own.
+            ...runIdBothSpellings(
+              await featureRunId(project.assemblyRuns, feature.id),
+            ),
           });
         }),
     },
@@ -350,12 +228,13 @@ export function featuresRoutes(getPool: () => Pool | null): ServerRoute[] {
         run(h, async () => {
           const project = await projectFor(repoOf(request.params));
 
-          // An unknown id is NOT an empty tree. The empty list is for a feature
-          // that exists and has not been decomposed yet; conflating the two would
-          // report success for a typo.
-          if (!(await project.features.get(request.params.id))) {
-            return h.response({ error: "feature not found" }).code(404);
-          }
+          // An unknown id is NOT an empty tree — that is a feature not yet
+          // decomposed, and conflating them reports success for a typo.
+          enforceTrue(
+            await project.features.get(request.params.id),
+            apiError(404),
+            "feature not found",
+          );
 
           return h.response({
             tasks: await project.tasks.specTasksForFeature(request.params.id),
@@ -377,9 +256,7 @@ export function featuresRoutes(getPool: () => Pool | null): ServerRoute[] {
             await projectFor(repoOf(request.params))
           ).features.delete(request.params.id);
 
-          if (!deleted) {
-            return h.response({ error: "feature not found" }).code(404);
-          }
+          enforceTrue(deleted, apiError(404), "feature not found");
 
           return h.response({ ok: true });
         }),
@@ -409,9 +286,7 @@ export function featuresRoutes(getPool: () => Pool | null): ServerRoute[] {
           const features = project.features;
           const feature = await features.get(id);
 
-          if (!feature) {
-            return h.response({ error: "feature not found" }).code(404);
-          }
+          enforceTrue(feature, apiError(404), "feature not found");
 
           // One planning round per feature at a time (a stale page / double-click
           // must not spawn a 2nd pod). An orphaned `running` past the window is dead.
@@ -427,85 +302,46 @@ export function featuresRoutes(getPool: () => Pool | null): ServerRoute[] {
           }
 
           const answers = parseSectionAnswers(body.user_answers);
-          // Rewind: continue from the round the author picked rather than the
-          // latest. Both the prompt's draft and the conversation to resume come
-          // from that ONE round, so a rewind cannot half-happen.
-          // A REWIND is the author naming a round; the basis is resolved for every
-          // round either way (it supplies the prior draft). Only the first is a
-          // rewind, and conflating them makes every round claim to be one.
+          // A rewind is the AUTHOR naming a round; a basis is resolved either way.
+          // Conflating them makes every round claim to be a rewind.
           const rewoundTo =
             typeof body.from_iteration === "number"
               ? body.from_iteration
               : undefined;
-          const basis = resolveRoundBasis(feature.iterations, rewoundTo);
 
-          if (!basis.ok) {
-            return h.response({ error: basis.error }).code(400);
-          }
-          const priorGap = basis.basis?.gap_result ?? null;
-          const description = composePlanningPrompt({
-            title: feature.title,
-            originalPrompt: feature.original_prompt,
-            priorGap,
-            answers,
-          });
-          const dispatch = await resolveDispatch(project, feature.iterations);
-          const row = await features.appendIteration(
-            id,
-            answers,
-            basis.basis?.iteration ?? null,
+          // The sequence — and its two load-bearing orderings — lives in shared,
+          // under test. The route contributes only what is HTTP: which error is
+          // a 400 and which a 409.
+          const round = await startRefinementRound(
+            feature,
+            { answers, rewoundTo },
+            {
+              invalidBasis: apiError(400),
+              notParked: (runId) => apiError(409, runIdBothSpellings(runId)),
+              parkedNode: (featureId) =>
+                findParkedAuthorNode(project.assemblyRuns, featureId),
+              appendIteration: (featureId, roundAnswers, basisIteration) =>
+                features.appendIteration(
+                  featureId,
+                  roundAnswers,
+                  basisIteration,
+                ),
+              report: (target, outcome, args) =>
+                reportToParkedNode(
+                  eventReporterFor(getPool()),
+                  target,
+                  outcome,
+                  args,
+                ),
+            },
           );
-          const roundFeedback = composeRoundFeedback({
-            round: row.iteration,
-            priorGap,
-            answers,
-          });
-
-          if (dispatch.kind === "resume") {
-            await reportToParkedNode(
-              enforcePool(getPool()),
-              dispatch,
-              "changes_requested",
-              {
-                description,
-                round_feedback: roundFeedback,
-                iteration: row.iteration,
-                // Rewind on a merged line: a resumed round mints no task, so the round
-                // can only be named by the iteration it ran as. Sent on EVERY round —
-                // null when the author did not rewind — because the resume MERGES into
-                // the line's args rather than replacing them, so an omitted key would
-                // leave an earlier rewind still steering. It must be the round the
-                // AUTHOR NAMED, never the ordinary basis: the resolver honours a rewind
-                // literally, so claiming one on an ordinary round drops the
-                // conversation whenever that basis never archived.
-                resume_from_iteration:
-                  rewoundTo === undefined
-                    ? null
-                    : (basis.basis?.iteration ?? null),
-              },
-            );
-
-            return h
-              .response({
-                iteration: row.iteration,
-                ...runIdBothSpellings(dispatch.lineId),
-                task_id: null,
-              })
-              .code(202);
-          }
-          const taskId = await kickPlanning(
-            repo,
-            id,
-            row.iteration,
-            description,
-            roundFeedback,
-            basis.basis?.task_id ?? null,
-          );
-
-          await features.attachIterationTask(id, row.iteration, taskId);
 
           return h
-            .response({ task_id: taskId, iteration: row.iteration })
+            .response({
+              iteration: round.iteration,
+              ...runIdBothSpellings(round.runId),
+              task_id: null,
+            })
             .code(202);
         }),
     },
@@ -526,24 +362,21 @@ export function featuresRoutes(getPool: () => Pool | null): ServerRoute[] {
           const id = request.params.id;
           const iteration = Number(request.params.n);
 
-          if (!Number.isInteger(iteration) || iteration < 0) {
-            return h
-              .response({ error: "iteration must be a non-negative integer" })
-              .code(400);
-          }
+          enforceTrue(
+            Number.isInteger(iteration) && iteration >= 0,
+            apiError(400),
+            "iteration must be a non-negative integer",
+          );
 
-          // Confirm the feature belongs to this repo before any write — feature.id
-          // is a global UUID, so without this a write-token holder could POST a
-          // forged result against another repo's feature.
+          // feature.id is a global UUID: without this repo check a write-token
+          // holder could forge a result against another repo's feature.
           const features = (await projectFor(repoOf(request.params))).features;
           const feature = await features.get(id);
 
-          if (!feature) {
-            return h.response({ error: "feature not found" }).code(404);
-          }
+          enforceTrue(feature, apiError(404), "feature not found");
 
-          // Shared with the Floor's artifact-event handler so a round reads the
-          // same however the pod delivered it (applyGapResult).
+          // Shared with the Floor's artifact-event handler, so a round reads the
+          // same however the pod delivered it.
           const applied = await applyGapResult(
             features,
             id,
@@ -559,79 +392,88 @@ export function featuresRoutes(getPool: () => Pool | null): ServerRoute[] {
         }),
     },
 
-    // POST .../features/:id/finalize — kick the finalize Station.
-    {
-      method: "POST",
-      path: `${BASE}/{id}/finalize`,
-      options: {
-        ...zodResponse(bearerScope("write"), FinalizeStartedSchema, {
-          name: "FinalizeStarted",
-          status: 202,
-          errors: [404, 409],
-        }),
-        payload: WRITE_PAYLOAD,
-      },
-      handler: (request, h) =>
-        run(h, async () => {
-          const repo = repoOf(request.params);
-          const id = request.params.id;
-          const project = await projectFor(repo);
-          const features = project.features;
-          const feature = await features.get(id);
+    // POST .../features/:id/create-spec-file — accept the plan and let the SAME
+    // line walk on to the spec work. It was `/finalize`, which named neither what
+    // it does nor when: nothing is final here, the run simply moves to the next
+    // station and a human still reviews the spec PR that comes out. Served at both
+    // paths while the UI catches up (expand/contract, as #1423 and #1270 do) —
+    // lore-api and web-ui are separate workloads of the umbrella chart and are
+    // never atomically in step.
+    ...[`${BASE}/{id}/create-spec-file`, `${BASE}/{id}/finalize`].map(
+      (path): ServerRoute => ({
+        method: "POST",
+        path,
+        options: {
+          ...zodResponse(bearerScope("write"), SpecFileStartedSchema, {
+            name: "SpecFileStarted",
+            status: 202,
+            errors: [404, 409],
+          }),
+          payload: WRITE_PAYLOAD,
+        },
+        handler: (request, h) =>
+          run(h, async () => {
+            const repo = repoOf(request.params);
+            const id = request.params.id;
+            const body = request.payload as { user_answers?: unknown };
+            const project = await projectFor(repo);
+            const features = project.features;
+            const feature = await features.get(id);
 
-          if (!feature) {
-            return h.response({ error: "feature not found" }).code(404);
-          }
+            enforceTrue(feature, apiError(404), "feature not found");
 
-          if (!canFinalize(feature.status)) {
-            return h
-              .response({
-                error: `cannot finalize a feature in '${feature.status}' state`,
-              })
-              .code(409);
-          }
-          // Accepting is the author station reporting `success`: the spec work runs
-          // on the SAME line, so what follows the accept is an edge, not a new run.
-          const dispatch = await resolveDispatch(project, feature.iterations);
-
-          if (dispatch.kind === "resume") {
-            await reportToParkedNode(
-              enforcePool(getPool()),
-              dispatch,
-              "success",
+            enforceTrue(
+              canFinalize(feature.status),
+              apiError(409),
+              `cannot finalize a feature in '${feature.status}' state`,
+            );
+            // The author fills the form and accepts in one motion, so the accept
+            // carries answers exactly as a refine does. Dropping them left the last
+            // thing the author said about the plan out of the plan.
+            const answers = parseSectionAnswers(body.user_answers);
+            // Accepting is the author station reporting `success`: the spec work runs
+            // on the SAME line, so what follows the accept is an edge, not a new run.
+            const { runId, parked } = await findParkedAuthorNode(
+              project.assemblyRuns,
+              id,
             );
 
-            return h.response(runIdBothSpellings(dispatch.lineId)).code(202);
-          }
-          // Starting a fresh run for a feature something is already working is the
-          // duplicate this endpoint used to accept without a murmur: `canFinalize`
-          // gates on feature.status, which does not move until a PR lands ~18
-          // minutes later, so every click inside that window minted another task,
-          // another run, another branch and another spec PR. The run id rides the
-          // 409 so the caller can show the work already in flight instead of an
-          // error — a duplicate press means "show me", not "you broke something".
-          const inFlight = await runAlreadyWorking(project, id);
+            // ONE guard, and it is structural. `canFinalize` reads feature.status,
+            // which does not move until a PR lands ~18min later, so it cannot tell a
+            // second press from a first; the parked node can — reporting an outcome
+            // to the author node is what un-parks it, so the second press finds
+            // nothing to report to. The run id rides the refusal because a duplicate
+            // press means "show me", not "you broke something".
+            enforceTrue(
+              parked,
+              apiError(409, runIdBothSpellings(runId)),
+              "no plan is waiting to be accepted — this feature's line is not parked on the author",
+            );
 
-          if (inFlight) {
-            return h
-              .response({
-                error: "a run is already in flight for this feature",
-                ...runIdBothSpellings(inFlight),
-              })
-              .code(409);
-          }
-          const task = await createTask(
-            `Finalize feature: ${feature.title}`,
-            "feature-finalize",
-            repo,
-            "ui",
-            { feature_id: id, slug: feature.slug },
-            "immediate",
-          );
+            await reportToParkedNode(
+              eventReporterFor(getPool()),
+              parked,
+              "success",
+              {
+                // Tail nodes read args.description as "the accepted plan"; without
+                // this the shallow merge leaves the last refine's brief there (#1470).
+                description: composePlanningPrompt({
+                  title: feature.title,
+                  originalPrompt: feature.original_prompt,
+                  priorGap: latestReadyGap(feature.iterations),
+                  answers,
+                }),
+                // An omitted key SURVIVES the shallow merge, so both refine
+                // leftovers are nulled outright rather than left to steer.
+                round_feedback: null,
+                resume_from_iteration: null,
+              },
+            );
 
-          return h.response({ task_id: task.task_id }).code(202);
-        }),
-    },
+            return h.response(runIdBothSpellings(parked.lineId)).code(202);
+          }),
+      }),
+    ),
 
     // POST .../features/:id/split — create a child draft from a split suggestion.
     {
@@ -656,17 +498,13 @@ export function featuresRoutes(getPool: () => Pool | null): ServerRoute[] {
           const features = (await projectFor(repoOf(request.params))).features;
           const parent = await features.get(parentId);
 
-          if (!parent) {
-            return h.response({ error: "feature not found" }).code(404);
-          }
+          enforceTrue(parent, apiError(404), "feature not found");
 
-          if (!latestReadyGap(parent.iterations)?.split_suggestion) {
-            return h
-              .response({
-                error: "parent feature has no split suggestion to split from",
-              })
-              .code(409);
-          }
+          enforceTrue(
+            latestReadyGap(parent.iterations)?.split_suggestion,
+            apiError(409),
+            "parent feature has no split suggestion to split from",
+          );
           const child = await features.createSplitChild(parentId, {
             title,
             prompt,

@@ -156,10 +156,10 @@ the Functional Requirements below. The acceptance-criteria bullets that carry
 
 ### FR-1: Repo Registry
 
-The system MUST maintain a registry of onboarded repos. ([validated by `repos.test.ts:36`](apps/lore-api/src/api/routes/repos/repos.test.ts#L36))
+The system MUST maintain a registry of onboarded repos. ([validated by `repos.test.ts:37`](apps/lore-api/src/api/routes/repos/repos.test.ts#L36))
 
 - FR-1.1: `repos` table in PostgreSQL: id, name (owner/repo),
-  team, onboarded_at, last_ingested_at, settings (JSONB). ([validated by `repos.test.ts:36`](apps/lore-api/src/api/routes/repos/repos.test.ts#L36))
+  team, onboarded_at, last_ingested_at, settings (JSONB). ([validated by `repos.test.ts:37`](apps/lore-api/src/api/routes/repos/repos.test.ts#L36))
 - FR-1.2: Repos are written to the registry on onboard (from the set the
   GitHub App has access to). ([validated by `repo-onboard.test.ts:120`](apps/lore-api/src/features/repo/repo-onboard.test.ts#L120))
 - FR-1.3: Repo list shown as the home page of the UI. ([validated by `HomeView.test.tsx:43`](apps/web-ui/src/app/HomeView.test.tsx#L46))
@@ -167,7 +167,7 @@ The system MUST maintain a registry of onboarded repos. ([validated by `repos.te
 
 ### FR-2: Repo Onboarding via PR
 
-The system MUST onboard new repos by creating a PR. ([validated by `worker.onboard.test.ts:109`](apps/floor/src/jobs/task/worker.onboard.test.ts#L109))
+The system MUST onboard new repos by creating a PR. ([validated by `worker.onboard.test.ts:112`](apps/floor/src/jobs/task/worker.onboard.test.ts#L112))
 
 - FR-2.1: "Add Repo" button in the UI shows repos from the GitHub
   App installation that aren't onboarded yet. The onboard page renders
@@ -176,10 +176,10 @@ The system MUST onboard new repos by creating a PR. ([validated by `worker.onboa
   the typed repo name while surfacing an action error on a failed
   submit. ([validated by `OnboardView.test.tsx:9`](apps/web-ui/src/app/onboard/OnboardView.test.tsx#L9), [`OnboardView.test.tsx:21`](apps/web-ui/src/app/onboard/OnboardView.test.tsx#L21), [`OnboardView.test.tsx:36`](apps/web-ui/src/app/onboard/OnboardView.test.tsx#L36), [`OnboardView.test.tsx:44`](apps/web-ui/src/app/onboard/OnboardView.test.tsx#L44), [`OnboardView.test.tsx:60`](apps/web-ui/src/app/onboard/OnboardView.test.tsx#L60), [`OnboardView.test.tsx:81`](apps/web-ui/src/app/onboard/OnboardView.test.tsx#L81))
 - FR-2.2: Lore creates a per-task branch (`lore/onboard/<slug>-<id8>`) on the
-  target repo before committing. ([validated by `worker.onboard.test.ts:109`](apps/floor/src/jobs/task/worker.onboard.test.ts#L109))
+  target repo before committing. ([validated by `worker.onboard.test.ts:112`](apps/floor/src/jobs/task/worker.onboard.test.ts#L112))
 - FR-2.3: Commits the onboarding files onto that branch — the ingest and
   spec-impact workflows, static scaffolding, and the LLM-drafted AGENTS.md,
-  PR template, pr-description-check workflow, and `.specify/spec.md`. ([validated by `worker.onboard.test.ts:92`](apps/floor/src/jobs/task/worker.onboard.test.ts#L92))
+  PR template, pr-description-check workflow, and `.specify/spec.md`. ([validated by `worker.onboard.test.ts:95`](apps/floor/src/jobs/task/worker.onboard.test.ts#L95))
 - FR-2.4: Opens a PR per repo with the canonical onboarding path and
   content, counting only the repos where a PR was actually opened,
   tolerating per-repo failures/nulls, and evicting the cached
@@ -323,7 +323,7 @@ The system MUST reorganize the UI around repos. ([validated by `HomeView.test.ts
 
 ### FR-5: Onboarding PR Content
 
-The onboarding PR scaffolds a target repo with deterministic files committed verbatim plus LLM-drafted files generated from a fixed prompt against the repo's context and reviewed by the owner in the PR. ([validated by `worker.onboard.test.ts:92`](apps/floor/src/jobs/task/worker.onboard.test.ts#L92), [`worker.onboard.test.ts:109`](apps/floor/src/jobs/task/worker.onboard.test.ts#L109))
+The onboarding PR scaffolds a target repo with deterministic files committed verbatim plus LLM-drafted files generated from a fixed prompt against the repo's context and reviewed by the owner in the PR. ([validated by `worker.onboard.test.ts:95`](apps/floor/src/jobs/task/worker.onboard.test.ts#L95), [`worker.onboard.test.ts:112`](apps/floor/src/jobs/task/worker.onboard.test.ts#L112))
 
 - FR-5.1: The context-ingest and advisory spec-impact workflows are committed
   verbatim — `.github/workflows/lore-ingest.yml` and
@@ -392,8 +392,11 @@ every repo. ([validated by `AuditView.test.tsx:31`](apps/web-ui/src/app/audit/Au
   billed-cost card and by-model/daily tables render only when an `sk-ant-admin`
   key is configured, so the page is complete without one. Because Anthropic's cost report
   never includes the in-progress day, the billed card also carries a labeled
-  "today (Lore-computed)" line bringing it current — shown only when billed
-  data is present and today's computed spend is non-zero. ([validated by `SpendView.test.tsx:94`](apps/web-ui/src/app/spend/SpendView.test.tsx#L94), [`SpendView.test.tsx:110`](apps/web-ui/src/app/spend/SpendView.test.tsx#L110), [`SpendView.test.tsx:119`](apps/web-ui/src/app/spend/SpendView.test.tsx#L119), [`SpendView.test.tsx:130`](apps/web-ui/src/app/spend/SpendView.test.tsx#L130), [`SpendView.test.tsx:142`](apps/web-ui/src/app/spend/SpendView.test.tsx#L142), [`SpendView.test.tsx:153`](apps/web-ui/src/app/spend/SpendView.test.tsx#L153), [`SpendView.test.tsx:164`](apps/web-ui/src/app/spend/SpendView.test.tsx#L164), [`SpendView.test.tsx:183`](apps/web-ui/src/app/spend/SpendView.test.tsx#L183), [`SpendView.test.tsx:204`](apps/web-ui/src/app/spend/SpendView.test.tsx#L204), [`SpendView.test.tsx:214`](apps/web-ui/src/app/spend/SpendView.test.tsx#L214), [`SpendView.test.tsx:223`](apps/web-ui/src/app/spend/SpendView.test.tsx#L223), [`SpendView.test.tsx:231`](apps/web-ui/src/app/spend/SpendView.test.tsx#L231))
+  Lore-computed line bringing it current — naming the last billed day and
+  covering every day after it, worded "today" only when that really is one
+  day and "over N days since" when the sync has fallen further behind,
+  shown only when billed data is present and the unbilled spend is
+  non-zero. ([validated by `SpendView.test.tsx:120`](apps/web-ui/src/app/spend/SpendView.test.tsx#L120), [`SpendView.test.tsx:145`](apps/web-ui/src/app/spend/SpendView.test.tsx#L145), [`SpendView.test.tsx:156`](apps/web-ui/src/app/spend/SpendView.test.tsx#L156), [`SpendView.test.tsx:168`](apps/web-ui/src/app/spend/SpendView.test.tsx#L168), [`SpendView.test.tsx:177`](apps/web-ui/src/app/spend/SpendView.test.tsx#L177), [`SpendView.test.tsx:188`](apps/web-ui/src/app/spend/SpendView.test.tsx#L188), [`SpendView.test.tsx:188`](apps/web-ui/src/app/spend/SpendView.test.tsx#L188), [`SpendView.test.tsx:216`](apps/web-ui/src/app/spend/SpendView.test.tsx#L216), [`SpendView.test.tsx:244`](apps/web-ui/src/app/spend/SpendView.test.tsx#L244), [`SpendView.test.tsx:254`](apps/web-ui/src/app/spend/SpendView.test.tsx#L254), [`SpendView.test.tsx:269`](apps/web-ui/src/app/spend/SpendView.test.tsx#L269), [`SpendView.test.tsx:285`](apps/web-ui/src/app/spend/SpendView.test.tsx#L285), [`SpendView.test.tsx:304`](apps/web-ui/src/app/spend/SpendView.test.tsx#L304), [`SpendView.test.tsx:322`](apps/web-ui/src/app/spend/SpendView.test.tsx#L322), [`SpendView.test.tsx:277`](apps/web-ui/src/app/spend/SpendView.test.tsx#L277))
 - FR-6.7: The knowledge-graph force layout (`lib/graph-layout`) seeds
   feature positions within a radius at distinct spots (larger features
   further out), partitions links into connected components, places
@@ -426,7 +429,7 @@ every repo. ([validated by `AuditView.test.tsx:31`](apps/web-ui/src/app/audit/Au
   run's PR from its task join or from `args.pr_number` for a code-review
   run without a task PR, maps a run with no task and no PR to null
   pr/creator/cost, and computes node and run durations (left null while
-  still running). ([validated by `assembly-runs.test.ts:40`](apps/web-ui/src/lib/assembly-runs.test.ts#L40), [`assembly-runs.test.ts:54`](apps/web-ui/src/lib/assembly-runs.test.ts#L54), [`assembly-runs.test.ts:74`](apps/web-ui/src/lib/assembly-runs.test.ts#L74), [`assembly-runs.test.ts:91`](apps/web-ui/src/lib/assembly-runs.test.ts#L91), [`assembly-runs.test.ts:100`](apps/web-ui/src/lib/assembly-runs.test.ts#L100), [`assembly-runs.test.ts:123`](apps/web-ui/src/lib/assembly-runs.test.ts#L123))
+  still running). ([validated by `assembly-runs.test.ts:40`](apps/web-ui/src/lib/assembly-runs.test.ts#L40), [`assembly-runs.test.ts:54`](apps/web-ui/src/lib/assembly-runs.test.ts#L54), [`assembly-runs.test.ts:74`](apps/web-ui/src/lib/assembly-runs.test.ts#L74), [`assembly-runs.test.ts:91`](apps/web-ui/src/lib/assembly-runs.test.ts#L91), [`assembly-runs.test.ts:100`](apps/web-ui/src/lib/assembly-runs.test.ts#L100), [`assembly-runs.test.ts:123`](apps/web-ui/src/lib/assembly-runs.test.ts#L125))
 
 ### FR-7: Shared UI Components
 

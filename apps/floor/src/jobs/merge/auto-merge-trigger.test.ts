@@ -5,13 +5,15 @@ const rawSettingsMock = vi.fn();
 const resolvePrForTaskFromDbMock = vi.fn();
 
 vi.mock("../../kernel/queues.js", () => ({
+  // The logs route resolves the cluster agent from here.
+  clusterAgent: () => ({}),
   taskStore: () => ({ getById: (...args: unknown[]) => getByIdMock(...args) }),
   settings: () => ({
     rawSettings: (...args: unknown[]) => rawSettingsMock(...args),
   }),
 }));
 
-vi.mock("../platform/pr-policy.js", () => ({
+vi.mock("./pr-policy.js", () => ({
   resolvePrForTaskFromDb: (...args: unknown[]) =>
     resolvePrForTaskFromDbMock(...args),
 }));

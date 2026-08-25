@@ -7,7 +7,9 @@ const getById = vi.fn();
 const listStationRuns = vi.fn();
 
 vi.mock("../../../kernel/queues.js", () => ({
-  assemblyRuns: () => ({ getById, listStationRuns }),
+  // The logs route resolves the cluster agent from here.
+  clusterAgent: () => ({}),
+  pipeline: () => ({ assemblyRuns: { getById, listStationRuns } }),
 }));
 
 const {

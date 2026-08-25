@@ -8,7 +8,9 @@ import type { AgentKind } from "@/lib/agent-classify";
 import styles from "./AgentsTable.module.css";
 
 export interface AgentRow {
-  agent_id: string;
+  /** Nullable, as the contract says: the activity read groups rows that carry no
+   *  agent. It used to be typed `string`, which linked to `/agents/null`. */
+  agent_id: string | null;
   kind: AgentKind;
   task_count: number;
   memory_count: number;
@@ -116,12 +118,16 @@ export default function AgentsTable({
           </tr>
         </thead>
         <tbody>
-          {visible.map((a) => (
-            <tr key={a.agent_id}>
+          {visible.map((a, index) => (
+            <tr key={a.agent_id ?? `unattributed-${index}`}>
               <td>
-                <a href={`/agents/${encodeURIComponent(a.agent_id)}`}>
-                  {a.agent_id}
-                </a>
+                {a.agent_id ? (
+                  <a href={`/agents/${encodeURIComponent(a.agent_id)}`}>
+                    {a.agent_id}
+                  </a>
+                ) : (
+                  <span className="meta">—</span>
+                )}
               </td>
               <td>
                 <span className="badge">{KIND_LABEL[a.kind]}</span>

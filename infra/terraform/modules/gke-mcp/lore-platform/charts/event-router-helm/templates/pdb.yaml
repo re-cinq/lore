@@ -1,0 +1,14 @@
+{{- if .Values.podDisruptionBudget.enabled }}
+# The router holds a live Kubernetes watch. An unannounced eviction drops it
+# until the pod restarts and re-lists; the PDB makes Autopilot ask first.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: lore-event-router
+  namespace: {{ .Values.namespace }}
+spec:
+  minAvailable: {{ .Values.podDisruptionBudget.minAvailable }}
+  selector:
+    matchLabels:
+      app: lore-event-router
+{{- end }}

@@ -1,4 +1,6 @@
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { errorMessage } from "@re-cinq/lore-shared";
+import { rethrowBoom, apiError } from "../../../server/api-error.js";
 import { wireSchema } from "@re-cinq/lore-shared/lib/wire-schema.js";
 import {
   PipelineTaskSchema,
@@ -39,12 +41,14 @@ export function getTaskRoute(): ServerRoute {
       try {
         const task = await getTask(request.params.id);
 
-        if (!task) {
-          return h.response({ error: "not found" }).code(404);
-        }
+        enforceTrue(task, apiError(404), "not found");
 
         return h.response(task);
       } catch (err) {
+        // A guard's refusal already carries its status; only an unexpected failure
+        // is this block's to shape.
+        rethrowBoom(err);
+
         return h.response({ error: errorMessage(err) }).code(500);
       }
     },

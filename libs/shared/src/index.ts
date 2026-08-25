@@ -25,6 +25,47 @@ export {
 } from "./chunker.js";
 export { redactSecrets } from "./redact.js";
 export {
+  tokenSecretKey,
+  perTaskName,
+  needsToken,
+  catalogLookupName,
+  injectRepoToken,
+  perTaskStation,
+} from "./cluster/per-task-token.js";
+export { preserveUnownedFields } from "./cluster/preserve-unowned.js";
+export type { AgentNodeStatus } from "./cluster/agent-node-status.js";
+export type {
+  AgentApi,
+  AgentStatusReader,
+  TokenProvisioner,
+  TokenCleanup,
+} from "./cluster/cluster-ports.js";
+export type {
+  AgentPodInfo,
+  PodSummary,
+  PodLogSource,
+} from "./cluster/pod-logs-port.js";
+export {
+  ClusterAgentClient,
+  HttpAgentApi,
+  HttpPodLogSource,
+  HttpTokenProvisioner,
+  HttpAgentCatalog,
+} from "./cluster/cluster-agent-client.js";
+export {
+  writeEpisode,
+  writeEpisodeWithCuration,
+  type WriteEpisodeDeps,
+  type CurationDeps,
+} from "./episode-writer.js";
+export {
+  loadApprovalConfig,
+  requiresApproval,
+  getApprovalLabel,
+  getApprovalConfig,
+  type ApprovalConfig,
+} from "./approval-config.js";
+export {
   extractSection,
   stripCommentsAndWhitespace,
   sectionIsEmpty,
@@ -159,7 +200,13 @@ export {
   specSlugFromBranch,
   type ParsedTask,
 } from "./tasks.js";
-export { insertEvent, eventRepo, type EventInsert } from "./events.js";
+export {
+  insertEvent,
+  eventRepo,
+  SOURCES,
+  type EventInsert,
+  type EventSource,
+} from "./events.js";
 export {
   formatTrailers,
   formatValidatesTrailer,
@@ -377,15 +424,23 @@ export { allPathsMatch, matchingPatterns } from "./path-match.js";
 export {
   classifyError,
   errorMessage,
+  failureHint,
+  isFailureCategory,
+  isPermanentFailure,
   summarizeFailures,
   TaskFailure,
   type FailureCategory,
   type StepFailure,
   type ClassifiedFailure,
 } from "./error-classify.js";
+export {
+  isTransientInfraFailure,
+  MAX_INFRA_RETRIES,
+} from "./k8s-pod-failure.js";
 export { isBusinessHours } from "./business-hours.js";
 export { isAlreadyExistsError } from "./k8s-errors.js";
 export {
+  agentsNamespace,
   kubeConfigSource,
   loadKube,
   type KubeConfigSource,
@@ -432,3 +487,13 @@ export {
   type ValidationResult,
   type ValidationExec,
 } from "./repo-validation/repo-validation.js";
+
+// The implementation loop's backlog: pure queue ordering + label taxonomy (FR1).
+export {
+  selectNextIssue,
+  orderBacklog,
+  PRIORITY_LABELS,
+  LORE_BLOCKED_LABEL,
+  BACKLOG_LABEL_SEED,
+  type PriorityLabel,
+} from "./backlog/index.js";

@@ -69,7 +69,7 @@ is markdown in `spec.md`:
 1. The runner claims a pending task before GKE picks it up.
    ([validated by `runner.test.ts:88`](apps/mcp-server/src/local-runner.test.ts#L88))
 2. Tasks survive rollout restarts via the lease backend.
-   ([validated by `lease-backends.test.ts:30`](libs/shared/src/project/leases/lease-backends.test.ts#L30),
+   ([validated by `lease-backends.test.ts:30`](libs/shared/src/project/leases/lease-backends.test.ts#L16),
    [`lease-backends.test.ts:144`](libs/shared/src/project/leases/lease-backends.test.ts#L144))
 3. The runner re-queues a stale task after 30 minutes.
    <!-- no link yet — cron's backfill pass will suggest one -->

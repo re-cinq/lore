@@ -13,12 +13,19 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const findOpenByPr = vi.fn();
 const listStationRuns = vi.fn();
 const query = vi.fn();
+const reported = vi.fn();
 
 vi.mock("../kernel/queues.js", () => ({
-  assemblyRuns: () => ({ findOpenByPr, listStationRuns }),
+  // The logs route resolves the cluster agent from here.
+  clusterAgent: () => ({}),
+  pipeline: () => ({
+    assemblyRuns: { findOpenByPr, listStationRuns },
+    taskQueue: {},
+  }),
+  // The resume is REPORTED now, not written to the pool (ADR-044).
+  eventReporter: () => ({ insert: reported }),
   settings: () => ({}),
   taskStore: () => ({}),
-  taskQueue: () => ({}),
 }));
 
 vi.mock("../kernel/db.js", () => ({ getPool: () => ({ query }) }));
@@ -58,8 +65,16 @@ describe("specPrResumeLine", () => {
   it("reports the merge to the parked node, which is what resumes the walk", async () => {
     await specPrResumeLine(merged());
 
-    expect(query).toHaveBeenCalled();
-    expect(JSON.stringify(query.mock.calls)).toContain(LINE);
+    expect(reported).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventName: "assembly_run.resume",
+        source: "internal",
+        params: expect.objectContaining({
+          assemblyLineId: LINE,
+          outcome: "success",
+        }),
+      }),
+    );
   });
 
   it("does nothing for a PR closed without merging", async () => {

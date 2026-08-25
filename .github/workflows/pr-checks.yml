@@ -95,6 +95,14 @@ jobs:
           - name: assembly-lines
             build: npm run build -w @re-cinq/lore-shared
             test: npm run test:coverage -w @re-cinq/lore-assembly-lines
+          # The station registry and its guards — the compile-time link between the
+          # loader's NodeType enum and the set of station modules that can serve it.
+          # That guard is the reason the registry exists, so it has to run here:
+          # every OTHER entry below merely BUILDS this package to satisfy an import,
+          # which typechecks it and never executes one of its tests.
+          - name: stations
+            build: npm run build -w @re-cinq/lore-shared && npm run build -w @re-cinq/lore-assembly-lines
+            test: npm test -w @re-cinq/lore-stations
           # server-core imports compiled @re-cinq/lore-shared, so shared first.
           - name: server-core
             build: npm run build -w @re-cinq/lore-shared
@@ -108,20 +116,23 @@ jobs:
           # lore-api imports the compiled @re-cinq/lore-assembly-lines kernel too,
           # for the enriched run read's station resolution — so it must be built
           # here as it is for the floor entry below.
+          # lore-api resolves the station registry for its maintenance jobs, and
+          # floor for a node's runtime — both import @re-cinq/lore-stations, so it
+          # must be COMPILED before either typechecks.
           - name: lore-api
-            build: npm run build -w @re-cinq/lore-shared && npm run build -w @re-cinq/lore-server-core && npm run build -w @re-cinq/lore-assembly-lines
+            build: npm run build -w @re-cinq/lore-shared && npm run build -w @re-cinq/lore-server-core && npm run build -w @re-cinq/lore-assembly-lines && npm run build -w @re-cinq/lore-stations
             test: npm test -w @re-cinq/lore-api
           # agent also imports the compiled @re-cinq/lore-assembly-lines kernel, so
           # both shared and assembly-lines must be built before its suite runs.
           - name: agent
-            build: npm run build -w @re-cinq/lore-shared && npm run build -w @re-cinq/lore-assembly-lines
+            build: npm run build -w @re-cinq/lore-shared && npm run build -w @re-cinq/lore-assembly-lines && npm run build -w @re-cinq/lore-stations
             test: npm run test:coverage -w @re-cinq/lore-floor
           # Catalog drift guard. The seeded ai-agents-helm catalog.yaml is generated
           # from scripts/task-types.yaml by floor's gen:catalog; this fails the moment
           # a recipe edit lands without regenerating the catalog. The script builds
           # floor + regenerates itself, so it only needs shared + assembly-lines prebuilt.
           - name: catalog-drift
-            build: npm run build -w @re-cinq/lore-shared && npm run build -w @re-cinq/lore-assembly-lines
+            build: npm run build -w @re-cinq/lore-shared && npm run build -w @re-cinq/lore-assembly-lines && npm run build -w @re-cinq/lore-stations
             test: bash scripts/check-catalog-drift.sh
           # web-ui's builtin assembly-line graphs are GENERATED from the YAMLs —
           # it is outside the workspace and carries no YAML parser, so it needs a
@@ -138,13 +149,22 @@ jobs:
           # without regenerating. Needs shared + server-core prebuilt; the script
           # builds lore-api itself.
           - name: openapi-drift
-            build: npm run build -w @re-cinq/lore-shared && npm run build -w @re-cinq/lore-server-core && npm run build -w @re-cinq/lore-assembly-lines
+            build: npm run build -w @re-cinq/lore-shared && npm run build -w @re-cinq/lore-server-core && npm run build -w @re-cinq/lore-assembly-lines && npm run build -w @re-cinq/lore-stations
             test: bash scripts/check-openapi-drift.sh
           # Skill-docs guard. /lore-help renders each platform skill from that
           # skill's own `## Help` block, so a skill without one is invisible in
           # the index. Pure markdown check — no build needed.
           - name: skill-help
             test: bash scripts/check-skill-help.sh
+          # The scripts' OWN tests. `scripts/**/*.test.mjs` had no CI home at all:
+          # install-contract, lore-merge-settings and (until this entry) the deploy
+          # classifier ran nowhere, so a broken guard stayed green. Only
+          # check-bootstrap-columns ran, and only from migrations.yml.
+          # Files are passed explicitly via find: node 22 resolves a bare directory
+          # as a module entry point and dies with MODULE_NOT_FOUND, the same trap
+          # the eslint-rules entry below documents.
+          - name: scripts
+            test: find scripts -name '*.test.mjs' -print0 | xargs -0 node --test
           # The lint rules' OWN tests. Every rule in tools/eslint-plugin-lore has a
           # RuleTester suite, and until now nothing ran them — so a rule could start
           # over-reporting, stop reporting, or crash on an edge-case AST and nothing

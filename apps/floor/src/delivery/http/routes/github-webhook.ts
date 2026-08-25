@@ -6,26 +6,13 @@
  * 202 fast so GitHub's delivery doesn't time out.
  */
 
-import { createHmac, timingSafeEqual } from "node:crypto";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
-import Boom from "@hapi/boom";
+import { apiError } from "../api-error.js";
 import type { ServerRoute } from "@hapi/hapi";
-import { mapGitHubEvent } from "../../../listeners/github-map.js";
+import { mapGitHubEvent } from "@re-cinq/lore-shared/project/events/github-map.js";
+import { verifyGitHubSignature } from "@re-cinq/lore-shared/http/github-signature.js";
 import { insertEventList } from "../../../main-loop/store.js";
 import { rawBody, parseJsonBody } from "../raw-body.js";
-
-export function verifyGitHubSignature(
-  secret: string,
-  signature: string,
-  body: string,
-): boolean {
-  const expected =
-    "sha256=" + createHmac("sha256", secret).update(body).digest("hex");
-  const sigBuf = Buffer.from(signature);
-  const expBuf = Buffer.from(expected);
-
-  return sigBuf.length === expBuf.length && timingSafeEqual(sigBuf, expBuf);
-}
 
 export const githubWebhookRoute: ServerRoute = {
   method: "POST",
@@ -40,20 +27,33 @@ export const githubWebhookRoute: ServerRoute = {
       (request.headers["x-github-delivery"] as string | undefined) ?? "";
     const raw = rawBody(request);
 
+    // Each refusal names the thing to go and change. These reach a webhook
+    // delivery log nobody reads with the code open, so "invalid signature" cost
+    // more to diagnose than the sentence that says which two secrets disagree.
     enforceTrue(
       secret,
-      Boom.serverUnavailable,
-      "webhook secret not configured", // TODO: message should be more actionable, e.g. "set LORE_WEBHOOK_SECRET on lore floor app."
+      // 500, not 503: 503 tells GitHub to redeliver, and no number of
+      // redeliveries supplies a missing env var. The fix is a redeploy.
+      apiError(500),
+      "webhook secret not configured — set LORE_WEBHOOK_SECRET on the lore-floor deployment",
     );
-    enforceTrue(signature, Boom.unauthorized, "missing signature"); // TODO: message should be more actionable, e.g. "GitHub webhook must send x-hub-signature-256 header."
+    enforceTrue(
+      signature,
+      apiError(401),
+      "missing signature — GitHub must send the x-hub-signature-256 header; check the webhook is configured with a secret",
+    );
     enforceTrue(
       verifyGitHubSignature(secret, signature, raw),
-      Boom.unauthorized,
-      "invalid signature",
-    ); // TODO: message should be more actionable, e.g. "GitHub webhook signature verification failed; check LORE_WEBHOOK_SECRET and GitHub webhook secret match."
-    enforceTrue(eventType, Boom.badRequest, "missing x-github-event header");
+      apiError(401),
+      "signature verification failed — LORE_WEBHOOK_SECRET and the secret on the GitHub webhook do not match",
+    );
+    enforceTrue(eventType, apiError(400), "missing x-github-event header");
 
-    const events = mapGitHubEvent(eventType, parseJsonBody(raw), deliveryId);
+    const events = mapGitHubEvent(
+      eventType,
+      parseJsonBody(raw, "github-webhook"),
+      deliveryId,
+    );
 
     // Each insert is idempotent (ON CONFLICT on dedupe_key). The loop does the
     // work — return 202 fast so GitHub's delivery doesn't time out.

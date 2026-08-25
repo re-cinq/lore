@@ -3,7 +3,7 @@ import type {
   AssemblyRun,
   AssemblyRunStatus,
 } from "../../models/assembly-run.js";
-import type { StationRun } from "../../models/station-run.js";
+import type { StationRun, StationRunInput } from "../../models/station-run.js";
 
 export type { AssemblyRunStatus };
 
@@ -79,7 +79,31 @@ export interface StationRunStartInput {
   assemblyRunId: string;
   nodeId: string;
   iteration: number;
-  agentCrName?: string;
+  /**
+   * The CR this visit dispatched, or NULL when it will never have one.
+   *
+   * Null is not "unknown": it says the node runs in the pooled service and was
+   * published on the bus. The reaper reads exactly that — a missing CR on a POD
+   * visit is the crash-between-row-and-launch case and gets relaunched, while
+   * relaunching a service visit would run a pod alongside the delivery still
+   * queued for it.
+   */
+  agentCrName?: string | null;
+  /** What this visit is being dispatched WITH — recorded once, by the first
+   *  writer: a converged duplicate (the relaunch door re-dispatching the same
+   *  visit) keeps what the row already says rather than rewriting history. */
+  input?: StationRunInput;
+}
+
+/**
+ * WHY a visit failed, recorded alongside its outcome. Optional because only a
+ * `failed` outcome has one — and because the alternative, a fifth positional
+ * argument, would have every existing two-argument caller reading as if it were
+ * declining to classify.
+ */
+export interface StationRunFailure {
+  failureClass?: string;
+  failureDetail?: string;
 }
 
 /**
@@ -105,6 +129,17 @@ export interface OpenRunSummary {
  * blueprint-clone `graph`, and why `repo` is the `owner/repo` string.
  */
 export type AssemblyRunRecord = AssemblyRun;
+
+/**
+ * A run WITHOUT its blueprint clone.
+ *
+ * The browse list renders tables that never draw the graph, so reading up to
+ * `limit` clones per page is transfer paid for nothing. Stated as a narrower
+ * TYPE rather than as a `graph: null` on the full record: a null that means "not
+ * read" is indistinguishable from a null that means "this run predates clones",
+ * and the second is a real state a reader has to handle.
+ */
+export type AssemblyRunSummary = Omit<AssemblyRunRecord, "graph">;
 
 /**
  * `pipeline.assembly_runs` + `pipeline.station_runs` — first-class
@@ -161,6 +196,9 @@ export interface AssemblyRunsPort {
    * openness. Newest first, id as the tiebreak so the order is total.
    */
   list(query: AssemblyRunQuery): Promise<AssemblyRunRecord[]>;
+  /** {@link list}, selecting the same runs in the same order but without the
+   *  blueprint clone — for readers that list runs rather than draw them. */
+  listSummaries(query: AssemblyRunQuery): Promise<AssemblyRunSummary[]>;
   listForTask(taskId: string): Promise<AssemblyRunRecord[]>;
   /**
    * Event-driven transition primitives: the walk state is derived from node rows,
@@ -175,6 +213,7 @@ export interface AssemblyRunsPort {
     nodeRowId: string,
     outcome: string,
     commitSha?: string,
+    failure?: StationRunFailure,
   ): Promise<boolean>;
   /** The line's node rows in visit order (row id). */
   listStationRuns(assemblyRunId: string): Promise<StationRunRecord[]>;
@@ -200,6 +239,16 @@ export interface AssemblyRunsPort {
     repo: string,
     subjectKey: string,
   ): Promise<OpenRunSummary | null>;
+  /**
+   * How many runs — open or settled — have ever worked this subject.
+   *
+   * {@link findOpenBySubject} answers "is one in flight", which is the wrong
+   * question for a caller that re-starts on a timer: a line that fails at its
+   * first node settles, so the open lookup is empty again a minute later and
+   * the caller starts another. Counting every attempt is what lets such a
+   * caller stop.
+   */
+  countBySubject(repo: string, subjectKey: string): Promise<number>;
   /**
    * Open (`queued`/`running`) assembly lines whose `args.pr_number` matches — the
    * PR-scoped lookup the code-review choreography uses. NOT only code-review lines:

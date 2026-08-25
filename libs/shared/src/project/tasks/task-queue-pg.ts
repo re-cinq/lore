@@ -1,3 +1,5 @@
+import { selectList } from "../../lib/row.js";
+import { PIPELINE_TASK_COLUMNS } from "../../models/pipeline-task.js";
 import type { PgPool } from "../../memory-store.js";
 import type { PipelineTask } from "../../types.js";
 import { enforceSettableTaskColumns, unblockedBy } from "./task-queue-port.js";
@@ -28,7 +30,7 @@ export class PgTaskQueue implements TaskQueueRepository {
 
   async claimNextPending(): Promise<PipelineTask | null> {
     const { rows } = await this.pool.query<PipelineTask>(
-      `SELECT * FROM pipeline.tasks
+      `SELECT ${selectList(PIPELINE_TASK_COLUMNS)} FROM pipeline.tasks
         WHERE status = 'pending'
           AND (
             (priority = 'immediate')

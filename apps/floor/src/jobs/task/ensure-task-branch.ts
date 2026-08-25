@@ -4,7 +4,7 @@
 // Agent-CR task type died in its init container with
 // `pathspec '...' did not match any file(s) known to git`.
 //
-// The three in-process handlers (onboard / feature-request / feature-finalize)
+// The in-process handlers (onboard / feature-request)
 // already create their branch before writing to it; this is the same step for the
 // Agent-CR path. It must NOT be an unconditional createBranch: that call
 // force-resets an existing branch (delete + recreate at base), which would throw

@@ -22,6 +22,7 @@ import type {
   PullStats,
   CiConclusion,
   CheckRun,
+  ReviewThread,
 } from "../pulls/pull-requests-port.js";
 
 /**
@@ -75,6 +76,8 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
         labels: i.labels
           .map((l) => (typeof l === "string" ? l : (l.name ?? "")))
           .filter(Boolean),
+        url: i.html_url,
+        createdAt: i.created_at,
       }));
   }
 
@@ -701,6 +704,82 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
     }));
   }
 
+  async listReviewThreads(
+    repo: string,
+    number: number,
+  ): Promise<ReviewThread[]> {
+    const ok = await this.octo();
+    const [owner, name] = split(repo);
+    const threads: ReviewThread[] = [];
+    let cursor: string | null = null;
+    let hasNextPage = true;
+
+    while (hasNextPage) {
+      const data: ReviewThreadsResponse = await ok.graphql(
+        `query ($owner: String!, $name: String!, $number: Int!, $cursor: String) {
+          repository(owner: $owner, name: $name) {
+            pullRequest(number: $number) {
+              reviewThreads(first: 100, after: $cursor) {
+                pageInfo { hasNextPage endCursor }
+                nodes {
+                  id
+                  isResolved
+                  isOutdated
+                  comments(first: 100) {
+                    pageInfo { hasNextPage }
+                    nodes { databaseId }
+                  }
+                }
+              }
+            }
+          }
+        }`,
+        { owner, name, number, cursor },
+      );
+      const page = data.repository?.pullRequest?.reviewThreads;
+
+      if (!page) {
+        break;
+      }
+
+      for (const n of page.nodes) {
+        // The accepted cap (a 100+-comment thread is out of scope) — but say so
+        // when it actually bites, or a failed databaseId join reads as "no
+        // thread" instead of "comment past the cap".
+        if (n.comments.pageInfo?.hasNextPage) {
+          console.warn(
+            `[github] review thread ${n.id} on ${repo}#${number} has >100 comments — late comments will not join by databaseId`,
+          );
+        }
+        threads.push({
+          id: n.id,
+          isResolved: n.isResolved,
+          isOutdated: n.isOutdated,
+          comments: n.comments.nodes.map((c) => ({
+            databaseId: c.databaseId,
+          })),
+        });
+      }
+      hasNextPage = page.pageInfo.hasNextPage;
+      cursor = page.pageInfo.endCursor;
+    }
+
+    return threads;
+  }
+
+  async resolveReviewThread(threadId: string): Promise<void> {
+    const ok = await this.octo();
+
+    await ok.graphql(
+      `mutation ($threadId: ID!) {
+        resolveReviewThread(input: { threadId: $threadId }) {
+          thread { id isResolved }
+        }
+      }`,
+      { threadId },
+    );
+  }
+
   async listIssueComments(
     repo: string,
     number: number,
@@ -996,6 +1075,26 @@ interface Sodium {
   from_string(input: string): Uint8Array;
   crypto_box_seal(message: Uint8Array, publicKey: Uint8Array): Uint8Array;
   to_base64(input: Uint8Array, variant: number): string;
+}
+
+/** The reviewThreads GraphQL response — only the fields the mapper reads. */
+interface ReviewThreadsResponse {
+  repository?: {
+    pullRequest?: {
+      reviewThreads: {
+        pageInfo: { hasNextPage: boolean; endCursor: string | null };
+        nodes: Array<{
+          id: string;
+          isResolved: boolean;
+          isOutdated: boolean;
+          comments: {
+            pageInfo?: { hasNextPage: boolean };
+            nodes: Array<{ databaseId: number | null }>;
+          };
+        }>;
+      };
+    };
+  };
 }
 
 function split(repo: string): [string, string] {

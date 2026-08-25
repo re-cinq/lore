@@ -1,12 +1,25 @@
 // @vitest-environment jsdom
-import { describe, it, expect } from "vitest";
+import { afterAll, beforeAll, describe, it, expect, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
-import SpendView, { type SpendViewProps, type LoreMtdRow } from "./SpendView";
+import SpendView, {
+  budgetOutlook,
+  type SpendViewProps,
+  type LoreMtdRow,
+} from "./SpendView";
 
 const usd = (n: number) =>
   Number(n).toLocaleString(undefined, { style: "currency", currency: "USD" });
 
 const num = (n: number) => Number(n).toLocaleString();
+
+/** Mirrors the view's own `day`, for the reason stated there: parsing a
+ *  `YYYY-MM-DD` string as a Date makes it UTC midnight, which is the previous
+ *  day for every viewer west of Greenwich. */
+const day = (isoDay: string) => {
+  const [y, m, d] = isoDay.split("-");
+
+  return `${d}-${m}-${y}`;
+};
 
 const tableByHeading = (heading: string): HTMLElement => {
   const h2 = screen.getByRole("heading", { name: heading, level: 2 });
@@ -26,7 +39,13 @@ const loreMtd: LoreMtdRow = {
 
 // The no-admin-key case (orgAvailable false) with full Lore-computed data.
 const loreOnly: SpendViewProps = {
-  orgMtd: { billed_usd: 0, input_tokens: 0, output_tokens: 0, as_of: null },
+  orgMtd: {
+    billed_usd: 0,
+    input_tokens: 0,
+    output_tokens: 0,
+    as_of: null,
+    billed_through: null,
+  },
   orgAvailable: false,
   orgByModel: [],
   orgDaily: [],
@@ -64,6 +83,7 @@ const withAdminKey: SpendViewProps = {
     input_tokens: 1000000,
     output_tokens: 50000,
     as_of: "2026-08-07T10:00:00.000Z",
+    billed_through: "2026-08-07",
   },
   orgByModel: [
     {
@@ -78,7 +98,13 @@ const withAdminKey: SpendViewProps = {
 };
 
 const empty: SpendViewProps = {
-  orgMtd: { billed_usd: 0, input_tokens: 0, output_tokens: 0, as_of: null },
+  orgMtd: {
+    billed_usd: 0,
+    input_tokens: 0,
+    output_tokens: 0,
+    as_of: null,
+    billed_through: null,
+  },
   orgAvailable: false,
   orgByModel: [],
   orgDaily: [],
@@ -143,9 +169,7 @@ describe("SpendView", () => {
     render(<SpendView {...loreOnly} />);
     const table = tableByHeading("Daily Cost (This Month)");
 
-    expect(
-      within(table).getByText(new Date("2026-08-07").toLocaleDateString()),
-    ).toBeInTheDocument();
+    expect(within(table).getByText(day("2026-08-07"))).toBeInTheDocument();
     expect(within(table).getByText(usd(14.24))).toBeInTheDocument();
     expect(within(table).getByText(num(32))).toBeInTheDocument();
   });
@@ -176,19 +200,35 @@ describe("SpendView", () => {
         name: "Anthropic Daily Billed (This Month)",
       }),
     ).not.toBeInTheDocument();
-    // no em-dash placeholders — the page is complete on Lore data alone
-    expect(screen.queryAllByText("—")).toHaveLength(0);
+    // No em-dash placeholders anywhere Lore data reaches — the Anthropic
+    // sections are absent rather than degraded, which is the point of this
+    // test. The balance card is the one exception and is not one of these: no
+    // amount of Lore data can fill it, because Anthropic publishes no credit
+    // balance, so an unrecorded one has nothing to degrade FROM.
+    const balance = screen.getByRole("heading", { name: "Balance", level: 2 })
+      .nextElementSibling as HTMLElement;
+    const placeholders = screen.queryAllByText("—");
+
+    expect(placeholders).toHaveLength(1);
+    expect(balance.contains(placeholders[0])).toBe(true);
   });
 
   it("shows the billed card and Anthropic sections when an admin key is configured", () => {
     render(<SpendView {...withAdminKey} />);
     expect(screen.getByText("Billed cost (Anthropic)")).toBeInTheDocument();
     expect(screen.getByText(usd(1234.5))).toBeInTheDocument();
-    expect(
-      screen.getByText(
-        `as of ${new Date("2026-08-07T10:00:00.000Z").toLocaleString()}`,
-      ),
-    ).toBeInTheDocument();
+    // Asserted by SHAPE, not by rebuilding the string the way the view does:
+    // a mirrored helper would agree with any format change and catch nothing.
+    // Hardcoding the rendered text is no good either — the stamp is a real
+    // instant shown in local time, so `10:00Z` reads 10:00 on CI (UTC) and
+    // 12:00 in Amsterdam, and the assertion would only hold in one timezone.
+    // The month and year survive any real offset, and the slash is the tell
+    // that someone reverted to `toLocaleString`.
+    const asOf = screen.getByText(/^as of /).textContent ?? "";
+
+    expect(asOf).toMatch(/^as of \d{2}-\d{2}-\d{4} \d{2}:\d{2}$/);
+    expect(asOf).toContain("-08-2026");
+    expect(asOf).not.toContain("/");
     expect(
       within(tableByHeading("Anthropic Billed by Model (MTD)")).getByText(
         "claude-opus-4",
@@ -212,27 +252,355 @@ describe("SpendView", () => {
   });
 
   it("brings the billed card current with today's Lore-computed spend, labeled", () => {
-    render(<SpendView {...withAdminKey} loreTodayUsd={1.95} />);
+    render(
+      <SpendView
+        {...withAdminKey}
+        loreUnbilledUsd={1.95}
+        loreUnbilledDays={1}
+      />,
+    );
 
-    const note = screen.getByText(/billed through yesterday/);
+    const note = screen.getByText(/billed through/);
 
     expect(note.textContent).toContain(usd(1.95));
     expect(note.textContent).toContain("today (Lore-computed)");
   });
 
-  it("omits the today line when today's Lore-computed spend is zero", () => {
-    render(<SpendView {...withAdminKey} loreTodayUsd={0} />);
+  it("omits the unbilled line when the unbilled Lore-computed spend is zero", () => {
+    render(
+      <SpendView {...withAdminKey} loreUnbilledUsd={0} loreUnbilledDays={0} />,
+    );
 
-    expect(
-      screen.queryByText(/billed through yesterday/),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByText(/billed through/)).not.toBeInTheDocument();
   });
 
-  it("shows no today line without billed data even when today has spend", () => {
-    render(<SpendView {...empty} loreTodayUsd={1.95} />);
+  it("shows no unbilled line without billed data even when there is spend", () => {
+    render(
+      <SpendView {...empty} loreUnbilledUsd={1.95} loreUnbilledDays={1} />,
+    );
+
+    expect(screen.queryByText(/billed through/)).not.toBeInTheDocument();
+  });
+
+  it("names the last billed day and the whole span when two days are unbilled", () => {
+    // The reported case: the sync stamped 8/19 but its buckets ended at 8/18,
+    // so 8/19 AND 8/20 were unbilled while the card claimed only today's
+    // $11.95 was missing — understating the gap by a full day's spend.
+    render(
+      <SpendView
+        {...withAdminKey}
+        loreUnbilledUsd={47.74}
+        loreUnbilledDays={2}
+      />,
+    );
+
+    const note = screen.getByText(/billed through/);
+
+    expect(note.textContent).toContain(usd(47.74));
+    expect(note.textContent).toContain("over 2 days since");
+    expect(note.textContent).not.toContain("today (Lore-computed)");
+  });
+
+  it("dates the billed-through day in local time, not the UTC instant", () => {
+    // `new Date("2026-08-07")` is UTC midnight, which renders as the 6th for
+    // every viewer west of Greenwich: an off-by-one day inside the fix for an
+    // off-by-one day. Formatted from the string's parts, so no Date is built
+    // and no timezone can shift it.
+    render(
+      <SpendView
+        {...withAdminKey}
+        loreUnbilledUsd={1.95}
+        loreUnbilledDays={1}
+      />,
+    );
+
+    expect(screen.getByText(/billed through/).textContent).toContain(
+      "07-08-2026",
+    );
+  });
+
+  it("falls back to the undated wording when nothing has ever been billed", () => {
+    render(
+      <SpendView
+        {...withAdminKey}
+        orgMtd={{ ...withAdminKey.orgMtd, billed_through: null }}
+        loreUnbilledUsd={47.74}
+        loreUnbilledDays={2}
+      />,
+    );
+
+    const note = screen.getByText(/not yet billed/);
+
+    expect(note.textContent).toContain(usd(47.74));
+  });
+
+  const budget = {
+    ledger_total_usd: 500,
+    spent_since_usd: 312.5,
+    remaining_usd: 187.5,
+    anchored_at: "2026-08-01T00:00:00Z",
+  };
+
+  const balanceCard = () =>
+    screen.getByRole("heading", { name: "Balance", level: 2 })
+      .nextElementSibling as HTMLElement;
+
+  it("renders the remaining balance below the month-to-date figures", () => {
+    // Position is deliberate: the balance is month-to-date spend subtracted
+    // from what was recorded, so it reads better after those figures than
+    // before them.
+    render(<SpendView {...loreOnly} budget={budget} />);
+
+    const headings = screen
+      .getAllByRole("heading", { level: 2 })
+      .map((h) => h.textContent);
+
+    expect(headings.indexOf("Balance")).toBeGreaterThan(
+      headings.indexOf("Month to Date"),
+    );
+    expect(within(balanceCard()).getByText(usd(187.5))).toBeTruthy();
+  });
+
+  it("shows the recorded total, the spend and the day the count starts", () => {
+    render(<SpendView {...loreOnly} budget={budget} />);
+
+    const note = within(balanceCard()).getByText(/recorded/);
+
+    expect(note.textContent).toContain(usd(500));
+    expect(note.textContent).toContain(usd(312.5));
+    expect(note.textContent).toContain(day("2026-08-01"));
+  });
+
+  it("shows an em dash and a prompt when no balance has been recorded", () => {
+    // Never "$0.00": an unrecorded balance and an exhausted one are different
+    // facts, and only one of them is a number.
+    render(<SpendView {...loreOnly} />);
+
+    const card = balanceCard();
+
+    expect(within(card).getByText("—")).toBeTruthy();
+    expect(within(card).queryByText(usd(0))).toBeNull();
+    expect(within(card).getByText(/No balance recorded yet/)).toBeTruthy();
+  });
+
+  it("says the balance is overrun when spend has passed it", () => {
+    render(
+      <SpendView
+        {...loreOnly}
+        budget={{ ...budget, spent_since_usd: 545, remaining_usd: -45 }}
+      />,
+    );
+
+    const card = balanceCard();
+
+    expect(within(card).getByText(usd(-45))).toBeTruthy();
+    expect(within(card).getByText(/already over the recorded balance/));
+  });
+});
+
+describe("budgetOutlook", () => {
+  const budget = {
+    ledger_total_usd: 500,
+    spent_since_usd: 300,
+    remaining_usd: 200,
+    anchored_at: "2026-08-01T00:00:00Z",
+  };
+
+  it("averages spend over the days elapsed since the anchor, inclusive", () => {
+    // 8/01 through 8/10 is ten days, not nine: the anchor day itself counts,
+    // otherwise a balance recorded this morning divides by zero.
+    expect(budgetOutlook(budget, new Date(2026, 7, 10))).toEqual({
+      burnPerDay: 30,
+      daysLeft: 6,
+    });
+  });
+
+  it("counts a single day when the balance was recorded today", () => {
+    expect(budgetOutlook(budget, new Date(2026, 7, 1))).toMatchObject({
+      burnPerDay: 300,
+    });
+  });
+
+  it("returns null when nothing has been spent yet", () => {
+    // No rate to project from. A zero burn would divide into infinity days,
+    // which renders as a confident promise nobody made.
+    expect(
+      budgetOutlook({ ...budget, spent_since_usd: 0 }, new Date(2026, 7, 10)),
+    ).toBeNull();
+  });
+
+  it("returns null when the anchor is in the future", () => {
+    expect(budgetOutlook(budget, new Date(2026, 6, 20))).toBeNull();
+  });
+
+  it("reports zero days left when the balance is already overrun", () => {
+    expect(
+      budgetOutlook(
+        { ...budget, spent_since_usd: 600, remaining_usd: -100 },
+        new Date(2026, 7, 10),
+      ),
+    ).toMatchObject({ daysLeft: 0 });
+  });
+});
+
+describe("SpendView top-up form", () => {
+  const recordAction = async () => ({});
+
+  it("asks for the opening balance when no balance is recorded", () => {
+    // Mounting matters as much as the wording: the form is the one client
+    // component on an otherwise server-rendered page, and a broken boundary
+    // shows up here rather than at runtime.
+    render(<SpendView {...loreOnly} recordAction={recordAction} />);
 
     expect(
-      screen.queryByText(/billed through yesterday/),
-    ).not.toBeInTheDocument();
+      screen.getByRole("button", { name: "Record balance" }),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText(/Amount/)).toBeInTheDocument();
+  });
+
+  it("asks for a top-up once a balance exists", () => {
+    render(
+      <SpendView
+        {...loreOnly}
+        recordAction={recordAction}
+        budget={{
+          ledger_total_usd: 500,
+          spent_since_usd: 100,
+          remaining_usd: 400,
+          anchored_at: "2026-08-01T00:00:00Z",
+        }}
+      />,
+    );
+
+    expect(
+      screen.getByRole("button", { name: "Record top-up" }),
+    ).toBeInTheDocument();
+  });
+
+  it("omits the form entirely when no record action is supplied", () => {
+    render(<SpendView {...loreOnly} />);
+
+    expect(screen.queryByLabelText(/Amount/)).toBeNull();
+  });
+});
+
+describe("SpendView runout wording", () => {
+  // The runway is burn rate over the window from the anchor to NOW, so with a
+  // fixed anchor and a real clock the expected sentence changes by one day every
+  // day: these assertions went red on main at a date rollover, with no code
+  // change (#1475). Freezing the clock makes the window the fixture, not the
+  // calendar.
+  const NOW = new Date("2026-08-21T00:00:00Z");
+
+  beforeAll(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(NOW);
+  });
+  afterAll(() => {
+    vi.useRealTimers();
+  });
+
+  const withDaysLeft = (spent: number, remaining: number) => ({
+    ledger_total_usd: spent + remaining,
+    spent_since_usd: spent,
+    remaining_usd: remaining,
+    anchored_at: "2026-08-01T00:00:00Z",
+  });
+
+  it("says a day, not 1 days, on the last day of runway", () => {
+    // Caught by rendering the component and reading it, not by an assertion —
+    // every figure was correct and the sentence was still wrong. This is the
+    // line someone reads on the day it matters most.
+    render(<SpendView {...loreOnly} budget={withDaysLeft(561, 39)} />);
+
+    expect(screen.getByText(/about a day left/)).toBeTruthy();
+    expect(screen.queryByText(/1 days left/)).toBeNull();
+  });
+
+  it("pluralises every other runway length", () => {
+    render(<SpendView {...loreOnly} budget={withDaysLeft(214, 386)} />);
+
+    expect(screen.getByText(/about 37 days left/)).toBeTruthy();
+  });
+});
+
+describe("SpendView anchor precision", () => {
+  const at = (anchored_at: string) => ({
+    ledger_total_usd: 600,
+    spent_since_usd: 214,
+    remaining_usd: 386,
+    anchored_at,
+  });
+
+  it("shows no clock when the balance anchors to the start of its day", () => {
+    // Printing "00:00" would dress a deliberate approximation up as a
+    // measurement: a day without a known time counts the WHOLE day.
+    render(<SpendView {...loreOnly} budget={at("2026-08-01T00:00:00Z")} />);
+
+    const note = screen.getByText(/recorded/);
+
+    expect(note.textContent).toContain(day("2026-08-01"));
+    expect(note.textContent).not.toContain("00:00");
+  });
+
+  it("shows the clock when the balance anchors to a known moment", () => {
+    // An opening entered at 14:30 on an already-spending day: the precision is
+    // real, so it is stated rather than implied.
+    render(<SpendView {...loreOnly} budget={at("2026-08-01T14:30:00Z")} />);
+
+    expect(screen.getByText(/14:30 UTC/)).toBeTruthy();
+  });
+
+  it("measures elapsed days from the anchor's day, not from its clock", () => {
+    // The outlook divides by whole days; an afternoon anchor must not parse to
+    // NaN, which is what splitting an ISO instant on "-" used to produce.
+    expect(
+      budgetOutlook(at("2026-08-01T14:30:00Z"), new Date(2026, 7, 10)),
+    ).toEqual(budgetOutlook(at("2026-08-01T00:00:00Z"), new Date(2026, 7, 10)));
+  });
+});
+
+describe("SpendView top-up legend", () => {
+  const recordAction = async () => ({});
+
+  it("states that a blank date counts from the start of today", () => {
+    // The wording this replaces said "defaults to today", which a reader could
+    // equally take as "defaults to now" — and those anchor the arithmetic at
+    // opposite ends of a day's spend.
+    render(<SpendView {...loreOnly} recordAction={recordAction} />);
+
+    expect(
+      screen.getByText(/Leave both blank to count from the start of today/),
+    ).toBeTruthy();
+    // The wording it replaces, which read equally as "defaults to now".
+    expect(screen.queryByText(/defaults to today/)).toBeNull();
+  });
+
+  it("explains which entry moves the counting window", () => {
+    // Counter-intuitive enough to have been got wrong during this feature's
+    // own review, so it is stated on the form rather than inferred.
+    render(<SpendView {...loreOnly} recordAction={recordAction} />);
+
+    const legend = screen.getByText(/Which entry moves the window/)
+      .nextElementSibling as HTMLElement;
+
+    expect(legend.textContent).toMatch(/Only the opening entry/);
+    expect(legend.textContent).toMatch(/recording one days late/);
+  });
+
+  it("explains that a negative amount is a correction", () => {
+    render(<SpendView {...loreOnly} recordAction={recordAction} />);
+
+    const legend = screen.getByText("Amount").nextElementSibling as HTMLElement;
+
+    expect(legend.textContent).toMatch(
+      /negative amount is recorded as a correction/,
+    );
+  });
+
+  it("omits the legend along with the form when no record action is supplied", () => {
+    render(<SpendView {...loreOnly} />);
+
+    expect(screen.queryByText(/Which entry moves the window/)).toBeNull();
   });
 });

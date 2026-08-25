@@ -24,8 +24,8 @@ of files, and nothing followed the OS light/dark preference.
 
 A token-driven theming system with **three theme families**, each with
 **light + dark variants and OS auto-switching**, its own font, and its own
-icon set ([token parity per family](apps/web-ui/src/app/theme-tokens.test.ts#L66), [icon set per family](apps/web-ui/src/components/Icon.test.tsx#L59)). The current dark-only look is
-replaced ([now light + dark per family](apps/web-ui/src/app/theme-tokens.test.ts#L66)).
+icon set ([token parity per family](apps/web-ui/src/app/theme-tokens.test.ts#L70), [icon set per family](apps/web-ui/src/components/Icon.test.tsx#L59)). The current dark-only look is
+replaced ([now light + dark per family](apps/web-ui/src/app/theme-tokens.test.ts#L70)).
 
 - **Elegant** — Figma-like. `Inter` font, rounded corners, soft shadows, and a
   subtle frosted-glass feel (translucent + `backdrop-filter` blur) on elevated
@@ -79,12 +79,12 @@ is missing or unrecognized; it then writes both data attributes plus the
 
 `useTheme()` throws a descriptive error when called outside a `ThemeProvider`. ([validated by `ThemeProvider.test.tsx:365`](apps/web-ui/src/lib/theme/ThemeProvider.test.tsx#L365))
 
-**New — `web-ui/src/app/theme.css`** — the token source of truth ([validated by `theme-tokens.test.ts:59`](apps/web-ui/src/app/theme-tokens.test.ts#L66)). Family-level
+**New — `web-ui/src/app/theme.css`** — the token source of truth ([validated by `theme-tokens.test.ts:59`](apps/web-ui/src/app/theme-tokens.test.ts#L70)). Family-level
 blocks hold shape/type/glass tokens (`--radius*`, `--fs-*` type scale,
 `--glass-blur`); four `[data-theme-family][data-color-scheme]` blocks hold
 colors (`--bg*`, `--border*`, `--text*`, `--accent*`, status `--success/warning/
 danger/info` + `-bg`, `--shadow*`, `--glass-bg/border`, `--color-scheme`).
-`prefers-reduced-transparency` and a `@supports` fallback drop glass to opaque ([token blocks per family×scheme](apps/web-ui/src/app/theme-tokens.test.ts#L72)).
+`prefers-reduced-transparency` and a `@supports` fallback drop glass to opaque ([token blocks per family×scheme](apps/web-ui/src/app/theme-tokens.test.ts#L76)).
 
 **New — `web-ui/src/components/`** — `icon-map.ts` (semantic `IconName` →
 per-family Iconify name, offline via `@iconify-json/*`), `Icon.tsx`,
@@ -112,9 +112,9 @@ set. ([validated by `Icon.test.tsx:69`](apps/web-ui/src/components/Icon.test.tsx
 
 ### Type Scale
 
-`--fs-xs … --fs-xl` defined per family ([micro-label size per family](apps/web-ui/src/app/theme-tokens.test.ts#L97)). Retro pins every body size to 14px
+`--fs-xs … --fs-xl` defined per family ([micro-label size per family](apps/web-ui/src/app/theme-tokens.test.ts#L101)). Retro pins every body size to 14px
 because GohuFont is a bitmap crisp only at its native 14px grid; Elegant is
-xs 12 / base 16 / xl 25 ([retro pins body sizes to 14px](apps/web-ui/src/app/theme-tokens.test.ts#L86)). No font-size literal remains in `src/`.
+xs 12 / base 16 / xl 25 ([retro pins body sizes to 14px](apps/web-ui/src/app/theme-tokens.test.ts#L90)). No font-size literal remains in `src/`.
 
 ## Out of Scope
 
@@ -145,7 +145,7 @@ xs 12 / base 16 / xl 25 ([retro pins body sizes to 14px](apps/web-ui/src/app/the
   hues). `SpecGraphD3` resolves tokens to literals per render for canvas and
   `d3.interpolateRgb` (which cannot consume `var()`); SVG keeps raw `var()`
   references. The lifecycle palette in `feature-status.ts` now returns token
-  strings. ([validated by `feature-status.test.ts:10`](apps/web-ui/src/app/repos/[owner]/[repo]/features/feature-status.test.ts#L10), [chart tokens per family](apps/web-ui/src/app/theme-tokens.test.ts#L72), [canvas literal resolution](apps/web-ui/src/lib/theme-token-resolve.test.ts#L23))
+  strings. ([validated by `feature-status.test.ts:10`](apps/web-ui/src/app/repos/[owner]/[repo]/features/feature-status.test.ts#L10), [chart tokens per family](apps/web-ui/src/app/theme-tokens.test.ts#L76), [canvas literal resolution](apps/web-ui/src/lib/theme-token-resolve.test.ts#L23))
 - **2026-08-05 — Classic (Chicago) family.** Added a third theme family,
   `chicago` — a Windows-98 look (per [98.css](https://jdan.github.io/98.css/)):
   silver `#c0c0c0` beveled surfaces, navy `#000080` title bars, Tahoma / MS Sans

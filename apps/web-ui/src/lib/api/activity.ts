@@ -84,13 +84,20 @@ export function getRepoActivityCounts(repo: string): Promise<
  *  own computed figures, and every month-to-date breakdown they render with.
  *  `org_available` is false when the sync has never run — the view hides the
  *  billed sections rather than showing a confident zero. */
+/** What is left of the recorded balance, or null when nobody has recorded one.
+ *  Aliased off the generated contract rather than restated — the neighbouring
+ *  `Record<string, unknown>` entries predate that document. */
+export type SpendBudget = components["schemas"]["Spend"]["budget"];
+
 export function getSpend(): Promise<
   ApiResult<{
+    budget: SpendBudget;
     org_available: boolean;
     org_mtd: Record<string, unknown>;
     org_by_model: Record<string, unknown>[];
     org_daily: Record<string, unknown>[];
-    lore_today_usd: number;
+    lore_unbilled_usd: number;
+    lore_unbilled_days: number;
     lore_mtd: Record<string, unknown>;
     lore_by_model: Record<string, unknown>[];
     lore_by_kind: Record<string, unknown>[];
@@ -100,6 +107,28 @@ export function getSpend(): Promise<
   }>
 > {
   return apiFetch("lore-api", "/api/spend");
+}
+
+/**
+ * Record money added to the Anthropic account. The one write on this screen,
+ * and the only way the remaining figure ever moves upward — Anthropic's Admin
+ * API reports usage and cost but exposes no credit balance, so a top-up is
+ * invisible until someone says it happened.
+ */
+export function recordCreditEntry(entry: {
+  amount_usd: number;
+  effective_date?: string;
+  /** Omitted anchors the entry to the start of its day, which counts the whole
+   *  day against the balance — the safe direction when the clock is unknown. */
+  effective_time?: string;
+  kind?: "opening" | "topup" | "correction";
+  note?: string;
+  recorded_by?: string;
+}): Promise<ApiResult<components["schemas"]["CreditEntryRecorded"]>> {
+  return apiFetch("lore-api", "/api/spend/credits", {
+    method: "POST",
+    body: entry,
+  });
 }
 
 /** The analytics screen's six reads in one call. */

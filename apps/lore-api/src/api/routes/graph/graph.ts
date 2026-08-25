@@ -1,3 +1,5 @@
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
+import { apiError } from "../../../server/api-error.js";
 import { zodResponse } from "../../../server/plugins/zod-response.js";
 import { errorMessage } from "@re-cinq/lore-shared";
 import type { Pool } from "pg";
@@ -43,11 +45,7 @@ export function graphRoute(getPool: () => Pool | null): ServerRoute {
     handler: async (request, h) => {
       const pool = getPool();
 
-      if (!pool) {
-        return h
-          .response({ error: "knowledge graph requires PostgreSQL" })
-          .code(503);
-      }
+      enforceTrue(pool, apiError(503), "knowledge graph requires PostgreSQL");
 
       const {
         entity,

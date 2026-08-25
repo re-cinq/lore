@@ -1,7 +1,7 @@
 ---
 adr_number: 34
 title: "Move lore-api request validation into hapi's options.validate (zod)"
-status: draft
+status: in progress
 date: 2026-07-03
 domains: [lore-api, http, validation, dx]
 relates: "specs/hapi-request-validation/spec.md"
@@ -49,6 +49,41 @@ finish the job ADR-033 deferred.
    pattern `bearer-scope.ts` already uses — so no route emits hapi's default
    `{ statusCode, error, message }` envelope. The message names the first
    offending field where zod provides it.
+
+2a. **`apiError(status, data?)` is the single owner of that stomp** (amendment,
+   2026-08-22). The shaping above had been copied into `zod-validate.ts` and
+   `bearer-scope.ts` independently, and two routes threw bare Boom and shipped
+   the default envelope regardless. `server/api-error.ts` now builds every
+   refusal, and every route hands it to `enforceTrue` so an HTTP refusal reads as
+   a precondition rather than an if-return (`lore/prefer-api-error` enforces it).
+
+- A refusal carries the status hapi renders ([validated by carries the status on a boom hapi renders](apps/lore-api/src/server/api-error.test.ts#L6)).
+- Its payload is the house `{ error }` envelope, not Boom's default ([validated by payload is the house error envelope, not boom's default](apps/lore-api/src/server/api-error.test.ts#L13)).
+- A refusal that carries more than prose merges that data alongside the message ([validated by extra data rides alongside the message](apps/lore-api/src/server/api-error.test.ts#L19)).
+- A stray `error` key in that data never shadows why the guard fired ([validated by a data key named error does not override the message](apps/lore-api/src/server/api-error.test.ts#L31)).
+
+2c. **The Floor speaks the same envelope** (amendment, 2026-08-22). The Floor's
+   hapi server threw bare Boom almost everywhere, so it shipped
+   `{ statusCode, error: "Not Found", message }` while a handful of its own
+   routes returned `{ error }` — two envelopes from one server. The web UI
+   proxies those bodies verbatim to the browser
+   (`app/api/assembly-runs/**`, `app/api/tasks/[id]/logs`), which reads `.error`
+   as the message, so a 404 reached the user as the words "Not Found". The Floor
+   now has its own `delivery/http/api-error.ts` — a deliberate second copy,
+   because `libs/shared` carries no hapi dependency by design (ADR-032).
+
+- A Floor refusal carries the status hapi renders ([validated by carries the status hapi renders](apps/floor/src/delivery/http/api-error.test.ts#L6)).
+- Its payload is the `{ error }` envelope the web UI proxies ([validated by payload is the error envelope the web UI proxies, not boom's default](apps/floor/src/delivery/http/api-error.test.ts#L13)).
+- Data rides alongside the message there too ([validated by extra data rides alongside the message](apps/floor/src/delivery/http/api-error.test.ts#L19)).
+- A shaped refusal passes back out of a Floor catch ([validated by a refusal a guard already shaped passes straight back out](apps/floor/src/delivery/http/api-error.test.ts#L28)).
+- An ordinary Floor failure stays the catch block's to shape ([validated by an ordinary failure is the catch block's to shape](apps/floor/src/delivery/http/api-error.test.ts#L34)).
+
+2b. **A refusal survives an error-shaping `catch`.** A handler that wraps its
+   body in `try { … } catch { return … .code(500) }` would otherwise reshape a
+   guard's deliberate 404 into a server fault.
+
+- An already-shaped Boom passes straight back out of such a catch ([validated by a refusal a guard already shaped passes straight back out](apps/lore-api/src/server/api-error.test.ts#L41)).
+- An ordinary failure stays the catch block's to shape ([validated by an ordinary failure is the catch block's to shape](apps/lore-api/src/server/api-error.test.ts#L47)).
 
 3. **hapi parses payloads natively** (`parse: true`, the default). Write routes
    drop `parse: false`; handlers read a typed, validated `request.payload`

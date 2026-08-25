@@ -50,10 +50,49 @@ export interface NodeTranscriptViewProps {
 }
 
 function rowKey(row: TranscriptRow): string {
-  return row.kind === "iteration" ? `iteration-${row.iteration}` : row.seq;
+  if (row.kind === "iteration") {
+    return `iteration-${row.iteration}`;
+  }
+
+  return row.kind === "input" ? `input-${row.iteration}` : row.seq;
 }
 
 const Row = memo(function Row({ row }: { row: TranscriptRow }) {
+  if (row.kind === "input") {
+    // Collapsed like a tool result, and for the same reason: a 16 KB prompt would
+    // otherwise bury the transcript it is supposed to introduce.
+    return (
+      <li className={styles.input}>
+        <details>
+          <summary>
+            <span className={styles.label}>Input</span>
+            <span className={styles.text}>{row.summary}</span>
+            {row.truncated ? (
+              <span className={styles.badge}>truncated</span>
+            ) : null}
+          </summary>
+          <p className={styles.meta}>
+            {row.repo} @ {row.ref}
+          </p>
+          <pre className={styles.detail}>{row.description}</pre>
+          {row.prompt ? (
+            <pre className={styles.detail}>{row.prompt}</pre>
+          ) : null}
+          {row.params.length > 0 ? (
+            <dl className={styles.params}>
+              {row.params.map(([key, value]) => (
+                <div key={key}>
+                  <dt>{key}</dt>
+                  <dd>{value}</dd>
+                </div>
+              ))}
+            </dl>
+          ) : null}
+        </details>
+      </li>
+    );
+  }
+
   if (row.kind === "iteration") {
     return (
       <li className={styles.divider}>

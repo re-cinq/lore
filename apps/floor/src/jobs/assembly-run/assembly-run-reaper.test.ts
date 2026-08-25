@@ -10,6 +10,7 @@ import {
   assemblyLineReaperJob,
   decideNodeRecovery,
 } from "./assembly-run-reaper.js";
+import { LlmDispatchGate } from "./llm-dispatch-gate.js";
 
 const line: AssemblyLine = parseAssemblyLine(`
 name: code-review
@@ -43,7 +44,10 @@ describe("decideNodeRecovery", () => {
     nodeId: "review",
     iteration: 1,
     outcome: null,
+    failureClass: null,
+    failureDetail: null,
     agentCrName: "a1b2c3d4-review",
+    input: null,
     commitSha: null,
     startedAt: new Date(Date.now() - ageMinutes * MIN),
     finishedAt: null,
@@ -121,6 +125,32 @@ describe("decideNodeRecovery", () => {
     ).toEqual({ kind: "timeout" });
   });
 
+  it("waits on a just-born CR that reports Pending", () => {
+    // The read boundary answers Pending for a CR the controller has not stamped;
+    // only a 404 is absence, and only absence may relaunch.
+    expect(
+      decideNodeRecovery({
+        node: node(5),
+        timeoutMinutes: 15,
+        status: { phase: "Pending" },
+        nowMs,
+      }),
+    ).toEqual({ kind: "wait" });
+  });
+
+  it("waits out the startup grace before relaunching a missing CR", () => {
+    // A tick can land in the real window between the row insert and the CR create.
+    // Relaunching there races an in-flight provision (mirror of FR-10.4's grace).
+    expect(
+      decideNodeRecovery({
+        node: node(1),
+        timeoutMinutes: 15,
+        status: null,
+        nowMs,
+      }),
+    ).toEqual({ kind: "wait" });
+  });
+
   it("waits on a live in-budget CR", () => {
     expect(
       decideNodeRecovery({
@@ -138,6 +168,7 @@ function harness() {
   const launched: LoreTaskSpec[] = [];
   const statusByName: Record<string, AgentNodeStatus | null> = {};
   const taskStatusById: Record<string, string | null> = {};
+  const billingAlerts: Array<{ repo: string; nodeType: string }> = [];
 
   const deps = {
     assemblyRuns: port,
@@ -145,14 +176,20 @@ function harness() {
     launch: async (spec: LoreTaskSpec) => {
       launched.push(spec);
     },
-    resolvePrompt: (ref: string) => `prompt:${ref}`,
+    // Description-sensitive: a relaunch that rebuilt the prompt from the raw task
+    // description instead of the round content is invisible to a ref-only stub.
+    resolvePrompt: (ref: string, description: string) =>
+      `prompt:${ref}::${description}`,
     cleanupToken: async () => {},
     jobRuns: { complete: async () => {}, fail: async () => {} },
     readAgentStatus: async (name: string) => statusByName[name] ?? null,
     taskStatus: async (taskId: string) => taskStatusById[taskId] ?? null,
+    alertBilling: async (repo: string, nodeType: string) => {
+      billingAlerts.push({ repo, nodeType });
+    },
   };
 
-  return { port, launched, statusByName, taskStatusById, deps };
+  return { port, launched, statusByName, taskStatusById, billingAlerts, deps };
 }
 
 describe("assemblyLineReaperJob", () => {
@@ -187,6 +224,67 @@ describe("assemblyLineReaperJob", () => {
     expect(summary).toContain("resolved 1");
   });
 
+  it("alerts on a billing failure that arrives through the dropped-event door", async () => {
+    const h = harness();
+    const id = await h.port.start({
+      blueprintName: "code-review",
+      repo: "o/r",
+      args: {},
+    });
+
+    await h.port.markRunning(id);
+    const crName = `${id.substring(0, 12)}-review`;
+
+    await h.port.ensureStationRun({
+      assemblyRunId: id,
+      nodeId: "review",
+      iteration: 1,
+      agentCrName: crName,
+    });
+    h.statusByName[crName] = {
+      phase: "Failed",
+      failureReason: "BackoffLimitExceeded",
+      output: JSON.stringify({
+        type: "result",
+        is_error: true,
+        result: "Credit balance is too low",
+      }),
+    };
+
+    await assemblyLineReaperJob(h.deps);
+
+    expect(h.billingAlerts).toEqual([{ repo: "o/r", nodeType: "agent" }]);
+    expect(h.port.nodes[0]).toMatchObject({
+      failureClass: "anthropic-credit",
+      failureDetail: "Credit balance is too low",
+    });
+  });
+
+  it("does not relaunch a missing agent CR while the account is dry", async () => {
+    const h = harness();
+    const gate = new LlmDispatchGate(() => new Date());
+    const id = await h.port.start({
+      blueprintName: "code-review",
+      repo: "o/r",
+      args: {},
+    });
+
+    await h.port.markRunning(id);
+    await h.port.ensureStationRun({
+      assemblyRunId: id,
+      nodeId: "review",
+      iteration: 1,
+      agentCrName: `${id.substring(0, 12)}-review`,
+    });
+    gate.trip("anthropic-credit", "Credit balance is too low");
+
+    // The CR is missing, which normally means "crashed between row and launch,
+    // relaunch me" — every 60s, for the whole outage.
+    await assemblyLineReaperJob({ ...h.deps, llmGate: gate });
+
+    expect(h.launched).toEqual([]);
+  });
+
   it("fails a timed-out node as agent-timeout and routes the failed edge", async () => {
     const h = harness();
     const id = await h.port.start({
@@ -210,7 +308,13 @@ describe("assemblyLineReaperJob", () => {
 
     await assemblyLineReaperJob(h.deps);
 
-    expect(h.port.nodes[0]).toMatchObject({ outcome: "failed" });
+    expect(h.port.nodes[0]).toMatchObject({
+      outcome: "failed",
+      // A pod that stopped reporting died; that is infrastructure, not the work
+      // failing, and the row has to say so or the run is a blank "failed" again.
+      failureClass: "infra",
+    });
+    expect(h.port.nodes[0]?.failureDetail).toContain("timed out");
     // review --failed--> done: the line completes rather than wedging.
     expect(await h.port.getById(id)).toMatchObject({ status: "finished" });
   });
@@ -301,12 +405,16 @@ describe("relaunch label parity", () => {
     });
 
     await h.port.markRunning(id);
+    // Aged past the startup grace: inside it an absent CR reads as "not launched
+    // yet" rather than "crashed before launch".
+    h.port.clock = () => new Date(Date.now() - 5 * MIN);
     await h.port.ensureStationRun({
       assemblyRunId: id,
       nodeId: "review",
       iteration: 1,
       agentCrName: `${id.substring(0, 12)}-review`,
     });
+    h.port.clock = () => new Date();
     // No status for the CR name: decideNodeRecovery says relaunch.
 
     await assemblyLineReaperJob(h.deps);
@@ -315,5 +423,219 @@ describe("relaunch label parity", () => {
     expect(h.launched[0].extraLabels?.["lore.re-cinq.com/station-run-id"]).toBe(
       h.port.nodes[0].stationRunId,
     );
+  });
+});
+
+describe("a relaunch is the SAME dispatch, not a second builder", () => {
+  const conversation = {
+    source: "http://floor/api/agent-conversations",
+    id: "round-1",
+    pin: "round-2",
+    headersSecret: "agent-events-auth",
+  };
+
+  /** Age the station-run row past the startup grace so the reaper may act on it. */
+  const openNodePastGrace = async (
+    h: ReturnType<typeof harness>,
+    id: string,
+    iteration = 1,
+  ) => {
+    h.port.clock = () => new Date(Date.now() - 5 * MIN);
+    await h.port.ensureStationRun({
+      assemblyRunId: id,
+      nodeId: "review",
+      iteration,
+      agentCrName: `${id.substring(0, 12)}-review`,
+    });
+    h.port.clock = () => new Date();
+  };
+
+  it("a relaunch resumes the same conversation the first dispatch resolved", async () => {
+    // The reaper rebuilt the spec field by field and forgot the conversation; the
+    // launch then RE-PROVISIONED the per-task clone without it, deleting continuity
+    // from a live pod (#1466). One builder, one spec.
+    const h = harness();
+    const id = await h.port.start({
+      blueprintName: "code-review",
+      repo: "o/r",
+      args: {
+        description: "the whole draft",
+        round_feedback: '<RoundFeedback round="2"/>',
+      },
+    });
+
+    await h.port.markRunning(id);
+    await openNodePastGrace(h, id);
+    await assemblyLineReaperJob({
+      ...h.deps,
+      resolveConversation: async () => conversation,
+    });
+
+    expect(h.launched).toHaveLength(1);
+    expect(h.launched[0]).toMatchObject({
+      conversation,
+      // A resumed round sends only the new feedback — the same round content the
+      // first dispatch computed, in BOTH the description and the prompt.
+      description: '<RoundFeedback round="2"/>',
+      prompt: 'prompt:code-review::<RoundFeedback round="2"/>',
+    });
+  });
+
+  it("a relaunch of a round that resumed nothing carries the full composition", async () => {
+    const h = harness();
+    const id = await h.port.start({
+      blueprintName: "code-review",
+      repo: "o/r",
+      args: {
+        description: "the whole draft",
+        round_feedback: '<RoundFeedback round="1"/>',
+      },
+    });
+
+    await h.port.markRunning(id);
+    await openNodePastGrace(h, id);
+    await assemblyLineReaperJob({
+      ...h.deps,
+      resolveConversation: async () => ({ ...conversation, id: "" }),
+    });
+
+    expect(h.launched[0]).toMatchObject({ description: "the whole draft" });
+  });
+
+  it("a retry relaunch reports the failed prior visit, not the open row, as the prior outcome", async () => {
+    // A retry must NOT continue: the prior outcome decides that, and reading it off
+    // the open row (outcome null) would make every retry inherit a failed attempt.
+    const h = harness();
+    const seen: Array<string | null> = [];
+    const id = await h.port.start({
+      blueprintName: "code-review",
+      repo: "o/r",
+      args: { description: "d" },
+    });
+
+    await h.port.markRunning(id);
+    h.port.clock = () => new Date(Date.now() - 9 * MIN);
+    const first = await h.port.ensureStationRun({
+      assemblyRunId: id,
+      nodeId: "review",
+      iteration: 1,
+      agentCrName: `${id.substring(0, 12)}-review`,
+    });
+
+    await h.port.finishStationRunOnce(first.nodeRowId, "failed");
+    await openNodePastGrace(h, id, 2);
+    await assemblyLineReaperJob({
+      ...h.deps,
+      resolveConversation: async (_node, _task, _iteration, priorOutcome) => {
+        seen.push(priorOutcome);
+
+        return undefined;
+      },
+    });
+
+    expect(seen).toEqual(["failed"]);
+  });
+});
+
+describe("the reaper's resolve door delivers artifacts too", () => {
+  it("merges a declared artifact when the terminal event was dropped, exactly as the event door does", async () => {
+    // A dropped event makes THIS the only door that will ever read the output. An
+    // artifact delivered on one door and not the other is a difference nobody
+    // could predict from the run.
+    const h = harness();
+    const id = await h.port.start({
+      blueprintName: "code-review",
+      repo: "o/r",
+      taskId: "t1",
+      args: {},
+    });
+
+    await h.port.markRunning(id);
+    const crName = `${id.substring(0, 12)}-review`;
+
+    await h.port.ensureStationRun({
+      assemblyRunId: id,
+      nodeId: "review",
+      iteration: 1,
+      agentCrName: crName,
+    });
+    h.statusByName[crName] = {
+      phase: "Succeeded",
+      output: JSON.stringify({
+        source: { task: "t1" },
+        event: {
+          kind: "file",
+          event: "spec.plan",
+          path: "target/spec-plan.json",
+          content: '{"updates":[]}',
+        },
+      }),
+    };
+
+    await assemblyLineReaperJob(h.deps);
+
+    expect((await h.port.getById(id))?.args).toMatchObject({
+      spec_plan: '{"updates":[]}',
+    });
+  });
+});
+
+describe("a node whose station runs in the pooled service", () => {
+  const MINUTE = 60_000;
+  /** A service dispatch writes no CR name: there is no pod to name. */
+  const serviceNode = (ageMinutes: number) => ({
+    id: "1",
+    stationRunId: "station-run-1",
+    assemblyRunId: "al-1",
+    nodeId: "settle",
+    iteration: 1,
+    outcome: null,
+    failureClass: null,
+    failureDetail: null,
+    agentCrName: null,
+    input: null,
+    commitSha: null,
+    startedAt: new Date(Date.now() - ageMinutes * MINUTE),
+    finishedAt: null,
+  });
+
+  it("waits rather than relaunching it as a pod, since no pod was ever meant to exist", () => {
+    // Relaunching creates an Agent CR for a node the stations service is still
+    // holding: `def-merge-step` is seeded nowhere so it errors every tick, and
+    // for a type that IS seeded both the pod and the queued delivery would run —
+    // duplicate Issues, duplicate episodes.
+    expect(
+      decideNodeRecovery({
+        node: serviceNode(3),
+        timeoutMinutes: 5,
+        status: null,
+        nodeType: "merge_step",
+        nowMs: Date.now(),
+      }),
+    ).toEqual({ kind: "wait" });
+  });
+
+  it("still times it out past its budget, so a lost delivery does not park forever", () => {
+    expect(
+      decideNodeRecovery({
+        node: serviceNode(60),
+        timeoutMinutes: 5,
+        status: null,
+        nodeType: "merge_step",
+        nowMs: Date.now(),
+      }),
+    ).toEqual({ kind: "timeout" });
+  });
+
+  it("relaunches a POD node with no CR, which is the crash-between-row-and-launch case", () => {
+    expect(
+      decideNodeRecovery({
+        node: { ...serviceNode(3), agentCrName: "a1b2c3d4-validate" },
+        timeoutMinutes: 15,
+        status: null,
+        nodeType: "validate",
+        nowMs: Date.now(),
+      }),
+    ).toEqual({ kind: "relaunch" });
   });
 });

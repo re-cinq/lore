@@ -1,5 +1,7 @@
+import { StationRunInputSchema } from "../../models/station-run.js";
 import { enforceTrue } from "../../lib/enforce.js";
 import { resolveResumePrefix } from "./resume.js";
+import { fanOutClause } from "../events/fan-out.js";
 import { RUN_START_EVENT } from "./run-events.js";
 import type { RunGraph } from "./run-graph.js";
 import type { AssemblyRunQuery } from "./assembly-runs-port.js";
@@ -8,8 +10,10 @@ import type {
   AssemblyRunsPort,
   AssemblyRunResumeFrom,
   AssemblyRunStartInput,
+  StationRunFailure,
   StationRunStartInput,
   AssemblyRunRecord,
+  AssemblyRunSummary,
   StationRunRecord,
   OpenRunSummary,
 } from "./assembly-runs-port.js";
@@ -45,10 +49,23 @@ function toOpenSummary(row: OpenRunRow): OpenRunSummary {
   };
 }
 
-/** Every column `toRecord` maps, single-sourced so the four read sites cannot drift. */
-const LINE_COLUMNS = `id, graph, blueprint_name, task_id, repo, branch, subject_key, args, status, outcome, reason,
+/**
+ * Every column `toRecord` maps except `id`, which both lists lead with, and
+ * `graph`, the blueprint clone only the full read carries.
+ *
+ * The two read lists are otherwise identical, so the summary is DERIVED rather
+ * than restated: two hand-kept lists differing by one token is a column added to
+ * one of them and forgotten in the other.
+ */
+const SUMMARY_TAIL = `blueprint_name, task_id, repo, branch, subject_key, args, status, outcome, reason,
          blueprint_hash, resumed_from_run_id, resumed_from_node_id, inherited_node_count,
          created_at, started_at, finished_at`;
+
+/** {@link LINE_COLUMNS} without the blueprint clone — see `listSummaries`. */
+const SUMMARY_COLUMNS = `id, ${SUMMARY_TAIL}`;
+
+/** Every column `toRecord` maps, single-sourced so the four read sites cannot drift. */
+const LINE_COLUMNS = `id, graph, ${SUMMARY_TAIL}`;
 
 /**
  * Postgres-backed {@link AssemblyRunsPort} over `pipeline.assembly_runs` /
@@ -108,6 +125,9 @@ export class PgAssemblyRuns implements AssemblyRunsPort {
                 ),
                 $3, '${RUN_START_EVENT}:' || al.id
          FROM al
+         RETURNING id, event_name
+       ), fan AS (
+         ${fanOutClause("ev")}
        )
        SELECT id FROM al`,
       [
@@ -166,6 +186,15 @@ export class PgAssemblyRuns implements AssemblyRunsPort {
     // sequentially and its upsert mints no new id on replay, so "rows up to the
     // chosen visit" and "rows with id <= its id" are the same set (including for
     // a fork of a fork, whose copied rows are inserted in ORDER BY n.id).
+    //
+    // `failure_class` / `failure_detail` are dropped alongside `agent_cr_name`,
+    // and for the same reason: all three describe the ATTEMPT that is over, not
+    // the history the fork inherits. Copying the verdict would be worse than
+    // untidy — `getNextTransition` replays every visit from the entry node and
+    // fails the run on a permanent failure it meets on a revisit edge, so an
+    // inherited `anthropic-credit` visit anywhere in the copied prefix kills the
+    // fork on its first `advanceLine`. That is exactly the operation someone
+    // performs after topping the account up.
     const cutoffNodeRowId = prefix[prefix.length - 1].id;
     const { rows } = await this.pool.query(
       `WITH al AS (
@@ -188,12 +217,16 @@ export class PgAssemblyRuns implements AssemblyRunsPort {
                 ),
                 $3, '${RUN_START_EVENT}:' || al.id
          FROM al
+         RETURNING id, event_name
+       ), fan AS (
+         ${fanOutClause("ev")}
        ), copied AS (
          INSERT INTO pipeline.station_runs
-           (assembly_run_id, node_id, iteration, outcome, agent_cr_name,
-            commit_sha, started_at, finished_at)
+           (assembly_run_id, node_id, iteration, outcome, failure_class,
+            failure_detail, agent_cr_name, input, commit_sha, started_at, finished_at)
          SELECT al.id,
-                n.node_id, n.iteration, n.outcome, NULL, n.commit_sha, n.started_at, n.finished_at
+                n.node_id, n.iteration, n.outcome, NULL,
+                NULL, NULL, n.input, n.commit_sha, n.started_at, n.finished_at
            FROM pipeline.station_runs n, al
           WHERE n.assembly_run_id = $7
             AND n.id <= $9::bigint
@@ -273,16 +306,17 @@ export class PgAssemblyRuns implements AssemblyRunsPort {
     // row as absent under its snapshot and returns zero rows. `xmax = 0` is true
     // only for a fresh insert, so it distinguishes create from converged duplicate.
     const { rows } = await this.pool.query(
-      `INSERT INTO pipeline.station_runs (assembly_run_id, node_id, iteration, agent_cr_name)
-       VALUES ($1, $2, $3, $4)
+      `INSERT INTO pipeline.station_runs (assembly_run_id, node_id, iteration, agent_cr_name, input)
+       VALUES ($1, $2, $3, $4, $5::jsonb)
        ON CONFLICT (assembly_run_id, node_id, iteration)
-         DO UPDATE SET node_id = EXCLUDED.node_id
+         DO UPDATE SET input = COALESCE(pipeline.station_runs.input, EXCLUDED.input)
        RETURNING id, station_run_id, (xmax = 0) AS created`,
       [
         input.assemblyRunId,
         input.nodeId,
         input.iteration,
         input.agentCrName ?? null,
+        input.input ? JSON.stringify(input.input) : null,
       ],
     );
 
@@ -308,13 +342,21 @@ export class PgAssemblyRuns implements AssemblyRunsPort {
     nodeRowId: string,
     outcome: string,
     commitSha?: string,
+    failure?: StationRunFailure,
   ): Promise<boolean> {
     const { rows } = await this.pool.query(
       `UPDATE pipeline.station_runs
-         SET outcome = $1, commit_sha = $2, finished_at = now()
+         SET outcome = $1, commit_sha = $2, finished_at = now(),
+             failure_class = $4, failure_detail = $5
        WHERE id = $3 AND outcome IS NULL
        RETURNING id`,
-      [outcome, commitSha ?? null, nodeRowId],
+      [
+        outcome,
+        commitSha ?? null,
+        nodeRowId,
+        failure?.failureClass ?? null,
+        failure?.failureDetail ?? null,
+      ],
     );
 
     return rows.length === 1;
@@ -323,7 +365,8 @@ export class PgAssemblyRuns implements AssemblyRunsPort {
   async listStationRuns(assemblyRunId: string): Promise<StationRunRecord[]> {
     const { rows } = await this.pool.query(
       `SELECT id, station_run_id, assembly_run_id, node_id, iteration, outcome,
-              agent_cr_name, commit_sha, started_at, finished_at
+              failure_class, failure_detail,
+              agent_cr_name, input, commit_sha, started_at, finished_at
          FROM pipeline.station_runs
         WHERE assembly_run_id = $1
         ORDER BY id`,
@@ -383,6 +426,17 @@ export class PgAssemblyRuns implements AssemblyRunsPort {
     return rows[0] ? toOpenSummary(rows[0]) : null;
   }
 
+  async countBySubject(repo: string, subjectKey: string): Promise<number> {
+    const { rows } = await this.pool.query<{ n: string }>(
+      `SELECT count(*)::text AS n
+         FROM pipeline.assembly_runs
+        WHERE repo = $1 AND subject_key = $2`,
+      [repo, subjectKey],
+    );
+
+    return Number(rows[0]?.n ?? 0);
+  }
+
   async mergeArgs(id: string, patch: Record<string, unknown>): Promise<void> {
     // Merged in SQL, not read-modify-write: two nodes can produce artifacts within
     // the same tick, and a JS-side merge would let the second read stale args and
@@ -411,10 +465,38 @@ export class PgAssemblyRuns implements AssemblyRunsPort {
   }
 
   async list(query: AssemblyRunQuery): Promise<AssemblyRunRecord[]> {
-    // Built as a NULL-guarded predicate per field rather than by concatenating
-    // clauses: every parameter is bound, the statement text is identical for
-    // every filter combination (so Postgres can reuse the plan), and no caller
-    // input reaches the SQL as text.
+    const rows = await this.selectList(LINE_COLUMNS, query);
+
+    return rows.map((r) => toRecord(r as Parameters<typeof toRecord>[0]));
+  }
+
+  async listSummaries(query: AssemblyRunQuery): Promise<AssemblyRunSummary[]> {
+    const rows = await this.selectList(SUMMARY_COLUMNS, query);
+
+    return rows.map((r) => {
+      // toRecord maps `graph` too, and the column is absent here — so drop the
+      // key rather than let it read back as a null the run does not have.
+      const { graph: _graph, ...summary } = toRecord({
+        ...(r as Parameters<typeof toRecord>[0]),
+        graph: null,
+      });
+
+      return summary;
+    });
+  }
+
+  /**
+   * The one filtered read both list shapes run.
+   *
+   * Built as a NULL-guarded predicate per field rather than by concatenating
+   * clauses: every parameter is bound, the statement text is identical for
+   * every filter combination (so Postgres can reuse the plan), and no caller
+   * input reaches the SQL as text.
+   */
+  private async selectList(
+    columns: string,
+    query: AssemblyRunQuery,
+  ): Promise<unknown[]> {
     const blueprints =
       query.blueprintName === undefined
         ? null
@@ -422,7 +504,7 @@ export class PgAssemblyRuns implements AssemblyRunsPort {
           ? [query.blueprintName]
           : [...query.blueprintName];
     const { rows } = await this.pool.query(
-      `SELECT ${LINE_COLUMNS}
+      `SELECT ${columns}
          FROM pipeline.assembly_runs
         WHERE ($1::text   IS NULL OR repo = $1)
           AND ($2::text[] IS NULL OR blueprint_name = ANY($2::text[]))
@@ -448,7 +530,7 @@ export class PgAssemblyRuns implements AssemblyRunsPort {
       ],
     );
 
-    return rows.map((r) => toRecord(r as Parameters<typeof toRecord>[0]));
+    return rows;
   }
 
   async listForTask(taskId: string): Promise<AssemblyRunRecord[]> {
@@ -525,7 +607,10 @@ function toNodeRecord(row: {
   node_id: string;
   iteration: number;
   outcome: string | null;
+  failure_class: string | null;
+  failure_detail: string | null;
   agent_cr_name: string | null;
+  input: unknown;
   commit_sha: string | null;
   started_at: Date;
   finished_at: Date | null;
@@ -537,7 +622,15 @@ function toNodeRecord(row: {
     nodeId: row.node_id,
     iteration: row.iteration,
     outcome: row.outcome,
+    failureClass: row.failure_class,
+    failureDetail: row.failure_detail,
     agentCrName: row.agent_cr_name,
+    // A shape the schema rejects reads as "not captured" rather than throwing:
+    // this column is diagnostics, and a bad row must not break the walk that
+    // reads the visits beside it.
+    input: StationRunInputSchema.nullable()
+      .catch(null)
+      .parse(row.input ?? null),
     commitSha: row.commit_sha,
     startedAt: row.started_at,
     finishedAt: row.finished_at,

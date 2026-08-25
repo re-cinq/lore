@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest";
 import {
   classifyError,
+  isFailureCategory,
+  isPermanentFailure,
   summarizeFailures,
   TaskFailure,
 } from "./error-classify.js";
@@ -38,6 +40,39 @@ describe("classifyError", () => {
     });
   });
 
+  it("returns anthropic-credit for an insufficient-credit message", () => {
+    expect(classifyError("insufficient credit for this request")).toMatchObject(
+      {
+        category: "anthropic-credit",
+      },
+    );
+  });
+
+  it("returns anthropic-credit for the agent's bare terminal text", () => {
+    expect(classifyError("Credit balance is too low")).toMatchObject({
+      category: "anthropic-credit",
+    });
+  });
+
+  it("returns infra for a Job-level BackoffLimitExceeded", () => {
+    expect(
+      classifyError(
+        "BackoffLimitExceeded: Job has reached the specified backoff limit",
+      ),
+    ).toMatchObject({ category: "infra" });
+  });
+
+  it("returns infra for a Job deadline and for an evicted pod", () => {
+    expect(
+      classifyError(
+        "DeadlineExceeded: Job was active longer than the deadline",
+      ),
+    ).toMatchObject({ category: "infra" });
+    expect(classifyError("Pod was Evicted: ephemeral storage")).toMatchObject({
+      category: "infra",
+    });
+  });
+
   it("returns unknown for an unrecognized message", () => {
     expect(classifyError("something exploded")).toMatchObject({
       category: "unknown",
@@ -50,12 +85,66 @@ describe("classifyError", () => {
       "429 rate limit",
       "Resource not accessible by integration",
       "401 Bad credentials",
+      "BackoffLimitExceeded: Job has reached the specified backoff limit",
       "weird unmatched failure",
     ];
 
     for (const m of messages) {
       expect(classifyError(m).hint.length).toBeGreaterThan(0);
     }
+  });
+});
+
+describe("the infra matcher and the agent's own timeouts", () => {
+  it.each([
+    "DeadlineExceeded: Job was active longer than specified deadline",
+    "Job lore-station-x timed out",
+    "timed out waiting for the condition",
+    "OOMKilled",
+    "Evicted: The node was low on resource: ephemeral-storage",
+  ])("classifies %s as infra", (message) => {
+    expect(classifyError(message)).toMatchObject({ category: "infra" });
+  });
+
+  it("leaves the agent's own request timeout unclassified, not infra", () => {
+    // The infra hint says "the pod died rather than the work failing". For an
+    // Anthropic request timeout that sentence is false, and it is the one line
+    // an operator reads to find out what happened.
+    expect(classifyError("Request timed out")).toMatchObject({
+      category: "unknown",
+    });
+  });
+});
+
+describe("isFailureCategory", () => {
+  it("accepts a category the module declares", () => {
+    expect(isFailureCategory("anthropic-credit")).toBe(true);
+  });
+
+  it("rejects a name inherited from Object.prototype", () => {
+    // `in` walks the prototype chain: with it, both of these answered true and
+    // failureHint returned a function, which the terminal reason would have
+    // interpolated as source text.
+    expect(isFailureCategory("toString")).toBe(false);
+    expect(isFailureCategory("constructor")).toBe(false);
+  });
+});
+
+describe("isPermanentFailure", () => {
+  it("returns true for the categories no retry can fix", () => {
+    expect(isPermanentFailure("anthropic-credit")).toEqual(true);
+    expect(isPermanentFailure("auth")).toEqual(true);
+    expect(isPermanentFailure("github-permission")).toEqual(true);
+    expect(isPermanentFailure("github-workflows-permission")).toEqual(true);
+  });
+
+  it("returns false for a rate limit, which a later attempt can clear", () => {
+    expect(isPermanentFailure("anthropic-rate-limit")).toEqual(false);
+  });
+
+  it("returns false for infra and unknown, which are worth one retry", () => {
+    expect(isPermanentFailure("infra")).toEqual(false);
+    expect(isPermanentFailure("unknown")).toEqual(false);
   });
 });
 

@@ -11,7 +11,7 @@
  * the same latent drift class, tracked in #1397.
  */
 
-import { agentRunEvents } from "../../../kernel/queues.js";
+import { pipeline } from "../../../kernel/queues.js";
 import type { ServerRoute } from "@hapi/hapi";
 import type { AgentRunEventRow } from "@re-cinq/lore-shared";
 
@@ -42,7 +42,7 @@ export function agentEventsHistoryRoute(events?: {
     path: "/api/agent-events/{assemblyRunId}",
     options: { auth: "ingest-token" },
     handler: async (request, h) => {
-      const rows = await (events ?? agentRunEvents()).listSince(
+      const rows = await (events ?? pipeline().agentRunEvents).listSince(
         request.params.assemblyRunId,
         parseAfter(request.query.after),
         parseLimit(request.query.limit),

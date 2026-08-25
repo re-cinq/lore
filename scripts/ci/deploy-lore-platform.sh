@@ -6,7 +6,9 @@
 # at once (e.g. a libs/shared change rebuilds floor + mcp). We must serialize
 # them without dropping any. A GitHub `concurrency` group can't (it keeps only one
 # pending run and cancels the rest), so we serialize on Helm's own release lock:
-#   - retry while another deploy holds the lock ("another operation … in progress")
+#   - retry while another deploy holds the lock (helm-lock-contention.sh knows the
+#     three spellings helm uses for it, and is tested — misreading one abandons a
+#     deploy while its siblings ship)
 #   - clear ONLY a STALE (>5m) pending revision left by a dead run — never an
 #     active concurrent deploy's fresh lock.
 #
@@ -51,7 +53,14 @@ if [ -n "$VALUES_OVERLAY" ]; then
 fi
 HOME_NS="lore-floor" # the umbrella release record lives here
 STALE_SECS=300       # a pending revision older than this is from a dead run, not an active deploy
-ATTEMPTS=12
+# 12 x 30s was six minutes of headroom, which is less than the queue it has to
+# wait through. A libs/shared change rebuilds EVERY service, so eight deploys
+# serialize on one release at roughly a minute each; on 2026-08-25 the
+# event-router correctly retried the lock eleven times and then ran out of
+# budget with two deploys still ahead of it. Twenty-four covers a full fan-out
+# with room to spare, and costs nothing when there is no contention — the loop
+# exits on the first successful upgrade.
+ATTEMPTS=24
 ERRLOG="$(mktemp)"
 
 # Clear a pending-* revision secret ONLY if it is older than STALE_SECS — i.e. a
@@ -116,7 +125,7 @@ for attempt in $(seq 1 "$ATTEMPTS"); do
     exit 1
   fi
   cat "$ERRLOG" >&2 # surface the failure in the CI log
-  if grep -qiE 'another operation \(.*\) is in progress' "$ERRLOG"; then
+  if bash "$(dirname "$0")/helm-lock-contention.sh" <"$ERRLOG"; then
     echo "[lore] release locked by a concurrent deploy; retry ${attempt}/${ATTEMPTS} in 30s"
     sleep 30
     continue

@@ -1,6 +1,6 @@
 // The event-driven walk's shared IO orchestration (spec 6-dark-factory FR6): every
 // node-terminal event (or reaper-synthesized timeout) records the node's outcome and
-// re-derives "what happens next" purely from the persisted node rows (nextTransition).
+// re-derives "what happens next" purely from the persisted node rows (getNextTransition).
 // There is no walker process — a Floor restart loses nothing; duplicate/concurrent
 // advancers converge on the UNIQUE (line, node, iteration) row and the 409-idempotent
 // CR create.
@@ -13,22 +13,44 @@ import type {
 } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
 import {
   isHumanStation,
-  nextTransition,
+  nodeFailureReason,
+  getNextTransition,
   type AssemblyLine,
   type NodeVisit,
   type NodeResult,
   type StageOutcome,
 } from "@re-cinq/lore-assembly-lines";
-import { graphForRun } from "@re-cinq/lore-assembly-lines";
-import type { RunGraphNode } from "@re-cinq/lore-shared/project/assembly-runs/run-graph.js";
+import { resolveRunGraph } from "@re-cinq/lore-assembly-lines";
+import { nodeStationFor } from "@re-cinq/lore-stations";
+
+/** Published when a node's station runs in the pooled service rather than a pod.
+ *  Subject-first like the rest of the assembly_run family: several producers,
+ *  one subject. */
+
+/** True when this node type's station runs in the pooled service, not a pod. */
+const isServiceNode = (nodeType: string): boolean =>
+  nodeStationFor(nodeType)?.manifest.triggers.some(
+    (t) => t.kind === "node" && t.runtime === "service",
+  ) === true;
+
 import {
   nodeAgentName,
-  nodeAgentSpec,
-  nodeStationSpec,
+  stationNodeParams,
+  stationRunInputFor,
   type FloorAssemblyRunTask,
 } from "./floor-assembly-run.js";
+import {
+  SERVICE_NODE_EVENT,
+  serviceNodeDedupeKey,
+} from "@re-cinq/lore-shared/project/events/service-node-event.js";
+import { lineWritesOwnEpisode } from "./run-episode.js";
 import { isFailureOutcome } from "./notify-failure.js";
-import { roundContent } from "./round-content.js";
+import {
+  nodeLaunchSpec,
+  priorOutcomeOf,
+  resolveNodeDispatch,
+  type ResolveConversationFn,
+} from "./launch-spec.js";
 import {
   decidePrStamp,
   decideStampFailure,
@@ -48,8 +70,65 @@ export interface AdvanceDeps {
   /** Dispatch one node's Agent CR (agentCrBackend().launch — 409 is a no-op). */
   launch: (spec: LoreTaskSpec) => Promise<void>;
   resolvePrompt: (promptRef: string, description: string) => string;
+  /** Post-close hook for choreography that re-arms on a run's terminal state
+   *  (the implementation loop's driver). Winning finisher only, best-effort —
+   *  a throw here never un-finishes the run. Optional seam like notifyFailure. */
+  onRunClosed?(
+    run: AssemblyRunRecord,
+    outcome: string,
+    reason?: string,
+  ): Promise<void>;
   /** Reclaim the run's per-task token once the line is terminal. */
   cleanupToken: (runTaskId: string) => Promise<void>;
+  /**
+   * React to a node FINISHING, whichever door reported it.
+   *
+   * Injected rather than called directly so this module keeps importing only its
+   * own folder — the shape `alertBilling` already uses. It is wired once, in
+   * `productionNodeEventDeps`, which every door resolves its deps from: the CR
+   * event, the reaper's resolve, and a station reporting over `assembly_run.resume`.
+   * Routing that lived on ONE door meant a triage node resolved by the reaper
+   * silently never started its follow-up.
+   */
+  onNodeFinished?: (
+    row: AssemblyRunRecord,
+    nodeId: string,
+    result: NodeResult,
+  ) => Promise<void>;
+  /**
+   * Publish a node for the pooled service to claim, instead of giving it a pod.
+   *
+   * A station whose manifest says `runtime: "service"` needs none of what a pod
+   * provides — no workspace clone, no per-node identity, no deadline of its own —
+   * and a pod per DB write or per HTTP POST is the waste the service form exists
+   * to remove. The service reports the outcome back over `assembly_run.resume`,
+   * the same channel a person reports through, so the walk converges either way.
+   *
+   * Optional seam, like notifyFailure: a composition without it simply never
+   * dispatches a service node, which the reaper then times out visibly.
+   */
+  publishNode?: (event: {
+    eventName: string;
+    params: Record<string, unknown>;
+    dedupeKey?: string;
+  }) => Promise<void>;
+  /**
+   * Record what a finished run did, as an episode.
+   *
+   * This was the `retrospective` station's job and it never ran: every blueprint
+   * names retrospective as its EXIT, and the walk finishes AT the exit rather
+   * than dispatching it — 248 recorded node visits, none of them a retrospective.
+   * So no assembly run has ever written one. It happens here instead, where the
+   * run actually ends, which is also where the Floor already does its terminal
+   * bookkeeping.
+   *
+   * Optional seam, like notifyFailure.
+   */
+  recordRunEpisode?: (
+    run: AssemblyRunRecord,
+    outcome: string,
+    reason: string | undefined,
+  ) => Promise<void>;
   /** Detection-line bookkeeping: close the `args.job_run_id` pipeline.job_runs row
    *  with the line's terminal state (the fan-out pre-created it). */
   jobRuns: {
@@ -59,36 +138,41 @@ export interface AdvanceDeps {
   /** User-facing failure notification (Slack + PR comment), fired once per line by
    *  the winning finisher. Optional seam — tests and partial compositions omit it. */
   notifyFailure?: (
-    row: AssemblyRunRecord,
+    assemblyRun: AssemblyRunRecord,
     outcome: string,
     reason?: string,
   ) => Promise<void>;
   /** Resolve a node's `continues` declaration into the conversation this run should
    *  continue and save as. Optional seam — a composition without it simply never
    *  continues, which is the pre-feature behaviour. */
-  resolveConversation?: (
-    node: RunGraphNode,
-    task: FloorAssemblyRunTask,
-    iteration: number,
-    priorOutcome: string | null,
-  ) => Promise<LoreTaskSpec["conversation"] | undefined>;
+  resolveConversation?: ResolveConversationFn;
   /** Close the line's backing pipeline task — and, for a planning round, its feature
    *  iteration — so a failed line stops reading as "still running" everywhere
    *  downstream. Optional seam, same as notifyFailure. */
   settleTask?: (
-    row: AssemblyRunRecord,
+    assemblyRun: AssemblyRunRecord,
     outcome: string,
     reason?: string,
   ) => Promise<void>;
+  /**
+   * The factory's stop button for an account-wide LLM outage. Consulted BEFORE a
+   * station-run row is minted, so a blocked node parks with no row and no CR and
+   * the reaper simply re-drives the line later. Optional seam — a composition
+   * without it dispatches exactly as before.
+   */
+  llmGate?: {
+    isBlocked(): boolean;
+    trip(failureClass: string, detail?: string): boolean;
+  };
   /** Ensure the PR the `push` node produced exists and is recorded on the line
    *  (`args.pr_number`), moving a feature-carrying line to `pr-open`. Nothing else
    *  does it: the push recipe defers to a watcher that ignores assembly-line CRs.
    *  Optional seam, same as notifyFailure. */
-  stampPr?: (row: AssemblyRunRecord) => Promise<void>;
+  stampPr?: (assemblyRun: AssemblyRunRecord) => Promise<void>;
 }
 
 /** A walk that reached exit still failed as a whole when a node failed on the way
- *  (every definition routes `failed` edges toward exit so the retrospective runs) —
+ *  (every definition routes `failed` edges toward exit so the run settles) —
  *  "completed" would render a green check over a failed review. */
 export function lineOutcomeFromVisits(visits: NodeVisit[]): {
   outcome: "completed" | "failed";
@@ -96,17 +180,12 @@ export function lineOutcomeFromVisits(visits: NodeVisit[]): {
 } {
   const failed = visits.find((v) => visitFailed(v.outcome));
 
+  // `nodeFailureReason` degrades to the old `node "<id>" failed` wording when the
+  // visit carries no classification, so rows written before migration 0042 read
+  // exactly as they did.
   return failed
-    ? { outcome: "failed", reason: `node "${failed.nodeId}" failed` }
+    ? { outcome: "failed", reason: nodeFailureReason(failed) }
     : { outcome: "completed" };
-}
-
-/** The outcome of a node's most recent recorded visit, or null if it has never run.
- *  Distinguishes a retry (its own last attempt failed) from a next round. */
-function priorOutcomeOf(visits: NodeVisit[], nodeId: string): string | null {
-  const own = visits.filter((v) => v.nodeId === nodeId);
-
-  return own.length ? (own[own.length - 1].outcome ?? null) : null;
 }
 
 function visitFailed(outcome: StageOutcome | null): boolean {
@@ -124,16 +203,18 @@ function visitFailed(outcome: StageOutcome | null): boolean {
 }
 
 /** The walk task shape, derived from the persisted row instead of an in-memory task. */
-export function taskFromRow(row: AssemblyRunRecord): FloorAssemblyRunTask {
+export function taskFromAssemblyRun(
+  assemblyRun: AssemblyRunRecord,
+): FloorAssemblyRunTask {
   return {
-    taskId: row.taskId ?? row.id,
-    pipelineTaskId: row.taskId,
-    assemblyLineId: row.id,
-    taskType: row.blueprintName,
-    description: String(row.args.description ?? ""),
-    targetRepo: row.repo,
-    branch: row.branch ?? "",
-    args: row.args,
+    taskId: assemblyRun.taskId ?? assemblyRun.id,
+    pipelineTaskId: assemblyRun.taskId,
+    assemblyLineId: assemblyRun.id,
+    taskType: assemblyRun.blueprintName,
+    description: String(assemblyRun.args.description ?? ""),
+    targetRepo: assemblyRun.repo,
+    branch: assemblyRun.branch ?? "",
+    args: assemblyRun.args,
   };
 }
 
@@ -144,15 +225,15 @@ export async function advanceLine(
   assemblyLineId: string,
   deps: AdvanceDeps,
 ): Promise<void> {
-  const row = await deps.assemblyRuns.getById(assemblyLineId);
+  const assemblyRun = await deps.assemblyRuns.getById(assemblyLineId);
 
-  if (!row || row.status !== "running") {
+  if (!assemblyRun || assemblyRun.status !== "running") {
     return;
   }
 
-  const graph = await graphForRun(row, deps.definitions);
+  const runGraph = await resolveRunGraph(assemblyRun, deps.definitions);
 
-  if (!graph) {
+  if (!runGraph) {
     // A single-CR run record (FR6.8) — the agent-watcher owns its lifecycle.
     return;
   }
@@ -163,8 +244,14 @@ export async function advanceLine(
     nodeId: n.nodeId,
     iteration: n.iteration,
     outcome: n.outcome as StageOutcome | null,
+    // The replay decides whether a retry could help, so the class has to travel
+    // with the visit — reading it back off the row is what survives a Floor
+    // restart mid-line.
+    failureClass: n.failureClass,
+    failureDetail: n.failureDetail,
   }));
-  const transition = nextTransition(graph, visits);
+
+  const transition = getNextTransition(runGraph, visits);
 
   if (transition.kind === "await") {
     return;
@@ -176,63 +263,69 @@ export async function advanceLine(
         ? lineOutcomeFromVisits(visits)
         : { outcome: transition.outcome, reason: transition.reason };
 
-    await finishLine(row, outcome, reason, deps);
+    await finishLine(assemblyRun, outcome, reason, deps);
 
     return;
   }
 
-  const node = graph.nodes.find((n) => n.id === transition.nodeId);
+  const node = runGraph.nodes.find((n) => n.id === transition.nodeId);
 
   enforceTrue(
     node,
     Error,
-    `AssemblyLine ${graph.name}: unknown node "${transition.nodeId}"`,
+    `AssemblyLine ${runGraph.name}: unknown node "${transition.nodeId}"`,
   );
-  const task = taskFromRow(row);
-  // Resolved BEFORE the prompt: whether this run resumes a conversation decides how
-  // much round content the prompt must carry. Only agent nodes hold one — a station
-  // runs a deterministic command.
-  const conversation =
-    node.type === "agent" && deps.resolveConversation
-      ? await deps.resolveConversation(
-          node,
-          task,
-          transition.iteration,
-          priorOutcomeOf(visits, transition.nodeId),
-        )
-      : undefined;
-  // The round content BOTH fields carry. The recipe the pod runs renders
-  // {description}, so setting only the prompt hands a resumed round the full draft
-  // again — and the two disagreeing about what this run is working from is a bug in
-  // either direction.
-  const content = roundContent(task, conversation);
+
+  // Before ANY of the work below — the conversation lookup, the row, the CR. An
+  // agent node dispatched into a dry account is decided before its pod starts:
+  // it will boot, install, call the API once, and die. Park it instead. Only
+  // agent nodes are gated; a validate or gate station has no model call to fail.
+  if (node.type === "agent" && deps.llmGate?.isBlocked()) {
+    // Parking is INVISIBLE otherwise: this returns void, so the caller cannot
+    // tell "parked" from "advanced", and during an outage an operator gets one
+    // gate-trip warning and then silence while runs sit `running` with no open
+    // node. Naming the run and the node is what answers "which ones are
+    // waiting", at one line per reaper tick per parked run.
+    console.log(
+      `[llm-dispatch-gate] parked ${assemblyRun.id} at node "${node.id}" — agent dispatch is blocked`,
+    );
+
+    return;
+  }
+  const task = taskFromAssemblyRun(assemblyRun);
+  // Resolved BEFORE the row, because the row RECORDS it: the prompt and round
+  // content a pod runs on otherwise exist only on an Agent CR that is pruned
+  // after the run, and "what was this node given" then has no answer at all.
+  const dispatch = await resolveNodeDispatch(
+    {
+      node,
+      task,
+      iteration: transition.iteration,
+      priorOutcome: priorOutcomeOf(visits, transition.nodeId),
+    },
+    deps,
+  );
   // Row before CR: a crash in between leaves an open row the reaper resolves by
   // reading the (deterministically named) CR; a rowless CR would be invisible.
   // The row is also what MINTS the station-run id — a converged duplicate returns
   // the id already minted, so a re-dispatch of the same visit carries the same
   // label rather than a second identity.
+  //
+  // A node the POOLED SERVICE will run names no CR, because none will exist. That
+  // null is what the reaper reads: a missing CR for a POD node is the
+  // crash-between-row-and-launch case and is relaunched, while a service node
+  // relaunched as a pod would run alongside the delivery still queued for it —
+  // duplicate Issues, duplicate episodes.
+  const runsInService = isServiceNode(node.type);
   const { stationRunId } = await deps.assemblyRuns.ensureStationRun({
     assemblyRunId: assemblyLineId,
     nodeId: node.id,
     iteration: transition.iteration,
-    agentCrName: nodeAgentName(assemblyLineId, node.id, transition.iteration),
+    agentCrName: runsInService
+      ? null
+      : nodeAgentName(assemblyLineId, node.id, transition.iteration),
+    input: stationRunInputFor(node, task, dispatch.content, dispatch.prompt),
   });
-
-  // Iteration rides into the CR name + labels so a revisited node runs a fresh pod.
-  const spec =
-    node.type === "agent"
-      ? nodeAgentSpec(
-          node,
-          { ...task, description: content },
-          deps.resolvePrompt(node.prompt_ref ?? node.type, content),
-          transition.iteration,
-          stationRunId,
-        )
-      : nodeStationSpec(node, task, transition.iteration, stationRunId);
-
-  if (conversation) {
-    spec.conversation = conversation;
-  }
 
   // A human station's worker is outside the pod system — a person in the wizard,
   // or a reviewer on the PR page. The row is what parks the walk and lets the graph
@@ -242,17 +335,65 @@ export async function advanceLine(
     return;
   }
 
-  await deps.launch(spec);
+  // A station that runs in the pooled service is PUBLISHED, not launched: the row
+  // above already exists, so the service has something to report against, and the
+  // dedupe key is that row — a redelivered event cannot run the node twice.
+  if (runsInService) {
+    await deps.publishNode?.({
+      eventName: SERVICE_NODE_EVENT,
+      dedupeKey: serviceNodeDedupeKey(stationRunId),
+      params: {
+        stationRunId,
+        assemblyLineId,
+        nodeId: node.id,
+        iteration: transition.iteration,
+        nodeType: node.type,
+        repo: assemblyRun.repo,
+        branch: assemblyRun.branch,
+        taskId: assemblyRun.taskId ?? null,
+        params: stationNodeParams(node, task),
+      },
+    });
+
+    return;
+  }
+
+  // Iteration rides into the CR name + labels so a revisited node runs a fresh pod.
+  // The builder is shared with the reaper's relaunch: two of them is how the
+  // conversation and the round content went missing on that door (#1466).
+  await deps.launch(
+    nodeLaunchSpec(dispatch, {
+      node,
+      task,
+      iteration: transition.iteration,
+      stationRunId,
+      priorOutcome: priorOutcomeOf(visits, transition.nodeId),
+    }),
+  );
 }
 
 /** Close the row, reclaim the token, and settle the detect fan-out's job_run. */
 export async function finishLine(
-  row: AssemblyRunRecord,
+  assemblyRun: AssemblyRunRecord,
   outcome: string,
   reason: string | undefined,
   deps: AdvanceDeps,
 ): Promise<void> {
-  const jobRunId = row.args.job_run_id;
+  // Telemetry, so it never decides whether the run closes: a run whose episode
+  // could not be written is still a finished run, and swallowing here is the same
+  // bias maybeStampPr takes for the same reason.
+  if (deps.recordRunEpisode && !lineWritesOwnEpisode(assemblyRun.graph)) {
+    try {
+      await deps.recordRunEpisode(assemblyRun, outcome, reason);
+    } catch (err) {
+      console.warn(
+        `[assembly-run] episode for ${assemblyRun.id} not recorded:`,
+        (err as Error).message,
+      );
+    }
+  }
+
+  const jobRunId = assemblyRun.args.job_run_id;
 
   // Settle the detect fan-out's job_run BEFORE closing the row: if the row close
   // commits but this step then throws, the event retry's advanceLine early-returns
@@ -263,7 +404,7 @@ export async function finishLine(
     if (outcome === "completed") {
       await deps.jobRuns.complete(
         jobRunId,
-        `station run: ${row.blueprintName}:${row.repo} ${outcome}`,
+        `station run: ${assemblyRun.blueprintName}:${assemblyRun.repo} ${outcome}`,
       );
     } else if (outcome === "lease_held") {
       await deps.jobRuns.complete(jobRunId, `skipped: ${reason}`);
@@ -272,25 +413,37 @@ export async function finishLine(
     }
   }
 
-  const closedNow = await deps.assemblyRuns.finish(row.id, outcome, reason);
+  const closedNow = await deps.assemblyRuns.finish(
+    assemblyRun.id,
+    outcome,
+    reason,
+  );
 
   // finish is first-writer-wins — a losing racer (node event vs reaper re-advance)
   // closes 0 rows yet still reaches here, so cleanupToken MUST be idempotent
   // (cleanupPerTaskToken swallows 404s); the double-reclaim is a harmless no-op.
-  await deps.cleanupToken(row.taskId ?? row.id);
+  await deps.cleanupToken(assemblyRun.taskId ?? assemblyRun.id);
 
   // The winning finisher also settles the backing task. Without this a line-backed
   // task stays `running` with a NULL failure_reason forever — the watcher's
   // post-completion path returns early for node CRs, so nobody else ever closes it.
   if (closedNow && deps.settleTask) {
-    await deps.settleTask(row, outcome, reason);
+    await deps.settleTask(assemblyRun, outcome, reason);
+  }
+
+  if (closedNow && deps.onRunClosed) {
+    try {
+      await deps.onRunClosed(assemblyRun, outcome, reason);
+    } catch (err) {
+      console.error("[on-run-closed] hook threw:", (err as Error).message);
+    }
   }
 
   // Only the winning finisher tells the user — losers would duplicate the Slack
   // message and PR comment. Never let a notification failure poison the close.
   if (closedNow && isFailureOutcome(outcome) && deps.notifyFailure) {
     try {
-      await deps.notifyFailure(row, outcome, reason);
+      await deps.notifyFailure(assemblyRun, outcome, reason);
     } catch (err) {
       console.error("[notify-failure] notifier threw:", (err as Error).message);
     }
@@ -319,15 +472,68 @@ export async function finishNodeAndAdvance(
         )
       : forNode.filter((n) => n.outcome === null).at(-1);
 
-  if (target) {
-    await deps.assemblyRuns.finishStationRunOnce(
+  // The CAS answer, not a discarded side effect: `false` means another delivery
+  // already closed this node, and `undefined` target means it was closed before
+  // this one even read. Either way the follow-up ALREADY fired, and firing it
+  // again re-routes a comment-triage result that was routed a moment ago.
+  const closedHere =
+    target !== undefined &&
+    (await deps.assemblyRuns.finishStationRunOnce(
       target.id,
       input.result.outcome,
+      undefined,
+      {
+        failureClass: input.result.failureClass,
+        failureDetail: input.result.failureDetail,
+      },
+    ));
+
+  // The once-only effects are gated on having won the CAS; the walk is NOT.
+  // advanceLine re-derives its next step from the node rows, so running it again
+  // is a no-op when the first delivery got there — and the recovery when that
+  // delivery closed the node and then died before advancing.
+  if (closedHere) {
+    await maybeStampPr(input.assemblyLineId, input.nodeId, input.result, deps);
+    await reactToNodeFinished(
+      input.assemblyLineId,
+      input.nodeId,
+      input.result,
+      deps,
     );
   }
 
-  await maybeStampPr(input.assemblyLineId, input.nodeId, input.result, deps);
   await advanceLine(input.assemblyLineId, deps);
+}
+
+/**
+ * Run the node-finished reaction, and never let it stop the walk.
+ *
+ * A follow-up that cannot be started is worth a log line; a run parked forever
+ * because the thing that reads its result threw is not. Same bias as
+ * `maybeStampPr`, for the same reason.
+ */
+async function reactToNodeFinished(
+  assemblyLineId: string,
+  nodeId: string,
+  result: NodeResult,
+  deps: AdvanceDeps,
+): Promise<void> {
+  if (!deps.onNodeFinished) {
+    return;
+  }
+
+  try {
+    const row = await deps.assemblyRuns.getById(assemblyLineId);
+
+    if (row) {
+      await deps.onNodeFinished(row, nodeId, result);
+    }
+  } catch (err) {
+    console.warn(
+      `[assembly-run] node-finished reaction failed for ${nodeId}:`,
+      (err as Error).message,
+    );
+  }
 }
 
 /** Record the PR a successful `push` node produced, before the walk moves on.
@@ -352,35 +558,40 @@ async function maybeStampPr(
   if (!deps.stampPr) {
     return;
   }
-  const row = await deps.assemblyRuns.getById(assemblyLineId);
+  const assemblyRun = await deps.assemblyRuns.getById(assemblyLineId);
 
-  if (!row) {
+  if (!assemblyRun) {
     return;
   }
 
   try {
-    const node = (await graphForRun(row, deps.definitions))?.nodes.find(
-      (n) => n.id === nodeId,
-    );
+    const node = (
+      await resolveRunGraph(assemblyRun, deps.definitions)
+    )?.nodes.find((n) => n.id === nodeId);
 
     if (
       !decidePrStamp({
         promptRef: node?.prompt_ref,
         outcome: result.outcome,
-        args: row.args,
+        args: assemblyRun.args,
       })
     ) {
       return;
     }
 
-    await deps.stampPr(row);
+    await deps.stampPr(assemblyRun);
   } catch (err) {
     const message = (err as Error).message;
 
     console.error("[spec-pr] stamp failed:", message);
 
     if (decideStampFailure(message) === "empty-branch") {
-      await finishLine(row, "error", emptyBranchReason(row.branch), deps);
+      await finishLine(
+        assemblyRun,
+        "error",
+        emptyBranchReason(assemblyRun.branch),
+        deps,
+      );
     }
   }
 }

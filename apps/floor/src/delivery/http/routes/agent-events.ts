@@ -14,13 +14,7 @@ import { errorMessage } from "@re-cinq/lore-shared";
 
 import type { ServerRoute } from "@hapi/hapi";
 import { metrics } from "@opentelemetry/api";
-import {
-  usage,
-  agentRunEvents,
-  taskStore,
-  assemblyRuns,
-  agentRunTurns,
-} from "../../../kernel/queues.js";
+import { pipeline, usage, taskStore } from "../../../kernel/queues.js";
 import { projectFor } from "../../../composition/project-boot.js";
 import { deliverPlanningResults } from "../../../jobs/agent/planning-result.js";
 import { deliverArtifact } from "../../../jobs/agent/artifact-args.js";
@@ -161,7 +155,7 @@ async function recordRunEvents(
   rows: readonly AgentRunEventInsert[],
 ): Promise<number> {
   try {
-    const inserted = await agentRunEvents().insertBatch(rows);
+    const inserted = await pipeline().agentRunEvents.insertBatch(rows);
 
     agentEventBus().publish(inserted);
 
@@ -193,7 +187,7 @@ async function recordPlanningResults(
       // The round number the LINE is on. A resumed round mints no task, so the task's
       // own value is stuck at the feature's first round (FR6.22).
       roundOf: async (taskId) => {
-        const open = (await assemblyRuns().listForTask(taskId)).filter(
+        const open = (await pipeline().assemblyRuns.listForTask(taskId)).filter(
           (line) => line.status === "running" || line.status === "queued",
         );
         const round = open[open.length - 1]?.args?.iteration;
@@ -218,7 +212,7 @@ async function recordRunTurns(
   rows: readonly AgentRunTurnInsert[],
 ): Promise<number> {
   try {
-    const inserted = (await agentRunTurns().insertBatch(rows)).length;
+    const inserted = (await pipeline().agentRunTurns.insertBatch(rows)).length;
     const deduped = rows.length - inserted;
 
     if (deduped > 0) {
@@ -251,7 +245,9 @@ async function mergeArtifacts(
 ): Promise<void> {
   for (const fileEvent of fileEvents) {
     try {
-      await deliverArtifact(fileEvent, { assemblyRuns: assemblyRuns() });
+      await deliverArtifact(fileEvent, {
+        assemblyRuns: pipeline().assemblyRuns,
+      });
     } catch (err) {
       console.warn(`[floor] artifact not merged: ${errorMessage(err)}`);
     }

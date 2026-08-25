@@ -3,7 +3,7 @@
   "info": {
     "title": "Lore API",
     "version": "0.1.0",
-    "description": "Generated from the lore-api hapi route zod schemas (ADR-035). This document describes request contracts and the uniform `{ error }` error envelope precisely; success response bodies are not declaratively described and appear generically. Per-route required scope is the `x-required-scope` extension (HTTP bearer has no scope list); the rate-limit bucket is `x-rate-limit-bucket`."
+    "description": "Generated from the lore-api hapi route zod schemas (ADR-035). This document describes request contracts, success bodies and the uniform `{ error }` error envelope. A route declares its body with `zodResponse`; where that body shares fields with a table, the schema is derived from that table's model and column map, so a renamed column cannot leave the contract behind. The two routes that declare none are `/api/openapi.json` (this document) and `/api/docs` (HTML). Per-route required scope is the `x-required-scope` extension (HTTP bearer has no scope list); the rate-limit bucket is `x-rate-limit-bucket`."
   },
   "servers": [
     {
@@ -65,6 +65,44 @@
     }
   ],
   "paths": {
+    "/api/platform/llm-status": {
+      "get": {
+        "operationId": "get_api_platform_llm-status",
+        "summary": "GET /api/platform/llm-status",
+        "tags": ["Analytics"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "Whether an account-wide LLM outage is degrading the factory",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlatformLlmStatus"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "read"
+      }
+    },
     "/api/repo-status": {
       "get": {
         "operationId": "get_api_repo-status",
@@ -1560,60 +1598,6 @@
         "parameters": [
           {
             "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ]
-      }
-    },
-    "/api/maintenance/{job}": {
-      "post": {
-        "operationId": "post_api_maintenance_job",
-        "summary": "POST /api/maintenance/{job}",
-        "tags": ["Tasks"],
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "x-rate-limit-bucket": "default",
-        "responses": {
-          "200": {
-            "description": "Job completed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/MaintenanceResult"
-                }
-              }
-            }
-          },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "403": {
-            "$ref": "#/components/responses/Forbidden"
-          },
-          "413": {
-            "$ref": "#/components/responses/PayloadTooLarge"
-          },
-          "429": {
-            "$ref": "#/components/responses/RateLimited"
-          },
-          "503": {
-            "$ref": "#/components/responses/ServiceUnavailable"
-          }
-        },
-        "x-required-scope": "task",
-        "parameters": [
-          {
-            "name": "job",
             "in": "path",
             "required": true,
             "schema": {
@@ -3486,17 +3470,14 @@
         "x-rate-limit-bucket": "default",
         "responses": {
           "200": {
-            "description": "The token list (GET) or the write result (POST)",
+            "description": "A page of active tokens; the hash is never served",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/TokenResponse"
+                  "$ref": "#/components/schemas/TokenList"
                 }
               }
             }
-          },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
@@ -3525,11 +3506,11 @@
         "x-rate-limit-bucket": "default",
         "responses": {
           "200": {
-            "description": "The token list (GET) or the write result (POST)",
+            "description": "The revoke acknowledgement, or the created token — served once and never again",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/TokenResponse"
+                  "$ref": "#/components/schemas/TokenWriteResult"
                 }
               }
             }
@@ -3580,7 +3561,7 @@
         "x-rate-limit-bucket": "default",
         "responses": {
           "200": {
-            "description": "The resolved settings (GET) or the applied change (PUT)",
+            "description": "Every dark-factory knob, resolved",
             "content": {
               "application/json": {
                 "schema": {
@@ -3589,17 +3570,11 @@
               }
             }
           },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
           },
           "403": {
             "$ref": "#/components/responses/Forbidden"
-          },
-          "409": {
-            "$ref": "#/components/responses/Conflict"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
@@ -3640,11 +3615,11 @@
         "x-rate-limit-bucket": "default",
         "responses": {
           "200": {
-            "description": "The resolved settings (GET) or the applied change (PUT)",
+            "description": "What the write applied, and under whose authority",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/DarkFactorySettings"
+                  "$ref": "#/components/schemas/DarkFactorySettingsApplied"
                 }
               }
             }
@@ -4462,6 +4437,88 @@
           }
         },
         "x-required-scope": "read"
+      }
+    },
+    "/api/spend/credits": {
+      "post": {
+        "operationId": "post_api_spend_credits",
+        "summary": "POST /api/spend/credits",
+        "tags": ["Analytics"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "201": {
+            "description": "The balance entry that was recorded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreditEntryRecorded"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "write",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "amount_usd": {
+                    "type": "number"
+                  },
+                  "effective_date": {
+                    "type": "string",
+                    "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                  },
+                  "effective_time": {
+                    "type": "string",
+                    "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$"
+                  },
+                  "kind": {
+                    "type": "string",
+                    "enum": ["opening", "topup", "correction"],
+                    "default": "topup"
+                  },
+                  "note": {
+                    "type": "string",
+                    "default": ""
+                  },
+                  "recorded_by": {
+                    "type": "string",
+                    "default": ""
+                  }
+                },
+                "required": ["amount_usd"],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
       }
     },
     "/api/analytics-overview": {
@@ -6307,10 +6364,10 @@
         }
       }
     },
-    "/api/repos/{owner}/{repo}/features/{id}/finalize": {
+    "/api/repos/{owner}/{repo}/features/{id}/create-spec-file": {
       "post": {
-        "operationId": "post_api_repos_owner_repo_features_id_finalize",
-        "summary": "POST /api/repos/{owner}/{repo}/features/{id}/finalize",
+        "operationId": "post_api_repos_owner_repo_features_id_create-spec-file",
+        "summary": "POST /api/repos/{owner}/{repo}/features/{id}/create-spec-file",
         "tags": ["Features"],
         "security": [
           {
@@ -6324,7 +6381,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/FinalizeStarted"
+                  "$ref": "#/components/schemas/SpecFileStarted"
                 }
               }
             }
@@ -6380,7 +6437,105 @@
               "type": "string"
             }
           }
-        ]
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/repos/{owner}/{repo}/features/{id}/finalize": {
+      "post": {
+        "operationId": "post_api_repos_owner_repo_features_id_finalize",
+        "summary": "POST /api/repos/{owner}/{repo}/features/{id}/finalize",
+        "tags": ["Features"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "202": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpecFileStarted"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "write",
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        }
       }
     },
     "/api/repos/{owner}/{repo}/features/{id}/split": {
@@ -6469,6 +6624,139 @@
           }
         }
       }
+    },
+    "/api/repos/{owner}/{repo}/implementation-loop": {
+      "get": {
+        "operationId": "get_api_repos_owner_repo_implementation-loop",
+        "summary": "GET /api/repos/{owner}/{repo}/implementation-loop",
+        "tags": ["Repositories"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "The repo's backlog loop: toggle state, the ticket being worked, the ordered queue, and recently addressed tickets.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImplementationLoop"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "read",
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      },
+      "put": {
+        "operationId": "put_api_repos_owner_repo_implementation-loop",
+        "summary": "PUT /api/repos/{owner}/{repo}/implementation-loop",
+        "tags": ["Repositories"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "Enable or disable the repo's backlog loop.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImplementationLoopToggle"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "admin",
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "enabled": {
+                    "type": "boolean"
+                  }
+                },
+                "required": ["enabled"],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -6487,6 +6775,42 @@
           }
         },
         "required": ["error"]
+      },
+      "PlatformLlmStatus": {
+        "type": "object",
+        "properties": {
+          "degraded": {
+            "type": "boolean"
+          },
+          "failure_class": {
+            "type": ["string", "null"]
+          },
+          "detail": {
+            "type": ["string", "null"]
+          },
+          "since": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "affected_runs": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "degraded",
+          "failure_class",
+          "detail",
+          "since",
+          "affected_runs"
+        ],
+        "additionalProperties": false
       },
       "RepoStatus": {
         "type": "object",
@@ -6684,6 +7008,15 @@
                         },
                         "auto_review": {
                           "type": "boolean"
+                        },
+                        "implementation_loop": {
+                          "type": "object",
+                          "properties": {
+                            "enabled": {
+                              "type": "boolean"
+                            }
+                          },
+                          "additionalProperties": true
                         },
                         "cross_repo": {
                           "type": "boolean"
@@ -6912,6 +7245,15 @@
                   },
                   "auto_review": {
                     "type": "boolean"
+                  },
+                  "implementation_loop": {
+                    "type": "object",
+                    "properties": {
+                      "enabled": {
+                        "type": "boolean"
+                      }
+                    },
+                    "additionalProperties": true
                   },
                   "cross_repo": {
                     "type": "boolean"
@@ -7873,6 +8215,51 @@
                 "station_run_id": {
                   "type": ["string", "null"]
                 },
+                "input": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "description": {
+                          "type": "string"
+                        },
+                        "prompt": {
+                          "type": ["string", "null"]
+                        },
+                        "params": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "additionalProperties": {
+                                "type": "string"
+                              }
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "repo": {
+                          "type": "string"
+                        },
+                        "ref": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "description",
+                        "prompt",
+                        "params",
+                        "repo",
+                        "ref"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
                 "commit_sha": {
                   "type": ["string", "null"]
                 },
@@ -7889,6 +8276,7 @@
                 "outcome",
                 "agent_cr_name",
                 "station_run_id",
+                "input",
                 "commit_sha",
                 "started_at",
                 "finished_at"
@@ -8034,19 +8422,6 @@
           }
         },
         "required": ["line", "definitionKnown", "nodes"],
-        "additionalProperties": false
-      },
-      "MaintenanceResult": {
-        "type": "object",
-        "properties": {
-          "job": {
-            "type": "string"
-          },
-          "summary": {
-            "type": "string"
-          }
-        },
-        "required": ["job", "summary"],
         "additionalProperties": false
       },
       "TaskByPr": {
@@ -8197,8 +8572,172 @@
         "additionalProperties": false
       },
       "MemoryOperationResult": {
-        "type": "object",
-        "additionalProperties": {}
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "key": {
+                "type": "string"
+              },
+              "version": {
+                "type": "number"
+              },
+              "agent_id": {
+                "type": "string"
+              },
+              "created_at": {
+                "type": "string"
+              }
+            },
+            "required": ["key", "version", "agent_id", "created_at"],
+            "additionalProperties": false
+          },
+          {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "key": {
+                    "type": "string"
+                  },
+                  "value": {
+                    "type": "string"
+                  },
+                  "version": {
+                    "type": "number"
+                  },
+                  "created_at": {
+                    "type": "string"
+                  }
+                },
+                "required": ["key", "value", "version", "created_at"],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "version": {
+                  "type": "number"
+                },
+                "value": {
+                  "type": "string"
+                },
+                "created_at": {
+                  "type": "string"
+                }
+              },
+              "required": ["version", "value", "created_at"],
+              "additionalProperties": false
+            }
+          },
+          {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "key": {
+                  "type": "string"
+                },
+                "value": {
+                  "type": "string"
+                },
+                "score": {
+                  "type": "number"
+                },
+                "agent_id": {
+                  "type": "string"
+                },
+                "source": {
+                  "type": "string",
+                  "enum": ["memory", "fact", "episode", "graph"]
+                },
+                "id": {
+                  "type": "string"
+                },
+                "confidence": {
+                  "type": "string"
+                }
+              },
+              "required": ["key", "value", "score", "agent_id", "source"],
+              "additionalProperties": false
+            }
+          },
+          {
+            "type": "object",
+            "properties": {
+              "key": {
+                "type": "string"
+              },
+              "deleted": {
+                "type": "boolean"
+              }
+            },
+            "required": ["key", "deleted"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "memories": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "key": {
+                      "type": "string"
+                    },
+                    "agent_id": {
+                      "type": "string"
+                    },
+                    "repo": {
+                      "type": ["string", "null"]
+                    },
+                    "version": {
+                      "type": "number"
+                    },
+                    "ttl_seconds": {
+                      "type": ["number", "null"]
+                    },
+                    "created_at": {
+                      "type": "string"
+                    },
+                    "has_facts": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "key",
+                    "agent_id",
+                    "repo",
+                    "version",
+                    "ttl_seconds",
+                    "created_at",
+                    "has_facts"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "total": {
+                "type": "number"
+              },
+              "limit": {
+                "type": "number"
+              },
+              "offset": {
+                "type": "number"
+              }
+            },
+            "required": ["memories", "total", "limit", "offset"],
+            "additionalProperties": false
+          }
+        ]
       },
       "GraphBrowse": {
         "type": "object",
@@ -8452,7 +8991,7 @@
                   "format": "date-time"
                 },
                 "content_preview": {
-                  "type": ["string", "null"]
+                  "type": "string"
                 },
                 "fact_count": {
                   "type": "number"
@@ -8796,128 +9335,188 @@
         "required": ["secret", "canonicalUrl"],
         "additionalProperties": false
       },
-      "TokenResponse": {
+      "TokenList": {
+        "type": "object",
+        "properties": {
+          "tokens": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "scopes": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "created_by": {
+                  "type": "string"
+                },
+                "expires_at": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "last_used": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "created_at": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              },
+              "required": [
+                "id",
+                "name",
+                "scopes",
+                "created_by",
+                "expires_at",
+                "last_used",
+                "created_at"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "total": {
+            "type": "number"
+          },
+          "limit": {
+            "type": "number"
+          },
+          "offset": {
+            "type": "number"
+          }
+        },
+        "required": ["tokens", "total", "limit", "offset"],
+        "additionalProperties": false
+      },
+      "TokenWriteResult": {
         "anyOf": [
           {
             "type": "object",
             "properties": {
-              "tokens": {
-                "type": "array",
-                "items": {
-                  "type": "object",
-                  "properties": {
-                    "id": {
-                      "type": "string"
-                    },
-                    "name": {
-                      "type": "string"
-                    },
-                    "scopes": {
-                      "type": "array",
-                      "items": {
-                        "type": "string"
-                      }
-                    },
-                    "created_by": {
-                      "type": "string"
-                    },
-                    "expires_at": {
-                      "anyOf": [
-                        {
-                          "type": "string",
-                          "format": "date-time"
-                        },
-                        {
-                          "type": "null"
-                        }
-                      ]
-                    },
-                    "last_used": {
-                      "anyOf": [
-                        {
-                          "type": "string",
-                          "format": "date-time"
-                        },
-                        {
-                          "type": "null"
-                        }
-                      ]
-                    },
-                    "created_at": {
-                      "type": "string",
-                      "format": "date-time"
-                    }
-                  },
-                  "required": [
-                    "id",
-                    "name",
-                    "scopes",
-                    "created_by",
-                    "expires_at",
-                    "last_used",
-                    "created_at"
-                  ],
-                  "additionalProperties": false
-                }
-              },
-              "total": {
-                "type": "number"
-              },
-              "limit": {
-                "type": "number"
-              },
-              "offset": {
-                "type": "number"
+              "ok": {
+                "type": "boolean",
+                "const": true
               }
             },
-            "required": ["tokens", "total", "limit", "offset"],
+            "required": ["ok"],
             "additionalProperties": false
           },
           {
-            "anyOf": [
-              {
-                "type": "object",
-                "properties": {
-                  "ok": {
-                    "type": "boolean",
-                    "const": true
-                  }
-                },
-                "required": ["ok"],
-                "additionalProperties": false
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
               },
-              {
-                "type": "object",
-                "properties": {
-                  "id": {
-                    "type": "string"
-                  },
-                  "name": {
-                    "type": "string"
-                  },
-                  "token": {
-                    "type": "string"
-                  },
-                  "scopes": {
-                    "type": "array",
-                    "items": {
-                      "type": "string"
-                    }
-                  },
-                  "expires_at": {
-                    "type": ["string", "null"]
-                  }
-                },
-                "required": ["id", "name", "token", "scopes", "expires_at"],
-                "additionalProperties": false
+              "name": {
+                "type": "string"
+              },
+              "token": {
+                "type": "string"
+              },
+              "scopes": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "expires_at": {
+                "type": ["string", "null"]
               }
-            ]
+            },
+            "required": ["id", "name", "token", "scopes", "expires_at"],
+            "additionalProperties": false
           }
         ]
       },
       "DarkFactorySettings": {
-        "anyOf": [
-          {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "create_issue": {
+            "type": "string",
+            "enum": ["never", "on_gate", "always"]
+          },
+          "auto_merge": {
+            "type": "object",
+            "properties": {
+              "paths": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "min_trust": {
+                "type": "string",
+                "enum": ["docs", "tests", "implementation", "full"]
+              },
+              "require_green_ci": {
+                "type": "boolean"
+              },
+              "require_bot_approval": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "paths",
+              "min_trust",
+              "require_green_ci",
+              "require_bot_approval"
+            ],
+            "additionalProperties": false
+          },
+          "review": {
+            "type": "string",
+            "enum": ["trust_based", "always", "never"]
+          },
+          "notify": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": ["escalation", "watched", "all"]
+            }
+          }
+        },
+        "required": [
+          "enabled",
+          "create_issue",
+          "auto_merge",
+          "review",
+          "notify"
+        ],
+        "additionalProperties": false
+      },
+      "DarkFactorySettingsApplied": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "const": true
+          },
+          "applied": {
             "type": "object",
             "properties": {
               "enabled": {
@@ -8976,94 +9575,26 @@
             ],
             "additionalProperties": false
           },
-          {
+          "ceremony": {
             "type": "object",
             "properties": {
-              "ok": {
-                "type": "boolean",
-                "const": true
+              "tier": {
+                "type": "string",
+                "enum": ["two_key", "admin"]
               },
-              "applied": {
-                "type": "object",
-                "properties": {
-                  "enabled": {
-                    "type": "boolean"
-                  },
-                  "create_issue": {
-                    "type": "string",
-                    "enum": ["never", "on_gate", "always"]
-                  },
-                  "auto_merge": {
-                    "type": "object",
-                    "properties": {
-                      "paths": {
-                        "type": "array",
-                        "items": {
-                          "type": "string"
-                        }
-                      },
-                      "min_trust": {
-                        "type": "string",
-                        "enum": ["docs", "tests", "implementation", "full"]
-                      },
-                      "require_green_ci": {
-                        "type": "boolean"
-                      },
-                      "require_bot_approval": {
-                        "type": "boolean"
-                      }
-                    },
-                    "required": [
-                      "paths",
-                      "min_trust",
-                      "require_green_ci",
-                      "require_bot_approval"
-                    ],
-                    "additionalProperties": false
-                  },
-                  "review": {
-                    "type": "string",
-                    "enum": ["trust_based", "always", "never"]
-                  },
-                  "notify": {
-                    "type": "array",
-                    "items": {
-                      "type": "string",
-                      "enum": ["escalation", "watched", "all"]
-                    }
-                  }
-                },
-                "required": [
-                  "enabled",
-                  "create_issue",
-                  "auto_merge",
-                  "review",
-                  "notify"
-                ],
-                "additionalProperties": false
+              "pr_ref": {
+                "type": "string"
               },
-              "ceremony": {
-                "type": "object",
-                "properties": {
-                  "tier": {
-                    "type": "string",
-                    "enum": ["two_key", "admin"]
-                  },
-                  "pr_ref": {
-                    "type": "string"
-                  },
-                  "approver": {
-                    "type": "string"
-                  }
-                },
-                "required": ["tier"],
-                "additionalProperties": false
+              "approver": {
+                "type": "string"
               }
             },
-            "required": ["ok", "applied", "ceremony"],
+            "required": ["tier"],
             "additionalProperties": false
           }
-        ]
+        },
+        "required": ["ok", "applied", "ceremony"],
+        "additionalProperties": false
       },
       "AgentDefinitionRead": {
         "anyOf": [
@@ -9426,6 +9957,37 @@
       "Spend": {
         "type": "object",
         "properties": {
+          "budget": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "ledger_total_usd": {
+                    "type": "number"
+                  },
+                  "spent_since_usd": {
+                    "type": "number"
+                  },
+                  "remaining_usd": {
+                    "type": "number"
+                  },
+                  "anchored_at": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "ledger_total_usd",
+                  "spent_since_usd",
+                  "remaining_usd",
+                  "anchored_at"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "org_available": {
             "type": "boolean"
           },
@@ -9443,13 +10005,17 @@
               },
               "as_of": {
                 "type": ["string", "null"]
+              },
+              "billed_through": {
+                "type": ["string", "null"]
               }
             },
             "required": [
               "billed_usd",
               "input_tokens",
               "output_tokens",
-              "as_of"
+              "as_of",
+              "billed_through"
             ],
             "additionalProperties": false
           },
@@ -9496,7 +10062,10 @@
               "additionalProperties": false
             }
           },
-          "lore_today_usd": {
+          "lore_unbilled_usd": {
+            "type": "number"
+          },
+          "lore_unbilled_days": {
             "type": "number"
           },
           "lore_mtd": {
@@ -9632,17 +10201,51 @@
           }
         },
         "required": [
+          "budget",
           "org_available",
           "org_mtd",
           "org_by_model",
           "org_daily",
-          "lore_today_usd",
+          "lore_unbilled_usd",
+          "lore_unbilled_days",
           "lore_mtd",
           "lore_by_model",
           "lore_by_kind",
           "lore_daily",
           "lore_by_repo",
           "lore_by_task_type"
+        ],
+        "additionalProperties": false
+      },
+      "CreditEntryRecorded": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number"
+          },
+          "effective_at": {
+            "type": "string"
+          },
+          "amount_usd": {
+            "type": "number"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "note": {
+            "type": "string"
+          },
+          "actor": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "effective_at",
+          "amount_usd",
+          "kind",
+          "note",
+          "actor"
         ],
         "additionalProperties": false
       },
@@ -11650,7 +12253,18 @@
                   "anyOf": [
                     {
                       "type": "object",
-                      "additionalProperties": {}
+                      "properties": {
+                        "story_issue": {
+                          "type": ["number", "null"]
+                        },
+                        "spec_task_id": {
+                          "type": "string"
+                        },
+                        "phase": {
+                          "type": "number"
+                        }
+                      },
+                      "additionalProperties": true
                     },
                     {
                       "type": "null"
@@ -11696,7 +12310,7 @@
         "required": ["iteration"],
         "additionalProperties": false
       },
-      "FinalizeStarted": {
+      "SpecFileStarted": {
         "type": "object",
         "properties": {
           "task_id": {
@@ -11811,6 +12425,139 @@
           "created_at",
           "updated_at"
         ],
+        "additionalProperties": false
+      },
+      "ImplementationLoop": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "current": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "issue_number": {
+                    "type": "integer"
+                  },
+                  "issue_url": {
+                    "type": ["string", "null"]
+                  },
+                  "title": {
+                    "type": "string"
+                  },
+                  "priority": {
+                    "type": ["string", "null"]
+                  },
+                  "pr_url": {
+                    "type": ["string", "null"]
+                  },
+                  "state": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "issue_number",
+                  "issue_url",
+                  "title",
+                  "priority",
+                  "pr_url",
+                  "state"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "next": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "issue_number": {
+                  "type": "integer"
+                },
+                "issue_url": {
+                  "type": ["string", "null"]
+                },
+                "title": {
+                  "type": "string"
+                },
+                "priority": {
+                  "type": ["string", "null"]
+                },
+                "pr_url": {
+                  "type": ["string", "null"]
+                },
+                "state": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "issue_number",
+                "issue_url",
+                "title",
+                "priority",
+                "pr_url",
+                "state"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "recent": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "issue_number": {
+                  "type": "integer"
+                },
+                "issue_url": {
+                  "type": ["string", "null"]
+                },
+                "title": {
+                  "type": "string"
+                },
+                "priority": {
+                  "type": ["string", "null"]
+                },
+                "pr_url": {
+                  "type": ["string", "null"]
+                },
+                "state": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "issue_number",
+                "issue_url",
+                "title",
+                "priority",
+                "pr_url",
+                "state"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": ["enabled", "current", "next", "recent"],
+        "additionalProperties": false
+      },
+      "ImplementationLoopToggle": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "const": true
+          },
+          "enabled": {
+            "type": "boolean"
+          }
+        },
+        "required": ["ok", "enabled"],
         "additionalProperties": false
       }
     },
