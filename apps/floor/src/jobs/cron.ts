@@ -72,6 +72,7 @@ const fromStation = (name: string): EventHandler =>
   fromJob(() => stationClient().run(name));
 
 export const mergeCheck = fromStation("merge-check");
+export const prReadyCheck = fromStation("pr-ready-check");
 export const approvalCheck = fromStation("approval-check");
 
 /**
