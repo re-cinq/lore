@@ -122,4 +122,3 @@ export function renderEscalationBody(input: EscalateInput): string {
 
   return lines.join("\n");
 }
-
