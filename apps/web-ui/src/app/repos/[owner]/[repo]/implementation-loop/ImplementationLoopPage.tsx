@@ -10,14 +10,22 @@ export default async function ImplementationLoopPage({
   const { owner, repo } = await params;
   const fullName = `${owner}/${repo}`;
   const result = await getImplementationLoop(fullName);
-  const loop =
-    result.status === "ok"
-      ? result.data
-      : { enabled: false, current: null, next: [], recent: [] };
+
+  // An API failure must not masquerade as a disabled loop with an empty
+  // backlog — say what actually happened.
+  if (result.status !== "ok") {
+    return (
+      <p className="meta">
+        Could not load the backlog state (
+        {result.status === "error" ? result.message : "Lore API unconfigured"})
+        — check the Lore API connection and reload.
+      </p>
+    );
+  }
 
   return (
     <ImplementationLoopView
-      loop={loop}
+      loop={result.data}
       toggle={toggleImplementationLoopAction.bind(null, fullName)}
     />
   );
