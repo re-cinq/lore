@@ -46,6 +46,14 @@ function categorize(message: string, step?: string): FailureCategory {
     return "anthropic-rate-limit";
   }
 
+  // GitHub's other phrasing for the same gap: the 422 from a workflow-file
+  // write ("refusing to allow a GitHub App to create or update workflow
+  // `.github/workflows/x.yml` without `workflows` permission") names the
+  // workflow file in the message itself, so no step context is needed.
+  if (/refusing to allow .* workflow/i.test(message)) {
+    return "github-workflows-permission";
+  }
+
   if (/resource not accessible by integration/i.test(message)) {
     return step && /\.github\/workflows\//i.test(step)
       ? "github-workflows-permission"
