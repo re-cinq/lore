@@ -43,6 +43,27 @@ llm:
   secretKey: ANTHROPIC_API_KEY
   credential: ""
 
+# Optional per-task GitHub credential (#1575). Without it, this cluster-agent
+# can still register/claim/heartbeat and run stations whose command needs no
+# git push (validate, gate, detect, comment-triage) — but a run needing one
+# (agent, github_action, retrospective) fails "GitHub not configured" once
+# claimed, wasting the claim. Set at most one of:
+#   token          — a GitHub PAT scoped to the repos this satellite may push
+#                    to (least privilege; the natural choice for a personal
+#                    satellite)
+#   app.appId/privateKey/installationId — the full GitHub App triple, for a
+#                    satellite acting as the org's own identity
+# `token` wins if both are set. Handing a satellite ANY GitHub credential is
+# the operator's deliberate call — unlike the LLM credential, there is no
+# default here.
+github:
+  token: ""
+  app:
+    appId: ""
+    privateKey: ""
+    installationId: ""
+  secretName: lore-cluster-agent-github
+
 # ---- Defaults -------------------------------------------------------------
 
 # Namespace for the cluster-agent itself.
@@ -90,3 +111,14 @@ ai-agents:
   # Keep in sync with llm.secretKey above — Helm cannot template one from the
   # other across the subchart boundary.
   agentLlmSecretKey: ANTHROPIC_API_KEY
+  # Empty (overriding the subchart's central-cluster default): the seeded
+  # catalog's http telemetry sink is guarded on this being set and vanishes
+  # entirely when it is not (agent-catalog.ts's agentEventsUrl guard, #1575).
+  # A satellite has no bus-wide LORE_AGENT_INTERNAL_TOKEN to give that sink,
+  # and the subchart's default URL (the central Floor's in-cluster DNS name)
+  # does not resolve here anyway — every recipe's pod hit a hard
+  # CreateContainerConfigError on the missing secret key before this guard
+  # existed, regardless of node type. Run visibility for a satellite's runs
+  # is pod logs + the terminal report over FR5, not live per-tool-call
+  # telemetry, until a satellite-reachable sink exists.
+  agentEventsUrl: ""

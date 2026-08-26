@@ -273,6 +273,23 @@ execution node.
 - The local dev flow gains a flag that installs the standalone chart against
   minikube, making "laptop cluster registers, claims a run, PR appears" the
   acceptance walk for the whole feature.
+- The seeded catalog's http telemetry sink (`agent-events-auth`, a bus-wide
+  `LORE_AGENT_INTERNAL_TOKEN`-backed credential every recipe declares) is
+  guarded behind `.Values.agentEventsUrl`: the standalone chart leaves it
+  unset, so the sink is omitted from every recipe entirely rather than
+  rendered pointed at an unreachable URL with a secret no satellite can
+  hold. Unguarded, this was a hard `CreateContainerConfigError` on every
+  satellite pod, of every node type — the first real satellite's every
+  claimed run failed at init (#1575, found live 2026-08-26). A satellite's
+  runs are visible through pod logs and the terminal report, not the live
+  per-tool-call stream. ([validated by `agent-catalog.test.ts:191`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L191))
+- A GitHub credential for the cluster-agent's per-task token provisioner is
+  optional and chart-managed: `github.token` (a PAT) or the
+  `github.app.appId`/`privateKey`/`installationId` triple, mirroring the
+  `llm` credential pattern. Absent, registration/claim/heartbeat and
+  tag-only stations (`validate`, `gate`, `detect`, `comment-triage`) work
+  normally; a claimed run needing a git push fails "GitHub not configured"
+  after launch, naming exactly the missing piece.
 
 ## FR7 — Registered-clusters visibility
 

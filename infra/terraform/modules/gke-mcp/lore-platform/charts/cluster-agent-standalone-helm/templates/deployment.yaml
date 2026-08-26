@@ -1,8 +1,12 @@
 # The satellite cluster-agent. Note what is ABSENT: no database env, none of
 # the central bus-wide ingest credential (FR5 keeps that central — the
-# satellite reports with the per-agent token it received at registration), no
-# GitHub App triple. Everything it needs arrives outbound through loreApiUrl
-# and eventRouterUrl.
+# satellite reports with the per-agent token it received at registration),
+# and no agent-events telemetry sink (ai-agents.agentEventsUrl is left unset
+# in values.yaml, which the catalog's guard omits entirely — that sink's
+# secret is the same class of bus-wide credential, #1575). The GitHub
+# credential below is the one exception: it is per-satellite-operator, not
+# bus-wide, so it is an explicit opt-in rather than something this chart
+# withholds by design.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -74,6 +78,37 @@ spec:
               value: {{ .Values.namespace | quote }}
             - name: LORE_CLUSTER_AGENT_IDENTITY_KEY
               value: {{ .Values.identity.fileName | quote }}
+            # The per-task GitHub credential (#1575): this process mints the
+            # installation token every claimed run's git push needs, and
+            # without one every claim fails "GitHub not configured" after
+            # launch — a silently wasted claim on a satellite. Optional and
+            # deliberately not required: unlike the LLM credential, handing a
+            # satellite a GitHub credential is the operator's call, made by
+            # setting github.token (a scoped PAT is the least-privilege
+            # choice) or the full github.app.* triple.
+            {{- if .Values.github.token }}
+            - name: GITHUB_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.github.secretName }}
+                  key: token
+            {{- else if .Values.github.app.appId }}
+            - name: GITHUB_APP_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.github.secretName }}
+                  key: app-id
+            - name: GITHUB_APP_PRIVATE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.github.secretName }}
+                  key: private-key
+            - name: GITHUB_APP_INSTALLATION_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.github.secretName }}
+                  key: installation-id
+            {{- end }}
           livenessProbe:
             httpGet:
               path: /healthz

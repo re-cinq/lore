@@ -87,6 +87,13 @@ refuse "LORE_DB_HOST"
 refuse "DATABASE_URL"
 refuse "pgvector"
 
+# #1575: the seeded catalog's http telemetry sink needs a bus-wide credential
+# (agent-events-auth, backed by LORE_AGENT_INTERNAL_TOKEN) this chart never
+# ships — it must not appear anywhere in the vendored ai-agents catalog seed.
+# Unguarded, this was a hard CreateContainerConfigError on every satellite
+# pod regardless of node type (found live, 2026-08-26).
+refuse "agent-events-auth"
+
 # FR5: LORE_INGEST_TOKEN never leaves the central cluster. The chart's OWN
 # templates must not reference it (the vendored ai-agents catalog seed does,
 # for its station recipes, so the assertion is scoped to this chart's docs).
