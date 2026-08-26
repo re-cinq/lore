@@ -4,6 +4,53 @@ import { useTransition } from "react";
 import type { ImplementationLoop, LoopTicket } from "@/lib/api/backlog";
 import styles from "./ImplementationLoopView.module.scss";
 
+/** GitLab-pipelines-style status tones, keyed on the ticket's task status. */
+const STATUS_TONE: Record<string, "success" | "danger" | "info" | "neutral"> = {
+  completed: "success",
+  merged: "success",
+  running: "info",
+  "pr-created": "info",
+  review: "info",
+  pending: "neutral",
+  queued: "neutral",
+  failed: "danger",
+  cancelled: "neutral",
+};
+
+/** Relative time for the Status column; exported for its test. */
+export function timeAgo(iso: string | null, now: Date = new Date()): string {
+  if (!iso) {
+    return "";
+  }
+  const seconds = Math.max(
+    0,
+    Math.floor((now.getTime() - new Date(iso).getTime()) / 1000),
+  );
+
+  if (seconds < 60) {
+    return "just now";
+  }
+  const table: Array<[number, string]> = [
+    [60 * 60 * 24 * 365, "year"],
+    [60 * 60 * 24 * 30, "month"],
+    [60 * 60 * 24, "day"],
+    [60 * 60, "hour"],
+  ];
+
+  for (const [span, unit] of table) {
+    if (seconds >= span) {
+      const n = Math.floor(seconds / span);
+
+      return `${n} ${unit}${n === 1 ? "" : "s"} ago`;
+    }
+  }
+  // Reachable by construction: the early return handled < 60s, the loop
+  // handled >= 1h, so what is left is always minutes.
+  const minutes = Math.floor(seconds / 60);
+
+  return `${minutes} minute${minutes === 1 ? "" : "s"} ago`;
+}
+
 /** Pure view (DDAU): data down as `loop`, the toggle back up through the bound
  *  server action. No I/O here — the container fetches, the action writes. */
 export default function ImplementationLoopView({
@@ -46,43 +93,115 @@ export default function ImplementationLoopView({
 
       <section className={styles.section}>
         <h2>Current</h2>
-        {loop.current ? (
-          <>
-            <Ticket ticket={loop.current} />
-            {loop.current_run_id && (
-              <p className="meta">
-                <a href={`/assembly-runs/${loop.current_run_id}`}>
-                  Live pipeline view →
-                </a>
-              </p>
-            )}
-          </>
-        ) : (
-          <p className="meta">No ticket is being worked right now.</p>
-        )}
+        <TicketTable
+          tickets={loop.current ? [loop.current] : []}
+          emptyText="No ticket is being worked right now."
+        />
       </section>
 
       <section className={styles.section}>
         <h2>Next up</h2>
-        {loop.next.length === 0 ? (
-          <p className="meta">
-            The backlog is empty. Label an issue priority:high, priority:medium,
-            or priority:low to queue it.
-          </p>
-        ) : (
-          loop.next.map((t) => <Ticket key={t.issue_number} ticket={t} />)
-        )}
+        <TicketTable
+          tickets={loop.next}
+          emptyText="The backlog is empty. Label an issue priority:high, priority:medium, or priority:low to queue it."
+        />
       </section>
 
       <section className={styles.section}>
         <h2>Recently addressed</h2>
-        {loop.recent.length === 0 ? (
-          <p className="meta">Nothing addressed yet.</p>
-        ) : (
-          loop.recent.map((t) => <Ticket key={t.issue_number} ticket={t} />)
-        )}
+        <TicketTable tickets={loop.recent} emptyText="Nothing addressed yet." />
       </section>
     </div>
+  );
+}
+
+function TicketTable({
+  tickets,
+  emptyText,
+}: {
+  tickets: LoopTicket[];
+  emptyText: string;
+}) {
+  if (tickets.length === 0) {
+    return <p className="meta">{emptyText}</p>;
+  }
+
+  return (
+    <table className={styles.ticketTable} data-testid="ticket-table">
+      <thead>
+        <tr>
+          <th className={styles.statusCol}>Status</th>
+          <th>Ticket</th>
+          <th>Stages</th>
+          <th className={styles.actionsCol}>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {tickets.map((ticket, i) => (
+          <TicketRow key={`${ticket.issue_number}-${i}`} ticket={ticket} />
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+function TicketRow({ ticket }: { ticket: LoopTicket }) {
+  const tone = STATUS_TONE[ticket.state] ?? "danger";
+
+  return (
+    <tr data-testid="ticket-row">
+      <td>
+        <span
+          className={`${styles.statusBadge} ${styles[`tone_${tone}`]}`}
+          data-testid="ticket-status"
+        >
+          {ticket.state}
+        </span>
+        {ticket.created_at && (
+          <span
+            className={styles.timeAgo}
+            title={ticket.created_at}
+            data-testid="ticket-time"
+          >
+            {timeAgo(ticket.created_at)}
+          </span>
+        )}
+      </td>
+      <td>
+        {ticket.issue_url ? (
+          <a href={ticket.issue_url} target="_blank" rel="noreferrer">
+            #{ticket.issue_number} {ticket.title}
+          </a>
+        ) : (
+          <span>
+            #{ticket.issue_number} {ticket.title}
+          </span>
+        )}
+        {ticket.priority && (
+          <span className={styles.priority}>{ticket.priority}</span>
+        )}
+      </td>
+      <td>
+        <MiniPipeline ticket={ticket} />
+      </td>
+      <td className={styles.actionsCol}>
+        {ticket.run_id && (
+          <a href={`/assembly-runs/${ticket.run_id}`} className="button">
+            Run
+          </a>
+        )}
+        {ticket.pr_url && (
+          <a
+            href={ticket.pr_url}
+            target="_blank"
+            rel="noreferrer"
+            className="button"
+          >
+            PR
+          </a>
+        )}
+      </td>
+    </tr>
   );
 }
 
@@ -123,31 +242,5 @@ function MiniPipeline({ ticket }: { ticket: LoopTicket }) {
         />
       ))}
     </a>
-  );
-}
-
-function Ticket({ ticket }: { ticket: LoopTicket }) {
-  return (
-    <div className={styles.ticket}>
-      {ticket.issue_url ? (
-        <a href={ticket.issue_url} target="_blank" rel="noreferrer">
-          #{ticket.issue_number} {ticket.title}
-        </a>
-      ) : (
-        <span>
-          #{ticket.issue_number} {ticket.title}
-        </span>
-      )}
-      {ticket.priority && (
-        <span className={styles.priority}>{ticket.priority}</span>
-      )}
-      {ticket.pr_url && (
-        <a href={ticket.pr_url} target="_blank" rel="noreferrer">
-          PR
-        </a>
-      )}
-      <MiniPipeline ticket={ticket} />
-      <span className={styles.state}>{ticket.state}</span>
-    </div>
   );
 }

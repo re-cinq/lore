@@ -22,6 +22,8 @@ export const TicketSchema = z.object({
   pr_url: z.string().nullable(),
   /** Task status for current/recent; `queued` for the not-yet-picked. */
   state: z.string(),
+  /** Task creation for worked tickets, issue creation for queued ones. */
+  created_at: z.string().nullable(),
   /** The ticket's run, for the mini graph + live-view link; null pre-pick. */
   run_id: z.string().nullable(),
   /** Node states in graph order; null when no run exists yet. */

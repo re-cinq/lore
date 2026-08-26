@@ -74,6 +74,7 @@ describe("/api/repos/{owner}/{repo}/implementation-loop", () => {
         rows: [
           {
             id: "task-7",
+            created_at: "2026-08-26T06:00:00.000Z",
             status: "running",
             description: "Ticket 7",
             issue_number: 7,
@@ -82,6 +83,7 @@ describe("/api/repos/{owner}/{repo}/implementation-loop", () => {
           },
           {
             id: "task-5",
+            created_at: "2026-08-26T06:00:00.000Z",
             status: "completed",
             description: "Ticket 5",
             issue_number: 5,
@@ -141,6 +143,7 @@ describe("/api/repos/{owner}/{repo}/implementation-loop", () => {
       enabled: true,
       current_run_id: "run-42",
       current: {
+        created_at: "2026-08-26T06:00:00.000Z",
         issue_number: 7,
         issue_url: "https://gh/i/7",
         title: "Ticket 7",
@@ -156,6 +159,7 @@ describe("/api/repos/{owner}/{repo}/implementation-loop", () => {
       },
       next: [
         {
+          created_at: "2026-08-03T00:00:00.000Z",
           issue_number: 8,
           issue_url: "https://gh/i/8",
           title: "Ticket 8",
@@ -166,6 +170,7 @@ describe("/api/repos/{owner}/{repo}/implementation-loop", () => {
           pipeline: null,
         },
         {
+          created_at: "2026-08-02T00:00:00.000Z",
           issue_number: 9,
           issue_url: "https://gh/i/9",
           title: "Ticket 9",
@@ -178,6 +183,7 @@ describe("/api/repos/{owner}/{repo}/implementation-loop", () => {
       ],
       recent: [
         {
+          created_at: "2026-08-26T06:00:00.000Z",
           issue_number: 5,
           issue_url: "https://gh/i/5",
           title: "Ticket 5",
@@ -226,6 +232,8 @@ describe("/api/repos/{owner}/{repo}/implementation-loop", () => {
       .mockResolvedValueOnce({
         rows: [
           {
+            id: "task-7b",
+            created_at: "2026-08-26T06:00:00.000Z",
             status: "running",
             description: "Ticket 7",
             issue_number: 7,
@@ -261,6 +269,8 @@ describe("/api/repos/{owner}/{repo}/implementation-loop", () => {
       .mockResolvedValueOnce({
         rows: [
           {
+            id: "task-5c",
+            created_at: "2026-08-26T05:00:00.000Z",
             status: "completed",
             description: "Ticket 5",
             issue_number: 5,

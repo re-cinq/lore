@@ -3355,6 +3355,7 @@ export interface components {
         priority: string | null;
         pr_url: string | null;
         state: string;
+        created_at: string | null;
         run_id: string | null;
         pipeline:
           | {
@@ -3371,6 +3372,7 @@ export interface components {
         priority: string | null;
         pr_url: string | null;
         state: string;
+        created_at: string | null;
         run_id: string | null;
         pipeline:
           | {
@@ -3386,6 +3388,7 @@ export interface components {
         priority: string | null;
         pr_url: string | null;
         state: string;
+        created_at: string | null;
         run_id: string | null;
         pipeline:
           | {
