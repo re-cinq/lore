@@ -56,6 +56,7 @@ interface LoopRunRow {
   id: string;
   task_id: string;
   status: string;
+  reason: string | null;
   graph: { nodes?: Array<{ id: string; type: string }> } | null;
 }
 
@@ -126,6 +127,7 @@ function taskTicket(
     pr_url: row.pr_url,
     state: row.status,
     created_at: new Date(row.created_at).toISOString(),
+    error: run?.reason ?? null,
     run_id: run?.id ?? null,
     pipeline: pipelineOf(run, nodeRows),
   };
@@ -183,7 +185,7 @@ export function implementationLoopRoutes(
         const taskIds = taskRows.map((t) => t.id);
         const { rows: taskRuns } = taskIds.length
           ? await pool.query<LoopRunRow>(
-              `SELECT DISTINCT ON (task_id) id, task_id, status, graph
+              `SELECT DISTINCT ON (task_id) id, task_id, status, reason, graph
                  FROM pipeline.assembly_runs
                 WHERE task_id = ANY($1::uuid[])
                   AND blueprint_name = 'implementation-loop'
@@ -234,6 +236,7 @@ export function implementationLoopRoutes(
             created_at: i.createdAt
               ? new Date(i.createdAt).toISOString()
               : null,
+            error: null,
             run_id: null,
             pipeline: null,
           }));

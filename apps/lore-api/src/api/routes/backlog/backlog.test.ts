@@ -99,6 +99,7 @@ describe("/api/repos/{owner}/{repo}/implementation-loop", () => {
             id: "run-42",
             task_id: "task-7",
             status: "running",
+            reason: null,
             graph: {
               nodes: [
                 { id: "implement", type: "agent" },
@@ -144,6 +145,7 @@ describe("/api/repos/{owner}/{repo}/implementation-loop", () => {
       current_run_id: "run-42",
       current: {
         created_at: "2026-08-26T06:00:00.000Z",
+        error: null,
         issue_number: 7,
         issue_url: "https://gh/i/7",
         title: "Ticket 7",
@@ -160,6 +162,7 @@ describe("/api/repos/{owner}/{repo}/implementation-loop", () => {
       next: [
         {
           created_at: "2026-08-03T00:00:00.000Z",
+          error: null,
           issue_number: 8,
           issue_url: "https://gh/i/8",
           title: "Ticket 8",
@@ -171,6 +174,7 @@ describe("/api/repos/{owner}/{repo}/implementation-loop", () => {
         },
         {
           created_at: "2026-08-02T00:00:00.000Z",
+          error: null,
           issue_number: 9,
           issue_url: "https://gh/i/9",
           title: "Ticket 9",
@@ -184,6 +188,7 @@ describe("/api/repos/{owner}/{repo}/implementation-loop", () => {
       recent: [
         {
           created_at: "2026-08-26T06:00:00.000Z",
+          error: null,
           issue_number: 5,
           issue_url: "https://gh/i/5",
           title: "Ticket 5",
@@ -383,6 +388,7 @@ describe("pipelineOf", () => {
     id: "run-1",
     task_id: "task-1",
     status: "running",
+    reason: null,
     graph: {
       nodes: [
         { id: "implement", type: "agent" },

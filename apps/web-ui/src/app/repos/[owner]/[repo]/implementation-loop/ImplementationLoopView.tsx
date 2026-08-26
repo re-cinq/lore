@@ -180,6 +180,15 @@ function TicketRow({ ticket }: { ticket: LoopTicket }) {
         {ticket.priority && (
           <span className={styles.priority}>{ticket.priority}</span>
         )}
+        {ticket.error && (
+          <p
+            className={styles.errorLine}
+            title={ticket.error}
+            data-testid="ticket-error"
+          >
+            {ticket.error}
+          </p>
+        )}
       </td>
       <td>
         <MiniPipeline ticket={ticket} />

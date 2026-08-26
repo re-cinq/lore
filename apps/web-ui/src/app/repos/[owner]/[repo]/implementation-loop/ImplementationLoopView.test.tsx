@@ -12,6 +12,7 @@ const ticket = (over: Partial<LoopTicket> = {}): LoopTicket => ({
   pr_url: null,
   state: "queued",
   created_at: "2026-08-01T00:00:00Z",
+  error: null,
   run_id: null,
   pipeline: null,
   ...over,
@@ -105,6 +106,31 @@ describe("ImplementationLoopView", () => {
     expect((getByText("PR") as HTMLAnchorElement).getAttribute("href")).toBe(
       "https://gh/pr/70",
     );
+  });
+
+  it("shows the run's error message on a failed ticket row", () => {
+    const { getByTestId } = renderView({
+      recent: [
+        ticket({
+          state: "failed",
+          run_id: "run-9",
+          error:
+            "AssemblyLine implementation-loop: edge validate->implement exceeded iteration_max 1",
+        }),
+      ],
+    });
+
+    expect(getByTestId("ticket-error").textContent).toContain(
+      "edge validate->implement exceeded iteration_max 1",
+    );
+  });
+
+  it("renders no error line when the run has none", () => {
+    const { queryByTestId } = renderView({
+      current: ticket({ state: "running", run_id: "run-9" }),
+    });
+
+    expect(queryByTestId("ticket-error")).toBeNull();
   });
 
   it("badges an unknown task status in the danger tone", () => {

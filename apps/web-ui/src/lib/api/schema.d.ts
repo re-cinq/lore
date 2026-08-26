@@ -3356,6 +3356,7 @@ export interface components {
         pr_url: string | null;
         state: string;
         created_at: string | null;
+        error: string | null;
         run_id: string | null;
         pipeline:
           | {
@@ -3373,6 +3374,7 @@ export interface components {
         pr_url: string | null;
         state: string;
         created_at: string | null;
+        error: string | null;
         run_id: string | null;
         pipeline:
           | {
@@ -3389,6 +3391,7 @@ export interface components {
         pr_url: string | null;
         state: string;
         created_at: string | null;
+        error: string | null;
         run_id: string | null;
         pipeline:
           | {

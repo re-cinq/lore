@@ -12459,6 +12459,9 @@
                   "created_at": {
                     "type": ["string", "null"]
                   },
+                  "error": {
+                    "type": ["string", "null"]
+                  },
                   "run_id": {
                     "type": ["string", "null"]
                   },
@@ -12494,6 +12497,7 @@
                   "pr_url",
                   "state",
                   "created_at",
+                  "error",
                   "run_id",
                   "pipeline"
                 ],
@@ -12533,6 +12537,9 @@
                 "created_at": {
                   "type": ["string", "null"]
                 },
+                "error": {
+                  "type": ["string", "null"]
+                },
                 "run_id": {
                   "type": ["string", "null"]
                 },
@@ -12568,6 +12575,7 @@
                 "pr_url",
                 "state",
                 "created_at",
+                "error",
                 "run_id",
                 "pipeline"
               ],
@@ -12600,6 +12608,9 @@
                 "created_at": {
                   "type": ["string", "null"]
                 },
+                "error": {
+                  "type": ["string", "null"]
+                },
                 "run_id": {
                   "type": ["string", "null"]
                 },
@@ -12635,6 +12646,7 @@
                 "pr_url",
                 "state",
                 "created_at",
+                "error",
                 "run_id",
                 "pipeline"
               ],
