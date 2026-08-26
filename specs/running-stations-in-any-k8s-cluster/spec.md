@@ -69,7 +69,7 @@ rather than smuggled through existing columns:
   default, and the backfill value for every existing row). `status` is
   meaningful only while `outcome IS NULL`; terminality stays exactly what it
   is today — a non-null `outcome` — so `nextTransition()`'s await logic
-  (`visits.some(v => v.outcome === null)`) is untouched. ([validated by `advance.test.ts:1413`](apps/floor/src/jobs/assembly-run/advance.test.ts#L1413))
+  (`visits.some(v => v.outcome === null)`) is untouched. ([validated by `advance.test.ts:1414`](apps/floor/src/jobs/assembly-run/advance.test.ts#L1414))
 - `started_at` keeps its NOT NULL row-creation meaning (now: enqueue time).
   Execution timing moves to the new `claimed_at`: the reaper measures the
   node's `timeout_minutes` budget from `claimed_at`, never from `started_at`,
@@ -137,12 +137,12 @@ scoring.
 - A cluster-agent declares `tags: text[]` at registration (for example
   `["node:agent", "node:validate", "gpu"]`). ([validated by `register.test.ts:44`](apps/lore-api/src/api/routes/cluster-agents/register.test.ts#L44), [`registration.test.ts:87`](apps/cluster-agent/src/satellite/registration.test.ts#L87), [`registration.test.ts:95`](apps/cluster-agent/src/satellite/registration.test.ts#L95), [`registration.test.ts:67`](apps/cluster-agent/src/satellite/registration.test.ts#L67))
 - Every station run carries `required_tags: text[]` (default `{}`); a
-  cluster-agent may claim a run only when `required_tags <@ tags`. ([validated by `required-tags.test.ts:5`](libs/shared/src/project/cluster-agents/required-tags.test.ts#L5), [`required-tags.test.ts:11`](libs/shared/src/project/cluster-agents/required-tags.test.ts#L11), [`advance.test.ts:1440`](apps/floor/src/jobs/assembly-run/advance.test.ts#L1440))
+  cluster-agent may claim a run only when `required_tags <@ tags`. ([validated by `required-tags.test.ts:5`](libs/shared/src/project/cluster-agents/required-tags.test.ts#L5), [`required-tags.test.ts:11`](libs/shared/src/project/cluster-agents/required-tags.test.ts#L11), [`advance.test.ts:1441`](apps/floor/src/jobs/assembly-run/advance.test.ts#L1441))
 - Assembly-line YAML nodes accept an optional `required_tags` list in the
   loader schema; an absent list inherits the repo-level default
   `settings.station_default_tags`, and an absent default means `{}`. The
   default is applied at enqueue time, never baked into the parsed
-  definition, so it stays out of `definitionHash`. ([validated by `loader.test.ts:1027`](libs/assembly-lines/src/loader.test.ts#L1027), [`loader.test.ts:1045`](libs/assembly-lines/src/loader.test.ts#L1045), [`loader.test.ts:1053`](libs/assembly-lines/src/loader.test.ts#L1053), [`snapshot-graph.test.ts:91`](libs/assembly-lines/src/snapshot-graph.test.ts#L91), [`advance.test.ts:1466`](apps/floor/src/jobs/assembly-run/advance.test.ts#L1466), [`required-tags.test.ts:22`](libs/shared/src/project/cluster-agents/required-tags.test.ts#L22), [`required-tags.test.ts:31`](libs/shared/src/project/cluster-agents/required-tags.test.ts#L31), [`required-tags.test.ts:37`](libs/shared/src/project/cluster-agents/required-tags.test.ts#L37))
+  definition, so it stays out of `definitionHash`. ([validated by `loader.test.ts:1027`](libs/assembly-lines/src/loader.test.ts#L1027), [`loader.test.ts:1045`](libs/assembly-lines/src/loader.test.ts#L1045), [`loader.test.ts:1053`](libs/assembly-lines/src/loader.test.ts#L1053), [`snapshot-graph.test.ts:91`](libs/assembly-lines/src/snapshot-graph.test.ts#L91), [`advance.test.ts:1467`](apps/floor/src/jobs/assembly-run/advance.test.ts#L1467), [`required-tags.test.ts:22`](libs/shared/src/project/cluster-agents/required-tags.test.ts#L22), [`required-tags.test.ts:31`](libs/shared/src/project/cluster-agents/required-tags.test.ts#L31), [`required-tags.test.ts:37`](libs/shared/src/project/cluster-agents/required-tags.test.ts#L37))
 - A run with `required_tags = '{}'` is claimable by every registered
   cluster-agent, so existing definitions keep working unchanged. ([validated by `required-tags.test.ts:15`](libs/shared/src/project/cluster-agents/required-tags.test.ts#L15))
 
@@ -157,7 +157,7 @@ one dispatch mechanism, not a special case plus a remote case.
   complete dispatch spec (node type, target repo, branch, args, conversation,
   timeout) instead of calling the cluster-agent directly. Only nodes that
   reach the launch seam are enqueued — human-station and service-node rows
-  never become `queued` and are therefore never claimable. ([validated by `advance.test.ts:1413`](apps/floor/src/jobs/assembly-run/advance.test.ts#L1413), [`advance.test.ts:1477`](apps/floor/src/jobs/assembly-run/advance.test.ts#L1477), [`advance.test.ts:1504`](apps/floor/src/jobs/assembly-run/advance.test.ts#L1504))
+  never become `queued` and are therefore never claimable. ([validated by `advance.test.ts:1414`](apps/floor/src/jobs/assembly-run/advance.test.ts#L1414), [`advance.test.ts:1478`](apps/floor/src/jobs/assembly-run/advance.test.ts#L1478), [`advance.test.ts:1505`](apps/floor/src/jobs/assembly-run/advance.test.ts#L1505))
 - A cluster-agent polls `POST /api/cluster-agents/{id}/claim` on a
   configurable interval (default 15 s); the claim is a single
   `SELECT … FOR UPDATE SKIP LOCKED` CTE that sets `status = 'claimed'`,

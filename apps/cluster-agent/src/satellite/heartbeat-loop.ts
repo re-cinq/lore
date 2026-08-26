@@ -1,3 +1,4 @@
+import { errorMessage } from "@re-cinq/lore-shared";
 import type { ClusterAgentIdentity } from "./identity-store.js";
 
 /**
@@ -54,7 +55,7 @@ export async function heartbeatOnce(
     return "error";
   } catch (err) {
     (deps.log ?? console.warn)(
-      `[cluster-agent] heartbeat failed: ${(err as Error).message}`,
+      `[cluster-agent] heartbeat failed: ${errorMessage(err)}`,
     );
 
     return "error";

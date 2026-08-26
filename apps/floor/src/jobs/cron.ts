@@ -104,7 +104,6 @@ export const assemblyLineReaper: EventHandler = async () => {
     import("./assembly-run/node-event-handler.js"),
     import("../kernel/queues.js"),
   ]);
-  const { clusterAgents } = await import("../kernel/queues.js");
   const { writeAuditLog } = await import("./lib/audit.js");
   const summary = await assemblyLineReaperJob({
     ...(await productionNodeEventDeps()),

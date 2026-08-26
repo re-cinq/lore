@@ -408,8 +408,9 @@ describe("advanceLine", () => {
     await advanceLine(id, deps);
 
     expect(port.nodes).toHaveLength(1);
-    // Both advances launch the SAME deterministic CR name — the 409 makes the
-    // second a no-op at the cluster; the walk state stays single-rowed.
+    // Both advances arm the same deterministic CR name via
+    // enqueueStationRunDispatch; ensureStationRun's ON CONFLICT keeps the row
+    // single and the dispatch UPDATE is idempotent — no 409 involved anymore.
     expect(new Set(enqueued.map((l) => l.name)).size).toBe(1);
   });
 
