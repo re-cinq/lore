@@ -25,9 +25,9 @@
 
   <line class="conn" x1="340" y1="132" x2="340" y2="166"/>
 
-  <!-- MCP Server webhook handler -->
+  <!-- Floor webhook ingress -->
   <rect class="box" x="80" y="166" width="520" height="200" fill="#fff" stroke="#94a3b8"/>
-  <text class="label" x="340" y="192" text-anchor="middle">Lore MCP Server (webhook)</text>
+  <text class="label" x="340" y="192" text-anchor="middle">The Floor (GitHub webhook ingress)</text>
 
   <text class="label" x="110" y="220" font-size="12" fill="#6366f1">1. Validates label → dispatch</text>
   <text class="mono" x="130" y="240">"lore:implementation" → implementation</text>
@@ -40,11 +40,11 @@
 
   <line class="conn" x1="340" y1="366" x2="340" y2="398"/>
 
-  <!-- LoreTask Job -->
+  <!-- Agent CR execution -->
   <rect class="box" x="80" y="398" width="520" height="140" fill="#fff" stroke="#94a3b8"/>
-  <text class="label" x="340" y="424" text-anchor="middle">LoreTask CRD → Job Pod</text>
+  <text class="label" x="340" y="424" text-anchor="middle">Agent CR → agent pod (ai-agent-subsystem)</text>
 
-  <text class="step" x="110" y="450">Claude Code implements in ephemeral pod</text>
+  <text class="step" x="110" y="450">Claude Code implements in an ephemeral agent pod</text>
   <text class="step" x="130" y="470">Commits + pushes to branch</text>
   <text class="step" x="130" y="490">Watcher creates PR (refs original issue)</text>
 
