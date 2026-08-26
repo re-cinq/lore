@@ -1,12 +1,13 @@
 # Feature Specification: Running Stations in Any Kubernetes Cluster
 
-| Field    | Value                                          |
-|----------|------------------------------------------------|
-| Feature  | Running Stations in Any Kubernetes Cluster     |
-| Branch   | (unassigned)                                   |
-| Status   | Draft                                          |
-| Created  | 2026-08-26                                     |
-| Owner    | Platform Engineering                           |
+| Field     | Value                                          |
+|-----------|------------------------------------------------|
+| Feature   | Running Stations in Any Kubernetes Cluster     |
+| Branch    | (unassigned)                                   |
+| Status    | Draft                                          |
+| Created   | 2026-08-26                                     |
+| Owner     | Platform Engineering                           |
+| Builds on | [ADR-044](../../adrs/ADR-044-event-router-owns-the-event-bus.md) |
 
 Running Stations in Any Kubernetes Cluster lets a repo's assembly-line station
 runs execute on clusters Lore does not own — a developer's minikube, a customer
@@ -30,10 +31,14 @@ The groundwork for lifting this exists. ADR-044 extracted **cluster-agent** as
 the only process holding a Kubernetes client, one per cluster, reporting
 terminal Agent CR phases inward over HTTP through the event-router's
 `POST /api/events` front door — recorded explicitly as "what allows more than
-one execution cluster". `HttpEventReporter` already names the satellite-cluster
-producer as its reason to exist. What is missing is the registry (which
-clusters exist), the capability model (what each can run), and the claim-based
-dispatch (how work reaches a cluster that cannot be reached).
+one execution cluster". `HttpEventReporter`
+(`libs/shared/src/project/events/event-reporter-http.ts`) exists precisely so
+a producer can report from somewhere the database does not reach (its header
+comment is corrected in this change to name the satellite cluster-agent this
+spec defines, rather than the satellite Floor it predates). What is missing is
+the registry (which clusters exist), the capability model (what each can run),
+and the claim-based dispatch (how work reaches a cluster that cannot be
+reached).
 
 ## Design Decision: the satellite is a cluster-agent, not a second Floor
 
@@ -50,27 +55,60 @@ Postgres credentials outside the central cluster.
 ADR-044 is amended (not superseded) to record that multi-cluster, left open
 there, is taken up in this shape.
 
+## Station-run lifecycle
+
+Today a `pipeline.station_runs` row is written at dispatch time, "open" means
+`outcome IS NULL`, and the reaper measures the node's timeout from
+`started_at`. Pull-based dispatch introduces a phase that table cannot
+express — written but not yet claimed — so the lifecycle is made explicit
+rather than smuggled through existing columns:
+
+- `pipeline.station_runs` gains `status text NOT NULL DEFAULT 'running'` with
+  values `queued` (written by the launch seam, unclaimed), `claimed` (a
+  cluster-agent took it, Agent CR not yet confirmed), and `running` (the
+  default, and the backfill value for every existing row). `status` is
+  meaningful only while `outcome IS NULL`; terminality stays exactly what it
+  is today — a non-null `outcome` — so `nextTransition()`'s await logic
+  (`visits.some(v => v.outcome === null)`) is untouched.
+- `started_at` keeps its NOT NULL row-creation meaning (now: enqueue time).
+  Execution timing moves to the new `claimed_at`: the reaper measures the
+  node's `timeout_minutes` budget from `claimed_at`, never from `started_at`,
+  so time spent waiting for a capable cluster is not charged against
+  execution.
+- A run that sits `queued` longer than a configurable queue-wait bound
+  (default 30 minutes) is failed terminally with the existing
+  `failure_class` mechanics and a detail naming the unmatched
+  `required_tags` — a line stalled because no registered cluster carries a
+  tag must say so, not report a generic infra timeout.
+- Requeueing (FR4) resets the **same row** back to `queued`, clearing
+  `cluster_agent_id` and `claimed_at`. No second row is inserted, so the
+  row-id-as-visit-order contract the fork replay depends on
+  (`assembly-runs-pg.ts`) sees exactly one row per node visit, claimed or
+  not.
+
 ## FR1 — Cluster-agent registry and identity
 
 A new `pipeline.cluster_agents` table is the registry of execution clusters.
 
-- A cluster-agent registers with `POST /api/cluster-agents/register`,
-  authenticating with a pre-shared registration token
-  (`LORE_CLUSTER_AGENT_REGISTRATION_TOKEN`), and receives a durable
-  `cluster_agent_id` and a per-agent bearer token.
+- A cluster-agent registers with `POST /api/cluster-agents/register` on
+  lore-api (all `/api/cluster-agents/*` endpoints live in
+  `apps/lore-api/src/api/routes/cluster-agents/`), authenticating with a
+  pre-shared registration token (`LORE_CLUSTER_AGENT_REGISTRATION_TOKEN`),
+  and receives a durable id and a per-agent bearer token.
 - The per-agent token is stored SHA-256-hashed in
   `pipeline.cluster_agents.token_hash`, following the existing
-  `pipeline.api_tokens` pattern; every subsequent call from that agent
-  authenticates with it.
+  `pipeline.api_tokens` pattern; every subsequent lore-api call from that
+  agent authenticates with it.
 - Registration is idempotent on `name`: re-registering an existing name
   rotates the token and updates `tags` and `cluster_info` rather than
   creating a duplicate row.
 - The satellite persists its identity in a Kubernetes Secret
   (`lore-cluster-agent-identity`) so pod restarts do not re-register.
-- The registry ships as migration `0049_cluster_agent_registry.sql` (number
-  adjusted to the next free slot at merge time): the table plus columns
-  `cluster_agent_id`, `required_tags`, `claimed_at` on
-  `pipeline.station_runs`.
+- The registry ships as a migration in
+  `infra/terraform/modules/gke-mcp/lore-platform/charts/ui-helm/migrations/`
+  (next free number — `0049_cluster_agent_registry.sql` at time of writing):
+  the table plus columns `status`, `cluster_agent_id`, `required_tags`,
+  `claimed_at` on `pipeline.station_runs`.
 - A `ClusterAgent` Zod model in `libs/shared/src/models/` and a
   port + Pg adapter + InMemory double under
   `libs/shared/src/project/cluster-agents/` follow the house pattern.
@@ -86,7 +124,9 @@ scoring.
   cluster-agent may claim a run only when `required_tags <@ tags`.
 - Assembly-line YAML nodes accept an optional `required_tags` list in the
   loader schema; an absent list inherits the repo-level default
-  `settings.station_default_tags`, and an absent default means `{}`.
+  `settings.station_default_tags`, and an absent default means `{}`. The
+  default is applied at enqueue time, never baked into the parsed
+  definition, so it stays out of `definitionHash`.
 - A run with `required_tags = '{}'` is claimable by every registered
   cluster-agent, so existing definitions keep working unchanged.
 
@@ -98,54 +138,94 @@ model. The central cluster's agent claims through the same path, so there is
 one dispatch mechanism, not a special case plus a remote case.
 
 - The Floor's launch seam writes the station run as `queued`, carrying the
-  complete dispatch spec (node type, agent definition, target repo, branch,
-  args, conversation, timeout) instead of calling the cluster-agent directly.
+  complete dispatch spec (node type, target repo, branch, args, conversation,
+  timeout) instead of calling the cluster-agent directly. Only nodes that
+  reach the launch seam are enqueued — human-station and service-node rows
+  never become `queued` and are therefore never claimable.
 - A cluster-agent polls `POST /api/cluster-agents/{id}/claim` on a
   configurable interval (default 15 s); the claim is a single
-  `SELECT … FOR UPDATE SKIP LOCKED` CTE that sets `status`,
+  `SELECT … FOR UPDATE SKIP LOCKED` CTE that sets `status = 'claimed'`,
   `cluster_agent_id`, and `claimed_at` in one statement, so concurrent
   claimants are safe.
 - A claim request with no matching queued run returns `204`.
-- The claiming cluster-agent dispatches the Agent CR to its own cluster's
-  ai-agents subsystem, exactly as it does today for the central cluster.
-- Outcome reporting is unchanged: the cluster-agent's existing watch reports
-  terminal phases through the event-router front door with dedupe keys, and
-  the central Floor's event loop advances the assembly line without knowing
-  or caring which cluster executed the node.
+- The claim response carries the **fully rendered** `AgentDefinition` +
+  `Station` CRD pair, not a name reference. The claiming cluster-agent
+  applies the pair idempotently in its own cluster (the same apply it
+  performs today when lore-api pushes pairs to it), provisions the per-task
+  token locally, then creates the Agent CR — so a satellite needs no synced
+  catalog and no inbound push ever occurs.
+- Outcome reporting rides the existing path: the cluster-agent's watch
+  reports terminal phases through the event-router front door with dedupe
+  keys, and the central Floor's event loop advances the assembly line
+  without knowing which cluster executed the node.
 
-## FR4 — Liveness and dead-agent reaping
+## FR4 — Liveness, recovery, and dead-agent reaping
 
-A registered cluster that dies must not strand its claims.
+Recovery today assumes the reaper can interrogate the Agent CR — a pull
+against the central cluster-agent. A satellite's CRs are invisible to that
+pull, so recovery splits by who holds the claim:
 
 - A cluster-agent posts `POST /api/cluster-agents/{id}/heartbeat` every 30 s,
   bumping `last_seen_at`.
-- The assembly-run reaper marks cluster-agents with
+- The assembly-run reaper (existing cadence) marks cluster-agents with
   `last_seen_at < now() - 2 minutes` as `offline`.
-- Station runs claimed by an offline cluster-agent and past their node
-  timeout are reset to `queued` and recorded in `pipeline.audit_log` as
-  `cluster_agent_offline`, so another agent picks them up.
+- The reaper's CR-status recovery arm (`readAgentStatus` → relaunch on null)
+  applies **only** to runs claimed by the central cluster's agent — the one
+  cluster `CLUSTER_AGENT_URL` can reach. For satellite-claimed runs that arm
+  is skipped entirely; their recovery signal is the claiming agent's
+  liveness, never a CR read that would come back null and trigger a
+  duplicate central launch.
+- A run claimed by an **offline** agent is reset to `queued` (same row, per
+  the lifecycle section) and recorded in `pipeline.audit_log` as
+  `cluster_agent_offline`, so another agent picks it up. Re-execution
+  resumes on the run's existing branch — branch-as-state already makes a
+  node re-run land on whatever commits the dead attempt pushed.
+- A run whose claiming agent is **alive** but which exceeds its node timeout
+  (measured from `claimed_at`) is failed terminally, exactly the reaper's
+  timeout semantics today — a live agent past budget is a stuck node, not a
+  lost one, and requeueing it would double-execute its side effects.
 - A returning agent re-registers under its persisted identity and resumes
   claiming; its stale claims have already been requeued, and dedupe keys make
   any late duplicate report safe.
 
-## FR5 — Standalone satellite chart
+## FR5 — Reporting credentials for satellites
+
+A satellite must report outcomes without holding the bus-wide credential.
+
+- The event-router's `POST /api/events` accepts, in addition to
+  `LORE_INGEST_TOKEN`, per-agent bearer tokens verified against
+  `pipeline.cluster_agents.token_hash` (the router already holds the pool;
+  this is a lookup, not a new dependency).
+- Satellites report with their per-agent token; `LORE_INGEST_TOKEN` never
+  leaves the central cluster.
+- Deregistering or rotating a cluster-agent's token immediately invalidates
+  its reporting credential — one revocation surface for both claiming and
+  reporting.
+
+## FR6 — Standalone satellite chart
 
 One `helm install` turns any cluster with outbound HTTPS into a Lore
 execution node.
 
-- A new `charts/lore-cluster-agent-standalone` chart bundles the existing
-  cluster-agent (configured as a satellite) with the ai-agents subsystem —
-  both halves in one chart, per the feature's locked decision.
-- Required values: `loreApiUrl`, `registrationToken`, `name`, `tags`, GHCR
-  pull credentials, and an LLM credential. No Postgres values exist in the
-  chart at all.
-- `scripts/check-lore-cluster-agent-standalone-render.sh` renders the chart
-  in CI, mirroring the existing chart-render checks.
+- A new chart at
+  `infra/terraform/modules/gke-mcp/lore-platform/charts/cluster-agent-standalone-helm/`
+  (the repo's chart directory and `-helm` naming convention; deliberately
+  **not** added to the `lore-platform` umbrella's dependencies — it is
+  installed standalone on the satellite) bundles the existing cluster-agent
+  image, configured as a satellite, with the ai-agents subsystem — both
+  halves in one chart, per the feature's locked decision.
+- Required values: `loreApiUrl`, `eventRouterUrl`, `registrationToken`,
+  `name`, `tags`, GHCR pull credentials, and an LLM credential. No Postgres
+  values exist in the chart at all.
+- `scripts/check-cluster-agent-standalone-render.sh` renders the chart in
+  CI; `.github/workflows/helm-render.yml` gains both the `paths:` entries
+  and the job for it, since that workflow hardcodes each render check by
+  hand rather than globbing.
 - The local dev flow gains a flag that installs the standalone chart against
   minikube, making "laptop cluster registers, claims a run, PR appears" the
   acceptance walk for the whole feature.
 
-## FR6 — Registered-clusters visibility
+## FR7 — Registered-clusters visibility
 
 Operators need to see which clusters exist, what they can run, and whether
 they are alive.
@@ -173,8 +253,12 @@ CREATE TABLE pipeline.cluster_agents (
 );
 ```
 
-`pipeline.station_runs` gains `cluster_agent_id uuid`, `required_tags text[]
-NOT NULL DEFAULT '{}'`, and `claimed_at timestamptz`.
+`pipeline.station_runs` gains `status text NOT NULL DEFAULT 'running'`
+(lifecycle section above; the default doubles as the backfill for existing
+rows), `cluster_agent_id uuid REFERENCES pipeline.cluster_agents(id)`,
+`required_tags text[] NOT NULL DEFAULT '{}'`, and `claimed_at timestamptz`,
+plus a partial index on `(status) WHERE outcome IS NULL` to back the claim
+scan.
 
 ## Out of Scope
 
@@ -182,6 +266,11 @@ NOT NULL DEFAULT '{}'`, and `claimed_at timestamptz`.
   affinity. First matching claimant wins.
 - Running the central Floor, event-router, or any Postgres-holding process
   outside the central cluster.
+- Live pod-log viewing for satellite-executed runs. The run page's log
+  viewer pulls from the central cluster-agent; a satellite run falls back to
+  the existing "not retained" path in this iteration. Turn-level transcripts
+  (`pipeline.agent_run_turns`) are unaffected — they flow through the
+  reporting path and work from any cluster.
 - Non-Kubernetes execution backends (the GitHub Actions backend direction
   tracked in #1105 is unaffected and separate).
 - Billing or quota separation per registered cluster.
@@ -194,12 +283,19 @@ NOT NULL DEFAULT '{}'`, and `claimed_at timestamptz`.
   a call with a stale token is rejected.
 - FR2: a run requiring `gpu` is never handed to an agent without it; a run
   with empty `required_tags` is claimable by any agent.
-- FR3: two agents claiming concurrently never receive the same run; the
+- FR3: two agents claiming concurrently never receive the same run; a
+  human-station or service-node row is never returned by a claim; the
   minikube acceptance walk ends with a PR authored from a locally executed
   station run.
-- FR4: killing a satellite mid-run requeues its claim within one reaper
-  cycle plus the node timeout, with a `cluster_agent_offline` audit entry.
-- FR5: the standalone chart renders in CI with only the documented values;
+- FR4: killing a satellite mid-run requeues its claim within the offline
+  threshold (2 min) plus two reaper cycles (one to mark offline, one to
+  requeue), with a `cluster_agent_offline` audit entry; a satellite-claimed
+  run in progress is never relaunched by the central reaper's CR-status arm.
+- FR5: an event posted with a valid per-agent token lands; the same event
+  after token rotation is rejected; no satellite manifest contains
+  `LORE_INGEST_TOKEN`.
+- FR6: the standalone chart renders in CI with only the documented values;
   a rendered manifest contains no Postgres reference.
-- FR6: the cluster list shows a just-registered agent as `active` and flips
-  it to `offline` within two minutes of its last heartbeat.
+- FR7: the cluster list shows a just-registered agent as `active` and flips
+  it to `offline` within the offline threshold plus one reaper cycle after
+  its last heartbeat.
