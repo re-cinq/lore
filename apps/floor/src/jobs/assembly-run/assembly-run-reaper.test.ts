@@ -775,3 +775,151 @@ describe("a node whose station runs in the pooled service", () => {
     ).toEqual({ kind: "requeue" });
   });
 });
+
+describe("the offline sweep (FR4)", () => {
+  const offlineNode = (
+    over: Partial<StationRunRecord> = {},
+  ): StationRunRecord => ({
+    id: "1",
+    stationRunId: "station-run-1",
+    assemblyRunId: "al-1",
+    nodeId: "review",
+    iteration: 1,
+    status: "claimed",
+    clusterAgentId: "sat-1",
+    requiredTags: [],
+    claimedAt: new Date(Date.now() - 3 * MIN),
+    outcome: null,
+    failureClass: null,
+    failureDetail: null,
+    agentCrName: "a1b2c3d4-review",
+    input: null,
+    commitSha: null,
+    startedAt: new Date(Date.now() - 10 * MIN),
+    finishedAt: null,
+    ...over,
+  });
+
+  it("requeues a claim held by an offline agent immediately, without waiting out the budget", () => {
+    expect(
+      decideNodeRecovery({
+        node: offlineNode(),
+        timeoutMinutes: 15,
+        status: null,
+        crVisible: false,
+        claimantOffline: true,
+        queueWaitMs: QUEUE_WAIT_MS,
+        nowMs: Date.now(),
+      }),
+    ).toEqual({ kind: "requeue-offline" });
+  });
+
+  it("an offline claimant flips nothing on a queued row — there is no claim to lose", () => {
+    expect(
+      decideNodeRecovery({
+        node: offlineNode({
+          status: "queued",
+          clusterAgentId: null,
+          claimedAt: null,
+        }),
+        timeoutMinutes: 15,
+        status: null,
+        crVisible: false,
+        claimantOffline: true,
+        queueWaitMs: QUEUE_WAIT_MS,
+        nowMs: Date.now(),
+      }),
+    ).toEqual({ kind: "wait" });
+  });
+
+  it("requeues an offline satellite's claim, same row, and writes the cluster_agent_offline audit entry", async () => {
+    const h = harness();
+    const id = await h.port.start({
+      blueprintName: "code-review",
+      repo: "o/r",
+      args: {},
+    });
+
+    await h.port.markRunning(id);
+    const { nodeRowId } = await h.port.ensureStationRun({
+      assemblyRunId: id,
+      nodeId: "review",
+      iteration: 1,
+      agentCrName: `${id.substring(0, 12)}-review`,
+      status: "queued",
+    });
+
+    await h.port.enqueueStationRunDispatch(nodeRowId, { name: "spec" });
+    await h.port.claimNextStationRun({ clusterAgentId: "sat-1", tags: [] });
+    const audits: Array<{
+      event_type: string;
+      payload: Record<string, unknown>;
+    }> = [];
+    const cutoffs: Date[] = [];
+
+    const summary = await assemblyLineReaperJob({
+      ...h.deps,
+      offlineClusterAgents: async (cutoff) => {
+        cutoffs.push(cutoff);
+
+        return new Set(["sat-1"]);
+      },
+      audit: async (entry) => {
+        audits.push(entry);
+      },
+    });
+
+    expect(h.port.nodes).toHaveLength(1);
+    expect(h.port.nodes[0]).toMatchObject({
+      status: "queued",
+      clusterAgentId: null,
+      claimedAt: null,
+      outcome: null,
+    });
+    expect(summary).toContain("requeued 1");
+    expect(audits).toHaveLength(1);
+    expect(audits[0]).toMatchObject({
+      event_type: "cluster_agent_offline",
+      payload: {
+        cluster_agent_id: "sat-1",
+        assembly_run_id: id,
+        node_id: "review",
+      },
+    });
+    expect(typeof audits[0].payload.elapsed_since_claim_ms).toBe("number");
+    // The sweep asks with the 5-minute threshold: ten missed 30s heartbeats.
+    expect(Date.now() - cutoffs[0].getTime()).toBeGreaterThanOrEqual(5 * MIN);
+    expect(Date.now() - cutoffs[0].getTime()).toBeLessThan(6 * MIN);
+  });
+
+  it("leaves an online satellite's claim alone even when the sweep reports other agents offline", async () => {
+    const h = harness();
+    const id = await h.port.start({
+      blueprintName: "code-review",
+      repo: "o/r",
+      args: {},
+    });
+
+    await h.port.markRunning(id);
+    const { nodeRowId } = await h.port.ensureStationRun({
+      assemblyRunId: id,
+      nodeId: "review",
+      iteration: 1,
+      agentCrName: `${id.substring(0, 12)}-review`,
+      status: "queued",
+    });
+
+    await h.port.enqueueStationRunDispatch(nodeRowId, { name: "spec" });
+    await h.port.claimNextStationRun({ clusterAgentId: "sat-2", tags: [] });
+
+    await assemblyLineReaperJob({
+      ...h.deps,
+      offlineClusterAgents: async () => new Set(["sat-1"]),
+    });
+
+    expect(h.port.nodes[0]).toMatchObject({
+      status: "claimed",
+      clusterAgentId: "sat-2",
+    });
+  });
+});

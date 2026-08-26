@@ -34,6 +34,15 @@ import {
  *  crash-orphaned single-CR (definition-less) run row. */
 export interface AssemblyLineReaperDeps extends NodeEventDeps {
   taskStatus: (taskId: string) => Promise<string | null>;
+  /** FR4's offline sweep: mark agents silent past the threshold offline and
+   *  return every offline agent id. Optional — a composition without a
+   *  registry (tests, local runs) sweeps nothing. */
+  offlineClusterAgents?: (cutoff: Date) => Promise<Set<string>>;
+  /** The audit writer for `cluster_agent_offline` requeues. */
+  audit?: (entry: {
+    event_type: string;
+    payload: Record<string, unknown>;
+  }) => Promise<void>;
 }
 
 const MINUTE_MS = 60_000;
@@ -51,6 +60,9 @@ const NODE_STARTUP_GRACE_MS = 2 * MINUTE_MS;
 /** How long a `queued` row may wait for a claim before it fails terminally. */
 const DEFAULT_QUEUE_WAIT_MINUTES = 30;
 
+/** Silence past this marks a cluster-agent offline — ten missed 30s beats. */
+export const OFFLINE_THRESHOLD_MS = 5 * MINUTE_MS;
+
 /** The queue-wait bound (`LORE_STATION_QUEUE_WAIT_MINUTES`, default 30m). */
 export function stationQueueWaitMs(): number {
   const minutes = Number(process.env.LORE_STATION_QUEUE_WAIT_MINUTES);
@@ -61,6 +73,7 @@ export function stationQueueWaitMs(): number {
 export type NodeRecovery =
   | { kind: "resolve"; status: AgentNodeStatus }
   | { kind: "requeue" }
+  | { kind: "requeue-offline" }
   | { kind: "timeout" }
   | { kind: "queue-timeout" }
   | { kind: "wait" };
@@ -96,6 +109,9 @@ export function decideNodeRecovery(input: {
   /** Precomputed {@link agentCrVisible} — whether the null in `status` means
    *  "the CR is gone" rather than "we never looked". */
   crVisible: boolean;
+  /** The claiming cluster-agent is marked `offline` (FR4): its claim is lost,
+   *  not stuck, so it requeues without any timeout precondition. */
+  claimantOffline?: boolean;
   queueWaitMs: number;
   nowMs: number;
 }): NodeRecovery {
@@ -114,6 +130,13 @@ export function decideNodeRecovery(input: {
     return input.nowMs - input.node.startedAt.getTime() > input.queueWaitMs
       ? { kind: "queue-timeout" }
       : { kind: "wait" };
+  }
+
+  // A claim held by a DEAD cluster requeues immediately — waiting out the
+  // node budget would stall the line for work nobody is doing, and the
+  // 5-minute offline threshold already absorbed transient silence.
+  if (input.node.status === "claimed" && input.claimantOffline) {
+    return { kind: "requeue-offline" };
   }
   const budgetMs =
     ((input.timeoutMinutes ?? DEFAULT_TIMEOUT_MINUTES) +
@@ -180,6 +203,10 @@ export async function assemblyLineReaperJob(
   const queueWaitMs = stationQueueWaitMs();
   const centralClusterAgentId =
     process.env.LORE_CENTRAL_CLUSTER_AGENT_ID ?? null;
+  const offlineAgents =
+    (await deps.offlineClusterAgents?.(
+      new Date(nowMs - OFFLINE_THRESHOLD_MS),
+    )) ?? new Set<string>();
   let resolved = 0;
   let requeued = 0;
   let timedOut = 0;
@@ -263,7 +290,11 @@ export async function assemblyLineReaperJob(
         crVisible && openNode.agentCrName
           ? await deps.readAgentStatus(openNode.agentCrName)
           : null;
+      const claimantOffline =
+        openNode.clusterAgentId !== null &&
+        offlineAgents.has(openNode.clusterAgentId);
       const recovery = decideNodeRecovery({
+        claimantOffline,
         node: openNode,
         // The station's own budget, not the global sixty, when the YAML is
         // silent — every merge.yaml node is, and merge_step declares five.
@@ -361,6 +392,23 @@ export async function assemblyLineReaperJob(
         console.warn(
           `[assembly-run-reaper] node ${openNode.nodeId} of ${row.id} sat queued past ${queueWaitMs / MINUTE_MS}m unclaimed`,
         );
+      } else if (recovery.kind === "requeue-offline") {
+        // Same row back on the shelf; the audit entry is what makes a flapping
+        // cluster diagnosable without database access (FR7 renders it).
+        await deps.assemblyRuns.requeueStationRun(openNode.id);
+        await deps.audit?.({
+          event_type: "cluster_agent_offline",
+          payload: {
+            cluster_agent_id: openNode.clusterAgentId,
+            station_run_id: openNode.stationRunId,
+            assembly_run_id: row.id,
+            node_id: openNode.nodeId,
+            elapsed_since_claim_ms: openNode.claimedAt
+              ? nowMs - openNode.claimedAt.getTime()
+              : null,
+          },
+        });
+        requeued++;
       } else if (recovery.kind === "requeue") {
         // Crash between claim and CR create: reset the SAME row to `queued` so
         // another claim takes it — no second builder, the armed dispatch spec

@@ -14,6 +14,7 @@ import { createPipelineRepositories } from "@re-cinq/lore-shared/project/pipelin
 import type { PipelineRepositories } from "@re-cinq/lore-shared";
 import { internalToken } from "@re-cinq/lore-shared/http/internal-token.js";
 import { StationClient } from "@re-cinq/lore-shared/project/stations/station-client.js";
+import { PgClusterAgents } from "@re-cinq/lore-shared/project/cluster-agents/cluster-agents-pg.js";
 import { ClusterAgentClient } from "@re-cinq/lore-shared";
 import {
   selectEventDeliveries,
@@ -160,6 +161,13 @@ export const stationClient = (): StationClient =>
     process.env.STATIONS_URL ?? "",
     internalToken(),
   ));
+
+let clusterAgentsSingleton: PgClusterAgents | undefined;
+
+/** The execution-cluster registry (specs/running-stations-in-any-k8s-cluster):
+ *  the reaper's offline sweep reads and flips liveness through here. */
+export const clusterAgents = (): PgClusterAgents =>
+  (clusterAgentsSingleton ??= new PgClusterAgents(getPool()));
 
 let clusterAgentSingleton: ClusterAgentClient | undefined;
 

@@ -184,11 +184,11 @@ against the central cluster-agent. A satellite's CRs are invisible to that
 pull, so recovery splits by who holds the claim:
 
 - A cluster-agent posts `POST /api/cluster-agents/{id}/heartbeat` every 30 s,
-  bumping `last_seen_at`. ([validated by `cluster-agents.test.ts:129`](libs/shared/src/project/cluster-agents/cluster-agents.test.ts#L129), [`cluster-agents.test.ts:252`](libs/shared/src/project/cluster-agents/cluster-agents.test.ts#L252))
+  bumping `last_seen_at`. ([validated by `cluster-agents.test.ts:129`](libs/shared/src/project/cluster-agents/cluster-agents.test.ts#L129), [`cluster-agents.test.ts:252`](libs/shared/src/project/cluster-agents/cluster-agents.test.ts#L252), [`heartbeat.test.ts:22`](apps/lore-api/src/api/routes/cluster-agents/heartbeat.test.ts#L22), [`heartbeat.test.ts:38`](apps/lore-api/src/api/routes/cluster-agents/heartbeat.test.ts#L38), [`heartbeat-loop.test.ts:29`](apps/cluster-agent/src/satellite/heartbeat-loop.test.ts#L29), [`heartbeat-loop.test.ts:33`](apps/cluster-agent/src/satellite/heartbeat-loop.test.ts#L33), [`heartbeat-loop.test.ts:44`](apps/cluster-agent/src/satellite/heartbeat-loop.test.ts#L44), [`heartbeat-loop.test.ts:74`](apps/cluster-agent/src/satellite/heartbeat-loop.test.ts#L74))
 - The assembly-run reaper (existing cadence) marks cluster-agents with
   `last_seen_at < now() - 5 minutes` as `offline` — ten missed heartbeats,
   so a transient network blip or one dropped request never requeues live
-  work. ([validated by `cluster-agents.test.ts:149`](libs/shared/src/project/cluster-agents/cluster-agents.test.ts#L149), [`cluster-agents.test.ts:239`](libs/shared/src/project/cluster-agents/cluster-agents.test.ts#L239))
+  work. ([validated by `cluster-agents.test.ts:149`](libs/shared/src/project/cluster-agents/cluster-agents.test.ts#L149), [`cluster-agents.test.ts:239`](libs/shared/src/project/cluster-agents/cluster-agents.test.ts#L239), [`assembly-run-reaper.test.ts:835`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L835))
 - The reaper's CR-status recovery arm (`readAgentStatus` → relaunch on null)
   applies **only** to runs claimed by the central cluster's agent — the one
   cluster `CLUSTER_AGENT_URL` can reach. For satellite-claimed runs that arm
@@ -200,16 +200,16 @@ pull, so recovery splits by who holds the claim:
   `offline` — writes a `cluster_agent_offline` entry to `pipeline.audit_log`
   recording the `cluster_agent_id`, the `station_run_id`, and the elapsed
   time since `claimed_at`, so another agent picks the run up and the outage
-  is attributable. Re-execution
-  resumes on the run's existing branch — branch-as-state already makes a
-  node re-run land on whatever commits the dead attempt pushed.
+  is attributable. Re-execution resumes on the run's existing branch —
+  branch-as-state already makes a node re-run land on whatever commits the
+  dead attempt pushed. ([validated by `assembly-run-reaper.test.ts:835`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L835), [`assembly-run-reaper.test.ts:803`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L803), [`assembly-run-reaper.test.ts:817`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L817), [`assembly-run-reaper.test.ts:895`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L895))
 - A run whose claiming agent is **alive** but which exceeds its node timeout
   (measured from `claimed_at`) is failed terminally, exactly the reaper's
   timeout semantics today — a live agent past budget is a stuck node, not a
   lost one, and requeueing it would double-execute its side effects.
 - A returning agent re-registers under its persisted identity and resumes
   claiming; its stale claims have already been requeued, and dedupe keys make
-  any late duplicate report safe.
+  any late duplicate report safe. ([validated by [`heartbeat-loop.test.ts:100`](apps/cluster-agent/src/satellite/heartbeat-loop.test.ts#L100), [`heartbeat-loop.test.ts:62`](apps/cluster-agent/src/satellite/heartbeat-loop.test.ts#L62))
 
 ## FR5 — Reporting credentials for satellites
 

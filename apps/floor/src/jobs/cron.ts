@@ -104,10 +104,22 @@ export const assemblyLineReaper: EventHandler = async () => {
     import("./assembly-run/node-event-handler.js"),
     import("../kernel/queues.js"),
   ]);
+  const { clusterAgents } = await import("../kernel/queues.js");
+  const { writeAuditLog } = await import("./lib/audit.js");
   const summary = await assemblyLineReaperJob({
     ...(await productionNodeEventDeps()),
     taskStatus: async (taskId) =>
       (await taskStore().getById(taskId))?.status ?? null,
+    // FR4's offline sweep: flip the silent, then requeue what the dead held.
+    offlineClusterAgents: async (cutoff) => {
+      await clusterAgents().markOffline(cutoff);
+      const all = await clusterAgents().list();
+
+      return new Set(
+        all.filter((a) => a.status === "offline").map((a) => a.id),
+      );
+    },
+    audit: (entry) => writeAuditLog(entry),
   });
 
   if (
