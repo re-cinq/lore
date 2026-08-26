@@ -43,6 +43,24 @@ export interface AssemblyLineReaperDeps extends NodeEventDeps {
     event_type: string;
     payload: Record<string, unknown>;
   }) => Promise<void>;
+  /**
+   * The central cluster's registered agent id, for {@link agentCrVisible}.
+   * Resolved per sweep — the id is minted at registration, so a static env
+   * var cannot know it. Null (registry empty, central agent not yet
+   * registered) leaves only legacy `running` rows visible, which is exactly
+   * the pre-claim-path behaviour.
+   */
+  centralClusterAgentId: () => Promise<string | null>;
+}
+
+const DEFAULT_CENTRAL_CLUSTER_AGENT_NAME = "central";
+
+/** The central agent's registry name (`LORE_CENTRAL_CLUSTER_AGENT_NAME`). */
+export function centralClusterAgentName(): string {
+  return (
+    process.env.LORE_CENTRAL_CLUSTER_AGENT_NAME ??
+    DEFAULT_CENTRAL_CLUSTER_AGENT_NAME
+  );
 }
 
 const MINUTE_MS = 60_000;
@@ -201,8 +219,7 @@ export async function assemblyLineReaperJob(
   const open = await deps.assemblyRuns.listOpen();
   const nowMs = Date.now();
   const queueWaitMs = stationQueueWaitMs();
-  const centralClusterAgentId =
-    process.env.LORE_CENTRAL_CLUSTER_AGENT_ID ?? null;
+  const centralClusterAgentId = await deps.centralClusterAgentId();
   const offlineAgents =
     (await deps.offlineClusterAgents?.(
       new Date(nowMs - OFFLINE_THRESHOLD_MS),
