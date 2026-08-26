@@ -167,7 +167,7 @@ The system MUST maintain a registry of onboarded repos. ([validated by `repos.te
 
 ### FR-2: Repo Onboarding via PR
 
-The system MUST onboard new repos by creating a PR. ([validated by `worker.onboard.test.ts:112`](apps/floor/src/jobs/task/worker.onboard.test.ts#L112))
+The system MUST onboard new repos by creating a PR. ([validated by `worker.onboard.test.ts:136`](apps/floor/src/jobs/task/worker.onboard.test.ts#L136))
 
 - FR-2.1: "Add Repo" button in the UI shows repos from the GitHub
   App installation that aren't onboarded yet. The onboard page renders
@@ -176,24 +176,39 @@ The system MUST onboard new repos by creating a PR. ([validated by `worker.onboa
   the typed repo name while surfacing an action error on a failed
   submit. ([validated by `OnboardView.test.tsx:9`](apps/web-ui/src/app/onboard/OnboardView.test.tsx#L9), [`OnboardView.test.tsx:21`](apps/web-ui/src/app/onboard/OnboardView.test.tsx#L21), [`OnboardView.test.tsx:36`](apps/web-ui/src/app/onboard/OnboardView.test.tsx#L36), [`OnboardView.test.tsx:44`](apps/web-ui/src/app/onboard/OnboardView.test.tsx#L44), [`OnboardView.test.tsx:60`](apps/web-ui/src/app/onboard/OnboardView.test.tsx#L60), [`OnboardView.test.tsx:81`](apps/web-ui/src/app/onboard/OnboardView.test.tsx#L81))
 - FR-2.2: Lore creates a per-task branch (`lore/onboard/<slug>-<id8>`) on the
-  target repo before committing. ([validated by `worker.onboard.test.ts:112`](apps/floor/src/jobs/task/worker.onboard.test.ts#L112))
+  target repo before committing. ([validated by `worker.onboard.test.ts:136`](apps/floor/src/jobs/task/worker.onboard.test.ts#L136))
 - FR-2.3: Commits the onboarding files onto that branch — the ingest and
   spec-impact workflows, static scaffolding, and the LLM-drafted AGENTS.md,
-  PR template, pr-description-check workflow, and `.specify/spec.md`. ([validated by `worker.onboard.test.ts:95`](apps/floor/src/jobs/task/worker.onboard.test.ts#L95))
+  PR template, pr-description-check workflow, and `.specify/spec.md`. ([validated by `worker.onboard.test.ts:119`](apps/floor/src/jobs/task/worker.onboard.test.ts#L119))
 - FR-2.4: Opens a PR per repo with the canonical onboarding path and
   content, counting only the repos where a PR was actually opened,
-  tolerating per-repo failures/nulls, and evicting the cached
+  reporting each repo where no PR was opened with its reason (a thrown
+  error's message, or an App-not-configured hint on a null) for both the
+  ingest and trace-impact fix actions, and evicting the cached
   ingest-workflow statuses before revalidating so the re-rendered page
-  refetches them ([validated by `actions.test.ts:27`](apps/web-ui/src/app/actions.test.ts#L27), [`actions.test.ts:51`](apps/web-ui/src/app/actions.test.ts#L51), [`actions.test.ts:66`](apps/web-ui/src/app/actions.test.ts#L66))
+  refetches them ([validated by `actions.test.ts:31`](apps/web-ui/src/app/actions.test.ts#L31), [`actions.test.ts:56`](apps/web-ui/src/app/actions.test.ts#L56), [`actions.test.ts:90`](apps/web-ui/src/app/actions.test.ts#L90), [`actions.test.ts:102`](apps/web-ui/src/app/actions.test.ts#L102))
 - FR-2.5: Tracks the onboarding PR in the pipeline (status: pending
   until merged). ([validated by `onboard.test.ts:16`](apps/web-ui/src/lib/onboard.test.ts#L16))
 - FR-2.6: After merge, adds repo to the registry and triggers
   initial ingestion; re-onboarding creates an onboard task and
   redirects to the new task page (or back to the repo when none is
   created), and the fix-ingest control re-triggers ingestion for
-  misaligned repos with a singular/plural PR label; a re-onboard raised while
-  the previous pass is still running lands on that in-flight task instead of
-  queueing a duplicate. ([validated by `actions.test.ts:22`](apps/web-ui/src/app/repos/[owner]/[repo]/actions.test.ts#L22), [`actions.test.ts:33`](apps/web-ui/src/app/repos/[owner]/[repo]/actions.test.ts#L33), [`actions.test.ts:46`](apps/web-ui/src/app/repos/[owner]/[repo]/actions.test.ts#L46), [`FixIngestButton.test.tsx:13`](apps/web-ui/src/components/FixIngestButton.test.tsx#L13), [`FixIngestButton.test.tsx:21`](apps/web-ui/src/components/FixIngestButton.test.tsx#L21), [`FixIngestButton.test.tsx:40`](apps/web-ui/src/components/FixIngestButton.test.tsx#L40))
+  misaligned repos with a singular/plural PR label plus a failure count
+  and per-repo reasons when some PRs could not be opened; a re-onboard
+  raised while the previous pass is still running lands on that in-flight
+  task instead of
+  queueing a duplicate. ([validated by `actions.test.ts:22`](apps/web-ui/src/app/repos/[owner]/[repo]/actions.test.ts#L22), [`actions.test.ts:33`](apps/web-ui/src/app/repos/[owner]/[repo]/actions.test.ts#L33), [`actions.test.ts:46`](apps/web-ui/src/app/repos/[owner]/[repo]/actions.test.ts#L46), [`FixIngestButton.test.tsx:13`](apps/web-ui/src/components/FixIngestButton.test.tsx#L13), [`FixIngestButton.test.tsx:21`](apps/web-ui/src/components/FixIngestButton.test.tsx#L21), [`FixIngestButton.test.tsx:42`](apps/web-ui/src/components/FixIngestButton.test.tsx#L42), [`FixIngestButton.test.tsx:56`](apps/web-ui/src/components/FixIngestButton.test.tsx#L56))
+- FR-2.7: When some files cannot be committed, the onboarding PR still
+  opens and its body carries a needs-attention section listing each
+  failed file with its error; a commit rejected for the missing Workflows App permission (classified
+  by the shared failure detector across both GitHub phrasings, never by
+  bare status keying) is named for what it is, and the failure set is recorded in the audit log as
+  `onboard_files_failed`. ([validated by `worker.onboard.test.ts:178`](apps/floor/src/jobs/task/worker.onboard.test.ts#L178), [`worker.onboard.test.ts:197`](apps/floor/src/jobs/task/worker.onboard.test.ts#L197), [`worker.onboard.test.ts:213`](apps/floor/src/jobs/task/worker.onboard.test.ts#L213), [`worker.onboard.test.ts:305`](apps/floor/src/jobs/task/worker.onboard.test.ts#L305))
+- FR-2.8: The ingest callback config (repo variable `LORE_INGEST_URL`,
+  secret `LORE_INGEST_TOKEN`) is written before the PR opens so its
+  failures land in the PR body; an unset Floor-side value is reported
+  instead of being written as an empty variable, and a rejected
+  secret write is reported with its error. ([validated by `worker.onboard.test.ts:239`](apps/floor/src/jobs/task/worker.onboard.test.ts#L239), [`worker.onboard.test.ts:264`](apps/floor/src/jobs/task/worker.onboard.test.ts#L264), [`worker.onboard.test.ts:284`](apps/floor/src/jobs/task/worker.onboard.test.ts#L284))
 
 ### FR-3: Repo-Centric UI Layout
 
@@ -323,11 +338,11 @@ The system MUST reorganize the UI around repos. ([validated by `HomeView.test.ts
 
 ### FR-5: Onboarding PR Content
 
-The onboarding PR scaffolds a target repo with deterministic files committed verbatim plus LLM-drafted files generated from a fixed prompt against the repo's context and reviewed by the owner in the PR. ([validated by `worker.onboard.test.ts:95`](apps/floor/src/jobs/task/worker.onboard.test.ts#L95), [`worker.onboard.test.ts:112`](apps/floor/src/jobs/task/worker.onboard.test.ts#L112))
+The onboarding PR scaffolds a target repo with deterministic files committed verbatim plus LLM-drafted files generated from a fixed prompt against the repo's context and reviewed by the owner in the PR. ([validated by `worker.onboard.test.ts:119`](apps/floor/src/jobs/task/worker.onboard.test.ts#L119), [`worker.onboard.test.ts:136`](apps/floor/src/jobs/task/worker.onboard.test.ts#L136))
 
 - FR-5.1: The context-ingest and advisory spec-impact workflows are committed
   verbatim — `.github/workflows/lore-ingest.yml` and
-  `.github/workflows/lore-trace-impact.yml`. ([validated by `ingest-workflow.test.ts:11`](libs/shared/src/ingest-workflow.test.ts#L11), [`ingest-workflow.test.ts:23`](libs/shared/src/ingest-workflow.test.ts#L23), [`trace-impact-workflow.test.ts:11`](libs/shared/src/trace-impact-workflow.test.ts#L11), [`trace-impact-workflow.test.ts:25`](libs/shared/src/trace-impact-workflow.test.ts#L25))
+  `.github/workflows/lore-trace-impact.yml`. ([validated by `ingest-workflow.test.ts:22`](libs/shared/src/ingest-workflow.test.ts#L22), [`ingest-workflow.test.ts:34`](libs/shared/src/ingest-workflow.test.ts#L34), [`trace-impact-workflow.test.ts:11`](libs/shared/src/trace-impact-workflow.test.ts#L11), [`trace-impact-workflow.test.ts:25`](libs/shared/src/trace-impact-workflow.test.ts#L25))
 - FR-5.2: `.github/PULL_REQUEST_TEMPLATE.md` carries the canonical PR sections —
   Why, What Changed, Alternatives Considered, ADRs & Architecture, Testing. ([validated by `pr-template.test.ts:11`](libs/shared/src/pr-template.test.ts#L11), [`pr-template.test.ts:15`](libs/shared/src/pr-template.test.ts#L15), [`pr-template.test.ts:19`](libs/shared/src/pr-template.test.ts#L19), [`pr-template.test.ts:23`](libs/shared/src/pr-template.test.ts#L23), [`pr-template.test.ts:27`](libs/shared/src/pr-template.test.ts#L27), [`pr-template.test.ts:31`](libs/shared/src/pr-template.test.ts#L31))
 - FR-5.3: `.github/workflows/pr-description-check.yml` enforces those PR sections
