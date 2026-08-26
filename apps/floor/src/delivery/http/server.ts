@@ -10,6 +10,7 @@ import { registerBearerAuth } from "./auth.js";
 import { registerRequestTracing } from "./tracing.js";
 import { healthRoute } from "./routes/health.js";
 import { agentEventsRoute } from "./routes/agent-events.js";
+import { clusterAgents } from "../../kernel/queues.js";
 import {
   agentConversationFetchRoute,
   agentConversationSaveRoute,
@@ -69,7 +70,11 @@ export function buildServer(opts: {
   });
   server.route([
     healthRoute(opts.getJobStatus),
-    agentEventsRoute,
+    // A registered cluster-agent's own token opens the telemetry sink too, so
+    // a satellite's runs report cost + run-viz without the bus-wide secret.
+    agentEventsRoute({
+      findByTokenHash: (hash) => clusterAgents().findByTokenHash(hash),
+    }),
     agentConversationSaveRoute,
     agentConversationFetchRoute,
     agentEventsStreamRoute(),

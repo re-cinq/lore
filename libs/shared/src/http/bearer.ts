@@ -65,17 +65,23 @@ export function enforceBearer(
   headers: Record<string, unknown>,
   token: string | undefined,
   service = "this service",
+  // Which env var actually holds this door's token. Defaulted rather than
+  // required because every caller but one uses the ingest token — but naming
+  // the wrong var is worse than naming none: the whole job of the 500 is to
+  // say which knob to turn, and the Floor's telemetry sink turns a different
+  // one (LORE_AGENT_INTERNAL_TOKEN).
+  tokenEnvName = "LORE_INGEST_TOKEN",
 ): void {
   const auth = headers["authorization"];
 
   enforceTrue(
     token,
     apiError(500),
-    `token not configured — set LORE_INGEST_TOKEN on the ${service} deployment`,
+    `token not configured — set ${tokenEnvName} on the ${service} deployment`,
   );
   enforceTrue(
     typeof auth === "string" && secretEquals(auth, `Bearer ${token}`),
     apiError(401),
-    "missing or invalid bearer token — this endpoint requires Authorization: Bearer <LORE_INGEST_TOKEN>",
+    `missing or invalid bearer token — this endpoint requires Authorization: Bearer <${tokenEnvName}>`,
   );
 }

@@ -21,6 +21,12 @@
 #   configured" after launch; runs that don't (validate, gate, detect,
 #   comment-triage) are unaffected. Handing a satellite a GitHub credential
 #   is a deliberate choice, so this is never required.
+# Optional: LORE_AGENT_EVENTS_URL (--telemetry-url) — the central Floor's
+#   agent-telemetry ingress. Set it and this cluster's runs stream live
+#   per-tool-call telemetry (cost rows + the run view), authenticating with
+#   the per-agent token this agent publishes into agent-secrets after it
+#   registers. Unset, runs execute and report their outcome but are not
+#   visible live.
 # Installs into the CURRENT kubectl context; pass --context to assert which
 # one that must be (the install refuses on a mismatch instead of landing a
 # satellite in whatever context happened to be active).
@@ -41,6 +47,7 @@ while [ $# -gt 0 ]; do
 	--registration-token) LORE_CLUSTER_AGENT_REGISTRATION_TOKEN="$2" && shift 2 ;;
 	--name) LORE_CLUSTER_AGENT_NAME="$2" && shift 2 ;;
 	--tags) LORE_CLUSTER_AGENT_TAGS="$2" && shift 2 ;;
+	--telemetry-url) LORE_AGENT_EVENTS_URL="$2" && shift 2 ;;
 	--context) expected_context="$2" && shift 2 ;;
 	# Local single-node clusters (minikube) have no CNI enforcing policies;
 	# the flag keeps the rendered objects out of the way there.
@@ -96,7 +103,18 @@ if [ -n "${GITHUB_TOKEN:-}" ]; then
 	github_args=(--set-string "github.token=$GITHUB_TOKEN")
 fi
 
-say "installing release lore-satellite into context '$context' (name=$name tags=$tags llm=$llm_key github=${GITHUB_TOKEN:+set})"
+# Both keys, same value: Helm does not thread a parent value into a subchart,
+# so the chart's own value and the ai-agents one are set independently — the
+# pattern loreApiUrl already follows below.
+telemetry_args=()
+if [ -n "${LORE_AGENT_EVENTS_URL:-}" ]; then
+	telemetry_args=(
+		--set-string "agentEventsUrl=$LORE_AGENT_EVENTS_URL"
+		--set-string "ai-agents.agentEventsUrl=$LORE_AGENT_EVENTS_URL"
+	)
+fi
+
+say "installing release lore-satellite into context '$context' (name=$name tags=$tags llm=$llm_key github=${GITHUB_TOKEN:+set} telemetry=${LORE_AGENT_EVENTS_URL:-off})"
 helm upgrade --install lore-satellite "$chart" \
 	--namespace lore-cluster-agent \
 	--set createNamespaces=false \
@@ -112,7 +130,8 @@ helm upgrade --install lore-satellite "$chart" \
 	--set-string ai-agents.agentLlmSecretKey="$llm_key" \
 	--set ai-agents.networkPolicy.enabled="$network_policy" \
 	--set-string ai-agents.loreApiUrl="$LORE_API_URL" \
-	"${github_args[@]}"
+	"${github_args[@]}" \
+	"${telemetry_args[@]}"
 
 rm -rf "$chart/charts" "$chart/Chart.lock"
 

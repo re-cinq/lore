@@ -105,6 +105,34 @@ else
 	echo "  ok: absent — LORE_INGEST_TOKEN in the chart's own templates"
 fi
 
+# The telemetry opt-in: with a sink URL set, the seeded recipes MUST carry the
+# http sink and its credential key again. Guarding the sink (#1575) is only
+# correct if the guard also OPENS — a satellite that configures a reachable
+# Floor gets live per-tool-call telemetry, authenticated by the per-agent token
+# the cluster-agent publishes into agent-secrets.
+echo "[lore] helm template (telemetry opted in)"
+with_telemetry="$(helm template lore-satellite "$chart" \
+	--namespace lore-cluster-agent --include-crds \
+	--set loreApiUrl=https://lore-api.example.com \
+	--set eventRouterUrl=https://lore-events.example.com \
+	--set registrationToken=dummy-registration-token \
+	--set name=render-check \
+	--set 'tags={node:agent,node:validate}' \
+	--set ghcr.username=dummy \
+	--set ghcr.token=dummy \
+	--set llm.credential=dummy \
+	--set agentEventsUrl=https://lore-agent-events.example.com/api/agent-events \
+	--set ai-agents.agentEventsUrl=https://lore-agent-events.example.com/api/agent-events)"
+
+for needle in "agent-events-auth" "https://lore-agent-events.example.com/api/agent-events"; do
+	if grep -q -- "$needle" <<<"$with_telemetry"; then
+		echo "  ok: present when opted in — $needle"
+	else
+		echo "  MISSING when opted in: $needle" >&2
+		fail=1
+	fi
+done
+
 if [ "$fail" -ne 0 ]; then
 	echo "[lore] cluster-agent-standalone chart render check FAILED" >&2
 	exit 1

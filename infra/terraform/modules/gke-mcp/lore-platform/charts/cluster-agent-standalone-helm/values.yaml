@@ -43,6 +43,18 @@ llm:
   secretKey: ANTHROPIC_API_KEY
   credential: ""
 
+# Optional public URL of the central Floor's agent-telemetry ingress
+# (lore-agent-events.tf's hostname + /api/agent-events). Set it and this
+# cluster's run pods stream live per-tool-call telemetry — cost rows and the
+# run view — authenticating with the per-agent token this cluster-agent
+# publishes into `agent-secrets` after it registers. Leave it empty and the
+# seeded recipes carry no http sink at all: runs still execute and still
+# report their terminal outcome, they are just not visible live.
+#
+# The central cluster does not use this; its pods reach the Floor over
+# in-cluster DNS.
+agentEventsUrl: ""
+
 # Optional per-task GitHub credential (#1575). Without it, this cluster-agent
 # can still register/claim/heartbeat and run stations whose command needs no
 # git push (validate, gate, detect, comment-triage) — but a run needing one
@@ -111,14 +123,9 @@ ai-agents:
   # Keep in sync with llm.secretKey above — Helm cannot template one from the
   # other across the subchart boundary.
   agentLlmSecretKey: ANTHROPIC_API_KEY
-  # Empty (overriding the subchart's central-cluster default): the seeded
-  # catalog's http telemetry sink is guarded on this being set and vanishes
-  # entirely when it is not (agent-catalog.ts's agentEventsUrl guard, #1575).
-  # A satellite has no bus-wide LORE_AGENT_INTERNAL_TOKEN to give that sink,
-  # and the subchart's default URL (the central Floor's in-cluster DNS name)
-  # does not resolve here anyway — every recipe's pod hit a hard
-  # CreateContainerConfigError on the missing secret key before this guard
-  # existed, regardless of node type. Run visibility for a satellite's runs
-  # is pod logs + the terminal report over FR5, not live per-tool-call
-  # telemetry, until a satellite-reachable sink exists.
+  # Set by install-satellite.sh from the top-level `agentEventsUrl` above (Helm
+  # does not thread a parent value into a subchart; the script sets both keys,
+  # exactly as it already does for loreApiUrl). Empty leaves the seeded
+  # catalog's http sink omitted entirely by agent-catalog.ts's guard, which is
+  # what a satellite needs when it has nowhere to report to (#1575).
   agentEventsUrl: ""

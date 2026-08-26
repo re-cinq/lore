@@ -8,11 +8,22 @@ import { errorMessage } from "@re-cinq/lore-shared";
  * and adds assembly_line_id). An id matching neither stores an uncorrelated
  * row rather than failing; a genuine insert error is skipped, not failed, so
  * one bad line never drops the batch. Uncorrelated + failed rows are surfaced
- * (metric + audit_log, issue #945) instead of dropped silently. Bearer-authed
- * on LORE_AGENT_INTERNAL_TOKEN (internal-token strategy).
+ * (metric + audit_log, issue #945) instead of dropped silently.
+ *
+ * TWO credentials open this door: the bus-wide LORE_AGENT_INTERNAL_TOKEN, and
+ * any registered cluster-agent's per-agent token (matched by SHA-256 against
+ * `pipeline.cluster_agents`). The second is what gives a SATELLITE live
+ * telemetry — it can never hold the bus-wide secret (FR5 of
+ * specs/running-stations-in-any-k8s-cluster), and without a credential of its
+ * own its runs report only a terminal outcome, with no cost rows and no
+ * run-viz. The check runs INSIDE the handler rather than as a hapi strategy,
+ * because a strategy holds exactly one expected token; this is the same shape
+ * the event-router's POST /api/events already uses for the same reason.
  */
 
 import type { ServerRoute } from "@hapi/hapi";
+import { enforceRegistryOrSharedToken } from "@re-cinq/lore-shared/http/registry-or-shared-token.js";
+import type { RegistryOrSharedTokenDeps } from "@re-cinq/lore-shared/http/registry-or-shared-token.js";
 import { metrics } from "@opentelemetry/api";
 import { pipeline, usage, taskStore } from "../../../kernel/queues.js";
 import { projectFor } from "../../../composition/project-boot.js";
@@ -254,87 +265,109 @@ async function mergeArtifacts(
   }
 }
 
-export const agentEventsRoute: ServerRoute = {
-  method: "POST",
-  path: "/api/agent-events",
-  options: { auth: "internal-token", payload: { parse: false } },
-  handler: async (request, h) => {
-    // A throw here becomes a 500 via hapi, and the request-tracing extension
-    // records the exception on the request span — no per-handler try/catch.
-    const rawNdjson = rawBody(request);
-    const oversized = Buffer.byteLength(rawNdjson, "utf8") > MAX_VIZ_BODY_BYTES;
-    // Turns ride the SAME single pass as the cost rows and the projection, and
-    // reuse the same oversized gate — no second parse, no second size rule.
-    // Collection is unconditional: there is no flag, so the oversized gate is
-    // the only thing that can switch it off.
-    const {
-      costRows,
-      runEvents,
-      fileEvents,
-      turns,
-      turnsDropped,
-      turnsCapped,
-    } = parseAgentSink(rawNdjson, !oversized, !oversized);
-    const cost = await recordAgentCosts(costRows);
-    const vizRows = oversized ? 0 : await recordRunEvents(runEvents);
-    const turnRows = turns.length > 0 ? await recordRunTurns(turns) : 0;
-    // Declared artifacts ride the same sink as cost + telemetry, so a planning
-    // round's result lands here rather than needing its own channel.
-    const planningRounds = await recordPlanningResults(fileEvents);
+export interface AgentEventsRouteDeps {
+  /** The registry lookup that lets a satellite's own token in. Absent means
+   *  per-agent tokens are not accepted and only the bus-wide one opens the
+   *  door — the behaviour before satellites existed. */
+  findByTokenHash?: RegistryOrSharedTokenDeps["findByTokenHash"];
+}
 
-    await mergeArtifacts(fileEvents);
-
-    if (turnsDropped > 0) {
-      // Visible, not silent: redaction that breaks a line's JSON is the store's
-      // only lossy path, and an agent can provoke it to keep a line out of its
-      // own transcript.
-      countAnomaly("turn_dropped_redaction", turnsDropped);
-      console.warn(
-        `[floor] ${turnsDropped} turn(s) dropped: redaction left the line unparseable`,
+export function agentEventsRoute(deps: AgentEventsRouteDeps = {}): ServerRoute {
+  return {
+    method: "POST",
+    path: "/api/agent-events",
+    // `auth: false` because the credential check is dual and lives in the
+    // handler; see the module comment.
+    options: { auth: false, payload: { parse: false } },
+    handler: async (request, h) => {
+      await enforceRegistryOrSharedToken(
+        request.headers,
+        {
+          sharedToken: process.env.LORE_AGENT_INTERNAL_TOKEN,
+          sharedTokenEnvName: "LORE_AGENT_INTERNAL_TOKEN",
+          findByTokenHash: deps.findByTokenHash,
+        },
+        "floor",
       );
-    }
 
-    if (turnsCapped > 0) {
-      // The other lossy path. Counted for the same reason: a transcript store
-      // that quietly truncates is worse than one that says it truncated.
-      countAnomaly("turn_dropped_cap", turnsCapped);
-      console.warn(
-        `[floor] ${turnsCapped} turn(s) dropped: batch cap of ${MAX_RUN_TURNS_PER_BATCH} reached`,
-      );
-    }
+      // A throw here becomes a 500 via hapi, and the request-tracing extension
+      // records the exception on the request span — no per-handler try/catch.
+      const rawNdjson = rawBody(request);
+      const oversized =
+        Buffer.byteLength(rawNdjson, "utf8") > MAX_VIZ_BODY_BYTES;
+      // Turns ride the SAME single pass as the cost rows and the projection, and
+      // reuse the same oversized gate — no second parse, no second size rule.
+      // Collection is unconditional: there is no flag, so the oversized gate is
+      // the only thing that can switch it off.
+      const {
+        costRows,
+        runEvents,
+        fileEvents,
+        turns,
+        turnsDropped,
+        turnsCapped,
+      } = parseAgentSink(rawNdjson, !oversized, !oversized);
+      const cost = await recordAgentCosts(costRows);
+      const vizRows = oversized ? 0 : await recordRunEvents(runEvents);
+      const turnRows = turns.length > 0 ? await recordRunTurns(turns) : 0;
+      // Declared artifacts ride the same sink as cost + telemetry, so a planning
+      // round's result lands here rather than needing its own channel.
+      const planningRounds = await recordPlanningResults(fileEvents);
 
-    const audit = costDegradedAudit(cost);
+      await mergeArtifacts(fileEvents);
 
-    if (audit) {
-      // A failed audit write must not 500 the endpoint — a degraded batch still
-      // succeeds (FR5.6); losing the audit row is strictly better than dropping
-      // the whole ingest.
-      await writeAuditLog(audit).catch((err) =>
+      if (turnsDropped > 0) {
+        // Visible, not silent: redaction that breaks a line's JSON is the store's
+        // only lossy path, and an agent can provoke it to keep a line out of its
+        // own transcript.
+        countAnomaly("turn_dropped_redaction", turnsDropped);
         console.warn(
-          `[floor] cost-degraded audit write skipped: ${errorMessage(err)}`,
-        ),
-      );
-    }
+          `[floor] ${turnsDropped} turn(s) dropped: redaction left the line unparseable`,
+        );
+      }
 
-    request.app.span?.setAttributes({
-      "agent_events.count": costRows.length,
-      "agent_events.recorded": cost.recorded,
-      "agent_events.uncorrelated": cost.uncorrelated,
-      "agent_events.failed": cost.failed,
-      "agent_events.viz_rows": vizRows,
-      "agent_events.planning_rounds": planningRounds,
-      "agent_events.turn_rows": turnRows,
-      "agent_events.turns_dropped": turnsDropped,
-      "agent_events.turns_capped": turnsCapped,
-      "agent_events.oversized": oversized,
-    });
+      if (turnsCapped > 0) {
+        // The other lossy path. Counted for the same reason: a transcript store
+        // that quietly truncates is worse than one that says it truncated.
+        countAnomaly("turn_dropped_cap", turnsCapped);
+        console.warn(
+          `[floor] ${turnsCapped} turn(s) dropped: batch cap of ${MAX_RUN_TURNS_PER_BATCH} reached`,
+        );
+      }
 
-    return h
-      .response({
-        status: "ok",
-        events: costRows.length,
-        recorded: cost.recorded,
-      })
-      .code(200);
-  },
-};
+      const audit = costDegradedAudit(cost);
+
+      if (audit) {
+        // A failed audit write must not 500 the endpoint — a degraded batch still
+        // succeeds (FR5.6); losing the audit row is strictly better than dropping
+        // the whole ingest.
+        await writeAuditLog(audit).catch((err) =>
+          console.warn(
+            `[floor] cost-degraded audit write skipped: ${errorMessage(err)}`,
+          ),
+        );
+      }
+
+      request.app.span?.setAttributes({
+        "agent_events.count": costRows.length,
+        "agent_events.recorded": cost.recorded,
+        "agent_events.uncorrelated": cost.uncorrelated,
+        "agent_events.failed": cost.failed,
+        "agent_events.viz_rows": vizRows,
+        "agent_events.planning_rounds": planningRounds,
+        "agent_events.turn_rows": turnRows,
+        "agent_events.turns_dropped": turnsDropped,
+        "agent_events.turns_capped": turnsCapped,
+        "agent_events.oversized": oversized,
+      });
+
+      return h
+        .response({
+          status: "ok",
+          events: costRows.length,
+          recorded: cost.recorded,
+        })
+        .code(200);
+    },
+  };
+}
