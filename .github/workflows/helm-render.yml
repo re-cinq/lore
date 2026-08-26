@@ -12,6 +12,7 @@ on:
     paths:
       - 'infra/**'
       - 'scripts/check-ai-agents-render.sh'
+      - 'scripts/check-cluster-agent-standalone-render.sh'
       - 'scripts/check-lore-platform-render.sh'
       - 'scripts/ci/deploy-lore-platform.sh'
       - 'scripts/ci/helm-lock-contention.sh'
@@ -37,6 +38,15 @@ jobs:
       - uses: azure/setup-helm@v4
       - name: Render + assert resources
         run: ./scripts/check-ai-agents-render.sh
+
+  cluster-agent-standalone-render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: azure/setup-helm@v4
+      - name: Render + assert satellite chart (no Postgres reference)
+        run: ./scripts/check-cluster-agent-standalone-render.sh
 
   lore-platform-render:
     runs-on: ubuntu-latest

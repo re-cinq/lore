@@ -1,0 +1,14 @@
+{{- if .Values.createNamespaces }}
+# A satellite has no Terraform owning its namespaces (unlike the central
+# platform, where they are Terraform-managed), so the chart creates them.
+# Disable when they already exist outside Helm's ownership.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ .Values.namespace }}
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ .Values.agentsNamespace }}
+{{- end }}

@@ -1,3 +1,4 @@
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 /**
  * The satellite composition shell: register with the Lore API, then run the
  * claim loop, launching claimed specs as Agent CRs in this cluster through the
@@ -24,6 +25,10 @@ import {
 } from "./heartbeat-loop.js";
 import { FileIdentityStore, identityFilePath } from "./identity-store.js";
 import type { ClusterAgentIdentity, IdentityStore } from "./identity-store.js";
+import {
+  KubeIdentityStore,
+  kubeIdentitySecretsApi,
+} from "./kube-identity-store.js";
 import {
   registerOnce,
   registerWithBackoff,
@@ -133,14 +138,38 @@ export function startSatellite(env: NodeJS.ProcessEnv): void {
     kubeTokenProvisioner(),
   );
 
-  void runSatellite({
-    env,
-    config,
-    store: new FileIdentityStore(identityFilePath(env)),
-    backend,
-  }).catch((err) => {
-    // Unreachable by design (register + claim never throw), but a defect here
-    // must surface as a log, not an unhandled rejection killing the process.
-    console.error("[cluster-agent] satellite loop crashed:", err);
-  });
+  void selectIdentityStore(env)
+    .then((store) => runSatellite({ env, config, store, backend }))
+    .catch((err) => {
+      // Unreachable by design (register + claim never throw), but a defect here
+      // must surface as a log, not an unhandled rejection killing the process.
+      console.error("[cluster-agent] satellite loop crashed:", err);
+    });
+}
+
+/** In a cluster the identity persists through the Kubernetes Secret API — the
+ *  chart mounts the container read-only, so a file write would EROFS on the
+ *  very first save and strand the minted identity (registered on the server,
+ *  persisted nowhere → 409 restart loop). File store only for local runs. */
+async function selectIdentityStore(
+  env: NodeJS.ProcessEnv,
+): Promise<IdentityStore> {
+  const secretName = env.LORE_CLUSTER_AGENT_IDENTITY_SECRET;
+
+  if (!secretName) {
+    return new FileIdentityStore(identityFilePath(env));
+  }
+  const namespace = env.LORE_CLUSTER_AGENT_IDENTITY_NAMESPACE;
+
+  enforceTrue(
+    namespace,
+    Error,
+    "LORE_CLUSTER_AGENT_IDENTITY_SECRET is set but LORE_CLUSTER_AGENT_IDENTITY_NAMESPACE is not — the identity Secret needs a namespace",
+  );
+
+  return new KubeIdentityStore(
+    await kubeIdentitySecretsApi(namespace),
+    secretName,
+    env.LORE_CLUSTER_AGENT_IDENTITY_KEY ?? "identity.json",
+  );
 }

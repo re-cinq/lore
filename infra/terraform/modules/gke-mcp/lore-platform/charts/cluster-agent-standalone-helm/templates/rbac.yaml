@@ -1,0 +1,78 @@
+# Mirrors cluster-agent-helm's Role on the agents namespace (the ONE Role
+# that touches this cluster's agent resources), plus the satellite-only
+# identity-Secret Role in the agent's own namespace.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: lore-cluster-agent
+  namespace: {{ .Values.agentsNamespace }}
+rules:
+  - apiGroups: ["agents.re-cinq.com"]
+    resources: ["agents"]
+    verbs: ["create", "get", "list", "watch", "delete"]
+  - apiGroups: ["agents.re-cinq.com"]
+    resources: ["agents/status"]
+    verbs: ["get", "update"]
+  # The catalog: `def-*` recipes and the per-task `pt-*` clones.
+  - apiGroups: ["agents.re-cinq.com"]
+    resources: ["agentdefinitions", "stations"]
+    verbs: ["get", "list", "create", "update", "patch", "delete"]
+  # Pod logs, served on demand for the run view. Read-only.
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list"]
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get"]
+  # ONE named Secret — the per-task GitHub tokens the provisioner patches in.
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: ["agent-secrets"]
+    verbs: ["get", "update", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: lore-cluster-agent
+  namespace: {{ .Values.agentsNamespace }}
+subjects:
+  - kind: ServiceAccount
+    name: lore-cluster-agent
+    namespace: {{ .Values.namespace }}
+roleRef:
+  kind: Role
+  name: lore-cluster-agent
+  apiGroup: rbac.authorization.k8s.io
+---
+# The identity Secret ({{ .Values.identity.secretName }}): the pod PERSISTS
+# its registered {id, token} there so restarts re-register with the same
+# per-agent token instead of minting a new identity (FR1). `create` cannot be
+# resourceName-scoped in RBAC, so it is granted at large in this namespace;
+# reads and updates are pinned to the one name.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: lore-cluster-agent-identity
+  namespace: {{ .Values.namespace }}
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["create"]
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: [{{ .Values.identity.secretName | quote }}]
+    verbs: ["get", "update", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: lore-cluster-agent-identity
+  namespace: {{ .Values.namespace }}
+subjects:
+  - kind: ServiceAccount
+    name: lore-cluster-agent
+    namespace: {{ .Values.namespace }}
+roleRef:
+  kind: Role
+  name: lore-cluster-agent-identity
+  apiGroup: rbac.authorization.k8s.io
