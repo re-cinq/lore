@@ -176,20 +176,28 @@ export function implementationLoopRoutes(
         );
         // The mini graphs: each listed task's latest loop run and its node rows,
         // two batched queries regardless of ticket count.
-        const { rows: taskRuns } = await pool.query<LoopRunRow>(
-          `SELECT DISTINCT ON (task_id) id, task_id, status, graph
-             FROM pipeline.assembly_runs
-            WHERE task_id = ANY($1) AND blueprint_name = 'implementation-loop'
-            ORDER BY task_id, created_at DESC`,
-          [taskRows.map((t) => t.id)],
-        );
-        const { rows: nodeRows } = await pool.query<NodeRow>(
-          `SELECT assembly_run_id, node_id, iteration, outcome
-             FROM pipeline.station_runs
-            WHERE assembly_run_id = ANY($1)
-            ORDER BY started_at`,
-          [taskRuns.map((r) => r.id)],
-        );
+        // Guarded: `= ANY($1)` with an empty JS array makes Postgres guess the
+        // array's type and fail — a fresh repo with no tasks would 500 here.
+        const taskIds = taskRows.map((t) => t.id);
+        const { rows: taskRuns } = taskIds.length
+          ? await pool.query<LoopRunRow>(
+              `SELECT DISTINCT ON (task_id) id, task_id, status, graph
+                 FROM pipeline.assembly_runs
+                WHERE task_id = ANY($1::uuid[])
+                  AND blueprint_name = 'implementation-loop'
+                ORDER BY task_id, created_at DESC`,
+              [taskIds],
+            )
+          : { rows: [] as LoopRunRow[] };
+        const { rows: nodeRows } = taskRuns.length
+          ? await pool.query<NodeRow>(
+              `SELECT assembly_run_id, node_id, iteration, outcome
+                 FROM pipeline.station_runs
+                WHERE assembly_run_id = ANY($1::uuid[])
+                ORDER BY started_at`,
+              [taskRuns.map((r) => r.id)],
+            )
+          : { rows: [] as NodeRow[] };
         const runByTask = new Map(taskRuns.map((r) => [r.task_id, r]));
         const currentRow = taskRows.find((t) =>
           (OPEN_TASK_STATES as readonly string[]).includes(t.status),

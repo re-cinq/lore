@@ -424,3 +424,45 @@ describe("pipelineOf", () => {
     expect(pipelineOf({ ...run, graph: null }, [])).toBeNull();
   });
 });
+
+describe("GET on a repo with no loop tasks yet", () => {
+  function get(pool: unknown) {
+    return buildServer(() => pool as never).inject({
+      method: "GET",
+      url: "/api/repos/re-cinq/lore/implementation-loop",
+      headers: AUTH,
+    });
+  }
+
+  it("serves the queue without issuing empty ANY() queries", async () => {
+    process.env.LORE_INGEST_TOKEN = LEGACY_TOKEN;
+    const pool = makePool();
+
+    pool.query
+      .mockResolvedValueOnce({
+        rows: [{ settings: { implementation_loop: { enabled: true } } }],
+      })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValue({ rows: [] });
+    vi.mocked(projectFor).mockResolvedValue({
+      issues: {
+        list: async () => [
+          openIssue(3, ["priority:low"], "2026-08-01T00:00:00Z"),
+        ],
+      },
+    } as never);
+
+    const res = await get(pool);
+
+    expect(res.statusCode).toBe(200);
+    expect(JSON.parse(res.payload)).toMatchObject({
+      next: [{ issue_number: 3 }],
+      recent: [],
+    });
+    const anyCalls = pool.query.mock.calls.filter(([sql]) =>
+      String(sql).includes("ANY("),
+    );
+
+    expect(anyCalls).toHaveLength(0);
+  });
+});

@@ -115,8 +115,10 @@ function MiniPipeline({ ticket }: { ticket: LoopTicket }) {
           data-testid={`mini-node-${node.node_id}`}
           className={`${styles.dot} ${
             styles[
-              DOT_STATES.has(node.state) ? (node.state as "success") : "failed"
-            ] ?? styles.failed
+              DOT_STATES.has(node.state)
+                ? (node.state as keyof typeof styles)
+                : "failed"
+            ]
           }`}
         />
       ))}
