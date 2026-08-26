@@ -3705,6 +3705,44 @@
         ]
       }
     },
+    "/api/cluster-agents": {
+      "get": {
+        "operationId": "get_api_cluster-agents",
+        "summary": "GET /api/cluster-agents",
+        "tags": ["Cluster Agents"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "Every registered cluster-agent with its open-claim count, plus recent offline events",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClusterAgentList"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "read"
+      }
+    },
     "/api/repos/{owner}/{repo}/settings/dark-factory": {
       "get": {
         "operationId": "get_api_repos_owner_repo_settings_dark-factory",
@@ -9671,6 +9709,87 @@
           }
         },
         "required": ["status"],
+        "additionalProperties": false
+      },
+      "ClusterAgentList": {
+        "type": "object",
+        "properties": {
+          "agents": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "tags": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "status": {
+                  "type": "string",
+                  "enum": ["active", "offline"]
+                },
+                "last_seen_at": {
+                  "type": "string"
+                },
+                "running_claims": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "id",
+                "name",
+                "tags",
+                "status",
+                "last_seen_at",
+                "running_claims"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "offline_events": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "created_at": {
+                  "type": "string"
+                },
+                "cluster_agent_id": {
+                  "type": ["string", "null"]
+                },
+                "station_run_id": {
+                  "type": ["string", "null"]
+                },
+                "assembly_run_id": {
+                  "type": ["string", "null"]
+                },
+                "node_id": {
+                  "type": ["string", "null"]
+                },
+                "elapsed_since_claim_ms": {
+                  "type": ["number", "null"]
+                }
+              },
+              "required": [
+                "created_at",
+                "cluster_agent_id",
+                "station_run_id",
+                "assembly_run_id",
+                "node_id",
+                "elapsed_since_claim_ms"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": ["agents", "offline_events"],
         "additionalProperties": false
       },
       "DarkFactorySettings": {

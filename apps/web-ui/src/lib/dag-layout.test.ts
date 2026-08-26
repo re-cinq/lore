@@ -194,7 +194,7 @@ describe("layoutAssemblyLine", () => {
   it("lays out an unreachable node and empties the path of a dangling edge", () => {
     const malformed: AssemblyLineDefinition = {
       ...twoNodeLine,
-      nodes: [...twoNodeLine.nodes, { id: "orphan", type: "gate" }],
+      nodes: [...twoNodeLine.nodes, { id: "orphan", type: "validate" }],
       edges: [
         ...twoNodeLine.edges,
         { from: "orphan", to: "ghost", on: "always" },

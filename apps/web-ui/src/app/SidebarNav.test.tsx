@@ -33,12 +33,12 @@ vi.mock("@/components/Icon", () => ({
 
 import SidebarNav from "./SidebarNav";
 
-// The nav links rendered inside <nav>, in render order: the headerless top
-// cluster (Repos + global views) then the Insights group.
+// The nav links rendered inside <nav>, in render order: the headerless top cluster (Repos + global views) then the Insights group.
 const PRIMARY_LINKS = [
   { href: "/", label: "Repos" },
   { href: "/assembly-runs", label: "Assembly Runs" },
   { href: "/agents", label: "Agents" },
+  { href: "/cluster-agents", label: "Clusters" },
   { href: "/search", label: "Search" },
   { href: "/audit", label: "Audit" },
   { href: "/pools", label: "Pools" },
