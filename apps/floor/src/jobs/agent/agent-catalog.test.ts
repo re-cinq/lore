@@ -188,6 +188,17 @@ describe("catalogChartYaml", () => {
     expect(out).toContain("url: {{ .Values.agentEventsUrl }}");
     expect(out).not.toContain("__AGENT_EVENTS_URL__");
   });
+  it("guards the http telemetry sink behind .Values.agentEventsUrl so a deployment without it never asks a pod for a secret it cannot have", () => {
+    // The standalone satellite chart has no bus-wide LORE_AGENT_INTERNAL_TOKEN
+    // to give this sink, and its default agentEventsUrl is empty — an
+    // unguarded sink is a hard CreateContainerConfigError on every satellite
+    // pod, of every node type (#1575).
+    expect(out).toMatch(
+      /\{\{- if \.Values\.agentEventsUrl \}\}\n *- type: http\n *url: \{\{ \.Values\.agentEventsUrl \}\}\n *headers_secret: agent-events-auth\n\{\{- end \}\}/,
+    );
+    // stdout stays unconditional — a satellite still gets pod-log output.
+    expect(out).toMatch(/sinks:\n *- type: stdout\n *\{\{- if/);
+  });
   it("templates the station recipes' LORE_API_URL with the helm value (no sentinel leaks)", () => {
     const withStation = catalogChartYaml(
       {},

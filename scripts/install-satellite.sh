@@ -16,6 +16,11 @@
 #   LORE_CLUSTER_AGENT_REGISTRATION_TOKEN, LORE_CLUSTER_AGENT_NAME,
 #   LORE_CLUSTER_AGENT_TAGS, GHCR_USERNAME, GHCR_TOKEN, and
 #   CLAUDE_CODE_OAUTH_TOKEN (bills a subscription) or ANTHROPIC_API_KEY.
+# Optional: GITHUB_TOKEN (a PAT scoped to the repos this satellite may push
+#   to) — without it, claimed runs that need a git push fail "GitHub not
+#   configured" after launch; runs that don't (validate, gate, detect,
+#   comment-triage) are unaffected. Handing a satellite a GitHub credential
+#   is a deliberate choice, so this is never required.
 # Installs into the CURRENT kubectl context; pass --context to assert which
 # one that must be (the install refuses on a mismatch instead of landing a
 # satellite in whatever context happened to be active).
@@ -86,7 +91,12 @@ for ns in lore-cluster-agent ai-agents; do
 	kubectl create namespace "$ns" --dry-run=client -o yaml | kubectl apply -f - >/dev/null
 done
 
-say "installing release lore-satellite into context '$context' (name=$name tags=$tags llm=$llm_key)"
+github_args=()
+if [ -n "${GITHUB_TOKEN:-}" ]; then
+	github_args=(--set-string "github.token=$GITHUB_TOKEN")
+fi
+
+say "installing release lore-satellite into context '$context' (name=$name tags=$tags llm=$llm_key github=${GITHUB_TOKEN:+set})"
 helm upgrade --install lore-satellite "$chart" \
 	--namespace lore-cluster-agent \
 	--set createNamespaces=false \
@@ -101,7 +111,8 @@ helm upgrade --install lore-satellite "$chart" \
 	--set-string llm.credential="$llm_credential" \
 	--set-string ai-agents.agentLlmSecretKey="$llm_key" \
 	--set ai-agents.networkPolicy.enabled="$network_policy" \
-	--set-string ai-agents.loreApiUrl="$LORE_API_URL"
+	--set-string ai-agents.loreApiUrl="$LORE_API_URL" \
+	"${github_args[@]}"
 
 rm -rf "$chart/charts" "$chart/Chart.lock"
 

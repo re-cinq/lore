@@ -46,9 +46,11 @@ spec:
   output:
     sinks:
       - type: stdout
+{{- if .Values.agentEventsUrl }}
       - type: http
         url: {{ .Values.agentEventsUrl }}
         headers_secret: agent-events-auth
+{{- end }}
 ---
 apiVersion: agents.re-cinq.com/v1alpha1
 kind: Station
@@ -121,9 +123,11 @@ spec:
   output:
     sinks:
       - type: stdout
+{{- if .Values.agentEventsUrl }}
       - type: http
         url: {{ .Values.agentEventsUrl }}
         headers_secret: agent-events-auth
+{{- end }}
 ---
 apiVersion: agents.re-cinq.com/v1alpha1
 kind: Station
@@ -210,9 +214,11 @@ spec:
   output:
     sinks:
       - type: stdout
+{{- if .Values.agentEventsUrl }}
       - type: http
         url: {{ .Values.agentEventsUrl }}
         headers_secret: agent-events-auth
+{{- end }}
 ---
 apiVersion: agents.re-cinq.com/v1alpha1
 kind: Station
@@ -313,9 +319,11 @@ spec:
   output:
     sinks:
       - type: stdout
+{{- if .Values.agentEventsUrl }}
       - type: http
         url: {{ .Values.agentEventsUrl }}
         headers_secret: agent-events-auth
+{{- end }}
 ---
 apiVersion: agents.re-cinq.com/v1alpha1
 kind: Station
@@ -399,9 +407,11 @@ spec:
   output:
     sinks:
       - type: stdout
+{{- if .Values.agentEventsUrl }}
       - type: http
         url: {{ .Values.agentEventsUrl }}
         headers_secret: agent-events-auth
+{{- end }}
 ---
 apiVersion: agents.re-cinq.com/v1alpha1
 kind: Station
@@ -493,9 +503,11 @@ spec:
   output:
     sinks:
       - type: stdout
+{{- if .Values.agentEventsUrl }}
       - type: http
         url: {{ .Values.agentEventsUrl }}
         headers_secret: agent-events-auth
+{{- end }}
 ---
 apiVersion: agents.re-cinq.com/v1alpha1
 kind: Station
@@ -568,9 +580,11 @@ spec:
   output:
     sinks:
       - type: stdout
+{{- if .Values.agentEventsUrl }}
       - type: http
         url: {{ .Values.agentEventsUrl }}
         headers_secret: agent-events-auth
+{{- end }}
 ---
 apiVersion: agents.re-cinq.com/v1alpha1
 kind: Station
@@ -668,9 +682,11 @@ spec:
   output:
     sinks:
       - type: stdout
+{{- if .Values.agentEventsUrl }}
       - type: http
         url: {{ .Values.agentEventsUrl }}
         headers_secret: agent-events-auth
+{{- end }}
 ---
 apiVersion: agents.re-cinq.com/v1alpha1
 kind: Station
@@ -794,9 +810,11 @@ spec:
   output:
     sinks:
       - type: stdout
+{{- if .Values.agentEventsUrl }}
       - type: http
         url: {{ .Values.agentEventsUrl }}
         headers_secret: agent-events-auth
+{{- end }}
 ---
 apiVersion: agents.re-cinq.com/v1alpha1
 kind: Station
@@ -910,9 +928,11 @@ spec:
   output:
     sinks:
       - type: stdout
+{{- if .Values.agentEventsUrl }}
       - type: http
         url: {{ .Values.agentEventsUrl }}
         headers_secret: agent-events-auth
+{{- end }}
 ---
 apiVersion: agents.re-cinq.com/v1alpha1
 kind: Station
@@ -1022,9 +1042,11 @@ spec:
   output:
     sinks:
       - type: stdout
+{{- if .Values.agentEventsUrl }}
       - type: http
         url: {{ .Values.agentEventsUrl }}
         headers_secret: agent-events-auth
+{{- end }}
 ---
 apiVersion: agents.re-cinq.com/v1alpha1
 kind: Station
@@ -1101,9 +1123,11 @@ spec:
   output:
     sinks:
       - type: stdout
+{{- if .Values.agentEventsUrl }}
       - type: http
         url: {{ .Values.agentEventsUrl }}
         headers_secret: agent-events-auth
+{{- end }}
 ---
 apiVersion: agents.re-cinq.com/v1alpha1
 kind: Station
@@ -1389,9 +1413,11 @@ spec:
   output:
     sinks:
       - type: stdout
+{{- if .Values.agentEventsUrl }}
       - type: http
         url: {{ .Values.agentEventsUrl }}
         headers_secret: agent-events-auth
+{{- end }}
     watch:
       - event: planning.result
         path: target/result.json
@@ -1552,9 +1578,11 @@ spec:
   output:
     sinks:
       - type: stdout
+{{- if .Values.agentEventsUrl }}
       - type: http
         url: {{ .Values.agentEventsUrl }}
         headers_secret: agent-events-auth
+{{- end }}
     watch:
       - event: spec.plan
         path: target/spec-plan.json
@@ -1635,9 +1663,11 @@ spec:
   output:
     sinks:
       - type: stdout
+{{- if .Values.agentEventsUrl }}
       - type: http
         url: {{ .Values.agentEventsUrl }}
         headers_secret: agent-events-auth
+{{- end }}
 ---
 apiVersion: agents.re-cinq.com/v1alpha1
 kind: Station
@@ -1706,9 +1736,11 @@ spec:
   output:
     sinks:
       - type: stdout
+{{- if .Values.agentEventsUrl }}
       - type: http
         url: {{ .Values.agentEventsUrl }}
         headers_secret: agent-events-auth
+{{- end }}
     watch:
       - event: feature.decomposition
         path: target/decomposition.json
@@ -1845,9 +1877,11 @@ spec:
   output:
     sinks:
       - type: stdout
+{{- if .Values.agentEventsUrl }}
       - type: http
         url: {{ .Values.agentEventsUrl }}
         headers_secret: agent-events-auth
+{{- end }}
 ---
 apiVersion: agents.re-cinq.com/v1alpha1
 kind: Station
@@ -1899,9 +1933,11 @@ spec:
   output:
     sinks:
       - type: stdout
+{{- if .Values.agentEventsUrl }}
       - type: http
         url: {{ .Values.agentEventsUrl }}
         headers_secret: agent-events-auth
+{{- end }}
   resources:
     env:
       - name: LORE_API_URL
@@ -1959,9 +1995,11 @@ spec:
   output:
     sinks:
       - type: stdout
+{{- if .Values.agentEventsUrl }}
       - type: http
         url: {{ .Values.agentEventsUrl }}
         headers_secret: agent-events-auth
+{{- end }}
   resources:
     env:
       - name: LORE_API_URL
@@ -2019,9 +2057,11 @@ spec:
   output:
     sinks:
       - type: stdout
+{{- if .Values.agentEventsUrl }}
       - type: http
         url: {{ .Values.agentEventsUrl }}
         headers_secret: agent-events-auth
+{{- end }}
   resources:
     env:
       - name: LORE_API_URL
@@ -2081,9 +2121,11 @@ spec:
   output:
     sinks:
       - type: stdout
+{{- if .Values.agentEventsUrl }}
       - type: http
         url: {{ .Values.agentEventsUrl }}
         headers_secret: agent-events-auth
+{{- end }}
   resources:
     env:
       - name: LORE_API_URL
@@ -2143,9 +2185,11 @@ spec:
   output:
     sinks:
       - type: stdout
+{{- if .Values.agentEventsUrl }}
       - type: http
         url: {{ .Values.agentEventsUrl }}
         headers_secret: agent-events-auth
+{{- end }}
   resources:
     env:
       - name: LORE_API_URL
@@ -2203,9 +2247,11 @@ spec:
   output:
     sinks:
       - type: stdout
+{{- if .Values.agentEventsUrl }}
       - type: http
         url: {{ .Values.agentEventsUrl }}
         headers_secret: agent-events-auth
+{{- end }}
   resources:
     env:
       - name: LORE_API_URL

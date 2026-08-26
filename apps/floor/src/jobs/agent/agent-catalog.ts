@@ -398,7 +398,20 @@ export function catalogChartYaml(
       `{{- if .Values.loreSkillsUrl }}\n${indent}skills:\n${items}${indent}skills_source: ${source}\n{{- end }}\n`,
   );
 
-  return skillsGuarded
+  // Guard the http telemetry sink behind .Values.agentEventsUrl: the standalone
+  // satellite chart has no bus-wide LORE_AGENT_INTERNAL_TOKEN to give this sink
+  // (ADR-024's "no bus-wide credential leaves central" — the same restraint FR5
+  // applies to LORE_INGEST_TOKEN), so it leaves agentEventsUrl unset and every
+  // recipe's http sink must vanish rather than render pointed at an unreachable
+  // URL with a secretKeyRef no satellite Secret can satisfy. An unguarded sink
+  // is a hard CreateContainerConfigError on every satellite pod, of every node
+  // type — found live, 2026-08-26.
+  const sinksGuarded = skillsGuarded.replace(
+    /^( *)- type: http\n\1 {2}url: .*\n\1 {2}headers_secret: agent-events-auth\n/gm,
+    (match) => `{{- if .Values.agentEventsUrl }}\n${match}{{- end }}\n`,
+  );
+
+  return sinksGuarded
     .replaceAll(LLM_SECRET_SENTINEL, "{{ .Values.agentLlmSecretKey }}")
     .replaceAll(EVENTS_URL_SENTINEL, "{{ .Values.agentEventsUrl }}")
     .replaceAll(MCP_URL_SENTINEL, "{{ .Values.loreMcpUrl }}")
