@@ -1,5 +1,4 @@
 import type { PipelineTask } from "@re-cinq/lore-shared";
-import { taskPageUrl } from "../watcher/agent-watcher-logic.js";
 import { errorMessage } from "@re-cinq/lore-shared";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 /**
@@ -22,6 +21,7 @@ import type { Project } from "@re-cinq/lore-shared";
 import { slugify, setStatus, insertEvent } from "./task-helpers.js";
 import { pipeline, settings } from "../../kernel/queues.js";
 import type { TaskQueueRepository } from "@re-cinq/lore-shared/project/tasks/task-queue-port.js";
+import { taskPageUrl } from "../watcher/agent-watcher-logic.js";
 import { composeIssueBody } from "./issue-body.js";
 import { handleFeatureRequest } from "./handle-feature-request.js";
 import { handleClaudeCodeTask } from "./handle-claude-code-task.js";

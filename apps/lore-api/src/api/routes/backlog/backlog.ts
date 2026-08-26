@@ -110,6 +110,7 @@ export function implementationLoopRoutes(
         const { rows: runRows } = await pool.query<{ id: string }>(
           `SELECT id FROM pipeline.assembly_runs
             WHERE repo = $1 AND subject_key = 'backlog'
+              AND blueprint_name = 'implementation-loop'
               AND status IN ('queued', 'running')
             ORDER BY created_at DESC LIMIT 1`,
           [repo],
