@@ -2,8 +2,8 @@
 //
 // `pipeline.events` has exactly one writer — the event-router — so every other
 // producer reports through this instead of holding a pool. That is what lets a
-// producer run somewhere the database does not reach: a Floor in a satellite
-// cluster, whose Kubernetes API is only visible from inside it.
+// producer run somewhere the database does not reach: a cluster-agent in a
+// satellite cluster, whose Kubernetes API is only visible from inside it.
 //
 // Deliberately NOT swallowed. An event that fails to land loses the work it was
 // meant to start, and a caller that reports success anyway turns that into
