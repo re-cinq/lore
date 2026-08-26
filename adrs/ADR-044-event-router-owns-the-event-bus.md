@@ -306,6 +306,21 @@ No handler exceeds the old ceiling today, which is why this never fired; it is
 fixed now because the table is being created now and the next long handler should
 fail loudly rather than silently double-execute.
 
+## Amendment (2026-08-26): multi-cluster is taken up, in the recorded shape
+
+The 2026-08-23 amendment left multi-cluster open and recorded the cheaper cut
+for whenever it was taken up: extract a thin per-cluster agent, leave the brain
+central. It is now being taken up, and in exactly that shape —
+`specs/running-stations-in-any-k8s-cluster/spec.md` registers additional
+execution clusters as further instances of the existing cluster-agent (plus the
+ai-agents subsystem, via a standalone chart), never as a second Floor. The one
+structural change it adds on top of this ADR: node dispatch flips from the
+Floor pushing to one configured `CLUSTER_AGENT_URL` to cluster-agents claiming
+queued station runs over HTTP, because a satellite cluster is unreachable for
+inbound calls. Reporting is untouched — every cluster-agent already reports
+terminal phases through the router's front door with dedupe keys, which is what
+makes a claim executed far away indistinguishable from one executed at home.
+
 ## Alternatives considered
 
 - **Keep the listeners in the Floor and give it an HTTP write path only.**
