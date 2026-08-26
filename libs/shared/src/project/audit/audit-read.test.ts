@@ -10,10 +10,19 @@ describe("audit listRecentByType", () => {
       () => new Date(Date.UTC(2026, 7, 26, 10, 0, tick++)),
     );
 
-    await audit.write({ event_type: "cluster_agent_offline", payload: { n: 1 } });
+    await audit.write({
+      event_type: "cluster_agent_offline",
+      payload: { n: 1 },
+    });
     await audit.write({ event_type: "auto_merge_decision", payload: {} });
-    await audit.write({ event_type: "cluster_agent_offline", payload: { n: 2 } });
-    await audit.write({ event_type: "cluster_agent_offline", payload: { n: 3 } });
+    await audit.write({
+      event_type: "cluster_agent_offline",
+      payload: { n: 2 },
+    });
+    await audit.write({
+      event_type: "cluster_agent_offline",
+      payload: { n: 3 },
+    });
 
     const recent = await audit.listRecentByType("cluster_agent_offline", 2);
 
