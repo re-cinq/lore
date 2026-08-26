@@ -1,4 +1,5 @@
 import type { PipelineTask } from "@re-cinq/lore-shared";
+import { taskPageUrl } from "../watcher/agent-watcher-logic.js";
 import { errorMessage } from "@re-cinq/lore-shared";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 /**
@@ -203,8 +204,14 @@ async function processTask(task: PipelineTask): Promise<void> {
   await insertEvent(task.id, "queued", "running");
 
   if (issueNumber) {
+    const pipelineUrl = taskPageUrl(task.id, process.env.LORE_UI_URL);
+
     await project.issues
-      .comment(issueNumber, `Agent \`${agentId}\` picked up this task.`)
+      .comment(
+        issueNumber,
+        `Agent \`${agentId}\` picked up this task.` +
+          (pipelineUrl ? ` Follow it on the pipeline: ${pipelineUrl}` : ""),
+      )
       .catch(() => {});
   }
 

@@ -12472,6 +12472,9 @@
               }
             ]
           },
+          "current_run_id": {
+            "type": ["string", "null"]
+          },
           "next": {
             "type": "array",
             "items": {
@@ -12543,7 +12546,7 @@
             }
           }
         },
-        "required": ["enabled", "current", "next", "recent"],
+        "required": ["enabled", "current", "current_run_id", "next", "recent"],
         "additionalProperties": false
       },
       "ImplementationLoopToggle": {

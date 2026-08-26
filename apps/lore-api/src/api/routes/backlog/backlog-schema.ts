@@ -20,6 +20,8 @@ export const TicketSchema = z.object({
 export const ImplementationLoopSchema = z.object({
   enabled: z.boolean(),
   current: TicketSchema.nullable(),
+  /** The open backlog run's id — the live run view at /assembly-runs/{id}. */
+  current_run_id: z.string().nullable(),
   next: z.array(TicketSchema),
   recent: z.array(TicketSchema),
 });

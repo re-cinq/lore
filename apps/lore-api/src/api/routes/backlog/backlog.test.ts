@@ -87,7 +87,8 @@ describe("/api/repos/{owner}/{repo}/implementation-loop", () => {
             pr_url: "https://gh/pr/50",
           },
         ],
-      });
+      })
+      .mockResolvedValueOnce({ rows: [{ id: "run-42" }] });
     vi.mocked(projectFor).mockResolvedValue({
       issues: {
         list: async () => [
@@ -104,6 +105,7 @@ describe("/api/repos/{owner}/{repo}/implementation-loop", () => {
     expect(res.statusCode).toBe(200);
     expect(JSON.parse(res.payload)).toEqual({
       enabled: true,
+      current_run_id: "run-42",
       current: {
         issue_number: 7,
         issue_url: "https://gh/i/7",
@@ -148,7 +150,8 @@ describe("/api/repos/{owner}/{repo}/implementation-loop", () => {
 
     pool.query
       .mockResolvedValueOnce({ rows: [{ settings: {} }] })
-      .mockResolvedValueOnce({ rows: [] });
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValue({ rows: [] });
     vi.mocked(projectFor).mockResolvedValue({
       issues: {
         list: async () => [
@@ -185,6 +188,7 @@ describe("/api/repos/{owner}/{repo}/implementation-loop", () => {
           },
         ],
       });
+    pool.query.mockResolvedValue({ rows: [] } as never);
     vi.mocked(projectFor).mockResolvedValue({
       issues: {
         list: async () => [
@@ -219,6 +223,7 @@ describe("/api/repos/{owner}/{repo}/implementation-loop", () => {
           },
         ],
       });
+    pool.query.mockResolvedValue({ rows: [] } as never);
     vi.mocked(projectFor).mockResolvedValue({
       issues: {
         list: async () => [

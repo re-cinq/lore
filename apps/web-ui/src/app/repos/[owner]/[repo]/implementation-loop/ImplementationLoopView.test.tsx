@@ -18,7 +18,14 @@ function renderView(loop: Partial<ImplementationLoop> = {}) {
   const toggle = vi.fn(async () => {});
   const utils = render(
     <ImplementationLoopView
-      loop={{ enabled: false, current: null, next: [], recent: [], ...loop }}
+      loop={{
+        enabled: false,
+        current: null,
+        current_run_id: null,
+        next: [],
+        recent: [],
+        ...loop,
+      }}
       toggle={toggle}
     />,
   );
@@ -39,6 +46,19 @@ describe("ImplementationLoopView", () => {
     expect(
       getAllByText(/remove the label to re-queue/i).length,
     ).toBeGreaterThan(0);
+  });
+
+  it("links the live pipeline view when a run is in flight", () => {
+    const { getByText } = renderView({
+      current: ticket({ state: "running" }),
+      current_run_id: "run-42",
+    });
+
+    expect(
+      (getByText("Live pipeline view →") as HTMLAnchorElement).getAttribute(
+        "href",
+      ),
+    ).toBe("/assembly-runs/run-42");
   });
 
   it("says plainly when no ticket is in flight instead of an empty container", () => {
