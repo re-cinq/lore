@@ -17,6 +17,11 @@ import { KubeAgentApi } from "../kernel/kube-agent-api.js";
 import { kubeTokenProvisioner } from "../kernel/deps.js";
 import { ApiContextSource } from "./api-context-source.js";
 import { claimIntervalMs, claimOnce, runClaimLoop } from "./claim-loop.js";
+import {
+  heartbeatIntervalMs,
+  heartbeatOnce,
+  runHeartbeatLoop,
+} from "./heartbeat-loop.js";
 import { FileIdentityStore, identityFilePath } from "./identity-store.js";
 import type { ClusterAgentIdentity, IdentityStore } from "./identity-store.js";
 import {
@@ -59,6 +64,36 @@ async function runSatellite(opts: {
     `[cluster-agent] registered as ${config.name} (${identity.id}), tags [${config.tags.join(", ")}] — claim loop starting`,
   );
 
+  // Single-flight: the heartbeat and claim loops can 401 in the same window,
+  // and two overlapping re-registrations would rotate the token twice — the
+  // first rotation's holder immediately 401s again. Both callers await the
+  // same in-flight attempt instead.
+  let reRegistration: Promise<ClusterAgentIdentity | null> | null = null;
+  const reRegister = (): Promise<ClusterAgentIdentity | null> =>
+    (reRegistration ??= registerOnce({ config, store })
+      .then((rotated) => {
+        if (rotated) {
+          identity = rotated;
+        }
+
+        return rotated;
+      })
+      .finally(() => {
+        reRegistration = null;
+      }));
+
+  // The heartbeat rides beside the claim loop, not inside it: a satellite busy
+  // executing a long claim must still look alive.
+  void runHeartbeatLoop({
+    beat: () =>
+      heartbeatOnce({ apiUrl: config.apiUrl, identity: () => identity }),
+    reRegister,
+    sleep,
+    intervalMs: heartbeatIntervalMs(env),
+  }).catch((err) => {
+    console.error("[cluster-agent] heartbeat loop crashed:", err);
+  });
+
   await runClaimLoop({
     claim: () =>
       claimOnce({
@@ -66,15 +101,7 @@ async function runSatellite(opts: {
         identity: () => identity,
         launch: (spec) => backend.launch(spec),
       }),
-    reRegister: async () => {
-      const rotated = await registerOnce({ config, store });
-
-      if (rotated) {
-        identity = rotated;
-      }
-
-      return rotated;
-    },
+    reRegister,
     sleep,
     baseDelayMs: claimIntervalMs(env),
   });

@@ -108,6 +108,8 @@ export const BODYLESS_WRITES = new Set<string>([
   // The claim is driven by the claimant's registered identity (path id + bearer)
   // and the queue's state; there is nothing for a body to say.
   "POST /api/cluster-agents/{id}/claim",
+  // Liveness is the request itself; the timestamp is the server's clock.
+  "POST /api/cluster-agents/{id}/heartbeat",
 ]);
 
 /** Look up the documented body for a write route with no `zodValidate` schema. */

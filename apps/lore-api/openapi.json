@@ -3672,6 +3672,46 @@
         ]
       }
     },
+    "/api/cluster-agents/{id}/heartbeat": {
+      "post": {
+        "operationId": "post_api_cluster-agents_id_heartbeat",
+        "summary": "POST /api/cluster-agents/{id}/heartbeat",
+        "tags": ["Cluster Agents"],
+        "security": [],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "Liveness acknowledgement; last_seen_at was bumped",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClusterAgentHeartbeat"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
     "/api/repos/{owner}/{repo}/settings/dark-factory": {
       "get": {
         "operationId": "get_api_repos_owner_repo_settings_dark-factory",
@@ -9627,6 +9667,17 @@
           "iteration",
           "agent_cr_name"
         ],
+        "additionalProperties": false
+      },
+      "ClusterAgentHeartbeat": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "const": "ok"
+          }
+        },
+        "required": ["status"],
         "additionalProperties": false
       },
       "DarkFactorySettings": {

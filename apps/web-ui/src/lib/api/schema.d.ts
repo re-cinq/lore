@@ -1088,6 +1088,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/cluster-agents/{id}/heartbeat": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** POST /api/cluster-agents/{id}/heartbeat */
+    post: operations["post_api_cluster-agents_id_heartbeat"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/repos/{owner}/{repo}/settings/dark-factory": {
     parameters: {
       query?: never;
@@ -2589,6 +2606,10 @@ export interface components {
       iteration: number;
       agent_cr_name: string | null;
       spec?: unknown;
+    };
+    ClusterAgentHeartbeat: {
+      /** @constant */
+      status: "ok";
     };
     DarkFactorySettings: {
       enabled: boolean;
@@ -5453,6 +5474,31 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["ClusterAgentClaim"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      413: components["responses"]["PayloadTooLarge"];
+      429: components["responses"]["RateLimited"];
+    };
+  };
+  "post_api_cluster-agents_id_heartbeat": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Liveness acknowledgement; last_seen_at was bumped */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ClusterAgentHeartbeat"];
         };
       };
       400: components["responses"]["BadRequest"];

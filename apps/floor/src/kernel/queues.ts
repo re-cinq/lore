@@ -14,6 +14,7 @@ import { createPipelineRepositories } from "@re-cinq/lore-shared/project/pipelin
 import type { PipelineRepositories } from "@re-cinq/lore-shared";
 import { internalToken } from "@re-cinq/lore-shared/http/internal-token.js";
 import { StationClient } from "@re-cinq/lore-shared/project/stations/station-client.js";
+import { PgClusterAgents } from "@re-cinq/lore-shared/project/cluster-agents/cluster-agents-pg.js";
 import { ClusterAgentClient } from "@re-cinq/lore-shared";
 import {
   selectEventDeliveries,
@@ -35,7 +36,6 @@ import { PgContextCore } from "@re-cinq/lore-shared/project/context-core/context
 import { PgSettings } from "@re-cinq/lore-shared/project/settings/settings-pg.js";
 import { PgChunks } from "@re-cinq/lore-shared/project/chunks/chunks-pg.js";
 import { PgMemoryLifecycle } from "@re-cinq/lore-shared/project/memory/memory-lifecycle-pg.js";
-import { PgClusterAgents } from "@re-cinq/lore-shared/project/cluster-agents/cluster-agents-pg.js";
 
 let pipelineSingleton: PipelineRepositories | undefined;
 let taskStoreSingleton: PgTaskStore | undefined;
@@ -164,7 +164,8 @@ export const stationClient = (): StationClient =>
 
 let clusterAgentsSingleton: PgClusterAgents | undefined;
 
-/** The execution-cluster registry (`pipeline.cluster_agents`, FR1). */
+/** The execution-cluster registry (specs/running-stations-in-any-k8s-cluster):
+ *  registration, the reaper's offline sweep, and central-id resolution. */
 export const clusterAgents = (): PgClusterAgents =>
   (clusterAgentsSingleton ??= new PgClusterAgents(getPool()));
 
