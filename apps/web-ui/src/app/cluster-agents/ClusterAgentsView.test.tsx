@@ -51,7 +51,7 @@ describe("ClusterAgentsView", () => {
     expect(screen.getByText("gpu")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "3" })).toHaveAttribute(
       "href",
-      "/assembly-runs",
+      "/assembly-runs?cluster_agent_id=b",
     );
   });
 

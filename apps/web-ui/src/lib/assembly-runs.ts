@@ -150,6 +150,7 @@ export async function fetchAssemblyRuns(
   opts: {
     status?: string;
     repo?: string;
+    clusterAgentId?: string;
     limit?: number;
   } = {},
 ): Promise<AssemblyRun[]> {
@@ -161,6 +162,10 @@ export async function fetchAssemblyRuns(
 
   if (opts.repo) {
     params.set("repo", opts.repo);
+  }
+
+  if (opts.clusterAgentId) {
+    params.set("cluster_agent_id", opts.clusterAgentId);
   }
   params.set("limit", String(opts.limit ?? 50));
 

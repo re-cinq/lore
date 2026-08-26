@@ -84,7 +84,9 @@ export default function ClusterAgentsView({
                 </td>
                 <td>
                   {agent.running_claims > 0 ? (
-                    <Link href="/assembly-runs">{agent.running_claims}</Link>
+                    <Link href={`/assembly-runs?cluster_agent_id=${agent.id}`}>
+                      {agent.running_claims}
+                    </Link>
                   ) : (
                     agent.running_claims
                   )}
@@ -114,7 +116,7 @@ export default function ClusterAgentsView({
           </thead>
           <tbody>
             {offlineEvents.map((event, index) => (
-              <tr key={index}>
+              <tr key={`${event.created_at}-${event.station_run_id ?? index}`}>
                 <td>
                   <TimeAgo date={event.created_at} />
                 </td>

@@ -1,3 +1,4 @@
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { describe, it, expect } from "vitest";
 import { handleClusterAgentList } from "./list.js";
 import { InMemoryClusterAgents } from "@re-cinq/lore-shared/project/cluster-agents/cluster-agents-memory.js";
@@ -5,12 +6,16 @@ import { InMemoryAssemblyRuns } from "@re-cinq/lore-shared/project/assembly-runs
 import { InMemoryAudit } from "@re-cinq/lore-shared/project/audit/audit-memory.js";
 
 async function registeredAgent(agents: InMemoryClusterAgents, name: string) {
-  return agents.create({
+  const agent = await agents.create({
     name,
     tags: ["node:agent"],
     tokenHash: `hash-${name}`,
     clusterInfo: null,
   });
+
+  enforceTrue(agent, Error, `name ${name} already registered`);
+
+  return agent;
 }
 
 async function claimedRun(runs: InMemoryAssemblyRuns, clusterAgentId: string) {

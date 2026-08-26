@@ -3599,13 +3599,16 @@
                 "properties": {
                   "name": {
                     "type": "string",
-                    "minLength": 1
+                    "minLength": 1,
+                    "maxLength": 200
                   },
                   "tags": {
                     "type": "array",
                     "items": {
-                      "type": "string"
+                      "type": "string",
+                      "maxLength": 100
                     },
+                    "maxItems": 50,
                     "default": []
                   },
                   "cluster_info": {
