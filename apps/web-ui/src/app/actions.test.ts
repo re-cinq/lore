@@ -2,16 +2,19 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const openIngestWorkflowPR = vi.fn();
+const openTraceImpactWorkflowPR = vi.fn();
 const revalidatePath = vi.fn();
 
 vi.mock("@/lib/github", () => ({
   openIngestWorkflowPR: (...a: unknown[]) => openIngestWorkflowPR(...a),
+  openTraceImpactWorkflowPR: (...a: unknown[]) =>
+    openTraceImpactWorkflowPR(...a),
 }));
 vi.mock("next/cache", () => ({
   revalidatePath: (...a: unknown[]) => revalidatePath(...a),
 }));
 
-import { fixIngestWorkflows } from "./actions";
+import { fixIngestWorkflows, fixTraceImpactWorkflows } from "./actions";
 import {
   LORE_INGEST_WORKFLOW_PATH,
   LORE_INGEST_WORKFLOW_CONTENT,
@@ -20,6 +23,7 @@ import { getIngestStatuses } from "@/lib/ingest-status-cache";
 
 beforeEach(() => {
   openIngestWorkflowPR.mockReset();
+  openTraceImpactWorkflowPR.mockReset();
   revalidatePath.mockReset();
 });
 
@@ -44,14 +48,19 @@ describe("fixIngestWorkflows", () => {
     expect(result).toEqual({
       opened: 2,
       prs: ["https://gh/a/1", "https://gh/b/2"],
+      failed: [],
     });
     expect(revalidatePath).toHaveBeenCalledWith("/");
   });
 
-  it("counts only repos where a PR was opened, tolerating failures and nulls", async () => {
+  it("reports each repo where no PR was opened with the reason instead of swallowing it", async () => {
     openIngestWorkflowPR
       .mockResolvedValueOnce({ url: "https://gh/a/1", number: 1 })
-      .mockRejectedValueOnce(new Error("boom"))
+      .mockRejectedValueOnce(
+        new Error(
+          "Resource not accessible by integration - workflows permission",
+        ),
+      )
       .mockResolvedValueOnce(null);
 
     const result = await fixIngestWorkflows([
@@ -60,7 +69,34 @@ describe("fixIngestWorkflows", () => {
       "re-cinq/c",
     ]);
 
-    expect(result).toEqual({ opened: 1, prs: ["https://gh/a/1"] });
+    expect(result).toEqual({
+      opened: 1,
+      prs: ["https://gh/a/1"],
+      failed: [
+        {
+          repo: "re-cinq/b",
+          error:
+            "Resource not accessible by integration - workflows permission",
+        },
+        {
+          repo: "re-cinq/c",
+          error:
+            "no PR was opened (GitHub App not configured, or no open fix PR found for the existing fix branch)",
+        },
+      ],
+    });
+  });
+
+  it("reports trace-impact fix failures per repo the same way", async () => {
+    openTraceImpactWorkflowPR.mockRejectedValueOnce(new Error("boom"));
+
+    const result = await fixTraceImpactWorkflows(["re-cinq/a"]);
+
+    expect(result).toEqual({
+      opened: 0,
+      prs: [],
+      failed: [{ repo: "re-cinq/a", error: "boom" }],
+    });
   });
 
   it("evicts cached ingest statuses so the revalidated page refetches", async () => {

@@ -1,4 +1,5 @@
 import { type IngestWorkflowStatus } from "@/lib/ingest-workflow";
+import type { FixWorkflowResult } from "@/lib/fix-workflow-result";
 import FixIngestButton, {
   FixWorkflowButton,
 } from "@/components/FixIngestButton";
@@ -31,13 +32,9 @@ export interface HomeViewProps {
   ingestStatus: Map<string, IngestWorkflowStatus>;
   misaligned: string[];
   /** Overview action wired to the Fix-ingest button ("actions up"). */
-  fixIngestWorkflows: (
-    repos: string[],
-  ) => Promise<{ opened: number; prs: string[] }>;
+  fixIngestWorkflows: (repos: string[]) => Promise<FixWorkflowResult>;
   impactMisaligned: string[];
-  fixTraceImpactWorkflows: (
-    repos: string[],
-  ) => Promise<{ opened: number; prs: string[] }>;
+  fixTraceImpactWorkflows: (repos: string[]) => Promise<FixWorkflowResult>;
 }
 
 function freshnessIndicator(lastIngestedAt: string | null): {
