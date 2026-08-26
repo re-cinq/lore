@@ -39,6 +39,9 @@ export interface NodeVisit {
    *  ever help; absent for every visit recorded before that column existed, which
    *  simply reads as "retry as before". */
   failureClass?: string | null;
+  /** What the failed visit actually said — station validation summaries, agent
+   *  errors. Rides the iteration_max terminal reason so the author reads the
+   *  CAUSE, not just the exhausted edge. */
   failureDetail?: string | null;
 }
 
@@ -143,10 +146,13 @@ export function getNextTransition(
       const count = (backEdgeCounts.get(key) ?? 0) + 1;
 
       if (chosen.iteration_max !== undefined && count > chosen.iteration_max) {
+        // The budget is HOW the run ended; the visit is WHY. "edge
+        // validate->implement exceeded iteration_max 1" was true of the walk
+        // and silent about the cause — say what the station actually reported.
         return {
           kind: "fail",
           outcome: "iteration_max",
-          reason: `AssemblyLine ${assemblyLine.name}: edge ${key} exceeded iteration_max ${chosen.iteration_max}`,
+          reason: `AssemblyLine ${assemblyLine.name}: ${nodeFailureReason(visit)} — the ${key} retry budget (${chosen.iteration_max}) is spent`,
         };
       }
       backEdgeCounts.set(key, count);

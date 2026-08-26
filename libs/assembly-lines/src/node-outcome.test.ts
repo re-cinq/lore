@@ -70,6 +70,7 @@ describe("stationNodeOutcome", () => {
     expect(stationNodeOutcome(detectNode, status)).toEqual({
       outcome: "failed",
       extras: { "Lore-Validation-Failed": "lint" },
+      failureDetail: "validation failed: lint",
     });
   });
 
@@ -269,5 +270,23 @@ describe("an outcome line that was spoken is never silently a success", () => {
         output: "spec-plan.json written\nLORE_NODE_RESULT: changes_requested",
       }),
     ).toMatchObject({ outcome: "changes_requested" });
+  });
+});
+
+describe("stationNodeOutcome lifts validation extras into failureDetail", () => {
+  it("derives the detail from Lore-Validation-Failed when the payload has none", () => {
+    const result = stationNodeOutcome(
+      { type: "validate" } as never,
+      {
+        phase: "Succeeded",
+        output:
+          'LORE_NODE_RESULT: {"outcome":"failed","extras":{"Lore-Validation":"failed","Lore-Validation-Lang":"node","Lore-Validation-Failed":"lint,build"}}',
+      } as never,
+    );
+
+    expect(result).toMatchObject({
+      outcome: "failed",
+      failureDetail: "validation failed: lint,build",
+    });
   });
 });
