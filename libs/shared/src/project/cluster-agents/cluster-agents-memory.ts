@@ -33,7 +33,13 @@ export class InMemoryClusterAgents implements ClusterAgentsRepository {
     );
   }
 
-  async create(input: RegisterClusterAgentInput): Promise<ClusterAgent> {
+  async create(input: RegisterClusterAgentInput): Promise<ClusterAgent | null> {
+    // Synchronous check-and-set — an await here would reopen the very
+    // check-then-insert race the null return exists to close.
+    if ([...this.agents.values()].some((agent) => agent.name === input.name)) {
+      return null;
+    }
+
     const at = this.now();
     const agent: ClusterAgent = {
       id: randomUUID(),

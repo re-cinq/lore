@@ -20,7 +20,10 @@ CREATE TABLE IF NOT EXISTS pipeline.cluster_agents (
   id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name           TEXT NOT NULL UNIQUE,
   tags           TEXT[] NOT NULL DEFAULT '{}',
-  token_hash     TEXT NOT NULL,
+  -- UNIQUE doubles as the index for the per-agent auth lookup on every
+  -- heartbeat/claim call; two agents sharing a token would make findByTokenHash
+  -- ambiguous anyway.
+  token_hash     TEXT NOT NULL UNIQUE,
   registered_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
   last_seen_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
   status         TEXT NOT NULL DEFAULT 'active'
@@ -31,8 +34,9 @@ CREATE TABLE IF NOT EXISTS pipeline.cluster_agents (
 ALTER TABLE pipeline.station_runs
   ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'running'
     CHECK (status IN ('queued', 'claimed', 'running')),
+  -- SET NULL so a retired cluster-agent row can be deleted; runs stay for audit.
   ADD COLUMN IF NOT EXISTS cluster_agent_id UUID
-    REFERENCES pipeline.cluster_agents(id),
+    REFERENCES pipeline.cluster_agents(id) ON DELETE SET NULL,
   ADD COLUMN IF NOT EXISTS required_tags TEXT[] NOT NULL DEFAULT '{}',
   ADD COLUMN IF NOT EXISTS claimed_at TIMESTAMPTZ;
 
