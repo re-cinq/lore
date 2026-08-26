@@ -138,17 +138,20 @@ By default every station run executes on the central GKE cluster. A **satellite*
 
 **One-time central setup.** Set `cluster_agent_registration_token` in `secrets.tfvars` and `terraform apply`. The token lands in GCP Secret Manager as `lore-cluster-agent-registration-token`, ESO mirrors it into the `lore-api` namespace, and lore-api starts accepting registrations. Leave it empty and `POST /api/cluster-agents/register` answers 401 — satellites stay disabled.
 
-**Install a satellite.** On the target cluster, install the standalone chart (`infra/terraform/modules/gke-mcp/lore-platform/charts/cluster-agent-standalone-helm` — deliberately *not* part of the `lore-platform` umbrella). For a minikube walk-through, `scripts/install-satellite-minikube.sh` does all of this idempotently. Required values:
+**Install a satellite.** Point `kubectl` at the target cluster and run the install script — it checks the toolchain, creates the namespaces, vendors the chart dependency, and `helm upgrade --install`s the release (idempotent; re-running is free):
 
-| Value | Meaning |
-|---|---|
-| `loreApiUrl` | Public HTTPS URL of the central lore-api |
-| `eventRouterUrl` | Public HTTPS URL of the central event-router |
-| `registrationToken` | The pre-shared token above — used **once**, to register |
-| `name` | This cluster's unique registry name (e.g. `minikube-ana`, `gpu-box-1`) |
-| `tags` | Capability tags this cluster offers, e.g. `["node:agent", "node:validate"]` |
-| `ghcr.username` / `ghcr.token` | Pull credentials for the agent images |
-| `llm.credential` | The agent LLM credential (`CLAUDE_CODE_OAUTH_TOKEN` on a laptop bills a subscription; `ANTHROPIC_API_KEY` bills the org) |
+```bash
+scripts/install-satellite.sh \
+  --api-url https://lore-api.example.com \
+  --event-router-url https://lore-events.example.com \
+  --registration-token <token from your platform engineer> \
+  --name gpu-box-1 \
+  --tags node:agent,node:validate
+```
+
+It also needs `GHCR_USERNAME`/`GHCR_TOKEN` (image pulls) and an LLM credential in the env — `CLAUDE_CODE_OAUTH_TOKEN` (from `claude setup-token`; bills a subscription) or `ANTHROPIC_API_KEY` (bills the org). Every flag can come from env instead (`LORE_API_URL`, `EVENT_ROUTER_URL`, `LORE_CLUSTER_AGENT_REGISTRATION_TOKEN`, `LORE_CLUSTER_AGENT_NAME`, `LORE_CLUSTER_AGENT_TAGS`). Pass `--context <name>` to assert which kubectl context the install must land in, and `--no-network-policy` on single-node clusters without a CNI. For a laptop minikube there is a wrapper with the right defaults baked in: `scripts/install-satellite-minikube.sh`.
+
+Under the hood both drive the standalone chart at `infra/terraform/modules/gke-mcp/lore-platform/charts/cluster-agent-standalone-helm` (deliberately *not* part of the `lore-platform` umbrella); install it with plain `helm` if you need values the script does not surface.
 
 **What happens on first boot.** The satellite registers under `name`, receives a durable id and a per-agent bearer token (the plaintext exists once, in that response; only its SHA-256 is stored centrally), and persists the identity in the `lore-cluster-agent-identity` Kubernetes Secret — written through the Kubernetes API, since the pod's filesystem is read-only. Restarts re-register with the persisted token instead of minting a new identity. It then polls for claims and heartbeats every 30 s.
 
