@@ -1,0 +1,7 @@
+# The standalone satellite chart (FR6, specs/running-stations-in-any-k8s-cluster)
+# lives under charts/ per the repo's chart-directory convention but is NEVER part
+# of this umbrella — it is installed standalone on a satellite cluster. Helm loads
+# every directory under charts/ regardless of the dependencies list, so without
+# this exclusion the umbrella render would fail on the satellite chart's required
+# values (and helm lint would demand it be declared as a dependency).
+charts/cluster-agent-standalone-helm/

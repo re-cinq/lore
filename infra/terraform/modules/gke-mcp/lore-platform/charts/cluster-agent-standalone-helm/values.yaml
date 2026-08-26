@@ -1,0 +1,92 @@
+# Values for the standalone satellite chart (FR6,
+# specs/running-stations-in-any-k8s-cluster). The empty values below are
+# REQUIRED — templates fail the render loudly when any is missing. There are
+# deliberately no Postgres/database values anywhere: the satellite reaches the
+# world only through loreApiUrl + eventRouterUrl.
+
+# ---- REQUIRED -------------------------------------------------------------
+
+# Public HTTPS URL of the central lore-api (registration, claim, heartbeat,
+# reads/writes on behalf of station pods).
+loreApiUrl: ""
+
+# Public HTTPS URL of the central event-router front door (POST /api/events);
+# the satellite reports terminal Agent CR phases here with its per-agent token.
+eventRouterUrl: ""
+
+# The pre-shared registration token (LORE_CLUSTER_AGENT_REGISTRATION_TOKEN).
+# Only used to register; every later call uses the per-agent token the
+# registration returns, persisted in the identity Secret below.
+registrationToken: ""
+
+# This cluster's unique registry name (pipeline.cluster_agents.name).
+name: ""
+
+# Capability tags this cluster offers, e.g. ["node:agent", "node:validate"].
+# Rendered comma-joined into LORE_CLUSTER_AGENT_TAGS.
+tags: []
+
+# GHCR pull credentials — the chart writes a `ghcr-pull-secret`
+# dockerconfigjson Secret into both namespaces (both charts' imagePullSecrets
+# already point at that name).
+ghcr:
+  username: ""
+  token: ""
+
+# The agent LLM credential. Mirrors how ai-agents-helm takes it: the run pods
+# mount agent-secrets[<agentLlmSecretKey>]; on GKE ESO writes that Secret, on
+# a satellite THIS chart does. `secretKey` must match
+# `ai-agents.agentLlmSecretKey` below — change them together (use
+# CLAUDE_CODE_OAUTH_TOKEN on a laptop to bill a subscription instead of org
+# API credit).
+llm:
+  secretKey: ANTHROPIC_API_KEY
+  credential: ""
+
+# ---- Defaults -------------------------------------------------------------
+
+# Namespace for the cluster-agent itself.
+namespace: lore-cluster-agent
+# Namespace the ai-agents subchart deploys into and this agent acts on. Must
+# match the subchart's own `namespace` value.
+agentsNamespace: ai-agents
+# Render Namespace objects for both. Set false when the namespaces already
+# exist outside Helm's ownership (scripts/install-satellite-minikube.sh does).
+createNamespaces: true
+
+replicaCount: 1
+
+image:
+  repository: ghcr.io/re-cinq/lore-cluster-agent
+  tag: latest
+  pullPolicy: Always
+
+imagePullSecrets:
+  - name: ghcr-pull-secret
+
+resources:
+  limits:
+    cpu: "300m"
+    memory: 256Mi
+  requests:
+    cpu: "50m"
+    memory: 128Mi
+
+env:
+  PORT: "8080"
+
+# Where the satellite persists its registered identity ({id, token}). The file
+# is surfaced by mounting the named Secret; the pod WRITES it through the
+# Kubernetes API (see templates/rbac.yaml — create/update on exactly this one
+# Secret), so a restart re-registers with the persisted per-agent token
+# instead of minting a new identity.
+identity:
+  secretName: lore-cluster-agent-identity
+  mountPath: /var/lib/lore-identity
+  fileName: identity.json
+
+# Subchart values (the ai-agents subsystem installed beside the agent).
+ai-agents:
+  # Keep in sync with llm.secretKey above — Helm cannot template one from the
+  # other across the subchart boundary.
+  agentLlmSecretKey: ANTHROPIC_API_KEY

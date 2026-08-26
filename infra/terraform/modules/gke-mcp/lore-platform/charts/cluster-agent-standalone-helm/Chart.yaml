@@ -1,0 +1,26 @@
+apiVersion: v2
+name: lore-cluster-agent-standalone
+description: |
+  The standalone satellite chart (specs/running-stations-in-any-k8s-cluster
+  FR6): one `helm install` turns any cluster with outbound HTTPS into a Lore
+  execution node. Bundles the existing cluster-agent image configured as a
+  satellite (registers with lore-api, claims station runs, reports through the
+  event-router front door) together with the ai-agents subsystem it launches
+  Agent CRs into.
+
+  Deliberately NOT a dependency of the lore-platform umbrella — it is
+  installed standalone on the satellite cluster, never alongside the central
+  platform. No Postgres values exist in this chart at all: the satellite
+  reaches the world only through loreApiUrl and eventRouterUrl.
+
+  The ai-agents subchart is pulled by file:// reference from the sibling
+  directory, so run `helm dependency update` before templating/installing
+  (scripts/check-cluster-agent-standalone-render.sh and
+  scripts/install-satellite-minikube.sh both do).
+version: 0.1.0
+appVersion: "0.1.0"
+
+dependencies:
+  - name: ai-agents
+    version: "0.1.0"
+    repository: file://../ai-agents-helm
