@@ -52,6 +52,16 @@ variable "ingest_token" {
   sensitive = true
 }
 
+# The pre-shared token a new execution cluster presents to
+# POST /api/cluster-agents/register (specs/running-stations-in-any-k8s-cluster
+# FR1). Only used to register; every later call uses the per-agent token the
+# registration mints. Empty disables registration (the route answers 401).
+variable "cluster_agent_registration_token" {
+  type      = string
+  sensitive = true
+  default   = ""
+}
+
 # Gates the web-ui admin-token ExternalSecret. The web-ui calls the mcp-server's
 # two-key-gated dark-factory settings endpoint with an admin-scoped token. Mint
 # the token via the mcp `/api/tokens` endpoint (scope: admin), store it in GCP

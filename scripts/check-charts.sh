@@ -27,22 +27,38 @@ say() { echo "[charts] $*"; }
 [[ -d "$umbrella" ]] || { say "FAIL: umbrella not found: $umbrella"; exit 1; }
 
 check() {
-  local chart="$1" name
+  local chart="$1" name deps_vendored=0
   name="$(basename "$chart")"
+
+  # A chart with a file:// dependency (the standalone satellite chart vendors
+  # ../ai-agents-helm) needs it vendored to lint/render; the tgz + Chart.lock
+  # are generated artifacts, so vendor here and clean up after.
+  if grep -q "file://" "$chart/Chart.yaml" 2>/dev/null; then
+    say "dependency update $name"
+    helm dependency update "$chart" >/dev/null       || { say "FAIL dependency update $name"; failed=1; return; }
+    deps_vendored=1
+  fi
 
   say "lint $name"
   helm lint "$chart" >/dev/null || { say "FAIL lint $name"; failed=1; return; }
 
-  say "render $name (default values)"
-  helm template ci "$chart" >/dev/null || { say "FAIL render $name"; failed=1; return; }
-
-  # A fixture exists for charts whose templates are dormant under defaults.
+  # A fixture exists for charts whose templates are dormant under defaults —
+  # or, for the standalone satellite chart, whose REQUIRED values fail the
+  # default render loudly by design. With a fixture, the fixture is how CI
+  # renders the chart; without one, plain defaults must render.
   local fixture="$fixtures/$name.yaml"
 
   if [[ -f "$fixture" ]]; then
     say "render $name (ci fixture)"
     helm template ci "$chart" -f "$fixture" >/dev/null \
       || { say "FAIL render $name with $fixture"; failed=1; return; }
+  else
+    say "render $name (default values)"
+    helm template ci "$chart" >/dev/null || { say "FAIL render $name"; failed=1; return; }
+  fi
+
+  if (( deps_vendored )); then
+    rm -rf "$chart/charts" "$chart/Chart.lock"
   fi
 }
 

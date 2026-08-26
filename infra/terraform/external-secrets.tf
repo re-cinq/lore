@@ -329,6 +329,39 @@ resource "kubectl_manifest" "es_mcp_ingest_token" {
   depends_on = [kubectl_manifest.cluster_secret_store]
 }
 
+resource "kubectl_manifest" "es_cluster_agent_registration_token" {
+  count = var.cluster_agent_registration_token != "" ? 1 : 0
+
+  yaml_body = yamlencode({
+    apiVersion = "external-secrets.io/v1beta1"
+    kind       = "ExternalSecret"
+    metadata = {
+      name      = "lore-cluster-agent-registration-token"
+      namespace = "lore-api"
+    }
+    spec = {
+      refreshInterval = "1h"
+      secretStoreRef = {
+        name = "gcp-secret-manager"
+        kind = "ClusterSecretStore"
+      }
+      target = {
+        name = "lore-cluster-agent-registration-token"
+      }
+      data = [
+        {
+          secretKey = "token"
+          remoteRef = {
+            key = "lore-cluster-agent-registration-token"
+          }
+        },
+      ]
+    }
+  })
+
+  depends_on = [kubectl_manifest.cluster_secret_store]
+}
+
 resource "kubectl_manifest" "es_agent_internal_token" {
   yaml_body = yamlencode({
     apiVersion = "external-secrets.io/v1beta1"

@@ -1,0 +1,14 @@
+# CI-only values for cluster-agent-standalone-helm, whose required values
+# fail the render loudly by design (scripts/check-cluster-agent-standalone-render.sh
+# asserts exactly that). Dummies here let check-charts.sh lint/render it.
+loreApiUrl: https://lore-api.example.com
+eventRouterUrl: https://lore-events.example.com
+registrationToken: ci-dummy-registration-token
+name: ci-render-check
+tags:
+  - node:agent
+ghcr:
+  username: ci-dummy
+  token: ci-dummy
+llm:
+  credential: ci-dummy

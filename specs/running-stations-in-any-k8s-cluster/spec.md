@@ -169,7 +169,7 @@ one dispatch mechanism, not a special case plus a remote case.
 - A claim request with no matching queued run returns `204`. An idle agent
   backs its polling off (doubling to a 60 s ceiling, resetting on the first
   hit), so a fleet of quiet satellites costs the API a bounded trickle
-  rather than O(N) at the floor interval. ([validated by `claim.test.ts:78`](apps/lore-api/src/api/routes/cluster-agents/claim.test.ts#L78), [`claim.test.ts:116`](apps/lore-api/src/api/routes/cluster-agents/claim.test.ts#L116), [`claim-loop.test.ts:59`](apps/cluster-agent/src/satellite/claim-loop.test.ts#L59), [`claim-loop.test.ts:63`](apps/cluster-agent/src/satellite/claim-loop.test.ts#L63), [`claim-loop.test.ts:69`](apps/cluster-agent/src/satellite/claim-loop.test.ts#L69), [`claim-loop.test.ts:77`](apps/cluster-agent/src/satellite/claim-loop.test.ts#L77), [`claim-loop.test.ts:84`](apps/cluster-agent/src/satellite/claim-loop.test.ts#L84), [`claim-loop.test.ts:88`](apps/cluster-agent/src/satellite/claim-loop.test.ts#L88), [`claim-loop.test.ts:133`](apps/cluster-agent/src/satellite/claim-loop.test.ts#L133), [`claim-loop.test.ts:231`](apps/cluster-agent/src/satellite/claim-loop.test.ts#L231))
+  rather than O(N) at the floor interval. ([validated by `claim.test.ts:78`](apps/lore-api/src/api/routes/cluster-agents/claim.test.ts#L78), [`claim.test.ts:116`](apps/lore-api/src/api/routes/cluster-agents/claim.test.ts#L116), [`claim-loop.test.ts:59`](apps/cluster-agent/src/satellite/claim-loop.test.ts#L59), [`claim-loop.test.ts:63`](apps/cluster-agent/src/satellite/claim-loop.test.ts#L63), [`claim-loop.test.ts:69`](apps/cluster-agent/src/satellite/claim-loop.test.ts#L69), [`claim-loop.test.ts:77`](apps/cluster-agent/src/satellite/claim-loop.test.ts#L77), [`claim-loop.test.ts:84`](apps/cluster-agent/src/satellite/claim-loop.test.ts#L84), [`claim-loop.test.ts:88`](apps/cluster-agent/src/satellite/claim-loop.test.ts#L88), [`claim-loop.test.ts:133`](apps/cluster-agent/src/satellite/claim-loop.test.ts#L133), [`claim-loop.test.ts:230`](apps/cluster-agent/src/satellite/claim-loop.test.ts#L230))
 - The claim response carries the **complete `LoreTaskSpec`** the visit was
   enqueued with — the same object the push path handed the launch backend.
   The claiming cluster-agent materialises everything cluster-local itself:
@@ -197,7 +197,7 @@ pull, so recovery splits by who holds the claim:
 - The assembly-run reaper (existing cadence) marks cluster-agents with
   `last_seen_at < now() - 5 minutes` as `offline` — ten missed heartbeats,
   so a transient network blip or one dropped request never requeues live
-  work. ([validated by `cluster-agents.test.ts:185`](libs/shared/src/project/cluster-agents/cluster-agents.test.ts#L185), [`cluster-agents.test.ts:275`](libs/shared/src/project/cluster-agents/cluster-agents.test.ts#L275), [`assembly-run-reaper.test.ts:835`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L835))
+  work. ([validated by `cluster-agents.test.ts:185`](libs/shared/src/project/cluster-agents/cluster-agents.test.ts#L185), [`cluster-agents.test.ts:275`](libs/shared/src/project/cluster-agents/cluster-agents.test.ts#L275), [`assembly-run-reaper.test.ts:834`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L834))
 - The reaper's CR-status recovery arm (`readAgentStatus` → relaunch on null)
   applies **only** to runs claimed by the central cluster's agent — the one
   cluster `CLUSTER_AGENT_URL` can reach. For satellite-claimed runs that arm
@@ -211,7 +211,7 @@ pull, so recovery splits by who holds the claim:
   time since `claimed_at`, so another agent picks the run up and the outage
   is attributable. Re-execution resumes on the run's existing branch —
   branch-as-state already makes a node re-run land on whatever commits the
-  dead attempt pushed. ([validated by `assembly-run-reaper.test.ts:835`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L835), [`assembly-run-reaper.test.ts:803`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L803), [`assembly-run-reaper.test.ts:817`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L817), [`assembly-run-reaper.test.ts:895`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L895))
+  dead attempt pushed. ([validated by `assembly-run-reaper.test.ts:834`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L834), [`assembly-run-reaper.test.ts:802`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L802), [`assembly-run-reaper.test.ts:816`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L816), [`assembly-run-reaper.test.ts:894`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L894))
 - A run whose claiming agent is **alive** but which exceeds its node timeout
   (measured from `claimed_at`) is failed terminally, exactly the reaper's
   timeout semantics today — a live agent past budget is a stuck node, not a
@@ -267,13 +267,13 @@ they are alive.
 
 - `GET /api/cluster-agents` lists registered agents with `name`, `tags`,
   `status`, `last_seen_at`, and the count of runs each is currently
-  executing. ([validated by `list.test.ts:51`](apps/lore-api/src/api/routes/cluster-agents/list.test.ts#L51), [`list.test.ts:41`](apps/lore-api/src/api/routes/cluster-agents/list.test.ts#L41), [`list.test.ts:86`](apps/lore-api/src/api/routes/cluster-agents/list.test.ts#L86), [`assembly-runs.contract.test.ts:1068`](libs/shared/src/project/assembly-runs/assembly-runs.contract.test.ts#L1068))
+  executing. ([validated by `list.test.ts:51`](apps/lore-api/src/api/routes/cluster-agents/list.test.ts#L51), [`list.test.ts:41`](apps/lore-api/src/api/routes/cluster-agents/list.test.ts#L41), [`list.test.ts:86`](apps/lore-api/src/api/routes/cluster-agents/list.test.ts#L86), [`assembly-runs.contract.test.ts:1066`](libs/shared/src/project/assembly-runs/assembly-runs.contract.test.ts#L1066))
 - A web-ui page renders that list, marking offline agents and linking the
   running-claims count to the assembly-runs list filtered to that agent
   (`/assembly-runs?cluster_agent_id=…`, backed by the port's
   `clusterAgentId` open-claim filter). ([validated by `assembly-runs.contract.test.ts:1035`](libs/shared/src/project/assembly-runs/assembly-runs.contract.test.ts#L1035), [validated by `ClusterAgentsView.test.tsx:33`](apps/web-ui/src/app/cluster-agents/ClusterAgentsView.test.tsx#L33), [`ClusterAgentsView.test.tsx:58`](apps/web-ui/src/app/cluster-agents/ClusterAgentsView.test.tsx#L58), [`ClusterAgentsView.test.tsx:73`](apps/web-ui/src/app/cluster-agents/ClusterAgentsView.test.tsx#L73), [`cluster-agents.test.ts:29`](apps/web-ui/src/lib/api/cluster-agents.test.ts#L29))
 - The audit log's `cluster_agent_offline` entries surface on the same page,
-  so a flapping cluster is diagnosable without database access. ([validated by `ClusterAgentsView.test.tsx:80`](apps/web-ui/src/app/cluster-agents/ClusterAgentsView.test.tsx#L80), [`ClusterAgentsView.test.tsx:99`](apps/web-ui/src/app/cluster-agents/ClusterAgentsView.test.tsx#L99), [`ClusterAgentsView.test.tsx:118`](apps/web-ui/src/app/cluster-agents/ClusterAgentsView.test.tsx#L118), [`ClusterAgentsView.test.tsx:132`](apps/web-ui/src/app/cluster-agents/ClusterAgentsView.test.tsx#L132), [`ClusterAgentsView.test.tsx:136`](apps/web-ui/src/app/cluster-agents/ClusterAgentsView.test.tsx#L136), [`audit-read.test.ts:7`](libs/shared/src/project/audit/audit-read.test.ts#L7), [`audit-read.test.ts:24`](libs/shared/src/project/audit/audit-read.test.ts#L24))
+  so a flapping cluster is diagnosable without database access. ([validated by `ClusterAgentsView.test.tsx:80`](apps/web-ui/src/app/cluster-agents/ClusterAgentsView.test.tsx#L80), [`ClusterAgentsView.test.tsx:99`](apps/web-ui/src/app/cluster-agents/ClusterAgentsView.test.tsx#L99), [`ClusterAgentsView.test.tsx:118`](apps/web-ui/src/app/cluster-agents/ClusterAgentsView.test.tsx#L118), [`ClusterAgentsView.test.tsx:132`](apps/web-ui/src/app/cluster-agents/ClusterAgentsView.test.tsx#L132), [`ClusterAgentsView.test.tsx:136`](apps/web-ui/src/app/cluster-agents/ClusterAgentsView.test.tsx#L136), [`audit-read.test.ts:7`](libs/shared/src/project/audit/audit-read.test.ts#L7), [`audit-read.test.ts:33`](libs/shared/src/project/audit/audit-read.test.ts#L33))
 
 ## Data Model
 

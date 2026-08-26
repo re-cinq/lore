@@ -73,6 +73,23 @@ probe the apiserver.
 | `LORE_AGENT_SECRETS_NAME` | Secret holding per-task token keys (default `agent-secrets`) |
 | `GITHUB_APP_ID` / `GITHUB_APP_PRIVATE_KEY` / `GITHUB_APP_INSTALLATION_ID` | The GitHub App triple used to mint per-task installation tokens |
 
+## Satellite mode
+
+The same image runs as a **satellite** on clusters Lore does not own
+(specs/running-stations-in-any-k8s-cluster): set `LORE_API_URL`,
+`LORE_CLUSTER_AGENT_REGISTRATION_TOKEN`, `LORE_CLUSTER_AGENT_NAME` and
+`LORE_CLUSTER_AGENT_TAGS` and the process registers with the central
+lore-api, then runs a claim loop (pull-based dispatch: claim a queued
+station run whose `required_tags` its tags cover, launch it as a local
+Agent CR) and a 30 s heartbeat beside it. The registered `{id, token}`
+identity persists in a Kubernetes Secret via the API
+(`LORE_CLUSTER_AGENT_IDENTITY_SECRET`/`_NAMESPACE`/`_KEY`; local runs
+fall back to the file at `LORE_CLUSTER_AGENT_IDENTITY_FILE`). Deployed
+by `charts/cluster-agent-standalone-helm`, never the umbrella; see the
+[Platform Engineer Guide](../../docs/using-lore/platform-engineer.md#register-a-new-execution-cluster-satellite)
+for the operator walk-through. Without those env vars the satellite
+loops stay off and the service behaves exactly as above.
+
 ## Boundaries
 
 Deliberately absent: **no database pool** (no `pg`, no DB credentials in the

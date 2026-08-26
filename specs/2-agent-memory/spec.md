@@ -370,7 +370,7 @@ Tools without a file representation proxy to the GKE server over
 `LORE_API_URL` instead: `lore_write_episode` (`POST /api/episode`) and
 `lore_query_graph` (`GET /api/graph`, so the live knowledge graph is readable
 without a direct DB); `lore_agent_stats` has neither a file fallback nor a
-proxy and returns a "requires PostgreSQL" message in local mode. ([validated by `episode.test.ts:86`](apps/lore-api/src/api/routes/memory/episode.test.ts#L86), [`memory-tools.test.ts:48`](apps/mcp-server/src/mcp/tools/memory-tools.test.ts#L48), [`memory-tools.test.ts:83`](apps/mcp-server/src/mcp/tools/memory-tools.test.ts#L83))
+proxy and returns a "requires PostgreSQL" message in local mode. ([validated by `episode.test.ts:86`](apps/lore-api/src/api/routes/memory/episode.test.ts#L86), [`memory-tools.test.ts:48`](apps/mcp-server/src/mcp/tools/memory-tools.test.ts#L48), [`memory-tools.test.ts:70`](apps/mcp-server/src/mcp/tools/memory-tools.test.ts#L70))
 
 ## Transfer Scoring (Cross-Repo Context)
 

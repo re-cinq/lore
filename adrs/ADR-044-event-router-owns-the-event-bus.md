@@ -122,7 +122,7 @@ carries a `dedupeKey`, which is what makes repeating one safe.
   `dedupeKey`. ([validated by retries a failed insert, since the report now crosses a network](apps/cluster-agent/src/listeners/agent-reporting.test.ts#L157), [`agent-reporting.test.ts:178`](apps/cluster-agent/src/listeners/agent-reporting.test.ts#L178))
 - The catch-up pass walks the namespace one page at a time. 180 accumulated CRs
   in a single unpaginated LIST blew Node's heap and crash-looped the Floor on
-  2026-07-24. ([validated by walks every page rather than holding the namespace at once](apps/cluster-agent/src/listeners/agent-reporting.test.ts#L99), [`agent-reporting.test.ts:119`](apps/cluster-agent/src/listeners/agent-reporting.test.ts#L119), [`agent-reporting.test.ts:144`](apps/cluster-agent/src/listeners/agent-reporting.test.ts#L144))
+  2026-07-24. ([validated by walks every page rather than holding the namespace at once](apps/cluster-agent/src/listeners/agent-reporting.test.ts#L99), [`agent-reporting.test.ts:112`](apps/cluster-agent/src/listeners/agent-reporting.test.ts#L112), [`agent-reporting.test.ts:137`](apps/cluster-agent/src/listeners/agent-reporting.test.ts#L137))
 
 ### The router serves the drain loop
 

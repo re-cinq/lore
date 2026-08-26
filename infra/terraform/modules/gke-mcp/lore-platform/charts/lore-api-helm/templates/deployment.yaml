@@ -61,6 +61,16 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.githubAppSecret.name }}
                   key: {{ .Values.githubAppSecret.installationIdKey }}
+            # The satellite-registration pre-shared token (FR1 of
+            # specs/running-stations-in-any-k8s-cluster). optional: without it
+            # POST /api/cluster-agents/register answers 401 and nothing else
+            # changes.
+            - name: LORE_CLUSTER_AGENT_REGISTRATION_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.clusterAgentRegistrationSecret.name }}
+                  key: {{ .Values.clusterAgentRegistrationSecret.key }}
+                  optional: true
             - name: ANTHROPIC_API_KEY
               valueFrom:
                 secretKeyRef:
