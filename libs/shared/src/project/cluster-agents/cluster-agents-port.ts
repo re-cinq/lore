@@ -1,3 +1,4 @@
+import { secretEquals } from "../../http/bearer.js";
 import type { ClusterAgent } from "../../models/cluster-agent.js";
 
 /**
@@ -20,7 +21,12 @@ export interface ClusterAgentsRepository {
   findById(id: string): Promise<ClusterAgent | null>;
   /** The auth lookup for claim/heartbeat/report calls: hash → live identity. */
   findByTokenHash(tokenHash: string): Promise<ClusterAgent | null>;
-  create(input: RegisterClusterAgentInput): Promise<ClusterAgent>;
+  /**
+   * Null when the name was taken between the caller's decision and the
+   * insert — the losing side of a concurrent first registration, which the
+   * register route reports as the same 409 as any other taken name.
+   */
+  create(input: RegisterClusterAgentInput): Promise<ClusterAgent | null>;
   /** Token rotation + capability update for a re-registering identity. */
   rotate(id: string, input: RegisterClusterAgentInput): Promise<ClusterAgent>;
   /** Bump `last_seen_at` and revive `offline` → `active`. */
@@ -47,7 +53,10 @@ export function decideRegistration(
     return { kind: "create" };
   }
 
-  if (presentedTokenHash === existing.tokenHash) {
+  if (
+    presentedTokenHash !== null &&
+    secretEquals(presentedTokenHash, existing.tokenHash)
+  ) {
     return { kind: "rotate", id: existing.id };
   }
 

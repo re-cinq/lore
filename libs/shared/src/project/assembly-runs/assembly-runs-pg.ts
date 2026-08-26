@@ -380,7 +380,7 @@ export class PgAssemblyRuns implements AssemblyRunsPort {
     await this.pool.query(
       `UPDATE pipeline.station_runs
           SET dispatch_spec = $2::jsonb
-        WHERE id = $1 AND outcome IS NULL`,
+        WHERE id = $1 AND outcome IS NULL AND status = 'queued'`,
       [nodeRowId, JSON.stringify(dispatchSpec)],
     );
   }

@@ -1,4 +1,5 @@
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
+import { extractBearer } from "@re-cinq/lore-shared/http/bearer.js";
 import { apiError } from "../../../server/api-error.js";
 import type { Request, ResponseToolkit, ServerRoute } from "@hapi/hapi";
 import type { Pool } from "pg";
@@ -103,10 +104,7 @@ export function clusterAgentClaimRoute(
       const pool = getPool();
 
       enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
-      const authHeader = request.headers.authorization;
-      const bearer = (
-        Array.isArray(authHeader) ? authHeader[0] : authHeader
-      )?.replace("Bearer ", "");
+      const bearer = extractBearer(request.headers.authorization);
 
       const result = await handleClaim(
         {

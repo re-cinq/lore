@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { handleClaim } from "./claim.js";
 import { InMemoryClusterAgents } from "@re-cinq/lore-shared/project/cluster-agents/cluster-agents-memory.js";
 import { InMemoryAssemblyRuns } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-memory.js";
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { hashAgentToken } from "@re-cinq/lore-shared/project/cluster-agents/cluster-agent-token.js";
 
 const TOKEN = "lca_minikube_secret";
@@ -14,6 +15,8 @@ async function registeredAgent(tags: string[] = ["node:agent"]) {
     tokenHash: hashAgentToken(TOKEN),
     clusterInfo: null,
   });
+
+  enforceTrue(agent, Error, "name already registered");
 
   return { agents, agent };
 }

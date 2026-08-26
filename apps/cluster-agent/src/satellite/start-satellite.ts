@@ -64,15 +64,23 @@ async function runSatellite(opts: {
     `[cluster-agent] registered as ${config.name} (${identity.id}), tags [${config.tags.join(", ")}] — claim loop starting`,
   );
 
-  const reRegister = async () => {
-    const rotated = await registerOnce({ config, store });
+  // Single-flight: the heartbeat and claim loops can 401 in the same window,
+  // and two overlapping re-registrations would rotate the token twice — the
+  // first rotation's holder immediately 401s again. Both callers await the
+  // same in-flight attempt instead.
+  let reRegistration: Promise<ClusterAgentIdentity | null> | null = null;
+  const reRegister = (): Promise<ClusterAgentIdentity | null> =>
+    (reRegistration ??= registerOnce({ config, store })
+      .then((rotated) => {
+        if (rotated) {
+          identity = rotated;
+        }
 
-    if (rotated) {
-      identity = rotated;
-    }
-
-    return rotated;
-  };
+        return rotated;
+      })
+      .finally(() => {
+        reRegistration = null;
+      }));
 
   // The heartbeat rides beside the claim loop, not inside it: a satellite busy
   // executing a long claim must still look alive.
@@ -82,6 +90,8 @@ async function runSatellite(opts: {
     reRegister,
     sleep,
     intervalMs: heartbeatIntervalMs(env),
+  }).catch((err) => {
+    console.error("[cluster-agent] heartbeat loop crashed:", err);
   });
 
   await runClaimLoop({

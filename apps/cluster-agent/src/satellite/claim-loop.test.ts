@@ -13,7 +13,7 @@ const IDENTITY = { id: "agent-id-1", token: "per-agent-token" };
 
 const CLAIM_BODY = {
   station_run_id: "run-42",
-  node_row_id: 7,
+  node_row_id: "7",
   assembly_run_id: "asm-1",
   node_id: "implement",
   iteration: 0,
@@ -74,20 +74,19 @@ describe("claimIntervalMs", () => {
 });
 
 describe("nextClaimDelay", () => {
-  it("doubles the idle delay on empty, capping at the 60s ceiling", () => {
-    expect(nextClaimDelay(15_000, 15_000, "empty")).toBe(30_000);
-    expect(nextClaimDelay(15_000, 30_000, "empty")).toBe(60_000);
-    expect(nextClaimDelay(15_000, 60_000, "empty")).toBe(
-      CLAIM_MAX_IDLE_DELAY_MS,
-    );
+  it("keeps the base interval on the first empty, then doubles to the 60s ceiling", () => {
+    expect(nextClaimDelay(15_000, 0, "empty")).toBe(15_000);
+    expect(nextClaimDelay(15_000, 1, "empty")).toBe(30_000);
+    expect(nextClaimDelay(15_000, 2, "empty")).toBe(60_000);
+    expect(nextClaimDelay(15_000, 3, "empty")).toBe(CLAIM_MAX_IDLE_DELAY_MS);
   });
 
   it("resets to the base interval on a successful claim", () => {
-    expect(nextClaimDelay(15_000, 60_000, "claimed")).toBe(15_000);
+    expect(nextClaimDelay(15_000, 4, "claimed")).toBe(15_000);
   });
 
   it("keeps the base interval after an error", () => {
-    expect(nextClaimDelay(15_000, 60_000, "error")).toBe(15_000);
+    expect(nextClaimDelay(15_000, 4, "error")).toBe(15_000);
   });
 });
 
@@ -228,7 +227,7 @@ describe("runClaimLoop", () => {
     };
   };
 
-  it("doubles the sleep across consecutive empty claims and resets after a hit", async () => {
+  it("holds the base sleep on the first empty, doubles across consecutive ones, and resets after a hit", async () => {
     const l = loop([
       { kind: "empty" },
       { kind: "empty" },
@@ -239,7 +238,7 @@ describe("runClaimLoop", () => {
 
     await l.run();
 
-    expect(l.sleeps).toEqual([30_000, 60_000, 60_000, 15_000, 30_000]);
+    expect(l.sleeps).toEqual([15_000, 30_000, 60_000, 15_000, 15_000]);
   });
 
   it("re-registers on unauthorized and keeps polling at the base interval", async () => {
@@ -248,7 +247,7 @@ describe("runClaimLoop", () => {
     await l.run();
 
     expect(l.reRegistrations).toEqual([1]);
-    expect(l.sleeps).toEqual([15_000, 30_000]);
+    expect(l.sleeps).toEqual([15_000, 15_000]);
   });
 
   it("continues at the base interval after a launch error", async () => {
@@ -259,6 +258,6 @@ describe("runClaimLoop", () => {
 
     await l.run();
 
-    expect(l.sleeps).toEqual([15_000, 30_000]);
+    expect(l.sleeps).toEqual([15_000, 15_000]);
   });
 });

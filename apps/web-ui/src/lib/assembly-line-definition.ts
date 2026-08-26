@@ -47,6 +47,8 @@ export interface DefinitionNode {
    *  are resolved by the API against the run's args, so what reaches a view is
    *  either a followable link or null. */
   route?: string;
+  /** Capability tags a claiming cluster-agent must carry. */
+  required_tags?: string[];
 }
 
 export interface DefinitionEdge {
