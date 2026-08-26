@@ -107,6 +107,13 @@ export function implementationLoopRoutes(
         );
         const project = await projectFor(repo);
         const openIssues = await project.issues.list({ state: "open" });
+        const { rows: runRows } = await pool.query<{ id: string }>(
+          `SELECT id FROM pipeline.assembly_runs
+            WHERE repo = $1 AND subject_key = 'backlog'
+              AND status IN ('queued', 'running')
+            ORDER BY created_at DESC LIMIT 1`,
+          [repo],
+        );
         const currentRow = taskRows.find((t) =>
           (OPEN_TASK_STATES as readonly string[]).includes(t.status),
         );
@@ -140,7 +147,15 @@ export function implementationLoopRoutes(
           .map((t) => taskTicket(t, openIssues))
           .filter((t): t is Ticket => t !== null);
 
-        return h.response({ enabled, current, next, recent }).code(200);
+        return h
+          .response({
+            enabled,
+            current,
+            current_run_id: runRows[0]?.id ?? null,
+            next,
+            recent,
+          })
+          .code(200);
       },
     },
     {

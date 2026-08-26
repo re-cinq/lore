@@ -114,3 +114,11 @@ describe("the implementation-loop line has no address node", () => {
     ).toBeUndefined();
   });
 });
+
+describe("the implement node's Station", () => {
+  it("names implementation-tdd explicitly instead of inheriting the line's task type", () => {
+    const implement = line.nodes.find((n) => n.id === "implement");
+
+    expect(implement).toMatchObject({ station_ref: "implementation-tdd" });
+  });
+});

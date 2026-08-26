@@ -3356,6 +3356,7 @@ export interface components {
         pr_url: string | null;
         state: string;
       } | null;
+      current_run_id: string | null;
       next: {
         issue_number: number;
         issue_url: string | null;

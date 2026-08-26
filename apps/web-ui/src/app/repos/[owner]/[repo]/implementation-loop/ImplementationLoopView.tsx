@@ -47,7 +47,16 @@ export default function ImplementationLoopView({
       <section className={styles.section}>
         <h2>Current</h2>
         {loop.current ? (
-          <Ticket ticket={loop.current} />
+          <>
+            <Ticket ticket={loop.current} />
+            {loop.current_run_id && (
+              <p className="meta">
+                <a href={`/assembly-runs/${loop.current_run_id}`}>
+                  Live pipeline view →
+                </a>
+              </p>
+            )}
+          </>
         ) : (
           <p className="meta">No ticket is being worked right now.</p>
         )}

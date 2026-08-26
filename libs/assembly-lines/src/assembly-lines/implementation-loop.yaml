@@ -13,6 +13,11 @@ nodes:
   - id: implement
     type: agent
     prompt_ref: implementation-tdd
+    # Explicit, not inherited: an agent node's Station defaults to the LINE's
+    # task type, and no Station named implementation-loop exists — the first
+    # live run died with "Station or AgentDefinition not found". Same shape as
+    # code-review-reply's node running on code-review-refine.
+    station_ref: implementation-tdd
     model: claude-sonnet-4-6
     description: Implement the ticket test-first; red before green.
 
