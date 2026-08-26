@@ -211,7 +211,7 @@ Add a step at the end of each build workflow (after deploy):
 
 6. Task routing logic has tests for every task type — onboard→`handleOnboard`,
    feature-request→`handleFeatureRequest`, and implementation/review/general/runbook/gap-fill/unknown
-   →`handleClaudeCodeTask`. ([validated by `worker.test.ts:63`](apps/floor/src/jobs/task/worker.test.ts#L63), [`worker.test.ts:64`](apps/floor/src/jobs/task/worker.test.ts#L64), [`worker.test.ts:68`](apps/floor/src/jobs/task/worker.test.ts#L68), [`worker.test.ts:72`](apps/floor/src/jobs/task/worker.test.ts#L72), [`worker.test.ts:76`](apps/floor/src/jobs/task/worker.test.ts#L76), [`worker.test.ts:80`](apps/floor/src/jobs/task/worker.test.ts#L80), [`worker.test.ts:84`](apps/floor/src/jobs/task/worker.test.ts#L84), [`worker.test.ts:88`](apps/floor/src/jobs/task/worker.test.ts#L88), [`worker.test.ts:92`](apps/floor/src/jobs/task/worker.test.ts#L92))
+   →`handleClaudeCodeTask`. ([validated by `worker.test.ts:64`](apps/floor/src/jobs/task/worker.test.ts#L64), [`worker.test.ts:64`](apps/floor/src/jobs/task/worker.test.ts#L64), [`worker.test.ts:68`](apps/floor/src/jobs/task/worker.test.ts#L68), [`worker.test.ts:72`](apps/floor/src/jobs/task/worker.test.ts#L72), [`worker.test.ts:76`](apps/floor/src/jobs/task/worker.test.ts#L76), [`worker.test.ts:80`](apps/floor/src/jobs/task/worker.test.ts#L80), [`worker.test.ts:84`](apps/floor/src/jobs/task/worker.test.ts#L84), [`worker.test.ts:88`](apps/floor/src/jobs/task/worker.test.ts#L88), [`worker.test.ts:92`](apps/floor/src/jobs/task/worker.test.ts#L92))
 
 6a. Worker pure helpers are unit-tested: `slugify` lowercases, strips special chars, collapses runs to
    a single hyphen, trims leading/trailing hyphens, and truncates to 30 chars; `buildPrompt` fills the
