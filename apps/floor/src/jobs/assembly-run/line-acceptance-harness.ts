@@ -1,0 +1,186 @@
+// The acceptance harness: one real walk, no cluster.
+//
+// Wires the REAL start/node/resume handlers over the REAL builtin blueprints and
+// the in-memory assembly-runs port, replacing exactly two things — the cluster
+// (a launch recorder plus scripted CR statuses) and the human (a resume event).
+// Everything between them is production code: the transition replay, the outcome
+// parsing, the artifact delivery, the args channel. This is the composition
+// layer the per-handler suites cannot see — the tier where the shallow
+// args-merge (#1462) and the dead planning join (#1162) lived while every unit
+// test stayed green.
+
+import { InMemoryAssemblyRuns } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-memory.js";
+import type { LoreTaskSpec } from "@re-cinq/lore-shared";
+import {
+  loadBuiltinAssemblyLines,
+  type AgentNodeStatus,
+} from "@re-cinq/lore-assembly-lines";
+import {
+  advanceLine,
+  finishNodeAndAdvance,
+  type AdvanceDeps,
+} from "./advance.js";
+import { createStartEventHandler } from "./start-event-handler.js";
+import {
+  createNodeEventHandler,
+  type NodeEventDeps,
+} from "./node-event-handler.js";
+import { createResumeEventHandler } from "./resume-event-handler.js";
+import { nodeAgentName } from "./floor-assembly-run.js";
+
+export interface PublishedServiceNode {
+  eventName: string;
+  params: Record<string, unknown>;
+  dedupeKey?: string;
+}
+
+export interface CompleteAgentNodeInput {
+  /** Full scripted CR output (NDJSON envelope or plain text). Wins over `outcome`. */
+  output?: string;
+  /** Shorthand: emit a result envelope carrying `LORE_NODE_RESULT: {outcome}`. */
+  outcome?: "success" | "changes_requested" | "failed";
+  phase?: string;
+  iteration?: number;
+}
+
+export interface StartLineInput {
+  repo?: string;
+  branch?: string;
+  taskId?: string;
+  args?: Record<string, unknown>;
+}
+
+/** A claude terminal-result envelope line, exactly as a pod's status carries it. */
+export function resultEnvelope(agentText: string): string {
+  return JSON.stringify({ type: "result", result: agentText });
+}
+
+/** An attributed file-artifact envelope line — the sink lane's shape. */
+export function fileArtifactEnvelope(input: {
+  taskId: string;
+  agentName: string;
+  event: string;
+  path: string;
+  content: string;
+}): string {
+  return JSON.stringify({
+    source: { task: input.taskId, agent: input.agentName },
+    event: {
+      kind: "file",
+      event: input.event,
+      path: input.path,
+      content: input.content,
+    },
+  });
+}
+
+export function createLineHarness(
+  overrides: Partial<Pick<AdvanceDeps, "onRunClosed" | "stampPr">> = {},
+) {
+  const runs = new InMemoryAssemblyRuns();
+  const launched: LoreTaskSpec[] = [];
+  const published: PublishedServiceNode[] = [];
+  const statusByAgent = new Map<string, AgentNodeStatus>();
+
+  const deps: NodeEventDeps = {
+    assemblyRuns: runs,
+    definitions: loadBuiltinAssemblyLines,
+    launch: async (spec) => {
+      launched.push(spec);
+    },
+    resolvePrompt: (promptRef, description) => `${promptRef}::${description}`,
+    cleanupToken: async () => {},
+    jobRuns: { complete: async () => {}, fail: async () => {} },
+    publishNode: async (event) => {
+      published.push(event);
+    },
+    readAgentStatus: async (name) => statusByAgent.get(name) ?? null,
+    ...overrides,
+  };
+
+  const startHandler = createStartEventHandler({
+    assemblyRuns: runs,
+    definitions: loadBuiltinAssemblyLines,
+    advance: (id) => advanceLine(id, deps),
+  });
+  const nodeHandler = createNodeEventHandler(deps);
+  const resumeHandler = createResumeEventHandler({
+    assemblyRuns: runs,
+    finishNodeAndAdvance: (input) => finishNodeAndAdvance(input, deps),
+  });
+
+  /** Persist the row and claim its start event — `assembly_run.start`, end to end. */
+  async function start(
+    blueprintName: string,
+    input: StartLineInput = {},
+  ): Promise<string> {
+    const id = await runs.start({
+      blueprintName,
+      repo: input.repo ?? "re-cinq/lore",
+      branch: input.branch ?? "lore/acceptance",
+      taskId: input.taskId,
+      args: { description: `acceptance: ${blueprintName}`, ...input.args },
+    });
+
+    await startHandler({ assemblyRunId: id, blueprintName });
+
+    return id;
+  }
+
+  /** One node CR going terminal — `kubernetes.agent_node.*`, through the real door. */
+  async function completeAgentNode(
+    assemblyRunId: string,
+    nodeId: string,
+    input: CompleteAgentNodeInput = {},
+  ): Promise<void> {
+    const iteration = input.iteration ?? 1;
+    const phase = input.phase ?? "Succeeded";
+    const agentName = nodeAgentName(assemblyRunId, nodeId, iteration);
+    const output =
+      input.output ??
+      resultEnvelope(
+        `LORE_NODE_RESULT: {"outcome":"${input.outcome ?? "success"}"}`,
+      );
+
+    statusByAgent.set(agentName, { phase, output });
+    await nodeHandler({
+      assemblyRunId,
+      nodeId,
+      agentName,
+      iteration,
+      phase,
+    });
+  }
+
+  /** A worker outside the pod system reporting — `assembly_line.resume`. */
+  async function resume(
+    assemblyRunId: string,
+    nodeId: string,
+    outcome: "success" | "changes_requested" | "failed",
+    args?: Record<string, unknown>,
+    iteration?: number,
+  ): Promise<void> {
+    await resumeHandler({
+      assemblyRunId,
+      nodeId,
+      outcome,
+      ...(args ? { args } : {}),
+      ...(iteration === undefined ? {} : { iteration }),
+    });
+  }
+
+  /** The visit trail as [nodeId, outcome] pairs, in row order. */
+  function visits(): Array<[string, string | null]> {
+    return runs.nodes.map((n) => [n.nodeId, n.outcome]);
+  }
+
+  return {
+    runs,
+    launched,
+    published,
+    start,
+    completeAgentNode,
+    resume,
+    visits,
+  };
+}
