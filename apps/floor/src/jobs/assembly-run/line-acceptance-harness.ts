@@ -2,7 +2,7 @@
 //
 // Wires the REAL start/node/resume handlers over the REAL builtin blueprints and
 // the in-memory assembly-runs port, replacing exactly two things — the cluster
-// (a launch recorder plus scripted CR statuses) and the human (a resume event).
+// (an enqueue recorder plus scripted CR statuses) and the human (a resume event).
 // Everything between them is production code: the transition replay, the outcome
 // parsing, the artifact delivery, the args channel. This is the composition
 // layer the per-handler suites cannot see — the tier where the shallow
@@ -78,16 +78,22 @@ export function createLineHarness(
   overrides: Partial<Pick<AdvanceDeps, "onRunClosed" | "stampPr">> = {},
 ) {
   const runs = new InMemoryAssemblyRuns();
-  const launched: LoreTaskSpec[] = [];
+  const enqueued: LoreTaskSpec[] = [];
   const published: PublishedServiceNode[] = [];
   const statusByAgent = new Map<string, AgentNodeStatus>();
+  // The walk arms the queued row through the port; recording the specs here is
+  // the harness's window on "what would a claiming cluster-agent be handed".
+  const armDispatch = runs.enqueueStationRunDispatch.bind(runs);
+
+  runs.enqueueStationRunDispatch = async (nodeRowId, dispatchSpec) => {
+    enqueued.push(dispatchSpec as LoreTaskSpec);
+    await armDispatch(nodeRowId, dispatchSpec);
+  };
 
   const deps: NodeEventDeps = {
     assemblyRuns: runs,
     definitions: loadBuiltinAssemblyLines,
-    launch: async (spec) => {
-      launched.push(spec);
-    },
+    repoSettings: async () => null,
     resolvePrompt: (promptRef, description) => `${promptRef}::${description}`,
     cleanupToken: async () => {},
     jobRuns: { complete: async () => {}, fail: async () => {} },
@@ -176,7 +182,7 @@ export function createLineHarness(
 
   return {
     runs,
-    launched,
+    enqueued,
     published,
     start,
     completeAgentNode,

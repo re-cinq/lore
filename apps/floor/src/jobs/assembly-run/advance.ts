@@ -6,7 +6,7 @@
 // CR create.
 
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
-import type { LoreTaskSpec } from "@re-cinq/lore-shared";
+import { resolveRequiredTags } from "@re-cinq/lore-shared/project/cluster-agents/required-tags.js";
 import type {
   AssemblyRunsPort,
   AssemblyRunRecord,
@@ -67,8 +67,10 @@ export interface AdvanceDeps {
    * lacks a graph.
    */
   definitions: () => Promise<ReadonlyMap<string, AssemblyLine>>;
-  /** Dispatch one node's Agent CR (agentCrBackend().launch — 409 is a no-op). */
-  launch: (spec: LoreTaskSpec) => Promise<void>;
+  /** The repo's raw `lore.repos.settings` object — what `resolveRequiredTags`
+   *  reads `station_default_tags` from at enqueue time (FR2). Null when the
+   *  repo has no row; the resolver treats that as "no default". */
+  repoSettings: (repo: string) => Promise<Record<string, unknown> | null>;
   resolvePrompt: (promptRef: string, description: string) => string;
   /** Post-close hook for choreography that re-arms on a run's terminal state
    *  (the implementation loop's driver). Winning finisher only, best-effort —
@@ -317,7 +319,11 @@ export async function advanceLine(
   // relaunched as a pod would run alongside the delivery still queued for it —
   // duplicate Issues, duplicate episodes.
   const runsInService = isServiceNode(node.type);
-  const { stationRunId } = await deps.assemblyRuns.ensureStationRun({
+  // A POD node's row parks `queued` for a cluster-agent's claim (FR3); human and
+  // service rows keep the default `running` — they are never claimable, and the
+  // claim also requires an armed dispatch, which neither ever gets.
+  const dispatchedAsPod = !isHumanStation(node.type) && !runsInService;
+  const { stationRunId, nodeRowId } = await deps.assemblyRuns.ensureStationRun({
     assemblyRunId: assemblyLineId,
     nodeId: node.id,
     iteration: transition.iteration,
@@ -325,6 +331,13 @@ export async function advanceLine(
       ? null
       : nodeAgentName(assemblyLineId, node.id, transition.iteration),
     input: stationRunInputFor(node, task, dispatch.content, dispatch.prompt),
+    status: dispatchedAsPod ? "queued" : undefined,
+    requiredTags: dispatchedAsPod
+      ? resolveRequiredTags(
+          node.required_tags,
+          await deps.repoSettings(assemblyRun.repo),
+        )
+      : undefined,
   });
 
   // A human station's worker is outside the pod system — a person in the wizard,
@@ -358,10 +371,15 @@ export async function advanceLine(
     return;
   }
 
-  // Iteration rides into the CR name + labels so a revisited node runs a fresh pod.
-  // The builder is shared with the reaper's relaunch: two of them is how the
-  // conversation and the round content went missing on that door (#1466).
-  await deps.launch(
+  // Arm the queued row with the complete dispatch spec instead of pushing to the
+  // single cluster-agent (FR3): a cluster-agent claims it and creates the Agent
+  // CR in its own cluster. Written AFTER ensureStationRun because the spec
+  // carries the minted stationRunId; only armed rows are claimable, so a crash
+  // between the two leaves a row the queue-wait bound settles rather than a
+  // claim with nothing to run. Iteration rides into the CR name + labels so a
+  // revisited node runs a fresh pod.
+  await deps.assemblyRuns.enqueueStationRunDispatch(
+    nodeRowId,
     nodeLaunchSpec(dispatch, {
       node,
       task,

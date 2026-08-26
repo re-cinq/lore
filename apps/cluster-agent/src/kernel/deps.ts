@@ -25,6 +25,7 @@ const VERSION = "v1alpha1";
 const PLURAL = "agents";
 
 let singleton: ClusterDeps | undefined;
+let provisionerSingleton: KubeTokenProvisioner | undefined;
 
 function customObjects(): CustomObjectsApi {
   const kc = new KubeConfig();
@@ -34,6 +35,20 @@ function customObjects(): CustomObjectsApi {
   return kc.makeApiClient(CustomObjectsApi);
 }
 
+/** The one per-task token provisioner, shared by the /agents HTTP routes and
+ *  the satellite claim loop — both launch paths provision the same way. */
+export function kubeTokenProvisioner(): KubeTokenProvisioner {
+  if (!provisionerSingleton) {
+    provisionerSingleton = new KubeTokenProvisioner(
+      new GithubTokenMinter(new PlatformGitHub(process.env)),
+      new KubeSecretKeyWriter(),
+      new KubeCatalogApi(),
+    );
+  }
+
+  return provisionerSingleton;
+}
+
 export function clusterDeps(): ClusterDeps {
   if (singleton) {
     return singleton;
@@ -41,11 +56,7 @@ export function clusterDeps(): ClusterDeps {
   const api = new KubeAgentApi();
   const pods = new KubePodLogs();
   const catalog = new KubeCatalogApi();
-  const tokens = new KubeTokenProvisioner(
-    new GithubTokenMinter(new PlatformGitHub(process.env)),
-    new KubeSecretKeyWriter(),
-    catalog,
-  );
+  const tokens = kubeTokenProvisioner();
 
   singleton = {
     agents: {

@@ -6,9 +6,12 @@ import {
   type AssemblyLine,
   type AgentNodeStatus,
 } from "@re-cinq/lore-assembly-lines";
+import type { StationRunRecord } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
 import {
+  agentCrVisible,
   assemblyLineReaperJob,
   decideNodeRecovery,
+  stationQueueWaitMs,
 } from "./assembly-run-reaper.js";
 import { LlmDispatchGate } from "./llm-dispatch-gate.js";
 
@@ -36,13 +39,22 @@ edges:
 
 const MIN = 60_000;
 
+const QUEUE_WAIT_MS = 30 * MIN;
+
 describe("decideNodeRecovery", () => {
-  const node = (ageMinutes: number) => ({
+  const node = (
+    ageMinutes: number,
+    over: Partial<StationRunRecord> = {},
+  ): StationRunRecord => ({
     id: "1",
     stationRunId: "station-run-1",
     assemblyRunId: "al-1",
     nodeId: "review",
     iteration: 1,
+    status: "running",
+    clusterAgentId: null,
+    requiredTags: [],
+    claimedAt: null,
     outcome: null,
     failureClass: null,
     failureDetail: null,
@@ -51,8 +63,23 @@ describe("decideNodeRecovery", () => {
     commitSha: null,
     startedAt: new Date(Date.now() - ageMinutes * MIN),
     finishedAt: null,
+    ...over,
   });
   const nowMs = Date.now();
+
+  const decide = (
+    input: Partial<Parameters<typeof decideNodeRecovery>[0]> & {
+      node: StationRunRecord;
+    },
+  ) =>
+    decideNodeRecovery({
+      timeoutMinutes: 15,
+      status: null,
+      crVisible: true,
+      queueWaitMs: QUEUE_WAIT_MS,
+      nowMs,
+      ...input,
+    });
 
   it("resolves a terminal CR whose event was dropped", () => {
     const status: AgentNodeStatus = {
@@ -60,37 +87,115 @@ describe("decideNodeRecovery", () => {
       output: "REVIEW_RESULT:APPROVED",
     };
 
-    expect(
-      decideNodeRecovery({ node: node(5), timeoutMinutes: 15, status, nowMs }),
-    ).toEqual({ kind: "resolve", status });
+    expect(decide({ node: node(5), status })).toEqual({
+      kind: "resolve",
+      status,
+    });
   });
 
-  it("relaunches a fresh open node whose CR is missing (crash between row and launch)", () => {
+  it("requeues a claimed node whose CR is missing (crash between claim and CR create)", () => {
     expect(
-      decideNodeRecovery({
-        node: node(3),
-        timeoutMinutes: 15,
-        status: null,
-        nowMs,
+      decide({
+        node: node(3, {
+          status: "claimed",
+          clusterAgentId: "central-1",
+          claimedAt: new Date(nowMs - 3 * MIN),
+        }),
       }),
-    ).toEqual({ kind: "relaunch" });
+    ).toEqual({ kind: "requeue" });
+  });
+
+  it("requeues a legacy running row whose CR is missing past the startup grace", () => {
+    // Pre-flip push rows: their dispatch_spec is null so no claim will take
+    // them; the queue-wait bound then settles them — acceptable deprecation.
+    expect(decide({ node: node(3) })).toEqual({ kind: "requeue" });
   });
 
   it("times out an open node past its budget, CR present or not", () => {
+    expect(decide({ node: node(20) })).toEqual({ kind: "timeout" });
+    expect(decide({ node: node(20), status: { phase: "Running" } })).toEqual({
+      kind: "timeout",
+    });
+  });
+
+  it("uses the 60-minute default budget when the definition names none", () => {
     expect(
-      decideNodeRecovery({
-        node: node(20),
-        timeoutMinutes: 15,
-        status: null,
-        nowMs,
+      decide({
+        node: node(50),
+        timeoutMinutes: undefined,
+        status: { phase: "Running" },
+      }),
+    ).toEqual({ kind: "wait" });
+    expect(
+      decide({
+        node: node(70),
+        timeoutMinutes: undefined,
+        status: { phase: "Running" },
       }),
     ).toEqual({ kind: "timeout" });
+  });
+
+  it("measures a claimed row's budget from claimed_at, not enqueue time", () => {
+    // 60 minutes queued waiting for a capable cluster, 5 minutes executing:
+    // the wait is not charged against the 15-minute budget.
     expect(
-      decideNodeRecovery({
-        node: node(20),
-        timeoutMinutes: 15,
+      decide({
+        node: node(60, {
+          status: "claimed",
+          clusterAgentId: "central-1",
+          claimedAt: new Date(nowMs - 5 * MIN),
+        }),
         status: { phase: "Running" },
-        nowMs,
+      }),
+    ).toEqual({ kind: "wait" });
+    expect(
+      decide({
+        node: node(60, {
+          status: "claimed",
+          clusterAgentId: "central-1",
+          claimedAt: new Date(nowMs - 20 * MIN),
+        }),
+        status: { phase: "Running" },
+      }),
+    ).toEqual({ kind: "timeout" });
+  });
+
+  it("waits on an in-budget queued row without reading any CR", () => {
+    expect(
+      decide({ node: node(10, { status: "queued" }), crVisible: false }),
+    ).toEqual({ kind: "wait" });
+  });
+
+  it("fails a row queued past the queue-wait bound as queue-timeout", () => {
+    expect(
+      decide({ node: node(45, { status: "queued" }), crVisible: false }),
+    ).toEqual({ kind: "queue-timeout" });
+  });
+
+  it("waits on an in-budget satellite claim instead of reading its invisible CR", () => {
+    // A satellite's CR read would answer null and requeue live work — the
+    // double-launch this arm exists to prevent.
+    expect(
+      decide({
+        node: node(3, {
+          status: "claimed",
+          clusterAgentId: "sat-1",
+          claimedAt: new Date(nowMs - 3 * MIN),
+        }),
+        crVisible: false,
+      }),
+    ).toEqual({ kind: "wait" });
+  });
+
+  it("times out a satellite claim past its budget — a live agent past budget is stuck, not lost", () => {
+    expect(
+      decide({
+        node: node(60, {
+          status: "claimed",
+          clusterAgentId: "sat-1",
+          claimedAt: new Date(nowMs - 20 * MIN),
+        }),
+        crVisible: false,
       }),
     ).toEqual({ kind: "timeout" });
   });
@@ -101,12 +206,9 @@ describe("decideNodeRecovery", () => {
     // is not stuck, and "how long may someone take to answer" has no defensible
     // number — so the budget does not apply rather than being made very large.
     expect(
-      decideNodeRecovery({
-        node: { ...node(60 * 24 * 7), agentCrName: null },
-        timeoutMinutes: 15,
-        status: null,
+      decide({
+        node: node(60 * 24 * 7, { agentCrName: null }),
         nodeType: "feature_review",
-        nowMs,
       }),
     ).toEqual({ kind: "wait" });
   });
@@ -115,81 +217,135 @@ describe("decideNodeRecovery", () => {
     // The exemption is keyed on the node TYPE, not on the absence of a CR — a
     // dispatched node that never produced one is exactly the stuck case.
     expect(
-      decideNodeRecovery({
-        node: { ...node(60 * 24 * 7), agentCrName: null },
-        timeoutMinutes: 15,
-        status: null,
+      decide({
+        node: node(60 * 24 * 7, { agentCrName: null }),
         nodeType: "agent",
-        nowMs,
       }),
     ).toEqual({ kind: "timeout" });
   });
 
   it("waits on a just-born CR that reports Pending", () => {
     // The read boundary answers Pending for a CR the controller has not stamped;
-    // only a 404 is absence, and only absence may relaunch.
-    expect(
-      decideNodeRecovery({
-        node: node(5),
-        timeoutMinutes: 15,
-        status: { phase: "Pending" },
-        nowMs,
-      }),
-    ).toEqual({ kind: "wait" });
+    // only a 404 is absence, and only absence may requeue.
+    expect(decide({ node: node(5), status: { phase: "Pending" } })).toEqual({
+      kind: "wait",
+    });
   });
 
-  it("waits out the startup grace before relaunching a missing CR", () => {
-    // A tick can land in the real window between the row insert and the CR create.
-    // Relaunching there races an in-flight provision (mirror of FR-10.4's grace).
-    expect(
-      decideNodeRecovery({
-        node: node(1),
-        timeoutMinutes: 15,
-        status: null,
-        nowMs,
-      }),
-    ).toEqual({ kind: "wait" });
+  it("waits out the startup grace before requeueing a missing CR", () => {
+    // A tick can land in the real window between the claim and the CR create.
+    // Requeueing there races an in-flight provision (mirror of FR-10.4's grace).
+    expect(decide({ node: node(1) })).toEqual({ kind: "wait" });
   });
 
   it("waits on a live in-budget CR", () => {
+    expect(decide({ node: node(5), status: { phase: "Running" } })).toEqual({
+      kind: "wait",
+    });
+  });
+});
+
+describe("agentCrVisible", () => {
+  it("a legacy running row's CR is visible — the push path launched it centrally", () => {
     expect(
-      decideNodeRecovery({
-        node: node(5),
-        timeoutMinutes: 15,
-        status: { phase: "Running" },
-        nowMs,
-      }),
-    ).toEqual({ kind: "wait" });
+      agentCrVisible({ status: "running", clusterAgentId: null }, null),
+    ).toBe(true);
+  });
+
+  it("a row claimed by the central cluster-agent is visible", () => {
+    expect(
+      agentCrVisible(
+        { status: "claimed", clusterAgentId: "central-1" },
+        "central-1",
+      ),
+    ).toBe(true);
+  });
+
+  it("a row claimed by a satellite is not visible", () => {
+    expect(
+      agentCrVisible(
+        { status: "claimed", clusterAgentId: "sat-1" },
+        "central-1",
+      ),
+    ).toBe(false);
+  });
+
+  it("no claim is visible when no central cluster-agent is registered", () => {
+    expect(
+      agentCrVisible({ status: "claimed", clusterAgentId: "sat-1" }, null),
+    ).toBe(false);
+  });
+
+  it("a queued row is not visible — it has no CR yet", () => {
+    expect(
+      agentCrVisible({ status: "queued", clusterAgentId: null }, "central-1"),
+    ).toBe(false);
+  });
+});
+
+describe("stationQueueWaitMs", () => {
+  it("defaults to 30 minutes when LORE_STATION_QUEUE_WAIT_MINUTES is unset", () => {
+    delete process.env.LORE_STATION_QUEUE_WAIT_MINUTES;
+    expect(stationQueueWaitMs()).toBe(30 * MIN);
+  });
+
+  it("honors LORE_STATION_QUEUE_WAIT_MINUTES=5", () => {
+    process.env.LORE_STATION_QUEUE_WAIT_MINUTES = "5";
+
+    try {
+      expect(stationQueueWaitMs()).toBe(5 * MIN);
+    } finally {
+      delete process.env.LORE_STATION_QUEUE_WAIT_MINUTES;
+    }
   });
 });
 
 function harness() {
   const port = new InMemoryAssemblyRuns();
-  const launched: LoreTaskSpec[] = [];
+  const enqueued: LoreTaskSpec[] = [];
   const statusByName: Record<string, AgentNodeStatus | null> = {};
   const taskStatusById: Record<string, string | null> = {};
   const billingAlerts: Array<{ repo: string; nodeType: string }> = [];
+  const crReads: string[] = [];
+  const central = { clusterAgentId: null as string | null };
+  // What the walk arms a queued row with — the sweep never launches directly.
+  const armDispatch = port.enqueueStationRunDispatch.bind(port);
+
+  port.enqueueStationRunDispatch = async (nodeRowId, dispatchSpec) => {
+    enqueued.push(dispatchSpec as LoreTaskSpec);
+    await armDispatch(nodeRowId, dispatchSpec);
+  };
 
   const deps = {
     assemblyRuns: port,
     definitions: async () => new Map([["code-review", line]]),
-    launch: async (spec: LoreTaskSpec) => {
-      launched.push(spec);
-    },
-    // Description-sensitive: a relaunch that rebuilt the prompt from the raw task
-    // description instead of the round content is invisible to a ref-only stub.
+    repoSettings: async () => null,
     resolvePrompt: (ref: string, description: string) =>
       `prompt:${ref}::${description}`,
     cleanupToken: async () => {},
     jobRuns: { complete: async () => {}, fail: async () => {} },
-    readAgentStatus: async (name: string) => statusByName[name] ?? null,
+    readAgentStatus: async (name: string) => {
+      crReads.push(name);
+
+      return statusByName[name] ?? null;
+    },
     taskStatus: async (taskId: string) => taskStatusById[taskId] ?? null,
+    centralClusterAgentId: async () => central.clusterAgentId,
     alertBilling: async (repo: string, nodeType: string) => {
       billingAlerts.push({ repo, nodeType });
     },
   };
 
-  return { port, launched, statusByName, taskStatusById, billingAlerts, deps };
+  return {
+    port,
+    enqueued,
+    statusByName,
+    taskStatusById,
+    billingAlerts,
+    crReads,
+    deps,
+    central,
+  };
 }
 
 describe("assemblyLineReaperJob", () => {
@@ -251,38 +407,16 @@ describe("assemblyLineReaperJob", () => {
       }),
     };
 
-    await assemblyLineReaperJob(h.deps);
+    await assemblyLineReaperJob({
+      ...h.deps,
+      llmGate: new LlmDispatchGate(() => new Date()),
+    });
 
     expect(h.billingAlerts).toEqual([{ repo: "o/r", nodeType: "agent" }]);
     expect(h.port.nodes[0]).toMatchObject({
       failureClass: "anthropic-credit",
       failureDetail: "Credit balance is too low",
     });
-  });
-
-  it("does not relaunch a missing agent CR while the account is dry", async () => {
-    const h = harness();
-    const gate = new LlmDispatchGate(() => new Date());
-    const id = await h.port.start({
-      blueprintName: "code-review",
-      repo: "o/r",
-      args: {},
-    });
-
-    await h.port.markRunning(id);
-    await h.port.ensureStationRun({
-      assemblyRunId: id,
-      nodeId: "review",
-      iteration: 1,
-      agentCrName: `${id.substring(0, 12)}-review`,
-    });
-    gate.trip("anthropic-credit", "Credit balance is too low");
-
-    // The CR is missing, which normally means "crashed between row and launch,
-    // relaunch me" — every 60s, for the whole outage.
-    await assemblyLineReaperJob({ ...h.deps, llmGate: gate });
-
-    expect(h.launched).toEqual([]);
   });
 
   it("fails a timed-out node as agent-timeout and routes the failed edge", async () => {
@@ -352,8 +486,8 @@ describe("assemblyLineReaperJob", () => {
 
     await assemblyLineReaperJob(h.deps);
 
-    // advanceLine replays: no visits → launch the entry node.
-    expect(h.launched).toHaveLength(1);
+    // advanceLine replays: no visits → enqueue the entry node's dispatch.
+    expect(h.enqueued).toHaveLength(1);
     expect(h.port.nodes[0]).toMatchObject({ nodeId: "review" });
   });
 
@@ -389,15 +523,35 @@ describe("assemblyLineReaperJob", () => {
       status: "finished",
       outcome: "pr_created",
     });
-    expect(h.launched).toEqual([]);
+    expect(h.enqueued).toEqual([]);
   });
 });
 
-describe("relaunch label parity", () => {
-  it("a reaper relaunch carries the SAME station-run id label the first launch did", async () => {
-    // The advance path stamps the label from ensureStationRun; a relaunch that
-    // dropped it would hand the label's first consumer a pod with no identity.
-    const h = harness();
+describe("the sweep's claim-lifecycle arms", () => {
+  /** A queued, armed row aged `ageMinutes` past enqueue. */
+  const queuedRow = async (
+    h: ReturnType<typeof harness>,
+    id: string,
+    ageMinutes: number,
+    requiredTags: string[] = [],
+  ) => {
+    h.port.clock = () => new Date(Date.now() - ageMinutes * MIN);
+    const { nodeRowId } = await h.port.ensureStationRun({
+      assemblyRunId: id,
+      nodeId: "review",
+      iteration: 1,
+      agentCrName: `${id.substring(0, 12)}-review`,
+      status: "queued",
+      requiredTags,
+    });
+
+    await h.port.enqueueStationRunDispatch(nodeRowId, { name: "spec" });
+    h.port.clock = () => new Date();
+
+    return nodeRowId;
+  };
+
+  const runningRow = async (h: ReturnType<typeof harness>) => {
     const id = await h.port.start({
       blueprintName: "code-review",
       repo: "o/r",
@@ -405,135 +559,106 @@ describe("relaunch label parity", () => {
     });
 
     await h.port.markRunning(id);
-    // Aged past the startup grace: inside it an absent CR reads as "not launched
-    // yet" rather than "crashed before launch".
-    h.port.clock = () => new Date(Date.now() - 5 * MIN);
-    await h.port.ensureStationRun({
-      assemblyRunId: id,
-      nodeId: "review",
-      iteration: 1,
-      agentCrName: `${id.substring(0, 12)}-review`,
-    });
-    h.port.clock = () => new Date();
-    // No status for the CR name: decideNodeRecovery says relaunch.
 
+    return id;
+  };
+
+  it("fails a row queued past the wait bound, naming its unmatched required_tags", async () => {
+    const h = harness();
+    const id = await runningRow(h);
+
+    await queuedRow(h, id, 45, ["gpu"]);
+    const summary = await assemblyLineReaperJob(h.deps);
+
+    expect(h.port.nodes[0]).toMatchObject({
+      outcome: "failed",
+      failureClass: "infra",
+      failureDetail:
+        "no registered cluster-agent claimed this run (required_tags: [gpu]) within 30m",
+    });
+    // review --failed--> done: the line settles rather than wedging.
+    expect(await h.port.getById(id)).toMatchObject({ status: "finished" });
+    expect(summary).toContain("queue-timed-out 1");
+  });
+
+  it("leaves an in-wait queued row alone and never reads its CR", async () => {
+    const h = harness();
+    const id = await runningRow(h);
+
+    await queuedRow(h, id, 10);
     await assemblyLineReaperJob(h.deps);
 
-    expect(h.launched).toHaveLength(1);
-    expect(h.launched[0].extraLabels?.["lore.re-cinq.com/station-run-id"]).toBe(
-      h.port.nodes[0].stationRunId,
-    );
+    expect(h.port.nodes[0]).toMatchObject({ status: "queued", outcome: null });
+    expect(h.crReads).toEqual([]);
   });
-});
 
-describe("a relaunch is the SAME dispatch, not a second builder", () => {
-  const conversation = {
-    source: "http://floor/api/agent-conversations",
-    id: "round-1",
-    pin: "round-2",
-    headersSecret: "agent-events-auth",
-  };
+  it("never reads a satellite claim's CR — that null would double-launch it", async () => {
+    const h = harness();
+    const id = await runningRow(h);
 
-  /** Age the station-run row past the startup grace so the reaper may act on it. */
-  const openNodePastGrace = async (
-    h: ReturnType<typeof harness>,
-    id: string,
-    iteration = 1,
-  ) => {
+    await queuedRow(h, id, 3);
+    await h.port.claimNextStationRun({ clusterAgentId: "sat-1", tags: [] });
+    await assemblyLineReaperJob(h.deps);
+
+    expect(h.crReads).toEqual([]);
+    expect(h.port.nodes[0]).toMatchObject({
+      status: "claimed",
+      clusterAgentId: "sat-1",
+      outcome: null,
+    });
+  });
+
+  it("requeues the same row when the central claim produced no CR past the grace", async () => {
+    const h = harness();
+
+    h.central.clusterAgentId = "central-1";
+    const id = await runningRow(h);
+
+    await queuedRow(h, id, 10);
+    // The claim is aged past the startup grace too: claimed_at is the clock
+    // the grace runs from... startedAt in this arm. The CR read answers null.
     h.port.clock = () => new Date(Date.now() - 5 * MIN);
-    await h.port.ensureStationRun({
-      assemblyRunId: id,
-      nodeId: "review",
-      iteration,
-      agentCrName: `${id.substring(0, 12)}-review`,
+    await h.port.claimNextStationRun({
+      clusterAgentId: "central-1",
+      tags: [],
     });
     h.port.clock = () => new Date();
-  };
+    const summary = await assemblyLineReaperJob(h.deps);
 
-  it("a relaunch resumes the same conversation the first dispatch resolved", async () => {
-    // The reaper rebuilt the spec field by field and forgot the conversation; the
-    // launch then RE-PROVISIONED the per-task clone without it, deleting continuity
-    // from a live pod (#1466). One builder, one spec.
-    const h = harness();
-    const id = await h.port.start({
-      blueprintName: "code-review",
-      repo: "o/r",
-      args: {
-        description: "the whole draft",
-        round_feedback: '<RoundFeedback round="2"/>',
-      },
+    // Same row, reset — no second row, no second builder: the armed dispatch
+    // spec rides the row for the next claimant.
+    expect(h.port.nodes).toHaveLength(1);
+    expect(h.port.nodes[0]).toMatchObject({
+      status: "queued",
+      clusterAgentId: null,
+      claimedAt: null,
+      outcome: null,
     });
-
-    await h.port.markRunning(id);
-    await openNodePastGrace(h, id);
-    await assemblyLineReaperJob({
-      ...h.deps,
-      resolveConversation: async () => conversation,
-    });
-
-    expect(h.launched).toHaveLength(1);
-    expect(h.launched[0]).toMatchObject({
-      conversation,
-      // A resumed round sends only the new feedback — the same round content the
-      // first dispatch computed, in BOTH the description and the prompt.
-      description: '<RoundFeedback round="2"/>',
-      prompt: 'prompt:code-review::<RoundFeedback round="2"/>',
-    });
+    expect(summary).toContain("requeued 1");
+    expect(
+      await h.port.claimNextStationRun({
+        clusterAgentId: "central-1",
+        tags: [],
+      }),
+    ).toMatchObject({ dispatchSpec: { name: "spec" } });
   });
 
-  it("a relaunch of a round that resumed nothing carries the full composition", async () => {
+  it("times out an alive-but-stuck satellite claim from claimed_at, terminally", async () => {
     const h = harness();
-    const id = await h.port.start({
-      blueprintName: "code-review",
-      repo: "o/r",
-      args: {
-        description: "the whole draft",
-        round_feedback: '<RoundFeedback round="1"/>',
-      },
+    const id = await runningRow(h);
+
+    await queuedRow(h, id, 60);
+    // Claimed 20 minutes ago against review's 15-minute budget.
+    h.port.clock = () => new Date(Date.now() - 20 * MIN);
+    await h.port.claimNextStationRun({ clusterAgentId: "sat-1", tags: [] });
+    h.port.clock = () => new Date();
+    await assemblyLineReaperJob(h.deps);
+
+    expect(h.port.nodes[0]).toMatchObject({
+      outcome: "failed",
+      failureClass: "infra",
     });
-
-    await h.port.markRunning(id);
-    await openNodePastGrace(h, id);
-    await assemblyLineReaperJob({
-      ...h.deps,
-      resolveConversation: async () => ({ ...conversation, id: "" }),
-    });
-
-    expect(h.launched[0]).toMatchObject({ description: "the whole draft" });
-  });
-
-  it("a retry relaunch reports the failed prior visit, not the open row, as the prior outcome", async () => {
-    // A retry must NOT continue: the prior outcome decides that, and reading it off
-    // the open row (outcome null) would make every retry inherit a failed attempt.
-    const h = harness();
-    const seen: Array<string | null> = [];
-    const id = await h.port.start({
-      blueprintName: "code-review",
-      repo: "o/r",
-      args: { description: "d" },
-    });
-
-    await h.port.markRunning(id);
-    h.port.clock = () => new Date(Date.now() - 9 * MIN);
-    const first = await h.port.ensureStationRun({
-      assemblyRunId: id,
-      nodeId: "review",
-      iteration: 1,
-      agentCrName: `${id.substring(0, 12)}-review`,
-    });
-
-    await h.port.finishStationRunOnce(first.nodeRowId, "failed");
-    await openNodePastGrace(h, id, 2);
-    await assemblyLineReaperJob({
-      ...h.deps,
-      resolveConversation: async (_node, _task, _iteration, priorOutcome) => {
-        seen.push(priorOutcome);
-
-        return undefined;
-      },
-    });
-
-    expect(seen).toEqual(["failed"]);
+    expect(h.crReads).toEqual([]);
   });
 });
 
@@ -583,12 +708,16 @@ describe("the reaper's resolve door delivers artifacts too", () => {
 describe("a node whose station runs in the pooled service", () => {
   const MINUTE = 60_000;
   /** A service dispatch writes no CR name: there is no pod to name. */
-  const serviceNode = (ageMinutes: number) => ({
+  const serviceNode = (ageMinutes: number): StationRunRecord => ({
     id: "1",
     stationRunId: "station-run-1",
     assemblyRunId: "al-1",
     nodeId: "settle",
     iteration: 1,
+    status: "running",
+    clusterAgentId: null,
+    requiredTags: [],
+    claimedAt: null,
     outcome: null,
     failureClass: null,
     failureDetail: null,
@@ -610,6 +739,8 @@ describe("a node whose station runs in the pooled service", () => {
         timeoutMinutes: 5,
         status: null,
         nodeType: "merge_step",
+        crVisible: true,
+        queueWaitMs: QUEUE_WAIT_MS,
         nowMs: Date.now(),
       }),
     ).toEqual({ kind: "wait" });
@@ -622,20 +753,24 @@ describe("a node whose station runs in the pooled service", () => {
         timeoutMinutes: 5,
         status: null,
         nodeType: "merge_step",
+        crVisible: true,
+        queueWaitMs: QUEUE_WAIT_MS,
         nowMs: Date.now(),
       }),
     ).toEqual({ kind: "timeout" });
   });
 
-  it("relaunches a POD node with no CR, which is the crash-between-row-and-launch case", () => {
+  it("requeues a POD node with no CR, which is the crash-between-claim-and-CR case", () => {
     expect(
       decideNodeRecovery({
         node: { ...serviceNode(3), agentCrName: "a1b2c3d4-validate" },
         timeoutMinutes: 15,
         status: null,
         nodeType: "validate",
+        crVisible: true,
+        queueWaitMs: QUEUE_WAIT_MS,
         nowMs: Date.now(),
       }),
-    ).toEqual({ kind: "relaunch" });
+    ).toEqual({ kind: "requeue" });
   });
 });

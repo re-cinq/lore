@@ -109,13 +109,10 @@ describe("assembly_run.* params accept assemblyRunId with assemblyLineId fallbac
       iteration: 1,
       agentCrName: crName,
     });
-    const launched: string[] = [];
     const handler = createNodeEventHandler({
       assemblyRuns: port,
       definitions: async () => new Map([["implementation", twoNodeLine]]),
-      launch: async (spec) => {
-        launched.push(spec.name ?? "");
-      },
+      repoSettings: async () => null,
       resolvePrompt: (ref) => `prompt:${ref}`,
       cleanupToken: async () => {},
       jobRuns: { complete: async () => {}, fail: async () => {} },

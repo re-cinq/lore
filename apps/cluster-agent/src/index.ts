@@ -15,6 +15,7 @@
 import { HttpEventReporter } from "@re-cinq/lore-shared/project/events/event-reporter-http.js";
 import { startServer } from "./delivery/server.js";
 import { startK8sWatch } from "./listeners/k8s-watch.js";
+import { startSatellite } from "./satellite/start-satellite.js";
 
 const PORT = parseInt(process.env.PORT ?? "8080", 10);
 
@@ -47,6 +48,12 @@ async function main(): Promise<void> {
       "[cluster-agent] EVENT_ROUTER_URL unset — Agent-CR watch NOT started",
     );
   }
+
+  // Claim-based dispatch (specs/running-stations-in-any-k8s-cluster FR1/FR3):
+  // register with the Lore API, then pull queued station runs and launch them
+  // here. Gated on the same station backend as the watch; a failed
+  // registration retries in the background and never blocks the routes above.
+  startSatellite(process.env);
 
   const shutdown = async (signal: string): Promise<void> => {
     console.log(`[cluster-agent] ${signal} — shutting down`);

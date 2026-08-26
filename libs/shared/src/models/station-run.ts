@@ -42,12 +42,32 @@ export const StationRunInputSchema = z.object({
 
 export type StationRunInput = z.infer<typeof StationRunInputSchema>;
 
+/**
+ * Pre-terminal lifecycle under pull-based dispatch
+ * (specs/running-stations-in-any-k8s-cluster): `queued` — written by the
+ * launch seam, unclaimed; `claimed` — a cluster-agent took it; `running` — the
+ * default and the backfill for rows that predate the flip. Meaningful only
+ * while `outcome IS NULL`; terminality stays a non-null outcome.
+ */
+export const StationRunStatusSchema = z.enum(["queued", "claimed", "running"]);
+
+export type StationRunStatus = z.infer<typeof StationRunStatusSchema>;
+
 export const StationRunSchema = z.object({
   id: z.string(),
   stationRunId: z.string(),
   assemblyRunId: z.string(),
   nodeId: z.string(),
   iteration: z.number(),
+  status: StationRunStatusSchema,
+  /** The registered cluster-agent holding the claim; null while queued (and on
+   *  pre-flip rows). */
+  clusterAgentId: z.string().nullable(),
+  /** Capability tags a claimant must carry (`required_tags <@ tags`). */
+  requiredTags: z.array(z.string()),
+  /** The execution clock: node timeouts measure from here, never from
+   *  `startedAt` (which is row creation — under pull dispatch, enqueue time). */
+  claimedAt: z.date().nullable(),
   outcome: z.string().nullable(),
   /** WHY a `failed` visit failed: the shared `FailureCategory` the Floor
    *  classified, and the agent's own error text that produced it. Null on every
@@ -71,6 +91,10 @@ export const STATION_RUN_COLUMNS = {
   assemblyRunId: "assembly_run_id",
   nodeId: "node_id",
   iteration: "iteration",
+  status: "status",
+  clusterAgentId: "cluster_agent_id",
+  requiredTags: "required_tags",
+  claimedAt: "claimed_at",
   outcome: "outcome",
   failureClass: "failure_class",
   failureDetail: "failure_detail",

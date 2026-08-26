@@ -150,10 +150,18 @@ edges:
 `);
 
 function makeDeps(port: InMemoryAssemblyRuns) {
-  const launched: LoreTaskSpec[] = [];
+  const enqueued: LoreTaskSpec[] = [];
   const cleaned: string[] = [];
   const jobRuns: string[] = [];
   const notified: Array<{ id: string; outcome: string; reason?: string }> = [];
+  // The walk arms the queued row through the port; recording the specs here is
+  // the test's window on "what would a claiming cluster-agent be handed".
+  const armDispatch = port.enqueueStationRunDispatch.bind(port);
+
+  port.enqueueStationRunDispatch = async (nodeRowId, dispatchSpec) => {
+    enqueued.push(dispatchSpec as LoreTaskSpec);
+    await armDispatch(nodeRowId, dispatchSpec);
+  };
   const deps: AdvanceDeps = {
     assemblyRuns: port,
     definitions: async () =>
@@ -163,9 +171,7 @@ function makeDeps(port: InMemoryAssemblyRuns) {
         ["triage-then-issues", triageThenIssues],
         ["push-then-wait", pushThenWait],
       ]),
-    launch: async (spec) => {
-      launched.push(spec);
-    },
+    repoSettings: async () => null,
     resolvePrompt: (promptRef, description) => `${promptRef}::${description}`,
     cleanupToken: async (runTaskId) => {
       cleaned.push(runTaskId);
@@ -183,7 +189,7 @@ function makeDeps(port: InMemoryAssemblyRuns) {
     },
   };
 
-  return { deps, launched, cleaned, jobRuns, notified };
+  return { deps, enqueued, cleaned, jobRuns, notified };
 }
 
 async function runningLine(port: InMemoryAssemblyRuns) {
@@ -200,7 +206,7 @@ async function runningLine(port: InMemoryAssemblyRuns) {
 }
 
 describe("advanceLine reads the run's own graph", () => {
-  it("labels the dispatched CR with the station run id", async () => {
+  it("labels the enqueued dispatch spec with the station run id", async () => {
     // The id is what telemetry keys on (FR6.39). Putting it on the CR is what
     // makes a running pod traceable back to its visit from Kubernetes alone,
     // rather than by re-deriving the visit from the CR's NAME.
@@ -218,13 +224,13 @@ describe("advanceLine reads the run's own graph", () => {
       snapshotGraph(codeReviewLike, "code-review"),
     );
     await port.markRunning(id);
-    const { deps, launched } = makeDeps(port);
+    const { deps, enqueued } = makeDeps(port);
 
     await advanceLine(id, deps);
 
     const rows = await port.listStationRuns(id);
 
-    expect(launched[0]?.extraLabels?.["lore.re-cinq.com/station-run-id"]).toBe(
+    expect(enqueued[0]?.extraLabels?.["lore.re-cinq.com/station-run-id"]).toBe(
       rows[0].stationRunId,
     );
   });
@@ -247,14 +253,14 @@ describe("advanceLine reads the run's own graph", () => {
       snapshotGraph(codeReviewLike, "code-review"),
     );
     await port.markRunning(id);
-    const { deps, launched } = makeDeps(port);
+    const { deps, enqueued } = makeDeps(port);
 
     deps.definitions = async () => {
       throw new Error("the walk must not read the blueprint file");
     };
     await advanceLine(id, deps);
 
-    expect(launched.map((s) => s.name)).toEqual([
+    expect(enqueued.map((s) => s.name)).toEqual([
       `${id.substring(0, 12)}-review`,
     ]);
   });
@@ -271,27 +277,27 @@ describe("advanceLine reads the run's own graph", () => {
     });
 
     await port.markRunning(id);
-    const { deps, launched } = makeDeps(port);
+    const { deps, enqueued } = makeDeps(port);
 
     await advanceLine(id, deps);
 
     expect((await port.getById(id))?.graph).toBeNull();
-    expect(launched.map((s) => s.name)).toEqual([
+    expect(enqueued.map((s) => s.name)).toEqual([
       `${id.substring(0, 12)}-review`,
     ]);
   });
 });
 
 describe("advanceLine", () => {
-  it("launches the entry node CR with the row's description in the prompt", async () => {
+  it("enqueues the entry node dispatch with the row's description in the prompt", async () => {
     const port = new InMemoryAssemblyRuns();
     const id = await runningLine(port);
-    const { deps, launched } = makeDeps(port);
+    const { deps, enqueued } = makeDeps(port);
 
     await advanceLine(id, deps);
 
-    expect(launched).toHaveLength(1);
-    expect(launched[0]).toMatchObject({
+    expect(enqueued).toHaveLength(1);
+    expect(enqueued[0]).toMatchObject({
       name: `${id.substring(0, 12)}-review`,
       taskType: "code-review",
       prompt: "code-review::Review pull request #7",
@@ -318,7 +324,7 @@ describe("advanceLine", () => {
     });
 
     await port.markRunning(id);
-    const { deps, launched } = makeDeps(port);
+    const { deps, enqueued } = makeDeps(port);
 
     await advanceLine(id, {
       ...deps,
@@ -330,7 +336,7 @@ describe("advanceLine", () => {
       }),
     });
 
-    expect(launched[0]).toMatchObject({
+    expect(enqueued[0]).toMatchObject({
       description: "<RoundFeedback/>",
       prompt: "code-review::<RoundFeedback/>",
     });
@@ -349,7 +355,7 @@ describe("advanceLine", () => {
     });
 
     await port.markRunning(id);
-    const { deps, launched } = makeDeps(port);
+    const { deps, enqueued } = makeDeps(port);
 
     await advanceLine(id, {
       ...deps,
@@ -361,13 +367,13 @@ describe("advanceLine", () => {
       }),
     });
 
-    expect(launched[0]).toMatchObject({
+    expect(enqueued[0]).toMatchObject({
       description: "the whole draft",
       prompt: "code-review::the whole draft",
     });
   });
 
-  it("records a wait node but launches nothing — its worker is not a pod", async () => {
+  it("records a wait node but enqueues nothing — its worker is not a pod", async () => {
     const port = new InMemoryAssemblyRuns();
     const id = await port.start({
       blueprintName: "author-gated",
@@ -377,7 +383,7 @@ describe("advanceLine", () => {
     });
 
     await port.markRunning(id);
-    const { deps, launched } = makeDeps(port);
+    const { deps, enqueued } = makeDeps(port);
 
     await advanceLine(id, {
       ...deps,
@@ -390,13 +396,13 @@ describe("advanceLine", () => {
     expect(port.nodes).toEqual([
       expect.objectContaining({ nodeId: "author", iteration: 1 }),
     ]);
-    expect(launched).toEqual([]);
+    expect(enqueued).toEqual([]);
   });
 
-  it("converges a duplicate advance onto one node row and one idempotent launch", async () => {
+  it("converges a duplicate advance onto one node row and one armed dispatch", async () => {
     const port = new InMemoryAssemblyRuns();
     const id = await runningLine(port);
-    const { deps, launched } = makeDeps(port);
+    const { deps, enqueued } = makeDeps(port);
 
     await advanceLine(id, deps);
     await advanceLine(id, deps);
@@ -404,19 +410,19 @@ describe("advanceLine", () => {
     expect(port.nodes).toHaveLength(1);
     // Both advances launch the SAME deterministic CR name — the 409 makes the
     // second a no-op at the cluster; the walk state stays single-rowed.
-    expect(new Set(launched.map((l) => l.name)).size).toBe(1);
+    expect(new Set(enqueued.map((l) => l.name)).size).toBe(1);
   });
 
   it("does nothing while the newest node row is still open", async () => {
     const port = new InMemoryAssemblyRuns();
     const id = await runningLine(port);
-    const { deps, launched } = makeDeps(port);
+    const { deps, enqueued } = makeDeps(port);
 
     await advanceLine(id, deps);
-    launched.length = 0;
+    enqueued.length = 0;
     await advanceLine(id, deps);
 
-    expect(launched).toEqual([]);
+    expect(enqueued).toEqual([]);
   });
 
   it("finishes the row completed and reclaims the token when the walk reaches exit", async () => {
@@ -450,12 +456,12 @@ describe("advanceLine", () => {
     });
 
     await port.markRunning(singleCr);
-    const { deps, launched } = makeDeps(port);
+    const { deps, enqueued } = makeDeps(port);
 
     await advanceLine(queued, deps);
     await advanceLine(singleCr, deps);
 
-    expect(launched).toEqual([]);
+    expect(enqueued).toEqual([]);
   });
 });
 
@@ -482,7 +488,7 @@ edges:
 `);
 
 describe("advanceLine revisited-node iteration (fresh CR per iteration)", () => {
-  it("launches iteration 2 of a revisited node under a distinct, suffixed CR name", async () => {
+  it("enqueues iteration 2 of a revisited node under a distinct, suffixed CR name", async () => {
     const port = new InMemoryAssemblyRuns();
     const id = await port.start({
       blueprintName: "code-review",
@@ -492,7 +498,7 @@ describe("advanceLine revisited-node iteration (fresh CR per iteration)", () => 
     });
 
     await port.markRunning(id);
-    const { deps, launched } = makeDeps(port);
+    const { deps, enqueued } = makeDeps(port);
 
     deps.definitions = async () =>
       new Map<string, AssemblyLine>([["code-review", reviewLoop]]);
@@ -508,12 +514,12 @@ describe("advanceLine revisited-node iteration (fresh CR per iteration)", () => 
       deps,
     );
 
-    // review@1 closed changes_requested → review@2 launched under a fresh name.
+    // review@1 closed changes_requested → review@2 enqueued under a fresh name.
     expect(port.nodes.map((n) => [n.nodeId, n.iteration])).toEqual([
       ["review", 1],
       ["review", 2],
     ]);
-    expect(launched.map((l) => l.name)).toEqual([
+    expect(enqueued.map((l) => l.name)).toEqual([
       `${id.substring(0, 12)}-review`,
       `${id.substring(0, 12)}-review-2`,
     ]);
@@ -521,10 +527,10 @@ describe("advanceLine revisited-node iteration (fresh CR per iteration)", () => 
 });
 
 describe("finishNodeAndAdvance", () => {
-  it("records the outcome and launches the next node per the definition", async () => {
+  it("records the outcome and enqueues the next node per the definition", async () => {
     const port = new InMemoryAssemblyRuns();
     const id = await runningLine(port);
-    const { deps, launched } = makeDeps(port);
+    const { deps, enqueued } = makeDeps(port);
 
     await advanceLine(id, deps);
     await finishNodeAndAdvance(
@@ -540,7 +546,7 @@ describe("finishNodeAndAdvance", () => {
       ["review", "changes_requested"],
       ["refine", null],
     ]);
-    expect(launched.at(-1)).toMatchObject({
+    expect(enqueued.at(-1)).toMatchObject({
       name: `${id.substring(0, 12)}-refine`,
     });
   });
@@ -641,10 +647,10 @@ edges:
     ]);
   });
 
-  it("parks an agent node instead of dispatching it while the account is dry", async () => {
+  it("parks an agent node instead of enqueueing it while the account is dry", async () => {
     const port = new InMemoryAssemblyRuns();
     const id = await runningLine(port);
-    const { deps, launched } = makeDeps(port);
+    const { deps, enqueued } = makeDeps(port);
     const gate = new LlmDispatchGate(() => new Date());
 
     gate.trip("anthropic-credit", "Credit balance is too low");
@@ -653,7 +659,7 @@ edges:
     // No CR, and — the part that matters — no station-run row either. A row with
     // a null outcome is what the reaper reads as "relaunch me", so minting one
     // here would re-dispatch the pod every 60s for the whole outage.
-    expect(launched).toEqual([]);
+    expect(enqueued).toEqual([]);
     expect(port.nodes).toEqual([]);
     // Parked, not failed: nobody is told their work died.
     expect(await port.getById(id)).toMatchObject({ status: "running" });
@@ -682,10 +688,10 @@ edges:
     expect(logged.join("\n")).toContain(`parked ${id} at node "review"`);
   });
 
-  it("dispatches the node it parked once the account is healthy again", async () => {
+  it("enqueues the node it parked once the account is healthy again", async () => {
     const port = new InMemoryAssemblyRuns();
     const id = await runningLine(port);
-    const { deps, launched } = makeDeps(port);
+    const { deps, enqueued } = makeDeps(port);
     const gate = new LlmDispatchGate(() => new Date());
 
     gate.trip("anthropic-credit", "Credit balance is too low");
@@ -693,7 +699,7 @@ edges:
     gate.clear();
     await advanceLine(id, { ...deps, llmGate: gate });
 
-    expect(launched).toHaveLength(1);
+    expect(enqueued).toHaveLength(1);
     expect(port.nodes).toHaveLength(1);
   });
 
@@ -914,16 +920,16 @@ describe("advanceLine on a forked line", () => {
     return id;
   }
 
-  it("launches the successor of the inherited node, not the entry node", async () => {
+  it("enqueues the successor of the inherited node, not the entry node", async () => {
     const port = orderedPort();
     const source = await forkableLine(port);
     const forked = await fork(port, source);
-    const { deps, launched } = makeDeps(port);
+    const { deps, enqueued } = makeDeps(port);
 
     await advanceLine(forked, deps);
 
-    expect(launched).toHaveLength(1);
-    expect(launched[0]).toMatchObject({
+    expect(enqueued).toHaveLength(1);
+    expect(enqueued[0]).toMatchObject({
       name: `${forked.substring(0, 12)}-refine`,
       branch: "feat/x",
     });
@@ -937,11 +943,11 @@ describe("advanceLine on a forked line", () => {
     const port = orderedPort();
     const source = await forkableLine(port);
     const forked = await fork(port, source);
-    const { deps, launched } = makeDeps(port);
+    const { deps, enqueued } = makeDeps(port);
 
     await advanceLine(forked, deps);
 
-    expect(launched.map((spec) => spec.name)).not.toContain(
+    expect(enqueued.map((spec) => spec.name)).not.toContain(
       `${forked.substring(0, 12)}-review`,
     );
   });
@@ -1074,7 +1080,7 @@ describe("the visit's row records what it was dispatched with", () => {
     });
 
     await port.markRunning(id);
-    const { deps, launched } = makeDeps(port);
+    const { deps, enqueued } = makeDeps(port);
 
     await advanceLine(id, {
       ...deps,
@@ -1082,7 +1088,7 @@ describe("the visit's row records what it was dispatched with", () => {
         new Map<string, AssemblyLine>([["author-gated", authorGated]]),
     });
 
-    expect(launched).toEqual([]);
+    expect(enqueued).toEqual([]);
     expect((await port.listStationRuns(id))[0].input).toMatchObject({
       description: "plan it",
       prompt: null,
@@ -1174,7 +1180,7 @@ describe("a node finishing reaches its follow-up from every door", () => {
 });
 
 describe("a node whose station runs in the pooled service is not given a pod", () => {
-  it("publishes the node for the service to claim instead of launching a CR", async () => {
+  it("publishes the node for the service to claim instead of enqueueing a pod dispatch", async () => {
     const port = new InMemoryAssemblyRuns();
     const id = await port.start({
       blueprintName: "triage-then-issues",
@@ -1185,7 +1191,7 @@ describe("a node whose station runs in the pooled service is not given a pod", (
 
     await port.markRunning(id);
 
-    const { deps, launched } = makeDeps(port);
+    const { deps, enqueued } = makeDeps(port);
     const published: Array<{
       eventName: string;
       params: Record<string, unknown>;
@@ -1208,7 +1214,7 @@ describe("a node whose station runs in the pooled service is not given a pod", (
 
     // `done` is a retrospective: one HTTP POST, which the pooled service runs.
     expect(published.map((e) => e.eventName)).toEqual(["station.run"]);
-    expect(launched.map((l) => l.name)).toEqual([
+    expect(enqueued.map((l) => l.name)).toEqual([
       `${id.substring(0, 12)}-triage`,
     ]);
   });
@@ -1251,10 +1257,10 @@ describe("a node whose station runs in the pooled service is not given a pod", (
     expect(published[0]?.dedupeKey).toMatch(/^station-run:.+/);
   });
 
-  it("still gives a pod station its pod, so isolation is not quietly withdrawn", async () => {
+  it("still enqueues a pod station's dispatch, so isolation is not quietly withdrawn", async () => {
     const port = new InMemoryAssemblyRuns();
     const id = await runningLine(port);
-    const { deps, launched } = makeDeps(port);
+    const { deps, enqueued } = makeDeps(port);
     const published: unknown[] = [];
 
     deps.publishNode = async (ev) => {
@@ -1264,7 +1270,7 @@ describe("a node whose station runs in the pooled service is not given a pod", (
     await advanceLine(id, deps); // `review` is an agent node
 
     expect(published).toEqual([]);
-    expect(launched).toHaveLength(1);
+    expect(enqueued).toHaveLength(1);
   });
 });
 
@@ -1381,5 +1387,150 @@ describe("a service-form node's visit names no CR", () => {
     expect(port.nodes.find((n) => n.nodeId === "review")?.agentCrName).toBe(
       `${id.substring(0, 12)}-review`,
     );
+  });
+});
+
+describe("pull-based dispatch writes claimable queued rows (FR3)", () => {
+  const taggedReview: AssemblyLine = parseAssemblyLine(`
+name: code-review
+description: a pod node that requires a capability tag
+version: 1
+entry: review
+exit: done
+nodes:
+  - id: review
+    type: agent
+    prompt_ref: code-review
+    required_tags: [gpu]
+  - id: done
+    type: retrospective
+edges:
+  - from: review
+    to: done
+    on: always
+`);
+
+  it("parks a pod node's row queued, unclaimed, armed with the full dispatch spec", async () => {
+    const port = new InMemoryAssemblyRuns();
+    const id = await runningLine(port);
+    const { deps, enqueued } = makeDeps(port);
+
+    await advanceLine(id, deps);
+
+    expect(port.nodes[0]).toMatchObject({
+      nodeId: "review",
+      status: "queued",
+      clusterAgentId: null,
+      claimedAt: null,
+      requiredTags: [],
+    });
+    // The armed row is what a cluster-agent claims — and what it is handed is
+    // the exact spec the push path used to launch with.
+    const claim = await port.claimNextStationRun({
+      clusterAgentId: "central",
+      tags: [],
+    });
+
+    expect(claim).toMatchObject({
+      stationRunId: port.nodes[0].stationRunId,
+      dispatchSpec: enqueued[0],
+    });
+  });
+
+  it("stamps the node's own required_tags [gpu] onto the queued row", async () => {
+    const port = new InMemoryAssemblyRuns();
+    const id = await runningLine(port);
+
+    await port.stampBlueprint(
+      id,
+      "hash-tagged",
+      snapshotGraph(taggedReview, "code-review"),
+    );
+    const { deps } = makeDeps(port);
+
+    await advanceLine(id, deps);
+
+    expect(port.nodes[0]).toMatchObject({ requiredTags: ["gpu"] });
+    // A claimant without the tag never receives the run; one carrying it does.
+    expect(
+      await port.claimNextStationRun({ clusterAgentId: "plain", tags: [] }),
+    ).toBeNull();
+    expect(
+      await port.claimNextStationRun({
+        clusterAgentId: "gpu-1",
+        tags: ["gpu"],
+      }),
+    ).toMatchObject({ nodeId: "review" });
+  });
+
+  it("inherits the repo's station_default_tags [linux] when the node names none", async () => {
+    const port = new InMemoryAssemblyRuns();
+    const id = await runningLine(port);
+    const { deps } = makeDeps(port);
+
+    deps.repoSettings = async () => ({ station_default_tags: ["linux"] });
+    await advanceLine(id, deps);
+
+    expect(port.nodes[0]).toMatchObject({ requiredTags: ["linux"] });
+  });
+
+  it("keeps a human station's row running, so it is never claimable", async () => {
+    const port = new InMemoryAssemblyRuns();
+    const id = await port.start({
+      blueprintName: "author-gated",
+      repo: "re-cinq/lore",
+      branch: "feat/x",
+      args: { description: "plan it" },
+    });
+
+    await port.markRunning(id);
+    const { deps } = makeDeps(port);
+
+    await advanceLine(id, {
+      ...deps,
+      definitions: async () =>
+        new Map<string, AssemblyLine>([["author-gated", authorGated]]),
+    });
+
+    expect(port.nodes[0]).toMatchObject({
+      nodeId: "author",
+      status: "running",
+    });
+    expect(
+      await port.claimNextStationRun({ clusterAgentId: "central", tags: [] }),
+    ).toBeNull();
+  });
+
+  it("keeps a service node's row running, so it is never claimable", async () => {
+    const port = new InMemoryAssemblyRuns();
+    const id = await port.start({
+      blueprintName: "triage-then-issues",
+      repo: "re-cinq/lore",
+      branch: "feat/x",
+      args: { description: "d" },
+    });
+
+    await port.markRunning(id);
+    const { deps } = makeDeps(port);
+
+    deps.publishNode = async () => {};
+
+    await advanceLine(id, deps);
+    await finishNodeAndAdvance(
+      {
+        assemblyLineId: id,
+        nodeId: "triage",
+        iteration: 1,
+        result: { outcome: "success" },
+      },
+      deps,
+    );
+
+    expect(port.nodes.find((n) => n.nodeId === "file")).toMatchObject({
+      status: "running",
+    });
+    expect(
+      await port.claimNextStationRun({ clusterAgentId: "central", tags: [] }),
+    ).toBeNull();
   });
 });

@@ -3,11 +3,13 @@
 // so a dropped/dead-lettered transition recovers ONLY here. Every open line either
 // progresses or terminally fails with a reason — bounded, every minute:
 //
-//   - open node, CR terminal      → resolve its real outcome (dropped event)
-//   - open node, CR missing       → relaunch (crash between row insert and launch;
-//                                   the deterministic name makes it a 409 no-op if
-//                                   the CR actually exists) until the timeout
-//   - open node past its timeout  → fail `<kind>-timeout` and advance
+//   - open node, CR terminal      → resolve its real outcome (dropped event;
+//                                   only for rows whose CR THIS Floor can see)
+//   - claimed node, CR missing    → requeue the same row (crash between claim
+//                                   and CR create) once the startup grace passes
+//   - node queued past the wait   → fail terminally, naming its required_tags
+//   - open node past its timeout  → fail `<kind>-timeout` and advance (budget
+//                                   runs from claimed_at when a claim exists)
 //   - row queued > 30 min         → fail (assembly_line.start never completed)
 //   - row running, no open node   → advance (crash between transitions; replay
 //                                   converges on the next launch/finish)
@@ -20,13 +22,8 @@ import {
 } from "@re-cinq/lore-assembly-lines";
 import { resolveRunGraph } from "@re-cinq/lore-assembly-lines";
 import type { StationRunRecord } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
-import { advanceLine, finishLine, taskFromAssemblyRun } from "./advance.js";
+import { advanceLine, finishLine } from "./advance.js";
 import { finishNodeTerminal, normalizeAgentStatus } from "./node-terminal.js";
-import {
-  nodeLaunchSpec,
-  priorOutcomeOf,
-  resolveNodeDispatch,
-} from "./launch-spec.js";
 import { runOutcomeFromTaskStatus } from "../watcher/agent-watcher-logic.js";
 import {
   deliverTerminalArtifacts,
@@ -37,6 +34,24 @@ import {
  *  crash-orphaned single-CR (definition-less) run row. */
 export interface AssemblyLineReaperDeps extends NodeEventDeps {
   taskStatus: (taskId: string) => Promise<string | null>;
+  /**
+   * The central cluster's registered agent id, for {@link agentCrVisible}.
+   * Resolved per sweep — the id is minted at registration, so a static env
+   * var cannot know it. Null (registry empty, central agent not yet
+   * registered) leaves only legacy `running` rows visible, which is exactly
+   * the pre-claim-path behaviour.
+   */
+  centralClusterAgentId: () => Promise<string | null>;
+}
+
+const DEFAULT_CENTRAL_CLUSTER_AGENT_NAME = "central";
+
+/** The central agent's registry name (`LORE_CENTRAL_CLUSTER_AGENT_NAME`). */
+export function centralClusterAgentName(): string {
+  return (
+    process.env.LORE_CENTRAL_CLUSTER_AGENT_NAME ??
+    DEFAULT_CENTRAL_CLUSTER_AGENT_NAME
+  );
 }
 
 const MINUTE_MS = 60_000;
@@ -51,20 +66,55 @@ const QUEUED_LIMIT_MINUTES = 30;
  * planning reaper's FR-10.4 grace, and generous enough to absorb a flaky kube read.
  */
 const NODE_STARTUP_GRACE_MS = 2 * MINUTE_MS;
+/** How long a `queued` row may wait for a claim before it fails terminally. */
+const DEFAULT_QUEUE_WAIT_MINUTES = 30;
+
+/** The queue-wait bound (`LORE_STATION_QUEUE_WAIT_MINUTES`, default 30m). */
+export function stationQueueWaitMs(): number {
+  const minutes = Number(process.env.LORE_STATION_QUEUE_WAIT_MINUTES);
+
+  return (minutes > 0 ? minutes : DEFAULT_QUEUE_WAIT_MINUTES) * MINUTE_MS;
+}
 
 export type NodeRecovery =
   | { kind: "resolve"; status: AgentNodeStatus }
-  | { kind: "relaunch" }
+  | { kind: "requeue" }
   | { kind: "timeout" }
+  | { kind: "queue-timeout" }
   | { kind: "wait" };
 
-/** Pure per-open-node decision from the node row's age and the CR's live status. */
+/**
+ * Whether THIS Floor can interrogate the row's Agent CR (FR4). Only two rows
+ * qualify: a legacy `running` row (the pre-flip push path launched its CR in
+ * the central cluster) and a row CLAIMED by the central cluster's agent
+ * (`LORE_CENTRAL_CLUSTER_AGENT_ID`). A satellite's CR is invisible to the
+ * central read — it answers null, and acting on that null would double-launch.
+ */
+export function agentCrVisible(
+  node: Pick<StationRunRecord, "status" | "clusterAgentId">,
+  centralClusterAgentId: string | null,
+): boolean {
+  return (
+    node.status === "running" ||
+    (node.clusterAgentId !== null &&
+      node.clusterAgentId === centralClusterAgentId)
+  );
+}
+
+/** Pure per-open-node decision from the node row's lifecycle status, its age on
+ *  the claim clock, and — only when visible — the CR's live status. */
 export function decideNodeRecovery(input: {
   node: StationRunRecord;
   timeoutMinutes: number | undefined;
+  /** The CR's live status. The sweep reads it ONLY for {@link agentCrVisible}
+   *  rows; for the rest it passes null without asking the cluster. */
   status: AgentNodeStatus | null;
   /** The definition's node type. `wait` nodes have no budget — see below. */
   nodeType?: string;
+  /** Precomputed {@link agentCrVisible} — whether the null in `status` means
+   *  "the CR is gone" rather than "we never looked". */
+  crVisible: boolean;
+  queueWaitMs: number;
   nowMs: number;
 }): NodeRecovery {
   // A node whose worker is a HUMAN is never stuck, it is parked. Every other node
@@ -74,11 +124,33 @@ export function decideNodeRecovery(input: {
   if (isHumanStation(input.nodeType)) {
     return { kind: "wait" };
   }
+
+  // A `queued` row has no CR and no claimant — nothing to interrogate. Its only
+  // bound is the queue wait: past it, no registered cluster-agent could (or
+  // would) claim the run, and the row fails terminally naming its tags.
+  if (input.node.status === "queued") {
+    return input.nowMs - input.node.startedAt.getTime() > input.queueWaitMs
+      ? { kind: "queue-timeout" }
+      : { kind: "wait" };
+  }
   const budgetMs =
     ((input.timeoutMinutes ?? DEFAULT_TIMEOUT_MINUTES) +
       TIMEOUT_BUFFER_MINUTES) *
     MINUTE_MS;
-  const expired = input.nowMs - input.node.startedAt.getTime() > budgetMs;
+  // The execution clock: a claimed row's budget runs from the claim, so time
+  // spent waiting for a capable cluster is not charged against execution.
+  // Pre-flip `running` rows have no claimedAt and keep measuring from startedAt.
+  const executionStartMs = (
+    input.node.claimedAt ?? input.node.startedAt
+  ).getTime();
+  const expired = input.nowMs - executionStartMs > budgetMs;
+
+  // A row claimed by a SATELLITE: its CR cannot be read from here, so its only
+  // signals are the budget (a live agent past budget is a stuck node, not a
+  // lost one) and — outside this function — the claiming agent's liveness.
+  if (!input.crVisible) {
+    return expired ? { kind: "timeout" } : { kind: "wait" };
+  }
 
   if (input.status?.phase === "Succeeded" || input.status?.phase === "Failed") {
     return { kind: "resolve", status: input.status };
@@ -89,22 +161,28 @@ export function decideNodeRecovery(input: {
   }
 
   // A node dispatched to the POOLED SERVICE has no CR, and never had one: it was
-  // published on the bus. Relaunching it would create an Agent CR for work the
-  // service is still holding — for `merge_step` that fails every tick because no
-  // recipe is seeded for it, and for a type that IS seeded the pod and the queued
-  // delivery would BOTH run: duplicate Issues, duplicate episodes. It is timed out
-  // above like anything else, so a lost delivery still surfaces.
+  // published on the bus. Requeueing it would offer the cluster-agents work the
+  // service is still holding — the pod and the queued delivery would BOTH run:
+  // duplicate Issues, duplicate episodes. It is timed out above like anything
+  // else, so a lost delivery still surfaces.
   if (input.node.agentCrName === null) {
     return { kind: "wait" };
   }
 
-  // Absence — and only absence, a 404 — is the crash-between-row-and-launch case.
-  // An existing CR the controller has not stamped reports `Pending` and falls
-  // through to `wait` below.
+  // Absence — and only absence, a 404 — is the crash-between-claim-and-CR case:
+  // requeue the same row so another claim takes it. An existing CR the
+  // controller has not stamped reports `Pending` and falls through to `wait`.
+  // A LEGACY `running` row (pre-flip push dispatch) whose CR is gone lands here
+  // too: its dispatch_spec is null so no claim ever takes it, and the queue-wait
+  // bound settles it — an acceptable deprecation for rows already in flight at
+  // the cutover.
+  // The grace runs on the execution clock: a row that queued for ten minutes
+  // and was claimed five seconds ago is a CR still being provisioned, not a
+  // crash — measuring from enqueue time would requeue it in a loop.
   if (input.status === null) {
-    return input.nowMs - input.node.startedAt.getTime() < NODE_STARTUP_GRACE_MS
+    return input.nowMs - executionStartMs < NODE_STARTUP_GRACE_MS
       ? { kind: "wait" }
-      : { kind: "relaunch" };
+      : { kind: "requeue" };
   }
 
   return { kind: "wait" };
@@ -117,9 +195,12 @@ export async function assemblyLineReaperJob(
 ): Promise<string> {
   const open = await deps.assemblyRuns.listOpen();
   const nowMs = Date.now();
+  const queueWaitMs = stationQueueWaitMs();
+  const centralClusterAgentId = await deps.centralClusterAgentId();
   let resolved = 0;
-  let relaunched = 0;
+  let requeued = 0;
   let timedOut = 0;
+  let queueTimedOut = 0;
   let failedQueued = 0;
   let advanced = 0;
   let sweptSingleCr = 0;
@@ -191,9 +272,14 @@ export async function assemblyLineReaperJob(
         continue;
       }
 
-      const status = openNode.agentCrName
-        ? await deps.readAgentStatus(openNode.agentCrName)
-        : null;
+      const crVisible = agentCrVisible(openNode, centralClusterAgentId);
+      // Never read CR status for a row this Floor cannot see — a `queued` row
+      // has no CR yet, and a satellite's CR read answers null, which would
+      // requeue (double-launch) work another cluster is running right now.
+      const status =
+        crVisible && openNode.agentCrName
+          ? await deps.readAgentStatus(openNode.agentCrName)
+          : null;
       const recovery = decideNodeRecovery({
         node: openNode,
         // The station's own budget, not the global sixty, when the YAML is
@@ -204,6 +290,8 @@ export async function assemblyLineReaperJob(
         }),
         status,
         nodeType: node.type,
+        crVisible,
+        queueWaitMs,
         nowMs,
       });
 
@@ -269,29 +357,36 @@ export async function assemblyLineReaperJob(
         console.warn(
           `[assembly-run-reaper] node ${openNode.nodeId} of ${row.id} timed out (${node.type === "agent" ? "agent" : "station"}-timeout)`,
         );
-      } else if (recovery.kind === "relaunch") {
-        // The gate applies to the recovery door too. Relaunching an agent CR into
-        // a dry account is the same wasted pod as dispatching a fresh one, and
-        // this arm fires every 60s — it would out-burn the walk itself.
-        if (node.type === "agent" && deps.llmGate?.isBlocked()) {
-          continue;
-        }
-
-        const relaunchInput = {
-          node,
-          task: taskFromAssemblyRun(row),
-          iteration: openNode.iteration,
-          stationRunId: openNode.stationRunId,
-          priorOutcome: priorOutcomeOf(nodes, openNode.nodeId),
-        };
-
-        await deps.launch(
-          nodeLaunchSpec(
-            await resolveNodeDispatch(relaunchInput, deps),
-            relaunchInput,
-          ),
+      } else if (recovery.kind === "queue-timeout") {
+        await finishNodeTerminal(
+          {
+            row,
+            node,
+            nodeId: openNode.nodeId,
+            iteration: openNode.iteration,
+            // Naming the tags is the point: a line stalled because no registered
+            // cluster carries `gpu` must say so, not report a generic timeout.
+            result: {
+              outcome: "failed",
+              failureClass: "infra",
+              failureDetail: `no registered cluster-agent claimed this run (required_tags: [${openNode.requiredTags.join(", ")}]) within ${queueWaitMs / MINUTE_MS}m`,
+            },
+          },
+          deps,
         );
-        relaunched++;
+        queueTimedOut++;
+        console.warn(
+          `[assembly-run-reaper] node ${openNode.nodeId} of ${row.id} sat queued past ${queueWaitMs / MINUTE_MS}m unclaimed`,
+        );
+      } else if (recovery.kind === "requeue") {
+        // Crash between claim and CR create: reset the SAME row to `queued` so
+        // another claim takes it — no second builder, the armed dispatch spec
+        // rides the row. (The old relaunch arm rebuilt and pushed a CR itself.)
+        await deps.assemblyRuns.requeueStationRun(openNode.id);
+        requeued++;
+        console.warn(
+          `[assembly-run-reaper] requeued node ${openNode.nodeId} of ${row.id} — its claim produced no CR within the startup grace`,
+        );
       }
     } catch (err) {
       console.error(
@@ -300,5 +395,5 @@ export async function assemblyLineReaperJob(
     }
   }
 
-  return `resolved ${resolved}, relaunched ${relaunched}, timed out ${timedOut}, failed-queued ${failedQueued}, re-advanced ${advanced}, swept-single-cr ${sweptSingleCr} across ${open.length} open line(s)`;
+  return `resolved ${resolved}, requeued ${requeued}, timed out ${timedOut}, queue-timed-out ${queueTimedOut}, failed-queued ${failedQueued}, re-advanced ${advanced}, swept-single-cr ${sweptSingleCr} across ${open.length} open line(s)`;
 }

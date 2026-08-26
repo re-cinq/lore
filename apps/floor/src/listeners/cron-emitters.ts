@@ -38,7 +38,7 @@ export const CRON_EMITTERS: CronEmitter[] = [
   {
     name: "assembly_line_reaper",
     schedule: "*/1 * * * *",
-    note: "event-driven walk liveness bound: resolve dropped node events, relaunch, timeout, fail wedged rows",
+    note: "event-driven walk liveness bound: resolve dropped node events, requeue lost claims, timeout, fail wedged rows",
   },
   {
     name: "agent_watcher_reconcile",

@@ -6,7 +6,7 @@
 
 import { errorMessage } from "@re-cinq/lore-shared";
 import type { LoreTaskSpec } from "@re-cinq/lore-shared";
-import type { ContextSource } from "./agent-backend.js";
+import type { ContextSource } from "@re-cinq/lore-shared/cluster/agent-backend.js";
 
 const FETCH_TIMEOUT_MS = 15_000;
 

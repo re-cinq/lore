@@ -92,12 +92,13 @@ export const featurePlanningReaper = fromJob(featurePlanningReaperJob);
 export const leaseReaper = fromJob(() => leaseReaperJob());
 
 /** The event-driven walk's liveness bound: resolve dropped node-terminal events,
- *  relaunch rowed-but-unlaunched CRs, time out stuck nodes, fail wedged rows. */
+ *  requeue claims that produced no CR, fail rows queued past the claim wait,
+ *  time out stuck nodes, fail wedged rows. */
 export const assemblyLineReaper: EventHandler = async () => {
   const [
-    { assemblyLineReaperJob },
+    { assemblyLineReaperJob, centralClusterAgentName },
     { productionNodeEventDeps },
-    { taskStore },
+    { taskStore, clusterAgents },
   ] = await Promise.all([
     import("./assembly-run/assembly-run-reaper.js"),
     import("./assembly-run/node-event-handler.js"),
@@ -107,9 +108,15 @@ export const assemblyLineReaper: EventHandler = async () => {
     ...(await productionNodeEventDeps()),
     taskStatus: async (taskId) =>
       (await taskStore().getById(taskId))?.status ?? null,
+    centralClusterAgentId: async () =>
+      (await clusterAgents().findByName(centralClusterAgentName()))?.id ?? null,
   });
 
-  if (!summary.startsWith("resolved 0, relaunched 0, timed out 0")) {
+  if (
+    !summary.startsWith(
+      "resolved 0, requeued 0, timed out 0, queue-timed-out 0",
+    )
+  ) {
     console.log(`[assembly-run-reaper] ${summary}`);
   }
 };

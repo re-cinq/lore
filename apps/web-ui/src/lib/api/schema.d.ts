@@ -1071,6 +1071,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/cluster-agents/{id}/claim": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** POST /api/cluster-agents/{id}/claim */
+    post: operations["post_api_cluster-agents_id_claim"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/repos/{owner}/{repo}/settings/dark-factory": {
     parameters: {
       query?: never;
@@ -2563,6 +2580,15 @@ export interface components {
       name: string;
       tags: string[];
       token: string;
+    };
+    ClusterAgentClaim: {
+      station_run_id: string;
+      node_row_id: string;
+      assembly_run_id: string;
+      node_id: string;
+      iteration: number;
+      agent_cr_name: string | null;
+      spec?: unknown;
     };
     DarkFactorySettings: {
       enabled: boolean;
@@ -5405,6 +5431,31 @@ export interface operations {
       400: components["responses"]["BadRequest"];
       401: components["responses"]["Unauthorized"];
       409: components["responses"]["Conflict"];
+      413: components["responses"]["PayloadTooLarge"];
+      429: components["responses"]["RateLimited"];
+    };
+  };
+  "post_api_cluster-agents_id_claim": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The claimed station run's identity plus the dispatch spec it was enqueued with; 204 when nothing is claimable */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ClusterAgentClaim"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
       413: components["responses"]["PayloadTooLarge"];
       429: components["responses"]["RateLimited"];
     };

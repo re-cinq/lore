@@ -218,6 +218,11 @@ const CATEGORY_ORDER: Array<{ name: string; description: string }> = [
     description: "Usage, org-wide pipeline analytics, and agent statistics.",
   },
   { name: "Tokens", description: "Scoped API token management." },
+  {
+    name: "Cluster Agents",
+    description:
+      "Execution-cluster registry and pull-based station-run dispatch (specs/running-stations-in-any-k8s-cluster).",
+  },
   { name: "Meta", description: "The OpenAPI document and its reference UI." },
 ];
 
@@ -252,6 +257,7 @@ const TAG_RULES: Array<[RegExp, string]> = [
   [/\/events\/\{id\}\/payload$/, "Ingestion"],
   [/\/webhook/, "Webhooks"],
   [/^\/api\/tokens\b/, "Tokens"],
+  [/^\/api\/cluster-agents\b/, "Cluster Agents"],
   [/^\/api\/(repos|repo-status|pr-status|onboard|settings)\b/, "Repositories"],
 ];
 

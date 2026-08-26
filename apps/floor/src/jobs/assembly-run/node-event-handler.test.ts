@@ -45,12 +45,16 @@ function harness() {
   const launched: LoreTaskSpec[] = [];
   const statusByName: Record<string, AgentNodeStatus | null> = {};
   const billingAlerts: Array<{ repo: string; nodeType: string }> = [];
+  const armDispatch = port.enqueueStationRunDispatch.bind(port);
+
+  port.enqueueStationRunDispatch = async (nodeRowId, dispatchSpec) => {
+    launched.push(dispatchSpec as LoreTaskSpec);
+    await armDispatch(nodeRowId, dispatchSpec);
+  };
   const deps = {
     assemblyRuns: port,
     definitions: async () => new Map([["code-review", line]]),
-    launch: async (spec: LoreTaskSpec) => {
-      launched.push(spec);
-    },
+    repoSettings: async () => null,
     resolvePrompt: (ref: string) => `prompt:${ref}`,
     cleanupToken: async () => {},
     jobRuns: { complete: async () => {}, fail: async () => {} },
@@ -87,7 +91,7 @@ function alertingHarness() {
   const handler = createNodeEventHandler({
     assemblyRuns: port,
     definitions: async () => new Map([["code-review", line]]),
-    launch: async () => {},
+    repoSettings: async () => null,
     resolvePrompt: (ref) => `prompt:${ref}`,
     cleanupToken: async () => {},
     jobRuns: { complete: async () => {}, fail: async () => {} },

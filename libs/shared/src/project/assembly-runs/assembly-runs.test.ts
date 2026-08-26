@@ -977,12 +977,16 @@ describe("PgAssemblyRuns node-transition primitives", () => {
     expect(sql).toContain("ON CONFLICT (assembly_run_id, node_id, iteration)");
     expect(sql).toContain("DO UPDATE");
     expect(sql).toContain("(xmax = 0) AS created");
-    // The visit's recorded input rides the same insert; null when none was given.
+    // The visit's recorded input rides the same insert; null when none was
+    // given. Status defaults to the push-era 'running'; tags default empty.
     expect(calls[0]?.params).toEqual([
       "al-1",
       "review",
       1,
       "abcd1234-review",
+      null,
+      "running",
+      [],
       null,
     ]);
   });
@@ -1053,6 +1057,10 @@ describe("PgAssemblyRuns node-transition primitives", () => {
         assemblyRunId: "al-1",
         nodeId: "implement",
         iteration: 1,
+        status: "running",
+        clusterAgentId: null,
+        requiredTags: [],
+        claimedAt: null,
         outcome: "success",
         agentCrName: "abcd1234-implement",
         input: null,

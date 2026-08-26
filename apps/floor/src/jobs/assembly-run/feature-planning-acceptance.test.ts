@@ -52,7 +52,7 @@ describe("feature-planning acceptance: the analyze round and the author station"
     const h = createLineHarness();
     const id = await parkedOnAuthor(h);
 
-    expect(h.launched.map((s) => s.name)).toEqual([`${short(id)}-analyze`]);
+    expect(h.enqueued.map((s) => s.name)).toEqual([`${short(id)}-analyze`]);
     expect(h.visits()).toEqual([
       ["analyze", "success"],
       ["author", null],
@@ -67,7 +67,7 @@ describe("feature-planning acceptance: the analyze round and the author station"
       round_feedback: "tighten the scope to the mcp adapter",
     });
 
-    expect(h.launched.map((s) => s.name)).toEqual([
+    expect(h.enqueued.map((s) => s.name)).toEqual([
       `${short(id)}-analyze`,
       `${short(id)}-analyze-2`,
     ]);
@@ -82,7 +82,7 @@ describe("feature-planning acceptance: the analyze round and the author station"
 
     await h.resume(id, "author", "success");
 
-    expect(h.launched.at(-1)?.name).toBe(`${short(id)}-analyse-specs`);
+    expect(h.enqueued.at(-1)?.name).toBe(`${short(id)}-analyse-specs`);
   });
 
   it("fails the run with the author named when the author abandons the feature", async () => {
@@ -96,7 +96,7 @@ describe("feature-planning acceptance: the analyze round and the author station"
       outcome: "failed",
       reason: 'node "author" failed',
     });
-    expect(h.launched).toHaveLength(1);
+    expect(h.enqueued).toHaveLength(1);
   });
 });
 
@@ -108,7 +108,7 @@ describe("feature-planning acceptance: artifacts feed the next station", () => {
     expect((await h.runs.getById(id))?.args.spec_plan).toBe(
       '{"changes":[{"spec":"specs/x/spec.md","action":"amend"}]}',
     );
-    expect(h.launched.at(-1)?.name).toBe(`${short(id)}-write`);
+    expect(h.enqueued.at(-1)?.name).toBe(`${short(id)}-write`);
   });
 
   it("re-runs analyse-specs once when write rejects the change set", async () => {
@@ -117,7 +117,7 @@ describe("feature-planning acceptance: artifacts feed the next station", () => {
 
     await h.completeAgentNode(id, "write", { outcome: "changes_requested" });
 
-    expect(h.launched.at(-1)?.name).toBe(`${short(id)}-analyse-specs-2`);
+    expect(h.enqueued.at(-1)?.name).toBe(`${short(id)}-analyse-specs-2`);
   });
 });
 
@@ -130,11 +130,11 @@ describe("feature-planning acceptance: the spec PR and decomposition", () => {
     await h.completeAgentNode(id, "push", { outcome: "success" });
 
     expect(h.visits().at(-1)).toEqual(["merged", null]);
-    expect(h.launched.at(-1)?.name).toBe(`${short(id)}-push`);
+    expect(h.enqueued.at(-1)?.name).toBe(`${short(id)}-push`);
 
     await h.resume(id, "merged", "success");
 
-    expect(h.launched.at(-1)?.name).toBe(`${short(id)}-decompose`);
+    expect(h.enqueued.at(-1)?.name).toBe(`${short(id)}-decompose`);
   });
 
   it("returns a spec PR review objection to the author, not to an agent", async () => {
@@ -146,7 +146,7 @@ describe("feature-planning acceptance: the spec PR and decomposition", () => {
     await h.resume(id, "merged", "changes_requested");
 
     expect(h.visits().at(-1)).toEqual(["author", null]);
-    expect(h.launched.at(-1)?.name).toBe(`${short(id)}-push`);
+    expect(h.enqueued.at(-1)?.name).toBe(`${short(id)}-push`);
   });
 
   it("publishes the issues node to the pooled service and completes the run on its report", async () => {

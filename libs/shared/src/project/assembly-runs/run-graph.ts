@@ -39,6 +39,10 @@ export interface RunGraphNode {
   prompt_ref?: string;
   model?: string;
   timeout_minutes?: number;
+  /** Capability tags a claiming cluster-agent must carry
+   *  (specs/running-stations-in-any-k8s-cluster FR2). Absent inherits the
+   *  repo's `station_default_tags` at enqueue time. */
+  required_tags?: string[];
   /** Station knobs passed through to the pod as params. */
   condition_ref?: string;
   job_ref?: string;

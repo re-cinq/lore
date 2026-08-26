@@ -61,7 +61,7 @@ describe("implementation-loop acceptance: one ticket, cluster-free", () => {
     const h = loopHarness();
     const id = await parkedOnPr(h);
 
-    expect(h.launched.map((s) => s.name)).toEqual([
+    expect(h.enqueued.map((s) => s.name)).toEqual([
       `${short(id)}-implement`,
       `${short(id)}-validate`,
       `${short(id)}-push`,
@@ -117,7 +117,7 @@ describe("implementation-loop acceptance: one ticket, cluster-free", () => {
       iteration: 2,
     });
 
-    expect(h.launched.map((s) => s.name)).toEqual([
+    expect(h.enqueued.map((s) => s.name)).toEqual([
       `${short(id)}-implement`,
       `${short(id)}-implement-2`,
     ]);

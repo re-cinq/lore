@@ -208,9 +208,16 @@ export { advanceLine };
  *  advance, and the reaper tick. */
 export async function productionNodeEventDeps(): Promise<NodeEventDeps> {
   const [
-    { pipeline, taskStore, conversations, eventReporter, memoryLifecycle },
+    {
+      pipeline,
+      taskStore,
+      conversations,
+      eventReporter,
+      memoryLifecycle,
+      settings,
+    },
     { loadBuiltinAssemblyLines },
-    { agentCrBackend, projectFor },
+    { projectFor },
     { buildNodePrompt },
     { cleanupPerTaskToken },
     { settleTaskForLine },
@@ -236,9 +243,9 @@ export async function productionNodeEventDeps(): Promise<NodeEventDeps> {
     // by the CR handler alone, so a triage node the REAPER resolved never
     // started its follow-up, silently.
     onNodeFinished: routeCommentTriage,
-    launch: async (spec) => {
-      await agentCrBackend().launch(spec);
-    },
+    // The enqueue-time half of FR2: `resolveRequiredTags` reads the repo's
+    // `station_default_tags` from this raw settings object.
+    repoSettings: (repo) => settings().rawSettings(repo),
     // Strict: a node's prompt_ref names the recipe it runs, so an unknown one
     // fails the node instead of silently running `general` (#1329).
     resolvePrompt: buildNodePrompt,
