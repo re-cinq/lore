@@ -137,15 +137,22 @@ scoring.
 
 - A cluster-agent declares `tags: text[]` at registration (for example
   `["node:agent", "node:validate", "gpu"]`). ([validated by `register.test.ts:44`](apps/lore-api/src/api/routes/cluster-agents/register.test.ts#L44), [`registration.test.ts:87`](apps/cluster-agent/src/satellite/registration.test.ts#L87), [`registration.test.ts:95`](apps/cluster-agent/src/satellite/registration.test.ts#L95), [`registration.test.ts:67`](apps/cluster-agent/src/satellite/registration.test.ts#L67))
-- Every station run carries `required_tags: text[]` (default `{}`); a
-  cluster-agent may claim a run only when `required_tags <@ tags`. ([validated by `required-tags.test.ts:5`](libs/shared/src/project/cluster-agents/required-tags.test.ts#L5), [`required-tags.test.ts:11`](libs/shared/src/project/cluster-agents/required-tags.test.ts#L11), [`advance.test.ts:1441`](apps/floor/src/jobs/assembly-run/advance.test.ts#L1441))
+- Every station run carries `required_tags: text[]`; a cluster-agent may
+  claim a run only when `required_tags <@ tags`. The node type's own tag
+  (`node:<type>`) is ALWAYS required — a run is claimable only by an agent
+  declaring capability for that node type, which is what keeps central-only
+  workloads central: ingest pods mount `LORE_INGEST_TOKEN`, which never
+  ships to satellites, so satellites simply never register `node:ingest`
+  (the first registered satellite legally drained the production ingest
+  queue into pods that could never start, #1576). ([validated by `required-tags.test.ts:9`](libs/shared/src/project/cluster-agents/required-tags.test.ts#L9), [`required-tags.test.ts:15`](libs/shared/src/project/cluster-agents/required-tags.test.ts#L15), [`required-tags.test.ts:26`](libs/shared/src/project/cluster-agents/required-tags.test.ts#L26), [`advance.test.ts:1441`](apps/floor/src/jobs/assembly-run/advance.test.ts#L1441))
 - Assembly-line YAML nodes accept an optional `required_tags` list in the
-  loader schema; an absent list inherits the repo-level default
-  `settings.station_default_tags`, and an absent default means `{}`. The
-  default is applied at enqueue time, never baked into the parsed
-  definition, so it stays out of `definitionHash`. ([validated by `loader.test.ts:1027`](libs/assembly-lines/src/loader.test.ts#L1027), [`loader.test.ts:1045`](libs/assembly-lines/src/loader.test.ts#L1045), [`loader.test.ts:1053`](libs/assembly-lines/src/loader.test.ts#L1053), [`snapshot-graph.test.ts:91`](libs/assembly-lines/src/snapshot-graph.test.ts#L91), [`advance.test.ts:1467`](apps/floor/src/jobs/assembly-run/advance.test.ts#L1467), [`required-tags.test.ts:22`](libs/shared/src/project/cluster-agents/required-tags.test.ts#L22), [`required-tags.test.ts:31`](libs/shared/src/project/cluster-agents/required-tags.test.ts#L31), [`required-tags.test.ts:37`](libs/shared/src/project/cluster-agents/required-tags.test.ts#L37))
-- A run with `required_tags = '{}'` is claimable by every registered
-  cluster-agent, so existing definitions keep working unchanged. ([validated by `required-tags.test.ts:15`](libs/shared/src/project/cluster-agents/required-tags.test.ts#L15))
+  loader schema, added ON TOP of the type tag; an absent list inherits the
+  repo-level default `settings.station_default_tags`, and an absent default
+  adds nothing beyond the type tag. The default is applied at enqueue time,
+  never baked into the parsed definition, so it stays out of
+  `definitionHash`. ([validated by `required-tags.test.ts:49`](libs/shared/src/project/cluster-agents/required-tags.test.ts#L49), [`required-tags.test.ts:63`](libs/shared/src/project/cluster-agents/required-tags.test.ts#L63), [validated by `loader.test.ts:1027`](libs/assembly-lines/src/loader.test.ts#L1027), [`loader.test.ts:1045`](libs/assembly-lines/src/loader.test.ts#L1045), [`loader.test.ts:1053`](libs/assembly-lines/src/loader.test.ts#L1053), [`snapshot-graph.test.ts:91`](libs/assembly-lines/src/snapshot-graph.test.ts#L91), [`advance.test.ts:1469`](apps/floor/src/jobs/assembly-run/advance.test.ts#L1469), [`required-tags.test.ts:33`](libs/shared/src/project/cluster-agents/required-tags.test.ts#L33), [`required-tags.test.ts:41`](libs/shared/src/project/cluster-agents/required-tags.test.ts#L41), [`required-tags.test.ts:49`](libs/shared/src/project/cluster-agents/required-tags.test.ts#L49))
+- Only a run whose stored `required_tags` are `{}` (rows enqueued before the
+  type-tag invariant) is claimable by every registered cluster-agent. ([validated by `required-tags.test.ts:19`](libs/shared/src/project/cluster-agents/required-tags.test.ts#L19))
 
 ## FR3 — Claim-based dispatch
 
@@ -158,7 +165,7 @@ one dispatch mechanism, not a special case plus a remote case.
   complete dispatch spec (node type, target repo, branch, args, conversation,
   timeout) instead of calling the cluster-agent directly. Only nodes that
   reach the launch seam are enqueued — human-station and service-node rows
-  never become `queued` and are therefore never claimable. ([validated by `advance.test.ts:1414`](apps/floor/src/jobs/assembly-run/advance.test.ts#L1414), [`advance.test.ts:1478`](apps/floor/src/jobs/assembly-run/advance.test.ts#L1478), [`advance.test.ts:1505`](apps/floor/src/jobs/assembly-run/advance.test.ts#L1505))
+  never become `queued` and are therefore never claimable. ([validated by `advance.test.ts:1414`](apps/floor/src/jobs/assembly-run/advance.test.ts#L1414), [`advance.test.ts:1482`](apps/floor/src/jobs/assembly-run/advance.test.ts#L1482), [`advance.test.ts:1509`](apps/floor/src/jobs/assembly-run/advance.test.ts#L1509))
 - A cluster-agent polls `POST /api/cluster-agents/{id}/claim` on a
   configurable interval (default 15 s); the claim is a single
   `SELECT … FOR UPDATE SKIP LOCKED` CTE that sets `status = 'claimed'`,

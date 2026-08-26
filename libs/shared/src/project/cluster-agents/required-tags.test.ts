@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { tagsSatisfy, resolveRequiredTags } from "./required-tags.js";
+import {
+  nodeTypeTag,
+  tagsSatisfy,
+  resolveRequiredTags,
+} from "./required-tags.js";
 
 describe("tagsSatisfy", () => {
   it("matches when every required tag is offered", () => {
@@ -19,29 +23,44 @@ describe("tagsSatisfy", () => {
 });
 
 describe("resolveRequiredTags", () => {
-  it("uses the node's own list when present, even when empty", () => {
+  it("always requires the node type's own tag — node:ingest for an ingest node", () => {
+    expect(resolveRequiredTags("ingest", undefined, null)).toEqual([
+      "node:ingest",
+    ]);
+    expect(resolveRequiredTags("agent", [], null)).toEqual(["node:agent"]);
+  });
+
+  it("adds the node's own list on top of the type tag, deduplicated", () => {
     expect(
-      resolveRequiredTags(["gpu"], { station_default_tags: ["node:agent"] }),
-    ).toEqual(["gpu"]);
-    expect(
-      resolveRequiredTags([], { station_default_tags: ["node:agent"] }),
-    ).toEqual([]);
+      resolveRequiredTags("agent", ["gpu", "node:agent"], {
+        station_default_tags: ["ignored"],
+      }),
+    ).toEqual(["node:agent", "gpu"]);
   });
 
   it("inherits the repo-level station_default_tags for an absent node list", () => {
     expect(
-      resolveRequiredTags(undefined, { station_default_tags: ["node:agent"] }),
-    ).toEqual(["node:agent"]);
+      resolveRequiredTags("validate", undefined, {
+        station_default_tags: ["gpu"],
+      }),
+    ).toEqual(["node:validate", "gpu"]);
   });
 
-  it("resolves to empty for absent settings, absent default, or a malformed default", () => {
-    expect(resolveRequiredTags(undefined, null)).toEqual([]);
-    expect(resolveRequiredTags(undefined, {})).toEqual([]);
+  it("adds nothing beyond the type tag for absent or malformed defaults", () => {
+    expect(resolveRequiredTags("gate", undefined, {})).toEqual(["node:gate"]);
     expect(
-      resolveRequiredTags(undefined, { station_default_tags: "gpu" }),
-    ).toEqual([]);
+      resolveRequiredTags("gate", undefined, { station_default_tags: "gpu" }),
+    ).toEqual(["node:gate"]);
     expect(
-      resolveRequiredTags(undefined, { station_default_tags: [1, "gpu"] }),
-    ).toEqual([]);
+      resolveRequiredTags("gate", undefined, {
+        station_default_tags: [1, "gpu"],
+      }),
+    ).toEqual(["node:gate"]);
+  });
+});
+
+describe("nodeTypeTag", () => {
+  it("prefixes the node type with node:", () => {
+    expect(nodeTypeTag("comment-triage")).toBe("node:comment-triage");
   });
 });
