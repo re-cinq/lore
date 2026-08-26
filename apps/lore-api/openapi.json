@@ -3548,6 +3548,79 @@
         }
       }
     },
+    "/api/cluster-agents/register": {
+      "post": {
+        "operationId": "post_api_cluster-agents_register",
+        "summary": "POST /api/cluster-agents/register",
+        "tags": ["Other"],
+        "security": [],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "The registered identity with its per-agent token — served once and never again",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClusterAgentRegistration"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "tags": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "default": []
+                  },
+                  "cluster_info": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "additionalProperties": {}
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "default": null
+                  },
+                  "current_token": {
+                    "type": "string"
+                  }
+                },
+                "required": ["name"],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/repos/{owner}/{repo}/settings/dark-factory": {
       "get": {
         "operationId": "get_api_repos_owner_repo_settings_dark-factory",
@@ -9449,6 +9522,28 @@
             "additionalProperties": false
           }
         ]
+      },
+      "ClusterAgentRegistration": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "token": {
+            "type": "string"
+          }
+        },
+        "required": ["id", "name", "tags", "token"],
+        "additionalProperties": false
       },
       "DarkFactorySettings": {
         "type": "object",
