@@ -60,6 +60,10 @@
       "description": "Scoped API token management."
     },
     {
+      "name": "Cluster Agents",
+      "description": "Execution-cluster registry and pull-based station-run dispatch (specs/running-stations-in-any-k8s-cluster)."
+    },
+    {
       "name": "Meta",
       "description": "The OpenAPI document and its reference UI."
     }
@@ -3552,7 +3556,7 @@
       "post": {
         "operationId": "post_api_cluster-agents_register",
         "summary": "POST /api/cluster-agents/register",
-        "tags": ["Other"],
+        "tags": ["Cluster Agents"],
         "security": [],
         "x-rate-limit-bucket": "default",
         "responses": {
@@ -3619,6 +3623,46 @@
             }
           }
         }
+      }
+    },
+    "/api/cluster-agents/{id}/claim": {
+      "post": {
+        "operationId": "post_api_cluster-agents_id_claim",
+        "summary": "POST /api/cluster-agents/{id}/claim",
+        "tags": ["Cluster Agents"],
+        "security": [],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "The claimed station run's identity plus the dispatch spec it was enqueued with; 204 when nothing is claimable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClusterAgentClaim"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
       }
     },
     "/api/repos/{owner}/{repo}/settings/dark-factory": {
@@ -9543,6 +9587,39 @@
           }
         },
         "required": ["id", "name", "tags", "token"],
+        "additionalProperties": false
+      },
+      "ClusterAgentClaim": {
+        "type": "object",
+        "properties": {
+          "station_run_id": {
+            "type": "string"
+          },
+          "node_row_id": {
+            "type": "string"
+          },
+          "assembly_run_id": {
+            "type": "string"
+          },
+          "node_id": {
+            "type": "string"
+          },
+          "iteration": {
+            "type": "number"
+          },
+          "agent_cr_name": {
+            "type": ["string", "null"]
+          },
+          "spec": {}
+        },
+        "required": [
+          "station_run_id",
+          "node_row_id",
+          "assembly_run_id",
+          "node_id",
+          "iteration",
+          "agent_cr_name"
+        ],
         "additionalProperties": false
       },
       "DarkFactorySettings": {

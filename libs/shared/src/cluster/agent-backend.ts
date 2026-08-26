@@ -9,20 +9,20 @@
 // already exists → launched:false).
 
 import { isTerminal, type Agent as AgentCr } from "@re-cinq/agent-contracts";
+import type { LoreTaskSpec } from "../project/agents/k8s-port.js";
 import type {
-  LoreTaskSpec,
   StationBackend,
   StationLaunchResult,
-} from "@re-cinq/lore-shared";
-import { needsToken } from "@re-cinq/lore-shared";
+} from "../project/agents/station-port.js";
+import { needsToken } from "./per-task-token.js";
 
 export const TASK_ID_LABEL = "lore.re-cinq.com/task-id";
 export const TASK_TYPE_LABEL = "lore.re-cinq.com/task-type";
 
 /** Kubernetes operations on `Agent` CRs, returning structured results (no throw on
  *  409). The live implementation is KubeAgentApi; tests use an in-memory fake. */
-export type { AgentApi, TokenProvisioner } from "@re-cinq/lore-shared";
-import type { AgentApi, TokenProvisioner } from "@re-cinq/lore-shared";
+export type { AgentApi, TokenProvisioner } from "./cluster-ports.js";
+import type { AgentApi, TokenProvisioner } from "./cluster-ports.js";
 
 /** Deterministic per-task Agent name, so a re-launch is idempotent (409). */
 export function agentCrName(taskId: string): string {

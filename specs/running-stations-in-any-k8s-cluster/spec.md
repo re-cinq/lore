@@ -69,22 +69,22 @@ rather than smuggled through existing columns:
   default, and the backfill value for every existing row). `status` is
   meaningful only while `outcome IS NULL`; terminality stays exactly what it
   is today — a non-null `outcome` — so `nextTransition()`'s await logic
-  (`visits.some(v => v.outcome === null)`) is untouched.
+  (`visits.some(v => v.outcome === null)`) is untouched. ([validated by [`advance.test.ts:1413`](apps/floor/src/jobs/assembly-run/advance.test.ts#L1413))
 - `started_at` keeps its NOT NULL row-creation meaning (now: enqueue time).
   Execution timing moves to the new `claimed_at`: the reaper measures the
   node's `timeout_minutes` budget from `claimed_at`, never from `started_at`,
   so time spent waiting for a capable cluster is not charged against
-  execution.
+  execution. ([validated by [`assembly-run-reaper.test.ts:138`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L138), [`assembly-run-reaper.test.ts:647`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L647), [`assembly-run-reaper.test.ts:121`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L121))
 - A run that sits `queued` longer than a configurable queue-wait bound
   (default 30 minutes) is failed terminally with the existing
   `failure_class` mechanics and a detail naming the unmatched
   `required_tags` — a line stalled because no registered cluster carries a
-  tag must say so, not report a generic infra timeout.
+  tag must say so, not report a generic infra timeout. ([validated by [`assembly-run-reaper.test.ts:169`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L169), [`assembly-run-reaper.test.ts:563`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L563), [`assembly-run-reaper.test.ts:453`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L453), [`assembly-run-reaper.test.ts:287`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L287), [`assembly-run-reaper.test.ts:292`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L292), [`assembly-run-reaper.test.ts:163`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L163), [`assembly-run-reaper.test.ts:581`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L581))
 - Requeueing (FR4) resets the **same row** back to `queued`, clearing
   `cluster_agent_id` and `claimed_at`. No second row is inserted, so the
   row-id-as-visit-order contract the fork replay depends on
   (`assembly-runs-pg.ts`) sees exactly one row per node visit, claimed or
-  not.
+  not. ([validated by [`assembly-run-reaper.test.ts:608`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L608), [`assembly-run-reaper.test.ts:108`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L108), [`assembly-run-reaper.test.ts:96`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L96), [`assembly-runs.contract.test.ts:991`](libs/shared/src/project/assembly-runs/assembly-runs.contract.test.ts#L991))
 
 ## FR1 — Cluster-agent registry and identity
 
@@ -94,18 +94,24 @@ A new `pipeline.cluster_agents` table is the registry of execution clusters.
   lore-api (all `/api/cluster-agents/*` endpoints live in
   `apps/lore-api/src/api/routes/cluster-agents/`), authenticating with a
   pre-shared registration token (`LORE_CLUSTER_AGENT_REGISTRATION_TOKEN`),
-  and receives a durable id and a per-agent bearer token. ([validated by `register.test.ts:44`](apps/lore-api/src/api/routes/cluster-agents/register.test.ts#L44), [`register.test.ts:14`](apps/lore-api/src/api/routes/cluster-agents/register.test.ts#L14), [`register.test.ts:31`](apps/lore-api/src/api/routes/cluster-agents/register.test.ts#L31))
+  and receives a durable id and a per-agent bearer token. ([validated by `register.test.ts:44`](apps/lore-api/src/api/routes/cluster-agents/register.test.ts#L44), [`register.test.ts:14`](apps/lore-api/src/api/routes/cluster-agents/register.test.ts#L14), [`register.test.ts:31`](apps/lore-api/src/api/routes/cluster-agents/register.test.ts#L31), [`registration.test.ts:121`](apps/cluster-agent/src/satellite/registration.test.ts#L121), [`registration.test.ts:154`](apps/cluster-agent/src/satellite/registration.test.ts#L154), [`registration.test.ts:46`](apps/cluster-agent/src/satellite/registration.test.ts#L46), [`registration.test.ts:52`](apps/cluster-agent/src/satellite/registration.test.ts#L52), [`registration.test.ts:61`](apps/cluster-agent/src/satellite/registration.test.ts#L61), [`registration.test.ts:76`](apps/cluster-agent/src/satellite/registration.test.ts#L76), [`registration.test.ts:175`](apps/cluster-agent/src/satellite/registration.test.ts#L175), [`registration.test.ts:189`](apps/cluster-agent/src/satellite/registration.test.ts#L189))
 - The per-agent token is stored SHA-256-hashed in
   `pipeline.cluster_agents.token_hash`, following the existing
   `pipeline.api_tokens` pattern; every subsequent lore-api call from that
   agent authenticates with it. ([validated by `cluster-agents.test.ts:63`](libs/shared/src/project/cluster-agents/cluster-agents.test.ts#L63), [`cluster-agents.test.ts:71`](libs/shared/src/project/cluster-agents/cluster-agents.test.ts#L71))
+- A failed registration attempt is retried on a 30-second schedule doubling
+  to a 5-minute cap, and never crashes the process — the agent's other
+  duties (the watch, the inbound routes) do not depend on it. ([validated by `registration.test.ts:101`](apps/cluster-agent/src/satellite/registration.test.ts#L101), [`registration.test.ts:105`](apps/cluster-agent/src/satellite/registration.test.ts#L105))
 - Registration is idempotent on `name` — but only for the identity holder:
   re-registering an existing name **with the current per-agent bearer token**
   rotates the token and updates `tags` and `cluster_info`. Re-registering a
   known name without it is rejected `409` — the shared registration token
-  alone must never suffice to take over a live cluster's identity. ([validated by `register.test.ts:67`](apps/lore-api/src/api/routes/cluster-agents/register.test.ts#L67), [`register.test.ts:93`](apps/lore-api/src/api/routes/cluster-agents/register.test.ts#L93), [`cluster-agents.test.ts:38`](libs/shared/src/project/cluster-agents/cluster-agents.test.ts#L38), [`cluster-agents.test.ts:42`](libs/shared/src/project/cluster-agents/cluster-agents.test.ts#L42), [`cluster-agents.test.ts:51`](libs/shared/src/project/cluster-agents/cluster-agents.test.ts#L51), [`cluster-agents.test.ts:55`](libs/shared/src/project/cluster-agents/cluster-agents.test.ts#L55))
-- The satellite persists its identity in a Kubernetes Secret
-  (`lore-cluster-agent-identity`) so pod restarts do not re-register.
+  alone must never suffice to take over a live cluster's identity. ([validated by `register.test.ts:67`](apps/lore-api/src/api/routes/cluster-agents/register.test.ts#L67), [`register.test.ts:93`](apps/lore-api/src/api/routes/cluster-agents/register.test.ts#L93), [`cluster-agents.test.ts:38`](libs/shared/src/project/cluster-agents/cluster-agents.test.ts#L38), [`cluster-agents.test.ts:42`](libs/shared/src/project/cluster-agents/cluster-agents.test.ts#L42), [`cluster-agents.test.ts:51`](libs/shared/src/project/cluster-agents/cluster-agents.test.ts#L51), [`cluster-agents.test.ts:55`](libs/shared/src/project/cluster-agents/cluster-agents.test.ts#L55), [`registration.test.ts:167`](apps/cluster-agent/src/satellite/registration.test.ts#L167))
+- The satellite persists its identity (`{id, token}`) at
+  `LORE_CLUSTER_AGENT_IDENTITY_FILE` — which the standalone chart mounts
+  from a Kubernetes Secret named `lore-cluster-agent-identity` — so pod
+  restarts do not re-register; re-registration presents the persisted
+  token. ([validated by `identity-store.test.ts:39`](apps/cluster-agent/src/satellite/identity-store.test.ts#L39), [`identity-store.test.ts:15`](apps/cluster-agent/src/satellite/identity-store.test.ts#L15), [`identity-store.test.ts:24`](apps/cluster-agent/src/satellite/identity-store.test.ts#L24), [`identity-store.test.ts:32`](apps/cluster-agent/src/satellite/identity-store.test.ts#L32), [`identity-store.test.ts:48`](apps/cluster-agent/src/satellite/identity-store.test.ts#L48), [`identity-store.test.ts:59`](apps/cluster-agent/src/satellite/identity-store.test.ts#L59), [`identity-store.test.ts:68`](apps/cluster-agent/src/satellite/identity-store.test.ts#L68), [`identity-store.test.ts:79`](apps/cluster-agent/src/satellite/identity-store.test.ts#L79), [`registration.test.ts:141`](apps/cluster-agent/src/satellite/registration.test.ts#L141))
 - The registry ships as the next migration in sequence
   (`NNNN_cluster_agent_registry.sql`) under
   `infra/terraform/modules/gke-mcp/lore-platform/charts/ui-helm/migrations/`:
@@ -121,14 +127,14 @@ Capabilities are a flat tag set, matched by inclusion — no scheduler, no
 scoring.
 
 - A cluster-agent declares `tags: text[]` at registration (for example
-  `["node:agent", "node:validate", "gpu"]`). ([validated by `register.test.ts:44`](apps/lore-api/src/api/routes/cluster-agents/register.test.ts#L44))
+  `["node:agent", "node:validate", "gpu"]`). ([validated by `register.test.ts:44`](apps/lore-api/src/api/routes/cluster-agents/register.test.ts#L44), [`registration.test.ts:87`](apps/cluster-agent/src/satellite/registration.test.ts#L87), [`registration.test.ts:95`](apps/cluster-agent/src/satellite/registration.test.ts#L95), [`registration.test.ts:67`](apps/cluster-agent/src/satellite/registration.test.ts#L67))
 - Every station run carries `required_tags: text[]` (default `{}`); a
-  cluster-agent may claim a run only when `required_tags <@ tags`. ([validated by `required-tags.test.ts:5`](libs/shared/src/project/cluster-agents/required-tags.test.ts#L5), [`required-tags.test.ts:11`](libs/shared/src/project/cluster-agents/required-tags.test.ts#L11))
+  cluster-agent may claim a run only when `required_tags <@ tags`. ([validated by `required-tags.test.ts:5`](libs/shared/src/project/cluster-agents/required-tags.test.ts#L5), [`required-tags.test.ts:11`](libs/shared/src/project/cluster-agents/required-tags.test.ts#L11), [`advance.test.ts:1440`](apps/floor/src/jobs/assembly-run/advance.test.ts#L1440))
 - Assembly-line YAML nodes accept an optional `required_tags` list in the
   loader schema; an absent list inherits the repo-level default
   `settings.station_default_tags`, and an absent default means `{}`. The
   default is applied at enqueue time, never baked into the parsed
-  definition, so it stays out of `definitionHash`. ([validated by `loader.test.ts:1027`](libs/assembly-lines/src/loader.test.ts#L1027), [`loader.test.ts:1045`](libs/assembly-lines/src/loader.test.ts#L1045), [`loader.test.ts:1053`](libs/assembly-lines/src/loader.test.ts#L1053), [`required-tags.test.ts:22`](libs/shared/src/project/cluster-agents/required-tags.test.ts#L22), [`required-tags.test.ts:31`](libs/shared/src/project/cluster-agents/required-tags.test.ts#L31), [`required-tags.test.ts:37`](libs/shared/src/project/cluster-agents/required-tags.test.ts#L37))
+  definition, so it stays out of `definitionHash`. ([validated by `loader.test.ts:1027`](libs/assembly-lines/src/loader.test.ts#L1027), [`loader.test.ts:1045`](libs/assembly-lines/src/loader.test.ts#L1045), [`loader.test.ts:1053`](libs/assembly-lines/src/loader.test.ts#L1053), [`snapshot-graph.test.ts:91`](libs/assembly-lines/src/snapshot-graph.test.ts#L91), [`advance.test.ts:1466`](apps/floor/src/jobs/assembly-run/advance.test.ts#L1466), [`required-tags.test.ts:22`](libs/shared/src/project/cluster-agents/required-tags.test.ts#L22), [`required-tags.test.ts:31`](libs/shared/src/project/cluster-agents/required-tags.test.ts#L31), [`required-tags.test.ts:37`](libs/shared/src/project/cluster-agents/required-tags.test.ts#L37))
 - A run with `required_tags = '{}'` is claimable by every registered
   cluster-agent, so existing definitions keep working unchanged. ([validated by `required-tags.test.ts:15`](libs/shared/src/project/cluster-agents/required-tags.test.ts#L15))
 
@@ -143,24 +149,29 @@ one dispatch mechanism, not a special case plus a remote case.
   complete dispatch spec (node type, target repo, branch, args, conversation,
   timeout) instead of calling the cluster-agent directly. Only nodes that
   reach the launch seam are enqueued — human-station and service-node rows
-  never become `queued` and are therefore never claimable.
+  never become `queued` and are therefore never claimable. ([validated by [`advance.test.ts:1413`](apps/floor/src/jobs/assembly-run/advance.test.ts#L1413), [`advance.test.ts:1477`](apps/floor/src/jobs/assembly-run/advance.test.ts#L1477), [`advance.test.ts:1504`](apps/floor/src/jobs/assembly-run/advance.test.ts#L1504))
 - A cluster-agent polls `POST /api/cluster-agents/{id}/claim` on a
   configurable interval (default 15 s); the claim is a single
   `SELECT … FOR UPDATE SKIP LOCKED` CTE that sets `status = 'claimed'`,
   `cluster_agent_id`, and `claimed_at` in one statement, so concurrent
-  claimants are safe.
+  claimants are safe. ([validated by `claim.test.ts:87`](apps/lore-api/src/api/routes/cluster-agents/claim.test.ts#L87), [`assembly-runs.contract.test.ts:899`](libs/shared/src/project/assembly-runs/assembly-runs.contract.test.ts#L899), [`assembly-runs.contract.test.ts:959`](libs/shared/src/project/assembly-runs/assembly-runs.contract.test.ts#L959))
 - Claim and heartbeat calls authenticate with the per-agent bearer token
-  issued at registration, like every other lore-api call the agent makes.
+  issued at registration, like every other lore-api call the agent makes. ([validated by `claim.test.ts:47`](apps/lore-api/src/api/routes/cluster-agents/claim.test.ts#L47), [`claim.test.ts:57`](apps/lore-api/src/api/routes/cluster-agents/claim.test.ts#L57), [`claim.test.ts:66`](apps/lore-api/src/api/routes/cluster-agents/claim.test.ts#L66), [`claim-loop.test.ts:120`](apps/cluster-agent/src/satellite/claim-loop.test.ts#L120), [`claim-loop.test.ts:165`](apps/cluster-agent/src/satellite/claim-loop.test.ts#L165), [`claim-loop.test.ts:171`](apps/cluster-agent/src/satellite/claim-loop.test.ts#L171), [`claim-loop.test.ts:245`](apps/cluster-agent/src/satellite/claim-loop.test.ts#L245))
 - A claim request with no matching queued run returns `204`. An idle agent
   backs its polling off (doubling to a 60 s ceiling, resetting on the first
   hit), so a fleet of quiet satellites costs the API a bounded trickle
-  rather than O(N) at the floor interval.
-- The claim response carries the **fully rendered** `AgentDefinition` +
-  `Station` CRD pair, not a name reference. The claiming cluster-agent
-  applies the pair idempotently in its own cluster (the same apply it
-  performs today when lore-api pushes pairs to it), provisions the per-task
-  token locally, then creates the Agent CR — so a satellite needs no synced
-  catalog and no inbound push ever occurs.
+  rather than O(N) at the floor interval. ([validated by `claim.test.ts:75`](apps/lore-api/src/api/routes/cluster-agents/claim.test.ts#L75), [`claim.test.ts:113`](apps/lore-api/src/api/routes/cluster-agents/claim.test.ts#L113), [`claim-loop.test.ts:59`](apps/cluster-agent/src/satellite/claim-loop.test.ts#L59), [`claim-loop.test.ts:63`](apps/cluster-agent/src/satellite/claim-loop.test.ts#L63), [`claim-loop.test.ts:69`](apps/cluster-agent/src/satellite/claim-loop.test.ts#L69), [`claim-loop.test.ts:77`](apps/cluster-agent/src/satellite/claim-loop.test.ts#L77), [`claim-loop.test.ts:85`](apps/cluster-agent/src/satellite/claim-loop.test.ts#L85), [`claim-loop.test.ts:89`](apps/cluster-agent/src/satellite/claim-loop.test.ts#L89), [`claim-loop.test.ts:134`](apps/cluster-agent/src/satellite/claim-loop.test.ts#L134), [`claim-loop.test.ts:231`](apps/cluster-agent/src/satellite/claim-loop.test.ts#L231))
+- The claim response carries the **complete `LoreTaskSpec`** the visit was
+  enqueued with — the same object the push path handed the launch backend.
+  The claiming cluster-agent materialises everything cluster-local itself:
+  the builtin `def-<type>` catalog arrives with the ai-agents subchart it is
+  installed beside, per-task token provisioning and the AgentDefinition +
+  Station clone happen through its own provisioner, context hydration is
+  fetched outbound from the Lore API (a satellite without the central
+  ingest credential launches unhydrated — agent pods still carry the live
+  lore-mcp gateway), and the Agent CR is created under the exact CR name
+  the Floor recorded on the station-run row — so no synced catalog is
+  required and no inbound push ever occurs. ([validated by `claim-loop.test.ts:140`](apps/cluster-agent/src/satellite/claim-loop.test.ts#L140), [`claim-loop.test.ts:153`](apps/cluster-agent/src/satellite/claim-loop.test.ts#L153), [`claim-loop.test.ts:177`](apps/cluster-agent/src/satellite/claim-loop.test.ts#L177), [`claim-loop.test.ts:188`](apps/cluster-agent/src/satellite/claim-loop.test.ts#L188), [`claim-loop.test.ts:195`](apps/cluster-agent/src/satellite/claim-loop.test.ts#L195), [`claim-loop.test.ts:254`](apps/cluster-agent/src/satellite/claim-loop.test.ts#L254), [`api-context-source.test.ts:36`](apps/cluster-agent/src/satellite/api-context-source.test.ts#L36), [`api-context-source.test.ts:56`](apps/cluster-agent/src/satellite/api-context-source.test.ts#L56), [`api-context-source.test.ts:67`](apps/cluster-agent/src/satellite/api-context-source.test.ts#L67), [`api-context-source.test.ts:75`](apps/cluster-agent/src/satellite/api-context-source.test.ts#L75), [`api-context-source.test.ts:83`](apps/cluster-agent/src/satellite/api-context-source.test.ts#L83))
 - Outcome reporting rides the existing path: the cluster-agent's watch
   reports terminal phases through the event-router front door with dedupe
   keys, and the central Floor's event loop advances the assembly line
@@ -183,7 +194,7 @@ pull, so recovery splits by who holds the claim:
   cluster `CLUSTER_AGENT_URL` can reach. For satellite-claimed runs that arm
   is skipped entirely; their recovery signal is the claiming agent's
   liveness, never a CR read that would come back null and trigger a
-  duplicate central launch.
+  duplicate central launch. ([validated by [`assembly-run-reaper.test.ts:175`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L175), [`assembly-run-reaper.test.ts:190`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L190), [`assembly-run-reaper.test.ts:592`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L592), [`assembly-run-reaper.test.ts:249`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L249), [`assembly-run-reaper.test.ts:255`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L255), [`assembly-run-reaper.test.ts:264`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L264), [`assembly-run-reaper.test.ts:273`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L273), [`assembly-run-reaper.test.ts:279`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L279))
 - A run claimed by an **offline** agent is reset to `queued` (same row, per
   the lifecycle section); the reaper — the same process that set the agent
   `offline` — writes a `cluster_agent_offline` entry to `pipeline.audit_log`
@@ -268,10 +279,15 @@ CREATE TABLE pipeline.cluster_agents (
 
 `pipeline.station_runs` gains `status text NOT NULL DEFAULT 'running'`
 (lifecycle section above; the default doubles as the backfill for existing
-rows), `cluster_agent_id uuid REFERENCES pipeline.cluster_agents(id)`,
-`required_tags text[] NOT NULL DEFAULT '{}'`, and `claimed_at timestamptz`,
-plus a partial index on `(status) WHERE outcome IS NULL` to back the claim
-scan.
+rows), `cluster_agent_id uuid` (a correlation id, deliberately no foreign
+key — the `agent_run_events` precedent: the claimant is authenticated
+against the registry at the API layer, and a claim row must survive
+registry churn rather than block on it), `required_tags text[] NOT NULL
+DEFAULT '{}'`, `claimed_at timestamptz`, and `dispatch_spec jsonb` (the
+complete machine contract a claimant runs with, written at enqueue — only
+armed rows are claimable), plus a partial index on `(status) WHERE outcome
+IS NULL` to back the claim scan. A queued visit with no armed dispatch
+contract is never handed to a claimant. ([validated by `assembly-runs.contract.test.ts:940`](libs/shared/src/project/assembly-runs/assembly-runs.contract.test.ts#L940))
 
 ## Rollout: from push to pull without a flag-day
 

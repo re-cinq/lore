@@ -105,6 +105,9 @@ export const BODYLESS_WRITES = new Set<string>([
   "POST /api/repos/{owner}/{repo}/webhook/ensure",
   // The job to run is the path param; a courier posts it with no body at all.
   "POST /api/maintenance/{job}",
+  // The claim is driven by the claimant's registered identity (path id + bearer)
+  // and the queue's state; there is nothing for a body to say.
+  "POST /api/cluster-agents/{id}/claim",
 ]);
 
 /** Look up the documented body for a write route with no `zodValidate` schema. */

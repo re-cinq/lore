@@ -10,6 +10,7 @@ import type {
   AssemblyRunStartInput,
   StationRunFailure,
   StationRunStartInput,
+  ClaimedStationRun,
   AssemblyRunRecord,
   AssemblyRunSummary,
   StationRunRecord,
@@ -31,6 +32,12 @@ export interface SeedAssemblyLineNode {
   iteration: number;
   agentCrName: string | null;
   input: StationRunInput | null;
+  /** Optional so pre-flip test seeds stay valid; readers default to the
+   *  push-era meaning (`running`, no claim, no tags). */
+  status?: "queued" | "claimed" | "running";
+  clusterAgentId?: string | null;
+  requiredTags?: string[];
+  claimedAt?: Date | null;
   outcome: string | null;
   failureClass: string | null;
   failureDetail: string | null;
@@ -82,6 +89,7 @@ function inheritFromSource(
 export class InMemoryAssemblyRuns implements AssemblyRunsPort {
   rows: AssemblyRunRecord[] = [];
   nodes: SeedAssemblyLineNode[] = [];
+  private readonly dispatchSpecs = new Map<string, unknown>();
   events: SeedAssemblyLineEvent[] = [];
 
   constructor(public clock: () => Date = () => new Date()) {}
@@ -212,6 +220,9 @@ export class InMemoryAssemblyRuns implements AssemblyRunsPort {
   private async recordNodeStart(input: StationRunStartInput): Promise<string> {
     const id = String(this.nodes.length + 1);
 
+    if (input.dispatchSpec !== undefined) {
+      this.dispatchSpecs.set(id, input.dispatchSpec);
+    }
     this.nodes.push({
       id,
       stationRunId: randomUUID(),
@@ -220,6 +231,10 @@ export class InMemoryAssemblyRuns implements AssemblyRunsPort {
       iteration: input.iteration,
       agentCrName: input.agentCrName ?? null,
       input: input.input ?? null,
+      status: input.status ?? "running",
+      clusterAgentId: null,
+      requiredTags: input.requiredTags ?? [],
+      claimedAt: null,
       outcome: null,
       failureClass: null,
       failureDetail: null,
@@ -274,6 +289,60 @@ export class InMemoryAssemblyRuns implements AssemblyRunsPort {
     return { nodeRowId, stationRunId: created.stationRunId, created: true };
   }
 
+  async enqueueStationRunDispatch(
+    nodeRowId: string,
+    dispatchSpec: unknown,
+  ): Promise<void> {
+    const node = this.nodes.find((n) => n.id === nodeRowId);
+
+    if (node && node.outcome === null) {
+      this.dispatchSpecs.set(nodeRowId, dispatchSpec);
+    }
+  }
+
+  async claimNextStationRun(claimant: {
+    clusterAgentId: string;
+    tags: string[];
+  }): Promise<ClaimedStationRun | null> {
+    const next = this.nodes.find(
+      (n) =>
+        n.status === "queued" &&
+        n.outcome === null &&
+        this.dispatchSpecs.has(n.id) &&
+        (n.requiredTags ?? []).every((tag) => claimant.tags.includes(tag)),
+    );
+
+    if (!next) {
+      return null;
+    }
+    next.status = "claimed";
+    next.clusterAgentId = claimant.clusterAgentId;
+    next.claimedAt = this.clock();
+
+    return {
+      nodeRowId: next.id,
+      stationRunId: next.stationRunId,
+      assemblyRunId: next.assemblyRunId,
+      nodeId: next.nodeId,
+      iteration: next.iteration,
+      agentCrName: next.agentCrName,
+      dispatchSpec: this.dispatchSpecs.get(next.id) ?? null,
+    };
+  }
+
+  async requeueStationRun(nodeRowId: string): Promise<boolean> {
+    const node = this.nodes.find((n) => n.id === nodeRowId);
+
+    if (!node || node.outcome !== null) {
+      return false;
+    }
+    node.status = "queued";
+    node.clusterAgentId = null;
+    node.claimedAt = null;
+
+    return true;
+  }
+
   async finishStationRunOnce(
     nodeRowId: string,
     outcome: string,
@@ -298,7 +367,14 @@ export class InMemoryAssemblyRuns implements AssemblyRunsPort {
     // non-numeric id and silently no-op the sort).
     return this.nodes
       .filter((n) => n.assemblyRunId === assemblyRunId)
-      .sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true }));
+      .sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true }))
+      .map((n) => ({
+        ...n,
+        status: n.status ?? "running",
+        clusterAgentId: n.clusterAgentId ?? null,
+        requiredTags: n.requiredTags ?? [],
+        claimedAt: n.claimedAt ?? null,
+      }));
   }
 
   async list(query: AssemblyRunQuery): Promise<AssemblyRunRecord[]> {

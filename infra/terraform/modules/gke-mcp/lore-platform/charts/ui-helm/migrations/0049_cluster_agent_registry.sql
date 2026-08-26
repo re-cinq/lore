@@ -31,10 +31,16 @@ CREATE TABLE IF NOT EXISTS pipeline.cluster_agents (
 ALTER TABLE pipeline.station_runs
   ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'running'
     CHECK (status IN ('queued', 'claimed', 'running')),
-  ADD COLUMN IF NOT EXISTS cluster_agent_id UUID
-    REFERENCES pipeline.cluster_agents(id),
+  -- Correlation id, deliberately no FK (the agent_run_events precedent): the
+  -- claimant is authenticated against the registry at the API layer, and a
+  -- claim row must survive registry churn rather than block on it.
+  ADD COLUMN IF NOT EXISTS cluster_agent_id UUID,
   ADD COLUMN IF NOT EXISTS required_tags TEXT[] NOT NULL DEFAULT '{}',
-  ADD COLUMN IF NOT EXISTS claimed_at TIMESTAMPTZ;
+  ADD COLUMN IF NOT EXISTS claimed_at TIMESTAMPTZ,
+  -- The full dispatch spec a claiming cluster-agent runs with (LoreTaskSpec),
+  -- written at enqueue. Separate from `input` (the size-bounded human-readable
+  -- record) because this one is the machine contract and must be complete.
+  ADD COLUMN IF NOT EXISTS dispatch_spec JSONB;
 
 -- The claim scan: queued, open rows only. Partial so the terminal bulk of the
 -- table never enters the index.

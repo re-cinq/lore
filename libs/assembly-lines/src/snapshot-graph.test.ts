@@ -13,6 +13,7 @@ nodes:
     type: agent
     prompt_ref: implementation
     model: claude-sonnet-4-6
+    required_tags: ["gpu"]
     description: write the code
   - id: check
     type: validate
@@ -85,6 +86,11 @@ describe("snapshotGraph", () => {
       model: "claude-sonnet-4-6",
     });
     expect(graph().nodes[1]).toMatchObject({ timeout_minutes: 5 });
+  });
+
+  it("carries a node's required_tags into the clone so the enqueue can read them", () => {
+    expect(graph().nodes[0]).toMatchObject({ required_tags: ["gpu"] });
+    expect(graph().nodes[1].required_tags).toBeUndefined();
   });
 
   it("carries the knobs a station pod receives as params", () => {

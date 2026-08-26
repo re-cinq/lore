@@ -93,6 +93,27 @@ export interface StationRunStartInput {
    *  writer: a converged duplicate (the relaunch door re-dispatching the same
    *  visit) keeps what the row already says rather than rewriting history. */
   input?: StationRunInput;
+  /** Pull-based dispatch (specs/running-stations-in-any-k8s-cluster FR3):
+   *  `queued` parks the row for a cluster-agent's claim; the default `running`
+   *  is the push path's meaning and the pre-flip rows' backfill. */
+  status?: "queued" | "running";
+  /** Capability tags a claimant must carry (`required_tags <@ tags`). */
+  requiredTags?: string[];
+  /** The complete machine dispatch contract (LoreTaskSpec) a claimant runs
+   *  with. Stored whole — unlike `input`, which is the bounded human record. */
+  dispatchSpec?: unknown;
+}
+
+/** What a successful claim hands the cluster-agent: the visit's identity and
+ *  the complete dispatch contract it was enqueued with. */
+export interface ClaimedStationRun {
+  nodeRowId: string;
+  stationRunId: string;
+  assemblyRunId: string;
+  nodeId: string;
+  iteration: number;
+  agentCrName: string | null;
+  dispatchSpec: unknown;
 }
 
 /**
@@ -217,6 +238,31 @@ export interface AssemblyRunsPort {
   ): Promise<boolean>;
   /** The line's node rows in visit order (row id). */
   listStationRuns(assemblyRunId: string): Promise<StationRunRecord[]>;
+  /**
+   * The claim (FR3): atomically take the oldest `queued` open visit whose
+   * `required_tags` the claimant's tags satisfy — one statement, so concurrent
+   * claimants are safe — or null when nothing matches.
+   */
+  /**
+   * Arm a queued visit with its complete dispatch contract. Written after
+   * `ensureStationRun` because the contract carries the minted stationRunId;
+   * the claim takes only armed rows, so a crash between the two leaves a row
+   * the queue-wait bound settles rather than a claim with nothing to run.
+   */
+  enqueueStationRunDispatch(
+    nodeRowId: string,
+    dispatchSpec: unknown,
+  ): Promise<void>;
+  claimNextStationRun(claimant: {
+    clusterAgentId: string;
+    tags: string[];
+  }): Promise<ClaimedStationRun | null>;
+  /**
+   * Reset a claimed-but-lost visit back to `queued` on the SAME row (the
+   * row-id-as-visit-order contract), clearing the claim; false when the visit
+   * already reached an outcome.
+   */
+  requeueStationRun(nodeRowId: string): Promise<boolean>;
   /** Open (`queued`/`running`) lines, oldest first — the reaper's work list. */
   listOpen(): Promise<AssemblyRunRecord[]>;
   /**

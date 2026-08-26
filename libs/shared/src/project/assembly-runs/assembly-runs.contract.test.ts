@@ -893,5 +893,130 @@ describe.each(IMPLEMENTATIONS)(
         },
       ]);
     });
+
+    // ── Pull-based dispatch (specs/running-stations-in-any-k8s-cluster FR3) ──
+
+    it("claims the oldest queued run whose required tags the claimant satisfies", async () => {
+      const { port, repo } = make();
+      const runId = await port.start({ blueprintName: "code-review", repo });
+
+      await port.ensureStationRun({
+        assemblyRunId: runId,
+        nodeId: "review",
+        iteration: 1,
+        agentCrName: "cr-review",
+        status: "queued",
+        requiredTags: ["gpu"],
+        dispatchSpec: { taskType: "review", prompt: "p" },
+      });
+
+      expect(
+        await port.claimNextStationRun({
+          clusterAgentId: "22222222-2222-2222-2222-222222222222",
+          tags: ["node:agent"],
+        }),
+      ).toBeNull();
+      const claimed = await port.claimNextStationRun({
+        clusterAgentId: "22222222-2222-2222-2222-222222222222",
+        tags: ["gpu", "node:agent"],
+      });
+
+      expect(claimed).toMatchObject({
+        assemblyRunId: runId,
+        nodeId: "review",
+        iteration: 1,
+        agentCrName: "cr-review",
+        dispatchSpec: { taskType: "review", prompt: "p" },
+      });
+      const visit = (await port.listStationRuns(runId))[0];
+
+      expect(visit).toMatchObject({
+        status: "claimed",
+        clusterAgentId: "22222222-2222-2222-2222-222222222222",
+      });
+      expect(visit.claimedAt).toBeInstanceOf(Date);
+    });
+
+    it("a queued visit with no dispatch contract is not claimable", async () => {
+      const { port, repo } = make();
+      const runId = await port.start({ blueprintName: "code-review", repo });
+
+      await port.ensureStationRun({
+        assemblyRunId: runId,
+        nodeId: "review",
+        iteration: 1,
+        status: "queued",
+      });
+
+      expect(
+        await port.claimNextStationRun({
+          clusterAgentId: "22222222-2222-2222-2222-222222222222",
+          tags: [],
+        }),
+      ).toBeNull();
+    });
+
+    it("a claimed run is not claimable again, and a running row never is", async () => {
+      const { port, repo } = make();
+      const runId = await port.start({ blueprintName: "code-review", repo });
+
+      const armed = await port.ensureStationRun({
+        assemblyRunId: runId,
+        nodeId: "review",
+        iteration: 1,
+        status: "queued",
+      });
+
+      await port.enqueueStationRunDispatch(armed.nodeRowId, { prompt: "p" });
+      await port.ensureStationRun({
+        assemblyRunId: runId,
+        nodeId: "done",
+        iteration: 1,
+      });
+
+      const first = await port.claimNextStationRun({
+        clusterAgentId: "22222222-2222-2222-2222-222222222222",
+        tags: [],
+      });
+
+      expect(first?.nodeId).toBe("review");
+      expect(
+        await port.claimNextStationRun({
+          clusterAgentId: "33333333-3333-3333-3333-333333333333",
+          tags: [],
+        }),
+      ).toBeNull();
+    });
+
+    it("requeue resets the same row to queued and clears the claim; a finished visit refuses", async () => {
+      const { port, repo } = make();
+      const runId = await port.start({ blueprintName: "code-review", repo });
+      const { nodeRowId } = await port.ensureStationRun({
+        assemblyRunId: runId,
+        nodeId: "review",
+        iteration: 1,
+        status: "queued",
+      });
+
+      await port.enqueueStationRunDispatch(nodeRowId, { prompt: "p" });
+      await port.claimNextStationRun({
+        clusterAgentId: "22222222-2222-2222-2222-222222222222",
+        tags: [],
+      });
+
+      expect(await port.requeueStationRun(nodeRowId)).toBe(true);
+      const visit = (await port.listStationRuns(runId))[0];
+
+      expect(visit).toMatchObject({
+        status: "queued",
+        clusterAgentId: null,
+        claimedAt: null,
+      });
+      expect((await port.listStationRuns(runId))[0].id).toBe(nodeRowId);
+
+      await port.finishStationRunOnce(nodeRowId, "success");
+
+      expect(await port.requeueStationRun(nodeRowId)).toBe(false);
+    });
   },
 );

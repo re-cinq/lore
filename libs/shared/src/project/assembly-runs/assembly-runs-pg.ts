@@ -1,4 +1,7 @@
-import { StationRunInputSchema } from "../../models/station-run.js";
+import {
+  StationRunInputSchema,
+  StationRunStatusSchema,
+} from "../../models/station-run.js";
 import { enforceTrue } from "../../lib/enforce.js";
 import { resolveResumePrefix } from "./resume.js";
 import { fanOutClause } from "../events/fan-out.js";
@@ -12,6 +15,7 @@ import type {
   AssemblyRunStartInput,
   StationRunFailure,
   StationRunStartInput,
+  ClaimedStationRun,
   AssemblyRunRecord,
   AssemblyRunSummary,
   StationRunRecord,
@@ -306,8 +310,10 @@ export class PgAssemblyRuns implements AssemblyRunsPort {
     // row as absent under its snapshot and returns zero rows. `xmax = 0` is true
     // only for a fresh insert, so it distinguishes create from converged duplicate.
     const { rows } = await this.pool.query(
-      `INSERT INTO pipeline.station_runs (assembly_run_id, node_id, iteration, agent_cr_name, input)
-       VALUES ($1, $2, $3, $4, $5::jsonb)
+      `INSERT INTO pipeline.station_runs
+         (assembly_run_id, node_id, iteration, agent_cr_name, input,
+          status, required_tags, dispatch_spec)
+       VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7, $8::jsonb)
        ON CONFLICT (assembly_run_id, node_id, iteration)
          DO UPDATE SET input = COALESCE(pipeline.station_runs.input, EXCLUDED.input)
        RETURNING id, station_run_id, (xmax = 0) AS created`,
@@ -317,6 +323,11 @@ export class PgAssemblyRuns implements AssemblyRunsPort {
         input.iteration,
         input.agentCrName ?? null,
         input.input ? JSON.stringify(input.input) : null,
+        input.status ?? "running",
+        input.requiredTags ?? [],
+        input.dispatchSpec !== undefined
+          ? JSON.stringify(input.dispatchSpec)
+          : null,
       ],
     );
 
@@ -362,9 +373,83 @@ export class PgAssemblyRuns implements AssemblyRunsPort {
     return rows.length === 1;
   }
 
+  async enqueueStationRunDispatch(
+    nodeRowId: string,
+    dispatchSpec: unknown,
+  ): Promise<void> {
+    await this.pool.query(
+      `UPDATE pipeline.station_runs
+          SET dispatch_spec = $2::jsonb
+        WHERE id = $1 AND outcome IS NULL`,
+      [nodeRowId, JSON.stringify(dispatchSpec)],
+    );
+  }
+
+  async claimNextStationRun(claimant: {
+    clusterAgentId: string;
+    tags: string[];
+  }): Promise<ClaimedStationRun | null> {
+    // One statement: the FOR UPDATE SKIP LOCKED subquery and the UPDATE share a
+    // snapshot, so two concurrent claimants can never take the same row.
+    const { rows } = await this.pool.query(
+      `WITH next AS (
+         SELECT id FROM pipeline.station_runs
+          WHERE status = 'queued' AND outcome IS NULL
+            AND dispatch_spec IS NOT NULL
+            AND required_tags <@ $2::text[]
+          ORDER BY id
+          FOR UPDATE SKIP LOCKED
+          LIMIT 1
+       )
+       UPDATE pipeline.station_runs sr
+          SET status = 'claimed', cluster_agent_id = $1, claimed_at = now()
+         FROM next
+        WHERE sr.id = next.id
+       RETURNING sr.id, sr.station_run_id, sr.assembly_run_id, sr.node_id,
+                 sr.iteration, sr.agent_cr_name, sr.dispatch_spec`,
+      [claimant.clusterAgentId, claimant.tags],
+    );
+
+    if (!rows[0]) {
+      return null;
+    }
+    const row = rows[0] as {
+      id: number | string;
+      station_run_id: string;
+      assembly_run_id: string;
+      node_id: string;
+      iteration: number;
+      agent_cr_name: string | null;
+      dispatch_spec: unknown;
+    };
+
+    return {
+      nodeRowId: String(row.id),
+      stationRunId: row.station_run_id,
+      assemblyRunId: row.assembly_run_id,
+      nodeId: row.node_id,
+      iteration: row.iteration,
+      agentCrName: row.agent_cr_name,
+      dispatchSpec: row.dispatch_spec,
+    };
+  }
+
+  async requeueStationRun(nodeRowId: string): Promise<boolean> {
+    const { rows } = await this.pool.query(
+      `UPDATE pipeline.station_runs
+          SET status = 'queued', cluster_agent_id = NULL, claimed_at = NULL
+        WHERE id = $1 AND outcome IS NULL
+       RETURNING id`,
+      [nodeRowId],
+    );
+
+    return rows.length === 1;
+  }
+
   async listStationRuns(assemblyRunId: string): Promise<StationRunRecord[]> {
     const { rows } = await this.pool.query(
       `SELECT id, station_run_id, assembly_run_id, node_id, iteration, outcome,
+              status, cluster_agent_id, required_tags, claimed_at,
               failure_class, failure_detail,
               agent_cr_name, input, commit_sha, started_at, finished_at
          FROM pipeline.station_runs
@@ -606,6 +691,10 @@ function toNodeRecord(row: {
   assembly_run_id: string;
   node_id: string;
   iteration: number;
+  status?: string | null;
+  cluster_agent_id?: string | null;
+  required_tags?: string[] | null;
+  claimed_at?: Date | null;
   outcome: string | null;
   failure_class: string | null;
   failure_detail: string | null;
@@ -621,6 +710,14 @@ function toNodeRecord(row: {
     assemblyRunId: row.assembly_run_id,
     nodeId: row.node_id,
     iteration: row.iteration,
+    // Pre-migration reads (SELECT lists without the lifecycle columns) default
+    // to the push-era meaning, same as the InMemory double.
+    status: StationRunStatusSchema.catch("running").parse(
+      row.status ?? "running",
+    ),
+    clusterAgentId: row.cluster_agent_id ?? null,
+    requiredTags: row.required_tags ?? [],
+    claimedAt: row.claimed_at ?? null,
     outcome: row.outcome,
     failureClass: row.failure_class,
     failureDetail: row.failure_detail,
