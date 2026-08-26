@@ -231,7 +231,9 @@ export function implementationLoopRoutes(
             priority: priorityOf(i),
             pr_url: null,
             state: "queued",
-            created_at: i.createdAt ?? null,
+            created_at: i.createdAt
+              ? new Date(i.createdAt).toISOString()
+              : null,
             run_id: null,
             pipeline: null,
           }));

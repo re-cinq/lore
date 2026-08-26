@@ -159,7 +159,7 @@ describe("/api/repos/{owner}/{repo}/implementation-loop", () => {
       },
       next: [
         {
-          created_at: "2026-08-03T00:00:00Z",
+          created_at: "2026-08-03T00:00:00.000Z",
           issue_number: 8,
           issue_url: "https://gh/i/8",
           title: "Ticket 8",
@@ -170,7 +170,7 @@ describe("/api/repos/{owner}/{repo}/implementation-loop", () => {
           pipeline: null,
         },
         {
-          created_at: "2026-08-02T00:00:00Z",
+          created_at: "2026-08-02T00:00:00.000Z",
           issue_number: 9,
           issue_url: "https://gh/i/9",
           title: "Ticket 9",

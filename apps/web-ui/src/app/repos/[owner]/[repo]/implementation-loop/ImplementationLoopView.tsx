@@ -35,7 +35,6 @@ export function timeAgo(iso: string | null, now: Date = new Date()): string {
     [60 * 60 * 24 * 30, "month"],
     [60 * 60 * 24, "day"],
     [60 * 60, "hour"],
-    [60, "minute"],
   ];
 
   for (const [span, unit] of table) {
@@ -45,8 +44,11 @@ export function timeAgo(iso: string | null, now: Date = new Date()): string {
       return `${n} ${unit}${n === 1 ? "" : "s"} ago`;
     }
   }
+  // Reachable by construction: the early return handled < 60s, the loop
+  // handled >= 1h, so what is left is always minutes.
+  const minutes = Math.floor(seconds / 60);
 
-  return "just now";
+  return `${minutes} minute${minutes === 1 ? "" : "s"} ago`;
 }
 
 /** Pure view (DDAU): data down as `loop`, the toggle back up through the bound
