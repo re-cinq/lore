@@ -99,14 +99,16 @@ A new `pipeline.cluster_agents` table is the registry of execution clusters.
   `pipeline.cluster_agents.token_hash`, following the existing
   `pipeline.api_tokens` pattern; every subsequent lore-api call from that
   agent authenticates with it.
-- Registration is idempotent on `name`: re-registering an existing name
-  rotates the token and updates `tags` and `cluster_info` rather than
-  creating a duplicate row.
+- Registration is idempotent on `name` — but only for the identity holder:
+  re-registering an existing name **with the current per-agent bearer token**
+  rotates the token and updates `tags` and `cluster_info`. Re-registering a
+  known name without it is rejected `409` — the shared registration token
+  alone must never suffice to take over a live cluster's identity.
 - The satellite persists its identity in a Kubernetes Secret
   (`lore-cluster-agent-identity`) so pod restarts do not re-register.
-- The registry ships as a migration in
-  `infra/terraform/modules/gke-mcp/lore-platform/charts/ui-helm/migrations/`
-  (next free number — `0049_cluster_agent_registry.sql` at time of writing):
+- The registry ships as the next migration in sequence
+  (`NNNN_cluster_agent_registry.sql`) under
+  `infra/terraform/modules/gke-mcp/lore-platform/charts/ui-helm/migrations/`:
   the table plus columns `status`, `cluster_agent_id`, `required_tags`,
   `claimed_at` on `pipeline.station_runs`.
 - A `ClusterAgent` Zod model in `libs/shared/src/models/` and a
@@ -147,7 +149,12 @@ one dispatch mechanism, not a special case plus a remote case.
   `SELECT … FOR UPDATE SKIP LOCKED` CTE that sets `status = 'claimed'`,
   `cluster_agent_id`, and `claimed_at` in one statement, so concurrent
   claimants are safe.
-- A claim request with no matching queued run returns `204`.
+- Claim and heartbeat calls authenticate with the per-agent bearer token
+  issued at registration, like every other lore-api call the agent makes.
+- A claim request with no matching queued run returns `204`. An idle agent
+  backs its polling off (doubling to a 60 s ceiling, resetting on the first
+  hit), so a fleet of quiet satellites costs the API a bounded trickle
+  rather than O(N) at the floor interval.
 - The claim response carries the **fully rendered** `AgentDefinition` +
   `Station` CRD pair, not a name reference. The claiming cluster-agent
   applies the pair idempotently in its own cluster (the same apply it
@@ -168,7 +175,9 @@ pull, so recovery splits by who holds the claim:
 - A cluster-agent posts `POST /api/cluster-agents/{id}/heartbeat` every 30 s,
   bumping `last_seen_at`.
 - The assembly-run reaper (existing cadence) marks cluster-agents with
-  `last_seen_at < now() - 2 minutes` as `offline`.
+  `last_seen_at < now() - 5 minutes` as `offline` — ten missed heartbeats,
+  so a transient network blip or one dropped request never requeues live
+  work.
 - The reaper's CR-status recovery arm (`readAgentStatus` → relaunch on null)
   applies **only** to runs claimed by the central cluster's agent — the one
   cluster `CLUSTER_AGENT_URL` can reach. For satellite-claimed runs that arm
@@ -176,8 +185,11 @@ pull, so recovery splits by who holds the claim:
   liveness, never a CR read that would come back null and trigger a
   duplicate central launch.
 - A run claimed by an **offline** agent is reset to `queued` (same row, per
-  the lifecycle section) and recorded in `pipeline.audit_log` as
-  `cluster_agent_offline`, so another agent picks it up. Re-execution
+  the lifecycle section); the reaper — the same process that set the agent
+  `offline` — writes a `cluster_agent_offline` entry to `pipeline.audit_log`
+  recording the `cluster_agent_id`, the `station_run_id`, and the elapsed
+  time since `claimed_at`, so another agent picks the run up and the outage
+  is attributable. Re-execution
   resumes on the run's existing branch — branch-as-state already makes a
   node re-run land on whatever commits the dead attempt pushed.
 - A run whose claiming agent is **alive** but which exceeds its node timeout
@@ -248,8 +260,9 @@ CREATE TABLE pipeline.cluster_agents (
   token_hash     text NOT NULL,
   registered_at  timestamptz NOT NULL DEFAULT now(),
   last_seen_at   timestamptz NOT NULL DEFAULT now(),
-  status         text NOT NULL DEFAULT 'active',
-  cluster_info   jsonb
+  status         text NOT NULL DEFAULT 'active'
+                   CHECK (status IN ('active', 'offline')),
+  cluster_info   jsonb  -- operator metadata, e.g. {"k8s_version": "1.30", "region": "eu-west4", "gpu": "h100"}
 );
 ```
 
@@ -259,6 +272,32 @@ rows), `cluster_agent_id uuid REFERENCES pipeline.cluster_agents(id)`,
 `required_tags text[] NOT NULL DEFAULT '{}'`, and `claimed_at timestamptz`,
 plus a partial index on `(status) WHERE outcome IS NULL` to back the claim
 scan.
+
+## Rollout: from push to pull without a flag-day
+
+The cutover from `ClusterAgentClient` push to claim-based pull is staged so
+every deploy leaves a working dispatch path:
+
+1. **Registry first** (FR1/FR2): the migration, endpoints, and tag columns
+   land while the launch seam still pushes. Nothing consumes them yet;
+   `status` defaults every existing and newly pushed row to `running`, which
+   is exactly what the push path means.
+2. **The central agent registers and claims**: the central cluster-agent
+   deploys with the claim loop enabled and registers itself (tags covering
+   every node type). The launch seam still pushes, so the claim loop finds
+   nothing `queued` — both paths are live, one is idle.
+3. **The seam flips**: the Floor deploys with the launch seam writing
+   `queued` instead of pushing. In-flight runs dispatched under push are
+   untouched — their rows are `running` with an Agent CR, and the reaper's
+   existing CR-status arm covers them to terminality. New launches are
+   claimed by the central agent within one poll interval.
+4. **The push path is deleted** once no pre-flip run is open: the launch
+   seam's `ClusterAgentClient` dispatch call and its wiring go away
+   (delete-dead, not dedup). Satellites can register from step 3 onward.
+
+Rollback at any stage is the reverse deploy; step 3's flip is the only
+behavioural change, and it is a single deploy boundary, not a long-lived
+config flag.
 
 ## Out of Scope
 
@@ -288,7 +327,7 @@ scan.
   minikube acceptance walk ends with a PR authored from a locally executed
   station run.
 - FR4: killing a satellite mid-run requeues its claim within the offline
-  threshold (2 min) plus two reaper cycles (one to mark offline, one to
+  threshold (5 min) plus two reaper cycles (one to mark offline, one to
   requeue), with a `cluster_agent_offline` audit entry; a satellite-claimed
   run in progress is never relaunched by the central reaper's CR-status arm.
 - FR5: an event posted with a valid per-agent token lands; the same event
@@ -297,5 +336,5 @@ scan.
 - FR6: the standalone chart renders in CI with only the documented values;
   a rendered manifest contains no Postgres reference.
 - FR7: the cluster list shows a just-registered agent as `active` and flips
-  it to `offline` within the offline threshold plus one reaper cycle after
-  its last heartbeat.
+  it to `offline` within the offline threshold (5 min) plus one reaper cycle
+  after its last heartbeat.
