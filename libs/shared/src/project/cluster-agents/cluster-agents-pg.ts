@@ -48,15 +48,20 @@ export class PgClusterAgents implements ClusterAgentsRepository {
     return this.selectOne("token_hash = $1", [tokenHash]);
   }
 
-  async create(input: RegisterClusterAgentInput): Promise<ClusterAgent> {
+  async create(input: RegisterClusterAgentInput): Promise<ClusterAgent | null> {
+    // ON CONFLICT DO NOTHING: two first-boots of the same name race between
+    // the route's findByName and this insert; the loser gets null, not a 23505.
     const { rows } = await this.pool.query<DbRow>(
       `INSERT INTO ${CLUSTER_AGENT_TABLE} (name, tags, token_hash, cluster_info)
        VALUES ($1, $2, $3, $4)
+       ON CONFLICT (name) DO NOTHING
        RETURNING ${selectList(CLUSTER_AGENT_COLUMNS)}`,
       [input.name, input.tags, input.tokenHash, input.clusterInfo],
     );
 
-    return fromRow<ClusterAgent>(CLUSTER_AGENT_COLUMNS, rows[0]);
+    return rows[0]
+      ? fromRow<ClusterAgent>(CLUSTER_AGENT_COLUMNS, rows[0])
+      : null;
   }
 
   async rotate(

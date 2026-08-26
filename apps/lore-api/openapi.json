@@ -36,6 +36,10 @@
       "description": "Per-repo agent definitions."
     },
     {
+      "name": "Cluster Agents",
+      "description": "Execution-cluster registry and pull-based dispatch."
+    },
+    {
       "name": "Ingestion",
       "description": "Content and graph ingestion."
     },
@@ -3552,7 +3556,7 @@
       "post": {
         "operationId": "post_api_cluster-agents_register",
         "summary": "POST /api/cluster-agents/register",
-        "tags": ["Other"],
+        "tags": ["Cluster Agents"],
         "security": [],
         "x-rate-limit-bucket": "default",
         "responses": {
@@ -3568,6 +3572,9 @@
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
           },
           "409": {
             "$ref": "#/components/responses/Conflict"
