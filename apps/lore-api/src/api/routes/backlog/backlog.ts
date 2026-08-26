@@ -39,6 +39,7 @@ const RECENT_LIMIT = 10;
 
 interface LoopTaskRow {
   id: string;
+  created_at: string | Date;
   status: string;
   description: string;
   issue_number: number | null;
@@ -124,6 +125,7 @@ function taskTicket(
     priority: priorityOf(issue),
     pr_url: row.pr_url,
     state: row.status,
+    created_at: new Date(row.created_at).toISOString(),
     run_id: run?.id ?? null,
     pipeline: pipelineOf(run, nodeRows),
   };
@@ -158,7 +160,7 @@ export function implementationLoopRoutes(
         // 2x the display cap: filtering out the open rows must still leave a
         // full recent list.
         const { rows: taskRows } = await pool.query<LoopTaskRow>(
-          `SELECT id, status, description, issue_number, issue_url, pr_url
+          `SELECT id, created_at, status, description, issue_number, issue_url, pr_url
              FROM pipeline.tasks
             WHERE target_repo = $1 AND task_type = 'implementation-loop'
             ORDER BY created_at DESC
@@ -229,6 +231,7 @@ export function implementationLoopRoutes(
             priority: priorityOf(i),
             pr_url: null,
             state: "queued",
+            created_at: i.createdAt ?? null,
             run_id: null,
             pipeline: null,
           }));

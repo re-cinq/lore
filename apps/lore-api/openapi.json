@@ -12456,6 +12456,9 @@
                   "state": {
                     "type": "string"
                   },
+                  "created_at": {
+                    "type": ["string", "null"]
+                  },
                   "run_id": {
                     "type": ["string", "null"]
                   },
@@ -12490,6 +12493,7 @@
                   "priority",
                   "pr_url",
                   "state",
+                  "created_at",
                   "run_id",
                   "pipeline"
                 ],
@@ -12526,6 +12530,9 @@
                 "state": {
                   "type": "string"
                 },
+                "created_at": {
+                  "type": ["string", "null"]
+                },
                 "run_id": {
                   "type": ["string", "null"]
                 },
@@ -12560,6 +12567,7 @@
                 "priority",
                 "pr_url",
                 "state",
+                "created_at",
                 "run_id",
                 "pipeline"
               ],
@@ -12589,6 +12597,9 @@
                 "state": {
                   "type": "string"
                 },
+                "created_at": {
+                  "type": ["string", "null"]
+                },
                 "run_id": {
                   "type": ["string", "null"]
                 },
@@ -12623,6 +12634,7 @@
                 "priority",
                 "pr_url",
                 "state",
+                "created_at",
                 "run_id",
                 "pipeline"
               ],

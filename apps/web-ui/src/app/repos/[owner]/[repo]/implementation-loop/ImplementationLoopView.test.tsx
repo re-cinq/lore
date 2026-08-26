@@ -11,6 +11,7 @@ const ticket = (over: Partial<LoopTicket> = {}): LoopTicket => ({
   priority: "priority:high",
   pr_url: null,
   state: "queued",
+  created_at: "2026-08-01T00:00:00Z",
   run_id: null,
   pipeline: null,
   ...over,
@@ -82,17 +83,36 @@ describe("ImplementationLoopView", () => {
     expect(queryByTestId("mini-pipeline")).toBeNull();
   });
 
-  it("links the live pipeline view when a run is in flight", () => {
-    const { getByText } = renderView({
-      current: ticket({ state: "running" }),
-      current_run_id: "run-42",
+  it("renders worked tickets as table rows with status, ticket, stages, actions", () => {
+    const { getByTestId, getByText } = renderView({
+      current: ticket({
+        state: "running",
+        run_id: "run-42",
+        created_at: "2026-08-26T06:00:00Z",
+        pr_url: "https://gh/pr/70",
+      }),
     });
 
-    expect(
-      (getByText("Live pipeline view →") as HTMLAnchorElement).getAttribute(
-        "href",
-      ),
-    ).toBe("/assembly-runs/run-42");
+    expect(getByTestId("ticket-table")).toBeTruthy();
+    expect(getByTestId("ticket-status").textContent).toBe("running");
+    expect(getByTestId("ticket-status").className).toContain("tone_info");
+    expect(getByTestId("ticket-time").getAttribute("title")).toBe(
+      "2026-08-26T06:00:00Z",
+    );
+    expect((getByText("Run") as HTMLAnchorElement).getAttribute("href")).toBe(
+      "/assembly-runs/run-42",
+    );
+    expect((getByText("PR") as HTMLAnchorElement).getAttribute("href")).toBe(
+      "https://gh/pr/70",
+    );
+  });
+
+  it("badges an unknown task status in the danger tone", () => {
+    const { getByTestId } = renderView({
+      current: ticket({ state: "haunted", created_at: null }),
+    });
+
+    expect(getByTestId("ticket-status").className).toContain("tone_danger");
   });
 
   it("says plainly when no ticket is in flight instead of an empty container", () => {
@@ -161,5 +181,19 @@ describe("ImplementationLoopView", () => {
     });
 
     expect(getByText("completed")).toBeTruthy();
+  });
+});
+
+describe("timeAgo", () => {
+  const now = new Date("2026-08-26T10:00:00Z");
+
+  it("renders seconds, minutes, hours, and days at the right unit", async () => {
+    const { timeAgo } = await import("./ImplementationLoopView");
+
+    expect(timeAgo("2026-08-26T09:59:30Z", now)).toBe("just now");
+    expect(timeAgo("2026-08-26T09:57:00Z", now)).toBe("3 minutes ago");
+    expect(timeAgo("2026-08-26T09:00:00Z", now)).toBe("1 hour ago");
+    expect(timeAgo("2026-08-24T10:00:00Z", now)).toBe("2 days ago");
+    expect(timeAgo(null, now)).toBe("");
   });
 });
