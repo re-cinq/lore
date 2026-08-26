@@ -31,3 +31,50 @@
   max-width: 60rem;
   margin-bottom: 1.5rem;
 }
+
+.miniPipeline {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  text-decoration: none;
+}
+
+.dot {
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.success {
+  background: #2da160;
+}
+
+.failed {
+  background: #dd2b0e;
+}
+
+.changes_requested {
+  background: #c17d10;
+}
+
+.running {
+  background: #1f75cb;
+  animation: miniPulse 1.2s ease-in-out infinite;
+}
+
+.waiting {
+  background: transparent;
+  border: 2px solid #1f75cb;
+}
+
+.pending {
+  background: transparent;
+  border: 2px solid #999;
+}
+
+@keyframes miniPulse {
+  50% {
+    opacity: 0.4;
+  }
+}

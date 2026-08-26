@@ -86,6 +86,46 @@ export default function ImplementationLoopView({
   );
 }
 
+/** Tone per node state; anything unrecognised renders as failed-red so a new
+ *  outcome is loud rather than invisible. */
+const DOT_STATES = new Set([
+  "success",
+  "running",
+  "waiting",
+  "pending",
+  "changes_requested",
+]);
+
+function MiniPipeline({ ticket }: { ticket: LoopTicket }) {
+  if (!ticket.pipeline || !ticket.run_id) {
+    return null;
+  }
+
+  return (
+    <a
+      className={styles.miniPipeline}
+      href={`/assembly-runs/${ticket.run_id}`}
+      title="Open the live run"
+      data-testid="mini-pipeline"
+    >
+      {ticket.pipeline.map((node) => (
+        <span
+          key={node.node_id}
+          title={`${node.node_id}: ${node.state}`}
+          data-testid={`mini-node-${node.node_id}`}
+          className={`${styles.dot} ${
+            styles[
+              DOT_STATES.has(node.state)
+                ? (node.state as keyof typeof styles)
+                : "failed"
+            ]
+          }`}
+        />
+      ))}
+    </a>
+  );
+}
+
 function Ticket({ ticket }: { ticket: LoopTicket }) {
   return (
     <div className={styles.ticket}>
@@ -106,6 +146,7 @@ function Ticket({ ticket }: { ticket: LoopTicket }) {
           PR
         </a>
       )}
+      <MiniPipeline ticket={ticket} />
       <span className={styles.state}>{ticket.state}</span>
     </div>
   );

@@ -73,6 +73,7 @@ describe("/api/repos/{owner}/{repo}/implementation-loop", () => {
       .mockResolvedValueOnce({
         rows: [
           {
+            id: "task-7",
             status: "running",
             description: "Ticket 7",
             issue_number: 7,
@@ -80,6 +81,7 @@ describe("/api/repos/{owner}/{repo}/implementation-loop", () => {
             pr_url: "https://gh/pr/70",
           },
           {
+            id: "task-5",
             status: "completed",
             description: "Ticket 5",
             issue_number: 5,
@@ -88,7 +90,39 @@ describe("/api/repos/{owner}/{repo}/implementation-loop", () => {
           },
         ],
       })
-      .mockResolvedValueOnce({ rows: [{ id: "run-42" }] });
+      .mockResolvedValueOnce({ rows: [{ id: "run-42" }] })
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            id: "run-42",
+            task_id: "task-7",
+            status: "running",
+            graph: {
+              nodes: [
+                { id: "implement", type: "agent" },
+                { id: "validate", type: "validate" },
+                { id: "await-pr", type: "pr_review" },
+              ],
+            },
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            assembly_run_id: "run-42",
+            node_id: "implement",
+            iteration: 1,
+            outcome: "success",
+          },
+          {
+            assembly_run_id: "run-42",
+            node_id: "validate",
+            iteration: 1,
+            outcome: null,
+          },
+        ],
+      });
     vi.mocked(projectFor).mockResolvedValue({
       issues: {
         list: async () => [
@@ -113,6 +147,12 @@ describe("/api/repos/{owner}/{repo}/implementation-loop", () => {
         priority: "priority:high",
         pr_url: "https://gh/pr/70",
         state: "running",
+        run_id: "run-42",
+        pipeline: [
+          { node_id: "implement", state: "success" },
+          { node_id: "validate", state: "running" },
+          { node_id: "await-pr", state: "pending" },
+        ],
       },
       next: [
         {
@@ -122,6 +162,8 @@ describe("/api/repos/{owner}/{repo}/implementation-loop", () => {
           priority: "priority:medium",
           pr_url: null,
           state: "queued",
+          run_id: null,
+          pipeline: null,
         },
         {
           issue_number: 9,
@@ -130,6 +172,8 @@ describe("/api/repos/{owner}/{repo}/implementation-loop", () => {
           priority: "priority:low",
           pr_url: null,
           state: "queued",
+          run_id: null,
+          pipeline: null,
         },
       ],
       recent: [
@@ -140,6 +184,8 @@ describe("/api/repos/{owner}/{repo}/implementation-loop", () => {
           priority: null,
           pr_url: "https://gh/pr/50",
           state: "completed",
+          run_id: null,
+          pipeline: null,
         },
       ],
     });
@@ -319,5 +365,104 @@ describe("/api/repos/{owner}/{repo}/implementation-loop", () => {
 
   it("PUT rejects a payload without a boolean enabled", async () => {
     expect((await put({ enabled: "yes" })).statusCode).toBe(400);
+  });
+});
+
+describe("pipelineOf", () => {
+  const run = {
+    id: "run-1",
+    task_id: "task-1",
+    status: "running",
+    graph: {
+      nodes: [
+        { id: "implement", type: "agent" },
+        { id: "await-pr", type: "pr_review" },
+      ],
+    },
+  };
+
+  it("shows an open pr_review row as waiting and takes the latest iteration", async () => {
+    const { pipelineOf } = await import("./backlog.js");
+
+    expect(
+      pipelineOf(run, [
+        {
+          assembly_run_id: "run-1",
+          node_id: "implement",
+          iteration: 1,
+          outcome: "failed",
+        },
+        {
+          assembly_run_id: "run-1",
+          node_id: "implement",
+          iteration: 2,
+          outcome: "success",
+        },
+        {
+          assembly_run_id: "run-1",
+          node_id: "await-pr",
+          iteration: 1,
+          outcome: null,
+        },
+        {
+          assembly_run_id: "other-run",
+          node_id: "implement",
+          iteration: 9,
+          outcome: "failed",
+        },
+      ]),
+    ).toEqual([
+      { node_id: "implement", state: "success" },
+      { node_id: "await-pr", state: "waiting" },
+    ]);
+  });
+
+  it("is null when the run or its graph is missing", async () => {
+    const { pipelineOf } = await import("./backlog.js");
+
+    expect(pipelineOf(undefined, [])).toBeNull();
+    expect(pipelineOf({ ...run, graph: null }, [])).toBeNull();
+  });
+});
+
+describe("GET on a repo with no loop tasks yet", () => {
+  function get(pool: unknown) {
+    return buildServer(() => pool as never).inject({
+      method: "GET",
+      url: "/api/repos/re-cinq/lore/implementation-loop",
+      headers: AUTH,
+    });
+  }
+
+  it("serves the queue without issuing empty ANY() queries", async () => {
+    process.env.LORE_INGEST_TOKEN = LEGACY_TOKEN;
+    const pool = makePool();
+
+    pool.query
+      .mockResolvedValueOnce({
+        rows: [{ settings: { implementation_loop: { enabled: true } } }],
+      })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValue({ rows: [] });
+    vi.mocked(projectFor).mockResolvedValue({
+      issues: {
+        list: async () => [
+          openIssue(3, ["priority:low"], "2026-08-01T00:00:00Z"),
+        ],
+      },
+    } as never);
+
+    const res = await get(pool);
+
+    expect(res.statusCode).toBe(200);
+    expect(JSON.parse(res.payload)).toMatchObject({
+      next: [{ issue_number: 3 }],
+      recent: [],
+    });
+    const anyCalls = pool.query.mock.calls.filter(([sql]) =>
+      String(sql).includes("ANY("),
+    );
+
+    expect(anyCalls).toHaveLength(0);
   });
 });

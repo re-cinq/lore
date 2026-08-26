@@ -6,6 +6,13 @@
 
 import { z } from "zod";
 
+/** One node of a ticket's run, in graph order — the mini pipeline's dot. */
+export const PipelineNodeSchema = z.object({
+  node_id: z.string(),
+  /** success | failed | changes_requested | running | waiting | pending */
+  state: z.string(),
+});
+
 export const TicketSchema = z.object({
   issue_number: z.number().int(),
   issue_url: z.string().nullable(),
@@ -15,6 +22,10 @@ export const TicketSchema = z.object({
   pr_url: z.string().nullable(),
   /** Task status for current/recent; `queued` for the not-yet-picked. */
   state: z.string(),
+  /** The ticket's run, for the mini graph + live-view link; null pre-pick. */
+  run_id: z.string().nullable(),
+  /** Node states in graph order; null when no run exists yet. */
+  pipeline: z.array(PipelineNodeSchema).nullable(),
 });
 
 export const ImplementationLoopSchema = z.object({
