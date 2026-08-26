@@ -67,6 +67,11 @@ const NodeSchema = z.strictObject({
   station_ref: z.string().optional(),
   /** Per-node run timeout; falls back to the referenced Station's deadline. */
   timeout_minutes: z.number().int().positive().optional(),
+  /** Capability tags a claiming cluster-agent must carry (`required_tags <@
+   *  tags`, specs/running-stations-in-any-k8s-cluster FR2). Absent inherits the
+   *  repo's `settings.station_default_tags` at ENQUEUE time — never baked into
+   *  the parsed definition, so an unset field stays out of definitionHash. */
+  required_tags: z.array(z.string()).optional(),
   /** Continue a previous run instead of starting a fresh conversation.
    *  `node` names the work continued (validated against this definition below);
    *  `key` identifies WHICH thread, so two features running the same definition

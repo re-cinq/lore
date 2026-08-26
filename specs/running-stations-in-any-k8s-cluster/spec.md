@@ -129,16 +129,16 @@ Capabilities are a flat tag set, matched by inclusion — no scheduler, no
 scoring.
 
 - A cluster-agent declares `tags: text[]` at registration (for example
-  `["node:agent", "node:validate", "gpu"]`).
+  `["node:agent", "node:validate", "gpu"]`). ([validated by `register.test.ts:44`](apps/lore-api/src/api/routes/cluster-agents/register.test.ts#L44))
 - Every station run carries `required_tags: text[]` (default `{}`); a
-  cluster-agent may claim a run only when `required_tags <@ tags`.
+  cluster-agent may claim a run only when `required_tags <@ tags`. ([validated by `required-tags.test.ts:5`](libs/shared/src/project/cluster-agents/required-tags.test.ts#L5), [`required-tags.test.ts:11`](libs/shared/src/project/cluster-agents/required-tags.test.ts#L11))
 - Assembly-line YAML nodes accept an optional `required_tags` list in the
   loader schema; an absent list inherits the repo-level default
   `settings.station_default_tags`, and an absent default means `{}`. The
   default is applied at enqueue time, never baked into the parsed
-  definition, so it stays out of `definitionHash`.
+  definition, so it stays out of `definitionHash`. ([validated by `loader.test.ts:1027`](libs/assembly-lines/src/loader.test.ts#L1027), [`loader.test.ts:1045`](libs/assembly-lines/src/loader.test.ts#L1045), [`loader.test.ts:1053`](libs/assembly-lines/src/loader.test.ts#L1053), [`required-tags.test.ts:22`](libs/shared/src/project/cluster-agents/required-tags.test.ts#L22), [`required-tags.test.ts:31`](libs/shared/src/project/cluster-agents/required-tags.test.ts#L31), [`required-tags.test.ts:37`](libs/shared/src/project/cluster-agents/required-tags.test.ts#L37))
 - A run with `required_tags = '{}'` is claimable by every registered
-  cluster-agent, so existing definitions keep working unchanged.
+  cluster-agent, so existing definitions keep working unchanged. ([validated by `required-tags.test.ts:15`](libs/shared/src/project/cluster-agents/required-tags.test.ts#L15))
 
 ## FR3 — Claim-based dispatch
 

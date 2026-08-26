@@ -9,6 +9,7 @@ import {
   type AssemblyLine,
   type EdgeConditionValue,
 } from "./loader.js";
+import { definitionHash } from "./definition-hash.js";
 
 const linearAssemblyLine = `
 name: gap-fill
@@ -1019,5 +1020,45 @@ edges:
 
   it("leaves a node without continues alone", () => {
     expect(parseAssemblyLine(line("")).nodes[0].continues).toBeUndefined();
+  });
+});
+
+describe("required_tags on nodes (specs/running-stations-in-any-k8s-cluster FR2)", () => {
+  it("accepts a node declaring required_tags and preserves the list", () => {
+    const wf = parseAssemblyLine(`
+name: tagged
+description: A flow with a gpu node
+version: 1
+entry: a
+exit: a
+nodes:
+  - id: a
+    type: agent
+    prompt_ref: gap-fill
+    required_tags: ["node:agent", "gpu"]
+edges: []
+`);
+
+    expect(wf.nodes[0].required_tags).toEqual(["node:agent", "gpu"]);
+  });
+
+  it("keeps definitionHash identical for a definition that sets no required_tags", () => {
+    const before = parseAssemblyLine(linearAssemblyLine);
+    const after = parseAssemblyLine(linearAssemblyLine);
+
+    expect(definitionHash(after)).toBe(definitionHash(before));
+    expect(before.nodes[0].required_tags).toBeUndefined();
+  });
+
+  it("moves definitionHash when a node adds a required_tags value", () => {
+    const untagged = parseAssemblyLine(linearAssemblyLine);
+    const tagged = parseAssemblyLine(
+      linearAssemblyLine.replace(
+        "    prompt_ref: gap-fill",
+        '    prompt_ref: gap-fill\n    required_tags: ["gpu"]',
+      ),
+    );
+
+    expect(definitionHash(tagged)).not.toBe(definitionHash(untagged));
   });
 });
