@@ -1423,13 +1423,13 @@ edges:
       status: "queued",
       clusterAgentId: null,
       claimedAt: null,
-      requiredTags: [],
+      requiredTags: ["node:agent"],
     });
     // The armed row is what a cluster-agent claims — and what it is handed is
     // the exact spec the push path used to launch with.
     const claim = await port.claimNextStationRun({
       clusterAgentId: "central",
-      tags: [],
+      tags: ["node:agent"],
     });
 
     expect(claim).toMatchObject({
@@ -1451,7 +1451,9 @@ edges:
 
     await advanceLine(id, deps);
 
-    expect(port.nodes[0]).toMatchObject({ requiredTags: ["gpu"] });
+    expect(port.nodes[0]).toMatchObject({
+      requiredTags: ["node:agent", "gpu"],
+    });
     // A claimant without the tag never receives the run; one carrying it does.
     expect(
       await port.claimNextStationRun({ clusterAgentId: "plain", tags: [] }),
@@ -1459,7 +1461,7 @@ edges:
     expect(
       await port.claimNextStationRun({
         clusterAgentId: "gpu-1",
-        tags: ["gpu"],
+        tags: ["node:agent", "gpu"],
       }),
     ).toMatchObject({ nodeId: "review" });
   });
@@ -1472,7 +1474,9 @@ edges:
     deps.repoSettings = async () => ({ station_default_tags: ["linux"] });
     await advanceLine(id, deps);
 
-    expect(port.nodes[0]).toMatchObject({ requiredTags: ["linux"] });
+    expect(port.nodes[0]).toMatchObject({
+      requiredTags: ["node:agent", "linux"],
+    });
   });
 
   it("keeps a human station's row running, so it is never claimable", async () => {

@@ -334,6 +334,7 @@ export async function advanceLine(
     status: dispatchedAsPod ? "queued" : undefined,
     requiredTags: dispatchedAsPod
       ? resolveRequiredTags(
+          node.type,
           node.required_tags,
           await deps.repoSettings(assemblyRun.repo),
         )
