@@ -3,7 +3,7 @@
 | Field     | Value                                          |
 |-----------|------------------------------------------------|
 | Feature   | Running Stations in Any Kubernetes Cluster     |
-| Branch    | (unassigned)                                   |
+| Branch    | feat/cluster-agent-registry (stacked to feat/clusters-ui) |
 | Status    | In Progress                                    |
 | Created   | 2026-08-26                                     |
 | Owner     | Platform Engineering                           |
@@ -98,7 +98,7 @@ A new `pipeline.cluster_agents` table is the registry of execution clusters.
 - The per-agent token is stored SHA-256-hashed in
   `pipeline.cluster_agents.token_hash`, following the existing
   `pipeline.api_tokens` pattern; every subsequent lore-api call from that
-  agent authenticates with it. ([validated by `cluster-agents.test.ts:63`](libs/shared/src/project/cluster-agents/cluster-agents.test.ts#L63), [`cluster-agents.test.ts:71`](libs/shared/src/project/cluster-agents/cluster-agents.test.ts#L71))
+  agent authenticates with it. ([validated by `cluster-agents.test.ts:67`](libs/shared/src/project/cluster-agents/cluster-agents.test.ts#L67), [`cluster-agents.test.ts:75`](libs/shared/src/project/cluster-agents/cluster-agents.test.ts#L75))
 - A failed registration attempt is retried on a 30-second schedule doubling
   to a 5-minute cap, and never crashes the process — the agent's other
   duties (the watch, the inbound routes) do not depend on it. ([validated by `registration.test.ts:101`](apps/cluster-agent/src/satellite/registration.test.ts#L101), [`registration.test.ts:105`](apps/cluster-agent/src/satellite/registration.test.ts#L105))
@@ -106,7 +106,15 @@ A new `pipeline.cluster_agents` table is the registry of execution clusters.
   re-registering an existing name **with the current per-agent bearer token**
   rotates the token and updates `tags` and `cluster_info`. Re-registering a
   known name without it is rejected `409` — the shared registration token
-  alone must never suffice to take over a live cluster's identity. ([validated by `register.test.ts:67`](apps/lore-api/src/api/routes/cluster-agents/register.test.ts#L67), [`register.test.ts:93`](apps/lore-api/src/api/routes/cluster-agents/register.test.ts#L93), [`cluster-agents.test.ts:38`](libs/shared/src/project/cluster-agents/cluster-agents.test.ts#L38), [`cluster-agents.test.ts:42`](libs/shared/src/project/cluster-agents/cluster-agents.test.ts#L42), [`cluster-agents.test.ts:51`](libs/shared/src/project/cluster-agents/cluster-agents.test.ts#L51), [`cluster-agents.test.ts:55`](libs/shared/src/project/cluster-agents/cluster-agents.test.ts#L55), [`registration.test.ts:167`](apps/cluster-agent/src/satellite/registration.test.ts#L167))
+  alone must never suffice to take over a live cluster's identity. ([validated by `register.test.ts:67`](apps/lore-api/src/api/routes/cluster-agents/register.test.ts#L67), [`register.test.ts:93`](apps/lore-api/src/api/routes/cluster-agents/register.test.ts#L93), [`cluster-agents.test.ts:42`](libs/shared/src/project/cluster-agents/cluster-agents.test.ts#L42), [`cluster-agents.test.ts:46`](libs/shared/src/project/cluster-agents/cluster-agents.test.ts#L46), [`cluster-agents.test.ts:55`](libs/shared/src/project/cluster-agents/cluster-agents.test.ts#L55), [`cluster-agents.test.ts:59`](libs/shared/src/project/cluster-agents/cluster-agents.test.ts#L59), [`registration.test.ts:167`](apps/cluster-agent/src/satellite/registration.test.ts#L167))
+- Two concurrent first registrations of the same name resolve to one
+  identity: the insert is conflict-safe, and the loser receives the same
+  `409` as any other taken name — never a 500. ([validated by `register.test.ts:122`](apps/lore-api/src/api/routes/cluster-agents/register.test.ts#L122), [`cluster-agents.test.ts:117`](libs/shared/src/project/cluster-agents/cluster-agents.test.ts#L117))
+- Credential handling is uniform across the cluster-agent endpoints: the
+  `Authorization` header is parsed by the shared `extractBearer` — anchored
+  to the start, scheme case-insensitive per RFC 7235, first value of a
+  multi-value header — and secrets (registration token, token hashes) are
+  compared constant-time via the shared `secretEquals`. ([validated by `bearer.test.ts:5`](libs/shared/src/http/bearer.test.ts#L5), [`bearer.test.ts:9`](libs/shared/src/http/bearer.test.ts#L9), [`bearer.test.ts:14`](libs/shared/src/http/bearer.test.ts#L14), [`bearer.test.ts:18`](libs/shared/src/http/bearer.test.ts#L18), [`bearer.test.ts:28`](libs/shared/src/http/bearer.test.ts#L28))
 - The satellite persists its identity (`{id, token}`) at
   `LORE_CLUSTER_AGENT_IDENTITY_FILE` — which the standalone chart mounts
   from a Kubernetes Secret named `lore-cluster-agent-identity` — so pod
@@ -119,7 +127,7 @@ A new `pipeline.cluster_agents` table is the registry of execution clusters.
   `claimed_at` on `pipeline.station_runs`.
 - A `ClusterAgent` Zod model in `libs/shared/src/models/` and a
   port + Pg adapter + InMemory double under
-  `libs/shared/src/project/cluster-agents/` follow the house pattern. ([validated by `cluster-agents.test.ts:77`](libs/shared/src/project/cluster-agents/cluster-agents.test.ts#L77), [`cluster-agents.test.ts:102`](libs/shared/src/project/cluster-agents/cluster-agents.test.ts#L102), [`cluster-agents.test.ts:179`](libs/shared/src/project/cluster-agents/cluster-agents.test.ts#L179), [`cluster-agents.test.ts:200`](libs/shared/src/project/cluster-agents/cluster-agents.test.ts#L200), [`cluster-agents.test.ts:223`](libs/shared/src/project/cluster-agents/cluster-agents.test.ts#L223))
+  `libs/shared/src/project/cluster-agents/` follow the house pattern. ([validated by `cluster-agents.test.ts:92`](libs/shared/src/project/cluster-agents/cluster-agents.test.ts#L92), [`cluster-agents.test.ts:138`](libs/shared/src/project/cluster-agents/cluster-agents.test.ts#L138), [`cluster-agents.test.ts:215`](libs/shared/src/project/cluster-agents/cluster-agents.test.ts#L215), [`cluster-agents.test.ts:236`](libs/shared/src/project/cluster-agents/cluster-agents.test.ts#L236), [`cluster-agents.test.ts:259`](libs/shared/src/project/cluster-agents/cluster-agents.test.ts#L259))
 
 ## FR2 — Capability tags
 
@@ -184,11 +192,11 @@ against the central cluster-agent. A satellite's CRs are invisible to that
 pull, so recovery splits by who holds the claim:
 
 - A cluster-agent posts `POST /api/cluster-agents/{id}/heartbeat` every 30 s,
-  bumping `last_seen_at`. ([validated by `cluster-agents.test.ts:129`](libs/shared/src/project/cluster-agents/cluster-agents.test.ts#L129), [`cluster-agents.test.ts:252`](libs/shared/src/project/cluster-agents/cluster-agents.test.ts#L252))
+  bumping `last_seen_at`. ([validated by `cluster-agents.test.ts:165`](libs/shared/src/project/cluster-agents/cluster-agents.test.ts#L165), [`cluster-agents.test.ts:288`](libs/shared/src/project/cluster-agents/cluster-agents.test.ts#L288))
 - The assembly-run reaper (existing cadence) marks cluster-agents with
   `last_seen_at < now() - 5 minutes` as `offline` — ten missed heartbeats,
   so a transient network blip or one dropped request never requeues live
-  work. ([validated by `cluster-agents.test.ts:149`](libs/shared/src/project/cluster-agents/cluster-agents.test.ts#L149), [`cluster-agents.test.ts:239`](libs/shared/src/project/cluster-agents/cluster-agents.test.ts#L239))
+  work. ([validated by `cluster-agents.test.ts:185`](libs/shared/src/project/cluster-agents/cluster-agents.test.ts#L185), [`cluster-agents.test.ts:275`](libs/shared/src/project/cluster-agents/cluster-agents.test.ts#L275))
 - The reaper's CR-status recovery arm (`readAgentStatus` → relaunch on null)
   applies **only** to runs claimed by the central cluster's agent — the one
   cluster `CLUSTER_AGENT_URL` can reach. For satellite-claimed runs that arm
