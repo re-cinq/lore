@@ -15,6 +15,8 @@ import { settings } from "../../kernel/queues.js";
 import { fetchRepoContext } from "./repo-context.js";
 import { writeEpisode } from "@re-cinq/lore-shared";
 import {
+  classifyError,
+  failureHint,
   summarizeFailures,
   TaskFailure,
   type StepFailure,
@@ -33,6 +35,7 @@ import {
   issueRef,
   linkPrToIssue,
 } from "./task-helpers.js";
+import { writeAuditLog } from "../lib/audit.js";
 
 // ── Onboard handler (per-file LLM calls) ─────────────────────────────
 
@@ -177,6 +180,67 @@ const ADR_TOPICS = [
       "Write an ADR for the deployment approach. Look at Dockerfile, CI workflows, Kubernetes manifests, serverless configs. Describe what was chosen and why.",
   },
 ];
+
+/** A raw failure message, made safe for a one-line markdown bullet: newlines
+ *  collapsed and length capped so a pathological octokit/LLM error can neither
+ *  break the list nor push the PR body toward GitHub's size cap. */
+const asBulletText = (error: string): string => {
+  const flat = error.replace(/\s+/g, " ").trim();
+
+  return flat.length > 300 ? `${flat.slice(0, 300)}…` : flat;
+};
+
+/** True when any failure is the missing Workflows App permission, classified
+ *  by the shared detector (both GitHub phrasings), never by bespoke status
+ *  keying — a sha-conflict 422 on the same path must not trip this. */
+const anyWorkflowsPermissionFailure = (failures: StepFailure[]): boolean =>
+  failures.some(
+    (f) =>
+      classifyError(f.error, f.step).category === "github-workflows-permission",
+  );
+
+/**
+ * The onboarding PR's "what went wrong" section. Empty string when nothing
+ * failed. A missing workflow file or ingest callback config is not a partial
+ * inconvenience — the repo will never re-ingest — so it must be loud in the
+ * one place a human is guaranteed to look: the PR under review.
+ */
+function onboardAttentionSection(
+  failures: StepFailure[],
+  configFailures: string[],
+  workflowsPermissionDenied: boolean,
+): string {
+  if (failures.length === 0 && configFailures.length === 0) {
+    return "";
+  }
+  const lines = ["", "## Needs attention", ""];
+
+  if (failures.length > 0) {
+    lines.push("These files could not be committed:", "");
+
+    for (const f of failures) {
+      lines.push(`- \`${f.step}\` — ${asBulletText(f.error)}`);
+    }
+    lines.push("");
+  }
+
+  if (workflowsPermissionDenied) {
+    lines.push(
+      `GitHub rejected the workflow files: ${failureHint("github-workflows-permission")} Then re-run onboarding (or use the dashboard's fix-ingest button).`,
+      "",
+    );
+  }
+
+  if (configFailures.length > 0) {
+    lines.push("Ingest callback configuration:", "");
+
+    for (const failure of configFailures) {
+      lines.push(`- ${failure}`);
+    }
+  }
+
+  return lines.join("\n");
+}
 
 export async function handleOnboard(
   task: PipelineTask,
@@ -421,12 +485,78 @@ export async function handleOnboard(
     );
   }
 
+  // Configure the ingest callback (repo variable + secret) BEFORE opening the
+  // PR, so a failure here can still be reported in the PR body. An unset Floor
+  // value is never written as an empty variable — that would make lore-ingest.yml
+  // fail with a blank URL while looking configured.
+  const ingestUrl = process.env.LORE_INGEST_URL || "";
+  const ingestToken = process.env.LORE_INGEST_TOKEN;
+  const configFailures: string[] = [];
+
+  if (ingestUrl) {
+    try {
+      await project.settings.setRepoVariable("LORE_INGEST_URL", ingestUrl);
+    } catch (err) {
+      configFailures.push(
+        `the \`LORE_INGEST_URL\` repo variable could not be set: ${errorMessage(err)}`,
+      );
+    }
+  } else {
+    configFailures.push(
+      "`LORE_INGEST_URL` is not configured on the Floor — set the repo variable manually or fix the Floor deployment, or ingest calls will never reach Lore",
+    );
+  }
+
+  if (ingestToken) {
+    try {
+      await project.settings.setRepoSecret("LORE_INGEST_TOKEN", ingestToken);
+    } catch (err) {
+      configFailures.push(
+        `the \`LORE_INGEST_TOKEN\` repo secret could not be set: ${errorMessage(err)}`,
+      );
+    }
+  } else {
+    configFailures.push(
+      "`LORE_INGEST_TOKEN` is not configured on the Floor — set the repo secret manually, or every ingest call will be rejected with 401",
+    );
+  }
+
+  if (configFailures.length === 0) {
+    console.log(`[floor] Configured ingest secrets on ${targetRepo}`);
+  } else {
+    console.error(
+      `[floor] Ingest config incomplete on ${targetRepo}: ${configFailures.join("; ")}`,
+    );
+  }
+
+  const workflowsPermissionDenied = anyWorkflowsPermissionFailure(failures);
+
+  if (failures.length > 0 || configFailures.length > 0) {
+    await writeAuditLog({
+      event_type: "onboard_files_failed",
+      task_id: task.id,
+      repo: targetRepo,
+      payload: {
+        failed_files: failures.map((f) => ({ path: f.step, error: f.error })),
+        config_failures: configFailures,
+        workflows_permission_denied: workflowsPermissionDenied,
+      },
+    }).catch((err) =>
+      console.warn(`[floor] Onboard: audit write failed: ${errorMessage(err)}`),
+    );
+  }
+
   // 6. Create PR
   const fileList = committed.map((f) => `- \`${f}\``).join("\n");
+  const attention = onboardAttentionSection(
+    failures,
+    configFailures,
+    workflowsPermissionDenied,
+  );
   const pr = await project.pulls.open(
     branchName,
     `lore: onboard ${targetRepo}`,
-    `## Lore Onboarding\n\nThis PR adds Lore platform files for AI-powered development.\n\n**Files added:**\n${fileList}\n\nGenerated by Lore agent task \`${task.id}\`.${issueRef(issueNumber, task.id)}`,
+    `## Lore Onboarding\n\nThis PR adds Lore platform files for AI-powered development.\n\n**Files added:**\n${fileList}\n${attention}\n\nGenerated by Lore agent task \`${task.id}\`.${issueRef(issueNumber, task.id)}`,
     "main",
     ["lore-onboarding"],
   );
@@ -462,24 +592,6 @@ export async function handleOnboard(
     console.warn(
       `[floor] Failed to create labels on ${targetRepo}: ${(err as Error).message}`,
     );
-  }
-
-  // Configure ingest secrets on the repo so lore-ingest.yml can call back
-  const ingestUrl = process.env.LORE_INGEST_URL || "";
-  const ingestToken = process.env.LORE_INGEST_TOKEN;
-
-  try {
-    await project.settings.setRepoVariable("LORE_INGEST_URL", ingestUrl);
-
-    if (ingestToken) {
-      await project.settings.setRepoSecret("LORE_INGEST_TOKEN", ingestToken);
-    }
-    console.log(`[floor] Configured ingest secrets on ${targetRepo}`);
-  } catch (err) {
-    console.error(
-      `[floor] Failed to set ingest secrets on ${targetRepo}: ${errorMessage(err)}`,
-    );
-    // Non-fatal — PR still created, secrets can be set manually
   }
 
   await setStatus(task.id, "pr-created", {
