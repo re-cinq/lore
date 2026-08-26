@@ -132,6 +132,32 @@ Manage per-client tokens via `/api/tokens` (admin-only). Rate limits: 30/min web
 
 Developers then use `/lore` in those channels — see the [Developer Guide](developer.md#dispatch-from-slack).
 
+## Register a new execution cluster (satellite)
+
+By default every station run executes on the central GKE cluster. A **satellite** lets station runs execute on a cluster you own — a developer's minikube, a customer cluster, a GPU box — by registering one cluster-agent per cluster ([spec](../../specs/running-stations-in-any-k8s-cluster/spec.md)). The satellite pulls work (the GitLab Runner model): it claims queued station runs from the central lore-api, launches them as Agent CRs locally, and reports outcomes back — so it works from behind NAT with no inbound access.
+
+**One-time central setup.** Set `cluster_agent_registration_token` in `secrets.tfvars` and `terraform apply`. The token lands in GCP Secret Manager as `lore-cluster-agent-registration-token`, ESO mirrors it into the `lore-api` namespace, and lore-api starts accepting registrations. Leave it empty and `POST /api/cluster-agents/register` answers 401 — satellites stay disabled.
+
+**Install a satellite.** On the target cluster, install the standalone chart (`infra/terraform/modules/gke-mcp/lore-platform/charts/cluster-agent-standalone-helm` — deliberately *not* part of the `lore-platform` umbrella). For a minikube walk-through, `scripts/install-satellite-minikube.sh` does all of this idempotently. Required values:
+
+| Value | Meaning |
+|---|---|
+| `loreApiUrl` | Public HTTPS URL of the central lore-api |
+| `eventRouterUrl` | Public HTTPS URL of the central event-router |
+| `registrationToken` | The pre-shared token above — used **once**, to register |
+| `name` | This cluster's unique registry name (e.g. `minikube-ana`, `gpu-box-1`) |
+| `tags` | Capability tags this cluster offers, e.g. `["node:agent", "node:validate"]` |
+| `ghcr.username` / `ghcr.token` | Pull credentials for the agent images |
+| `llm.credential` | The agent LLM credential (`CLAUDE_CODE_OAUTH_TOKEN` on a laptop bills a subscription; `ANTHROPIC_API_KEY` bills the org) |
+
+**What happens on first boot.** The satellite registers under `name`, receives a durable id and a per-agent bearer token (the plaintext exists once, in that response; only its SHA-256 is stored centrally), and persists the identity in the `lore-cluster-agent-identity` Kubernetes Secret — written through the Kubernetes API, since the pod's filesystem is read-only. Restarts re-register with the persisted token instead of minting a new identity. It then polls for claims and heartbeats every 30 s.
+
+**Routing work to it.** A station run is claimable by a satellite when the satellite's `tags` contain every one of the run's `required_tags` (set per node in the assembly-line YAML, or per repo via `station_default_tags` in the repo settings). A run with no required tags is claimable by every registered cluster, including the central one. A run whose tags no cluster carries fails after the 30-minute queue wait, naming the unmatched tags.
+
+**Watching it.** The **Clusters** page in the web UI (`/cluster-agents`) lists every registered agent with its tags, liveness, and running-claims count (the count links to that agent's runs). An agent silent for 5 minutes is marked `offline`; its claims are requeued for another cluster and the event shows in the page's offline-events table.
+
+**Identity rules worth knowing.** Names are first-come: re-registering an existing name requires the current per-agent token (`409` otherwise), so the shared registration token alone can never take over a live cluster's identity. If a satellite's identity Secret is lost, delete its registry row (or pick a new name) before re-registering. Rotating the registration token invalidates nothing already registered — per-agent tokens are independent.
+
 ## Dark Factory mode
 
 Dark Factory mode lets a repo run autonomously by default, with humans only at intent definition and stage-gate validation. Enabling it for a repo is a single per-repo switch — `lore.repos.settings.dark_factory.enabled = true` via the settings UI / API. Toggling it is a privileged change guarded by two-key authorization: admin scope **plus** an open PR labeled `dark-factory-approval` by a CODEOWNER of the repo's `CLAUDE.md`.

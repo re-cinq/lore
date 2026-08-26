@@ -15,6 +15,8 @@ locals {
     "lore-nextauth-secret"            = var.nextauth_secret
     }, var.anthropic_admin_api_key != "" ? {
     "lore-anthropic-admin-api-key" = var.anthropic_admin_api_key
+    } : {}, var.cluster_agent_registration_token != "" ? {
+    "lore-cluster-agent-registration-token" = var.cluster_agent_registration_token
   } : {})
 }
 
