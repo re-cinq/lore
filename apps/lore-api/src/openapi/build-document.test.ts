@@ -165,6 +165,7 @@ describe("generateOpenApi — tag grouping", () => {
       "Repositories",
       "Features",
       "Agents",
+      "Cluster Agents",
       "Ingestion",
       "Traceability",
       "Dark Factory",

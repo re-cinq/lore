@@ -1054,6 +1054,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/cluster-agents/register": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** POST /api/cluster-agents/register */
+    post: operations["post_api_cluster-agents_register"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/repos/{owner}/{repo}/settings/dark-factory": {
     parameters: {
       query?: never;
@@ -2541,6 +2558,12 @@ export interface components {
           scopes: string[];
           expires_at: string | null;
         };
+    ClusterAgentRegistration: {
+      id: string;
+      name: string;
+      tags: string[];
+      token: string;
+    };
     DarkFactorySettings: {
       enabled: boolean;
       /** @enum {string} */
@@ -5346,6 +5369,44 @@ export interface operations {
       413: components["responses"]["PayloadTooLarge"];
       429: components["responses"]["RateLimited"];
       503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "post_api_cluster-agents_register": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          name: string;
+          /** @default [] */
+          tags?: string[];
+          /** @default null */
+          cluster_info?: {
+            [key: string]: unknown;
+          } | null;
+          current_token?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description The registered identity with its per-agent token — served once and never again */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ClusterAgentRegistration"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      409: components["responses"]["Conflict"];
+      413: components["responses"]["PayloadTooLarge"];
+      429: components["responses"]["RateLimited"];
     };
   };
   "get_api_repos_owner_repo_settings_dark-factory": {

@@ -71,6 +71,7 @@ import {
   webhookEnsureRoute,
 } from "../api/routes/webhooks/webhook.js";
 import { tokensRoute } from "../api/routes/tokens/tokens.js";
+import { clusterAgentRegisterRoute } from "../api/routes/cluster-agents/register.js";
 import { darkFactoryRoute } from "../api/routes/dark-factory/dark-factory.js";
 import {
   agentsGetRoute,
@@ -155,6 +156,7 @@ export function routeList(getPool: () => Pool | null): ServerRoute[] {
     webhookEnsureRoute(),
     webhookSecretRoute(),
     ...tokensRoute(getPool),
+    clusterAgentRegisterRoute(getPool),
     ...darkFactoryRoute(getPool),
     agentsGetRoute(getPool),
     agentsPostRoute(getPool),
