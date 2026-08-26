@@ -267,11 +267,13 @@ they are alive.
 
 - `GET /api/cluster-agents` lists registered agents with `name`, `tags`,
   `status`, `last_seen_at`, and the count of runs each is currently
-  executing. ([validated by `assembly-runs.contract.test.ts:1035`](libs/shared/src/project/assembly-runs/assembly-runs.contract.test.ts#L1035))
-- A web-ui page renders that list, marking offline agents and linking each
-  running claim to its assembly-run page.
+  executing. ([validated by `list.test.ts:51`](apps/lore-api/src/api/routes/cluster-agents/list.test.ts#L51), [`list.test.ts:41`](apps/lore-api/src/api/routes/cluster-agents/list.test.ts#L41), [`list.test.ts:86`](apps/lore-api/src/api/routes/cluster-agents/list.test.ts#L86), [`assembly-runs.contract.test.ts:1068`](libs/shared/src/project/assembly-runs/assembly-runs.contract.test.ts#L1068))
+- A web-ui page renders that list, marking offline agents and linking the
+  running-claims count to the assembly-runs list filtered to that agent
+  (`/assembly-runs?cluster_agent_id=…`, backed by the port's
+  `clusterAgentId` open-claim filter). ([validated by `assembly-runs.contract.test.ts:1035`](libs/shared/src/project/assembly-runs/assembly-runs.contract.test.ts#L1035), [validated by `ClusterAgentsView.test.tsx:33`](apps/web-ui/src/app/cluster-agents/ClusterAgentsView.test.tsx#L33), [`ClusterAgentsView.test.tsx:58`](apps/web-ui/src/app/cluster-agents/ClusterAgentsView.test.tsx#L58), [`ClusterAgentsView.test.tsx:73`](apps/web-ui/src/app/cluster-agents/ClusterAgentsView.test.tsx#L73), [`cluster-agents.test.ts:29`](apps/web-ui/src/lib/api/cluster-agents.test.ts#L29))
 - The audit log's `cluster_agent_offline` entries surface on the same page,
-  so a flapping cluster is diagnosable without database access. ([validated by `audit-read.test.ts:7`](libs/shared/src/project/audit/audit-read.test.ts#L7), [`audit-read.test.ts:24`](libs/shared/src/project/audit/audit-read.test.ts#L24))
+  so a flapping cluster is diagnosable without database access. ([validated by `ClusterAgentsView.test.tsx:80`](apps/web-ui/src/app/cluster-agents/ClusterAgentsView.test.tsx#L80), [`ClusterAgentsView.test.tsx:99`](apps/web-ui/src/app/cluster-agents/ClusterAgentsView.test.tsx#L99), [`ClusterAgentsView.test.tsx:118`](apps/web-ui/src/app/cluster-agents/ClusterAgentsView.test.tsx#L118), [`ClusterAgentsView.test.tsx:132`](apps/web-ui/src/app/cluster-agents/ClusterAgentsView.test.tsx#L132), [`ClusterAgentsView.test.tsx:136`](apps/web-ui/src/app/cluster-agents/ClusterAgentsView.test.tsx#L136), [`audit-read.test.ts:7`](libs/shared/src/project/audit/audit-read.test.ts#L7), [`audit-read.test.ts:24`](libs/shared/src/project/audit/audit-read.test.ts#L24))
 
 ## Data Model
 

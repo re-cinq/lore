@@ -21,6 +21,9 @@ export interface AssemblyRunQuery {
   taskId?: string;
   /** Matches `args->>'pr_number'`. */
   prNumber?: number;
+  /** Runs holding an OPEN station-run claimed by this cluster-agent — the
+   *  drill-down behind the registered-clusters page's running-claims count. */
+  clusterAgentId?: string;
   /** Every run for one subject, whatever its blueprint — "what has worked on
    *  this feature", which nothing could ask for while the only key was a task id
    *  and a blueprint name. */

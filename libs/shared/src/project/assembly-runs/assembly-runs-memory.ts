@@ -414,7 +414,14 @@ export class InMemoryAssemblyRuns implements AssemblyRunsPort {
             (query.createdAfter === undefined ||
               row.createdAt >= query.createdAfter) &&
             (query.subjectKey === undefined ||
-              row.subjectKey === query.subjectKey),
+              row.subjectKey === query.subjectKey) &&
+            (query.clusterAgentId === undefined ||
+              this.nodes.some(
+                (node) =>
+                  node.assemblyRunId === row.id &&
+                  node.clusterAgentId === query.clusterAgentId &&
+                  node.outcome === null,
+              )),
         )
         // Newest first, id as the tiebreak. The tiebreak buys STABILITY, not
         // insertion order — run ids are random uuids, so two runs created in the

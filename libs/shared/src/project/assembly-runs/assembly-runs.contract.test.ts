@@ -1032,6 +1032,37 @@ describe.each(IMPLEMENTATIONS)(
       expect(after).toBe(before - 1);
     });
 
+    it("list({clusterAgentId}) returns only runs holding that agent's open claim", async () => {
+      const { port, repo } = make();
+      const agentId = "33333333-3333-3333-3333-333333333333";
+      const claimedRunId = await port.start({
+        blueprintName: "code-review",
+        repo,
+      });
+      const idleRunId = await port.start({
+        blueprintName: "code-review",
+        repo,
+      });
+      const { nodeRowId } = await port.ensureStationRun({
+        assemblyRunId: claimedRunId,
+        nodeId: "review",
+        iteration: 1,
+        status: "queued",
+      });
+
+      await port.enqueueStationRunDispatch(nodeRowId, { prompt: "p" });
+      await port.claimNextStationRun({ clusterAgentId: agentId, tags: [] });
+
+      const held = await port.listSummaries({ clusterAgentId: agentId });
+
+      expect(held.map((run) => run.id)).toEqual([claimedRunId]);
+      expect(held.map((run) => run.id)).not.toContain(idleRunId);
+
+      await port.finishStationRunOnce(nodeRowId, "success");
+
+      expect(await port.listSummaries({ clusterAgentId: agentId })).toEqual([]);
+    });
+
     it("requeue resets the same row to queued and clears the claim; a finished visit refuses", async () => {
       const { port, repo } = make();
       const runId = await port.start({ blueprintName: "code-review", repo });

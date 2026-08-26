@@ -22,6 +22,7 @@ const groups: NavGroup[] = [
       { href: "/", label: "Repos" },
       { href: "/assembly-runs", label: "Assembly Runs" },
       { href: "/agents", label: "Agents" },
+      { href: "/cluster-agents", label: "Clusters" },
       { href: "/search", label: "Search" },
       { href: "/audit", label: "Audit" },
       { href: "/pools", label: "Pools" },

@@ -614,6 +614,11 @@ export class PgAssemblyRuns implements AssemblyRunsPort {
           AND ($5::int    IS NULL OR (args->>'pr_number')::int = $5)
           AND ($6::timestamptz IS NULL OR created_at >= $6)
           AND ($8::text   IS NULL OR subject_key = $8)
+          AND ($9::uuid   IS NULL OR EXISTS (
+                SELECT 1 FROM pipeline.station_runs claims
+                 WHERE claims.assembly_run_id = pipeline.assembly_runs.id
+                   AND claims.cluster_agent_id = $9
+                   AND claims.outcome IS NULL))
         -- id breaks the tie: two runs started in the same millisecond would
         -- otherwise come back in an order Postgres is free to vary between
         -- calls, which reads as rows jumping around a paged list.
@@ -628,6 +633,7 @@ export class PgAssemblyRuns implements AssemblyRunsPort {
         query.createdAfter ?? null,
         query.limit ?? 50,
         query.subjectKey ?? null,
+        query.clusterAgentId ?? null,
       ],
     );
 

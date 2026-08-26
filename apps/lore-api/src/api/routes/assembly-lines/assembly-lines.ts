@@ -218,6 +218,9 @@ const RunsQuery = z.object({
   /** A task-centric caller (the planning wizard) knows only its task id; the run
    *  to draw is the newest attempt, since a retry mints a fresh row. */
   task_id: z.string().max(100).optional(),
+  /** Runs holding an open station-run claimed by this cluster-agent — the
+   *  registered-clusters page's running-claims drill-down (FR7). */
+  cluster_agent_id: z.string().uuid().optional(),
   /** Browse by SUBJECT — every run that has worked on one thing, whatever
    *  blueprint each ran. This is how a reader finds "the run for this feature"
    *  without knowing which task started it or which line it turned out to be;
@@ -279,8 +282,15 @@ export function assemblyLineRoutes(
         const pool = getPool();
 
         enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
-        const { status, repo, blueprint, task_id, subject_key, limit } =
-          request.query as unknown as RunsQuery;
+        const {
+          status,
+          repo,
+          blueprint,
+          task_id,
+          subject_key,
+          cluster_agent_id,
+          limit,
+        } = request.query as unknown as RunsQuery;
         const port = portFor(pool);
 
         try {
@@ -293,6 +303,7 @@ export function assemblyLineRoutes(
                 blueprintName: blueprint,
                 status: status ? [status as AssemblyRunStatus] : undefined,
                 subjectKey: subject_key,
+                clusterAgentId: cluster_agent_id,
                 limit,
               });
           const enrichment = await enrichmentById(pool, selected);

@@ -34,10 +34,23 @@ import { DB_UNAVAILABLE } from "../common-schemas.js";
  * The plaintext per-agent token exists once, in this response.
  */
 
+/** Anyone holding the registration token can write cluster_info; a byte
+ *  budget keeps a compromised token from growing the registry unbounded. */
+const CLUSTER_INFO_MAX_BYTES = 16 * 1024;
+
 const RegisterBody = z.object({
-  name: z.string().min(1),
-  tags: z.array(z.string()).default([]),
-  cluster_info: z.record(z.string(), z.unknown()).nullable().default(null),
+  name: z.string().min(1).max(200),
+  tags: z.array(z.string().max(100)).max(50).default([]),
+  cluster_info: z
+    .record(z.string(), z.unknown())
+    .nullable()
+    .default(null)
+    .refine(
+      (value) =>
+        value === null ||
+        Buffer.byteLength(JSON.stringify(value)) <= CLUSTER_INFO_MAX_BYTES,
+      `cluster_info exceeds ${CLUSTER_INFO_MAX_BYTES} bytes`,
+    ),
   current_token: z.string().optional(),
 });
 
