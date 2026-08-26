@@ -283,7 +283,7 @@ describe("handleOnboard", () => {
 
   it("reports a rejected ingest-secret write in the PR body", async () => {
     fakeSettings.setRepoSecret.mockRejectedValue(
-      Object.assign(new Error("Resource not accessible by integration"), {
+      Object.assign(new Error("Resource not accessible\nby integration"), {
         status: 403,
       }),
     );
