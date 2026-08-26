@@ -12455,6 +12455,32 @@
                   },
                   "state": {
                     "type": "string"
+                  },
+                  "run_id": {
+                    "type": ["string", "null"]
+                  },
+                  "pipeline": {
+                    "anyOf": [
+                      {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "node_id": {
+                              "type": "string"
+                            },
+                            "state": {
+                              "type": "string"
+                            }
+                          },
+                          "required": ["node_id", "state"],
+                          "additionalProperties": false
+                        }
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   }
                 },
                 "required": [
@@ -12463,7 +12489,9 @@
                   "title",
                   "priority",
                   "pr_url",
-                  "state"
+                  "state",
+                  "run_id",
+                  "pipeline"
                 ],
                 "additionalProperties": false
               },
@@ -12497,6 +12525,32 @@
                 },
                 "state": {
                   "type": "string"
+                },
+                "run_id": {
+                  "type": ["string", "null"]
+                },
+                "pipeline": {
+                  "anyOf": [
+                    {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "node_id": {
+                            "type": "string"
+                          },
+                          "state": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["node_id", "state"],
+                        "additionalProperties": false
+                      }
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
                 }
               },
               "required": [
@@ -12505,7 +12559,9 @@
                 "title",
                 "priority",
                 "pr_url",
-                "state"
+                "state",
+                "run_id",
+                "pipeline"
               ],
               "additionalProperties": false
             }
@@ -12532,6 +12588,32 @@
                 },
                 "state": {
                   "type": "string"
+                },
+                "run_id": {
+                  "type": ["string", "null"]
+                },
+                "pipeline": {
+                  "anyOf": [
+                    {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "node_id": {
+                            "type": "string"
+                          },
+                          "state": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["node_id", "state"],
+                        "additionalProperties": false
+                      }
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
                 }
               },
               "required": [
@@ -12540,7 +12622,9 @@
                 "title",
                 "priority",
                 "pr_url",
-                "state"
+                "state",
+                "run_id",
+                "pipeline"
               ],
               "additionalProperties": false
             }

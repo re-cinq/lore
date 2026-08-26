@@ -3355,6 +3355,13 @@ export interface components {
         priority: string | null;
         pr_url: string | null;
         state: string;
+        run_id: string | null;
+        pipeline:
+          | {
+              node_id: string;
+              state: string;
+            }[]
+          | null;
       } | null;
       current_run_id: string | null;
       next: {
@@ -3364,6 +3371,13 @@ export interface components {
         priority: string | null;
         pr_url: string | null;
         state: string;
+        run_id: string | null;
+        pipeline:
+          | {
+              node_id: string;
+              state: string;
+            }[]
+          | null;
       }[];
       recent: {
         issue_number: number;
@@ -3372,6 +3386,13 @@ export interface components {
         priority: string | null;
         pr_url: string | null;
         state: string;
+        run_id: string | null;
+        pipeline:
+          | {
+              node_id: string;
+              state: string;
+            }[]
+          | null;
       }[];
     };
     ImplementationLoopToggle: {

@@ -38,6 +38,7 @@ const repoOf = (p: Record<string, string>) => `${p.owner}/${p.repo}`;
 const RECENT_LIMIT = 10;
 
 interface LoopTaskRow {
+  id: string;
   status: string;
   description: string;
   issue_number: number | null;
@@ -50,9 +51,66 @@ const priorityOf = (issue: IssueRef | undefined): string | null =>
     (PRIORITY_LABELS as readonly string[]).includes(l),
   ) ?? null;
 
+interface LoopRunRow {
+  id: string;
+  task_id: string;
+  status: string;
+  graph: { nodes?: Array<{ id: string; type: string }> } | null;
+}
+
+interface NodeRow {
+  assembly_run_id: string;
+  node_id: string;
+  iteration: number;
+  outcome: string | null;
+}
+
+/** The mini graph: every graph node in definition order, colored by its latest
+ *  station-run outcome — absent rows read as pending, an open row as running
+ *  (waiting, for a human station). */
+export function pipelineOf(
+  run: LoopRunRow | undefined,
+  nodeRows: readonly NodeRow[],
+): Array<{ node_id: string; state: string }> | null {
+  if (!run?.graph?.nodes) {
+    return null;
+  }
+  const latest = new Map<string, NodeRow>();
+
+  for (const row of nodeRows) {
+    if (row.assembly_run_id !== run.id) {
+      continue;
+    }
+    const prior = latest.get(row.node_id);
+
+    if (!prior || row.iteration >= prior.iteration) {
+      latest.set(row.node_id, row);
+    }
+  }
+
+  return run.graph.nodes.map((node) => {
+    const visit = latest.get(node.id);
+
+    if (!visit) {
+      return { node_id: node.id, state: "pending" };
+    }
+
+    if (visit.outcome === null) {
+      return {
+        node_id: node.id,
+        state: node.type === "pr_review" ? "waiting" : "running",
+      };
+    }
+
+    return { node_id: node.id, state: visit.outcome };
+  });
+}
+
 function taskTicket(
   row: LoopTaskRow,
   openIssues: readonly IssueRef[],
+  run: LoopRunRow | undefined,
+  nodeRows: readonly NodeRow[],
 ): Ticket | null {
   if (!row.issue_number) {
     return null;
@@ -66,6 +124,8 @@ function taskTicket(
     priority: priorityOf(issue),
     pr_url: row.pr_url,
     state: row.status,
+    run_id: run?.id ?? null,
+    pipeline: pipelineOf(run, nodeRows),
   };
 }
 
@@ -98,7 +158,7 @@ export function implementationLoopRoutes(
         // 2x the display cap: filtering out the open rows must still leave a
         // full recent list.
         const { rows: taskRows } = await pool.query<LoopTaskRow>(
-          `SELECT status, description, issue_number, issue_url, pr_url
+          `SELECT id, status, description, issue_number, issue_url, pr_url
              FROM pipeline.tasks
             WHERE target_repo = $1 AND task_type = 'implementation-loop'
             ORDER BY created_at DESC
@@ -114,10 +174,34 @@ export function implementationLoopRoutes(
             ORDER BY created_at DESC LIMIT 1`,
           [repo],
         );
+        // The mini graphs: each listed task's latest loop run and its node rows,
+        // two batched queries regardless of ticket count.
+        const { rows: taskRuns } = await pool.query<LoopRunRow>(
+          `SELECT DISTINCT ON (task_id) id, task_id, status, graph
+             FROM pipeline.assembly_runs
+            WHERE task_id = ANY($1) AND blueprint_name = 'implementation-loop'
+            ORDER BY task_id, created_at DESC`,
+          [taskRows.map((t) => t.id)],
+        );
+        const { rows: nodeRows } = await pool.query<NodeRow>(
+          `SELECT assembly_run_id, node_id, iteration, outcome
+             FROM pipeline.station_runs
+            WHERE assembly_run_id = ANY($1)
+            ORDER BY started_at`,
+          [taskRuns.map((r) => r.id)],
+        );
+        const runByTask = new Map(taskRuns.map((r) => [r.task_id, r]));
         const currentRow = taskRows.find((t) =>
           (OPEN_TASK_STATES as readonly string[]).includes(t.status),
         );
-        const current = currentRow ? taskTicket(currentRow, openIssues) : null;
+        const current = currentRow
+          ? taskTicket(
+              currentRow,
+              openIssues,
+              runByTask.get(currentRow.id),
+              nodeRows,
+            )
+          : null;
         // Mirror the driver's eligibility guard: an issue whose task is not
         // failed/cancelled is either being worked or already addressed with its
         // PR awaiting a human merge — showing it as "next up" would promise a
@@ -137,6 +221,8 @@ export function implementationLoopRoutes(
             priority: priorityOf(i),
             pr_url: null,
             state: "queued",
+            run_id: null,
+            pipeline: null,
           }));
         const recent = taskRows
           .filter((t) => t !== currentRow)
@@ -144,7 +230,7 @@ export function implementationLoopRoutes(
             (t) => !(OPEN_TASK_STATES as readonly string[]).includes(t.status),
           )
           .slice(0, RECENT_LIMIT)
-          .map((t) => taskTicket(t, openIssues))
+          .map((t) => taskTicket(t, openIssues, runByTask.get(t.id), nodeRows))
           .filter((t): t is Ticket => t !== null);
 
         return h

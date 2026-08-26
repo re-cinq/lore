@@ -11,6 +11,8 @@ const ticket = (over: Partial<LoopTicket> = {}): LoopTicket => ({
   priority: "priority:high",
   pr_url: null,
   state: "queued",
+  run_id: null,
+  pipeline: null,
   ...over,
 });
 
@@ -46,6 +48,38 @@ describe("ImplementationLoopView", () => {
     expect(
       getAllByText(/remove the label to re-queue/i).length,
     ).toBeGreaterThan(0);
+  });
+
+  it("renders a mini pipeline dot per node, linked to the run", () => {
+    const { getByTestId } = renderView({
+      current: ticket({
+        state: "running",
+        run_id: "run-42",
+        pipeline: [
+          { node_id: "implement", state: "success" },
+          { node_id: "validate", state: "running" },
+          { node_id: "await-pr", state: "waiting" },
+          { node_id: "push", state: "exploded" },
+        ],
+      }),
+    });
+
+    expect(getByTestId("mini-pipeline").getAttribute("href")).toBe(
+      "/assembly-runs/run-42",
+    );
+    expect(getByTestId("mini-node-implement").className).toContain("success");
+    expect(getByTestId("mini-node-validate").className).toContain("running");
+    expect(getByTestId("mini-node-await-pr").className).toContain("waiting");
+    expect(getByTestId("mini-node-implement").getAttribute("title")).toBe(
+      "implement: success",
+    );
+    expect(getByTestId("mini-node-push").className).toContain("failed");
+  });
+
+  it("renders no mini pipeline for a queued ticket with no run", () => {
+    const { queryByTestId } = renderView({ next: [ticket()] });
+
+    expect(queryByTestId("mini-pipeline")).toBeNull();
   });
 
   it("links the live pipeline view when a run is in flight", () => {
