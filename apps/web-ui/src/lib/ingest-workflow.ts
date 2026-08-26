@@ -107,10 +107,10 @@ jobs:
             2??)
               ;;
             5??|408|429|000|"")
-              # Server-side trouble, throttling, or a network blip is plausibly
-              # transient - warn,
-              # and rely on the next doc push to retry. This workflow runs on
-              # push to main and never blocks a merge.
+              # Server-side trouble, throttling, or a network blip is
+              # plausibly transient - warn and rely on the next doc push to
+              # retry. This workflow runs on push to main and never blocks a
+              # merge.
               echo "::warning::Lore ingest endpoint returned HTTP \${HTTP_STATUS:-000} (transient - next doc push retries)"
               ;;
             *)
@@ -181,10 +181,10 @@ jobs:
             2??)
               ;;
             5??|408|429|000|"")
-              # Server-side trouble, throttling, or a network blip is plausibly
-              # transient - warn,
-              # and rely on the next doc push to retry. This workflow runs on
-              # push to main and never blocks a merge.
+              # Server-side trouble, throttling, or a network blip is
+              # plausibly transient - warn and rely on the next doc push to
+              # retry. This workflow runs on push to main and never blocks a
+              # merge.
               echo "::warning::Lore ingest-graph endpoint returned HTTP \${HTTP_STATUS:-000} for \${{ matrix.kind }} (transient - next doc push retries)"
               ;;
             *)

@@ -264,6 +264,17 @@ describe.each([
     expect(result.stdout).toContain("exit 6");
   });
 
+  it("exits 1 with ::error on malformed-URL curl exit 3", () => {
+    const { result } = runScript(script, {
+      CURL_STUB_STATUS: "000",
+      CURL_STUB_EXIT: "3",
+    });
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toMatch(/^::error::/m);
+    expect(result.stdout).toContain("exit 3");
+  });
+
   it("prefixes the response body so it cannot forge a workflow command even after TrimStart", () => {
     const { result } = runScript(script, {
       CURL_STUB_STATUS: "200",
