@@ -1,4 +1,8 @@
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
+import {
+  extractBearer,
+  secretEquals,
+} from "@re-cinq/lore-shared/http/bearer.js";
 import { apiError } from "../../../server/api-error.js";
 import type { Request, ResponseToolkit, ServerRoute } from "@hapi/hapi";
 import type { Pool } from "pg";
@@ -60,7 +64,11 @@ export async function handleRegister(
   | { code: 200; body: z.infer<typeof RegisterResponse> }
   | { code: 401 | 409 | 503; body: { error: string } }
 > {
-  if (!deps.registrationToken || bearer !== deps.registrationToken) {
+  if (
+    !deps.registrationToken ||
+    !bearer ||
+    !secretEquals(bearer, deps.registrationToken)
+  ) {
     return { code: 401, body: { error: "unauthorized" } };
   }
 
@@ -89,6 +97,15 @@ export async function handleRegister(
       ? await deps.repository.create(input)
       : await deps.repository.rotate(decision.id, input);
 
+  if (agent === null) {
+    // Lost a concurrent first registration of the same name after findByName
+    // saw it free — same answer as any other taken name.
+    return {
+      code: 409,
+      body: { error: "name is registered to a live identity" },
+    };
+  }
+
   return {
     code: 200,
     body: {
@@ -116,17 +133,14 @@ export function clusterAgentRegisterRoute(
         name: "ClusterAgentRegistration",
         description:
           "The registered identity with its per-agent token — served once and never again",
-        errors: [409],
+        errors: [401, 409],
       },
     ),
     handler: async (request: Request, h: ResponseToolkit) => {
       const pool = getPool();
 
       enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
-      const authHeader = request.headers.authorization;
-      const bearer = (
-        Array.isArray(authHeader) ? authHeader[0] : authHeader
-      )?.replace("Bearer ", "");
+      const bearer = extractBearer(request.headers.authorization);
 
       const result = await handleRegister(
         {

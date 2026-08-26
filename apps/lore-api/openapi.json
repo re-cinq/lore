@@ -36,6 +36,10 @@
       "description": "Per-repo agent definitions."
     },
     {
+      "name": "Cluster Agents",
+      "description": "Execution-cluster registry and pull-based dispatch."
+    },
+    {
       "name": "Ingestion",
       "description": "Content and graph ingestion."
     },
@@ -3572,6 +3576,9 @@
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
           },
           "409": {
             "$ref": "#/components/responses/Conflict"

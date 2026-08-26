@@ -118,4 +118,38 @@ describe("handleRegister", () => {
       }),
     ).toMatchObject({ code: 409 });
   });
+
+  it("rejects 409 when a concurrent registration takes the name after findByName", async () => {
+    const repository = new InMemoryClusterAgents();
+    let releaseFind = () => {};
+    const findGate = new Promise<void>((resolve) => {
+      releaseFind = resolve;
+    });
+    // Hold findByName open so both registrations see the name as free, then
+    // let their creates race — the loser must get the same 409 as a taken name.
+    const racingRepository = new Proxy(repository, {
+      get(target, prop, receiver) {
+        if (prop === "findByName") {
+          return async (name: string) => {
+            await findGate;
+
+            return target.findByName(name);
+          };
+        }
+
+        return Reflect.get(target, prop, receiver);
+      },
+    });
+
+    const body = { name: "minikube", tags: [], cluster_info: null };
+    const both = Promise.all([
+      handleRegister(deps(racingRepository), REG_TOKEN, body),
+      handleRegister(deps(racingRepository), REG_TOKEN, body),
+    ]);
+
+    releaseFind();
+    const codes = (await both).map((result) => result.code).sort();
+
+    expect(codes).toEqual([200, 409]);
+  });
 });

@@ -65,8 +65,15 @@ spec:
               value: "k8s"
             - name: LORE_AGENTS_NAMESPACE
               value: {{ .Values.agentsNamespace | quote }}
-            - name: LORE_CLUSTER_AGENT_IDENTITY_FILE
-              value: {{ printf "%s/%s" .Values.identity.mountPath .Values.identity.fileName | quote }}
+            # Identity persists through the Kubernetes Secret API (the
+            # lore-cluster-agent-identity Role) — the container is read-only,
+            # so a file path here would EROFS on the first save.
+            - name: LORE_CLUSTER_AGENT_IDENTITY_SECRET
+              value: {{ .Values.identity.secretName | quote }}
+            - name: LORE_CLUSTER_AGENT_IDENTITY_NAMESPACE
+              value: {{ .Values.namespace | quote }}
+            - name: LORE_CLUSTER_AGENT_IDENTITY_KEY
+              value: {{ .Values.identity.fileName | quote }}
           livenessProbe:
             httpGet:
               path: /healthz
@@ -88,9 +95,10 @@ spec:
           volumeMounts:
             - name: tmp
               mountPath: /tmp
-            # The persisted identity, surfaced as a file. optional: the Secret
-            # does not exist before the first successful registration — the
-            # pod creates it through the API (templates/rbac.yaml).
+            # The identity Secret, surfaced read-only for inspection; the
+            # process reads AND writes it via the Kubernetes API (the
+            # lore-cluster-agent-identity Role), never through this mount.
+            # optional: it does not exist before the first registration.
             - name: identity
               mountPath: {{ .Values.identity.mountPath }}
               readOnly: true

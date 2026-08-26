@@ -196,6 +196,10 @@ const CATEGORY_ORDER: Array<{ name: string; description: string }> = [
   },
   { name: "Features", description: "Feature-planning iterations." },
   { name: "Agents", description: "Per-repo agent definitions." },
+  {
+    name: "Cluster Agents",
+    description: "Execution-cluster registry and pull-based dispatch.",
+  },
   { name: "Ingestion", description: "Content and graph ingestion." },
   {
     name: "Traceability",
@@ -245,6 +249,7 @@ const TAG_RULES: Array<[RegExp, string]> = [
   [/^\/api\/platform\//, "Analytics"],
   [/\/features\b/, "Features"],
   [/\/agent-definitions\b/, "Agents"],
+  [/^\/api\/cluster-agents\b/, "Cluster Agents"],
   [/\/settings\/dark-factory\b/, "Dark Factory"],
   [/\/(trace|impact)\b/, "Traceability"],
   [/\/ingest/, "Ingestion"],
@@ -343,6 +348,12 @@ function responsesFor(
 
   if (hasBody || declared.has(400)) {
     responses["400"] = { $ref: "#/components/responses/BadRequest" };
+  }
+
+  // An auth:false route that still authenticates by hand (the register route's
+  // pre-shared registration token) declares its 401 explicitly.
+  if (declared.has(401)) {
+    responses["401"] = { $ref: "#/components/responses/Unauthorized" };
   }
 
   if (declared.has(404)) {

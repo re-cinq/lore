@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { decideRegistration } from "./cluster-agents-port.js";
+import { enforceTrue } from "../../lib/enforce.js";
+import {
+  decideRegistration,
+  type RegisterClusterAgentInput,
+} from "./cluster-agents-port.js";
 import { InMemoryClusterAgents } from "./cluster-agents-memory.js";
 import { PgClusterAgents } from "./cluster-agents-pg.js";
 import { mintAgentToken, hashAgentToken } from "./cluster-agent-token.js";
@@ -73,13 +77,24 @@ describe("mintAgentToken", () => {
   });
 });
 
+async function createOrFail(
+  repo: InMemoryClusterAgents,
+  input: RegisterClusterAgentInput,
+): Promise<ClusterAgent> {
+  const created = await repo.create(input);
+
+  enforceTrue(created, Error, `name ${input.name} already registered`);
+
+  return created;
+}
+
 describe("InMemoryClusterAgents", () => {
   it("create registers an active agent findable by name, id, and token hash", async () => {
     const repo = new InMemoryClusterAgents(
       () => new Date("2026-08-26T10:00:00Z"),
     );
 
-    const created = await repo.create({
+    const created = await createOrFail(repo, {
       name: "minikube-bogdan",
       tags: ["node:agent", "gpu"],
       tokenHash: hashAgentToken("lca_one"),
@@ -99,9 +114,30 @@ describe("InMemoryClusterAgents", () => {
     );
   });
 
+  it("create returns null when the name is already registered", async () => {
+    const repo = new InMemoryClusterAgents();
+
+    await createOrFail(repo, {
+      name: "minikube-bogdan",
+      tags: [],
+      tokenHash: hashAgentToken("lca_one"),
+      clusterInfo: null,
+    });
+
+    expect(
+      await repo.create({
+        name: "minikube-bogdan",
+        tags: [],
+        tokenHash: hashAgentToken("lca_two"),
+        clusterInfo: null,
+      }),
+    ).toBeNull();
+    expect(await repo.list()).toHaveLength(1);
+  });
+
   it("rotate keeps the id and name but swaps token, tags, and cluster info", async () => {
     const repo = new InMemoryClusterAgents();
-    const created = await repo.create({
+    const created = await createOrFail(repo, {
       name: "minikube-bogdan",
       tags: ["node:agent"],
       tokenHash: hashAgentToken("lca_one"),
@@ -130,7 +166,7 @@ describe("InMemoryClusterAgents", () => {
     const repo = new InMemoryClusterAgents(
       () => new Date("2026-08-26T10:00:00Z"),
     );
-    const created = await repo.create({
+    const created = await createOrFail(repo, {
       name: "minikube-bogdan",
       tags: [],
       tokenHash: hashAgentToken("lca_one"),
@@ -150,13 +186,13 @@ describe("InMemoryClusterAgents", () => {
     const repo = new InMemoryClusterAgents(
       () => new Date("2026-08-26T10:00:00Z"),
     );
-    const silent = await repo.create({
+    const silent = await createOrFail(repo, {
       name: "silent",
       tags: [],
       tokenHash: hashAgentToken("lca_silent"),
       clusterInfo: null,
     });
-    const alive = await repo.create({
+    const alive = await createOrFail(repo, {
       name: "alive",
       tags: [],
       tokenHash: hashAgentToken("lca_alive"),

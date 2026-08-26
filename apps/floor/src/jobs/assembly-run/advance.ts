@@ -322,7 +322,7 @@ export async function advanceLine(
   // A POD node's row parks `queued` for a cluster-agent's claim (FR3); human and
   // service rows keep the default `running` — they are never claimable, and the
   // claim also requires an armed dispatch, which neither ever gets.
-  const isPodNode = !isHumanStation(node.type) && !runsInService;
+  const dispatchedAsPod = !isHumanStation(node.type) && !runsInService;
   const { stationRunId, nodeRowId } = await deps.assemblyRuns.ensureStationRun({
     assemblyRunId: assemblyLineId,
     nodeId: node.id,
@@ -331,8 +331,8 @@ export async function advanceLine(
       ? null
       : nodeAgentName(assemblyLineId, node.id, transition.iteration),
     input: stationRunInputFor(node, task, dispatch.content, dispatch.prompt),
-    status: isPodNode ? "queued" : undefined,
-    requiredTags: isPodNode
+    status: dispatchedAsPod ? "queued" : undefined,
+    requiredTags: dispatchedAsPod
       ? resolveRequiredTags(
           node.required_tags,
           await deps.repoSettings(assemblyRun.repo),

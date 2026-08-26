@@ -20,7 +20,10 @@ CREATE TABLE IF NOT EXISTS pipeline.cluster_agents (
   id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name           TEXT NOT NULL UNIQUE,
   tags           TEXT[] NOT NULL DEFAULT '{}',
-  token_hash     TEXT NOT NULL,
+  -- UNIQUE doubles as the index for the per-agent auth lookup on every
+  -- heartbeat/claim call; two agents sharing a token would make findByTokenHash
+  -- ambiguous anyway.
+  token_hash     TEXT NOT NULL UNIQUE,
   registered_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
   last_seen_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
   status         TEXT NOT NULL DEFAULT 'active'
@@ -46,4 +49,4 @@ ALTER TABLE pipeline.station_runs
 -- table never enters the index.
 CREATE INDEX IF NOT EXISTS station_runs_claim_scan
   ON pipeline.station_runs (status)
-  WHERE outcome IS NULL;
+  WHERE outcome IS NULL AND dispatch_spec IS NOT NULL;

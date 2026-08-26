@@ -36,11 +36,15 @@ export function claimIntervalMs(env: NodeJS.ProcessEnv): number {
  *  Floor's launch seam enqueued; nothing here needs a synced catalog. */
 export interface ClaimResponse {
   station_run_id: string;
-  node_row_id: number;
+  /** String-encoded bigint (the agent_run_events discipline) — a JS number
+   *  would silently lose precision past 2^53. */
+  node_row_id: string;
   assembly_run_id: string;
   node_id: string;
   iteration: number;
-  agent_cr_name: string;
+  /** Null for a row enqueued without a CR name armed yet — the spec's own
+   *  name is the fallback identity then. */
+  agent_cr_name: string | null;
   spec: LoreTaskSpec;
 }
 
@@ -50,11 +54,13 @@ export type ClaimOutcome =
   | { kind: "unauthorized" }
   | { kind: "error"; message: string };
 
-/** The idle back-off schedule: only a 204 grows the delay; a successful claim
- *  resets it, and errors keep polling at the base — they are not idleness. */
+/** The idle back-off schedule: only a 204 grows the delay — the FIRST idle
+ *  tick keeps the base interval, consecutive ones double it to the cap. A
+ *  successful claim resets it, and errors keep polling at the base — they are
+ *  not idleness. `idleTicks` counts the consecutive empties BEFORE this one. */
 export function nextClaimDelay(
   baseMs: number,
-  currentMs: number,
+  idleTicks: number,
   outcome: ClaimOutcome["kind"],
   maxIdleMs: number = CLAIM_MAX_IDLE_DELAY_MS,
 ): number {
@@ -62,7 +68,7 @@ export function nextClaimDelay(
     return baseMs;
   }
 
-  return Math.min(Math.max(currentMs, baseMs) * 2, maxIdleMs);
+  return Math.min(baseMs * 2 ** Math.max(0, idleTicks), maxIdleMs);
 }
 
 export interface ClaimTickDeps {
@@ -108,10 +114,15 @@ export async function claimOnce(deps: ClaimTickDeps): Promise<ClaimOutcome> {
   const claim = (await res.json()) as ClaimResponse;
   // The CR name must be the one the Floor recorded on the station_run row —
   // the watch's terminal report and the fork replay both correlate by it.
-  const spec: LoreTaskSpec = {
-    ...claim.spec,
-    name: claim.spec.name ?? claim.agent_cr_name,
-  };
+  const specName = claim.spec.name ?? claim.agent_cr_name;
+
+  if (!specName) {
+    return {
+      kind: "error",
+      message: `claim for station run ${claim.station_run_id} carries no CR name — refusing an unlabelled launch`,
+    };
+  }
+  const spec: LoreTaskSpec = { ...claim.spec, name: specName };
 
   try {
     const { ref } = await deps.launch(spec);
@@ -141,7 +152,7 @@ export interface ClaimLoopDeps {
 export async function runClaimLoop(deps: ClaimLoopDeps): Promise<void> {
   const running = deps.running ?? ((): boolean => true);
   const log = deps.log ?? ((message: string): void => console.log(message));
-  let delayMs = deps.baseDelayMs;
+  let idleTicks = 0;
 
   while (running()) {
     const outcome = await deps.claim();
@@ -163,12 +174,14 @@ export async function runClaimLoop(deps: ClaimLoopDeps): Promise<void> {
       await deps.reRegister();
     }
 
-    delayMs = nextClaimDelay(
+    const delayMs = nextClaimDelay(
       deps.baseDelayMs,
-      delayMs,
+      idleTicks,
       outcome.kind,
       deps.maxIdleDelayMs,
     );
+
+    idleTicks = outcome.kind === "empty" ? idleTicks + 1 : 0;
     await deps.sleep(delayMs);
   }
 }
