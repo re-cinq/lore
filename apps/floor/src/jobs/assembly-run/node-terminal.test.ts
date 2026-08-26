@@ -57,6 +57,7 @@ function replyPorts() {
     write: async (entry) => {
       entries.push(entry);
     },
+    listRecentByType: async () => [],
   };
 
   return { poster, audit, replies, comments, entries };
@@ -89,6 +90,7 @@ function ports() {
     write: async (entry) => {
       entries.push(entry);
     },
+    listRecentByType: async () => [],
   };
 
   return { poster, audit, reviews, comments, entries };

@@ -988,6 +988,50 @@ describe.each(IMPLEMENTATIONS)(
       ).toBeNull();
     });
 
+    it("counts open claims per cluster-agent, dropping finished and unclaimed visits", async () => {
+      const { port, repo } = make();
+      // The count is deliberately global (the registered-clusters page reads
+      // the whole fleet), so this test keys on an agent id nobody else uses.
+      const agentId = randomUUID();
+      const runId = await port.start({ blueprintName: "code-review", repo });
+      const first = await port.ensureStationRun({
+        assemblyRunId: runId,
+        nodeId: "review",
+        iteration: 1,
+        status: "queued",
+      });
+
+      await port.enqueueStationRunDispatch(first.nodeRowId, { prompt: "p" });
+      // The claim scan is global too — age this row to the front would race
+      // other rows, so claim by TAG nobody else queues.
+      // (Simpler: claim until this run's row is taken or the queue is dry.)
+      let claimed = await port.claimNextStationRun({
+        clusterAgentId: agentId,
+        tags: [],
+      });
+
+      while (claimed && claimed.assemblyRunId !== runId) {
+        claimed = await port.claimNextStationRun({
+          clusterAgentId: agentId,
+          tags: [],
+        });
+      }
+      await port.ensureStationRun({
+        assemblyRunId: runId,
+        nodeId: "done",
+        iteration: 1,
+      });
+
+      expect((await port.countOpenClaimsByAgent())[agentId]).toBeGreaterThan(0);
+
+      const before = (await port.countOpenClaimsByAgent())[agentId];
+
+      await port.finishStationRunOnce(first.nodeRowId, "success");
+      const after = (await port.countOpenClaimsByAgent())[agentId] ?? 0;
+
+      expect(after).toBe(before - 1);
+    });
+
     it("requeue resets the same row to queued and clears the claim; a finished visit refuses", async () => {
       const { port, repo } = make();
       const runId = await port.start({ blueprintName: "code-review", repo });

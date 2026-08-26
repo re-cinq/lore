@@ -134,6 +134,7 @@ function recordingPorts(
         write: async (entry: AuditLogEntry) => {
           recorded.audited.push(entry);
         },
+        listRecentByType: async () => [],
       },
       uiUrl: "https://lore.example.com",
     },

@@ -263,6 +263,9 @@ export interface AssemblyRunsPort {
    * already reached an outcome.
    */
   requeueStationRun(nodeRowId: string): Promise<boolean>;
+  /** Open claims per cluster-agent id — the registered-clusters page's
+   *  "currently executing" column (FR7). */
+  countOpenClaimsByAgent(): Promise<Record<string, number>>;
   /** Open (`queued`/`running`) lines, oldest first — the reaper's work list. */
   listOpen(): Promise<AssemblyRunRecord[]>;
   /**
