@@ -19,7 +19,9 @@ describe("FixIngestButton", () => {
   });
 
   it("shows the misaligned count and runs the action on click", async () => {
-    const action = vi.fn().mockResolvedValue({ opened: 2, prs: ["a", "b"] });
+    const action = vi
+      .fn()
+      .mockResolvedValue({ opened: 2, prs: ["a", "b"], failed: [] });
 
     render(
       <FixIngestButton repos={["re-cinq/a", "re-cinq/b"]} action={action} />,
@@ -38,7 +40,9 @@ describe("FixIngestButton", () => {
   });
 
   it("uses the singular PR label when one repo is fixed", async () => {
-    const action = vi.fn().mockResolvedValue({ opened: 1, prs: ["a"] });
+    const action = vi
+      .fn()
+      .mockResolvedValue({ opened: 1, prs: ["a"], failed: [] });
 
     render(<FixIngestButton repos={["re-cinq/a"]} action={action} />);
 
@@ -47,5 +51,30 @@ describe("FixIngestButton", () => {
     );
 
     await screen.findByRole("button", { name: "opened 1 PR" });
+  });
+
+  it("shows the failure count and per-repo reasons when PRs could not be opened", async () => {
+    const action = vi.fn().mockResolvedValue({
+      opened: 1,
+      prs: ["a"],
+      failed: [{ repo: "re-cinq/b", error: "workflows permission missing" }],
+    });
+
+    render(
+      <FixIngestButton repos={["re-cinq/a", "re-cinq/b"]} action={action} />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Fix ingest workflow (2)" }),
+    );
+
+    const button = await screen.findByRole("button", {
+      name: "opened 1 PR, 1 failed",
+    });
+
+    expect(button).toHaveAttribute(
+      "title",
+      "re-cinq/b: workflows permission missing",
+    );
   });
 });

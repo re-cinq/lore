@@ -205,3 +205,13 @@ describe("TaskFailure", () => {
     expect(err.details).toEqual(details);
   });
 });
+
+describe("classifyError workflows-permission phrasings", () => {
+  it("classifies GitHub's refusing-to-allow workflow message without step context", () => {
+    expect(
+      classifyError(
+        "refusing to allow a GitHub App to create or update workflow `.github/workflows/lore-ingest.yml` without `workflows` permission",
+      ).category,
+    ).toBe("github-workflows-permission");
+  });
+});
