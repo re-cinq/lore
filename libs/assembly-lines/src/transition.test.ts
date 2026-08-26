@@ -436,6 +436,7 @@ describe("iteration_max reason carries the station's real failure", () => {
       { nodeId: "validate", iteration: 2, outcome: "failed" },
     ]);
 
+    expect(t).toMatchObject({ kind: "fail", outcome: "iteration_max" });
     const reason = (t as { reason: string }).reason;
 
     expect(reason).toContain('node "validate" failed');
