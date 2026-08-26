@@ -3675,6 +3675,75 @@
         ]
       }
     },
+    "/api/cluster-agents/install-info": {
+      "get": {
+        "operationId": "get_api_cluster-agents_install-info",
+        "summary": "GET /api/cluster-agents/install-info",
+        "tags": ["Cluster Agents"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "What this deployment can hand a satellite installer — URLs and the registration token, or why not",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClusterAgentInstallInfo"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "admin"
+      }
+    },
+    "/api/cluster-agents/install.sh": {
+      "get": {
+        "operationId": "get_api_cluster-agents_install.sh",
+        "summary": "GET /api/cluster-agents/install.sh",
+        "tags": ["Cluster Agents"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "Successful response (2xx; the response body is not described — see info.description)"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "admin"
+      }
+    },
     "/api/cluster-agents/{id}/heartbeat": {
       "post": {
         "operationId": "post_api_cluster-agents_id_heartbeat",
@@ -9707,6 +9776,38 @@
           "node_id",
           "iteration",
           "agent_cr_name"
+        ],
+        "additionalProperties": false
+      },
+      "ClusterAgentInstallInfo": {
+        "type": "object",
+        "properties": {
+          "available": {
+            "type": "boolean"
+          },
+          "reason": {
+            "type": ["string", "null"]
+          },
+          "api_url": {
+            "type": ["string", "null"]
+          },
+          "event_router_url": {
+            "type": ["string", "null"]
+          },
+          "registration_token": {
+            "type": ["string", "null"]
+          },
+          "repo_url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "available",
+          "reason",
+          "api_url",
+          "event_router_url",
+          "registration_token",
+          "repo_url"
         ],
         "additionalProperties": false
       },

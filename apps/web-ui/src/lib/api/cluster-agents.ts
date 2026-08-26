@@ -18,3 +18,15 @@ export type ClusterOfflineEvent = ClusterAgentList["offline_events"][number];
 export function getClusterAgents(): Promise<ApiResult<ClusterAgentList>> {
   return apiFetch("lore-api", "/api/cluster-agents");
 }
+
+export type ClusterInstallInfo =
+  components["schemas"]["ClusterAgentInstallInfo"];
+
+/** What the Connect-a-cluster panel renders (#1572): the central URLs and the
+ *  registration token, or why the hand-out is unavailable. Admin-scoped —
+ *  the token rides in the response. */
+export function getClusterInstallInfo(): Promise<
+  ApiResult<ClusterInstallInfo>
+> {
+  return apiFetch("lore-api", "/api/cluster-agents/install-info");
+}
