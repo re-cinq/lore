@@ -120,7 +120,7 @@ describe("ImplementationLoopView", () => {
       ],
     });
 
-    expect(getByTestId("ticket-error").textContent).toContain(
+    expect(getByTestId("ticket-error-7").textContent).toContain(
       "edge validate->implement exceeded iteration_max 1",
     );
   });
@@ -130,7 +130,7 @@ describe("ImplementationLoopView", () => {
       current: ticket({ state: "running", run_id: "run-9" }),
     });
 
-    expect(queryByTestId("ticket-error")).toBeNull();
+    expect(queryByTestId("ticket-error-7")).toBeNull();
   });
 
   it("badges an unknown task status in the danger tone", () => {

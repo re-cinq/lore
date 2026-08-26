@@ -99,7 +99,7 @@ describe("/api/repos/{owner}/{repo}/implementation-loop", () => {
             id: "run-42",
             task_id: "task-7",
             status: "running",
-            reason: null,
+            reason: "edge validate->implement exceeded iteration_max 1",
             graph: {
               nodes: [
                 { id: "implement", type: "agent" },
@@ -145,7 +145,7 @@ describe("/api/repos/{owner}/{repo}/implementation-loop", () => {
       current_run_id: "run-42",
       current: {
         created_at: "2026-08-26T06:00:00.000Z",
-        error: null,
+        error: "edge validate->implement exceeded iteration_max 1",
         issue_number: 7,
         issue_url: "https://gh/i/7",
         title: "Ticket 7",

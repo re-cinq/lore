@@ -184,7 +184,7 @@ function TicketRow({ ticket }: { ticket: LoopTicket }) {
           <p
             className={styles.errorLine}
             title={ticket.error}
-            data-testid="ticket-error"
+            data-testid={`ticket-error-${ticket.issue_number}`}
           >
             {ticket.error}
           </p>
