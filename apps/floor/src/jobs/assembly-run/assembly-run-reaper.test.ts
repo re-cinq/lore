@@ -270,7 +270,7 @@ describe("agentCrVisible", () => {
     ).toBe(false);
   });
 
-  it("no claim is visible when LORE_CENTRAL_CLUSTER_AGENT_ID is unset", () => {
+  it("no claim is visible when no central cluster-agent is registered", () => {
     expect(
       agentCrVisible({ status: "claimed", clusterAgentId: "sat-1" }, null),
     ).toBe(false);
@@ -307,6 +307,7 @@ function harness() {
   const taskStatusById: Record<string, string | null> = {};
   const billingAlerts: Array<{ repo: string; nodeType: string }> = [];
   const crReads: string[] = [];
+  const central = { clusterAgentId: null as string | null };
   // What the walk arms a queued row with — the sweep never launches directly.
   const armDispatch = port.enqueueStationRunDispatch.bind(port);
 
@@ -329,6 +330,7 @@ function harness() {
       return statusByName[name] ?? null;
     },
     taskStatus: async (taskId: string) => taskStatusById[taskId] ?? null,
+    centralClusterAgentId: async () => central.clusterAgentId,
     alertBilling: async (repo: string, nodeType: string) => {
       billingAlerts.push({ repo, nodeType });
     },
@@ -342,6 +344,7 @@ function harness() {
     billingAlerts,
     crReads,
     deps,
+    central,
   };
 }
 
@@ -606,42 +609,38 @@ describe("the sweep's claim-lifecycle arms", () => {
   });
 
   it("requeues the same row when the central claim produced no CR past the grace", async () => {
-    process.env.LORE_CENTRAL_CLUSTER_AGENT_ID = "central-1";
+    const h = harness();
 
-    try {
-      const h = harness();
-      const id = await runningRow(h);
+    h.central.clusterAgentId = "central-1";
+    const id = await runningRow(h);
 
-      await queuedRow(h, id, 10);
-      // The claim is aged past the startup grace too: claimed_at is the clock
-      // the grace runs from... startedAt in this arm. The CR read answers null.
-      h.port.clock = () => new Date(Date.now() - 5 * MIN);
+    await queuedRow(h, id, 10);
+    // The claim is aged past the startup grace too: claimed_at is the clock
+    // the grace runs from... startedAt in this arm. The CR read answers null.
+    h.port.clock = () => new Date(Date.now() - 5 * MIN);
+    await h.port.claimNextStationRun({
+      clusterAgentId: "central-1",
+      tags: [],
+    });
+    h.port.clock = () => new Date();
+    const summary = await assemblyLineReaperJob(h.deps);
+
+    // Same row, reset — no second row, no second builder: the armed dispatch
+    // spec rides the row for the next claimant.
+    expect(h.port.nodes).toHaveLength(1);
+    expect(h.port.nodes[0]).toMatchObject({
+      status: "queued",
+      clusterAgentId: null,
+      claimedAt: null,
+      outcome: null,
+    });
+    expect(summary).toContain("requeued 1");
+    expect(
       await h.port.claimNextStationRun({
         clusterAgentId: "central-1",
         tags: [],
-      });
-      h.port.clock = () => new Date();
-      const summary = await assemblyLineReaperJob(h.deps);
-
-      // Same row, reset — no second row, no second builder: the armed dispatch
-      // spec rides the row for the next claimant.
-      expect(h.port.nodes).toHaveLength(1);
-      expect(h.port.nodes[0]).toMatchObject({
-        status: "queued",
-        clusterAgentId: null,
-        claimedAt: null,
-        outcome: null,
-      });
-      expect(summary).toContain("requeued 1");
-      expect(
-        await h.port.claimNextStationRun({
-          clusterAgentId: "central-1",
-          tags: [],
-        }),
-      ).toMatchObject({ dispatchSpec: { name: "spec" } });
-    } finally {
-      delete process.env.LORE_CENTRAL_CLUSTER_AGENT_ID;
-    }
+      }),
+    ).toMatchObject({ dispatchSpec: { name: "spec" } });
   });
 
   it("times out an alive-but-stuck satellite claim from claimed_at, terminally", async () => {

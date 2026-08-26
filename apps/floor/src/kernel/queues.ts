@@ -35,6 +35,7 @@ import { PgContextCore } from "@re-cinq/lore-shared/project/context-core/context
 import { PgSettings } from "@re-cinq/lore-shared/project/settings/settings-pg.js";
 import { PgChunks } from "@re-cinq/lore-shared/project/chunks/chunks-pg.js";
 import { PgMemoryLifecycle } from "@re-cinq/lore-shared/project/memory/memory-lifecycle-pg.js";
+import { PgClusterAgents } from "@re-cinq/lore-shared/project/cluster-agents/cluster-agents-pg.js";
 
 let pipelineSingleton: PipelineRepositories | undefined;
 let taskStoreSingleton: PgTaskStore | undefined;
@@ -160,6 +161,12 @@ export const stationClient = (): StationClient =>
     process.env.STATIONS_URL ?? "",
     internalToken(),
   ));
+
+let clusterAgentsSingleton: PgClusterAgents | undefined;
+
+/** The execution-cluster registry (`pipeline.cluster_agents`, FR1). */
+export const clusterAgents = (): PgClusterAgents =>
+  (clusterAgentsSingleton ??= new PgClusterAgents(getPool()));
 
 let clusterAgentSingleton: ClusterAgentClient | undefined;
 

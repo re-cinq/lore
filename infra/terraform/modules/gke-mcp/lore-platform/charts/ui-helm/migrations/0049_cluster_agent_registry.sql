@@ -49,4 +49,4 @@ ALTER TABLE pipeline.station_runs
 -- table never enters the index.
 CREATE INDEX IF NOT EXISTS station_runs_claim_scan
   ON pipeline.station_runs (status)
-  WHERE outcome IS NULL;
+  WHERE outcome IS NULL AND dispatch_spec IS NOT NULL;
