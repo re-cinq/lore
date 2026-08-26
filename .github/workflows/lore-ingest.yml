@@ -1,7 +1,9 @@
-# lore-ingest-version: 3
+# lore-ingest-version: 4
 # Lore's own ingest workflow — a deliberate superset of the canonical
-# template (extra paths, hard-fail on unset URL). The version marker above
-# is what the dashboard reads to mark this repo's ingest workflow aligned.
+# template (extra paths, manual dispatch, LORE_API_URL/LORE_WEBHOOK_URL vars,
+# the Floor ci-ingest graph job) carrying the v4 hardened error handling in
+# its ingest step. The version marker above is what the dashboard reads to
+# mark this repo's ingest workflow aligned.
 name: Lore Context Ingest
 
 on:
@@ -76,16 +78,63 @@ jobs:
             echo "::error::LORE_API_URL repository variable is not set — context was NOT ingested"
             exit 1
           fi
-          curl -sf -X POST \
-            -H "Authorization: Bearer ${LORE_INGEST_TOKEN}" \
+          # Same class of misconfiguration: an unset token means every POST is
+          # rejected with 401, which must never pass as a green run.
+          if [ -z "${LORE_INGEST_TOKEN}" ]; then
+            echo "::error::LORE_INGEST_TOKEN repository secret is not set — context was NOT ingested"
+            exit 1
+          fi
+          # The Authorization header rides in a file so the token never
+          # appears on the curl command line.
+          AUTH_FILE="$(mktemp)"
+          BODY_FILE="$(mktemp)"
+          trap 'rm -f "${AUTH_FILE}" "${BODY_FILE}"' EXIT
+          printf 'Authorization: Bearer %s\n' "${LORE_INGEST_TOKEN}" > "${AUTH_FILE}"
+          # Capture the HTTP status instead of curl -f: a blanket warning once
+          # masked a permanent 401 (unset token) as transient for a repo's
+          # entire history. curl exits non-zero here only when no HTTP
+          # response arrived, where -w prints 000.
+          CURL_EXIT=0
+          HTTP_STATUS=$(curl -s -o "${BODY_FILE}" -w "%{http_code}" -X POST \
+            -H @"${AUTH_FILE}" \
             -H "Content-Type: application/json" \
             -d "{
               \"files\": ${FILES},
               \"repo\": \"${{ github.repository }}\",
               \"commit\": \"${{ github.sha }}\"
             }" \
-            "${LORE_API_URL}/api/ingest" \
-            || echo "::warning::Lore ingest endpoint returned an error (transient — not blocking merge)"
+            "${LORE_API_URL}/api/ingest") || CURL_EXIT=$?
+          echo "Lore ingest endpoint returned HTTP ${HTTP_STATUS:-000} (curl exit ${CURL_EXIT})"
+          # Prefix each body line with '| ': the runner strips leading
+          # whitespace before parsing ::workflow-commands::, so only a
+          # non-whitespace prefix stops a response body from forging one. The
+          # echo keeps the annotations below on a fresh line even when the
+          # body has no trailing newline.
+          head -c 4096 "${BODY_FILE}" | sed 's/^/| /'
+          echo
+          # A URL that cannot be parsed (exit 3) or resolved (exit 6) is a
+          # misconfigured LORE_API_URL, not a transient blip — hard-fail like
+          # the unset checks above.
+          if [ "${CURL_EXIT}" = "3" ] || [ "${CURL_EXIT}" = "6" ]; then
+            echo "::error::curl could not reach ${LORE_API_URL} (exit ${CURL_EXIT}) — context was NOT ingested"
+            exit 1
+          fi
+          case "${HTTP_STATUS}" in
+            2??)
+              ;;
+            5??|408|429|000|"")
+              # Server-side or network trouble is plausibly transient — warn,
+              # and rely on the next doc push (or a manual dispatch) to retry.
+              # This workflow runs on push to main and never blocks a merge.
+              echo "::warning::Lore ingest endpoint returned HTTP ${HTTP_STATUS:-000} (transient — next doc push retries)"
+              ;;
+            *)
+              # Anything else (4xx auth/config, unexpected redirects) is
+              # permanent — a retry will not fix it, so fail the run.
+              echo "::error::Lore ingest endpoint returned HTTP ${HTTP_STATUS} — context was NOT ingested"
+              exit 1
+              ;;
+          esac
 
   # Spec/ADR → spec-traceability graph projection. Each kind is its own job
   # (parallel via the matrix) so specs and ADRs project independently. The CI
