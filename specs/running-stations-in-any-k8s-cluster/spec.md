@@ -164,6 +164,13 @@ one dispatch mechanism, not a special case plus a remote case.
   `SELECT … FOR UPDATE SKIP LOCKED` CTE that sets `status = 'claimed'`,
   `cluster_agent_id`, and `claimed_at` in one statement, so concurrent
   claimants are safe. ([validated by `claim.test.ts:90`](apps/lore-api/src/api/routes/cluster-agents/claim.test.ts#L90), [`assembly-runs.contract.test.ts:899`](libs/shared/src/project/assembly-runs/assembly-runs.contract.test.ts#L899), [`assembly-runs.contract.test.ts:959`](libs/shared/src/project/assembly-runs/assembly-runs.contract.test.ts#L959))
+- The central cluster runs the same claim loop: cluster-agent-helm's
+  `claim` block (enabled by default) registers it as `central` — the name
+  the Floor reaper resolves CR visibility by — with the full tag set,
+  including the central-only tags satellites never receive. The flip to
+  pull-based dispatch means a central deployment WITHOUT a registered
+  claimant leaves every queued run to die at the queue-wait bound (observed
+  live, 2026-08-26).
 - Claim and heartbeat calls authenticate with the per-agent bearer token
   issued at registration, like every other lore-api call the agent makes. ([validated by `claim.test.ts:50`](apps/lore-api/src/api/routes/cluster-agents/claim.test.ts#L50), [`claim.test.ts:60`](apps/lore-api/src/api/routes/cluster-agents/claim.test.ts#L60), [`claim.test.ts:69`](apps/lore-api/src/api/routes/cluster-agents/claim.test.ts#L69), [`claim-loop.test.ts:119`](apps/cluster-agent/src/satellite/claim-loop.test.ts#L119), [`claim-loop.test.ts:164`](apps/cluster-agent/src/satellite/claim-loop.test.ts#L164), [`claim-loop.test.ts:170`](apps/cluster-agent/src/satellite/claim-loop.test.ts#L170), [`claim-loop.test.ts:244`](apps/cluster-agent/src/satellite/claim-loop.test.ts#L244))
 - A claim request with no matching queued run returns `204`. An idle agent

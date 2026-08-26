@@ -59,3 +59,37 @@ roleRef:
   kind: Role
   name: lore-cluster-agent
   apiGroup: rbac.authorization.k8s.io
+{{- if .Values.claim.enabled }}
+---
+# The identity Secret ({{ .Values.claim.identitySecretName }}): the claim loop
+# PERSISTS its registered {id, token} there so restarts re-register with the
+# same per-agent token (FR1). `create` cannot be resourceName-scoped in RBAC,
+# so it is granted at large in this namespace; reads and updates are pinned.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: lore-cluster-agent-identity
+  namespace: {{ .Values.namespace }}
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["create"]
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: [{{ .Values.claim.identitySecretName | quote }}]
+    verbs: ["get", "update", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: lore-cluster-agent-identity
+  namespace: {{ .Values.namespace }}
+subjects:
+  - kind: ServiceAccount
+    name: lore-cluster-agent
+    namespace: {{ .Values.namespace }}
+roleRef:
+  kind: Role
+  name: lore-cluster-agent-identity
+  apiGroup: rbac.authorization.k8s.io
+{{- end }}
