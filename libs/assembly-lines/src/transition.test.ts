@@ -383,3 +383,62 @@ describe("rework: a step sends work back to the step that fed it", () => {
     expect(getNextTransition(decompose!, visits).kind).toBe("fail");
   });
 });
+
+describe("iteration_max reason carries the station's real failure", () => {
+  const graph = {
+    name: "implementation-loop",
+    entry: "implement",
+    exit: "done",
+    nodes: [
+      { id: "implement", type: "agent" },
+      { id: "validate", type: "validate" },
+      { id: "done", type: "retrospective" },
+    ],
+    edges: [
+      { from: "implement", to: "validate", on: "success" },
+      { from: "validate", to: "implement", on: "failed", iteration_max: 1 },
+      { from: "validate", to: "done", on: "success" },
+    ],
+  } as never;
+
+  it("names the failing node and its detail, not just the edge budget", () => {
+    const t = getNextTransition(graph, [
+      { nodeId: "implement", iteration: 1, outcome: "success" },
+      {
+        nodeId: "validate",
+        iteration: 1,
+        outcome: "failed",
+        failureDetail: "validation failed: lint,build",
+      },
+      { nodeId: "implement", iteration: 2, outcome: "success" },
+      {
+        nodeId: "validate",
+        iteration: 2,
+        outcome: "failed",
+        failureDetail: "validation failed: lint,build",
+      },
+    ]);
+
+    expect(t).toMatchObject({ kind: "fail", outcome: "iteration_max" });
+    const reason = (t as { reason: string }).reason;
+
+    expect(reason).toContain(
+      'node "validate" failed: validation failed: lint,build',
+    );
+    expect(reason).toContain("retry budget (1)");
+  });
+
+  it("degrades to the plain budget message when the visit carries no detail", () => {
+    const t = getNextTransition(graph, [
+      { nodeId: "implement", iteration: 1, outcome: "success" },
+      { nodeId: "validate", iteration: 1, outcome: "failed" },
+      { nodeId: "implement", iteration: 2, outcome: "success" },
+      { nodeId: "validate", iteration: 2, outcome: "failed" },
+    ]);
+
+    const reason = (t as { reason: string }).reason;
+
+    expect(reason).toContain('node "validate" failed');
+    expect(reason).toContain("retry budget (1)");
+  });
+});

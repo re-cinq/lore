@@ -163,6 +163,21 @@ export function stationNodeOutcome(
   const stationResult = parseNodeResult(status.output);
 
   if (stationResult) {
+    // The validate station reports which suites died only through its extras;
+    // lift that into failureDetail so the terminal reason can name it.
+    const failedSuites = stationResult.extras?.["Lore-Validation-Failed"];
+
+    if (
+      stationResult.outcome === "failed" &&
+      !stationResult.failureDetail &&
+      failedSuites
+    ) {
+      return {
+        ...stationResult,
+        failureDetail: `validation failed: ${failedSuites}`,
+      };
+    }
+
     return stationResult;
   }
 
