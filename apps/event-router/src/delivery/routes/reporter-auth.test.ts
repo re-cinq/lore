@@ -11,6 +11,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import Hapi from "@hapi/hapi";
 import type { EventInsert } from "@re-cinq/lore-shared";
 import { InMemoryClusterAgents } from "@re-cinq/lore-shared/project/cluster-agents/cluster-agents-memory.js";
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { mintAgentToken } from "@re-cinq/lore-shared/project/cluster-agents/cluster-agent-token.js";
 import { eventsRoute } from "./events.js";
 
@@ -77,6 +78,7 @@ describe("POST /api/events — per-agent tokens (FR5)", () => {
     const { token, tokenHash } = mintAgentToken();
     const agent = await registry.create(registration(tokenHash));
 
+    enforceTrue(agent, Error, "name already registered");
     await registry.rotate(agent.id, registration(mintAgentToken().tokenHash));
 
     const res = await server().inject(report(token));

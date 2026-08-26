@@ -42,7 +42,9 @@ export interface ClaimResponse {
   assembly_run_id: string;
   node_id: string;
   iteration: number;
-  agent_cr_name: string;
+  /** Null for a row enqueued without a CR name armed yet — the spec's own
+   *  name is the fallback identity then. */
+  agent_cr_name: string | null;
   spec: LoreTaskSpec;
 }
 
@@ -112,10 +114,15 @@ export async function claimOnce(deps: ClaimTickDeps): Promise<ClaimOutcome> {
   const claim = (await res.json()) as ClaimResponse;
   // The CR name must be the one the Floor recorded on the station_run row —
   // the watch's terminal report and the fork replay both correlate by it.
-  const spec: LoreTaskSpec = {
-    ...claim.spec,
-    name: claim.spec.name ?? claim.agent_cr_name,
-  };
+  const specName = claim.spec.name ?? claim.agent_cr_name;
+
+  if (!specName) {
+    return {
+      kind: "error",
+      message: `claim for station run ${claim.station_run_id} carries no CR name — refusing an unlabelled launch`,
+    };
+  }
+  const spec: LoreTaskSpec = { ...claim.spec, name: specName };
 
   try {
     const { ref } = await deps.launch(spec);

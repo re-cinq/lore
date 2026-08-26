@@ -226,7 +226,7 @@ A satellite must report outcomes without holding the bus-wide credential.
 - The event-router's `POST /api/events` accepts, in addition to
   `LORE_INGEST_TOKEN`, per-agent bearer tokens verified against
   `pipeline.cluster_agents.token_hash` (the router already holds the pool;
-  this is a lookup, not a new dependency). ([validated by [`reporter-auth.test.ts:65`](apps/event-router/src/delivery/routes/reporter-auth.test.ts#L65), [`reporter-auth.test.ts:100`](apps/event-router/src/delivery/routes/reporter-auth.test.ts#L100), [`reporter-auth.test.ts:110`](apps/event-router/src/delivery/routes/reporter-auth.test.ts#L110))
+  this is a lookup, not a new dependency). ([validated by [`reporter-auth.test.ts:66`](apps/event-router/src/delivery/routes/reporter-auth.test.ts#L66), [`reporter-auth.test.ts:102`](apps/event-router/src/delivery/routes/reporter-auth.test.ts#L102), [`reporter-auth.test.ts:112`](apps/event-router/src/delivery/routes/reporter-auth.test.ts#L112))
 - Satellites report with their per-agent token; `LORE_INGEST_TOKEN` never
   leaves the central cluster — and a per-agent token authorises the
   reporting front door only, never the router's other surfaces. ([validated by [`server-auth.test.ts:39`](apps/event-router/src/delivery/server-auth.test.ts#L39))
@@ -234,7 +234,7 @@ A satellite must report outcomes without holding the bus-wide credential.
   its reporting credential — one revocation surface for both claiming and
   reporting. An agent already marked offline still delivers a late terminal
   report — dedupe keys make a duplicate safe, and losing the report would
-  lose the work. ([validated by [`reporter-auth.test.ts:76`](apps/event-router/src/delivery/routes/reporter-auth.test.ts#L76), [`reporter-auth.test.ts:88`](apps/event-router/src/delivery/routes/reporter-auth.test.ts#L88))
+  lose the work. ([validated by [`reporter-auth.test.ts:77`](apps/event-router/src/delivery/routes/reporter-auth.test.ts#L77), [`reporter-auth.test.ts:90`](apps/event-router/src/delivery/routes/reporter-auth.test.ts#L90))
 
 ## FR6 — Standalone satellite chart
 

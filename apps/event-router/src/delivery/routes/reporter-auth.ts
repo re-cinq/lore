@@ -21,8 +21,11 @@
  * the ingest token is unconfigured).
  */
 
-import { timingSafeEqual } from "node:crypto";
-import { enforceBearer } from "@re-cinq/lore-shared/http/bearer.js";
+import {
+  enforceBearer,
+  extractBearer,
+  secretEquals,
+} from "@re-cinq/lore-shared/http/bearer.js";
 import { hashAgentToken } from "@re-cinq/lore-shared/project/cluster-agents/cluster-agent-token.js";
 import type { ClusterAgentsRepository } from "@re-cinq/lore-shared/project/cluster-agents/cluster-agents-port.js";
 
@@ -39,7 +42,7 @@ export async function enforceReporterToken(
   headers: Record<string, unknown>,
   deps: ReporterAuthDeps,
 ): Promise<void> {
-  const token = presentedBearer(headers);
+  const token = extractBearer(headers["authorization"]);
 
   if (token !== undefined && deps.ingestToken !== undefined) {
     if (secretEquals(token, deps.ingestToken)) {
@@ -54,24 +57,4 @@ export async function enforceReporterToken(
   }
 
   enforceBearer(headers, deps.ingestToken, "event-router");
-}
-
-/** The bearer the caller presented, when it presented one. */
-function presentedBearer(headers: Record<string, unknown>): string | undefined {
-  const auth = headers["authorization"];
-
-  if (typeof auth !== "string" || !auth.startsWith("Bearer ")) {
-    return undefined;
-  }
-
-  return auth.slice("Bearer ".length);
-}
-
-/** Constant-time compare, so probing the ingest token leaks nothing through
- *  response timing. (The shared `enforceBearer` keeps its own copy private.) */
-function secretEquals(a: string, b: string): boolean {
-  const bufA = Buffer.from(a);
-  const bufB = Buffer.from(b);
-
-  return bufA.length === bufB.length && timingSafeEqual(bufA, bufB);
 }
