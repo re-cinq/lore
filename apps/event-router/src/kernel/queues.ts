@@ -13,6 +13,7 @@ import { createPipelineRepositories } from "@re-cinq/lore-shared/project/pipelin
 import type { PipelineRepositories } from "@re-cinq/lore-shared";
 import { getPool } from "@re-cinq/lore-shared/db/pg-pool.js";
 import { PgEventDeliveries } from "@re-cinq/lore-shared/project/events/event-deliveries-pg.js";
+import { PgClusterAgents } from "@re-cinq/lore-shared/project/cluster-agents/cluster-agents-pg.js";
 
 let pipelineSingleton: PipelineRepositories | undefined;
 
@@ -25,3 +26,10 @@ let deliveriesSingleton: PgEventDeliveries | undefined;
  *  bundle: `getPool()` throws until `initPool()` has run. */
 export const deliveries = (): PgEventDeliveries =>
   (deliveriesSingleton ??= new PgEventDeliveries(getPool()));
+
+let clusterAgentsSingleton: PgClusterAgents | undefined;
+
+/** The cluster-agent registry — the reporting front door's per-agent token
+ *  lookup (FR5). Lazy for the same reason as the others. */
+export const clusterAgents = (): PgClusterAgents =>
+  (clusterAgentsSingleton ??= new PgClusterAgents(getPool()));

@@ -1,5 +1,9 @@
 import type { PgPool } from "../../memory-store.js";
-import type { AuditPort, AuditLogEntry } from "./audit-port.js";
+import type {
+  AuditPort,
+  AuditLogEntry,
+  StoredAuditLogEntry,
+} from "./audit-port.js";
 
 /**
  * Postgres-backed {@link AuditPort}: a single INSERT into
@@ -22,5 +26,35 @@ export class PgAudit implements AuditPort {
         JSON.stringify(entry.payload),
       ],
     );
+  }
+
+  async listRecentByType(
+    eventType: string,
+    limit: number,
+  ): Promise<StoredAuditLogEntry[]> {
+    const { rows } = await this.pool.query<{
+      event_type: string;
+      task_id: string | null;
+      repo: string | null;
+      actor: string | null;
+      payload: Record<string, unknown>;
+      created_at: Date;
+    }>(
+      `SELECT event_type, task_id, repo, actor, payload, created_at
+         FROM pipeline.audit_log
+        WHERE event_type = $1
+        ORDER BY created_at DESC
+        LIMIT $2`,
+      [eventType, limit],
+    );
+
+    return rows.map((row) => ({
+      event_type: row.event_type,
+      task_id: row.task_id,
+      repo: row.repo,
+      actor: row.actor,
+      payload: row.payload,
+      createdAt: new Date(row.created_at),
+    }));
   }
 }

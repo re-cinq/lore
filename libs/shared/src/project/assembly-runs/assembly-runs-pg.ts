@@ -446,6 +446,22 @@ export class PgAssemblyRuns implements AssemblyRunsPort {
     return rows.length === 1;
   }
 
+  async countOpenClaimsByAgent(): Promise<Record<string, number>> {
+    const { rows } = await this.pool.query<{
+      cluster_agent_id: string;
+      open_claims: string;
+    }>(
+      `SELECT cluster_agent_id, count(*)::text AS open_claims
+         FROM pipeline.station_runs
+        WHERE outcome IS NULL AND cluster_agent_id IS NOT NULL
+        GROUP BY cluster_agent_id`,
+    );
+
+    return Object.fromEntries(
+      rows.map((row) => [row.cluster_agent_id, Number(row.open_claims)]),
+    );
+  }
+
   async listStationRuns(assemblyRunId: string): Promise<StationRunRecord[]> {
     const { rows } = await this.pool.query(
       `SELECT id, station_run_id, assembly_run_id, node_id, iteration, outcome,

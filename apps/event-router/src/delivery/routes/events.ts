@@ -31,9 +31,10 @@ import {
   parseBody,
   parseJsonBody,
 } from "@re-cinq/lore-shared/http/json-body.js";
-import { enforceBearer } from "@re-cinq/lore-shared/http/bearer.js";
 import { mapGitHubEvent } from "@re-cinq/lore-shared/project/events/github-map.js";
 import { verifyGitHubSignature } from "@re-cinq/lore-shared/http/github-signature.js";
+import { enforceReporterToken } from "./reporter-auth.js";
+import type { ReporterAuthDeps } from "./reporter-auth.js";
 
 /** The reported-event body. `source` is the closed vocabulary rather than a
  *  string: an event whose source is a typo reaches no handler, and is then found
@@ -51,6 +52,11 @@ export interface EventsRouteDeps {
   webhookSecret?: string;
   /** The token the reporting branch accepts; absent means it is unconfigured. */
   bearerToken?: string;
+  /** The cluster-agent registry lookup (FR5): a bearer whose SHA-256 matches a
+   *  `pipeline.cluster_agents.token_hash` row may report events — and only
+   *  report; the drain/delivery surfaces never see this. Absent means
+   *  per-agent tokens are not accepted. */
+  findByTokenHash?: ReporterAuthDeps["findByTokenHash"];
 }
 
 export function eventsRoute(deps: EventsRouteDeps): ServerRoute {
@@ -66,7 +72,7 @@ export function eventsRoute(deps: EventsRouteDeps): ServerRoute {
 
       const events = signature
         ? fromGitHub(request.headers, raw, signature, deps)
-        : [fromReporter(raw, request.headers, deps)];
+        : [await fromReporter(raw, request.headers, deps)];
 
       // Sequential, not concurrent: a partial failure must still surface as a
       // 5xx so the sender retries, and every insert is idempotent.
@@ -127,13 +133,17 @@ function fromGitHub(
   );
 }
 
-/** The reporting branch: bearer token, then the generic shape. */
-function fromReporter(
+/** The reporting branch: ingest token or a registered per-agent token, then
+ *  the generic shape. */
+async function fromReporter(
   raw: string,
   headers: Record<string, unknown>,
   deps: EventsRouteDeps,
-): EventInsert {
-  enforceBearer(headers, deps.bearerToken, "event-router");
+): Promise<EventInsert> {
+  await enforceReporterToken(headers, {
+    ingestToken: deps.bearerToken,
+    findByTokenHash: deps.findByTokenHash,
+  });
 
   return parseBody(raw, ReportedEvent, "reportable event");
 }

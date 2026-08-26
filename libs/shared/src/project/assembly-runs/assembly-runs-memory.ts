@@ -360,6 +360,19 @@ export class InMemoryAssemblyRuns implements AssemblyRunsPort {
     return true;
   }
 
+  async countOpenClaimsByAgent(): Promise<Record<string, number>> {
+    const counts: Record<string, number> = {};
+
+    for (const n of this.nodes) {
+      if (n.outcome === null && (n.clusterAgentId ?? null) !== null) {
+        counts[n.clusterAgentId as string] =
+          (counts[n.clusterAgentId as string] ?? 0) + 1;
+      }
+    }
+
+    return counts;
+  }
+
   async listStationRuns(assemblyRunId: string): Promise<StationRunRecord[]> {
     // Numeric-string ids (this double mints "1","2",…; Pg's BIGINT identity is
     // likewise numeric) — compare with numeric collation so the double stays

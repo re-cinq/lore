@@ -396,19 +396,19 @@ The code-review assembly line is the sole reviewer (ADR-012 amendment): a **deep
 
 ### `apps/floor/src/jobs/assembly-run/node-terminal.test.ts`
 
-- A code-review node's findings are posted as one review against the line's PR. ([validated by](apps/floor/src/jobs/assembly-run/node-terminal.test.ts#L181))
-- A node that is not a code review posts nothing. ([validated by](apps/floor/src/jobs/assembly-run/node-terminal.test.ts#L196))
-- A line carrying no `pr_number` posts nothing. ([validated by](apps/floor/src/jobs/assembly-run/node-terminal.test.ts#L205))
-- A verdict that reaches no parseable findings MUST be audited as `review_findings_unparsed` rather than passing silently — that state is indistinguishable from a clean review at the PR. ([validated by](apps/floor/src/jobs/assembly-run/node-terminal.test.ts#L213))
-- An inline post that GitHub rejects and that is delivered as the top-level-comment fallback MUST be audited as `review_post_degraded` while the node still reports posted — a silent downgrade is invisible at the PR. ([validated by](apps/floor/src/jobs/assembly-run/node-terminal.test.ts#L233))
-- A post that throws MUST be audited as `review_post_failed` rather than swallowed, and never fails the line. ([validated by](apps/floor/src/jobs/assembly-run/node-terminal.test.ts#L269))
-- A code-review-refine node emits its reply as a fenced `REVIEW_REPLY` block (the pod has no `gh`); the Floor posts it in-thread when the line carries an `in_reply_to_id`. ([validated by](apps/floor/src/jobs/assembly-run/node-terminal.test.ts#L329))
-- A refine reply with no thread id falls back to a plain PR comment. ([validated by](apps/floor/src/jobs/assembly-run/node-terminal.test.ts#L346))
-- A node that is not a refine node posts no reply. ([validated by](apps/floor/src/jobs/assembly-run/node-terminal.test.ts#L360))
-- A refine node that emits no reply block MUST be audited as `review_reply_unparsed` rather than passing silently. ([validated by](apps/floor/src/jobs/assembly-run/node-terminal.test.ts#L375))
-- A reply post that throws MUST be audited as `review_reply_post_failed` rather than swallowed, and never fails the line. ([validated by](apps/floor/src/jobs/assembly-run/node-terminal.test.ts#L396))
-- A `code-review-recheck` node's changes-requested verdict is posted as a formal `REQUEST_CHANGES` review. ([validated by](apps/floor/src/jobs/assembly-run/node-terminal.test.ts#L848))
-- A `code-review-recheck` node's approving verdict is posted as a formal `APPROVE` review. ([validated by](apps/floor/src/jobs/assembly-run/node-terminal.test.ts#L862))
+- A code-review node's findings are posted as one review against the line's PR. ([validated by](apps/floor/src/jobs/assembly-run/node-terminal.test.ts#L183))
+- A node that is not a code review posts nothing. ([validated by](apps/floor/src/jobs/assembly-run/node-terminal.test.ts#L198))
+- A line carrying no `pr_number` posts nothing. ([validated by](apps/floor/src/jobs/assembly-run/node-terminal.test.ts#L207))
+- A verdict that reaches no parseable findings MUST be audited as `review_findings_unparsed` rather than passing silently — that state is indistinguishable from a clean review at the PR. ([validated by](apps/floor/src/jobs/assembly-run/node-terminal.test.ts#L215))
+- An inline post that GitHub rejects and that is delivered as the top-level-comment fallback MUST be audited as `review_post_degraded` while the node still reports posted — a silent downgrade is invisible at the PR. ([validated by](apps/floor/src/jobs/assembly-run/node-terminal.test.ts#L235))
+- A post that throws MUST be audited as `review_post_failed` rather than swallowed, and never fails the line. ([validated by](apps/floor/src/jobs/assembly-run/node-terminal.test.ts#L271))
+- A code-review-refine node emits its reply as a fenced `REVIEW_REPLY` block (the pod has no `gh`); the Floor posts it in-thread when the line carries an `in_reply_to_id`. ([validated by](apps/floor/src/jobs/assembly-run/node-terminal.test.ts#L331))
+- A refine reply with no thread id falls back to a plain PR comment. ([validated by](apps/floor/src/jobs/assembly-run/node-terminal.test.ts#L348))
+- A node that is not a refine node posts no reply. ([validated by](apps/floor/src/jobs/assembly-run/node-terminal.test.ts#L362))
+- A refine node that emits no reply block MUST be audited as `review_reply_unparsed` rather than passing silently. ([validated by](apps/floor/src/jobs/assembly-run/node-terminal.test.ts#L377))
+- A reply post that throws MUST be audited as `review_reply_post_failed` rather than swallowed, and never fails the line. ([validated by](apps/floor/src/jobs/assembly-run/node-terminal.test.ts#L398))
+- A `code-review-recheck` node's changes-requested verdict is posted as a formal `REQUEST_CHANGES` review. ([validated by](apps/floor/src/jobs/assembly-run/node-terminal.test.ts#L850))
+- A `code-review-recheck` node's approving verdict is posted as a formal `APPROVE` review. ([validated by](apps/floor/src/jobs/assembly-run/node-terminal.test.ts#L864))
 
 ### `libs/shared/src/project/events/github-map.test.ts`
 

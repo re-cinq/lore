@@ -13,7 +13,7 @@ import { eventsRoute } from "./routes/events.js";
 import { eventQueueRoutes } from "./routes/event-queue.js";
 import { eventDeliveryRoutes } from "./routes/event-deliveries.js";
 import { healthRoute } from "./routes/health.js";
-import { pipeline, deliveries } from "../kernel/queues.js";
+import { pipeline, deliveries, clusterAgents } from "../kernel/queues.js";
 
 // GitHub caps webhook payloads at 25 MB. Bound it there rather than at hapi's
 // 1 MB default, which would reject the large push deliveries that work today.
@@ -43,6 +43,10 @@ export function buildServer(opts: { port?: number } = {}): Hapi.Server {
       insert: (event) => pipeline().eventQueue.insert(event),
       webhookSecret: process.env.LORE_WEBHOOK_SECRET,
       bearerToken: process.env.LORE_INGEST_TOKEN,
+      // A THUNKED call, not a resolved repository: the pool does not exist when
+      // the routes are described, and the lookup only runs for a bearer that is
+      // not the ingest token — so the central cluster's reports never pay it.
+      findByTokenHash: (hash) => clusterAgents().findByTokenHash(hash),
     }),
     ...eventQueueRoutes({
       queue: () => pipeline().eventQueue,
