@@ -159,7 +159,7 @@ A test builds the document from `routeList(() => null)` and asserts:
   extension, `requestBody` (converted zod schema for covered routes; lifted domain
   schema for agents/dark-factory; freeform `object` for features/tokens), and the
   shared error responses referenced from `components.responses`; the document
-  defaults `servers` to the relative root when no `serverUrl` is given. ([validated by `build-document.test.ts:29`](apps/lore-api/src/openapi/build-document.test.ts#L29), [validated by `build-document.test.ts:33`](apps/lore-api/src/openapi/build-document.test.ts#L33), [validated by `build-document.test.ts:211`](apps/lore-api/src/openapi/build-document.test.ts#L210))
+  defaults `servers` to the relative root when no `serverUrl` is given. ([validated by `build-document.test.ts:29`](apps/lore-api/src/openapi/build-document.test.ts#L29), [validated by `build-document.test.ts:33`](apps/lore-api/src/openapi/build-document.test.ts#L33), [validated by `build-document.test.ts:210`](apps/lore-api/src/openapi/build-document.test.ts#L210))
 - **FR4** Auth is modelled as a `bearerAuth` security scheme; authed operations set
   `security: [{ bearerAuth: [] }]`, HMAC webhook operations set `security: []`. ([validated by `build-document.test.ts:13`](apps/lore-api/src/openapi/build-document.test.ts#L13), [`build-document.test.ts:148`](apps/lore-api/src/openapi/build-document.test.ts#L148))
 - **FR4b** A `parse:false` route that declares `options.app.rawBody` is a real raw-body

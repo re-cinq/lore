@@ -311,7 +311,7 @@ subscribe" has no expressible meaning on the current substrate.
   delivery still queued for it — duplicate issues, duplicate episodes — or, for a
   node type with no seeded recipe, fail on every tick. A service visit is still
   timed out at its budget, so a lost delivery surfaces rather than parking forever.
-  ([validated by waits rather than relaunching it as a pod, since no pod was ever meant to exist](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L732), [`assembly-run-reaper.test.ts:750`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L750), [`assembly-run-reaper.test.ts:764`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L764), [`advance.test.ts:1351`](apps/floor/src/jobs/assembly-run/advance.test.ts#L1351), [`advance.test.ts:1380`](apps/floor/src/jobs/assembly-run/advance.test.ts#L1380))
+  ([validated by waits rather than relaunching it as a pod, since no pod was ever meant to exist](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L731), [`assembly-run-reaper.test.ts:749`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L749), [`assembly-run-reaper.test.ts:763`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L763), [`advance.test.ts:1351`](apps/floor/src/jobs/assembly-run/advance.test.ts#L1351), [`advance.test.ts:1380`](apps/floor/src/jobs/assembly-run/advance.test.ts#L1380))
 
 - **FR23 — what a subscriber asks for, it can handle and does receive.** Every
   name a process subscribes to has a handler, derived from the same manifests the

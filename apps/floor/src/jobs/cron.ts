@@ -96,9 +96,9 @@ export const leaseReaper = fromJob(() => leaseReaperJob());
  *  time out stuck nodes, fail wedged rows. */
 export const assemblyLineReaper: EventHandler = async () => {
   const [
-    { assemblyLineReaperJob },
+    { assemblyLineReaperJob, centralClusterAgentName },
     { productionNodeEventDeps },
-    { taskStore },
+    { taskStore, clusterAgents },
   ] = await Promise.all([
     import("./assembly-run/assembly-run-reaper.js"),
     import("./assembly-run/node-event-handler.js"),
@@ -120,6 +120,8 @@ export const assemblyLineReaper: EventHandler = async () => {
       );
     },
     audit: (entry) => writeAuditLog(entry),
+    centralClusterAgentId: async () =>
+      (await clusterAgents().findByName(centralClusterAgentName()))?.id ?? null,
   });
 
   if (

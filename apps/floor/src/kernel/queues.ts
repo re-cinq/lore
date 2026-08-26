@@ -165,7 +165,7 @@ export const stationClient = (): StationClient =>
 let clusterAgentsSingleton: PgClusterAgents | undefined;
 
 /** The execution-cluster registry (specs/running-stations-in-any-k8s-cluster):
- *  the reaper's offline sweep reads and flips liveness through here. */
+ *  registration, the reaper's offline sweep, and central-id resolution. */
 export const clusterAgents = (): PgClusterAgents =>
   (clusterAgentsSingleton ??= new PgClusterAgents(getPool()));
 

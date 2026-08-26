@@ -20,8 +20,8 @@ import { timingSafeEqual } from "node:crypto";
 import { enforceTrue } from "../lib/enforce.js";
 import { apiError } from "./api-error.js";
 
-/** Constant-time string compare that does not leak length either. */
-function secretEquals(a: string, b: string): boolean {
+/** Constant-time string compare. */
+export function secretEquals(a: string, b: string): boolean {
   const bufA = Buffer.from(a);
   const bufB = Buffer.from(b);
 
@@ -41,6 +41,26 @@ function secretEquals(a: string, b: string): boolean {
  * no amount of retrying supplies a missing env var. The fix is a redeploy, and
  * the status should say so.
  */
+/**
+ * The bearer credential from an Authorization header, or undefined.
+ *
+ * Anchored to the start and case-insensitive on the scheme (RFC 7235 §2.1
+ * makes `bearer` and `BEARER` as valid as `Bearer`); a `.replace("Bearer ")`
+ * would strip the marker anywhere in the string and silently accept a
+ * malformed header.
+ */
+export function extractBearer(header: unknown): string | undefined {
+  const raw = Array.isArray(header) ? header[0] : header;
+
+  if (typeof raw !== "string") {
+    return undefined;
+  }
+
+  const match = /^Bearer\s+(.+)$/i.exec(raw);
+
+  return match ? match[1] : undefined;
+}
+
 export function enforceBearer(
   headers: Record<string, unknown>,
   token: string | undefined,

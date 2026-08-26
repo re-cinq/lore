@@ -20,7 +20,7 @@ import type { RouteOptions } from "@hapi/hapi";
 import type { ZodType } from "zod";
 
 /** Error statuses a route declares beyond the universal auth/rate-limit set. */
-export type DeclaredErrorStatus = 400 | 404 | 409;
+export type DeclaredErrorStatus = 400 | 401 | 404 | 409;
 
 export interface OpenApiResponseMeta {
   schema: ZodType;
