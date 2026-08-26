@@ -33,6 +33,7 @@ describe("ClusterAgentsView", () => {
   it("renders one row per agent with name, tag chips and claim count", () => {
     render(
       <ClusterAgentsView
+        installInfo={null}
         agents={[
           agent({ id: "a", name: "minikube", tags: ["node:agent", "gpu"] }),
           agent({
@@ -58,6 +59,7 @@ describe("ClusterAgentsView", () => {
   it("marks an offline agent with badge-red and an active one with badge-green", () => {
     render(
       <ClusterAgentsView
+        installInfo={null}
         agents={[
           agent({ id: "a", name: "alive", status: "active" }),
           agent({ id: "b", name: "dead", status: "offline" }),
@@ -71,7 +73,9 @@ describe("ClusterAgentsView", () => {
   });
 
   it("shows the no-clusters empty state when the registry is empty", () => {
-    render(<ClusterAgentsView agents={[]} offlineEvents={[]} />);
+    render(
+      <ClusterAgentsView agents={[]} offlineEvents={[]} installInfo={null} />,
+    );
 
     expect(screen.getByText("No clusters registered")).toBeInTheDocument();
     expect(screen.getByText("No offline events recorded.")).toBeInTheDocument();
@@ -80,6 +84,7 @@ describe("ClusterAgentsView", () => {
   it("renders an offline event with resolved cluster name, held-for 1m 30s and a run link", () => {
     render(
       <ClusterAgentsView
+        installInfo={null}
         agents={[agent({ id: "agent-1", name: "minikube" })]}
         offlineEvents={[offlineEvent({})]}
       />,
@@ -99,6 +104,7 @@ describe("ClusterAgentsView", () => {
   it("falls back to the raw agent id when the offline event's cluster left the registry", () => {
     render(
       <ClusterAgentsView
+        installInfo={null}
         agents={[]}
         offlineEvents={[
           offlineEvent({
@@ -118,6 +124,7 @@ describe("ClusterAgentsView", () => {
   it("renders — for an event with no cluster_agent_id and 0 without a link for an idle agent", () => {
     render(
       <ClusterAgentsView
+        installInfo={null}
         agents={[agent({ id: "a", name: "idle", tags: [], running_claims: 0 })]}
         offlineEvents={[offlineEvent({ cluster_agent_id: null })]}
       />,

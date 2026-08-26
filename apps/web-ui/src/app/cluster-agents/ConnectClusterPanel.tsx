@@ -1,0 +1,94 @@
+"use client";
+
+import { useState } from "react";
+import type { ClusterInstallInfo } from "@/lib/api/cluster-agents";
+
+export interface ConnectClusterPanelProps {
+  info: ClusterInstallInfo;
+}
+
+/** The ready-to-paste connect command for the values the operator chose. */
+export function buildConnectCommand(
+  info: ClusterInstallInfo,
+  name: string,
+  tags: string,
+): string {
+  return [
+    `export LORE_API_URL='${info.api_url}'`,
+    `export EVENT_ROUTER_URL='${info.event_router_url}'`,
+    `export LORE_CLUSTER_AGENT_REGISTRATION_TOKEN='${info.registration_token}'`,
+    `scripts/install-satellite.sh --name '${name}' --tags '${tags}'`,
+  ].join("\n");
+}
+
+/**
+ * Connect-a-cluster panel (#1572): renders the copy-paste install command
+ * with the central URLs and registration token filled in, so registering a
+ * cluster is "run this". Client component only for the two inputs and the
+ * clipboard — the install info arrives as a prop from the page container.
+ * The command embeds the registration token; the panel says so.
+ */
+export default function ConnectClusterPanel({
+  info,
+}: ConnectClusterPanelProps) {
+  const [name, setName] = useState("my-cluster");
+  const [tags, setTags] = useState("node:agent,node:validate");
+  const [copied, setCopied] = useState(false);
+
+  if (!info.available) {
+    return (
+      <details className="connect-cluster">
+        <summary>Connect a cluster</summary>
+        <p className="meta">
+          Not available: {info.reason ?? "install info is not configured"}. Set{" "}
+          <code>cluster_agent_registration_token</code> in{" "}
+          <code>secrets.tfvars</code> and apply, then redeploy lore-api.
+        </p>
+      </details>
+    );
+  }
+
+  const command = buildConnectCommand(info, name, tags);
+
+  return (
+    <details className="connect-cluster">
+      <summary>Connect a cluster</summary>
+      <p className="meta">
+        Point <code>kubectl</code> at the target cluster, check out{" "}
+        <a href={info.repo_url}>the repo</a>, and run this from its root. The
+        command embeds the registration token — treat it as a credential. Also
+        needed in the env: <code>GHCR_USERNAME</code>/<code>GHCR_TOKEN</code>{" "}
+        and <code>CLAUDE_CODE_OAUTH_TOKEN</code> or{" "}
+        <code>ANTHROPIC_API_KEY</code>.
+      </p>
+      <div className="connect-cluster-form">
+        <label>
+          Name
+          <input
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+          />
+        </label>
+        <label>
+          Tags
+          <input
+            value={tags}
+            onChange={(event) => setTags(event.target.value)}
+          />
+        </label>
+      </div>
+      <pre>
+        <code>{command}</code>
+      </pre>
+      <button
+        type="button"
+        onClick={() => {
+          void navigator.clipboard?.writeText(command);
+          setCopied(true);
+        }}
+      >
+        {copied ? "Copied" : "Copy command"}
+      </button>
+    </details>
+  );
+}

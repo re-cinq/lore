@@ -131,6 +131,10 @@ resource "helm_release" "lore_platform" {
         # never materialised on a UI-authored recipe.
         LORE_AGENT_EVENTS_URL = "http://lore-floor.lore-floor.svc.cluster.local:8080/api/agent-events"
         LORE_WEBHOOK_URL      = var.lore_webhook_hostname != "" ? "https://${var.lore_webhook_hostname}/api/webhook/github" : ""
+        # The connect-a-cluster hand-out (#1572): lore-api serves its own
+        # public URL + the event-router front door to satellite installers.
+        LORE_API_URL                 = var.lore_api_url
+        LORE_EVENT_ROUTER_PUBLIC_URL = var.lore_event_router_hostname != "" ? "https://${var.lore_event_router_hostname}" : ""
       }
       dbPasswordSecret  = { name = "lore-api-db-password", key = "password" }
       ingestTokenSecret = { name = "lore-ingest-token", key = "token" }

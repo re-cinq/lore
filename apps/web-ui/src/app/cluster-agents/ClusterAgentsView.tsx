@@ -3,12 +3,16 @@ import { TimeAgo } from "@/components/TimeAgo";
 import { EmptyState } from "@/components/EmptyState";
 import type {
   ClusterAgentRow,
+  ClusterInstallInfo,
   ClusterOfflineEvent,
 } from "@/lib/api/cluster-agents";
+import ConnectClusterPanel from "./ConnectClusterPanel";
 
 export interface ClusterAgentsViewProps {
   agents: ClusterAgentRow[];
   offlineEvents: ClusterOfflineEvent[];
+  /** Null when the install hand-out could not be fetched (the panel hides). */
+  installInfo: ClusterInstallInfo | null;
 }
 
 /** "12m 30s" from milliseconds; a claim age is minutes, not dates. */
@@ -31,6 +35,7 @@ export function formatElapsed(ms: number): string {
 export default function ClusterAgentsView({
   agents,
   offlineEvents,
+  installInfo,
 }: ClusterAgentsViewProps) {
   const nameById = new Map(agents.map((agent) => [agent.id, agent.name]));
 
@@ -41,6 +46,7 @@ export default function ClusterAgentsView({
         Every registered execution cluster: what it can run, whether it is
         alive, and how many station runs it currently holds.
       </p>
+      {installInfo && <ConnectClusterPanel info={installInfo} />}
       {agents.length === 0 ? (
         <EmptyState
           title="No clusters registered"
