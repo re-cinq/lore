@@ -62,3 +62,19 @@ resource "google_secret_manager_secret" "lore" {
     prevent_destroy = true
   }
 }
+
+# The GHCR pull secret used to be its own resource, `google_secret_manager_secret.ghcr`,
+# because its value is a raw dockerconfigjson blob rather than a scalar. Once
+# Terraform stopped owning VALUES that distinction disappeared, so it folded into
+# the map above — under the same secret_id it always had.
+#
+# Without this block Terraform reads that as a delete-and-create of the same GCP
+# secret: it would destroy the container, taking every version of the PAT with
+# it, then recreate it empty, and image pulls would start failing in all four
+# namespaces that reference it. `moved` re-keys the existing resource in state
+# instead. Keep it: removing it re-arms the same destroy for anyone whose state
+# still carries the old address.
+moved {
+  from = google_secret_manager_secret.ghcr
+  to   = google_secret_manager_secret.lore["lore-ghcr-pull-secret"]
+}
