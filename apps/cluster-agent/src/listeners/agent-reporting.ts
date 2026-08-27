@@ -8,6 +8,7 @@
 import type { Agent as AgentCr } from "@re-cinq/agent-contracts";
 import type { EventInsert } from "@re-cinq/lore-shared";
 import { mapAgentToEvent } from "@re-cinq/lore-shared/project/events/k8s-map.js";
+import { STATION_RUN_ID_LABEL } from "@re-cinq/lore-shared/project/events/agent-cr-labels.js";
 import { forEachPage } from "@re-cinq/lore-shared/lib/paginate.js";
 import type { CustomObjectsApi } from "@kubernetes/client-node";
 
@@ -18,6 +19,10 @@ const LIST_PAGE_LIMIT = 50;
 
 export interface WatchDeps {
   insert: (event: EventInsert) => Promise<void>;
+  /** Report what the visit printed, keyed by its station run id. Optional so a
+   *  composition without the Lore API (tests, the pre-cutover central agent)
+   *  still reports events. */
+  reportOutput?: (stationRunId: string, output: string) => Promise<void>;
   /** How hard to retry a report. Omitted, one attempt — the shape a test wants. */
   retry?: ReportRetry;
 }
@@ -79,6 +84,35 @@ export async function forEachAgentPage(
 }
 
 /**
+ * Send the CR's output ahead of the event that will make somebody read it.
+ *
+ * ORDER, not politeness: the event is the trigger and the output is what the
+ * trigger sends a reader looking for, so an event that overtakes its own payload
+ * is read as a node that produced nothing — the exact misreading this whole path
+ * exists to end. A failure here is logged and swallowed rather than cancelling
+ * the event: a reported terminal phase with no output leaves the visit open for
+ * the reaper, which is recoverable, while no event at all is a line that parks
+ * until its budget expires.
+ */
+async function reportOutputFor(agent: AgentCr, deps: WatchDeps): Promise<void> {
+  const stationRunId = agent.metadata?.labels?.[STATION_RUN_ID_LABEL];
+  const output = agent.status?.output;
+
+  if (!deps.reportOutput || !stationRunId || !output) {
+    return;
+  }
+
+  try {
+    await deps.reportOutput(stationRunId, output);
+  } catch (err) {
+    console.error(
+      `[cluster-agent] terminal output report failed for ${stationRunId}:`,
+      (err as Error).message,
+    );
+  }
+}
+
+/**
  * Map one observed CR and report it, if it is terminal.
  *
  * A failed report is logged and swallowed HERE, unlike everywhere else this
@@ -95,6 +129,7 @@ export async function reportForAgent(
   if (!ev) {
     return;
   }
+  await reportOutputFor(agent, deps);
   const { attempts, delayMs } = deps.retry ?? { attempts: 1, delayMs: 0 };
 
   for (let attempt = 1; attempt <= attempts; attempt++) {

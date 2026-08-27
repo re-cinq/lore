@@ -73,6 +73,7 @@ import {
 import { tokensRoute } from "../api/routes/tokens/tokens.js";
 import { clusterAgentRegisterRoute } from "../api/routes/cluster-agents/register.js";
 import { clusterAgentClaimRoute } from "../api/routes/cluster-agents/claim.js";
+import { clusterAgentCompleteRoute } from "../api/routes/cluster-agents/complete.js";
 import { clusterAgentInstallRoutes } from "../api/routes/cluster-agents/install.js";
 import { clusterAgentPauseRoute } from "../api/routes/cluster-agents/pause.js";
 import { clusterAgentHeartbeatRoute } from "../api/routes/cluster-agents/heartbeat.js";
@@ -163,6 +164,7 @@ export function routeList(getPool: () => Pool | null): ServerRoute[] {
     ...tokensRoute(getPool),
     clusterAgentRegisterRoute(getPool),
     clusterAgentClaimRoute(getPool),
+    clusterAgentCompleteRoute(getPool),
     ...clusterAgentInstallRoutes(),
     clusterAgentPauseRoute(getPool),
     clusterAgentHeartbeatRoute(getPool),

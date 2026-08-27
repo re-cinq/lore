@@ -7,6 +7,18 @@ import {
 } from "./agent-reporting.js";
 
 const TASK = "lore.re-cinq.com/task-id";
+const STATION_RUN = "lore.re-cinq.com/station-run-id";
+
+/** A terminal CR carrying everything a satellite's report needs. */
+function terminalCr(output?: string) {
+  return {
+    metadata: {
+      name: "cr-1",
+      labels: { [TASK]: "task-1", [STATION_RUN]: "sr-1" },
+    },
+    status: { phase: "Succeeded", output },
+  } as never;
+}
 
 /** A lister over fixed pages, echoing the `continue` protocol the real API uses. */
 function pagedLister(
@@ -24,6 +36,85 @@ function pagedLister(
     }) as AgentLister["listNamespacedCustomObject"],
   };
 }
+
+describe("reportForAgent — the output travels with the report", () => {
+  it("reports the visit's terminal output against its station run id", async () => {
+    const sent: Array<{ stationRunId: string; output: string }> = [];
+
+    await reportForAgent(terminalCr("REVIEW_RESULT:APPROVED"), {
+      insert: async () => {},
+      reportOutput: async (stationRunId, output) => {
+        sent.push({ stationRunId, output });
+      },
+    });
+
+    expect(sent).toEqual([
+      { stationRunId: "sr-1", output: "REVIEW_RESULT:APPROVED" },
+    ]);
+  });
+
+  it("sends the output BEFORE the event — the trigger must not outrun its payload", async () => {
+    const order: string[] = [];
+
+    await reportForAgent(terminalCr("out"), {
+      insert: async () => {
+        order.push("event");
+      },
+      reportOutput: async () => {
+        order.push("output");
+      },
+    });
+
+    expect(order).toEqual(["output", "event"]);
+  });
+
+  it("still reports the event when the output report throws", async () => {
+    const order: string[] = [];
+
+    await reportForAgent(terminalCr("out"), {
+      insert: async () => {
+        order.push("event");
+      },
+      reportOutput: async () => {
+        throw new Error("lore-api unreachable");
+      },
+    });
+
+    expect(order).toEqual(["event"]);
+  });
+
+  it("sends nothing for a CR carrying no output — there is nothing to report", async () => {
+    const sent: string[] = [];
+
+    await reportForAgent(terminalCr(undefined), {
+      insert: async () => {},
+      reportOutput: async (stationRunId) => {
+        sent.push(stationRunId);
+      },
+    });
+
+    expect(sent).toEqual([]);
+  });
+
+  it("sends nothing for a CR with no station-run label — nothing to key it on", async () => {
+    const sent: string[] = [];
+
+    await reportForAgent(
+      {
+        metadata: { name: "cr-1", labels: { [TASK]: "task-1" } },
+        status: { phase: "Succeeded", output: "out" },
+      } as never,
+      {
+        insert: async () => {},
+        reportOutput: async (stationRunId) => {
+          sent.push(stationRunId);
+        },
+      },
+    );
+
+    expect(sent).toEqual([]);
+  });
+});
 
 describe("reportForAgent", () => {
   it("reports a terminal Agent CR as its kubernetes event", async () => {
