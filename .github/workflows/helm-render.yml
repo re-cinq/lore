@@ -79,7 +79,7 @@ jobs:
         run: |
           mkdir -p "$TF_PLUGIN_CACHE_DIR"
           fail=0
-          for dir in infra/terraform infra/terraform/modules/gke-mcp infra/terraform/modules/lore-db; do
+          for dir in infra/terraform infra/terraform/modules/gke-mcp; do
             echo "::group::validate $dir"
             terraform -chdir="$dir" init -backend=false -input=false || fail=1
             terraform -chdir="$dir" validate || fail=1

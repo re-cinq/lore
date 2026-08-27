@@ -149,7 +149,7 @@ From zero to running Lore:
 
 ```bash
 # 1. Set secret values (one-time, stored in GCP)
-terraform apply -var-file=secrets.tfvars
+terraform apply
 
 # 2. ESO syncs secrets to K8s (automatic)
 # 3. Helm releases deploy all services (automatic)

@@ -71,7 +71,7 @@ resource "kubectl_manifest" "es_agent_anthropic" {
             key = "lore-anthropic-api-key"
           }
         },
-        ], var.anthropic_admin_api_key != "" ? [
+        ], var.enable_anthropic_admin_key ? [
         {
           secretKey = "anthropic-admin-key"
           remoteRef = {
@@ -210,7 +210,7 @@ resource "kubectl_manifest" "es_mcp_anthropic" {
             key = "lore-anthropic-api-key"
           }
         },
-        ], var.anthropic_admin_api_key != "" ? [
+        ], var.enable_anthropic_admin_key ? [
         {
           secretKey = "anthropic-admin-key"
           remoteRef = {
@@ -330,7 +330,7 @@ resource "kubectl_manifest" "es_mcp_ingest_token" {
 }
 
 resource "kubectl_manifest" "es_cluster_agent_registration_token" {
-  count = var.cluster_agent_registration_token != "" ? 1 : 0
+  count = var.enable_cluster_agent_registration ? 1 : 0
 
   yaml_body = yamlencode({
     apiVersion = "external-secrets.io/v1beta1"
@@ -363,7 +363,7 @@ resource "kubectl_manifest" "es_cluster_agent_registration_token" {
 }
 
 resource "kubectl_manifest" "es_cluster_agent_registration_token_agent_ns" {
-  count = var.cluster_agent_registration_token != "" ? 1 : 0
+  count = var.enable_cluster_agent_registration ? 1 : 0
 
   yaml_body = yamlencode({
     apiVersion = "external-secrets.io/v1beta1"
@@ -1091,7 +1091,7 @@ resource "kubectl_manifest" "es_stations_anthropic_key" {
         name = "lore-stations-anthropic-key"
       }
       # The org admin key is a SECOND entry on the same secret, projected only
-      # when var.anthropic_admin_api_key is set — mirrors es_mcp_anthropic. The
+      # when var.enable_anthropic_admin_key is true — mirrors es_mcp_anthropic. The
       # anthropic-cost-sync station (moved here from lore-api in #1522) reads it
       # as ANTHROPIC_ADMIN_KEY; without it the nightly cost sync skips.
       data = concat([
@@ -1101,7 +1101,7 @@ resource "kubectl_manifest" "es_stations_anthropic_key" {
             key = "lore-anthropic-api-key"
           }
         },
-        ], var.anthropic_admin_api_key != "" ? [
+        ], var.enable_anthropic_admin_key ? [
         {
           secretKey = "anthropic-admin-key"
           remoteRef = {
