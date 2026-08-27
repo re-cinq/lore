@@ -99,11 +99,19 @@ secret *values* in GCP are not touched — only Terraform's claim to own them.
 cd infra/terraform
 
 # 1. Terraform forgets the versions. GCP keeps them.
-terraform state list \
-  | grep google_secret_manager_secret_version \
-  | xargs -n1 terraform state rm
+#
+# Collect the addresses into an array rather than piping to xargs: the map-keyed
+# ones look like `...lore["lore-db-password"]`, and xargs strips the quotes,
+# leaving terraform with a bare index it refuses ("Index value required"). The
+# array also makes this one atomic state write instead of one per address.
+addrs=()
+while IFS= read -r a; do addrs+=("$a"); done \
+  < <(terraform state list | grep google_secret_manager_secret_version)
+terraform state rm "${addrs[@]}"
 
-# 2. The gate: this MUST be empty. If it is not, read it — do not apply.
+# 2. Confirm nothing is left, then the gate: the plan MUST be empty.
+#    If it is not, read it — do not apply.
+terraform state list | grep google_secret_manager_secret_version   # expect nothing
 terraform plan
 ```
 
