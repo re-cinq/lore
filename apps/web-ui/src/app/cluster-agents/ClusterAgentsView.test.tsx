@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import ClusterAgentsView, { formatElapsed } from "./ClusterAgentsView";
 import type {
   ClusterAgentRow,
@@ -31,6 +31,36 @@ const offlineEvent = (
 });
 
 describe("ClusterAgentsView", () => {
+  it("binds each row's Pause button to that row's agent id", async () => {
+    // The prop must be BOUND, never wrapped in an inline arrow: this view is a
+    // server component, and React refuses to serialize a plain closure to a
+    // client component — which took the whole page down in production once.
+    // Binding is also what keeps the id server-side.
+    const calls: Array<[string, boolean]> = [];
+
+    render(
+      <ClusterAgentsView
+        installInfo={null}
+        togglePaused={async (id, paused) => {
+          calls.push([id, paused]);
+        }}
+        agents={[
+          agent({ id: "a", name: "minikube" }),
+          agent({ id: "b", name: "eu-west4", paused: true }),
+        ]}
+        offlineEvents={[]}
+      />,
+    );
+    fireEvent.click(screen.getAllByRole("button", { name: "Pause" })[0]);
+    fireEvent.click(screen.getAllByRole("button", { name: "Resume" })[0]);
+    await waitFor(() => expect(calls).toHaveLength(2));
+
+    expect(calls).toEqual([
+      ["a", true],
+      ["b", false],
+    ]);
+  });
+
   it("renders one row per agent with name, tag chips and claim count", () => {
     render(
       <ClusterAgentsView
