@@ -42,6 +42,7 @@ import { InMemoryAssemblyRuns } from "./assembly-runs-memory.js";
 import { PgAssemblyRuns } from "./assembly-runs-pg.js";
 import type { AssemblyRunsPort } from "./assembly-runs-port.js";
 import type { RunGraph } from "./run-graph.js";
+import { TERMINAL_OUTPUT_MAX_BYTES } from "./terminal-output.js";
 
 const PG_CONFIG = {
   host: process.env.PGHOST ?? "localhost",
@@ -284,6 +285,76 @@ describe.each(IMPLEMENTATIONS)(
         repo,
         ref: "lore/impl-1",
       });
+    });
+
+    it("records a visit's terminal output and reads it back by station run id", async () => {
+      const { port, repo } = make();
+      const id = await port.start({ blueprintName: "code-review", repo });
+      const { stationRunId } = await port.ensureStationRun({
+        assemblyRunId: id,
+        nodeId: "review",
+        iteration: 1,
+      });
+
+      await port.recordStationRunTerminalOutput(
+        stationRunId,
+        '{"type":"result","result":"REVIEW_RESULT:APPROVED"}',
+      );
+
+      expect(await port.readStationRunTerminalOutput(stationRunId)).toBe(
+        '{"type":"result","result":"REVIEW_RESULT:APPROVED"}',
+      );
+    });
+
+    it("a visit whose terminal output was never recorded reads back null", async () => {
+      const { port, repo } = make();
+      const id = await port.start({ blueprintName: "code-review", repo });
+      const { stationRunId } = await port.ensureStationRun({
+        assemblyRunId: id,
+        nodeId: "review",
+        iteration: 1,
+      });
+
+      expect(await port.readStationRunTerminalOutput(stationRunId)).toBeNull();
+    });
+
+    it("keeps the TAIL of an output past the cap — the terminal result line is last", async () => {
+      const { port, repo } = make();
+      const id = await port.start({ blueprintName: "code-review", repo });
+      const { stationRunId } = await port.ensureStationRun({
+        assemblyRunId: id,
+        nodeId: "review",
+        iteration: 1,
+      });
+      const verdict = '\n{"type":"result","result":"REVIEW_RESULT:APPROVED"}';
+
+      await port.recordStationRunTerminalOutput(
+        stationRunId,
+        "x".repeat(TERMINAL_OUTPUT_MAX_BYTES) + verdict,
+      );
+      const stored = await port.readStationRunTerminalOutput(stationRunId);
+
+      expect(stored?.endsWith(verdict)).toBe(true);
+      expect(Buffer.byteLength(stored ?? "")).toBeLessThanOrEqual(
+        TERMINAL_OUTPUT_MAX_BYTES,
+      );
+    });
+
+    it("the newest report wins — a re-report overwrites rather than appending", async () => {
+      const { port, repo } = make();
+      const id = await port.start({ blueprintName: "code-review", repo });
+      const { stationRunId } = await port.ensureStationRun({
+        assemblyRunId: id,
+        nodeId: "review",
+        iteration: 1,
+      });
+
+      await port.recordStationRunTerminalOutput(stationRunId, "first");
+      await port.recordStationRunTerminalOutput(stationRunId, "second");
+
+      expect(await port.readStationRunTerminalOutput(stationRunId)).toBe(
+        "second",
+      );
     });
 
     it("a converged duplicate keeps the first visit's input rather than overwriting it", async () => {

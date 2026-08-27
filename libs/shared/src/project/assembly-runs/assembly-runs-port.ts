@@ -256,6 +256,29 @@ export interface AssemblyRunsPort {
     nodeRowId: string,
     dispatchSpec: unknown,
   ): Promise<void>;
+  /**
+   * Record what a visit's worker printed, as reported BY the cluster that ran
+   * it. Capped to the tail (`capTerminalOutput`) — the terminal result line is
+   * last, and an uncapped 1.4MB stream is the heap lesson of 2026-07-24 moved
+   * into Postgres.
+   *
+   * Deliberately keyed by `stationRunId`, the visit's public identity: the
+   * reporter holds it from its claim, and it survives the Agent CR that carried
+   * the output being pruned. Idempotent — the newest report replaces, so a
+   * re-report is a no-op rather than an append.
+   */
+  recordStationRunTerminalOutput(
+    stationRunId: string,
+    output: string,
+  ): Promise<void>;
+  /**
+   * A visit's reported terminal output; null when none was reported.
+   *
+   * Its own read, and NOT part of `listStationRuns`: the reaper lists every
+   * visit of every open run each minute, and carrying a quarter-megabyte per row
+   * through that would be the same mistake in a new place.
+   */
+  readStationRunTerminalOutput(stationRunId: string): Promise<string | null>;
   claimNextStationRun(claimant: {
     clusterAgentId: string;
     tags: string[];
