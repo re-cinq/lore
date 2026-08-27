@@ -27,8 +27,15 @@ import type { AssemblyRunRecord } from "@re-cinq/lore-shared/project/assembly-ru
 import type { NodeResult } from "@re-cinq/lore-assembly-lines";
 
 export interface NodeEventDeps extends AdvanceDeps {
-  /** Read the CR's status by name; null when it no longer exists (pruned). */
+  /** Read the CR's status by name; null when it no longer exists (pruned) — or
+   *  when it lives in a cluster this Floor cannot reach, which is a different
+   *  fact wearing the same null. {@link agentCrVisible} tells them apart. */
   readAgentStatus: (name: string) => Promise<AgentNodeStatus | null>;
+  /** The central cluster's registered agent id. Resolved per call — the id is
+   *  minted at registration, so a static env var cannot know it. Omitted or
+   *  null leaves only legacy `running` rows visible, which is exactly the
+   *  pre-claim-path behaviour. */
+  centralClusterAgentId?: () => Promise<string | null>;
   /** Fire the throttled operator alert when a CR failed because the Anthropic
    *  account ran dry (best-effort; optional so tests/partial deps omit it). */
   alertBilling?: (

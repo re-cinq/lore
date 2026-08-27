@@ -34,9 +34,19 @@ export interface PublishedServiceNode {
   dedupeKey?: string;
 }
 
+/** The harness's stand-in for the central cluster's registered agent id. Every
+ *  node claim is attributed to it unless a test names another cluster. */
+export const CENTRAL_CLUSTER_AGENT_ID = "central-acceptance";
+
 export interface CompleteAgentNodeInput {
   /** Full scripted CR output (NDJSON envelope or plain text). Wins over `outcome`. */
   output?: string;
+  /** The cluster-agent that claimed this node, defaulting to the central one.
+   *  Name a SATELLITE to walk a node this Floor cannot interrogate. */
+  claimedBy?: string;
+  /** Script the CR read as unreadable — the terminal event arrives and
+   *  `readAgentStatus` answers null, which is what a satellite's CR does. */
+  statusUnreadable?: boolean;
   /** Shorthand: emit a result envelope carrying `LORE_NODE_RESULT: {outcome}`. */
   outcome?: "success" | "changes_requested" | "failed";
   phase?: string;
@@ -101,6 +111,7 @@ export function createLineHarness(
       published.push(event);
     },
     readAgentStatus: async (name) => statusByAgent.get(name) ?? null,
+    centralClusterAgentId: async () => CENTRAL_CLUSTER_AGENT_ID,
     ...overrides,
   };
 
@@ -148,7 +159,28 @@ export function createLineHarness(
         `LORE_NODE_RESULT: {"outcome":"${input.outcome ?? "success"}"}`,
       );
 
-    statusByAgent.set(agentName, { phase, output });
+    // A CR only exists because a cluster-agent CLAIMED the row and launched it,
+    // so the row a terminal event arrives for is never still `queued`. Written
+    // straight onto the row rather than through `claimNextStationRun`: the claim
+    // scan takes the next queued row of any node, and a walk parks one node at a
+    // time only by luck.
+    const claimed = runs.nodes.find(
+      (n) =>
+        n.assemblyRunId === assemblyRunId &&
+        n.nodeId === nodeId &&
+        n.iteration === iteration &&
+        n.outcome === null,
+    );
+
+    if (claimed && claimed.status === "queued") {
+      claimed.status = "claimed";
+      claimed.clusterAgentId = input.claimedBy ?? CENTRAL_CLUSTER_AGENT_ID;
+      claimed.claimedAt = new Date();
+    }
+
+    if (!input.statusUnreadable) {
+      statusByAgent.set(agentName, { phase, output });
+    }
     await nodeHandler({
       assemblyRunId,
       nodeId,
