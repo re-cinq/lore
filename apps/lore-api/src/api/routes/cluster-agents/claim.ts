@@ -60,6 +60,15 @@ export async function handleClaim(
     return { code: 403, body: { error: "forbidden" } };
   }
 
+  if (agent.paused) {
+    // 204, the same answer as "nothing queued for you": a paused agent needs
+    // no new client behaviour, its existing idle backoff simply keeps polling
+    // until an operator un-pauses it. Enforced HERE rather than in the claim
+    // SQL because pausing is a fact about the cluster-agent, and the station-run
+    // queue has no business knowing about the registry.
+    return { code: 204 };
+  }
+
   const claimed = await deps.runs.claimNextStationRun({
     clusterAgentId: agent.id,
     tags: agent.tags,

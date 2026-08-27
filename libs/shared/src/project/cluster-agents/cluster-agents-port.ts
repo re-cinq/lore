@@ -31,6 +31,12 @@ export interface ClusterAgentsRepository {
   rotate(id: string, input: RegisterClusterAgentInput): Promise<ClusterAgent>;
   /** Bump `last_seen_at` and revive `offline` → `active`. */
   heartbeat(id: string, at: Date): Promise<void>;
+  /**
+   * The operator's stop switch: a paused agent is passed over when work is
+   * handed out, while staying alive and finishing what it already holds.
+   * Returns the updated row, or null when no such agent exists.
+   */
+  setPaused(id: string, paused: boolean): Promise<ClusterAgent | null>;
   /** Mark agents silent since `cutoff` offline; returns the newly offline. */
   markOffline(cutoff: Date): Promise<ClusterAgent[]>;
   list(): Promise<ClusterAgent[]>;

@@ -49,6 +49,7 @@ export class InMemoryClusterAgents implements ClusterAgentsRepository {
       registeredAt: at,
       lastSeenAt: at,
       status: "active",
+      paused: false,
       clusterInfo: input.clusterInfo,
     };
 
@@ -84,6 +85,19 @@ export class InMemoryClusterAgents implements ClusterAgentsRepository {
     if (existing) {
       this.agents.set(id, { ...existing, lastSeenAt: at, status: "active" });
     }
+  }
+
+  async setPaused(id: string, paused: boolean): Promise<ClusterAgent | null> {
+    const existing = this.agents.get(id);
+
+    if (!existing) {
+      return null;
+    }
+    const updated: ClusterAgent = { ...existing, paused };
+
+    this.agents.set(id, updated);
+
+    return updated;
   }
 
   async markOffline(cutoff: Date): Promise<ClusterAgent[]> {

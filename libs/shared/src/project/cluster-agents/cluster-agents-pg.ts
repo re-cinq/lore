@@ -91,6 +91,20 @@ export class PgClusterAgents implements ClusterAgentsRepository {
     );
   }
 
+  async setPaused(id: string, paused: boolean): Promise<ClusterAgent | null> {
+    const { rows } = await this.pool.query<DbRow>(
+      `UPDATE ${CLUSTER_AGENT_TABLE}
+          SET paused = $2
+        WHERE id = $1
+       RETURNING ${selectList(CLUSTER_AGENT_COLUMNS)}`,
+      [id, paused],
+    );
+
+    return rows[0]
+      ? fromRow<ClusterAgent>(CLUSTER_AGENT_COLUMNS, rows[0])
+      : null;
+  }
+
   async markOffline(cutoff: Date): Promise<ClusterAgent[]> {
     const { rows } = await this.pool.query<DbRow>(
       `UPDATE ${CLUSTER_AGENT_TABLE}

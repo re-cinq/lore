@@ -7,12 +7,16 @@ import type {
   ClusterOfflineEvent,
 } from "@/lib/api/cluster-agents";
 import ConnectClusterPanel from "./ConnectClusterPanel";
+import PauseClusterButton from "./PauseClusterButton";
 
 export interface ClusterAgentsViewProps {
   agents: ClusterAgentRow[];
   offlineEvents: ClusterOfflineEvent[];
   /** Null when the install hand-out could not be fetched (the panel hides). */
   installInfo: ClusterInstallInfo | null;
+  /** Takes one cluster out of the rotation, or puts it back. The container
+   *  binds the agent id, so this view never chooses which. */
+  togglePaused: (id: string, paused: boolean) => Promise<void>;
 }
 
 /** "12m 30s" from milliseconds; a claim age is minutes, not dates. */
@@ -36,6 +40,7 @@ export default function ClusterAgentsView({
   agents,
   offlineEvents,
   installInfo,
+  togglePaused,
 }: ClusterAgentsViewProps) {
   const nameById = new Map(agents.map((agent) => [agent.id, agent.name]));
 
@@ -61,6 +66,7 @@ export default function ClusterAgentsView({
               <th>Status</th>
               <th>Last seen</th>
               <th>Running claims</th>
+              <th></th>
             </tr>
           </thead>
           <tbody>
@@ -84,6 +90,12 @@ export default function ClusterAgentsView({
                   >
                     {agent.status}
                   </span>
+                  {/* Liveness and the operator switch are different facts: a
+                      paused cluster is alive and finishing its work, it is just
+                      not handed more. Both badges can show at once. */}
+                  {agent.paused && (
+                    <span className="badge badge-gray">paused</span>
+                  )}
                 </td>
                 <td>
                   <TimeAgo date={agent.last_seen_at} />
@@ -96,6 +108,12 @@ export default function ClusterAgentsView({
                   ) : (
                     agent.running_claims
                   )}
+                </td>
+                <td>
+                  <PauseClusterButton
+                    paused={agent.paused}
+                    toggle={(paused) => togglePaused(agent.id, paused)}
+                  />
                 </td>
               </tr>
             ))}

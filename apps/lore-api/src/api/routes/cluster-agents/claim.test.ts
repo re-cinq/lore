@@ -87,6 +87,26 @@ describe("handleClaim", () => {
     ).toEqual({ code: 204 });
   });
 
+  it("returns 204 while paused, leaving the run for another cluster", async () => {
+    // Pausing must not need new client behaviour: 204 is what the claim loop
+    // already treats as "nothing for me", so it just keeps idling.
+    const { agents, agent } = await registeredAgent();
+    const { runs } = await armedQueuedRun();
+
+    await agents.setPaused(agent.id, true);
+
+    expect(await handleClaim({ agents, runs }, TOKEN, agent.id)).toEqual({
+      code: 204,
+    });
+
+    // And the run is untouched — un-pausing picks it straight back up.
+    await agents.setPaused(agent.id, false);
+
+    expect(await handleClaim({ agents, runs }, TOKEN, agent.id)).toMatchObject({
+      code: 200,
+    });
+  });
+
   it("returns 200 with the queued visit's identity + spec, and a second claim returns 204", async () => {
     const { agents, agent } = await registeredAgent();
     const { runs, assemblyRunId, nodeRowId, stationRunId } =
