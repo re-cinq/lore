@@ -21,6 +21,7 @@ export type LoreByKindRow = Spend["lore_by_kind"][number];
 export type LoreDailyRow = Spend["lore_daily"][number];
 export type LoreByRepoRow = Spend["lore_by_repo"][number];
 export type LoreByTaskTypeRow = Spend["lore_by_task_type"][number];
+export type LoreByClusterRow = Spend["lore_by_cluster"][number];
 
 export type BudgetRow = Spend["budget"];
 
@@ -62,6 +63,12 @@ export interface SpendViewProps {
   loreDaily: LoreDailyRow[];
   loreByRepo: LoreByRepoRow[];
   loreByTaskType: LoreByTaskTypeRow[];
+  /**
+   * Computed spend per execution cluster — a satellite cluster's burn set
+   * apart from the home cluster's. Optional so a caller that does not pass it
+   * renders exactly as before.
+   */
+  loreByCluster?: LoreByClusterRow[];
 }
 
 const usd = (n: number) =>
@@ -206,6 +213,7 @@ export default function SpendView({
   loreDaily,
   loreByRepo,
   loreByTaskType,
+  loreByCluster,
 }: SpendViewProps) {
   return (
     <div>
@@ -460,6 +468,39 @@ export default function SpendView({
           )}
         </tbody>
       </table>
+
+      {loreByCluster && (
+        <>
+          <h2>Cost by Cluster (MTD)</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>Cluster</th>
+                <th>Calls</th>
+                <th>Cost</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loreByCluster.map((r) => (
+                <tr key={r.cluster}>
+                  <td>
+                    <span className="badge">{r.cluster}</span>
+                  </td>
+                  <td>{num(r.calls)}</td>
+                  <td>{usd(r.cost_usd)}</td>
+                </tr>
+              ))}
+              {loreByCluster.length === 0 && (
+                <tr>
+                  <td colSpan={3} className={`meta ${styles.center}`}>
+                    No cluster-attributed spend
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </>
+      )}
 
       {orgAvailable && (
         <>
