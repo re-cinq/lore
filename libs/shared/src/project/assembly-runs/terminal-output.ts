@@ -10,15 +10,25 @@
 // the last bytes are the ones carrying the verdict, the outcome and the error.
 
 /**
- * 2 MiB — above every stream measured (261KB for a ten-minute review, ~1.4MB for
- * a long implementation node), and still a bound.
+ * 2 MiB — chosen so that OUR cap is never the binding one.
  *
- * Sized by the ARTIFACT reader, not the verdict reader. A verdict needs only the
- * last few KB, so 256 KiB was ample for it — but `artifactsFromTerminalOutput`
- * scans the whole stream for the file events a node declared, and those are
- * emitted as the work happens, not at the end. Cut the head off a long node's
- * stream and its artifacts read as DECLARED BUT NOT PRODUCED, which fails the
- * node for a truncation nobody performed on purpose.
+ * The source is already capped upstream: every terminal Agent CR measured on a
+ * live cluster carries a `status.output` just under 256 KiB (max 262,031 of
+ * 262,144), clustered against that ceiling and cut on a line boundary. The
+ * subsystem truncates before the Floor ever sees it, so the Floor has never held
+ * a complete stream from this source and a tighter cap here would only truncate
+ * a second time.
+ *
+ * Sized against the ARTIFACT reader rather than the verdict reader, which is why
+ * it is not simply 256 KiB: a verdict needs the last few KB, but
+ * `artifactsFromTerminalOutput` scans the whole stream for file events emitted as
+ * the work happens. Cutting the head off would read a node's artifacts as
+ * DECLARED BUT NOT PRODUCED. The sink lane remains the primary artifact path
+ * precisely because the CR's copy is lossy — see `artifact-args.ts`.
+ *
+ * Deliberately above the upstream number rather than equal to it: if the
+ * subsystem ever raises its own cap, this one should not quietly become the
+ * truncation nobody chose.
  */
 export const TERMINAL_OUTPUT_MAX_BYTES = 2 * 1024 * 1024;
 

@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { handleComplete } from "./complete.js";
+import { handleComplete, clusterAgentCompleteRoute } from "./complete.js";
+import { TERMINAL_OUTPUT_MAX_BYTES } from "@re-cinq/lore-shared/project/assembly-runs/terminal-output.js";
 import { InMemoryClusterAgents } from "@re-cinq/lore-shared/project/cluster-agents/cluster-agents-memory.js";
 import { InMemoryAssemblyRuns } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-memory.js";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
@@ -115,5 +116,17 @@ describe("handleComplete", () => {
     await handleComplete({ agents, runs }, TOKEN, agent.id, report);
 
     expect(await runs.readStationRunTerminalOutput(stationRunId)).toBe(OUTPUT);
+  });
+
+  it("accepts a body larger than the server-wide 1 MiB limit", () => {
+    // The capped output is up to TERMINAL_OUTPUT_MAX_BYTES, and JSON escaping
+    // inflates it further — a server-wide limit sized for ordinary API writes
+    // would 413 every long node's report, and the reporter swallows the refusal,
+    // so the symptom would be a node that silently falls back to the CR read.
+    const options = clusterAgentCompleteRoute(() => null).options as {
+      payload: { maxBytes: number };
+    };
+
+    expect(options.payload.maxBytes).toBeGreaterThan(TERMINAL_OUTPUT_MAX_BYTES);
   });
 });
