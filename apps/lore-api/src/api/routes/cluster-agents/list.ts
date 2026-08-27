@@ -31,6 +31,7 @@ const ClusterAgentListItem = z.object({
   name: z.string(),
   tags: z.array(z.string()),
   status: z.enum(["active", "offline"]),
+  paused: z.boolean(),
   last_seen_at: z.string(),
   running_claims: z.number(),
 });
@@ -85,6 +86,7 @@ export async function handleClusterAgentList(
       name: agent.name,
       tags: agent.tags,
       status: agent.status,
+      paused: agent.paused,
       last_seen_at: agent.lastSeenAt.toISOString(),
       running_claims: openClaims[agent.id] ?? 0,
     })),

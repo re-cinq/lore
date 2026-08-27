@@ -3744,6 +3744,80 @@
         "x-required-scope": "admin"
       }
     },
+    "/api/cluster-agents/{id}/paused": {
+      "put": {
+        "operationId": "put_api_cluster-agents_id_paused",
+        "summary": "PUT /api/cluster-agents/{id}/paused",
+        "tags": ["Cluster Agents"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "The cluster-agent's new paused state — paused agents are passed over when work is handed out, but stay alive and finish what they hold",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClusterAgentPause"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "write",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "paused": {
+                    "type": "boolean"
+                  }
+                },
+                "required": ["paused"],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/cluster-agents/{id}/heartbeat": {
       "post": {
         "operationId": "post_api_cluster-agents_id_heartbeat",
@@ -9811,6 +9885,22 @@
         ],
         "additionalProperties": false
       },
+      "ClusterAgentPause": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "paused": {
+            "type": "boolean"
+          }
+        },
+        "required": ["id", "name", "paused"],
+        "additionalProperties": false
+      },
       "ClusterAgentHeartbeat": {
         "type": "object",
         "properties": {
@@ -9846,6 +9936,9 @@
                   "type": "string",
                   "enum": ["active", "offline"]
                 },
+                "paused": {
+                  "type": "boolean"
+                },
                 "last_seen_at": {
                   "type": "string"
                 },
@@ -9858,6 +9951,7 @@
                 "name",
                 "tags",
                 "status",
+                "paused",
                 "last_seen_at",
                 "running_claims"
               ],

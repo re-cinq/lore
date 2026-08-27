@@ -17,6 +17,7 @@ const agent = (tokenHash: string): ClusterAgent => ({
   registeredAt: new Date("2026-08-27T00:00:00Z"),
   lastSeenAt: new Date("2026-08-27T00:00:00Z"),
   status: "active",
+  paused: false,
   clusterInfo: null,
 });
 

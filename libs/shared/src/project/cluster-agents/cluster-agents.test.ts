@@ -34,6 +34,7 @@ const agentRow = (over: Partial<ClusterAgent> = {}): ClusterAgent => ({
   registeredAt: new Date("2026-08-26T10:00:00Z"),
   lastSeenAt: new Date("2026-08-26T10:00:00Z"),
   status: "active",
+  paused: false,
   clusterInfo: null,
   ...over,
 });
@@ -182,6 +183,38 @@ describe("InMemoryClusterAgents", () => {
     });
   });
 
+  it("setPaused flips the operator switch without touching liveness", async () => {
+    const repo = new InMemoryClusterAgents();
+    const created = await createOrFail(repo, {
+      name: "minikube-bogdan",
+      tags: ["node:agent"],
+      tokenHash: hashAgentToken("lca_one"),
+      clusterInfo: null,
+    });
+
+    expect(created.paused).toBe(false);
+    // Paused is the operator's; status stays the reaper's. A paused agent is
+    // alive — that is what keeps its in-flight work from being requeued.
+    expect(await repo.setPaused(created.id, true)).toMatchObject({
+      id: created.id,
+      paused: true,
+      status: "active",
+    });
+    expect((await repo.findById(created.id))?.paused).toBe(true);
+    expect(await repo.setPaused(created.id, false)).toMatchObject({
+      paused: false,
+    });
+  });
+
+  it("setPaused returns null for an id no longer in the registry", async () => {
+    expect(
+      await new InMemoryClusterAgents().setPaused(
+        "11111111-1111-1111-1111-111111111111",
+        true,
+      ),
+    ).toBeNull();
+  });
+
   it("markOffline flips only active agents silent since the cutoff and returns them", async () => {
     const repo = new InMemoryClusterAgents(
       () => new Date("2026-08-26T10:00:00Z"),
@@ -283,6 +316,16 @@ describe("PgClusterAgents adapter", () => {
     expect(calls[0]?.text).toContain(
       "WHERE status = 'active' AND last_seen_at < $1",
     );
+  });
+
+  it("setPaused updates only the paused column, returning the row", async () => {
+    const { pool, calls } = fakePool([[{ id: "a-1" }]]);
+
+    await new PgClusterAgents(pool).setPaused("a-1", true);
+
+    expect(calls[0]?.text).toContain("SET paused = $2");
+    expect(calls[0]?.text).toContain("WHERE id = $1");
+    expect(calls[0]?.params).toEqual(["a-1", true]);
   });
 
   it("heartbeat sets last_seen_at and active in one statement", async () => {

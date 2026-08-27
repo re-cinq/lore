@@ -19,6 +19,21 @@ export function getClusterAgents(): Promise<ApiResult<ClusterAgentList>> {
   return apiFetch("lore-api", "/api/cluster-agents");
 }
 
+export type ClusterAgentPause = components["schemas"]["ClusterAgentPause"];
+
+/** Take a cluster out of the rotation, or put it back. A paused agent keeps
+ *  heartbeating and finishes what it holds — it is only passed over when new
+ *  work is handed out. */
+export function setClusterAgentPaused(
+  id: string,
+  paused: boolean,
+): Promise<ApiResult<ClusterAgentPause>> {
+  return apiFetch("lore-api", `/api/cluster-agents/${id}/paused`, {
+    method: "PUT",
+    body: { paused },
+  });
+}
+
 export type ClusterInstallInfo =
   components["schemas"]["ClusterAgentInstallInfo"];
 

@@ -12,6 +12,7 @@ const agent = (over: Partial<ClusterAgentRow>): ClusterAgentRow => ({
   name: "minikube",
   tags: ["node:agent"],
   status: "active",
+  paused: false,
   last_seen_at: "2026-08-26T10:00:00.000Z",
   running_claims: 0,
   ...over,
@@ -34,6 +35,7 @@ describe("ClusterAgentsView", () => {
     render(
       <ClusterAgentsView
         installInfo={null}
+        togglePaused={async () => {}}
         agents={[
           agent({ id: "a", name: "minikube", tags: ["node:agent", "gpu"] }),
           agent({
@@ -60,6 +62,7 @@ describe("ClusterAgentsView", () => {
     render(
       <ClusterAgentsView
         installInfo={null}
+        togglePaused={async () => {}}
         agents={[
           agent({ id: "a", name: "alive", status: "active" }),
           agent({ id: "b", name: "dead", status: "offline" }),
@@ -74,7 +77,12 @@ describe("ClusterAgentsView", () => {
 
   it("shows the no-clusters empty state when the registry is empty", () => {
     render(
-      <ClusterAgentsView agents={[]} offlineEvents={[]} installInfo={null} />,
+      <ClusterAgentsView
+        agents={[]}
+        offlineEvents={[]}
+        installInfo={null}
+        togglePaused={async () => {}}
+      />,
     );
 
     expect(screen.getByText("No clusters registered")).toBeInTheDocument();
@@ -85,6 +93,7 @@ describe("ClusterAgentsView", () => {
     render(
       <ClusterAgentsView
         installInfo={null}
+        togglePaused={async () => {}}
         agents={[agent({ id: "agent-1", name: "minikube" })]}
         offlineEvents={[offlineEvent({})]}
       />,
@@ -105,6 +114,7 @@ describe("ClusterAgentsView", () => {
     render(
       <ClusterAgentsView
         installInfo={null}
+        togglePaused={async () => {}}
         agents={[]}
         offlineEvents={[
           offlineEvent({
@@ -125,6 +135,7 @@ describe("ClusterAgentsView", () => {
     render(
       <ClusterAgentsView
         installInfo={null}
+        togglePaused={async () => {}}
         agents={[agent({ id: "a", name: "idle", tags: [], running_claims: 0 })]}
         offlineEvents={[offlineEvent({ cluster_agent_id: null })]}
       />,

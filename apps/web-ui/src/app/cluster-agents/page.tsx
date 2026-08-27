@@ -4,6 +4,7 @@ import {
   getClusterInstallInfo,
 } from "@/lib/api/cluster-agents";
 import ClusterAgentsView from "./ClusterAgentsView";
+import { toggleClusterPausedAction } from "./actions";
 
 /** Container for the registered-clusters page: fetch, then hand props down. */
 export default async function ClusterAgentsPage() {
@@ -19,6 +20,7 @@ export default async function ClusterAgentsPage() {
       agents={body.agents}
       offlineEvents={body.offline_events}
       installInfo={installResult.status === "ok" ? installResult.data : null}
+      togglePaused={toggleClusterPausedAction}
     />
   );
 }
