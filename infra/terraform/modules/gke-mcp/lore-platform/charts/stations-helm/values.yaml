@@ -63,6 +63,13 @@ anthropicKeySecret:
   name: lore-stations-anthropic-key
   key: anthropic-api-key
 
+# Optional org Admin API key (sk-ant-admin…) for the anthropic-cost-sync station
+# (moved here from lore-api in #1522). Absent → the sync skips and /spend degrades
+# to Lore-computed costs. Same secret as above, second key.
+anthropicAdminKeySecret:
+  name: lore-stations-anthropic-key
+  key: anthropic-admin-key
+
 # path is per-entry because the two kinds of scheduled work land in different
 # places: work with STEPS posts /api/assembly-runs and runs as a real assembly
 # line; a single data operation posts /api/stations/<job> and runs inside

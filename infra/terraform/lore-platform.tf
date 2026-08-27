@@ -274,6 +274,12 @@ resource "helm_release" "lore_platform" {
         # ingress for a call between two pods in it.
         LORE_API_URL = local.lore_api_in_cluster
       }
+      # The anthropic-cost-sync station's org admin key (moved here from lore-api
+      # in #1522). Its OWN namespace secret — secrets are namespace-scoped, so
+      # the lore-api `lore-anthropic-key` is out of reach here. es_stations_anthropic_key
+      # carries the anthropic-admin-key entry only when var.anthropic_admin_api_key
+      # is set; the env stays optional either way.
+      anthropicAdminKeySecret = { name = "lore-stations-anthropic-key", key = "anthropic-admin-key" }
     }
 
     # ---- Event router (lore-event-router namespace) ----
