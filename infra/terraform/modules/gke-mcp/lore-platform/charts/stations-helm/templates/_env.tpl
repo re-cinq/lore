@@ -43,4 +43,16 @@ Usage:
       key: {{ .Values.anthropicKeySecret.key }}
       optional: true
 {{- end }}
+{{- if .Values.anthropicAdminKeySecret }}
+# The Anthropic ORG admin key, for the anthropic-cost-sync station (#1348,
+# moved here from lore-api in #1522). Distinct from the API key above: it reads
+# the billing reports and mints nothing. Optional — an unset key makes the sync
+# report a skip rather than fail.
+- name: ANTHROPIC_ADMIN_KEY
+  valueFrom:
+    secretKeyRef:
+      name: {{ .Values.anthropicAdminKeySecret.name }}
+      key: {{ .Values.anthropicAdminKeySecret.key }}
+      optional: true
+{{- end }}
 {{- end -}}

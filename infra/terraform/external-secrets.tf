@@ -1090,14 +1090,25 @@ resource "kubectl_manifest" "es_stations_anthropic_key" {
       target = {
         name = "lore-stations-anthropic-key"
       }
-      data = [
+      # The org admin key is a SECOND entry on the same secret, projected only
+      # when var.anthropic_admin_api_key is set — mirrors es_mcp_anthropic. The
+      # anthropic-cost-sync station (moved here from lore-api in #1522) reads it
+      # as ANTHROPIC_ADMIN_KEY; without it the nightly cost sync skips.
+      data = concat([
         {
           secretKey = "anthropic-api-key"
           remoteRef = {
             key = "lore-anthropic-api-key"
           }
         },
-      ]
+        ], var.anthropic_admin_api_key != "" ? [
+        {
+          secretKey = "anthropic-admin-key"
+          remoteRef = {
+            key = "lore-anthropic-admin-api-key"
+          }
+        },
+      ] : [])
     }
   })
 
