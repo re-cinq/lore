@@ -154,7 +154,14 @@ export default function FullTranscriptPanel({
     () => (turns === null ? [] : turnsForNode(turns, nodeId)),
     [turns, nodeId],
   );
-  const nodeSegments = useMemo(() => segmentTurns(nodeTurns), [nodeTurns]);
+  const nodeSegments = useMemo(
+    () =>
+      segmentTurns(nodeTurns).map((segment) => ({
+        label: segmentLabel(segment),
+        entries: conversationEntries(segment.turns),
+      })),
+    [nodeTurns],
+  );
 
   return (
     <details
@@ -219,13 +226,11 @@ export default function FullTranscriptPanel({
         <ol className={styles.segments}>
           {nodeSegments.map((segment, index) => (
             <li key={index} className={styles.segment}>
-              {segmentLabel(segment) !== null && (
-                <div className={styles.segmentHeader}>
-                  {segmentLabel(segment)}
-                </div>
+              {segment.label !== null && (
+                <div className={styles.segmentHeader}>{segment.label}</div>
               )}
               <ol className={styles.entries}>
-                {conversationEntries(segment.turns).map((timed, i) => (
+                {segment.entries.map((timed, i) => (
                   <li key={i} className={styles.entryRow}>
                     <time className={styles.entryTime} dateTime={timed.at}>
                       {clockTime(timed.at)}
