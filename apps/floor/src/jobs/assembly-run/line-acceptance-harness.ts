@@ -47,6 +47,12 @@ export interface CompleteAgentNodeInput {
   /** Script the CR read as unreadable — the terminal event arrives and
    *  `readAgentStatus` answers null, which is what a satellite's CR does. */
   statusUnreadable?: boolean;
+  /** Report the status ON the terminal event itself (specs/running-stations-in-any-k8s-cluster
+   *  FR4's follow-up) — what a cluster-agent that has adopted the fix sends.
+   *  Combine with `statusUnreadable` to prove the reported status alone
+   *  resolves a node this Floor could never read back, the exact case that
+   *  stranded PR #1599's review. */
+  reportStatus?: boolean;
   /** Shorthand: emit a result envelope carrying `LORE_NODE_RESULT: {outcome}`. */
   outcome?: "success" | "changes_requested" | "failed";
   phase?: string;
@@ -187,6 +193,7 @@ export function createLineHarness(
       agentName,
       iteration,
       phase,
+      ...(input.reportStatus ? { status: { phase, output } } : {}),
     });
   }
 

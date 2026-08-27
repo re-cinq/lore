@@ -8,34 +8,14 @@ import {
   VERSION,
   type Agent as AgentCr,
 } from "@re-cinq/agent-contracts";
-import type { AgentNodeStatus } from "@re-cinq/lore-shared";
-import { agentsNamespace, loadKube } from "@re-cinq/lore-shared";
-import type { AgentApi } from "@re-cinq/lore-shared";
+import {
+  agentsNamespace,
+  loadKube,
+  statusFromAgentCr,
+} from "@re-cinq/lore-shared";
+import type { AgentApi, AgentNodeStatus } from "@re-cinq/lore-shared";
 
 const PLURAL = "agents";
-
-/**
- * Pure: the status an EXISTING Agent CR reports.
- *
- * A CR the controller has not stamped yet is BORN, not absent — so it answers
- * `Pending` rather than null. Collapsing the two made the reaper read a live
- * just-launched pod as "crashed between the row insert and the launch" and
- * relaunch over it every 60s, re-provisioning its recipe clone from a spec that
- * had lost the conversation (#1466). Null is reserved for a 404.
- */
-export function statusFromAgentCr(obj: AgentCr): AgentNodeStatus {
-  const status = obj.status;
-
-  if (!status) {
-    return { phase: "Pending" };
-  }
-
-  return {
-    phase: status.phase,
-    output: status.output,
-    failureReason: status.failureReason,
-  };
-}
 
 export class KubeAgentApi implements AgentApi {
   private namespace(): string {

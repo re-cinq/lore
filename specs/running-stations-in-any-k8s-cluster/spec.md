@@ -218,11 +218,22 @@ pull, so recovery splits by who holds the claim:
   is skipped entirely; their recovery signal is the claiming agent's
   liveness, never a CR read that would come back null and trigger a
   duplicate central launch. ([validated by `assembly-run-reaper.test.ts:174`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L174), [`assembly-run-reaper.test.ts:189`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L189), [`assembly-run-reaper.test.ts:556`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L556), [`cr-visibility.test.ts:8`](apps/floor/src/jobs/assembly-run/cr-visibility.test.ts#L8), [`cr-visibility.test.ts:14`](apps/floor/src/jobs/assembly-run/cr-visibility.test.ts#L14), [`cr-visibility.test.ts:23`](apps/floor/src/jobs/assembly-run/cr-visibility.test.ts#L23), [`cr-visibility.test.ts:32`](apps/floor/src/jobs/assembly-run/cr-visibility.test.ts#L32), [`cr-visibility.test.ts:38`](apps/floor/src/jobs/assembly-run/cr-visibility.test.ts#L38))
-- The same restriction binds the **terminal-event door**, not only the reaper.
-  A `kubernetes.agent_node.*` event for a satellite-claimed run MUST NOT read
-  the CR back, and MUST NOT treat the null it would get as an empty output:
-  the node stays open for the reaper rather than being recorded from a status
-  nobody read. ([validated by `code-review-acceptance.test.ts:21`](apps/floor/src/jobs/assembly-run/code-review-acceptance.test.ts#L21), [`code-review-acceptance.test.ts:33`](apps/floor/src/jobs/assembly-run/code-review-acceptance.test.ts#L33), [`code-review-acceptance.test.ts:48`](apps/floor/src/jobs/assembly-run/code-review-acceptance.test.ts#L48))
+- The same restriction binds the **terminal-event door**, not only the reaper:
+  it MUST NOT read a satellite-claimed run's CR back, and MUST NOT treat the
+  null it would get as an empty output — this is the fallback path, taken
+  only when the event carries no status of its own. ([validated by `code-review-acceptance.test.ts:26`](apps/floor/src/jobs/assembly-run/code-review-acceptance.test.ts#L26), [`code-review-acceptance.test.ts:38`](apps/floor/src/jobs/assembly-run/code-review-acceptance.test.ts#L38), [`code-review-acceptance.test.ts:53`](apps/floor/src/jobs/assembly-run/code-review-acceptance.test.ts#L53))
+- The follow-up this restriction always pointed at: the terminal event MAY
+  carry the CR's status directly (`params.status`, reported by cluster-agent
+  at the source — the same `AgentNodeStatus` `statusFromAgentCr` builds for
+  the central cluster-agent's own status route). When it does, the terminal
+  door uses it as-is and skips the central read and the visibility gate
+  entirely — there is nothing left to interrogate a cluster for. This is what
+  makes a satellite's outcome reach the Floor for real instead of stalling
+  open until the reaper eventually times it out, discarding whatever the
+  agent actually produced. An event from an older, not-yet-redeployed
+  cluster-agent carries no `status` and falls straight back to the restriction
+  above — this is additive, not a replacement, and rolls out in either
+  direction with no coordination required. ([validated by `k8s-map.test.ts:76`](libs/shared/src/project/events/k8s-map.test.ts#L76), [`k8s-map.test.ts:90`](libs/shared/src/project/events/k8s-map.test.ts#L90), [`node-event-handler.test.ts:295`](apps/floor/src/jobs/assembly-run/node-event-handler.test.ts#L295), [`node-event-handler.test.ts:311`](apps/floor/src/jobs/assembly-run/node-event-handler.test.ts#L313), [`code-review-acceptance.test.ts:62`](apps/floor/src/jobs/assembly-run/code-review-acceptance.test.ts#L62), [`code-review-acceptance.test.ts:77`](apps/floor/src/jobs/assembly-run/code-review-acceptance.test.ts#L77))
 
 - A run claimed by an **offline** agent is reset to `queued` (same row, per
   the lifecycle section); the reaper — the same process that set the agent

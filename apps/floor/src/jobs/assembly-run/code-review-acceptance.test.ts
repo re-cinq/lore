@@ -11,6 +11,11 @@
 //
 // No pr_number here on purpose: the review post and the PR check both no-op
 // without one, so this walks the visibility decision with no GitHub in reach.
+//
+// specs/running-stations-in-any-k8s-cluster FR4's follow-up: a satellite that
+// REPORTS its status alongside the terminal event resolves the node without
+// this Floor ever needing to read the CR back — the fix for exactly the
+// scenario above.
 
 import { describe, it, expect } from "vitest";
 import { createLineHarness } from "./line-acceptance-harness.js";
@@ -52,5 +57,34 @@ describe("code-review walked by a satellite", () => {
     await h.completeAgentNode(id, "review", { outcome: "success" });
 
     expect(h.visits()).toEqual([["review", "success"]]);
+  });
+
+  it("finishes the node from the satellite's own reported status, unreadable or not", async () => {
+    const h = createLineHarness();
+    const id = await h.start("code-review");
+
+    await h.completeAgentNode(id, "review", {
+      claimedBy: SATELLITE,
+      statusUnreadable: true,
+      reportStatus: true,
+      outcome: "success",
+    });
+
+    expect(h.visits()).toEqual([["review", "success"]]);
+    expect(await h.runs.getById(id)).toMatchObject({ status: "finished" });
+  });
+
+  it("records a changes_requested verdict from a satellite's reported status", async () => {
+    const h = createLineHarness();
+    const id = await h.start("code-review");
+
+    await h.completeAgentNode(id, "review", {
+      claimedBy: SATELLITE,
+      statusUnreadable: true,
+      reportStatus: true,
+      outcome: "changes_requested",
+    });
+
+    expect(h.visits()).toEqual([["review", "changes_requested"]]);
   });
 });
