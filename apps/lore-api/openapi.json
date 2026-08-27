@@ -3675,6 +3675,60 @@
         ]
       }
     },
+    "/api/cluster-agents/{id}/complete": {
+      "post": {
+        "operationId": "post_api_cluster-agents_id_complete",
+        "summary": "POST /api/cluster-agents/{id}/complete",
+        "tags": ["Cluster Agents"],
+        "security": [],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "Successful response (2xx; the response body is not described — see info.description)"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "station_run_id": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "output": {
+                    "type": "string"
+                  }
+                },
+                "required": ["station_run_id", "output"],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/cluster-agents/install-info": {
       "get": {
         "operationId": "get_api_cluster-agents_install-info",

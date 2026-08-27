@@ -16,6 +16,9 @@ import { HttpEventReporter } from "@re-cinq/lore-shared/project/events/event-rep
 import { startServer } from "./delivery/server.js";
 import { startK8sWatch } from "./listeners/k8s-watch.js";
 import { startSatellite } from "./satellite/start-satellite.js";
+import { reportTerminalOutput } from "./satellite/report-output.js";
+import type { ClusterAgentIdentity } from "./satellite/identity-store.js";
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 
 const PORT = parseInt(process.env.PORT ?? "8080", 10);
 
@@ -23,10 +26,11 @@ const PORT = parseInt(process.env.PORT ?? "8080", 10);
  *  is the only thing left to catch it. */
 const REPORT_RETRY = { attempts: 5, delayMs: 500 };
 
-/** The satellite's current per-agent token, once it has registered. Lives in
+/** The cluster-agent's own registered identity, once it has registered. Lives in
  *  the composition root because that is where the reporter and the satellite
- *  are wired together. */
-let satelliteToken: string | undefined;
+ *  are wired together. The TOKEN authenticates event reports; the ID names which
+ *  cluster is reporting a finished visit's output. */
+let identity: ClusterAgentIdentity | undefined;
 
 async function main(): Promise<void> {
   const stopServer = await startServer(PORT);
@@ -47,11 +51,31 @@ async function main(): Promise<void> {
     // reaper instead — silently, since the retry log is the only symptom.
     const reporter = new HttpEventReporter(
       routerUrl,
-      () => process.env.LORE_INGEST_TOKEN ?? satelliteToken,
+      () => process.env.LORE_INGEST_TOKEN ?? identity?.token,
     );
+
+    // The output rides the same outbound channel as the claim, and lands BEFORE
+    // the event that will send a reader looking for it. Absent LORE_API_URL the
+    // watch still reports events — the Floor then has a terminal phase and no
+    // output, which the reaper settles rather than a verdict invented from it.
+    const apiUrl = process.env.LORE_API_URL;
 
     startK8sWatch({
       insert: (event) => reporter.insert(event),
+      reportOutput: apiUrl
+        ? reportTerminalOutput({
+            apiUrl,
+            identity: () => {
+              enforceTrue(
+                identity,
+                Error,
+                "no registered identity to report a terminal output with",
+              );
+
+              return identity;
+            },
+          })
+        : undefined,
       retry: REPORT_RETRY,
     });
   } else {
@@ -67,8 +91,8 @@ async function main(): Promise<void> {
   // here. Gated on the same station backend as the watch; a failed
   // registration retries in the background and never blocks the routes above.
   startSatellite(process.env, {
-    onIdentity: (identity) => {
-      satelliteToken = identity.token;
+    onIdentity: (registered) => {
+      identity = registered;
     },
   });
 

@@ -218,6 +218,17 @@ pull, so recovery splits by who holds the claim:
   is skipped entirely; their recovery signal is the claiming agent's
   liveness, never a CR read that would come back null and trigger a
   duplicate central launch. ([validated by `assembly-run-reaper.test.ts:174`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L174), [`assembly-run-reaper.test.ts:189`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L189), [`assembly-run-reaper.test.ts:556`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L556), [`cr-visibility.test.ts:8`](apps/floor/src/jobs/assembly-run/cr-visibility.test.ts#L8), [`cr-visibility.test.ts:14`](apps/floor/src/jobs/assembly-run/cr-visibility.test.ts#L14), [`cr-visibility.test.ts:23`](apps/floor/src/jobs/assembly-run/cr-visibility.test.ts#L23), [`cr-visibility.test.ts:32`](apps/floor/src/jobs/assembly-run/cr-visibility.test.ts#L32), [`cr-visibility.test.ts:38`](apps/floor/src/jobs/assembly-run/cr-visibility.test.ts#L38))
+- `POST /api/cluster-agents/{id}/complete` is how it gets there — the mirror of
+  `claim`, authenticated by the same per-agent token, where a valid token may
+  only report as itself. Unlike `claim`, a PAUSED agent is served: pausing
+  withholds new work, it does not discard work already in flight. A re-report
+  writes the same bytes over the same row. ([validated by `complete.test.ts:43`](apps/lore-api/src/api/routes/cluster-agents/complete.test.ts#L43), [`complete.test.ts:55`](apps/lore-api/src/api/routes/cluster-agents/complete.test.ts#L55), [`complete.test.ts:67`](apps/lore-api/src/api/routes/cluster-agents/complete.test.ts#L67), [`complete.test.ts:81`](apps/lore-api/src/api/routes/cluster-agents/complete.test.ts#L81), [`complete.test.ts:94`](apps/lore-api/src/api/routes/cluster-agents/complete.test.ts#L94), [`complete.test.ts:109`](apps/lore-api/src/api/routes/cluster-agents/complete.test.ts#L109), [`report-output.test.ts:8`](apps/cluster-agent/src/satellite/report-output.test.ts#L8), [`report-output.test.ts:31`](apps/cluster-agent/src/satellite/report-output.test.ts#L31), [`report-output.test.ts:53`](apps/cluster-agent/src/satellite/report-output.test.ts#L53))
+- The cluster-agent's watch sends the output BEFORE it inserts the terminal
+  event. The event is the trigger and the output is what the trigger sends a
+  reader looking for, so an event that overtakes its own payload is read as a
+  node that produced nothing. A failed output report never cancels the event —
+  a terminal phase without output leaves the visit open for the reaper, which
+  recovers; no event at all parks the line until its budget expires. ([validated by `agent-reporting.test.ts:41`](apps/cluster-agent/src/listeners/agent-reporting.test.ts#L41), [`agent-reporting.test.ts:56`](apps/cluster-agent/src/listeners/agent-reporting.test.ts#L56), [`agent-reporting.test.ts:71`](apps/cluster-agent/src/listeners/agent-reporting.test.ts#L71), [`agent-reporting.test.ts:86`](apps/cluster-agent/src/listeners/agent-reporting.test.ts#L86), [`agent-reporting.test.ts:99`](apps/cluster-agent/src/listeners/agent-reporting.test.ts#L99))
 - A visit's terminal output is STORED, on `pipeline.station_runs.terminal_output`,
   keyed by the `station_run_id` its claimant already holds — not fetched back out
   of the cluster that ran it. A satellite is pull-based and carries no URL in this

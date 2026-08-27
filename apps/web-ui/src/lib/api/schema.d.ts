@@ -1088,6 +1088,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/cluster-agents/{id}/complete": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** POST /api/cluster-agents/{id}/complete */
+    post: operations["post_api_cluster-agents_id_complete"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/cluster-agents/install-info": {
     parameters: {
       query?: never;
@@ -5576,6 +5593,36 @@ export interface operations {
         content: {
           "application/json": components["schemas"]["ClusterAgentClaim"];
         };
+      };
+      400: components["responses"]["BadRequest"];
+      413: components["responses"]["PayloadTooLarge"];
+      429: components["responses"]["RateLimited"];
+    };
+  };
+  "post_api_cluster-agents_id_complete": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          station_run_id: string;
+          output: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Successful response (2xx; the response body is not described — see info.description) */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
       };
       400: components["responses"]["BadRequest"];
       413: components["responses"]["PayloadTooLarge"];
