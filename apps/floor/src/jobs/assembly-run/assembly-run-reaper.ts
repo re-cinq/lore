@@ -23,6 +23,7 @@ import {
 import { resolveRunGraph } from "@re-cinq/lore-assembly-lines";
 import type { StationRunRecord } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
 import { advanceLine, finishLine } from "./advance.js";
+import { agentCrVisible } from "./cr-visibility.js";
 import { finishNodeTerminal, normalizeAgentStatus } from "./node-terminal.js";
 import { runOutcomeFromTaskStatus } from "../watcher/agent-watcher-logic.js";
 import {
@@ -95,24 +96,6 @@ export type NodeRecovery =
   | { kind: "timeout" }
   | { kind: "queue-timeout" }
   | { kind: "wait" };
-
-/**
- * Whether THIS Floor can interrogate the row's Agent CR (FR4). Only two rows
- * qualify: a legacy `running` row (the pre-flip push path launched its CR in
- * the central cluster) and a row CLAIMED by the central cluster's agent
- * (`LORE_CENTRAL_CLUSTER_AGENT_ID`). A satellite's CR is invisible to the
- * central read — it answers null, and acting on that null would double-launch.
- */
-export function agentCrVisible(
-  node: Pick<StationRunRecord, "status" | "clusterAgentId">,
-  centralClusterAgentId: string | null,
-): boolean {
-  return (
-    node.status === "running" ||
-    (node.clusterAgentId !== null &&
-      node.clusterAgentId === centralClusterAgentId)
-  );
-}
 
 /** Pure per-open-node decision from the node row's lifecycle status, its age on
  *  the claim clock, and — only when visible — the CR's live status. */

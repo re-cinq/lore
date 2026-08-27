@@ -112,6 +112,13 @@ export type ReviewPostOutcome =
  *   practice. Left untouched anyway: approving nothing harms nothing.
  *
  * A `post_failed` also stays — the verdict is real, and the throw is audited.
+ *
+ * A FOURTH case never reaches here, and must not: an output nobody could READ.
+ * A CR in a cluster this Floor cannot interrogate answers null, which arrives
+ * looking exactly like "the agent emitted nothing" and would be published as a
+ * verdict on that reading. The event handler refuses that door upstream
+ * (`agentCrVisible`), so every output this function judges is one that was
+ * actually read.
  */
 export function reviewNodeResultOverride(
   post: ReviewPostOutcome,
