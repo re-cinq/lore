@@ -10745,6 +10745,25 @@
               "required": ["task_type", "tasks", "cost_usd"],
               "additionalProperties": false
             }
+          },
+          "lore_by_cluster": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "cluster": {
+                  "type": "string"
+                },
+                "calls": {
+                  "type": "number"
+                },
+                "cost_usd": {
+                  "type": "number"
+                }
+              },
+              "required": ["cluster", "calls", "cost_usd"],
+              "additionalProperties": false
+            }
           }
         },
         "required": [
@@ -10760,7 +10779,8 @@
           "lore_by_kind",
           "lore_daily",
           "lore_by_repo",
-          "lore_by_task_type"
+          "lore_by_task_type",
+          "lore_by_cluster"
         ],
         "additionalProperties": false
       },

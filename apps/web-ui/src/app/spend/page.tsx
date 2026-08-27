@@ -12,6 +12,7 @@ import SpendView, {
   type LoreDailyRow,
   type LoreByRepoRow,
   type LoreByTaskTypeRow,
+  type LoreByClusterRow,
 } from "./SpendView";
 
 export default async function SpendPage() {
@@ -44,6 +45,7 @@ export default async function SpendPage() {
     lore_daily: [],
     lore_by_repo: [],
     lore_by_task_type: [],
+    lore_by_cluster: [],
   };
   const spend = (result.status === "ok" ? result.data : empty) as unknown as {
     budget: BudgetRow;
@@ -59,6 +61,7 @@ export default async function SpendPage() {
     lore_daily: LoreDailyRow[];
     lore_by_repo: LoreByRepoRow[];
     lore_by_task_type: LoreByTaskTypeRow[];
+    lore_by_cluster: LoreByClusterRow[];
   };
 
   return (
@@ -77,6 +80,7 @@ export default async function SpendPage() {
       loreDaily={spend.lore_daily}
       loreByRepo={spend.lore_by_repo}
       loreByTaskType={spend.lore_by_task_type}
+      loreByCluster={spend.lore_by_cluster}
     />
   );
 }

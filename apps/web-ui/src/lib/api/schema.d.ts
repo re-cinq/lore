@@ -2913,6 +2913,11 @@ export interface components {
         tasks: number;
         cost_usd: number;
       }[];
+      lore_by_cluster: {
+        cluster: string;
+        calls: number;
+        cost_usd: number;
+      }[];
     };
     CreditEntryRecorded: {
       id: number;

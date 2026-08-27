@@ -388,4 +388,61 @@ describe("GET /api/spend", () => {
     expect(sql).toContain("COALESCE(SUM(amount_usd), 0)");
     expect(sql).not.toContain("SUM(amount_usd) FILTER");
   });
+
+  it("attributes computed spend to the cluster-agent that ran each call", async () => {
+    // The differentiator the whole feature turns on: a satellite cluster's
+    // spend, isolated from the home cluster's, read straight out of the join
+    // llm_calls carries to its station run.
+    const pool = poolAnswering({
+      "pipeline.cluster_agents": [
+        { cluster: "colleague-satellite", calls: 12, cost_usd: 88.5 },
+        { cluster: "(central / regular)", calls: 40, cost_usd: 20 },
+      ],
+    });
+
+    expect((await get(pool)).result).toMatchObject({
+      lore_by_cluster: [
+        { cluster: "colleague-satellite", calls: 12, cost_usd: 88.5 },
+        { cluster: "(central / regular)", calls: 40, cost_usd: 20 },
+      ],
+    });
+  });
+
+  it("groups cluster spend through station_runs and labels the unclaimed rows", async () => {
+    // Pinned as SQL text because a mocked pool answers any shape happily. A
+    // call with no station run (a direct-API task) has no cluster_agent_id and
+    // must fall into one honest bucket, not vanish — hence the outer LEFT JOINs
+    // and the COALESCE label rather than an inner join that would drop it.
+    const pool = makePool();
+
+    pool.query.mockResolvedValue({ rows: [] });
+    await get(pool);
+
+    const clusterRead = pool.query.mock.calls.find(([sql]) =>
+      String(sql).includes("pipeline.cluster_agents"),
+    );
+    const sql = String(clusterRead?.[0]);
+
+    expect(sql).toContain("pipeline.station_runs");
+    expect(sql).toContain("station_run_id");
+    expect(sql).toContain("cluster_agent_id");
+    expect(sql).toContain("date_trunc('month', current_date)");
+  });
+
+  it("still renders cluster spend empty when the registry table is absent", async () => {
+    // station_runs / cluster_agents arrive with migrations; a deployment that
+    // predates them must degrade to no rows, never 500 the whole page.
+    const pool = makePool();
+
+    pool.query.mockImplementation((sql: unknown) =>
+      String(sql).includes("pipeline.cluster_agents")
+        ? Promise.reject(undefinedTable())
+        : Promise.resolve({ rows: [] }),
+    );
+
+    const res = await get(pool);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.result).toMatchObject({ lore_by_cluster: [] });
+  });
 });
