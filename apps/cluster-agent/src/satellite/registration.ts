@@ -65,6 +65,12 @@ export interface RegisterDeps {
   config: RegistrationConfig;
   store: IdentityStore;
   fetchFn?: typeof fetch;
+  /** Publishes the freshly-minted per-agent token as the run pods' telemetry
+   *  credential. Optional: a composition without it (tests, a satellite whose
+   *  pods have no sink configured) simply registers as before. */
+  publishTelemetryCredential?: (
+    identity: ClusterAgentIdentity,
+  ) => Promise<void>;
 }
 
 /** One registration attempt. Persists and returns the identity on 200; null on
@@ -117,6 +123,9 @@ export async function registerOnce(
   const identity = { id: body.id, token: body.token };
 
   await store.save(identity);
+  // Both first registration and every rotation land here, so the run pods'
+  // copy of the credential never outlives the token it carries.
+  await deps.publishTelemetryCredential?.(identity);
 
   return identity;
 }

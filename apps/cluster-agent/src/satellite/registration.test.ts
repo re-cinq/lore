@@ -183,6 +183,61 @@ describe("registerOnce", () => {
       }),
     ).toBeNull();
   });
+
+  it("publishes the minted token as the run pods' telemetry credential", async () => {
+    const { fetchFn } = fakeFetch([
+      jsonResponse(200, { id: "id-7", token: "tok-7" }),
+    ]);
+    const published: string[] = [];
+
+    await registerOnce({
+      config,
+      store: new InMemoryIdentityStore(),
+      fetchFn,
+      publishTelemetryCredential: async (id) => {
+        published.push(id.token);
+      },
+    });
+
+    expect(published).toEqual(["tok-7"]);
+  });
+
+  it("republishes on rotation, so the pods' copy never outlives its token", async () => {
+    // The rotated token is what the Floor's sink will accept; leaving the old
+    // one in the Secret would 401 every event after a rotation.
+    const { fetchFn } = fakeFetch([
+      jsonResponse(200, { id: "id-7", token: "tok-rotated" }),
+    ]);
+    const store = new InMemoryIdentityStore({ id: "id-7", token: "tok-old" });
+    const published: string[] = [];
+
+    await registerOnce({
+      config,
+      store,
+      fetchFn,
+      publishTelemetryCredential: async (id) => {
+        published.push(id.token);
+      },
+    });
+
+    expect(published).toEqual(["tok-rotated"]);
+  });
+
+  it("publishes nothing when registration is refused", async () => {
+    const { fetchFn } = fakeFetch([jsonResponse(409, { error: "taken" })]);
+    const published: string[] = [];
+
+    await registerOnce({
+      config,
+      store: new InMemoryIdentityStore(),
+      fetchFn,
+      publishTelemetryCredential: async (id) => {
+        published.push(id.token);
+      },
+    });
+
+    expect(published).toEqual([]);
+  });
 });
 
 describe("registerWithBackoff", () => {

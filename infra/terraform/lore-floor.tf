@@ -9,8 +9,9 @@
 # External ingress for the Floor webhook hooks (the ingress moved from mcp-server
 # into the Floor). Created only when a webhook hostname is configured; routes the
 # /api/webhook prefix — github (HMAC-verified in-process), ci-tests and ci-ingest
-# (bearer ingest-token) — to the Floor HTTP server. /healthz and /api/agent-events
-# stay cluster-internal.
+# (bearer ingest-token) — to the Floor HTTP server. /healthz stays
+# cluster-internal; /api/agent-events has its own ingress (lore-agent-events.tf)
+# so satellite telemetry does not ride the same door as GitHub's webhooks.
 # Operator step after apply: repoint the GitHub App / org webhook to this host.
 resource "kubernetes_ingress_v1" "lore_floor_webhook" {
   count = var.lore_webhook_hostname != "" ? 1 : 0

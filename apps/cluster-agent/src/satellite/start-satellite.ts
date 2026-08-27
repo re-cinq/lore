@@ -16,6 +16,8 @@ import { AgentCrBackend } from "@re-cinq/lore-shared/cluster/agent-backend.js";
 import type { ContextSource } from "@re-cinq/lore-shared/cluster/agent-backend.js";
 import { KubeAgentApi } from "../kernel/kube-agent-api.js";
 import { kubeTokenProvisioner } from "../kernel/deps.js";
+import { KubeSecretKeyWriter } from "../kernel/kube-token-provisioner.js";
+import { writeAgentEventsAuth } from "./agent-events-secret.js";
 import { ApiContextSource } from "./api-context-source.js";
 import { claimIntervalMs, claimOnce, runClaimLoop } from "./claim-loop.js";
 import {
@@ -57,12 +59,16 @@ async function runSatellite(opts: {
   config: RegistrationConfig;
   store: IdentityStore;
   backend: AgentCrBackend;
+  /** Publishes each newly-minted per-agent token to the run pods' Secret, so
+   *  their telemetry sink can authenticate as this cluster. */
+  publishTelemetryCredential: (id: ClusterAgentIdentity) => Promise<void>;
 }): Promise<void> {
-  const { env, config, store, backend } = opts;
+  const { env, config, store, backend, publishTelemetryCredential } = opts;
   let identity: ClusterAgentIdentity = await registerWithBackoff({
     config,
     store,
     sleep,
+    publishTelemetryCredential,
   });
 
   console.log(
@@ -75,7 +81,11 @@ async function runSatellite(opts: {
   // same in-flight attempt instead.
   let reRegistration: Promise<ClusterAgentIdentity | null> | null = null;
   const reRegister = (): Promise<ClusterAgentIdentity | null> =>
-    (reRegistration ??= registerOnce({ config, store })
+    (reRegistration ??= registerOnce({
+      config,
+      store,
+      publishTelemetryCredential,
+    })
       .then((rotated) => {
         if (rotated) {
           identity = rotated;
@@ -138,8 +148,20 @@ export function startSatellite(env: NodeJS.ProcessEnv): void {
     kubeTokenProvisioner(),
   );
 
+  // The same Secret writer the per-task GitHub provisioner uses — a merge into
+  // `agent-secrets`, not a replace, because both write to it.
+  const secrets = new KubeSecretKeyWriter();
+
   void selectIdentityStore(env)
-    .then((store) => runSatellite({ env, config, store, backend }))
+    .then((store) =>
+      runSatellite({
+        env,
+        config,
+        store,
+        backend,
+        publishTelemetryCredential: (id) => writeAgentEventsAuth(secrets, id),
+      }),
+    )
     .catch((err) => {
       // Unreachable by design (register + claim never throw), but a defect here
       // must surface as a log, not an unhandled rejection killing the process.

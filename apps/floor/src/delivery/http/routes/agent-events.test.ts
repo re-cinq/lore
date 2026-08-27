@@ -2,14 +2,28 @@ import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
 import type { AgentRunEventRow } from "@re-cinq/lore-shared";
 import { buildServer } from "../server.js";
 import { agentEventBus } from "../../../jobs/agent/agent-event-bus.js";
+import { mintAgentToken } from "@re-cinq/lore-shared/project/cluster-agents/cluster-agent-token.js";
 
 const logLlmCall = vi.fn();
 const insertBatch = vi.fn();
 const write = vi.fn();
 
+/** The one registry row the mocked `clusterAgents()` knows about; a test that
+ *  wants a satellite's token accepted sets it. */
+let registeredAgent: { tokenHash: string } | null = null;
+
 vi.mock("../../../kernel/queues.js", () => ({
   // The logs route resolves the cluster agent from here.
   clusterAgent: () => ({}),
+  // The telemetry sink resolves the REGISTRY from here, to let a satellite's
+  // own per-agent token in. `registeredAgent` is the row the fake returns —
+  // null unless a test registers one.
+  clusterAgents: () => ({
+    findByTokenHash: async (hash: string) =>
+      registeredAgent !== null && registeredAgent.tokenHash === hash
+        ? registeredAgent
+        : null,
+  }),
   usage: () => ({ logLlmCall }),
   pipeline: () => ({
     agentRunEvents: { insertBatch },
@@ -58,6 +72,8 @@ const post = (payload: string) =>
   });
 
 afterEach(() => {
+  registeredAgent = null;
+
   if (ORIG === undefined) {
     delete process.env.LORE_AGENT_INTERNAL_TOKEN;
   } else {
@@ -78,12 +94,46 @@ describe("POST /api/agent-events", () => {
     expect(res.statusCode).toBe(401);
   });
 
-  it("returns 401 when the internal token is not configured", async () => {
+  it("returns 500 when the internal token is not configured", async () => {
+    // Not 401: an unconfigured token is an operator fix (redeploy), not a
+    // caller who presented the wrong credential. This is the shared
+    // enforceBearer's rule, adopted when this door started accepting two
+    // credentials.
     delete process.env.LORE_AGENT_INTERNAL_TOKEN;
     const res = await buildServer({ getJobStatus: () => ({}) }).inject({
       method: "POST",
       url: "/api/agent-events",
       headers: { authorization: "Bearer anything" },
+      payload: "{}",
+    });
+
+    expect(res.statusCode).toBe(500);
+  });
+
+  it("accepts a registered cluster-agent's own per-agent token", async () => {
+    // A satellite never holds LORE_AGENT_INTERNAL_TOKEN; its own registered
+    // token is what gives its runs cost rows and run-viz.
+    process.env.LORE_AGENT_INTERNAL_TOKEN = "internal-secret";
+    const { token, tokenHash } = mintAgentToken();
+
+    registeredAgent = { tokenHash };
+    const res = await buildServer({ getJobStatus: () => ({}) }).inject({
+      method: "POST",
+      url: "/api/agent-events",
+      headers: { authorization: `Bearer ${token}` },
+      payload: "{}",
+    });
+
+    expect(res.statusCode).toBe(200);
+  });
+
+  it("refuses an unregistered per-agent token with 401", async () => {
+    process.env.LORE_AGENT_INTERNAL_TOKEN = "internal-secret";
+    registeredAgent = { tokenHash: mintAgentToken().tokenHash };
+    const res = await buildServer({ getJobStatus: () => ({}) }).inject({
+      method: "POST",
+      url: "/api/agent-events",
+      headers: { authorization: `Bearer ${mintAgentToken().token}` },
       payload: "{}",
     });
 

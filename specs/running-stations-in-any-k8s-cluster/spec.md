@@ -94,7 +94,7 @@ A new `pipeline.cluster_agents` table is the registry of execution clusters.
   lore-api (all `/api/cluster-agents/*` endpoints live in
   `apps/lore-api/src/api/routes/cluster-agents/`), authenticating with a
   pre-shared registration token (`LORE_CLUSTER_AGENT_REGISTRATION_TOKEN`),
-  and receives a durable id and a per-agent bearer token. ([validated by `register.test.ts:44`](apps/lore-api/src/api/routes/cluster-agents/register.test.ts#L44), [`register.test.ts:14`](apps/lore-api/src/api/routes/cluster-agents/register.test.ts#L14), [`register.test.ts:31`](apps/lore-api/src/api/routes/cluster-agents/register.test.ts#L31), [`registration.test.ts:121`](apps/cluster-agent/src/satellite/registration.test.ts#L121), [`registration.test.ts:154`](apps/cluster-agent/src/satellite/registration.test.ts#L154), [`registration.test.ts:46`](apps/cluster-agent/src/satellite/registration.test.ts#L46), [`registration.test.ts:52`](apps/cluster-agent/src/satellite/registration.test.ts#L52), [`registration.test.ts:61`](apps/cluster-agent/src/satellite/registration.test.ts#L61), [`registration.test.ts:76`](apps/cluster-agent/src/satellite/registration.test.ts#L76), [`registration.test.ts:175`](apps/cluster-agent/src/satellite/registration.test.ts#L175), [`registration.test.ts:189`](apps/cluster-agent/src/satellite/registration.test.ts#L189))
+  and receives a durable id and a per-agent bearer token. ([validated by `register.test.ts:44`](apps/lore-api/src/api/routes/cluster-agents/register.test.ts#L44), [`register.test.ts:14`](apps/lore-api/src/api/routes/cluster-agents/register.test.ts#L14), [`register.test.ts:31`](apps/lore-api/src/api/routes/cluster-agents/register.test.ts#L31), [`registration.test.ts:121`](apps/cluster-agent/src/satellite/registration.test.ts#L121), [`registration.test.ts:154`](apps/cluster-agent/src/satellite/registration.test.ts#L154), [`registration.test.ts:46`](apps/cluster-agent/src/satellite/registration.test.ts#L46), [`registration.test.ts:52`](apps/cluster-agent/src/satellite/registration.test.ts#L52), [`registration.test.ts:61`](apps/cluster-agent/src/satellite/registration.test.ts#L61), [`registration.test.ts:76`](apps/cluster-agent/src/satellite/registration.test.ts#L76), [`registration.test.ts:175`](apps/cluster-agent/src/satellite/registration.test.ts#L175), [`registration.test.ts:244`](apps/cluster-agent/src/satellite/registration.test.ts#L244))
 - The per-agent token is stored SHA-256-hashed in
   `pipeline.cluster_agents.token_hash`, following the existing
   `pipeline.api_tokens` pattern; every subsequent lore-api call from that
@@ -280,9 +280,49 @@ execution node.
   rendered pointed at an unreachable URL with a secret no satellite can
   hold. Unguarded, this was a hard `CreateContainerConfigError` on every
   satellite pod, of every node type — the first real satellite's every
-  claimed run failed at init (#1575, found live 2026-08-26). A satellite's
-  runs are visible through pod logs and the terminal report, not the live
-  per-tool-call stream. ([validated by `agent-catalog.test.ts:191`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L191))
+  claimed run failed at init (#1575, found live 2026-08-26). Unset stays the
+  default: a satellite reports its terminal outcome and nothing live, which
+  is the honest state for a cluster with nowhere to report to. ([validated by `agent-catalog.test.ts:191`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L191))
+
+## FR8 — Live telemetry from a satellite
+
+A satellite that reports only terminal outcomes is invisible while it works:
+no cost rows, no run view. The credential it already holds is enough to fix
+that.
+
+- The Floor's `POST /api/agent-events` accepts TWO credentials, exactly as
+  the event-router's `POST /api/events` does (FR5): the bus-wide
+  `LORE_AGENT_INTERNAL_TOKEN`, or any registered cluster-agent's per-agent
+  token, matched by SHA-256 against `pipeline.cluster_agents`. The shared
+  token is compared first, so the central cluster's own calls cost no SELECT;
+  agent `status` is deliberately not checked, since a cluster that has gone
+  quiet is still the sender of what it is delivering. The rule is one shared
+  function both doors call — two front doors disagreeing about who a
+  satellite is would only surface in production. ([validated by `registry-or-shared-token.test.ts:50`](libs/shared/src/http/registry-or-shared-token.test.ts#L50), [`registry-or-shared-token.test.ts:63`](libs/shared/src/http/registry-or-shared-token.test.ts#L63), [`registry-or-shared-token.test.ts:76`](libs/shared/src/http/registry-or-shared-token.test.ts#L76), [`registry-or-shared-token.test.ts:90`](libs/shared/src/http/registry-or-shared-token.test.ts#L90), [`registry-or-shared-token.test.ts:134`](libs/shared/src/http/registry-or-shared-token.test.ts#L134), [`agent-events.test.ts:113`](apps/floor/src/delivery/http/routes/agent-events.test.ts#L113), [`agent-events.test.ts:130`](apps/floor/src/delivery/http/routes/agent-events.test.ts#L130))
+- The check runs inside the handler rather than as a hapi auth strategy,
+  because a strategy holds exactly one expected token. An unconfigured shared
+  token is therefore a `500`, not a `401` — an operator redeploys to fix it,
+  no caller can — and the refusal names the env var that door actually reads
+  rather than the ingest token every other door uses. ([validated by `agent-events.test.ts:97`](apps/floor/src/delivery/http/routes/agent-events.test.ts#L97), [`registry-or-shared-token.test.ts:98`](libs/shared/src/http/registry-or-shared-token.test.ts#L98), [`registry-or-shared-token.test.ts:116`](libs/shared/src/http/registry-or-shared-token.test.ts#L116))
+- The satellite publishes its own per-agent token into `agent-secrets` under
+  the `agent-events-auth` key the seeded recipes name, as the whole
+  `Authorization: Bearer <token>` line the subsystem sends verbatim. It is
+  written after EVERY successful registration, not only the first: a rotation
+  mints a new token, and the pods' copy must never outlive it. A write
+  failure is logged and swallowed — telemetry is not worth failing a
+  registration over. ([validated by `agent-events-secret.test.ts:25`](apps/cluster-agent/src/satellite/agent-events-secret.test.ts#L25), [`agent-events-secret.test.ts:35`](apps/cluster-agent/src/satellite/agent-events-secret.test.ts#L35), [`agent-events-secret.test.ts:49`](apps/cluster-agent/src/satellite/agent-events-secret.test.ts#L49), [`registration.test.ts:187`](apps/cluster-agent/src/satellite/registration.test.ts#L187), [`registration.test.ts:205`](apps/cluster-agent/src/satellite/registration.test.ts#L205), [`registration.test.ts:226`](apps/cluster-agent/src/satellite/registration.test.ts#L226))
+- The sink is reachable through its own ingress (`lore-agent-events.tf`,
+  gated on `lore_agent_events_hostname`), not another path on the Floor's
+  webhook door: that one carries GitHub's HMAC-verified control-plane
+  traffic, this is data-plane telemetry from different callers with a
+  different credential. It carries the platform's only ingress-level rate
+  limit (`limit-rps`), deliberately a different mechanism from lore-api's
+  in-app sliding window (ADR-033) — the Floor has no such plugin, and a newly
+  public door should not wait for one.
+- Opting in is per satellite and off by default: `agentEventsUrl` on the
+  standalone chart (`--telemetry-url` on the installer) sets both the chart's
+  own value and the subchart's, since Helm threads neither into the other.
+  Unset renders no sink at all, which is FR6's guard doing its job. ([validated by `check-cluster-agent-standalone-render.sh`](scripts/check-cluster-agent-standalone-render.sh#L1))
 - A GitHub credential for the cluster-agent's per-task token provisioner is
   optional and chart-managed: `github.token` (a PAT) or the
   `github.app.appId`/`privateKey`/`installationId` triple, mirroring the

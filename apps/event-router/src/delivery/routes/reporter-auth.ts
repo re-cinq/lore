@@ -8,53 +8,38 @@
  * rotating or deregistering the agent revokes its reporting credential in the
  * same place as its claiming one.
  *
+ * The policy itself is shared (`enforceRegistryOrSharedToken`): the Floor's
+ * `/api/agent-events` telemetry sink needs the identical two-credential rule,
+ * and one door accepting a satellite while the other silently did not is the
+ * kind of split that only shows up in production. This module stays as the
+ * event-router's NAME for that rule, and as the place its scope is recorded.
+ *
  * Scope: this guard exists for POST /api/events ONLY. The drain and delivery
  * surfaces keep the plain `enforceBearer`, because producing and draining are
  * different privileges even when one token happens to hold both.
- *
- * The ingest token is compared first, without a lookup, so the central
- * cluster's own reports cost no SELECT; a registry row is consulted only for a
- * bearer that is not the ingest token. Status (`active`/`offline`) is
- * deliberately not checked: an offline agent must still deliver a late
- * terminal report, and dedupe keys make duplicates safe. A miss falls through
- * to `enforceBearer`, so the refusal is byte-for-byte today's 401 (or 500 when
- * the ingest token is unconfigured).
  */
 
 import {
-  enforceBearer,
-  extractBearer,
-  secretEquals,
-} from "@re-cinq/lore-shared/http/bearer.js";
-import { hashAgentToken } from "@re-cinq/lore-shared/project/cluster-agents/cluster-agent-token.js";
-import type { ClusterAgentsRepository } from "@re-cinq/lore-shared/project/cluster-agents/cluster-agents-port.js";
+  enforceRegistryOrSharedToken,
+  type RegistryOrSharedTokenDeps,
+} from "@re-cinq/lore-shared/http/registry-or-shared-token.js";
 
 export interface ReporterAuthDeps {
   /** The bus-wide token; absent means it is unconfigured (500, as today). */
   ingestToken?: string;
   /** The registry lookup; absent means per-agent tokens are not accepted. */
-  findByTokenHash?: ClusterAgentsRepository["findByTokenHash"];
+  findByTokenHash?: RegistryOrSharedTokenDeps["findByTokenHash"];
 }
 
 /** Refuse the request unless it carries the ingest token or a registered
  *  per-agent token. Pure over its deps, so tests need no Postgres. */
-export async function enforceReporterToken(
+export function enforceReporterToken(
   headers: Record<string, unknown>,
   deps: ReporterAuthDeps,
 ): Promise<void> {
-  const token = extractBearer(headers["authorization"]);
-
-  if (token !== undefined && deps.ingestToken !== undefined) {
-    if (secretEquals(token, deps.ingestToken)) {
-      return;
-    }
-  }
-
-  if (token !== undefined && deps.findByTokenHash) {
-    if (await deps.findByTokenHash(hashAgentToken(token))) {
-      return;
-    }
-  }
-
-  enforceBearer(headers, deps.ingestToken, "event-router");
+  return enforceRegistryOrSharedToken(
+    headers,
+    { sharedToken: deps.ingestToken, findByTokenHash: deps.findByTokenHash },
+    "event-router",
+  );
 }

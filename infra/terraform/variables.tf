@@ -165,3 +165,9 @@ variable "lore_event_router_hostname" {
   type        = string
   default     = ""
 }
+
+variable "lore_agent_events_hostname" {
+  description = "Hostname for the Floor's agent-telemetry ingress (POST /api/agent-events), which registered SATELLITE clusters report run telemetry to with their own per-agent token. Empty disables the ingress and leaves the sink cluster-internal, which is exactly the behaviour before satellites existed — central-cluster pods reach it over in-cluster DNS either way."
+  type        = string
+  default     = ""
+}
