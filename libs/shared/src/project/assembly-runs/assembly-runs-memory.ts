@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import { resolveResumePrefix } from "./resume.js";
 import { RUN_START_EVENT } from "./run-events.js";
 import type { RunGraph } from "./run-graph.js";
+import { capTerminalOutput } from "./terminal-output.js";
 import type {
   AssemblyRunQuery,
   AssemblyRunsPort,
@@ -89,6 +90,9 @@ function inheritFromSource(
 export class InMemoryAssemblyRuns implements AssemblyRunsPort {
   rows: AssemblyRunRecord[] = [];
   nodes: SeedAssemblyLineNode[] = [];
+  /** Reported terminal output by stationRunId — kept off the node rows for the
+   *  same reason the column is off the select list. */
+  terminalOutputs = new Map<string, string>();
   private readonly dispatchSpecs = new Map<string, unknown>();
   events: SeedAssemblyLineEvent[] = [];
 
@@ -298,6 +302,19 @@ export class InMemoryAssemblyRuns implements AssemblyRunsPort {
     if (node && node.outcome === null) {
       this.dispatchSpecs.set(nodeRowId, dispatchSpec);
     }
+  }
+
+  async recordStationRunTerminalOutput(
+    stationRunId: string,
+    output: string,
+  ): Promise<void> {
+    this.terminalOutputs.set(stationRunId, capTerminalOutput(output));
+  }
+
+  async readStationRunTerminalOutput(
+    stationRunId: string,
+  ): Promise<string | null> {
+    return this.terminalOutputs.get(stationRunId) ?? null;
   }
 
   async claimNextStationRun(claimant: {

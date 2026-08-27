@@ -8,6 +8,7 @@ import { fanOutClause } from "../events/fan-out.js";
 import { RUN_START_EVENT } from "./run-events.js";
 import type { RunGraph } from "./run-graph.js";
 import type { AssemblyRunQuery } from "./assembly-runs-port.js";
+import { capTerminalOutput } from "./terminal-output.js";
 import type { PgPool } from "../../memory-store.js";
 import type {
   AssemblyRunsPort,
@@ -371,6 +372,30 @@ export class PgAssemblyRuns implements AssemblyRunsPort {
     );
 
     return rows.length === 1;
+  }
+
+  async recordStationRunTerminalOutput(
+    stationRunId: string,
+    output: string,
+  ): Promise<void> {
+    await this.pool.query(
+      `UPDATE pipeline.station_runs
+          SET terminal_output = $2
+        WHERE station_run_id = $1`,
+      [stationRunId, capTerminalOutput(output)],
+    );
+  }
+
+  async readStationRunTerminalOutput(
+    stationRunId: string,
+  ): Promise<string | null> {
+    const { rows } = await this.pool.query<{ terminal_output: string | null }>(
+      `SELECT terminal_output FROM pipeline.station_runs
+        WHERE station_run_id = $1`,
+      [stationRunId],
+    );
+
+    return rows[0]?.terminal_output ?? null;
   }
 
   async enqueueStationRunDispatch(
