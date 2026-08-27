@@ -25,17 +25,25 @@ const TIMEOUT_MS = 15_000;
  * {@link HttpEventQueue} extends this for the drainer that needs both.
  */
 export class HttpEventReporter implements Pick<EventQueueRepository, "insert"> {
+  /**
+   * `token` may be a FUNCTION rather than a string, for a producer whose
+   * credential changes while it runs. A satellite cluster-agent is the case
+   * that needs it: it authenticates with the per-agent token it received at
+   * registration (FR5), and a re-registration rotates that token — a value
+   * captured at construction would 401 every report from then on.
+   */
   constructor(
     private readonly baseUrl: string,
-    private readonly token?: string,
+    private readonly token?: string | (() => string | undefined),
     private readonly fetchImpl: typeof fetch = fetch,
   ) {}
 
   private headers(): Record<string, string> {
     const h: Record<string, string> = { "content-type": "application/json" };
+    const token = typeof this.token === "function" ? this.token() : this.token;
 
-    if (this.token) {
-      h["authorization"] = `Bearer ${this.token}`;
+    if (token) {
+      h["authorization"] = `Bearer ${token}`;
     }
 
     return h;

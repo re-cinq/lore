@@ -244,7 +244,11 @@ A satellite must report outcomes without holding the bus-wide credential.
   this is a lookup, not a new dependency). ([validated by [`reporter-auth.test.ts:66`](apps/event-router/src/delivery/routes/reporter-auth.test.ts#L66), [`reporter-auth.test.ts:102`](apps/event-router/src/delivery/routes/reporter-auth.test.ts#L102), [`reporter-auth.test.ts:112`](apps/event-router/src/delivery/routes/reporter-auth.test.ts#L112))
 - Satellites report with their per-agent token; `LORE_INGEST_TOKEN` never
   leaves the central cluster — and a per-agent token authorises the
-  reporting front door only, never the router's other surfaces. ([validated by [`server-auth.test.ts:39`](apps/event-router/src/delivery/server-auth.test.ts#L39))
+  reporting front door only, never the router's other surfaces. The
+  satellite's reporter RESOLVES that token per call rather than capturing it:
+  a re-registration rotates it, and a captured value would 401 every report
+  from then on — which is what the watch did silently until the credential
+  was wired at all, leaving every node to the reaper instead. ([validated by [`server-auth.test.ts:39`](apps/event-router/src/delivery/server-auth.test.ts#L39), [`event-reporter-http.test.ts:66`](libs/shared/src/project/events/event-reporter-http.test.ts#L66), [`event-reporter-http.test.ts:96`](libs/shared/src/project/events/event-reporter-http.test.ts#L96))
 - Deregistering or rotating a cluster-agent's token immediately invalidates
   its reporting credential — one revocation surface for both claiming and
   reporting. An agent already marked offline still delivers a late terminal

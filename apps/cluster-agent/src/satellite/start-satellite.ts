@@ -124,7 +124,18 @@ async function runSatellite(opts: {
 
 /** Start registration + the claim loop. No-op without a cluster to launch into
  *  or without the registration env triple. */
-export function startSatellite(env: NodeJS.ProcessEnv): void {
+export interface StartSatelliteOpts {
+  /** Called with the identity after EVERY successful registration, including
+   *  a rotation. The composition root uses it to keep the event reporter's
+   *  credential current — a satellite reports with its own per-agent token,
+   *  never the bus-wide one it does not have. */
+  onIdentity?: (identity: ClusterAgentIdentity) => void;
+}
+
+export function startSatellite(
+  env: NodeJS.ProcessEnv,
+  opts: StartSatelliteOpts = {},
+): void {
   if (selectStationBackend(env) !== "k8s") {
     console.log(
       "[cluster-agent] claim loop disabled (station backend is not k8s)",
@@ -159,7 +170,10 @@ export function startSatellite(env: NodeJS.ProcessEnv): void {
         config,
         store,
         backend,
-        publishTelemetryCredential: (id) => writeAgentEventsAuth(secrets, id),
+        publishTelemetryCredential: async (id) => {
+          opts.onIdentity?.(id);
+          await writeAgentEventsAuth(secrets, id);
+        },
       }),
     )
     .catch((err) => {

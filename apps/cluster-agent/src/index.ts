@@ -23,18 +23,31 @@ const PORT = parseInt(process.env.PORT ?? "8080", 10);
  *  is the only thing left to catch it. */
 const REPORT_RETRY = { attempts: 5, delayMs: 500 };
 
+/** The satellite's current per-agent token, once it has registered. Lives in
+ *  the composition root because that is where the reporter and the satellite
+ *  are wired together. */
+let satelliteToken: string | undefined;
+
 async function main(): Promise<void> {
   const stopServer = await startServer(PORT);
   const routerUrl = process.env.EVENT_ROUTER_URL;
 
   if (routerUrl) {
-    // LORE_INGEST_TOKEN, because that is the one the router VERIFIES
-    // (`delivery/server.ts` reads it for every route). Presenting a different
-    // token that this pod happens to mount is how the 2026-08-24 outage
-    // happened: each end typechecked, and every call 401'd.
+    // The central cluster reports with LORE_INGEST_TOKEN, because that is the
+    // one the router VERIFIES for every route. Presenting a different token
+    // that this pod happens to mount is how the 2026-08-24 outage happened:
+    // each end typechecked, and every call 401'd.
+    //
+    // A SATELLITE has no such token by design (FR5 of
+    // specs/running-stations-in-any-k8s-cluster) — so it reports with the
+    // per-agent token it received at registration, which the router accepts
+    // against `pipeline.cluster_agents`. Resolved per call, not captured: a
+    // re-registration rotates the token, and a stale one 401s every report.
+    // Without this the watch reported nothing and every node waited for the
+    // reaper instead — silently, since the retry log is the only symptom.
     const reporter = new HttpEventReporter(
       routerUrl,
-      process.env.LORE_INGEST_TOKEN,
+      () => process.env.LORE_INGEST_TOKEN ?? satelliteToken,
     );
 
     startK8sWatch({
@@ -53,7 +66,11 @@ async function main(): Promise<void> {
   // register with the Lore API, then pull queued station runs and launch them
   // here. Gated on the same station backend as the watch; a failed
   // registration retries in the background and never blocks the routes above.
-  startSatellite(process.env);
+  startSatellite(process.env, {
+    onIdentity: (identity) => {
+      satelliteToken = identity.token;
+    },
+  });
 
   const shutdown = async (signal: string): Promise<void> => {
     console.log(`[cluster-agent] ${signal} — shutting down`);
