@@ -10,6 +10,7 @@ import { hashAgentToken } from "@re-cinq/lore-shared/project/cluster-agents/clus
 import type { AssemblyRunsPort } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
 import { PgAssemblyRuns } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-pg.js";
 import { zodValidate } from "../../../server/plugins/zod-validate.js";
+import { TERMINAL_OUTPUT_MAX_BYTES } from "@re-cinq/lore-shared/project/assembly-runs/terminal-output.js";
 import { DB_UNAVAILABLE } from "../common-schemas.js";
 
 /**
@@ -78,6 +79,14 @@ export function clusterAgentCompleteRoute(
     options: {
       auth: false,
       validate: { payload: zodValidate(CompleteRequest) },
+      // Above the server-wide 1 MiB, which is sized for ordinary API writes and
+      // would 413 every long node's report. The body is a capped stream plus
+      // JSON escaping, and escaping inflates: newlines and quotes are two bytes
+      // each in the encoded string, so the ceiling has to clear the cap with
+      // room, not merely match it. The reporter swallows a refusal, so the
+      // symptom of getting this wrong is not an error — it is a node that
+      // quietly falls back to the CR read that does not work.
+      payload: { maxBytes: 2 * TERMINAL_OUTPUT_MAX_BYTES },
     },
     handler: async (request: Request, h: ResponseToolkit) => {
       const pool = getPool();
