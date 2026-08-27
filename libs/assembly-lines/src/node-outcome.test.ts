@@ -74,6 +74,25 @@ describe("stationNodeOutcome", () => {
     });
   });
 
+  it("carries the failing commands' output into the detail when the station sent it", () => {
+    // The agent sent back to fix the code reads this. "lint" alone says where
+    // to look; the compiler's own words say what to fix.
+    const status: AgentNodeStatus = {
+      phase: "Succeeded",
+      output: resultLine({
+        outcome: "failed",
+        extras: {
+          "Lore-Validation-Failed": "lint,build",
+          "Lore-Validation-Output": "$ lint\nfoo.ts:1:1 error TS1005",
+        },
+      }),
+    };
+
+    expect(stationNodeOutcome(detectNode, status).failureDetail).toBe(
+      "validation failed: lint,build\n\n$ lint\nfoo.ts:1:1 error TS1005",
+    );
+  });
+
   it("falls back to the review verdict, then success", () => {
     const agentNode: AssemblyLineNode = { id: "review", type: "agent" };
 

@@ -71,6 +71,28 @@ describe("createValidateHandler — local", () => {
     expect(r.outcome).toBe("failed");
     expect(r.extras?.["Lore-Validation-Failed"]).toContain("lint");
   });
+
+  it("carries the failing command's own output, not just its name", async () => {
+    // Reporting only WHICH check died is not enough to act on: the agent sent
+    // back to fix the code could not see the errors, so it repeated itself
+    // until the iteration cap. The compiler already said what was wrong.
+    const dir = await tmpRepo(NODE_PKG("echo TS1005-oh-no && false"));
+    const r = await createValidateHandler()(node, ctx(dir));
+
+    expect(r.extras?.["Lore-Validation-Output"]).toContain("TS1005-oh-no");
+    expect(r.extras?.["Lore-Validation-Output"]).toContain("$ lint");
+  });
+
+  it("bounds the output — it rides a CR status and a prompt, both with limits", async () => {
+    const dir = await tmpRepo(
+      NODE_PKG("node -e \"console.log('x'.repeat(50000))\" && false"),
+    );
+    const r = await createValidateHandler()(node, ctx(dir));
+    const out = r.extras?.["Lore-Validation-Output"] ?? "";
+
+    expect(out).toContain("...(truncated)");
+    expect(out.length).toBeLessThan(2200);
+  });
 });
 
 describe("createValidateHandler — relay (BYO sidecar)", () => {

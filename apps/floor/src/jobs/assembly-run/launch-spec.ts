@@ -41,6 +41,85 @@ export interface NodeLaunchInput {
   /** How a RETRY is told from a next round — the outcome of this node's most recent
    *  RECORDED visit. Callers derive it with {@link priorOutcomeOf}. */
   priorOutcome: string | null;
+  /** The failure that routed INTO this dispatch, whichever node produced it.
+   *  Derive with {@link incomingFailureOf}. Null when nothing failed before it. */
+  incomingFailure?: IncomingFailure | null;
+}
+
+/** A preceding node's failure, as the next node needs to hear it. */
+export interface IncomingFailure {
+  nodeId: string;
+  detail: string;
+}
+
+/**
+ * The failure that routed into the next dispatch: the most recently RECORDED
+ * visit, but only when it failed.
+ *
+ * Not `priorOutcomeOf`, which answers for ONE node and so tells `implement`
+ * about its own last visit — "success", every time, while the thing that
+ * actually failed was `validate` next door. That is why the loop could not
+ * converge: the retried agent was handed the identical prompt and never told
+ * what broke. The most recent visit is the one that just routed here, so its
+ * failure is the one this dispatch exists to fix.
+ */
+export function incomingFailureOf(
+  visits: ReadonlyArray<{
+    nodeId: string;
+    outcome: string | null;
+    failureDetail?: string | null;
+  }>,
+): IncomingFailure | null {
+  const recorded = visits.filter((v) => v.outcome !== null);
+  const last = recorded[recorded.length - 1];
+
+  if (!last || !isFailure(last.outcome) || !last.failureDetail) {
+    return null;
+  }
+
+  return { nodeId: last.nodeId, detail: last.failureDetail };
+}
+
+/** Any non-success terminal outcome — `failed`, `<kind>-failed`, and the rest. */
+const isFailure = (outcome: string | null): boolean =>
+  outcome !== null && outcome !== "success" && outcome !== "changes_requested";
+
+/** How much of a preceding failure the next prompt carries. The detail is
+ *  already bounded upstream; this is the backstop against a pathological one
+ *  crowding out the instructions it is appended to. */
+const MAX_FEEDBACK_CHARS = 2500;
+
+/**
+ * Append what just failed to the prompt the next node runs on.
+ *
+ * Kept separate from the prompt TEMPLATE deliberately: every agent recipe would
+ * otherwise need its own copy of this, and a recipe that forgot would silently
+ * go back to guessing.
+ */
+export function withIncomingFailure(
+  prompt: string,
+  failure: IncomingFailure | null,
+): string {
+  if (!failure) {
+    return prompt;
+  }
+  const detail =
+    failure.detail.length > MAX_FEEDBACK_CHARS
+      ? `${failure.detail.substring(0, MAX_FEEDBACK_CHARS)}\n...(truncated)`
+      : failure.detail;
+
+  return `${prompt}
+
+## The previous step failed — fix this first
+
+The \`${failure.nodeId}\` step failed on your last attempt. You are running
+again to correct it. Read the output below, fix the cause, and do not repeat
+the change that produced it.
+
+\`\`\`
+${detail}
+\`\`\`
+`;
 }
 
 /**
@@ -110,7 +189,10 @@ export async function resolveNodeDispatch(
     content,
     prompt:
       node.type === "agent"
-        ? deps.resolvePrompt(node.prompt_ref ?? node.type, content)
+        ? withIncomingFailure(
+            deps.resolvePrompt(node.prompt_ref ?? node.type, content),
+            input.incomingFailure ?? null,
+          )
         : null,
   };
 }

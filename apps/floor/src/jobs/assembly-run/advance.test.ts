@@ -46,6 +46,41 @@ edges:
     on: always
 `);
 
+/** The implementation loop's shape: a failing check routes BACK to the agent
+ *  that has to fix it. That retry edge is the one that needs feedback. */
+const implementThenValidate: AssemblyLine = parseAssemblyLine(`
+name: implementation-loop
+description: implement -> validate -> done
+version: 1
+entry: implement
+exit: done
+nodes:
+  - id: implement
+    type: agent
+    prompt_ref: implementation-tdd
+  - id: validate
+    type: validate
+  - id: done
+    type: retrospective
+edges:
+  - from: implement
+    to: validate
+    on: success
+  - from: implement
+    to: done
+    on: failed
+  - from: implement
+    to: done
+    on: changes_requested
+  - from: validate
+    to: done
+    on: success
+  - from: validate
+    to: implement
+    on: failed
+    iteration_max: 2
+`);
+
 const triageThenIssues: AssemblyLine = parseAssemblyLine(`
 name: triage-then-issues
 description: a pod station, then one the pooled service runs
@@ -550,6 +585,51 @@ describe("finishNodeAndAdvance", () => {
     expect(enqueued.at(-1)).toMatchObject({
       name: `${id.substring(0, 12)}-refine`,
     });
+  });
+
+  it("hands the next node the failure that routed to it, not the same prompt again", async () => {
+    // The implementation loop's whole defect: `implement` succeeded, `validate`
+    // failed, and the retried `implement` was dispatched with a byte-identical
+    // prompt — it was never told what broke, so it repeated itself until the
+    // iteration cap. The failing step's own output has to reach the agent that
+    // has to fix it.
+    const port = new InMemoryAssemblyRuns();
+    const id = await runningLine(port);
+
+    await port.stampBlueprint(
+      id,
+      "hash-loop",
+      snapshotGraph(implementThenValidate, "implementation-loop"),
+    );
+    const { deps, enqueued } = makeDeps(port);
+
+    await advanceLine(id, deps);
+    await finishNodeAndAdvance(
+      {
+        assemblyLineId: id,
+        nodeId: "implement",
+        result: { outcome: "success" },
+      },
+      deps,
+    );
+    await finishNodeAndAdvance(
+      {
+        assemblyLineId: id,
+        nodeId: "validate",
+        result: {
+          outcome: "failed",
+          failureDetail: "validation failed: lint\n\n$ lint\nfoo.ts:1 error",
+        },
+      },
+      deps,
+    );
+
+    const prompt = enqueued.at(-1)?.prompt ?? "";
+
+    expect(prompt).toContain("The `validate` step failed on your last attempt");
+    expect(prompt).toContain("foo.ts:1 error");
+    // And the FIRST dispatch carried no such block — this is feedback, not boilerplate.
+    expect(enqueued[0]?.prompt ?? "").not.toContain("previous step failed");
   });
 
   it("keeps the stored outcome when a duplicate event races the first writer", async () => {
