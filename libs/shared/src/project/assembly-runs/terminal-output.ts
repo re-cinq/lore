@@ -9,9 +9,18 @@
 // for the terminal result line (`resultTextFromOutput`, `terminalErrorText`), so
 // the last bytes are the ones carrying the verdict, the outcome and the error.
 
-/** 256 KiB — comfortably more than the ~7KB result line, far under a row that
- *  would hurt to read. */
-export const TERMINAL_OUTPUT_MAX_BYTES = 256 * 1024;
+/**
+ * 2 MiB — above every stream measured (261KB for a ten-minute review, ~1.4MB for
+ * a long implementation node), and still a bound.
+ *
+ * Sized by the ARTIFACT reader, not the verdict reader. A verdict needs only the
+ * last few KB, so 256 KiB was ample for it — but `artifactsFromTerminalOutput`
+ * scans the whole stream for the file events a node declared, and those are
+ * emitted as the work happens, not at the end. Cut the head off a long node's
+ * stream and its artifacts read as DECLARED BUT NOT PRODUCED, which fails the
+ * node for a truncation nobody performed on purpose.
+ */
+export const TERMINAL_OUTPUT_MAX_BYTES = 2 * 1024 * 1024;
 
 /**
  * The last {@link TERMINAL_OUTPUT_MAX_BYTES} of `output`, cut on a character

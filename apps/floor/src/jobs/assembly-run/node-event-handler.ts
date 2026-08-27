@@ -95,10 +95,25 @@ export function createNodeEventHandler(deps: NodeEventDeps): EventHandler {
         row.outcome === null &&
         (iteration === undefined || row.iteration === iteration),
     );
+    // What the executing cluster REPORTED, which is the only source that works
+    // for every cluster: the claimant posts it to `/api/cluster-agents/{id}/complete`
+    // before the terminal event it is about, so by the time this handler runs the
+    // row already carries it. Preferred over the CR read even when the CR is
+    // readable — one path, exercised everywhere, rather than a fast path that only
+    // the central cluster ever takes and only the central cluster ever tests.
+    const reported = openRow
+      ? await deps.assemblyRuns.readStationRunTerminalOutput(
+          openRow.stationRunId,
+        )
+      : null;
     const centralClusterAgentId =
       (await deps.centralClusterAgentId?.()) ?? null;
 
-    if (openRow && !agentCrVisible(openRow, centralClusterAgentId)) {
+    if (
+      reported === null &&
+      openRow &&
+      !agentCrVisible(openRow, centralClusterAgentId)
+    ) {
       console.warn(
         `[assembly-run] ${assemblyLineId} node ${nodeId}: terminal status unreadable — ` +
           `the Agent CR ${agentName} was claimed by cluster ${openRow.clusterAgentId ?? "(none)"}, ` +
@@ -110,9 +125,12 @@ export function createNodeEventHandler(deps: NodeEventDeps): EventHandler {
     // Unwrap the NDJSON envelope once, here: every text parser below (the outcome
     // precedence and the review findings alike) must read the agent text, not the
     // stream that carries it.
-    const rawStatus = (await deps.readAgentStatus(agentName)) ?? {
-      phase: String(params.phase ?? ""),
-    };
+    const rawStatus =
+      reported === null
+        ? ((await deps.readAgentStatus(agentName)) ?? {
+            phase: String(params.phase ?? ""),
+          })
+        : { phase: String(params.phase ?? ""), output: reported };
     const status = normalizeAgentStatus(rawStatus);
     // Delivery rides the advancing event, and lands BEFORE the walk moves: the
     // sink these artifacts normally arrive on is a separate HTTP post racing this

@@ -218,6 +218,11 @@ pull, so recovery splits by who holds the claim:
   is skipped entirely; their recovery signal is the claiming agent's
   liveness, never a CR read that would come back null and trigger a
   duplicate central launch. ([validated by `assembly-run-reaper.test.ts:174`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L174), [`assembly-run-reaper.test.ts:189`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L189), [`assembly-run-reaper.test.ts:556`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L556), [`cr-visibility.test.ts:8`](apps/floor/src/jobs/assembly-run/cr-visibility.test.ts#L8), [`cr-visibility.test.ts:14`](apps/floor/src/jobs/assembly-run/cr-visibility.test.ts#L14), [`cr-visibility.test.ts:23`](apps/floor/src/jobs/assembly-run/cr-visibility.test.ts#L23), [`cr-visibility.test.ts:32`](apps/floor/src/jobs/assembly-run/cr-visibility.test.ts#L32), [`cr-visibility.test.ts:38`](apps/floor/src/jobs/assembly-run/cr-visibility.test.ts#L38))
+- The Floor derives a terminal node's outcome from the REPORTED output, and does
+  so for every cluster rather than only the ones it could have read — one path,
+  exercised everywhere, instead of a fast path only the central cluster takes and
+  only the central cluster tests. The CR read remains only as the fallback for a
+  visit whose cluster reported nothing. ([validated by `code-review-acceptance.test.ts:60`](apps/floor/src/jobs/assembly-run/code-review-acceptance.test.ts#L60), [`code-review-acceptance.test.ts:73`](apps/floor/src/jobs/assembly-run/code-review-acceptance.test.ts#L73))
 - `POST /api/cluster-agents/{id}/complete` is how it gets there — the mirror of
   `claim`, authenticated by the same per-agent token, where a valid token may
   only report as itself. Unlike `claim`, a PAUSED agent is served: pausing
@@ -242,7 +247,7 @@ pull, so recovery splits by who holds the claim:
   A `kubernetes.agent_node.*` event for a satellite-claimed run MUST NOT read
   the CR back, and MUST NOT treat the null it would get as an empty output:
   the node stays open for the reaper rather than being recorded from a status
-  nobody read. ([validated by `code-review-acceptance.test.ts:21`](apps/floor/src/jobs/assembly-run/code-review-acceptance.test.ts#L21), [`code-review-acceptance.test.ts:33`](apps/floor/src/jobs/assembly-run/code-review-acceptance.test.ts#L33), [`code-review-acceptance.test.ts:48`](apps/floor/src/jobs/assembly-run/code-review-acceptance.test.ts#L48))
+  nobody read. ([validated by `code-review-acceptance.test.ts:24`](apps/floor/src/jobs/assembly-run/code-review-acceptance.test.ts#L24), [`code-review-acceptance.test.ts:36`](apps/floor/src/jobs/assembly-run/code-review-acceptance.test.ts#L36), [`code-review-acceptance.test.ts:51`](apps/floor/src/jobs/assembly-run/code-review-acceptance.test.ts#L51))
 
 - A run claimed by an **offline** agent is reset to `queued` (same row, per
   the lifecycle section); the reaper — the same process that set the agent

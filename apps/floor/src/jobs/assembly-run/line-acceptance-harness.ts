@@ -47,6 +47,10 @@ export interface CompleteAgentNodeInput {
   /** Script the CR read as unreadable — the terminal event arrives and
    *  `readAgentStatus` answers null, which is what a satellite's CR does. */
   statusUnreadable?: boolean;
+  /** What the executing cluster REPORTED for this visit, as a satellite does
+   *  through `/api/cluster-agents/{id}/complete`. Read from the row, so it
+   *  reaches the Floor with no cluster in the path. */
+  reportedOutput?: string;
   /** Shorthand: emit a result envelope carrying `LORE_NODE_RESULT: {outcome}`. */
   outcome?: "success" | "changes_requested" | "failed";
   phase?: string;
@@ -180,6 +184,13 @@ export function createLineHarness(
 
     if (!input.statusUnreadable) {
       statusByAgent.set(agentName, { phase, output });
+    }
+
+    if (input.reportedOutput !== undefined && claimed) {
+      await runs.recordStationRunTerminalOutput(
+        claimed.stationRunId,
+        input.reportedOutput,
+      );
     }
     await nodeHandler({
       assemblyRunId,

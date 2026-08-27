@@ -13,7 +13,10 @@
 // without one, so this walks the visibility decision with no GitHub in reach.
 
 import { describe, it, expect } from "vitest";
-import { createLineHarness } from "./line-acceptance-harness.js";
+import {
+  createLineHarness,
+  resultEnvelope,
+} from "./line-acceptance-harness.js";
 
 const SATELLITE = "satellite-1";
 
@@ -52,5 +55,31 @@ describe("code-review walked by a satellite", () => {
     await h.completeAgentNode(id, "review", { outcome: "success" });
 
     expect(h.visits()).toEqual([["review", "success"]]);
+  });
+
+  it("finishes the node from the output the satellite reported, with no cluster read", async () => {
+    const h = createLineHarness();
+    const id = await h.start("code-review");
+
+    await h.completeAgentNode(id, "review", {
+      claimedBy: SATELLITE,
+      statusUnreadable: true,
+      reportedOutput: resultEnvelope('LORE_NODE_RESULT: {"outcome":"success"}'),
+    });
+
+    expect(h.visits()).toEqual([["review", "success"]]);
+  });
+
+  it("routes a reported changes_requested down its own edge", async () => {
+    const h = createLineHarness();
+    const id = await h.start("code-review");
+
+    await h.completeAgentNode(id, "review", {
+      claimedBy: SATELLITE,
+      statusUnreadable: true,
+      reportedOutput: resultEnvelope("REVIEW_RESULT:CHANGES_REQUESTED:nits"),
+    });
+
+    expect(h.visits()).toEqual([["review", "changes_requested"]]);
   });
 });
