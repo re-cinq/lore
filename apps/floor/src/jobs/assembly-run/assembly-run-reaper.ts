@@ -97,7 +97,6 @@ export type NodeRecovery =
   | { kind: "queue-timeout" }
   | { kind: "wait" };
 
-
 /** Pure per-open-node decision from the node row's lifecycle status, its age on
  *  the claim clock, and — only when visible — the CR's live status. */
 export function decideNodeRecovery(input: {

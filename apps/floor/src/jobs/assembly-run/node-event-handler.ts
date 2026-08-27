@@ -15,6 +15,7 @@ import { advanceLine, type AdvanceDeps } from "./advance.js";
 import { HttpAgentApi } from "@re-cinq/lore-shared";
 import { clusterAgent } from "../../kernel/queues.js";
 import { finishNodeTerminal, normalizeAgentStatus } from "./node-terminal.js";
+import { agentCrVisible } from "./cr-visibility.js";
 import { notifyLineFailure } from "./notify-failure.js";
 import { BillingAlertThrottle, maybeAlertBilling } from "./billing-alert.js";
 import { llmDispatchGate } from "./llm-dispatch-gate.js";
@@ -74,6 +75,38 @@ export function createNodeEventHandler(deps: NodeEventDeps): EventHandler {
       return;
     }
 
+    // A CR this Floor cannot interrogate answers null, and the fallback below
+    // would read that null as "the agent produced nothing" — the opposite of
+    // what it means. A review node degraded that way tells the PR its review
+    // "never got far enough to judge the diff" while the agent's own output
+    // ended in REVIEW_RESULT:APPROVED (2026-08-27, every review on this repo,
+    // for as long as the central cluster stayed paused).
+    //
+    // So: hand the row to the reaper, which is already cluster-aware — it waits
+    // the node's budget, requeues if the claimant dies, and times out honestly
+    // if it does not. Nothing is fabricated from an output nobody read. The
+    // satellite's outcome reaches the Floor for real once it is REPORTED
+    // alongside the terminal event rather than fetched back out of Kubernetes.
+    const openRow = (
+      await deps.assemblyRuns.listStationRuns(assemblyLineId)
+    ).find(
+      (row) =>
+        row.nodeId === nodeId &&
+        row.outcome === null &&
+        (iteration === undefined || row.iteration === iteration),
+    );
+    const centralClusterAgentId =
+      (await deps.centralClusterAgentId?.()) ?? null;
+
+    if (openRow && !agentCrVisible(openRow, centralClusterAgentId)) {
+      console.warn(
+        `[assembly-run] ${assemblyLineId} node ${nodeId}: terminal status unreadable — ` +
+          `the Agent CR ${agentName} was claimed by cluster ${openRow.clusterAgentId ?? "(none)"}, ` +
+          `which this Floor cannot read; leaving the node open for the reaper`,
+      );
+
+      return;
+    }
     // Unwrap the NDJSON envelope once, here: every text parser below (the outcome
     // precedence and the review findings alike) must read the agent text, not the
     // stream that carries it.

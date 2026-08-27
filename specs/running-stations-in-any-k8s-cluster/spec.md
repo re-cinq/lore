@@ -74,17 +74,17 @@ rather than smuggled through existing columns:
   Execution timing moves to the new `claimed_at`: the reaper measures the
   node's `timeout_minutes` budget from `claimed_at`, never from `started_at`,
   so time spent waiting for a capable cluster is not charged against
-  execution. ([validated by `assembly-run-reaper.test.ts:138`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L138), [`assembly-run-reaper.test.ts:646`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L646), [`assembly-run-reaper.test.ts:121`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L121))
+  execution. ([validated by `assembly-run-reaper.test.ts:137`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L137), [`assembly-run-reaper.test.ts:607`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L607), [`assembly-run-reaper.test.ts:120`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L120))
 - A run that sits `queued` longer than a configurable queue-wait bound
   (default 30 minutes) is failed terminally with the existing
   `failure_class` mechanics and a detail naming the unmatched
   `required_tags` — a line stalled because no registered cluster carries a
-  tag must say so, not report a generic infra timeout. ([validated by `assembly-run-reaper.test.ts:169`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L169), [`assembly-run-reaper.test.ts:566`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L566), [`assembly-run-reaper.test.ts:456`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L456), [`assembly-run-reaper.test.ts:287`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L287), [`assembly-run-reaper.test.ts:292`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L292), [`assembly-run-reaper.test.ts:163`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L163), [`assembly-run-reaper.test.ts:584`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L584))
+  tag must say so, not report a generic infra timeout. ([validated by `assembly-run-reaper.test.ts:168`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L168), [`assembly-run-reaper.test.ts:527`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L527), [`assembly-run-reaper.test.ts:417`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L417), [`assembly-run-reaper.test.ts:248`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L248), [`assembly-run-reaper.test.ts:253`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L253), [`assembly-run-reaper.test.ts:162`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L162), [`assembly-run-reaper.test.ts:545`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L545))
 - Requeueing (FR4) resets the **same row** back to `queued`, clearing
   `cluster_agent_id` and `claimed_at`. No second row is inserted, so the
   row-id-as-visit-order contract the fork replay depends on
   (`assembly-runs-pg.ts`) sees exactly one row per node visit, claimed or
-  not. ([validated by `assembly-run-reaper.test.ts:611`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L611), [`assembly-run-reaper.test.ts:108`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L108), [`assembly-run-reaper.test.ts:96`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L96), [`assembly-runs.contract.test.ts:991`](libs/shared/src/project/assembly-runs/assembly-runs.contract.test.ts#L991))
+  not. ([validated by `assembly-run-reaper.test.ts:572`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L572), [`assembly-run-reaper.test.ts:107`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L107), [`assembly-run-reaper.test.ts:95`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L95), [`assembly-runs.contract.test.ts:991`](libs/shared/src/project/assembly-runs/assembly-runs.contract.test.ts#L991))
 
 ## FR1 — Cluster-agent registry and identity
 
@@ -211,13 +211,19 @@ pull, so recovery splits by who holds the claim:
 - The assembly-run reaper (existing cadence) marks cluster-agents with
   `last_seen_at < now() - 5 minutes` as `offline` — ten missed heartbeats,
   so a transient network blip or one dropped request never requeues live
-  work. ([validated by `cluster-agents.test.ts:218`](libs/shared/src/project/cluster-agents/cluster-agents.test.ts#L218), [`cluster-agents.test.ts:308`](libs/shared/src/project/cluster-agents/cluster-agents.test.ts#L308), [`assembly-run-reaper.test.ts:834`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L834))
+  work. ([validated by `cluster-agents.test.ts:218`](libs/shared/src/project/cluster-agents/cluster-agents.test.ts#L218), [`cluster-agents.test.ts:308`](libs/shared/src/project/cluster-agents/cluster-agents.test.ts#L308), [`assembly-run-reaper.test.ts:795`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L795))
 - The reaper's CR-status recovery arm (`readAgentStatus` → relaunch on null)
   applies **only** to runs claimed by the central cluster's agent — the one
   cluster `CLUSTER_AGENT_URL` can reach. For satellite-claimed runs that arm
   is skipped entirely; their recovery signal is the claiming agent's
   liveness, never a CR read that would come back null and trigger a
-  duplicate central launch. ([validated by `assembly-run-reaper.test.ts:175`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L175), [`assembly-run-reaper.test.ts:190`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L190), [`assembly-run-reaper.test.ts:595`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L595), [`assembly-run-reaper.test.ts:249`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L249), [`assembly-run-reaper.test.ts:255`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L255), [`assembly-run-reaper.test.ts:264`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L264), [`assembly-run-reaper.test.ts:273`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L273), [`assembly-run-reaper.test.ts:279`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L279))
+  duplicate central launch. ([validated by `assembly-run-reaper.test.ts:174`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L174), [`assembly-run-reaper.test.ts:189`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L189), [`assembly-run-reaper.test.ts:556`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L556), [`cr-visibility.test.ts:8`](apps/floor/src/jobs/assembly-run/cr-visibility.test.ts#L8), [`cr-visibility.test.ts:14`](apps/floor/src/jobs/assembly-run/cr-visibility.test.ts#L14), [`cr-visibility.test.ts:23`](apps/floor/src/jobs/assembly-run/cr-visibility.test.ts#L23), [`cr-visibility.test.ts:32`](apps/floor/src/jobs/assembly-run/cr-visibility.test.ts#L32), [`cr-visibility.test.ts:38`](apps/floor/src/jobs/assembly-run/cr-visibility.test.ts#L38))
+- The same restriction binds the **terminal-event door**, not only the reaper.
+  A `kubernetes.agent_node.*` event for a satellite-claimed run MUST NOT read
+  the CR back, and MUST NOT treat the null it would get as an empty output:
+  the node stays open for the reaper rather than being recorded from a status
+  nobody read. ([validated by `code-review-acceptance.test.ts:21`](apps/floor/src/jobs/assembly-run/code-review-acceptance.test.ts#L21), [`code-review-acceptance.test.ts:33`](apps/floor/src/jobs/assembly-run/code-review-acceptance.test.ts#L33), [`code-review-acceptance.test.ts:48`](apps/floor/src/jobs/assembly-run/code-review-acceptance.test.ts#L48))
+
 - A run claimed by an **offline** agent is reset to `queued` (same row, per
   the lifecycle section); the reaper — the same process that set the agent
   `offline` — writes a `cluster_agent_offline` entry to `pipeline.audit_log`
@@ -225,7 +231,7 @@ pull, so recovery splits by who holds the claim:
   time since `claimed_at`, so another agent picks the run up and the outage
   is attributable. Re-execution resumes on the run's existing branch —
   branch-as-state already makes a node re-run land on whatever commits the
-  dead attempt pushed. ([validated by `assembly-run-reaper.test.ts:834`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L834), [`assembly-run-reaper.test.ts:802`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L802), [`assembly-run-reaper.test.ts:816`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L816), [`assembly-run-reaper.test.ts:894`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L894))
+  dead attempt pushed. ([validated by `assembly-run-reaper.test.ts:795`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L795), [`assembly-run-reaper.test.ts:763`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L763), [`assembly-run-reaper.test.ts:777`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L777), [`assembly-run-reaper.test.ts:855`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L855))
 - A run whose claiming agent is **alive** but which exceeds its node timeout
   (measured from `claimed_at`) is failed terminally, exactly the reaper's
   timeout semantics today — a live agent past budget is a stuck node, not a
