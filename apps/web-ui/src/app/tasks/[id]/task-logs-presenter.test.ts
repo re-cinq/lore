@@ -1,8 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
   advanceCursor,
-  segmentLabel,
-  segmentTurns,
   taskLogsUrl,
   walkContinues,
 } from "./task-logs-presenter";
@@ -10,23 +8,6 @@ import {
   MAX_TURNS_LOADED,
   TURNS_PAGE_LIMIT,
 } from "@/app/assembly-runs/[id]/turn-transcript-presenter";
-import type { AgentRunTurn } from "@/lib/run-turn-types";
-
-function turn(over: Partial<AgentRunTurn> = {}): AgentRunTurn {
-  return {
-    id: "1",
-    taskId: "t1",
-    agentCrName: null,
-    assemblyLineId: null,
-    nodeId: null,
-    iteration: null,
-    stationRunId: null,
-    eventType: null,
-    envelope: {},
-    createdAt: "2026-08-18T00:00:00.000Z",
-    ...over,
-  };
-}
 
 describe("taskLogsUrl", () => {
   it("builds the bare page-limit URL for the zero cursor", () => {
@@ -85,70 +66,6 @@ describe("walkContinues", () => {
     expect(
       walkContinues(new Array(TURNS_PAGE_LIMIT).fill({}), MAX_TURNS_LOADED),
     ).toBe(false);
-  });
-});
-
-describe("segmentTurns", () => {
-  it("groups consecutive turns sharing nodeId and iteration into one segment", () => {
-    const segments = segmentTurns([
-      turn({ id: "1", nodeId: "review", iteration: 1, envelope: { a: 1 } }),
-      turn({ id: "2", nodeId: "review", iteration: 1, envelope: { b: 2 } }),
-    ]);
-
-    expect(segments).toEqual([
-      {
-        nodeId: "review",
-        iteration: 1,
-        rawLog: '{"a":1}\n{"b":2}',
-      },
-    ]);
-  });
-
-  it("starts a new segment when the node or iteration changes", () => {
-    const segments = segmentTurns([
-      turn({ id: "1", nodeId: "implement", iteration: 1 }),
-      turn({ id: "2", nodeId: "review", iteration: 1 }),
-      turn({ id: "3", nodeId: "review", iteration: 2 }),
-    ]);
-
-    expect(segments.map((s) => [s.nodeId, s.iteration])).toEqual([
-      ["implement", 1],
-      ["review", 1],
-      ["review", 2],
-    ]);
-  });
-
-  it("keeps uncorrelated turns in their own null-node segment", () => {
-    const segments = segmentTurns([
-      turn({ id: "1", nodeId: null, iteration: null, envelope: { a: 1 } }),
-      turn({ id: "2", nodeId: "review", iteration: 1, envelope: { b: 2 } }),
-    ]);
-
-    expect(segments.map((s) => s.nodeId)).toEqual([null, "review"]);
-  });
-
-  it("returns no segments for no turns", () => {
-    expect(segmentTurns([])).toEqual([]);
-  });
-});
-
-describe("segmentLabel", () => {
-  it("is null for a segment with no node correlation", () => {
-    expect(
-      segmentLabel({ nodeId: null, iteration: null, rawLog: "" }),
-    ).toBeNull();
-  });
-
-  it("names the node alone when the iteration is unknown", () => {
-    expect(
-      segmentLabel({ nodeId: "review", iteration: null, rawLog: "" }),
-    ).toBe("review");
-  });
-
-  it("names the node and iteration", () => {
-    expect(segmentLabel({ nodeId: "review", iteration: 2, rawLog: "" })).toBe(
-      "review · iteration 2",
-    );
   });
 });
 

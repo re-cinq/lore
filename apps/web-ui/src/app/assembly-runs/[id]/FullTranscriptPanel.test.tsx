@@ -22,7 +22,16 @@ function wireTurn(id: string, nodeId: string | null, iteration = 1) {
     nodeId,
     iteration: nodeId === null ? null : iteration,
     eventType: "assistant",
-    envelope: { event: { type: "assistant", text: `full text of turn ${id}` } },
+    envelope: {
+      source: { task: "task-1" },
+      event: {
+        type: "assistant",
+        message: {
+          role: "assistant",
+          content: [{ type: "text", text: `full text of turn ${id}` }],
+        },
+      },
+    },
     createdAt: "2026-08-12T10:00:00.000Z",
   };
 }
@@ -78,7 +87,7 @@ describe("FullTranscriptPanel", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("fetches the run's turns once opened and renders the untruncated envelope", async () => {
+  it("fetches the run's turns once opened and renders the assistant text, formatted", async () => {
     stubFetch(turnsResponse([wireTurn("1", "implement")]));
     const { container } = render(
       <FullTranscriptPanel runId="run-1" nodeId="implement" />,
@@ -87,6 +96,19 @@ describe("FullTranscriptPanel", () => {
     await openPanel(container);
 
     expect(await screen.findByText(/full text of turn 1/)).toBeTruthy();
+  });
+
+  it("keeps the untruncated envelope one Raw click away", async () => {
+    stubFetch(turnsResponse([wireTurn("1", "implement")]));
+    const { container } = render(
+      <FullTranscriptPanel runId="run-1" nodeId="implement" />,
+    );
+
+    await openPanel(container);
+    await screen.findByText(/full text of turn 1/);
+    fireEvent.click(screen.getByRole("button", { name: "Raw" }));
+
+    expect(await screen.findByText(/"source"/)).toBeTruthy();
   });
 
   it("pages with the cursor until a short page", async () => {
@@ -147,7 +169,7 @@ describe("FullTranscriptPanel", () => {
 
     await openPanel(container);
 
-    expect(await screen.findByText("iteration 2")).toBeTruthy();
+    expect(await screen.findByText(/iteration 2/)).toBeTruthy();
   });
 
   it("switching nodes refilters without refetching", async () => {
@@ -346,6 +368,81 @@ describe("FullTranscriptPanel with the Floor's hasMore flag", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(
       await screen.findByText(/Loaded only the first 0 turns/),
+    ).toBeTruthy();
+  });
+
+  it("renders a kind-less lifecycle turn as a sentence instead of unknown", async () => {
+    const turn = {
+      id: "1",
+      taskId: "task-1",
+      agentCrName: "cr-implement",
+      assemblyLineId: "run-1",
+      nodeId: "implement",
+      iteration: 1,
+      eventType: null,
+      envelope: {
+        source: { task: "task-1" },
+        event: { kind: "lifecycle", phase: "init", status: "started" },
+      },
+      createdAt: "2026-08-12T10:00:00.000Z",
+    };
+
+    stubFetch(turnsResponse([turn]));
+    const { container } = render(
+      <FullTranscriptPanel runId="run-1" nodeId="implement" />,
+    );
+
+    await openPanel(container);
+
+    expect(await screen.findByText("· init started")).toBeTruthy();
+    expect(screen.queryByText("unknown")).toBeNull();
+  });
+
+  it("renders a rate-limit turn as one readable line", async () => {
+    const turn = {
+      id: "1",
+      taskId: "task-1",
+      agentCrName: "cr-implement",
+      assemblyLineId: "run-1",
+      nodeId: "implement",
+      iteration: 1,
+      eventType: "rate_limit_event",
+      envelope: {
+        source: { task: "task-1" },
+        event: {
+          type: "rate_limit_event",
+          rate_limit_info: {
+            status: "allowed_warning",
+            rateLimitType: "seven_day",
+            utilization: 0.94,
+            resetsAt: 1787882400,
+          },
+        },
+      },
+      createdAt: "2026-08-12T10:00:00.000Z",
+    };
+
+    stubFetch(turnsResponse([turn]));
+    const { container } = render(
+      <FullTranscriptPanel runId="run-1" nodeId="implement" />,
+    );
+
+    await openPanel(container);
+
+    expect(await screen.findByText(/rate limit: seven_day 94%/)).toBeTruthy();
+  });
+
+  it("shows a timestamp next to each conversation entry", async () => {
+    stubFetch(turnsResponse([wireTurn("1", "implement")]));
+    const { container } = render(
+      <FullTranscriptPanel runId="run-1" nodeId="implement" />,
+    );
+
+    await openPanel(container);
+    await screen.findByText(/full text of turn 1/);
+
+    expect(
+      document.querySelector('time[datetime="2026-08-12T10:00:00.000Z"]'),
     ).toBeTruthy();
   });
 });

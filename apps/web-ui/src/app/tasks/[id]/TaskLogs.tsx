@@ -17,11 +17,10 @@ import {
 } from "@/app/assembly-runs/[id]/turn-transcript-presenter";
 import {
   advanceCursor,
-  segmentLabel,
-  segmentTurns,
   taskLogsUrl,
   walkContinues,
 } from "./task-logs-presenter";
+import { segmentLabel, segmentRawLog, segmentTurns } from "@/lib/turn-segments";
 import LogEntriesView from "@/components/LogEntriesView";
 import LogFormatToggle from "@/components/LogFormatToggle";
 import { useCoordinatedRefresh } from "./TaskRefreshProvider";
@@ -51,11 +50,15 @@ export default function TaskLogs({
   const bottomRef = useRef<HTMLDivElement>(null);
   const segments = useMemo(
     () =>
-      segmentTurns(turns ?? []).map((segment) => ({
-        label: segmentLabel(segment),
-        rawLog: segment.rawLog,
-        entries: parseAgentLog(segment.rawLog),
-      })),
+      segmentTurns(turns ?? []).map((segment) => {
+        const rawLog = segmentRawLog(segment);
+
+        return {
+          label: segmentLabel(segment),
+          rawLog,
+          entries: parseAgentLog(rawLog),
+        };
+      }),
     [turns],
   );
   const rawLog = useMemo(

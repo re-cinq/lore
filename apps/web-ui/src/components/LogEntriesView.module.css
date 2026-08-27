@@ -22,6 +22,12 @@
   color: var(--danger);
 }
 
+/* A usage-window warning is operational, not agent output — dimmed like the
+   other markers, but tinted so a 94% window is findable in a long transcript. */
+.rateLimit {
+  color: var(--warning);
+}
+
 .rawLine {
   white-space: pre-wrap;
 }
