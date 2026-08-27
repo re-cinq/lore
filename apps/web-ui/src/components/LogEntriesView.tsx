@@ -1,5 +1,6 @@
 import {
   clip,
+  rateLimitSummary,
   formatDuration,
   formatTokens,
   type LogEntry,
@@ -26,12 +27,14 @@ function resultSummary(entry: Extract<LogEntry, { kind: "result" }>): string {
   return parts.join("");
 }
 
-function EntryLine({ entry }: { entry: LogEntry }) {
+/** One entry's line. Exported so a view that adds its own gutter (the run
+ *  page's timestamped transcript) reuses this switch instead of copying it. */
+export function EntryLine({ entry }: { entry: LogEntry }) {
   switch (entry.kind) {
     case "lifecycle":
       return (
         <div className={styles.dim}>
-          · agent {entry.status}
+          · {entry.phase ?? "agent"} {entry.status}
           {entry.exitCode !== undefined ? ` (exit ${entry.exitCode})` : ""}
         </div>
       );
@@ -99,6 +102,8 @@ function EntryLine({ entry }: { entry: LogEntry }) {
           )}
         </div>
       );
+    case "rate-limit":
+      return <div className={styles.rateLimit}>{rateLimitSummary(entry)}</div>;
     case "station-log":
       return <div className={styles.dim}>· {entry.text}</div>;
     case "raw":

@@ -6,6 +6,11 @@
 // only on first open, so the truncated live view — which stays the page's
 // default — pays nothing for this panel's existence.
 //
+// Renders as a formatted conversation by default (one node visit's turns
+// parsed through the same classifier the pod-log viewers use), with a Raw
+// toggle restoring today's untruncated per-turn envelope — that escape hatch
+// is this panel's whole reason to exist, so it is never removed, only hidden.
+//
 // One walk per mounted run: the parent keys this mount on the run id, so a
 // run change remounts with fresh state (the parent's own historyLoadedFor
 // lesson), and `startedRef` keeps toggling the panel from starting a second
@@ -17,6 +22,8 @@ import { parseAgentRunTurn, type AgentRunTurn } from "@/lib/run-turn-types";
 import {
   MAX_TURNS_LOADED,
   MAX_WALK_PAGES,
+  clockTime,
+  conversationEntries,
   envelopePretty,
   nextTurnsCursor,
   parseHasMore,
@@ -25,6 +32,9 @@ import {
   turnsForNode,
   turnsUrl,
 } from "./turn-transcript-presenter";
+import { segmentLabel, segmentTurns } from "@/lib/turn-segments";
+import { EntryLine } from "@/components/LogEntriesView";
+import LogFormatToggle from "@/components/LogFormatToggle";
 import styles from "./FullTranscriptPanel.module.css";
 
 export interface FullTranscriptPanelProps {
@@ -40,6 +50,7 @@ export default function FullTranscriptPanel({
   const [turns, setTurns] = useState<AgentRunTurn[] | null>(null);
   const [capped, setCapped] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showRaw, setShowRaw] = useState(false);
   const startedRef = useRef(false);
   // Unmount is the only cancellation: a re-closed panel still wants the data
   // it asked for, but a dead component must not receive it.
@@ -143,6 +154,14 @@ export default function FullTranscriptPanel({
     () => (turns === null ? [] : turnsForNode(turns, nodeId)),
     [turns, nodeId],
   );
+  const nodeSegments = useMemo(
+    () =>
+      segmentTurns(nodeTurns).map((segment) => ({
+        label: segmentLabel(segment),
+        entries: conversationEntries(segment.turns),
+      })),
+    [nodeTurns],
+  );
 
   return (
     <details
@@ -154,6 +173,12 @@ export default function FullTranscriptPanel({
         Untruncated turns from the transcript store (30-day retention). The live
         view above stays truncated by design.
       </p>
+
+      {!error && nodeTurns.length > 0 && (
+        <div className={styles.toggleRow}>
+          <LogFormatToggle raw={showRaw} onChange={setShowRaw} />
+        </div>
+      )}
 
       {error && <p className={styles.error}>Failed to load turns: {error}</p>}
 
@@ -174,7 +199,7 @@ export default function FullTranscriptPanel({
         </p>
       )}
 
-      {!error && nodeTurns.length > 0 && (
+      {!error && nodeTurns.length > 0 && showRaw && (
         <ol className={styles.turns}>
           {nodeTurns.map((turn) => (
             <li key={turn.id} className={styles.turn}>
@@ -192,6 +217,30 @@ export default function FullTranscriptPanel({
                 </summary>
                 <pre className={styles.envelope}>{envelopePretty(turn)}</pre>
               </details>
+            </li>
+          ))}
+        </ol>
+      )}
+
+      {!error && nodeTurns.length > 0 && !showRaw && (
+        <ol className={styles.segments}>
+          {nodeSegments.map((segment, index) => (
+            <li key={index} className={styles.segment}>
+              {segment.label !== null && (
+                <div className={styles.segmentHeader}>{segment.label}</div>
+              )}
+              <ol className={styles.entries}>
+                {segment.entries.map((timed, i) => (
+                  <li key={i} className={styles.entryRow}>
+                    <time className={styles.entryTime} dateTime={timed.at}>
+                      {clockTime(timed.at)}
+                    </time>
+                    <div className={styles.entryBody}>
+                      <EntryLine entry={timed.entry} />
+                    </div>
+                  </li>
+                ))}
+              </ol>
             </li>
           ))}
         </ol>

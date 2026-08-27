@@ -1,6 +1,7 @@
-// Pure helpers behind TaskLogs: URL building, poll-cursor arithmetic, and the
-// turn→NDJSON projection the log parser consumes. Split from the component for
-// the same reason turn-transcript-presenter is split from FullTranscriptPanel.
+// Pure helpers behind TaskLogs: URL building and poll-cursor arithmetic. Split
+// from the component for the same reason turn-transcript-presenter is split
+// from FullTranscriptPanel. The turn→visit grouping both transcript surfaces
+// share lives in `@/lib/turn-segments`.
 //
 // Unlike the run page's one-shot walk, the task page polls: the cursor
 // persists across coordinator ticks, so advancing it and deciding whether the
@@ -13,7 +14,6 @@ import {
   TURNS_PAGE_LIMIT,
   serverReportsMore,
 } from "@/app/assembly-runs/[id]/turn-transcript-presenter";
-import type { AgentRunTurn } from "@/lib/run-turn-types";
 
 export function taskLogsUrl(taskId: string, afterId: string): string {
   const base = `/api/tasks/${encodeURIComponent(
@@ -58,51 +58,4 @@ export function walkContinues(
   hasMore?: boolean,
 ): boolean {
   return serverReportsMore(page, hasMore) && loadedCount < MAX_TURNS_LOADED;
-}
-
-/**
- * One run of consecutive turns from the same node visit. A task's turns span
- * every node of its assembly line (and every retry), so rendering them as one
- * undifferentiated stream would interleave several session-inits and result
- * footers; the segment boundary is where the heading goes.
- */
-export interface TurnSegment {
-  nodeId: string | null;
-  iteration: number | null;
-  rawLog: string;
-}
-
-export function segmentTurns(turns: readonly AgentRunTurn[]): TurnSegment[] {
-  const segments: TurnSegment[] = [];
-
-  for (const turn of turns) {
-    const last = segments[segments.length - 1];
-    const line = JSON.stringify(turn.envelope);
-
-    if (
-      last !== undefined &&
-      last.nodeId === turn.nodeId &&
-      last.iteration === turn.iteration
-    ) {
-      last.rawLog += `\n${line}`;
-      continue;
-    }
-    segments.push({
-      nodeId: turn.nodeId,
-      iteration: turn.iteration,
-      rawLog: line,
-    });
-  }
-
-  return segments;
-}
-
-export function segmentLabel(segment: TurnSegment): string | null {
-  if (segment.nodeId === null) {
-    return null;
-  }
-
-  return segment.iteration === null
-    ? segment.nodeId
-    : `${segment.nodeId} · iteration ${segment.iteration}`;
 }

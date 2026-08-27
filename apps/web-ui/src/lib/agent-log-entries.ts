@@ -3,7 +3,7 @@
 // viewers. Lines that cannot be parsed as JSON pass through as raw. Pure.
 
 export type LogEntry =
-  | { kind: "lifecycle"; status: string; exitCode?: number }
+  | { kind: "lifecycle"; phase?: string; status: string; exitCode?: number }
   | {
       kind: "session-init";
       model: string;
@@ -25,7 +25,16 @@ export type LogEntry =
       numTurns?: number;
     }
   | { kind: "station-log"; text: string }
+  | { kind: "rate-limit"; status: string; windows: RateLimitWindow[] }
   | { kind: "raw"; text: string };
+
+/** One usage window of a rate_limit_event. `utilization` is the fraction the
+ *  API sends (0.94 = 94%), `resetsAt` epoch seconds. */
+export interface RateLimitWindow {
+  window: string;
+  utilization: number;
+  resetsAt: number | null;
+}
 
 export function clip(text: string, max: number): string {
   const flat = text.replace(/\s+/g, " ").trim();
@@ -106,42 +115,64 @@ export function formatDuration(ms: number): string {
   return `${seconds}s`;
 }
 
+/**
+ * Whether `next` replaces `previous` instead of following it: a thinking-tokens
+ * ticker only ever reports the running count, so a run of them is one entry.
+ * The one home for that rule — the blob parser and the run page's per-turn
+ * projection both fold on it rather than each knowing it.
+ */
+export function supersedesPrevious(
+  previous: LogEntry | undefined,
+  next: LogEntry,
+): boolean {
+  return (
+    next.kind === "thinking-tokens" && previous?.kind === "thinking-tokens"
+  );
+}
+
+/** Classifies an already-decoded envelope. Callers holding the object (the
+ *  transcript store hands out parsed JSONB) must not stringify to re-parse it. */
+export function logEntriesFromValue(
+  value: unknown,
+  originalLine: string,
+): LogEntry[] {
+  return classify(unwrapEnvelope(value), originalLine);
+}
+
+/** One NDJSON line → its entries. Empty lines yield none; anything that is not
+ *  parseable JSON passes through verbatim as raw. */
+export function parseAgentLogLine(line: string): LogEntry[] {
+  const trimmed = line.trim();
+
+  if (!trimmed) {
+    return [];
+  }
+
+  if (!trimmed.startsWith("{")) {
+    return [{ kind: "raw", text: trimmed }];
+  }
+
+  let value: unknown;
+
+  try {
+    value = JSON.parse(trimmed);
+  } catch {
+    return [{ kind: "raw", text: trimmed }];
+  }
+
+  return logEntriesFromValue(value, trimmed);
+}
+
 export function parseAgentLog(raw: string): LogEntry[] {
   const entries: LogEntry[] = [];
-  const push = (entry: LogEntry) => {
-    const last = entries[entries.length - 1];
-
-    if (entry.kind === "thinking-tokens" && last?.kind === "thinking-tokens") {
-      entries[entries.length - 1] = entry;
-
-      return;
-    }
-    entries.push(entry);
-  };
 
   for (const line of raw.split("\n")) {
-    const trimmed = line.trim();
-
-    if (!trimmed) {
-      continue;
-    }
-
-    if (!trimmed.startsWith("{")) {
-      push({ kind: "raw", text: trimmed });
-      continue;
-    }
-
-    let value: unknown;
-
-    try {
-      value = JSON.parse(trimmed);
-    } catch {
-      push({ kind: "raw", text: trimmed });
-      continue;
-    }
-
-    for (const entry of classify(unwrapEnvelope(value), trimmed)) {
-      push(entry);
+    for (const entry of parseAgentLogLine(line)) {
+      if (supersedesPrevious(entries[entries.length - 1], entry)) {
+        entries[entries.length - 1] = entry;
+        continue;
+      }
+      entries.push(entry);
     }
   }
 
@@ -179,9 +210,14 @@ function classify(value: unknown, originalLine: string): LogEntry[] {
 
   if (value.kind === "lifecycle" && typeof value.status === "string") {
     return [
-      typeof value.exitCode === "number"
-        ? { kind: "lifecycle", status: value.status, exitCode: value.exitCode }
-        : { kind: "lifecycle", status: value.status },
+      {
+        kind: "lifecycle",
+        status: value.status,
+        ...(typeof value.phase === "string" ? { phase: value.phase } : {}),
+        ...(typeof value.exitCode === "number"
+          ? { exitCode: value.exitCode }
+          : {}),
+      },
     ];
   }
 
@@ -235,6 +271,23 @@ function classify(value: unknown, originalLine: string): LogEntry[] {
     return [{ kind: "station-log", text: value.message }];
   }
 
+  if (value.type === "rate_limit_event") {
+    const info = isRecord(value.rate_limit_info) ? value.rate_limit_info : {};
+    const windows = rateLimitWindows(info);
+
+    // A shape carrying no readable window keeps its bytes rather than
+    // rendering a confidently empty sentence.
+    return windows.length > 0
+      ? [
+          {
+            kind: "rate-limit",
+            status: typeof info.status === "string" ? info.status : "",
+            windows,
+          },
+        ]
+      : [{ kind: "raw", text: originalLine }];
+  }
+
   return [{ kind: "raw", text: originalLine }];
 }
 
@@ -280,4 +333,59 @@ function messageEntries(value: Record<string, unknown>): LogEntry[] {
   }
 
   return entries;
+}
+
+function toWindow(name: string, value: unknown): RateLimitWindow | null {
+  if (!isRecord(value) || typeof value.utilization !== "number") {
+    return null;
+  }
+
+  return {
+    window: name,
+    utilization: value.utilization,
+    resetsAt: typeof value.resetsAt === "number" ? value.resetsAt : null,
+  };
+}
+
+/** Every window the event reports: the `unifiedWindows` map when present, else
+ *  the single window the top-level fields describe. */
+export function rateLimitWindows(
+  info: Record<string, unknown>,
+): RateLimitWindow[] {
+  const unified = info.unifiedWindows;
+
+  if (isRecord(unified)) {
+    return Object.entries(unified)
+      .map(([name, value]) => toWindow(name, value))
+      .filter((window): window is RateLimitWindow => window !== null);
+  }
+
+  const single =
+    typeof info.rateLimitType === "string"
+      ? toWindow(info.rateLimitType, info)
+      : null;
+
+  return single === null ? [] : [single];
+}
+
+/** The whole sentence, formatted here rather than in JSX so it is testable
+ *  without a DOM. `utilization` is a fraction of the window, never a percent. */
+export function rateLimitSummary(
+  entry: Extract<LogEntry, { kind: "rate-limit" }>,
+): string {
+  const windows = entry.windows
+    .map((window) => {
+      const percent = `${window.window} ${Math.round(window.utilization * 100)}%`;
+
+      return window.resetsAt === null
+        ? percent
+        : `${percent}, resets ${new Date(
+            window.resetsAt * 1000,
+          ).toLocaleTimeString()}`;
+    })
+    .join(" · ");
+
+  return entry.status
+    ? `rate limit: ${windows} (${entry.status})`
+    : `rate limit: ${windows}`;
 }

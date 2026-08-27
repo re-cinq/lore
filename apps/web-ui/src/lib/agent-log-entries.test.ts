@@ -1,6 +1,10 @@
 import { describe, it, expect } from "vitest";
 import {
   parseAgentLog,
+  parseAgentLogLine,
+  logEntriesFromValue,
+  supersedesPrevious,
+  rateLimitSummary,
   formatTokens,
   formatDuration,
   clip,
@@ -28,6 +32,8 @@ import {
   wrapped,
   doubleWrapped,
   SAMPLE_LOG,
+  LIFECYCLE_INIT_STARTED,
+  RATE_LIMIT_EVENT,
 } from "./agent-log-entries.fixtures";
 
 describe("parseAgentLog", () => {
@@ -52,8 +58,8 @@ describe("parseAgentLog", () => {
     expect(
       parseAgentLog(`${LIFECYCLE_STARTED}\n${LIFECYCLE_SUCCEEDED}`),
     ).toEqual([
-      { kind: "lifecycle", status: "started" },
-      { kind: "lifecycle", status: "succeeded", exitCode: 0 },
+      { kind: "lifecycle", phase: "agent", status: "started" },
+      { kind: "lifecycle", phase: "agent", status: "succeeded", exitCode: 0 },
     ]);
   });
 
@@ -271,5 +277,164 @@ describe("clip", () => {
   it("flattens whitespace and truncates past max with an ellipsis", () => {
     expect(clip("a b  c", 20)).toEqual("a b c");
     expect(clip("abcdef", 3)).toEqual("abc…");
+  });
+});
+
+describe("parseAgentLogLine", () => {
+  it("returns no entries for a blank line", () => {
+    expect(parseAgentLogLine("   ")).toEqual([]);
+  });
+
+  it("classifies one wrapped line without the surrounding blob", () => {
+    expect(parseAgentLogLine(wrapped(STATION_LOG))).toEqual([
+      { kind: "station-log", text: "detect: scanning 42 specs" },
+    ]);
+  });
+
+  it("keeps a non-JSON line raw", () => {
+    expect(parseAgentLogLine(RUNNER_MARKER)).toEqual([
+      { kind: "raw", text: RUNNER_MARKER },
+    ]);
+  });
+});
+
+describe("logEntriesFromValue", () => {
+  it("classifies a decoded envelope the same as its serialized line", () => {
+    const line = wrapped(ASSISTANT_TEXT);
+
+    expect(logEntriesFromValue(JSON.parse(line), line)).toEqual(
+      parseAgentLogLine(line),
+    );
+  });
+
+  it("keeps a non-object value raw", () => {
+    expect(logEntriesFromValue(42, "42")).toEqual([
+      { kind: "raw", text: "42" },
+    ]);
+  });
+});
+
+describe("supersedesPrevious", () => {
+  it("is true only for a thinking-tokens entry following another", () => {
+    const ticker: LogEntry = { kind: "thinking-tokens", tokens: 9 };
+    const text: LogEntry = { kind: "assistant-text", text: "hi" };
+
+    expect(supersedesPrevious(ticker, ticker)).toBe(true);
+    expect(supersedesPrevious(text, ticker)).toBe(false);
+    expect(supersedesPrevious(ticker, text)).toBe(false);
+    expect(supersedesPrevious(undefined, ticker)).toBe(false);
+  });
+});
+
+describe("lifecycle phase", () => {
+  it("carries the init phase so the marker is not an unclassified line", () => {
+    expect(parseAgentLog(LIFECYCLE_INIT_STARTED)).toEqual([
+      { kind: "lifecycle", phase: "init", status: "started" },
+    ]);
+  });
+
+  it("omits the phase when the marker carries none", () => {
+    expect(parseAgentLog('{"kind":"lifecycle","status":"started"}')).toEqual([
+      { kind: "lifecycle", status: "started" },
+    ]);
+  });
+});
+
+describe("rate_limit_event", () => {
+  it("parses both unified windows with their utilization and reset time", () => {
+    expect(parseAgentLog(RATE_LIMIT_EVENT)).toEqual([
+      {
+        kind: "rate-limit",
+        status: "allowed_warning",
+        windows: [
+          { window: "five_hour", utilization: 0.07, resetsAt: 1787848200 },
+          { window: "seven_day", utilization: 0.94, resetsAt: 1787882400 },
+        ],
+      },
+    ]);
+  });
+
+  it("falls back to the single top-level window when there are no unified ones", () => {
+    const line = JSON.stringify({
+      type: "rate_limit_event",
+      rate_limit_info: {
+        status: "allowed",
+        rateLimitType: "five_hour",
+        utilization: 0.5,
+        resetsAt: 1787848200,
+      },
+    });
+
+    expect(parseAgentLog(line)).toEqual([
+      {
+        kind: "rate-limit",
+        status: "allowed",
+        windows: [
+          { window: "five_hour", utilization: 0.5, resetsAt: 1787848200 },
+        ],
+      },
+    ]);
+  });
+
+  it("keeps a rate-limit line raw when it carries no readable window", () => {
+    const line = '{"type":"rate_limit_event","rate_limit_info":{}}';
+
+    expect(parseAgentLog(line)).toEqual([{ kind: "raw", text: line }]);
+  });
+
+  it("drops a unified window with no numeric utilization, keeping the rest", () => {
+    const line = JSON.stringify({
+      type: "rate_limit_event",
+      rate_limit_info: {
+        status: "allowed",
+        unifiedWindows: {
+          seven_day: { resetsAt: 1787882400, utilization: 0.94 },
+          five_hour: "not a window",
+        },
+      },
+    });
+
+    expect(parseAgentLog(line)).toEqual([
+      {
+        kind: "rate-limit",
+        status: "allowed",
+        windows: [
+          { window: "seven_day", utilization: 0.94, resetsAt: 1787882400 },
+        ],
+      },
+    ]);
+  });
+
+  it("keeps a rate-limit line raw when it carries no info at all", () => {
+    const line = '{"type":"rate_limit_event"}';
+
+    expect(parseAgentLog(line)).toEqual([{ kind: "raw", text: line }]);
+  });
+});
+
+describe("rateLimitSummary", () => {
+  it("names every window with its whole-percent utilization and status", () => {
+    expect(
+      rateLimitSummary({
+        kind: "rate-limit",
+        status: "allowed_warning",
+        windows: [
+          { window: "seven_day", utilization: 0.94, resetsAt: 1787882400 },
+          { window: "five_hour", utilization: 0.07, resetsAt: null },
+        ],
+      }),
+    ).toMatch(
+      /^rate limit: seven_day 94%, resets .+ · five_hour 7% \(allowed_warning\)$/,
+    );
+  });
+
+  it("omits the status when the event carries none", () => {
+    expect(
+      rateLimitSummary({
+        kind: "rate-limit",
+        status: "",
+        windows: [{ window: "seven_day", utilization: 1, resetsAt: null }],
+      }),
+    ).toBe("rate limit: seven_day 100%");
   });
 });

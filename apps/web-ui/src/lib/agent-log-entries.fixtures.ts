@@ -58,6 +58,17 @@ export const NODE_RESULT_LINE =
 export const RUNNER_MARKER =
   "[runner] Reusing cached repo at /workspace/repo (fetch)";
 
+// Captured from a live review pod (task 7d723e6b, 2026-08-27). The init-phase
+// lifecycle marker carries no `type`, so the transcript store records it with a
+// null event_type — the case that used to render as an `unknown` JSON blob.
+export const LIFECYCLE_INIT_STARTED =
+  '{"kind":"lifecycle","phase":"init","status":"started"}';
+
+// Same pod, one minute later. `utilization` is a FRACTION of the window, and
+// `resetsAt` is epoch SECONDS.
+export const RATE_LIMIT_EVENT =
+  '{"type":"rate_limit_event","uuid":"44497cba-94a4-40e9-a7e3-a99071319e87","session_id":"a4830f52-8b2f-4638-ab11-ba16813e728c","rate_limit_info":{"status":"allowed_warning","resetsAt":1787882400,"utilization":0.94,"rateLimitType":"seven_day","isUsingOverage":false,"unifiedWindows":{"five_hour":{"resetsAt":1787848200,"utilization":0.07},"seven_day":{"resetsAt":1787882400,"utilization":0.94}},"surpassedThreshold":0.75}}';
+
 // The ai-agent-subsystem's attribution envelope (ADR-031 D8) — single and the
 // transitional double wrap both appear in prod streams.
 export function wrapped(line: string): string {

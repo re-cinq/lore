@@ -20,6 +20,39 @@ describe("LogEntriesView", () => {
     expect(screen.getByText("· agent started")).toHaveClass(styles.dim);
   });
 
+  it("renders '· init started' for a lifecycle entry carrying an init phase", () => {
+    render(
+      <LogEntriesView
+        entries={[{ kind: "lifecycle", phase: "init", status: "started" }]}
+      />,
+    );
+
+    expect(screen.getByText("· init started")).toHaveClass(styles.dim);
+  });
+
+  it("renders a rate-limit entry as one line naming each window", () => {
+    render(
+      <LogEntriesView
+        entries={[
+          {
+            kind: "rate-limit",
+            status: "allowed_warning",
+            windows: [
+              { window: "seven_day", utilization: 0.94, resetsAt: null },
+              { window: "five_hour", utilization: 0.07, resetsAt: null },
+            ],
+          },
+        ]}
+      />,
+    );
+
+    expect(
+      screen.getByText(
+        "rate limit: seven_day 94% · five_hour 7% (allowed_warning)",
+      ),
+    ).toHaveClass(styles.rateLimit);
+  });
+
   it("renders '· agent succeeded (exit 0)' when the lifecycle entry carries an exit code", () => {
     render(
       <LogEntriesView
