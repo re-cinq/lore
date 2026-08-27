@@ -46,6 +46,7 @@ import {
 import { lineWritesOwnEpisode } from "./run-episode.js";
 import { isFailureOutcome } from "./notify-failure.js";
 import {
+  incomingFailureOf,
   nodeLaunchSpec,
   priorOutcomeOf,
   resolveNodeDispatch,
@@ -304,6 +305,9 @@ export async function advanceLine(
       task,
       iteration: transition.iteration,
       priorOutcome: priorOutcomeOf(visits, transition.nodeId),
+      // What just failed, whichever node it was — this is how a retried node
+      // learns why it is running again instead of repeating itself.
+      incomingFailure: incomingFailureOf(visits),
     },
     deps,
   );
@@ -387,6 +391,7 @@ export async function advanceLine(
       iteration: transition.iteration,
       stationRunId,
       priorOutcome: priorOutcomeOf(visits, transition.nodeId),
+      incomingFailure: incomingFailureOf(visits),
     }),
   );
 }

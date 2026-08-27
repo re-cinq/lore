@@ -164,8 +164,12 @@ export function stationNodeOutcome(
 
   if (stationResult) {
     // The validate station reports which suites died only through its extras;
-    // lift that into failureDetail so the terminal reason can name it.
+    // lift that into failureDetail so the terminal reason can name it — and
+    // carry the commands' OWN OUTPUT when it sent any. "lint,build failed" says
+    // where to look; the compiler errors say what to fix, and the agent sent
+    // back to fix them is the one reading this.
     const failedSuites = stationResult.extras?.["Lore-Validation-Failed"];
+    const failureOutput = stationResult.extras?.["Lore-Validation-Output"];
 
     if (
       stationResult.outcome === "failed" &&
@@ -174,7 +178,9 @@ export function stationNodeOutcome(
     ) {
       return {
         ...stationResult,
-        failureDetail: `validation failed: ${failedSuites}`,
+        failureDetail: failureOutput
+          ? `validation failed: ${failedSuites}\n\n${failureOutput}`
+          : `validation failed: ${failedSuites}`,
       };
     }
 
