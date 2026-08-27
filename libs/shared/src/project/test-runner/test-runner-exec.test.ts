@@ -95,5 +95,23 @@ describe.skipIf(process.platform === "win32")(
         rmSync(d2, { recursive: true, force: true });
       }
     });
+
+    it("rejects listTests when the manifest entry has no list command", () => {
+      const d3 = mkdtempSync(join(tmpdir(), "exectest-nolist-"));
+
+      mkdirSync(join(d3, ".lore"), { recursive: true });
+      writeFileSync(
+        join(d3, ".lore", "test-commands.yml"),
+        stringify({ run: "npm run consumer" }),
+      );
+
+      try {
+        expect(() => new ExecTestRunner().listTests(d3)).toThrow(
+          /no 'list' command/,
+        );
+      } finally {
+        rmSync(d3, { recursive: true, force: true });
+      }
+    });
   },
 );
