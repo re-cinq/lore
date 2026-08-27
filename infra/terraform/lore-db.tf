@@ -13,6 +13,17 @@
 #     sed 's/namespace: cnpg-system/namespace: n8n/g' | kubectl apply -f -
 # ---------------------------------------------------------------------------
 
+# ── Database password ───────────────────────────────────────────────
+#
+# Read, never written. The live value is whatever GCP Secret Manager holds
+# right now, so a rotation (`gcloud secrets versions add lore-db-password`)
+# reaches this Secret on the next apply without anyone's tfvars being involved.
+# The container itself is declared in secrets.tf.
+
+data "google_secret_manager_secret_version" "db_password" {
+  secret = google_secret_manager_secret.lore["lore-db-password"].secret_id
+}
+
 # ── Namespace ───────────────────────────────────────────────────────
 
 resource "kubernetes_namespace" "lore_db" {
@@ -101,7 +112,7 @@ resource "kubectl_manifest" "lore_db_credentials" {
     type = "kubernetes.io/basic-auth"
     stringData = {
       username = "lore"
-      password = var.db_password
+      password = data.google_secret_manager_secret_version.db_password.secret_data
     }
   })
 

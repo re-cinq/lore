@@ -1,0 +1,64 @@
+# ---------------------------------------------------------------------------
+# Terraform variables for the Lore platform.
+#
+# There is NOTHING SECRET IN THIS FILE, by design. Secret material lives in GCP
+# Secret Manager and nowhere else — Terraform declares the containers
+# (secrets.tf) and resolves values by NAME at apply/runtime. To set or rotate a
+# credential, see docs/rotating-secrets.md; to seed a fresh environment, run
+# scripts/infra/seed-secrets.sh.
+#
+# Copy this file to `terraform.tfvars`. Terraform loads that name automatically,
+# so `terraform apply` needs no -var-file flag. Because it holds only
+# identifiers and hostnames, a team can safely commit its real terraform.tfvars
+# (drop the `*.tfvars` line from .gitignore) — that is the point of moving the
+# secrets out, and it is what stops one stale checkout from breaking a deploy.
+# ---------------------------------------------------------------------------
+
+# --- GCP project + GKE cluster ---
+project_id   = "your-gcp-project-id"
+cluster_name = "your-gke-cluster"
+region       = "europe-west1"
+
+# --- Public URLs + hostnames (drive the Terraform-owned ingresses) ---
+lore_api_url     = "https://lore-api.example.com"
+lore_ui_url      = "https://lore.example.com"
+lore_ui_hostname = "lore.example.com"
+github_org       = "your-github-org"
+
+# Shared agent MCP gateway. Empty ("") disables its ingress and leaves the
+# seeded agent recipes without a live MCP endpoint (the mcp_servers block is
+# omitted). Set it to turn agent MCP access on.
+lore_mcp_url = "https://lore-mcp.example.com"
+
+# GitHub-webhook ingress host for the Floor. Empty ("") disables that ingress.
+# Retired once webhooks are re-pointed at the event router (ADR-044).
+lore_webhook_hostname = "lore-webhook.example.com"
+
+# Where GitHub delivers webhooks under ADR-044. Stand this up and re-point the
+# repos' webhooks BEFORE retiring lore_webhook_hostname.
+lore_event_router_hostname = "lore-events.example.com"
+
+# The Floor's agent-telemetry ingress, which registered SATELLITE clusters
+# report live run telemetry to. Empty leaves the sink cluster-internal.
+lore_agent_events_hostname = "lore-agent-events.example.com"
+
+# --- Feature gates ---
+#
+# These decide whether a resource EXISTS. They are deployment topology, not
+# credentials — the secret each one gates is seeded in GCP Secret Manager.
+
+# Mirrors `lore-admin-token` into lore-ui so the settings page can make
+# privileged (two-key) dark-factory writes.
+enable_ui_admin_token = false
+
+# Adds the `anthropic-admin-key` entry (from `lore-anthropic-admin-api-key`) to
+# the anthropic ExternalSecrets, for the cost-sync maintenance job.
+enable_anthropic_admin_key = false
+
+# Turns on satellite-cluster registration: mirrors
+# `lore-cluster-agent-registration-token` into lore-api + lore-cluster-agent.
+# False leaves POST /api/cluster-agents/register answering 401.
+enable_cluster_agent_registration = false
+
+# --- Misc ---
+log_retention_days = 30

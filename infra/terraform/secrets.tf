@@ -1,55 +1,64 @@
+# ---------------------------------------------------------------------------
+# GCP Secret Manager: Terraform owns the CONTAINERS, never the MATERIAL.
+#
+# A secret's *name* is infrastructure — declarative, reviewable, committed.
+# A secret's *value* is not: it changes on a rotation schedule that has nothing
+# to do with an infrastructure change, and it lives in exactly one place.
+#
+# Terraform used to write `google_secret_manager_secret_version` from
+# `var.*` (i.e. from whichever laptop's gitignored tfvars ran the apply). That
+# gave every developer a private, silently-divergent copy of the source of
+# truth: rotate a secret, and the next apply from a stale checkout pushed the
+# OLD value back up as a new version. Nobody typed anything wrong; the tool
+# did it for them.
+#
+# Rotation is now a runtime operation against the one live copy:
+#
+#   printf '%s' "$NEW_VALUE" | gcloud secrets versions add lore-<name> --data-file=-
+#
+# then restart the consumers (see docs/rotating-secrets.md). Terraform reads a
+# value back only where it genuinely needs one at plan time — see the
+# `data "google_secret_manager_secret_version"` in lore-db.tf. Everything else
+# is resolved by NAME at runtime by External Secrets Operator.
+# ---------------------------------------------------------------------------
+
 locals {
-  secrets = merge({
-    "lore-github-app-id"              = var.github_app_id
-    "lore-github-app-private-key"     = var.github_app_private_key
-    "lore-github-app-installation-id" = var.github_app_installation_id
-    "lore-anthropic-api-key"          = var.anthropic_api_key
-    "lore-db-password"                = var.db_password
-    "lore-ingest-token"               = var.ingest_token
-    "lore-webhook-secret"             = var.webhook_secret
-    "lore-agent-internal-token"       = var.agent_internal_token
-    "lore-slack-signing-secret"       = var.slack_signing_secret
-    "lore-slack-bot-token"            = var.slack_bot_token
-    "lore-github-oauth-client-id"     = var.github_oauth_client_id
-    "lore-github-oauth-client-secret" = var.github_oauth_client_secret
-    "lore-nextauth-secret"            = var.nextauth_secret
-    }, var.anthropic_admin_api_key != "" ? {
-    "lore-anthropic-admin-api-key" = var.anthropic_admin_api_key
-    } : {}, var.cluster_agent_registration_token != "" ? {
-    "lore-cluster-agent-registration-token" = var.cluster_agent_registration_token
-  } : {})
+  # The secrets this platform expects to exist. Adding a name here creates an
+  # empty container; seed its first version with scripts/infra/seed-secrets.sh.
+  secret_names = concat([
+    "lore-github-app-id",
+    "lore-github-app-private-key",
+    "lore-github-app-installation-id",
+    "lore-anthropic-api-key",
+    "lore-db-password",
+    "lore-ingest-token",
+    "lore-webhook-secret",
+    "lore-agent-internal-token",
+    "lore-slack-signing-secret",
+    "lore-slack-bot-token",
+    "lore-github-oauth-client-id",
+    "lore-github-oauth-client-secret",
+    "lore-nextauth-secret",
+    # Binary/base64 .dockerconfigjson for GHCR pull access.
+    "lore-ghcr-pull-secret",
+    ],
+    var.enable_anthropic_admin_key ? ["lore-anthropic-admin-api-key"] : [],
+    var.enable_cluster_agent_registration ? ["lore-cluster-agent-registration-token"] : [],
+  )
 }
 
 resource "google_secret_manager_secret" "lore" {
-  # Iterate over the secret NAMES (keys), not the map itself: the map's values
-  # are sensitive, and terraform forbids a sensitive-derived value as for_each
-  # (it would leak as an instance key). nonsensitive() is safe here — only the
-  # names are exposed, never the secret data. Instance keys are unchanged, so
-  # this does not recreate any secret.
-  for_each  = nonsensitive(toset(keys(local.secrets)))
+  for_each  = toset(local.secret_names)
   secret_id = each.key
 
   replication {
     auto {}
   }
-}
 
-resource "google_secret_manager_secret_version" "lore" {
-  for_each    = nonsensitive(toset(keys(local.secrets)))
-  secret      = google_secret_manager_secret.lore[each.key].id
-  secret_data = local.secrets[each.key] # still sensitive — accessed as a value, not a key
-}
-
-# GHCR pull secret stored separately (binary/base64 content)
-resource "google_secret_manager_secret" "ghcr" {
-  secret_id = "lore-ghcr-pull-secret"
-
-  replication {
-    auto {}
+  # A container holds every historical version of a live credential. Losing it
+  # to a rename, a refactor, or a fat-fingered `-target` is unrecoverable, so
+  # deletion has to be a deliberate two-step: drop this block, then apply.
+  lifecycle {
+    prevent_destroy = true
   }
-}
-
-resource "google_secret_manager_secret_version" "ghcr" {
-  secret      = google_secret_manager_secret.ghcr.id
-  secret_data = var.ghcr_pull_secret_dockerconfigjson
 }

@@ -40,7 +40,7 @@ Interactive by design: it prompts for credentials a machine cannot invent, and t
 - **`GHCR_USER` + `GHCR_TOKEN`** — a PAT with `read:packages`; `ghcr.io/re-cinq/ai-agent` is a private package.
 - **`LORE_STATION_BACKEND=k8s`** — sends agent runs to minikube pods. Left at the default `inprocess`, no run is ever isolated.
 
-When `infra/terraform/secrets.tfvars` is present it offers — never silently — to import the ghcr pull pair and the GitHub App triple from it, so a deployer mints no new PATs. `anthropic_api_key` is deliberately never imported: it would move a laptop run onto org billing, the exact thing the subscription token avoids.
+When your `gcloud` login can read GCP Secret Manager it offers — never silently — to import the ghcr pull pair and the GitHub App triple from there, so a deployer mints no new PATs. `lore-anthropic-api-key` is deliberately never imported: it would move a laptop run onto org billing, the exact thing the subscription token avoids.
 
 Already-set values are never overwritten, so re-running after adding one tool or one token costs nothing.
 

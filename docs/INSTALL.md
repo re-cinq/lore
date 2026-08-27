@@ -21,26 +21,35 @@
 git clone https://github.com/re-cinq/lore.git
 cd lore
 
-# Copy example and fill in your values
-cp infra/terraform/secrets.tfvars.example infra/terraform/secrets.tfvars
+# Copy example and fill in your values. Nothing in it is secret.
+cp infra/terraform/terraform.tfvars.example infra/terraform/terraform.tfvars
 ```
 
-Required variables in `secrets.tfvars`:
+`terraform.tfvars` holds only identifiers, hostnames, and feature gates —
+Terraform loads that filename automatically, so no `-var-file` flag is needed.
 
-| Variable | Description |
+**Secret values are not Terraform inputs.** They live in GCP Secret Manager;
+Terraform declares the containers and resolves them by name. You seed them in
+Step 3, after the containers exist. See
+[rotating-secrets.md](rotating-secrets.md) for the reasoning and the rotation
+procedure.
+
+| Secret (GCP Secret Manager name) | Description |
 |----------|-------------|
-| `github_app_id` | GitHub App ID |
-| `github_app_private_key` | GitHub App private key (PEM) |
-| `github_app_installation_id` | GitHub App installation ID |
-| `anthropic_api_key` | Anthropic API key for Claude |
-| `db_password` | PostgreSQL password |
-| `ingest_token` | Shared token for API auth |
-| `webhook_secret` | HMAC secret for verifying inbound GitHub/Slack webhooks |
-| `agent_internal_token` | Internal token the ai-agent-subsystem uses to authenticate to the API |
-| `github_oauth_client_id` | GitHub OAuth App client ID (for UI login) |
-| `github_oauth_client_secret` | GitHub OAuth App client secret |
-| `nextauth_secret` | Random string for NextAuth session encryption |
-| `ghcr_pull_secret_dockerconfigjson` | Base64-encoded `.dockerconfigjson` for GHCR |
+| `lore-github-app-id` | GitHub App ID |
+| `lore-github-app-private-key` | GitHub App private key (PEM) |
+| `lore-github-app-installation-id` | GitHub App installation ID |
+| `lore-anthropic-api-key` | Anthropic API key for Claude |
+| `lore-db-password` | PostgreSQL password |
+| `lore-ingest-token` | Shared token for API auth |
+| `lore-webhook-secret` | HMAC secret for verifying inbound GitHub/Slack webhooks |
+| `lore-agent-internal-token` | Internal token the ai-agent-subsystem uses to authenticate to the API |
+| `lore-slack-signing-secret` | Slack request-signing HMAC (verifies the /lore command) |
+| `lore-slack-bot-token` | Slack bot token for posting task results |
+| `lore-github-oauth-client-id` | GitHub OAuth App client ID (for UI login) |
+| `lore-github-oauth-client-secret` | GitHub OAuth App client secret |
+| `lore-nextauth-secret` | Random string for NextAuth session encryption |
+| `lore-ghcr-pull-secret` | `.dockerconfigjson` for GHCR pull access |
 
 ## Step 2: Set GitHub Actions Variable
 
@@ -52,18 +61,26 @@ This is used by CI workflows to deploy to GKE.
 
 ## Step 3: Deploy Infrastructure
 
+Bootstrapping is two applies, because `lore-db` reads the database password out
+of Secret Manager at plan time — the container has to exist and hold a value
+before the full apply can resolve it.
+
 ```bash
 cd infra/terraform
 terraform init
-terraform apply \
-  -var-file=secrets.tfvars \
-  -var='lore_api_url=https://lore-api.example.com' \
-  -var='lore_ui_url=https://lore.example.com' \
-  -var='lore_ui_hostname=lore.example.com' \
-  -var='lore_mcp_url=https://lore-mcp.example.com' \
-  -var='lore_event_router_hostname=lore-events.example.com' \
-  -var='github_org=your-github-org'
+
+# 1. Create the (empty) secret containers.
+terraform apply -target=google_secret_manager_secret.lore
+
+# 2. Seed them. Idempotent — prompts only for the ones with no value yet.
+../../scripts/infra/seed-secrets.sh
+
+# 3. Everything else.
+terraform apply
 ```
+
+All the URL and hostname variables come from `terraform.tfvars`, which Terraform
+loads automatically. On later runs only step 3 is needed.
 
 Every hostname variable defaults to empty, which disables the matching ingress — so
 omitting `lore_event_router_hostname` silently leaves GitHub with nowhere to deliver.
@@ -120,7 +137,7 @@ EOF
 The delivery target is the **event-router**, the only writer of `pipeline.events`
 ([ADR-044](../adrs/ADR-044-event-router-owns-the-event-bus.md)); it recognises GitHub by
 the `X-Hub-Signature-256` header and verifies the HMAC over the raw body, so the `secret`
-must match `webhook_secret` in `secrets.tfvars` or every delivery is refused. Existing
+must match the `lore-webhook-secret` value in Secret Manager or every delivery is refused. Existing
 installs may still point at the Floor's `/api/webhook/github` on `lore_webhook_hostname`;
 that route still works and reports through the router, and it is retired only once the
 repos are re-pointed.
@@ -219,7 +236,7 @@ gcloud storage ls gs://lore-task-logs-YOUR_PROJECT_ID/
 ## Upgrading
 
 ```bash
-git pull && cd infra/terraform && terraform apply -var-file=secrets.tfvars
+git pull && cd infra/terraform && terraform apply
 ```
 
 CI automatically builds and deploys on push to main.
@@ -227,7 +244,15 @@ CI automatically builds and deploys on push to main.
 ## Disaster Recovery
 
 ```bash
-cd infra/terraform && terraform destroy && terraform apply -var-file=secrets.tfvars
+cd infra/terraform && terraform destroy && terraform apply
 ```
+
+`terraform destroy` will refuse while the secret containers carry
+`prevent_destroy` — deliberately, since destroying them takes every historical
+version of every live credential with them. If you genuinely mean to tear down
+the secrets too, drop the `lifecycle` block in
+[`secrets.tf`](../infra/terraform/secrets.tf) first, as a separate reviewed
+commit. Otherwise `-target` the rest of the stack and leave the secrets standing;
+a rebuilt platform re-attaches to them with no re-seeding.
 
 All state is in Terraform. Secrets are in GCP Secret Manager. Task history is in PostgreSQL (back up separately).

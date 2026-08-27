@@ -326,10 +326,10 @@ claude) and fills the gaps in `.env.local` — the agent LLM credential
 (`claude setup-token` → `CLAUDE_CODE_OAUTH_TOKEN`, so laptop runs bill a
 subscription rather than org API credit; `ANTHROPIC_API_KEY` wins if both
 are set), `GITHUB_TOKEN`, ghcr creds, and `LORE_STATION_BACKEND=k8s`. When
-`infra/terraform/secrets.tfvars` is present it offers (never silently) to
-import the ghcr pull pair and the GitHub App triple from it, so a deployer
-mints no new PATs; `anthropic_api_key` is deliberately never imported,
-since an API key outranks the subscription token. It
+your `gcloud` login can read GCP Secret Manager it offers (never silently)
+to import the ghcr pull pair and the GitHub App triple from there, so a
+deployer mints no new PATs; `lore-anthropic-api-key` is deliberately never
+imported, since an API key outranks the subscription token. It
 is interactive and touches nothing outside the machine; all cluster
 bootstrap stays in `npm start`, which is why that half can stay
 unattended. Already-set values are never overwritten, so re-running is
@@ -378,8 +378,23 @@ All secrets managed by External Secrets Operator (ESO) pulling from
 GCP Secret Manager. Single `terraform apply` deploys everything.
 See `infra/terraform/` for the full configuration.
 
-Deploy requires `secrets.tfvars` (copy from `secrets.tfvars.example`)
-plus four variables passed on the command line or in the file:
+**Secret material is never a Terraform input.** `secrets.tf` declares the
+GCP Secret Manager *containers* (`lifecycle { prevent_destroy }`) and
+resolves values by *name*; ESO mirrors them into Kubernetes and
+`data.google_secret_manager_secret_version.db_password` is the one
+read-back. Terraform writing versions from a gitignored per-laptop
+`secrets.tfvars` was a second source of truth: a stale checkout's apply
+silently pushed the OLD value back up and 401'd the fleet. Rotation is
+`gcloud secrets versions add` plus the restart set — see
+`docs/rotating-secrets.md`; seed a new environment with
+`scripts/infra/seed-secrets.sh`, and guard against a rotation the pods
+never read with `scripts/infra/check-secrets.sh` (compares each secret's
+newest version against every consuming pod's start time; the secret→consumer
+map is read from the live ExternalSecrets, not hardcoded).
+
+Deploy config lives in `terraform.tfvars` (copy from
+`terraform.tfvars.example`) — identifiers, hostnames, and the `enable_*`
+feature gates, nothing secret, auto-loaded so no `-var-file` is needed:
 
 - `lore_api_url` — external URL for the MCP server API
 - `lore_ui_url` — external URL for the web UI
@@ -387,12 +402,7 @@ plus four variables passed on the command line or in the file:
 - `github_org` — GitHub organization name
 
 ```bash
-cd infra/terraform && terraform apply \
-  -var-file=secrets.tfvars \
-  -var='lore_api_url=https://lore-api.example.com' \
-  -var='lore_ui_url=https://lore.example.com' \
-  -var='lore_ui_hostname=lore.example.com' \
-  -var='github_org=your-github-org'
+cd infra/terraform && terraform apply
 ```
 
 CI workflows also require the GitHub Actions variable `GCP_PROJECT_ID`

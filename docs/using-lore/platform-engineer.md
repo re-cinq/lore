@@ -125,7 +125,7 @@ Manage per-client tokens via `/api/tokens` (admin-only). Rate limits: 30/min web
 ## Set up Slack
 
 1. Create a Slack app from `scripts/slack-app-manifest.yaml`
-2. Store the signing secret and bot token in `secrets.tfvars` (`slack_signing_secret`, `slack_bot_token`)
+2. Store the signing secret and bot token in GCP Secret Manager (`lore-slack-signing-secret`, `lore-slack-bot-token`) — see [rotating-secrets.md](../rotating-secrets.md)
 3. `terraform apply` to sync secrets via ESO
 4. Map channels to repos: `UPDATE lore.repos SET settings = settings || '{"slack_channel_id":"C..."}'`
 5. Invite the bot to each channel
@@ -136,7 +136,7 @@ Developers then use `/lore` in those channels — see the [Developer Guide](deve
 
 By default every station run executes on the central GKE cluster. A **satellite** lets station runs execute on a cluster you own — a developer's minikube, a customer cluster, a GPU box — by registering one cluster-agent per cluster ([spec](../../specs/running-stations-in-any-k8s-cluster/spec.md)). The satellite pulls work (the GitLab Runner model): it claims queued station runs from the central lore-api, launches them as Agent CRs locally, and reports outcomes back — so it works from behind NAT with no inbound access.
 
-**One-time central setup.** Set `cluster_agent_registration_token` in `secrets.tfvars` and `terraform apply`. The token lands in GCP Secret Manager as `lore-cluster-agent-registration-token`, ESO mirrors it into the `lore-api` namespace, and lore-api starts accepting registrations. Leave it empty and `POST /api/cluster-agents/register` answers 401 — satellites stay disabled.
+**One-time central setup.** Seed `lore-cluster-agent-registration-token` in GCP Secret Manager, set `enable_cluster_agent_registration = true` in `terraform.tfvars`, and `terraform apply`. The token lands in GCP Secret Manager as `lore-cluster-agent-registration-token`, ESO mirrors it into the `lore-api` namespace, and lore-api starts accepting registrations. Leave the gate false and `POST /api/cluster-agents/register` answers 401 — satellites stay disabled.
 
 **Install a satellite.** Point `kubectl` at the target cluster and run the install script — it checks the toolchain, creates the namespaces, vendors the chart dependency, and `helm upgrade --install`s the release (idempotent; re-running is free):
 
@@ -153,7 +153,7 @@ It also needs `GHCR_USERNAME`/`GHCR_TOKEN` (image pulls) and an LLM credential i
 
 Optionally set `GITHUB_TOKEN` (a PAT scoped to the repos this satellite may push to) — without it, a claimed run needing a git push (`agent`, `github_action`, `retrospective` node types) fails "GitHub not configured" after launch, while tag-only work (`validate`, `gate`, `detect`, `comment-triage`) is unaffected. Handing a satellite any GitHub credential is deliberate, so it is never required; the chart also accepts the full GitHub App triple (`github.app.appId`/`privateKey`/`installationId`) via plain `helm --set` for a satellite acting as the org's own identity.
 
-**Live telemetry (optional).** By default a satellite's runs report only their terminal outcome — no cost rows, no live run view. To turn on live per-tool-call telemetry, stand up the Floor's telemetry ingress centrally (set `lore_agent_events_hostname` in `secrets.tfvars` and apply), then pass that host to the installer:
+**Live telemetry (optional).** By default a satellite's runs report only their terminal outcome — no cost rows, no live run view. To turn on live per-tool-call telemetry, stand up the Floor's telemetry ingress centrally (set `lore_agent_events_hostname` in `terraform.tfvars` and apply), then pass that host to the installer:
 
 ```bash
 scripts/install-satellite.sh ... --telemetry-url https://lore-agent-events.example.com/api/agent-events

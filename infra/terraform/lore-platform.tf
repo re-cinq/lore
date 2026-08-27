@@ -148,7 +148,7 @@ resource "helm_release" "lore_platform" {
       internalTokenSecret = { name = "lore-agent-internal-token", key = "token" }
       # The cost-sync maintenance job's org admin key (#1348). The es_mcp_anthropic
       # ExternalSecret only carries the anthropic-admin-key entry when
-      # var.anthropic_admin_api_key is set; the env stays optional either way.
+      # var.enable_anthropic_admin_key is true; the env stays optional either way.
       anthropicAdminKeySecret = { name = "lore-anthropic-key", key = "anthropic-admin-key" }
     }
 
@@ -277,8 +277,8 @@ resource "helm_release" "lore_platform" {
       # The anthropic-cost-sync station's org admin key (moved here from lore-api
       # in #1522). Its OWN namespace secret — secrets are namespace-scoped, so
       # the lore-api `lore-anthropic-key` is out of reach here. es_stations_anthropic_key
-      # carries the anthropic-admin-key entry only when var.anthropic_admin_api_key
-      # is set; the env stays optional either way.
+      # carries the anthropic-admin-key entry only when
+      # var.enable_anthropic_admin_key is true; the env stays optional either way.
       anthropicAdminKeySecret = { name = "lore-stations-anthropic-key", key = "anthropic-admin-key" }
     }
 

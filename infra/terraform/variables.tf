@@ -14,53 +14,13 @@ variable "cluster_name" {
   type        = string
 }
 
-# Secret values — pass via .tfvars or TF_VAR_ env
-
-variable "github_app_id" {
-  type      = string
-  sensitive = true
-}
-
-variable "github_app_private_key" {
-  type      = string
-  sensitive = true
-}
-
-variable "github_app_installation_id" {
-  type      = string
-  sensitive = true
-}
-
-variable "anthropic_api_key" {
-  type      = string
-  sensitive = true
-}
-
-variable "anthropic_admin_api_key" {
-  type      = string
-  sensitive = true
-  default   = ""
-}
-
-variable "db_password" {
-  type      = string
-  sensitive = true
-}
-
-variable "ingest_token" {
-  type      = string
-  sensitive = true
-}
-
-# The pre-shared token a new execution cluster presents to
-# POST /api/cluster-agents/register (specs/running-stations-in-any-k8s-cluster
-# FR1). Only used to register; every later call uses the per-agent token the
-# registration mints. Empty disables registration (the route answers 401).
-variable "cluster_agent_registration_token" {
-  type      = string
-  sensitive = true
-  default   = ""
-}
+# Feature gates for optional secret-backed wiring.
+#
+# There are NO secret-value variables here any more. Secret material lives in
+# GCP Secret Manager and nowhere else (see secrets.tf); Terraform resolves it by
+# NAME. These booleans only answer "does this resource exist" — a question that
+# is deployment topology, not a credential, and so belongs in a committed
+# tfvars where the whole team can see it.
 
 # Gates the web-ui admin-token ExternalSecret. The web-ui calls the mcp-server's
 # two-key-gated dark-factory settings endpoint with an admin-scoped token. Mint
@@ -73,49 +33,22 @@ variable "enable_ui_admin_token" {
   default = false
 }
 
-variable "webhook_secret" {
-  type      = string
-  sensitive = true
-  default   = ""
+# Gates the org-admin Anthropic key used by the cost-sync maintenance job
+# (#1348). When true, the anthropic ExternalSecrets carry an extra
+# `anthropic-admin-key` entry sourced from `lore-anthropic-admin-api-key`.
+variable "enable_anthropic_admin_key" {
+  type    = bool
+  default = false
 }
 
-variable "agent_internal_token" {
-  description = "Shared secret between mcp-server and lore-floor for /api/trigger/* (e.g. review-reactor webhook fan-out)."
-  type        = string
-  sensitive   = true
-}
-
-variable "github_oauth_client_id" {
-  type      = string
-  sensitive = true
-}
-
-variable "github_oauth_client_secret" {
-  type      = string
-  sensitive = true
-}
-
-variable "nextauth_secret" {
-  type      = string
-  sensitive = true
-}
-
-variable "slack_signing_secret" {
-  type      = string
-  sensitive = true
-  default   = ""
-}
-
-variable "slack_bot_token" {
-  type      = string
-  sensitive = true
-  default   = ""
-}
-
-variable "ghcr_pull_secret_dockerconfigjson" {
-  type        = string
-  sensitive   = true
-  description = "Base64-encoded .dockerconfigjson for GHCR"
+# Gates satellite-cluster registration (specs/running-stations-in-any-k8s-cluster
+# FR1). When true, `lore-cluster-agent-registration-token` is mirrored into the
+# lore-api and lore-cluster-agent namespaces and lore-api starts accepting
+# registrations; only the registration call uses it, every later call uses the
+# per-agent token that registration mints. False leaves the route answering 401.
+variable "enable_cluster_agent_registration" {
+  type    = bool
+  default = false
 }
 
 variable "log_retention_days" {
