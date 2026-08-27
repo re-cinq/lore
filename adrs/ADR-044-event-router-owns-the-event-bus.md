@@ -50,11 +50,11 @@ ADR-024 pins to it and reaches every byte of its data over HTTP.
 - `POST /api/events` is the single front door, and every producer uses it —
   GitHub webhooks, the Kubernetes watch, human-station resumes, cron ticks,
   CI-ingest, and the internal ingest triggers alike. A producer reports the
-  whole `EventInsert` verbatim; the router does not reshape it. ([validated by posts the whole EventInsert](libs/shared/src/project/events/event-reporter-http.test.ts#L20))
+  whole `EventInsert` verbatim; the router does not reshape it. ([validated by posts the whole EventInsert](libs/shared/src/project/events/event-reporter-http.test.ts#L21))
 - A report that does not land throws rather than resolving. An event that fails
   to insert loses the work it was meant to start, and a producer that reports
   success anyway converts that loss into silence — which is how a resume behind
-  a `202` went missing before (FR6.32). ([validated by throws on a refusal rather than losing the event silently](libs/shared/src/project/events/event-reporter-http.test.ts#L53))
+  a `202` went missing before (FR6.32). ([validated by throws on a refusal rather than losing the event silently](libs/shared/src/project/events/event-reporter-http.test.ts#L54))
 - The route carries two authentication branches, not two routes. Multiplexing
   an untrusted external caller and a trusted internal one on one path means the
   branch cannot be a single hapi auth strategy — both checks run in sequence
