@@ -276,6 +276,70 @@ export default function SpendView({
         )}
       </div>
 
+      {loreByCluster && (
+        <>
+          <h2>Cost by Cluster (MTD)</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>Cluster</th>
+                <th>Calls</th>
+                <th>Cost</th>
+              </tr>
+            </thead>
+            <tbody>
+              {/* Two honest groups: the null bucket is the home account's own
+                  spend (no cluster-agent claim), the rest are registered
+                  clusters. A satellite here bills to its own credential, so its
+                  spend does not touch the balance below. */}
+              {loreByCluster.some((r) => r.cluster === null) && (
+                <tr>
+                  <td colSpan={3} className={styles.subhead}>
+                    Non-cluster
+                  </td>
+                </tr>
+              )}
+              {loreByCluster
+                .filter((r) => r.cluster === null)
+                .map((r) => (
+                  <tr key="no-cluster">
+                    <td>
+                      <span className="badge">(no cluster)</span>
+                    </td>
+                    <td>{num(r.calls)}</td>
+                    <td>{usd(r.cost_usd)}</td>
+                  </tr>
+                ))}
+              {loreByCluster.some((r) => r.cluster !== null) && (
+                <tr>
+                  <td colSpan={3} className={styles.subhead}>
+                    Clusters
+                  </td>
+                </tr>
+              )}
+              {loreByCluster
+                .filter((r) => r.cluster !== null)
+                .map((r) => (
+                  <tr key={r.cluster}>
+                    <td>
+                      <span className="badge">{r.cluster}</span>
+                    </td>
+                    <td>{num(r.calls)}</td>
+                    <td>{usd(r.cost_usd)}</td>
+                  </tr>
+                ))}
+              {loreByCluster.length === 0 && (
+                <tr>
+                  <td colSpan={3} className={`meta ${styles.center}`}>
+                    No cluster-attributed spend
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </>
+      )}
+
       {/* Below Month to Date, so the figures it depends on are read first: the
           balance is month-to-date spend subtracted from what was recorded, and
           it makes more sense after you have seen the spend than before.
@@ -322,6 +386,12 @@ export default function SpendView({
           </div>
         )}
       </div>
+      {loreByCluster?.some((r) => r.cluster !== null) && (
+        <p className={`meta ${styles.subnote}`}>
+          Cluster spend shown above is excluded from this balance: a satellite
+          runs on its own credential and does not draw these credits.
+        </p>
+      )}
       {recordAction && (
         <RecordTopUp first={!budget} recordAction={recordAction} />
       )}
@@ -468,39 +538,6 @@ export default function SpendView({
           )}
         </tbody>
       </table>
-
-      {loreByCluster && (
-        <>
-          <h2>Cost by Cluster (MTD)</h2>
-          <table>
-            <thead>
-              <tr>
-                <th>Cluster</th>
-                <th>Calls</th>
-                <th>Cost</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loreByCluster.map((r) => (
-                <tr key={r.cluster}>
-                  <td>
-                    <span className="badge">{r.cluster}</span>
-                  </td>
-                  <td>{num(r.calls)}</td>
-                  <td>{usd(r.cost_usd)}</td>
-                </tr>
-              ))}
-              {loreByCluster.length === 0 && (
-                <tr>
-                  <td colSpan={3} className={`meta ${styles.center}`}>
-                    No cluster-attributed spend
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </>
-      )}
 
       {orgAvailable && (
         <>

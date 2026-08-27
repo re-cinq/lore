@@ -396,14 +396,14 @@ describe("GET /api/spend", () => {
     const pool = poolAnswering({
       "pipeline.cluster_agents": [
         { cluster: "colleague-satellite", calls: 12, cost_usd: 88.5 },
-        { cluster: "(central / regular)", calls: 40, cost_usd: 20 },
+        { cluster: null, calls: 40, cost_usd: 20 },
       ],
     });
 
     expect((await get(pool)).result).toMatchObject({
       lore_by_cluster: [
         { cluster: "colleague-satellite", calls: 12, cost_usd: 88.5 },
-        { cluster: "(central / regular)", calls: 40, cost_usd: 20 },
+        { cluster: null, calls: 40, cost_usd: 20 },
       ],
     });
   });
@@ -411,8 +411,8 @@ describe("GET /api/spend", () => {
   it("groups cluster spend through station_runs and labels the unclaimed rows", async () => {
     // Pinned as SQL text because a mocked pool answers any shape happily. A
     // call with no station run (a direct-API task) has no cluster_agent_id and
-    // must fall into one honest bucket, not vanish — hence the outer LEFT JOINs
-    // and the COALESCE label rather than an inner join that would drop it.
+    // must fall into the null (no-cluster) bucket, not vanish — hence the outer
+    // LEFT JOINs and a nullable name rather than an inner join that would drop it.
     const pool = makePool();
 
     pool.query.mockResolvedValue({ rows: [] });

@@ -308,15 +308,19 @@ const SpendSchema = z.object({
    * the one figure on this page that separates a satellite cluster's burn from
    * the home cluster's. A call reaches its cluster through the station run it
    * belongs to (`llm_calls.station_run_id` → `station_runs.cluster_agent_id`),
-   * so a direct-API call with no station run carries no cluster and lands in a
-   * single labelled bucket rather than vanishing.
+   * so a direct-API call with no station run carries no cluster.
+   *
+   * `cluster` is NULL for that no-cluster bucket rather than a sentinel string:
+   * a real cluster can be named anything (there IS one registered `central`),
+   * so a label like `(central / regular)` collides with it. Null is the honest
+   * "no cluster-agent claim", and the view owns the label and the grouping.
    *
    * Computed, not billed: Anthropic's cost report cannot split one workspace by
    * key, so per-cluster attribution exists only on the token-counted side.
    */
   lore_by_cluster: z.array(
     z.object({
-      cluster: z.string(),
+      cluster: z.string().nullable(),
       calls: z.number(),
       cost_usd: z.number(),
     }),
@@ -533,23 +537,25 @@ export function spendRoute(getPool: () => Pool | null): ServerRoute {
       // Which cluster ran the call, via the station run it belongs to. Outer
       // joins on purpose: a call with no station run (a direct-API task) has no
       // cluster_agent_id, and an inner join would silently drop it instead of
-      // gathering it under the labelled home bucket. `optionalTableRows` because
-      // station_runs / cluster_agents arrive with migrations — a deployment
-      // that predates them must render empty, not 500 the whole page.
+      // gathering it under the null (no-cluster) bucket. `cluster` is left NULL
+      // there rather than labelled, so it can never collide with a real cluster
+      // name — the view owns the label and splits null from the rest.
+      // `optionalTableRows` because station_runs / cluster_agents arrive with
+      // migrations — a deployment predating them renders empty, not a 500.
       const loreByCluster = await optionalTableRows<{
-        cluster: string;
+        cluster: string | null;
         calls: number;
         cost_usd: number;
       }>(
         pool,
-        `SELECT COALESCE(ca.name, '(central / regular)') AS cluster,
+        `SELECT ca.name AS cluster,
            COUNT(*)::int AS calls, SUM(lc.cost_usd)::float8 AS cost_usd
          FROM pipeline.llm_calls lc
          LEFT JOIN pipeline.station_runs sr
            ON sr.station_run_id = lc.station_run_id
          LEFT JOIN pipeline.cluster_agents ca ON ca.id = sr.cluster_agent_id
          WHERE lc.${MTD}
-         GROUP BY 1 ORDER BY cost_usd DESC`,
+         GROUP BY ca.name ORDER BY cost_usd DESC`,
       );
 
       // Read last, so the statement ordering every other read already depends
