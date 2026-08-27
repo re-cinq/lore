@@ -99,11 +99,22 @@ async function remainingBudget(
   // the month-to-date unbilled read already gives: `anthropic_cost_daily` is
   // absent on clusters with no admin key, and a subquery against it would take
   // the Lore-computed half down with it.
+  // Only spend that DREW these credits belongs in the balance. A call claimed
+  // by a registered satellite cluster ran on that cluster's own credential (a
+  // colleague's subscription), so its cost never touched this account — it is
+  // in `llm_calls` because Lore prices every call it sees, but it is not in the
+  // billed report and must not be in the balance either, or the card goes
+  // negative on money the account never spent. The LEFT JOIN keeps calls with
+  // no station run (direct API tasks) and home/central runs (null claim); it
+  // drops only satellite-attributed ones.
   const { rows: computed } = await pool.query<{ cost_usd: number }>(
-    `SELECT COALESCE(SUM(cost_usd), 0)::float8 AS cost_usd
-       FROM pipeline.llm_calls
-      WHERE created_at >= $1::timestamptz
-        AND ($2::date IS NULL OR created_at::date > $2::date)`,
+    `SELECT COALESCE(SUM(lc.cost_usd), 0)::float8 AS cost_usd
+       FROM pipeline.llm_calls lc
+       LEFT JOIN pipeline.station_runs sr
+         ON sr.station_run_id = lc.station_run_id
+      WHERE lc.created_at >= $1::timestamptz
+        AND ($2::date IS NULL OR lc.created_at::date > $2::date)
+        AND sr.cluster_agent_id IS NULL`,
     [anchoredAt, billed?.billed_through ?? null],
   );
   const spentSinceUsd =

@@ -445,4 +445,30 @@ describe("GET /api/spend", () => {
     expect(res.statusCode).toBe(200);
     expect(res.result).toMatchObject({ lore_by_cluster: [] });
   });
+
+  it("excludes satellite-cluster spend from the balance's computed side", async () => {
+    // A satellite runs on a colleague's subscription token, so its cost never
+    // draws the recorded API credits and never enters the billed report either
+    // — counting it against the balance would drag it negative on money this
+    // account never spent. The computed half LEFT JOINs the station run and
+    // keeps only calls with no cluster-agent claim (home/central and direct).
+    const pool = poolAnswering({
+      "pipeline.credit_ledger": [
+        { ledger_total_usd: 100, anchored_at: "2026-08-01T00:00:00Z" },
+      ],
+      "pipeline.anthropic_cost_daily": [{ billed_through: "2026-08-19" }],
+    });
+
+    await get(pool);
+
+    const computed = pool.query.mock.calls.find(
+      ([sql]) =>
+        String(sql).includes("pipeline.llm_calls") &&
+        String(sql).includes("$2::date"),
+    );
+    const sql = String(computed?.[0]);
+
+    expect(sql).toContain("pipeline.station_runs");
+    expect(sql).toContain("cluster_agent_id IS NULL");
+  });
 });
