@@ -110,9 +110,16 @@ export default function ClusterAgentsView({
                   )}
                 </td>
                 <td>
+                  {/* BOUND, never wrapped in an arrow. This is a server
+                      component: an inline closure is a plain function and
+                      React refuses to serialize it to a client component
+                      ("Functions cannot be passed directly to Client
+                      Components"), which took the whole page down. `.bind`
+                      produces a server action, which is serializable — and
+                      keeps the agent id server-side either way. */}
                   <PauseClusterButton
                     paused={agent.paused}
-                    toggle={(paused) => togglePaused(agent.id, paused)}
+                    toggle={togglePaused.bind(null, agent.id)}
                   />
                 </td>
               </tr>
