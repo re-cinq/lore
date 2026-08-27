@@ -34,6 +34,7 @@ export {
 } from "./cluster/per-task-token.js";
 export { preserveUnownedFields } from "./cluster/preserve-unowned.js";
 export type { AgentNodeStatus } from "./cluster/agent-node-status.js";
+export { statusFromAgentCr } from "./cluster/agent-node-status.js";
 export type {
   AgentApi,
   AgentStatusReader,

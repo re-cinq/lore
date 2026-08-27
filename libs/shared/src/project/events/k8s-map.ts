@@ -2,9 +2,17 @@
  * Pure Agent-CR → event mapping (layer 1). The k8s watch hands each observed CR
  * here; only terminal phases (Succeeded/Failed) produce an event, keyed on
  * task-id + phase so repeated MODIFIED notifications and re-list catch-ups
- * collapse to one row. No `@kubernetes/client-node` or `@re-cinq/agent-contracts`
- * import here — keeps the mapper unit-testable; the label is the CR contract,
- * and the label NAMES are the shared CR contract (agent-cr-labels).
+ * collapse to one row. No `@kubernetes/client-node` import here — keeps the
+ * mapper unit-testable; the label is the CR contract, and the label NAMES are
+ * the shared CR contract (agent-cr-labels).
+ *
+ * The event carries the CR's status (`params.status`, the same
+ * `AgentNodeStatus` shape `statusFromAgentCr` builds for the central
+ * cluster-agent's own status route) so a consumer never has to read the CR
+ * back out of Kubernetes to learn what it said — the read that only ever
+ * reaches the CENTRAL cluster and returns nothing for a satellite-claimed CR.
+ * This is what makes the notification path (cluster-agent → event-router →
+ * Floor) cluster-agnostic end to end, not just for delivery.
  */
 
 import type { EventInsert } from "../../events.js";
@@ -32,7 +40,7 @@ export const AGENT_EVENT_NAMES: string[] = Object.values(
 
 export interface AgentLike {
   metadata?: { name?: string; labels?: Record<string, string> };
-  status?: { phase?: string };
+  status?: { phase?: string; output?: string; failureReason?: string };
 }
 
 export function mapAgentToEvent(agent: AgentLike): EventInsert | null {
@@ -53,6 +61,15 @@ export function mapAgentToEvent(agent: AgentLike): EventInsert | null {
   const nodeId = labels[NODE_ID_LABEL];
   const iteration = Number(labels[NODE_ITERATION_LABEL] ?? "1");
   const agentName = agent.metadata?.name ?? null;
+  // The full status the watch already holds (phase is confirmed non-null
+  // above, so this is a plain passthrough — no `statusFromAgentCr` needed),
+  // so a consumer never re-fetches it from a cluster it may not be able to
+  // reach.
+  const status = {
+    phase,
+    output: agent.status?.output,
+    failureReason: agent.status?.failureReason,
+  };
 
   // An assembly-line NODE CR: its own event family, deduped per CR name (all
   // node CRs of one line share the task-id label — a task-keyed dedupe would
@@ -63,7 +80,15 @@ export function mapAgentToEvent(agent: AgentLike): EventInsert | null {
     return {
       eventName: `kubernetes.agent_node.${action}`,
       source: "kubernetes",
-      params: { assemblyLineId, nodeId, iteration, agentName, taskId, phase },
+      params: {
+        assemblyLineId,
+        nodeId,
+        iteration,
+        agentName,
+        taskId,
+        phase,
+        status,
+      },
       dedupeKey: k8sAgentNodeDedupeKey(agentName, phase),
     };
   }
@@ -71,7 +96,7 @@ export function mapAgentToEvent(agent: AgentLike): EventInsert | null {
   return {
     eventName: `kubernetes.agent.${action}`,
     source: "kubernetes",
-    params: { taskId, agentName, phase },
+    params: { taskId, agentName, phase, status },
     dedupeKey: k8sDedupeKey(taskId, phase),
   };
 }

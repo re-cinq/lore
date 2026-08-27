@@ -292,6 +292,41 @@ describe("createNodeEventHandler", () => {
     ]);
   });
 
+  it("resolves from the event's reported status without reading the CR back", async () => {
+    const h = harness();
+    const { id, crName } = await reviewInFlight(h);
+
+    h.deps.readAgentStatus = async () => {
+      throw new Error(
+        "readAgentStatus must not be called when status is reported",
+      );
+    };
+    await h.handler({
+      ...params(id, crName),
+      status: { phase: "Succeeded", output: "notes\nREVIEW_RESULT:APPROVED" },
+    });
+
+    expect(h.port.nodes[0]).toMatchObject({ outcome: "success" });
+    expect(await h.port.getById(id)).toMatchObject({ status: "finished" });
+  });
+
+  it("uses the reported status even for a CR claimed by an unreachable cluster", async () => {
+    // The exact case that stranded PR #1599's review: a satellite-claimed CR
+    // this Floor's central-only read cannot see. Reporting the status on the
+    // event itself makes the visibility gate irrelevant for this event.
+    const h = harness();
+    const { id, crName } = await reviewInFlight(h);
+
+    h.port.nodes[0].clusterAgentId = "satellite-1";
+    h.deps.readAgentStatus = async () => null;
+    await h.handler({
+      ...params(id, crName),
+      status: { phase: "Succeeded", output: "notes\nREVIEW_RESULT:APPROVED" },
+    });
+
+    expect(h.port.nodes[0]).toMatchObject({ outcome: "success" });
+  });
+
   it("falls back to the event's phase when the CR is already pruned (404)", async () => {
     const h = harness();
     const { id, crName } = await reviewInFlight(h);

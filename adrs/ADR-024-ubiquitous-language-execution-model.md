@@ -145,7 +145,7 @@ and lose the update; no `resourceVersion` ever crosses the wire.
 - Every route requires the same bearer token every other service-to-service
   call presents. ([validated by refuses every route without a bearer token](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L223))
 - A CR the controller has not stamped yet reads as Pending rather than absent —
-  the distinction a watcher acts on. ([validated by a CR the controller has not stamped yet maps to Pending, not absence](apps/cluster-agent/src/kernel/kube-agent-api.test.ts#L6), [`kube-agent-api.test.ts:16`](apps/cluster-agent/src/kernel/kube-agent-api.test.ts#L16))
+  the distinction a watcher acts on. ([validated by a CR the controller has not stamped yet maps to Pending, not absence](libs/shared/src/cluster/agent-node-status.test.ts#L6), [`agent-node-status.test.ts:16`](libs/shared/src/cluster/agent-node-status.test.ts#L16))
 - An empty minted token is refused where the cause is legible, rather than
   written as a present-but-useless Secret key that fails later inside a pod's
   init container. ([validated by throws naming the repo and the App vars when the token comes back empty](apps/cluster-agent/src/kernel/kube-token-provisioner.test.ts#L13), [`kube-token-provisioner.test.ts:5`](apps/cluster-agent/src/kernel/kube-token-provisioner.test.ts#L5))

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { mapAgentToEvent } from "./k8s-map.js";
+import { mapAgentToEvent, type AgentLike } from "./k8s-map.js";
 import { ASSEMBLY_RUN_ID_LABEL } from "./agent-cr-labels.js";
 
 const LABEL = "lore.re-cinq.com/task-id";
@@ -43,7 +43,7 @@ describe("mapAgentToEvent reads both CR-label spellings", () => {
 });
 
 describe("mapAgentToEvent for assembly-line node CRs", () => {
-  const nodeCr = (phase: string) => ({
+  const nodeCr = (phase: string): AgentLike => ({
     metadata: {
       name: "a1b2c3d4-review",
       labels: {
@@ -67,8 +67,34 @@ describe("mapAgentToEvent for assembly-line node CRs", () => {
         agentName: "a1b2c3d4-review",
         taskId: "a1b2c3d4-e5f6-4711-8000-000000000000",
         phase: "Succeeded",
+        status: { phase: "Succeeded" },
       },
       dedupeKey: "k8s:a1b2c3d4-review:Succeeded",
+    });
+  });
+
+  it("carries the CR's output on the reported status", () => {
+    const cr = nodeCr("Succeeded");
+
+    cr.status = {
+      phase: "Succeeded",
+      output: 'LORE_NODE_RESULT: {"outcome":"success"}',
+    };
+
+    expect(mapAgentToEvent(cr)?.params?.status).toEqual({
+      phase: "Succeeded",
+      output: 'LORE_NODE_RESULT: {"outcome":"success"}',
+    });
+  });
+
+  it("carries the CR's failureReason on a Failed CR's reported status", () => {
+    const cr = nodeCr("Failed");
+
+    cr.status = { phase: "Failed", failureReason: "BackoffLimitExceeded" };
+
+    expect(mapAgentToEvent(cr)?.params?.status).toEqual({
+      phase: "Failed",
+      failureReason: "BackoffLimitExceeded",
     });
   });
 
@@ -129,7 +155,12 @@ describe("mapAgentToEvent", () => {
     expect(mapAgentToEvent(agent)).toEqual({
       eventName: "kubernetes.agent.succeeded",
       source: "kubernetes",
-      params: { taskId: "t1", agentName: "agent-t1", phase: "Succeeded" },
+      params: {
+        taskId: "t1",
+        agentName: "agent-t1",
+        phase: "Succeeded",
+        status: { phase: "Succeeded" },
+      },
       dedupeKey: "k8s:t1:Succeeded",
     });
   });
