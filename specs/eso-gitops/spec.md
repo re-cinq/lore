@@ -48,8 +48,8 @@ All secrets consolidated into GCP Secret Manager:
 
 ```
 Terraform
-├── google_secret_manager_secret (11 secrets)
-├── google_secret_manager_secret_version (values)
+├── google_secret_manager_secret (containers only — ADR-046)
+│     (values are NOT Terraform-managed; see the amendment below)
 ├── helm_release: external-secrets (ESO operator)
 ├── kubectl_manifest: ClusterSecretStore (GCP provider)
 ├── kubectl_manifest: ExternalSecret per namespace (4)
@@ -187,6 +187,52 @@ For Day 2 operations:
 | `terraform/lore-crd.tf` | New: CRD + RBAC + controller |
 | `terraform/configmaps.tf` | New: task-types ConfigMaps |
 | `terraform/modules/gke-mcp/*/values.yaml` | Update: reference ESO secret names |
+
+## Amendment (2026-08-27) — Rationale: Terraform owns containers, not values
+
+The architecture above placed both halves of a secret under Terraform —
+`google_secret_manager_secret` for the name and
+`google_secret_manager_secret_version` for the value, fed by `sensitive = true`
+variables from the gitignored `infra/terraform/secrets.tfvars`. That satisfied
+acceptance criterion 4 (no secret values in Git) and still produced a recurring
+outage, because a gitignored per-laptop file is unshareable and therefore
+divergent: the apply that reconciled two copies always won, and a stale checkout
+would push an OLD value back up as a new version, ESO would sync it, and the
+fleet would 401.
+
+The version resources are removed. Terraform declares the containers and
+resolves values by name; rotation is `gcloud secrets versions add` plus the
+restart set. Full reasoning, the rejected alternatives, and the traps
+(`moved` blocks on address changes, the two-apply bootstrap) are in
+[ADR-046](../../adrs/ADR-046-secret-values-are-not-terraform-inputs.md);
+the operational procedures are in
+[docs/rotating-secrets.md](../../docs/rotating-secrets.md).
+
+Two acceptance criteria below are superseded by this amendment:
+
+- **AC 4** is strengthened rather than replaced. "No secret values in Git" was
+  always true and was never sufficient — the file was outside Git and still
+  functioned as a second source of truth. The binding criterion is now: *no
+  secret value is a Terraform input, and `infra/terraform/variables.tf` contains
+  no `sensitive = true` variable.*
+- **AC 7** (`terraform destroy` + `terraform apply` fully recovers the platform)
+  no longer holds. Secret containers carry `prevent_destroy`, because they hold
+  every historical version of a live credential. A full teardown now means
+  `-target`ing around them, or dropping the lifecycle block as a separate
+  reviewed commit. Recovery *without* teardown is unaffected and is in fact
+  better: a rebuilt platform re-attaches to the surviving secrets with no
+  re-seeding.
+
+This spec's `| Status |` row stays **Draft** despite the work being live, and
+that is a known debt rather than an oversight: `lore/require-status-matches-coverage`
+is an error, and flipping the row demands a `([validated by …])` link on all 33
+of this spec's testable statements. That is the spec-to-shipped exercise, not a
+line in an amendment — tracked separately.
+
+Terraform no longer proves a secret has a value, so `scripts/infra/seed-secrets.sh`
+(seeds a fresh environment, `--check` fails on an empty container) and
+`scripts/infra/check-secrets.sh` (fails when a consuming pod predates the version
+it should be holding) carry that guarantee instead.
 
 ## Out of Scope
 
