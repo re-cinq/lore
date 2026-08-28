@@ -14,6 +14,14 @@ import {
   conversationEntries,
   clockTime,
 } from "./turn-transcript-presenter";
+import {
+  HOOK_STARTED_SESSION,
+  HOOK_STARTED_BOOTSTRAP,
+  HOOK_RESPONSE_SESSION,
+  HOOK_PROGRESS_BOOTSTRAP_FIRST,
+  HOOK_PROGRESS_BOOTSTRAP_LAST,
+  HOOK_RESPONSE_BOOTSTRAP,
+} from "@/lib/agent-log-entries.fixtures";
 
 function turn(id: string, nodeId: string | null): AgentRunTurn {
   return {
@@ -277,5 +285,48 @@ describe("clockTime", () => {
 
   it("is empty for an unparseable timestamp", () => {
     expect(clockTime("not-a-date")).toBe("");
+  });
+});
+
+describe("conversationEntries — hook turns", () => {
+  // The reported bug: pod agent-job-595d2b0b-ccb-implement-cczl8 emitted eight
+  // hook turns, four of them the same cumulative npm log at growing length, and
+  // every one of them rendered as its own raw JSON blob.
+  const hookTurn = (id: string, line: string, at: string) =>
+    turnWithEnvelope(id, JSON.parse(line), at);
+
+  it("folds a hook's cumulative turns onto the last turn's timestamp", () => {
+    const entries = conversationEntries([
+      hookTurn("1", HOOK_STARTED_BOOTSTRAP, "2026-08-28T11:19:08.000Z"),
+      hookTurn("2", HOOK_PROGRESS_BOOTSTRAP_FIRST, "2026-08-28T11:19:09.000Z"),
+      hookTurn("3", HOOK_PROGRESS_BOOTSTRAP_LAST, "2026-08-28T11:19:29.000Z"),
+      hookTurn("4", HOOK_RESPONSE_BOOTSTRAP, "2026-08-28T11:19:31.000Z"),
+    ]);
+
+    expect(entries).toMatchObject({
+      length: 1,
+      0: {
+        at: "2026-08-28T11:19:31.000Z",
+        entry: { kind: "hook", phase: "response", outcome: "success" },
+      },
+    });
+  });
+
+  it("renders the run's six interleaved hook turns as four entries, none raw", () => {
+    const entries = conversationEntries([
+      hookTurn("1", HOOK_STARTED_SESSION, "2026-08-28T11:19:08.000Z"),
+      hookTurn("2", HOOK_STARTED_BOOTSTRAP, "2026-08-28T11:19:08.000Z"),
+      hookTurn("3", HOOK_RESPONSE_SESSION, "2026-08-28T11:19:08.000Z"),
+      hookTurn("4", HOOK_PROGRESS_BOOTSTRAP_FIRST, "2026-08-28T11:19:09.000Z"),
+      hookTurn("5", HOOK_PROGRESS_BOOTSTRAP_LAST, "2026-08-28T11:19:29.000Z"),
+      hookTurn("6", HOOK_RESPONSE_BOOTSTRAP, "2026-08-28T11:19:31.000Z"),
+    ]);
+
+    expect(entries.map(({ entry }) => entry.kind)).toEqual([
+      "hook",
+      "hook",
+      "hook",
+      "hook",
+    ]);
   });
 });

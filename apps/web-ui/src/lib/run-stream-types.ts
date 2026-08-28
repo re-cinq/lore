@@ -14,7 +14,13 @@
 // a document, or if #1347 moves this read to lore-api.
 
 export type AgentRunEventType =
-  "init" | "message" | "thinking" | "tool_call" | "tool_result" | "result";
+  | "init"
+  | "message"
+  | "thinking"
+  | "tool_call"
+  | "tool_result"
+  | "result"
+  | "hook";
 
 export interface RunStreamEvent {
   id: string;
@@ -41,6 +47,7 @@ const EVENT_TYPES: ReadonlySet<string> = new Set<AgentRunEventType>([
   "tool_call",
   "tool_result",
   "result",
+  "hook",
 ]);
 
 function str(value: unknown): string | null {
@@ -69,7 +76,7 @@ function stringList(value: unknown): string[] {
  * Parse one SSE `data:` payload into the mirrored row. Returns null — never
  * throws — for malformed JSON, a non-object body, a missing identity field, or
  * an `eventType` this client does not know. Dropping unknown event types
- * silently is the forward-compatibility contract: the Floor may add a seventh
+ * silently is the forward-compatibility contract: the Floor may add an eighth
  * stream-json kind without breaking a deployed browser tab.
  */
 export function parseRunStreamEvent(raw: string): RunStreamEvent | null {

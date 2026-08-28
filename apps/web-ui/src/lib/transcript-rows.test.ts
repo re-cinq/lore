@@ -284,3 +284,43 @@ describe("the transcript opens with what the node was GIVEN", () => {
     expect((rows[0] as { summary: string }).summary.length).toBeLessThan(300);
   });
 });
+
+describe("hook rows", () => {
+  it("renders a finished hook with its name and outcome", () => {
+    expect(
+      toTranscriptRow(
+        event({
+          id: "7",
+          eventType: "hook",
+          summary: "hook SessionStart:startup success",
+          payload: {
+            hookEvent: "SessionStart",
+            outcome: "success",
+            exitCode: 0,
+          },
+        }),
+      ),
+    ).toEqual({
+      kind: "hook",
+      seq: "7",
+      ts: "2026-07-20T10:00:00.000Z",
+      name: "SessionStart",
+      summary: "hook SessionStart:startup success",
+      isError: false,
+    });
+  });
+
+  it("falls back to 'hook' when the row carries no hook event name", () => {
+    expect(
+      toTranscriptRow(event({ eventType: "hook", summary: "hook x blocked" })),
+    ).toMatchObject({ name: "hook", isError: false });
+  });
+
+  it("carries the error flag of a hook that exited non-zero", () => {
+    expect(
+      toTranscriptRow(
+        event({ eventType: "hook", isError: true, summary: "hook x blocked" }),
+      ),
+    ).toMatchObject({ kind: "hook", isError: true });
+  });
+});

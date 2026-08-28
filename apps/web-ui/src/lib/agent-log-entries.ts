@@ -25,6 +25,18 @@ export type LogEntry =
       numTurns?: number;
     }
   | { kind: "station-log"; text: string }
+  | {
+      kind: "hook";
+      hookId: string;
+      hookName: string;
+      /** The subtype past its `hook_` prefix: started | progress | response,
+       *  or whatever a newer subsystem names next. */
+      phase: string;
+      output: string;
+      outcome?: string;
+      exitCode?: number;
+    }
+  | { kind: "system"; subtype: string; detailsJson: string }
   | { kind: "rate-limit"; status: string; windows: RateLimitWindow[] }
   | { kind: "raw"; text: string };
 
@@ -116,17 +128,28 @@ export function formatDuration(ms: number): string {
 }
 
 /**
- * Whether `next` replaces `previous` instead of following it: a thinking-tokens
- * ticker only ever reports the running count, so a run of them is one entry.
+ * Whether `next` replaces `previous` instead of following it. Two tickers report
+ * a running total rather than an increment, so a run of either is one entry:
+ * thinking-tokens, and a hook's own line — `hook_progress` repeats the whole
+ * output so far, so the newest line for a `hook_id` contains every earlier one.
  * The one home for that rule — the blob parser and the run page's per-turn
  * projection both fold on it rather than each knowing it.
+ *
+ * Adjacent-only, so two hooks running concurrently keep their interleaved order
+ * instead of collapsing across each other's lines.
  */
 export function supersedesPrevious(
   previous: LogEntry | undefined,
   next: LogEntry,
 ): boolean {
+  if (next.kind === "thinking-tokens") {
+    return previous?.kind === "thinking-tokens";
+  }
+
   return (
-    next.kind === "thinking-tokens" && previous?.kind === "thinking-tokens"
+    next.kind === "hook" &&
+    previous?.kind === "hook" &&
+    previous.hookId === next.hookId
   );
 }
 
@@ -242,6 +265,22 @@ function classify(value: unknown, originalLine: string): LogEntry[] {
     return [{ kind: "thinking-tokens", tokens: value.estimated_tokens }];
   }
 
+  if (isHookLine(value)) {
+    return [hookEntry(value, value.subtype, value.hook_id)];
+  }
+
+  // Any remaining system line still says which kind it is, which beats dumping
+  // its bytes at the reader — the whole event stays one click away.
+  if (value.type === "system" && typeof value.subtype === "string") {
+    return [
+      {
+        kind: "system",
+        subtype: value.subtype,
+        detailsJson: JSON.stringify(value, null, 2),
+      },
+    ];
+  }
+
   if (value.type === "assistant" || value.type === "user") {
     const entries = messageEntries(value);
 
@@ -289,6 +328,52 @@ function classify(value: unknown, originalLine: string): LogEntry[] {
   }
 
   return [{ kind: "raw", text: originalLine }];
+}
+
+const HOOK_SUBTYPE_PREFIX = "hook_";
+
+/** A system line one hook emitted about itself. Keyed on `hook_id` rather than
+ *  the three known subtypes, so a newer `hook_*` kind still folds and renders. */
+function isHookLine(
+  value: Record<string, unknown>,
+): value is Record<string, unknown> & { subtype: string; hook_id: string } {
+  return (
+    value.type === "system" &&
+    typeof value.hook_id === "string" &&
+    typeof value.subtype === "string" &&
+    value.subtype.startsWith(HOOK_SUBTYPE_PREFIX)
+  );
+}
+
+/** A hook line's text: the combined `output` when the runner supplies one, else
+ *  whatever the two streams carry. */
+function hookOutput(value: Record<string, unknown>): string {
+  if (typeof value.output === "string" && value.output.trim()) {
+    return value.output.trim();
+  }
+
+  return [value.stdout, value.stderr]
+    .filter((part): part is string => typeof part === "string")
+    .join("")
+    .trim();
+}
+
+function hookEntry(
+  value: Record<string, unknown>,
+  subtype: string,
+  hookId: string,
+): LogEntry {
+  return {
+    kind: "hook",
+    hookId,
+    hookName: typeof value.hook_name === "string" ? value.hook_name : "hook",
+    phase: subtype.slice(HOOK_SUBTYPE_PREFIX.length),
+    output: hookOutput(value),
+    ...(typeof value.outcome === "string" ? { outcome: value.outcome } : {}),
+    ...(typeof value.exit_code === "number"
+      ? { exitCode: value.exit_code }
+      : {}),
+  };
 }
 
 function messageEntries(value: Record<string, unknown>): LogEntry[] {

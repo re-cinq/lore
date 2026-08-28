@@ -18,9 +18,13 @@ import type { ColumnMap } from "../lib/row.js";
  */
 
 /**
- * The six stream-json line kinds the projector persists. A line of any other
+ * The seven stream-json line kinds the projector persists. A line of any other
  * kind is dropped before it reaches the store, so the column is closed in
  * practice even though the DDL does not constrain it.
+ *
+ * `hook` covers only a hook's TERMINAL line. `hook_progress` restates the whole
+ * output each time, and this is a row store with no fold, so persisting the
+ * intermediate lines would store one run's log a dozen times over.
  */
 export const AgentRunEventTypeSchema = z.enum([
   "init",
@@ -29,6 +33,7 @@ export const AgentRunEventTypeSchema = z.enum([
   "tool_call",
   "tool_result",
   "result",
+  "hook",
 ]);
 
 export type AgentRunEventType = z.infer<typeof AgentRunEventTypeSchema>;

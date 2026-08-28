@@ -34,6 +34,14 @@ import {
   SAMPLE_LOG,
   LIFECYCLE_INIT_STARTED,
   RATE_LIMIT_EVENT,
+  HOOK_STARTED_SESSION,
+  HOOK_STARTED_BOOTSTRAP,
+  HOOK_RESPONSE_SESSION,
+  HOOK_PROGRESS_BOOTSTRAP_FIRST,
+  HOOK_PROGRESS_BOOTSTRAP_LAST,
+  HOOK_RESPONSE_BOOTSTRAP,
+  HOOK_RESPONSE_FAILED,
+  SYSTEM_COMPACT_BOUNDARY,
 } from "./agent-log-entries.fixtures";
 
 describe("parseAgentLog", () => {
@@ -315,7 +323,7 @@ describe("logEntriesFromValue", () => {
 });
 
 describe("supersedesPrevious", () => {
-  it("is true only for a thinking-tokens entry following another", () => {
+  it("is true for a thinking-tokens entry following another", () => {
     const ticker: LogEntry = { kind: "thinking-tokens", tokens: 9 };
     const text: LogEntry = { kind: "assistant-text", text: "hi" };
 
@@ -436,5 +444,116 @@ describe("rateLimitSummary", () => {
         windows: [{ window: "seven_day", utilization: 1, resetsAt: null }],
       }),
     ).toBe("rate limit: seven_day 100%");
+  });
+});
+
+describe("hook events", () => {
+  it("reads a hook_started line as a hook entry with no output yet", () => {
+    expect(parseAgentLog(HOOK_STARTED_SESSION)).toEqual([
+      {
+        kind: "hook",
+        hookId: "56eebdca-70de-4c3c-a5f3-d3f4f4ec2096",
+        hookName: "SessionStart:startup",
+        phase: "started",
+        output: "",
+      },
+    ]);
+  });
+
+  it("carries outcome and exit code off a hook_response line", () => {
+    expect(parseAgentLog(HOOK_RESPONSE_SESSION)).toEqual([
+      {
+        kind: "hook",
+        hookId: "56eebdca-70de-4c3c-a5f3-d3f4f4ec2096",
+        hookName: "SessionStart:startup",
+        phase: "response",
+        output: "[lore] station session started",
+        outcome: "success",
+        exitCode: 0,
+      },
+    ]);
+  });
+
+  it("keeps exit code 2 and a blocked outcome on a failed hook", () => {
+    expect(parseAgentLog(HOOK_RESPONSE_FAILED)).toMatchObject({
+      0: { phase: "response", outcome: "blocked", exitCode: 2 },
+    });
+  });
+
+  it("folds a cumulative progress run into the last entry for that hook", () => {
+    const entries = parseAgentLog(
+      [
+        HOOK_STARTED_BOOTSTRAP,
+        HOOK_PROGRESS_BOOTSTRAP_FIRST,
+        HOOK_PROGRESS_BOOTSTRAP_LAST,
+        HOOK_RESPONSE_BOOTSTRAP,
+      ].join("\n"),
+    );
+
+    expect(entries).toMatchObject({
+      length: 1,
+      0: {
+        kind: "hook",
+        hookId: "e628dd11-3b24-4aed-9618-2ca964d9156a",
+        phase: "response",
+        outcome: "success",
+      },
+    });
+  });
+
+  it("keeps two interleaved hooks apart, folding each on its own hook_id", () => {
+    const entries = parseAgentLog(
+      [
+        HOOK_STARTED_SESSION,
+        HOOK_STARTED_BOOTSTRAP,
+        HOOK_RESPONSE_SESSION,
+        HOOK_PROGRESS_BOOTSTRAP_FIRST,
+        HOOK_PROGRESS_BOOTSTRAP_LAST,
+        HOOK_RESPONSE_BOOTSTRAP,
+      ].join("\n"),
+    );
+
+    expect(entries.map((e) => e.kind === "hook" && e.phase)).toEqual([
+      "started",
+      "started",
+      "response",
+      "response",
+    ]);
+  });
+
+  it("does not fold a hook entry onto a different hook_id", () => {
+    const session: LogEntry = {
+      kind: "hook",
+      hookId: "56eebdca-70de-4c3c-a5f3-d3f4f4ec2096",
+      hookName: "SessionStart:startup",
+      phase: "started",
+      output: "",
+    };
+    const bootstrap: LogEntry = { ...session, hookId: "e628dd11" };
+
+    expect(supersedesPrevious(session, session)).toBe(true);
+    expect(supersedesPrevious(session, bootstrap)).toBe(false);
+    expect(supersedesPrevious(undefined, session)).toBe(false);
+  });
+});
+
+describe("unrecognized system subtypes", () => {
+  it("summarizes a compact_boundary line instead of dumping raw JSON", () => {
+    expect(parseAgentLog(SYSTEM_COMPACT_BOUNDARY)).toEqual([
+      {
+        kind: "system",
+        subtype: "compact_boundary",
+        detailsJson: JSON.stringify(
+          JSON.parse(SYSTEM_COMPACT_BOUNDARY),
+          null,
+          2,
+        ),
+      },
+    ]);
+  });
+
+  it("keeps init and thinking_tokens on their own entries, not the fallback", () => {
+    expect(parseAgentLog(SESSION_INIT)[0].kind).toBe("session-init");
+    expect(parseAgentLog(THINKING_TOKENS_11)[0].kind).toBe("thinking-tokens");
   });
 });

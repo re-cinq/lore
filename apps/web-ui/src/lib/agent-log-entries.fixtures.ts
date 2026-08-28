@@ -69,6 +69,40 @@ export const LIFECYCLE_INIT_STARTED =
 export const RATE_LIMIT_EVENT =
   '{"type":"rate_limit_event","uuid":"44497cba-94a4-40e9-a7e3-a99071319e87","session_id":"a4830f52-8b2f-4638-ab11-ba16813e728c","rate_limit_info":{"status":"allowed_warning","resetsAt":1787882400,"utilization":0.94,"rateLimitType":"seven_day","isUsingOverage":false,"unifiedWindows":{"five_hour":{"resetsAt":1787848200,"utilization":0.07},"seven_day":{"resetsAt":1787882400,"utilization":0.94}},"surpassedThreshold":0.75}}';
 
+// SessionStart hook events from a live implement pod (task e3bdf9f8, pod
+// agent-job-595d2b0b-ccb-implement-cczl8, 2026-08-28). Two hooks run
+// CONCURRENTLY, so their lines interleave, and `hook_progress` is CUMULATIVE —
+// every progress line repeats the whole output so far. The run emitted four
+// progress lines for the bootstrap hook; the two middle ones are elided here
+// because they differ from these only in how much of the same log they carry.
+
+export const HOOK_STARTED_SESSION =
+  '{"type":"system","uuid":"9f3101c1-ac5b-48fd-a8bc-5b0dcc13afb5","hook_id":"56eebdca-70de-4c3c-a5f3-d3f4f4ec2096","subtype":"hook_started","hook_name":"SessionStart:startup","hook_event":"SessionStart","session_id":"c83b4bb1-f1fb-4039-b39c-d34f445d6c68"}';
+
+export const HOOK_STARTED_BOOTSTRAP =
+  '{"type":"system","uuid":"e30f0282-d9f1-4a2c-a411-ed452a5a3cbb","hook_id":"e628dd11-3b24-4aed-9618-2ca964d9156a","subtype":"hook_started","hook_name":"SessionStart:startup","hook_event":"SessionStart","session_id":"c83b4bb1-f1fb-4039-b39c-d34f445d6c68"}';
+
+export const HOOK_RESPONSE_SESSION =
+  '{"type":"system","uuid":"bf9605da-a2ce-4005-a66d-15835196af80","output":"[lore] station session started\\n","stderr":"[lore] station session started\\n","stdout":"","hook_id":"56eebdca-70de-4c3c-a5f3-d3f4f4ec2096","outcome":"success","subtype":"hook_response","exit_code":0,"hook_name":"SessionStart:startup","hook_event":"SessionStart","session_id":"c83b4bb1-f1fb-4039-b39c-d34f445d6c68"}';
+
+export const HOOK_PROGRESS_BOOTSTRAP_FIRST =
+  '{"type":"system","uuid":"cea28b90-3e6b-4c5a-b4f4-1d482313bf92","output":"[lore] worktree-bootstrap: installing dependencies in /workspace/target (npm ci, first run only)\\n","stderr":"","stdout":"[lore] worktree-bootstrap: installing dependencies in /workspace/target (npm ci, first run only)\\n","hook_id":"e628dd11-3b24-4aed-9618-2ca964d9156a","subtype":"hook_progress","hook_name":"SessionStart:startup","hook_event":"SessionStart","session_id":"c83b4bb1-f1fb-4039-b39c-d34f445d6c68"}';
+
+export const HOOK_PROGRESS_BOOTSTRAP_LAST =
+  '{"type":"system","uuid":"dda42c5c-71b2-47f9-ab1a-6c4ad6595ad0","output":"[lore] worktree-bootstrap: installing dependencies in /workspace/target (npm ci, first run only)\\n\\nadded 702 packages in 20s\\nnpm notice\\nnpm notice New major version of npm available! 10.9.8 -> 12.0.2\\nnpm notice\\n[lore] worktree-bootstrap: rebuilding @re-cinq/lore-shared @re-cinq/lore-assembly-lines @re-cinq/lore-server-core (stale: libs/shared libs/assembly-lines libs/server-core)\\n\\n> @re-cinq/lore-shared@0.1.0 build\\n> tsc\\n\\n","stderr":"npm notice\\nnpm notice New major version of npm available! 10.9.8 -> 12.0.2\\nnpm notice\\n","stdout":"[lore] worktree-bootstrap: installing dependencies in /workspace/target (npm ci, first run only)\\n\\nadded 702 packages in 20s\\n[lore] worktree-bootstrap: rebuilding @re-cinq/lore-shared @re-cinq/lore-assembly-lines @re-cinq/lore-server-core (stale: libs/shared libs/assembly-lines libs/server-core)\\n\\n> @re-cinq/lore-shared@0.1.0 build\\n> tsc\\n\\n","hook_id":"e628dd11-3b24-4aed-9618-2ca964d9156a","subtype":"hook_progress","hook_name":"SessionStart:startup","hook_event":"SessionStart","session_id":"c83b4bb1-f1fb-4039-b39c-d34f445d6c68"}';
+
+export const HOOK_RESPONSE_BOOTSTRAP =
+  '{"type":"system","uuid":"d6fb8189-749a-4175-a062-87961fbbceb9","output":"[lore] worktree-bootstrap: installing dependencies in /workspace/target (npm ci, first run only)\\n\\nadded 702 packages in 20s\\n[lore] worktree-bootstrap: rebuilding @re-cinq/lore-shared @re-cinq/lore-assembly-lines @re-cinq/lore-server-core (stale: libs/shared libs/assembly-lines libs/server-core)\\n\\n> @re-cinq/lore-server-core@0.1.0 build\\n> tsc\\n\\n[lore] worktree-bootstrap: done — eslint and tsc now resolve inside /workspace/target\\n","stderr":"npm notice\\n","stdout":"[lore] worktree-bootstrap: done — eslint and tsc now resolve inside /workspace/target\\n","hook_id":"e628dd11-3b24-4aed-9618-2ca964d9156a","outcome":"success","subtype":"hook_response","exit_code":0,"hook_name":"SessionStart:startup","hook_event":"SessionStart","session_id":"c83b4bb1-f1fb-4039-b39c-d34f445d6c68"}';
+
+/** A hook whose command failed — the case that must not read as a success. */
+export const HOOK_RESPONSE_FAILED =
+  '{"type":"system","uuid":"5f2c0a71-3d5e-4a1b-9c88-2b6f0e4d1a33","output":"lore-doctor: skill drift detected\\n","stderr":"lore-doctor: skill drift detected\\n","stdout":"","hook_id":"aa11bb22-cc33-dd44-ee55-ff6677889900","outcome":"blocked","subtype":"hook_response","exit_code":2,"hook_name":"PreToolUse:Bash","hook_event":"PreToolUse","session_id":"c83b4bb1-f1fb-4039-b39c-d34f445d6c68"}';
+
+/** A `system` line of a subtype the parser has never seen. Pins the generic
+ *  fallback: unrecognized system events must summarize, not dump raw JSON. */
+export const SYSTEM_COMPACT_BOUNDARY =
+  '{"type":"system","subtype":"compact_boundary","compact_metadata":{"trigger":"auto","pre_tokens":154238},"uuid":"7c1e9d40-8a2b-4f6c-b1d3-9e0a5c7f2b18","session_id":"c83b4bb1-f1fb-4039-b39c-d34f445d6c68"}';
+
 // The ai-agent-subsystem's attribution envelope (ADR-031 D8) — single and the
 // transitional double wrap both appear in prod streams.
 export function wrapped(line: string): string {

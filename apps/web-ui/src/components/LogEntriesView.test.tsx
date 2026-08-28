@@ -9,6 +9,10 @@ import {
   SESSION_INIT,
   TOOL_RESULT_ERROR,
   TOOL_USE_BASH,
+  HOOK_RESPONSE_BOOTSTRAP,
+  HOOK_RESPONSE_FAILED,
+  HOOK_STARTED_SESSION,
+  SYSTEM_COMPACT_BOUNDARY,
 } from "@/lib/agent-log-entries.fixtures";
 
 describe("LogEntriesView", () => {
@@ -198,5 +202,45 @@ describe("LogEntriesView", () => {
     expect(screen.getByText("checking the diff first")).toHaveClass(
       styles.thinking,
     );
+  });
+});
+
+describe("hook entries", () => {
+  it("renders a finished hook as one line naming the hook and its exit code", () => {
+    render(<LogEntriesView entries={parseAgentLog(HOOK_RESPONSE_BOOTSTRAP)} />);
+
+    expect(
+      screen.getByText("· hook SessionStart:startup ✓ (exit 0)"),
+    ).toBeInTheDocument();
+  });
+
+  it("marks a hook that exited non-zero as failed", () => {
+    render(<LogEntriesView entries={parseAgentLog(HOOK_RESPONSE_FAILED)} />);
+
+    expect(
+      screen.getByText("· hook PreToolUse:Bash ✗ (exit 2)"),
+    ).toBeInTheDocument();
+  });
+
+  it("renders a started hook as 'running…' with no expander", () => {
+    render(<LogEntriesView entries={parseAgentLog(HOOK_STARTED_SESSION)} />);
+
+    expect(
+      screen.getByText("· hook SessionStart:startup running…"),
+    ).toHaveClass(styles.dim);
+  });
+
+  it("keeps the hook output behind the summary rather than inline", () => {
+    render(<LogEntriesView entries={parseAgentLog(HOOK_RESPONSE_BOOTSTRAP)} />);
+
+    expect(
+      screen.getByText(/worktree-bootstrap: done/, { selector: "pre" }),
+    ).toBeInTheDocument();
+  });
+
+  it("names the subtype of an unrecognized system entry", () => {
+    render(<LogEntriesView entries={parseAgentLog(SYSTEM_COMPACT_BOUNDARY)} />);
+
+    expect(screen.getByText("· system: compact_boundary")).toBeInTheDocument();
   });
 });
