@@ -443,3 +443,73 @@ describe("iteration_max reason carries the station's real failure", () => {
     expect(reason).toContain("retry budget (1)");
   });
 });
+
+// Two back-edges into the same node: implement retries itself, and validate
+// sends the walk back to implement. This is the implementation-loop shape.
+const twoWaysBack: AssemblyLine = parseAssemblyLine(`
+name: two-ways-back
+description: implement retries itself, validate routes back to implement
+version: 1
+entry: implement
+exit: done
+nodes:
+  - id: implement
+    type: agent
+  - id: validate
+    type: validate
+  - id: done
+    type: retrospective
+edges:
+  - from: implement
+    to: validate
+    on: success
+  - from: implement
+    to: implement
+    on: failed
+    iteration_max: 1
+  - from: implement
+    to: done
+    on: changes_requested
+  - from: validate
+    to: done
+    on: success
+  - from: validate
+    to: implement
+    on: failed
+    iteration_max: 1
+`);
+
+describe("getNextTransition — a revisit numbers past every prior visit", () => {
+  it("launches implement at iteration 3 when validate sends the walk back after implement already retried itself", () => {
+    // (nodeId, iteration) is the persisted row identity. Counting the revisit
+    // per EDGE handed validate->implement iteration 2 — a row that already
+    // existed — and the idempotent launch found it and returned, every reaper
+    // tick, forever (run 595d2b0b, 2026-08-28).
+    const visits = [
+      visit("implement", 1, "failed"),
+      visit("implement", 2, "success"),
+      visit("validate", 2, "failed"),
+    ];
+
+    expect(getNextTransition(twoWaysBack, visits)).toEqual({
+      kind: "launch",
+      nodeId: "implement",
+      iteration: 3,
+    });
+  });
+
+  it("still spends each back-edge's own budget", () => {
+    const visits = [
+      visit("implement", 1, "failed"),
+      visit("implement", 2, "success"),
+      visit("validate", 2, "failed"),
+      visit("implement", 3, "success"),
+      visit("validate", 3, "failed"),
+    ];
+
+    expect(getNextTransition(twoWaysBack, visits)).toMatchObject({
+      kind: "fail",
+      outcome: "iteration_max",
+    });
+  });
+});

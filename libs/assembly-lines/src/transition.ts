@@ -101,10 +101,24 @@ export function getNextTransition(
   let currentId = assemblyLine.entry;
   let iteration = 1;
   const backEdgeCounts = new Map<string, number>();
+  // The highest iteration each node has been recorded at. A revisit numbers
+  // past THAT, per node — not per edge, and not by counting visits: (nodeId,
+  // iteration) is the row identity, a forward move inherits the walk's current
+  // iteration (validate's first visit can be iteration 2), and two back-edges
+  // into the same node (implement retrying itself, then validate routing back
+  // to it) each counted from one. The second handed out an iteration that
+  // already existed, the idempotent launch found the finished row and
+  // returned, and the line sat "running" with no open node while the reaper
+  // re-advanced it every tick (run 595d2b0b, 2026-08-28).
+  const highestIteration = new Map<string, number>();
   const visited = new Set<string>();
 
   for (const visit of visits) {
     visited.add(visit.nodeId);
+    highestIteration.set(
+      visit.nodeId,
+      Math.max(highestIteration.get(visit.nodeId) ?? 0, visit.iteration),
+    );
 
     if (visit.nodeId !== currentId || visit.iteration !== iteration) {
       // Both node id AND iteration must match the recomputed walk — a row
@@ -156,7 +170,7 @@ export function getNextTransition(
         };
       }
       backEdgeCounts.set(key, count);
-      iteration = count + 1;
+      iteration = (highestIteration.get(chosen.to) ?? 0) + 1;
     }
 
     currentId = chosen.to;
