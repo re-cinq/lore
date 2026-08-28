@@ -65,6 +65,10 @@ func buildReport(ctx context.Context, m Manifest, cwd string, meta reportMeta, c
 	runCwd := filepath.Join(cwd, m.Cwd)
 	timeout := traceTimeout()
 
+	if strings.TrimSpace(m.List) == "" {
+		return TestReport{}, fmt.Errorf("test-command manifest entry has no 'list' command; it runs whole and cannot enumerate tests")
+	}
+
 	listOut, err := runCommand(ctx, m.List, runCwd, timeout)
 	if err != nil {
 		return TestReport{}, fmt.Errorf("list command failed: %w", err)

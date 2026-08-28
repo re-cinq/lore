@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"io"
+	"strings"
 	"testing"
 )
 
@@ -71,6 +72,47 @@ func TestBuildReportParsesLcovRunOutput(t *testing.T) {
 	want := []CoveredChunk{{File: "src/x.go", StartLine: 1, EndLine: 2}}
 	if len(r.Covered) != 1 || r.Covered[0] != want[0] {
 		t.Errorf("covered: got %+v, want %+v", r.Covered, want)
+	}
+}
+
+// A whole-suite entry (relaxed parser keeps it with no list) cannot enumerate
+// tests; the sole list consumer must fail loudly here rather than run sh -c ""
+// and emit a misleading empty report.
+func TestBuildReportErrorsWhenListMissing(t *testing.T) {
+	m := Manifest{
+		List: "",
+		Run:  "npm run consumer",
+		Cwd:  ".",
+	}
+	_, err := buildReport(context.Background(), m, t.TempDir(), reportMeta{Commit: "c", Branch: "b"}, 2, io.Discard)
+	if err == nil {
+		t.Fatal("expected an error when the manifest has no list command")
+	}
+	if !strings.Contains(err.Error(), "cannot enumerate") {
+		t.Errorf("error should explain the entry runs whole and cannot enumerate, got: %v", err)
+	}
+}
+
+// A list-bearing entry with an unknown coverage_format (cleared to empty by the
+// relaxed parser) still runs the list and builds a report; each file's coverage
+// is skipped-with-log via runOneFile's default branch, not a hard failure.
+func TestBuildReportRunsListBearingEntryWithEmptyCoverageFormat(t *testing.T) {
+	listJSON := `[{"id":"x::1","name":"1","file":"x.go"}]`
+	m := Manifest{
+		List:           "printf '%s' '" + listJSON + "'",
+		Run:            "printf ignored # {selector}",
+		CoverageFormat: "",
+		Cwd:            ".",
+	}
+	report, err := buildReport(context.Background(), m, t.TempDir(), reportMeta{Commit: "c", Branch: "b"}, 2, io.Discard)
+	if err != nil {
+		t.Fatalf("an unknown coverage_format should skip coverage, not error: %v", err)
+	}
+	if len(report.Tests) != 1 {
+		t.Errorf("tests: got %d, want 1", len(report.Tests))
+	}
+	if len(report.Results) != 0 {
+		t.Errorf("results: got %d, want 0 (coverage skipped)", len(report.Results))
 	}
 }
 

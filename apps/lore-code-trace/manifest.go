@@ -9,6 +9,8 @@ import (
 
 // Manifest mirrors libs/shared/src/test-command-manifest.ts: the per-repo
 // .lore/test-commands.yml that declares how to list and run the project's tests.
+// Only Run is required — a whole-suite entry that runs whole declares just Run,
+// with no List, no {selector}, and no CoverageFormat.
 type Manifest struct {
 	List            string `yaml:"list"`
 	Run             string `yaml:"run"`
@@ -33,18 +35,16 @@ func parseManifest(data []byte) (Manifest, error) {
 	return validateManifest(m)
 }
 
+// validateManifest mirrors the relaxed TS parser (#1604 / #1601): run is the only
+// required field. A missing list, a run without {selector}, and an unknown
+// coverage_format are all honest run-whole traits, not errors — an unknown
+// coverage_format is cleared to empty rather than rejected.
 func validateManifest(m Manifest) (Manifest, error) {
-	if strings.TrimSpace(m.List) == "" {
-		return Manifest{}, fmt.Errorf("manifest: list command is required")
-	}
 	if strings.TrimSpace(m.Run) == "" {
 		return Manifest{}, fmt.Errorf("manifest: run command is required")
 	}
-	if !strings.Contains(m.Run, "{selector}") {
-		return Manifest{}, fmt.Errorf("manifest: run command must contain the {selector} placeholder")
-	}
 	if !validCoverageFormats[m.CoverageFormat] {
-		return Manifest{}, fmt.Errorf("manifest: coverage_format must be lcov|cobertura|json, got %q", m.CoverageFormat)
+		m.CoverageFormat = ""
 	}
 	if m.Cwd == "" {
 		m.Cwd = "."
