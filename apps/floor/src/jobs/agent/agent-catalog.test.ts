@@ -180,6 +180,17 @@ describe("catalogChartYaml", () => {
     expect(out).not.toContain("{{- if .Values.seedCatalog }}");
     expect(out).toContain("helm.sh/resource-policy: keep");
   });
+  it("guards the {context} placeholder behind .Values.loreMcpUrl — a pod with no gateway is never told to call a tool it does not have", () => {
+    // The parameter that fills this slot is an INSTRUCTION to call
+    // lore_assemble_context (dispatch-time hydration was removed 2026-08-28). A
+    // satellite renders no mcp_servers block, because the gateway authenticates
+    // with LORE_INGEST_TOKEN and FR5 keeps that credential central — so on those
+    // pods the placeholder must vanish with the tool it points at (#1629).
+    expect(out).toMatch(
+      /\{\{- if \.Values\.loreMcpUrl \}\}\n *\{context\}\n\{\{- end \}\}/,
+    );
+  });
+
   it("names its generated home and the hook that applies it in the header, so a reader of the file finds the mechanism", () => {
     expect(out).toContain("files/catalog-seed.yaml");
     expect(out).toContain("catalog-seed");

@@ -22,7 +22,9 @@ spec:
 
     Task: {description}
 
+{{- if .Values.loreMcpUrl }}
     {context}
+{{- end }}
   permission_mode: bypass
   max_turns: 200
   resources:
@@ -99,7 +101,9 @@ spec:
 
     Task: {description}
 
+{{- if .Values.loreMcpUrl }}
     {context}
+{{- end }}
   permission_mode: bypass
   max_turns: 200
   resources:
@@ -190,7 +194,9 @@ spec:
 
     Spec: {description}
 
+{{- if .Values.loreMcpUrl }}
     {context}
+{{- end }}
   permission_mode: bypass
   max_turns: 200
   resources:
@@ -295,7 +301,9 @@ spec:
 
     Ticket: {description}
 
+{{- if .Values.loreMcpUrl }}
     {context}
+{{- end }}
   permission_mode: bypass
   max_turns: 200
   resources:
@@ -383,7 +391,9 @@ spec:
 
     Original specification: {description}
 
+{{- if .Values.loreMcpUrl }}
     {context}
+{{- end }}
   permission_mode: bypass
   max_turns: 200
   resources:
@@ -479,7 +489,9 @@ spec:
 
     Context for the commit message: {description}
 
+{{- if .Values.loreMcpUrl }}
     {context}
+{{- end }}
   permission_mode: bypass
   max_turns: 200
   resources:
@@ -556,7 +568,9 @@ spec:
 
     Gap: {description}
 
+{{- if .Values.loreMcpUrl }}
     {context}
+{{- end }}
   permission_mode: bypass
   max_turns: 200
   resources:
@@ -645,7 +659,9 @@ spec:
 
     PR: {description}
 
+{{- if .Values.loreMcpUrl }}
     {context}
+{{- end }}
   permission_mode: bypass
   max_turns: 200
   resources:
@@ -773,7 +789,9 @@ spec:
     - REVIEW_RESULT:APPROVED
     - REVIEW_RESULT:CHANGES_REQUESTED:<one-line summary>
 
+{{- if .Values.loreMcpUrl }}
     {context}
+{{- end }}
   permission_mode: bypass
   max_turns: 200
   resources:
@@ -891,7 +909,9 @@ spec:
     - REVIEW_RESULT:APPROVED
     - REVIEW_RESULT:CHANGES_REQUESTED:<one-line summary>
 
+{{- if .Values.loreMcpUrl }}
     {context}
+{{- end }}
   permission_mode: bypass
   max_turns: 200
   resources:
@@ -1005,7 +1025,9 @@ spec:
     - REVIEW_RESULT:APPROVED
     - REVIEW_RESULT:CHANGES_REQUESTED:<one-line summary of what remains>
 
+{{- if .Values.loreMcpUrl }}
     {context}
+{{- end }}
   permission_mode: bypass
   max_turns: 200
   resources:
@@ -1099,7 +1121,9 @@ spec:
     ADRs, data model) so you can match the style and conventions.
     Generate artifacts that engineers can immediately act on.
 
+{{- if .Values.loreMcpUrl }}
     {context}
+{{- end }}
   permission_mode: bypass
   max_turns: 200
   resources:
@@ -1389,7 +1413,9 @@ spec:
 
     {description}
 
+{{- if .Values.loreMcpUrl }}
     {context}
+{{- end }}
   permission_mode: bypass
   max_turns: 200
   resources:
@@ -1554,7 +1580,9 @@ spec:
 
     {description}
 
+{{- if .Values.loreMcpUrl }}
     {context}
+{{- end }}
   permission_mode: bypass
   max_turns: 200
   resources:
@@ -1639,7 +1667,9 @@ spec:
     Do not implement code. Lore opens the PR from your pushed branch — you
     have no `gh` and no GitHub token, so do not try to open one yourself.
 
+{{- if .Values.loreMcpUrl }}
     {context}
+{{- end }}
   permission_mode: bypass
   max_turns: 200
   resources:
@@ -1712,7 +1742,9 @@ spec:
   prompt: |-
     {description}
 
+{{- if .Values.loreMcpUrl }}
     {context}
+{{- end }}
   permission_mode: bypass
   max_turns: 200
   resources:
@@ -1853,7 +1885,9 @@ spec:
     - The spec should describe the system as it exists today.
     - Keep CLAUDE.md under 2 pages. Keep ADRs concise.
 
+{{- if .Values.loreMcpUrl }}
     {context}
+{{- end }}
   permission_mode: bypass
   max_turns: 200
   resources:

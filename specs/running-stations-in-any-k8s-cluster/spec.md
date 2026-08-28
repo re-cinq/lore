@@ -314,7 +314,7 @@ execution node.
   satellite pod, of every node type — the first real satellite's every
   claimed run failed at init (#1575, found live 2026-08-26). Unset stays the
   default: a satellite reports its terminal outcome and nothing live, which
-  is the honest state for a cluster with nowhere to report to. ([validated by `agent-catalog.test.ts:191`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L191))
+  is the honest state for a cluster with nowhere to report to. ([validated by `agent-catalog.test.ts:202`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L202))
 - The installer's default tags advertise `node:agent` only *(2026-08-28)*.
   Every seeded station recipe (`def-validate`, `def-gate`, `def-detect`,
   `def-comment-triage`) mounts `LORE_INGEST_TOKEN`, which FR5 keeps on the
