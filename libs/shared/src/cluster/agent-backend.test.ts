@@ -7,9 +7,9 @@ import {
   agentCrName,
   TASK_ID_LABEL,
   type AgentApi,
-  type ContextSource,
   type TokenProvisioner,
 } from "./agent-backend.js";
+import { CONTEXT_BOOTSTRAP } from "../agents/recipe-prompt.js";
 
 const baseSpec: LoreTaskSpec = {
   taskId: "abcdef1234567890",
@@ -44,62 +44,6 @@ class FakeAgentApi implements AgentApi {
   }
 }
 
-const ctx = (value: string | undefined): ContextSource => ({
-  assemble: async () => value,
-});
-
-describe("context hydration (D5)", () => {
-  it("specToAgent adds the context parameter when provided", () => {
-    expect(
-      specToAgent(baseSpec, "conventions + ADRs").spec?.parameters?.context,
-    ).toBe("conventions + ADRs");
-  });
-  it("specToAgent fills context with an empty string when not provided", () => {
-    // The subsystem's renderPrompt leaves an UNKNOWN placeholder intact on purpose,
-    // so typos surface in the rendered prompt. The cost is that a run with nothing to
-    // hydrate shipped the literal token `{context}` to the model — observed verbatim
-    // at the end of a live planning pod's argv. A parameter that is always present,
-    // empty when there is nothing to say, renders to nothing instead.
-    expect(specToAgent(baseSpec).spec?.parameters?.context).toBe("");
-  });
-  it("launch injects the assembled context into the Agent parameters", async () => {
-    const api = new FakeAgentApi();
-
-    await new AgentCrBackend(api, ctx("assembled")).launch(baseSpec);
-    expect(api.created[0].spec?.parameters?.context).toBe("assembled");
-  });
-  it("launch never assembles context for a hydrate:false station spec", async () => {
-    const api = new FakeAgentApi();
-    let assembled = 0;
-    const source = {
-      assemble: async () => {
-        assembled += 1;
-
-        return "should never appear";
-      },
-    };
-
-    await new AgentCrBackend(api, source).launch({
-      ...baseSpec,
-      hydrate: false,
-    });
-    expect(assembled).toBe(0);
-    expect(api.created[0].spec?.parameters?.context).toBe("");
-  });
-  it("launch fills context with an empty string when the source returns undefined", async () => {
-    const api = new FakeAgentApi();
-
-    await new AgentCrBackend(api, ctx(undefined)).launch(baseSpec);
-    expect(api.created[0].spec?.parameters?.context).toBe("");
-  });
-  it("launch works with no context source (legacy)", async () => {
-    const api = new FakeAgentApi();
-
-    await new AgentCrBackend(api).launch(baseSpec);
-    expect(api.created[0].spec?.parameters?.context).toBe("");
-  });
-});
-
 describe("specToAgent", () => {
   it("maps a task to an Agent CR: stationRef=taskType, task-id label, parameters", () => {
     expect(specToAgent(baseSpec)).toEqual({
@@ -118,7 +62,7 @@ describe("specToAgent", () => {
         parameters: {
           description: "Implement the thing",
           prompt: "do it",
-          context: "",
+          context: CONTEXT_BOOTSTRAP,
         },
       },
     });
@@ -177,7 +121,7 @@ describe("AgentCrBackend.launch — per-task token (#697)", () => {
     const api = new FakeAgentApi();
     const provisioner = new FakeProvisioner("pt-abcdef12");
 
-    await new AgentCrBackend(api, undefined, provisioner).launch(baseSpec);
+    await new AgentCrBackend(api, provisioner).launch(baseSpec);
     expect(provisioner.seen).toEqual([baseSpec]);
     expect(api.created[0].spec?.stationRef).toBe("pt-abcdef12");
   });
@@ -185,11 +129,7 @@ describe("AgentCrBackend.launch — per-task token (#697)", () => {
   it("falls back to the catalog Station when the provisioner returns undefined", async () => {
     const api = new FakeAgentApi();
 
-    await new AgentCrBackend(
-      api,
-      undefined,
-      new FakeProvisioner(undefined),
-    ).launch(baseSpec);
+    await new AgentCrBackend(api, new FakeProvisioner(undefined)).launch(baseSpec);
     expect(api.created[0].spec?.stationRef).toBe("implementation");
   });
 
@@ -197,7 +137,7 @@ describe("AgentCrBackend.launch — per-task token (#697)", () => {
     const api = new FakeAgentApi();
     const provisioner = new FakeProvisioner("pt-abcdef12");
 
-    await new AgentCrBackend(api, undefined, provisioner).launch({
+    await new AgentCrBackend(api, provisioner).launch({
       ...baseSpec,
       targetRepo: "",
     });
@@ -209,7 +149,7 @@ describe("AgentCrBackend.launch — per-task token (#697)", () => {
     const api = new FakeAgentApi();
     const provisioner = new FakeProvisioner("pt-abcdef12");
 
-    await new AgentCrBackend(api, undefined, provisioner).launch({
+    await new AgentCrBackend(api, provisioner).launch({
       ...baseSpec,
       stationRef: "def-detect",
       clone: false,

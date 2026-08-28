@@ -27,11 +27,6 @@ export interface LoreTaskSpec {
   stationRef?: string;
   /** Extra per-run parameters merged into the CR spec (e.g. `station_input`). */
   parameters?: Record<string, string>;
-  /** false skips context hydration (D5) — station recipes render only
-   *  {station_input}, so injected context is dead weight on the CR (and an
-   *  empty-description dispatch assembles an unbounded-query blob that blew
-   *  the 2 MiB apiserver limit, 2026-07-17). Default true. */
-  hydrate?: boolean;
   /** false skips per-task token/clone provisioning: API-reading station nodes
    *  (detect/gate/retrospective/triage) need no repo, and their line branch is
    *  a synthetic lease key no `git checkout` could resolve. Default true. */

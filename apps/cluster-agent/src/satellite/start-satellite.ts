@@ -164,11 +164,7 @@ export function startSatellite(
     return handle;
   }
 
-  const backend = new AgentCrBackend(
-    new KubeAgentApi(),
-    undefined,
-    kubeTokenProvisioner(),
-  );
+  const backend = new AgentCrBackend(new KubeAgentApi(), kubeTokenProvisioner());
 
   // The same Secret writer the per-task GitHub provisioner uses — a merge into
   // `agent-secrets`, not a replace, because both write to it.

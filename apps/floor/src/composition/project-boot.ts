@@ -37,7 +37,6 @@ export function agentCrBackend(): AgentCrBackend {
   // dispatch and provision, the agent performs it. No Kubernetes client here.
   return new AgentCrBackend(
     new HttpAgentApi(clusterAgent()),
-    undefined,
     new HttpTokenProvisioner(clusterAgent()),
   );
 }
