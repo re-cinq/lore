@@ -34,6 +34,19 @@ export interface SelectReporterDeps {
    * deliberately injected their own.
    */
   local: () => EventReporter;
+  /**
+   * The bearer to present, when it is not the bus-wide one.
+   *
+   * A THUNK is resolved per call, which is the only correct shape for a
+   * credential that rotates: a satellite holds no `LORE_INGEST_TOKEN` (FR5 of
+   * specs/running-stations-in-any-k8s-cluster) and reports with its per-agent
+   * token, which is re-minted whenever another instance of it registers. A
+   * captured value 401s every report from the rotation onward — which is how
+   * run 595d2b0b lost its terminal event.
+   */
+  token?: string | (() => string | undefined);
+  /** Injected so the HTTP branch is reachable from a test without a network. */
+  fetchImpl?: typeof fetch;
   env?: NodeJS.ProcessEnv;
   log?: (message: string) => void;
 }
@@ -56,7 +69,11 @@ export function selectEventReporter(deps: SelectReporterDeps): EventReporter {
   }
   log(`[events] reporting to the event-router at ${url}`);
 
-  return new HttpEventReporter(url, internalToken(env));
+  return new HttpEventReporter(
+    url,
+    deps.token ?? internalToken(env),
+    deps.fetchImpl ?? fetch,
+  );
 }
 
 /** Room for a router blip at the observed peak rate, not a durability budget —

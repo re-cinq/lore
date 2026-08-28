@@ -99,6 +99,36 @@ describe("selectEventProxy", () => {
     }).toEqual({ depth: 1, claimed: 0 });
   });
 
+  it("presents a token thunk per call, so a rotated per-agent credential is picked up", async () => {
+    const seen: string[] = [];
+    let current = "first-token";
+    const proxy = selectEventProxy({
+      local: () => new InMemoryEventQueue(),
+      token: () => current,
+      env: { EVENT_ROUTER_URL: "https://router.example" },
+      log: silent,
+      fetchImpl: async (_url, init) => {
+        seen.push(
+          (init?.headers as Record<string, string>).authorization ?? "none",
+        );
+
+        return new Response(null, { status: 202 });
+      },
+    });
+
+    await proxy.insert({
+      eventName: "kubernetes.agent.succeeded",
+      source: "kubernetes",
+    });
+    current = "rotated-token";
+    await proxy.insert({
+      eventName: "kubernetes.agent.failed",
+      source: "kubernetes",
+    });
+
+    expect(seen).toEqual(["Bearer first-token", "Bearer rotated-token"]);
+  });
+
   it("never resolves the local queue when a router is configured, so a pool-less process can hold one", () => {
     let resolved = 0;
 

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import type { EventInsert } from "@re-cinq/lore-shared";
+import type { ProxyMessage } from "@re-cinq/lore-shared/project/events/event-input-port.js";
 import {
   forEachAgentPage,
   reportForAgent,
@@ -27,7 +27,7 @@ function pagedLister(
 
 describe("reportForAgent", () => {
   it("reports a terminal Agent CR as its kubernetes event", async () => {
-    const reported: EventInsert[] = [];
+    const reported: ProxyMessage[] = [];
 
     await reportForAgent(
       {
@@ -35,29 +35,32 @@ describe("reportForAgent", () => {
         status: { phase: "Succeeded" },
       } as never,
       {
-        insert: async (e) => {
-          reported.push(e);
+        emit: async (message) => {
+          reported.push(message);
         },
       },
     );
 
     expect(reported).toEqual([
       {
-        eventName: "kubernetes.agent.succeeded",
-        source: "kubernetes",
-        params: {
-          taskId: "task-1",
-          agentName: "cr-1",
-          phase: "Succeeded",
-          status: { phase: "Succeeded" },
+        kind: "event",
+        event: {
+          eventName: "kubernetes.agent.succeeded",
+          source: "kubernetes",
+          params: {
+            taskId: "task-1",
+            agentName: "cr-1",
+            phase: "Succeeded",
+            status: { phase: "Succeeded" },
+          },
+          dedupeKey: "k8s:task-1:Succeeded",
         },
-        dedupeKey: "k8s:task-1:Succeeded",
       },
     ]);
   });
 
   it("reports nothing for a CR that has not reached a terminal phase", async () => {
-    const reported: EventInsert[] = [];
+    const reported: ProxyMessage[] = [];
 
     await reportForAgent(
       {
@@ -65,8 +68,8 @@ describe("reportForAgent", () => {
         status: { phase: "Running" },
       } as never,
       {
-        insert: async (e) => {
-          reported.push(e);
+        emit: async (message) => {
+          reported.push(message);
         },
       },
     );
@@ -74,10 +77,10 @@ describe("reportForAgent", () => {
     expect(reported).toEqual([]);
   });
 
-  it("swallows a failed report so one bad CR cannot end the watch", async () => {
+  it("swallows a failed emit so one bad CR cannot end the watch", async () => {
     const failing = {
-      insert: async (): Promise<void> => {
-        throw new Error("router unreachable");
+      emit: async (): Promise<void> => {
+        throw new Error("proxy refused the message");
       },
     };
 
@@ -150,129 +153,5 @@ describe("forEachAgentPage", () => {
     );
 
     expect(resourceVersion).toBeUndefined();
-  });
-});
-
-describe("reportForAgent over a network", () => {
-  const succeeded = {
-    metadata: { name: "a-1", labels: { "lore.re-cinq.com/task-id": "t-1" } },
-    status: { phase: "Succeeded" },
-  } as never;
-
-  it("retries a failed insert, since the report now crosses a network", async () => {
-    // The insert used to be a write on this process's own pool. It is now an
-    // HTTP POST to the event-router, so a blip is expected rather than
-    // exceptional — and a dropped terminal event leaves its node open until the
-    // reaper, which is the failure the event bus exists to remove.
-    let attempts = 0;
-
-    await reportForAgent(succeeded, {
-      insert: async () => {
-        attempts++;
-
-        return attempts < 3
-          ? Promise.reject(new Error("ECONNREFUSED"))
-          : Promise.resolve();
-      },
-      retry: { attempts: 5, delayMs: 1 },
-    });
-
-    expect(attempts).toBe(3);
-  });
-
-  it("gives up after the last attempt without throwing, so one bad report cannot stop the watch", async () => {
-    let attempts = 0;
-
-    await reportForAgent(succeeded, {
-      insert: async () => {
-        attempts++;
-
-        return Promise.reject(new Error("ECONNREFUSED"));
-      },
-      retry: { attempts: 2, delayMs: 1 },
-    });
-
-    expect(attempts).toBe(2);
-  });
-});
-
-describe("reportForAgent — a refused credential re-registers before the retry", () => {
-  const succeeded = {
-    metadata: { name: "run-1-review", labels: { [TASK]: "t-1" } },
-    status: { phase: "Succeeded" },
-  } as never;
-  const unauthorized = Object.assign(new Error("event insert failed: 401"), {
-    status: 401,
-  });
-
-  it("re-registers once on a 401 and the next attempt lands", async () => {
-    // The satellite's per-agent token rotates whenever another instance of it
-    // registers (a rollout overlap did exactly that on 2026-08-28). Retrying
-    // with the same token five times lost run 595d2b0b's terminal event.
-    let inserts = 0;
-    let reRegistrations = 0;
-
-    await reportForAgent(succeeded, {
-      insert: async () => {
-        inserts++;
-
-        return inserts === 1 ? Promise.reject(unauthorized) : Promise.resolve();
-      },
-      onUnauthorized: async () => {
-        reRegistrations++;
-      },
-      retry: { attempts: 5, delayMs: 1 },
-    });
-
-    expect({ inserts, reRegistrations }).toEqual({
-      inserts: 2,
-      reRegistrations: 1,
-    });
-  });
-
-  it("re-registers on a 403 the same as a 401", async () => {
-    const forbidden = Object.assign(new Error("event insert failed: 403"), {
-      status: 403,
-    });
-    let inserts = 0;
-    let reRegistrations = 0;
-
-    await reportForAgent(succeeded, {
-      insert: async () => {
-        inserts++;
-
-        return inserts === 1 ? Promise.reject(forbidden) : Promise.resolve();
-      },
-      onUnauthorized: async () => {
-        reRegistrations++;
-      },
-      retry: { attempts: 5, delayMs: 1 },
-    });
-
-    expect({ inserts, reRegistrations }).toEqual({
-      inserts: 2,
-      reRegistrations: 1,
-    });
-  });
-
-  it("does not re-register on an ordinary blip", async () => {
-    let reRegistrations = 0;
-    let inserts = 0;
-
-    await reportForAgent(succeeded, {
-      insert: async () => {
-        inserts++;
-
-        return inserts === 1
-          ? Promise.reject(new Error("ECONNREFUSED"))
-          : Promise.resolve();
-      },
-      onUnauthorized: async () => {
-        reRegistrations++;
-      },
-      retry: { attempts: 3, delayMs: 1 },
-    });
-
-    expect(reRegistrations).toBe(0);
   });
 });

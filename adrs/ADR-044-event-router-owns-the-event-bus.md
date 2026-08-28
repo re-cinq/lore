@@ -107,29 +107,30 @@ A report is now a network call rather than a write on the reporting process's ow
 pool, so it retries before giving up. Every event `mapAgentToEvent` produces
 carries a `dedupeKey`, which is what makes repeating one safe.
 
-- A terminal Agent CR becomes its kubernetes event. ([validated by reports a terminal Agent CR as its kubernetes event](apps/cluster-agent/src/listeners/agent-reporting.test.ts#L44))
+- A terminal Agent CR becomes its kubernetes event. ([validated by reports a terminal Agent CR as its kubernetes event](apps/cluster-agent/src/listeners/agent-reporting.test.ts#L29))
 - A CR that has not reached a terminal phase reports nothing, so the repeated
   MODIFIED notifications a running pod generates cost one map and no row.
-  ([validated by reports nothing for a CR that has not reached a terminal phase](apps/cluster-agent/src/listeners/agent-reporting.test.ts#L70))
-- A failed report is swallowed here, unlike everywhere else this repo reports
-  events: the caller is a watch callback with nobody to return a status to, so
-  throwing would end the stream over one CR, and the Floor's reconcile pass
-  re-emits what was missed. ([validated by swallows a failed report so one bad CR cannot end the watch](apps/cluster-agent/src/listeners/agent-reporting.test.ts#L84))
+  ([validated by reports nothing for a CR that has not reached a terminal phase](apps/cluster-agent/src/listeners/agent-reporting.test.ts#L62))
 - A report retries before it is given up on, because it now crosses a network
   rather than writing to this process's own pool — and a dropped terminal event
   leaves its node open until the reaper, which is the failure the bus exists to
   remove. Repeating one is safe: every event `mapAgentToEvent` produces carries a
-  `dedupeKey`. ([validated by retries a failed insert, since the report now crosses a network](apps/cluster-agent/src/listeners/agent-reporting.test.ts#L162), [`agent-reporting.test.ts:178`](apps/cluster-agent/src/listeners/agent-reporting.test.ts#L183))
+  `dedupeKey`. The ladder itself moved to the shared `EventProxy` on 2026-08-28,
+  so it is no longer the watch's to own — or to have alone. ([validated by retries a blip and reports the message on the next attempt](libs/shared/src/project/events/event-proxy.test.ts#L151), [retries a blip with a delay that grows with the attempt](libs/shared/src/project/events/delivery-policy.test.ts#L25), [drops after the last attempt and names the message](libs/shared/src/project/events/event-proxy.test.ts#L192))
 - A REFUSED report (401/403) re-registers before the next attempt, through the
   satellite's single-flight re-registration — the same move the claim and
   heartbeat loops already make. A satellite's per-agent token rotates whenever
   another instance of it registers (a RollingUpdate overlap did exactly that on
   2026-08-28), and a report that only retried with the rotated-out token lost
   run 595d2b0b's terminal event for good; nothing central can see a satellite's
-  CR to reap it. An ordinary blip still just retries. ([validated by re-registers once on a 401 and the next attempt lands](apps/cluster-agent/src/listeners/agent-reporting.test.ts#L208), [`agent-reporting.test.ts:233`](apps/cluster-agent/src/listeners/agent-reporting.test.ts#L233), [`agent-reporting.test.ts:258`](apps/cluster-agent/src/listeners/agent-reporting.test.ts#L258), [`event-reporter-http.test.ts:119`](libs/shared/src/project/events/event-reporter-http.test.ts#L119))
+  CR to reap it. An ordinary blip still just retries. ([validated by re-registers once on a refused credential and the retry then lands](libs/shared/src/project/events/event-proxy.test.ts#L169), [reads 401 and 403 as a refused credential](libs/shared/src/project/events/delivery-policy.test.ts#L8), [reads 503 as a blip, not a refusal, so a busy router never rotates the token](libs/shared/src/project/events/delivery-policy.test.ts#L15), [`event-reporter-http.test.ts:119`](libs/shared/src/project/events/event-reporter-http.test.ts#L119))
+- The watch hands each observed CR to that proxy rather than delivering it
+  itself, and a failed hand-off is swallowed here, unlike everywhere else this
+  repo reports events: the caller is a watch callback with nobody to return a
+  status to, so throwing would end the stream over one CR. ([validated by swallows a failed emit so one bad CR cannot end the watch](apps/cluster-agent/src/listeners/agent-reporting.test.ts#L80))
 - The catch-up pass walks the namespace one page at a time. 180 accumulated CRs
   in a single unpaginated LIST blew Node's heap and crash-looped the Floor on
-  2026-07-24. ([validated by walks every page rather than holding the namespace at once](apps/cluster-agent/src/listeners/agent-reporting.test.ts#L104), [`agent-reporting.test.ts:112`](apps/cluster-agent/src/listeners/agent-reporting.test.ts#L117), [`agent-reporting.test.ts:137`](apps/cluster-agent/src/listeners/agent-reporting.test.ts#L142))
+  2026-07-24. ([validated by walks every page rather than holding the namespace at once](apps/cluster-agent/src/listeners/agent-reporting.test.ts#L100), [reads the raw `continue` token too, which is what the API actually sends](apps/cluster-agent/src/listeners/agent-reporting.test.ts#L120), [reports no resourceVersion when a page carries none](apps/cluster-agent/src/listeners/agent-reporting.test.ts#L145))
 
 ### The router serves the drain loop
 
@@ -399,7 +400,7 @@ against it and declare only what they observed.
   wraps, and never resolves the local pool when a router is configured — a
   pool-less process must be able to hold one. In local mode the event sink is
   the pool-backed reporter with a single attempt, since a failed same-process
-  Postgres insert is not a wire blip. ([validated by never resolves the local queue when a router is configured, so a pool-less process can hold one](libs/shared/src/project/events/select-event-reporter.test.ts#L102))
+  Postgres insert is not a wire blip. ([validated by never resolves the local queue when a router is configured, so a pool-less process can hold one](libs/shared/src/project/events/select-event-reporter.test.ts#L132), [presents a token thunk per call, so a rotated per-agent credential is picked up](libs/shared/src/project/events/select-event-reporter.test.ts#L102))
 
 ## Alternatives considered
 

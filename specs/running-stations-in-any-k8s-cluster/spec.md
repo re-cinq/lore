@@ -275,7 +275,7 @@ A satellite must report outcomes without holding the bus-wide credential.
   tell a rotation from a blip. And the overlap itself is closed at the source:
   both cluster-agent Deployments roll out `Recreate`, since a singleton
   registrant that overlaps its own successor rotates the successor's token.
-  ([validated by re-registers once on a 401 and the next attempt lands](apps/cluster-agent/src/listeners/agent-reporting.test.ts#L208), [`event-reporter-http.test.ts:119`](libs/shared/src/project/events/event-reporter-http.test.ts#L119), [`check-cluster-agent-standalone-render.sh`](scripts/check-cluster-agent-standalone-render.sh#L1))
+  ([validated by re-registers once on a refused credential and the retry then lands](libs/shared/src/project/events/event-proxy.test.ts#L169), [`event-reporter-http.test.ts:119`](libs/shared/src/project/events/event-reporter-http.test.ts#L119), [`check-cluster-agent-standalone-render.sh`](scripts/check-cluster-agent-standalone-render.sh#L1))
 - Deregistering or rotating a cluster-agent's token immediately invalidates
   its reporting credential — one revocation surface for both claiming and
   reporting. An agent already marked offline still delivers a late terminal

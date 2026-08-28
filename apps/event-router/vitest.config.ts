@@ -15,7 +15,6 @@ export default defineConfig({
       // connection that feeds it.
       include: [
         "src/delivery/routes/events.ts",
-        "src/listeners/agent-reporting.ts",
       ],
       thresholds: {
         lines: 100,
