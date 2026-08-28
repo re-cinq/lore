@@ -295,7 +295,7 @@ export default function SpendView({
               {loreByCluster.some((r) => r.cluster === null) && (
                 <tr>
                   <td colSpan={3} className={styles.subhead}>
-                    Non-cluster
+                    No cluster
                   </td>
                 </tr>
               )}
