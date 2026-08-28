@@ -82,7 +82,7 @@ src/
   server/            build-mcp-server.ts — assembles the server and registers every tool
   mcp/tools/         MCP tool implementations + registration (context, memory, pipeline, repo, usage,
                      spec-trace, local-runner); deps.ts holds the lazy getPool + proxy helpers
-  features/          local-only glue — context (hydration, transfer scoring), pipeline (CRUD + local
+  features/          local-only glue — context (transfer scoring), pipeline (CRUD + local
                      runner), spec-trace; the bulk of the domain logic lives in @re-cinq/lore-server-core
                      and @re-cinq/lore-shared
   platform/          healthz + secret-redaction checks

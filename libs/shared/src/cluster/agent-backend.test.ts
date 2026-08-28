@@ -129,7 +129,9 @@ describe("AgentCrBackend.launch — per-task token (#697)", () => {
   it("falls back to the catalog Station when the provisioner returns undefined", async () => {
     const api = new FakeAgentApi();
 
-    await new AgentCrBackend(api, new FakeProvisioner(undefined)).launch(baseSpec);
+    await new AgentCrBackend(api, new FakeProvisioner(undefined)).launch(
+      baseSpec,
+    );
     expect(api.created[0].spec?.stationRef).toBe("implementation");
   });
 

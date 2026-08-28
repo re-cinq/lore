@@ -114,7 +114,8 @@ function llmSpec(
     ...loreResources(mcpUrl),
     description: `Lore ${def.name} recipe (UI-authored).`,
     ...(def.model ? { model: def.model } : {}),
-    // {context} is filled by the Floor's context hydration (D5).
+    // {context} is filled per run with CONTEXT_BOOTSTRAP — an instruction to
+    // assemble context, since nothing is fetched at dispatch.
     prompt: `${def.prompt}\n\n{context}`,
     permission_mode: "bypass",
     max_turns: AGENT_MAX_TURNS,

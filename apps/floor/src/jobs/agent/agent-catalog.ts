@@ -119,7 +119,8 @@ export function buildAgentDefinition(
     spec: {
       description: `Lore ${taskType} task recipe (seeded).`,
       ...(cfg.model ? { model: cfg.model } : {}),
-      // The {context} placeholder is filled by the Floor's context hydration (D5).
+      // The {context} placeholder is filled per run with CONTEXT_BOOTSTRAP — an
+      // instruction to assemble context, since nothing is fetched at dispatch.
       prompt: `${cfg.prompt_template.trimEnd()}\n\n{context}`,
       permission_mode: "bypass",
       max_turns: AGENT_MAX_TURNS,

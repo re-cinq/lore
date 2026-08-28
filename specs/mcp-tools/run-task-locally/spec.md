@@ -59,8 +59,7 @@ Starts a brand-new ad-hoc task as a detached background Claude Code process in a
       throws if the cwd is a checkout of a different repo than `target_repo`.
    3. Build branch `lore/<taskType>/<slug>-<shortId>`; refuse if the worktree dir
       already exists (idempotency).
-   4. `git worktree add` the branch; pre-hydrate context from `/api/context`
-      (best effort); spawn detached `claude --print --dangerously-skip-permissions
+   4. `git worktree add` the branch; spawn detached `claude --print --dangerously-skip-permissions
       --model <model> -- <prompt>` with stdio to the log file; `unref()`.
    5. Register the task in `~/.lore/local-tasks.json` (never inside the worktree)
       and start `monitorTask` in the background (validate → commit → push → PR).
@@ -83,8 +82,9 @@ wrong-repo warning, or `"Error: {message}"`. **Never throws**.
 - `detectRepo()`, `getRepoRoot()`, `spawnLocalTask` (all shell out to `git`).
 - Spawns a detached `claude` process; creates a git worktree + branch.
 - Writes `~/.lore/local-tasks.json`; appends to a per-task log file.
-- Env: `LORE_API_URL`, `LORE_INGEST_TOKEN` (task registration + context hydration,
-  both best-effort).
+- Env: `LORE_API_URL`, `LORE_INGEST_TOKEN` (task registration, best-effort). The
+  run assembles its own context through the MCP server, so neither is needed for
+  context.
 - `monitorTask` later runs validation, `git commit`/`push`, and `gh pr create`.
 
 ## Acceptance Criteria
