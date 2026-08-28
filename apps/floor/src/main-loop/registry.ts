@@ -20,6 +20,10 @@ import {
 } from "@re-cinq/lore-shared/project/assembly-runs/run-events.js";
 import { agentNodeTerminal } from "../jobs/assembly-run/node-event-handler.js";
 import {
+  podLogAppended,
+  telemetryPrune,
+} from "../jobs/station/pod-log-handler.js";
+import {
   codeReviewOnTrigger,
   codeReviewOnComment,
   codeReviewOnReviewSubmitted,
@@ -102,6 +106,10 @@ export function buildRegistry(): Map<string, EventHandler> {
     // Assembly-line node CRs (labeled): the event-driven walk's transitions.
     ["kubernetes.agent_node.succeeded", agentNodeTerminal],
     ["kubernetes.agent_node.failed", agentNodeTerminal],
+    // Run-pod stdout, followed and batched by the cluster-agent. Persisted
+    // because the live read and its Cloud Logging fallback are both
+    // central-only, so a satellite's run has no other log path.
+    ["kubernetes.pod_log.appended", podLogAppended],
 
     // ── Cron (in-process scheduler emits the tick; loop runs it) ──
     ["cron.merge_check.tick", cron.mergeCheck],
@@ -110,6 +118,7 @@ export function buildRegistry(): Map<string, EventHandler> {
     ["cron.approval_check.tick", cron.approvalCheck],
     ["cron.spec_task_executor.tick", cron.specTaskExecutor],
     ["cron.stale_task_check.tick", cron.staleTaskCheck],
+    ["cron.telemetry_prune.tick", telemetryPrune],
     ["cron.feature_planning_reaper.tick", cron.featurePlanningReaper],
     ["cron.assembly_line_reaper.tick", cron.assemblyLineReaper],
     ["cron.llm_credit_probe.tick", cron.llmCreditProbe],

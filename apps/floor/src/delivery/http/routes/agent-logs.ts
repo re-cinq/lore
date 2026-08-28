@@ -8,6 +8,11 @@
 
 import type { ServerRoute } from "@hapi/hapi";
 import {
+  firstAvailableArchive,
+  storedPodLogArchive,
+} from "@re-cinq/lore-shared/project/pod-logs/stored-pod-log-archive.js";
+import { pipeline } from "../../../kernel/queues.js";
+import {
   readAgentLogs,
   CloudLoggingPodLogs,
   type PodLogArchive,
@@ -29,9 +34,32 @@ export function parseTail(raw: unknown): number {
     : DEFAULT_TAIL_LINES;
 }
 
+/**
+ * Stored chunks first, Cloud Logging behind them.
+ *
+ * Stored leads because it is the only source that works for a run executed in a
+ * cluster the Floor cannot reach — the live read dials one CLUSTER_AGENT_URL
+ * and the Cloud Logging filter names one project, so a satellite's run is
+ * invisible to both. Cloud Logging stays behind it because it holds history
+ * from before the table existed, and `storedPodLogArchive` returns null rather
+ * than "" for a job it has nothing for, which is what lets the chain continue.
+ */
+function defaultArchive(): PodLogArchive {
+  return firstAvailableArchive(
+    {
+      // `pipeline()` is resolved per READ, not here: this default is evaluated
+      // when the route is registered, and that happens before `initPool`. A
+      // pool resolved eagerly would turn route registration into a boot crash.
+      logsForJob: (jobName, opts) =>
+        storedPodLogArchive(pipeline().podLogs).logsForJob(jobName, opts),
+    },
+    new CloudLoggingPodLogs(),
+  );
+}
+
 export function agentLogsRoute(
   source: PodLogSource = new HttpPodLogSource(clusterAgent()),
-  archive: PodLogArchive = new CloudLoggingPodLogs(),
+  archive: PodLogArchive = defaultArchive(),
 ): ServerRoute {
   return {
     method: "GET",

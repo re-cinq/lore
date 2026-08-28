@@ -34,6 +34,11 @@ export const CRON_EMITTERS: CronEmitter[] = [
   { name: "approval_check", schedule: "*/1 * * * *" },
   { name: "spec_task_executor", schedule: "*/1 * * * *" },
   { name: "stale_task_check", schedule: "17 * * * *" },
+  {
+    name: "telemetry_prune",
+    schedule: "43 3 * * *",
+    note: "14-day reap of agent_run_events + pod_log_chunks; the ADR-037 window existed with no caller until pod_log_chunks needed one too",
+  },
   { name: "feature_planning_reaper", schedule: "*/1 * * * *" },
   {
     name: "assembly_line_reaper",

@@ -22,6 +22,7 @@ import type { JobRunsPort } from "../job-runs/job-runs-port.js";
 import type { AuditPort } from "../audit/audit-port.js";
 import type { LeaseBackend } from "../leases/lease-backends.js";
 import type { AgentRunEventsRepository } from "../agent-run-events/agent-run-events-port.js";
+import type { PodLogsRepository } from "../pod-logs/pod-logs-port.js";
 import type { AgentRunTurnsRepository } from "../agent-run-turns/agent-run-turns-port.js";
 
 /**
@@ -49,6 +50,9 @@ export interface PipelineRepositories {
   leases: LeaseBackend;
   /** `pipeline.agent_run_events` — per-tool-call agent telemetry. */
   agentRunEvents: AgentRunEventsRepository;
+  /** `pipeline.pod_log_chunks` — durable run-pod stdout, the only log source
+   *  that works for a run executed in a cluster the Floor cannot reach. */
+  podLogs: PodLogsRepository;
   /** `pipeline.agent_run_turns` — full-fidelity run transcripts. */
   agentRunTurns: AgentRunTurnsRepository;
 }
