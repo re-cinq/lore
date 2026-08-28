@@ -22,8 +22,12 @@ registrationToken: ""
 # This cluster's unique registry name (pipeline.cluster_agents.name).
 name: ""
 
-# Capability tags this cluster offers, e.g. ["node:agent", "node:validate"].
-# Rendered comma-joined into LORE_CLUSTER_AGENT_TAGS.
+# Capability tags this cluster offers, e.g. ["node:agent"]. Rendered
+# comma-joined into LORE_CLUSTER_AGENT_TAGS. Advertise a STATION type
+# (node:validate, node:gate, node:detect, node:comment-triage) only if this
+# cluster can serve it: every seeded station recipe mounts LORE_INGEST_TOKEN,
+# which FR5 keeps central, so on a plain satellite such a claim dies at init
+# with CreateContainerConfigError and wastes the run.
 tags: []
 
 # GHCR pull credentials — the chart writes a `ghcr-pull-secret`
@@ -56,10 +60,10 @@ llm:
 agentEventsUrl: ""
 
 # Optional per-task GitHub credential (#1575). Without it, this cluster-agent
-# can still register/claim/heartbeat and run stations whose command needs no
-# git push (validate, gate, detect, comment-triage) — but a run needing one
+# can still register/claim/heartbeat — but a claimed run needing a git push
 # (agent, github_action, retrospective) fails "GitHub not configured" once
-# claimed, wasting the claim. Set at most one of:
+# claimed, wasting the claim. (Station types need no push, but see `tags` above: they need a
+# credential this chart never ships.) Set at most one of:
 #   token          — a GitHub PAT scoped to the repos this satellite may push
 #                    to (least privilege; the natural choice for a personal
 #                    satellite)
