@@ -210,7 +210,7 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + agen
     `timeout_minutes`. ([validated by accepts station_ref and timeout_minutes on a node](libs/assembly-lines/src/loader.test.ts#L521))
 
 17. `nodeStationSpec` builds the CR spec: stationRef, `parameters.station_input` JSON
-    (assembly_line_id/node_id/node_type/repo/branch/task_id/params). ([validated by station-flagged node types dispatch a station CR](apps/floor/src/jobs/assembly-run/floor-assembly-run.test.ts#L134), [honors an explicit station_ref override](apps/floor/src/jobs/assembly-run/floor-assembly-run.test.ts#L176), [agent nodes thread station_ref too — a renamed recipe (code-review-refine) still resolves](apps/floor/src/jobs/assembly-run/floor-assembly-run.test.ts#L106))
+    (assembly_line_id/node_id/node_type/repo/branch/task_id/params). ([validated by station-flagged node types dispatch a station CR](apps/floor/src/jobs/assembly-run/floor-assembly-run.test.ts#L127), [honors an explicit station_ref override](apps/floor/src/jobs/assembly-run/floor-assembly-run.test.ts#L169), [agent nodes thread station_ref too — a renamed recipe (code-review-refine) still resolves](apps/floor/src/jobs/assembly-run/floor-assembly-run.test.ts#L106))
 
 18. A station pod ends with the claude-style result line carrying `LORE_NODE_RESULT: {outcome,
     extras}`; the Floor's `parseNodeResult` maps it (precedence: LORE_NODE_RESULT → REVIEW_RESULT →
@@ -227,7 +227,7 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + agen
     (no `LORE_STATION_NODES` flag, no in-process node handlers on that path); the in-process
     supervisor path (gap-fill/runbook), untouched at cutover time, has since been removed too —
     gap-fill runs on the Floor AssemblyLine and runbook as a single Agent CR, both via
-    `handleClaudeCodeTask` with no Floor-side clone or App token. ([validated by every non-agent node dispatches a station CR](apps/floor/src/jobs/assembly-run/floor-assembly-run.test.ts#L134))
+    `handleClaudeCodeTask` with no Floor-side clone or App token. ([validated by every non-agent node dispatches a station CR](apps/floor/src/jobs/assembly-run/floor-assembly-run.test.ts#L127))
 
 20. `scripts/task-types.yaml` `stations:` seeds `def-<type>` AgentDefinition/Station pairs (exec
     model, `{station_input}` prompt, lore-station image via `.Values.stationImage`, deadline
@@ -292,14 +292,6 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + agen
     configured UsagePort (`Llm.usageConfigured` — the per-call transport), `runStation` installs no
     tracker and suppresses all terminal-line usage, explicit `NodeResult.usage` included, so the
     same call is never counted by both. ([validated by `main.test.ts:28`](apps/stations/src/cli/main.test.ts#L28), [`main.test.ts:62`](apps/stations/src/cli/main.test.ts#L62), [`main.test.ts:95`](apps/stations/src/cli/main.test.ts#L95), [`main.test.ts:119`](apps/stations/src/cli/main.test.ts#L119), [`main.test.ts:134`](apps/stations/src/cli/main.test.ts#L134), [`main.test.ts:148`](apps/stations/src/cli/main.test.ts#L148); implemented by [`llm-usage-tracker.ts:17`](apps/stations/src/stations/lib/llm-usage-tracker.ts#L17))
-
-25. *(added 2026-08-03, #1026)* `HttpContextSource.assemble` (D5 hydration) is fail-soft but never
-    silent: it returns undefined without fetching when the API is unconfigured, returns the
-    assembled text on success, sends the bearer header when a token is configured, and bounds the
-    fetch with a 15s `AbortSignal.timeout`; a non-ok response, a fetch/timeout error, a malformed
-    2xx body, or an empty, whitespace-only, or absent `text` each yield undefined (the agent runs
-    cold) after a `console.warn` carrying the HTTP status or error message plus the repo and query
-    ([validated by `http-context-source.test.ts:33`](apps/floor/src/jobs/station/http-context-source.test.ts#L33), [`http-context-source.test.ts:44`](apps/floor/src/jobs/station/http-context-source.test.ts#L44), [`http-context-source.test.ts:60`](apps/floor/src/jobs/station/http-context-source.test.ts#L60), [`http-context-source.test.ts:77`](apps/floor/src/jobs/station/http-context-source.test.ts#L77), [`http-context-source.test.ts:89`](apps/floor/src/jobs/station/http-context-source.test.ts#L89), [`http-context-source.test.ts:106`](apps/floor/src/jobs/station/http-context-source.test.ts#L106), [`http-context-source.test.ts:121`](apps/floor/src/jobs/station/http-context-source.test.ts#L121), [`http-context-source.test.ts:136`](apps/floor/src/jobs/station/http-context-source.test.ts#L136), [`http-context-source.test.ts:147`](apps/floor/src/jobs/station/http-context-source.test.ts#L147), [`http-context-source.test.ts:158`](apps/floor/src/jobs/station/http-context-source.test.ts#L158), [`http-context-source.test.ts:169`](apps/floor/src/jobs/station/http-context-source.test.ts#L169); implemented by [`http-context-source.ts:28`](apps/floor/src/jobs/station/http-context-source.ts#L28))
 
 26. *(added 2026-08-10)* A seeded recipe MUST NOT declare `skills` without a
     `skills_source` to fetch them from. The generated catalog omits the whole skills
