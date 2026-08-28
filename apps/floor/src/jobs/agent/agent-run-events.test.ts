@@ -245,6 +245,20 @@ describe("run-event projection through parseAgentSink", () => {
     });
   });
 
+  it("names an unnamed hook 'hook' rather than undefined", () => {
+    const rows = parseRunEvents(
+      line({
+        type: "system",
+        subtype: "hook_response",
+        hook_id: "e628dd11",
+        outcome: "success",
+        exit_code: 0,
+      }),
+    );
+
+    expect(rows[0]).toMatchObject({ summary: "hook hook success" });
+  });
+
   it("marks a hook that exited non-zero as an error row", () => {
     const rows = parseRunEvents(
       line({
