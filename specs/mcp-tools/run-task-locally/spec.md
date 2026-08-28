@@ -90,27 +90,27 @@ wrong-repo warning, or `"Error: {message}"`. **Never throws**.
 ## Acceptance Criteria
 
 `validateRepoMatch` passes when the cwd repo matches the task's target repo.
-([validated by `passes when cwd repo matches task repo`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L232))
+([validated by `passes when cwd repo matches task repo`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L234))
 
 `validateRepoMatch` throws when the cwd repo differs from the task's target repo.
-([validated by `throws when cwd repo differs from task repo`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L238))
+([validated by `throws when cwd repo differs from task repo`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L240))
 
 The repo-mismatch error names both repos and suggests a `cd`.
-([validated by `error message names both repos and suggests a cd`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L244))
+([validated by `error message names both repos and suggests a cd`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L246))
 
 `validateRepoMatch` passes when the cwd repo cannot be detected (null).
-([validated by `passes when cwd repo cannot be detected (null)`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L255))
+([validated by `passes when cwd repo cannot be detected (null)`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L257))
 
 The `<slug>` segment normalizes the description: lowercased, every run of
 non-alphanumeric characters collapsed to a single dash, truncated to 40 chars,
 with any trailing dash stripped; digits-only and empty inputs are preserved.
-([validated by `runner.local.test.ts:36`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L38), [validated by `runner.local.test.ts:40`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L42), [validated by `runner.local.test.ts:44`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L46), [validated by `runner.local.test.ts:52`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L54), [validated by `runner.local.test.ts:60`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L62), [validated by `runner.local.test.ts:68`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L70), [validated by `runner.local.test.ts:72`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L74), [validated by `runner.local.test.ts:76`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L78))
+([validated by `runner.local.test.ts:36`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L40), [validated by `runner.local.test.ts:40`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L44), [validated by `runner.local.test.ts:44`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L48), [validated by `runner.local.test.ts:52`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L56), [validated by `runner.local.test.ts:60`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L64), [validated by `runner.local.test.ts:68`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L72), [validated by `runner.local.test.ts:72`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L76), [validated by `runner.local.test.ts:76`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L80))
 
 The spawned branch follows the `lore/<type>/<slug>-<shortId>` format.
-([validated by `creates lore/<type>/<slug>-<shortId> format`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L205))
+([validated by `creates lore/<type>/<slug>-<shortId> format`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L207))
 
 A short prompt still produces a valid branch name.
-([validated by `handles very short prompts`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L219))
+([validated by `handles very short prompts`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L221))
 
 The end-to-end spawn (worktree creation, `claude` process, `monitorTask` →
 commit/push/PR) is exercised only by manual / integration runs. *(untested:

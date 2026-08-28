@@ -9,6 +9,7 @@ import * as os from "node:os";
 // writeConfig, listPendingTasks, skipTask) we import directly.
 
 import {
+  withLoreWorkflowPreamble,
   readConfig,
   listPendingTasks,
   validateRepoMatch,
@@ -506,5 +507,23 @@ describe("ingestTurns x-turn-offset header", () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(fetchMock.mock.calls[1][1].headers["x-turn-offset"]).toBe("2000");
+  });
+});
+
+describe("withLoreWorkflowPreamble", () => {
+  it("opens every local run with lore_assemble_context as step 1", () => {
+    expect(withLoreWorkflowPreamble("do the thing")).toContain(
+      "1. FIRST: Call lore_assemble_context",
+    );
+  });
+
+  it("ends with the task, so the instructions read as preamble to it", () => {
+    expect(withLoreWorkflowPreamble("do the thing")).toMatch(/do the thing$/);
+  });
+
+  it("has one shape — nothing is pre-fetched, so there is no pre-loaded branch", () => {
+    expect(withLoreWorkflowPreamble("do the thing")).not.toContain(
+      "Pre-loaded Context",
+    );
   });
 });

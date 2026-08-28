@@ -785,11 +785,33 @@ async function persistRunArtifacts(task: LocalTask): Promise<void> {
 // ---------------------------------------------------------------------------
 
 /**
+ * The Lore workflow preamble every locally-run task opens with.
+ *
+ * It used to have two shapes: one for a run whose context had been pre-fetched
+ * and one for a run whose fetch failed. Nothing is pre-fetched any more, so the
+ * second shape is the only shape — the agent assembles its own context through
+ * the MCP server, which is step 1.
+ */
+export function withLoreWorkflowPreamble(prompt: string): string {
+  return [
+    "IMPORTANT: You have the Lore MCP server. Follow this workflow:",
+    "1. FIRST: Call lore_assemble_context with a query describing this task. This loads conventions, ADRs, memories, facts, and graph.",
+    "2. BEFORE CODING: Call lore_search_memory to check if this problem was already solved or has known gotchas. Try multiple queries.",
+    "3. DURING WORK: Use lore_search_context for patterns. Use lore_query_graph for entity relationships.",
+    "4. WHEN DONE: Call lore_write_episode with a summary of what you did and any non-obvious decisions.",
+    "",
+    "Now execute the following task:",
+    "",
+    prompt,
+  ].join("\n");
+}
+
+/**
  * Spawns a local task in a git worktree with a background Claude Code process.
  * Returns immediately — the task runs asynchronously.
  *
- * Pre-fetches assembled context from the Lore API before spawning the agent,
- * so the LLM starts with rich context on turn 1 (Minions-inspired hydration).
+ * The agent starts cold and assembles its own context through the Lore MCP
+ * server — the preamble's step 1. Nothing is pre-fetched here.
  */
 export async function spawnLocalTask(opts: {
   taskId: string;
@@ -835,69 +857,7 @@ export async function spawnLocalTask(opts: {
     timeout: 30000,
   });
 
-  // ── Pre-run context hydration (Minions-inspired) ──
-  // Fetch assembled context BEFORE spawning Claude Code so the agent
-  // starts with conventions, ADRs, memories, and graph on turn 1.
-  let preContext = "";
-  const apiUrl = getApiUrl();
-  const token = getToken();
-
-  if (apiUrl && token) {
-    const startedAt = Date.now();
-
-    try {
-      const template = taskType === "review" ? "review" : "implementation";
-      const contextUrl = `${apiUrl}/api/context?repo=${encodeURIComponent(repo)}&template=${template}&query=${encodeURIComponent(prompt.substring(0, 200))}`;
-      const resp = await fetch(contextUrl, {
-        headers: { Authorization: `Bearer ${token}` },
-        signal: AbortSignal.timeout(10_000),
-      });
-
-      if (resp.ok) {
-        const data = (await resp.json()) as { text?: string };
-
-        if (data.text) {
-          preContext = data.text;
-        }
-      } else {
-        console.error(
-          `[lore] local-runner: context hydration returned ${resp.status} after ${Date.now() - startedAt}ms, agent starting cold`,
-        );
-      }
-    } catch (err) {
-      // Proceed without pre-hydration — agent will call lore_assemble_context itself
-      console.error(
-        `[lore] local-runner: context hydration failed after ${Date.now() - startedAt}ms, agent starting cold: ${err instanceof Error ? err.message : String(err)}`,
-      );
-    }
-  }
-
-  // Build the full prompt with Lore workflow preamble
-  const preambleParts: string[] = [];
-
-  if (preContext) {
-    preambleParts.push("## Pre-loaded Context\n\n" + preContext + "\n\n---\n");
-    preambleParts.push(
-      "Context was pre-loaded above. You may call lore_assemble_context for fresh data during long tasks.",
-    );
-  } else {
-    preambleParts.push(
-      "IMPORTANT: You have the Lore MCP server. Follow this workflow:",
-    );
-    preambleParts.push(
-      "1. FIRST: Call lore_assemble_context with a query describing this task. This loads conventions, ADRs, memories, facts, and graph.",
-    );
-  }
-  preambleParts.push(
-    "2. BEFORE CODING: Call lore_search_memory to check if this problem was already solved or has known gotchas. Try multiple queries.",
-    "3. DURING WORK: Use lore_search_context for patterns. Use lore_query_graph for entity relationships.",
-    "4. WHEN DONE: Call lore_write_episode with a summary of what you did and any non-obvious decisions.",
-    "",
-    "Now execute the following task:",
-    "",
-    prompt,
-  );
-  const fullPrompt = preambleParts.join("\n");
+  const fullPrompt = withLoreWorkflowPreamble(prompt);
 
   // stdout gets the stream-json transcript (the turn-ingest source, #1295);
   // stderr goes to a sibling file so its writes can never corrupt an NDJSON
