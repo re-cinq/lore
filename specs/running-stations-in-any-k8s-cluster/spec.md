@@ -189,12 +189,13 @@ one dispatch mechanism, not a special case plus a remote case.
   The claiming cluster-agent materialises everything cluster-local itself:
   the builtin `def-<type>` catalog arrives with the ai-agents subchart it is
   installed beside, per-task token provisioning and the AgentDefinition +
-  Station clone happen through its own provisioner, context hydration is
-  fetched outbound from the Lore API (a satellite without the central
-  ingest credential launches unhydrated — agent pods still carry the live
-  lore-mcp gateway), and the Agent CR is created under the exact CR name
+  Station clone happen through its own provisioner, no context is fetched at
+  dispatch by either cluster (removed 2026-08-28 — the credential it needed
+  never leaves central, so it was the last thing that made a central run and a
+  satellite run of one recipe differ; agent pods assemble their own through the
+  live lore-mcp gateway), and the Agent CR is created under the exact CR name
   the Floor recorded on the station-run row — so no synced catalog is
-  required and no inbound push ever occurs. ([validated by `claim-loop.test.ts:139`](apps/cluster-agent/src/satellite/claim-loop.test.ts#L139), [`claim-loop.test.ts:152`](apps/cluster-agent/src/satellite/claim-loop.test.ts#L152), [`claim-loop.test.ts:176`](apps/cluster-agent/src/satellite/claim-loop.test.ts#L176), [`claim-loop.test.ts:187`](apps/cluster-agent/src/satellite/claim-loop.test.ts#L187), [`claim-loop.test.ts:194`](apps/cluster-agent/src/satellite/claim-loop.test.ts#L194), [`claim-loop.test.ts:253`](apps/cluster-agent/src/satellite/claim-loop.test.ts#L253), [`api-context-source.test.ts:36`](apps/cluster-agent/src/satellite/api-context-source.test.ts#L36), [`api-context-source.test.ts:56`](apps/cluster-agent/src/satellite/api-context-source.test.ts#L56), [`api-context-source.test.ts:67`](apps/cluster-agent/src/satellite/api-context-source.test.ts#L67), [`api-context-source.test.ts:75`](apps/cluster-agent/src/satellite/api-context-source.test.ts#L75), [`api-context-source.test.ts:83`](apps/cluster-agent/src/satellite/api-context-source.test.ts#L83))
+  required and no inbound push ever occurs. ([validated by `claim-loop.test.ts:139`](apps/cluster-agent/src/satellite/claim-loop.test.ts#L139), [`claim-loop.test.ts:152`](apps/cluster-agent/src/satellite/claim-loop.test.ts#L152), [`claim-loop.test.ts:176`](apps/cluster-agent/src/satellite/claim-loop.test.ts#L176), [`claim-loop.test.ts:187`](apps/cluster-agent/src/satellite/claim-loop.test.ts#L187), [`claim-loop.test.ts:194`](apps/cluster-agent/src/satellite/claim-loop.test.ts#L194), [`claim-loop.test.ts:253`](apps/cluster-agent/src/satellite/claim-loop.test.ts#L253))
 - Outcome reporting rides the existing path: the cluster-agent's watch
   reports terminal phases through the event-router front door with dedupe
   keys, and the central Floor's event loop advances the assembly line
