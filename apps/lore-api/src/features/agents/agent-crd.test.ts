@@ -282,4 +282,13 @@ describe("preserveUnownedFields — a UI save never amputates what it does not r
 
     expect(merged.spec.resources).toEqual(liveWithResources.spec.resources);
   });
+
+  it("carries live resources through a save rendering an explicitly empty resources object", () => {
+    const merged = preserveUnownedFields(liveWithResources, {
+      ...desired,
+      spec: { ...desired.spec, resources: {} },
+    }) as typeof liveWithResources;
+
+    expect(merged.spec.resources).toEqual(liveWithResources.spec.resources);
+  });
 });
