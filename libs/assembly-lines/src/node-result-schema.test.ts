@@ -36,6 +36,15 @@ describe("NodeResultSchema", () => {
     });
   });
 
+  it("accepts the agent-settings-missing failure class", () => {
+    expect(
+      NodeResultSchema.parse({
+        outcome: "failed",
+        failureClass: "agent-settings-missing",
+      }),
+    ).toMatchObject({ failureClass: "agent-settings-missing" });
+  });
+
   it("refuses an outcome the walk cannot route", () => {
     expect(() => NodeResultSchema.parse({ outcome: "maybe" })).toThrow();
   });
