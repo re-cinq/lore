@@ -227,4 +227,68 @@ describe("preserveUnownedFields — a UI save never amputates what it does not r
       spec: { prompt: "new prompt" },
     });
   });
+
+  const liveWithResources = {
+    ...live,
+    spec: {
+      ...live.spec,
+      resources: {
+        skills: ["lore-context"],
+        skills_source: "https://lore-mcp.example.com/skills",
+        secrets: [{ name: "CLAUDE_CODE_OAUTH_TOKEN", ref: "agent-llm" }],
+        mcp_servers: [{ name: "old-lore", transport: "http", url: "old" }],
+      },
+    },
+  };
+  const desiredWithResources = {
+    ...desired,
+    spec: {
+      ...desired.spec,
+      resources: {
+        mcp_servers: [{ name: "lore", transport: "http", url: "new" }],
+      },
+    },
+  };
+
+  it("carries resources.skills_source and secrets through a save that renders only mcp_servers", () => {
+    const merged = preserveUnownedFields(
+      liveWithResources,
+      desiredWithResources,
+    ) as typeof liveWithResources;
+
+    expect(merged.spec.resources).toMatchObject({
+      skills: ["lore-context"],
+      skills_source: "https://lore-mcp.example.com/skills",
+      secrets: [{ name: "CLAUDE_CODE_OAUTH_TOKEN", ref: "agent-llm" }],
+    });
+  });
+
+  it("lets the editor win resources.mcp_servers when it renders them", () => {
+    const merged = preserveUnownedFields(
+      liveWithResources,
+      desiredWithResources,
+    ) as typeof liveWithResources;
+
+    expect(merged.spec.resources.mcp_servers).toEqual([
+      { name: "lore", transport: "http", url: "new" },
+    ]);
+  });
+
+  it("carries live resources through a save whose render has no resources at all", () => {
+    const merged = preserveUnownedFields(
+      liveWithResources,
+      desired,
+    ) as typeof liveWithResources;
+
+    expect(merged.spec.resources).toEqual(liveWithResources.spec.resources);
+  });
+
+  it("carries live resources through a save rendering an explicitly empty resources object", () => {
+    const merged = preserveUnownedFields(liveWithResources, {
+      ...desired,
+      spec: { ...desired.spec, resources: {} },
+    }) as typeof liveWithResources;
+
+    expect(merged.spec.resources).toEqual(liveWithResources.spec.resources);
+  });
 });
