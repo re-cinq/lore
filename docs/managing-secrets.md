@@ -90,8 +90,10 @@ learn it exists.
    sit in tfvars just to answer a yes/no question.
 2. **`infra/terraform/external-secrets.tf`** — add a `kubectl_manifest`
    ExternalSecret so ESO mirrors it into the namespace that needs it. Copy
-   `es_agent_internal_token` and change the four strings: the resource name, the
-   `metadata.name`/`target.name`, the `namespace`, and the `remoteRef.key`. One
+   `es_agent_internal_token` and change the five strings: the resource name, the
+   `metadata.name`/`target.name`, the `namespace`, the `secretKey` (the key under
+   which the value lands in the Kubernetes Secret — must match the chart's
+   `secretKeyRef.key`), and the `remoteRef.key`. One
    ExternalSecret per namespace — Kubernetes Secrets do not cross namespaces.
 3. **`scripts/infra/seed-secrets.sh`** — add it to `REQUIRED`, or to `OPTIONAL`
    if a gate controls it, so a fresh environment gets prompted for it instead of

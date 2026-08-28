@@ -125,7 +125,7 @@ Manage per-client tokens via `/api/tokens` (admin-only). Rate limits: 30/min web
 ## Set up Slack
 
 1. Create a Slack app from `scripts/slack-app-manifest.yaml`
-2. Store the signing secret and bot token in GCP Secret Manager (`lore-slack-signing-secret`, `lore-slack-bot-token`) — see [rotating-secrets.md](../rotating-secrets.md)
+2. Store the signing secret and bot token in GCP Secret Manager (`lore-slack-signing-secret`, `lore-slack-bot-token`) — see [managing-secrets.md](../managing-secrets.md)
 3. `terraform apply` to sync secrets via ESO
 4. Map channels to repos: `UPDATE lore.repos SET settings = settings || '{"slack_channel_id":"C..."}'`
 5. Invite the bot to each channel
