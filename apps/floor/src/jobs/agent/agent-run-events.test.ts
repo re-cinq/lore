@@ -218,10 +218,67 @@ describe("run-event projection through parseAgentSink", () => {
     expect(rows[0]).toMatchObject({ summary: "init unknown (0 tools)" });
   });
 
-  it("drops a system line whose subtype is not init", () => {
+  it("drops a system line whose subtype is neither init nor a finished hook", () => {
     const rows = parseRunEvents(line({ type: "system", subtype: "compact" }));
 
     expect(rows).toEqual([]);
+  });
+
+  it("projects a finished hook as one row carrying its outcome and exit code", () => {
+    const rows = parseRunEvents(
+      line({
+        type: "system",
+        subtype: "hook_response",
+        hook_id: "e628dd11",
+        hook_name: "SessionStart:startup",
+        hook_event: "SessionStart",
+        outcome: "success",
+        exit_code: 0,
+      }),
+    );
+
+    expect(rows[0]).toMatchObject({
+      eventType: "hook",
+      isError: false,
+      summary: "hook SessionStart:startup success",
+      payload: { hookEvent: "SessionStart", outcome: "success", exitCode: 0 },
+    });
+  });
+
+  it("marks a hook that exited non-zero as an error row", () => {
+    const rows = parseRunEvents(
+      line({
+        type: "system",
+        subtype: "hook_response",
+        hook_id: "aa11bb22",
+        hook_name: "PreToolUse:Bash",
+        outcome: "blocked",
+        exit_code: 2,
+      }),
+    );
+
+    expect(rows[0]).toMatchObject({ eventType: "hook", isError: true });
+  });
+
+  it("drops a hook's started and cumulative progress lines, keeping only the last", () => {
+    const hook = (subtype: string, extra: Record<string, unknown> = {}) =>
+      line({
+        type: "system",
+        subtype,
+        hook_id: "e628dd11",
+        hook_name: "SessionStart:startup",
+        ...extra,
+      });
+    const rows = parseRunEvents(
+      [
+        hook("hook_started"),
+        hook("hook_progress", { output: "npm ci…" }),
+        hook("hook_progress", { output: "npm ci…\nadded 702 packages" }),
+        hook("hook_response", { outcome: "success", exit_code: 0 }),
+      ].join("\n"),
+    );
+
+    expect(rows.map((row) => row.eventType)).toEqual(["hook"]);
   });
 
   it("summarises a result line with its subtype, duration and cost", () => {

@@ -27,6 +27,29 @@ function resultSummary(entry: Extract<LogEntry, { kind: "result" }>): string {
   return parts.join("");
 }
 
+/** How a hook's line reads: its verdict once it has one, else that it is still
+ *  going. Formatted here rather than in JSX so it is testable without a DOM. */
+/** Whether a finished hook passed. The exit code decides when the runner sends
+ *  one; without it the outcome is all there is to go on, and treating that
+ *  absence as a non-zero exit would mark every such hook failed. */
+function hookPassed(entry: Extract<LogEntry, { kind: "hook" }>): boolean {
+  return entry.exitCode === undefined
+    ? entry.outcome === "success"
+    : entry.exitCode === 0;
+}
+
+export function hookSummary(
+  entry: Extract<LogEntry, { kind: "hook" }>,
+): string {
+  const exit = entry.exitCode === undefined ? "" : ` (exit ${entry.exitCode})`;
+  const status =
+    entry.outcome === undefined
+      ? "running…"
+      : `${hookPassed(entry) ? "✓" : "✗"}${exit}`;
+
+  return `· hook ${entry.hookName} ${status}`;
+}
+
 /** One entry's line. Exported so a view that adds its own gutter (the run
  *  page's timestamped transcript) reuses this switch instead of copying it. */
 export function EntryLine({ entry }: { entry: LogEntry }) {
@@ -104,6 +127,34 @@ export function EntryLine({ entry }: { entry: LogEntry }) {
       );
     case "rate-limit":
       return <div className={styles.rateLimit}>{rateLimitSummary(entry)}</div>;
+    case "hook": {
+      const errorClass =
+        entry.outcome !== undefined && !hookPassed(entry)
+          ? ` ${styles.error}`
+          : "";
+
+      if (!entry.output) {
+        return (
+          <div className={styles.dim + errorClass}>{hookSummary(entry)}</div>
+        );
+      }
+
+      return (
+        <details className={styles.dim + errorClass}>
+          <summary className={styles.summary}>{hookSummary(entry)}</summary>
+          <pre className={styles.detailsPre}>{entry.output}</pre>
+        </details>
+      );
+    }
+    case "system":
+      return (
+        <details className={styles.dim}>
+          <summary className={styles.summary}>
+            · system: {entry.subtype}
+          </summary>
+          <pre className={styles.detailsPre}>{entry.detailsJson}</pre>
+        </details>
+      );
     case "station-log":
       return <div className={styles.dim}>· {entry.text}</div>;
     case "raw":

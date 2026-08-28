@@ -32,6 +32,14 @@ export type TranscriptRow =
       truncated: boolean;
     }
   | { kind: "result"; seq: string; ts: string; text: string; isError: boolean }
+  | {
+      kind: "hook";
+      seq: string;
+      ts: string;
+      name: string;
+      summary: string;
+      isError: boolean;
+    }
   | { kind: "iteration"; iteration: number }
   | {
       kind: "input";
@@ -118,6 +126,20 @@ export function toTranscriptRow(event: RunStreamEvent): TranscriptRow | null {
       detail,
       isError: event.isError,
       truncated: TRUNCATION_MARKER.test(detail),
+    };
+  }
+
+  // Terminal hook lines only — the write path already dropped started/progress.
+  if (event.eventType === "hook") {
+    const name = event.payload.hookEvent;
+
+    return {
+      kind: "hook",
+      seq,
+      ts,
+      name: typeof name === "string" ? name : "hook",
+      summary: clip(event.summary ?? "", SUMMARY_MAX),
+      isError: event.isError,
     };
   }
 

@@ -126,6 +126,15 @@ const Row = memo(function Row({ row }: { row: TranscriptRow }) {
     );
   }
 
+  if (row.kind === "hook") {
+    return (
+      <li className={row.isError ? styles.errorRow : styles.lifecycle}>
+        <span className={styles.label}>{row.name}</span>
+        <span className={styles.text}>{row.summary}</span>
+      </li>
+    );
+  }
+
   if (row.kind === "result") {
     return (
       <li className={row.isError ? styles.errorRow : styles.lifecycle}>

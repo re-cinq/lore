@@ -203,6 +203,26 @@ function initRow(ev: Record<string, unknown>): Partial<AgentRunEventInsert> {
   };
 }
 
+/** A hook's terminal line, or null for one still running. Started and progress
+ *  lines carry nothing the response does not restate. */
+function hookRow(
+  ev: Record<string, unknown>,
+): Partial<AgentRunEventInsert> | null {
+  const outcome = str(ev.outcome);
+
+  if (typeof ev.hook_id !== "string" || outcome === null) {
+    return null;
+  }
+  const exitCode = num(ev.exit_code);
+
+  return {
+    eventType: "hook",
+    isError: exitCode !== 0,
+    summary: cap(`hook ${str(ev.hook_name) ?? "hook"} ${outcome}`),
+    payload: { hookEvent: str(ev.hook_event), outcome, exitCode },
+  };
+}
+
 function resultRow(ev: Record<string, unknown>): Partial<AgentRunEventInsert> {
   const subtype = str(ev.subtype) ?? "unknown";
   const durationMs = num(ev.duration_ms);
@@ -232,7 +252,12 @@ function rowsFromEvent(ev: unknown): Partial<AgentRunEventInsert>[] {
   }
 
   if (ev.type === "system") {
-    return ev.subtype === "init" ? [initRow(ev)] : [];
+    if (ev.subtype === "init") {
+      return [initRow(ev)];
+    }
+    const hook = hookRow(ev);
+
+    return hook === null ? [] : [hook];
   }
 
   if (ev.type === "assistant") {
