@@ -1,10 +1,10 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import TaskDetailView, {
+  soleRunHref,
   type TaskDetailTask,
   type TaskDetailEvent,
-  type TaskDetailLlmCall,
 } from "./TaskDetailView";
 
 const task = (over: Partial<TaskDetailTask> = {}): TaskDetailTask => ({
@@ -36,17 +36,6 @@ const event = (over: Partial<TaskDetailEvent> = {}): TaskDetailEvent => ({
   ...over,
 });
 
-const llmCall = (over: Partial<TaskDetailLlmCall> = {}): TaskDetailLlmCall => ({
-  model: "claude-opus-4",
-  input_tokens: 1234,
-  output_tokens: 567,
-  duration_ms: 4200,
-  status: "success",
-  error: null,
-  created_at: "2026-06-01T10:45:00Z",
-  ...over,
-});
-
 const action = vi.fn();
 
 const renderView = (
@@ -55,8 +44,6 @@ const renderView = (
   render(
     <TaskDetailView
       task={task()}
-      events={[]}
-      llmCalls={[]}
       failedEvent={undefined}
       submitFeedback={action}
       {...over}
@@ -82,6 +69,32 @@ describe("TaskDetailView", () => {
     expect(screen.getByRole("link", { name: "#aaaaaaaa" })).toHaveAttribute(
       "href",
       "/assembly-runs/aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+    );
+  });
+
+  it("shows each run's outcome as a status-classed badge with its start time", () => {
+    const { container } = renderView({
+      runs: [
+        {
+          id: "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+          status: "finished",
+          outcome: "pr_created",
+          created_at: "2026-07-14T10:00:00Z",
+        },
+        {
+          id: "ffffffff-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+          status: "failed",
+          outcome: null,
+          created_at: "2026-07-14T09:00:00Z",
+        },
+      ],
+    });
+
+    expect(container.querySelector(".op-badge.op-finished")).toHaveTextContent(
+      "PR created",
+    );
+    expect(container.querySelector(".op-badge.op-failed")).toHaveTextContent(
+      "Failed",
     );
   });
 
@@ -246,7 +259,6 @@ describe("TaskDetailView", () => {
 
     renderView({
       task: task({ status: "failed" }),
-      events: [failed],
       failedEvent: failed,
     });
     expect(
@@ -303,73 +315,39 @@ describe("TaskDetailView", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("renders an event row per event with status badges and from-status arrow", () => {
-    renderView({
-      events: [
-        event({
-          id: "e1",
-          task_id: "task-1",
-          from_status: "pending",
-          to_status: "running",
-          metadata: { foo: "bar" },
-        }),
-        event({
-          id: "e2",
-          task_id: "task-1",
-          from_status: null,
-          to_status: "queued",
-          metadata: null,
-        }),
-      ],
-    });
-    const list = screen.getByRole("heading", {
-      level: 2,
-      name: "Event Timeline",
-    }).nextElementSibling as HTMLElement;
-
-    expect(within(list).getByText("Running")).toBeInTheDocument();
-    expect(within(list).getByText("Queued")).toBeInTheDocument();
-    expect(within(list).getByText("← Pending")).toBeInTheDocument();
-    expect(within(list).getByText(/"foo": "bar"/)).toBeInTheDocument();
-  });
-
-  it("renders a table row per LLM call with success badge and formatted tokens", () => {
-    renderView({
-      llmCalls: [
-        llmCall({
-          model: "claude-opus-4",
-          input_tokens: 1234,
-          output_tokens: 567,
-        }),
-      ],
-    });
+  it("does not render an execution transcript, event timeline, or LLM-call table", () => {
+    renderView();
     expect(
-      screen.getByRole("cell", { name: "claude-opus-4" }),
-    ).toBeInTheDocument();
-    expect(screen.getByText("success")).toBeInTheDocument();
-    expect(screen.getByText("1,234 / 567")).toBeInTheDocument();
-    expect(screen.getByText("4.2s")).toBeInTheDocument();
-  });
-
-  it("renders a failed LLM call with a red badge and the error text", () => {
-    renderView({
-      task: task({ target_repo: "re-cinq/lore" }),
-      llmCalls: [
-        llmCall({ status: "failed", error: "rate limited", duration_ms: 0 }),
-      ],
-    });
-    const failedBadge = screen.getByText("failed");
-
-    expect(failedBadge).toHaveClass("badge", "badge-red");
-    expect(screen.getByText("rate limited")).toBeInTheDocument();
-    expect(screen.getByText("—")).toBeInTheDocument();
-  });
-
-  it("shows the empty LLM-calls message when there are none", () => {
-    renderView({ llmCalls: [] });
+      screen.queryByRole("heading", { name: "Event Timeline" }),
+    ).not.toBeInTheDocument();
     expect(
-      screen.getByText("No LLM calls recorded for this task."),
-    ).toBeInTheDocument();
-    expect(screen.queryByRole("table")).not.toBeInTheDocument();
+      screen.queryByRole("heading", { name: "LLM Calls" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "Agent Output" }),
+    ).not.toBeInTheDocument();
+  });
+});
+
+describe("soleRunHref", () => {
+  const run = (id: string) => ({
+    id,
+    status: "finished" as const,
+    outcome: null,
+    created_at: "2026-07-14T10:00:00Z",
+  });
+
+  it("returns the run's href when the task has exactly one run", () => {
+    expect(soleRunHref([run("aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee")])).toEqual(
+      "/assembly-runs/aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+    );
+  });
+
+  it("returns null for zero runs", () => {
+    expect(soleRunHref([])).toBeNull();
+  });
+
+  it("returns null for two runs", () => {
+    expect(soleRunHref([run("run-1"), run("run-2")])).toBeNull();
   });
 });

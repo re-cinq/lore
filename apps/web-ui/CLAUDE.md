@@ -10,8 +10,10 @@ src/app/
   assembly-runs/          — run-keyed list (pipeline.assembly_runs) + [id] resolver:
                             a run id renders run detail (header + node timeline),
                             a task id redirects to /tasks/[id]
-  tasks/[id]/             — task detail (facts, Timeline, TaskLogs, PR status,
-                            revision/cancel/run-now); api/tasks/[id]/* backs it
+  tasks/[id]/             — task detail lifecycle shell (facts, PR status, failure
+                            reason, cancel/revision/run-now, runs list); a single-run
+                            task redirects straight to /assembly-runs/[id]; all
+                            execution detail lives on the run page (#1608)
   specs/                  — global cross-repo spec viewer
   gaps/                   — gap detection (zero-result searches + agent findings)
   search/                 — semantic search across context
