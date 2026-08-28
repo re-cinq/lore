@@ -1,4 +1,3 @@
-import { enforceTrue } from "./lib/enforce.js";
 /**
  * Parser + resolver for the per-repo test-command manifest — the optional
  * `.lore/test-commands.yml` file (or `lore.repos.settings.test_commands`)
@@ -12,9 +11,9 @@ import { enforceTrue } from "./lib/enforce.js";
 export type CoverageFormat = "lcov" | "cobertura" | "json";
 
 export interface TestCommandManifest {
-  list: string;
+  list?: string;
   run: string;
-  coverage_format: CoverageFormat;
+  coverage_format?: CoverageFormat;
   cwd: string;
   path_prefix_strip: string;
 }
@@ -22,7 +21,9 @@ export interface TestCommandManifest {
 export function parseTestCommandManifest(raw: unknown): TestCommandManifest[] {
   const entries = Array.isArray(raw) ? raw : [raw];
 
-  return entries.map(normalizeEntry);
+  return entries
+    .map(normalizeEntry)
+    .filter((entry): entry is TestCommandManifest => entry !== null);
 }
 
 /**
@@ -85,34 +86,34 @@ const COVERAGE_FORMATS: readonly CoverageFormat[] = [
   "json",
 ];
 
-function normalizeEntry(raw: unknown): TestCommandManifest {
+/**
+ * Normalize one raw entry, or drop it (return null) when it is unusable. The
+ * only irreducible requirement is a non-empty `run` — a whole-suite entry that
+ * runs whole (no per-test `list`, no `{selector}`, no coverage) is honest, not
+ * malformed, so one such entry must never take a valid sibling down with it.
+ * `list`/`coverage_format` are optional; an unknown coverage_format is ignored
+ * rather than dropping the runnable entry.
+ */
+function normalizeEntry(raw: unknown): TestCommandManifest | null {
   const entry = (raw ?? {}) as Record<string, unknown>;
 
-  enforceTrue(
-    !(typeof entry.list !== "string" || entry.list.trim() === ""),
-    Error,
-    "test-command manifest: 'list' command is required",
-  );
-  enforceTrue(
-    !(typeof entry.run !== "string" || entry.run.trim() === ""),
-    Error,
-    "test-command manifest: 'run' command is required",
-  );
-  enforceTrue(
-    entry.run.includes("{selector}"),
-    Error,
-    "test-command manifest: 'run' must contain the {selector} placeholder",
-  );
-  enforceTrue(
-    COVERAGE_FORMATS.includes(entry.coverage_format as CoverageFormat),
-    Error,
-    `test-command manifest: 'coverage_format' must be one of ${COVERAGE_FORMATS.join(", ")}`,
-  );
+  if (typeof entry.run !== "string" || entry.run.trim() === "") {
+    return null;
+  }
+
+  const list =
+    typeof entry.list === "string" && entry.list.trim() !== ""
+      ? entry.list
+      : undefined;
 
   return {
-    list: entry.list,
+    list,
     run: entry.run,
-    coverage_format: entry.coverage_format as CoverageFormat,
+    coverage_format: COVERAGE_FORMATS.includes(
+      entry.coverage_format as CoverageFormat,
+    )
+      ? (entry.coverage_format as CoverageFormat)
+      : undefined,
     cwd: typeof entry.cwd === "string" ? entry.cwd : ".",
     path_prefix_strip:
       typeof entry.path_prefix_strip === "string"

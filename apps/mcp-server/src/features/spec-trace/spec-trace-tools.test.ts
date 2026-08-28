@@ -198,3 +198,16 @@ describe("stripPathPrefix", () => {
     );
   });
 });
+
+describe("listTestsTool run-whole entry", () => {
+  it("reports the entry runs whole when it declares no list command", async () => {
+    const manifest: TestCommandManifest = {
+      run: "npm run consumer",
+      cwd: ".",
+      path_prefix_strip: "",
+    };
+    const text = await listTestsTool({}, manifest, process.cwd());
+
+    expect(text).toMatch(/runs whole|cannot enumerate/i);
+  });
+});

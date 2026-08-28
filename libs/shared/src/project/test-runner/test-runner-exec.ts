@@ -70,6 +70,12 @@ export class ExecTestRunner implements TestRunnerPort {
   listTests(cwd: string): Promise<TestDescriptor[]> {
     const manifest = loadManifest(cwd);
 
+    enforceTrue(
+      manifest.list,
+      Error,
+      "test-command manifest entry has no 'list' command; it runs whole and cannot enumerate tests",
+    );
+
     return runTestsList(manifest.list, resolveCwd(manifest, cwd));
   }
 

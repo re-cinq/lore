@@ -29,6 +29,8 @@ import {
 export { executionRefusal };
 
 const NO_MANIFEST = "No test-command manifest declared for this repo.";
+const NO_LIST_COMMAND =
+  "This test-command manifest entry has no 'list' command; it runs whole and cannot enumerate tests.";
 
 function resolveCwd(manifest: TestCommandManifest, cwd: string): string {
   return join(cwd, manifest.cwd || ".");
@@ -89,6 +91,10 @@ export async function listTestsTool(
 
   if (!manifest) {
     return NO_MANIFEST;
+  }
+
+  if (!manifest.list) {
+    return NO_LIST_COMMAND;
   }
 
   const descriptors = await runTestsList(
