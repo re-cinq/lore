@@ -7,6 +7,7 @@
 import type { AgentDefinition, Station } from "@re-cinq/agent-contracts";
 import { stringify } from "yaml";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
+import { AGENT_MAX_TURNS } from "@re-cinq/lore-shared";
 import type {
   StationRecipe,
   TaskTypeRecipe,
@@ -121,7 +122,7 @@ export function buildAgentDefinition(
       // The {context} placeholder is filled by the Floor's context hydration (D5).
       prompt: `${cfg.prompt_template.trimEnd()}\n\n{context}`,
       permission_mode: "bypass",
-      max_turns: 40,
+      max_turns: AGENT_MAX_TURNS,
       // Agent nodes get a scoped, live Lore MCP via the shared HTTP gateway
       // (server-mode=agent → no pipeline/local tools). headers_secret carries the
       // Bearer from agent-secrets, exactly like the agent-events sink below.

@@ -31,7 +31,7 @@ describe("buildAgentDefinition", () => {
         model: "claude-sonnet-4-6",
         prompt: "Implement the spec.\n\nSpec: {description}\n\n{context}",
         permission_mode: "bypass",
-        max_turns: 40,
+        max_turns: 200,
         resources: {
           secrets: [{ name: "__LLM_SECRET_KEY__", ref: "__LLM_SECRET_KEY__" }],
           mcp_servers: [
