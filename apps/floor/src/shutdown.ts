@@ -13,6 +13,16 @@
 export interface ShutdownSteps {
   /** Stop accepting requests and drain in-flight ones. */
   stopServing: () => Promise<void>;
+  /**
+   * Drain the event proxy's in-memory queue, resolving to what it could not
+   * deliver. Absent when this process reports nothing.
+   *
+   * Runs AFTER `stopServing`, because an event produced by an in-flight request
+   * has to reach the queue before the queue is drained. Nothing awaited an
+   * event flush before this step existed, so a rollout took the backlog with it
+   * and every event in it waited for the reconcile cron.
+   */
+  flushEvents?: () => Promise<number>;
   /** Flush traces/metrics so the last moments of the process are not lost. */
   flushTelemetry: () => Promise<void>;
   exit: (code: number) => void;
@@ -40,6 +50,17 @@ export function createShutdown(
         .catch((err) =>
           console.warn(`[floor] stop failed: ${(err as Error).message}`),
         );
+      const undrained = await steps.flushEvents?.().catch((err) => {
+        console.warn(`[floor] event drain failed: ${(err as Error).message}`);
+
+        return 0;
+      });
+
+      if (undrained) {
+        console.error(
+          `[floor] exiting with ${undrained} undelivered event(s) — the reconcile cron is what re-emits them`,
+        );
+      }
       await steps
         .flushTelemetry()
         .catch((err) =>

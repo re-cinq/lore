@@ -388,6 +388,32 @@ against it and declare only what they observed.
   ladder logs it by name — a passthrough wired on one end and not the other is
   otherwise indistinguishable from no traffic. ([validated by refuses rather than dropping](libs/shared/src/project/events/event-sink.test.ts#L34))
 
+### Adoption: the silent-loss sites stop being silent
+
+Four producers already had nobody to return a failure to, and each answered by
+losing the event: `agent-reconcile` wrote `.catch(() => {})` twice,
+`loop-run-closed`'s tick was swallowed by the `onRunClosed` hook that calls it,
+`pr-ready-check` caught per run and let the delivery be marked done anyway, and
+lore-api's two ingest triggers were `void`-called AND self-swallowing. All four
+now `emit`, so a router blip retries instead of dropping.
+
+- The reporting seam of each process resolves ONE proxy, memoized, because the
+  queue is the proxy's own state — a second instance would be a second queue
+  with nothing draining it. lore-api keys its cache on the pool the server
+  injected rather than a module singleton, so one test suite's queue cannot leak
+  into the next.
+- A port typed on `EventReporter` reaches the queued path through a reporter
+  view whose `insert` enqueues, rather than by widening every such port to take
+  a proxy. ([validated by queues what a port typed on EventReporter inserts, rather than delivering inline](libs/shared/src/project/events/event-proxy.test.ts#L285))
+- The 202/500 ingress routes are untouched and keep calling `insert`. A test
+  that stops asserting 500 on a failed insert is the signal that the dual path
+  has collapsed into the queued one and at-least-once GitHub/CI delivery is gone.
+- Shutdown drains the queue after the server stops and before telemetry
+  flushes — after, because an event produced by an in-flight request has to
+  reach the queue first; before exit, because `process.exit` takes the queue
+  with it. Every step stays best-effort: a drain that cannot finish must still
+  terminate, or the zombie the shutdown handler exists to kill comes back. ([validated by drains queued events after it stops serving and before it exits](apps/floor/src/shutdown.test.ts#L26), [exits even when the event drain throws, rather than holding the rollout open](apps/floor/src/shutdown.test.ts#L50))
+
 ### Inputs, and a shutdown that says what it lost
 
 - An input is registered, started with an `emit` bound to the queue, and stopped

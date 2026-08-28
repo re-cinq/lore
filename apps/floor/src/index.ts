@@ -3,7 +3,7 @@ import { createShutdown } from "./shutdown.js";
 import { Llm } from "@re-cinq/lore-shared";
 import { getPool, initPool } from "./kernel/db.js";
 import { awaitSoleFloor } from "./kernel/single-instance.js";
-import { usage } from "./kernel/queues.js";
+import { eventProxy, usage } from "./kernel/queues.js";
 import { loadTaskTypes } from "./kernel/config.js";
 import { recoverStaleTasks, startWorker } from "./jobs/task/worker.js";
 import {
@@ -30,6 +30,11 @@ import { subscribe, reconcileDeliveries } from "./main-loop/store.js";
 import { RECONCILE_WINDOW_MINUTES } from "@re-cinq/lore-shared/project/events/event-deliveries-port.js";
 import { registerCronEmitter } from "./listeners/scheduler-emitter.js";
 import { CRON_EMITTERS } from "./listeners/cron-emitters.js";
+
+/** How long shutdown waits for the event queue to drain. Long enough for a
+ *  backlog to clear, short enough that a wedged router cannot hold a rollout
+ *  open past its termination grace period. */
+const EVENT_DRAIN_TIMEOUT_MS = 5_000;
 
 async function main(): Promise<void> {
   console.log("[floor] Lore Floor Service starting...");
@@ -58,11 +63,18 @@ async function main(): Promise<void> {
   // Awaited: the stop function is half of the shutdown contract, and a fire-and-
   // forgotten start left a late failure with nowhere to surface.
   const stopServing = await startHealthServer(port, getJobStatus);
+
   // ONE owner of the process lifecycle. Any handler overrides Node's default
   // terminate, so the Floor must exit itself or the drain loop keeps it alive with
   // nothing listening — the zombie shape this replaces.
+  // Started here, before anything can report: the proxy's queue only drains
+  // while its loop is running, so an `emit` before this would sit in memory
+  // until shutdown noticed it.
+  await eventProxy().start();
+
   const shutdown = createShutdown({
     stopServing,
+    flushEvents: () => eventProxy().stop(EVENT_DRAIN_TIMEOUT_MS),
     flushTelemetry: shutdownOtel,
     exit: (code) => process.exit(code),
   });

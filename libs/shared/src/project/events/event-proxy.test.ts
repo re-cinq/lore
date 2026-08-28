@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { EventProxy } from "./event-proxy.js";
+import { EventProxy, queuedReporter } from "./event-proxy.js";
 import type { EventInput, ProxyMessage, Sink } from "./event-input-port.js";
 import type { EventInsert } from "../../events.js";
 
@@ -278,5 +278,18 @@ describe("stop", () => {
     await proxy.emit({ kind: "event", event: anEvent("b") });
 
     expect(await proxy.stop(50)).toBe(2);
+  });
+});
+
+describe("queuedReporter", () => {
+  it("queues what a port typed on EventReporter inserts, rather than delivering inline", async () => {
+    const { proxy, events } = build();
+
+    await queuedReporter(proxy).insert(anEvent("assembly_run.resume"));
+
+    expect({ delivered: events.delivered.length, depth: proxy.depth }).toEqual({
+      delivered: 0,
+      depth: 1,
+    });
   });
 });

@@ -23,6 +23,40 @@ function harness(over: Partial<Parameters<typeof createShutdown>[0]> = {}) {
 }
 
 describe("createShutdown", () => {
+  it("drains queued events after it stops serving and before it exits", async () => {
+    // The queue lives in memory. `process.exit` takes it with it, and a terminal
+    // event dropped on a rollout leaves its node open until the reaper — so the
+    // drain has to happen inside the one handler that owns the lifecycle.
+    // After stopServing, because an event produced by an in-flight request must
+    // reach the queue before it is drained.
+    const { shutdown, log } = harness({
+      flushEvents: async () => {
+        log.push("flushEvents");
+
+        return 0;
+      },
+    });
+
+    await shutdown("SIGTERM");
+
+    expect(log).toEqual([
+      "stopServing",
+      "flushEvents",
+      "flushTelemetry",
+      "exit:0",
+    ]);
+  });
+
+  it("exits even when the event drain throws, rather than holding the rollout open", async () => {
+    const { shutdown, log } = harness({
+      flushEvents: () => Promise.reject(new Error("router unreachable")),
+    });
+
+    await shutdown("SIGTERM");
+
+    expect(log).toEqual(["stopServing", "flushTelemetry", "exit:0"]);
+  });
+
   it("stops serving, flushes telemetry, then EXITS", async () => {
     // The bug this exists for: two independent SIGTERM handlers each did their own
     // half and neither exited. Registering any handler overrides Node's default

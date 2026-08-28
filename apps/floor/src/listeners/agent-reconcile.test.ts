@@ -7,7 +7,7 @@ import type { Agent as AgentCr } from "@re-cinq/agent-contracts";
 
 const getById = vi.fn();
 const getLineById = vi.fn();
-const insertEvent = vi.fn();
+const emitEvent = vi.fn();
 
 vi.mock("../kernel/queues.js", () => ({
   // The logs route resolves the cluster agent from here.
@@ -16,7 +16,7 @@ vi.mock("../kernel/queues.js", () => ({
   assemblyRuns: () => ({ getById: getLineById }),
 }));
 vi.mock("../main-loop/store.js", () => ({
-  insertEvent: (...args: unknown[]) => insertEvent(...args),
+  emitEvent: (...args: unknown[]) => emitEvent(...args),
 }));
 const { forEachAgentPage, reconcileAgents } =
   await import("./agent-reconcile.js");
@@ -96,10 +96,10 @@ describe("reconcileAgents pagination", () => {
     ]);
 
     getById.mockResolvedValue({ status: "running" });
-    insertEvent.mockResolvedValue(undefined);
+    emitEvent.mockResolvedValue(undefined);
     await reconcileAgents(cluster as never);
 
-    expect(insertEvent).toHaveBeenCalledWith(
+    expect(emitEvent).toHaveBeenCalledWith(
       expect.objectContaining({ eventName: "kubernetes.agent.succeeded" }),
     );
     expect(cluster.remove).not.toHaveBeenCalled();

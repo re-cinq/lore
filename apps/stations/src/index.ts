@@ -10,9 +10,13 @@ import { loadApprovalConfig } from "@re-cinq/lore-shared";
 import { getPool, initPool } from "@re-cinq/lore-shared/db/pg-pool.js";
 import { startServer } from "./delivery/server.js";
 import { startStationDrain } from "./drain/loop-boot.js";
-import { deliveries } from "./kernel/queues.js";
+import { deliveries, eventProxy } from "./kernel/queues.js";
 
 const PORT = parseInt(process.env.PORT ?? "8080", 10);
+
+/** How long shutdown waits for the event queue to drain — long enough for a
+ *  backlog, short enough not to hold a rollout past its grace period. */
+const EVENT_DRAIN_TIMEOUT_MS = 5_000;
 
 async function main(): Promise<void> {
   initPool();
@@ -34,12 +38,26 @@ async function main(): Promise<void> {
     markDead: (id, error) => deliveries().markDead(id, error),
   });
 
+  // Started before the server: the queue only drains while its loop runs, so an
+  // emit before this would sit in memory until shutdown noticed it.
+  await eventProxy().start();
+
   const stopServer = await startServer(PORT);
 
   const shutdown = async (signal: string): Promise<void> => {
     console.log(`[stations] ${signal} — shutting down`);
     clearInterval(drain);
     await stopServer();
+
+    // Before the pool closes and before exit: the queue is in memory, and a
+    // resume dropped on a rollout leaves its parked node waiting for the reaper.
+    const undrained = await eventProxy().stop(EVENT_DRAIN_TIMEOUT_MS);
+
+    if (undrained > 0) {
+      console.error(
+        `[stations] exiting with ${undrained} undelivered event(s) — the reconcile pass is what re-emits them`,
+      );
+    }
     await getPool().end();
     process.exit(0);
   };

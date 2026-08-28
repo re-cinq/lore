@@ -11,7 +11,7 @@
  * what let the whole write and consume path move without touching them.
  */
 
-import { deliveries, eventReporter } from "../kernel/queues.js";
+import { deliveries, eventProxy, eventReporter } from "../kernel/queues.js";
 import type { EventSubscription } from "@re-cinq/lore-shared/project/events/event-deliveries-port.js";
 import type { EventInput, EventRow } from "./types.js";
 
@@ -26,6 +26,19 @@ import type { EventInput, EventRow } from "./types.js";
  * The consume side below reports through the router too — the Floor drains a
  * queue it neither owns nor writes to.
  */
+/**
+ * Queue an event instead of inserting it.
+ *
+ * The counterpart to {@link insertEvent}, for producers with nobody to return a
+ * status to. `insertEvent` rethrows so an ingress route can answer 500 and the
+ * sender redelivers; a background sweep has no such caller, and its only two
+ * previous options were an inline retry ladder or `.catch(() => {})`. This
+ * hands the event to the proxy, which retries it and says so when it gives up.
+ */
+export function emitEvent(input: EventInput): Promise<void> {
+  return eventProxy().emit({ kind: "event", event: input });
+}
+
 export function insertEvent(input: EventInput): Promise<void> {
   return eventReporter().insert(input);
 }

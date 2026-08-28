@@ -225,3 +225,19 @@ export class EventProxy implements EventReporter {
     ]);
   }
 }
+
+/**
+ * View a proxy as an `EventReporter` whose `insert` QUEUES.
+ *
+ * For the ports that are typed on `EventReporter` and cannot take a proxy —
+ * `reportToParkedNode` is the one that matters — where the caller has nobody to
+ * return a failure to. `pr-ready-check` catches per run and then resolves, so
+ * its delivery is marked done whether or not the report landed: a blip lost the
+ * resume outright, and the parked node waited for the reaper.
+ *
+ * A function rather than a class: it forwards one call and a class that only
+ * forwards is rejected by `lore/no-forwarding-class`, correctly.
+ */
+export function queuedReporter(proxy: EventProxy): EventReporter {
+  return { insert: (event) => proxy.emit({ kind: "event", event }) };
+}

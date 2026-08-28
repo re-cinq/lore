@@ -19,7 +19,7 @@ import { ClusterAgentClient } from "@re-cinq/lore-shared";
 import {
   selectEventDeliveries,
   selectEventQueue,
-  selectEventReporter,
+  selectEventProxy,
 } from "@re-cinq/lore-shared/project/events/select-event-reporter.js";
 import type { EventDeliveriesPort } from "@re-cinq/lore-shared/project/events/event-deliveries-port.js";
 import { PgEventDeliveries } from "@re-cinq/lore-shared/project/events/event-deliveries-pg.js";
@@ -27,6 +27,7 @@ import type {
   EventQueueRepository,
   EventReporter,
 } from "@re-cinq/lore-shared/project/events/event-queue-port.js";
+import type { EventProxy } from "@re-cinq/lore-shared/project/events/event-proxy.js";
 import { PgTaskStore } from "@re-cinq/lore-shared/project/tasks/task-store-pg.js";
 import { PgUsage } from "@re-cinq/lore-shared/project/usage/usage-pg.js";
 import { PgConversations } from "@re-cinq/lore-shared/project/conversations/conversations-pg.js";
@@ -105,19 +106,30 @@ export const chunks = (): PgChunks =>
 export const memoryLifecycle = (): PgMemoryLifecycle =>
   (memoryLifecycleSingleton ??= new PgMemoryLifecycle(getPool()));
 
-let eventReporterSingleton: EventReporter | undefined;
+let eventProxySingleton: EventProxy | undefined;
 
 /**
- * Where this Floor reports events (ADR-044). The event-router owns
- * `pipeline.events`, so in a cluster this is an HTTP reporter; with no
- * `EVENT_ROUTER_URL` (local `npm start`) it falls back to the pool.
+ * The hub this Floor reports through (ADR-044 + its 2026-08-28 amendment). The
+ * event-router owns `pipeline.events`, so in a cluster this reports over HTTP;
+ * with no `EVENT_ROUTER_URL` (local `npm start`) it falls back to the pool.
  *
- * Memoized so the resolution logs once per boot rather than once per event.
+ * ONE per process, memoized — the queue is the proxy's own state, so a second
+ * instance would be a second queue with nothing draining it. `index.ts` starts
+ * it and the shutdown drains it.
  */
-export const eventReporter = (): EventReporter =>
-  (eventReporterSingleton ??= selectEventReporter({
+export const eventProxy = (): EventProxy =>
+  (eventProxySingleton ??= selectEventProxy({
     local: () => pipeline().eventQueue,
   }));
+
+/**
+ * The reporting half of that hub: `insert`, synchronous and throwing.
+ *
+ * The ingress routes answer 202 only once the insert lands and turn a throw into
+ * a 500 so the sender redelivers — so this stays the default. A producer with
+ * nobody to return a status to reaches for `eventProxy().emit` instead.
+ */
+export const eventReporter = (): EventReporter => eventProxy();
 
 let eventQueueSingleton: EventQueueRepository | undefined;
 

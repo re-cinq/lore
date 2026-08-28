@@ -1,6 +1,7 @@
 import type { Pool } from "pg";
 import { buildServer } from "./build-server.js";
 import { shutdownOtel } from "../platform/otel-init.js";
+import { drainEventProxies } from "../api/routes/event-reporter.js";
 
 /**
  * Start the Lore API (/api/*) on the configured PORT. A plain HTTPS REST
@@ -24,6 +25,9 @@ export async function startHttpServer(
   console.log(`Lore API listening on :${port}`);
 }
 
+/** How long shutdown waits for the event queue to drain. */
+const EVENT_DRAIN_TIMEOUT_MS = 5_000;
+
 /** What `shutdownGracefully` needs of the server — `Server` satisfies it. */
 export interface Stoppable {
   stop(): Promise<void>;
@@ -41,12 +45,28 @@ export interface Stoppable {
 export async function shutdownGracefully(
   server: Stoppable,
   flushTelemetry: () => Promise<void>,
+  flushEvents: (timeoutMs: number) => Promise<number> = drainEventProxies,
 ): Promise<void> {
   await server
     .stop()
     .catch((err) =>
       console.warn(`[lore-api] server stop failed: ${(err as Error).message}`),
     );
+
+  // After the server stops, before telemetry flushes: an event produced by an
+  // in-flight request has to reach the queue before the queue is drained, and
+  // the queue is in memory — nothing awaited an event flush before this.
+  const undrained = await flushEvents(EVENT_DRAIN_TIMEOUT_MS).catch((err) => {
+    console.warn(`[lore-api] event drain failed: ${(err as Error).message}`);
+
+    return 0;
+  });
+
+  if (undrained > 0) {
+    console.error(
+      `[lore-api] exiting with ${undrained} undelivered event(s) — the reconcile pass is what re-emits them`,
+    );
+  }
   await flushTelemetry().catch((err) =>
     console.warn(`[otel] shutdown flush failed: ${(err as Error).message}`),
   );
