@@ -980,7 +980,13 @@ fetching and polling. ([validated by `TimelinePanel.test.tsx:82`](apps/web-ui/sr
   nothing instead of 500-ing the whole page. The table is optional in the
   view: a caller that passes no cluster data renders exactly as before,
   and an empty result shows an empty-state row rather than a blank table.
-  ([validated by [`spend.test.ts:392`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L392), [`spend.test.ts:411`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L411), [`spend.test.ts:432`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L432), [`SpendView.test.tsx:609`](apps/web-ui/src/app/spend/SpendView.test.tsx#L609), [`SpendView.test.tsx:627`](apps/web-ui/src/app/spend/SpendView.test.tsx#L627), [`SpendView.test.tsx:635`](apps/web-ui/src/app/spend/SpendView.test.tsx#L635)])
+  The same attribution keeps a satellite cluster's spend OUT of the
+  recorded-credit balance: a call claimed by a registered cluster ran on
+  that cluster's own credential (a colleague's subscription) and never
+  drew these credits, so the balance's computed half counts only calls
+  with no cluster-agent claim — home, central, and direct — and does not
+  drag the balance negative on money the account never spent.
+  ([validated by [`spend.test.ts:392`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L392), [`spend.test.ts:411`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L411), [`spend.test.ts:432`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L432), [`spend.test.ts:449`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L449), [`SpendView.test.tsx:609`](apps/web-ui/src/app/spend/SpendView.test.tsx#L609), [`SpendView.test.tsx:627`](apps/web-ui/src/app/spend/SpendView.test.tsx#L627), [`SpendView.test.tsx:635`](apps/web-ui/src/app/spend/SpendView.test.tsx#L635)])
 
 ### FR-20: Project Facade Ports (Phase 1)
 
