@@ -34,6 +34,7 @@ import {
   drain,
   emptyBatch,
   followableAgents,
+  pickPodToFollow,
   podLogEvent,
   type BatchLimits,
   type FollowableAgent,
@@ -123,10 +124,19 @@ export class PodLogInput implements EventInput {
           namespace,
           labelSelector: podSelectorForJob(agent.jobName),
         });
-        const podName = pods.items?.[0]?.metadata?.name;
+        // The CONTAINER is resolved here too, not defaulted: an empty
+        // container name makes the log request a 400, which is how the first
+        // pilot run spent fifteen minutes retrying and streaming nothing.
+        const chosen = pickPodToFollow(pods.items ?? []);
 
-        if (podName && this.running) {
-          this.follow(kc, namespace, { ...agent, podName }, emit);
+        if (chosen && this.running) {
+          this.follow(
+            kc,
+            namespace,
+            { ...agent, podName: chosen.podName },
+            chosen.containerName,
+            emit,
+          );
         }
       }
     } catch (err) {
@@ -142,6 +152,7 @@ export class PodLogInput implements EventInput {
     kc: KubeConfig,
     namespace: string,
     target: PodLogTarget,
+    containerName: string,
     emit: Emit,
   ): void {
     let batch: PendingBatch = emptyBatch();
@@ -222,7 +233,7 @@ export class PodLogInput implements EventInput {
     this.followers.set(target.agentCrName, { abort, timer });
 
     void new Log(kc)
-      .log(namespace, target.podName, "", sink, { follow: true })
+      .log(namespace, target.podName, containerName, sink, { follow: true })
       .then((controller) => {
         // The stream's own controller, so `stop` aborts the live request rather
         // than only the intent to make it.
