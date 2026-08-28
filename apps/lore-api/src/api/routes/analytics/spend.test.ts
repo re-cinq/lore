@@ -456,7 +456,9 @@ describe("GET /api/spend", () => {
       "pipeline.credit_ledger": [
         { ledger_total_usd: 100, anchored_at: "2026-08-01T00:00:00Z" },
       ],
-      "pipeline.anthropic_cost_daily": [{ billed_through: "2026-08-19" }],
+      "pipeline.anthropic_cost_daily": [
+        { billed_usd: 0, billed_through: "2026-08-19" },
+      ],
     });
 
     await get(pool);

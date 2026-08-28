@@ -107,7 +107,8 @@ async function remainingBudget(
   // negative on money the account never spent. The LEFT JOIN keeps calls with
   // no station run (direct API tasks) and home/central runs (null claim); it
   // drops only satellite-attributed ones.
-  const { rows: computed } = await pool.query<{ cost_usd: number }>(
+  const [computed] = await optionalTableRows<{ cost_usd: number }>(
+    pool,
     `SELECT COALESCE(SUM(lc.cost_usd), 0)::float8 AS cost_usd
        FROM pipeline.llm_calls lc
        LEFT JOIN pipeline.station_runs sr
@@ -117,8 +118,7 @@ async function remainingBudget(
         AND sr.cluster_agent_id IS NULL`,
     [anchoredAt, billed?.billed_through ?? null],
   );
-  const spentSinceUsd =
-    (billed?.billed_usd ?? 0) + (computed[0]?.cost_usd ?? 0);
+  const spentSinceUsd = (billed?.billed_usd ?? 0) + (computed?.cost_usd ?? 0);
 
   return {
     ledger_total_usd: ledgerTotalUsd,
