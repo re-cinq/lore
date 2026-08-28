@@ -27,6 +27,16 @@
 #   the per-agent token this agent publishes into agent-secrets after it
 #   registers. Unset, runs execute and report their outcome but are not
 #   visible live.
+# Optional: LORE_SKILLS_URL (--skills-url) — the central lore-mcp gateway's
+#   public /skills registry (e.g. https://lore-mcp.example.com/skills;
+#   unauthenticated by design). Set it and the catalog seed renders every
+#   Claude-agent recipe with resources.skills_source, so the agent init can
+#   fetch skills + write /agent/.claude/settings.json. Unset, the seed omits
+#   the skills block entirely — and because the adapter passes --settings
+#   unconditionally, every Claude-agent node on this satellite then dies at
+#   startup with "Settings file not found". Set it unless this satellite
+#   only ever claims non-agent stations (validate, gate, detect,
+#   comment-triage).
 # Installs into the CURRENT kubectl context; pass --context to assert which
 # one that must be (the install refuses on a mismatch instead of landing a
 # satellite in whatever context happened to be active).
@@ -48,6 +58,7 @@ while [ $# -gt 0 ]; do
 	--name) LORE_CLUSTER_AGENT_NAME="$2" && shift 2 ;;
 	--tags) LORE_CLUSTER_AGENT_TAGS="$2" && shift 2 ;;
 	--telemetry-url) LORE_AGENT_EVENTS_URL="$2" && shift 2 ;;
+	--skills-url) LORE_SKILLS_URL="$2" && shift 2 ;;
 	--context) expected_context="$2" && shift 2 ;;
 	# Local single-node clusters (minikube) have no CNI enforcing policies;
 	# the flag keeps the rendered objects out of the way there.
@@ -114,7 +125,14 @@ if [ -n "${LORE_AGENT_EVENTS_URL:-}" ]; then
 	)
 fi
 
-say "installing release lore-satellite into context '$context' (name=$name tags=$tags llm=$llm_key github=${GITHUB_TOKEN:+set} telemetry=${LORE_AGENT_EVENTS_URL:-off})"
+# Skills live only in the ai-agents subchart (the cluster-agent itself never
+# fetches them), so unlike agentEventsUrl there is no parent-chart twin.
+skills_args=()
+if [ -n "${LORE_SKILLS_URL:-}" ]; then
+	skills_args=(--set-string "ai-agents.loreSkillsUrl=$LORE_SKILLS_URL")
+fi
+
+say "installing release lore-satellite into context '$context' (name=$name tags=$tags llm=$llm_key github=${GITHUB_TOKEN:+set} telemetry=${LORE_AGENT_EVENTS_URL:-off} skills=${LORE_SKILLS_URL:-off})"
 helm upgrade --install lore-satellite "$chart" \
 	--namespace lore-cluster-agent \
 	--set createNamespaces=false \
@@ -131,7 +149,8 @@ helm upgrade --install lore-satellite "$chart" \
 	--set ai-agents.networkPolicy.enabled="$network_policy" \
 	--set-string ai-agents.loreApiUrl="$LORE_API_URL" \
 	"${github_args[@]}" \
-	"${telemetry_args[@]}"
+	"${telemetry_args[@]}" \
+	"${skills_args[@]}"
 
 rm -rf "$chart/charts" "$chart/Chart.lock"
 

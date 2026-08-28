@@ -8,6 +8,9 @@
 # Required env (or flags passed through): LORE_API_URL, EVENT_ROUTER_URL,
 #   LORE_CLUSTER_AGENT_REGISTRATION_TOKEN, GHCR_USERNAME, GHCR_TOKEN,
 #   and CLAUDE_CODE_OAUTH_TOKEN or ANTHROPIC_API_KEY.
+# Strongly recommended: LORE_SKILLS_URL (the central lore-mcp gateway's
+#   public /skills registry) — without it every Claude-agent node dies at
+#   startup ("Settings file not found"); see install-satellite.sh's header.
 set -euo pipefail
 
 die() {
