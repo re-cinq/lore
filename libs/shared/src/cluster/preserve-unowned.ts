@@ -20,7 +20,13 @@ const rec = (v: unknown): LooseRecord =>
  * killed planning-result delivery platform-wide until 08-18. Rules: the editor
  * owns what it renders (desired wins key-by-key); everything the live object
  * carries that the render does not gets preserved — `metadata.labels`,
- * `metadata.annotations`, and the members of `spec.output` beside `sinks`.
+ * `metadata.annotations`, the members of `spec.output` beside `sinks`, and the
+ * members of `spec.resources` the render omits. The resources rule is the same
+ * incident in a different field (2026-08): the /agents render knows only
+ * `mcp_servers`, so a plain replace stripped `skills_source` (and `secrets`)
+ * from a recipe, and every Claude-agent node cloned from it died at startup
+ * with "Settings file not found" — skills config belongs to each cluster's
+ * catalog seed, which is exactly why the editor cannot re-render it.
  */
 export function preserveUnownedFields<T extends object>(
   current: unknown,
@@ -44,11 +50,18 @@ export function preserveUnownedFields<T extends object>(
     },
   };
 
-  if ("output" in curSpec || "output" in desSpec) {
-    merged.spec = {
-      ...desSpec,
-      output: { ...rec(curSpec.output), ...rec(desSpec.output) },
-    };
+  const mergedSpec: LooseRecord = { ...desSpec };
+  let specTouched = false;
+
+  for (const field of ["output", "resources"]) {
+    if (field in curSpec || field in desSpec) {
+      mergedSpec[field] = { ...rec(curSpec[field]), ...rec(desSpec[field]) };
+      specTouched = true;
+    }
+  }
+
+  if (specTouched) {
+    merged.spec = mergedSpec;
   }
 
   return merged as T;
