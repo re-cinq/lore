@@ -75,3 +75,9 @@ claim:
   # container is readOnlyRootFilesystem (templates/rbac.yaml grants the one
   # named Secret).
   identitySecretName: lore-cluster-agent-identity
+
+# Stream run-pod stdout to the bus as it happens (LORE_POD_LOG_STREAMING). OFF
+# by default: this is the input that puts log VOLUME on pipeline.events. The
+# central cluster needs it least — its pod logs are already readable live — so
+# it is here for parity, not because it should be on.
+podLogStreaming: false

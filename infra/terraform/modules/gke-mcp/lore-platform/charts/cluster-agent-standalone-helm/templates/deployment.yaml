@@ -73,6 +73,10 @@ spec:
                 secretKeyRef:
                   name: lore-cluster-agent-registration
                   key: token
+            {{- if .Values.podLogStreaming }}
+            - name: LORE_POD_LOG_STREAMING
+              value: "1"
+            {{- end }}
             - name: LORE_CLUSTER_AGENT_NAME
               value: {{ required "name is required — this cluster's unique registry name" .Values.name | quote }}
             - name: LORE_CLUSTER_AGENT_TAGS

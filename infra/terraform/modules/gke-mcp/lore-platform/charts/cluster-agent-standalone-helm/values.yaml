@@ -80,6 +80,18 @@ agentEventsUrl: http://lore-cluster-agent.lore-cluster-agent.svc.cluster.local:8
 # the Floor runs in.
 floorUrl: ""
 
+# Stream this cluster's run-pod stdout to the centre as it happens
+# (LORE_POD_LOG_STREAMING). OFF by default and deliberately so: it is the one
+# input that puts log VOLUME on pipeline.events, a dispatch queue built for
+# handler fan-out rather than bulk data. Turn it on for one cluster, watch the
+# bus, then decide.
+#
+# What it buys is the reason the table exists: live pod logs are read from ONE
+# cluster's Kubernetes API and the Cloud Logging fallback names ONE project, so
+# a run claimed by a satellite is invisible to both. This is the only way a
+# cluster that reports inward can have its logs read from the centre.
+podLogStreaming: false
+
 # Optional per-task GitHub credential (#1575). Without it, this cluster-agent
 # can still register/claim/heartbeat — but a claimed run needing a git push
 # (agent, github_action, retrospective) fails "GitHub not configured" once

@@ -15,7 +15,7 @@ import {
 } from "@re-cinq/lore-shared";
 
 /** Pods belonging to a Job, by the label the Job controller stamps. */
-function podSelectorForJob(jobName: string): string {
+export function podSelectorForJob(jobName: string): string {
   return `job-name=${jobName}`;
 }
 
