@@ -1,0 +1,6 @@
+dependencies:
+- name: ai-agents
+  repository: file://../ai-agents-helm
+  version: 0.1.0
+digest: sha256:4d129428c8401f78806d0017e5235c7bdbeed826d2bd2482c9e0d25eba14d803
+generated: "2026-08-29T00:55:25.153442242+02:00"
