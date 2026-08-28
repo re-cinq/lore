@@ -57,7 +57,28 @@ llm:
 #
 # The central cluster does not use this; its pods reach the Floor over
 # in-cluster DNS.
-agentEventsUrl: ""
+#
+# Two shapes work. Pointed at the PUBLIC lore-agent-events ingress, pods post
+# straight out (FR8, what shipped first). Pointed at this cluster-agent's own
+# Service — what setting floorUrl selects — pods post in-cluster and the relay
+# forwards onward, which queues and retries the batch and lets the cluster close
+# its run pods' public egress entirely. The relay costs one hop; the direct path
+# loses a batch to any blip.
+agentEventsUrl: http://lore-cluster-agent.lore-cluster-agent.svc.cluster.local:8080/api/cluster/agent-events
+
+# PUBLIC base URL of the central Floor. THE SWITCH for live run telemetry on
+# this satellite, and the only knob an operator needs: set it and
+# install-satellite.sh points this cluster's run pods at the local relay
+# (`agentEventsUrl`, both copies), which forwards their NDJSON onward with the
+# per-agent token this process already holds.
+#
+# Off by default, and deliberately not derived from any other value: a chart
+# value that silently makes another one REQUIRED breaks every existing install
+# the moment it upgrades.
+#
+# Public rather than in-cluster for the obvious reason — this is not the cluster
+# the Floor runs in.
+floorUrl: ""
 
 # Optional per-task GitHub credential (#1575). Without it, this cluster-agent
 # can still register/claim/heartbeat — but a claimed run needing a git push
@@ -133,3 +154,10 @@ ai-agents:
   # catalog's http sink omitted entirely by agent-catalog.ts's guard, which is
   # what a satellite needs when it has nowhere to report to (#1575).
   agentEventsUrl: ""
+  # The run-pod NetworkPolicy hole for that sink. Centrally it points at the
+  # Floor; here it must point at the local cluster-agent, or the policy drops
+  # exactly the traffic the sink needs. Must agree with agentEventsUrl above.
+  floorSink:
+    namespace: lore-cluster-agent
+    port: 8080
+    app: lore-cluster-agent

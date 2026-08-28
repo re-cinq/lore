@@ -7,11 +7,21 @@
  */
 
 import Hapi from "@hapi/hapi";
+import { agentEventsRoutes } from "./routes/agent-events.js";
 import { clusterRoutes } from "./routes/cluster.js";
 import { healthRoute } from "./routes/health.js";
 import { clusterDeps } from "../kernel/deps.js";
+import type { AgentEventsDeps } from "./routes/agent-events.js";
 
-export function buildServer(opts: { port?: number } = {}): Hapi.Server {
+export interface ServerOpts {
+  port?: number;
+  /** Wires the agent-telemetry relay. Absent, the route is not mounted at all:
+   *  a cluster with nowhere to forward telemetry should 404 rather than accept
+   *  a batch and drop it. */
+  agentEvents?: AgentEventsDeps;
+}
+
+export function buildServer(opts: ServerOpts = {}): Hapi.Server {
   const server = Hapi.server({ port: opts.port ?? 0, host: "0.0.0.0" });
 
   server.events.on({ name: "request", channels: "error" }, (request, event) => {
@@ -28,14 +38,18 @@ export function buildServer(opts: { port?: number } = {}): Hapi.Server {
       deps: clusterDeps,
       bearerToken: process.env.LORE_INGEST_TOKEN,
     }),
+    ...(opts.agentEvents ? agentEventsRoutes(opts.agentEvents) : []),
     healthRoute(),
   ]);
 
   return server;
 }
 
-export async function startServer(port: number): Promise<() => Promise<void>> {
-  const server = buildServer({ port });
+export async function startServer(
+  port: number,
+  agentEvents?: AgentEventsDeps,
+): Promise<() => Promise<void>> {
+  const server = buildServer({ port, agentEvents });
 
   try {
     await server.start();

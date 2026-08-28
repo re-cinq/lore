@@ -58,16 +58,18 @@ spec:
       ports:
         - protocol: TCP
           port: 443
-    # The agent-events telemetry sink (ADR-031 D8) runs on the in-cluster Floor over
-    # plain HTTP — the broad HTTPS rule above excludes RFC1918, so allow this one
-    # ClusterIP:port explicitly. Host/port must match agentEventsUrl.
+    # The agent-events telemetry sink (ADR-031 D8) runs in-cluster over plain
+    # HTTP — the broad HTTPS rule above excludes RFC1918, so allow this one
+    # ClusterIP:port explicitly. Host/port/app must match agentEventsUrl.
+    # Centrally that is the Floor; on a satellite it is the local cluster-agent,
+    # which relays onward (the Floor is unreachable from a satellite's pods).
     - to:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: {{ .Values.floorSink.namespace }}
           podSelector:
             matchLabels:
-              app: lore-floor
+              app: {{ .Values.floorSink.app }}
       ports:
         - protocol: TCP
           port: {{ .Values.floorSink.port }}

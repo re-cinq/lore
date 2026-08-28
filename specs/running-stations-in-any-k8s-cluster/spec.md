@@ -372,6 +372,41 @@ that.
   normally; a claimed run needing a git push fails "GitHub not configured"
   after launch, naming exactly the missing piece.
 
+### FR8.1 — Relaying telemetry through the cluster-agent *(added 2026-08-28)*
+
+Posting straight to the public sink works, and loses a batch to any blip: a run
+pod has no queue and makes no second attempt. A satellite may instead point its
+pods at its OWN cluster-agent, which forwards the batch through the same event
+proxy everything else in that cluster reports through.
+
+- `POST /api/cluster/agent-events` accepts NDJSON and hands it to the proxy
+  VERBATIM. This service does not parse stream-json and must not learn to: the
+  Floor owns that projection, and a relay that reshapes its payload is a second
+  parser to keep in sync. ([validated by [queues the body verbatim](apps/cluster-agent/src/delivery/routes/agent-events.test.ts#L40), [posts the body verbatim to the Floor's sink](apps/cluster-agent/src/kernel/telemetry-sink.test.ts#L29))
+- The relay accepts either credential this cluster legitimately holds — the
+  bus-wide `LORE_INGEST_TOKEN` centrally, or the per-agent token a satellite
+  received at registration and published into `agent-secrets` for exactly these
+  pods. Both are resolved PER REQUEST: a captured list would start refusing the
+  cluster's own pods the moment a re-registration rotated the token. ([validated by [accepts the satellite's own per-agent token](apps/cluster-agent/src/delivery/routes/agent-events.test.ts#L47), [resolves the token per call](apps/cluster-agent/src/kernel/telemetry-sink.test.ts#L49))
+- A credential matching neither is refused `401`, and a cluster holding NO
+  credential yet refuses `500` rather than accepting anything — before
+  registration completes there is no door to open. ([validated by [refuses a token that matches none](apps/cluster-agent/src/delivery/routes/agent-events.test.ts#L60), [refuses when this cluster holds no credential yet](apps/cluster-agent/src/delivery/routes/agent-events.test.ts#L69), [refuses a request carrying no authorization header](apps/cluster-agent/src/delivery/routes/agent-events.test.ts#L80))
+- A body past the Floor's own 8 MiB cap is refused `413` here rather than
+  buffered and then found undeliverable. ([validated by [refuses a body past the cap](apps/cluster-agent/src/delivery/routes/agent-events.test.ts#L86))
+- Before registration completes there is no token to present, and the relay
+  forwards ANYWAY rather than dropping the batch: the Floor refuses it, the
+  ladder reads that refusal as a rotation, re-registers, and the retry carries
+  the freshly minted credential. Refusing to send would lose the batch with
+  nothing left to trigger the recovery. ([validated by [posts with no authorization header before this cluster has registered](apps/cluster-agent/src/kernel/telemetry-sink.test.ts#L69))
+- Forwarding rides the proxy's ladder, so a refusal re-registers before it
+  retries exactly as a terminal report does — the relay's onward leg carries the
+  status on its throw so the ladder can tell a rotation from a blip. ([validated by [throws with the status attached](apps/cluster-agent/src/kernel/telemetry-sink.test.ts#L90), [refuses an event message](apps/cluster-agent/src/kernel/telemetry-sink.test.ts#L102))
+- Opting in is one knob, `floorUrl` / `LORE_FLOOR_URL`, and it is OFF by
+  default: it mounts the route, creates the Service the pods resolve, and points
+  the run-pod egress hole at the cluster-agent instead of the Floor. A chart
+  value that silently makes another one required would break every existing
+  satellite on upgrade, so nothing is derived. ([validated by [`check-cluster-agent-standalone-render.sh`](scripts/check-cluster-agent-standalone-render.sh#L1))
+
 ## FR7 — Registered-clusters visibility
 
 Operators need to see which clusters exist, what they can run, and whether
