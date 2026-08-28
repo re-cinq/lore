@@ -146,13 +146,15 @@ scripts/install-satellite.sh \
   --event-router-url https://lore-events.example.com \
   --registration-token <token from your platform engineer> \
   --name gpu-box-1 \
-  --tags node:agent,node:validate \
+  --tags node:agent \
   --skills-url https://lore-mcp.example.com/skills
 ```
 
 It also needs `GHCR_USERNAME`/`GHCR_TOKEN` (image pulls) and an LLM credential in the env — `CLAUDE_CODE_OAUTH_TOKEN` (from `claude setup-token`; bills a subscription) or `ANTHROPIC_API_KEY` (bills the org). Every flag can come from env instead (`LORE_API_URL`, `EVENT_ROUTER_URL`, `LORE_CLUSTER_AGENT_REGISTRATION_TOKEN`, `LORE_CLUSTER_AGENT_NAME`, `LORE_CLUSTER_AGENT_TAGS`). Pass `--context <name>` to assert which kubectl context the install must land in, and `--no-network-policy` on single-node clusters without a CNI. For a laptop minikube there is a wrapper with the right defaults baked in: `scripts/install-satellite-minikube.sh`.
 
 `--skills-url` (env `LORE_SKILLS_URL`) is the central lore-mcp gateway's public `/skills` registry — unauthenticated by design, so no extra secret. It flows into the catalog seed as `resources.skills_source` on every Claude-agent recipe, and the agent init fetches skills + writes the settings file from it. Leave it unset only for a satellite that claims exclusively non-agent stations (`validate`, `gate`, `detect`, `comment-triage`): the Claude Code adapter passes `--settings` unconditionally, so a Claude-agent node whose recipe has no `skills_source` dies at startup with "Settings file not found".
+
+Default `--tags` is `node:agent` only — deliberately. Every seeded *station* recipe (`def-validate`, `def-gate`, `def-detect`, `def-comment-triage`) mounts `LORE_INGEST_TOKEN`, which by design never leaves the central cluster, so a satellite that advertises `node:validate` claims the node and then fails at init with `CreateContainerConfigError`, wasting the claim and the run. Central claims those nodes instead; an `implementation-loop` run still completes with `implement` on the satellite and `validate` centrally.
 
 Optionally set `GITHUB_TOKEN` (a PAT scoped to the repos this satellite may push to) — without it, a claimed run needing a git push (`agent`, `github_action`, `retrospective` node types) fails "GitHub not configured" after launch, while tag-only work (`validate`, `gate`, `detect`, `comment-triage`) is unaffected. Handing a satellite any GitHub credential is deliberate, so it is never required; the chart also accepts the full GitHub App triple (`github.app.appId`/`privateKey`/`installationId`) via plain `helm --set` for a satellite acting as the org's own identity.
 

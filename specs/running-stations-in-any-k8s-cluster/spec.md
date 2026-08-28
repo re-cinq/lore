@@ -304,6 +304,15 @@ execution node.
   claimed run failed at init (#1575, found live 2026-08-26). Unset stays the
   default: a satellite reports its terminal outcome and nothing live, which
   is the honest state for a cluster with nowhere to report to. ([validated by `agent-catalog.test.ts:191`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L191))
+- The installer's default tags advertise `node:agent` only *(2026-08-28)*.
+  Every seeded station recipe (`def-validate`, `def-gate`, `def-detect`,
+  `def-comment-triage`) mounts `LORE_INGEST_TOKEN`, which FR5 keeps on the
+  central cluster, so a satellite advertising `node:validate` claims the node
+  and dies at init with `CreateContainerConfigError` — the claim and the run
+  are wasted (found live on run 595d2b0b: `implement` succeeded on the
+  satellite, `validate` never started). Central claims station nodes; an
+  operator who overrides `--tags` with a station type owns that credential
+  gap. Giving satellites a scoped station credential is a separate FR.
 
 ## FR8 — Live telemetry from a satellite
 
