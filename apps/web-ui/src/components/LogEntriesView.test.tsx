@@ -275,6 +275,22 @@ describe("hook entries", () => {
     );
   });
 
+  it("omits the clock for a heartbeat that reports no elapsed time", () => {
+    render(
+      <LogEntriesView
+        entries={[
+          {
+            kind: "tool-progress",
+            toolUseId: "toolu_01U2T4eX8rrZghzWR3ETfD5X",
+            toolName: "Skill",
+          },
+        ]}
+      />,
+    );
+
+    expect(screen.getByText("· Skill still running…")).toHaveClass(styles.dim);
+  });
+
   it("names the subtype of an unrecognized system entry", () => {
     render(<LogEntriesView entries={parseAgentLog(SYSTEM_COMPACT_BOUNDARY)} />);
 

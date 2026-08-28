@@ -43,7 +43,9 @@ export type LogEntry =
        *  `<parent>-heartbeat-<n>` and would defeat the fold. */
       toolUseId: string;
       toolName: string;
-      elapsedSeconds: number;
+      /** Absent on a line that reports no clock — the summary then omits the
+       *  parenthetical rather than claiming the call has run for zero seconds. */
+      elapsedSeconds?: number;
     }
   | { kind: "system"; subtype: string; detailsJson: string }
   | { kind: "rate-limit"; status: string; windows: RateLimitWindow[] }
@@ -373,10 +375,10 @@ function toolProgressEntry(
         ? value.parent_tool_use_id
         : value.tool_use_id,
     toolName: typeof value.tool_name === "string" ? value.tool_name : "tool",
-    elapsedSeconds:
-      typeof value.elapsed_time_seconds === "number"
-        ? value.elapsed_time_seconds
-        : 0,
+    ...(typeof value.elapsed_time_seconds === "number" &&
+    value.elapsed_time_seconds >= 0
+      ? { elapsedSeconds: value.elapsed_time_seconds }
+      : {}),
   };
 }
 

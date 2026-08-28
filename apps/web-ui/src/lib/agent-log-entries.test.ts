@@ -566,6 +566,22 @@ describe("tool progress heartbeats", () => {
     ]);
   });
 
+  it("carries no elapsed time for a progress line that reports none", () => {
+    const line = JSON.stringify({
+      type: "tool_progress",
+      tool_name: "Skill",
+      tool_use_id: "toolu_01U2T4eX8rrZghzWR3ETfD5X",
+    });
+
+    expect(parseAgentLog(line)).toEqual([
+      {
+        kind: "tool-progress",
+        toolUseId: "toolu_01U2T4eX8rrZghzWR3ETfD5X",
+        toolName: "Skill",
+      },
+    ]);
+  });
+
   it("does not fold a heartbeat onto a different tool call", () => {
     const skill: LogEntry = {
       kind: "tool-progress",

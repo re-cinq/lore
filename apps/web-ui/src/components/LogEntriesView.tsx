@@ -55,9 +55,12 @@ export function hookSummary(
 export function toolProgressSummary(
   entry: Extract<LogEntry, { kind: "tool-progress" }>,
 ): string {
-  return `· ${entry.toolName} still running… (${formatDuration(
-    entry.elapsedSeconds * 1000,
-  )})`;
+  const clock =
+    entry.elapsedSeconds === undefined
+      ? ""
+      : ` (${formatDuration(entry.elapsedSeconds * 1000)})`;
+
+  return `· ${entry.toolName} still running…${clock}`;
 }
 
 /** One entry's line. Exported so a view that adds its own gutter (the run
