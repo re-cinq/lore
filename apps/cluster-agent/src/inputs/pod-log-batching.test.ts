@@ -4,6 +4,7 @@ import {
   drain,
   emptyBatch,
   followableAgents,
+  pickPodToFollow,
   podLogEvent,
   type BatchLimits,
 } from "./pod-log-batching.js";
@@ -157,5 +158,103 @@ describe("followableAgents", () => {
     expect(
       followableAgents([cr("a-1", "Running", "job-1")], new Set(["a-1"])),
     ).toEqual([]);
+  });
+});
+
+describe("pickPodToFollow", () => {
+  const pod = (name: string, created: string, containers: string[]) => ({
+    metadata: { name, creationTimestamp: created },
+    spec: { containers: containers.map((c) => ({ name: c })) },
+  });
+
+  it("names the container to stream, because an empty one is a 400 from the API", () => {
+    // Found live: `Log.log(ns, pod, "", ...)` sends `?container=` and the
+    // apiserver answers 400 "Error occurred in log request". An agent pod has
+    // two containers (`init`, `agent`), so the choice cannot be left implicit.
+    expect(
+      pickPodToFollow([
+        pod("agent-job-x-1", "2026-08-29T00:00:00Z", ["agent"]),
+      ]),
+    ).toEqual({ podName: "agent-job-x-1", containerName: "agent" });
+  });
+
+  it("takes the newest pod, so a retried node streams its current attempt", () => {
+    expect(
+      pickPodToFollow([
+        pod("older", "2026-08-29T00:00:00Z", ["agent"]),
+        pod("newer", "2026-08-29T01:00:00Z", ["agent"]),
+      ])?.podName,
+    ).toBe("newer");
+  });
+
+  it("takes the FIRST container, which is the workload rather than a sidecar", () => {
+    expect(
+      pickPodToFollow([pod("p", "2026-08-29T00:00:00Z", ["agent", "sidecar"])])
+        ?.containerName,
+    ).toBe("agent");
+  });
+
+  it("orders by a Date timestamp too, which is what the real client hands back", () => {
+    // V1Pod.metadata.creationTimestamp is a Date, not the string a fixture
+    // naturally writes. Comparing Dates as strings would sort them by
+    // "[object Date]" — every pod equal, newest by accident.
+    expect(
+      pickPodToFollow([
+        {
+          metadata: {
+            name: "older",
+            creationTimestamp: new Date("2026-08-29T00:00:00Z"),
+          },
+          spec: { containers: [{ name: "agent" }] },
+        },
+        {
+          metadata: {
+            name: "newer",
+            creationTimestamp: new Date("2026-08-29T02:00:00Z"),
+          },
+          spec: { containers: [{ name: "agent" }] },
+        },
+      ])?.podName,
+    ).toBe("newer");
+  });
+
+  it("sorts a pod carrying no timestamp last, rather than letting it win by accident", () => {
+    // A pod observed between creation and the apiserver stamping it has none.
+    // Treating that as the empty string sorts it oldest, so a pod with a real
+    // timestamp is preferred — the opposite would follow the least-known pod.
+    expect(
+      pickPodToFollow([
+        {
+          metadata: { name: "unstamped" },
+          spec: { containers: [{ name: "agent" }] },
+        },
+        {
+          metadata: {
+            name: "stamped",
+            creationTimestamp: "2026-08-29T00:00:00Z",
+          },
+          spec: { containers: [{ name: "agent" }] },
+        },
+      ])?.podName,
+    ).toBe("stamped");
+  });
+
+  it("returns null when there is no pod yet, so discovery simply retries", () => {
+    expect(pickPodToFollow([])).toBeNull();
+  });
+
+  it("returns null for a pod with no name or no container, rather than streaming an empty one", () => {
+    expect({
+      noName: pickPodToFollow([
+        {
+          metadata: { creationTimestamp: "x" },
+          spec: { containers: [{ name: "agent" }] },
+        },
+      ]),
+      noContainer: pickPodToFollow([
+        { metadata: { name: "p" }, spec: { containers: [] } },
+      ]),
+      noSpec: pickPodToFollow([{ metadata: { name: "p" } }]),
+    }).toEqual({ noName: null, noContainer: null, noSpec: null });
   });
 });

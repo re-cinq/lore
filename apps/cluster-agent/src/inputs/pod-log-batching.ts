@@ -139,3 +139,48 @@ export function followableAgents(
     .filter((agent) => !following.has(agent.agentCrName))
     .map(({ agentCrName, jobName }) => ({ agentCrName, jobName }));
 }
+
+/** The slice of a Pod this decision reads. */
+export interface FollowablePod {
+  /** `creationTimestamp` is a Date on the real `V1Pod` and a string on the
+   *  wire. Both are accepted because both turn up: the client's model mapper
+   *  parses it, and a hand-built fixture usually does not. */
+  metadata?: { name?: string; creationTimestamp?: string | Date };
+  spec?: { containers?: Array<{ name?: string }> };
+}
+
+/** Sortable form of a creation timestamp, whichever shape it arrived in. */
+function createdAt(pod: FollowablePod): string {
+  const raw = pod.metadata?.creationTimestamp;
+
+  return raw instanceof Date ? raw.toISOString() : (raw ?? "");
+}
+
+/**
+ * Which pod to stream, and WHICH CONTAINER of it.
+ *
+ * The container is not optional. `Log.log(ns, pod, "", …)` sends an empty
+ * `?container=` and the apiserver answers `400 Error occurred in log request` —
+ * found the hard way on the first pilot run, where every discovery tick opened
+ * a stream and got a 400 back. An agent pod has two containers (`init` and
+ * `agent`), so there is no implicit choice for the API to make.
+ *
+ * The FIRST container is the workload; anything after it is a sidecar. Reading
+ * it off the pod rather than hardcoding "agent" keeps this correct for a
+ * station pod, a custom image, or whatever the subsystem names it next.
+ */
+export function pickPodToFollow(
+  pods: readonly FollowablePod[],
+): { podName: string; containerName: string } | null {
+  const newest = [...pods].sort((a, b) =>
+    createdAt(b).localeCompare(createdAt(a)),
+  )[0];
+  const podName = newest?.metadata?.name;
+  const containerName = newest?.spec?.containers?.[0]?.name;
+
+  if (!podName || !containerName) {
+    return null;
+  }
+
+  return { podName, containerName };
+}
