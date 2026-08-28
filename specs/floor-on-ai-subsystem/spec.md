@@ -363,6 +363,15 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + agen
     that mode) and become enforced when the family moves to an enforcing mode
     ([validated by `agent-catalog.test.ts:383`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L383), [`agent-catalog.test.ts:393`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L393), [`agent-catalog.test.ts:399`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L399); implemented by [`agent-catalog.ts:166`](apps/floor/src/jobs/agent/agent-catalog.ts#L166), [`agent-catalog.ts:209`](apps/floor/src/jobs/agent/agent-catalog.ts#L209))
 
+32. *(added 2026-08-28)* Every agent run opens with the same instruction in the CR
+    parameter the assembled context used to occupy: `CONTEXT_BOOTSTRAP` names
+    `lore_assemble_context` before `lore_search_memory`, states that nothing is
+    pre-loaded for this run — the one fact the installed `lore-context` skill cannot
+    know — and carries no `{placeholder}` of its own, since a parameter VALUE is
+    substituted once and never re-scanned, so a brace-wrapped token written here
+    would reach the model verbatim
+    ([validated by `recipe-prompt.test.ts:5`](libs/shared/src/agents/recipe-prompt.test.ts#L5), [`recipe-prompt.test.ts:11`](libs/shared/src/agents/recipe-prompt.test.ts#L11), [`recipe-prompt.test.ts:15`](libs/shared/src/agents/recipe-prompt.test.ts#L15); implemented by [`recipe-prompt.ts:16`](libs/shared/src/agents/recipe-prompt.ts#L16))
+
 ## Out of scope
 
 - `feature-decompose` stays in-process (no pod) and is not migrated. *(graph-ingest was also out of
