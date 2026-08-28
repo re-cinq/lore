@@ -353,8 +353,10 @@ function hookOutput(value: Record<string, unknown>): string {
   }
 
   return [value.stdout, value.stderr]
-    .filter((part): part is string => typeof part === "string")
-    .join("")
+    .filter(
+      (part): part is string => typeof part === "string" && part.length > 0,
+    )
+    .join("\n")
     .trim();
 }
 
