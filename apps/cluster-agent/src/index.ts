@@ -32,6 +32,17 @@ async function main(): Promise<void> {
   const stopServer = await startServer(PORT);
   const routerUrl = process.env.EVENT_ROUTER_URL;
 
+  // Claim-based dispatch (specs/running-stations-in-any-k8s-cluster FR1/FR3):
+  // register with the Lore API, then pull queued station runs and launch them
+  // here. Gated on the same station backend as the watch; a failed
+  // registration retries in the background and never blocks the routes above.
+  // Started before the watch so the watch can borrow its re-registration.
+  const satellite = startSatellite(process.env, {
+    onIdentity: (identity) => {
+      satelliteToken = identity.token;
+    },
+  });
+
   if (routerUrl) {
     // The central cluster reports with LORE_INGEST_TOKEN, because that is the
     // one the router VERIFIES for every route. Presenting a different token
@@ -53,6 +64,10 @@ async function main(): Promise<void> {
     startK8sWatch({
       insert: (event) => reporter.insert(event),
       retry: REPORT_RETRY,
+      // A 401 on a satellite's report means its token rotated (another
+      // instance registered); re-register and retry, exactly like the claim
+      // loop. Retrying with the same token lost run 595d2b0b's terminal event.
+      onUnauthorized: () => satellite.reRegister(),
     });
   } else {
     // Loud, because the symptom is silence: no watch means no terminal Agent
@@ -61,16 +76,6 @@ async function main(): Promise<void> {
       "[cluster-agent] EVENT_ROUTER_URL unset — Agent-CR watch NOT started",
     );
   }
-
-  // Claim-based dispatch (specs/running-stations-in-any-k8s-cluster FR1/FR3):
-  // register with the Lore API, then pull queued station runs and launch them
-  // here. Gated on the same station backend as the watch; a failed
-  // registration retries in the background and never blocks the routes above.
-  startSatellite(process.env, {
-    onIdentity: (identity) => {
-      satelliteToken = identity.token;
-    },
-  });
 
   const shutdown = async (signal: string): Promise<void> => {
     console.log(`[cluster-agent] ${signal} — shutting down`);

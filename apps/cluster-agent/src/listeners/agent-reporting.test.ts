@@ -195,3 +195,84 @@ describe("reportForAgent over a network", () => {
     expect(attempts).toBe(2);
   });
 });
+
+describe("reportForAgent — a refused credential re-registers before the retry", () => {
+  const succeeded = {
+    metadata: { name: "run-1-review", labels: { [TASK]: "t-1" } },
+    status: { phase: "Succeeded" },
+  } as never;
+  const unauthorized = Object.assign(new Error("event insert failed: 401"), {
+    status: 401,
+  });
+
+  it("re-registers once on a 401 and the next attempt lands", async () => {
+    // The satellite's per-agent token rotates whenever another instance of it
+    // registers (a rollout overlap did exactly that on 2026-08-28). Retrying
+    // with the same token five times lost run 595d2b0b's terminal event.
+    let inserts = 0;
+    let reRegistrations = 0;
+
+    await reportForAgent(succeeded, {
+      insert: async () => {
+        inserts++;
+
+        return inserts === 1 ? Promise.reject(unauthorized) : Promise.resolve();
+      },
+      onUnauthorized: async () => {
+        reRegistrations++;
+      },
+      retry: { attempts: 5, delayMs: 1 },
+    });
+
+    expect({ inserts, reRegistrations }).toEqual({
+      inserts: 2,
+      reRegistrations: 1,
+    });
+  });
+
+  it("re-registers on a 403 the same as a 401", async () => {
+    const forbidden = Object.assign(new Error("event insert failed: 403"), {
+      status: 403,
+    });
+    let inserts = 0;
+    let reRegistrations = 0;
+
+    await reportForAgent(succeeded, {
+      insert: async () => {
+        inserts++;
+
+        return inserts === 1 ? Promise.reject(forbidden) : Promise.resolve();
+      },
+      onUnauthorized: async () => {
+        reRegistrations++;
+      },
+      retry: { attempts: 5, delayMs: 1 },
+    });
+
+    expect({ inserts, reRegistrations }).toEqual({
+      inserts: 2,
+      reRegistrations: 1,
+    });
+  });
+
+  it("does not re-register on an ordinary blip", async () => {
+    let reRegistrations = 0;
+    let inserts = 0;
+
+    await reportForAgent(succeeded, {
+      insert: async () => {
+        inserts++;
+
+        return inserts === 1
+          ? Promise.reject(new Error("ECONNREFUSED"))
+          : Promise.resolve();
+      },
+      onUnauthorized: async () => {
+        reRegistrations++;
+      },
+      retry: { attempts: 3, delayMs: 1 },
+    });
+
+    expect(reRegistrations).toBe(0);
+  });
+});

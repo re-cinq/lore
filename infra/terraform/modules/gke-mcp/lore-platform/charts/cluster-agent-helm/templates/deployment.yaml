@@ -7,6 +7,13 @@ metadata:
     app: lore-cluster-agent
 spec:
   replicas: {{ .Values.replicaCount }}
+  # Recreate, never RollingUpdate: this process is a singleton registrant. Two
+  # overlapping pods each re-register, and every registration rotates the
+  # per-agent token out from under the other — the loser's reports 401 until
+  # it notices, and a terminal event can be dropped in that window (run
+  # 595d2b0b, 2026-08-28). A few seconds of no claims beats a lost outcome.
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: lore-cluster-agent

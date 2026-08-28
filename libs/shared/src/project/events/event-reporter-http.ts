@@ -63,7 +63,11 @@ export class HttpEventReporter implements Pick<EventQueueRepository, "insert"> {
     const res = await this.post("/api/events", input);
 
     if (!res.ok) {
-      throw new Error(`event insert failed: ${res.status}`);
+      // The status rides on the error so a caller can tell a rotated token
+      // (401 — re-register) from a blip (retry as-is).
+      throw Object.assign(new Error(`event insert failed: ${res.status}`), {
+        status: res.status,
+      });
     }
   }
 }
