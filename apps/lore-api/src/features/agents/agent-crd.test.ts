@@ -33,7 +33,7 @@ describe("agentDefToCrds", () => {
         model: "claude-sonnet-4-6",
         prompt: "Implement {description}\n\n{context}",
         permission_mode: "bypass",
-        max_turns: 40,
+        max_turns: 200,
         output: {
           sinks: [
             { type: "stdout" },

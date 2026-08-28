@@ -5,6 +5,7 @@
 // deterministic. The k8s apply/delete is the IO shell (agent-crd-k8s.ts).
 
 import { apiError } from "../../server/api-error.js";
+import { AGENT_MAX_TURNS } from "@re-cinq/lore-shared";
 import type { AgentDefinition as RecipeDef } from "@re-cinq/lore-shared";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import type {
@@ -116,7 +117,7 @@ function llmSpec(
     // {context} is filled by the Floor's context hydration (D5).
     prompt: `${def.prompt}\n\n{context}`,
     permission_mode: "bypass",
-    max_turns: 40,
+    max_turns: AGENT_MAX_TURNS,
     output: { sinks },
   };
 }

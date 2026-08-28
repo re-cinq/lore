@@ -435,7 +435,7 @@ These statements pin the deterministic Floor glue that wraps the subsystem.
   Deliberate Boom 4xx/503 responses do not hit the channel and are unchanged. ([validated by `agent-logs.test.ts:97`](apps/floor/src/delivery/http/routes/agent-logs.test.ts#L97))
 - **Recipe → CRD materialisation.** `agentDefToCrds` maps an `AgentDefinition` recipe to a paired
   Kubernetes `AgentDefinition` + `Station`: an AI recipe carries `permission_mode:"bypass"`,
-  `max_turns:40`, a `{context}`-suffixed prompt, and — when an events URL is supplied — the http
+  `max_turns` from the shared `AGENT_MAX_TURNS` (200 — 40 capped every test-first implementation mid-task, 2026-08-28), a `{context}`-suffixed prompt, and — when an events URL is supplied — the http
   telemetry sink alongside stdout; model is omitted when the recipe inherits it, a recipe with no
   prompt is rejected outright (the subsystem refuses a promptless AgentDefinition at admission, so
   emitting one only moved the failure to the apply), deadline defaults to 30 and image to
