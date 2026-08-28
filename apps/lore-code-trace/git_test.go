@@ -4,12 +4,12 @@ import "testing"
 
 func TestParseRepoFromRemote(t *testing.T) {
 	cases := map[string]string{
-		"git@github.com:re-cinq/lore.git":          "re-cinq/lore",
-		"git@github.com:re-cinq/lore":              "re-cinq/lore",
-		"https://github.com/re-cinq/lore.git":      "re-cinq/lore",
-		"https://github.com/re-cinq/lore":          "re-cinq/lore",
-		"ssh://git@github.com/re-cinq/lore.git":    "re-cinq/lore",
-		"https://x@github.com/re-cinq/lore.git\n":  "re-cinq/lore",
+		"git@github.com:re-cinq/lore.git":         "re-cinq/lore",
+		"git@github.com:re-cinq/lore":             "re-cinq/lore",
+		"https://github.com/re-cinq/lore.git":     "re-cinq/lore",
+		"https://github.com/re-cinq/lore":         "re-cinq/lore",
+		"ssh://git@github.com/re-cinq/lore.git":   "re-cinq/lore",
+		"https://x@github.com/re-cinq/lore.git\n": "re-cinq/lore",
 	}
 	for in, want := range cases {
 		got, err := parseRepoFromRemote(in)
