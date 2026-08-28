@@ -393,9 +393,14 @@ proxy everything else in that cluster reports through.
   registration completes there is no door to open. ([validated by [refuses a token that matches none](apps/cluster-agent/src/delivery/routes/agent-events.test.ts#L60), [refuses when this cluster holds no credential yet](apps/cluster-agent/src/delivery/routes/agent-events.test.ts#L69), [refuses a request carrying no authorization header](apps/cluster-agent/src/delivery/routes/agent-events.test.ts#L80))
 - A body past the Floor's own 8 MiB cap is refused `413` here rather than
   buffered and then found undeliverable. ([validated by [refuses a body past the cap](apps/cluster-agent/src/delivery/routes/agent-events.test.ts#L86))
+- Before registration completes there is no token to present, and the relay
+  forwards ANYWAY rather than dropping the batch: the Floor refuses it, the
+  ladder reads that refusal as a rotation, re-registers, and the retry carries
+  the freshly minted credential. Refusing to send would lose the batch with
+  nothing left to trigger the recovery. ([validated by [posts with no authorization header before this cluster has registered](apps/cluster-agent/src/kernel/telemetry-sink.test.ts#L69))
 - Forwarding rides the proxy's ladder, so a refusal re-registers before it
   retries exactly as a terminal report does — the relay's onward leg carries the
-  status on its throw so the ladder can tell a rotation from a blip. ([validated by [throws with the status attached](apps/cluster-agent/src/kernel/telemetry-sink.test.ts#L69), [refuses an event message](apps/cluster-agent/src/kernel/telemetry-sink.test.ts#L81))
+  status on its throw so the ladder can tell a rotation from a blip. ([validated by [throws with the status attached](apps/cluster-agent/src/kernel/telemetry-sink.test.ts#L90), [refuses an event message](apps/cluster-agent/src/kernel/telemetry-sink.test.ts#L102))
 - Opting in is one knob, `floorUrl` / `LORE_FLOOR_URL`, and it is OFF by
   default: it mounts the route, creates the Service the pods resolve, and points
   the run-pod egress hole at the cluster-agent instead of the Floor. A chart

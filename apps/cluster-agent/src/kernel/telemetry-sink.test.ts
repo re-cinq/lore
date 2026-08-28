@@ -66,6 +66,27 @@ describe("TelemetrySink", () => {
     ).toEqual(["Bearer first", "Bearer rotated"]);
   });
 
+  it("posts with no authorization header before this cluster has registered, so the 401 drives a re-registration", async () => {
+    // A satellite has no token until registration completes. Sending
+    // unauthenticated is deliberate and self-healing: the Floor refuses it, the
+    // proxy's ladder reads that refusal as a rotation, re-registers, and the
+    // retry carries the freshly minted credential. Refusing to send here would
+    // drop the batch with nothing left to trigger the recovery.
+    const { fetchFn, calls } = fakeFetch(401);
+
+    await expect(
+      new TelemetrySink(
+        "https://floor.example",
+        () => undefined,
+        fetchFn,
+      ).deliver(message),
+    ).rejects.toMatchObject({ status: 401 });
+
+    expect(
+      (calls[0].init?.headers as Record<string, string>).authorization,
+    ).toBeUndefined();
+  });
+
   it("throws with the status attached, so a refusal re-registers instead of retrying blind", async () => {
     const { fetchFn } = fakeFetch(401);
 
