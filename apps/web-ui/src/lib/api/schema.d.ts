@@ -2914,7 +2914,7 @@ export interface components {
         cost_usd: number;
       }[];
       lore_by_cluster: {
-        cluster: string;
+        cluster: string | null;
         calls: number;
         cost_usd: number;
       }[];

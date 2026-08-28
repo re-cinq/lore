@@ -148,3 +148,12 @@
 .center {
   text-align: center;
 }
+
+/* Group labels inside the Cost by Cluster table, separating the no-cluster
+   bucket (the home account's own spend) from the registered clusters. */
+.subhead {
+  font-weight: bold;
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  padding-top: 8px;
+}

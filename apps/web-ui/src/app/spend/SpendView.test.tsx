@@ -612,14 +612,14 @@ describe("SpendView cost by cluster", () => {
         {...loreOnly}
         loreByCluster={[
           { cluster: "colleague-satellite", calls: 12, cost_usd: 88.5 },
-          { cluster: "(central / regular)", calls: 40, cost_usd: 20 },
+          { cluster: null, calls: 40, cost_usd: 20 },
         ]}
       />,
     );
     const table = tableByHeading("Cost by Cluster (MTD)");
 
     expect(within(table).getByText("colleague-satellite")).toBeInTheDocument();
-    expect(within(table).getByText("(central / regular)")).toBeInTheDocument();
+    expect(within(table).getByText("(no cluster)")).toBeInTheDocument();
     expect(within(table).getByText(usd(88.5))).toBeInTheDocument();
     expect(within(table).getByText(num(12))).toBeInTheDocument();
   });
