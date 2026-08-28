@@ -238,6 +238,27 @@ describe("hook entries", () => {
     ).toBeInTheDocument();
   });
 
+  it("reads a successful hook that reported no exit code as finished, not failed", () => {
+    render(
+      <LogEntriesView
+        entries={[
+          {
+            kind: "hook",
+            hookId: "d8c5aab0",
+            hookName: "SessionStart:startup",
+            phase: "response",
+            output: "",
+            outcome: "success",
+          },
+        ]}
+      />,
+    );
+
+    expect(
+      screen.getByText("· hook SessionStart:startup ✓"),
+    ).toBeInTheDocument();
+  });
+
   it("names the subtype of an unrecognized system entry", () => {
     render(<LogEntriesView entries={parseAgentLog(SYSTEM_COMPACT_BOUNDARY)} />);
 

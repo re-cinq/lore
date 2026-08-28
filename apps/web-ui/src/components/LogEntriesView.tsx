@@ -29,6 +29,15 @@ function resultSummary(entry: Extract<LogEntry, { kind: "result" }>): string {
 
 /** How a hook's line reads: its verdict once it has one, else that it is still
  *  going. Formatted here rather than in JSX so it is testable without a DOM. */
+/** Whether a finished hook passed. The exit code decides when the runner sends
+ *  one; without it the outcome is all there is to go on, and treating that
+ *  absence as a non-zero exit would mark every such hook failed. */
+function hookPassed(entry: Extract<LogEntry, { kind: "hook" }>): boolean {
+  return entry.exitCode === undefined
+    ? entry.outcome === "success"
+    : entry.exitCode === 0;
+}
+
 export function hookSummary(
   entry: Extract<LogEntry, { kind: "hook" }>,
 ): string {
@@ -36,7 +45,7 @@ export function hookSummary(
   const status =
     entry.outcome === undefined
       ? "running…"
-      : `${entry.exitCode === 0 ? "✓" : "✗"}${exit}`;
+      : `${hookPassed(entry) ? "✓" : "✗"}${exit}`;
 
   return `· hook ${entry.hookName} ${status}`;
 }
@@ -120,7 +129,7 @@ export function EntryLine({ entry }: { entry: LogEntry }) {
       return <div className={styles.rateLimit}>{rateLimitSummary(entry)}</div>;
     case "hook": {
       const errorClass =
-        entry.exitCode !== undefined && entry.exitCode !== 0
+        entry.outcome !== undefined && !hookPassed(entry)
           ? ` ${styles.error}`
           : "";
 
