@@ -466,19 +466,24 @@ pipeline stages. This happens in both local runner (`monitorTask`)
 and GKE runner (`entrypoint.sh`). Validation is scoped to changed
 files to avoid false positives from pre-existing issues.
 
-**Pre-run context hydration**: Before spawning Claude Code, both
-runners fetch assembled context from the Lore API (`/api/context`
-with `query` param). The agent starts with conventions, ADRs,
-memories, and graph on turn 1 instead of spending its first action
-calling `lore_assemble_context`.
+**No pre-run context hydration** (removed 2026-08-28): every run starts
+cold and assembles its own context. The dispatch-time `/api/context`
+fetch needed `LORE_INGEST_TOKEN`, which never leaves the central
+cluster, so it made a central run and a satellite run of the same
+recipe open differently. The `{context}` slot every recipe declares is
+now filled with the constant `CONTEXT_BOOTSTRAP`
+(`libs/shared/src/agents/recipe-prompt.ts`) — an instruction to call
+`lore_assemble_context` first. The parameter is always present:
+`renderPrompt` leaves an unmatched placeholder intact, so omitting it
+would ship the literal `{context}` to the model.
 
-**Live agent MCP access**: hydration is one-shot; agent *pods* also get a
+**Live agent MCP access**: this is the only context path now; agent *pods* get a
 **live, scoped** Lore MCP for the whole run via the shared `lore-mcp` HTTP
 gateway. The seeded agent recipe (`buildAgentDefinition`, `agent-catalog.ts`)
 carries `resources.mcp_servers: [{ name: lore, transport: http, headers_secret:
 lore-mcp-auth }]` and drops `lore_create_pipeline_task`; the ai-agent-subsystem
 controller renders it into `claude --mcp-config`. The pod can search
-memory/context and record targeted memory mid-task, not just start warm. The
+memory/context and record targeted memory throughout the run. The
 gateway is reachable at a public `:443` host because the `agent-job-egress`
 NetworkPolicy allows only public `:443` egress.
 

@@ -256,7 +256,7 @@ subscribe" has no expressible meaning on the current substrate.
   no CLI to fall back to, so every classification failed, was swallowed into
   `ignore`, and reported SUCCESS — silently dropping every human PR comment and
   telling the walk it was handled.
-  ([validated by declares the LLM secret for a station whose recipe says it needs one](apps/floor/src/jobs/agent/agent-catalog.test.ts#L431), [`comment-triage.test.ts:73`](apps/stations/src/stations/comment-triage/comment-triage.test.ts#L73), [`comment-triage.test.ts:90`](apps/stations/src/stations/comment-triage/comment-triage.test.ts#L90), [`comment-triage.test.ts:71`](libs/shared/src/review/comment-triage.test.ts#L71))
+  ([validated by declares the LLM secret for a station whose recipe says it needs one](apps/floor/src/jobs/agent/agent-catalog.test.ts#L442), [`comment-triage.test.ts:73`](apps/stations/src/stations/comment-triage/comment-triage.test.ts#L73), [`comment-triage.test.ts:90`](apps/stations/src/stations/comment-triage/comment-triage.test.ts#L90), [`comment-triage.test.ts:71`](libs/shared/src/review/comment-triage.test.ts#L71))
 
 - **FR20 — the planning station's work is not the route's.** Resolving which run
   a feature is on, deciding whether its line waits on the author, and sequencing a

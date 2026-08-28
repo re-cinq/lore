@@ -38,13 +38,30 @@ If validation fails, spawn a fix-only Claude Code pass with the error
 output. Cap at one retry — no infinite loops. If still failing, mark
 `needs-human-help` and preserve the worktree for debugging.
 
-### 3. Pre-run context hydration
+### 3. Pre-run context hydration *(reversed 2026-08-28)*
 
 Fetch assembled context from the Lore API before spawning Claude Code.
 The agent starts with conventions, ADRs, memories, and graph on turn 1
 instead of spending its first action calling `lore_assemble_context`.
 Reduces cold-start latency and ensures context is always loaded even
 if the agent skips the required workflow.
+
+**Amendment (2026-08-28): this is reversed. Nothing is fetched before a run.**
+The fetch needed `LORE_INGEST_TOKEN`, which never leaves the central cluster, so
+once runs could be claimed by satellite clusters the same recipe opened two
+different ways depending on who claimed it — warm centrally, cold everywhere
+else. Both `ContextSource` implementations and the local runner's copy are gone.
+
+What replaces it is one constant, `CONTEXT_BOOTSTRAP`, in the `{context}` slot
+the recipes already declare: an instruction to call `lore_assemble_context`
+first. The original rationale survives inverted — an agent pod now holds a live
+Lore MCP gateway for the whole run, so a self-assembled context is *better*
+targeted than the dispatcher's guess (a 200-character slice of the description,
+capped at 8000 tokens against a template budgeting 21,700). The cost is one turn.
+
+"Always loaded even if the agent skips the workflow" was the one real loss, and
+it was already lost: hydration was best-effort, and every satellite run had been
+starting cold since claim-based dispatch shipped.
 
 ### 4. Subdirectory convention rules
 

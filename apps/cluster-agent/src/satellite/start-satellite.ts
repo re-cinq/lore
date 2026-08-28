@@ -13,12 +13,10 @@ import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 
 import { selectStationBackend } from "@re-cinq/lore-shared";
 import { AgentCrBackend } from "@re-cinq/lore-shared/cluster/agent-backend.js";
-import type { ContextSource } from "@re-cinq/lore-shared/cluster/agent-backend.js";
 import { KubeAgentApi } from "../kernel/kube-agent-api.js";
 import { kubeTokenProvisioner } from "../kernel/deps.js";
 import { KubeSecretKeyWriter } from "../kernel/kube-token-provisioner.js";
 import { writeAgentEventsAuth } from "./agent-events-secret.js";
-import { ApiContextSource } from "./api-context-source.js";
 import { claimIntervalMs, claimOnce, runClaimLoop } from "./claim-loop.js";
 import {
   heartbeatIntervalMs,
@@ -40,19 +38,6 @@ import type { RegistrationConfig } from "./registration.js";
 
 const sleep = (ms: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, ms));
-
-/** Central clusters hold LORE_INGEST_TOKEN and hydrate claimed runs; a
- *  satellite does not (FR5 keeps that token central), so its runs launch
- *  unhydrated — agent pods still have live context through the lore-mcp
- *  gateway. */
-function contextSource(
-  env: NodeJS.ProcessEnv,
-  apiUrl: string,
-): ContextSource | undefined {
-  const token = env.LORE_INGEST_TOKEN;
-
-  return token ? new ApiContextSource(apiUrl, token) : undefined;
-}
 
 async function runSatellite(opts: {
   env: NodeJS.ProcessEnv;
@@ -181,7 +166,6 @@ export function startSatellite(
 
   const backend = new AgentCrBackend(
     new KubeAgentApi(),
-    contextSource(env, config.apiUrl),
     kubeTokenProvisioner(),
   );
 

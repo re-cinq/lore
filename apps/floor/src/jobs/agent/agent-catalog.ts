@@ -119,7 +119,8 @@ export function buildAgentDefinition(
     spec: {
       description: `Lore ${taskType} task recipe (seeded).`,
       ...(cfg.model ? { model: cfg.model } : {}),
-      // The {context} placeholder is filled by the Floor's context hydration (D5).
+      // The {context} placeholder is filled per run with CONTEXT_BOOTSTRAP — an
+      // instruction to assemble context, since nothing is fetched at dispatch.
       prompt: `${cfg.prompt_template.trimEnd()}\n\n{context}`,
       permission_mode: "bypass",
       max_turns: AGENT_MAX_TURNS,
@@ -412,7 +413,21 @@ export function catalogChartYaml(
     (match) => `{{- if .Values.agentEventsUrl }}\n${match}{{- end }}\n`,
   );
 
-  return sinksGuarded
+  // And the {context} placeholder, for the same reason one step further on. What
+  // fills it is an INSTRUCTION to call lore_assemble_context — dispatch-time
+  // hydration was removed 2026-08-28 — so it is only true where the pod has a Lore
+  // MCP to call. A satellite renders no mcp_servers block (the gateway
+  // authenticates with LORE_INGEST_TOKEN, and FR5 keeps that credential central),
+  // and telling such a pod to call a tool it does not have burns a turn on a
+  // guaranteed failure. Guarded on the same value as the block it points at, so the
+  // two cannot drift apart (#1629).
+  const contextGuarded = sinksGuarded.replace(
+    /^( *)\{context\}\n/gm,
+    (_m, indent: string) =>
+      `{{- if .Values.loreMcpUrl }}\n${indent}{context}\n{{- end }}\n`,
+  );
+
+  return contextGuarded
     .replaceAll(LLM_SECRET_SENTINEL, "{{ .Values.agentLlmSecretKey }}")
     .replaceAll(EVENTS_URL_SENTINEL, "{{ .Values.agentEventsUrl }}")
     .replaceAll(MCP_URL_SENTINEL, "{{ .Values.loreMcpUrl }}")

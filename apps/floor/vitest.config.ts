@@ -25,9 +25,7 @@ export default defineConfig({
         "src/jobs/assembly-run/llm-dispatch-gate.ts",
         "src/jobs/assembly-run/assembly-run-station-backend.ts",
         "src/jobs/assembly-run/spec-pr.ts",
-        "src/jobs/station/agent-backend.ts",
         "src/jobs/station/agent-cr-station-backend.ts",
-        "src/jobs/station/http-context-source.ts",
         "src/jobs/watcher/agent-watcher-logic.ts",
       ],
       thresholds: {

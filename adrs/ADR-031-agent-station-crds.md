@@ -106,9 +106,21 @@ so two attempts of one task never collide;
 the CR spec keeps `taskId` for the watcher/reaper label probes and adds the full
 `assembly-run-id`/`node-id` labels the event mapping reads.
 
-**D5 — Context hydration.** The Floor injects assembled context into `Agent.spec.parameters` at
-dispatch (deterministic, turn-1); code-editing recipes also declare the Lore MCP server for
+**D5 — Context hydration.** ~~The Floor injects assembled context into `Agent.spec.parameters` at
+dispatch (deterministic, turn-1)~~; code-editing recipes also declare the Lore MCP server for
 interactive lookups.
+
+*Amended 2026-08-28 (see [ADR-013 §3](ADR-013-minions-inspired-pipeline.md)): nothing is injected at
+dispatch. The `context` parameter is still always present — `renderPrompt` leaves an unmatched
+placeholder intact, so omitting it would ship the literal `{context}` to the model — but it now
+carries the fixed `CONTEXT_BOOTSTRAP` instruction, so a central run and a satellite run of one
+recipe produce identical CR parameters. The MCP server, previously the secondary path, is the only
+path.*
+
+*This also retires the `hydrate: false` station opt-out, which existed because an
+empty-description dispatch assembled an unbounded-query context (~3 MB) that blew the 2 MiB
+apiserver limit on 2026-07-17. That guard is not being weakened — the thing it guarded against no
+longer runs, and what fills the slot is now a fixed-length constant.*
 
 **D6 — Secrets inherit the existing setup.** The `ai-agents` namespace gets its secrets by ESO
 mirroring the **same** GCP Secret Manager remoteRefs the Floor already uses (`ANTHROPIC_API_KEY`, the

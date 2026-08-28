@@ -7,7 +7,6 @@ import {
 import { loadBuiltinAssemblyLines } from "@re-cinq/lore-assembly-lines";
 import { getPool } from "../kernel/db.js";
 import { AgentCrBackend } from "@re-cinq/lore-shared/cluster/agent-backend.js";
-import { HttpContextSource } from "../jobs/station/http-context-source.js";
 import { HttpAgentApi, HttpTokenProvisioner } from "@re-cinq/lore-shared";
 import { AssemblyLineStationBackend } from "../jobs/assembly-run/assembly-run-station-backend.js";
 import { clusterAgent, pipeline } from "../kernel/queues.js";
@@ -38,7 +37,6 @@ export function agentCrBackend(): AgentCrBackend {
   // dispatch and provision, the agent performs it. No Kubernetes client here.
   return new AgentCrBackend(
     new HttpAgentApi(clusterAgent()),
-    new HttpContextSource(),
     new HttpTokenProvisioner(clusterAgent()),
   );
 }

@@ -113,17 +113,14 @@ On the proxy path, a reachable backend response is authoritative over any cached
 copy: an empty-but-reachable context is returned as-is (never a stale cache), and
 a reachable non-empty response returns the live text. ([validated by `returns an empty-but-reachable context as-is instead of a stale cached copy`](apps/mcp-server/src/mcp/tools/context-tools.test.ts#L156), [validated by `returns the live result on a reachable hit`](apps/mcp-server/src/mcp/tools/context-tools.test.ts#L192))
 
-The pre-run context-hydration URL selects the `review` template for review tasks
-and `implementation` for every other task type, truncates the query to 200 chars,
-and URL-encodes both the repo and query. ([validated by `uses implementation template by default`](apps/mcp-server/src/features/context/context-hydration.test.ts#L21), [validated by `uses review template for review tasks`](apps/mcp-server/src/features/context/context-hydration.test.ts#L32), [validated by `uses implementation template for general tasks`](apps/mcp-server/src/features/context/context-hydration.test.ts#L43), [validated by `truncates query to 200 chars`](apps/mcp-server/src/features/context/context-hydration.test.ts#L54), [validated by `encodes special characters in repo name`](apps/mcp-server/src/features/context/context-hydration.test.ts#L68), [validated by `encodes special characters in query`](apps/mcp-server/src/features/context/context-hydration.test.ts#L79))
-
-When pre-loaded context is available the spawned agent's preamble carries it and
-drops the "call lore_assemble_context first" workflow instruction; with no
-pre-loaded context the preamble falls back to that instruction. ([validated by `includes pre-loaded context when available`](apps/mcp-server/src/features/context/context-hydration.test.ts#L97), [validated by `falls back to lore_assemble_context instruction when no pre-loaded context`](apps/mcp-server/src/features/context/context-hydration.test.ts#L122))
+The local task runner pre-fetched none of this: `withLoreWorkflowPreamble` opens
+every locally-run task with `lore_assemble_context` as step 1 and ends with the
+task itself, and there is no second, pre-loaded shape of the preamble to diverge
+from it (the pre-run fetch was removed 2026-08-28).
+([validated by `opens every local run with lore_assemble_context as step 1`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L514), [`ends with the task, so the instructions read as preamble to it`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L520), [`has one shape — nothing is pre-fetched, so there is no pre-loaded branch`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L524); implemented by [`runner.local.ts:795`](apps/mcp-server/src/features/pipeline/runner.local.ts#L795))
 
 The `/api/context` endpoint runs full assembly when a `query` param is present and
-a raw chunk fetch when it is absent, and caps the pre-hydration token budget at
-8000 (below the 16000 default). ([validated by `should use full assembly when query param is present`](apps/mcp-server/src/features/context/context-hydration.test.ts#L149), [validated by `should use raw chunk fetch when no query param`](apps/mcp-server/src/features/context/context-hydration.test.ts#L161), [validated by `should cap token budget at 8000 for pre-hydration`](apps/mcp-server/src/features/context/context-hydration.test.ts#L169))
+a raw chunk fetch when it is absent.
 
 The `max_tokens` input schema enforces the documented floor of 2000 — a lower
 value is rejected and the floor itself is accepted.

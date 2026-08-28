@@ -122,13 +122,6 @@ describe("nodeAgentSpec station_ref", () => {
 });
 
 describe("nodeStationSpec (station pod contract)", () => {
-  it("sets hydrate false — a station CR never carries assembled context", () => {
-    expect(
-      nodeStationSpec(cloneNode({ id: "ingest", type: "ingest" }), task)
-        .hydrate,
-    ).toBe(false);
-  });
-
   it("builds the station_input payload the pod parses, defaulting stationRef to def-<type>", () => {
     const spec = nodeStationSpec(
       cloneNode({ id: "validate", type: "validate" }),

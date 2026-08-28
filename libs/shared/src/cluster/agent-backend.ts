@@ -23,17 +23,11 @@ export const TASK_TYPE_LABEL = "lore.re-cinq.com/task-type";
  *  409). The live implementation is KubeAgentApi; tests use an in-memory fake. */
 export type { AgentApi, TokenProvisioner } from "./cluster-ports.js";
 import type { AgentApi, TokenProvisioner } from "./cluster-ports.js";
+import { CONTEXT_BOOTSTRAP } from "../agents/recipe-prompt.js";
 
 /** Deterministic per-task Agent name, so a re-launch is idempotent (409). */
 export function agentCrName(taskId: string): string {
   return `agent-${taskId.substring(0, 8)}`;
-}
-
-/** Assembles the Lore context injected into a run's parameters at dispatch (ADR-031
- *  D5), so the agent starts warm instead of spending turn 1 fetching it. The live
- *  implementation calls the context-assembly API; tests use a fake. */
-export interface ContextSource {
-  assemble(spec: LoreTaskSpec): Promise<string | undefined>;
 }
 
 /** Provisions a per-task GitHub token (ADR-031 D6, #697): mints it, PATCHes it into
@@ -45,19 +39,18 @@ export interface ContextSource {
 
 /** Map a LoreTaskSpec to an `Agent` CR body. The recipe (model/prompt/tools) lives
  *  on the Station the task type resolves to; per-run carries only parameters —
- *  including the assembled `context` the recipe's `{context}` placeholder fills (D5). */
-export function specToAgent(
-  spec: LoreTaskSpec,
-  context?: string,
-  stationRef?: string,
-): AgentCr {
+ *  including the `{context}` slot, which carries an instruction to fetch context
+ *  rather than context fetched at dispatch. */
+export function specToAgent(spec: LoreTaskSpec, stationRef?: string): AgentCr {
   const parameters: Record<string, string> = {
     description: spec.description,
     prompt: spec.prompt,
-    // Always present, empty when there is nothing to hydrate: the subsystem's
-    // renderPrompt leaves an unknown placeholder INTACT (so typos surface), which
-    // means an omitted parameter ships the literal token `{context}` to the model.
-    context: context ?? "",
+    // Always present: the subsystem's renderPrompt leaves an unknown placeholder
+    // INTACT (so typos surface), which means an omitted parameter would ship the
+    // literal token `{context}` to the model — observed verbatim at the end of a
+    // live planning pod's argv. Recipes keep the placeholder; what fills it is no
+    // longer fetched.
+    context: CONTEXT_BOOTSTRAP,
     ...(spec.parameters ?? {}),
   };
 
@@ -89,19 +82,16 @@ export function specToAgent(
 export class AgentCrBackend implements StationBackend {
   constructor(
     private readonly api: AgentApi,
-    private readonly context?: ContextSource,
     private readonly tokens?: TokenProvisioner,
   ) {}
 
   async launch(spec: LoreTaskSpec): Promise<StationLaunchResult> {
-    const context =
-      spec.hydrate === false ? undefined : await this.context?.assemble(spec);
     const stationRef =
       this.tokens && needsToken(spec) && spec.clone !== false
         ? await this.tokens.provision(spec)
         : undefined;
     const { name, created } = await this.api.create(
-      specToAgent(spec, context, stationRef),
+      specToAgent(spec, stationRef),
     );
 
     return { ref: name, launched: created };

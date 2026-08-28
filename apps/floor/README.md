@@ -28,8 +28,8 @@ single Claude-CLI/API-plus-prompt run.
   (`github.*` / `kubernetes.*` / `cron.*` / `internal.*`). Heavy batch jobs
   stay as K8s CronJobs (carve-out, ADR-019); `merge_check`/`approval_check`
   handlers moved to the **stations** service.
-- **Task processing** — picks up pipeline tasks, hydrates context from the Lore
-  API, runs them via direct Anthropic API calls (simple) or by dispatching Agent
+- **Task processing** — picks up pipeline tasks and runs them via direct
+  Anthropic API calls (simple) or by dispatching Agent
   CRs to the ai-agent-subsystem (agent-cr, implementation/review) — the CR
   create/read/delete going through the cluster-agent service.
 - **Scheduling** — an in-process scheduler whose ticks *emit* `cron.<job>.tick`

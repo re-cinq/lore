@@ -230,9 +230,6 @@ export function nodeStationSpec(
     name: nodeAgentName(task.assemblyLineId, node.id, iteration),
     extraLabels: nodeLabels(node, task, iteration, stationRunId),
     stationRef: node.station ?? stationName(node.type),
-    // Stations render only {station_input} — never hydrate (D5 is for agent
-    // nodes); an empty description otherwise assembles an unbounded context.
-    hydrate: false,
     clone: CLONING_STATION_TYPES.has(node.type),
     parameters: {
       // Written through the shared writer, not an object literal: the shape is a

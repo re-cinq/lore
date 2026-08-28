@@ -66,8 +66,9 @@ cluster. The Lore-specific glue is **relocated Floor-side** and stays determinis
   process, no lease.)*
 - The recipe **schema + client are generated from the subsystem's D structs** into a published
   code-API package (`@re-cinq/agent-contracts`, subsystem v0.3.0) that the Floor and UI import.
-- Secrets, context hydration, networking, and observability **reuse the existing setup** (ESO
-  remoteRefs, public-LB hydration, an NDJSON http sink into `pipeline.llm_calls`/OTEL/`agent_run_turns`).
+- Secrets, context, networking, and observability **reuse the existing setup** (ESO
+  remoteRefs, the pod's own context assembly over the public LB, an NDJSON http sink into
+  `pipeline.llm_calls`/OTEL/`agent_run_turns`).
 
 The cutover is reversible (both controllers run in parallel behind a flag); `LoreTask`, the
 `claude-runner` image, and the cluster-wide `loretask-agent` RBAC are torn down only after a soak.
@@ -80,7 +81,7 @@ The cutover is reversible (both controllers run in parallel behind a flag); `Lor
 | **D2** Source of truth | The **CRDs are authoritative**; the web UI edits YAML → applies to k8s; ADR-030's Postgres recipe store retired; schema + client **generated from D** into `@re-cinq/agent-contracts` | The cluster object is the truth; the contract can't drift |
 | **D3** Validation | Non-AI assembly line steps **reference GitHub Actions**; the Floor gates on the run **conclusion** | The engine runs `claude` directly; GitHub runs the repo's real toolchain — deterministic, no toolchain in the Floor |
 | **D4** Assembly line | The walk runs **Floor-side**; each node dispatches one `Agent` CR. *(As locked: an in-process `executeAssemblyLine` awaiting status under a heartbeated lease. Superseded by the event-driven walk — `nextTransition` re-derives the next step from `pipeline.assembly_line_nodes` on each node-CR terminal event; no awaiting process, no lease — 6-dark-factory FR6.9.)* | The assembly-line engine is process-agnostic; resume/`iteration_max` derive from persisted state |
-| **D5** Context hydration | Floor injects context into `Agent.spec.parameters`; code recipes also wire the Lore MCP server | Turn-1 context, deterministic, no in-pod network dependency |
+| **D5** Context hydration *(reversed 2026-08-28)* | ~~Floor injects context into `Agent.spec.parameters`~~; the `context` parameter carries a fixed instruction and code recipes wire the Lore MCP server | The injection needed a credential that never leaves central, so it made central and satellite runs of one recipe differ; the pod assembles its own |
 | **D6** Secrets | **Inherit** the existing GCP Secret Manager remoteRefs via ESO into `agent-secrets`; per-task GitHub App token PATCHed in and removed on terminal | No new secret material; short-lived, least-privilege; no org PAT |
 | **D7** Networking | Self-hydration + telemetry over the **public LB**; run pods **drop direct Postgres** | The run-pod NetworkPolicy blocks RFC1918/metadata; DB-less pods shrink blast radius |
 | **D8** Observability | NDJSON **http sink → Floor `/api/agent-events`** → `pipeline.llm_calls` + OTEL + `agent_run_turns` + UI logs | No telemetry capability lost; pod stays DB-less and GCS-less |
@@ -143,13 +144,13 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + agen
 5. `AgentBackend.launch` produces a correct `Agent` CR from a task (stationRef from task type,
    parameters populated, `taskId` label), and resolves activeness by label. `taskIdOf`/`taskTypeOf`
    read exactly the `lore.re-cinq.com/task-id` + `task-type` labels `AgentCrBackend` sets and return
-   undefined when they are absent. `AgentCrBackend.launch` injects the assembled context into the CR
-   parameters (omitting it when the source is absent or returns undefined), maps the task to the CR
+   undefined when they are absent. `AgentCrBackend.launch` fills the `context` CR parameter with the
+   fixed `CONTEXT_BOOTSTRAP` instruction — always present, never fetched — maps the task to the CR
    (stationRef=taskType, task-id/task-type labels, description/prompt/pr_number parameters, explicit
    name + extraLabels honoured), returns `launched:false` on a 409, runs the Agent on the per-task
    Station the provisioner returns (falling back to the catalog Station, skipping provisioning for a
    repo-less task), and resolves `isActive` by the task-id label (true while any matching Agent is
-   non-terminal, conservatively true when the probe fails). ([validated by `agent-watcher-logic.test.ts:14`](apps/floor/src/jobs/watcher/agent-watcher-logic.test.ts#L15), [`agent-watcher-logic.test.ts:27`](apps/floor/src/jobs/watcher/agent-watcher-logic.test.ts#L28), [`agent-backend.test.ts:52`](libs/shared/src/cluster/agent-backend.test.ts#L52), [`agent-backend.test.ts:57`](libs/shared/src/cluster/agent-backend.test.ts#L57), [`agent-backend.test.ts:65`](libs/shared/src/cluster/agent-backend.test.ts#L65), [`agent-backend.test.ts:89`](libs/shared/src/cluster/agent-backend.test.ts#L89), [`agent-backend.test.ts:95`](libs/shared/src/cluster/agent-backend.test.ts#L95), [`agent-backend.test.ts:104`](libs/shared/src/cluster/agent-backend.test.ts#L104), [`agent-backend.test.ts:127`](libs/shared/src/cluster/agent-backend.test.ts#L127), [`agent-backend.test.ts:144`](libs/shared/src/cluster/agent-backend.test.ts#L144), [`agent-backend.test.ts:154`](libs/shared/src/cluster/agent-backend.test.ts#L154), [`agent-backend.test.ts:176`](libs/shared/src/cluster/agent-backend.test.ts#L176), [`agent-backend.test.ts:185`](libs/shared/src/cluster/agent-backend.test.ts#L185), [`agent-backend.test.ts:196`](libs/shared/src/cluster/agent-backend.test.ts#L196), [`agent-backend.test.ts:226`](libs/shared/src/cluster/agent-backend.test.ts#L226), [`agent-backend.test.ts:232`](libs/shared/src/cluster/agent-backend.test.ts#L232), [`agent-backend.test.ts:238`](libs/shared/src/cluster/agent-backend.test.ts#L238), [`agent-backend.test.ts:244`](libs/shared/src/cluster/agent-backend.test.ts#L244))
+   non-terminal, conservatively true when the probe fails). ([validated by `agent-watcher-logic.test.ts:14`](apps/floor/src/jobs/watcher/agent-watcher-logic.test.ts#L15), [`agent-watcher-logic.test.ts:27`](apps/floor/src/jobs/watcher/agent-watcher-logic.test.ts#L28), [`agent-backend.test.ts:48`](libs/shared/src/cluster/agent-backend.test.ts#L48), [`agent-backend.test.ts:71`](libs/shared/src/cluster/agent-backend.test.ts#L71), [`agent-backend.test.ts:88`](libs/shared/src/cluster/agent-backend.test.ts#L88), [`agent-backend.test.ts:98`](libs/shared/src/cluster/agent-backend.test.ts#L98), [`agent-backend.test.ts:120`](libs/shared/src/cluster/agent-backend.test.ts#L120), [`agent-backend.test.ts:129`](libs/shared/src/cluster/agent-backend.test.ts#L129), [`agent-backend.test.ts:138`](libs/shared/src/cluster/agent-backend.test.ts#L138), [`agent-backend.test.ts:168`](libs/shared/src/cluster/agent-backend.test.ts#L168), [`agent-backend.test.ts:174`](libs/shared/src/cluster/agent-backend.test.ts#L174), [`agent-backend.test.ts:180`](libs/shared/src/cluster/agent-backend.test.ts#L180), [`agent-backend.test.ts:186`](libs/shared/src/cluster/agent-backend.test.ts#L186))
 
 6. A `Succeeded` `Agent` with pushed changes results in a PR carrying the `Lore-Task` footer; an
    `Agent` with no changes completes the task with no PR.
@@ -210,7 +211,7 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + agen
     `timeout_minutes`. ([validated by accepts station_ref and timeout_minutes on a node](libs/assembly-lines/src/loader.test.ts#L521))
 
 17. `nodeStationSpec` builds the CR spec: stationRef, `parameters.station_input` JSON
-    (assembly_line_id/node_id/node_type/repo/branch/task_id/params). ([validated by station-flagged node types dispatch a station CR](apps/floor/src/jobs/assembly-run/floor-assembly-run.test.ts#L134), [honors an explicit station_ref override](apps/floor/src/jobs/assembly-run/floor-assembly-run.test.ts#L176), [agent nodes thread station_ref too — a renamed recipe (code-review-refine) still resolves](apps/floor/src/jobs/assembly-run/floor-assembly-run.test.ts#L106))
+    (assembly_line_id/node_id/node_type/repo/branch/task_id/params). ([validated by station-flagged node types dispatch a station CR](apps/floor/src/jobs/assembly-run/floor-assembly-run.test.ts#L127), [honors an explicit station_ref override](apps/floor/src/jobs/assembly-run/floor-assembly-run.test.ts#L169), [agent nodes thread station_ref too — a renamed recipe (code-review-refine) still resolves](apps/floor/src/jobs/assembly-run/floor-assembly-run.test.ts#L106))
 
 18. A station pod ends with the claude-style result line carrying `LORE_NODE_RESULT: {outcome,
     extras}`; the Floor's `parseNodeResult` maps it (precedence: LORE_NODE_RESULT → REVIEW_RESULT →
@@ -227,7 +228,7 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + agen
     (no `LORE_STATION_NODES` flag, no in-process node handlers on that path); the in-process
     supervisor path (gap-fill/runbook), untouched at cutover time, has since been removed too —
     gap-fill runs on the Floor AssemblyLine and runbook as a single Agent CR, both via
-    `handleClaudeCodeTask` with no Floor-side clone or App token. ([validated by every non-agent node dispatches a station CR](apps/floor/src/jobs/assembly-run/floor-assembly-run.test.ts#L134))
+    `handleClaudeCodeTask` with no Floor-side clone or App token. ([validated by every non-agent node dispatches a station CR](apps/floor/src/jobs/assembly-run/floor-assembly-run.test.ts#L127))
 
 20. `scripts/task-types.yaml` `stations:` seeds `def-<type>` AgentDefinition/Station pairs (exec
     model, `{station_input}` prompt, lore-station image via `.Values.stationImage`, deadline
@@ -259,7 +260,7 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + agen
     fail every run pod at container creation rather than acting as a fallback. GKE
     supplies `ANTHROPIC_API_KEY` (the values.yaml default), a laptop minikube supplies
     `CLAUDE_CODE_OAUTH_TOKEN`, and the `claude` CLI accepts either from its
-    environment. ([validated by station catalog tests](apps/floor/src/jobs/agent/agent-catalog.test.ts#L245), [`agent-catalog.test.ts:21`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L21), [`agent-catalog.test.ts:63`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L63), [`agent-catalog.test.ts:81`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L81), [`agent-catalog.test.ts:113`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L113), [`agent-catalog.test.ts:121`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L121), [`agent-catalog.test.ts:149`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L149), [`agent-catalog.test.ts:157`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L157), [`agent-catalog.test.ts:175`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L175), [`agent-catalog.test.ts:187`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L187), [`agent-catalog.test.ts:183`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L183), [`agent-catalog.test.ts:202`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L202), [`agent-catalog.test.ts:211`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L211), [`agent-catalog.test.ts:228`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L228), [`agent-catalog.test.ts:232`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L232), [`agent-catalog.test.ts:245`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L245), [`agent-catalog.test.ts:278`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L278), [`agent-catalog.test.ts:345`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L345), [`agent-catalog.test.ts:360`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L360))
+    environment. ([validated by station catalog tests](apps/floor/src/jobs/agent/agent-catalog.test.ts#L256), [`agent-catalog.test.ts:21`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L21), [`agent-catalog.test.ts:63`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L63), [`agent-catalog.test.ts:81`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L81), [`agent-catalog.test.ts:113`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L113), [`agent-catalog.test.ts:121`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L121), [`agent-catalog.test.ts:149`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L149), [`agent-catalog.test.ts:157`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L157), [`agent-catalog.test.ts:175`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L175), [`agent-catalog.test.ts:198`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L198), [`agent-catalog.test.ts:194`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L194), [`agent-catalog.test.ts:213`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L213), [`agent-catalog.test.ts:222`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L222), [`agent-catalog.test.ts:239`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L239), [`agent-catalog.test.ts:243`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L243), [`agent-catalog.test.ts:256`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L256), [`agent-catalog.test.ts:289`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L289), [`agent-catalog.test.ts:356`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L356), [`agent-catalog.test.ts:371`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L371))
 
 21. Custom station images honor [station-contract.md](../6-dark-factory/contracts/station-contract.md).
 
@@ -293,14 +294,6 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + agen
     tracker and suppresses all terminal-line usage, explicit `NodeResult.usage` included, so the
     same call is never counted by both. ([validated by `main.test.ts:28`](apps/stations/src/cli/main.test.ts#L28), [`main.test.ts:62`](apps/stations/src/cli/main.test.ts#L62), [`main.test.ts:95`](apps/stations/src/cli/main.test.ts#L95), [`main.test.ts:119`](apps/stations/src/cli/main.test.ts#L119), [`main.test.ts:134`](apps/stations/src/cli/main.test.ts#L134), [`main.test.ts:148`](apps/stations/src/cli/main.test.ts#L148); implemented by [`llm-usage-tracker.ts:17`](apps/stations/src/stations/lib/llm-usage-tracker.ts#L17))
 
-25. *(added 2026-08-03, #1026)* `HttpContextSource.assemble` (D5 hydration) is fail-soft but never
-    silent: it returns undefined without fetching when the API is unconfigured, returns the
-    assembled text on success, sends the bearer header when a token is configured, and bounds the
-    fetch with a 15s `AbortSignal.timeout`; a non-ok response, a fetch/timeout error, a malformed
-    2xx body, or an empty, whitespace-only, or absent `text` each yield undefined (the agent runs
-    cold) after a `console.warn` carrying the HTTP status or error message plus the repo and query
-    ([validated by `http-context-source.test.ts:33`](apps/floor/src/jobs/station/http-context-source.test.ts#L33), [`http-context-source.test.ts:44`](apps/floor/src/jobs/station/http-context-source.test.ts#L44), [`http-context-source.test.ts:60`](apps/floor/src/jobs/station/http-context-source.test.ts#L60), [`http-context-source.test.ts:77`](apps/floor/src/jobs/station/http-context-source.test.ts#L77), [`http-context-source.test.ts:89`](apps/floor/src/jobs/station/http-context-source.test.ts#L89), [`http-context-source.test.ts:106`](apps/floor/src/jobs/station/http-context-source.test.ts#L106), [`http-context-source.test.ts:121`](apps/floor/src/jobs/station/http-context-source.test.ts#L121), [`http-context-source.test.ts:136`](apps/floor/src/jobs/station/http-context-source.test.ts#L136), [`http-context-source.test.ts:147`](apps/floor/src/jobs/station/http-context-source.test.ts#L147), [`http-context-source.test.ts:158`](apps/floor/src/jobs/station/http-context-source.test.ts#L158), [`http-context-source.test.ts:169`](apps/floor/src/jobs/station/http-context-source.test.ts#L169); implemented by [`http-context-source.ts:28`](apps/floor/src/jobs/station/http-context-source.ts#L28))
-
 26. *(added 2026-08-10)* A seeded recipe MUST NOT declare `skills` without a
     `skills_source` to fetch them from. The generated catalog omits the whole skills
     block when the registry URL (`.Values.loreSkillsUrl`) is unset, exactly as it
@@ -312,7 +305,7 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + agen
     `<source>/settings.json`. A laptop minikube therefore points the value at the mcp
     adapter running in HTTP-gateway mode on the host
     (`http://host.minikube.internal:3002/skills`, served by `npm start`) rather than
-    leaving it empty ([validated by `agent-catalog.test.ts:216`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L216); implemented by [`agent-catalog.ts:363`](apps/floor/src/jobs/agent/agent-catalog.ts#L363))
+    leaving it empty ([validated by `agent-catalog.test.ts:227`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L227); implemented by [`agent-catalog.ts:363`](apps/floor/src/jobs/agent/agent-catalog.ts#L363))
 
 27. *(added 2026-08-10)* The agent container MUST run in the cloned repo
     (`/workspace/target`), not the base image's default directory. Left unset, the
@@ -361,7 +354,25 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + agen
     declares none keeps the base deny alone. The declared denies are dormant under
     the current `permission_mode: "bypass"` (the CLI skips deny-rule evaluation in
     that mode) and become enforced when the family moves to an enforcing mode
-    ([validated by `agent-catalog.test.ts:383`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L383), [`agent-catalog.test.ts:393`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L393), [`agent-catalog.test.ts:399`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L399); implemented by [`agent-catalog.ts:166`](apps/floor/src/jobs/agent/agent-catalog.ts#L166), [`agent-catalog.ts:209`](apps/floor/src/jobs/agent/agent-catalog.ts#L209))
+    ([validated by `agent-catalog.test.ts:394`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L394), [`agent-catalog.test.ts:404`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L404), [`agent-catalog.test.ts:410`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L410); implemented by [`agent-catalog.ts:166`](apps/floor/src/jobs/agent/agent-catalog.ts#L166), [`agent-catalog.ts:209`](apps/floor/src/jobs/agent/agent-catalog.ts#L209))
+
+32. *(added 2026-08-28)* Every agent run opens with the same instruction in the CR
+    parameter the assembled context used to occupy: `CONTEXT_BOOTSTRAP` names
+    `lore_assemble_context` before `lore_search_memory`, states that nothing is
+    pre-loaded for this run — the one fact the installed `lore-context` skill cannot
+    know — and carries no `{placeholder}` of its own, since a parameter VALUE is
+    substituted once and never re-scanned, so a brace-wrapped token written here
+    would reach the model verbatim
+    ([validated by `recipe-prompt.test.ts:5`](libs/shared/src/agents/recipe-prompt.test.ts#L5), [`recipe-prompt.test.ts:11`](libs/shared/src/agents/recipe-prompt.test.ts#L11), [`recipe-prompt.test.ts:15`](libs/shared/src/agents/recipe-prompt.test.ts#L15); implemented by [`recipe-prompt.ts:16`](libs/shared/src/agents/recipe-prompt.ts#L16))
+
+33. *(added 2026-08-28, #1629)* The `{context}` placeholder is guarded on
+    `.Values.loreMcpUrl`, the same value as the `mcp_servers` block it points at, so
+    the two cannot drift apart. What fills the slot is an instruction to call
+    `lore_assemble_context`; that is only true where the pod has a Lore MCP to call.
+    A satellite renders no `mcp_servers` block — the gateway authenticates with
+    `LORE_INGEST_TOKEN` and FR5 keeps that credential central — and telling such a pod
+    to call a tool it does not have would burn a turn on a guaranteed failure
+    ([validated by `agent-catalog.test.ts:183`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L183); implemented by [`agent-catalog.ts:424`](apps/floor/src/jobs/agent/agent-catalog.ts#L424))
 
 ## Out of scope
 
