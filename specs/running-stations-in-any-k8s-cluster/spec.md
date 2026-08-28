@@ -233,7 +233,7 @@ pull, so recovery splits by who holds the claim:
   agent actually produced. An event from an older, not-yet-redeployed
   cluster-agent carries no `status` and falls straight back to the restriction
   above — this is additive, not a replacement, and rolls out in either
-  direction with no coordination required. ([validated by `k8s-map.test.ts:76`](libs/shared/src/project/events/k8s-map.test.ts#L76), [`k8s-map.test.ts:90`](libs/shared/src/project/events/k8s-map.test.ts#L90), [`node-event-handler.test.ts:295`](apps/floor/src/jobs/assembly-run/node-event-handler.test.ts#L295), [`node-event-handler.test.ts:311`](apps/floor/src/jobs/assembly-run/node-event-handler.test.ts#L313), [`code-review-acceptance.test.ts:62`](apps/floor/src/jobs/assembly-run/code-review-acceptance.test.ts#L62), [`code-review-acceptance.test.ts:77`](apps/floor/src/jobs/assembly-run/code-review-acceptance.test.ts#L77))
+  direction with no coordination required. ([validated by `k8s-map.test.ts:76`](libs/shared/src/project/events/k8s-map.test.ts#L76), [`k8s-map.test.ts:90`](libs/shared/src/project/events/k8s-map.test.ts#L90), [`node-event-handler.test.ts:295`](apps/floor/src/jobs/assembly-run/node-event-handler.test.ts#L360), [`node-event-handler.test.ts:311`](apps/floor/src/jobs/assembly-run/node-event-handler.test.ts#L378), [`code-review-acceptance.test.ts:62`](apps/floor/src/jobs/assembly-run/code-review-acceptance.test.ts#L62), [`code-review-acceptance.test.ts:77`](apps/floor/src/jobs/assembly-run/code-review-acceptance.test.ts#L77))
 
 - A run claimed by an **offline** agent is reset to `queued` (same row, per
   the lifecycle section); the reaper — the same process that set the agent

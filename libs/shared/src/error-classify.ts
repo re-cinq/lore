@@ -4,6 +4,7 @@ export type FailureCategory =
   | "github-workflows-permission"
   | "github-permission"
   | "auth"
+  | "agent-settings-missing"
   | "infra"
   | "unknown";
 
@@ -27,6 +28,8 @@ const HINTS: Record<FailureCategory, string> = {
   "github-permission":
     "Check the Lore GitHub App's repository permissions and that it is installed on the target repo.",
   auth: "Authentication failed — the token or credential is invalid or expired.",
+  "agent-settings-missing":
+    "The AgentDefinition's skills_source is unreachable, so the init never wrote /agent/.claude/settings.json and Claude Code hard-errored. Verify skills_source on the recipe points at a reachable skills registry (see #1125) — every Claude-agent node on the affected cluster fails identically until it does.",
   infra:
     "The pod died rather than the work failing — a crash, an OOM, an eviction, or a Job deadline. Re-running is the right response; check pod events if it repeats.",
   unknown:
@@ -68,6 +71,15 @@ function categorize(message: string, step?: string): FailureCategory {
     return "auth";
   }
 
+  // The init reported success but never wrote the settings file Claude Code
+  // requires — a misconfigured or unreachable skills_source, not a transient
+  // pod death. Checked ahead of the infra matcher below: the CR this shows up
+  // on also carries failureReason: BackoffLimitExceeded, and reading THAT
+  // first would misclassify a permanent config problem as "re-run it".
+  if (/settings file not found/i.test(message)) {
+    return "agent-settings-missing";
+  }
+
   // The POD died, not the work. These are the Kubernetes-level reasons a Job
   // reports when the agent never got to say anything itself, so they are checked
   // last — a pod that died for a credential reason has already matched above, and
@@ -105,6 +117,8 @@ const CATEGORY_LABELS: Record<FailureCategory, string> = {
   "github-workflows-permission": "GitHub App missing Workflows permission",
   "github-permission": "GitHub App permission denied",
   auth: "Authentication failed",
+  "agent-settings-missing":
+    "Agent settings file missing (skills_source unreachable)",
   infra: "Pod or Job infrastructure failure",
   unknown: "Unknown error",
 };
@@ -123,6 +137,7 @@ const PERMANENT: ReadonlySet<FailureCategory> = new Set<FailureCategory>([
   "auth",
   "github-permission",
   "github-workflows-permission",
+  "agent-settings-missing",
 ]);
 
 /** The remediation text for a category, for callers that already know the class
