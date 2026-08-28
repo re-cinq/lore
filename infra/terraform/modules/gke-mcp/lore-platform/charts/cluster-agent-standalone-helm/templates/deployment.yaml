@@ -60,6 +60,14 @@ spec:
               value: {{ required "loreApiUrl is required — the central lore-api base URL" .Values.loreApiUrl | quote }}
             - name: EVENT_ROUTER_URL
               value: {{ required "eventRouterUrl is required — the central event-router front door" .Values.eventRouterUrl | quote }}
+            {{- if .Values.floorUrl }}
+            # Where the agent-events relay forwards what this cluster's run
+            # pods post to it. Its presence is what mounts the relay route at
+            # all: a relay that accepts a batch with nowhere to send it is worse
+            # than no relay, so the route 404s rather than dropping the batch.
+            - name: LORE_FLOOR_URL
+              value: {{ .Values.floorUrl | quote }}
+            {{- end }}
             - name: LORE_CLUSTER_AGENT_REGISTRATION_TOKEN
               valueFrom:
                 secretKeyRef:

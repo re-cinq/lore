@@ -127,12 +127,27 @@ fi
 # Both keys, same value: Helm does not thread a parent value into a subchart,
 # so the chart's own value and the ai-agents one are set independently — the
 # pattern loreApiUrl already follows below.
+#
+# Two ways to opt in, and LORE_AGENT_EVENTS_URL still wins if both are set:
+#   LORE_AGENT_EVENTS_URL — pods post STRAIGHT to that address, normally the
+#     public lore-agent-events ingress (FR8, the original shape)
+#   LORE_FLOOR_URL        — pods post to this cluster's OWN relay, which
+#     forwards onward. Queues and retries the batch on the proxy's ladder, and
+#     needs no public egress from the run pods at all.
 telemetry_args=()
-if [ -n "${LORE_AGENT_EVENTS_URL:-}" ]; then
+relay_url="http://lore-cluster-agent.lore-cluster-agent.svc.cluster.local:8080/api/cluster/agent-events"
+events_url="${LORE_AGENT_EVENTS_URL:-}"
+if [ -z "$events_url" ] && [ -n "${LORE_FLOOR_URL:-}" ]; then
+	events_url="$relay_url"
+fi
+if [ -n "$events_url" ]; then
 	telemetry_args=(
-		--set-string "agentEventsUrl=$LORE_AGENT_EVENTS_URL"
-		--set-string "ai-agents.agentEventsUrl=$LORE_AGENT_EVENTS_URL"
+		--set-string "agentEventsUrl=$events_url"
+		--set-string "ai-agents.agentEventsUrl=$events_url"
 	)
+fi
+if [ -n "${LORE_FLOOR_URL:-}" ]; then
+	telemetry_args+=(--set-string "floorUrl=$LORE_FLOOR_URL")
 fi
 
 # Skills live only in the ai-agents subchart (the cluster-agent itself never

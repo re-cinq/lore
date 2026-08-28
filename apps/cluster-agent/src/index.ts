@@ -18,7 +18,9 @@
 
 import { selectEventProxy } from "@re-cinq/lore-shared/project/events/select-event-reporter.js";
 import { startServer } from "./delivery/server.js";
+import type { ProxyMessage } from "@re-cinq/lore-shared/project/events/event-input-port.js";
 import { AgentWatchInput } from "./listeners/k8s-watch.js";
+import { TelemetrySink } from "./kernel/telemetry-sink.js";
 import { startSatellite } from "./satellite/start-satellite.js";
 
 const PORT = parseInt(process.env.PORT ?? "8080", 10);
@@ -37,8 +39,8 @@ const DRAIN_TIMEOUT_MS = 5_000;
 let satelliteToken: string | undefined;
 
 async function main(): Promise<void> {
-  const stopServer = await startServer(PORT);
   const routerUrl = process.env.EVENT_ROUTER_URL;
+  const floorUrl = process.env.LORE_FLOOR_URL;
 
   // Claim-based dispatch (specs/running-stations-in-any-k8s-cluster FR1/FR3):
   // register with the Lore API, then pull queued station runs and launch them
@@ -77,12 +79,44 @@ async function main(): Promise<void> {
         },
         token: () => process.env.LORE_INGEST_TOKEN ?? satelliteToken,
         retry: REPORT_RETRY,
+        // Telemetry rides the same queue and the same ladder, and lands
+        // somewhere else entirely: the Floor projects it, the router would only
+        // be handed volume it has no handler for.
+        telemetry: floorUrl
+          ? new TelemetrySink(
+              floorUrl,
+              () => process.env.LORE_INGEST_TOKEN ?? satelliteToken,
+            )
+          : undefined,
         // A 401 on a satellite's report means its token rotated (another
         // instance registered); re-register and retry, exactly like the claim
         // loop. Retrying with the same token lost run 595d2b0b's terminal event.
         onUnauthorized: () => satellite.reRegister(),
       })
     : null;
+
+  // Mounted only when this cluster has somewhere to forward telemetry AND a
+  // proxy to queue it in. Absent either, the route is not registered at all: a
+  // 404 tells a run pod its sink is misconfigured, where a 202 that drops the
+  // batch would look exactly like a quiet run.
+  const agentEvents =
+    proxy && floorUrl
+      ? {
+          emit: (message: ProxyMessage) => proxy.emit(message),
+          // Resolved per request: a satellite's per-agent token rotates on
+          // every re-registration, and its own run pods present the copy this
+          // process published into `agent-secrets`.
+          acceptedTokens: () => [process.env.LORE_INGEST_TOKEN, satelliteToken],
+        }
+      : undefined;
+
+  const stopServer = await startServer(PORT, agentEvents);
+
+  if (!floorUrl) {
+    console.warn(
+      "[cluster-agent] LORE_FLOOR_URL unset — agent telemetry relay NOT mounted; this cluster's runs report no live transcript",
+    );
+  }
 
   if (proxy) {
     proxy.register(new AgentWatchInput());

@@ -1,0 +1,30 @@
+{{- if .Values.floorUrl }}
+# A ClusterIP so this cluster's RUN PODS have a name to post their telemetry to.
+#
+# The satellite cluster-agent needed no Service before: everything it did was
+# outbound (register, claim, heartbeat, report), and nothing in the cluster
+# called it. The agent-events relay is the first inbound caller — run pods post
+# their NDJSON here and this process forwards it centrally through its event
+# proxy, because the Floor is not reachable from a satellite's pods and the
+# credential for it is one FR5 keeps central.
+#
+# Guarded on floorUrl, the same switch that mounts the relay: a satellite with
+# nowhere to forward telemetry should have no relay and no Service pointing at
+# one.
+apiVersion: v1
+kind: Service
+metadata:
+  name: lore-cluster-agent
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: lore-cluster-agent
+spec:
+  type: ClusterIP
+  selector:
+    app: lore-cluster-agent
+  ports:
+    - name: http
+      protocol: TCP
+      port: 8080
+      targetPort: 8080
+{{- end }}

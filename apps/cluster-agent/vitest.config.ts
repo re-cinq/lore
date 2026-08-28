@@ -18,6 +18,7 @@ export default defineConfig({
       // contradicted its own sibling's comment. Decision logic behind an
       // exclusion is decision logic nobody tests.
       include: [
+        "src/delivery/routes/agent-events.ts",
         "src/delivery/routes/cluster.ts",
         "src/kernel/paired-writes.ts",
         "src/kernel/k8s-errors.ts",

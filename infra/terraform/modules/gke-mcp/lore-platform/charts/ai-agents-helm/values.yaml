@@ -35,6 +35,14 @@ agentEventsUrl: http://lore-floor.lore-floor.svc.cluster.local:8080/api/agent-ev
 floorSink:
   namespace: lore-floor
   port: 8080
+  # Which workload actually receives the sink traffic. Centrally that is the
+  # Floor itself; a SATELLITE points agentEventsUrl at its own cluster-agent,
+  # which relays the batch onward through its event proxy — the Floor is not
+  # reachable from a satellite's run pods, and the credential for it is one FR5
+  # keeps central. Overridden together with namespace/port by the standalone
+  # chart; the three must agree with agentEventsUrl or the policy drops exactly
+  # the traffic the sink needs.
+  app: lore-floor
 
 # The run-pod egress posture (templates/networkpolicy.yaml + ingest-station-egress.yaml).
 # ON everywhere real. Turn OFF only for a laptop minikube (values.minikube.yaml): the
