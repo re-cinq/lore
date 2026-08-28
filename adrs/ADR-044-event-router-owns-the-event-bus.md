@@ -126,7 +126,7 @@ carries a `dedupeKey`, which is what makes repeating one safe.
   another instance of it registers (a RollingUpdate overlap did exactly that on
   2026-08-28), and a report that only retried with the rotated-out token lost
   run 595d2b0b's terminal event for good; nothing central can see a satellite's
-  CR to reap it. An ordinary blip still just retries. ([validated by re-registers once on a 401 and the next attempt lands](apps/cluster-agent/src/listeners/agent-reporting.test.ts#L208), [`agent-reporting.test.ts:233`](apps/cluster-agent/src/listeners/agent-reporting.test.ts#L233), [`event-reporter-http.test.ts:119`](libs/shared/src/project/events/event-reporter-http.test.ts#L119))
+  CR to reap it. An ordinary blip still just retries. ([validated by re-registers once on a 401 and the next attempt lands](apps/cluster-agent/src/listeners/agent-reporting.test.ts#L208), [`agent-reporting.test.ts:233`](apps/cluster-agent/src/listeners/agent-reporting.test.ts#L233), [`agent-reporting.test.ts:258`](apps/cluster-agent/src/listeners/agent-reporting.test.ts#L258), [`event-reporter-http.test.ts:119`](libs/shared/src/project/events/event-reporter-http.test.ts#L119))
 - The catch-up pass walks the namespace one page at a time. 180 accumulated CRs
   in a single unpaginated LIST blew Node's heap and crash-looped the Floor on
   2026-07-24. ([validated by walks every page rather than holding the namespace at once](apps/cluster-agent/src/listeners/agent-reporting.test.ts#L104), [`agent-reporting.test.ts:112`](apps/cluster-agent/src/listeners/agent-reporting.test.ts#L117), [`agent-reporting.test.ts:137`](apps/cluster-agent/src/listeners/agent-reporting.test.ts#L142))

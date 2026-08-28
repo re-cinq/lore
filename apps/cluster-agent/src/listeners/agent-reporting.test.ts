@@ -230,6 +230,31 @@ describe("reportForAgent — a refused credential re-registers before the retry"
     });
   });
 
+  it("re-registers on a 403 the same as a 401", async () => {
+    const forbidden = Object.assign(new Error("event insert failed: 403"), {
+      status: 403,
+    });
+    let inserts = 0;
+    let reRegistrations = 0;
+
+    await reportForAgent(succeeded, {
+      insert: async () => {
+        inserts++;
+
+        return inserts === 1 ? Promise.reject(forbidden) : Promise.resolve();
+      },
+      onUnauthorized: async () => {
+        reRegistrations++;
+      },
+      retry: { attempts: 5, delayMs: 1 },
+    });
+
+    expect({ inserts, reRegistrations }).toEqual({
+      inserts: 2,
+      reRegistrations: 1,
+    });
+  });
+
   it("does not re-register on an ordinary blip", async () => {
     let reRegistrations = 0;
     let inserts = 0;
