@@ -20,10 +20,7 @@ import { selectEventProxy } from "@re-cinq/lore-shared/project/events/select-eve
 import { startServer } from "./delivery/server.js";
 import type { ProxyMessage } from "@re-cinq/lore-shared/project/events/event-input-port.js";
 import { AgentWatchInput } from "./listeners/k8s-watch.js";
-import {
-  PodLogInput,
-  podLogStreamingEnabled,
-} from "./inputs/pod-log-input.js";
+import { PodLogInput, podLogStreamingEnabled } from "./inputs/pod-log-input.js";
 import { TelemetrySink } from "./kernel/telemetry-sink.js";
 import { startSatellite } from "./satellite/start-satellite.js";
 
