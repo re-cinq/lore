@@ -116,6 +116,46 @@ func TestBuildReportRunsListBearingEntryWithEmptyCoverageFormat(t *testing.T) {
 	}
 }
 
+// A run command with no {selector} across more than one file runs the same
+// command per file and fans identical results everywhere — cheap to do by
+// mistake, so buildReport warns rather than staying silent.
+func TestBuildReportWarnsWhenRunLacksSelectorAcrossFiles(t *testing.T) {
+	listJSON := `[{"id":"a.go::1","name":"1","file":"a.go"},{"id":"b.go::1","name":"1","file":"b.go"}]`
+	m := Manifest{
+		List:           "printf '%s' '" + listJSON + "'",
+		Run:            `printf '%s' '{"passed":true,"covered":[]}'`,
+		CoverageFormat: "json",
+		Cwd:            ".",
+	}
+	var logw strings.Builder
+	_, err := buildReport(context.Background(), m, t.TempDir(), reportMeta{Commit: "c", Branch: "b"}, 2, &logw)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(logw.String(), "no {selector}") {
+		t.Errorf("expected a missing-selector warning, got: %q", logw.String())
+	}
+}
+
+// A single file with no {selector} runs the command once — no redundancy, so no
+// warning.
+func TestBuildReportSilentWhenRunLacksSelectorForOneFile(t *testing.T) {
+	listJSON := `[{"id":"a.go::1","name":"1","file":"a.go"}]`
+	m := Manifest{
+		List:           "printf '%s' '" + listJSON + "'",
+		Run:            `printf '%s' '{"passed":true,"covered":[]}'`,
+		CoverageFormat: "json",
+		Cwd:            ".",
+	}
+	var logw strings.Builder
+	if _, err := buildReport(context.Background(), m, t.TempDir(), reportMeta{Commit: "c", Branch: "b"}, 2, &logw); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if strings.Contains(logw.String(), "no {selector}") {
+		t.Errorf("did not expect a warning for a single file, got: %q", logw.String())
+	}
+}
+
 // A failing run command must not abort the whole report — that file is skipped.
 func TestBuildReportSkipsFileWhenRunCommandFails(t *testing.T) {
 	listJSON := `[{"id":"x::1","name":"1","file":"x.go"}]`

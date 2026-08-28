@@ -83,6 +83,10 @@ func buildReport(ctx context.Context, m Manifest, cwd string, meta reportMeta, c
 
 	files, idsByFile := groupByFile(tests)
 
+	if len(files) > 1 && !strings.Contains(m.Run, "{selector}") {
+		fmt.Fprintf(logw, "[lore-code-trace] run command has no {selector}; the same command runs once per file and every file gets identical results\n")
+	}
+
 	if concurrency < 1 {
 		concurrency = 1
 	}
