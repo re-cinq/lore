@@ -20,7 +20,19 @@ export interface WatchDeps {
   insert: (event: EventInsert) => Promise<void>;
   /** How hard to retry a report. Omitted, one attempt — the shape a test wants. */
   retry?: ReportRetry;
+  /** Called when the router refuses the credential (401/403) before the next
+   *  attempt. A satellite passes its single-flight re-registration here: its
+   *  per-agent token rotates whenever another instance of it registers, and a
+   *  report that only retried with the same token lost the terminal event
+   *  for good (2026-08-28, run 595d2b0b — the node sat open until the reaper). */
+  onUnauthorized?: () => Promise<unknown>;
 }
+
+const isUnauthorized = (err: unknown): boolean => {
+  const status = (err as { status?: number }).status;
+
+  return status === 401 || status === 403;
+};
 
 /** Bounded retry for one report. */
 export interface ReportRetry {
@@ -107,6 +119,10 @@ export async function reportForAgent(
       // on this process's own pool and is now a POST to the event-router, so a
       // blip is ordinary. Safe to repeat — every event mapAgentToEvent produces
       // carries a dedupeKey, so a duplicate reaching the router is a no-op.
+      if (isUnauthorized(err) && deps.onUnauthorized) {
+        await deps.onUnauthorized();
+      }
+
       if (attempt === attempts) {
         // Never thrown: the watch loop must survive one bad report. The event is
         // lost at this point, and the Floor's reconcile cron is what still

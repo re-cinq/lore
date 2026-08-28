@@ -60,7 +60,7 @@ describe("HttpEventReporter", () => {
         "tok-1",
         fetchImpl,
       ).insert({ eventName: "cron.reindex.tick", source: "cron" }),
-    ).rejects.toThrow(new Error("event insert failed: 503"));
+    ).rejects.toThrow("event insert failed: 503");
   });
 
   it("resolves a function token per call, so a rotation cannot 401 every report", async () => {
@@ -112,5 +112,19 @@ describe("HttpEventReporter", () => {
     expect(
       (calls[0].init.headers as Record<string, string>).authorization,
     ).toBeUndefined();
+  });
+});
+
+describe("HttpEventReporter — a refusal names its status", () => {
+  it("carries status 401 on the thrown refusal so a caller can re-register", async () => {
+    const { fetchImpl } = captureFetch(new Response("nope", { status: 401 }));
+
+    await expect(
+      new HttpEventReporter(
+        "https://router.example",
+        "tok-1",
+        fetchImpl,
+      ).insert({ eventName: "cron.reindex.tick", source: "cron" }),
+    ).rejects.toMatchObject({ status: 401 });
   });
 });

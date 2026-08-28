@@ -62,8 +62,19 @@ async function runSatellite(opts: {
   /** Publishes each newly-minted per-agent token to the run pods' Secret, so
    *  their telemetry sink can authenticate as this cluster. */
   publishTelemetryCredential: (id: ClusterAgentIdentity) => Promise<void>;
+  /** Hands the single-flight re-registration to the composition root, so the
+   *  Agent-CR reporter can rotate the credential on a 401 the same way the
+   *  claim and heartbeat loops do. */
+  onReRegister: (reRegister: () => Promise<unknown>) => void;
 }): Promise<void> {
-  const { env, config, store, backend, publishTelemetryCredential } = opts;
+  const {
+    env,
+    config,
+    store,
+    backend,
+    publishTelemetryCredential,
+    onReRegister,
+  } = opts;
   let identity: ClusterAgentIdentity = await registerWithBackoff({
     config,
     store,
@@ -96,6 +107,8 @@ async function runSatellite(opts: {
       .finally(() => {
         reRegistration = null;
       }));
+
+  onReRegister(reRegister);
 
   // The heartbeat rides beside the claim loop, not inside it: a satellite busy
   // executing a long claim must still look alive.
@@ -132,16 +145,29 @@ export interface StartSatelliteOpts {
   onIdentity?: (identity: ClusterAgentIdentity) => void;
 }
 
+export interface SatelliteHandle {
+  /** Rotates the per-agent token through the satellite's single-flight
+   *  re-registration. Resolves null until the satellite has registered once,
+   *  and on a central cluster-agent (no satellite loop) — a 401 there is not
+   *  a rotation, and the caller's plain retry is all there is to do. */
+  reRegister: () => Promise<unknown>;
+}
+
 export function startSatellite(
   env: NodeJS.ProcessEnv,
   opts: StartSatelliteOpts = {},
-): void {
+): SatelliteHandle {
+  let reRegister: (() => Promise<unknown>) | null = null;
+  const handle: SatelliteHandle = {
+    reRegister: () => reRegister?.() ?? Promise.resolve(null),
+  };
+
   if (selectStationBackend(env) !== "k8s") {
     console.log(
       "[cluster-agent] claim loop disabled (station backend is not k8s)",
     );
 
-    return;
+    return handle;
   }
   const config = registrationConfig(env);
 
@@ -150,7 +176,7 @@ export function startSatellite(
       "[cluster-agent] registration disabled — set LORE_API_URL, LORE_CLUSTER_AGENT_REGISTRATION_TOKEN and LORE_CLUSTER_AGENT_NAME to enable claim-based dispatch",
     );
 
-    return;
+    return handle;
   }
 
   const backend = new AgentCrBackend(
@@ -174,6 +200,9 @@ export function startSatellite(
           opts.onIdentity?.(id);
           await writeAgentEventsAuth(secrets, id);
         },
+        onReRegister: (fn) => {
+          reRegister = fn;
+        },
       }),
     )
     .catch((err) => {
@@ -181,6 +210,8 @@ export function startSatellite(
       // must surface as a log, not an unhandled rejection killing the process.
       console.error("[cluster-agent] satellite loop crashed:", err);
     });
+
+  return handle;
 }
 
 /** In a cluster the identity persists through the Kubernetes Secret API — the

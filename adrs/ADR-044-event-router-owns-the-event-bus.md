@@ -120,6 +120,13 @@ carries a `dedupeKey`, which is what makes repeating one safe.
   leaves its node open until the reaper, which is the failure the bus exists to
   remove. Repeating one is safe: every event `mapAgentToEvent` produces carries a
   `dedupeKey`. ([validated by retries a failed insert, since the report now crosses a network](apps/cluster-agent/src/listeners/agent-reporting.test.ts#L162), [`agent-reporting.test.ts:178`](apps/cluster-agent/src/listeners/agent-reporting.test.ts#L183))
+- A REFUSED report (401/403) re-registers before the next attempt, through the
+  satellite's single-flight re-registration — the same move the claim and
+  heartbeat loops already make. A satellite's per-agent token rotates whenever
+  another instance of it registers (a RollingUpdate overlap did exactly that on
+  2026-08-28), and a report that only retried with the rotated-out token lost
+  run 595d2b0b's terminal event for good; nothing central can see a satellite's
+  CR to reap it. An ordinary blip still just retries. ([validated by re-registers once on a 401 and the next attempt lands](apps/cluster-agent/src/listeners/agent-reporting.test.ts#L208), [`agent-reporting.test.ts:233`](apps/cluster-agent/src/listeners/agent-reporting.test.ts#L233), [`event-reporter-http.test.ts:119`](libs/shared/src/project/events/event-reporter-http.test.ts#L119))
 - The catch-up pass walks the namespace one page at a time. 180 accumulated CRs
   in a single unpaginated LIST blew Node's heap and crash-looped the Floor on
   2026-07-24. ([validated by walks every page rather than holding the namespace at once](apps/cluster-agent/src/listeners/agent-reporting.test.ts#L104), [`agent-reporting.test.ts:112`](apps/cluster-agent/src/listeners/agent-reporting.test.ts#L117), [`agent-reporting.test.ts:137`](apps/cluster-agent/src/listeners/agent-reporting.test.ts#L142))
