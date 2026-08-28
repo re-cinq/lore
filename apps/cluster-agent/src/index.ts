@@ -114,8 +114,13 @@ async function main(): Promise<void> {
   const stopServer = await startServer(PORT, agentEvents);
 
   if (!floorUrl) {
-    console.warn(
-      "[cluster-agent] LORE_FLOOR_URL unset — agent telemetry relay NOT mounted; this cluster's runs report no live transcript",
+    // Says what is off, NOT what is broken. A cluster whose run pods post
+    // straight to the public agent-events ingress (FR8, the original shape)
+    // reports live transcripts perfectly well without this relay — claiming
+    // otherwise sends an operator hunting a fault that is not there. The relay
+    // is an alternative path that adds queueing and retry, not the only one.
+    console.log(
+      "[cluster-agent] LORE_FLOOR_URL unset — agent-events relay not mounted; run pods post to their configured sink directly",
     );
   }
 

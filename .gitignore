@@ -79,3 +79,11 @@ next-env.d.ts
 vscode-extension/lore-vscode-0.1.0.vsix
 output/
 .lore-archive/
+
+# Helm dependency artifacts. `helm dependency update` writes a Chart.lock and
+# vendors each dependency as a .tgz under charts/; the render checks delete both
+# on every run (see scripts/check-cluster-agent-standalone-render.sh's cleanup).
+# They were committed by accident once — a `git add -A` after running the pilot's
+# helm upgrade — and no chart in this tree tracks them.
+**/Chart.lock
+infra/terraform/modules/gke-mcp/**/charts/*.tgz
