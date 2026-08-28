@@ -181,6 +181,55 @@ that works for a cluster reporting inward.
   the retry ladder to a dead letter, and a malformed event is just as malformed
   on the fifth attempt. ([validated by [reads a well-formed event into chunks ready to store](apps/floor/src/jobs/station/pod-log-ingest.test.ts#L17), [returns nothing for an event missing the identity](apps/floor/src/jobs/station/pod-log-ingest.test.ts#L35), [drops a chunk whose seq or lines are the wrong shape](apps/floor/src/jobs/station/pod-log-ingest.test.ts#L47), [stores what the event carried](apps/floor/src/jobs/station/pod-log-ingest.test.ts#L61), [stores nothing for a malformed event](apps/floor/src/jobs/station/pod-log-ingest.test.ts#L72))
 
+### The producer
+
+#### Background
+
+`PodLogInput` on the cluster-agent follows this cluster's running pods and emits
+their stdout as it happens. It is the piece that makes the table above mean
+anything, and the piece that puts log VOLUME on `pipeline.events` — a dispatch
+queue built for handler fan-out, not bulk data. It is therefore **off by
+default** (`LORE_POD_LOG_STREAMING=1`), enabled per cluster after a pilot rather
+than arriving with a deploy. Every limit below is that trade being paid for.
+
+The input awaits its `emit`, so a full queue slows the reader of the pod's
+stream rather than accumulating unsent chunks in the cluster-agent — the same
+backpressure the Agent-CR watch gets from its promise chain, and the only thing
+that makes the queue's bound mean anything here.
+
+A stream that ENDS drains its partial batch before cleaning up, and cleans up on
+every path — normal end, stream error, and a stream that could not be opened.
+Both halves matter: a pod whose last lines did not fill a chunk would otherwise
+lose them, which is precisely the output of a crashed run, and an uncleaned
+follower leaves an idle timer draining a dead batch for the life of the process.
+The write callback likewise runs on every path, because a Writable whose
+callback never resolves stalls for good — one failed emit would wedge that pod's
+stream with no error and no end, indistinguishable from a quiet pod.
+
+All of that is enforced in the connection shell, which needs a cluster to
+exercise, so it is stated here rather than linked.
+
+#### Decisions
+
+- Lines are batched to a chunk by count OR byte cap, whichever comes first, so
+  one chunk's cost to the bus is bounded ahead of time rather than by how
+  talkative a pod turned out to be. ([validated by [holds lines until the line count is reached](apps/cluster-agent/src/inputs/pod-log-batching.test.ts#L32), [flushes early once the byte cap is reached](apps/cluster-agent/src/inputs/pod-log-batching.test.ts#L38), [keeps a partial batch pending](apps/cluster-agent/src/inputs/pod-log-batching.test.ts#L44), [starts the next batch empty](apps/cluster-agent/src/inputs/pod-log-batching.test.ts#L53))
+- A single line longer than the byte cap flushes ALONE rather than wedging a
+  batch that can never satisfy its own limit. The cap bounds this process's
+  memory; it cannot bound what the pod chose to write. ([validated by [flushes a single line that alone exceeds the byte cap](apps/cluster-agent/src/inputs/pod-log-batching.test.ts#L59))
+- A partial batch is flushed on an idle timer, so a pod that goes quiet
+  mid-chunk does not strand its last lines until it produces enough to fill
+  one. ([validated by [flushes what is pending](apps/cluster-agent/src/inputs/pod-log-batching.test.ts#L72), [flushes nothing when nothing is pending](apps/cluster-agent/src/inputs/pod-log-batching.test.ts#L78))
+- Each chunk is one event, deduped on `(pod, seq)` — never on the job. Both pods
+  of a retried node start at seq 1, and a job-keyed dedupe would drop the
+  retry's first chunk as a duplicate of the original's, the same trap the
+  table's unique index avoids. ([validated by [carries the identity a chunk is keyed by](apps/cluster-agent/src/inputs/pod-log-batching.test.ts#L84), [dedupes on the POD, not the job](apps/cluster-agent/src/inputs/pod-log-batching.test.ts#L104))
+- Discovery follows only agents that are running AND have a Job, and never one
+  it is already following. Discovery re-runs on a timer over the same agents, so
+  without that last check each tick opens another stream on the same pod and
+  emits every line once per stream — and because each stream assigns its own
+  seqs, those duplicates would NOT collapse. ([validated by [follows a running agent that has a pod to follow](apps/cluster-agent/src/inputs/pod-log-batching.test.ts#L119), [skips a terminal agent](apps/cluster-agent/src/inputs/pod-log-batching.test.ts#L127), [skips an agent with no job yet](apps/cluster-agent/src/inputs/pod-log-batching.test.ts#L136), [skips a CR carrying no metadata or status yet](apps/cluster-agent/src/inputs/pod-log-batching.test.ts#L140), [skips one already being followed](apps/cluster-agent/src/inputs/pod-log-batching.test.ts#L152))
+
 ### The retention window now has a caller
 
 #### Background

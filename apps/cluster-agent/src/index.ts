@@ -20,6 +20,7 @@ import { selectEventProxy } from "@re-cinq/lore-shared/project/events/select-eve
 import { startServer } from "./delivery/server.js";
 import type { ProxyMessage } from "@re-cinq/lore-shared/project/events/event-input-port.js";
 import { AgentWatchInput } from "./listeners/k8s-watch.js";
+import { PodLogInput, podLogStreamingEnabled } from "./inputs/pod-log-input.js";
 import { TelemetrySink } from "./kernel/telemetry-sink.js";
 import { startSatellite } from "./satellite/start-satellite.js";
 
@@ -120,6 +121,14 @@ async function main(): Promise<void> {
 
   if (proxy) {
     proxy.register(new AgentWatchInput());
+
+    // OFF unless asked for. This is the input that puts log VOLUME on
+    // `pipeline.events` — a dispatch queue built for handler fan-out, not bulk
+    // data — so it ships dark and is enabled per cluster after a pilot, rather
+    // than arriving with a deploy.
+    if (podLogStreamingEnabled(process.env)) {
+      proxy.register(new PodLogInput());
+    }
     await proxy.start();
   } else {
     // Loud, because the symptom is silence: no watch means no terminal Agent

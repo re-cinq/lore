@@ -13,6 +13,11 @@ Usage:
 - name: {{ $key }}
   value: {{ $val | quote }}
 {{- end }}
+{{- if .Values.podLogStreaming }}
+# Off by default: this is the input that puts log VOLUME on pipeline.events.
+- name: LORE_POD_LOG_STREAMING
+  value: "1"
+{{- end }}
 - name: LORE_AGENTS_NAMESPACE
   value: {{ .Values.agentsNamespace | quote }}
 - name: LORE_INGEST_TOKEN
