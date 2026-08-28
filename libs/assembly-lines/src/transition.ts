@@ -101,10 +101,19 @@ export function getNextTransition(
   let currentId = assemblyLine.entry;
   let iteration = 1;
   const backEdgeCounts = new Map<string, number>();
+  // A revisit must number past every prior row for that node, not just past
+  // this edge's own count — (nodeId, iteration) is the row identity, a forward
+  // move inherits the walk's current iteration, and two back-edges into the
+  // same target can otherwise hand out the same number.
+  const highestIteration = new Map<string, number>();
   const visited = new Set<string>();
 
   for (const visit of visits) {
     visited.add(visit.nodeId);
+    highestIteration.set(
+      visit.nodeId,
+      Math.max(highestIteration.get(visit.nodeId) ?? 0, visit.iteration),
+    );
 
     if (visit.nodeId !== currentId || visit.iteration !== iteration) {
       // Both node id AND iteration must match the recomputed walk — a row
@@ -156,7 +165,7 @@ export function getNextTransition(
         };
       }
       backEdgeCounts.set(key, count);
-      iteration = count + 1;
+      iteration = (highestIteration.get(chosen.to) ?? 0) + 1;
     }
 
     currentId = chosen.to;

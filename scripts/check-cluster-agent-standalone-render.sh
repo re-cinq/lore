@@ -71,6 +71,8 @@ require "name: LORE_CLUSTER_AGENT_IDENTITY_SECRET"
 require "name: LORE_CLUSTER_AGENT_IDENTITY_NAMESPACE"
 require "name: LORE_CLUSTER_AGENT_IDENTITY_KEY"
 require "name: LORE_STATION_BACKEND"
+# A singleton registrant must never overlap itself on a rollout (token rotation).
+require "type: Recreate"
 require 'value: "node:agent,node:validate"'
 require "secretName: lore-cluster-agent-identity"
 require "name: lore-cluster-agent-identity"

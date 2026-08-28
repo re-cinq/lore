@@ -2,10 +2,11 @@ export const dynamic = "force-dynamic";
 import { getTask, getTaskRuns, reviseTask } from "@/lib/api/tasks";
 import { redirect } from "next/navigation";
 import TaskDetailView, {
+  soleRunHref,
   type TaskDetailTask,
   type TaskRunRow,
 } from "./TaskDetailView";
-import { fetchTaskEvents, fetchLlmCalls } from "@/lib/task-runtime";
+import { fetchTaskEvents } from "@/lib/task-runtime";
 
 type Task = TaskDetailTask;
 
@@ -44,11 +45,6 @@ export default async function TaskDetailPage({
     );
   }
 
-  const events = await fetchTaskEvents(id);
-  const llmCalls = await fetchLlmCalls(id);
-
-  const failedEvent = events.find((e) => e.to_status === "failed");
-
   // The task's per-attempt run rows (pipeline.assembly_runs.task_id is non-unique
   // — a retry mints a fresh row) so the detail can link to each attempt's timeline.
   // queryAllowMissing: empty on pre-0025 DBs.
@@ -57,11 +53,18 @@ export default async function TaskDetailPage({
     ? runResult.data.runs
     : []) as unknown as TaskRunRow[];
 
+  const runHref = soleRunHref(runs);
+
+  if (runHref) {
+    redirect(runHref);
+  }
+
+  const events = await fetchTaskEvents(id);
+  const failedEvent = events.find((e) => e.to_status === "failed");
+
   return (
     <TaskDetailView
       task={task}
-      events={events}
-      llmCalls={llmCalls}
       failedEvent={failedEvent}
       runs={runs}
       submitFeedback={submitFeedback}

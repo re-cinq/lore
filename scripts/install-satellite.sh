@@ -10,7 +10,7 @@
 #     --api-url https://lore-api.example.com \
 #     --event-router-url https://lore-events.example.com \
 #     --registration-token <pre-shared token> \
-#     --name gpu-box-1 --tags node:agent,node:validate
+#     --name gpu-box-1 --tags node:agent
 #
 # Every flag can also come from env: LORE_API_URL, EVENT_ROUTER_URL,
 #   LORE_CLUSTER_AGENT_REGISTRATION_TOKEN, LORE_CLUSTER_AGENT_NAME,
@@ -83,7 +83,17 @@ kubectl version >/dev/null 2>&1 || die "cannot reach the cluster behind context 
 [ -n "${GHCR_TOKEN:-}" ] || die "GHCR_TOKEN is not set (GHCR pull credentials)"
 
 name="${LORE_CLUSTER_AGENT_NAME:-satellite-$context}"
-tags="${LORE_CLUSTER_AGENT_TAGS:-node:agent,node:validate,node:gate,node:retrospective,node:github_action}"
+# Only the Claude-agent node type by default. Every seeded STATION recipe
+# (def-validate, def-gate, def-detect, def-comment-triage, …) mounts
+# LORE_INGEST_TOKEN, and FR5 keeps that credential on the central cluster —
+# so a satellite that advertises node:validate claims the node and then dies
+# at init with CreateContainerConfigError, wasting the claim and the run
+# (found live 2026-08-28, run 595d2b0b). The same goes for github_action (a
+# station recipe too), and retrospective is a service node the Floor runs
+# itself — never dispatched to any cluster, so the tag was inert. Central
+# claims station nodes instead; override --tags only for station types this
+# cluster can actually serve.
+tags="${LORE_CLUSTER_AGENT_TAGS:-node:agent}"
 
 # A laptop bills the developer's subscription when it can (values.minikube
 # precedent); an API key is the fallback.

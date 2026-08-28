@@ -266,6 +266,16 @@ A satellite must report outcomes without holding the bus-wide credential.
   a re-registration rotates it, and a captured value would 401 every report
   from then on — which is what the watch did silently until the credential
   was wired at all, leaving every node to the reaper instead. ([validated by [`server-auth.test.ts:39`](apps/event-router/src/delivery/server-auth.test.ts#L39), [`event-reporter-http.test.ts:66`](libs/shared/src/project/events/event-reporter-http.test.ts#L66), [`event-reporter-http.test.ts:96`](libs/shared/src/project/events/event-reporter-http.test.ts#L96))
+- A report the router REFUSES (401/403) re-registers before it retries, via
+  the same single-flight re-registration the claim and heartbeat loops share
+  *(2026-08-28)*: the token rotates whenever another instance of this
+  satellite registers, and retrying with the rotated-out token five times lost
+  run 595d2b0b's terminal event — the node sat open with nothing central able
+  to see its CR. The reporter names the status on its refusal so the watch can
+  tell a rotation from a blip. And the overlap itself is closed at the source:
+  both cluster-agent Deployments roll out `Recreate`, since a singleton
+  registrant that overlaps its own successor rotates the successor's token.
+  ([validated by re-registers once on a 401 and the next attempt lands](apps/cluster-agent/src/listeners/agent-reporting.test.ts#L208), [`event-reporter-http.test.ts:119`](libs/shared/src/project/events/event-reporter-http.test.ts#L119), [`check-cluster-agent-standalone-render.sh`](scripts/check-cluster-agent-standalone-render.sh#L1))
 - Deregistering or rotating a cluster-agent's token immediately invalidates
   its reporting credential — one revocation surface for both claiming and
   reporting. An agent already marked offline still delivers a late terminal
@@ -304,6 +314,15 @@ execution node.
   claimed run failed at init (#1575, found live 2026-08-26). Unset stays the
   default: a satellite reports its terminal outcome and nothing live, which
   is the honest state for a cluster with nowhere to report to. ([validated by `agent-catalog.test.ts:191`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L191))
+- The installer's default tags advertise `node:agent` only *(2026-08-28)*.
+  Every seeded station recipe (`def-validate`, `def-gate`, `def-detect`,
+  `def-comment-triage`) mounts `LORE_INGEST_TOKEN`, which FR5 keeps on the
+  central cluster, so a satellite advertising `node:validate` claims the node
+  and dies at init with `CreateContainerConfigError` — the claim and the run
+  are wasted (found live on run 595d2b0b: `implement` succeeded on the
+  satellite, `validate` never started). Central claims station nodes; an
+  operator who overrides `--tags` with a station type owns that credential
+  gap. Giving satellites a scoped station credential is a separate FR.
 
 ## FR8 — Live telemetry from a satellite
 

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"io"
+	"strings"
 	"testing"
 )
 
@@ -71,6 +72,87 @@ func TestBuildReportParsesLcovRunOutput(t *testing.T) {
 	want := []CoveredChunk{{File: "src/x.go", StartLine: 1, EndLine: 2}}
 	if len(r.Covered) != 1 || r.Covered[0] != want[0] {
 		t.Errorf("covered: got %+v, want %+v", r.Covered, want)
+	}
+}
+
+// A whole-suite entry (relaxed parser keeps it with no list) cannot enumerate
+// tests; the sole list consumer must fail loudly here rather than run sh -c ""
+// and emit a misleading empty report.
+func TestBuildReportErrorsWhenListMissing(t *testing.T) {
+	m := Manifest{
+		List: "",
+		Run:  "npm run consumer",
+		Cwd:  ".",
+	}
+	_, err := buildReport(context.Background(), m, t.TempDir(), reportMeta{Commit: "c", Branch: "b"}, 2, io.Discard)
+	if err == nil {
+		t.Fatal("expected an error when the manifest has no list command")
+	}
+	if !strings.Contains(err.Error(), "cannot enumerate") {
+		t.Errorf("error should explain the entry runs whole and cannot enumerate, got: %v", err)
+	}
+}
+
+// A list-bearing entry with an unknown coverage_format (cleared to empty by the
+// relaxed parser) still runs the list and builds a report; each file's coverage
+// is skipped-with-log via runOneFile's default branch, not a hard failure.
+func TestBuildReportRunsListBearingEntryWithEmptyCoverageFormat(t *testing.T) {
+	listJSON := `[{"id":"x::1","name":"1","file":"x.go"}]`
+	m := Manifest{
+		List:           "printf '%s' '" + listJSON + "'",
+		Run:            "printf ignored # {selector}",
+		CoverageFormat: "",
+		Cwd:            ".",
+	}
+	report, err := buildReport(context.Background(), m, t.TempDir(), reportMeta{Commit: "c", Branch: "b"}, 2, io.Discard)
+	if err != nil {
+		t.Fatalf("an unknown coverage_format should skip coverage, not error: %v", err)
+	}
+	if len(report.Tests) != 1 {
+		t.Errorf("tests: got %d, want 1", len(report.Tests))
+	}
+	if len(report.Results) != 0 {
+		t.Errorf("results: got %d, want 0 (coverage skipped)", len(report.Results))
+	}
+}
+
+// A run command with no {selector} across more than one file runs the same
+// command per file and fans identical results everywhere — cheap to do by
+// mistake, so buildReport warns rather than staying silent.
+func TestBuildReportWarnsWhenRunLacksSelectorAcrossFiles(t *testing.T) {
+	listJSON := `[{"id":"a.go::1","name":"1","file":"a.go"},{"id":"b.go::1","name":"1","file":"b.go"}]`
+	m := Manifest{
+		List:           "printf '%s' '" + listJSON + "'",
+		Run:            `printf '%s' '{"passed":true,"covered":[]}'`,
+		CoverageFormat: "json",
+		Cwd:            ".",
+	}
+	var logw strings.Builder
+	_, err := buildReport(context.Background(), m, t.TempDir(), reportMeta{Commit: "c", Branch: "b"}, 2, &logw)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(logw.String(), "no {selector}") {
+		t.Errorf("expected a missing-selector warning, got: %q", logw.String())
+	}
+}
+
+// A single file with no {selector} runs the command once — no redundancy, so no
+// warning.
+func TestBuildReportSilentWhenRunLacksSelectorForOneFile(t *testing.T) {
+	listJSON := `[{"id":"a.go::1","name":"1","file":"a.go"}]`
+	m := Manifest{
+		List:           "printf '%s' '" + listJSON + "'",
+		Run:            `printf '%s' '{"passed":true,"covered":[]}'`,
+		CoverageFormat: "json",
+		Cwd:            ".",
+	}
+	var logw strings.Builder
+	if _, err := buildReport(context.Background(), m, t.TempDir(), reportMeta{Commit: "c", Branch: "b"}, 2, &logw); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if strings.Contains(logw.String(), "no {selector}") {
+		t.Errorf("did not expect a warning for a single file, got: %q", logw.String())
 	}
 }
 

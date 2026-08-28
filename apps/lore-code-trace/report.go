@@ -65,6 +65,10 @@ func buildReport(ctx context.Context, m Manifest, cwd string, meta reportMeta, c
 	runCwd := filepath.Join(cwd, m.Cwd)
 	timeout := traceTimeout()
 
+	if strings.TrimSpace(m.List) == "" {
+		return TestReport{}, fmt.Errorf("test-command manifest entry has no 'list' command; it runs whole and cannot enumerate tests")
+	}
+
 	listOut, err := runCommand(ctx, m.List, runCwd, timeout)
 	if err != nil {
 		return TestReport{}, fmt.Errorf("list command failed: %w", err)
@@ -78,6 +82,10 @@ func buildReport(ctx context.Context, m Manifest, cwd string, meta reportMeta, c
 	}
 
 	files, idsByFile := groupByFile(tests)
+
+	if len(files) > 1 && !strings.Contains(m.Run, "{selector}") {
+		fmt.Fprintf(logw, "[lore-code-trace] run command has no {selector}; the same command runs once per file and every file gets identical results\n")
+	}
 
 	if concurrency < 1 {
 		concurrency = 1

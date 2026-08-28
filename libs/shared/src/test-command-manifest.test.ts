@@ -26,33 +26,59 @@ describe("parseTestCommandManifest", () => {
     ]);
   });
 
-  it("throws when the run command is missing", () => {
-    expect(() =>
-      parseTestCommandManifest({
-        list: "vitest list",
-        coverage_format: "lcov",
-      }),
-    ).toThrow(/run/);
-  });
-
-  it("throws when the run command omits the {selector} placeholder", () => {
-    expect(() =>
-      parseTestCommandManifest({
-        list: "vitest list",
-        run: "vitest run",
-        coverage_format: "lcov",
-      }),
-    ).toThrow(/\{selector\}/);
-  });
-
-  it("throws on an unknown coverage_format", () => {
-    expect(() =>
-      parseTestCommandManifest({
+  it("drops an entry with no run command while keeping its valid siblings", () => {
+    const result = parseTestCommandManifest([
+      {
         list: "vitest list",
         run: "vitest run {selector}",
-        coverage_format: "html",
-      }),
-    ).toThrow(/coverage_format/);
+        coverage_format: "lcov",
+      },
+      { list: "vitest list", coverage_format: "lcov" },
+    ]);
+
+    expect(result).toHaveLength(1);
+    expect(result[0].run).toBe("vitest run {selector}");
+  });
+
+  it("accepts a run command without a {selector} placeholder as run-whole", () => {
+    const [manifest] = parseTestCommandManifest({
+      run: "npm run consumer",
+    });
+
+    expect(manifest).toMatchObject({ run: "npm run consumer", cwd: "." });
+    expect(manifest.list).toBeUndefined();
+    expect(manifest.coverage_format).toBeUndefined();
+  });
+
+  it("keeps the entry with coverage_format undefined when the value is unknown", () => {
+    const [manifest] = parseTestCommandManifest({
+      list: "vitest list",
+      run: "vitest run {selector}",
+      coverage_format: "html",
+    });
+
+    expect(manifest).toMatchObject({ run: "vitest run {selector}" });
+    expect(manifest.coverage_format).toBeUndefined();
+  });
+
+  it("keeps a valid vitest entry alongside an honest whole-suite entry", () => {
+    const result = parseTestCommandManifest([
+      {
+        list: "vitest list --reporter=json",
+        run: "vitest run {selector} --coverage",
+        coverage_format: "lcov",
+      },
+      { run: "npm run consumer" },
+    ]);
+
+    expect(result).toHaveLength(2);
+    expect(result[1]).toEqual({
+      list: undefined,
+      run: "npm run consumer",
+      coverage_format: undefined,
+      cwd: ".",
+      path_prefix_strip: "",
+    });
   });
 
   it("normalizes a polyglot array into one entry per manifest", () => {

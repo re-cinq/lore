@@ -396,14 +396,14 @@ describe("GET /api/spend", () => {
     const pool = poolAnswering({
       "pipeline.cluster_agents": [
         { cluster: "colleague-satellite", calls: 12, cost_usd: 88.5 },
-        { cluster: "(central / regular)", calls: 40, cost_usd: 20 },
+        { cluster: null, calls: 40, cost_usd: 20 },
       ],
     });
 
     expect((await get(pool)).result).toMatchObject({
       lore_by_cluster: [
         { cluster: "colleague-satellite", calls: 12, cost_usd: 88.5 },
-        { cluster: "(central / regular)", calls: 40, cost_usd: 20 },
+        { cluster: null, calls: 40, cost_usd: 20 },
       ],
     });
   });
@@ -411,8 +411,8 @@ describe("GET /api/spend", () => {
   it("groups cluster spend through station_runs and labels the unclaimed rows", async () => {
     // Pinned as SQL text because a mocked pool answers any shape happily. A
     // call with no station run (a direct-API task) has no cluster_agent_id and
-    // must fall into one honest bucket, not vanish — hence the outer LEFT JOINs
-    // and the COALESCE label rather than an inner join that would drop it.
+    // must fall into the null (no-cluster) bucket, not vanish — hence the outer
+    // LEFT JOINs and a nullable name rather than an inner join that would drop it.
     const pool = makePool();
 
     pool.query.mockResolvedValue({ rows: [] });
@@ -444,5 +444,33 @@ describe("GET /api/spend", () => {
 
     expect(res.statusCode).toBe(200);
     expect(res.result).toMatchObject({ lore_by_cluster: [] });
+  });
+
+  it("excludes satellite-cluster spend from the balance's computed side", async () => {
+    // A satellite runs on a colleague's subscription token, so its cost never
+    // draws the recorded API credits and never enters the billed report either
+    // — counting it against the balance would drag it negative on money this
+    // account never spent. The computed half LEFT JOINs the station run and
+    // keeps only calls with no cluster-agent claim (home/central and direct).
+    const pool = poolAnswering({
+      "pipeline.credit_ledger": [
+        { ledger_total_usd: 100, anchored_at: "2026-08-01T00:00:00Z" },
+      ],
+      "pipeline.anthropic_cost_daily": [
+        { billed_usd: 0, billed_through: "2026-08-19" },
+      ],
+    });
+
+    await get(pool);
+
+    const computed = pool.query.mock.calls.find(
+      ([sql]) =>
+        String(sql).includes("pipeline.llm_calls") &&
+        String(sql).includes("$2::date"),
+    );
+    const sql = String(computed?.[0]);
+
+    expect(sql).toContain("pipeline.station_runs");
+    expect(sql).toContain("cluster_agent_id IS NULL");
   });
 });

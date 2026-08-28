@@ -20,15 +20,26 @@ Either (repo settings win over the file):
 
 ```yaml
 # .lore/test-commands.yml
-list: "npm run -s test:list-json"
+list: "npm run -s test:list-json"          # optional; omit for a run-whole suite
 run:  "npm run -s test:run-json -- {selector}"
-coverage_format: "lcov"          # lcov | cobertura | json
+coverage_format: "lcov"          # optional; lcov | cobertura | json
 cwd: "."                         # optional; subdir for monorepo packages
 path_prefix_strip: ""            # optional; make coverage paths repo-relative
 ```
 
-Polyglot monorepos may declare a list of manifests, each with its own
-`cwd`.
+`run` is the only required field. A suite that runs whole and cannot honestly
+enumerate or select individual tests (e.g. a packed-tarball browser pipeline)
+declares just `run` — no `list`, no `{selector}`, no `coverage_format`:
+
+```yaml
+# a run-whole suite (no per-test list or coverage)
+run: "npm run consumer"
+```
+
+Such an entry is kept as a run-whole entry rather than rejected; an unknown
+`coverage_format` is ignored rather than dropping the entry, and an entry with
+no usable `run` is skipped without discarding its valid siblings. Polyglot
+monorepos may declare a list of manifests, each with its own `cwd`.
 
 ## `tests.list` — enumerate available tests
 

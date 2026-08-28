@@ -99,15 +99,26 @@ async function remainingBudget(
   // the month-to-date unbilled read already gives: `anthropic_cost_daily` is
   // absent on clusters with no admin key, and a subquery against it would take
   // the Lore-computed half down with it.
-  const { rows: computed } = await pool.query<{ cost_usd: number }>(
-    `SELECT COALESCE(SUM(cost_usd), 0)::float8 AS cost_usd
-       FROM pipeline.llm_calls
-      WHERE created_at >= $1::timestamptz
-        AND ($2::date IS NULL OR created_at::date > $2::date)`,
+  // Only spend that DREW these credits belongs in the balance. A call claimed
+  // by a registered satellite cluster ran on that cluster's own credential (a
+  // colleague's subscription), so its cost never touched this account — it is
+  // in `llm_calls` because Lore prices every call it sees, but it is not in the
+  // billed report and must not be in the balance either, or the card goes
+  // negative on money the account never spent. The LEFT JOIN keeps calls with
+  // no station run (direct API tasks) and home/central runs (null claim); it
+  // drops only satellite-attributed ones.
+  const [computed] = await optionalTableRows<{ cost_usd: number }>(
+    pool,
+    `SELECT COALESCE(SUM(lc.cost_usd), 0)::float8 AS cost_usd
+       FROM pipeline.llm_calls lc
+       LEFT JOIN pipeline.station_runs sr
+         ON sr.station_run_id = lc.station_run_id
+      WHERE lc.created_at >= $1::timestamptz
+        AND ($2::date IS NULL OR lc.created_at::date > $2::date)
+        AND sr.cluster_agent_id IS NULL`,
     [anchoredAt, billed?.billed_through ?? null],
   );
-  const spentSinceUsd =
-    (billed?.billed_usd ?? 0) + (computed[0]?.cost_usd ?? 0);
+  const spentSinceUsd = (billed?.billed_usd ?? 0) + (computed?.cost_usd ?? 0);
 
   return {
     ledger_total_usd: ledgerTotalUsd,
@@ -308,15 +319,19 @@ const SpendSchema = z.object({
    * the one figure on this page that separates a satellite cluster's burn from
    * the home cluster's. A call reaches its cluster through the station run it
    * belongs to (`llm_calls.station_run_id` → `station_runs.cluster_agent_id`),
-   * so a direct-API call with no station run carries no cluster and lands in a
-   * single labelled bucket rather than vanishing.
+   * so a direct-API call with no station run carries no cluster.
+   *
+   * `cluster` is NULL for that no-cluster bucket rather than a sentinel string:
+   * a real cluster can be named anything (there IS one registered `central`),
+   * so a label like `(central / regular)` collides with it. Null is the honest
+   * "no cluster-agent claim", and the view owns the label and the grouping.
    *
    * Computed, not billed: Anthropic's cost report cannot split one workspace by
    * key, so per-cluster attribution exists only on the token-counted side.
    */
   lore_by_cluster: z.array(
     z.object({
-      cluster: z.string(),
+      cluster: z.string().nullable(),
       calls: z.number(),
       cost_usd: z.number(),
     }),
@@ -533,23 +548,25 @@ export function spendRoute(getPool: () => Pool | null): ServerRoute {
       // Which cluster ran the call, via the station run it belongs to. Outer
       // joins on purpose: a call with no station run (a direct-API task) has no
       // cluster_agent_id, and an inner join would silently drop it instead of
-      // gathering it under the labelled home bucket. `optionalTableRows` because
-      // station_runs / cluster_agents arrive with migrations — a deployment
-      // that predates them must render empty, not 500 the whole page.
+      // gathering it under the null (no-cluster) bucket. `cluster` is left NULL
+      // there rather than labelled, so it can never collide with a real cluster
+      // name — the view owns the label and splits null from the rest.
+      // `optionalTableRows` because station_runs / cluster_agents arrive with
+      // migrations — a deployment predating them renders empty, not a 500.
       const loreByCluster = await optionalTableRows<{
-        cluster: string;
+        cluster: string | null;
         calls: number;
         cost_usd: number;
       }>(
         pool,
-        `SELECT COALESCE(ca.name, '(central / regular)') AS cluster,
+        `SELECT ca.name AS cluster,
            COUNT(*)::int AS calls, SUM(lc.cost_usd)::float8 AS cost_usd
          FROM pipeline.llm_calls lc
          LEFT JOIN pipeline.station_runs sr
            ON sr.station_run_id = lc.station_run_id
          LEFT JOIN pipeline.cluster_agents ca ON ca.id = sr.cluster_agent_id
          WHERE lc.${MTD}
-         GROUP BY 1 ORDER BY cost_usd DESC`,
+         GROUP BY ca.name ORDER BY cost_usd DESC`,
       );
 
       // Read last, so the statement ordering every other read already depends
