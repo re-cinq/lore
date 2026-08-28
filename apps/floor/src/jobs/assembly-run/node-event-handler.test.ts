@@ -8,6 +8,7 @@ import {
 } from "@re-cinq/lore-assembly-lines";
 import { createNodeEventHandler } from "./node-event-handler.js";
 import { BillingAlertThrottle, maybeAlertBilling } from "./billing-alert.js";
+import { maybeAlertAgentConfig } from "./agent-config-alert.js";
 import { LlmDispatchGate } from "./llm-dispatch-gate.js";
 
 const line: AssemblyLine = parseAssemblyLine(`
@@ -45,6 +46,7 @@ function harness() {
   const launched: LoreTaskSpec[] = [];
   const statusByName: Record<string, AgentNodeStatus | null> = {};
   const billingAlerts: Array<{ repo: string; nodeType: string }> = [];
+  const agentConfigAlerts: Array<{ repo: string; nodeType: string }> = [];
   const armDispatch = port.enqueueStationRunDispatch.bind(port);
 
   port.enqueueStationRunDispatch = async (nodeRowId, dispatchSpec) => {
@@ -62,12 +64,16 @@ function harness() {
     alertBilling: async (repo: string, nodeType: string) => {
       billingAlerts.push({ repo, nodeType });
     },
+    alertAgentConfig: async (repo: string, nodeType: string) => {
+      agentConfigAlerts.push({ repo, nodeType });
+    },
   };
 
   return {
     port,
     launched,
     statusByName,
+    agentConfigAlerts,
     billingAlerts,
     deps,
     handler: createNodeEventHandler(deps),
@@ -98,6 +104,14 @@ function alertingHarness() {
     readAgentStatus: async (name) => statusByName[name] ?? null,
     alertBilling: async (repo, nodeType, status) => {
       await maybeAlertBilling(repo, nodeType, status, {
+        notify: async (_level, message) => {
+          sent.push(message);
+        },
+        throttle: new BillingAlertThrottle(60_000, () => 0),
+      });
+    },
+    alertAgentConfig: async (repo, nodeType, status) => {
+      await maybeAlertAgentConfig(repo, nodeType, status, {
         notify: async (_level, message) => {
           sent.push(message);
         },
@@ -171,6 +185,23 @@ describe("createNodeEventHandler", () => {
     expect(h.billingAlerts).toEqual([{ repo: "o/r", nodeType: "agent" }]);
   });
 
+  it("fires the agent-config alert when the CR's settings file is missing", async () => {
+    const h = harness();
+    const { id, crName } = await reviewInFlight(h);
+
+    h.statusByName[crName] = {
+      phase: "Failed",
+      failureReason: "BackoffLimitExceeded",
+      output:
+        '{"kind":"lifecycle","phase":"agent","status":"started"}\n' +
+        "[agent] Error: Settings file not found: /agent/.claude/settings.json\n" +
+        '{"kind":"lifecycle","exitCode":1,"phase":"agent","status":"failed"}',
+    };
+    await h.handler(params(id, crName, "Failed"));
+
+    expect(h.agentConfigAlerts).toEqual([{ repo: "o/r", nodeType: "agent" }]);
+  });
+
   it("alerts through the real billing path when the pod died out of credits", async () => {
     const h = alertingHarness();
     const { id, crName } = await reviewInFlight(
@@ -199,6 +230,40 @@ describe("createNodeEventHandler", () => {
     expect(h.sent).toHaveLength(1);
     expect(h.sent[0]).toContain("Credit balance is too low");
     expect(h.sent[0]).toContain("out of credits");
+  });
+
+  it("alerts through the real agent-config path when the CR's settings file is missing", async () => {
+    const h = alertingHarness();
+    const { id, crName } = await reviewInFlight(
+      h as unknown as ReturnType<typeof harness>,
+    );
+
+    // Exactly what the cluster wrote when skills_source pointed nowhere
+    // reachable — claude never reaches a result line at all.
+    h.statusByName[crName] = {
+      phase: "Failed",
+      failureReason:
+        "BackoffLimitExceeded: Job has reached the specified backoff limit",
+      output: [
+        JSON.stringify({
+          kind: "lifecycle",
+          phase: "agent",
+          status: "started",
+        }),
+        "[agent] Error: Settings file not found: /agent/.claude/settings.json",
+        JSON.stringify({
+          kind: "lifecycle",
+          exitCode: 1,
+          phase: "agent",
+          status: "failed",
+        }),
+      ].join("\n"),
+    };
+    await h.handler(params(id, crName, "Failed"));
+
+    expect(h.sent).toHaveLength(1);
+    expect(h.sent[0]).toContain("Settings file not found");
+    expect(h.sent[0]).toContain("skills_source");
   });
 
   it("trips the dispatch gate when a node died of a dry account", async () => {

@@ -79,6 +79,25 @@ describe("classifyError", () => {
     });
   });
 
+  it("returns agent-settings-missing for a missing Claude settings file", () => {
+    expect(
+      classifyError(
+        "Error: Settings file not found: /agent/.claude/settings.json",
+      ),
+    ).toMatchObject({ category: "agent-settings-missing" });
+  });
+
+  it("classifies the missing-settings message ahead of the generic infra fallback", () => {
+    // The CR this shows up on also carries failureReason: BackoffLimitExceeded
+    // (claude exits 1, the Job retries, every attempt fails identically) — the
+    // specific category must win so the fix isn't misread as "retry it".
+    expect(
+      classifyError(
+        "Error: Settings file not found: /agent/.claude/settings.json",
+      ).category,
+    ).not.toBe("infra");
+  });
+
   it("includes a non-empty remediation hint for every category", () => {
     const messages = [
       "credit balance is too low",
@@ -86,6 +105,7 @@ describe("classifyError", () => {
       "Resource not accessible by integration",
       "401 Bad credentials",
       "BackoffLimitExceeded: Job has reached the specified backoff limit",
+      "Settings file not found: /agent/.claude/settings.json",
       "weird unmatched failure",
     ];
 
@@ -136,6 +156,7 @@ describe("isPermanentFailure", () => {
     expect(isPermanentFailure("auth")).toEqual(true);
     expect(isPermanentFailure("github-permission")).toEqual(true);
     expect(isPermanentFailure("github-workflows-permission")).toEqual(true);
+    expect(isPermanentFailure("agent-settings-missing")).toEqual(true);
   });
 
   it("returns false for a rate limit, which a later attempt can clear", () => {

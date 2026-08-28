@@ -26,6 +26,7 @@ import { finishNodeTerminal, normalizeAgentStatus } from "./node-terminal.js";
 import { agentCrVisible } from "./cr-visibility.js";
 import { notifyLineFailure } from "./notify-failure.js";
 import { BillingAlertThrottle, maybeAlertBilling } from "./billing-alert.js";
+import { maybeAlertAgentConfig } from "./agent-config-alert.js";
 import { llmDispatchGate } from "./llm-dispatch-gate.js";
 import { artifactsFromTerminalOutput } from "../agent/artifact-args.js";
 import {
@@ -48,6 +49,15 @@ export interface NodeEventDeps extends AdvanceDeps {
   /** Fire the throttled operator alert when a CR failed because the Anthropic
    *  account ran dry (best-effort; optional so tests/partial deps omit it). */
   alertBilling?: (
+    repo: string,
+    nodeType: string,
+    status: AgentNodeStatus,
+  ) => Promise<void>;
+  /** Fire the throttled operator alert when a CR failed because an
+   *  AgentDefinition's skills_source was unreachable — every Claude-agent node
+   *  the affected cluster claims fails identically until it is fixed
+   *  (best-effort; optional so tests/partial deps omit it). */
+  alertAgentConfig?: (
     repo: string,
     nodeType: string,
     status: AgentNodeStatus,
@@ -161,9 +171,16 @@ export function createNodeEventHandler(deps: NodeEventDeps): EventHandler {
 
     // An account-out-of-credits failure downs every LLM node at once; surface it
     // once to operators (the seam throttles + classifies) before the per-line
-    // failure notice, which only ever carries a routing reason.
+    // failure notice, which only ever carries a routing reason. A missing-settings
+    // failure (an unreachable skills_source) is the same shape of outage on a
+    // different axis — every Claude-agent node on the affected CLUSTER, not the
+    // account — so it gets the same treatment.
     if (result.outcome === "failed" && deps.alertBilling) {
       await deps.alertBilling(row.repo, node.type, status);
+    }
+
+    if (result.outcome === "failed" && deps.alertAgentConfig) {
+      await deps.alertAgentConfig(row.repo, node.type, status);
     }
     tripGateOnAccountOutage(result, deps);
 
@@ -400,12 +417,23 @@ export async function productionNodeEventDeps(): Promise<NodeEventDeps> {
         throttle: billingAlertThrottle,
       });
     },
+    alertAgentConfig: async (repo, nodeType, status) => {
+      await maybeAlertAgentConfig(repo, nodeType, status, {
+        notify: async (level, message) =>
+          (await projectFor(repo)).notify.notify(level, message),
+        throttle: agentConfigAlertThrottle,
+      });
+    },
   };
 }
 
 /** Module singleton: the billing outage is account-wide, so the alert throttle
  *  must survive across per-event deps (one alert/hour across all repos). */
 const billingAlertThrottle = new BillingAlertThrottle();
+
+/** Module singleton, same reasoning: a misconfigured skills_source strands
+ *  every Claude-agent node a cluster claims, not just one repo's run. */
+const agentConfigAlertThrottle = new BillingAlertThrottle();
 
 /** Composed production handler for the registry (both node-terminal events). */
 export const agentNodeTerminal: EventHandler = async (params) => {
