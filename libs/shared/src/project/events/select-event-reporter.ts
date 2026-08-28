@@ -15,6 +15,9 @@ import { internalToken } from "../../http/internal-token.js";
 import { HttpEventReporter } from "./event-reporter-http.js";
 import { HttpEventQueue } from "./event-queue-http.js";
 import { HttpEventDeliveries } from "./event-deliveries-http.js";
+import { EventProxy } from "./event-proxy.js";
+import { EventSink, UnconfiguredSink } from "./event-sink.js";
+import type { Sink } from "./event-input-port.js";
 import type { EventDeliveriesPort } from "./event-deliveries-port.js";
 import type {
   EventQueueRepository,
@@ -54,6 +57,50 @@ export function selectEventReporter(deps: SelectReporterDeps): EventReporter {
   log(`[events] reporting to the event-router at ${url}`);
 
   return new HttpEventReporter(url, internalToken(env));
+}
+
+/** Room for a router blip at the observed peak rate, not a durability budget —
+ *  the queue is in memory and dies with the process. */
+const DEFAULT_CAPACITY = 256;
+const DEFAULT_RETRY = { attempts: 5, delayMs: 500 };
+
+export interface SelectProxyDeps extends SelectReporterDeps {
+  capacity?: number;
+  retry?: { attempts: number; delayMs: number };
+  /** Rotate the credential when a sink refuses it — a satellite's single-flight
+   *  re-registration. A process with a static token leaves this unset. */
+  onUnauthorized?: () => Promise<unknown>;
+  /** Only a process that forwards agent telemetry configures this. */
+  telemetry?: Sink;
+}
+
+/**
+ * Resolve the {@link EventProxy} this process reports through — the queued
+ * `emit` path and the synchronous `insert` path over the same transport.
+ *
+ * Always a proxy, in both modes, so a caller holds one type. What the mode
+ * changes is underneath it: in local mode the event sink is the pool-backed
+ * reporter and there is a single delivery attempt, because a failed Postgres
+ * insert in this process is not a wire blip and retrying it buys nothing.
+ * `insert` is a straight passthrough either way, which is what the 202/500
+ * ingress routes depend on.
+ *
+ * Call once, at a composition root, and memoize there.
+ */
+export function selectEventProxy(deps: SelectProxyDeps): EventProxy {
+  const env = deps.env ?? process.env;
+  const routed = Boolean(env.EVENT_ROUTER_URL);
+  const reporter = selectEventReporter(deps);
+
+  return new EventProxy({
+    sinks: {
+      event: new EventSink(reporter),
+      telemetry: deps.telemetry ?? new UnconfiguredSink("telemetry"),
+    },
+    capacity: deps.capacity ?? DEFAULT_CAPACITY,
+    retry: deps.retry ?? (routed ? DEFAULT_RETRY : { attempts: 1, delayMs: 0 }),
+    onUnauthorized: deps.onUnauthorized,
+  });
 }
 
 export interface SelectQueueDeps {
