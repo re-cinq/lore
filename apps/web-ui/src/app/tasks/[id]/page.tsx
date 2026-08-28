@@ -45,10 +45,6 @@ export default async function TaskDetailPage({
     );
   }
 
-  const events = await fetchTaskEvents(id);
-
-  const failedEvent = events.find((e) => e.to_status === "failed");
-
   // The task's per-attempt run rows (pipeline.assembly_runs.task_id is non-unique
   // — a retry mints a fresh row) so the detail can link to each attempt's timeline.
   // queryAllowMissing: empty on pre-0025 DBs.
@@ -62,6 +58,9 @@ export default async function TaskDetailPage({
   if (runHref) {
     redirect(runHref);
   }
+
+  const events = await fetchTaskEvents(id);
+  const failedEvent = events.find((e) => e.to_status === "failed");
 
   return (
     <TaskDetailView
