@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type { Agent as AgentCr } from "@re-cinq/agent-contracts";
-import { statusFromAgentCr } from "./kube-agent-api.js";
+import { statusFromAgentCr } from "./agent-node-status.js";
 
 describe("statusFromAgentCr", () => {
   it("a CR the controller has not stamped yet maps to Pending, not absence", () => {

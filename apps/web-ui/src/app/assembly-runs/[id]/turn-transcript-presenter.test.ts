@@ -11,6 +11,8 @@ import {
   turnsForNode,
   turnHeading,
   envelopePretty,
+  conversationEntries,
+  clockTime,
 } from "./turn-transcript-presenter";
 
 function turn(id: string, nodeId: string | null): AgentRunTurn {
@@ -167,5 +169,113 @@ describe("serverReportsMore", () => {
   it("falls back to page-length inference without a flag", () => {
     expect(serverReportsMore(fullPage(), undefined)).toBe(true);
     expect(serverReportsMore([{}], undefined)).toBe(false);
+  });
+});
+
+function turnWithEnvelope(
+  id: string,
+  event: Record<string, unknown>,
+  createdAt = "2026-08-12T10:00:00.000Z",
+): AgentRunTurn {
+  return {
+    id,
+    taskId: "task-1",
+    agentCrName: "cr-implement",
+    assemblyLineId: "line-1",
+    nodeId: "implement",
+    iteration: 1,
+    stationRunId: null,
+    eventType: "assistant",
+    envelope: { source: { task: "task-1" }, event },
+    createdAt,
+  };
+}
+
+describe("conversationEntries", () => {
+  it("tags each turn's entries with that turn's timestamp", () => {
+    const turns = [
+      turnWithEnvelope(
+        "1",
+        {
+          type: "assistant",
+          message: {
+            role: "assistant",
+            content: [{ type: "text", text: "hello" }],
+          },
+        },
+        "2026-08-12T10:00:01.000Z",
+      ),
+    ];
+
+    expect(conversationEntries(turns)).toEqual([
+      {
+        at: "2026-08-12T10:00:01.000Z",
+        entry: { kind: "assistant-text", text: "hello" },
+      },
+    ]);
+  });
+
+  it("renders a kind-less lifecycle turn as a sentence, not unknown", () => {
+    const turns = [
+      turnWithEnvelope("1", {
+        kind: "lifecycle",
+        phase: "init",
+        status: "started",
+      }),
+    ];
+
+    expect(conversationEntries(turns)).toEqual([
+      {
+        at: "2026-08-12T10:00:00.000Z",
+        entry: { kind: "lifecycle", phase: "init", status: "started" },
+      },
+    ]);
+  });
+
+  it("synthesizes a raw entry for a turn that classifies to nothing", () => {
+    const turns = [turnWithEnvelope("1", { type: "user" })];
+
+    expect(conversationEntries(turns)).toEqual([
+      {
+        at: "2026-08-12T10:00:00.000Z",
+        entry: { kind: "raw", text: JSON.stringify(turns[0].envelope) },
+      },
+    ]);
+  });
+
+  it("collapses a run of consecutive thinking-tokens turns into the last one", () => {
+    const turns = [
+      turnWithEnvelope(
+        "1",
+        { type: "system", subtype: "thinking_tokens", estimated_tokens: 11 },
+        "2026-08-12T10:00:00.000Z",
+      ),
+      turnWithEnvelope(
+        "2",
+        { type: "system", subtype: "thinking_tokens", estimated_tokens: 21 },
+        "2026-08-12T10:00:01.000Z",
+      ),
+    ];
+
+    expect(conversationEntries(turns)).toEqual([
+      {
+        at: "2026-08-12T10:00:01.000Z",
+        entry: { kind: "thinking-tokens", tokens: 21 },
+      },
+    ]);
+  });
+
+  it("returns no entries for no turns", () => {
+    expect(conversationEntries([])).toEqual([]);
+  });
+});
+
+describe("clockTime", () => {
+  it("renders a plausible local time for an ISO timestamp", () => {
+    expect(clockTime("2026-08-12T10:00:00.000Z")).toMatch(/\d{1,2}:\d{2}/);
+  });
+
+  it("is empty for an unparseable timestamp", () => {
+    expect(clockTime("not-a-date")).toBe("");
   });
 });

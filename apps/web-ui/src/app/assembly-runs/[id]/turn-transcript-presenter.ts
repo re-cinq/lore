@@ -4,6 +4,11 @@
 // arithmetic and belong under direct test, not inside effects.
 
 import type { AgentRunTurn } from "@/lib/run-turn-types";
+import {
+  logEntriesFromValue,
+  supersedesPrevious,
+  type LogEntry,
+} from "@/lib/agent-log-entries";
 
 /**
  * The page size requested from the Floor route (its MAX limit, not its 1000
@@ -109,4 +114,53 @@ export function turnHeading(turn: AgentRunTurn): string {
 
 export function envelopePretty(turn: AgentRunTurn): string {
   return JSON.stringify(turn.envelope, null, 2);
+}
+
+/** One classified entry from one turn, carrying that turn's stored timestamp
+ *  — the per-message clock the formatted conversation renders. */
+export interface TimedLogEntry {
+  at: string;
+  entry: LogEntry;
+}
+
+/**
+ * The selected node's turns as a timed conversation: each turn's envelope
+ * classified via the same rules the pod-log viewers use, tagged with the
+ * turn's own `createdAt` rather than a joined blob's line position. A turn
+ * that classifies to nothing (an envelope shape the formatter does not know)
+ * still yields one raw entry — a group is never silently dropped — and a run
+ * of thinking-tokens ticks collapses to its last count, the same rule
+ * `parseAgentLog` folds a blob's lines on.
+ */
+export function conversationEntries(
+  turns: readonly AgentRunTurn[],
+): TimedLogEntry[] {
+  const timed: TimedLogEntry[] = [];
+
+  for (const turn of turns) {
+    const entries = logEntriesFromValue(
+      turn.envelope,
+      JSON.stringify(turn.envelope),
+    );
+
+    for (const entry of entries) {
+      const last = timed[timed.length - 1];
+
+      if (supersedesPrevious(last?.entry, entry)) {
+        timed[timed.length - 1] = { at: turn.createdAt, entry };
+        continue;
+      }
+      timed.push({ at: turn.createdAt, entry });
+    }
+  }
+
+  return timed;
+}
+
+/** A compact local clock time for a stored turn timestamp, or empty for a
+ *  value that does not parse — never a literal "Invalid Date" in the UI. */
+export function clockTime(iso: string): string {
+  const date = new Date(iso);
+
+  return Number.isNaN(date.getTime()) ? "" : date.toLocaleTimeString();
 }

@@ -966,6 +966,22 @@ fetching and polling. ([validated by `TimelinePanel.test.tsx:82`](apps/web-ui/sr
   right figure, since only the opening entry moves the counting window.
   ([`SpendView.test.tsx:322`](apps/web-ui/src/app/spend/SpendView.test.tsx#L322), [`SpendView.test.tsx:364`](apps/web-ui/src/app/spend/SpendView.test.tsx#L364), [`SpendView.test.tsx:374`](apps/web-ui/src/app/spend/SpendView.test.tsx#L374), [`SpendView.test.tsx:386`](apps/web-ui/src/app/spend/SpendView.test.tsx#L386), [`SpendView.test.tsx:409`](apps/web-ui/src/app/spend/SpendView.test.tsx#L409), [`SpendView.test.tsx:418`](apps/web-ui/src/app/spend/SpendView.test.tsx#L418), [`SpendView.test.tsx:424`](apps/web-ui/src/app/spend/SpendView.test.tsx#L424), [`SpendView.test.tsx:432`](apps/web-ui/src/app/spend/SpendView.test.tsx#L432), [`SpendView.test.tsx:436`](apps/web-ui/src/app/spend/SpendView.test.tsx#L436), [`actions.test.ts:33`](apps/web-ui/src/app/spend/actions.test.ts#L33), [`actions.test.ts:46`](apps/web-ui/src/app/spend/actions.test.ts#L46), [`actions.test.ts:60`](apps/web-ui/src/app/spend/actions.test.ts#L60), [`actions.test.ts:74`](apps/web-ui/src/app/spend/actions.test.ts#L74), [`actions.test.ts:85`](apps/web-ui/src/app/spend/actions.test.ts#L85), [`actions.test.ts:94`](apps/web-ui/src/app/spend/actions.test.ts#L94), [`actions.test.ts:101`](apps/web-ui/src/app/spend/actions.test.ts#L101), [`actions.test.ts:108`](apps/web-ui/src/app/spend/actions.test.ts#L108), [`actions.test.ts:124`](apps/web-ui/src/app/spend/actions.test.ts#L124), [`actions.test.ts:136`](apps/web-ui/src/app/spend/actions.test.ts#L136), [`SpendView.test.tsx:449`](apps/web-ui/src/app/spend/SpendView.test.tsx#L449), [`SpendView.test.tsx:461`](apps/web-ui/src/app/spend/SpendView.test.tsx#L461), [`SpendView.test.tsx:480`](apps/web-ui/src/app/spend/SpendView.test.tsx#L480), [`SpendView.test.tsx:510`](apps/web-ui/src/app/spend/SpendView.test.tsx#L510), [`SpendView.test.tsx:520`](apps/web-ui/src/app/spend/SpendView.test.tsx#L520), [`SpendView.test.tsx:535`](apps/web-ui/src/app/spend/SpendView.test.tsx#L535), [`SpendView.test.tsx:546`](apps/web-ui/src/app/spend/SpendView.test.tsx#L546), [`SpendView.test.tsx:554`](apps/web-ui/src/app/spend/SpendView.test.tsx#L554), [`SpendView.test.tsx:566`](apps/web-ui/src/app/spend/SpendView.test.tsx#L566), [`SpendView.test.tsx:579`](apps/web-ui/src/app/spend/SpendView.test.tsx#L579), [`SpendView.test.tsx:591`](apps/web-ui/src/app/spend/SpendView.test.tsx#L591), [`SpendView.test.tsx:601`](apps/web-ui/src/app/spend/SpendView.test.tsx#L601), [`SpendView.test.tsx:120`](apps/web-ui/src/app/spend/SpendView.test.tsx#L120), [`SpendView.test.tsx:136`](apps/web-ui/src/app/spend/SpendView.test.tsx#L136), [`SpendView.test.tsx:348`](apps/web-ui/src/app/spend/SpendView.test.tsx#L348))
 
+- FR-19.29: `/spend` attributes Lore-computed spend to the execution
+  cluster that ran each call, so a satellite cluster's burn is legible
+  apart from the home cluster's — the question Anthropic's own billing
+  cannot answer, since its cost report groups only by workspace and the
+  org runs a single one. A call reaches its cluster through the station
+  run it belongs to (`llm_calls.station_run_id` →
+  `station_runs.cluster_agent_id` → `cluster_agents.name`), joined with
+  OUTER joins so a direct-API call with no station run keeps its spend
+  under one `(central / regular)` bucket rather than being dropped, and
+  read through the same degrade-to-empty guard the billed figures use so
+  a deployment predating the station and cluster-agent tables renders
+  nothing instead of 500-ing the whole page. The table is optional in the
+  view: a caller that passes no cluster data renders exactly as before,
+  and an empty result shows an empty-state row rather than a blank table.
+  ([validated by [`spend.test.ts:392`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L392), [`spend.test.ts:411`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L411), [`spend.test.ts:432`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L432), [`SpendView.test.tsx:609`](apps/web-ui/src/app/spend/SpendView.test.tsx#L609), [`SpendView.test.tsx:627`](apps/web-ui/src/app/spend/SpendView.test.tsx#L627), [`SpendView.test.tsx:635`](apps/web-ui/src/app/spend/SpendView.test.tsx#L635)])
+
 ### FR-20: Project Facade Ports (Phase 1)
 
 The `Project` facade (ADR-024) exposes every data capability — tasks,

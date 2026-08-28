@@ -3,6 +3,14 @@
 // REVIEW_RESULT / phase precedence, reused from the station contract) → record it
 // (CAS) → advance the line. The CR may already be pruned (terminal +1h) — the
 // event's phase is the fallback, matching the poll path's no-output default.
+//
+// Since specs/running-stations-in-any-k8s-cluster FR4's follow-up, the event
+// itself may already carry the CR's status (`params.status`, reported by
+// cluster-agent at the source — see `project/events/k8s-map.ts`). When it
+// does, that IS the answer: no central-only read, no visibility gate, because
+// there is nothing left to interrogate a cluster for. Only an event from an
+// older, not-yet-redeployed cluster-agent (no `status` in its params) falls
+// through to the pre-existing central read + reaper handoff.
 
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import {
@@ -18,6 +26,7 @@ import { finishNodeTerminal, normalizeAgentStatus } from "./node-terminal.js";
 import { agentCrVisible } from "./cr-visibility.js";
 import { notifyLineFailure } from "./notify-failure.js";
 import { BillingAlertThrottle, maybeAlertBilling } from "./billing-alert.js";
+import { maybeAlertAgentConfig } from "./agent-config-alert.js";
 import { llmDispatchGate } from "./llm-dispatch-gate.js";
 import { artifactsFromTerminalOutput } from "../agent/artifact-args.js";
 import {
@@ -44,6 +53,39 @@ export interface NodeEventDeps extends AdvanceDeps {
     nodeType: string,
     status: AgentNodeStatus,
   ) => Promise<void>;
+  /** Fire the throttled operator alert when a CR failed because an
+   *  AgentDefinition's skills_source was unreachable — every Claude-agent node
+   *  the affected cluster claims fails identically until it is fixed
+   *  (best-effort; optional so tests/partial deps omit it). */
+  alertAgentConfig?: (
+    repo: string,
+    nodeType: string,
+    status: AgentNodeStatus,
+  ) => Promise<void>;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+/**
+ * The event's own reported `AgentNodeStatus` (specs/running-stations-in-any-k8s-cluster
+ * FR4's follow-up), or null when the reporter did not send one — an older
+ * cluster-agent, still on the read-back path. Narrowed defensively: `params`
+ * is untyped JSONB off the wire, not a value this process minted.
+ */
+export function reportedStatus(status: unknown): AgentNodeStatus | null {
+  if (!isRecord(status)) {
+    return null;
+  }
+
+  return {
+    ...(typeof status.phase === "string" ? { phase: status.phase } : {}),
+    ...(typeof status.output === "string" ? { output: status.output } : {}),
+    ...(typeof status.failureReason === "string"
+      ? { failureReason: status.failureReason }
+      : {}),
+  };
 }
 
 export function createNodeEventHandler(deps: NodeEventDeps): EventHandler {
@@ -75,44 +117,49 @@ export function createNodeEventHandler(deps: NodeEventDeps): EventHandler {
       return;
     }
 
-    // A CR this Floor cannot interrogate answers null, and the fallback below
-    // would read that null as "the agent produced nothing" — the opposite of
-    // what it means. A review node degraded that way tells the PR its review
-    // "never got far enough to judge the diff" while the agent's own output
-    // ended in REVIEW_RESULT:APPROVED (2026-08-27, every review on this repo,
-    // for as long as the central cluster stayed paused).
+    const reported = reportedStatus(params.status);
+
+    // Only when the event carries no status of its own (an older cluster-agent
+    // that has not been redeployed yet) does this Floor need to interrogate a
+    // cluster at all. A CR it cannot interrogate answers null, and the
+    // fallback below would read that null as "the agent produced nothing" —
+    // the opposite of what it means. A review node degraded that way tells
+    // the PR its review "never got far enough to judge the diff" while the
+    // agent's own output ended in REVIEW_RESULT:APPROVED (2026-08-27, every
+    // review on this repo, for as long as the central cluster stayed paused).
     //
     // So: hand the row to the reaper, which is already cluster-aware — it waits
     // the node's budget, requeues if the claimant dies, and times out honestly
-    // if it does not. Nothing is fabricated from an output nobody read. The
-    // satellite's outcome reaches the Floor for real once it is REPORTED
-    // alongside the terminal event rather than fetched back out of Kubernetes.
-    const openRow = (
-      await deps.assemblyRuns.listStationRuns(assemblyLineId)
-    ).find(
-      (row) =>
-        row.nodeId === nodeId &&
-        row.outcome === null &&
-        (iteration === undefined || row.iteration === iteration),
-    );
-    const centralClusterAgentId =
-      (await deps.centralClusterAgentId?.()) ?? null;
-
-    if (openRow && !agentCrVisible(openRow, centralClusterAgentId)) {
-      console.warn(
-        `[assembly-run] ${assemblyLineId} node ${nodeId}: terminal status unreadable — ` +
-          `the Agent CR ${agentName} was claimed by cluster ${openRow.clusterAgentId ?? "(none)"}, ` +
-          `which this Floor cannot read; leaving the node open for the reaper`,
+    // if it does not. Nothing is fabricated from an output nobody read.
+    if (reported === null) {
+      const openRow = (
+        await deps.assemblyRuns.listStationRuns(assemblyLineId)
+      ).find(
+        (row) =>
+          row.nodeId === nodeId &&
+          row.outcome === null &&
+          (iteration === undefined || row.iteration === iteration),
       );
+      const centralClusterAgentId =
+        (await deps.centralClusterAgentId?.()) ?? null;
 
-      return;
+      if (openRow && !agentCrVisible(openRow, centralClusterAgentId)) {
+        console.warn(
+          `[assembly-run] ${assemblyLineId} node ${nodeId}: terminal status unreadable — ` +
+            `the Agent CR ${agentName} was claimed by cluster ${openRow.clusterAgentId ?? "(none)"}, ` +
+            `which this Floor cannot read; leaving the node open for the reaper`,
+        );
+
+        return;
+      }
     }
     // Unwrap the NDJSON envelope once, here: every text parser below (the outcome
     // precedence and the review findings alike) must read the agent text, not the
     // stream that carries it.
-    const rawStatus = (await deps.readAgentStatus(agentName)) ?? {
-      phase: String(params.phase ?? ""),
-    };
+    const rawStatus = reported ??
+      (await deps.readAgentStatus(agentName)) ?? {
+        phase: String(params.phase ?? ""),
+      };
     const status = normalizeAgentStatus(rawStatus);
     // Delivery rides the advancing event, and lands BEFORE the walk moves: the
     // sink these artifacts normally arrive on is a separate HTTP post racing this
@@ -124,9 +171,16 @@ export function createNodeEventHandler(deps: NodeEventDeps): EventHandler {
 
     // An account-out-of-credits failure downs every LLM node at once; surface it
     // once to operators (the seam throttles + classifies) before the per-line
-    // failure notice, which only ever carries a routing reason.
+    // failure notice, which only ever carries a routing reason. A missing-settings
+    // failure (an unreachable skills_source) is the same shape of outage on a
+    // different axis — every Claude-agent node on the affected CLUSTER, not the
+    // account — so it gets the same treatment.
     if (result.outcome === "failed" && deps.alertBilling) {
       await deps.alertBilling(row.repo, node.type, status);
+    }
+
+    if (result.outcome === "failed" && deps.alertAgentConfig) {
+      await deps.alertAgentConfig(row.repo, node.type, status);
     }
     tripGateOnAccountOutage(result, deps);
 
@@ -363,12 +417,23 @@ export async function productionNodeEventDeps(): Promise<NodeEventDeps> {
         throttle: billingAlertThrottle,
       });
     },
+    alertAgentConfig: async (repo, nodeType, status) => {
+      await maybeAlertAgentConfig(repo, nodeType, status, {
+        notify: async (level, message) =>
+          (await projectFor(repo)).notify.notify(level, message),
+        throttle: agentConfigAlertThrottle,
+      });
+    },
   };
 }
 
 /** Module singleton: the billing outage is account-wide, so the alert throttle
  *  must survive across per-event deps (one alert/hour across all repos). */
 const billingAlertThrottle = new BillingAlertThrottle();
+
+/** Module singleton, same reasoning: a misconfigured skills_source strands
+ *  every Claude-agent node a cluster claims, not just one repo's run. */
+const agentConfigAlertThrottle = new BillingAlertThrottle();
 
 /** Composed production handler for the registry (both node-terminal events). */
 export const agentNodeTerminal: EventHandler = async (params) => {

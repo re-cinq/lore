@@ -25,6 +25,7 @@ const FAILURE_CLASS = z.enum([
   "github-workflows-permission",
   "github-permission",
   "auth",
+  "agent-settings-missing",
   "infra",
   "unknown",
 ]);

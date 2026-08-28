@@ -45,7 +45,12 @@ describe("reportForAgent", () => {
       {
         eventName: "kubernetes.agent.succeeded",
         source: "kubernetes",
-        params: { taskId: "task-1", agentName: "cr-1", phase: "Succeeded" },
+        params: {
+          taskId: "task-1",
+          agentName: "cr-1",
+          phase: "Succeeded",
+          status: { phase: "Succeeded" },
+        },
         dedupeKey: "k8s:task-1:Succeeded",
       },
     ]);

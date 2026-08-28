@@ -303,6 +303,24 @@ const SpendSchema = z.object({
       cost_usd: z.number(),
     }),
   ),
+  /**
+   * Computed spend attributed to the execution cluster that ran each call —
+   * the one figure on this page that separates a satellite cluster's burn from
+   * the home cluster's. A call reaches its cluster through the station run it
+   * belongs to (`llm_calls.station_run_id` → `station_runs.cluster_agent_id`),
+   * so a direct-API call with no station run carries no cluster and lands in a
+   * single labelled bucket rather than vanishing.
+   *
+   * Computed, not billed: Anthropic's cost report cannot split one workspace by
+   * key, so per-cluster attribution exists only on the token-counted side.
+   */
+  lore_by_cluster: z.array(
+    z.object({
+      cluster: z.string(),
+      calls: z.number(),
+      cost_usd: z.number(),
+    }),
+  ),
 });
 
 export function analyticsOverviewRoute(
@@ -512,6 +530,27 @@ export function spendRoute(getPool: () => Pool | null): ServerRoute {
          WHERE lc.${MTD}
          GROUP BY t.task_type ORDER BY cost_usd DESC`,
       );
+      // Which cluster ran the call, via the station run it belongs to. Outer
+      // joins on purpose: a call with no station run (a direct-API task) has no
+      // cluster_agent_id, and an inner join would silently drop it instead of
+      // gathering it under the labelled home bucket. `optionalTableRows` because
+      // station_runs / cluster_agents arrive with migrations — a deployment
+      // that predates them must render empty, not 500 the whole page.
+      const loreByCluster = await optionalTableRows<{
+        cluster: string;
+        calls: number;
+        cost_usd: number;
+      }>(
+        pool,
+        `SELECT COALESCE(ca.name, '(central / regular)') AS cluster,
+           COUNT(*)::int AS calls, SUM(lc.cost_usd)::float8 AS cost_usd
+         FROM pipeline.llm_calls lc
+         LEFT JOIN pipeline.station_runs sr
+           ON sr.station_run_id = lc.station_run_id
+         LEFT JOIN pipeline.cluster_agents ca ON ca.id = sr.cluster_agent_id
+         WHERE lc.${MTD}
+         GROUP BY 1 ORDER BY cost_usd DESC`,
+      );
 
       // Read last, so the statement ordering every other read already depends
       // on stays exactly as it was. An empty ledger yields one row whose
@@ -579,6 +618,7 @@ export function spendRoute(getPool: () => Pool | null): ServerRoute {
         lore_daily: loreDaily,
         lore_by_repo: loreByRepo,
         lore_by_task_type: loreByTaskType,
+        lore_by_cluster: loreByCluster,
       });
     },
   };
