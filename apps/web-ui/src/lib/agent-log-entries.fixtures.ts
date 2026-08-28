@@ -98,6 +98,21 @@ export const HOOK_RESPONSE_BOOTSTRAP =
 export const HOOK_RESPONSE_FAILED =
   '{"type":"system","uuid":"5f2c0a71-3d5e-4a1b-9c88-2b6f0e4d1a33","output":"lore-doctor: skill drift detected\\n","stderr":"lore-doctor: skill drift detected\\n","stdout":"","hook_id":"aa11bb22-cc33-dd44-ee55-ff6677889900","outcome":"blocked","subtype":"hook_response","exit_code":2,"hook_name":"PreToolUse:Bash","hook_event":"PreToolUse","session_id":"c83b4bb1-f1fb-4039-b39c-d34f445d6c68"}';
 
+// Heartbeats from a live review pod (task f89164e0, pod
+// agent-job-f89164e0-31a-review-zhs6b, 2026-08-28), carrying the attribution
+// envelope exactly as the transcript store holds them. A tool that runs long
+// emits one every ~30s, and they are CUMULATIVE: `elapsed_time_seconds` is the
+// total so far, and each line's own `tool_use_id` is a fresh
+// `<parent>-heartbeat-<n>`, so only `parent_tool_use_id` identifies the call.
+// The run emitted nineteen of these for one Skill; the elided ones differ from
+// these two only in how far the clock had run.
+
+export const TOOL_PROGRESS_SKILL_FIRST =
+  '{"event":{"type":"tool_progress","uuid":"fef6ccfa-242e-4fb6-b3b7-86b01dd4a606","heartbeat":true,"tool_name":"Skill","session_id":"a87a1a11-4898-4b8c-b252-b5b48f3f9021","tool_use_id":"toolu_01U2T4eX8rrZghzWR3ETfD5X-heartbeat-13","parent_tool_use_id":"toolu_01U2T4eX8rrZghzWR3ETfD5X","elapsed_time_seconds":420},"source":{"pod":"agent-job-f89164e0-31a-review-zhs6b","task":"f89164e0-31ad-4429-9d46-f1a6367d8f89","agent":"f89164e0-31a-review","station":"pt-f89164e0","namespace":"ai-agents"}}';
+
+export const TOOL_PROGRESS_SKILL_LAST =
+  '{"event":{"type":"tool_progress","uuid":"931f6491-d1ef-40c2-b2f7-5286c79f3b21","heartbeat":true,"tool_name":"Skill","session_id":"a87a1a11-4898-4b8c-b252-b5b48f3f9021","tool_use_id":"toolu_01U2T4eX8rrZghzWR3ETfD5X-heartbeat-19","parent_tool_use_id":"toolu_01U2T4eX8rrZghzWR3ETfD5X","elapsed_time_seconds":600},"source":{"pod":"agent-job-f89164e0-31a-review-zhs6b","task":"f89164e0-31ad-4429-9d46-f1a6367d8f89","agent":"f89164e0-31a-review","station":"pt-f89164e0","namespace":"ai-agents"}}';
+
 /** A `system` line of a subtype the parser has never seen. Pins the generic
  *  fallback: unrecognized system events must summarize, not dump raw JSON. */
 export const SYSTEM_COMPACT_BOUNDARY =

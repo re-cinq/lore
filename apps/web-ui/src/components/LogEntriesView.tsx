@@ -50,6 +50,16 @@ export function hookSummary(
   return `· hook ${entry.hookName} ${status}`;
 }
 
+/** How a still-running tool call reads. The elapsed seconds are the total for
+ *  the call, so the folded run's newest beat is the whole clock. */
+export function toolProgressSummary(
+  entry: Extract<LogEntry, { kind: "tool-progress" }>,
+): string {
+  return `· ${entry.toolName} still running… (${formatDuration(
+    entry.elapsedSeconds * 1000,
+  )})`;
+}
+
 /** One entry's line. Exported so a view that adds its own gutter (the run
  *  page's timestamped transcript) reuses this switch instead of copying it. */
 export function EntryLine({ entry }: { entry: LogEntry }) {
@@ -146,6 +156,8 @@ export function EntryLine({ entry }: { entry: LogEntry }) {
         </details>
       );
     }
+    case "tool-progress":
+      return <div className={styles.dim}>{toolProgressSummary(entry)}</div>;
     case "system":
       return (
         <details className={styles.dim}>
