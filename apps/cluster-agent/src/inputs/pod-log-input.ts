@@ -18,7 +18,12 @@
  */
 
 import { Writable } from "node:stream";
-import { KubeConfig, CoreV1Api, Log } from "@kubernetes/client-node";
+import {
+  KubeConfig,
+  CoreV1Api,
+  CustomObjectsApi,
+  Log,
+} from "@kubernetes/client-node";
 import { agentsNamespace, loadKube } from "@re-cinq/lore-shared";
 import type {
   Emit,
@@ -31,6 +36,7 @@ import {
   followableAgents,
   podLogEvent,
   type BatchLimits,
+  type FollowableAgent,
   type PendingBatch,
   type PodLogTarget,
 } from "./pod-log-batching.js";
@@ -99,12 +105,10 @@ export class PodLogInput implements EventInput {
 
       const namespace = agentsNamespace();
       const core = kc.makeApiClient(CoreV1Api);
-      const agents: unknown[] = [];
+      const agents: FollowableAgent[] = [];
 
       await forEachAgentPage(
-        kc.makeApiClient(
-          (await import("@kubernetes/client-node")).CustomObjectsApi,
-        ),
+        kc.makeApiClient(CustomObjectsApi),
         namespace,
         async (page) => {
           agents.push(...page);
@@ -112,7 +116,7 @@ export class PodLogInput implements EventInput {
       );
 
       for (const agent of followableAgents(
-        agents as never[],
+        agents as FollowableAgent[],
         new Set(this.followers.keys()),
       )) {
         const pods = await core.listNamespacedPod({
@@ -163,13 +167,21 @@ export class PodLogInput implements EventInput {
         carry = parts.pop() ?? "";
 
         void (async () => {
-          for (const line of parts) {
-            const step = addLine(batch, line, LIMITS);
+          try {
+            for (const line of parts) {
+              const step = addLine(batch, line, LIMITS);
 
-            batch = step.batch;
-            await send(step.flushed);
+              batch = step.batch;
+              await send(step.flushed);
+            }
+            done();
+          } catch (err) {
+            // `done` MUST run on every path. A write callback that never
+            // resolves stalls the Writable for good, so a single failed emit
+            // would wedge this pod's stream with no error and no end — the
+            // stream would simply stop, indistinguishable from a quiet pod.
+            done(err instanceof Error ? err : new Error(String(err)));
           }
-          done();
         })();
       },
     });
@@ -182,6 +194,30 @@ export class PodLogInput implements EventInput {
     }, IDLE_FLUSH_MS);
 
     const abort = new AbortController();
+
+    // A pod that finishes is the ordinary case, not an edge one: the stream
+    // ends, and without this the idle timer keeps draining a dead batch forever
+    // and the follower entry never leaves the map. The final drain matters as
+    // much as the cleanup — a pod whose last lines did not fill a chunk would
+    // otherwise lose them, which is exactly the output of a crashed run.
+    const finish = (why: string) => {
+      const step = drain(batch);
+
+      batch = step.batch;
+      void send(step.flushed).catch((err) =>
+        console.error(
+          `[cluster-agent] final pod-log flush failed for ${target.podName} (${why}):`,
+          (err as Error).message,
+        ),
+      );
+      clearInterval(timer);
+      this.followers.delete(target.agentCrName);
+    };
+
+    sink.once("finish", () => finish("stream ended"));
+    sink.once("error", (err: Error) =>
+      finish(`stream errored: ${err.message}`),
+    );
 
     this.followers.set(target.agentCrName, { abort, timer });
 
@@ -197,8 +233,7 @@ export class PodLogInput implements EventInput {
           `[cluster-agent] pod-log stream failed for ${target.podName}:`,
           (err as Error).message,
         );
-        clearInterval(timer);
-        this.followers.delete(target.agentCrName);
+        finish("stream could not be opened");
       });
   }
 }

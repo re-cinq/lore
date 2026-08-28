@@ -35,7 +35,7 @@ describe("addLine", () => {
     expect(flushed).toEqual(["a\nb\nc\n"]);
   });
 
-  it("flushes early once the byte cap is reached, so one enormous line cannot grow the batch unbounded", () => {
+  it("flushes early once accumulated bytes reach the cap, even when no single line exceeds it", () => {
     const { flushed } = feed(["x".repeat(50), "y".repeat(50)]);
 
     expect(flushed).toEqual([`${"x".repeat(50)}\n${"y".repeat(50)}\n`]);

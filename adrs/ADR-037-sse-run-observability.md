@@ -195,9 +195,19 @@ than arriving with a deploy. Every limit below is that trade being paid for.
 The input awaits its `emit`, so a full queue slows the reader of the pod's
 stream rather than accumulating unsent chunks in the cluster-agent — the same
 backpressure the Agent-CR watch gets from its promise chain, and the only thing
-that makes the queue's bound mean anything here. That is enforced in the
-connection shell, which needs a cluster to exercise, so it is stated rather than
-linked.
+that makes the queue's bound mean anything here.
+
+A stream that ENDS drains its partial batch before cleaning up, and cleans up on
+every path — normal end, stream error, and a stream that could not be opened.
+Both halves matter: a pod whose last lines did not fill a chunk would otherwise
+lose them, which is precisely the output of a crashed run, and an uncleaned
+follower leaves an idle timer draining a dead batch for the life of the process.
+The write callback likewise runs on every path, because a Writable whose
+callback never resolves stalls for good — one failed emit would wedge that pod's
+stream with no error and no end, indistinguishable from a quiet pod.
+
+All of that is enforced in the connection shell, which needs a cluster to
+exercise, so it is stated here rather than linked.
 
 #### Decisions
 
