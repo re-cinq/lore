@@ -88,8 +88,11 @@ name="${LORE_CLUSTER_AGENT_NAME:-satellite-$context}"
 # LORE_INGEST_TOKEN, and FR5 keeps that credential on the central cluster —
 # so a satellite that advertises node:validate claims the node and then dies
 # at init with CreateContainerConfigError, wasting the claim and the run
-# (found live 2026-08-28, run 595d2b0b). Central claims those nodes instead;
-# override --tags only for station types this cluster can actually serve.
+# (found live 2026-08-28, run 595d2b0b). The same goes for github_action (a
+# station recipe too), and retrospective is a service node the Floor runs
+# itself — never dispatched to any cluster, so the tag was inert. Central
+# claims station nodes instead; override --tags only for station types this
+# cluster can actually serve.
 tags="${LORE_CLUSTER_AGENT_TAGS:-node:agent}"
 
 # A laptop bills the developer's subscription when it can (values.minikube

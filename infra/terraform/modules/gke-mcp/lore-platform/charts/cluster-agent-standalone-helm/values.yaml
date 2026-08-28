@@ -61,8 +61,8 @@ agentEventsUrl: ""
 
 # Optional per-task GitHub credential (#1575). Without it, this cluster-agent
 # can still register/claim/heartbeat — but a claimed run needing a git push
-# (agent, github_action) fails "GitHub not configured" once claimed, wasting
-# the claim. (Station types need no push, but see `tags` above: they need a
+# (agent, github_action, retrospective) fails "GitHub not configured" once
+# claimed, wasting the claim. (Station types need no push, but see `tags` above: they need a
 # credential this chart never ships.) Set at most one of:
 #   token          — a GitHub PAT scoped to the repos this satellite may push
 #                    to (least privilege; the natural choice for a personal
