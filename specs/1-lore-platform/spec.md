@@ -643,26 +643,32 @@ non-terminal states and resolve them without manual intervention. ([validated by
 
 ### FR-19: Task Detail UI (Phase 1)
 
-The web UI MUST present a per-task detail view at `/tasks/[id]` that
-surfaces the task's metadata, run attempts, stage timeline, PR status,
-event history, and LLM-call ledger. ([validated by `TaskDetailView.test.tsx:96`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L96))
-
-Live sections follow a data-down/actions-up split: pure `*View`
-presentational components are fed by IO `*Panel` containers that own
-fetching and polling. ([validated by `TimelinePanel.test.tsx:82`](apps/web-ui/src/app/tasks/[id]/TimelinePanel.test.tsx#L82))
+The web UI MUST present a per-task detail view at `/tasks/[id]` that is
+the task's lifecycle shell — metadata, PR status, failure reason, the
+cancel/revision controls, and the list of run attempts — while all
+execution detail (per-node timeline, transcript, pod logs, event
+history, LLM-call ledger) lives on the run detail page at
+`/assembly-runs/[id]` (issue #1608: task = the request, run = one
+attempt). ([validated by `TaskDetailView.test.tsx:109`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L109), [`TaskDetailView.test.tsx:318`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L318))
 
 - FR-19.1: The detail heading reads `Task: <description>` with the
   description truncated to 80 characters, and the view shows the task
   type, target repo, creator, and a sentence-cased status badge.
   Priority renders as a red badge when `immediate` and falls back to a
-  plain `normal` meta label when empty. ([validated by `TaskDetailView.test.tsx:96`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L96), [`TaskDetailView.test.tsx:115`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L115), [`TaskDetailView.test.tsx:123`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L123), [`TaskDetailView.test.tsx:135`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L135), [`TaskDetailView.test.tsx:142`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L142))
+  plain `normal` meta label when empty. ([validated by `TaskDetailView.test.tsx:109`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L109), [`TaskDetailView.test.tsx:128`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L128), [`TaskDetailView.test.tsx:136`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L136), [`TaskDetailView.test.tsx:148`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L148), [`TaskDetailView.test.tsx:155`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L155))
 - FR-19.2: The agent row, failure row, and review-iterations row each
   render only when their value is present (agent assigned, failure
   reason set, review iteration greater than zero) and are omitted
-  otherwise. ([validated by `TaskDetailView.test.tsx:196`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L196), [`TaskDetailView.test.tsx:202`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L202), [`TaskDetailView.test.tsx:224`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L224), [`TaskDetailView.test.tsx:230`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L230), [`TaskDetailView.test.tsx:236`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L236))
+  otherwise. ([validated by `TaskDetailView.test.tsx:209`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L209), [`TaskDetailView.test.tsx:215`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L215), [`TaskDetailView.test.tsx:237`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L237), [`TaskDetailView.test.tsx:243`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L243), [`TaskDetailView.test.tsx:249`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L249))
 - FR-19.3: The view lists the task's run attempts under a "Runs"
-  heading, each linking to its run detail at `/assembly-runs/<run-id>`,
-  and omits the section entirely when the task has no runs. ([validated by `TaskDetailView.test.tsx:67`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L67), [`TaskDetailView.test.tsx:88`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L88))
+  heading, each linking to its run detail at `/assembly-runs/<run-id>`
+  with a status-classed badge showing the run's outcome (falling back
+  to its status) and its start time, and omits the section entirely
+  when the task has no runs. ([validated by `TaskDetailView.test.tsx:54`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L54), [`TaskDetailView.test.tsx:75`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L75), [`TaskDetailView.test.tsx:101`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L101))
+- FR-19.3a: When the task has exactly one run attempt, the page
+  redirects straight to that run's detail page — the run page links
+  back via "View task →"; with zero or several attempts the lifecycle
+  shell renders with its runs list. ([validated by `TaskDetailView.test.tsx:340`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L340), [`TaskDetailView.test.tsx:346`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L346), [`TaskDetailView.test.tsx:350`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L350))
 - FR-19.4: In-flight controls follow actions-up: a "Run Now" form
   posting to `/api/tasks/<id>/run-now` appears only for pending
   normal-priority tasks; a "Cancel Task" control appears for
@@ -671,37 +677,18 @@ fetching and polling. ([validated by `TimelinePanel.test.tsx:82`](apps/web-ui/sr
   then reveals a form posting to `/api/tasks/<id>/cancel` that "Keep
   task" backs out of; and a "Give Feedback" form wired to the injected
   server action (with a hidden `task_id`) shows only for a task that has
-  a PR and is not cancelled. ([validated by `TaskDetailView.test.tsx:149`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L149), [`TaskDetailView.test.tsx:160`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L160), [`TaskDetailView.test.tsx:167`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L167), [`TaskDetailView.test.tsx:176`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L176), [`TaskDetailView.test.tsx:189`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L189), [`TaskDetailView.test.tsx:265`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L265), [`TaskDetailView.test.tsx:286`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L286), [`TaskDetailView.test.tsx:293`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L293), [`CancelTaskButton.test.tsx:7`](apps/web-ui/src/app/tasks/[id]/CancelTaskButton.test.tsx#L7), [`CancelTaskButton.test.tsx:17`](apps/web-ui/src/app/tasks/[id]/CancelTaskButton.test.tsx#L17), [`CancelTaskButton.test.tsx:30`](apps/web-ui/src/app/tasks/[id]/CancelTaskButton.test.tsx#L30))
+  a PR and is not cancelled. ([validated by `TaskDetailView.test.tsx:162`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L162), [`TaskDetailView.test.tsx:173`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L173), [`TaskDetailView.test.tsx:180`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L180), [`TaskDetailView.test.tsx:189`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L189), [`TaskDetailView.test.tsx:202`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L202), [`TaskDetailView.test.tsx:277`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L277), [`TaskDetailView.test.tsx:298`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L298), [`TaskDetailView.test.tsx:305`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L305), [`CancelTaskButton.test.tsx:7`](apps/web-ui/src/app/tasks/[id]/CancelTaskButton.test.tsx#L7), [`CancelTaskButton.test.tsx:17`](apps/web-ui/src/app/tasks/[id]/CancelTaskButton.test.tsx#L17), [`CancelTaskButton.test.tsx:30`](apps/web-ui/src/app/tasks/[id]/CancelTaskButton.test.tsx#L30))
 - FR-19.5: When a failed task carries a failed-event with metadata, the
   view renders a "Failure" panel surfacing the error; absent that
-  metadata no panel is shown. ([validated by `TaskDetailView.test.tsx:241`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L241), [`TaskDetailView.test.tsx:258`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L258))
-- FR-19.6: The event timeline renders one badge per status transition
-  (sentence-cased to-status with a from-status arrow), pretty-prints
-  event metadata as JSON, and shows an empty-state note when there are
-  no events. ([validated by `TaskDetailView.test.tsx:306`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L306), [`EventTimeline.test.tsx:18`](apps/web-ui/src/app/tasks/[id]/EventTimeline.test.tsx#L18), [`EventTimeline.test.tsx:32`](apps/web-ui/src/app/tasks/[id]/EventTimeline.test.tsx#L32), [`EventTimeline.test.tsx:40`](apps/web-ui/src/app/tasks/[id]/EventTimeline.test.tsx#L40))
-- FR-19.7: The LLM-calls table renders one row per call with the model,
-  `input / output` token counts, duration, and a status badge (red with
-  the error text on failure), and shows an empty-state note in place of
-  the table when there are none. ([validated by `TaskDetailView.test.tsx:336`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L336), [`TaskDetailView.test.tsx:354`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L354), [`TaskDetailView.test.tsx:368`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L368), [`LlmCallsTable.test.tsx:19`](apps/web-ui/src/app/tasks/[id]/LlmCallsTable.test.tsx#L19), [`LlmCallsTable.test.tsx:27`](apps/web-ui/src/app/tasks/[id]/LlmCallsTable.test.tsx#L27), [`LlmCallsTable.test.tsx:35`](apps/web-ui/src/app/tasks/[id]/LlmCallsTable.test.tsx#L35))
-- FR-19.8: The pure stage-timeline view renders loading, error
-  (`Timeline unavailable: <reason>`), and empty (nothing rendered)
-  states from its props, shows "No stage commits yet." when the branch
-  exists but has no commits, renders a `no_branch` pending notice and a
-  branch-deleted banner that suppresses the empty-commits message, and
-  for each commit shows a node icon (bullet fallback for unknown
-  stages), an outcome pill coloured by outcome (success /
-  changes_requested / failed with a muted fallback), a formatted
-  duration (null / ms / seconds / minutes), a GitHub commit link
-  omitted when the repo is null, and a held-lease indicator naming the
-  holder and its expiry (expiry omitted when absent, hidden when the
-  lease is not held). ([validated by `TimelineView.test.tsx:45`](apps/web-ui/src/app/tasks/[id]/TimelineView.test.tsx#L45), [`TimelineView.test.tsx:51`](apps/web-ui/src/app/tasks/[id]/TimelineView.test.tsx#L51), [`TimelineView.test.tsx:59`](apps/web-ui/src/app/tasks/[id]/TimelineView.test.tsx#L59), [`TimelineView.test.tsx:67`](apps/web-ui/src/app/tasks/[id]/TimelineView.test.tsx#L67), [`TimelineView.test.tsx:74`](apps/web-ui/src/app/tasks/[id]/TimelineView.test.tsx#L74), [`TimelineView.test.tsx:88`](apps/web-ui/src/app/tasks/[id]/TimelineView.test.tsx#L88), [`TimelineView.test.tsx:123`](apps/web-ui/src/app/tasks/[id]/TimelineView.test.tsx#L123), [`TimelineView.test.tsx:139`](apps/web-ui/src/app/tasks/[id]/TimelineView.test.tsx#L139), [`TimelineView.test.tsx:169`](apps/web-ui/src/app/tasks/[id]/TimelineView.test.tsx#L169), [`TimelineView.test.tsx:191`](apps/web-ui/src/app/tasks/[id]/TimelineView.test.tsx#L191), [`TimelineView.test.tsx:212`](apps/web-ui/src/app/tasks/[id]/TimelineView.test.tsx#L212), [`TimelineView.test.tsx:224`](apps/web-ui/src/app/tasks/[id]/TimelineView.test.tsx#L224), [`TimelineView.test.tsx:244`](apps/web-ui/src/app/tasks/[id]/TimelineView.test.tsx#L244), [`TimelineView.test.tsx:257`](apps/web-ui/src/app/tasks/[id]/TimelineView.test.tsx#L257))
-- FR-19.9: The timeline container fetches `/api/tasks/<id>/timeline`,
-  rendering loading, error (non-ok response or rejected fetch), and
-  resolved states, clears a prior error after a later successful poll,
-  refreshes on the page coordinator's ticks while the task is active
-  (driven by `initialStatus` or a still-active `current_stage`), reports
-  inactive for a terminal status whose stage is `retrospective` so no
-  ticks reach it, and stops fetching after unmount. ([validated by `TimelinePanel.test.tsx:82`](apps/web-ui/src/app/tasks/[id]/TimelinePanel.test.tsx#L82), [`TimelinePanel.test.tsx:103`](apps/web-ui/src/app/tasks/[id]/TimelinePanel.test.tsx#L103), [`TimelinePanel.test.tsx:113`](apps/web-ui/src/app/tasks/[id]/TimelinePanel.test.tsx#L116), [`TimelinePanel.test.tsx:123`](apps/web-ui/src/app/tasks/[id]/TimelinePanel.test.tsx#L126), [`TimelinePanel.test.tsx:136`](apps/web-ui/src/app/tasks/[id]/TimelinePanel.test.tsx#L139), [`TimelinePanel.test.tsx:148`](apps/web-ui/src/app/tasks/[id]/TimelinePanel.test.tsx#L151), [`TimelinePanel.test.tsx:168`](apps/web-ui/src/app/tasks/[id]/TimelinePanel.test.tsx#L171), [`TimelinePanel.test.tsx:193`](apps/web-ui/src/app/tasks/[id]/TimelinePanel.test.tsx#L196), [`TimelinePanel.test.tsx:211`](apps/web-ui/src/app/tasks/[id]/TimelinePanel.test.tsx#L214), [`TimelinePanel.test.tsx:234`](apps/web-ui/src/app/tasks/[id]/TimelinePanel.test.tsx#L237))
+  metadata no panel is shown. ([validated by `TaskDetailView.test.tsx:254`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L254), [`TaskDetailView.test.tsx:270`](apps/web-ui/src/app/tasks/[id]/TaskDetailView.test.tsx#L270))
+- FR-19.6: The run detail page renders the task's event timeline: one
+  badge per status transition (sentence-cased to-status with a
+  from-status arrow), pretty-printed event metadata as JSON, and an
+  empty-state note when there are no events. ([validated by `EventTimeline.test.tsx:18`](apps/web-ui/src/app/tasks/[id]/EventTimeline.test.tsx#L18), [`EventTimeline.test.tsx:32`](apps/web-ui/src/app/tasks/[id]/EventTimeline.test.tsx#L32), [`EventTimeline.test.tsx:40`](apps/web-ui/src/app/tasks/[id]/EventTimeline.test.tsx#L40))
+- FR-19.7: The run detail page renders the task's LLM-call table: one
+  row per call with the model, `input / output` token counts, duration,
+  and a status badge (red with the error text on failure), and an
+  empty-state note in place of the table when there are none. ([validated by `LlmCallsTable.test.tsx:19`](apps/web-ui/src/app/tasks/[id]/LlmCallsTable.test.tsx#L19), [`LlmCallsTable.test.tsx:27`](apps/web-ui/src/app/tasks/[id]/LlmCallsTable.test.tsx#L27), [`LlmCallsTable.test.tsx:35`](apps/web-ui/src/app/tasks/[id]/LlmCallsTable.test.tsx#L35))
 - FR-19.10: The pure PR status card shows a loading placeholder until
   details arrive, an "unavailable" fallback with a "View on GitHub" link
   when only an error is present, keeps the loaded details on screen even
@@ -1331,7 +1318,7 @@ enforced by benchmarking, infrastructure configuration, and review process.
 - Autonomous review loop (opt-in per repo, webhook-driven per ADR-015).
 - Progressive trust gating.
 - Slack integration (`/lore` slash command + watcher notifications).
-- Web UI (`/onboard`, pipeline status, task logs, analytics, knowledge graph, gaps). ([validated by `GapsView.test.tsx:26`](apps/web-ui/src/app/gaps/GapsView.test.tsx#L26), [`GraphView.test.tsx:35`](apps/web-ui/src/app/graph/GraphView.test.tsx#L35), [`AnalyticsView.test.tsx:116`](apps/web-ui/src/app/analytics/AnalyticsView.test.tsx#L116), [`TaskLogs.test.tsx:152`](apps/web-ui/src/app/tasks/[id]/TaskLogs.test.tsx#L152), [`OnboardView.test.tsx:9`](apps/web-ui/src/app/onboard/OnboardView.test.tsx#L9))
+- Web UI (`/onboard`, pipeline status, run transcripts, analytics, knowledge graph, gaps). ([validated by `GapsView.test.tsx:26`](apps/web-ui/src/app/gaps/GapsView.test.tsx#L26), [`GraphView.test.tsx:35`](apps/web-ui/src/app/graph/GraphView.test.tsx#L35), [`AnalyticsView.test.tsx:116`](apps/web-ui/src/app/analytics/AnalyticsView.test.tsx#L116), [`NodeLogPanel.test.tsx:67`](apps/web-ui/src/app/assembly-runs/[id]/NodeLogPanel.test.tsx#L67), [`OnboardView.test.tsx:9`](apps/web-ui/src/app/onboard/OnboardView.test.tsx#L9))
 - Spec drift detection (Phase 2).
 - Prompt caching on agent LLM calls (ADR-015).
 - Per-template context budgets (ADR-015).

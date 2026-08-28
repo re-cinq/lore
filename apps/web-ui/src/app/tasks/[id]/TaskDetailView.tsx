@@ -2,16 +2,12 @@ import Link from "next/link";
 import PRStatusPanel from "./PRStatusPanel";
 import TaskRefreshProvider from "./TaskRefreshProvider";
 import { CancelTaskButton } from "./CancelTaskButton";
-import TaskLogs from "./TaskLogs";
-import TimelinePanel from "./TimelinePanel";
 import FailurePanel from "./FailurePanel";
-import EventTimeline from "./EventTimeline";
-import LlmCallsTable from "./LlmCallsTable";
 import Linkified from "@/components/Linkified";
 import { isCancellable } from "@/lib/task-status";
 import { TimeAgo } from "@/components/TimeAgo";
 import { formatEnumLabel } from "@/lib/enum-label";
-import type { TaskRuntimeEvent, TaskRuntimeLlmCall } from "@/lib/task-runtime";
+import type { TaskRuntimeEvent } from "@/lib/task-runtime";
 import styles from "./TaskDetailView.module.css";
 import type { components } from "@/lib/api/schema";
 
@@ -36,15 +32,18 @@ export type TaskDetailTask = Pick<
 >;
 
 export type TaskDetailEvent = TaskRuntimeEvent;
-export type TaskDetailLlmCall = TaskRuntimeLlmCall;
 
 /** One per-attempt run row (pipeline.assembly_runs) backing this task. */
 export type TaskRunRow = components["schemas"]["TaskRunList"]["runs"][number];
 
+/** With exactly one attempt the run page IS the detail — return its href.
+ *  Zero or several attempts keep the lifecycle shell with its runs list. */
+export function soleRunHref(runs: TaskRunRow[]): string | null {
+  return runs.length === 1 ? `/assembly-runs/${runs[0].id}` : null;
+}
+
 export interface TaskDetailViewProps {
   task: TaskDetailTask;
-  events: TaskDetailEvent[];
-  llmCalls: TaskDetailLlmCall[];
   failedEvent: TaskDetailEvent | undefined;
   runs?: TaskRunRow[];
   submitFeedback: (formData: FormData) => void | Promise<void>;
@@ -52,8 +51,6 @@ export interface TaskDetailViewProps {
 
 export default function TaskDetailView({
   task,
-  events,
-  llmCalls,
   failedEvent,
   runs = [],
   submitFeedback,
@@ -177,7 +174,7 @@ export default function TaskDetailView({
             <h2>Runs</h2>
             <p className="meta">
               Each execution attempt of this task (a retry mints a new run).
-              Open one for its per-node timeline.
+              Open one for its timeline, transcript, and pod logs.
             </p>
             <ul>
               {runs.map((run) => (
@@ -185,20 +182,16 @@ export default function TaskDetailView({
                   <Link href={`/assembly-runs/${run.id}`}>
                     #{run.id.substring(0, 8)}
                   </Link>{" "}
-                  — {run.outcome ?? run.status}
+                  —{" "}
+                  <span className={`op-badge op-${run.status}`}>
+                    {formatEnumLabel(run.outcome ?? run.status)}
+                  </span>{" "}
+                  · started <TimeAgo date={run.created_at} inline />
                 </li>
               ))}
             </ul>
           </section>
         )}
-
-        <TimelinePanel taskId={task.id} initialStatus={task.status} />
-
-        <TaskLogs taskId={task.id} initialStatus={task.status} />
-
-        <EventTimeline events={events} />
-
-        <LlmCallsTable llmCalls={llmCalls} repo={task.target_repo} />
       </div>
     </TaskRefreshProvider>
   );
