@@ -12,7 +12,8 @@ import { PgEventDeliveries } from "@re-cinq/lore-shared/project/events/event-del
 import type { EventDeliveriesPort } from "@re-cinq/lore-shared/project/events/event-deliveries-port.js";
 import { selectEventDeliveries } from "@re-cinq/lore-shared/project/events/select-event-reporter.js";
 import { PgMemoryLifecycle } from "@re-cinq/lore-shared/project/memory/memory-lifecycle-pg.js";
-import { selectEventReporter } from "@re-cinq/lore-shared/project/events/select-event-reporter.js";
+import { selectEventProxy } from "@re-cinq/lore-shared/project/events/select-event-reporter.js";
+import type { EventProxy } from "@re-cinq/lore-shared/project/events/event-proxy.js";
 import type { EventReporter } from "@re-cinq/lore-shared/project/events/event-queue-port.js";
 import { getPool } from "@re-cinq/lore-shared/db/pg-pool.js";
 
@@ -29,7 +30,7 @@ let settingsSingleton: PgSettings | undefined;
 let memoryLifecycleSingleton: PgMemoryLifecycle | undefined;
 let costSingleton: PgCost | undefined;
 let deliveriesSingleton: EventDeliveriesPort | undefined;
-let eventReporterSingleton: EventReporter | undefined;
+let eventProxySingleton: EventProxy | undefined;
 
 /** Repo-agnostic task record ops (`pipeline.tasks`). */
 export const taskStore = (): PgTaskStore =>
@@ -48,10 +49,17 @@ export const memoryLifecycle = (): PgMemoryLifecycle =>
 /** pipeline.anthropic_cost_daily — the cost import's write surface. */
 export const cost = (): PgCost => (costSingleton ??= new PgCost(getPool()));
 
-export const eventReporter = (): EventReporter =>
-  (eventReporterSingleton ??= selectEventReporter({
+export const eventProxy = (): EventProxy =>
+  (eventProxySingleton ??= selectEventProxy({
     local: () => pipelineRepositories().eventQueue,
   }));
+
+/**
+ * The reporting half of that hub: `insert`, synchronous and throwing. A
+ * producer with nobody to return a status to reaches for `eventProxy().emit`
+ * instead.
+ */
+export const eventReporter = (): EventReporter => eventProxy();
 
 /**
  * The deliveries this service consumes.

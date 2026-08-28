@@ -123,7 +123,9 @@ export async function prReadyCheckSweep(
 
 /** Production entry — the manifest's run. Deps bound to the stations kernel. */
 export async function prReadyCheckJob(): Promise<string> {
-  const { pipeline, eventReporter } = await import("../../kernel/queues.js");
+  const { pipeline, eventProxy } = await import("../../kernel/queues.js");
+  const { queuedReporter } =
+    await import("@re-cinq/lore-shared/project/events/event-proxy.js");
   const { projectFor } = await import("../../kernel/project-boot.js");
   const { reportToParkedNode } =
     await import("@re-cinq/lore-shared/project/assembly-runs/parked-node.js");
@@ -161,7 +163,11 @@ export async function prReadyCheckJob(): Promise<string> {
           prNumber: number,
         })
       ).length,
+    // Through the proxy's QUEUE, not a direct insert: the sweep catches per run
+    // and then resolves, so its delivery is marked done whether or not the
+    // report landed — a router blip used to lose the resume outright and the
+    // parked node waited for the reaper.
     report: (target, outcome, args) =>
-      reportToParkedNode(eventReporter(), target, outcome, args),
+      reportToParkedNode(queuedReporter(eventProxy()), target, outcome, args),
   });
 }

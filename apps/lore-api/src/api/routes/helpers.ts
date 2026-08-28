@@ -6,7 +6,7 @@
 
 import type { Pool } from "pg";
 import { Llm } from "@re-cinq/lore-shared";
-import { eventReporterFor } from "./event-reporter.js";
+import { eventProxyFor } from "./event-reporter.js";
 
 /**
  * Build a graph LLM call function for extractAndUpdateGraph, routed through the
@@ -45,15 +45,17 @@ export async function triggerAgentSpecTrace(
   if (!pool) {
     return;
   }
-  await eventReporterFor(pool)
-    .insert({
+  // Queued, not inserted. Both callers invoke this with `void` and it swallowed
+  // its own failure on top of that, so a router blip lost the projection with
+  // nothing left to notice — the ingest route's own status never reflected it.
+  await eventProxyFor(pool).emit({
+    kind: "event",
+    event: {
       eventName: "internal.ingest.spec_trace",
       source: "internal",
       params: { repo, kind, payload },
-    })
-    .catch((err) =>
-      console.warn("[spec-trace] event insert failed:", (err as Error).message),
-    );
+    },
+  });
 }
 
 /**
@@ -68,16 +70,12 @@ export async function triggerAgentSpecCoverageValidate(
   if (!pool) {
     return;
   }
-  await eventReporterFor(pool)
-    .insert({
+  await eventProxyFor(pool).emit({
+    kind: "event",
+    event: {
       eventName: "internal.ingest.spec_coverage_validate",
       source: "internal",
       params: { repo },
-    })
-    .catch((err) =>
-      console.warn(
-        "[spec-coverage-validate] event insert failed:",
-        (err as Error).message,
-      ),
-    );
+    },
+  });
 }

@@ -107,29 +107,30 @@ A report is now a network call rather than a write on the reporting process's ow
 pool, so it retries before giving up. Every event `mapAgentToEvent` produces
 carries a `dedupeKey`, which is what makes repeating one safe.
 
-- A terminal Agent CR becomes its kubernetes event. ([validated by reports a terminal Agent CR as its kubernetes event](apps/cluster-agent/src/listeners/agent-reporting.test.ts#L44))
+- A terminal Agent CR becomes its kubernetes event. ([validated by reports a terminal Agent CR as its kubernetes event](apps/cluster-agent/src/listeners/agent-reporting.test.ts#L29))
 - A CR that has not reached a terminal phase reports nothing, so the repeated
   MODIFIED notifications a running pod generates cost one map and no row.
-  ([validated by reports nothing for a CR that has not reached a terminal phase](apps/cluster-agent/src/listeners/agent-reporting.test.ts#L70))
-- A failed report is swallowed here, unlike everywhere else this repo reports
-  events: the caller is a watch callback with nobody to return a status to, so
-  throwing would end the stream over one CR, and the Floor's reconcile pass
-  re-emits what was missed. ([validated by swallows a failed report so one bad CR cannot end the watch](apps/cluster-agent/src/listeners/agent-reporting.test.ts#L84))
+  ([validated by reports nothing for a CR that has not reached a terminal phase](apps/cluster-agent/src/listeners/agent-reporting.test.ts#L62))
 - A report retries before it is given up on, because it now crosses a network
   rather than writing to this process's own pool — and a dropped terminal event
   leaves its node open until the reaper, which is the failure the bus exists to
   remove. Repeating one is safe: every event `mapAgentToEvent` produces carries a
-  `dedupeKey`. ([validated by retries a failed insert, since the report now crosses a network](apps/cluster-agent/src/listeners/agent-reporting.test.ts#L162), [`agent-reporting.test.ts:178`](apps/cluster-agent/src/listeners/agent-reporting.test.ts#L183))
+  `dedupeKey`. The ladder itself moved to the shared `EventProxy` on 2026-08-28,
+  so it is no longer the watch's to own — or to have alone. ([validated by retries a blip and reports the message on the next attempt](libs/shared/src/project/events/event-proxy.test.ts#L151), [retries a blip with a delay that grows with the attempt](libs/shared/src/project/events/delivery-policy.test.ts#L25), [drops after the last attempt and names the message](libs/shared/src/project/events/event-proxy.test.ts#L192))
 - A REFUSED report (401/403) re-registers before the next attempt, through the
   satellite's single-flight re-registration — the same move the claim and
   heartbeat loops already make. A satellite's per-agent token rotates whenever
   another instance of it registers (a RollingUpdate overlap did exactly that on
   2026-08-28), and a report that only retried with the rotated-out token lost
   run 595d2b0b's terminal event for good; nothing central can see a satellite's
-  CR to reap it. An ordinary blip still just retries. ([validated by re-registers once on a 401 and the next attempt lands](apps/cluster-agent/src/listeners/agent-reporting.test.ts#L208), [`agent-reporting.test.ts:233`](apps/cluster-agent/src/listeners/agent-reporting.test.ts#L233), [`agent-reporting.test.ts:258`](apps/cluster-agent/src/listeners/agent-reporting.test.ts#L258), [`event-reporter-http.test.ts:119`](libs/shared/src/project/events/event-reporter-http.test.ts#L119))
+  CR to reap it. An ordinary blip still just retries. ([validated by re-registers once on a refused credential and the retry then lands](libs/shared/src/project/events/event-proxy.test.ts#L169), [reads 401 and 403 as a refused credential](libs/shared/src/project/events/delivery-policy.test.ts#L8), [reads 503 as a blip, not a refusal, so a busy router never rotates the token](libs/shared/src/project/events/delivery-policy.test.ts#L15), [`event-reporter-http.test.ts:119`](libs/shared/src/project/events/event-reporter-http.test.ts#L119))
+- The watch hands each observed CR to that proxy rather than delivering it
+  itself, and a failed hand-off is swallowed here, unlike everywhere else this
+  repo reports events: the caller is a watch callback with nobody to return a
+  status to, so throwing would end the stream over one CR. ([validated by swallows a failed emit so one bad CR cannot end the watch](apps/cluster-agent/src/listeners/agent-reporting.test.ts#L80))
 - The catch-up pass walks the namespace one page at a time. 180 accumulated CRs
   in a single unpaginated LIST blew Node's heap and crash-looped the Floor on
-  2026-07-24. ([validated by walks every page rather than holding the namespace at once](apps/cluster-agent/src/listeners/agent-reporting.test.ts#L104), [`agent-reporting.test.ts:112`](apps/cluster-agent/src/listeners/agent-reporting.test.ts#L117), [`agent-reporting.test.ts:137`](apps/cluster-agent/src/listeners/agent-reporting.test.ts#L142))
+  2026-07-24. ([validated by walks every page rather than holding the namespace at once](apps/cluster-agent/src/listeners/agent-reporting.test.ts#L100), [reads the raw `continue` token too, which is what the API actually sends](apps/cluster-agent/src/listeners/agent-reporting.test.ts#L120), [reports no resourceVersion when a page carries none](apps/cluster-agent/src/listeners/agent-reporting.test.ts#L145))
 
 ### The router serves the drain loop
 
@@ -164,12 +165,12 @@ A producer keeps its code and its location; only its write changes. The
 selection is the same three-way shape `agentDefs` already uses:
 
 - A producer that can see the router reports over HTTP, and never resolves the
-  pool it would otherwise fall back to. ([validated by reports over HTTP when EVENT_ROUTER_URL names a router](libs/shared/src/project/events/select-event-reporter.test.ts#L9), [`select-event-reporter.test.ts:19`](libs/shared/src/project/events/select-event-reporter.test.ts#L19))
+  pool it would otherwise fall back to. ([validated by reports over HTTP when EVENT_ROUTER_URL names a router](libs/shared/src/project/events/select-event-reporter.test.ts#L12), [`select-event-reporter.test.ts:22`](libs/shared/src/project/events/select-event-reporter.test.ts#L22))
 - One that cannot falls back to the pool it already holds, which is what keeps
-  a local `npm start` — a Floor and a Postgres, no router — working. ([validated by falls back to the local queue when EVENT_ROUTER_URL is unset](libs/shared/src/project/events/select-event-reporter.test.ts#L35))
+  a local `npm start` — a Floor and a Postgres, no router — working. ([validated by falls back to the local queue when EVENT_ROUTER_URL is unset](libs/shared/src/project/events/select-event-reporter.test.ts#L38))
 - The choice is logged at construction, because the fallback is right locally
   and wrong in a cluster: a deployment that means to route and has lost
-  `EVENT_ROUTER_URL` would write directly and look perfectly healthy. ([validated by says which way it resolved](libs/shared/src/project/events/select-event-reporter.test.ts#L47))
+  `EVENT_ROUTER_URL` would write directly and look perfectly healthy. ([validated by says which way it resolved](libs/shared/src/project/events/select-event-reporter.test.ts#L50))
 
 ### What moves, and what deliberately does not
 
@@ -327,6 +328,105 @@ queued station runs over HTTP, because a satellite cluster is unreachable for
 inbound calls. Reporting is untouched — every cluster-agent already reports
 terminal phases through the router's front door with dedupe keys, which is what
 makes a claim executed far away indistinguishable from one executed at home.
+
+## Amendment (2026-08-28): one hub between a producer and the front door
+
+`POST /api/events` settled WHERE an event goes. It never settled what a producer
+does while the front door is briefly shut, and each one answered differently:
+the cluster-agent's watch grew a 5x/500ms ladder with credential rotation,
+`agent-reconcile` wrote `.catch(() => {})`, `pr-ready-check` swallowed per run
+and marked the delivery done anyway. Three of the four answers were "lose it",
+and the one that was not was reachable only by driving a Kubernetes watch.
+
+That ladder becomes shared infrastructure. `EventProxy`
+(`libs/shared/src/project/events/event-proxy.ts`) is one bounded queue, one
+retry policy and one credential rotation, resolved through `selectEventProxy`
+beside the three selectors already here. Producers register an `EventInput`
+against it and declare only what they observed.
+
+### Two paths, because one of them is load-bearing
+
+- `insert` stays synchronous and propagates the sink's failure, so the proxy is
+  a drop-in `EventReporter`. Three Floor ingress routes and two lore-api routes
+  answer `202` only once the insert lands and turn a throw into a `500` so the
+  sender redelivers; queueing underneath them would convert at-least-once
+  GitHub/CI delivery into best-effort. ([validated by delivers straight to the event sink](libs/shared/src/project/events/event-proxy.test.ts#L74), [propagates the sink's failure](libs/shared/src/project/events/event-proxy.test.ts#L84), [inserts straight through to the local queue](libs/shared/src/project/events/select-event-reporter.test.ts#L66))
+- `emit` queues and resolves before delivery, for producers with nobody to
+  return a status to — a watch callback, a sweep — where the choice was
+  previously between an inline ladder and silent loss. ([validated by resolves before the sink has delivered](libs/shared/src/project/events/event-proxy.test.ts#L97), [delivers queued messages once started](libs/shared/src/project/events/event-proxy.test.ts#L108), [queues an emitted message](libs/shared/src/project/events/select-event-reporter.test.ts#L82))
+- A message is routed by its kind, so a telemetry passthrough never lands on the
+  bus: `pipeline.events` is a dispatch queue with dedupe keys and handler
+  fan-out, and per-tool-call volume does not belong on it. ([validated by routes each message to the sink for its kind](libs/shared/src/project/events/event-proxy.test.ts#L121), [unwraps an event message into an insert](libs/shared/src/project/events/event-sink.test.ts#L6), [refuses a telemetry message](libs/shared/src/project/events/event-sink.test.ts#L19))
+
+### The queue is bounded and blocks, rather than growing or dropping
+
+- A full queue BLOCKS the producer. An unbounded queue in front of an
+  unreachable router grows until the process dies, and a lossy one discards
+  exactly what nobody is left to re-derive; blocking pushes the pressure back to
+  the only place that can decide to slow down. ([validated by blocks the producer once the queue is full](libs/shared/src/project/events/event-proxy.test.ts#L137), [leaves push pending once capacity is reached](libs/shared/src/project/events/bounded-queue.test.ts#L22), [admits the waiting producer when a shift frees the slot](libs/shared/src/project/events/bounded-queue.test.ts#L35))
+- Blocked producers are admitted in arrival order, so the drain stays FIFO end
+  to end even while saturated. ([validated by resolves push immediately while a slot is free](libs/shared/src/project/events/bounded-queue.test.ts#L12), [admits blocked producers in the order they arrived](libs/shared/src/project/events/bounded-queue.test.ts#L50), [returns undefined from shift on an empty queue](libs/shared/src/project/events/bounded-queue.test.ts#L65))
+- Backpressure only bites if the producer AWAITS the emit; a fire-and-forget
+  caller accumulates pending promises instead of items and the bound becomes
+  fiction. A zero-slot queue is refused for the same reason — it would block
+  forever rather than never. ([validated by rejects a capacity below 1](libs/shared/src/project/events/bounded-queue.test.ts#L69))
+
+### The ladder, and why rotation is separate from the retry
+
+- An ordinary failure retries with a delay that grows with the attempt. ([validated by retries a blip and reports the message on the next attempt](libs/shared/src/project/events/event-proxy.test.ts#L151), [retries a blip with a delay that grows](libs/shared/src/project/events/delivery-policy.test.ts#L25))
+- A REFUSED credential rotates first and then retries, because a refusal means
+  the token was rotated elsewhere. ([validated by re-registers once on a refused credential](libs/shared/src/project/events/event-proxy.test.ts#L169), [reads 401 and 403 as a refused credential](libs/shared/src/project/events/delivery-policy.test.ts#L8), [rotates the credential before retrying](libs/shared/src/project/events/delivery-policy.test.ts#L36))
+- Only a `401`/`403` counts as a refusal. A timeout or a dead socket carries no
+  status, and rotating the identity on every blip would churn it for nothing. ([validated by reads 503 as a blip](libs/shared/src/project/events/delivery-policy.test.ts#L15), [reads a status-less error as a blip](libs/shared/src/project/events/delivery-policy.test.ts#L19))
+- The last attempt drops and NAMES the message, because the symptom of a lost
+  report is otherwise silence; the Floor's reconcile cron remains the backstop. ([validated by drops after the last attempt and names the message](libs/shared/src/project/events/event-proxy.test.ts#L192), [drops after the last attempt](libs/shared/src/project/events/delivery-policy.test.ts#L47))
+- A refusal at the last attempt still rotates, even though this message is lost:
+  retrying five times with a rotated-out token and then giving up is precisely
+  how run `595d2b0b` lost its terminal event on 2026-08-28, and rotating there
+  is what keeps the NEXT one. ([validated by still rotates on a refusal at the last attempt](libs/shared/src/project/events/delivery-policy.test.ts#L58))
+- A kind with no sink configured REFUSES rather than dropping quietly, so the
+  ladder logs it by name — a passthrough wired on one end and not the other is
+  otherwise indistinguishable from no traffic. ([validated by refuses rather than dropping](libs/shared/src/project/events/event-sink.test.ts#L34))
+
+### Adoption: the silent-loss sites stop being silent
+
+Four producers already had nobody to return a failure to, and each answered by
+losing the event: `agent-reconcile` wrote `.catch(() => {})` twice,
+`loop-run-closed`'s tick was swallowed by the `onRunClosed` hook that calls it,
+`pr-ready-check` caught per run and let the delivery be marked done anyway, and
+lore-api's two ingest triggers were `void`-called AND self-swallowing. All four
+now `emit`, so a router blip retries instead of dropping.
+
+- The reporting seam of each process resolves ONE proxy, memoized, because the
+  queue is the proxy's own state — a second instance would be a second queue
+  with nothing draining it. lore-api keys its cache on the pool the server
+  injected rather than a module singleton, so one test suite's queue cannot leak
+  into the next.
+- A port typed on `EventReporter` reaches the queued path through a reporter
+  view whose `insert` enqueues, rather than by widening every such port to take
+  a proxy. ([validated by queues what a port typed on EventReporter inserts, rather than delivering inline](libs/shared/src/project/events/event-proxy.test.ts#L285))
+- The 202/500 ingress routes are untouched and keep calling `insert`. A test
+  that stops asserting 500 on a failed insert is the signal that the dual path
+  has collapsed into the queued one and at-least-once GitHub/CI delivery is gone.
+- Shutdown drains the queue after the server stops and before telemetry
+  flushes — after, because an event produced by an in-flight request has to
+  reach the queue first; before exit, because `process.exit` takes the queue
+  with it. Every step stays best-effort: a drain that cannot finish must still
+  terminate, or the zombie the shutdown handler exists to kill comes back. ([validated by drains queued events after it stops serving and before it exits](apps/floor/src/shutdown.test.ts#L26), [exits even when the event drain throws, rather than holding the rollout open](apps/floor/src/shutdown.test.ts#L50))
+
+### Inputs, and a shutdown that says what it lost
+
+- An input is registered, started with an `emit` bound to the queue, and stopped
+  with the proxy, so a rollout does not leave a watch running. ([validated by starts every registered input](libs/shared/src/project/events/event-proxy.test.ts#L211), [stops every registered input on stop](libs/shared/src/project/events/event-proxy.test.ts#L236))
+- `stop` drains what is queued and returns what it could not deliver, bounded by
+  a deadline so a wedged sink cannot hold a rollout open. The queue is in memory
+  and dies with the process — it is survivable only because everything on it is
+  deduped and re-derivable, and it is NOT a durable outbox. ([validated by drains what is queued](libs/shared/src/project/events/event-proxy.test.ts#L257), [gives up at the deadline](libs/shared/src/project/events/event-proxy.test.ts#L270))
+- The proxy resolves through the same `EVENT_ROUTER_URL` gate as the reporter it
+  wraps, and never resolves the local pool when a router is configured — a
+  pool-less process must be able to hold one. In local mode the event sink is
+  the pool-backed reporter with a single attempt, since a failed same-process
+  Postgres insert is not a wire blip. ([validated by never resolves the local queue when a router is configured, so a pool-less process can hold one](libs/shared/src/project/events/select-event-reporter.test.ts#L132), [presents a token thunk per call, so a rotated per-agent credential is picked up](libs/shared/src/project/events/select-event-reporter.test.ts#L102))
 
 ## Alternatives considered
 

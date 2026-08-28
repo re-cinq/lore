@@ -4,10 +4,16 @@
 // without a cluster; these two can, against a plain object and a fake lister —
 // so they live apart from the shell rather than being excluded from coverage
 // along with it.
+//
+// This file used to carry a retry ladder and a re-registration hook as well.
+// Both moved to the shared `EventProxy`: every producer that reports to the
+// router needs that ladder and exactly one of them had it. What is left is the
+// mapping — observe a CR, hand the event over — which is all an input should
+// decide.
 
 import type { Agent as AgentCr } from "@re-cinq/agent-contracts";
-import type { EventInsert } from "@re-cinq/lore-shared";
 import { mapAgentToEvent } from "@re-cinq/lore-shared/project/events/k8s-map.js";
+import type { Emit } from "@re-cinq/lore-shared/project/events/event-input-port.js";
 import { forEachPage } from "@re-cinq/lore-shared/lib/paginate.js";
 import type { CustomObjectsApi } from "@kubernetes/client-node";
 
@@ -17,27 +23,9 @@ export const PLURAL = "agents";
 const LIST_PAGE_LIMIT = 50;
 
 export interface WatchDeps {
-  insert: (event: EventInsert) => Promise<void>;
-  /** How hard to retry a report. Omitted, one attempt — the shape a test wants. */
-  retry?: ReportRetry;
-  /** Called when the router refuses the credential (401/403) before the next
-   *  attempt. A satellite passes its single-flight re-registration here: its
-   *  per-agent token rotates whenever another instance of it registers, and a
-   *  report that only retried with the same token lost the terminal event
-   *  for good (2026-08-28, run 595d2b0b — the node sat open until the reaper). */
-  onUnauthorized?: () => Promise<unknown>;
-}
-
-const isUnauthorized = (err: unknown): boolean => {
-  const status = (err as { status?: number }).status;
-
-  return status === 401 || status === 403;
-};
-
-/** Bounded retry for one report. */
-export interface ReportRetry {
-  attempts: number;
-  delayMs: number;
+  /** Hand the event to the proxy. Resolves once QUEUED, and blocks while the
+   *  queue is full — which is the only backpressure the watch has. */
+  emit: Emit;
 }
 
 /** The slice of CustomObjectsApi the paginated list needs; tests fake this. */
@@ -91,12 +79,14 @@ export async function forEachAgentPage(
 }
 
 /**
- * Map one observed CR and report it, if it is terminal.
+ * Map one observed CR and hand it to the proxy, if it is terminal.
  *
- * A failed report is logged and swallowed HERE, unlike everywhere else this
- * repo reports events. The caller is a watch callback with nobody to return a
- * status to: throwing would take down the stream over one CR, and the Floor's
- * reconcile pass re-emits anything missed.
+ * A failed emit is logged and swallowed HERE, unlike everywhere else this repo
+ * reports events. The caller is a watch callback with nobody to return a status
+ * to: throwing would take down the stream over one CR. Delivery failure is no
+ * longer among the things that can happen here — `emit` only queues — so this
+ * guards a defect rather than a blip, and the Floor's reconcile pass re-emits
+ * anything missed either way.
  */
 export async function reportForAgent(
   agent: AgentCr,
@@ -107,34 +97,13 @@ export async function reportForAgent(
   if (!ev) {
     return;
   }
-  const { attempts, delayMs } = deps.retry ?? { attempts: 1, delayMs: 0 };
 
-  for (let attempt = 1; attempt <= attempts; attempt++) {
-    try {
-      await deps.insert(ev);
-
-      return;
-    } catch (err) {
-      // Retried, not swallowed on the first try: this insert used to be a write
-      // on this process's own pool and is now a POST to the event-router, so a
-      // blip is ordinary. Safe to repeat — every event mapAgentToEvent produces
-      // carries a dedupeKey, so a duplicate reaching the router is a no-op.
-      if (isUnauthorized(err) && deps.onUnauthorized) {
-        await deps.onUnauthorized();
-      }
-
-      if (attempt === attempts) {
-        // Never thrown: the watch loop must survive one bad report. The event is
-        // lost at this point, and the Floor's reconcile cron is what still
-        // catches it — which is why that backstop stays off this process.
-        console.error(
-          `[cluster-agent] k8s report failed after ${attempts} attempts:`,
-          (err as Error).message,
-        );
-
-        return;
-      }
-      await new Promise((resolve) => setTimeout(resolve, delayMs * attempt));
-    }
+  try {
+    await deps.emit({ kind: "event", event: ev });
+  } catch (err) {
+    console.error(
+      `[cluster-agent] could not queue the report for ${agent.metadata?.name}:`,
+      (err as Error).message,
+    );
   }
 }

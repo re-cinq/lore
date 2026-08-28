@@ -127,7 +127,7 @@ export async function loopRunClosed(
   outcome: string,
   reason: string | undefined,
 ): Promise<void> {
-  const [{ pipeline, taskStore, eventReporter }, { projectFor }] =
+  const [{ pipeline, taskStore, eventProxy }, { projectFor }] =
     await Promise.all([
       import("../../kernel/queues.js"),
       import("../../composition/project-boot.js"),
@@ -147,11 +147,17 @@ export async function loopRunClosed(
       (await projectFor(repo)).issues.addLabel(issueNumber, label),
     comment: async (repo, issueNumber, body) =>
       (await projectFor(repo)).issues.comment(issueNumber, body),
+    // Queued, not inserted: `onRunClosed` swallows whatever this throws, so a
+    // router blip used to lose the tick outright and the loop simply stopped
+    // until the cron emitter came round. The proxy retries it instead.
     emitTick: (repo) =>
-      eventReporter().insert({
-        eventName: "cron.implementation_loop.tick",
-        source: "internal",
-        params: { repo },
+      eventProxy().emit({
+        kind: "event",
+        event: {
+          eventName: "cron.implementation_loop.tick",
+          source: "internal",
+          params: { repo },
+        },
       }),
   });
 }

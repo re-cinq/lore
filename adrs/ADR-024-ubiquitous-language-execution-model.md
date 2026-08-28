@@ -133,7 +133,9 @@ and lose the update; no `resourceVersion` ever crosses the wire.
   an optimistic-concurrency race arrives as `HTTP-Code: 409 / Unknown API Status
   Code!` with every structured field undefined; read as no status at all, the
   retry that exists for exactly that race never fires, and provisioning fails
-  whenever two agents start at once. ([validated by reads 409 out of the message when it is nowhere else](apps/cluster-agent/src/kernel/k8s-errors.test.ts#L87), [`k8s-errors.test.ts:91`](apps/cluster-agent/src/kernel/k8s-errors.test.ts#L91), [`k8s-errors.test.ts:96`](apps/cluster-agent/src/kernel/k8s-errors.test.ts#L96))
+  whenever two agents start at once. A thrown value whose message is not a string carries no status either,
+  rather than throwing from inside the classifier that exists to keep failures
+  legible. ([validated by reads 409 out of the message when it is nowhere else](apps/cluster-agent/src/kernel/k8s-errors.test.ts#L87), [`k8s-errors.test.ts:91`](apps/cluster-agent/src/kernel/k8s-errors.test.ts#L91), [`k8s-errors.test.ts:96`](apps/cluster-agent/src/kernel/k8s-errors.test.ts#L96, [reads no status from a thrown value whose message is not a string](apps/cluster-agent/src/kernel/k8s-errors.test.ts#L101)))
 - Provisioning is ONE call — catalog read, GitHub mint, Secret write and the
   per-task clone together. The agent mints, so no GitHub token crosses the
   network; the cost accepted is that the App private key lives in the agent.

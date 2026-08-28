@@ -13,10 +13,7 @@ export default defineConfig({
       // exercised without a cluster and a database. Same split the Floor's
       // config makes, and the reason `agent-reporting.ts` exists apart from the
       // connection that feeds it.
-      include: [
-        "src/delivery/routes/events.ts",
-        "src/listeners/agent-reporting.ts",
-      ],
+      include: ["src/delivery/routes/events.ts"],
       thresholds: {
         lines: 100,
         branches: 100,

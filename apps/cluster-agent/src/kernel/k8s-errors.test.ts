@@ -97,4 +97,15 @@ describe("a status carried only in the message", () => {
     expect(isConflict(new Error("connection reset"))).toBe(false);
     expect(isConflict(new Error("HTTP-Code: 404"))).toBe(false);
   });
+
+  it("reads no status from a thrown value whose message is not a string", () => {
+    // A rejected non-Error — a bare object, a string — reaches here too. Reading
+    // `.message` off it and handing a non-string to the regex would throw from
+    // inside the classifier that exists to keep failures legible.
+    expect([
+      isConflict({ message: 409 }),
+      isConflict("HTTP-Code: 409"),
+      isConflict(null),
+    ]).toEqual([false, false, false]);
+  });
 });

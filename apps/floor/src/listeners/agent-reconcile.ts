@@ -22,7 +22,7 @@ import { HttpAgentApi } from "@re-cinq/lore-shared";
 import { mapAgentToEvent } from "@re-cinq/lore-shared/project/events/k8s-map.js";
 import { forEachPage } from "@re-cinq/lore-shared/lib/paginate.js";
 import { clusterAgent, pipeline, taskStore } from "../kernel/queues.js";
-import { insertEvent } from "../main-loop/store.js";
+import { emitEvent } from "../main-loop/store.js";
 
 const PRUNE_AFTER_MS = 60 * 60 * 1000;
 const LIST_PAGE_LIMIT = 50;
@@ -82,7 +82,7 @@ async function reconcileAgent(
       : null;
 
     if (row && ["running", "queued"].includes(row.status)) {
-      await insertEvent(ev).catch(() => {});
+      await emitEvent(ev);
     }
   } else if (ev) {
     const taskId = String((ev.params ?? {}).taskId ?? "");
@@ -91,7 +91,7 @@ async function reconcileAgent(
       : undefined;
 
     if (dbStatus && ["running", "queued"].includes(dbStatus)) {
-      await insertEvent(ev).catch(() => {});
+      await emitEvent(ev);
     }
   }
   await pruneIfOld(agent, cluster);

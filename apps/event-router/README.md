@@ -61,15 +61,18 @@ The `/api/deliveries/*` family is the fan-out amendment in ADR-044: one
 `pipeline.event_deliveries` row per `(event, subscriber)`, so a subscriber that
 was down drains its own backlog instead of losing rows to whoever was awake.
 
-## The Agent-CR watch
+## The Agent-CR watch (not here)
 
-The router holds the streaming Kubernetes watch on Agent CRs
-(`src/listeners/k8s-watch.ts` is the connection — reconnect, backoff, paginated
-catch-up; `src/listeners/agent-reporting.ts` is the testable mapping). A
-terminal CR becomes its `kubernetes.agent*` event, written through the same
-insert as the route. Disabled when the station backend is not `k8s`. The
-reconcile + prune safety net deliberately stays on the Floor — a backstop in
-the same process as the watch it backs up dies with it.
+The router does **not** hold the Kubernetes watch. It lives in the
+**cluster-agent**, one per execution cluster
+(`apps/cluster-agent/src/listeners/k8s-watch.ts` is the connection — reconnect,
+backoff, paginated catch-up; `agent-reporting.ts` is the testable mapping), and
+reports terminal CRs inward through `POST /api/events` like any other producer.
+That is what allows more than one execution cluster: a router that watched
+directly could only ever see the cluster it runs in, and a satellite's
+Kubernetes API is unreachable from outside it. The reconcile + prune safety net
+deliberately stays on the Floor — a backstop in the same process as the watch it
+backs up dies with it.
 
 ## Boundaries (what this service is not)
 
