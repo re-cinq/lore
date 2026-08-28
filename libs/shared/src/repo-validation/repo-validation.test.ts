@@ -254,3 +254,56 @@ describe("formatValidationOutput", () => {
     expect(output).toContain("error TS1234");
   });
 });
+
+// ---------------------------------------------------------------------------
+// Dependency install — a fresh clone must be validatable
+// ---------------------------------------------------------------------------
+
+describe("detectTooling — dependency install on a fresh clone", () => {
+  it("prepends npm ci when a lockfile exists and node_modules does not", () => {
+    writeFile(
+      "package.json",
+      JSON.stringify({ scripts: { lint: "eslint ." } }),
+    );
+    writeFile("package-lock.json", "{}");
+    const tooling = detectTooling(tmpDir);
+
+    expect(tooling.quickChecks[0]).toMatchObject({
+      name: "install",
+      command: "npm ci --no-audit --no-fund",
+    });
+    expect(tooling.fullChecks[0]?.name).toBe("install");
+  });
+
+  it("falls back to npm install when there is no lockfile", () => {
+    writeFile(
+      "package.json",
+      JSON.stringify({ scripts: { lint: "eslint ." } }),
+    );
+    const tooling = detectTooling(tmpDir);
+
+    expect(tooling.quickChecks[0]).toMatchObject({
+      name: "install",
+      command: "npm install --no-audit --no-fund",
+    });
+  });
+
+  it("adds no install step when node_modules is already present", () => {
+    writeFile(
+      "package.json",
+      JSON.stringify({ scripts: { lint: "eslint ." } }),
+    );
+    writeFile("node_modules/.keep", "");
+    const tooling = detectTooling(tmpDir);
+
+    expect(tooling.quickChecks.map((s) => s.name)).not.toContain("install");
+  });
+
+  it("adds no install step when the repo has nothing to check", () => {
+    writeFile("package.json", JSON.stringify({ scripts: {} }));
+    const tooling = detectTooling(tmpDir);
+
+    expect(tooling.quickChecks).toEqual([]);
+    expect(tooling.fullChecks).toEqual([]);
+  });
+});

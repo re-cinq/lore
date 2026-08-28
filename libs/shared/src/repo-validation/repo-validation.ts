@@ -121,6 +121,22 @@ function detectNode(repoRoot: string): RepoTooling | null {
     full.push({ name: "test", command: cmd, timeoutMs: 120_000 });
   }
 
+  // A validate station clones fresh, so node_modules is absent and every
+  // check above dies in ~1s on missing binaries — install first, but only
+  // when there is something to check afterwards.
+  if (
+    (quick.length > 0 || full.length > 0) &&
+    !existsSync(join(repoRoot, "node_modules"))
+  ) {
+    quick.unshift({
+      name: "install",
+      command: existsSync(join(repoRoot, "package-lock.json"))
+        ? "npm ci --no-audit --no-fund"
+        : "npm install --no-audit --no-fund",
+      timeoutMs: 300_000,
+    });
+  }
+
   // Full checks include quick checks + test
   return {
     language: "node",
