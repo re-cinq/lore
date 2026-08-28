@@ -33,19 +33,24 @@ export function parsePodLogAppended(params: unknown): PodLogChunkInsert[] {
   }
   const chunks = Array.isArray(event.chunks) ? event.chunks : [];
 
-  return chunks
-    .map((chunk) => (chunk ?? {}) as Record<string, unknown>)
-    .filter(
-      (chunk) =>
-        typeof chunk.seq === "number" && typeof chunk.lines === "string",
-    )
-    .map((chunk) => ({
-      agentCrName,
-      jobName,
-      podName,
-      seq: chunk.seq as number,
-      lines: chunk.lines as string,
-    }));
+  return (
+    chunks
+      .map((chunk) => (chunk ?? {}) as Record<string, unknown>)
+      // Number.isInteger, not typeof "number": 1.5 and NaN are both numbers and
+      // both break the int[] the batch insert unnests them into — a malformed
+      // chunk must be dropped here, not turned into a failed delivery downstream.
+      .filter(
+        (chunk) =>
+          Number.isInteger(chunk.seq) && typeof chunk.lines === "string",
+      )
+      .map((chunk) => ({
+        agentCrName,
+        jobName,
+        podName,
+        seq: chunk.seq as number,
+        lines: chunk.lines as string,
+      }))
+  );
 }
 
 export async function ingestPodLogChunks(

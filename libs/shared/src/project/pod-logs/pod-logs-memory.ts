@@ -35,10 +35,20 @@ export class InMemoryPodLogs implements PodLogsRepository {
   }
 
   listForJob(jobName: string): Promise<PodLogChunk[]> {
+    const forJob = this.rows.filter((row) => row.jobName === jobName);
+    // By POD first, then by seq within it. Ordering by seq alone interleaves two
+    // attempts of a retried node — pod-1 seq1, pod-2 seq1, pod-1 seq2 … — which
+    // reads worse than either attempt on its own. Pods are ordered by when they
+    // first appear, not by name, so a retry reads after the attempt it replaced;
+    // the Pg adapter gets the same order from MIN(id) per pod.
+    const podOrder = [...new Set(forJob.map((row) => row.podName))];
+
     return Promise.resolve(
-      this.rows
-        .filter((row) => row.jobName === jobName)
-        .sort((a, b) => a.seq - b.seq),
+      forJob.sort(
+        (a, b) =>
+          podOrder.indexOf(a.podName) - podOrder.indexOf(b.podName) ||
+          a.seq - b.seq,
+      ),
     );
   }
 

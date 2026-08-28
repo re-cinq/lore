@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { pruneTelemetry, RETENTION_DAYS } from "./log-retention.js";
 
 const store = (removed: number) => ({
-  pruneOld: (days: number) => Promise.resolve(removed + days * 0),
+  pruneOld: (_days: number) => Promise.resolve(removed),
 });
 
 describe("pruneTelemetry", () => {

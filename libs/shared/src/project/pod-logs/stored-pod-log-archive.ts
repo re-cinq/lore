@@ -25,8 +25,16 @@ function tail(text: string, tailLines: number | undefined): string {
   if (!tailLines) {
     return text;
   }
+  const lines = text.split("\n");
 
-  return text.split("\n").filter(Boolean).slice(-tailLines).join("\n");
+  // Drop ONLY the empty trailing element a trailing newline leaves behind.
+  // Filtering every falsy line would strip the blank lines inside the log —
+  // which in a stack trace or a diff is content, not padding.
+  if (lines[lines.length - 1] === "") {
+    lines.pop();
+  }
+
+  return lines.slice(-tailLines).join("\n");
 }
 
 export function storedPodLogArchive(

@@ -33,9 +33,11 @@ CREATE TABLE IF NOT EXISTS pipeline.pod_log_chunks (
   created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
--- the reassembly read: one job's chunks in the order the pod emitted them
+-- the reassembly read: one job's chunks, grouped by pod and ordered within it.
+-- pod_name is in the key because the read groups by it -- ordering by seq alone
+-- interleaves the two attempts of a retried node into each other.
 CREATE INDEX IF NOT EXISTS pod_log_chunks_job_idx
-  ON pipeline.pod_log_chunks(job_name, seq);
+  ON pipeline.pod_log_chunks(job_name, pod_name, seq);
 
 -- the retention prune scan (14 days, matching agent_run_events)
 CREATE INDEX IF NOT EXISTS pod_log_chunks_created_idx

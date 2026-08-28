@@ -154,19 +154,27 @@ that works for a cluster reporting inward.
 
 ### Decisions
 
+- Chunks are reassembled by POD first and by `seq` within it, not by `seq`
+  alone: a job with two attempts would otherwise read pod-1 seq1, pod-2 seq1,
+  pod-1 seq2 — two runs shuffled into each other, worse than either alone. Pods
+  order by first appearance (`MIN(id)`), so a retry reads after the attempt it
+  replaced rather than alphabetically by pod name. ([validated by [keeps each pod's chunks together instead of interleaving two attempts by seq](libs/shared/src/project/pod-logs/pod-logs.test.ts#L45))
 - Chunks are reassembled in the order the pod emitted them, not the order they
-  arrived — `seq` is assigned per pod by the producer. ([validated by [returns a job's chunks in the order its pod emitted them](libs/shared/src/project/pod-logs/pod-logs.test.ts#L15), [reassembles a job's chunks into one log](libs/shared/src/project/pod-logs/pod-logs.test.ts#L64))
+  arrived — `seq` is assigned per pod by the producer. ([validated by [returns a job's chunks in the order its pod emitted them](libs/shared/src/project/pod-logs/pod-logs.test.ts#L15), [reassembles a job's chunks into one log](libs/shared/src/project/pod-logs/pod-logs.test.ts#L88))
 - A redelivered chunk COLLAPSES rather than duplicating a span of log. The
   producer retries through the event proxy, so redelivery is expected, not
   exceptional. ([validated by [collapses a redelivered chunk](libs/shared/src/project/pod-logs/pod-logs.test.ts#L27))
 - `seq` is unique per POD, not per job: a retried node runs a second pod under
   the same Job and both start at 1, so collapsing on the job would silently
   discard the retry's output. ([validated by [keeps the same seq from a different pod](libs/shared/src/project/pod-logs/pod-logs.test.ts#L36))
+- A tail keeps the blank lines INSIDE the log and drops only the empty element a
+  trailing newline leaves behind. Filtering every falsy line reflows a stack
+  trace or a diff into something that never appeared on stdout. ([validated by [keeps blank lines inside the tail, which in a stack trace are content](libs/shared/src/project/pod-logs/pod-logs.test.ts#L104))
 - The store presents as the Floor's existing `PodLogArchive` seam and returns
   NULL — never `""` — when it holds nothing, which is what lets stored and Cloud
   Logging be chained rather than branched between. Stored leads because it is the
   only source that works for every cluster; Cloud Logging stays behind it because
-  it holds history predating the table. ([validated by [returns null when nothing is stored](libs/shared/src/project/pod-logs/pod-logs.test.ts#L74), [returns nothing for a job it holds no chunks for](libs/shared/src/project/pod-logs/pod-logs.test.ts#L45), [returns only the last N lines when a tail is asked for](libs/shared/src/project/pod-logs/pod-logs.test.ts#L80))
+  it holds history predating the table. ([validated by [returns null when nothing is stored](libs/shared/src/project/pod-logs/pod-logs.test.ts#L98), [returns nothing for a job it holds no chunks for](libs/shared/src/project/pod-logs/pod-logs.test.ts#L69), [returns only the last N lines when a tail is asked for](libs/shared/src/project/pod-logs/pod-logs.test.ts#L117))
 - Ingest is SKIP-NOT-FAIL, the posture every ingest path here takes: an event
   missing the identity a chunk is keyed by, or a chunk of the wrong shape, is
   dropped rather than thrown on. A handler that throws sends the delivery round
@@ -185,7 +193,7 @@ wired and closes the older gap on the way past.
 
 #### Decisions
 
-- One nightly `cron.telemetry_prune.tick` reaps both at the same window. ([validated by [prunes both tables at the retention window](apps/floor/src/jobs/station/log-retention.test.ts#L10), [prunes rows past the retention window and reports the count](libs/shared/src/project/pod-logs/pod-logs.test.ts#L49))
+- One nightly `cron.telemetry_prune.tick` reaps both at the same window. ([validated by [prunes both tables at the retention window](apps/floor/src/jobs/station/log-retention.test.ts#L10), [prunes rows past the retention window and reports the count](libs/shared/src/project/pod-logs/pod-logs.test.ts#L73))
 - The two sweeps settle independently: one failing must not skip the other,
   which is how a table quietly outgrows its window. ([validated by [still prunes the other table when one fails](apps/floor/src/jobs/station/log-retention.test.ts#L19))
 - The window is overridable, so a deployment can keep less. ([validated by [honours an explicit window](apps/floor/src/jobs/station/log-retention.test.ts#L38))

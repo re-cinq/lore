@@ -13,7 +13,7 @@ import type { PodLogChunkInsert, PodLogsRepository } from "./pod-logs-port.js";
 
 // Derived from the model's ColumnMap rather than restated here, so the SELECT
 // list and the row mapping cannot drift from the table's declaration.
-const SELECT_COLUMNS = selectList(POD_LOG_CHUNK_COLUMNS);
+const SELECT_COLUMNS = selectList(POD_LOG_CHUNK_COLUMNS, "c");
 
 function toRow(row: DbRow): PodLogChunk {
   const chunk = fromRow<PodLogChunk>(POD_LOG_CHUNK_COLUMNS, row);
@@ -53,11 +53,22 @@ export class PgPodLogs implements PodLogsRepository {
   }
 
   async listForJob(jobName: string): Promise<PodLogChunk[]> {
+    // By POD first, then seq within it: ordering by seq alone interleaves the
+    // two attempts of a retried node into each other. `MIN(id)` per pod is
+    // first-appearance order, so a retry reads after the attempt it replaced
+    // rather than alphabetically by pod name. The in-memory double sorts the
+    // same way, and its test pins the order.
     const { rows } = await this.pool.query<DbRow>(
       `SELECT ${SELECT_COLUMNS}
-         FROM pipeline.pod_log_chunks
-        WHERE job_name = $1
-        ORDER BY seq ASC`,
+         FROM pipeline.pod_log_chunks c
+         JOIN (
+           SELECT pod_name, MIN(id) AS first_id
+             FROM pipeline.pod_log_chunks
+            WHERE job_name = $1
+            GROUP BY pod_name
+         ) p ON c.pod_name = p.pod_name
+        WHERE c.job_name = $1
+        ORDER BY p.first_id, c.seq ASC`,
       [jobName],
     );
 
