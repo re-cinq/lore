@@ -481,10 +481,9 @@ edges:
 
 describe("getNextTransition — a revisit numbers past every prior visit", () => {
   it("launches implement at iteration 3 when validate sends the walk back after implement already retried itself", () => {
-    // (nodeId, iteration) is the persisted row identity. Counting the revisit
-    // per EDGE handed validate->implement iteration 2 — a row that already
-    // existed — and the idempotent launch found it and returned, every reaper
-    // tick, forever (run 595d2b0b, 2026-08-28).
+    // The old code counted per edge; validate->implement was edge-count 1, so
+    // it computed iteration 2 — a row that already existed — and the walk
+    // deadlocked.
     const visits = [
       visit("implement", 1, "failed"),
       visit("implement", 2, "success"),
