@@ -111,11 +111,11 @@ cd infra/terraform
 addrs=()
 while IFS= read -r a; do addrs+=("$a"); done \
   < <(terraform state list | grep '^google_secret_manager_secret_version')
-terraform state rm "${addrs[@]}"
+[[ ${#addrs[@]} -eq 0 ]] && echo '# nothing to remove' || terraform state rm "${addrs[@]}"
 
 # 2. Confirm nothing is left, then the gate: the plan MUST be empty.
 #    If it is not, read it — do not apply.
-terraform state list | grep '^google_secret_manager_secret_version'   # expect nothing
+terraform state list | grep '^google_secret_manager_secret_version' || true  # expect nothing (exit 1 = clean)
 terraform plan
 ```
 
