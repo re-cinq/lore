@@ -16,7 +16,7 @@
 #
 #   printf '%s' "$NEW_VALUE" | gcloud secrets versions add lore-<name> --data-file=-
 #
-# then restart the consumers (see docs/rotating-secrets.md). Terraform reads a
+# then restart the consumers (see docs/managing-secrets.md). Terraform reads a
 # value back only where it genuinely needs one at plan time — see the
 # `data "google_secret_manager_secret_version"` in lore-db.tf. Everything else
 # is resolved by NAME at runtime by External Secrets Operator.

@@ -206,7 +206,7 @@ restart set. Full reasoning, the rejected alternatives, and the traps
 (`moved` blocks on address changes, the two-apply bootstrap) are in
 [ADR-046](../../adrs/ADR-046-secret-values-are-not-terraform-inputs.md);
 the operational procedures are in
-[docs/rotating-secrets.md](../../docs/rotating-secrets.md).
+[docs/managing-secrets.md](../../docs/managing-secrets.md).
 
 Two acceptance criteria below are superseded by this amendment:
 

@@ -55,7 +55,7 @@ printf '%s' "$NEW_VALUE" | gcloud secrets versions add lore-anthropic-api-key --
 kubectl rollout restart deployment -n lore-floor
 ```
 
-No plan, no apply, no lock, no coordination with whoever else is mid-apply. The restart set per secret and the full procedure are in [`docs/rotating-secrets.md`](../docs/rotating-secrets.md).
+No plan, no apply, no lock, no coordination with whoever else is mid-apply. The restart set per secret and the full procedure are in [`docs/managing-secrets.md`](../docs/managing-secrets.md).
 
 ### Consequences for plan noise: one read-back remains
 
@@ -93,5 +93,5 @@ Terraform no longer proves a secret has a value, so two scripts do:
 ## References & rationale
 
 - [`specs/eso-gitops/spec.md`](../specs/eso-gitops/spec.md) — the spec this amends
-- [`docs/rotating-secrets.md`](../docs/rotating-secrets.md) — the operational procedures
+- [`docs/managing-secrets.md`](../docs/managing-secrets.md) — the operational procedures
 - [`infra/terraform/secrets.tf`](../infra/terraform/secrets.tf) — the containers, the `moved` block, and the reasoning inline

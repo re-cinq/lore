@@ -12,7 +12,7 @@
 #   ./scripts/infra/seed-secrets.sh              # prompt for missing values
 #   ./scripts/infra/seed-secrets.sh --check      # report only, exit 1 if any missing
 #
-# To ROTATE an existing secret, this is the wrong tool — see docs/rotating-secrets.md.
+# To ROTATE an existing secret, this is the wrong tool — see docs/managing-secrets.md.
 set -euo pipefail
 
 log() { echo "[lore] $*"; }

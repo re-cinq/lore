@@ -1,4 +1,12 @@
-# Rotating secrets
+# Managing secrets
+
+Three different operations, and only one of them touches Terraform:
+
+| I want to... | Where | Terraform? |
+|---|---|---|
+| [Change a secret's value](#rotate-a-secret) | `gcloud secrets versions add` | no |
+| [Add a new secret](#add-a-new-secret) | four files, one PR | yes |
+| [Change a non-secret value](#change-a-non-secret-value) | `terraform.tfvars` | yes |
 
 Lore's secret material lives in **GCP Secret Manager and nowhere else**.
 Terraform declares the secret *containers* in
@@ -69,6 +77,54 @@ Terraform removes the second source of truth, which removes the failure.
    (`gcloud secrets versions disable`) and revoke the credential at the provider.
    A new GSM version is not a revocation — the old key still works until you go
    turn it off.
+
+## Add a new secret
+
+Adding a *value* needs no PR. Adding a *name* does, because four places have to
+learn it exists.
+
+1. **`infra/terraform/secrets.tf`** — add the name to `local.secret_names`. This
+   creates the empty container. If the secret is optional, gate it with an
+   `enable_*` bool (see `enable_anthropic_admin_key`) rather than a "is this
+   variable non-empty" check — those checks are why a live credential used to
+   sit in tfvars just to answer a yes/no question.
+2. **`infra/terraform/external-secrets.tf`** — add a `kubectl_manifest`
+   ExternalSecret so ESO mirrors it into the namespace that needs it. Copy
+   `es_agent_internal_token` and change the five strings: the resource name, the
+   `metadata.name`/`target.name`, the `namespace`, the `secretKey` (the key under
+   which the value lands in the Kubernetes Secret — must match the chart's
+   `secretKeyRef.key`), and the `remoteRef.key`. One
+   ExternalSecret per namespace — Kubernetes Secrets do not cross namespaces.
+3. **`scripts/infra/seed-secrets.sh`** — add it to `REQUIRED`, or to `OPTIONAL`
+   if a gate controls it, so a fresh environment gets prompted for it instead of
+   discovering it missing at runtime.
+4. **The chart** — the `secretKeyRef` in whichever service reads it.
+
+Then, in this order:
+
+```bash
+terraform apply                    # container + ExternalSecret now exist
+./scripts/infra/seed-secrets.sh    # prompts only for the new empty one
+# ...and only now merge the chart change
+```
+
+**The order is not a style preference.** CI deploys charts with `helm upgrade`,
+but ExternalSecrets are created by `terraform apply`, and CI never runs
+terraform. Merge a `secretKeyRef` before its ExternalSecret exists and the new
+pod hits `CreateContainerConfigError` while `helm --wait` hangs to its timeout.
+Old pods keep serving, so there is no outage — but the rollout cannot finish, and
+the failure names a missing Secret rather than the missing apply that caused it.
+
+If you cannot apply terraform right then, `kubectl apply` the ExternalSecret
+manifest directly to unblock; ESO syncs instantly and the next `terraform apply`
+adopts it.
+
+## Change a non-secret value
+
+Hostnames, `project_id`, the `enable_*` gates, `log_retention_days` — these live
+in `infra/terraform/terraform.tfvars`, which Terraform auto-loads. Edit and
+`terraform apply`. Nothing is secret in that file by design, so a team can commit
+it and stop passing config around out of band.
 
 ## The failure `check-secrets.sh` exists to catch
 

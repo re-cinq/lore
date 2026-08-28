@@ -31,7 +31,7 @@ Terraform loads that filename automatically, so no `-var-file` flag is needed.
 **Secret values are not Terraform inputs.** They live in GCP Secret Manager;
 Terraform declares the containers and resolves them by name. You seed them in
 Step 3, after the containers exist. See
-[rotating-secrets.md](rotating-secrets.md) for the reasoning and the rotation
+[managing-secrets.md](managing-secrets.md) for the reasoning and the rotation
 procedure.
 
 | Secret (GCP Secret Manager name) | Description |

@@ -386,11 +386,21 @@ read-back. Terraform writing versions from a gitignored per-laptop
 `secrets.tfvars` was a second source of truth: a stale checkout's apply
 silently pushed the OLD value back up and 401'd the fleet. Rotation is
 `gcloud secrets versions add` plus the restart set — see
-`docs/rotating-secrets.md`; seed a new environment with
+`docs/managing-secrets.md`; seed a new environment with
 `scripts/infra/seed-secrets.sh`, and guard against a rotation the pods
 never read with `scripts/infra/check-secrets.sh` (compares each secret's
 newest version against every consuming pod's start time; the secret→consumer
-map is read from the live ExternalSecrets, not hardcoded).
+map is read from the live ExternalSecrets, not hardcoded). **Adding a new
+secret** touches four places — `local.secret_names` in `secrets.tf`, an
+ExternalSecret per consuming namespace in `external-secrets.tf` (five strings
+to update: resource name, `metadata.name`/`target.name`, `namespace`, `secretKey`,
+and `remoteRef.key`), the
+`REQUIRED`/`OPTIONAL` list in `seed-secrets.sh`, and the chart's
+`secretKeyRef` — and the apply MUST land before the chart change merges,
+because CI helm-deploys but never runs terraform (a `secretKeyRef` with no
+ExternalSecret yet = `CreateContainerConfigError` + a hung `helm --wait`).
+Optional secrets get an `enable_*` bool, never an "is this variable
+non-empty" check.
 
 Deploy config lives in `terraform.tfvars` (copy from
 `terraform.tfvars.example`) — identifiers, hostnames, and the `enable_*`
