@@ -286,6 +286,7 @@ describe("detectTooling — dependency install on a fresh clone", () => {
       name: "install",
       command: "npm install --no-audit --no-fund",
     });
+    expect(tooling.fullChecks[0]?.name).toBe("install");
   });
 
   it("adds no install step when node_modules is already present", () => {
