@@ -36,6 +36,17 @@ export type LogEntry =
       outcome?: string;
       exitCode?: number;
     }
+  | {
+      kind: "tool-progress";
+      /** The tool call being reported on — `parent_tool_use_id` when the line
+       *  carries one, since a heartbeat's own `tool_use_id` is a fresh
+       *  `<parent>-heartbeat-<n>` and would defeat the fold. */
+      toolUseId: string;
+      toolName: string;
+      /** Absent on a line that reports no clock — the summary then omits the
+       *  parenthetical rather than claiming the call has run for zero seconds. */
+      elapsedSeconds?: number;
+    }
   | { kind: "system"; subtype: string; detailsJson: string }
   | { kind: "rate-limit"; status: string; windows: RateLimitWindow[] }
   | { kind: "raw"; text: string };
@@ -128,15 +139,17 @@ export function formatDuration(ms: number): string {
 }
 
 /**
- * Whether `next` replaces `previous` instead of following it. Two tickers report
- * a running total rather than an increment, so a run of either is one entry:
- * thinking-tokens, and a hook's own line — `hook_progress` repeats the whole
- * output so far, so the newest line for a `hook_id` contains every earlier one.
- * The one home for that rule — the blob parser and the run page's per-turn
- * projection both fold on it rather than each knowing it.
+ * Whether `next` replaces `previous` instead of following it. Three tickers
+ * report a running total rather than an increment, so a run of any of them is
+ * one entry: thinking-tokens; a hook's own line — `hook_progress` repeats the
+ * whole output so far, so the newest line for a `hook_id` contains every
+ * earlier one; and a long tool call's heartbeats, whose `elapsed_time_seconds`
+ * is the total for that call rather than the gap since the last beat. The one
+ * home for that rule — the blob parser and the run page's per-turn projection
+ * both fold on it rather than each knowing it.
  *
- * Adjacent-only, so two hooks running concurrently keep their interleaved order
- * instead of collapsing across each other's lines.
+ * Adjacent-only, so two hooks (or two tool calls) running concurrently keep
+ * their interleaved order instead of collapsing across each other's lines.
  */
 export function supersedesPrevious(
   previous: LogEntry | undefined,
@@ -144,6 +157,13 @@ export function supersedesPrevious(
 ): boolean {
   if (next.kind === "thinking-tokens") {
     return previous?.kind === "thinking-tokens";
+  }
+
+  if (next.kind === "tool-progress") {
+    return (
+      previous?.kind === "tool-progress" &&
+      previous.toolUseId === next.toolUseId
+    );
   }
 
   return (
@@ -269,6 +289,10 @@ function classify(value: unknown, originalLine: string): LogEntry[] {
     return [hookEntry(value, value.subtype, value.hook_id)];
   }
 
+  if (isToolProgressLine(value)) {
+    return [toolProgressEntry(value)];
+  }
+
   // Any remaining system line still says which kind it is, which beats dumping
   // its bytes at the reader — the whole event stays one click away.
   if (value.type === "system" && typeof value.subtype === "string") {
@@ -328,6 +352,34 @@ function classify(value: unknown, originalLine: string): LogEntry[] {
   }
 
   return [{ kind: "raw", text: originalLine }];
+}
+
+/** A progress report on a tool call still running. Keyed on the type rather
+ *  than on `heartbeat`, so a progress line that carries real progress instead
+ *  of a bare keepalive still renders as one. */
+function isToolProgressLine(
+  value: Record<string, unknown>,
+): value is Record<string, unknown> & { tool_use_id: string } {
+  return (
+    value.type === "tool_progress" && typeof value.tool_use_id === "string"
+  );
+}
+
+function toolProgressEntry(
+  value: Record<string, unknown> & { tool_use_id: string },
+): LogEntry {
+  return {
+    kind: "tool-progress",
+    toolUseId:
+      typeof value.parent_tool_use_id === "string"
+        ? value.parent_tool_use_id
+        : value.tool_use_id,
+    toolName: typeof value.tool_name === "string" ? value.tool_name : "tool",
+    ...(typeof value.elapsed_time_seconds === "number" &&
+    value.elapsed_time_seconds >= 0
+      ? { elapsedSeconds: value.elapsed_time_seconds }
+      : {}),
+  };
 }
 
 const HOOK_SUBTYPE_PREFIX = "hook_";

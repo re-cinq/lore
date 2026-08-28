@@ -21,6 +21,8 @@ import {
   HOOK_PROGRESS_BOOTSTRAP_FIRST,
   HOOK_PROGRESS_BOOTSTRAP_LAST,
   HOOK_RESPONSE_BOOTSTRAP,
+  TOOL_PROGRESS_SKILL_FIRST,
+  TOOL_PROGRESS_SKILL_LAST,
 } from "@/lib/agent-log-entries.fixtures";
 
 function turn(id: string, nodeId: string | null): AgentRunTurn {
@@ -328,5 +330,31 @@ describe("conversationEntries — hook turns", () => {
       "hook",
       "hook",
     ]);
+  });
+});
+
+describe("conversationEntries — tool progress turns", () => {
+  // The reported bug: pod agent-job-f89164e0-31a-review-zhs6b emitted nineteen
+  // heartbeat turns for one Skill call, each rendering as its own raw JSON blob.
+  const beat = (id: string, line: string, at: string) =>
+    turnWithEnvelope(id, JSON.parse(line), at);
+
+  it("folds a call's heartbeat turns onto the last turn's timestamp", () => {
+    const entries = conversationEntries([
+      beat("1", TOOL_PROGRESS_SKILL_FIRST, "2026-08-28T16:29:08.000Z"),
+      beat("2", TOOL_PROGRESS_SKILL_LAST, "2026-08-28T16:38:38.000Z"),
+    ]);
+
+    expect(entries).toMatchObject({
+      length: 1,
+      0: {
+        at: "2026-08-28T16:38:38.000Z",
+        entry: {
+          kind: "tool-progress",
+          toolName: "Skill",
+          elapsedSeconds: 600,
+        },
+      },
+    });
   });
 });

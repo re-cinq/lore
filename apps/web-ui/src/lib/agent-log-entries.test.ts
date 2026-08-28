@@ -41,6 +41,8 @@ import {
   HOOK_PROGRESS_BOOTSTRAP_LAST,
   HOOK_RESPONSE_BOOTSTRAP,
   HOOK_RESPONSE_FAILED,
+  TOOL_PROGRESS_SKILL_FIRST,
+  TOOL_PROGRESS_SKILL_LAST,
   SYSTEM_COMPACT_BOUNDARY,
 } from "./agent-log-entries.fixtures";
 
@@ -534,6 +536,64 @@ describe("hook events", () => {
     expect(supersedesPrevious(session, session)).toBe(true);
     expect(supersedesPrevious(session, bootstrap)).toBe(false);
     expect(supersedesPrevious(undefined, session)).toBe(false);
+  });
+});
+
+describe("tool progress heartbeats", () => {
+  it("names the tool and its elapsed time off a tool_progress line", () => {
+    expect(parseAgentLog(TOOL_PROGRESS_SKILL_FIRST)).toEqual([
+      {
+        kind: "tool-progress",
+        toolUseId: "toolu_01U2T4eX8rrZghzWR3ETfD5X",
+        toolName: "Skill",
+        elapsedSeconds: 420,
+      },
+    ]);
+  });
+
+  it("folds a run of heartbeats for one call into its latest elapsed time", () => {
+    expect(
+      parseAgentLog(
+        [TOOL_PROGRESS_SKILL_FIRST, TOOL_PROGRESS_SKILL_LAST].join("\n"),
+      ),
+    ).toEqual([
+      {
+        kind: "tool-progress",
+        toolUseId: "toolu_01U2T4eX8rrZghzWR3ETfD5X",
+        toolName: "Skill",
+        elapsedSeconds: 600,
+      },
+    ]);
+  });
+
+  it("carries no elapsed time for a progress line that reports none", () => {
+    const line = JSON.stringify({
+      type: "tool_progress",
+      tool_name: "Skill",
+      tool_use_id: "toolu_01U2T4eX8rrZghzWR3ETfD5X",
+    });
+
+    expect(parseAgentLog(line)).toEqual([
+      {
+        kind: "tool-progress",
+        toolUseId: "toolu_01U2T4eX8rrZghzWR3ETfD5X",
+        toolName: "Skill",
+      },
+    ]);
+  });
+
+  it("does not fold a heartbeat onto a different tool call", () => {
+    const skill: LogEntry = {
+      kind: "tool-progress",
+      toolUseId: "toolu_01U2T4eX8rrZghzWR3ETfD5X",
+      toolName: "Skill",
+      elapsedSeconds: 420,
+    };
+    const bash: LogEntry = { ...skill, toolUseId: "toolu_01MpZuAEpNbx" };
+
+    expect(supersedesPrevious(skill, skill)).toBe(true);
+    expect(supersedesPrevious(skill, bash)).toBe(false);
+    expect(supersedesPrevious(undefined, skill)).toBe(false);
   });
 });
 
