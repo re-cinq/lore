@@ -66,10 +66,11 @@ async function main(): Promise<void> {
   // token registration minted, which the router accepts against
   // `pipeline.cluster_agents`.
   //
-  // A THUNK, resolved per call rather than captured: a re-registration rotates
-  // the token, and a stale one 401s every report. Without this the watch
-  // reported nothing and every node waited for the reaper instead — silently,
-  // since the retry log is the only symptom.
+  // A THUNK, resolved per call rather than captured: the token this process
+  // reports with is not known until registration returns, and it is replaced
+  // whenever one is issued out of band. Capturing it at boot reported with
+  // `undefined` forever — the watch said nothing and every node waited for the
+  // reaper instead, silently, since the retry log is the only symptom.
   //
   // Built only when there is a router to report to. This process holds no pool,
   // so the selector's local fallback cannot exist here; asking for one would
@@ -93,9 +94,12 @@ async function main(): Promise<void> {
               () => process.env.LORE_INGEST_TOKEN ?? agentToken,
             )
           : undefined,
-        // A 401 on a report means the token rotated (another instance of this
-        // agent registered); re-register and retry, exactly like the claim
-        // loop. Retrying with the same token lost run 595d2b0b's terminal event.
+        // A 401 means the credential this process holds is not the one the
+        // registry has — an out-of-band reset, or an identity restored from a
+        // stale Secret. Re-register to pick the current one up and retry, as
+        // the claim and heartbeat loops do. Retrying with the refused token
+        // instead lost run 595d2b0b's terminal event. (A re-registration by the
+        // holder no longer rotates anything, so this is recovery, not churn.)
         onUnauthorized: () => claimLoop.reRegister(),
       })
     : null;

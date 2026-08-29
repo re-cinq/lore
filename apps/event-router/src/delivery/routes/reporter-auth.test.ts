@@ -74,12 +74,12 @@ describe("POST /api/events — per-agent tokens (FR5)", () => {
     expect(inserted).toEqual([event]);
   });
 
-  it("refuses the pre-rotation token with 401 once the agent rotates", async () => {
+  it("refuses a token the registry has replaced, so a revoked credential reports nothing", async () => {
     const { token, tokenHash } = mintAgentToken();
     const agent = await registry.create(registration(tokenHash));
 
     enforceTrue(agent, Error, "name already registered");
-    await registry.rotate(agent.id, registration(mintAgentToken().tokenHash));
+    await registry.refresh(agent.id, registration(mintAgentToken().tokenHash));
 
     const res = await server().inject(report(token));
 

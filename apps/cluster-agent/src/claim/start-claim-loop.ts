@@ -79,9 +79,8 @@ async function runRegistrant(opts: {
   );
 
   // Single-flight: the heartbeat and claim loops can 401 in the same window,
-  // and two overlapping re-registrations would rotate the token twice — the
-  // first rotation's holder immediately 401s again. Both callers await the
-  // same in-flight attempt instead.
+  // and two registrations racing each other is two round trips and two writes
+  // to answer one question. Both callers await the same in-flight attempt.
   let reRegistration: Promise<ClusterAgentIdentity | null> | null = null;
   const reRegister = (): Promise<ClusterAgentIdentity | null> =>
     (reRegistration ??= registerOnce({

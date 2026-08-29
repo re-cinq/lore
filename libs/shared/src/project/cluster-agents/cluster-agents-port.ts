@@ -27,8 +27,11 @@ export interface ClusterAgentsRepository {
    * register route reports as the same 409 as any other taken name.
    */
   create(input: RegisterClusterAgentInput): Promise<ClusterAgent | null>;
-  /** Token rotation + capability update for a re-registering identity. */
-  rotate(id: string, input: RegisterClusterAgentInput): Promise<ClusterAgent>;
+  /** Update a live identity's tags, cluster info and token hash in place. The
+   *  hash is normally the one it already carries — a re-registration by the
+   *  holder keeps its credential (a rotation there cuts off its own running
+   *  pods) — so this refreshes the row rather than issuing anything. */
+  refresh(id: string, input: RegisterClusterAgentInput): Promise<ClusterAgent>;
   /** Bump `last_seen_at` and revive `offline` → `active`. */
   heartbeat(id: string, at: Date): Promise<void>;
   /**
@@ -43,7 +46,9 @@ export interface ClusterAgentsRepository {
 }
 
 export type RegistrationDecision =
-  { kind: "create" } | { kind: "rotate"; id: string } | { kind: "reject" };
+  | { kind: "create" }
+  | { kind: "refresh"; id: string; tokenHash: string }
+  | { kind: "reject" };
 
 /**
  * The identity-takeover gate: a known name re-registers only by proving it
@@ -63,7 +68,11 @@ export function decideRegistration(
     presentedTokenHash !== null &&
     secretEquals(presentedTokenHash, existing.tokenHash)
   ) {
-    return { kind: "rotate", id: existing.id };
+    return {
+      kind: "refresh",
+      id: existing.id,
+      tokenHash: existing.tokenHash,
+    };
   }
 
   return { kind: "reject" };

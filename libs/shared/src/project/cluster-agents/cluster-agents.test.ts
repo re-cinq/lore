@@ -44,12 +44,13 @@ describe("decideRegistration", () => {
     expect(decideRegistration(null, null)).toEqual({ kind: "create" });
   });
 
-  it("returns rotate when the presented token hash matches the live identity", () => {
+  it("returns refresh carrying the live token hash when the presented one matches", () => {
     const existing = agentRow();
 
     expect(decideRegistration(existing, existing.tokenHash)).toEqual({
-      kind: "rotate",
+      kind: "refresh",
       id: existing.id,
+      tokenHash: existing.tokenHash,
     });
   });
 
@@ -136,7 +137,7 @@ describe("InMemoryClusterAgents", () => {
     expect(await repo.list()).toHaveLength(1);
   });
 
-  it("rotate keeps the id and name but swaps token, tags, and cluster info", async () => {
+  it("refresh keeps the id and name but swaps token, tags, and cluster info", async () => {
     const repo = new InMemoryClusterAgents();
     const created = await createOrFail(repo, {
       name: "minikube-bogdan",
@@ -145,14 +146,14 @@ describe("InMemoryClusterAgents", () => {
       clusterInfo: null,
     });
 
-    const rotated = await repo.rotate(created.id, {
+    const refreshed = await repo.refresh(created.id, {
       name: "minikube-bogdan",
       tags: ["node:agent", "gpu"],
       tokenHash: hashAgentToken("lca_two"),
       clusterInfo: { gpu: "h100" },
     });
 
-    expect(rotated).toMatchObject({
+    expect(refreshed).toMatchObject({
       id: created.id,
       name: "minikube-bogdan",
       tags: ["node:agent", "gpu"],
@@ -289,10 +290,10 @@ describe("PgClusterAgents adapter", () => {
     ]);
   });
 
-  it("rotate updates token, tags, cluster info and revives the row to active", async () => {
+  it("refresh updates token, tags, cluster info and revives the row to active", async () => {
     const { pool, calls } = fakePool([[{ id: "a-1" }]]);
 
-    await new PgClusterAgents(pool).rotate("a-1", {
+    await new PgClusterAgents(pool).refresh("a-1", {
       name: "minikube-bogdan",
       tags: ["gpu"],
       tokenHash: "hash2",

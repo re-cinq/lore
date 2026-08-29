@@ -86,9 +86,10 @@ export async function handleRegister(
   }
 
   const existing = await deps.repository.findByName(body.name);
+  const presented = body.current_token ?? "";
   const decision: RegistrationDecision = decideRegistration(
     existing,
-    body.current_token ? hashAgentToken(body.current_token) : null,
+    presented ? hashAgentToken(presented) : null,
   );
 
   if (decision.kind === "reject") {
@@ -98,17 +99,28 @@ export async function handleRegister(
     };
   }
 
-  const minted = mintAgentToken();
+  // A re-registration by the identity holder KEEPS its token. Minting a new one
+  // was a restart hazard, not a security measure: the credential is also what
+  // this cluster's already-running pods present to the Floor's telemetry sink
+  // (published into `agent-secrets` at registration and read by a pod exactly
+  // once, at creation), so every rollout silently 401'd every in-flight run for
+  // the rest of its life. Nor did the rotation buy recovery: a token that does
+  // NOT match is rejected 409 either way, so the only case that rotated is the
+  // one that needed no new token at all.
+  const issued =
+    decision.kind === "create"
+      ? mintAgentToken()
+      : { token: presented, tokenHash: decision.tokenHash };
   const input = {
     name: body.name,
     tags: body.tags,
-    tokenHash: minted.tokenHash,
+    tokenHash: issued.tokenHash,
     clusterInfo: body.cluster_info,
   };
   const agent =
     decision.kind === "create"
       ? await deps.repository.create(input)
-      : await deps.repository.rotate(decision.id, input);
+      : await deps.repository.refresh(decision.id, input);
 
   if (agent === null) {
     // Lost a concurrent first registration of the same name after findByName
@@ -125,7 +137,7 @@ export async function handleRegister(
       id: agent.id,
       name: agent.name,
       tags: agent.tags,
-      token: minted.token,
+      token: issued.token,
     },
   };
 }
