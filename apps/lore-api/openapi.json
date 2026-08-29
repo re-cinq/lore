@@ -3858,6 +3858,68 @@
         ]
       }
     },
+    "/api/cluster-agents/{id}/release": {
+      "post": {
+        "operationId": "post_api_cluster-agents_id_release",
+        "summary": "POST /api/cluster-agents/{id}/release",
+        "tags": ["Cluster Agents"],
+        "security": [],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "Whether the unlaunched visit went back on the queue or had already settled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClusterAgentRelease"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "node_row_id": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "reason": {
+                    "type": "string",
+                    "maxLength": 2000
+                  }
+                },
+                "required": ["node_row_id", "reason"],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/cluster-agents": {
       "get": {
         "operationId": "get_api_cluster-agents",
@@ -9907,6 +9969,17 @@
           "status": {
             "type": "string",
             "const": "ok"
+          }
+        },
+        "required": ["status"],
+        "additionalProperties": false
+      },
+      "ClusterAgentRelease": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": ["requeued", "settled"]
           }
         },
         "required": ["status"],

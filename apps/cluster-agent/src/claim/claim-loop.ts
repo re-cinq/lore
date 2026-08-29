@@ -54,6 +54,12 @@ export interface ClaimResponse {
 
 export type ClaimOutcome =
   | { kind: "claimed"; stationRunId: string; crName: string }
+  /** The CR was already there — a requeued visit converging on the name its
+   *  previous attempt used. Reported apart from a fresh launch because no new
+   *  pod exists: the terminal event of the CR still standing dedupes against the
+   *  one that attempt already produced, so this row would sit claimed behind a
+   *  finished CR. */
+  | { kind: "already-running"; stationRunId: string; crName: string }
   | { kind: "empty" }
   | { kind: "unauthorized" }
   | { kind: "error"; message: string };
@@ -78,8 +84,63 @@ export function nextClaimDelay(
 export interface ClaimTickDeps {
   apiUrl: string;
   identity: () => ClusterAgentIdentity;
-  launch: (spec: LoreTaskSpec) => Promise<{ ref: string }>;
+  launch: (spec: LoreTaskSpec) => Promise<{ ref: string; launched?: boolean }>;
   fetchFn?: typeof fetch;
+}
+
+export interface ReleaseDeps {
+  apiUrl: string;
+  identity: () => ClusterAgentIdentity;
+  /** The station-run ROW, which is what the queue requeues (the row-id-as-
+   *  visit-order contract) — not the station_run_id. */
+  nodeRowId: string;
+  reason: string;
+  fetchFn?: typeof fetch;
+}
+
+/**
+ * Hand back a visit this cluster claimed and could not launch.
+ *
+ * The claim CASes the row to `claimed` before any pod exists, so a launch that
+ * throws leaves a claimed row with nothing behind it. Left unsaid, that row
+ * waits — centrally until the reaper notices the missing CR, on a satellite
+ * (whose CRs the centre cannot see) for the whole node budget. One extra call
+ * is the difference between a wasted claim and a wasted hour.
+ *
+ * Never throws: it runs inside the tick's failure path, where a second failure
+ * must not become the loop's.
+ */
+export async function releaseClaim(deps: ReleaseDeps): Promise<void> {
+  const fetchFn = deps.fetchFn ?? fetch;
+  const { id, token } = deps.identity();
+
+  try {
+    const res = await fetchFn(
+      `${deps.apiUrl}/api/cluster-agents/${id}/release`,
+      {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${token}`,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          node_row_id: deps.nodeRowId,
+          reason: deps.reason,
+        }),
+        signal: AbortSignal.timeout(CLAIM_TIMEOUT_MS),
+      },
+    );
+
+    if (!res.ok) {
+      console.warn(
+        `[cluster-agent] releasing station run row ${deps.nodeRowId} refused (HTTP ${res.status}) — the reaper is what recovers it now`,
+      );
+    }
+  } catch (err) {
+    console.warn(
+      `[cluster-agent] could not release station run row ${deps.nodeRowId}: ${errorMessage(err)}`,
+    );
+  }
 }
 
 /** One poll: claim, and launch what was claimed. Never throws — every failure
@@ -141,15 +202,47 @@ export async function claimOnce(deps: ClaimTickDeps): Promise<ClaimOutcome> {
   const spec: LoreTaskSpec = { ...claim.spec, name: specName };
 
   try {
-    const { ref } = await deps.launch(spec);
+    const { ref, launched } = await deps.launch(spec);
 
-    return { kind: "claimed", stationRunId: claim.station_run_id, crName: ref };
+    return {
+      kind: launched === false ? "already-running" : "claimed",
+      stationRunId: claim.station_run_id,
+      crName: ref,
+    };
   } catch (err) {
+    await releaseClaim({
+      apiUrl: deps.apiUrl,
+      identity: deps.identity,
+      nodeRowId: claim.node_row_id,
+      reason: errorMessage(err),
+      fetchFn: deps.fetchFn,
+    });
+
     return {
       kind: "error",
-      message: `launch failed for station run ${claim.station_run_id}: ${errorMessage(err)}`,
+      message: `launch failed for station run ${claim.station_run_id}, visit handed back: ${errorMessage(err)}`,
     };
   }
+}
+
+/**
+ * The kill switch a shutdown throws.
+ *
+ * Without one the claim loop keeps ticking through the drain: a claim lands, the
+ * API records the visit as claimed by this agent, and `process.exit` cuts the
+ * launch — mint, Secret write, catalog clone, CR create — somewhere in the
+ * middle. That is a claimed row with no CR (or a half-written per-task pair) on
+ * every rollout, and the queue is busiest exactly when rollouts hurt.
+ */
+export function stopLatch(): { running: () => boolean; stop: () => void } {
+  let alive = true;
+
+  return {
+    running: () => alive,
+    stop: () => {
+      alive = false;
+    },
+  };
 }
 
 export interface ClaimLoopDeps {
@@ -160,9 +253,11 @@ export interface ClaimLoopDeps {
   sleep: (ms: number) => Promise<void>;
   baseDelayMs: number;
   maxIdleDelayMs?: number;
-  /** Tests bound the loop; production runs forever. */
+  /** Bounds the loop: a shutdown's latch, or a test's. */
   running?: () => boolean;
   log?: (message: string) => void;
+  /** Runs after each outcome is logged — the shutdown latch's seam in tests. */
+  onOutcome?: (outcome: ClaimOutcome) => void;
 }
 
 export async function runClaimLoop(deps: ClaimLoopDeps): Promise<void> {
@@ -177,6 +272,12 @@ export async function runClaimLoop(deps: ClaimLoopDeps): Promise<void> {
         );
       }
 
+      if (outcome.kind === "already-running") {
+        log(
+          `[cluster-agent] station run ${outcome.stationRunId} claimed, but Agent CR ${outcome.crName} already exists — no new pod; its terminal event settles the visit`,
+        );
+      }
+
       if (outcome.kind === "error") {
         log(`[cluster-agent] ${outcome.message}`);
       }
@@ -187,6 +288,7 @@ export async function runClaimLoop(deps: ClaimLoopDeps): Promise<void> {
         );
         await deps.reRegister();
       }
+      deps.onOutcome?.(outcome);
     },
     isIdle: (outcome) => outcome.kind === "empty",
     delayFor: (outcome, idleTicks) =>

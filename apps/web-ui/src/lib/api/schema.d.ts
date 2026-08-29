@@ -1156,6 +1156,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/cluster-agents/{id}/release": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** POST /api/cluster-agents/{id}/release */
+    post: operations["post_api_cluster-agents_id_release"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/cluster-agents": {
     parameters: {
       query?: never;
@@ -2691,6 +2708,10 @@ export interface components {
     ClusterAgentHeartbeat: {
       /** @constant */
       status: "ok";
+    };
+    ClusterAgentRelease: {
+      /** @enum {string} */
+      status: "requeued" | "settled";
     };
     ClusterAgentList: {
       agents: {
@@ -5686,6 +5707,38 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["ClusterAgentHeartbeat"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      413: components["responses"]["PayloadTooLarge"];
+      429: components["responses"]["RateLimited"];
+    };
+  };
+  "post_api_cluster-agents_id_release": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          node_row_id: string;
+          reason: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Whether the unlaunched visit went back on the queue or had already settled */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ClusterAgentRelease"];
         };
       };
       400: components["responses"]["BadRequest"];

@@ -76,6 +76,7 @@ import { clusterAgentClaimRoute } from "../api/routes/cluster-agents/claim.js";
 import { clusterAgentInstallRoutes } from "../api/routes/cluster-agents/install.js";
 import { clusterAgentPauseRoute } from "../api/routes/cluster-agents/pause.js";
 import { clusterAgentHeartbeatRoute } from "../api/routes/cluster-agents/heartbeat.js";
+import { clusterAgentReleaseRoute } from "../api/routes/cluster-agents/release.js";
 import { clusterAgentListRoute } from "../api/routes/cluster-agents/list.js";
 import { darkFactoryRoute } from "../api/routes/dark-factory/dark-factory.js";
 import {
@@ -166,6 +167,7 @@ export function routeList(getPool: () => Pool | null): ServerRoute[] {
     ...clusterAgentInstallRoutes(),
     clusterAgentPauseRoute(getPool),
     clusterAgentHeartbeatRoute(getPool),
+    clusterAgentReleaseRoute(getPool),
     clusterAgentListRoute(getPool),
     ...darkFactoryRoute(getPool),
     agentsGetRoute(getPool),
