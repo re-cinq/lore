@@ -64,7 +64,7 @@ export class PgClusterAgents implements ClusterAgentsRepository {
       : null;
   }
 
-  async rotate(
+  async refresh(
     id: string,
     input: RegisterClusterAgentInput,
   ): Promise<ClusterAgent> {

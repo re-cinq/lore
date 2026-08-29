@@ -98,18 +98,25 @@ A new `pipeline.cluster_agents` table is the registry of execution clusters.
 - The per-agent token is stored SHA-256-hashed in
   `pipeline.cluster_agents.token_hash`, following the existing
   `pipeline.api_tokens` pattern; every subsequent lore-api call from that
-  agent authenticates with it. ([validated by `cluster-agents.test.ts:68`](libs/shared/src/project/cluster-agents/cluster-agents.test.ts#L68), [`cluster-agents.test.ts:76`](libs/shared/src/project/cluster-agents/cluster-agents.test.ts#L76))
+  agent authenticates with it. ([validated by `cluster-agents.test.ts:68`](libs/shared/src/project/cluster-agents/cluster-agents.test.ts#L69), [`cluster-agents.test.ts:76`](libs/shared/src/project/cluster-agents/cluster-agents.test.ts#L77))
 - A failed registration attempt is retried on a 30-second schedule doubling
   to a 5-minute cap, and never crashes the process — the agent's other
   duties (the watch, the inbound routes) do not depend on it. ([validated by `registration.test.ts:238`](apps/cluster-agent/src/claim/registration.test.ts#L238), [`registration.test.ts:265`](apps/cluster-agent/src/claim/registration.test.ts#L265))
 - Registration is idempotent on `name` — but only for the identity holder:
   re-registering an existing name **with the current per-agent bearer token**
-  rotates the token and updates `tags` and `cluster_info`. Re-registering a
+  updates `tags` and `cluster_info` and **keeps that token**. Re-registering a
   known name without it is rejected `409` — the shared registration token
-  alone must never suffice to take over a live cluster's identity. ([validated by `register.test.ts:67`](apps/lore-api/src/api/routes/cluster-agents/register.test.ts#L67), [`register.test.ts:93`](apps/lore-api/src/api/routes/cluster-agents/register.test.ts#L93), [`cluster-agents.test.ts:43`](libs/shared/src/project/cluster-agents/cluster-agents.test.ts#L43), [`cluster-agents.test.ts:47`](libs/shared/src/project/cluster-agents/cluster-agents.test.ts#L47), [`cluster-agents.test.ts:56`](libs/shared/src/project/cluster-agents/cluster-agents.test.ts#L56), [`cluster-agents.test.ts:60`](libs/shared/src/project/cluster-agents/cluster-agents.test.ts#L60), [`registration.test.ts:175`](apps/cluster-agent/src/claim/registration.test.ts#L161))
+  alone must never suffice to take over a live cluster's identity.
+  *(2026-08-29: this used to MINT a new token. That made every restart of a
+  cluster-agent cut off its own running pods — the credential is published into
+  `agent-secrets` at registration and a run pod reads it exactly once, at
+  creation, so a rollout silently 401'd every in-flight run's telemetry for the
+  rest of its life. The rotation bought no recovery either: a token that does
+  not match is rejected `409` either way, so the only case that rotated was the
+  one that needed no new token at all.)* ([validated by `register.test.ts:67`](apps/lore-api/src/api/routes/cluster-agents/register.test.ts#L67), [`register.test.ts:93`](apps/lore-api/src/api/routes/cluster-agents/register.test.ts#L93), [`cluster-agents.test.ts:43`](libs/shared/src/project/cluster-agents/cluster-agents.test.ts#L43), [`cluster-agents.test.ts:47`](libs/shared/src/project/cluster-agents/cluster-agents.test.ts#L47), [`cluster-agents.test.ts:56`](libs/shared/src/project/cluster-agents/cluster-agents.test.ts#L57), [`cluster-agents.test.ts:60`](libs/shared/src/project/cluster-agents/cluster-agents.test.ts#L61), [`registration.test.ts:175`](apps/cluster-agent/src/claim/registration.test.ts#L161))
 - Two concurrent first registrations of the same name resolve to one
   identity: the insert is conflict-safe, and the loser receives the same
-  `409` as any other taken name — never a 500. ([validated by `register.test.ts:122`](apps/lore-api/src/api/routes/cluster-agents/register.test.ts#L122), [`cluster-agents.test.ts:118`](libs/shared/src/project/cluster-agents/cluster-agents.test.ts#L118))
+  `409` as any other taken name — never a 500. ([validated by `register.test.ts:122`](apps/lore-api/src/api/routes/cluster-agents/register.test.ts#L122), [`cluster-agents.test.ts:118`](libs/shared/src/project/cluster-agents/cluster-agents.test.ts#L119))
 - Credential handling is uniform across the cluster-agent endpoints: the
   `Authorization` header is parsed by the shared `extractBearer` — anchored
   to the start, scheme case-insensitive per RFC 7235, first value of a
@@ -128,7 +135,7 @@ A new `pipeline.cluster_agents` table is the registry of execution clusters.
   `claimed_at` on `pipeline.station_runs`.
 - A `ClusterAgent` Zod model in `libs/shared/src/models/` and a
   port + Pg adapter + InMemory double under
-  `libs/shared/src/project/cluster-agents/` follow the house pattern. ([validated by `cluster-agents.test.ts:93`](libs/shared/src/project/cluster-agents/cluster-agents.test.ts#L93), [`cluster-agents.test.ts:139`](libs/shared/src/project/cluster-agents/cluster-agents.test.ts#L139), [`cluster-agents.test.ts:248`](libs/shared/src/project/cluster-agents/cluster-agents.test.ts#L248), [`cluster-agents.test.ts:269`](libs/shared/src/project/cluster-agents/cluster-agents.test.ts#L269), [`cluster-agents.test.ts:292`](libs/shared/src/project/cluster-agents/cluster-agents.test.ts#L292))
+  `libs/shared/src/project/cluster-agents/` follow the house pattern. ([validated by `cluster-agents.test.ts:93`](libs/shared/src/project/cluster-agents/cluster-agents.test.ts#L94), [`cluster-agents.test.ts:140`](libs/shared/src/project/cluster-agents/cluster-agents.test.ts#L140), [`cluster-agents.test.ts:248`](libs/shared/src/project/cluster-agents/cluster-agents.test.ts#L249), [`cluster-agents.test.ts:269`](libs/shared/src/project/cluster-agents/cluster-agents.test.ts#L270), [`cluster-agents.test.ts:293`](libs/shared/src/project/cluster-agents/cluster-agents.test.ts#L293))
 
 ## FR2 — Capability tags
 
@@ -234,11 +241,11 @@ against the central cluster-agent. A satellite's CRs are invisible to that
 pull, so recovery splits by who holds the claim:
 
 - A cluster-agent posts `POST /api/cluster-agents/{id}/heartbeat` every 30 s,
-  bumping `last_seen_at`. ([validated by `cluster-agents.test.ts:166`](libs/shared/src/project/cluster-agents/cluster-agents.test.ts#L166), [`cluster-agents.test.ts:331`](libs/shared/src/project/cluster-agents/cluster-agents.test.ts#L331), [`heartbeat.test.ts:22`](apps/lore-api/src/api/routes/cluster-agents/heartbeat.test.ts#L22), [`heartbeat.test.ts:38`](apps/lore-api/src/api/routes/cluster-agents/heartbeat.test.ts#L38), [`heartbeat-loop.test.ts:29`](apps/cluster-agent/src/claim/heartbeat-loop.test.ts#L29), [`heartbeat-loop.test.ts:33`](apps/cluster-agent/src/claim/heartbeat-loop.test.ts#L33), [`heartbeat-loop.test.ts:44`](apps/cluster-agent/src/claim/heartbeat-loop.test.ts#L44), [`heartbeat-loop.test.ts:74`](apps/cluster-agent/src/claim/heartbeat-loop.test.ts#L86), [`heartbeat-loop.test.ts:62`](apps/cluster-agent/src/claim/heartbeat-loop.test.ts#L62))
+  bumping `last_seen_at`. ([validated by `cluster-agents.test.ts:166`](libs/shared/src/project/cluster-agents/cluster-agents.test.ts#L167), [`cluster-agents.test.ts:331`](libs/shared/src/project/cluster-agents/cluster-agents.test.ts#L332), [`heartbeat.test.ts:22`](apps/lore-api/src/api/routes/cluster-agents/heartbeat.test.ts#L22), [`heartbeat.test.ts:38`](apps/lore-api/src/api/routes/cluster-agents/heartbeat.test.ts#L38), [`heartbeat-loop.test.ts:29`](apps/cluster-agent/src/claim/heartbeat-loop.test.ts#L29), [`heartbeat-loop.test.ts:33`](apps/cluster-agent/src/claim/heartbeat-loop.test.ts#L33), [`heartbeat-loop.test.ts:44`](apps/cluster-agent/src/claim/heartbeat-loop.test.ts#L44), [`heartbeat-loop.test.ts:74`](apps/cluster-agent/src/claim/heartbeat-loop.test.ts#L86), [`heartbeat-loop.test.ts:62`](apps/cluster-agent/src/claim/heartbeat-loop.test.ts#L62))
 - The assembly-run reaper (existing cadence) marks cluster-agents with
   `last_seen_at < now() - 5 minutes` as `offline` — ten missed heartbeats,
   so a transient network blip or one dropped request never requeues live
-  work. ([validated by `cluster-agents.test.ts:218`](libs/shared/src/project/cluster-agents/cluster-agents.test.ts#L218), [`cluster-agents.test.ts:308`](libs/shared/src/project/cluster-agents/cluster-agents.test.ts#L308), [`assembly-run-reaper.test.ts:795`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L911))
+  work. ([validated by `cluster-agents.test.ts:218`](libs/shared/src/project/cluster-agents/cluster-agents.test.ts#L219), [`cluster-agents.test.ts:308`](libs/shared/src/project/cluster-agents/cluster-agents.test.ts#L309), [`assembly-run-reaper.test.ts:795`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L911))
 - The reaper's CR-status recovery arm (`readAgentStatus` → relaunch on null)
   applies **only** to runs claimed by the central cluster's agent — the one
   cluster `CLUSTER_AGENT_URL` can reach. For satellite-claimed runs that arm
@@ -467,7 +474,7 @@ nothing matches is a trick that loses the cluster's real tags.
   is fully alive, keeps heartbeating and finishes what it already claimed —
   it is only passed over when new work is handed out. Conflating them would
   make pausing a cluster look exactly like losing one, and the reaper would
-  pull its live work away. ([validated by `cluster-agents.test.ts:186`](libs/shared/src/project/cluster-agents/cluster-agents.test.ts#L186), [`cluster-agents.test.ts:209`](libs/shared/src/project/cluster-agents/cluster-agents.test.ts#L209), [`cluster-agents.test.ts:321`](libs/shared/src/project/cluster-agents/cluster-agents.test.ts#L321), [`pause.test.ts:45`](apps/lore-api/src/api/routes/cluster-agents/pause.test.ts#L45))
+  pull its live work away. ([validated by `cluster-agents.test.ts:186`](libs/shared/src/project/cluster-agents/cluster-agents.test.ts#L187), [`cluster-agents.test.ts:209`](libs/shared/src/project/cluster-agents/cluster-agents.test.ts#L210), [`cluster-agents.test.ts:321`](libs/shared/src/project/cluster-agents/cluster-agents.test.ts#L322), [`pause.test.ts:45`](apps/lore-api/src/api/routes/cluster-agents/pause.test.ts#L45))
 - `PUT /api/cluster-agents/{id}/paused` flips it, scoped `write` — unlike its
   register/claim/heartbeat siblings this route serves the UI, and the cluster
   being paused is precisely not the caller. Unknown id answers `404`. ([validated by `pause.test.ts:23`](apps/lore-api/src/api/routes/cluster-agents/pause.test.ts#L23), [`pause.test.ts:35`](apps/lore-api/src/api/routes/cluster-agents/pause.test.ts#L35), [`pause.test.ts:55`](apps/lore-api/src/api/routes/cluster-agents/pause.test.ts#L55))

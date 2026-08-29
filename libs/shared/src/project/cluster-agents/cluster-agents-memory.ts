@@ -58,14 +58,14 @@ export class InMemoryClusterAgents implements ClusterAgentsRepository {
     return agent;
   }
 
-  async rotate(
+  async refresh(
     id: string,
     input: RegisterClusterAgentInput,
   ): Promise<ClusterAgent> {
     const existing = this.agents.get(id);
 
     enforceTrue(existing, Error, `cluster agent ${id} not found`);
-    const rotated: ClusterAgent = {
+    const refreshed: ClusterAgent = {
       ...existing,
       tags: input.tags,
       tokenHash: input.tokenHash,
@@ -74,9 +74,9 @@ export class InMemoryClusterAgents implements ClusterAgentsRepository {
       status: "active",
     };
 
-    this.agents.set(id, rotated);
+    this.agents.set(id, refreshed);
 
-    return rotated;
+    return refreshed;
   }
 
   async heartbeat(id: string, at: Date): Promise<void> {

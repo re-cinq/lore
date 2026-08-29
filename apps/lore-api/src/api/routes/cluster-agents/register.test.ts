@@ -64,7 +64,7 @@ describe("handleRegister", () => {
     expect(stored?.tokenHash).not.toContain(result.body.token);
   });
 
-  it("re-registering a known name with the current token rotates it under the same id", async () => {
+  it("re-registering a known name with the current token keeps it under the same id", async () => {
     const repository = new InMemoryClusterAgents();
     const first = await handleRegister(deps(repository), REG_TOKEN, {
       name: "minikube",
@@ -82,7 +82,7 @@ describe("handleRegister", () => {
 
     enforceTrue(second.code === 200, Error, "unreachable");
     expect(second.body.id).toBe(first.body.id);
-    expect(second.body.token).not.toBe(first.body.token);
+    expect(second.body.token).toBe(first.body.token);
     expect((await repository.list()).length).toBe(1);
     expect((await repository.findByName("minikube"))?.tags).toEqual([
       "node:agent",

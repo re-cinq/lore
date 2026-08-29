@@ -79,7 +79,7 @@ describe("POST /api/events — per-agent tokens (FR5)", () => {
     const agent = await registry.create(registration(tokenHash));
 
     enforceTrue(agent, Error, "name already registered");
-    await registry.rotate(agent.id, registration(mintAgentToken().tokenHash));
+    await registry.refresh(agent.id, registration(mintAgentToken().tokenHash));
 
     const res = await server().inject(report(token));
 
