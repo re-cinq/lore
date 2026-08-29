@@ -91,7 +91,14 @@ export function drain(batch: PendingBatch): BatchStep {
  * fragment really is incomplete.
  */
 export function drainAtEnd(batch: PendingBatch, carry: string): BatchStep {
-  return drain(carry ? { lines: [...batch.lines, carry], bytes: 0 } : batch);
+  if (!carry) {
+    return drain(batch);
+  }
+
+  return drain({
+    lines: [...batch.lines, carry],
+    bytes: batch.bytes + Buffer.byteLength(carry) + 1,
+  });
 }
 
 /**
@@ -124,17 +131,6 @@ export interface FollowableAgent {
 const TERMINAL_PHASES = new Set(["Succeeded", "Failed"]);
 
 /**
- * Which agents this tick should open a log stream for.
- *
- * Skips the terminal ones (their output is already in the stored chunks, and
- * the pod is on its way out), the ones with no Job yet (nothing to open a
- * stream against), and — the one that matters — the ones already being
- * followed. Discovery re-runs on a timer over the same running agents, so
- * without that last check every tick opens another stream on the same pod and
- * emits each line once per stream. Dedupe is per `(pod, seq)` and each stream
- * assigns its own seqs, so those duplicates would NOT collapse.
- */
-/**
  * The same choice as {@link followableAgents}, reduced to what a stream needs.
  *
  * Discovery must never hold a page of Agent CRs — each carries its run's whole
@@ -156,6 +152,17 @@ export function followTargets(
   );
 }
 
+/**
+ * Which agents this tick should open a log stream for.
+ *
+ * Skips the terminal ones (their output is already in the stored chunks, and
+ * the pod is on its way out), the ones with no Job yet (nothing to open a
+ * stream against), and — the one that matters — the ones already being
+ * followed. Discovery re-runs on a timer over the same running agents, so
+ * without that last check every tick opens another stream on the same pod and
+ * emits each line once per stream. Dedupe is per `(pod, seq)` and each stream
+ * assigns its own seqs, so those duplicates would NOT collapse.
+ */
 export function followableAgents(
   agents: readonly FollowableAgent[],
   following: ReadonlySet<string>,
