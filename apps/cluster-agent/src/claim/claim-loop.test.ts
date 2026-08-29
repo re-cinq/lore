@@ -169,10 +169,7 @@ describe("claimOnce", () => {
       ...CLAIM_BODY,
       spec: { ...CLAIM_BODY.spec, name: "some-other-name" },
     };
-    const d = deps([
-      jsonResponse(200, disagreeing),
-      jsonResponse(200, { status: "requeued" }),
-    ]);
+    const d = deps([jsonResponse(200, disagreeing)]);
 
     expect(await claimOnce(d.tick)).toEqual({
       kind: "error",

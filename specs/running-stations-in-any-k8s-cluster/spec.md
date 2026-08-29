@@ -252,7 +252,7 @@ one dispatch mechanism, not a special case plus a remote case.
   report, the reconcile pass, the fork replay. A claim whose two names disagree
   is refused rather than launched under either, since a CR no row names produces
   a terminal event that matches nothing and a node that waits out its timeout
-  reading as a run nobody launched. ([validated by falls back to the spec's own name for a row with none recorded](apps/cluster-agent/src/claim/claim-loop.test.ts#L154), [`claim-loop.test.ts:167`](apps/cluster-agent/src/claim/claim-loop.test.ts#L167))
+  reading as a run nobody launched. ([validated by `claim-loop.test.ts:141`](apps/cluster-agent/src/claim/claim-loop.test.ts#L141), [falls back to the spec's own name for a row with none recorded](apps/cluster-agent/src/claim/claim-loop.test.ts#L154), [`claim-loop.test.ts:167`](apps/cluster-agent/src/claim/claim-loop.test.ts#L167))
 - Outcome reporting rides the existing path: the cluster-agent's watch
   reports terminal phases through the event-router front door with dedupe
   keys, and the central Floor's event loop advances the assembly line
