@@ -10,19 +10,13 @@
  * 401 for the internal sink. A wrong token is always 401.
  */
 
-import { timingSafeEqual } from "node:crypto";
 import { apiError } from "./api-error.js";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
+// The one constant-time compare every service shares. The Floor had a private
+// byte-for-byte copy, which is exactly the drift `bearer.ts` was written to end:
+// a hardening applied there would have left this strategy on the old code.
+import { secretEquals } from "@re-cinq/lore-shared/http/bearer.js";
 import type { Server, ServerAuthScheme } from "@hapi/hapi";
-
-/** Constant-time token comparison — mirrors the HMAC path's timingSafeEqual so a
- *  bearer check can't leak the token via response-time differences. */
-function tokensMatch(provided: string, expected: string): boolean {
-  const a = Buffer.from(provided);
-  const b = Buffer.from(expected);
-
-  return a.length === b.length && timingSafeEqual(a, b);
-}
 
 interface BearerOptions {
   token: string | undefined;
@@ -44,7 +38,7 @@ const bearerScheme: ServerAuthScheme = (_server, options) => {
       );
 
       enforceTrue(
-        provided !== undefined && tokensMatch(provided, token),
+        provided !== undefined && secretEquals(provided, token),
         apiError(401),
         "unauthorized",
       );

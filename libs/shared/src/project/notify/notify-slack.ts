@@ -3,7 +3,12 @@ import {
   resolveDarkFactorySettings,
   type DarkFactorySettings,
 } from "../../dark-factory-settings.js";
-import type { NotifyPort, NotifyLevel, NotifyResult } from "./notify-port.js";
+import type {
+  NotifyPort,
+  NotifyLevel,
+  NotifyResult,
+  NotifyOptions,
+} from "./notify-port.js";
 import { decideNotify } from "./notify-decision.js";
 
 interface RepoNotifyRow {
@@ -26,6 +31,7 @@ export class NotifySlack implements NotifyPort {
     repo: string,
     level: NotifyLevel,
     message: string,
+    opts: NotifyOptions = {},
   ): Promise<NotifyResult> {
     const { rows } = await this.pool.query(
       "SELECT settings FROM lore.repos WHERE full_name = $1",
@@ -38,7 +44,9 @@ export class NotifySlack implements NotifyPort {
     const decision = decideNotify(level, { channels });
 
     const token = this.env.LORE_SLACK_BOT_TOKEN;
-    const channel = row?.settings?.slack_channel_id;
+    // The override picks the destination; `decision` above already decided
+    // whether anything is posted at all.
+    const channel = opts.channel ?? row?.settings?.slack_channel_id;
 
     if (decision.fire && token && channel) {
       await this.post(token, channel, message);
@@ -59,7 +67,7 @@ export class NotifySlack implements NotifyPort {
         Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ channel, text }),
+      body: JSON.stringify({ channel, text, unfurl_links: true }),
     });
   }
 }

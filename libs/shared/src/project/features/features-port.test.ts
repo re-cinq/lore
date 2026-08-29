@@ -3,6 +3,8 @@ import {
   canFinalize,
   latestReadyGap,
   resolveRoundBasis,
+  slugifyTitle,
+  slugifyFeatureTitle,
 } from "./features-port.js";
 import type { FeatureIteration, FeatureStatus } from "./features-port.js";
 import type { GapResult } from "../../feature-planning/gap-result.js";
@@ -115,5 +117,27 @@ describe("resolveRoundBasis", () => {
 
   it("builds on nothing for a feature with no ready round yet", () => {
     expect(resolveRoundBasis([rounds[2]])).toEqual({ ok: true, basis: null });
+  });
+});
+
+describe("slugifyTitle", () => {
+  it("never ends a 60-char feature slug in a dash when the cut lands on one", () => {
+    // The trailing-dash trim lived only in the Floor's 30-char copy, so this
+    // path could still hand a `specs/<slug>/` directory a name ending in `-`.
+    const title = `${"a".repeat(59)} tail`;
+
+    expect(slugifyFeatureTitle(title)).toBe("a".repeat(59));
+  });
+
+  it("names an unslugabble feature title `feature` and leaves a task slug empty", () => {
+    expect(slugifyFeatureTitle("!!!")).toBe("feature");
+    expect(slugifyTitle("!!!", 30)).toBe("");
+  });
+
+  it("caps at the max it is given", () => {
+    const title = "this is a very long description that exceeds thirty chars";
+
+    expect(slugifyTitle(title, 30).length).toBeLessThanOrEqual(30);
+    expect(slugifyTitle(title, 60).length).toBeLessThanOrEqual(60);
   });
 });

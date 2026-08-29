@@ -287,15 +287,37 @@ export function decidePlanningRecovery(args: {
   return { kind: "none" };
 }
 
-/** Slug a feature title into a `specs/<slug>` directory-safe identifier. */
-export function slugifyFeatureTitle(title: string): string {
+/**
+ * Slug a title into a directory-safe identifier, capped at `max`.
+ *
+ * The trailing-dash trim runs AFTER the slice, because the cut itself can land
+ * on a `-` — a slug, and any branch name built from it, must never end in a
+ * dash. That trim previously existed only in the Floor's own 30-char copy of
+ * this function, so this one could still produce `foo-bar-` at its cut.
+ *
+ * `max` and `fallback` are parameters rather than two functions because the two
+ * callers differ only in those: a feature directory is capped at 60 and names
+ * an unslugabble title `feature`, a task branch is capped at 30 and lets an
+ * empty title stay empty for its caller to handle.
+ */
+export function slugifyTitle(
+  title: string,
+  max: number,
+  fallback = "",
+): string {
   const slug = title
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
-    .slice(0, 60);
+    .slice(0, max)
+    .replace(/-+$/, "");
 
-  return slug || "feature";
+  return slug || fallback;
+}
+
+/** Slug a feature title into a `specs/<slug>` directory-safe identifier. */
+export function slugifyFeatureTitle(title: string): string {
+  return slugifyTitle(title, 60, "feature");
 }
 
 /** The round a new round builds on: the one the author rewound to, or the latest

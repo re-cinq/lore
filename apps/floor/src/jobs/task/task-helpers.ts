@@ -5,36 +5,35 @@
  * can share these without a worker↔handler import cycle.
  */
 
-import { getPool } from "../../kernel/db.js";
 import { projectFor } from "../../composition/project-boot.js";
-import { prFooter, setTaskStatus, recordTaskEvent } from "@re-cinq/lore-shared";
+import { taskStore } from "../../kernel/queues.js";
+import { prFooter } from "@re-cinq/lore-shared";
+import { slugifyTitle } from "@re-cinq/lore-shared/project/features/features-port.js";
 
 // ── Helpers ───────────────────────────────────────────────────────────
 
+/** The task/branch slug: the shared slugger, capped at 30. Two sluggers with two
+ *  caps produced two `specs/<slug>` directories for one title depending on which
+ *  path created the feature — and the trailing-dash trim existed only here, so
+ *  the other could still end a slug in `-` at its own cut. */
 export function slugify(text: string): string {
-  return (
-    text
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "")
-      .slice(0, 30)
-      // The 30-char cut can land on a `-`; trim it so a slug (and the branch name
-      // built from it) never ends in a dash.
-      .replace(/-+$/, "")
-  );
+  return slugifyTitle(text, 30);
 }
 
 // ── Status transition helpers ─────────────────────────────────────────
 
-// setStatus + insertEvent are single-sourced in @re-cinq/lore-shared
-// (pipeline-tasks: setTaskStatus + recordEvent). These thin wrappers keep the
-// agent's call sites and bind the agent's pg pool.
+// Both go through `taskStore()` — the SAME PgTaskStore the agent-watcher writes
+// its transitions through, over the same pool. They used to call
+// setTaskStatus/recordTaskEvent against `getPool()` directly, which is the same
+// SQL by a second route: a test double for `taskStore()` then covered only half
+// the Floor's status transitions while these five handlers still hit the pool.
+// One writer, one seam to stub.
 export function setStatus(
   taskId: string,
   status: string,
   extra: Record<string, unknown> = {},
 ): Promise<void> {
-  return setTaskStatus(getPool(), taskId, status, extra);
+  return taskStore().setStatus(taskId, status, extra);
 }
 
 export function insertEvent(
@@ -43,7 +42,7 @@ export function insertEvent(
   toStatus: string,
   metadata: Record<string, unknown> = {},
 ): Promise<void> {
-  return recordTaskEvent(getPool(), taskId, fromStatus, toStatus, metadata);
+  return taskStore().recordEvent(taskId, fromStatus, toStatus, metadata);
 }
 
 /**

@@ -25,6 +25,7 @@ import {
   turnFromEnvelope,
   MAX_RUN_TURNS_PER_BATCH,
 } from "./agent-run-turns.js";
+import { isRecord } from "@re-cinq/lore-shared/lib/is-record.js";
 
 export interface LlmCallRow {
   /** Always non-empty — rowFromEnvelope returns null when the envelope carries
@@ -44,9 +45,6 @@ export interface LlmCallRow {
   durationMs: number;
 }
 
-const isObject = (x: unknown): x is Record<string, unknown> =>
-  typeof x === "object" && x !== null;
-
 const num = (x: unknown): number => (typeof x === "number" ? x : 0);
 
 // Multi-model runs carry per-model usage under `modelUsage`; its first key is the
@@ -54,7 +52,7 @@ const num = (x: unknown): number => (typeof x === "number" ? x : 0);
 function resultModel(ev: Record<string, unknown>): string {
   const modelUsage = ev.modelUsage;
 
-  if (isObject(modelUsage)) {
+  if (isRecord(modelUsage)) {
     const keys = Object.keys(modelUsage);
 
     if (keys.length > 0) {
@@ -73,7 +71,7 @@ function rowFromEnvelope(envelope: unknown): LlmCallRow | null {
     return null;
   }
 
-  if (!isObject(ev) || ev.type !== "result" || !isObject(ev.usage)) {
+  if (!isRecord(ev) || ev.type !== "result" || !isRecord(ev.usage)) {
     return null;
   }
 
@@ -113,7 +111,7 @@ function fileEventFromEnvelope(envelope: unknown): AgentFileEvent | null {
   const { source, event: ev } = unwrapAttribution(envelope);
   const taskId = typeof source?.task === "string" ? source.task : "";
 
-  if (!taskId || !isObject(ev) || ev.kind !== "file") {
+  if (!taskId || !isRecord(ev) || ev.kind !== "file") {
     return null;
   }
   const event = str(ev.event);
