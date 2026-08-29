@@ -18,11 +18,7 @@
  */
 
 import { Writable } from "node:stream";
-import {
-  Log,
-  type CoreV1Api,
-  type KubeConfig,
-} from "@kubernetes/client-node";
+import { Log, type CoreV1Api, type KubeConfig } from "@kubernetes/client-node";
 import { agentsNamespace, errorMessage } from "@re-cinq/lore-shared";
 import type {
   Emit,
