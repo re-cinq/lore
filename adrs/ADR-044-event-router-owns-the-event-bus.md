@@ -70,7 +70,12 @@ ADR-024 pins to it and reaches every byte of its data over HTTP.
   charts mount the internal token; a client sending the ingest one answered 401
   on every call — the event drain, station runs and agent dispatch at once
   (2026-08-24 cutover). Each end was correct alone; only the pair was wrong.
-  ([validated by prefers the service-to-service token over the org ingest token](libs/shared/src/http/internal-token.test.ts#L5), [`internal-token.test.ts:14`](libs/shared/src/http/internal-token.test.ts#L14), [`internal-token.test.ts:18`](libs/shared/src/http/internal-token.test.ts#L18), [`internal-token.test.ts:22`](libs/shared/src/http/internal-token.test.ts#L22))
+  The rule binds every service-to-service caller, not the Floor alone: lore-api's
+  cluster-agent client sent the ingest token until 2026-08-29, so a recipe saved
+  in the `/agents` UI wrote its row and then 401'd on the catalog apply, leaving
+  the cluster running the previous recipe. Which credential a client presents is
+  therefore a named, tested function rather than an env read at the call site.
+  ([validated by prefers the service-to-service token over the org ingest token](libs/shared/src/http/internal-token.test.ts#L5), [`internal-token.test.ts:14`](libs/shared/src/http/internal-token.test.ts#L14), [`internal-token.test.ts:18`](libs/shared/src/http/internal-token.test.ts#L18), [`internal-token.test.ts:22`](libs/shared/src/http/internal-token.test.ts#L22), [presents the service-to-service token the cluster-agent's guard mounts](apps/lore-api/src/features/agents/agent-crd-k8s.test.ts#L5), [`agent-crd-k8s.test.ts:18`](apps/lore-api/src/features/agents/agent-crd-k8s.test.ts#L18), [`agent-crd-k8s.test.ts:30`](apps/lore-api/src/features/agents/agent-crd-k8s.test.ts#L30))
 - A webhook whose signature does not verify is refused and writes nothing.
   ([validated by refuses a webhook whose signature does not match the secret](apps/event-router/src/delivery/routes/events.test.ts#L60))
 - Every other producer authenticates with a bearer token and reports the
