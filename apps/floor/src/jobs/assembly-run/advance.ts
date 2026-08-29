@@ -567,6 +567,16 @@ async function reactToNodeFinished(
         )
       : undefined;
 
+    // A node the graph does not know is a wiring bug — a run whose snapshot
+    // graph disagrees with the id the walk just finished. Silently skipping the
+    // reaction would drop a triage routing with nothing to show for it, which is
+    // the exact failure this hook was just re-keyed to prevent.
+    if (row && !node) {
+      console.warn(
+        `[assembly-run] ${assemblyLineId}: node ${nodeId} is not in the run's graph — node-finished reaction skipped`,
+      );
+    }
+
     if (row && node) {
       await deps.onNodeFinished(row, node, result);
     }
