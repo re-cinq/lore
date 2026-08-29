@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import {
   AGENT_EVENTS_AUTH_KEY,
   agentEventsAuthHeader,
+  publishesAgentEventsAuth,
   writeAgentEventsAuth,
 } from "./agent-events-secret.js";
 import type { SecretKeyWriter } from "../kernel/kube-token-provisioner.js";
@@ -35,7 +36,7 @@ describe("writeAgentEventsAuth", () => {
   it("merges the header line into agent-secrets under the recipes' key", () => {
     const { writer, writes } = fakeWriter();
 
-    return writeAgentEventsAuth(writer, IDENTITY).then(() => {
+    return writeAgentEventsAuth(writer, IDENTITY, {}).then(() => {
       expect(writes).toEqual([
         {
           secret: "agent-secrets",
@@ -53,11 +54,23 @@ describe("writeAgentEventsAuth", () => {
     });
 
     await expect(
-      writeAgentEventsAuth(writer, IDENTITY),
+      writeAgentEventsAuth(writer, IDENTITY, {}),
     ).resolves.toBeUndefined();
     expect(warn).toHaveBeenCalledWith(
       expect.stringContaining("run telemetry will be dropped"),
     );
     warn.mockRestore();
+  });
+});
+
+describe("publishesAgentEventsAuth", () => {
+  it("publishes on a cluster that holds no bus-wide token", () => {
+    expect(publishesAgentEventsAuth({})).toBe(true);
+  });
+
+  it("leaves the key alone where ESO owns it", () => {
+    expect(
+      publishesAgentEventsAuth({ LORE_INGEST_TOKEN: "bus-wide-secret" }),
+    ).toBe(false);
   });
 });

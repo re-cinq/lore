@@ -208,7 +208,7 @@ export function startClaimLoop(
         backend,
         publishTelemetryCredential: async (id) => {
           opts.onIdentity?.(id);
-          await writeAgentEventsAuth(secrets, id);
+          await writeAgentEventsAuth(secrets, id, env);
         },
         onReRegister: (fn) => {
           reRegister = fn;
