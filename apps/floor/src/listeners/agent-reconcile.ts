@@ -22,6 +22,7 @@ import { HttpAgentApi } from "@re-cinq/lore-shared";
 import { mapAgentToEvent } from "@re-cinq/lore-shared/project/events/k8s-map.js";
 import { forEachPage } from "@re-cinq/lore-shared/lib/paginate.js";
 import { clusterAgent, pipeline, taskStore } from "../kernel/queues.js";
+import { errorMessage } from "@re-cinq/lore-shared";
 import { emitEvent } from "../main-loop/store.js";
 
 const PRUNE_AFTER_MS = 60 * 60 * 1000;
@@ -58,9 +59,30 @@ export async function forEachAgentPage(
 export async function reconcileAgents(
   cluster: HttpAgentApi = new HttpAgentApi(clusterAgent()),
 ): Promise<void> {
+  // One page at a time (the pagination is what bounds MEMORY), but the CRs
+  // WITHIN a page concurrently: each is an independent lookup plus an optional
+  // emit and delete, with no cross-CR dependency. This pass exists for the
+  // pile-up case — the 180-CR namespace that crash-looped the Floor — where
+  // serial meant ~180 database round-trips and up to 180 cluster-agent DELETEs
+  // nose-to-tail, long enough for a slow cluster-agent to make the tick overrun
+  // and be re-queued concurrently with itself.
+  //
+  // allSettled, not all — and this part is a deliberate behaviour change: the
+  // serial loop let one throwing CR abandon the whole remaining sweep, which is
+  // the worst thing a safety net can do. Each rejection is logged rather than
+  // swallowed, so a CR that consistently fails to reconcile is visible.
   await forEachAgentPage(cluster, async (agents) => {
-    for (const agent of agents) {
-      await reconcileAgent(agent, cluster);
+    const settled = await Promise.allSettled(
+      agents.map((agent) => reconcileAgent(agent, cluster)),
+    );
+
+    for (const [i, outcome] of settled.entries()) {
+      if (outcome.status === "rejected") {
+        console.warn(
+          `[agent-reconcile] ${agents[i].metadata?.name} not reconciled:`,
+          errorMessage(outcome.reason),
+        );
+      }
     }
   });
 }
