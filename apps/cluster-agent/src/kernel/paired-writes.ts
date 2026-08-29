@@ -27,14 +27,16 @@ export async function applyCatalogPair(
     station,
   }: { agentDefinition: AgentDefinition; station: Station },
 ): Promise<void> {
-  await catalog.applyStation(
-    mergeOntoLive(await catalog.getStation(station.metadata!.name!), station),
-  );
+  // Both reads together — only the WRITE order is load-bearing, and each write
+  // waits on its own read anyway.
+  const [liveStation, liveDefinition] = await Promise.all([
+    catalog.getStation(station.metadata!.name!),
+    catalog.getAgentDefinition(agentDefinition.metadata!.name!),
+  ]);
+
+  await catalog.applyStation(mergeOntoLive(liveStation, station));
   await catalog.applyAgentDefinition(
-    mergeOntoLive(
-      await catalog.getAgentDefinition(agentDefinition.metadata!.name!),
-      agentDefinition,
-    ),
+    mergeOntoLive(liveDefinition, agentDefinition),
   );
 }
 

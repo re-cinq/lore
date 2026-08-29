@@ -66,8 +66,13 @@ export class KubeTokenProvisioner implements TokenProvisioner, TokenCleanup {
 
   async provision(spec: LoreTaskSpec): Promise<string | undefined> {
     const lookup = catalogLookupName(spec);
-    const catalogDef = await this.catalog.getAgentDefinition(lookup);
-    const catalogStation = await this.catalog.getStation(lookup);
+    // Both reads, one wait: neither depends on the other, and this sits on the
+    // path between "claim returned" and "CR exists" — the window in which the
+    // row is claimed with no pod behind it.
+    const [catalogDef, catalogStation] = await Promise.all([
+      this.catalog.getAgentDefinition(lookup),
+      this.catalog.getStation(lookup),
+    ]);
 
     if (!catalogDef || !catalogStation) {
       return undefined;
