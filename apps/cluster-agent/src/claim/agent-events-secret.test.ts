@@ -36,7 +36,7 @@ describe("writeAgentEventsAuth", () => {
   it("merges the header line into agent-secrets under the recipes' key", () => {
     const { writer, writes } = fakeWriter();
 
-    return writeAgentEventsAuth(writer, IDENTITY).then(() => {
+    return writeAgentEventsAuth(writer, IDENTITY, {}).then(() => {
       expect(writes).toEqual([
         {
           secret: "agent-secrets",
@@ -54,7 +54,7 @@ describe("writeAgentEventsAuth", () => {
     });
 
     await expect(
-      writeAgentEventsAuth(writer, IDENTITY),
+      writeAgentEventsAuth(writer, IDENTITY, {}),
     ).resolves.toBeUndefined();
     expect(warn).toHaveBeenCalledWith(
       expect.stringContaining("run telemetry will be dropped"),

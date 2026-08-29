@@ -382,7 +382,7 @@ that.
   templates the same key from `LORE_AGENT_INTERNAL_TOKEN` and rewrites it every
   hour, so an agent writing it too makes two writers of one key, alternating,
   with run pods carrying whichever landed before they started. Holding the
-  bus-wide token is what says which cluster this is. ([validated by publishes on a cluster that holds no bus-wide token](apps/cluster-agent/src/claim/agent-events-secret.test.ts#L68), [`agent-events-secret.test.ts:71`](apps/cluster-agent/src/claim/agent-events-secret.test.ts#L72))
+  bus-wide token is what says which cluster this is. ([validated by `agent-events-secret.test.ts:67`](apps/cluster-agent/src/claim/agent-events-secret.test.ts#L68), [`agent-events-secret.test.ts:71`](apps/cluster-agent/src/claim/agent-events-secret.test.ts#L72))
 - The sink is reachable through its own ingress (`lore-agent-events.tf`,
   gated on `lore_agent_events_hostname`), not another path on the Floor's
   webhook door: that one carries GitHub's HMAC-verified control-plane
