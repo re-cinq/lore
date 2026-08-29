@@ -128,8 +128,10 @@ describe("a page whose CRs reconcile independently", () => {
 
     await reconcileAgents(cluster as never);
 
-    // The thrower itself is not pruned — its own reconcile died before the
-    // prune — but serial the whole sweep stopped here and NOTHING was pruned.
+    // Expected now: the thrower's own reconcile died before its prune step, so
+    // "a" is not pruned, while "b" and "c" are unaffected. Before, the throw
+    // propagated out of the page callback and stopped the sweep, so none of the
+    // three was pruned.
     expect(cluster.remove.mock.calls.map((c) => c[0])).toEqual(["b", "c"]);
   });
 });
