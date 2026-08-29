@@ -7,6 +7,7 @@
 import type { AgentDefinition, Station } from "@re-cinq/agent-contracts";
 import {
   agentsNamespace,
+  errorMessage,
   loadKube,
   type LoreTaskSpec,
 } from "@re-cinq/lore-shared";
@@ -80,12 +81,28 @@ export class KubeTokenProvisioner implements TokenProvisioner, TokenCleanup {
 
     const name = perTaskName(spec.taskId);
 
-    await this.catalog.applyAgentDefinition(
-      injectRepoToken(catalogDef, spec, key, name),
-    );
-    await this.catalog.applyStation(
-      perTaskStation(catalogStation, name, name, spec.taskId),
-    );
+    try {
+      await this.catalog.applyAgentDefinition(
+        injectRepoToken(catalogDef, spec, key, name),
+      );
+      await this.catalog.applyStation(
+        perTaskStation(catalogStation, name, name, spec.taskId),
+      );
+    } catch (err) {
+      // The key outlives the launch that failed unless it is taken back here:
+      // `cleanup` runs off a task reaching a terminal state, and a task whose
+      // pod was never created may never reach one. A per-task GitHub token left
+      // in a shared Secret is both a live credential nobody is using and a row
+      // in the accumulation that once took `agent-secrets` past 1MiB.
+      await this.secrets
+        .deleteKey(this.secretName, key)
+        .catch((cleanupErr: unknown) =>
+          console.warn(
+            `[cluster-agent] could not reclaim ${key} after a failed provision: ${errorMessage(cleanupErr)}`,
+          ),
+        );
+      throw err;
+    }
 
     return name;
   }

@@ -145,6 +145,12 @@ and lose the update; no `resourceVersion` ever crosses the wire.
   per-task clone together. The agent mints, so no GitHub token crosses the
   network; the cost accepted is that the App private key lives in the agent.
   ([validated by provisions in one call — catalog read, mint, secret write and clone together](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L162), [`cluster.test.ts:173`](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L173), [`cluster.test.ts:263`](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L263))
+- One call also means one OUTCOME: a provision whose recipe pair fails to land
+  takes its token back out of the shared Secret before it throws. `cleanup` runs
+  off a task reaching a terminal state, and a task whose pod was never created
+  may never reach one — so the key would outlive the launch it was minted for,
+  as both a live credential nobody uses and a row in the accumulation that once
+  took `agent-secrets` past its 1MiB ceiling. ([validated by leaves no token behind when the recipe pair cannot be applied](apps/cluster-agent/src/kernel/kube-token-provisioner.test.ts#L82), [`kube-token-provisioner.test.ts:99`](apps/cluster-agent/src/kernel/kube-token-provisioner.test.ts#L99))
 - A catalog pair is applied in one call, so create-409-replace cannot be split.
   ([validated by applies a catalog pair in one call, so create-409-replace cannot be split](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L187), [`cluster.test.ts:274`](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L274), [`cluster.test.ts:285`](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L285), [`cluster.test.ts:304`](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L304))
 - The log tail is clamped by the AGENT, because the Floor's clamp no longer
@@ -155,7 +161,7 @@ and lose the update; no `resourceVersion` ever crosses the wire.
   the distinction a watcher acts on. ([validated by a CR the controller has not stamped yet maps to Pending, not absence](libs/shared/src/cluster/agent-node-status.test.ts#L6), [`agent-node-status.test.ts:16`](libs/shared/src/cluster/agent-node-status.test.ts#L16))
 - An empty minted token is refused where the cause is legible, rather than
   written as a present-but-useless Secret key that fails later inside a pod's
-  init container. ([validated by throws naming the repo and the App vars when the token comes back empty](apps/cluster-agent/src/kernel/kube-token-provisioner.test.ts#L16), [`kube-token-provisioner.test.ts:8`](apps/cluster-agent/src/kernel/kube-token-provisioner.test.ts#L8))
+  init container. ([validated by throws naming the repo and the App vars when the token comes back empty](apps/cluster-agent/src/kernel/kube-token-provisioner.test.ts#L19), [`kube-token-provisioner.test.ts:11`](apps/cluster-agent/src/kernel/kube-token-provisioner.test.ts#L11))
 
 
 The callers keep their behaviour, not just their shape. A CR that no longer

@@ -1,8 +1,11 @@
 import { describe, it, expect } from "vitest";
+import type { LoreTaskSpec } from "@re-cinq/lore-shared";
 import {
   GithubTokenMinter,
   KubeSecretKeyWriter,
+  KubeTokenProvisioner,
 } from "./kube-token-provisioner.js";
+import type { CatalogApi, SecretKeyWriter } from "./kube-token-provisioner.js";
 
 describe("GithubTokenMinter", () => {
   it("returns the installation token for the repo", async () => {
@@ -97,5 +100,87 @@ describe("KubeSecretKeyWriter", () => {
     await expect(
       writer.setKey("agent-secrets", "GH_TOKEN_t1", "ghs_x"),
     ).rejects.toMatchObject({ code: 403 });
+  });
+});
+
+describe("KubeTokenProvisioner.provision", () => {
+  const SPEC = {
+    taskId: "task-77",
+    taskType: "implementation",
+    description: "d",
+    prompt: "p",
+    targetRepo: "re-cinq/lore",
+    branch: "lore/task-77",
+  } as unknown as LoreTaskSpec;
+
+  function catalogFor(onApplyStation?: () => never) {
+    const named = (name: string) => ({
+      metadata: { name },
+      spec: { prompt: "do the thing", model: "claude-fable-5" },
+    });
+    const applied: string[] = [];
+
+    return {
+      applied,
+      catalog: {
+        getAgentDefinition: async () => named("implementation"),
+        getStation: async () => named("implementation"),
+        applyAgentDefinition: async (def: { metadata?: { name?: string } }) => {
+          applied.push(`def:${def.metadata?.name}`);
+        },
+        applyStation: async (station: { metadata?: { name?: string } }) => {
+          onApplyStation?.();
+          applied.push(`station:${station.metadata?.name}`);
+        },
+        deleteAgentDefinition: async () => {},
+        deleteStation: async () => {},
+      } as unknown as CatalogApi,
+    };
+  }
+
+  function secretsSpy() {
+    const keys = new Map<string, string>();
+
+    return {
+      keys,
+      secrets: {
+        setKey: async (_s: string, key: string, value: string) => {
+          keys.set(key, value);
+        },
+        deleteKey: async (_s: string, key: string) => {
+          keys.delete(key);
+        },
+      } as SecretKeyWriter,
+    };
+  }
+
+  it("leaves no token behind when the recipe pair cannot be applied", async () => {
+    const { keys, secrets } = secretsSpy();
+    const { catalog } = catalogFor(() => {
+      throw new Error("apiserver refused the Station");
+    });
+    const provisioner = new KubeTokenProvisioner(
+      { mint: async () => "ghs_token" },
+      secrets,
+      catalog,
+    );
+
+    await expect(provisioner.provision(SPEC)).rejects.toThrow(
+      /apiserver refused the Station/,
+    );
+    expect([...keys.keys()]).toEqual([]);
+  });
+
+  it("keeps the token when the pair lands", async () => {
+    const { keys, secrets } = secretsSpy();
+    const { catalog } = catalogFor();
+    const provisioner = new KubeTokenProvisioner(
+      { mint: async () => "ghs_token" },
+      secrets,
+      catalog,
+    );
+
+    expect(await provisioner.provision(SPEC)).toBe("pt-task-77");
+    expect([...keys.values()]).toEqual(["ghs_token"]);
   });
 });
