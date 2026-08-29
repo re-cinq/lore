@@ -295,3 +295,78 @@ describe("registerWithBackoff", () => {
     ]);
   });
 });
+
+describe("registerOnce never throws", () => {
+  const config = {
+    apiUrl: "https://lore-api.example.com",
+    registrationToken: "reg-token",
+    name: "minikube-bogdan",
+    tags: [],
+  };
+
+  it("returns null when a 200 carries a body that is not JSON", async () => {
+    const { fetchFn } = fakeFetch([
+      {
+        ok: true,
+        status: 200,
+        json: () => Promise.reject(new SyntaxError("Unexpected token <")),
+      } as unknown as Response,
+    ]);
+    const store = new InMemoryIdentityStore();
+
+    expect(await registerOnce({ config, store, fetchFn })).toBeNull();
+    expect(await store.load()).toBeNull();
+  });
+
+  it("returns null when the 200 body lacks an id or a token", async () => {
+    const { fetchFn } = fakeFetch([jsonResponse(200, { id: "id-1" })]);
+    const store = new InMemoryIdentityStore();
+
+    expect(await registerOnce({ config, store, fetchFn })).toBeNull();
+    expect(await store.load()).toBeNull();
+  });
+
+  it("returns null when the identity store cannot be read", async () => {
+    const { fetchFn, calls } = fakeFetch([]);
+    const store = {
+      load: () => Promise.reject(new Error("secrets is forbidden")),
+      save: () => Promise.resolve(),
+    };
+
+    expect(await registerOnce({ config, store, fetchFn })).toBeNull();
+    expect(calls).toEqual([]);
+  });
+
+  it("keeps the persisted identity when only the telemetry publish fails", async () => {
+    // The store is written BEFORE the credential is published, so this attempt
+    // answers null while the identity is already saved. That is the recovery
+    // path, not a leak: the next attempt presents it as `current_token`, the
+    // server recognises the holder, and the publish is retried.
+    const { fetchFn } = fakeFetch([
+      jsonResponse(200, { id: "id-1", token: "tok-1" }),
+    ]);
+    const store = new InMemoryIdentityStore();
+
+    expect(
+      await registerOnce({
+        config,
+        store,
+        fetchFn,
+        publishTelemetryCredential: () => Promise.reject(new Error("EROFS")),
+      }),
+    ).toBeNull();
+    expect(await store.load()).toEqual({ id: "id-1", token: "tok-1" });
+  });
+
+  it("returns null when the minted identity cannot be persisted", async () => {
+    const { fetchFn } = fakeFetch([
+      jsonResponse(200, { id: "id-1", token: "tok-1" }),
+    ]);
+    const store = {
+      load: () => Promise.resolve(null),
+      save: () => Promise.reject(new Error("EROFS")),
+    };
+
+    expect(await registerOnce({ config, store, fetchFn })).toBeNull();
+  });
+});

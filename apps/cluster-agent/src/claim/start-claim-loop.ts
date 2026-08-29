@@ -30,8 +30,12 @@ import {
   heartbeatOnce,
   runHeartbeatLoop,
 } from "./heartbeat-loop.js";
-import { FileIdentityStore, identityFilePath } from "./identity-store.js";
-import type { ClusterAgentIdentity, IdentityStore } from "./identity-store.js";
+import { FileIdentityStore, identityStoreConfig } from "./identity-store.js";
+import type {
+  ClusterAgentIdentity,
+  IdentityStore,
+  IdentityStoreConfig,
+} from "./identity-store.js";
 import {
   KubeIdentityStore,
   kubeIdentitySecretsApi,
@@ -165,6 +169,10 @@ export function startClaimLoop(
     "cluster-agent cannot start: the station backend is not k8s. This process launches claimed runs as Agent CRs — set LORE_STATION_BACKEND=k8s and point LORE_KUBECONFIG at the cluster.",
   );
   const config = registrationConfig(env);
+  // Decided here, synchronously, for the same reason the triple above is: a
+  // Secret store missing its namespace used to land in the catch below — one
+  // log line, pod Ready, nothing ever registered.
+  const storeConfig = identityStoreConfig(env);
 
   const backend = new AgentCrBackend(
     new KubeAgentApi(),
@@ -175,7 +183,7 @@ export function startClaimLoop(
   // `agent-secrets`, not a replace, because both write to it.
   const secrets = new KubeSecretKeyWriter();
 
-  void selectIdentityStore(env)
+  void buildIdentityStore(storeConfig)
     .then((store) =>
       runRegistrant({
         env,
@@ -194,7 +202,10 @@ export function startClaimLoop(
     .catch((err) => {
       // Unreachable by design (register + claim never throw), but a defect here
       // must surface as a log, not an unhandled rejection killing the process.
-      console.error("[cluster-agent] claim loop crashed:", err);
+      console.error(
+        "[cluster-agent] claim loop crashed — this agent will not register or claim until restarted:",
+        err,
+      );
     });
 
   return handle;
@@ -204,25 +215,16 @@ export function startClaimLoop(
  *  chart mounts the container read-only, so a file write would EROFS on the
  *  very first save and strand the minted identity (registered on the server,
  *  persisted nowhere → 409 restart loop). File store only for local runs. */
-async function selectIdentityStore(
-  env: NodeJS.ProcessEnv,
+async function buildIdentityStore(
+  config: IdentityStoreConfig,
 ): Promise<IdentityStore> {
-  const secretName = env.LORE_CLUSTER_AGENT_IDENTITY_SECRET;
-
-  if (!secretName) {
-    return new FileIdentityStore(identityFilePath(env));
+  if (config.kind === "file") {
+    return new FileIdentityStore(config.path);
   }
-  const namespace = env.LORE_CLUSTER_AGENT_IDENTITY_NAMESPACE;
-
-  enforceTrue(
-    namespace,
-    Error,
-    "LORE_CLUSTER_AGENT_IDENTITY_SECRET is set but LORE_CLUSTER_AGENT_IDENTITY_NAMESPACE is not — the identity Secret needs a namespace",
-  );
 
   return new KubeIdentityStore(
-    await kubeIdentitySecretsApi(namespace),
-    secretName,
-    env.LORE_CLUSTER_AGENT_IDENTITY_KEY ?? "identity.json",
+    await kubeIdentitySecretsApi(config.namespace),
+    config.name,
+    config.key,
   );
 }

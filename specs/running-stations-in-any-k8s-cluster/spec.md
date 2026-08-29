@@ -102,6 +102,18 @@ A new `pipeline.cluster_agents` table is the registry of execution clusters.
 - A failed registration attempt is retried on a 30-second schedule doubling
   to a 5-minute cap, and never crashes the process — the agent's other
   duties (the watch, the inbound routes) do not depend on it. ([validated by `registration.test.ts:238`](apps/cluster-agent/src/claim/registration.test.ts#L238), [`registration.test.ts:265`](apps/cluster-agent/src/claim/registration.test.ts#L265))
+- "Failed" means every way an attempt can fail, not only a refused HTTP status:
+  a 200 carrying an ingress error page, a body without `{id, token}`, and an
+  identity Secret the Role can neither read nor write are all answered `null`
+  and retried. A throw here has no catch above it — `pollUntil` ends, the boot
+  registrant dies, and the pod goes on answering `/healthz` 200 while claiming
+  nothing; through the shared re-registration the same throw ends the claim
+  loop, the heartbeat loop or the proxy's drain instead. ([validated by `registration.test.ts:307`](apps/cluster-agent/src/claim/registration.test.ts#L307), [`registration.test.ts:321`](apps/cluster-agent/src/claim/registration.test.ts#L321), [`registration.test.ts:329`](apps/cluster-agent/src/claim/registration.test.ts#L329), [`registration.test.ts:340`](apps/cluster-agent/src/claim/registration.test.ts#L340), [`registration.test.ts:361`](apps/cluster-agent/src/claim/registration.test.ts#L361))
+- Which identity store to use is decided at boot, beside the registration
+  triple: a Secret named without its namespace refuses to start, naming the
+  variable. Resolved later — inside the registrant's promise — the same
+  misconfiguration was one log line behind a green probe, which is the
+  unregistered mode the refusal above exists to abolish. ([validated by chooses the file store when no identity Secret is named](apps/cluster-agent/src/claim/identity-store.test.ts#L90), [`identity-store.test.ts:96`](apps/cluster-agent/src/claim/identity-store.test.ts#L96), [`identity-store.test.ts:110`](apps/cluster-agent/src/claim/identity-store.test.ts#L110), [`identity-store.test.ts:120`](apps/cluster-agent/src/claim/identity-store.test.ts#L120))
 - Registration is idempotent on `name` — but only for the identity holder:
   re-registering an existing name **with the current per-agent bearer token**
   updates `tags` and `cluster_info` and **keeps that token**. Re-registering a
@@ -127,7 +139,7 @@ A new `pipeline.cluster_agents` table is the registry of execution clusters.
   (the chart's container is `readOnlyRootFilesystem` and the Secret mount is
   read-only, so a file write could never persist it) — so pod restarts do
   not re-register; re-registration presents the persisted token. Local runs
-  keep the file store at `LORE_CLUSTER_AGENT_IDENTITY_FILE`. ([validated by `kube-identity-store.test.ts:37`](apps/cluster-agent/src/claim/kube-identity-store.test.ts#L37), [`kube-identity-store.test.ts:41`](apps/cluster-agent/src/claim/kube-identity-store.test.ts#L41), [`kube-identity-store.test.ts:51`](apps/cluster-agent/src/claim/kube-identity-store.test.ts#L51), [`kube-identity-store.test.ts:64`](apps/cluster-agent/src/claim/kube-identity-store.test.ts#L64), [`identity-store.test.ts:39`](apps/cluster-agent/src/claim/identity-store.test.ts#L39), [`identity-store.test.ts:15`](apps/cluster-agent/src/claim/identity-store.test.ts#L15), [`identity-store.test.ts:24`](apps/cluster-agent/src/claim/identity-store.test.ts#L24), [`identity-store.test.ts:32`](apps/cluster-agent/src/claim/identity-store.test.ts#L32), [`identity-store.test.ts:48`](apps/cluster-agent/src/claim/identity-store.test.ts#L48), [`identity-store.test.ts:59`](apps/cluster-agent/src/claim/identity-store.test.ts#L59), [`identity-store.test.ts:68`](apps/cluster-agent/src/claim/identity-store.test.ts#L68), [`identity-store.test.ts:79`](apps/cluster-agent/src/claim/identity-store.test.ts#L79), [`registration.test.ts:149`](apps/cluster-agent/src/claim/registration.test.ts#L135))
+  keep the file store at `LORE_CLUSTER_AGENT_IDENTITY_FILE`. ([validated by `kube-identity-store.test.ts:37`](apps/cluster-agent/src/claim/kube-identity-store.test.ts#L37), [`kube-identity-store.test.ts:41`](apps/cluster-agent/src/claim/kube-identity-store.test.ts#L41), [`kube-identity-store.test.ts:51`](apps/cluster-agent/src/claim/kube-identity-store.test.ts#L51), [`kube-identity-store.test.ts:64`](apps/cluster-agent/src/claim/kube-identity-store.test.ts#L64), [`identity-store.test.ts:40`](apps/cluster-agent/src/claim/identity-store.test.ts#L40), [`identity-store.test.ts:16`](apps/cluster-agent/src/claim/identity-store.test.ts#L16), [`identity-store.test.ts:25`](apps/cluster-agent/src/claim/identity-store.test.ts#L25), [`identity-store.test.ts:33`](apps/cluster-agent/src/claim/identity-store.test.ts#L33), [`identity-store.test.ts:49`](apps/cluster-agent/src/claim/identity-store.test.ts#L49), [`identity-store.test.ts:60`](apps/cluster-agent/src/claim/identity-store.test.ts#L60), [`identity-store.test.ts:69`](apps/cluster-agent/src/claim/identity-store.test.ts#L69), [`identity-store.test.ts:80`](apps/cluster-agent/src/claim/identity-store.test.ts#L80), [`registration.test.ts:149`](apps/cluster-agent/src/claim/registration.test.ts#L135))
 - The registry ships as the next migration in sequence
   (`NNNN_cluster_agent_registry.sql`) under
   `infra/terraform/modules/gke-mcp/lore-platform/charts/ui-helm/migrations/`:

@@ -87,38 +87,50 @@ export interface RegisterDeps {
 
 /** One registration attempt. Persists and returns the identity on 200; null on
  *  any failure — the caller owns the retry schedule, and the process must keep
- *  serving its inbound routes either way. */
+ *  serving its inbound routes either way.
+ *
+ *  NEVER throws. Every caller relies on it: `pollUntil` has no catch, so a throw
+ *  here ends the boot registrant and leaves a Ready pod that claims nothing;
+ *  through `reRegister` the same throw ends the claim loop, the heartbeat loop
+ *  or the proxy's drain. A 200 carrying an ingress error page, a body missing
+ *  its fields, and an identity Secret the Role cannot read or write are all
+ *  refusals to retry, not reasons to stop. */
 export async function registerOnce(
+  deps: RegisterDeps,
+): Promise<ClusterAgentIdentity | null> {
+  try {
+    return await attemptRegistration(deps);
+  } catch (err) {
+    console.warn(
+      `[cluster-agent] registration of ${deps.config.name} failed: ${errorMessage(err)}`,
+    );
+
+    return null;
+  }
+}
+
+/** One attempt, which may throw: `registerOnce` is the wrapper that promises it
+ *  never does. Returns null for a refusal the caller should simply retry. */
+async function attemptRegistration(
   deps: RegisterDeps,
 ): Promise<ClusterAgentIdentity | null> {
   const { config, store } = deps;
   const fetchFn = deps.fetchFn ?? fetch;
   const current = await store.load();
-
-  let res: Response;
-
-  try {
-    res = await fetchFn(`${config.apiUrl}/api/cluster-agents/register`, {
-      method: "POST",
-      headers: {
-        authorization: `Bearer ${config.registrationToken}`,
-        "content-type": "application/json",
-      },
-      body: JSON.stringify({
-        name: config.name,
-        tags: config.tags,
-        cluster_info: null,
-        ...(current ? { current_token: current.token } : {}),
-      }),
-      signal: AbortSignal.timeout(REGISTER_TIMEOUT_MS),
-    });
-  } catch (err) {
-    console.warn(
-      `[cluster-agent] registration fetch failed for ${config.name} at ${config.apiUrl}: ${errorMessage(err)}`,
-    );
-
-    return null;
-  }
+  const res = await fetchFn(`${config.apiUrl}/api/cluster-agents/register`, {
+    method: "POST",
+    headers: {
+      authorization: `Bearer ${config.registrationToken}`,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      name: config.name,
+      tags: config.tags,
+      cluster_info: null,
+      ...(current ? { current_token: current.token } : {}),
+    }),
+    signal: AbortSignal.timeout(REGISTER_TIMEOUT_MS),
+  });
 
   if (!res.ok) {
     console.warn(
@@ -131,7 +143,13 @@ export async function registerOnce(
     return null;
   }
 
-  const body = (await res.json()) as { id: string; token: string };
+  const body = (await res.json()) as Partial<ClusterAgentIdentity>;
+
+  enforceTrue(
+    typeof body.id === "string" && typeof body.token === "string",
+    Error,
+    "registration answered 200 without an {id, token} body",
+  );
   const identity = { id: body.id, token: body.token };
 
   await store.save(identity);

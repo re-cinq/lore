@@ -3,6 +3,7 @@ import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import {
+  identityStoreConfig,
   FileIdentityStore,
   InMemoryIdentityStore,
   identityFilePath,
@@ -82,5 +83,45 @@ describe("InMemoryIdentityStore", () => {
     expect(await store.load()).toBeNull();
     await store.save({ id: "agent-9", token: "tok-xyz" });
     expect(await store.load()).toEqual({ id: "agent-9", token: "tok-xyz" });
+  });
+});
+
+describe("identityStoreConfig", () => {
+  it("chooses the file store when no identity Secret is named", () => {
+    expect(
+      identityStoreConfig({ LORE_CLUSTER_AGENT_IDENTITY_FILE: "/tmp/id.json" }),
+    ).toEqual({ kind: "file", path: "/tmp/id.json" });
+  });
+
+  it("chooses the Secret store with the default key when a Secret and namespace are named", () => {
+    expect(
+      identityStoreConfig({
+        LORE_CLUSTER_AGENT_IDENTITY_SECRET: "lore-cluster-agent-identity",
+        LORE_CLUSTER_AGENT_IDENTITY_NAMESPACE: "lore-cluster-agent",
+      }),
+    ).toEqual({
+      kind: "secret",
+      name: "lore-cluster-agent-identity",
+      namespace: "lore-cluster-agent",
+      key: "identity.json",
+    });
+  });
+
+  it("takes the key from LORE_CLUSTER_AGENT_IDENTITY_KEY when one is named", () => {
+    expect(
+      identityStoreConfig({
+        LORE_CLUSTER_AGENT_IDENTITY_SECRET: "lore-cluster-agent-identity",
+        LORE_CLUSTER_AGENT_IDENTITY_NAMESPACE: "lore-cluster-agent",
+        LORE_CLUSTER_AGENT_IDENTITY_KEY: "satellite.json",
+      }),
+    ).toMatchObject({ key: "satellite.json" });
+  });
+
+  it("refuses to boot when the Secret is named but its namespace is not", () => {
+    expect(() =>
+      identityStoreConfig({
+        LORE_CLUSTER_AGENT_IDENTITY_SECRET: "lore-cluster-agent-identity",
+      }),
+    ).toThrow(/LORE_CLUSTER_AGENT_IDENTITY_NAMESPACE/);
   });
 });

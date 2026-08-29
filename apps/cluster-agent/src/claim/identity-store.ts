@@ -12,6 +12,7 @@
 import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 
 export interface ClusterAgentIdentity {
   id: string;
@@ -21,6 +22,37 @@ export interface ClusterAgentIdentity {
 export interface IdentityStore {
   load(): Promise<ClusterAgentIdentity | null>;
   save(identity: ClusterAgentIdentity): Promise<void>;
+}
+
+/** Where the identity persists — decided at boot, before anything async, so a
+ *  half-configured Secret store refuses to start instead of idling behind a
+ *  green /healthz with a claim loop that never began. */
+export type IdentityStoreConfig =
+  | { kind: "file"; path: string }
+  | { kind: "secret"; name: string; namespace: string; key: string };
+
+export function identityStoreConfig(
+  env: NodeJS.ProcessEnv,
+): IdentityStoreConfig {
+  const name = env.LORE_CLUSTER_AGENT_IDENTITY_SECRET;
+
+  if (!name) {
+    return { kind: "file", path: identityFilePath(env) };
+  }
+  const namespace = env.LORE_CLUSTER_AGENT_IDENTITY_NAMESPACE;
+
+  enforceTrue(
+    namespace,
+    Error,
+    "cluster-agent cannot start: LORE_CLUSTER_AGENT_IDENTITY_SECRET is set but LORE_CLUSTER_AGENT_IDENTITY_NAMESPACE is not — the identity Secret needs a namespace",
+  );
+
+  return {
+    kind: "secret",
+    name,
+    namespace,
+    key: env.LORE_CLUSTER_AGENT_IDENTITY_KEY ?? "identity.json",
+  };
 }
 
 export function identityFilePath(env: NodeJS.ProcessEnv): string {
