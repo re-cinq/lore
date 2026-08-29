@@ -115,7 +115,19 @@ export async function claimOnce(deps: ClaimTickDeps): Promise<ClaimOutcome> {
     return { kind: "error", message: `claim refused (HTTP ${res.status})` };
   }
 
-  const claim = (await res.json()) as ClaimResponse;
+  let claim: ClaimResponse;
+
+  try {
+    claim = (await res.json()) as ClaimResponse;
+  } catch (err) {
+    // A 200 carrying a proxy error page would otherwise reject out of the loop
+    // and kill the poller for good — the one throw the outcome union missed.
+    return {
+      kind: "error",
+      message: `claim response parse failed: ${errorMessage(err)}`,
+    };
+  }
+
   // The CR name must be the one the Floor recorded on the station_run row —
   // the watch's terminal report and the fork replay both correlate by it.
   const specName = claim.spec.name ?? claim.agent_cr_name;

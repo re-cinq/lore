@@ -196,6 +196,19 @@ describe("claimOnce", () => {
       { kind: "error" },
     );
   });
+
+  it("reports an error, without throwing, when a 200 body is not JSON", async () => {
+    const broken = {
+      ok: true,
+      status: 200,
+      json: () => Promise.reject(new SyntaxError("Unexpected token < in JSON")),
+    } as Response;
+
+    expect(await claimOnce(deps([broken]).tick)).toEqual({
+      kind: "error",
+      message: "claim response parse failed: Unexpected token < in JSON",
+    });
+  });
 });
 
 describe("runClaimLoop", () => {

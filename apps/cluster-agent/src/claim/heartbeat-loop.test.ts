@@ -59,6 +59,18 @@ describe("heartbeatOnce", () => {
     ).toBe("Bearer lca_tok");
   });
 
+  it("aborts a hung beat rather than blocking the loop forever", async () => {
+    const { fetchImpl, calls } = fakeFetch(200);
+
+    await heartbeatOnce({
+      apiUrl: "https://lore-api.example",
+      identity: () => IDENTITY,
+      fetchImpl,
+    });
+
+    expect(calls[0]?.init.signal).toBeInstanceOf(AbortSignal);
+  });
+
   it("reports unauthorized on a 401 or 403 beat", async () => {
     for (const status of [401, 403]) {
       expect(

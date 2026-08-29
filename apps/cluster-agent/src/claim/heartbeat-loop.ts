@@ -11,6 +11,7 @@ import type { ClusterAgentIdentity } from "./identity-store.js";
  */
 
 const DEFAULT_HEARTBEAT_S = 30;
+const HEARTBEAT_TIMEOUT_MS = 30_000;
 
 export function heartbeatIntervalMs(env: NodeJS.ProcessEnv): number {
   const raw = Number(env.LORE_CLUSTER_AGENT_HEARTBEAT_S);
@@ -39,6 +40,7 @@ export async function heartbeatOnce(
       {
         method: "POST",
         headers: { authorization: `Bearer ${token}` },
+        signal: AbortSignal.timeout(HEARTBEAT_TIMEOUT_MS),
       },
     );
 

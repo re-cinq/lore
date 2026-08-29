@@ -57,7 +57,12 @@ export async function runPollLoop<Outcome>(
 }
 
 export interface PollUntilDeps<T> {
-  /** Null means "not yet" — every failure shape the caller tolerates. */
+  /**
+   * Null — and only null — means "not yet"; it is the sentinel, so `T` must not
+   * include it. Every other value the tick yields ends the wait, `undefined`
+   * included: a caller whose `T` admits `undefined` would resolve on its own
+   * "no result", which the type forbids rather than a runtime check catching.
+   */
   tick: () => Promise<T | null>;
   baseDelayMs: number;
   maxDelayMs: number;
