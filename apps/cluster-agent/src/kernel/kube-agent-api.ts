@@ -16,6 +16,7 @@ import {
 import type { AgentApi, AgentNodeStatus } from "@re-cinq/lore-shared";
 // Type-only, so the runtime import below stays lazy.
 import type { CustomObjectsApi } from "@kubernetes/client-node";
+import { isConflict, isNotFound } from "./k8s-errors.js";
 
 const PLURAL = "agents";
 
@@ -60,17 +61,7 @@ export class KubeAgentApi implements AgentApi {
 
       return { name, created: true };
     } catch (err) {
-      const e = err as {
-        code?: number;
-        response?: { statusCode?: number };
-        message?: string;
-      };
-      const is409 =
-        e?.code === 409 ||
-        e?.response?.statusCode === 409 ||
-        String(e?.message).includes("already exists");
-
-      if (is409) {
+      if (isConflict(err)) {
         return { name, created: false };
       }
       throw err;
@@ -94,9 +85,7 @@ export class KubeAgentApi implements AgentApi {
 
       return statusFromAgentCr(obj);
     } catch (err) {
-      const e = err as { code?: number; response?: { statusCode?: number } };
-
-      if (e?.code === 404 || e?.response?.statusCode === 404) {
+      if (isNotFound(err)) {
         return null;
       }
       throw err;

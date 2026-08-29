@@ -32,7 +32,13 @@ export function statusOf(err: unknown): number | undefined {
   const message = typeof e?.message === "string" ? e.message : "";
   const fromMessage = /^HTTP-Code:\s*(\d{3})\b/m.exec(message);
 
-  return fromMessage ? Number(fromMessage[1]) : undefined;
+  if (fromMessage) {
+    return Number(fromMessage[1]);
+  }
+
+  // A create refused because its object is already there is a 409 with reason
+  // `AlreadyExists`; this client has surfaced that as nothing but the words.
+  return message.includes("already exists") ? 409 : undefined;
 }
 
 export function isNotFound(err: unknown): boolean {

@@ -15,6 +15,7 @@
  */
 
 import type { ClusterAgentIdentity, IdentityStore } from "./identity-store.js";
+import { isNotFound } from "../kernel/k8s-errors.js";
 
 /** The minimal Secret surface the store drives — injectable for tests. */
 export interface IdentitySecretsApi {
@@ -70,20 +71,6 @@ export class KubeIdentityStore implements IdentityStore {
     await this.api.patch(this.secretName, stringData);
   }
 }
-
-interface KubeStatusError {
-  code?: number;
-  statusCode?: number;
-  response?: { statusCode?: number };
-}
-
-const isNotFound = (err: unknown): boolean => {
-  const e = err as KubeStatusError;
-
-  return (
-    e.code === 404 || e.statusCode === 404 || e.response?.statusCode === 404
-  );
-};
 
 /** The CoreV1Api shell — the only part that touches the cluster. */
 export async function kubeIdentitySecretsApi(

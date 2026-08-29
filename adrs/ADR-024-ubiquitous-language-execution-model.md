@@ -140,7 +140,7 @@ and lose the update; no `resourceVersion` ever crosses the wire.
   retry that exists for exactly that race never fires, and provisioning fails
   whenever two agents start at once. A thrown value whose message is not a string carries no status either,
   rather than throwing from inside the classifier that exists to keep failures
-  legible. ([validated by reads 409 out of the message when it is nowhere else](apps/cluster-agent/src/kernel/k8s-errors.test.ts#L87), [`k8s-errors.test.ts:91`](apps/cluster-agent/src/kernel/k8s-errors.test.ts#L91), [`k8s-errors.test.ts:96`](apps/cluster-agent/src/kernel/k8s-errors.test.ts#L96), [`k8s-errors.test.ts:101`](apps/cluster-agent/src/kernel/k8s-errors.test.ts#L101))
+  legible. ([validated by reads 409 out of the message when it is nowhere else](apps/cluster-agent/src/kernel/k8s-errors.test.ts#L87), [`k8s-errors.test.ts:91`](apps/cluster-agent/src/kernel/k8s-errors.test.ts#L91), [`k8s-errors.test.ts:96`](apps/cluster-agent/src/kernel/k8s-errors.test.ts#L96), [`k8s-errors.test.ts:101`](apps/cluster-agent/src/kernel/k8s-errors.test.ts#L101), [retries the replace when the lost race arrives as a prose-only 409](apps/cluster-agent/src/kernel/kube-token-provisioner.test.ts#L65), [`kube-token-provisioner.test.ts:82`](apps/cluster-agent/src/kernel/kube-token-provisioner.test.ts#L82), [`kube-token-provisioner.test.ts:91`](apps/cluster-agent/src/kernel/kube-token-provisioner.test.ts#L91))
 - Provisioning is ONE call — catalog read, GitHub mint, Secret write and the
   per-task clone together. The agent mints, so no GitHub token crosses the
   network; the cost accepted is that the App private key lives in the agent.
@@ -155,7 +155,7 @@ and lose the update; no `resourceVersion` ever crosses the wire.
   the distinction a watcher acts on. ([validated by a CR the controller has not stamped yet maps to Pending, not absence](libs/shared/src/cluster/agent-node-status.test.ts#L6), [`agent-node-status.test.ts:16`](libs/shared/src/cluster/agent-node-status.test.ts#L16))
 - An empty minted token is refused where the cause is legible, rather than
   written as a present-but-useless Secret key that fails later inside a pod's
-  init container. ([validated by throws naming the repo and the App vars when the token comes back empty](apps/cluster-agent/src/kernel/kube-token-provisioner.test.ts#L13), [`kube-token-provisioner.test.ts:5`](apps/cluster-agent/src/kernel/kube-token-provisioner.test.ts#L5))
+  init container. ([validated by throws naming the repo and the App vars when the token comes back empty](apps/cluster-agent/src/kernel/kube-token-provisioner.test.ts#L16), [`kube-token-provisioner.test.ts:8`](apps/cluster-agent/src/kernel/kube-token-provisioner.test.ts#L8))
 
 
 The callers keep their behaviour, not just their shape. A CR that no longer
