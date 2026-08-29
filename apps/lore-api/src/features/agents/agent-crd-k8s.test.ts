@@ -27,7 +27,10 @@ describe("clusterAgentCredentials", () => {
     });
   });
 
-  it("carries an empty base url rather than the string undefined when unset", () => {
-    expect(clusterAgentCredentials({}).baseUrl).toBe("");
+  it("carries an empty base url and no token when neither is set", () => {
+    expect(clusterAgentCredentials({})).toEqual({
+      baseUrl: "",
+      token: undefined,
+    });
   });
 });

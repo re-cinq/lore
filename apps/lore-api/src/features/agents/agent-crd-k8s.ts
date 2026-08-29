@@ -39,9 +39,12 @@ export function clusterAgentCredentials(env: NodeJS.ProcessEnv): {
 let catalog: HttpAgentCatalog | undefined;
 
 function agentCatalog(): HttpAgentCatalog {
+  if (catalog) {
+    return catalog;
+  }
   const { baseUrl, token } = clusterAgentCredentials(process.env);
 
-  return (catalog ??= new HttpAgentCatalog(
+  return (catalog = new HttpAgentCatalog(
     new ClusterAgentClient(baseUrl, token),
   ));
 }
