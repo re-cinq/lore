@@ -34,7 +34,7 @@ import {
   drain,
   drainAtEnd,
   emptyBatch,
-  followableAgents,
+  followTargets,
   pickPodToFollow,
   podLogEvent,
   type BatchLimits,
@@ -118,42 +118,25 @@ export class PodLogInput implements EventInput {
 
       const namespace = agentsNamespace();
       const core = kc.makeApiClient(CoreV1Api);
-      const agents: FollowableAgent[] = [];
 
+      // Page by page, holding NOTHING between them. Every Agent CR carries its
+      // run's whole transcript in `status.output`, so accumulating the namespace
+      // into one array — which is what this did — is hundreds of megabytes
+      // against a 256Mi limit. It OOM-killed a satellite's cluster-agent every
+      // seven seconds for twenty-one hours, taking down the Agent-CR watch with
+      // it and stranding every finished run in that cluster.
       await forEachAgentPage(
         kc.makeApiClient(CustomObjectsApi),
         namespace,
         async (page) => {
-          agents.push(...page);
+          for (const agent of followTargets(
+            page as FollowableAgent[],
+            new Set(this.followers.keys()),
+          )) {
+            await this.followOne(kc, namespace, core, agent, emit);
+          }
         },
       );
-
-      for (const agent of followableAgents(
-        agents as FollowableAgent[],
-        new Set(this.followers.keys()),
-      )) {
-        const pods = await core.listNamespacedPod({
-          namespace,
-          labelSelector: podSelectorForJob(agent.jobName),
-        });
-        // The CONTAINER is resolved here too, not defaulted: an empty
-        // container name makes the log request a 400, which is how the first
-        // pilot run spent fifteen minutes retrying and streaming nothing.
-        const chosen = pickPodToFollow(pods.items ?? []);
-
-        // Re-checked against the LIVE map rather than the snapshot
-        // `followableAgents` filtered on: this pass awaited a page walk and a
-        // pod list since then, and `stop()` may have run too.
-        if (chosen && this.running && !this.followers.has(agent.agentCrName)) {
-          this.follow(
-            kc,
-            namespace,
-            { ...agent, podName: chosen.podName },
-            chosen.containerName,
-            emit,
-          );
-        }
-      }
     } catch (err) {
       console.error(
         "[cluster-agent] pod-log discovery failed:",
@@ -162,6 +145,37 @@ export class PodLogInput implements EventInput {
     } finally {
       this.discovering = false;
     }
+  }
+
+  /** Find the pod for one agent and open its stream. */
+  private async followOne(
+    kc: KubeConfig,
+    namespace: string,
+    core: CoreV1Api,
+    agent: { agentCrName: string; jobName: string },
+    emit: Emit,
+  ): Promise<void> {
+    const pods = await core.listNamespacedPod({
+      namespace,
+      labelSelector: podSelectorForJob(agent.jobName),
+    });
+    // The CONTAINER is resolved here too, not defaulted: an empty container name
+    // makes the log request a 400, which is how the first pilot run spent
+    // fifteen minutes retrying and streaming nothing.
+    const chosen = pickPodToFollow(pods.items ?? []);
+
+    // Re-checked against the LIVE map rather than the page this was filtered
+    // from: a pod list was awaited since then, and `stop()` may have run too.
+    if (!chosen || !this.running || this.followers.has(agent.agentCrName)) {
+      return;
+    }
+    this.follow(
+      kc,
+      namespace,
+      { ...agent, podName: chosen.podName },
+      chosen.containerName,
+      emit,
+    );
   }
 
   /** Open one pod's stream and emit its chunks until it ends or we stop. */

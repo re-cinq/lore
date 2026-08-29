@@ -213,21 +213,21 @@ exercise, so it is stated here rather than linked.
 
 - Lines are batched to a chunk by count OR byte cap, whichever comes first, so
   one chunk's cost to the bus is bounded ahead of time rather than by how
-  talkative a pod turned out to be. ([validated by [holds lines until the line count is reached](apps/cluster-agent/src/inputs/pod-log-batching.test.ts#L34), [flushes early once accumulated bytes reach the cap](apps/cluster-agent/src/inputs/pod-log-batching.test.ts#L40), [keeps a partial batch pending](apps/cluster-agent/src/inputs/pod-log-batching.test.ts#L46), [starts the next batch empty](apps/cluster-agent/src/inputs/pod-log-batching.test.ts#L55))
+  talkative a pod turned out to be. ([validated by [holds lines until the line count is reached](apps/cluster-agent/src/inputs/pod-log-batching.test.ts#L36), [flushes early once accumulated bytes reach the cap](apps/cluster-agent/src/inputs/pod-log-batching.test.ts#L42), [keeps a partial batch pending](apps/cluster-agent/src/inputs/pod-log-batching.test.ts#L48), [starts the next batch empty](apps/cluster-agent/src/inputs/pod-log-batching.test.ts#L57))
 - A single line longer than the byte cap flushes ALONE rather than wedging a
   batch that can never satisfy its own limit. The cap bounds this process's
-  memory; it cannot bound what the pod chose to write. ([validated by [flushes a single line that alone exceeds the byte cap](apps/cluster-agent/src/inputs/pod-log-batching.test.ts#L61))
+  memory; it cannot bound what the pod chose to write. ([validated by [flushes a single line that alone exceeds the byte cap](apps/cluster-agent/src/inputs/pod-log-batching.test.ts#L63))
 - A partial batch is flushed on an idle timer, so a pod that goes quiet
-  mid-chunk does not strand its last lines. ([validated by [flushes what is pending](apps/cluster-agent/src/inputs/pod-log-batching.test.ts#L74), [flushes nothing when nothing is pending](apps/cluster-agent/src/inputs/pod-log-batching.test.ts#L80))
+  mid-chunk does not strand its last lines. ([validated by [flushes what is pending](apps/cluster-agent/src/inputs/pod-log-batching.test.ts#L76), [flushes nothing when nothing is pending](apps/cluster-agent/src/inputs/pod-log-batching.test.ts#L82))
 - The flush at END of stream also carries the fragment held back for want of a
   newline. A chunk boundary can split a line, so the tail of every write waits
   for the rest of its line — and when the stream ends that rest never comes. A
   pod that dies mid-write ends exactly there, so the line dropped was its last
-  one, which is the line the log was being read for. ([validated by [emits the held-back partial line a stream ended without a newline](apps/cluster-agent/src/inputs/pod-log-batching.test.ts#L265), [`pod-log-batching.test.ts:274`](apps/cluster-agent/src/inputs/pod-log-batching.test.ts#L275), [`pod-log-batching.test.ts:281`](apps/cluster-agent/src/inputs/pod-log-batching.test.ts#L282))
+  one, which is the line the log was being read for. ([validated by [emits the held-back partial line a stream ended without a newline](apps/cluster-agent/src/inputs/pod-log-batching.test.ts#L267), [`pod-log-batching.test.ts:274`](apps/cluster-agent/src/inputs/pod-log-batching.test.ts#L277), [`pod-log-batching.test.ts:281`](apps/cluster-agent/src/inputs/pod-log-batching.test.ts#L284))
 - Each chunk is one event, deduped on `(pod, seq)` — never on the job. Both pods
   of a retried node start at seq 1, and a job-keyed dedupe would drop the
   retry's first chunk as a duplicate of the original's, the same trap the
-  table's unique index avoids. ([validated by [carries the identity a chunk is keyed by](apps/cluster-agent/src/inputs/pod-log-batching.test.ts#L86), [dedupes on the POD, not the job](apps/cluster-agent/src/inputs/pod-log-batching.test.ts#L106))
+  table's unique index avoids. ([validated by [carries the identity a chunk is keyed by](apps/cluster-agent/src/inputs/pod-log-batching.test.ts#L88), [dedupes on the POD, not the job](apps/cluster-agent/src/inputs/pod-log-batching.test.ts#L108))
 - Discovery follows only agents that are running AND have a Job, and never one
   it is already following. Discovery re-runs on a timer over the same agents, so
   without that last check each tick opens another stream on the same pod and
@@ -236,14 +236,22 @@ exercise, so it is stated here rather than linked.
   reason: a pass that outlives the 15-second interval overlaps its successor, and
   both read the following-set before either has added to it — so the check above
   holds only within a pass, and the live set is re-read again before a stream is
-  opened. ([validated by [follows a running agent that has a pod to follow](apps/cluster-agent/src/inputs/pod-log-batching.test.ts#L121), [skips a terminal agent](apps/cluster-agent/src/inputs/pod-log-batching.test.ts#L129), [skips an agent with no job yet](apps/cluster-agent/src/inputs/pod-log-batching.test.ts#L138), [skips a CR carrying no metadata or status yet](apps/cluster-agent/src/inputs/pod-log-batching.test.ts#L142), [skips one already being followed](apps/cluster-agent/src/inputs/pod-log-batching.test.ts#L154))
+  opened. ([validated by [follows a running agent that has a pod to follow](apps/cluster-agent/src/inputs/pod-log-batching.test.ts#L123), [skips a terminal agent](apps/cluster-agent/src/inputs/pod-log-batching.test.ts#L131), [skips an agent with no job yet](apps/cluster-agent/src/inputs/pod-log-batching.test.ts#L140), [skips a CR carrying no metadata or status yet](apps/cluster-agent/src/inputs/pod-log-batching.test.ts#L144), [skips one already being followed](apps/cluster-agent/src/inputs/pod-log-batching.test.ts#L156))
+- Discovery holds NOTHING between pages. Every Agent CR carries its run's whole
+  transcript in `status.output`, so the paged walk exists to keep them out of
+  memory — and accumulating the pages into one array put them right back. At 130
+  accumulated CRs that is more than the pod's entire limit: a satellite's
+  cluster-agent was OOM-killed seven seconds into every boot for twenty-one
+  hours, which stopped its Agent-CR watch, which left every finished run in that
+  cluster with nobody to report it. Each page is reduced to the names a stream
+  needs and dropped, so the caller cannot retain a CR it was never handed. ([validated by [keeps only the three fields a stream needs, not the CR it read them from](apps/cluster-agent/src/inputs/pod-log-batching.test.ts#L295), [`pod-log-batching.test.ts:301`](apps/cluster-agent/src/inputs/pod-log-batching.test.ts#L301))
 - The stream NAMES its container. An empty container name makes the log request
   a `400 Error occurred in log request`, and an agent pod has two containers
   (`init` and `agent`) so there is no implicit choice for the apiserver to make.
   Found on the first pilot run, which retried a 400 every fifteen seconds and
   streamed nothing. The name is read off the pod — first container, the workload
   rather than a sidecar — so it stays correct for a station pod or a renamed
-  image, and the newest pod wins so a retried node streams its current attempt. ([validated by [names the container to stream](apps/cluster-agent/src/inputs/pod-log-batching.test.ts#L171), [takes the newest pod](apps/cluster-agent/src/inputs/pod-log-batching.test.ts#L182), [takes the FIRST container](apps/cluster-agent/src/inputs/pod-log-batching.test.ts#L191), [orders by a Date timestamp too](apps/cluster-agent/src/inputs/pod-log-batching.test.ts#L198), [sorts a pod carrying no timestamp last](apps/cluster-agent/src/inputs/pod-log-batching.test.ts#L222), [returns null when there is no pod yet](apps/cluster-agent/src/inputs/pod-log-batching.test.ts#L243), [returns null for a pod with no name or no container](apps/cluster-agent/src/inputs/pod-log-batching.test.ts#L247))
+  image, and the newest pod wins so a retried node streams its current attempt. ([validated by [names the container to stream](apps/cluster-agent/src/inputs/pod-log-batching.test.ts#L173), [takes the newest pod](apps/cluster-agent/src/inputs/pod-log-batching.test.ts#L184), [takes the FIRST container](apps/cluster-agent/src/inputs/pod-log-batching.test.ts#L193), [orders by a Date timestamp too](apps/cluster-agent/src/inputs/pod-log-batching.test.ts#L200), [sorts a pod carrying no timestamp last](apps/cluster-agent/src/inputs/pod-log-batching.test.ts#L224), [returns null when there is no pod yet](apps/cluster-agent/src/inputs/pod-log-batching.test.ts#L245), [returns null for a pod with no name or no container](apps/cluster-agent/src/inputs/pod-log-batching.test.ts#L249))
 
 ### The retention window now has a caller
 

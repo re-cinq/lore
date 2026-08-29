@@ -5,6 +5,7 @@ import {
   drainAtEnd,
   emptyBatch,
   followableAgents,
+  followTargets,
   pickPodToFollow,
   podLogEvent,
   type BatchLimits,
@@ -282,5 +283,30 @@ describe("drainAtEnd", () => {
       batch: { lines: [], bytes: 0 },
       flushed: null,
     });
+  });
+});
+
+describe("followTargets", () => {
+  const withTranscript = (name: string, jobName: string) => ({
+    metadata: { name },
+    status: { phase: "Running", jobName, output: "x".repeat(1024) },
+  });
+
+  it("keeps only the three fields a stream needs, not the CR it read them from", () => {
+    expect(followTargets([withTranscript("a-1", "job-1")], new Set())).toEqual([
+      { agentCrName: "a-1", jobName: "job-1" },
+    ]);
+  });
+
+  it("drops every reference to the CR, so a page cannot be held by its results", () => {
+    const page = [withTranscript("a-1", "job-1")];
+    const kept = followTargets(page, new Set()) as unknown as Array<
+      Record<string, unknown>
+    >;
+
+    expect(Object.values(kept[0]).some((v) => typeof v === "object")).toBe(
+      false,
+    );
+    expect(JSON.stringify(kept[0])).not.toContain("xxx");
   });
 });

@@ -134,6 +134,28 @@ const TERMINAL_PHASES = new Set(["Succeeded", "Failed"]);
  * emits each line once per stream. Dedupe is per `(pod, seq)` and each stream
  * assigns its own seqs, so those duplicates would NOT collapse.
  */
+/**
+ * The same choice as {@link followableAgents}, reduced to what a stream needs.
+ *
+ * Discovery must never hold a page of Agent CRs — each carries its run's whole
+ * transcript in `status.output`, and 130 accumulated CRs at over a megabyte each
+ * is more than the pod's whole memory limit. Accumulating them across pages
+ * OOM-killed a satellite's cluster-agent every seven seconds for twenty-one
+ * hours, which stopped its Agent-CR watch, which stranded every finished run in
+ * that cluster with nobody to report it.
+ *
+ * Returning names rather than objects is what makes that structural: the caller
+ * cannot retain a CR it was never handed.
+ */
+export function followTargets(
+  agents: readonly FollowableAgent[],
+  following: ReadonlySet<string>,
+): Array<{ agentCrName: string; jobName: string }> {
+  return followableAgents(agents, following).map(
+    ({ agentCrName, jobName }) => ({ agentCrName, jobName }),
+  );
+}
+
 export function followableAgents(
   agents: readonly FollowableAgent[],
   following: ReadonlySet<string>,
