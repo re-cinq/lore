@@ -245,6 +245,14 @@ one dispatch mechanism, not a special case plus a remote case.
   live lore-mcp gateway), and the Agent CR is created under the exact CR name
   the Floor recorded on the station-run row — so no synced catalog is
   required and no inbound push ever occurs. ([validated by `claim-loop.test.ts:139`](apps/cluster-agent/src/claim/claim-loop.test.ts#L141), [`claim-loop.test.ts:152`](apps/cluster-agent/src/claim/claim-loop.test.ts#L154), [`claim-loop.test.ts:178`](apps/cluster-agent/src/claim/claim-loop.test.ts#L178), [`claim-loop.test.ts:187`](apps/cluster-agent/src/claim/claim-loop.test.ts#L209), [`claim-loop.test.ts:194`](apps/cluster-agent/src/claim/claim-loop.test.ts#L216), [`claim-loop.test.ts:253`](apps/cluster-agent/src/claim/claim-loop.test.ts#L289), [`claim-loop.test.ts:200`](apps/cluster-agent/src/claim/claim-loop.test.ts#L222))
+- "The exact name the Floor recorded" means the ROW's, not the copy the dispatch
+  spec carries. Both are written together today, but the spec's copy is the one
+  that can go stale — a re-dispatch converging on an existing row keeps the spec
+  it was armed with — and every correlation reads the row: the watch's terminal
+  report, the reconcile pass, the fork replay. A claim whose two names disagree
+  is refused rather than launched under either, since a CR no row names produces
+  a terminal event that matches nothing and a node that waits out its timeout
+  reading as a run nobody launched. ([validated by falls back to the spec's own name for a row with none recorded](apps/cluster-agent/src/claim/claim-loop.test.ts#L154), [`claim-loop.test.ts:167`](apps/cluster-agent/src/claim/claim-loop.test.ts#L167))
 - Outcome reporting rides the existing path: the cluster-agent's watch
   reports terminal phases through the event-router front door with dedupe
   keys, and the central Floor's event loop advances the assembly line

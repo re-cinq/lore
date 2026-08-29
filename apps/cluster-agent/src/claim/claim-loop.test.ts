@@ -151,9 +151,10 @@ describe("claimOnce", () => {
     ]);
   });
 
-  it("keeps a CR name the spec already carries", async () => {
+  it("falls back to the spec's own name for a row with none recorded", async () => {
     const named = {
       ...CLAIM_BODY,
+      agent_cr_name: null,
       spec: { ...CLAIM_BODY.spec, name: "explicit-name" },
     };
     const d = deps([jsonResponse(200, named)]);
@@ -161,6 +162,24 @@ describe("claimOnce", () => {
     await claimOnce(d.tick);
 
     expect(d.launched[0].name).toBe("explicit-name");
+  });
+
+  it("refuses to launch when the row and the spec name different CRs", async () => {
+    const disagreeing = {
+      ...CLAIM_BODY,
+      spec: { ...CLAIM_BODY.spec, name: "some-other-name" },
+    };
+    const d = deps([
+      jsonResponse(200, disagreeing),
+      jsonResponse(200, { status: "requeued" }),
+    ]);
+
+    expect(await claimOnce(d.tick)).toEqual({
+      kind: "error",
+      message:
+        "claim for station run run-42 disagrees about its CR name: row says abc123def456-implement, spec says some-other-name — refusing a launch nothing could correlate",
+    });
+    expect(d.launched).toEqual([]);
   });
 
   it("reports unauthorized on a 401", async () => {

@@ -189,17 +189,31 @@ export async function claimOnce(deps: ClaimTickDeps): Promise<ClaimOutcome> {
     };
   }
 
-  // The CR name must be the one the Floor recorded on the station_run row —
-  // the watch's terminal report and the fork replay both correlate by it.
-  const specName = claim.spec.name ?? claim.agent_cr_name;
+  // The ROW's name wins. The watch's terminal report, the reconcile pass and the
+  // fork replay all correlate by what the Floor recorded there; the spec carries
+  // a second copy of the same fact, and a copy is exactly the thing that can go
+  // stale — a re-dispatch converging on an existing row keeps the spec it was
+  // armed with. Launching under the spec's spelling when the two differ produces
+  // a CR no row names, whose terminal event matches nothing: the node waits out
+  // its timeout and reads as a run nobody ever launched.
+  const rowName = claim.agent_cr_name;
+  const specName = claim.spec.name;
 
-  if (!specName) {
+  if (rowName && specName && rowName !== specName) {
+    return {
+      kind: "error",
+      message: `claim for station run ${claim.station_run_id} disagrees about its CR name: row says ${rowName}, spec says ${specName} — refusing a launch nothing could correlate`,
+    };
+  }
+  const name = rowName ?? specName;
+
+  if (!name) {
     return {
       kind: "error",
       message: `claim for station run ${claim.station_run_id} carries no CR name — refusing an unlabelled launch`,
     };
   }
-  const spec: LoreTaskSpec = { ...claim.spec, name: specName };
+  const spec: LoreTaskSpec = { ...claim.spec, name };
 
   try {
     const { ref, launched } = await deps.launch(spec);
