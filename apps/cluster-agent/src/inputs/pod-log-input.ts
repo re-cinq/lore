@@ -24,7 +24,7 @@ import {
   CustomObjectsApi,
   Log,
 } from "@kubernetes/client-node";
-import { agentsNamespace, loadKube } from "@re-cinq/lore-shared";
+import { agentsNamespace, errorMessage, loadKube } from "@re-cinq/lore-shared";
 import type {
   Emit,
   EventInput,
@@ -32,6 +32,7 @@ import type {
 import {
   addLine,
   drain,
+  drainAtEnd,
   emptyBatch,
   followableAgents,
   pickPodToFollow,
@@ -66,6 +67,12 @@ export class PodLogInput implements EventInput {
   readonly name = "pod-logs";
   private running = false;
   private discovery: NodeJS.Timeout | null = null;
+  /** One discovery pass at a time. A pass that outlives the interval — a big
+   *  namespace, a slow apiserver — would otherwise overlap its successor, and
+   *  both would see the same agent as unfollowed and open a stream on it. Each
+   *  stream numbers its own chunks, and dedupe is per `(pod, seq)`, so those
+   *  duplicates do NOT collapse: every line lands twice. */
+  private discovering = false;
   private readonly followers = new Map<string, Follower>();
 
   start(emit: Emit): void {
@@ -99,6 +106,11 @@ export class PodLogInput implements EventInput {
    *  followed. Failures are logged, never thrown — a pod that cannot be opened
    *  must not stop the ones that can. */
   private async discover(emit: Emit): Promise<void> {
+    if (this.discovering) {
+      return;
+    }
+    this.discovering = true;
+
     try {
       const kc = new KubeConfig();
 
@@ -129,7 +141,10 @@ export class PodLogInput implements EventInput {
         // pilot run spent fifteen minutes retrying and streaming nothing.
         const chosen = pickPodToFollow(pods.items ?? []);
 
-        if (chosen && this.running) {
+        // Re-checked against the LIVE map rather than the snapshot
+        // `followableAgents` filtered on: this pass awaited a page walk and a
+        // pod list since then, and `stop()` may have run too.
+        if (chosen && this.running && !this.followers.has(agent.agentCrName)) {
           this.follow(
             kc,
             namespace,
@@ -142,8 +157,10 @@ export class PodLogInput implements EventInput {
     } catch (err) {
       console.error(
         "[cluster-agent] pod-log discovery failed:",
-        (err as Error).message,
+        errorMessage(err),
       );
+    } finally {
+      this.discovering = false;
     }
   }
 
@@ -201,7 +218,14 @@ export class PodLogInput implements EventInput {
       const step = drain(batch);
 
       batch = step.batch;
-      void send(step.flushed);
+      // Caught here as it is on the final flush: an idle flush that rejects is
+      // an unhandled rejection, and this process installs no handler for one.
+      void send(step.flushed).catch((err) =>
+        console.error(
+          `[cluster-agent] idle pod-log flush failed for ${target.podName}:`,
+          errorMessage(err),
+        ),
+      );
     }, IDLE_FLUSH_MS);
 
     const abort = new AbortController();
@@ -212,13 +236,15 @@ export class PodLogInput implements EventInput {
     // much as the cleanup — a pod whose last lines did not fill a chunk would
     // otherwise lose them, which is exactly the output of a crashed run.
     const finish = (why: string) => {
-      const step = drain(batch);
+      const step = drainAtEnd(batch, carry);
+
+      carry = "";
 
       batch = step.batch;
       void send(step.flushed).catch((err) =>
         console.error(
           `[cluster-agent] final pod-log flush failed for ${target.podName} (${why}):`,
-          (err as Error).message,
+          errorMessage(err),
         ),
       );
       clearInterval(timer);
@@ -236,13 +262,21 @@ export class PodLogInput implements EventInput {
       .log(namespace, target.podName, containerName, sink, { follow: true })
       .then((controller) => {
         // The stream's own controller, so `stop` aborts the live request rather
-        // than only the intent to make it.
+        // than only the intent to make it. A stop that landed while the request
+        // was still opening is honoured here — the listener below would never
+        // fire for an abort that already happened, leaving the stream running
+        // with nothing left to close it.
+        if (abort.signal.aborted) {
+          controller.abort();
+
+          return;
+        }
         abort.signal.addEventListener("abort", () => controller.abort());
       })
       .catch((err) => {
         console.error(
           `[cluster-agent] pod-log stream failed for ${target.podName}:`,
-          (err as Error).message,
+          errorMessage(err),
         );
         finish("stream could not be opened");
       });

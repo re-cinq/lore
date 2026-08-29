@@ -81,6 +81,20 @@ export function drain(batch: PendingBatch): BatchStep {
 }
 
 /**
+ * The last flush of a stream that has ended: whatever the batch holds, plus the
+ * fragment held back for want of a newline.
+ *
+ * `carry` exists because a chunk boundary can split a line, so the tail of every
+ * write waits for the rest of its line. When the stream ENDS that rest never
+ * comes — and a pod that dies mid-write ends exactly there, so the line lost was
+ * the one worth reading. The ordinary `drain` cannot do this: mid-stream the
+ * fragment really is incomplete.
+ */
+export function drainAtEnd(batch: PendingBatch, carry: string): BatchStep {
+  return drain(carry ? { lines: [...batch.lines, carry], bytes: 0 } : batch);
+}
+
+/**
  * One chunk as its event.
  *
  * Keyed on the POD and the sequence, never the job: both pods of a retried node
