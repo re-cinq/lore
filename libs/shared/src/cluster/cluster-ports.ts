@@ -5,11 +5,10 @@
 // adapters. They were declared inside the Floor's dispatch module, which is
 // exactly where a port cannot live once a second process implements it.
 //
-// Deliberately domain operations, not Kubernetes verbs. Three of the underlying
-// interactions are read-modify-write pairs — the status subresource, the Secret
-// key, the catalog apply — and a port that exposed `get` and `replace`
-// separately would invite a caller to split a pair across the network and lose
-// the update.
+// Deliberately domain operations, not Kubernetes verbs. Two of the underlying
+// interactions are read-modify-write pairs — the Secret key write and the
+// catalog apply — and a port that exposed `get` and `replace` separately would
+// invite a caller to split a pair across the network and lose the update.
 
 import type { Agent as AgentCr } from "@re-cinq/agent-contracts";
 import type { AgentNodeStatus } from "./agent-node-status.js";

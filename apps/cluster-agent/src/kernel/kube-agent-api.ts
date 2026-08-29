@@ -8,15 +8,11 @@ import {
   VERSION,
   type Agent as AgentCr,
 } from "@re-cinq/agent-contracts";
-import {
-  agentsNamespace,
-  loadKube,
-  statusFromAgentCr,
-} from "@re-cinq/lore-shared";
-import type { AgentApi, AgentNodeStatus } from "@re-cinq/lore-shared";
+import { agentsNamespace, loadKube } from "@re-cinq/lore-shared";
+import type { AgentApi } from "@re-cinq/lore-shared";
 // Type-only, so the runtime import below stays lazy.
 import type { CustomObjectsApi } from "@kubernetes/client-node";
-import { isConflict, isNotFound } from "./k8s-errors.js";
+import { isConflict } from "./k8s-errors.js";
 
 const PLURAL = "agents";
 
@@ -63,30 +59,6 @@ export class KubeAgentApi implements AgentApi {
     } catch (err) {
       if (isConflict(err)) {
         return { name, created: false };
-      }
-      throw err;
-    }
-  }
-
-  /** The status of one Agent CR by name (the per-node Agent, `<id12>-<nodeId>`), as the
-   *  graph handler's poll expects. Null ONLY when the CR does not exist (404) — a CR
-   *  that exists without a status reports `Pending` (see `statusFromAgentCr`). */
-  async getStatus(name: string): Promise<AgentNodeStatus | null> {
-    const api = await this.customObjects();
-
-    try {
-      const obj = (await api.getNamespacedCustomObject({
-        group: GROUP,
-        version: VERSION,
-        namespace: this.namespace(),
-        plural: PLURAL,
-        name,
-      })) as AgentCr;
-
-      return statusFromAgentCr(obj);
-    } catch (err) {
-      if (isNotFound(err)) {
-        return null;
       }
       throw err;
     }

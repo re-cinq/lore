@@ -53,7 +53,7 @@ export {
   ClusterAgentClient,
   HttpAgentApi,
   HttpPodLogSource,
-  HttpTokenProvisioner,
+  HttpTokenCleanup,
   HttpAgentCatalog,
 } from "./cluster/cluster-agent-client.js";
 export {

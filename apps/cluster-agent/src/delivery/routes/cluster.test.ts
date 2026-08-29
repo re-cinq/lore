@@ -22,9 +22,6 @@ function fakeDeps(over: Partial<ClusterDeps> = {}): ClusterDeps {
       remove: async (name) => {
         calls.push(`delete:${name}`);
       },
-      patchStatus: async (name, patch) => {
-        calls.push(`status:${name}:${JSON.stringify(patch)}`);
-      },
     },
     pods: {
       agentInfo: async (name) =>
@@ -37,7 +34,6 @@ function fakeDeps(over: Partial<ClusterDeps> = {}): ClusterDeps {
       },
     },
     tokens: {
-      provision: async () => "pt-abc",
       cleanup: async (taskId) => {
         calls.push(`cleanup:${taskId}`);
       },
@@ -112,18 +108,6 @@ describe("Agent CR routes", () => {
     expect(calls).toEqual([]);
   });
 
-  it("patches the status subresource in one call, so the read-modify-write cannot be split", async () => {
-    const res = await app.inject({
-      method: "PATCH",
-      url: "/api/cluster/agents/a-1/status",
-      headers: auth,
-      payload: JSON.stringify({ patch: { phase: "Failed" } }),
-    });
-
-    expect(res.statusCode).toBe(204);
-    expect(calls).toEqual(['status:a-1:{"phase":"Failed"}']);
-  });
-
   it("deletes a CR — the verb the Floor's RBAC never granted", async () => {
     const res = await app.inject({
       method: "DELETE",
@@ -159,31 +143,6 @@ describe("pod log routes", () => {
 });
 
 describe("provisioning and catalog", () => {
-  it("provisions in one call — catalog read, mint, secret write and clone together", async () => {
-    const res = await post("/api/cluster/per-task-tokens", {
-      taskId: "t1",
-      taskType: "general",
-      targetRepo: "re-cinq/lore",
-    });
-
-    expect(res.statusCode).toBe(200);
-    expect(res.result).toEqual({ name: "pt-abc" });
-  });
-
-  it("reports name:null when the recipe the task needs is absent", async () => {
-    build({
-      tokens: { ...fakeDeps().tokens, provision: async () => undefined },
-    });
-
-    const res = await post("/api/cluster/per-task-tokens", {
-      taskId: "t1",
-      taskType: "general",
-      targetRepo: "re-cinq/lore",
-    });
-
-    expect(res.result).toEqual({ name: null });
-  });
-
   it("applies a catalog pair in one call, so create-409-replace cannot be split", async () => {
     const res = await post("/api/cluster/catalog/pairs", {
       agentDefinition: { metadata: { name: "def-x" } },
@@ -205,22 +164,17 @@ describe("auth", () => {
     expect(res.statusCode).toBe(401);
   });
 
-  it("refuses a status patch whose body is not a patch", async () => {
-    const res = await app.inject({
-      method: "PATCH",
-      url: "/api/cluster/agents/a-1/status",
-      headers: auth,
-      payload: JSON.stringify({ nope: 1 }),
-    });
+  it("refuses a catalog pair whose body is not a pair", async () => {
+    const res = await post("/api/cluster/catalog/pairs", { nope: 1 });
 
     expect(res.statusCode).toBe(400);
     expect(calls).toEqual([]);
   });
 
-  it("refuses a status patch that is not JSON at all", async () => {
+  it("refuses a catalog pair that is not JSON at all", async () => {
     const res = await app.inject({
-      method: "PATCH",
-      url: "/api/cluster/agents/a-1/status",
+      method: "POST",
+      url: "/api/cluster/catalog/pairs",
       headers: auth,
       payload: "{not json",
     });

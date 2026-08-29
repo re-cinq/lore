@@ -21,11 +21,11 @@ reads, and the two writes a caller cannot do for itself.
 
 ## Design
 
-Every route is a **domain operation, not a Kubernetes verb**. Three of the
-underlying interactions are read-modify-write pairs — the status subresource,
-the Secret key write, the catalog apply (create → 409 → get → replace) — and
-exposing `get` and `replace` separately would invite a caller to split a pair
-across the network and lose the update. **No `resourceVersion` ever crosses the
+Every route is a **domain operation, not a Kubernetes verb**. Two of the
+underlying interactions are read-modify-write pairs — the Secret key write and
+the catalog apply (create → 409 → get → replace) — and exposing `get` and
+`replace` separately would invite a caller to split a pair across the network
+and lose the update. **No `resourceVersion` ever crosses the
 wire.** The pairs themselves live in `src/kernel/paired-writes.ts` as tested
 decision logic (conflict-retry ladder, station-first write order), not in the
 IO shell.
@@ -38,11 +38,13 @@ Other load-bearing choices, each recorded with its incident in
   list once blew Node's heap and crash-looped the Floor.
 - **`found:false` at 200, never 404**, for a missing CR — a 404 would be
   indistinguishable from the route itself being absent.
-- **Token minting happens here**: `POST /per-task-tokens` reads the catalog,
-  mints the GitHub App installation token, writes the Secret key (409-retried),
-  and clones the per-task recipe pair in one call, so no GitHub token ever
-  crosses the network. The accepted cost is that the App private key lives in
-  this service as well as on the Floor.
+- **Token minting happens here**, in-process: every launch is a claim, so the
+  claim loop reads the catalog, mints the GitHub App installation token, writes
+  the Secret key (409-retried) and clones the per-task recipe pair itself. No
+  GitHub token ever crosses the network, and there is no mint ROUTE — only the
+  reclaim (`DELETE /per-task-tokens/{taskId}`), which the Floor drives when a
+  task settles. The accepted cost is that the App private key lives in this
+  service as well as on the Floor.
 - **Log tails are clamped server-side** at 10,000 lines, because the Floor's
   clamp no longer protects this process's heap.
 - **Errors are read by status, never collapsed**: 404 is absence, 403 names the
@@ -59,11 +61,9 @@ probe the apiserver.
 | `GET /api/cluster/agents/{name}` | Fetch one CR; `{found:false}` at 200 when absent |
 | `GET /api/cluster/agents` | One page of CRs (`limit` ≤ 100, `labelSelector`, `continue`) |
 | `DELETE /api/cluster/agents/{name}` | Remove a CR; a lost delete race is a success |
-| `PATCH /api/cluster/agents/{name}/status` | Status read-modify-write, retried on conflict — the loser merges onto the winner's status |
 | `GET /api/cluster/agents/{name}/pod-info` | Phase + job name of the CR's pod |
 | `GET /api/cluster/jobs/{jobName}/pods` | Pod summaries for a Job |
 | `GET /api/cluster/pods/{podName}/log` | Pod log, `tail` clamped to 10,000 lines |
-| `POST /api/cluster/per-task-tokens` | Catalog read → GitHub mint → Secret key write → per-task recipe clone, in one call |
 | `DELETE /api/cluster/per-task-tokens/{taskId}` | Remove the per-task token key and recipe pair |
 | `POST /api/cluster/catalog/pairs` | Apply an AgentDefinition + Station pair, station first, unowned live fields preserved |
 | `DELETE /api/cluster/catalog/pairs/{name}` | Delete a pair, station first — a recipe never points at a missing station |

@@ -52,7 +52,7 @@ import {
   stationOutcomeForRunOutcome,
   type AgentTerminalReport,
 } from "./agent-watcher-logic.js";
-import { errorMessage, HttpTokenProvisioner } from "@re-cinq/lore-shared";
+import { errorMessage, HttpTokenCleanup } from "@re-cinq/lore-shared";
 import { clusterAgent } from "../../kernel/queues.js";
 import type { NotifyLevel } from "@re-cinq/lore-shared/project/notify/notify-port.js";
 
@@ -68,7 +68,7 @@ function tailOutput(output: string, limit = 60000): string {
  *  so the assembly-line completion path reclaims a station line's token (its shared token
  *  can only be freed once the whole line is done — no per-node cleanup is safe). */
 export function cleanupPerTaskToken(taskId: string): Promise<void> {
-  return new HttpTokenProvisioner(clusterAgent()).cleanup(taskId).catch((err) =>
+  return new HttpTokenCleanup(clusterAgent()).cleanup(taskId).catch((err) =>
     // Swallowed as before — a task must settle even if reclaim fails — but
     // LOGGED now. This used to hide a 403 the Floor's RBAC never granted, and
     // an unreachable agent would look exactly the same.

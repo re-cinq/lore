@@ -14,7 +14,6 @@ import type { AgentNodeStatus } from "./agent-node-status.js";
 import type {
   AgentLister,
   AgentStatusReader,
-  TokenProvisioner,
   TokenCleanup,
 } from "./cluster-ports.js";
 import type {
@@ -22,11 +21,9 @@ import type {
   PodSummary,
   PodLogSource,
 } from "./pod-logs-port.js";
-import type { LoreTaskSpec } from "../project/agents/k8s-port.js";
 
-/** Generous: a provision does a catalog read, a GitHub mint and a retried
- *  Secret write before it answers. Bounded so a wedged agent cannot hold a
- *  dispatch open forever. */
+/** Generous: a catalog apply does a create, a 409 and a replace before it
+ *  answers. Bounded so a wedged agent cannot hold a caller open forever. */
 const TIMEOUT_MS = 60_000;
 
 export class ClusterAgentClient {
@@ -138,20 +135,9 @@ export class HttpAgentApi implements AgentLister, AgentStatusReader {
   async remove(name: string): Promise<void> {
     await this.client.call("DELETE", `/agents/${encodeURIComponent(name)}`);
   }
-
-  async patchStatus(
-    name: string,
-    patch: Record<string, unknown>,
-  ): Promise<void> {
-    await this.client.call(
-      "PATCH",
-      `/agents/${encodeURIComponent(name)}/status`,
-      { patch },
-    );
-  }
 }
 
-/** {@link PodLogSource} over the agent. */
+/** {@link PodLogSource} over the agent — the pod reads the Floor gave up. */
 export class HttpPodLogSource implements PodLogSource {
   constructor(private readonly client: ClusterAgentClient) {}
 
@@ -185,19 +171,15 @@ export class HttpPodLogSource implements PodLogSource {
   }
 }
 
-/** {@link TokenProvisioner} + {@link TokenCleanup} over the agent. */
-export class HttpTokenProvisioner implements TokenProvisioner, TokenCleanup {
+/**
+ * {@link TokenCleanup} over the agent — the reclaim half only.
+ *
+ * There is no HTTP mint: every launch is a claim, so the cluster that provisions
+ * is the cluster that launches, in-process. What crosses the network is the
+ * Floor asking a cluster to take a settled task's token back.
+ */
+export class HttpTokenCleanup implements TokenCleanup {
   constructor(private readonly client: ClusterAgentClient) {}
-
-  async provision(spec: LoreTaskSpec): Promise<string | undefined> {
-    const res = await this.client.call<{ name: string | null }>(
-      "POST",
-      "/per-task-tokens",
-      spec,
-    );
-
-    return res?.name ?? undefined;
-  }
 
   async cleanup(taskId: string): Promise<void> {
     await this.client.call(

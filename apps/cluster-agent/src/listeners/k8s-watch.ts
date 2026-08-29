@@ -21,11 +21,7 @@
 
 import { KubeConfig, Watch, CustomObjectsApi } from "@kubernetes/client-node";
 import type { Agent as AgentCr } from "@re-cinq/agent-contracts";
-import {
-  agentsNamespace,
-  loadKube,
-  selectStationBackend,
-} from "@re-cinq/lore-shared";
+import { agentsNamespace, loadKube } from "@re-cinq/lore-shared";
 import type {
   Emit,
   EventInput,
@@ -70,13 +66,10 @@ export class AgentWatchInput implements EventInput {
   private depth = 0;
 
   start(emit: Emit): void {
-    if (selectStationBackend(process.env) !== "k8s") {
-      console.log(
-        "[cluster-agent] k8s watch disabled (station backend is not k8s)",
-      );
-
-      return;
-    }
+    // No backend gate here: startClaimLoop refuses to boot unless the backend is
+    // k8s, and it runs before this input is registered. A branch that cannot be
+    // reached reads as a supported watch-off mode, which is exactly what #1651
+    // removed.
     this.running = true;
     console.log("[cluster-agent] k8s Agent-CR watch started");
     void this.watchForever({ emit });
