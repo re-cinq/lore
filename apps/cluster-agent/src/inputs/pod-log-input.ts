@@ -19,12 +19,11 @@
 
 import { Writable } from "node:stream";
 import {
-  KubeConfig,
-  CoreV1Api,
-  CustomObjectsApi,
   Log,
+  type CoreV1Api,
+  type KubeConfig,
 } from "@kubernetes/client-node";
-import { agentsNamespace, errorMessage, loadKube } from "@re-cinq/lore-shared";
+import { agentsNamespace, errorMessage } from "@re-cinq/lore-shared";
 import type {
   Emit,
   EventInput,
@@ -44,6 +43,11 @@ import {
 } from "./pod-log-batching.js";
 import { forEachAgentPage } from "../listeners/agent-reporting.js";
 import { podSelectorForJob } from "../kernel/kube-pod-logs.js";
+import {
+  coreApi,
+  customObjectsApi,
+  kubeConfig,
+} from "../kernel/kube-clients.js";
 
 /** Deliberately small: this bounds what one chunk costs the bus, not what the
  *  pod may write. A single line past the byte cap still flushes on its own. */
@@ -112,12 +116,9 @@ export class PodLogInput implements EventInput {
     this.discovering = true;
 
     try {
-      const kc = new KubeConfig();
-
-      loadKube(kc);
-
+      const kc = kubeConfig();
       const namespace = agentsNamespace();
-      const core = kc.makeApiClient(CoreV1Api);
+      const core = coreApi();
 
       // Page by page, holding NOTHING between them. Every Agent CR carries its
       // run's whole transcript in `status.output`, so accumulating the namespace
@@ -125,18 +126,14 @@ export class PodLogInput implements EventInput {
       // against a 256Mi limit. It OOM-killed a satellite's cluster-agent every
       // seven seconds for twenty-one hours, taking down the Agent-CR watch with
       // it and stranding every finished run in that cluster.
-      await forEachAgentPage(
-        kc.makeApiClient(CustomObjectsApi),
-        namespace,
-        async (page) => {
-          for (const agent of followTargets(
-            page as FollowableAgent[],
-            new Set(this.followers.keys()),
-          )) {
-            await this.followOne(kc, namespace, core, agent, emit);
-          }
-        },
-      );
+      await forEachAgentPage(customObjectsApi(), namespace, async (page) => {
+        for (const agent of followTargets(
+          page as FollowableAgent[],
+          new Set(this.followers.keys()),
+        )) {
+          await this.followOne(kc, namespace, core, agent, emit);
+        }
+      });
     } catch (err) {
       console.error(
         "[cluster-agent] pod-log discovery failed:",

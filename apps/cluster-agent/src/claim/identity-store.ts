@@ -1,3 +1,4 @@
+import { errorMessage } from "@re-cinq/lore-shared";
 /**
  * The cluster-agent's registered identity — the `{id, token}` pair
  * `POST /api/cluster-agents/register` returns exactly once. Losing it means the
@@ -62,7 +63,14 @@ export function identityFilePath(env: NodeJS.ProcessEnv): string {
   );
 }
 
-function parseIdentity(raw: string): ClusterAgentIdentity | null {
+/**
+ * Read a stored identity, or null when it is not one.
+ *
+ * Shared by both stores: the shape they persist is the same shape, and a second
+ * copy of this check is a second place for it to drift — the two warnings had
+ * already worded themselves differently.
+ */
+export function parseIdentity(raw: string): ClusterAgentIdentity | null {
   const parsed = JSON.parse(raw) as Partial<ClusterAgentIdentity>;
 
   if (typeof parsed.id !== "string" || typeof parsed.token !== "string") {
@@ -90,7 +98,7 @@ export class FileIdentityStore implements IdentityStore {
       // A corrupt file is a fresh start, not a crash: registration will mint a
       // new identity for a new name, or 409 loudly if the name is taken.
       console.warn(
-        `[cluster-agent] identity file ${this.filePath} is unreadable (${(err as Error).message}) — treating as unregistered`,
+        `[cluster-agent] identity file ${this.filePath} is unreadable (${errorMessage(err)}) — treating as unregistered`,
       );
 
       return null;

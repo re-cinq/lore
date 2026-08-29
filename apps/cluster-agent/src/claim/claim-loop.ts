@@ -20,6 +20,7 @@ import {
   runPollLoop,
 } from "@re-cinq/lore-shared/lib/poll-loop.js";
 import type { ClusterAgentIdentity } from "./identity-store.js";
+import { secondsEnvMs } from "./intervals.js";
 
 const CLAIM_TIMEOUT_MS = 30_000;
 
@@ -27,13 +28,10 @@ export const CLAIM_BASE_INTERVAL_S_DEFAULT = 15;
 export const CLAIM_MAX_IDLE_DELAY_MS = 60_000;
 
 export function claimIntervalMs(env: NodeJS.ProcessEnv): number {
-  const seconds = Number(env.LORE_CLUSTER_AGENT_CLAIM_INTERVAL_S);
-
-  if (!Number.isFinite(seconds) || seconds <= 0) {
-    return CLAIM_BASE_INTERVAL_S_DEFAULT * 1000;
-  }
-
-  return seconds * 1000;
+  return secondsEnvMs(
+    env.LORE_CLUSTER_AGENT_CLAIM_INTERVAL_S,
+    CLAIM_BASE_INTERVAL_S_DEFAULT,
+  );
 }
 
 /** The claim response body (200). `spec` is the complete dispatch spec the

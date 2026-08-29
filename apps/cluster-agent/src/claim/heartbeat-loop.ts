@@ -1,6 +1,7 @@
 import { errorMessage } from "@re-cinq/lore-shared";
 import { runPollLoop } from "@re-cinq/lore-shared/lib/poll-loop.js";
 import type { ClusterAgentIdentity } from "./identity-store.js";
+import { secondsEnvMs } from "./intervals.js";
 
 /**
  * The liveness half of FR4 (specs/running-stations-in-any-k8s-cluster): a
@@ -14,11 +15,7 @@ const DEFAULT_HEARTBEAT_S = 30;
 const HEARTBEAT_TIMEOUT_MS = 30_000;
 
 export function heartbeatIntervalMs(env: NodeJS.ProcessEnv): number {
-  const raw = Number(env.LORE_CLUSTER_AGENT_HEARTBEAT_S);
-
-  return Number.isFinite(raw) && raw > 0
-    ? raw * 1000
-    : DEFAULT_HEARTBEAT_S * 1000;
+  return secondsEnvMs(env.LORE_CLUSTER_AGENT_HEARTBEAT_S, DEFAULT_HEARTBEAT_S);
 }
 
 export interface HeartbeatDeps {

@@ -12,7 +12,6 @@
 
 import { preserveUnownedFields } from "@re-cinq/lore-shared";
 import type { AgentDefinition, Station } from "@re-cinq/agent-contracts";
-
 /** The catalog half of a recipe, applied Station FIRST.
  *
  *  The mirror of `deletePair`: the AgentDefinition is what a dispatch looks up,

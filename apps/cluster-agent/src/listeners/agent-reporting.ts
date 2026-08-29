@@ -1,3 +1,4 @@
+import { errorMessage } from "@re-cinq/lore-shared";
 // What the watch DOES with a CR, separated from the connection that delivers it.
 //
 // The reconnect loop and the live `Watch` next door cannot be unit-tested
@@ -17,9 +18,9 @@ import type { Emit } from "@re-cinq/lore-shared/project/events/event-input-port.
 import { forEachPage } from "@re-cinq/lore-shared/lib/paginate.js";
 import type { CustomObjectsApi } from "@kubernetes/client-node";
 
-export const GROUP = "agents.re-cinq.com";
-export const VERSION = "v1alpha1";
-export const PLURAL = "agents";
+export { GROUP, VERSION, AGENT_PLURAL as PLURAL } from "../kernel/crd.js";
+import { GROUP, VERSION, AGENT_PLURAL as PLURAL } from "../kernel/crd.js";
+
 const LIST_PAGE_LIMIT = 50;
 
 export interface WatchDeps {
@@ -103,7 +104,7 @@ export async function reportForAgent(
   } catch (err) {
     console.error(
       `[cluster-agent] could not queue the report for ${agent.metadata?.name}:`,
-      (err as Error).message,
+      errorMessage(err),
     );
   }
 }

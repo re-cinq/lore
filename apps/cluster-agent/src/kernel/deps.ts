@@ -4,9 +4,8 @@
 // must be able to describe the service without a cluster present (tests do
 // exactly that).
 
-import { KubeConfig, CustomObjectsApi } from "@kubernetes/client-node";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
-import { agentsNamespace, loadKube } from "@re-cinq/lore-shared";
+import { agentsNamespace } from "@re-cinq/lore-shared";
 import { PlatformGitHub } from "@re-cinq/lore-shared/project/lib/platform-github.js";
 import { KubePodLogs } from "./kube-pod-logs.js";
 import {
@@ -17,22 +16,12 @@ import {
 } from "./kube-token-provisioner.js";
 import type { ClusterDeps } from "../delivery/routes/cluster.js";
 import { isNotFound, describeK8sError } from "./k8s-errors.js";
+import { GROUP, VERSION, AGENT_PLURAL as PLURAL } from "./crd.js";
+import { customObjectsApi } from "./kube-clients.js";
 import { applyCatalogPair } from "./paired-writes.js";
-
-const GROUP = "agents.re-cinq.com";
-const VERSION = "v1alpha1";
-const PLURAL = "agents";
 
 let singleton: ClusterDeps | undefined;
 let provisionerSingleton: KubeTokenProvisioner | undefined;
-
-function customObjects(): CustomObjectsApi {
-  const kc = new KubeConfig();
-
-  loadKube(kc);
-
-  return kc.makeApiClient(CustomObjectsApi);
-}
 
 /** The one per-task token provisioner. Every launch is a claim now, so the
  *  claim loop is its only caller — kept a shared singleton because the Secret
@@ -61,7 +50,7 @@ export function clusterDeps(): ClusterDeps {
     agents: {
       get: async (name) => {
         try {
-          return (await customObjects().getNamespacedCustomObject({
+          return (await customObjectsApi().getNamespacedCustomObject({
             group: GROUP,
             version: VERSION,
             namespace: agentsNamespace(),
@@ -84,7 +73,7 @@ export function clusterDeps(): ClusterDeps {
         }
       },
       list: async (opts) => {
-        const page = (await customObjects().listNamespacedCustomObject({
+        const page = (await customObjectsApi().listNamespacedCustomObject({
           group: GROUP,
           version: VERSION,
           namespace: agentsNamespace(),
@@ -103,7 +92,7 @@ export function clusterDeps(): ClusterDeps {
         };
       },
       remove: async (name) => {
-        await customObjects()
+        await customObjectsApi()
           .deleteNamespacedCustomObject({
             group: GROUP,
             version: VERSION,

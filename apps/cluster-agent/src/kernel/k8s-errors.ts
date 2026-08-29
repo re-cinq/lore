@@ -5,6 +5,8 @@
 // them — which a bare `catch` does — is how the Floor's missing `delete` verb
 // stayed invisible for forty days behind 2,686 accumulated CRs.
 
+import { errorMessage } from "@re-cinq/lore-shared";
+
 /** The apiserver's status code, wherever this client version happens to put it. */
 export function statusOf(err: unknown): number | undefined {
   const e = err as {
@@ -60,5 +62,5 @@ export function describeK8sError(
   const detail =
     status === 403 ? " — the cluster-agent Role is missing this rule" : "";
 
-  return `${verb} agents/${name} failed with ${status ?? "no status"}${detail}: ${(err as Error).message}`;
+  return `${verb} agents/${name} failed with ${status ?? "no status"}${detail}: ${errorMessage(err)}`;
 }

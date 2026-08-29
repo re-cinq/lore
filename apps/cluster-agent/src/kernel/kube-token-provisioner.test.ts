@@ -67,7 +67,7 @@ describe("KubeSecretKeyWriter", () => {
 
   it("retries the replace when the lost race arrives as a prose-only 409", async () => {
     const { core, replaced, versions } = fakeCore([proseConflict]);
-    const writer = new KubeSecretKeyWriter("ai-agents", async () => core);
+    const writer = new KubeSecretKeyWriter("ai-agents", () => core);
 
     await writer.setKey("agent-secrets", "GH_TOKEN_t1", "ghs_x");
 
@@ -84,7 +84,7 @@ describe("KubeSecretKeyWriter", () => {
 
   it("gives up after five conflicts rather than spinning", async () => {
     const { core } = fakeCore(Array(5).fill(proseConflict));
-    const writer = new KubeSecretKeyWriter("ai-agents", async () => core);
+    const writer = new KubeSecretKeyWriter("ai-agents", () => core);
 
     await expect(
       writer.setKey("agent-secrets", "GH_TOKEN_t1", "ghs_x"),
@@ -95,7 +95,7 @@ describe("KubeSecretKeyWriter", () => {
     const { core } = fakeCore([
       Object.assign(new Error("forbidden"), { code: 403 }),
     ]);
-    const writer = new KubeSecretKeyWriter("ai-agents", async () => core);
+    const writer = new KubeSecretKeyWriter("ai-agents", () => core);
 
     await expect(
       writer.setKey("agent-secrets", "GH_TOKEN_t1", "ghs_x"),
