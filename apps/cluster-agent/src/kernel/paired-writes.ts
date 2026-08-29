@@ -27,8 +27,9 @@ export async function applyCatalogPair(
     station,
   }: { agentDefinition: AgentDefinition; station: Station },
 ): Promise<void> {
-  // Both reads together — only the WRITE order is load-bearing, and each write
-  // waits on its own read anyway.
+  // Both reads together — only the WRITE order is load-bearing. Neither write
+  // depends on the OTHER read's result, so combining the reads changes nothing
+  // about what each write is allowed to start from.
   const [liveStation, liveDefinition] = await Promise.all([
     catalog.getStation(station.metadata!.name!),
     catalog.getAgentDefinition(agentDefinition.metadata!.name!),

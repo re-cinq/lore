@@ -245,7 +245,7 @@ one dispatch mechanism, not a special case plus a remote case.
   interval a cluster launched one pod every 15 seconds, so ten queued nodes took
   two and a half minutes and forty took ten, while the reaper's queue-wait bound
   counted from enqueue. The next poll either finds more work or answers `204`,
-  which is where the back-off begins. ([validated by polls again immediately after a claim, so a burst drains at once](apps/cluster-agent/src/claim/claim-loop.test.ts#L86))
+  which is where the back-off begins. ([`claim-loop.test.ts:86`](apps/cluster-agent/src/claim/claim-loop.test.ts#L86))
 - The claim response carries the **complete `LoreTaskSpec`** the visit was
   enqueued with — the same object the push path handed the launch backend.
   The claiming cluster-agent materialises everything cluster-local itself:

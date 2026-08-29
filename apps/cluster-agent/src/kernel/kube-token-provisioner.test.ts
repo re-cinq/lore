@@ -224,3 +224,48 @@ describe("KubeTokenProvisioner.provision", () => {
     ]);
   });
 });
+
+describe("KubeTokenProvisioner.provision write order", () => {
+  it("applies the Station before the AgentDefinition, matching applyCatalogPair's invariant", async () => {
+    const named = (name: string) => ({
+      metadata: { name },
+      spec: { prompt: "do the thing", model: "claude-fable-5" },
+    });
+    const applied: string[] = [];
+    const catalog = {
+      getAgentDefinition: async () => named("implementation"),
+      getStation: async () => named("implementation"),
+      applyAgentDefinition: async (def: { metadata?: { name?: string } }) => {
+        applied.push(`def:${def.metadata?.name}`);
+      },
+      applyStation: async (station: { metadata?: { name?: string } }) => {
+        applied.push(`station:${station.metadata?.name}`);
+      },
+      deleteAgentDefinition: async () => {},
+      deleteStation: async () => {},
+    } as unknown as CatalogApi;
+    const provisioner = new KubeTokenProvisioner(
+      { mint: async () => "ghs_token" },
+      {
+        setKey: async () => {},
+        deleteKey: async () => {},
+      } as SecretKeyWriter,
+      catalog,
+    );
+
+    await provisioner.provision({
+      taskId: "task-77",
+      taskType: "implementation",
+      description: "d",
+      prompt: "p",
+      targetRepo: "re-cinq/lore",
+      branch: "lore/task-77",
+    } as unknown as LoreTaskSpec);
+
+    // Station first: an AgentDefinition landing before its Station would be
+    // visible pointing at a Station that does not exist yet — the exact
+    // window applyCatalogPair's own doc comment says to avoid, and this is
+    // the SAME recipe pair, applied through a different call site.
+    expect(applied).toEqual(["station:pt-task-77", "def:pt-task-77"]);
+  });
+});

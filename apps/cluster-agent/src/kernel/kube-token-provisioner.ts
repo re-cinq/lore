@@ -89,22 +89,24 @@ export class KubeTokenProvisioner implements TokenProvisioner, TokenCleanup {
     const name = perTaskName(spec.taskId);
 
     try {
-      await this.catalog.applyAgentDefinition(
-        injectRepoToken(catalogDef, spec, key, name),
-      );
+      // Station first, same invariant as applyCatalogPair: the AgentDefinition
+      // is what a dispatch looks up, so writing it last means it is never
+      // visible pointing at a Station that does not exist yet.
       await this.catalog.applyStation(
         perTaskStation(catalogStation, name, name, spec.taskId),
       );
+      await this.catalog.applyAgentDefinition(
+        injectRepoToken(catalogDef, spec, key, name),
+      );
     } catch (err) {
       // Everything provisioned so far outlives the launch that failed unless it
-      // is taken back here — not only the Secret key. applyAgentDefinition can
-      // have already landed when applyStation throws, leaving a recipe pointing
-      // at a token the key delete is about to remove. Reclaims the same triple
-      // `cleanup(taskId)` does, but — unlike cleanup, whose Promise.allSettled
-      // discards its results because a terminal task's cleanup has no one left
-      // to tell — warns per failure: a token stuck here is a live credential
-      // nobody is using, and a row in the accumulation that once took
-      // `agent-secrets` past 1MiB.
+      // is taken back here — not only the Secret key. The Station can have
+      // already landed when applyAgentDefinition throws. Reclaims the same
+      // triple `cleanup(taskId)` does, but — unlike cleanup, whose
+      // Promise.allSettled discards its results because a terminal task's
+      // cleanup has no one left to tell — warns per failure: a token stuck
+      // here is a live credential nobody is using, and a row in the
+      // accumulation that once took `agent-secrets` past 1MiB.
       const reclaim: Array<[string, Promise<void>]> = [
         [key, this.secrets.deleteKey(this.secretName, key)],
         [name, this.catalog.deleteStation(name)],
