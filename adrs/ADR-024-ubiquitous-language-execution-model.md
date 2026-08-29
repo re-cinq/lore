@@ -101,7 +101,7 @@ the cluster moves AWAY from it. The Floor's data surface is ~145 calls across
 extraction was never the data, and a satellite cluster becomes a small agent
 rather than a second brain.
 
-Every route is a DOMAIN operation, not a Kubernetes verb, because three of the
+Every route is a DOMAIN operation, not a Kubernetes verb, because two of the
 underlying interactions are read-modify-write pairs. Exposing `get` and
 `replace` separately would invite a caller to split a pair across the network
 and lose the update; no `resourceVersion` ever crosses the wire.

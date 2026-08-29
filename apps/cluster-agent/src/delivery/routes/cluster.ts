@@ -1,9 +1,9 @@
 /**
  * The cluster's Kubernetes surface, as HTTP.
  *
- * Every route is a DOMAIN operation, not a Kubernetes verb. Three of the
- * underlying interactions are read-modify-write pairs — the status subresource,
- * the Secret key (5× 409 retry), the catalog apply (create → 409 → get-rv →
+ * Every route is a DOMAIN operation, not a Kubernetes verb. Two of the
+ * underlying interactions are read-modify-write pairs — the Secret key
+ * (5× 409 retry) and the catalog apply (create → 409 → get-rv →
  * replace) — and exposing `get` and `replace` separately would invite a caller
  * to split a pair across the network and lose the update. No `resourceVersion`
  * ever crosses the wire.

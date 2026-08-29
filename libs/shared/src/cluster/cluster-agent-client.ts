@@ -178,7 +178,7 @@ export class HttpPodLogSource implements PodLogSource {
  * is the cluster that launches, in-process. What crosses the network is the
  * Floor asking a cluster to take a settled task's token back.
  */
-export class HttpTokenProvisioner implements TokenCleanup {
+export class HttpTokenCleanup implements TokenCleanup {
   constructor(private readonly client: ClusterAgentClient) {}
 
   async cleanup(taskId: string): Promise<void> {
