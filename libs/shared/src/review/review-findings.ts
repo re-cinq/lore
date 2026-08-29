@@ -12,6 +12,7 @@ import type {
   ConventionalDecoration,
   ConventionalLabel,
 } from "./conventional-comment.js";
+import { isRecord } from "../lib/is-record.js";
 
 export type ReviewVerdict = "approved" | "changes_requested";
 export type DiffSide = "LEFT" | "RIGHT";
@@ -102,10 +103,6 @@ function isReviewFinding(value: unknown): value is ReviewFinding {
     optional(value.discussion, (v) => typeof v === "string") &&
     optional(value.suggestion, (v) => typeof v === "string")
   );
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
 }
 
 function includes<T extends string>(allowed: T[], value: unknown): value is T {

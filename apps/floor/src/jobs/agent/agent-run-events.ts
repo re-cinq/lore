@@ -25,6 +25,7 @@ import type {
   AgentRunEventInsert,
   AgentRunEventType,
 } from "@re-cinq/lore-shared";
+import { isRecord } from "@re-cinq/lore-shared/lib/is-record.js";
 
 const SUMMARY_MAX_CHARS = 200;
 const TOOL_RESULT_MAX_BYTES = 2048;
@@ -35,9 +36,6 @@ const BASH_COMMAND_SUMMARY_CHARS = 120;
 /** Tool input keys that name a file. Bash `command` strings are deliberately not
  *  mined for paths — too noisy to be worth the false positives. */
 const FILE_PATH_KEYS = ["file_path", "path", "notebook_path"] as const;
-
-const isObject = (x: unknown): x is Record<string, unknown> =>
-  typeof x === "object" && x !== null && !Array.isArray(x);
 
 const str = (x: unknown): string | null => (typeof x === "string" ? x : null);
 
@@ -62,7 +60,7 @@ export function truncateForStorage(text: string, maxBytes: number): string {
 
 /** File paths named by a tool call's input, in key order, deduplicated. */
 export function filePathsFromToolInput(input: unknown): string[] {
-  if (!isObject(input)) {
+  if (!isRecord(input)) {
     return [];
   }
   const paths = FILE_PATH_KEYS.map((key) => str(input[key])).filter(
@@ -75,7 +73,7 @@ export function filePathsFromToolInput(input: unknown): string[] {
 /** Per-value and whole-input byte caps. Keys past the total budget are dropped
  *  and their count recorded, so the loss is visible in the stored payload. */
 function truncateToolInput(input: unknown): Record<string, unknown> {
-  if (!isObject(input)) {
+  if (!isRecord(input)) {
     return {};
   }
   const kept: Record<string, unknown> = {};
@@ -112,7 +110,7 @@ function toolResultContent(content: unknown): string {
 
   if (Array.isArray(content)) {
     return content
-      .map((block) => (isObject(block) ? (str(block.text) ?? "") : ""))
+      .map((block) => (isRecord(block) ? (str(block.text) ?? "") : ""))
       .join("");
   }
 
@@ -127,7 +125,7 @@ function toolCallSummary(
   if (filePaths.length > 0) {
     return cap(`${name} ${filePaths[0]}`);
   }
-  const command = isObject(input) ? str(input.command) : null;
+  const command = isRecord(input) ? str(input.command) : null;
 
   return command
     ? cap(`${name} ${command.slice(0, BASH_COMMAND_SUMMARY_CHARS)}`)
@@ -137,7 +135,7 @@ function toolCallSummary(
 function assistantBlockRow(
   block: unknown,
 ): Partial<AgentRunEventInsert> | null {
-  if (!isObject(block)) {
+  if (!isRecord(block)) {
     return null;
   }
 
@@ -174,7 +172,7 @@ function assistantBlockRow(
 }
 
 function toolResultRow(block: unknown): Partial<AgentRunEventInsert> | null {
-  if (!isObject(block) || block.type !== "tool_result") {
+  if (!isRecord(block) || block.type !== "tool_result") {
     return null;
   }
   const isError = block.is_error === true;
@@ -237,7 +235,7 @@ function resultRow(ev: Record<string, unknown>): Partial<AgentRunEventInsert> {
 }
 
 function contentBlocks(ev: Record<string, unknown>): unknown[] {
-  const content = isObject(ev.message) ? ev.message.content : undefined;
+  const content = isRecord(ev.message) ? ev.message.content : undefined;
 
   return Array.isArray(content) ? content : [];
 }
@@ -247,7 +245,7 @@ function contentBlocks(ev: Record<string, unknown>): unknown[] {
  *  contract: a newer subsystem emitting a kind this Floor has never seen must
  *  not break ingestion. */
 function rowsFromEvent(ev: unknown): Partial<AgentRunEventInsert>[] {
-  if (!isObject(ev)) {
+  if (!isRecord(ev)) {
     return [];
   }
 

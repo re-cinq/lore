@@ -21,12 +21,7 @@ import {
   projectFor,
   assemblyLineNames,
 } from "../../composition/project-boot.js";
-import {
-  memoryLifecycle,
-  pipeline,
-  taskStore,
-  settings,
-} from "../../kernel/queues.js";
+import { memoryLifecycle, pipeline, taskStore } from "../../kernel/queues.js";
 import { writeEpisode, writeEpisodeWithCuration } from "@re-cinq/lore-shared";
 import { tryAutoMergeForCompletedTask } from "../merge/auto-merge-trigger.js";
 import {
@@ -63,6 +58,7 @@ import {
   HttpTokenProvisioner,
 } from "@re-cinq/lore-shared";
 import { clusterAgent } from "../../kernel/queues.js";
+import type { NotifyLevel } from "@re-cinq/lore-shared/project/notify/notify-port.js";
 
 /** Agent output can be large — keep only the tail for issue/PR bodies. */
 function tailOutput(output: string, limit = 60000): string {
@@ -133,7 +129,7 @@ class SlackBatch {
               ? `Task completed: ${e.message}`
               : `Task failed: ${e.message}`;
 
-        await notifySlack(e.taskId, repo, msg).catch(() => {});
+        await notifySlack(e.taskId, repo, levelOf(e.type), msg).catch(() => {});
         continue;
       }
       const prs = entries.filter((e) => e.type === "pr");
@@ -164,53 +160,55 @@ class SlackBatch {
       }
       const summary = `*${repo}* — ${entries.length} task updates\n\n${parts.join("\n\n")}`;
 
-      await notifySlack(entries[0].taskId, repo, summary).catch(() => {});
+      // A mixed batch is reported at its most urgent level, so a failure inside
+      // it can never be filtered out by a channel list that admits escalations.
+      const level: NotifyLevel =
+        failed.length > 0 ? "escalation" : "completion";
+
+      await notifySlack(entries[0].taskId, repo, level, summary).catch(
+        () => {},
+      );
     }
     this.entries.length = 0;
   }
 }
 
+/** Which notify level a batched update reports at — the gate a repo's
+ *  `dark_factory.notify` channel list applies. */
+function levelOf(type: SlackBatchEntry["type"]): NotifyLevel {
+  if (type === "failed") {
+    return "escalation";
+  }
+
+  return type === "pr" ? "pr_open" : "completion";
+}
+
 // ── Helpers (CR-agnostic) ─────────────────
 
+/**
+ * Tell the repo's people about a task, through `project.notify`.
+ *
+ * This used to be a second Slack poster — its own token lookup, its own channel
+ * lookup, its own fetch — sitting beside the shared one and differing in the way
+ * that matters: it had no `decideNotify` gate, so a repo that had switched Slack
+ * off in `dark_factory.notify` still got every PR and failure message from the
+ * watcher. The one thing it did that the port could not was prefer the channel a
+ * Slack-ORIGINATED task came from, so that became an option on the port rather
+ * than a reason to keep a second implementation.
+ */
 async function notifySlack(
   taskId: string,
   repo: string,
+  level: NotifyLevel,
   message: string,
 ): Promise<void> {
-  const botToken = process.env.LORE_SLACK_BOT_TOKEN;
-
-  if (!botToken) {
-    return;
-  }
   const bundle = (await taskStore().getById(taskId))?.context_bundle as
     { slack_channel_id?: string } | undefined;
-  let channel = bundle?.slack_channel_id;
+  const project = await projectFor(repo);
 
-  if (!channel) {
-    const repoSettings = (await settings().rawSettings(repo)) as {
-      slack_channel_id?: string;
-    } | null;
-
-    channel = repoSettings?.slack_channel_id;
-  }
-
-  if (!channel) {
-    return;
-  }
-
-  try {
-    await fetch("https://slack.com/api/chat.postMessage", {
-      signal: AbortSignal.timeout(10_000),
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${botToken}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ channel, text: message, unfurl_links: true }),
-    });
-  } catch {
-    /* best effort */
-  }
+  await project.notify.notify(level, message, {
+    channel: bundle?.slack_channel_id,
+  });
 }
 
 async function getIssueNumber(

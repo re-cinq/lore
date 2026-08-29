@@ -33,6 +33,7 @@ import { unwrapAttribution } from "@re-cinq/lore-assembly-lines";
 import { parseCarriedRunIdentity } from "@re-cinq/lore-shared/project/run-identity/carried-run-identity.js";
 import { redactSecrets } from "@re-cinq/lore-shared";
 import type { AgentRunTurnInsert } from "@re-cinq/lore-shared";
+import { isRecord } from "@re-cinq/lore-shared/lib/is-record.js";
 
 /** Upper bound on turns one `/api/agent-events` POST may collect, matching the
  *  visualization projection's cap. Turn envelopes are untruncated, so their
@@ -41,9 +42,6 @@ import type { AgentRunTurnInsert } from "@re-cinq/lore-shared";
  *  the ingest route (the GCS raw-stream archive that used to catch it was
  *  retired in #1149). */
 export const MAX_RUN_TURNS_PER_BATCH = 10_000;
-
-const isObject = (x: unknown): x is Record<string, unknown> =>
-  typeof x === "object" && x !== null && !Array.isArray(x);
 
 const str = (x: unknown): string | null => (typeof x === "string" ? x : null);
 
@@ -100,7 +98,7 @@ export function turnFromEnvelope(
     taskId: str(source?.task),
     agentCrName: str(source?.agent),
     carried: parseCarriedRunIdentity(source),
-    eventType: isObject(event) ? str(event.type) : null,
+    eventType: isRecord(event) ? str(event.type) : null,
     envelope,
     // The task-turns relay's idempotency key (#1389). Only that relay stamps
     // it; pod-produced envelopes carry none, so cluster ingest never dedups.

@@ -19,7 +19,7 @@ import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { detectSubject } from "@re-cinq/lore-shared/project/assembly-runs/subject-keys.js";
 import type { EventHandler } from "../../main-loop/types.js";
 import { query } from "../../kernel/db.js";
-import { pipeline } from "../../kernel/queues.js";
+import { pipeline, settings } from "../../kernel/queues.js";
 
 /** The line's branch: a synthetic ref no `git checkout` resolves — detect nodes
  *  read through the API and clone nothing. It used to double as the overlap-guard
@@ -104,12 +104,6 @@ export function specReposSql(
   ORDER BY repo`;
 }
 
-const ONBOARDED_REPOS_SQL = `
-  SELECT full_name AS repo
-  FROM lore.repos
-  WHERE onboarding_pr_merged = true
-  ORDER BY full_name`;
-
 export const activeSpecRepos = async (
   q: QueryFn = query,
 ): Promise<string[]> => {
@@ -131,8 +125,14 @@ export const specRepos = async (q: QueryFn = query): Promise<string[]> => {
   return rows.map((r) => r.repo);
 };
 
+/** Every onboarded repo, through the shared settings port rather than a second
+ *  copy of its SELECT. What "onboarded" means belongs in one place — with two,
+ *  a new `archived`/`disabled` column would have to be found and applied twice
+ *  or gap-detect fans out to repos the reindex scan has stopped considering
+ *  onboarded. (Sorted here because the detect fan-out wants a stable order and
+ *  the port makes no ordering promise.) */
 const onboardedRepos = async (): Promise<string[]> =>
-  (await query<{ repo: string }>(ONBOARDED_REPOS_SQL)).map((r) => r.repo);
+  (await settings().onboardedRepos()).map((repo) => repo.full_name).sort();
 
 export interface DetectFanOutDeps {
   assemblyRuns: AssemblyRunsPort;

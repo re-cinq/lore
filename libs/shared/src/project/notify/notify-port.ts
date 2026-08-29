@@ -11,10 +11,23 @@ export interface NotifyResult {
   matchedChannels: string[];
 }
 
+export interface NotifyOptions {
+  /**
+   * Post here instead of the repo's configured channel.
+   *
+   * For a task that ARRIVED from Slack: it carries the channel someone typed
+   * `/lore` in, and the answer belongs in that conversation rather than in the
+   * repo's default one. The repo's channel list still decides WHETHER to post —
+   * an override picks the destination, never the permission.
+   */
+  channel?: string;
+}
+
 export interface NotifyPort {
   notify(
     repo: string,
     level: NotifyLevel,
     message: string,
+    opts?: NotifyOptions,
   ): Promise<NotifyResult>;
 }

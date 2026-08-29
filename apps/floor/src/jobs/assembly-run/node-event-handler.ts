@@ -35,6 +35,7 @@ import {
 } from "../review/code-review.js";
 import type { AssemblyRunRecord } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
 import type { NodeResult } from "@re-cinq/lore-assembly-lines";
+import { isRecord } from "@re-cinq/lore-shared/lib/is-record.js";
 
 export interface NodeEventDeps extends AdvanceDeps {
   /** Read the CR's status by name; null when it no longer exists (pruned) — or
@@ -62,10 +63,6 @@ export interface NodeEventDeps extends AdvanceDeps {
     nodeType: string,
     status: AgentNodeStatus,
   ) => Promise<void>;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
 }
 
 /**

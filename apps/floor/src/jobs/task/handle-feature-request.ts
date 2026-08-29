@@ -8,13 +8,11 @@ import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
  * and task breakdown — following the target repo's conventions.
  */
 
-import { getPool, query } from "../../kernel/db.js";
 import { Llm } from "@re-cinq/lore-shared";
-import { resolveChunkSchemaForRepo } from "@re-cinq/lore-shared/project/chunks/chunk-schema.js";
 import { projectFor } from "../../composition/project-boot.js";
 import { fetchRepoContext } from "./repo-context.js";
 import { writeEpisode } from "@re-cinq/lore-shared";
-import { memoryLifecycle } from "../../kernel/queues.js";
+import { chunks, memoryLifecycle } from "../../kernel/queues.js";
 import {
   slugify,
   setStatus,
@@ -52,14 +50,16 @@ export async function handleFeatureRequest(
   let existingSpecExample = "";
 
   try {
-    const schema = await resolveChunkSchemaForRepo(getPool(), targetRepo);
-    const specs = await query(
-      `SELECT content FROM ${schema}.chunks WHERE repo = $1 AND content_type = 'spec' LIMIT 1`,
-      [targetRepo],
-    );
+    // Through the chunks port, not a second copy of its SELECT: schema
+    // resolution (team schema vs org_shared) is exactly what that port was
+    // created to own. The hand-rolled version re-did the resolution and the
+    // `${schema}` interpolation, inside a catch that swallowed the resulting
+    // error — so a change to either would have silently cost every
+    // feature-request its format example rather than failing loudly.
+    const specs = await chunks().specChunks(targetRepo);
 
     if (specs.length > 0) {
-      existingSpecExample = `\n\n## Existing Spec Example (match this format)\n\n${(specs[0] as { content: string }).content.substring(0, 3000)}`;
+      existingSpecExample = `\n\n## Existing Spec Example (match this format)\n\n${specs[0].content.substring(0, 3000)}`;
     }
   } catch {
     /* no specs in DB yet, that's fine */
