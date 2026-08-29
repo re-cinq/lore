@@ -64,12 +64,96 @@ export function parseReviewFindings(output: string): ReviewOutput | null {
   return isReviewOutput(raw) ? raw : null;
 }
 
+/**
+ * Parse a REVIEW_FINDINGS block, tolerating the one class of malformed JSON a
+ * model reliably produces: a free-written narrative field (`discussion`,
+ * `subject`, `suggestion`) that quotes a symbol, or wraps a line, without
+ * escaping it. #1401 reproduced this verbatim — a well-formed block whose one
+ * broken string killed `JSON.parse` and discarded every finding, including the
+ * blocking one. Strict parsing is tried first; only a `SyntaxError` falls
+ * through to the repair pass, so already-valid JSON never takes this path.
+ */
 function safeParseJson(text: string): unknown {
   try {
     return JSON.parse(text);
   } catch {
+    // fall through to the repair pass below
+  }
+
+  try {
+    return JSON.parse(repairUnescapedStringContent(text));
+  } catch {
     return null;
   }
+}
+
+/**
+ * Escape literal newlines and quotes found INSIDE a JSON string value, leaving
+ * everything outside strings — and every quote that actually closes one —
+ * untouched.
+ *
+ * A quote is read as a closer only when the next non-whitespace character is
+ * one JSON allows there: `,` `}` `]` `:` or end of input. Anything else — the
+ * common case being a quoted word inside a sentence — is a literal quote the
+ * model forgot to escape, so it is escaped here instead. This cannot be done
+ * with a single regex: whether a `"` closes the string depends on what comes
+ * after it, which a regex has no way to look past reliably once the string
+ * itself may contain further quotes.
+ */
+function repairUnescapedStringContent(text: string): string {
+  let result = "";
+  let inString = false;
+
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+
+    if (!inString) {
+      if (ch === '"') {
+        inString = true;
+      }
+      result += ch;
+      continue;
+    }
+
+    if (ch === "\\") {
+      // An escape sequence: copy it and its target verbatim, untouched.
+      result += ch + (text[i + 1] ?? "");
+      i++;
+      continue;
+    }
+
+    if (ch === "\n" || ch === "\r") {
+      result += ch === "\n" ? "\\n" : "\\r";
+      continue;
+    }
+
+    if (ch === '"') {
+      if (closesAString(text, i + 1)) {
+        inString = false;
+        result += ch;
+      } else {
+        result += '\\"';
+      }
+      continue;
+    }
+
+    result += ch;
+  }
+
+  return result;
+}
+
+/** Whether the character at `text[from]`, skipping whitespace, is one that can
+ *  only follow the end of a JSON string — i.e. the quote just before it closed
+ *  the string rather than sitting inside it. */
+function closesAString(text: string, from: number): boolean {
+  let j = from;
+
+  while (j < text.length && /\s/.test(text[j])) {
+    j++;
+  }
+
+  return j >= text.length || ",}]:".includes(text[j]);
 }
 
 function isReviewOutput(value: unknown): value is ReviewOutput {
