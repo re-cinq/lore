@@ -22,7 +22,7 @@ function apiRefusing(err: unknown): CustomObjectsApi {
 }
 
 const createOn = (api: CustomObjectsApi): Promise<{ created: boolean }> =>
-  new KubeAgentApi(() => Promise.resolve(api)).create(agent);
+  new KubeAgentApi(() => api).create(agent);
 
 describe("KubeAgentApi.create", () => {
   it("reports created:true when the apiserver accepts the CR", async () => {

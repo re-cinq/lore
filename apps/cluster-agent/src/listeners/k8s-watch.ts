@@ -19,13 +19,14 @@
  * has no other reason to know.
  */
 
-import { KubeConfig, Watch, CustomObjectsApi } from "@kubernetes/client-node";
+import { Watch } from "@kubernetes/client-node";
 import type { Agent as AgentCr } from "@re-cinq/agent-contracts";
-import { agentsNamespace, loadKube } from "@re-cinq/lore-shared";
+import { agentsNamespace, errorMessage } from "@re-cinq/lore-shared";
 import type {
   Emit,
   EventInput,
 } from "@re-cinq/lore-shared/project/events/event-input-port.js";
+import { customObjectsApi, kubeConfig } from "../kernel/kube-clients.js";
 import {
   forEachAgentPage,
   reportForAgent,
@@ -105,7 +106,7 @@ export class AgentWatchInput implements EventInput {
       } catch (err) {
         console.error(
           `[cluster-agent] k8s watch dropped (reconnect in ${this.backoffMs}ms):`,
-          (err as Error).message,
+          errorMessage(err),
         );
       }
       await new Promise((r) => setTimeout(r, this.backoffMs));
@@ -114,11 +115,8 @@ export class AgentWatchInput implements EventInput {
   }
 
   private async watchOnce(deps: WatchDeps): Promise<void> {
-    const kc = new KubeConfig();
-
-    loadKube(kc);
-
-    const k8sApi = kc.makeApiClient(CustomObjectsApi);
+    const kc = kubeConfig();
+    const k8sApi = customObjectsApi();
     const namespace = agentsNamespace();
     // Seed resourceVersion + catch up on terminal CRs missed while down —
     // paginated for the same reason the reconcile pass is.

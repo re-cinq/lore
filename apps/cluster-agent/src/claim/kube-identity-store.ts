@@ -14,8 +14,11 @@
  * CoreV1Api shell lives in {@link kubeIdentitySecretsApi}.
  */
 
+import { parseIdentity } from "./identity-store.js";
 import type { ClusterAgentIdentity, IdentityStore } from "./identity-store.js";
+import { errorMessage } from "@re-cinq/lore-shared";
 import { isNotFound } from "../kernel/k8s-errors.js";
+import { coreApi } from "../kernel/kube-clients.js";
 
 /** The minimal Secret surface the store drives — injectable for tests. */
 export interface IdentitySecretsApi {
@@ -41,18 +44,12 @@ export class KubeIdentityStore implements IdentityStore {
     }
 
     try {
-      const parsed = JSON.parse(raw) as Partial<ClusterAgentIdentity>;
-
-      if (typeof parsed.id !== "string" || typeof parsed.token !== "string") {
-        return null;
-      }
-
-      return { id: parsed.id, token: parsed.token };
+      return parseIdentity(raw);
     } catch (err) {
       // Corrupt data is a fresh start, not a crash — same contract as the
       // file store: registration 409s loudly if the name is taken.
       console.warn(
-        `[cluster-agent] identity secret ${this.secretName} is unreadable (${err instanceof Error ? err.message : String(err)}) — treating as unregistered`,
+        `[cluster-agent] identity secret ${this.secretName} is unreadable (${errorMessage(err)}) — treating as unregistered`,
       );
 
       return null;
@@ -73,15 +70,8 @@ export class KubeIdentityStore implements IdentityStore {
 }
 
 /** The CoreV1Api shell — the only part that touches the cluster. */
-export async function kubeIdentitySecretsApi(
-  namespace: string,
-): Promise<IdentitySecretsApi> {
-  const { KubeConfig, CoreV1Api } = await import("@kubernetes/client-node");
-  const { loadKube } = await import("@re-cinq/lore-shared");
-  const kc = new KubeConfig();
-
-  loadKube(kc);
-  const core = kc.makeApiClient(CoreV1Api);
+export function kubeIdentitySecretsApi(namespace: string): IdentitySecretsApi {
+  const core = coreApi();
 
   return {
     async read(name) {

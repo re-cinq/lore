@@ -240,7 +240,7 @@ async function buildIdentityStore(
   }
 
   return new KubeIdentityStore(
-    await kubeIdentitySecretsApi(config.namespace),
+    kubeIdentitySecretsApi(config.namespace),
     config.name,
     config.key,
   );

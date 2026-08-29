@@ -8,7 +8,6 @@ import type { AgentDefinition, Station } from "@re-cinq/agent-contracts";
 import {
   agentsNamespace,
   errorMessage,
-  loadKube,
   type LoreTaskSpec,
 } from "@re-cinq/lore-shared";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
@@ -22,10 +21,13 @@ import {
   perTaskStation,
 } from "@re-cinq/lore-shared";
 
-const GROUP = "agents.re-cinq.com";
-const VERSION = "v1alpha1";
-const DEF_PLURAL = "agentdefinitions";
-const STATION_PLURAL = "stations";
+import {
+  GROUP,
+  VERSION,
+  AGENT_DEFINITION_PLURAL as DEF_PLURAL,
+  STATION_PLURAL,
+} from "./crd.js";
+import { coreApi, customObjectsApi } from "./kube-clients.js";
 
 /** Mints a short-lived git token for a repo. */
 export interface TokenMinter {
@@ -176,25 +178,16 @@ export interface SecretClient {
     body: SecretMutation;
   }): Promise<unknown>;
 }
-export type SecretClientFactory = () => Promise<SecretClient>;
-
-const kubeSecretClient: SecretClientFactory = async () => {
-  const { KubeConfig, CoreV1Api: Api } =
-    await import("@kubernetes/client-node");
-  const kc = new KubeConfig();
-
-  loadKube(kc);
-
-  return kc.makeApiClient(Api);
-};
+export type SecretClientFactory = () => SecretClient;
 
 export class KubeSecretKeyWriter implements SecretKeyWriter {
   /** Injectable so the conflict ladder below — the one that stayed dark
    *  through the 2026-08-25 race because its classifier lived in a private
-   *  copy — can be driven without a cluster. */
+   *  copy — can be driven without a cluster. Defaults to the shared client,
+   *  which structurally satisfies SecretClient. */
   constructor(
     private readonly namespace = agentsNamespace(),
-    private readonly core: SecretClientFactory = kubeSecretClient,
+    private readonly core: SecretClientFactory = coreApi,
   ) {}
 
   setKey(secret: string, key: string, value: string): Promise<void> {
@@ -215,7 +208,7 @@ export class KubeSecretKeyWriter implements SecretKeyWriter {
     secret: string,
     change: (data: Record<string, string>) => void,
   ): Promise<void> {
-    const core = await this.core();
+    const core = this.core();
 
     for (let attempt = 0; ; attempt++) {
       const current = await core.readNamespacedSecret({
@@ -248,16 +241,6 @@ export class KubeSecretKeyWriter implements SecretKeyWriter {
 export class KubeCatalogApi implements CatalogApi {
   constructor(private readonly namespace = agentsNamespace()) {}
 
-  private async api() {
-    const { KubeConfig, CustomObjectsApi } =
-      await import("@kubernetes/client-node");
-    const kc = new KubeConfig();
-
-    loadKube(kc);
-
-    return kc.makeApiClient(CustomObjectsApi);
-  }
-
   getAgentDefinition(name: string): Promise<AgentDefinition | null> {
     return this.get<AgentDefinition>(DEF_PLURAL, name);
   }
@@ -278,7 +261,7 @@ export class KubeCatalogApi implements CatalogApi {
   }
 
   private async get<T>(plural: string, name: string): Promise<T | null> {
-    const api = await this.api();
+    const api = customObjectsApi();
 
     try {
       return (await api.getNamespacedCustomObject({
@@ -302,7 +285,7 @@ export class KubeCatalogApi implements CatalogApi {
     name: string,
     body: object,
   ): Promise<void> {
-    const api = await this.api();
+    const api = customObjectsApi();
 
     try {
       await api.createNamespacedCustomObject({
@@ -344,7 +327,7 @@ export class KubeCatalogApi implements CatalogApi {
   }
 
   private async del(plural: string, name: string): Promise<void> {
-    const api = await this.api();
+    const api = customObjectsApi();
 
     try {
       await api.deleteNamespacedCustomObject({

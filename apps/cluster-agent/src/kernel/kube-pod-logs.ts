@@ -8,11 +8,12 @@
 import type { Agent as AgentCr } from "@re-cinq/agent-contracts";
 import {
   agentsNamespace,
-  loadKube,
   type AgentPodInfo,
   type PodSummary,
   type PodLogSource,
 } from "@re-cinq/lore-shared";
+import { GROUP, VERSION, AGENT_PLURAL as PLURAL } from "./crd.js";
+import { coreApi, customObjectsApi } from "./kube-clients.js";
 import { isNotFound } from "./k8s-errors.js";
 
 /** Pods belonging to a Job, by the label the Job controller stamps. */
@@ -20,38 +21,13 @@ export function podSelectorForJob(jobName: string): string {
   return `job-name=${jobName}`;
 }
 
-const GROUP = "agents.re-cinq.com";
-const VERSION = "v1alpha1";
-const PLURAL = "agents";
-
 export class KubePodLogs implements PodLogSource {
   private namespace(): string {
     return agentsNamespace();
   }
 
-  private async kubeConfig() {
-    const { KubeConfig } = await import("@kubernetes/client-node");
-    const kc = new KubeConfig();
-
-    loadKube(kc);
-
-    return kc;
-  }
-
-  private async core() {
-    const { CoreV1Api } = await import("@kubernetes/client-node");
-
-    return (await this.kubeConfig()).makeApiClient(CoreV1Api);
-  }
-
-  private async customObjects() {
-    const { CustomObjectsApi } = await import("@kubernetes/client-node");
-
-    return (await this.kubeConfig()).makeApiClient(CustomObjectsApi);
-  }
-
   async agentInfo(name: string): Promise<AgentPodInfo | null> {
-    const api = await this.customObjects();
+    const api = customObjectsApi();
 
     try {
       const obj = (await api.getNamespacedCustomObject({
@@ -75,7 +51,7 @@ export class KubePodLogs implements PodLogSource {
   }
 
   async podsForJob(jobName: string): Promise<PodSummary[]> {
-    const api = await this.core();
+    const api = coreApi();
     const res = await api.listNamespacedPod({
       namespace: this.namespace(),
       labelSelector: podSelectorForJob(jobName),
@@ -90,7 +66,7 @@ export class KubePodLogs implements PodLogSource {
   }
 
   async podLog(podName: string, tailLines?: number): Promise<string> {
-    const api = await this.core();
+    const api = coreApi();
 
     return api.readNamespacedPodLog({
       name: podName,
