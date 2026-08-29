@@ -406,13 +406,29 @@ These statements pin the deterministic Floor glue that wraps the subsystem.
   `kubernetes.agent_node.{succeeded,failed}` deduped per CR name (carrying the node iteration) so two
   node CRs of one line dedupe separately (the swallowed-second-node regression); it returns null for a
   non-terminal phase and when the task-id label is absent. ([validated by `k8s-map.test.ts:39`](libs/shared/src/project/events/k8s-map.test.ts#L101), [`k8s-map.test.ts:57`](libs/shared/src/project/events/k8s-map.test.ts#L119), [`k8s-map.test.ts:64`](libs/shared/src/project/events/k8s-map.test.ts#L126), [`k8s-map.test.ts:87`](libs/shared/src/project/events/k8s-map.test.ts#L149), [`k8s-map.test.ts:101`](libs/shared/src/project/events/k8s-map.test.ts#L168), [`k8s-map.test.ts:113`](libs/shared/src/project/events/k8s-map.test.ts#L180), [`k8s-map.test.ts:122`](libs/shared/src/project/events/k8s-map.test.ts#L189))
+- **One Project per repo, built once.** `projectFor` is memoized per repo, caching the PROMISE so
+  callers racing for the same repo share one build. Every `createProject` constructs a fresh
+  `PlatformGitHub` — and with it a fresh Octokit whose `createAppAuth` installation-token cache is
+  per-instance — so an unmemoized call made the first GitHub request of every Project sign a new App
+  JWT and POST `/app/installations/{id}/access_tokens` before doing any real work. The Floor reaches
+  for a Project around fifty times across its handlers, several times for the SAME repo inside one
+  event, all serialized on the drain loop against a rate-limited endpoint. A rejected build is
+  forgotten rather than cached, so one transient failure cannot outlive itself.
+  ([validated by builds re-cinq/lore once across three calls and hands back the same value](apps/floor/src/composition/memoize-per-key.test.ts#L5), [`memoize-per-key.test.ts:20`](apps/floor/src/composition/memoize-per-key.test.ts#L20), [`memoize-per-key.test.ts:33`](apps/floor/src/composition/memoize-per-key.test.ts#L33), [`memoize-per-key.test.ts:50`](apps/floor/src/composition/memoize-per-key.test.ts#L50))
+
 - **Paginated CR listing.** The reconcile safety net and the watch catch-up walk the Agent CRs
   one bounded page at a time (threading the API's `continue` token and returning the list
   `resourceVersion` for watch seeding) instead of one unpaginated LIST — a namespace-sized
   response must never be held or parsed whole, because an accumulated CR pile OOMs the single
   512Mi Floor replica and, since the age-based pruner runs inside this same pass, the pile can
   then never shrink again (2026-07-24 crash loop). Per-page processing keeps the emit gating
-  (task/line still in flight) and the prune-after-an-hour behavior unchanged. ([validated by `agent-reconcile.test.ts:56`](apps/floor/src/listeners/agent-reconcile.test.ts#L56), [`agent-reconcile.test.ts:79`](apps/floor/src/listeners/agent-reconcile.test.ts#L79), [`agent-reconcile.test.ts:92`](apps/floor/src/listeners/agent-reconcile.test.ts#L92), [`agent-reconcile.test.ts:92`](apps/floor/src/listeners/agent-reconcile.test.ts#L92))
+  (task/line still in flight) and the prune-after-an-hour behavior unchanged. The CRs WITHIN a
+  page reconcile concurrently and independently (`Promise.allSettled`, each rejection logged):
+  pagination is what bounds memory, while serial processing only bounded throughput — at
+  pile-up size it was ~180 database round-trips and as many cluster-agent DELETEs nose-to-tail,
+  long enough for a slow cluster-agent to make the tick overrun and be re-queued concurrently
+  with itself. It also means one CR that cannot be reconciled no longer abandons the rest of
+  the sweep, which is the worst failure mode a safety net can have. ([validated by `agent-reconcile.test.ts:56`](apps/floor/src/listeners/agent-reconcile.test.ts#L56), [`agent-reconcile.test.ts:79`](apps/floor/src/listeners/agent-reconcile.test.ts#L79), [`agent-reconcile.test.ts:92`](apps/floor/src/listeners/agent-reconcile.test.ts#L92), [`agent-reconcile.test.ts:92`](apps/floor/src/listeners/agent-reconcile.test.ts#L92), [`agent-reconcile.test.ts:110`](apps/floor/src/listeners/agent-reconcile.test.ts#L110))
 - **Run-outcome mapping.** `runOutcomeFromTaskStatus` records the watcher's run outcome: `pr-created`
   and `review` → `pr_created`; `failed` and `needs-human-help` → `failed`; `completed` → `completed`;
   an un-advanced task on a `Failed` CR maps to `failed` (not completed) while a `Succeeded` CR maps to

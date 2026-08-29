@@ -38,7 +38,7 @@ function fakeLister(pages: FakePage[]) {
 
       return pages[next++] ?? { items: [] };
     },
-    remove: vi.fn(async () => {}),
+    remove: vi.fn(async (_name: string) => {}),
   };
 
   return { cluster, calls };
@@ -103,5 +103,35 @@ describe("reconcileAgents pagination", () => {
       expect.objectContaining({ eventName: "kubernetes.agent.succeeded" }),
     );
     expect(cluster.remove).not.toHaveBeenCalled();
+  });
+});
+
+describe("a page whose CRs reconcile independently", () => {
+  it("still prunes the other two CRs of a page when the first one throws", async () => {
+    // Serial, one throwing CR abandoned the rest of the sweep — the worst
+    // failure mode for a safety net, and it bites hardest in exactly the
+    // pile-up this pass exists to clear.
+    const old = new Date(Date.now() - 7 * 3600_000).toISOString();
+    const { cluster } = fakeLister([
+      {
+        items: [
+          terminalCr("a", old),
+          terminalCr("b", old),
+          terminalCr("c", old),
+        ] as never,
+      },
+    ]);
+
+    getById.mockReset();
+    getById.mockRejectedValueOnce(new Error("db blip"));
+    getById.mockResolvedValue({ status: "completed" });
+
+    await reconcileAgents(cluster as never);
+
+    // Expected now: the thrower's own reconcile died before its prune step, so
+    // "a" is not pruned, while "b" and "c" are unaffected. Before, the throw
+    // propagated out of the page callback and stopped the sweep, so none of the
+    // three was pruned.
+    expect(cluster.remove.mock.calls.map((c) => c[0])).toEqual(["b", "c"]);
   });
 });
