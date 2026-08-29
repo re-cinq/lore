@@ -11,6 +11,7 @@ import { HttpAgentApi, HttpTokenProvisioner } from "@re-cinq/lore-shared";
 import { AssemblyLineStationBackend } from "../jobs/assembly-run/assembly-run-station-backend.js";
 import { clusterAgent, pipeline } from "../kernel/queues.js";
 import { AgentCrStationBackend } from "../jobs/station/agent-cr-station-backend.js";
+import { memoizePerKey } from "./memoize-per-key.js";
 
 /**
  * Per-repo Project composition root for the agent. Builds from the agent's
@@ -65,7 +66,20 @@ export function assemblyLineNames(): Promise<ReadonlySet<string>> {
   ));
 }
 
-export async function projectFor(repo: string): Promise<Project> {
+/**
+ * Memoized per repo. Every `createProject` builds a fresh `PlatformGitHub`, and
+ * with it a fresh Octokit whose `createAppAuth` installation-token cache is
+ * per-instance — so an unmemoized `projectFor` made the first GitHub call of
+ * every Project sign a new App JWT and POST `/app/installations/{id}/access_tokens`
+ * before doing any real work. The Floor asks for a Project ~50 times across its
+ * handlers, several of them for the SAME repo inside one event (the review-verdict
+ * path alone reaches for it three times), all serialized on the drain loop against
+ * a rate-limited endpoint.
+ *
+ * Safe to hold: the pool is initialized once at boot, and the token cache inside
+ * the adapter is what we are trying to keep, not something that goes stale.
+ */
+const cachedProject = memoizePerKey<Project>(async (repo) => {
   const dgraph = createDgraphClient() ?? NO_OP_DGRAPH;
   const station = stationBackend(await assemblyLineNames());
 
@@ -73,4 +87,8 @@ export async function projectFor(repo: string): Promise<Project> {
     station,
     pipeline: pipeline(),
   });
+});
+
+export function projectFor(repo: string): Promise<Project> {
+  return cachedProject(repo);
 }

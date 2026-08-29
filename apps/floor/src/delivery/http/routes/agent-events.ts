@@ -108,24 +108,40 @@ async function recordAgentCosts(
 ): Promise<CostIngestSummary> {
   const s: CostIngestSummary = { recorded: 0, uncorrelated: 0, failed: 0 };
 
-  for (const row of rows) {
-    s.firstTaskId ??= row.taskId;
-
-    try {
-      const result = await logCall({ ...row, jobName: "agent" });
-
-      s.recorded++;
-
-      if (result?.correlated === false) {
-        s.uncorrelated++;
-        s.firstIssue ??= `uncorrelated id ${row.taskId}`;
+  // The inserts are independent, so they go out together rather than one
+  // awaited round-trip at a time: a long run's batch carries many terminal
+  // result lines, and the relay holds the request open (and retries on timeout)
+  // for the whole serial chain. The FOLD stays sequential over `Promise.all`'s
+  // index-ordered results, so `firstTaskId` / `firstIssue` still name the first
+  // row in the batch rather than whichever insert happened to settle first.
+  const settled = await Promise.all(
+    rows.map(async (row) => {
+      try {
+        return { row, result: await logCall({ ...row, jobName: "agent" }) };
+      } catch (err) {
+        return { row, err };
       }
-    } catch (err) {
-      s.failed++;
-      const msg = errorMessage(err);
+    }),
+  );
 
-      s.firstIssue ??= `insert failed for ${row.taskId}: ${msg}`;
-      console.warn(`[floor] llm_calls insert failed for ${row.taskId}: ${msg}`);
+  for (const entry of settled) {
+    s.firstTaskId ??= entry.row.taskId;
+
+    if ("err" in entry) {
+      s.failed++;
+      const msg = errorMessage(entry.err);
+
+      s.firstIssue ??= `insert failed for ${entry.row.taskId}: ${msg}`;
+      console.warn(
+        `[floor] llm_calls insert failed for ${entry.row.taskId}: ${msg}`,
+      );
+      continue;
+    }
+    s.recorded++;
+
+    if (entry.result?.correlated === false) {
+      s.uncorrelated++;
+      s.firstIssue ??= `uncorrelated id ${entry.row.taskId}`;
     }
   }
 

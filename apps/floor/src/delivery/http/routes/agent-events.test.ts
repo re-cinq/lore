@@ -237,3 +237,53 @@ describe("POST /api/agent-events persistence", () => {
     expect(res.result).toEqual({ status: "ok", events: 1, recorded: 1 });
   });
 });
+
+describe("a cost batch whose inserts settle out of order", () => {
+  beforeEach(() => {
+    process.env.LORE_AGENT_INTERNAL_TOKEN = "internal-secret";
+    insertBatch.mockReset().mockResolvedValue([insertedRow("line-a")]);
+    write.mockReset().mockResolvedValue(undefined);
+  });
+
+  it("names the earlier row in first_issue even though its insert resolves last", async () => {
+    // The inserts now go out together. The FOLD must stay in batch order, or the
+    // audit row's first_issue names whichever insert happened to settle first
+    // rather than the first row of the batch.
+    const line = (task: string) =>
+      JSON.stringify({
+        source: { task, agent: "cr-1" },
+        event: {
+          type: "result",
+          subtype: "success",
+          model: "claude-opus-4",
+          usage: { input_tokens: 3, output_tokens: 1 },
+          total_cost_usd: 0.01,
+          duration_ms: 10,
+        },
+      });
+
+    logLlmCall
+      .mockReset()
+      .mockImplementation(async (row: { taskId: string }) => {
+        // The FIRST row of the batch is the slow one.
+        if (row.taskId === "task-uuid-1") {
+          await new Promise((resolve) => setTimeout(resolve, 10));
+
+          return { correlated: false };
+        }
+
+        return { correlated: false };
+      });
+
+    await post(`${line("task-uuid-1")}\n${line("task-uuid-2")}`);
+
+    expect(write.mock.calls[0]?.[0]).toMatchObject({
+      task_id: "task-uuid-1",
+      payload: {
+        recorded: 2,
+        uncorrelated: 2,
+        first_issue: "uncorrelated id task-uuid-1",
+      },
+    });
+  });
+});
