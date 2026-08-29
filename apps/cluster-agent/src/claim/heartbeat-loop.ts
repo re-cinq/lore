@@ -1,4 +1,5 @@
 import { errorMessage } from "@re-cinq/lore-shared";
+import { runPollLoop } from "@re-cinq/lore-shared/lib/poll-loop.js";
 import type { ClusterAgentIdentity } from "./identity-store.js";
 
 /**
@@ -73,12 +74,15 @@ export interface HeartbeatLoopDeps {
 
 /** Beat forever at the fixed interval; an unauthorized beat re-registers. */
 export async function runHeartbeatLoop(deps: HeartbeatLoopDeps): Promise<void> {
-  while (deps.running?.() ?? true) {
-    const outcome = await deps.beat();
-
-    if (outcome === "unauthorized") {
-      await deps.reRegister();
-    }
-    await deps.sleep(deps.intervalMs);
-  }
+  await runPollLoop<"ok" | "unauthorized" | "error">({
+    tick: deps.beat,
+    onOutcome: async (outcome) => {
+      if (outcome === "unauthorized") {
+        await deps.reRegister();
+      }
+    },
+    delayFor: () => deps.intervalMs,
+    sleep: deps.sleep,
+    running: deps.running,
+  });
 }

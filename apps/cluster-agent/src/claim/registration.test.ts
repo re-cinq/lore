@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import { InMemoryIdentityStore } from "./identity-store.js";
 import {
   REGISTRATION_MAX_DELAY_MS,
-  nextRegistrationDelay,
   parseTags,
   registerOnce,
   registerWithBackoff,
@@ -102,19 +101,6 @@ describe("parseTags", () => {
 
   it("drops empty entries so a trailing comma adds no tag", () => {
     expect(parseTags("gpu,,")).toEqual(["gpu"]);
-  });
-});
-
-describe("nextRegistrationDelay", () => {
-  it("doubles 30s to 60s", () => {
-    expect(nextRegistrationDelay(30_000)).toBe(60_000);
-  });
-
-  it("caps the schedule at 5 minutes", () => {
-    expect(nextRegistrationDelay(240_000)).toBe(REGISTRATION_MAX_DELAY_MS);
-    expect(nextRegistrationDelay(REGISTRATION_MAX_DELAY_MS)).toBe(
-      REGISTRATION_MAX_DELAY_MS,
-    );
   });
 });
 
@@ -274,5 +260,38 @@ describe("registerWithBackoff", () => {
 
     expect(identity).toEqual({ id: "id-3", token: "tok-3" });
     expect(sleeps).toEqual([30_000, 60_000]);
+  });
+
+  it("caps the retry schedule at 5 minutes and keeps polling there", async () => {
+    const { fetchFn } = fakeFetch([
+      ...Array.from({ length: 6 }, () => jsonResponse(503, { error: "down" })),
+      jsonResponse(200, { id: "id-9", token: "tok-9" }),
+    ]);
+    const sleeps: number[] = [];
+
+    await registerWithBackoff({
+      config: {
+        apiUrl: "https://lore-api.example.com",
+        registrationToken: "reg-token",
+        name: "minikube-bogdan",
+        tags: [],
+      },
+      store: new InMemoryIdentityStore(),
+      fetchFn,
+      sleep: (ms) => {
+        sleeps.push(ms);
+
+        return Promise.resolve();
+      },
+    });
+
+    expect(sleeps).toEqual([
+      30_000,
+      60_000,
+      120_000,
+      240_000,
+      REGISTRATION_MAX_DELAY_MS,
+      REGISTRATION_MAX_DELAY_MS,
+    ]);
   });
 });
