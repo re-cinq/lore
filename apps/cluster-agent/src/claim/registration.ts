@@ -15,6 +15,7 @@
 
 import { errorMessage } from "@re-cinq/lore-shared";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
+import { pollUntil } from "@re-cinq/lore-shared/lib/poll-loop.js";
 import type { ClusterAgentIdentity, IdentityStore } from "./identity-store.js";
 
 const REGISTER_TIMEOUT_MS = 15_000;
@@ -70,11 +71,6 @@ export function registrationConfig(env: NodeJS.ProcessEnv): RegistrationConfig {
     name,
     tags: parseTags(env.LORE_CLUSTER_AGENT_TAGS),
   };
-}
-
-/** The idle schedule between failed registration attempts: 30s doubling to 5m. */
-export function nextRegistrationDelay(currentMs: number): number {
-  return Math.min(currentMs * 2, REGISTRATION_MAX_DELAY_MS);
 }
 
 export interface RegisterDeps {
@@ -151,15 +147,10 @@ export async function registerOnce(
 export async function registerWithBackoff(
   deps: RegisterDeps & { sleep: (ms: number) => Promise<void> },
 ): Promise<ClusterAgentIdentity> {
-  let delayMs = REGISTRATION_BASE_DELAY_MS;
-
-  for (;;) {
-    const identity = await registerOnce(deps);
-
-    if (identity) {
-      return identity;
-    }
-    await deps.sleep(delayMs);
-    delayMs = nextRegistrationDelay(delayMs);
-  }
+  return pollUntil<ClusterAgentIdentity>({
+    tick: () => registerOnce(deps),
+    baseDelayMs: REGISTRATION_BASE_DELAY_MS,
+    maxDelayMs: REGISTRATION_MAX_DELAY_MS,
+    sleep: deps.sleep,
+  });
 }
