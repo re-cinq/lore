@@ -36,6 +36,7 @@ import {
   linkPrToIssue,
 } from "./task-helpers.js";
 import { writeAuditLog } from "../lib/audit.js";
+import { DISPATCH_LABELS } from "@re-cinq/lore-shared/task-types/dispatch-labels.js";
 
 // ── Onboard handler (per-file LLM calls) ─────────────────────────────
 
@@ -571,21 +572,13 @@ export async function handleOnboard(
   try {
     await project.issues.createLabels([
       { name: "lore", color: "7B61FF", description: "Dispatch to Lore agent" },
-      {
-        name: "lore:implementation",
-        color: "0E8A16",
-        description: "Lore: implementation task",
-      },
-      {
-        name: "lore:review",
-        color: "1D76DB",
-        description: "Lore: review task",
-      },
-      {
-        name: "lore:runbook",
-        color: "D93F0B",
-        description: "Lore: runbook task",
-      },
+      // From the same table the webhook reads them back out of, so a repo is
+      // never given a dispatch label the reader does not understand.
+      ...DISPATCH_LABELS.map(({ name, color, description }) => ({
+        name,
+        color,
+        description,
+      })),
       ...BACKLOG_LABEL_SEED,
     ]);
     console.log(`[floor] Created Lore dispatch labels on ${targetRepo}`);

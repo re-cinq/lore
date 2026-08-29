@@ -13,6 +13,10 @@ import { projectFor } from "../../composition/project-boot.js";
 import { writeAuditLog, type AuditLogEntry } from "../lib/audit.js";
 import type { AuditPort } from "@re-cinq/lore-shared/project/audit/audit-port.js";
 import { loreTaskRef } from "../task/issue-body.js";
+import {
+  isReviewDefinition,
+  REVIEW_RERUN_HINT,
+} from "@re-cinq/lore-shared/review/review-definitions.js";
 
 /** Line outcomes that are normal course of business — everything else notifies. */
 const BENIGN_OUTCOMES = new Set([
@@ -48,10 +52,9 @@ export function failureNotice(
   if (!prNumber) {
     return { message, prNumber: null, prComment: null };
   }
-  const rerunHint =
-    row.blueprintName === "code-review"
-      ? " Comment `@lore review` to re-run the review."
-      : "";
+  const rerunHint = isReviewDefinition(row.blueprintName)
+    ? ` ${REVIEW_RERUN_HINT}`
+    : "";
 
   return {
     message,

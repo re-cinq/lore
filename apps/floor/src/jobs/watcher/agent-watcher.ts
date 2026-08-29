@@ -83,104 +83,49 @@ export function cleanupPerTaskToken(taskId: string): Promise<void> {
   );
 }
 
-// ── Slack batching (per invocation) ──────────
-// Batching is per-`processAgentCr` call — a module-level array raced across two
-// concurrent CR events (one call's flush could truncate the other's queued entries).
+// ── Telling the repo about one task update ──────────
 
-interface SlackBatchEntry {
-  repo: string;
-  taskId: string;
-  type: "pr" | "completed" | "failed";
-  message: string;
-}
+/**
+ * One CR produces AT MOST ONE of these: the three call sites below are mutually
+ * exclusive per phase (a Succeeded CR reports either no-changes or a PR; a
+ * Failed one reports a failure; a review verdict reports nothing here).
+ *
+ * There used to be a `SlackBatch` collected per `processAgentCr` invocation and
+ * flushed at the end. Because it was per-invocation it never held more than one
+ * entry, so its `byRepo` grouping and its whole `N PRs ready / N tasks completed
+ * / N failed` summary branch — about sixty lines — could not be reached by any
+ * call, and no test could cover them.
+ */
+type SlackUpdateType = "pr" | "completed" | "failed";
 
-class SlackBatch {
-  private readonly entries: SlackBatchEntry[] = [];
+/**
+ * How each update reads and how urgent it is, in ONE table — the prefix and the
+ * notify level answer the same question about the same value, and splitting them
+ * across two switches is how they drift.
+ *
+ * The level matters: it is what the repo's `dark_factory.notify` channel list
+ * filters on, so a repo that wants escalations only still hears about failures.
+ */
+const SLACK_UPDATES: Record<
+  SlackUpdateType,
+  { prefix: string; level: NotifyLevel }
+> = {
+  pr: { prefix: "PR ready for review", level: "pr_open" },
+  completed: { prefix: "Task completed", level: "completion" },
+  failed: { prefix: "Task failed", level: "escalation" },
+};
 
-  queue(
-    repo: string,
-    taskId: string,
-    type: SlackBatchEntry["type"],
-    message: string,
-  ): void {
-    this.entries.push({ repo, taskId, type, message });
-  }
+async function notifyTaskUpdate(
+  taskId: string,
+  repo: string,
+  type: SlackUpdateType,
+  message: string,
+): Promise<void> {
+  const { prefix, level } = SLACK_UPDATES[type];
 
-  async flush(): Promise<void> {
-    if (this.entries.length === 0) {
-      return;
-    }
-    const byRepo = new Map<string, SlackBatchEntry[]>();
-
-    for (const entry of this.entries) {
-      if (!byRepo.has(entry.repo)) {
-        byRepo.set(entry.repo, []);
-      }
-      byRepo.get(entry.repo)!.push(entry);
-    }
-
-    for (const [repo, entries] of byRepo) {
-      if (entries.length === 1) {
-        const e = entries[0];
-        const msg =
-          e.type === "pr"
-            ? `PR ready for review: ${e.message}`
-            : e.type === "completed"
-              ? `Task completed: ${e.message}`
-              : `Task failed: ${e.message}`;
-
-        await notifySlack(e.taskId, repo, levelOf(e.type), msg).catch(() => {});
-        continue;
-      }
-      const prs = entries.filter((e) => e.type === "pr");
-      const completed = entries.filter((e) => e.type === "completed");
-      const failed = entries.filter((e) => e.type === "failed");
-      const parts: string[] = [];
-
-      if (prs.length > 0) {
-        parts.push(
-          `*${prs.length} PRs ready for review:*\n${prs.map((e) => `• ${e.message}`).join("\n")}`,
-        );
-      }
-
-      if (completed.length > 0) {
-        parts.push(
-          `*${completed.length} tasks completed:*\n${completed.map((e) => `• ${e.message}`).join("\n")}`,
-        );
-      }
-
-      if (failed.length > 0) {
-        const first = failed[0].message;
-
-        parts.push(
-          failed.length === 1
-            ? `*1 task failed:*\n• ${first}`
-            : `*${failed.length} tasks failed* (first error: ${first.substring(0, 100)})`,
-        );
-      }
-      const summary = `*${repo}* — ${entries.length} task updates\n\n${parts.join("\n\n")}`;
-
-      // A mixed batch is reported at its most urgent level, so a failure inside
-      // it can never be filtered out by a channel list that admits escalations.
-      const level: NotifyLevel =
-        failed.length > 0 ? "escalation" : "completion";
-
-      await notifySlack(entries[0].taskId, repo, level, summary).catch(
-        () => {},
-      );
-    }
-    this.entries.length = 0;
-  }
-}
-
-/** Which notify level a batched update reports at — the gate a repo's
- *  `dark_factory.notify` channel list applies. */
-function levelOf(type: SlackBatchEntry["type"]): NotifyLevel {
-  if (type === "failed") {
-    return "escalation";
-  }
-
-  return type === "pr" ? "pr_open" : "completion";
+  await notifySlack(taskId, repo, level, `${prefix}: ${message}`).catch(
+    () => {},
+  );
 }
 
 // ── Helpers (CR-agnostic) ─────────────────
@@ -293,7 +238,6 @@ interface AgentContext {
   description: string;
   output: string;
   name: string;
-  slack: SlackBatch;
 }
 
 /** Close a single-CR task's open run rows with an outcome derived from the task's
@@ -364,61 +308,56 @@ export async function processAgentCr(
     description: agent.spec?.parameters?.description ?? "",
     output: resultTextFromOutput(status.output ?? ""),
     name: agent.metadata?.name as string,
-    slack: new SlackBatch(),
   };
 
-  try {
-    // DB-level re-entry guard (only act on tasks still running/queued). A CR whose
-    // taskId has no backing pipeline task is a task-less assembly line (e.g.
-    // code-review, keyed on its assemblyLineId): the supervisor owns the run, so the
-    // watcher has nothing to reconcile — return before any PR/no-changes work.
-    if (phase === "Succeeded" || phase === "Failed") {
-      const task = await taskStore().getById(taskId);
+  // DB-level re-entry guard (only act on tasks still running/queued). A CR whose
+  // taskId has no backing pipeline task is a task-less assembly line (e.g.
+  // code-review, keyed on its assemblyLineId): the supervisor owns the run, so the
+  // watcher has nothing to reconcile — return before any PR/no-changes work.
+  if (phase === "Succeeded" || phase === "Failed") {
+    const task = await taskStore().getById(taskId);
 
-      if (!task) {
-        return;
-      }
-
-      if (!["running", "queued"].includes(task.status)) {
-        return;
-      }
+    if (!task) {
+      return;
     }
 
-    if (phase === "Succeeded" && !status.prUrl && ctx.taskType !== "review") {
-      await handleSucceededChanges(ctx);
+    if (!["running", "queued"].includes(task.status)) {
+      return;
+    }
+  }
+
+  if (phase === "Succeeded" && !status.prUrl && ctx.taskType !== "review") {
+    await handleSucceededChanges(ctx);
+  }
+
+  if (phase === "Failed" && status.failureReason) {
+    await handleFailure(ctx, status.failureReason);
+  }
+
+  // Review verdict (parsed from status.output — Agent has no reviewResult field).
+  const reviewResult =
+    phase === "Succeeded" && ctx.taskType === "review"
+      ? parseReviewResult(ctx.output)
+      : undefined;
+
+  if (reviewResult) {
+    await handleReviewVerdict(ctx, reviewResult);
+  }
+
+  // Terminal single-CR task: close its run row (the watcher owns the single-CR
+  // lifecycle — no walk finishes these) and reclaim the per-task token (#784).
+  // Multi-node station lines do both at line completion, so the tell is the
+  // routing (builtin assembly line for the task type), not row existence.
+  if (phase === "Succeeded" || phase === "Failed") {
+    const isAssemblyLineTask = (await assemblyLineNames()).has(ctx.taskType);
+
+    if (!isAssemblyLineTask) {
+      await finishSingleCrRunRows(taskId, phase, status.failureReason);
     }
 
-    if (phase === "Failed" && status.failureReason) {
-      await handleFailure(ctx, status.failureReason);
+    if (decideTokenReclaim({ phase, isAssemblyLineTask })) {
+      await cleanupPerTaskToken(taskId);
     }
-
-    // Review verdict (parsed from status.output — Agent has no reviewResult field).
-    const reviewResult =
-      phase === "Succeeded" && ctx.taskType === "review"
-        ? parseReviewResult(ctx.output)
-        : undefined;
-
-    if (reviewResult) {
-      await handleReviewVerdict(ctx, reviewResult);
-    }
-
-    // Terminal single-CR task: close its run row (the watcher owns the single-CR
-    // lifecycle — no walk finishes these) and reclaim the per-task token (#784).
-    // Multi-node station lines do both at line completion, so the tell is the
-    // routing (builtin assembly line for the task type), not row existence.
-    if (phase === "Succeeded" || phase === "Failed") {
-      const isAssemblyLineTask = (await assemblyLineNames()).has(ctx.taskType);
-
-      if (!isAssemblyLineTask) {
-        await finishSingleCrRunRows(taskId, phase, status.failureReason);
-      }
-
-      if (decideTokenReclaim({ phase, isAssemblyLineTask })) {
-        await cleanupPerTaskToken(taskId);
-      }
-    }
-  } finally {
-    await ctx.slack.flush();
   }
 }
 
@@ -521,9 +460,9 @@ async function handleSucceededChanges(ctx: AgentContext): Promise<void> {
       });
 
       if (issue_number) {
-        ctx.slack.queue(
-          target_repo,
+        await notifyTaskUpdate(
           taskId,
+          target_repo,
           "completed",
           `https://github.com/${target_repo}/issues/${issue_number}`,
         );
@@ -618,7 +557,7 @@ async function handleSucceededChanges(ctx: AgentContext): Promise<void> {
     }
 
     console.log(`[agent-watcher] Task ${taskId} → PR ${pr.url}`);
-    ctx.slack.queue(targetRepo, taskId, "pr", pr.url);
+    await notifyTaskUpdate(taskId, targetRepo, "pr", pr.url);
     writeEpisodeWithCuration(
       { memory: memoryLifecycle() },
       `Task ${taskType} on ${targetRepo}: created PR ${pr.url}\nChanged files: ${changedFiles}\nDescription: ${description.substring(0, 500)}`,
@@ -802,9 +741,9 @@ async function handleFailure(ctx: AgentContext, reason: string): Promise<void> {
       failedTask.issue_number ?? null,
       reason,
     );
-    ctx.slack.queue(
-      failedTask.target_repo,
+    await notifyTaskUpdate(
       taskId,
+      failedTask.target_repo,
       "failed",
       `${taskType}: ${reason.substring(0, 200)}`,
     );
@@ -955,11 +894,4 @@ async function handleReviewVerdict(
       );
     }
   }
-}
-
-/** A no-changes Agent we already closed out carries the prUrl sentinel "no-changes". */
-export function changedFilesIsZero(
-  status: NonNullable<AgentCr["status"]>,
-): boolean {
-  return status.prUrl === "no-changes";
 }

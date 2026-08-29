@@ -34,6 +34,7 @@ import {
   type CommentContext,
 } from "../review/code-review.js";
 import type { AssemblyRunRecord } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
+import type { RunGraphNode } from "@re-cinq/lore-shared/project/assembly-runs/run-graph.js";
 import type { NodeResult } from "@re-cinq/lore-assembly-lines";
 import { isRecord } from "@re-cinq/lore-shared/lib/is-record.js";
 
@@ -251,10 +252,16 @@ function tripGateOnAccountOutage(
  *  the routed follow-up line. Best-effort — a routing failure never fails the walk. */
 async function routeCommentTriage(
   row: AssemblyRunRecord,
-  nodeId: string,
+  node: RunGraphNode,
   result: NodeResult,
 ): Promise<void> {
-  if (row.blueprintName !== "comment-triage" || nodeId !== "triage") {
+  // Keyed on the node's TYPE, which is what `comment-triage` actually IS —
+  // `NodeType` has carried that variant since the loader learned about it. The
+  // old test compared the definition NAME and the node ID as strings, so
+  // renaming the node in comment-triage.yaml, or reusing a triage node on
+  // another definition, left `extras.action` unread: the walk finished green
+  // and the human's comment was silently never routed.
+  if (node.type !== "comment-triage") {
     return;
   }
   const action = result.extras?.action;

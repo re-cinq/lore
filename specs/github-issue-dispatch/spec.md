@@ -52,11 +52,16 @@ New HTTP handler: `POST /api/webhook/github`
   event type is unhandled. ([validated by `github-map.test.ts:334`](libs/shared/src/project/events/github-map.test.ts#L334), [`github-map.test.ts:344`](libs/shared/src/project/events/github-map.test.ts#L344))
 - If label name is `lore` (configurable):
   - Extract: issue title, body, repo full_name, issue number
-  - Determine task type from issue labels:
+  - Determine task type from issue labels, from the SAME table onboarding seeds the
+    repo's labels from — a label a repo is given and a label this reader understands
+    are one declaration, or a seeded label dispatches as the repo's default type
+    instead of the one it names, and a task type removed from `task-types.yaml`
+    leaves a label behind that creates tasks no handler serves:
     - `lore:implementation` → implementation
     - `lore:review` → review
     - `lore:runbook` → runbook
-    - `lore` (alone) → general
+    - `lore` (alone) → the repo's `dispatch_default_type` (general by default)
+    ([validated by reads implementation off a lore:implementation label](libs/shared/src/task-types/dispatch-labels.test.ts#L5), [`dispatch-labels.test.ts:11`](libs/shared/src/task-types/dispatch-labels.test.ts#L11), [`dispatch-labels.test.ts:16`](libs/shared/src/task-types/dispatch-labels.test.ts#L16), [`dispatch-labels.test.ts:22`](libs/shared/src/task-types/dispatch-labels.test.ts#L22))
   - Create pipeline task with issue context
   - Comment on issue: "Lore agent is working on this. Task: `{id}`"
   - Add `lore-managed` label to the issue

@@ -141,32 +141,6 @@ export async function shouldCreateIssue(task: {
   return decideIssueCreate({ approvalNeeded, overrides, settings });
 }
 
-/**
- * Resolve the effective review mode for a task (T034). Loads repo
- * settings from the DB, merges with per-task overrides via
- * {@link decideReviewMode}.
- */
-export async function resolveReviewMode(task: {
-  task_type: string;
-  target_repo: string | null;
-  dark_factory_overrides?: DarkFactoryTaskOverrides | null;
-}): Promise<ReviewMode> {
-  if (task.dark_factory_overrides?.human_review === "required") {
-    return "always";
-  }
-  const targetRepo = task.target_repo;
-
-  if (!targetRepo) {
-    return "always";
-  }
-  const settings = await loadRepoSettings(targetRepo);
-
-  return decideReviewMode({
-    overrides: task.dark_factory_overrides ?? undefined,
-    settings,
-  });
-}
-
 async function loadRepoSettings(
   targetRepo: string,
 ): Promise<DarkFactoryRepoSettings | undefined> {

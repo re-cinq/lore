@@ -21,6 +21,7 @@ import {
   type StageOutcome,
 } from "@re-cinq/lore-assembly-lines";
 import { resolveRunGraph } from "@re-cinq/lore-assembly-lines";
+import type { RunGraphNode } from "@re-cinq/lore-shared/project/assembly-runs/run-graph.js";
 import { nodeStationFor } from "@re-cinq/lore-stations";
 
 /** Published when a node's station runs in the pooled service rather than a pod.
@@ -93,9 +94,12 @@ export interface AdvanceDeps {
    * Routing that lived on ONE door meant a triage node resolved by the reaper
    * silently never started its follow-up.
    */
+  /** The node is passed RESOLVED, not by id: a reaction that has to decide
+   *  whether this node is the kind it cares about should read its TYPE, and a
+   *  bare id leaves it comparing hardcoded strings instead. */
   onNodeFinished?: (
     row: AssemblyRunRecord,
-    nodeId: string,
+    node: RunGraphNode,
     result: NodeResult,
   ) => Promise<void>;
   /**
@@ -557,9 +561,14 @@ async function reactToNodeFinished(
 
   try {
     const row = await deps.assemblyRuns.getById(assemblyLineId);
+    const node = row
+      ? (await resolveRunGraph(row, deps.definitions))?.nodes.find(
+          (candidate) => candidate.id === nodeId,
+        )
+      : undefined;
 
-    if (row) {
-      await deps.onNodeFinished(row, nodeId, result);
+    if (row && node) {
+      await deps.onNodeFinished(row, node, result);
     }
   } catch (err) {
     console.warn(
