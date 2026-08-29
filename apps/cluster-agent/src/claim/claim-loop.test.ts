@@ -83,8 +83,8 @@ describe("nextClaimDelay", () => {
     expect(nextClaimDelay(15_000, 3, "empty")).toBe(CLAIM_MAX_IDLE_DELAY_MS);
   });
 
-  it("resets to the base interval on a successful claim", () => {
-    expect(nextClaimDelay(15_000, 4, "claimed")).toBe(15_000);
+  it("polls again immediately after a claim, so a burst drains at once", () => {
+    expect(nextClaimDelay(15_000, 4, "claimed")).toBe(0);
   });
 
   it("keeps the base interval after an error", () => {
@@ -278,7 +278,7 @@ describe("runClaimLoop", () => {
     };
   };
 
-  it("holds the base sleep on the first empty, doubles across consecutive ones, and resets after a hit", async () => {
+  it("holds the base sleep on the first empty, doubles across consecutive ones, and drains straight through a hit", async () => {
     const l = loop([
       { kind: "empty" },
       { kind: "empty" },
@@ -289,7 +289,7 @@ describe("runClaimLoop", () => {
 
     await l.run();
 
-    expect(l.sleeps).toEqual([15_000, 30_000, 60_000, 15_000, 15_000]);
+    expect(l.sleeps).toEqual([15_000, 30_000, 60_000, 0, 15_000]);
   });
 
   it("re-registers on unauthorized and keeps polling at the base interval", async () => {

@@ -63,15 +63,26 @@ export type ClaimOutcome =
   | { kind: "error"; message: string };
 
 /** The idle back-off schedule: only a 204 grows the delay — the FIRST idle
- *  tick keeps the base interval, consecutive ones double it to the cap. A
- *  successful claim resets it, and errors keep polling at the base — they are
- *  not idleness. `idleTicks` counts the consecutive empties BEFORE this one. */
+ *  tick keeps the base interval, consecutive ones double it to the cap. Errors
+ *  keep polling at the base — they are not idleness. `idleTicks` counts the
+ *  consecutive empties BEFORE this one.
+ *
+ *  A CLAIM does not sleep at all. The queue just proved it has work, and a fan-
+ *  out enqueues many visits at once: at the base interval a cluster launched one
+ *  pod every 15 seconds, so ten queued nodes took two and a half minutes and
+ *  forty took ten — while the reaper's queue-wait bound counted from enqueue.
+ *  The next poll either finds more work or answers 204, which is where the
+ *  back-off begins. */
 export function nextClaimDelay(
   baseMs: number,
   idleTicks: number,
   outcome: ClaimOutcome["kind"],
   maxIdleMs: number = CLAIM_MAX_IDLE_DELAY_MS,
 ): number {
+  if (outcome === "claimed") {
+    return 0;
+  }
+
   if (outcome !== "empty") {
     return baseMs;
   }

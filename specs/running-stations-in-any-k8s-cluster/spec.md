@@ -239,7 +239,13 @@ one dispatch mechanism, not a special case plus a remote case.
 - A claim request with no matching queued run returns `204`. An idle agent
   backs its polling off (doubling to a 60 s ceiling, resetting on the first
   hit), so a fleet of quiet satellites costs the API a bounded trickle
-  rather than O(N) at the floor interval. ([validated by `claim.test.ts:78`](apps/lore-api/src/api/routes/cluster-agents/claim.test.ts#L78), [`claim.test.ts:136`](apps/lore-api/src/api/routes/cluster-agents/claim.test.ts#L136), [`claim-loop.test.ts:59`](apps/cluster-agent/src/claim/claim-loop.test.ts#L61), [`claim-loop.test.ts:63`](apps/cluster-agent/src/claim/claim-loop.test.ts#L65), [`claim-loop.test.ts:69`](apps/cluster-agent/src/claim/claim-loop.test.ts#L71), [`claim-loop.test.ts:77`](apps/cluster-agent/src/claim/claim-loop.test.ts#L79), [`claim-loop.test.ts:84`](apps/cluster-agent/src/claim/claim-loop.test.ts#L86), [`claim-loop.test.ts:88`](apps/cluster-agent/src/claim/claim-loop.test.ts#L90), [`claim-loop.test.ts:133`](apps/cluster-agent/src/claim/claim-loop.test.ts#L135), [holds the base sleep on the first empty, doubles across consecutive ones, and resets after a hit](apps/cluster-agent/src/claim/claim-loop.test.ts#L281))
+  rather than O(N) at the floor interval. ([validated by `claim.test.ts:78`](apps/lore-api/src/api/routes/cluster-agents/claim.test.ts#L78), [`claim.test.ts:136`](apps/lore-api/src/api/routes/cluster-agents/claim.test.ts#L136), [`claim-loop.test.ts:59`](apps/cluster-agent/src/claim/claim-loop.test.ts#L61), [`claim-loop.test.ts:63`](apps/cluster-agent/src/claim/claim-loop.test.ts#L65), [`claim-loop.test.ts:69`](apps/cluster-agent/src/claim/claim-loop.test.ts#L71), [`claim-loop.test.ts:77`](apps/cluster-agent/src/claim/claim-loop.test.ts#L79), [`claim-loop.test.ts:88`](apps/cluster-agent/src/claim/claim-loop.test.ts#L90), [`claim-loop.test.ts:133`](apps/cluster-agent/src/claim/claim-loop.test.ts#L135), [holds the base sleep on the first empty, doubles across consecutive ones, and drains straight through a hit](apps/cluster-agent/src/claim/claim-loop.test.ts#L281))
+- A claim that HITS does not sleep before the next poll. The queue has just
+  proved it has work, and a fan-out enqueues many visits at once — at the base
+  interval a cluster launched one pod every 15 seconds, so ten queued nodes took
+  two and a half minutes and forty took ten, while the reaper's queue-wait bound
+  counted from enqueue. The next poll either finds more work or answers `204`,
+  which is where the back-off begins. ([`claim-loop.test.ts:86`](apps/cluster-agent/src/claim/claim-loop.test.ts#L86))
 - The claim response carries the **complete `LoreTaskSpec`** the visit was
   enqueued with — the same object the push path handed the launch backend.
   The claiming cluster-agent materialises everything cluster-local itself:
