@@ -201,7 +201,10 @@ async function recordPlanningResults(
         const open = (await pipeline().assemblyRuns.listForTask(taskId)).filter(
           (line) => line.status === "running" || line.status === "queued",
         );
-        const round = open[open.length - 1]?.args?.iteration;
+        // Newest first: `listForTask` orders created_at DESC, so the run this
+        // round belongs to is at index 0. Taking the last element read the
+        // OLDEST open run's iteration whenever a task had more than one.
+        const round = open[0]?.args?.iteration;
 
         return typeof round === "number" ? round : undefined;
       },

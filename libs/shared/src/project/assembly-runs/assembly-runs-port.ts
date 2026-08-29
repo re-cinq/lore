@@ -166,6 +166,16 @@ export type AssemblyRunRecord = AssemblyRun;
 export type AssemblyRunSummary = Omit<AssemblyRunRecord, "graph">;
 
 /**
+ * One line closed by {@link AssemblyRunsPort.finishOpenByPr}, in the shape its
+ * caller needs to reclaim what the line held: `taskId ?? id` is the key the
+ * per-run GitHub token and AgentDefinition/Station triple are filed under.
+ */
+export interface ClosedRunRef {
+  id: string;
+  taskId: string | null;
+}
+
+/**
  * `pipeline.assembly_runs` + `pipeline.station_runs` — first-class
  * identity for one assembly line execution (per attempt, unlike the task id
  * which is stable across retries) plus the per-node trace.
@@ -309,7 +319,14 @@ export interface AssemblyRunsPort {
    */
   findOpenByPr(repo: string, prNumber: number): Promise<AssemblyRunRecord[]>;
   /**
-   * Close open lines for the repo+PR with `outcome`; returns the count closed.
+   * Close open lines for the repo+PR with `outcome`; returns a ref per line
+   * actually closed.
+   *
+   * The REFS, not a count, because closing a line here bypasses `finishLine` —
+   * so this is the only moment that knows which lines lost their reclaim. A
+   * caller must be able to hand each one's key to `cleanupToken`, or a PR closed
+   * mid-review leaks its per-run GitHub token and catalog triple forever (the
+   * node's own terminal event returns early on the now-finished row).
    *
    * `definitions` NARROWS it to those definition names, and the PR-lifecycle
    * choreography must pass its own family. The unfiltered form used to be safe
@@ -323,7 +340,7 @@ export interface AssemblyRunsPort {
     prNumber: number,
     outcome: string,
     definitions?: readonly string[],
-  ): Promise<number>;
+  ): Promise<ClosedRunRef[]>;
   /**
    * True when any `code-review` line (any status) has ever run for the repo+PR —
    * the first-review-only guard so pushes after the first review don't re-review.

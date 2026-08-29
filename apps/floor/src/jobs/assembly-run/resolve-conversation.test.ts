@@ -323,3 +323,42 @@ describe("a line whose rounds are revisits of one node", () => {
     ).toBe("");
   });
 });
+
+describe("a rewind target whose task ran more than one line", () => {
+  const rewinding: FloorAssemblyRunTask = {
+    ...task,
+    args: { feature_id: "feature-9", resume_from_task: "task-round-2" },
+  };
+
+  it("resumes line-4 when linesForTask answers newest-first ['line-4','line-2']", async () => {
+    // listForTask orders created_at DESC, so the NEWEST run is at index 0. Reading
+    // the last element resumed the first attempt the author had already discarded.
+    const store = new InMemoryConversations();
+    const thread = {
+      kind: "args" as const,
+      value: "feature-9",
+      nodeId: "analyze",
+    };
+
+    for (const [line, id] of [
+      ["line-2", "round-2"],
+      ["line-4", "round-4"],
+    ]) {
+      await store.reserve({ thread, conversationId: id, assemblyLineId: line });
+      await store.attachArchive(id, `k/${id}.tgz`, 10);
+    }
+
+    expect(
+      await resolveConversation(
+        node(),
+        rewinding,
+        1,
+        {
+          ...deps(store),
+          linesForTask: async () => ["line-4", "line-2"],
+        },
+        null,
+      ),
+    ).toMatchObject({ id: "round-4" });
+  });
+});

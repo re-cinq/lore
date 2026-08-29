@@ -15,6 +15,7 @@ import type {
   AssemblyRunSummary,
   StationRunRecord,
   OpenRunSummary,
+  ClosedRunRef,
 } from "./assembly-runs-port.js";
 
 export interface SeedAssemblyLineEvent {
@@ -339,6 +340,10 @@ export class InMemoryAssemblyRuns implements AssemblyRunsPort {
     node.status = "queued";
     node.clusterAgentId = null;
     node.claimedAt = null;
+    // The queue clock restarts with the visit — see the Pg adapter's note: the
+    // reaper bounds a `queued` visit by `startedAt`, so keeping the original
+    // enqueue would fail a just-requeued visit as never-claimed.
+    node.startedAt = this.clock();
 
     return true;
   }
@@ -509,7 +514,7 @@ export class InMemoryAssemblyRuns implements AssemblyRunsPort {
     prNumber: number,
     outcome: string,
     definitions?: readonly string[],
-  ): Promise<number> {
+  ): Promise<ClosedRunRef[]> {
     const open = this.rows.filter(
       (r) =>
         this.matchesOpenPr(r, repo, prNumber) &&
@@ -522,7 +527,7 @@ export class InMemoryAssemblyRuns implements AssemblyRunsPort {
       row.finishedAt = this.clock();
     }
 
-    return open.length;
+    return open.map((row) => ({ id: row.id, taskId: row.taskId ?? null }));
   }
 
   async hasReviewedPr(repo: string, prNumber: number): Promise<boolean> {

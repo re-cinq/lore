@@ -42,7 +42,8 @@ export class InMemoryJobRuns implements JobRunsPort {
   ): Promise<void> {
     const row = this.rows.find((candidate) => candidate.id === runId);
 
-    if (!row) {
+    // First-writer-wins, mirroring the Pg `completed_at IS NULL` guard.
+    if (!row || row.completedAt) {
       return;
     }
     row.status = "completed";
@@ -54,7 +55,7 @@ export class InMemoryJobRuns implements JobRunsPort {
   async fail(runId: string, error: string, logPath?: string): Promise<void> {
     const row = this.rows.find((candidate) => candidate.id === runId);
 
-    if (!row) {
+    if (!row || row.completedAt) {
       return;
     }
     row.status = "failed";

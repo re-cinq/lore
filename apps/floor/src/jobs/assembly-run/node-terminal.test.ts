@@ -1057,3 +1057,22 @@ describe("postReplyFromNode resolve mutation failure", () => {
     ]);
   });
 });
+
+describe("a review node whose failure the caller already diagnosed", () => {
+  it("keeps the reaper's infra timeout instead of relabelling it a contract bug", () => {
+    // The reaper synthesizes {infra, "timed out after 15 minutes"} and passes no
+    // output at all. Rewriting that to `unknown` + "never got far enough to judge
+    // the diff" sent operators hunting a recipe bug for a dead pod — the 2026-08-24
+    // misdiagnosis this override exists to prevent, pointed the other way.
+    const timedOut = {
+      outcome: "failed" as const,
+      failureClass: "infra" as const,
+      failureDetail:
+        "station node timed out after 15 minutes without reporting",
+    };
+
+    expect(
+      reviewNodeResultOverride("no_findings", undefined, timedOut),
+    ).toEqual(timedOut);
+  });
+});

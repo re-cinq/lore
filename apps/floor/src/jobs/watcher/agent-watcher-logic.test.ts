@@ -213,3 +213,18 @@ describe("stampPrOnOpenRuns", () => {
     expect(patched).toEqual([]);
   });
 });
+
+describe("a review output that names both verdict markers", () => {
+  it("reads CHANGES_REQUESTED when the agent quoted APPROVED first", () => {
+    // The single-CR watcher and every assembly-line review node must agree. The
+    // contract's parseReviewVerdict tests CHANGES_REQUESTED first, so an agent that
+    // echoes its instruction line before printing the real verdict is not read as
+    // an approval on one path and a rejection on the other.
+    const output = [
+      "I was told to print REVIEW_RESULT:APPROVED or REVIEW_RESULT:CHANGES_REQUESTED.",
+      "REVIEW_RESULT:CHANGES_REQUESTED: the base branch is wrong",
+    ].join("\n");
+
+    expect(parseReviewResult(output)).toBe("changes_requested");
+  });
+});

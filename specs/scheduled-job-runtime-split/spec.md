@@ -155,6 +155,7 @@ VALUES ('cron.spec_drift.tick', 'cron', '{"repo":"re-cinq/lore"}');
   `dist/job-runner.js`, takes a job name argv, calls `initPool()`, dispatches to
   the matching batch-job function, logs its summary, and exits `0` on success or
   non-zero on error. Unknown job name → non-zero with a clear message.
+- **FR1b — A job_run is settled once.** `complete`/`fail` are guarded on `completed_at IS NULL`, so the FIRST writer decides. `finishLine` settles a detect line's `job_run` BEFORE closing the run row — deliberately, so a crash between the two cannot orphan it open — which means a LOSING racer (the node event and the reaper both reaching the same closure) gets there too. Unconditional, the loser overwrote the winner: a line the event door recorded `completed` was rewritten `failed` by the tick that lost. ([validated by keeps the winner's completed verdict when a loser then fails it](libs/shared/src/project/job-runs/job-runs.test.ts#L182), [`job-runs.test.ts:201`](libs/shared/src/project/job-runs/job-runs.test.ts#L201))
 - **FR1a — Run tracking parity.** The runner records each run in
   `pipeline.job_runs` exactly as the in-process scheduler's `runJob` does: insert
   a `running` row on start, update to `completed` with `result_summary` (the

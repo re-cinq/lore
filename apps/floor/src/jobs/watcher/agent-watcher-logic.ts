@@ -5,6 +5,7 @@
 // is IO-bound and untested, as loretask-watcher is; this is the testable core.
 
 import type { Agent as AgentCr } from "@re-cinq/agent-contracts";
+import { parseReviewVerdict } from "@re-cinq/lore-assembly-lines";
 import { isFeatureLifecycleType } from "../task/worker.js";
 
 export const TASK_ID_LABEL = "lore.re-cinq.com/task-id";
@@ -20,23 +21,26 @@ export function taskTypeOf(agent: AgentCr): string | undefined {
 
 export type ReviewResult = "approved" | "changes_requested";
 
-/** Parse the `REVIEW_RESULT:` marker a review Agent prints to status.output. */
+/**
+ * Parse the `REVIEW_RESULT:` marker a review Agent prints to status.output, in the
+ * watcher's own vocabulary.
+ *
+ * The MARKER is the station contract's, so `parseReviewVerdict` owns reading it and
+ * this only renames the answer. A second regex pair here drifted from the contract's:
+ * it tested APPROVED first, so an output naming both markers — an agent echoing its
+ * instruction line before the real verdict — was an approval on this path and a
+ * rejection on every assembly-line review node.
+ */
 export function parseReviewResult(
   output: string | undefined,
 ): ReviewResult | undefined {
-  if (!output) {
-    return undefined;
-  }
+  const verdict = parseReviewVerdict(output);
 
-  if (/REVIEW_RESULT:\s*APPROVED/i.test(output)) {
-    return "approved";
-  }
-
-  if (/REVIEW_RESULT:\s*CHANGES_REQUESTED/i.test(output)) {
+  if (verdict === "changes_requested") {
     return "changes_requested";
   }
 
-  return undefined;
+  return verdict === "success" ? "approved" : undefined;
 }
 
 export type CiConclusion = "success" | "failure" | "pending" | "none";

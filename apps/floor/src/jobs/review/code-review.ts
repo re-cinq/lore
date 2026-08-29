@@ -31,6 +31,8 @@ import { loreTaskRef } from "../task/issue-body.js";
 import { reviewSubject } from "@re-cinq/lore-shared/project/assembly-runs/subject-keys.js";
 
 import { REVIEW_DEFINITIONS } from "@re-cinq/lore-shared/review/review-definitions.js";
+import type { ClosedRunRef } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
+import { cleanupPerTaskToken } from "../watcher/agent-watcher.js";
 
 /** A GitHub App / bot login ends with `[bot]`; only human actors drive the review. */
 export function isBotActor(login: string): boolean {
@@ -158,11 +160,12 @@ export interface CodeReviewProject {
         args?: Record<string, unknown>;
       },
     ): Promise<string>;
+    findOpenBySubject(subjectKey: string): Promise<{ id: string } | null>;
     finishOpenByPr(
       prNumber: number,
       outcome: string,
       definitions?: readonly string[],
-    ): Promise<number>;
+    ): Promise<ClosedRunRef[]>;
     hasReviewedPr(prNumber: number): Promise<boolean>;
   };
 }
@@ -171,6 +174,13 @@ export interface CodeReviewDeps {
   project(repo: string): Promise<CodeReviewProject>;
   autoReview(repo: string): Promise<boolean>;
   uiUrl(): string | undefined;
+  /**
+   * Reclaim the per-run GitHub token + AgentDefinition/Station triple a line
+   * held. Needed here because closing a PR ends its review lines WITHOUT going
+   * through `finishLine`, which is the only other place that reclaims —
+   * idempotent, so a line the walk also closes is a harmless double-free.
+   */
+  cleanupToken(key: string): Promise<void>;
 }
 
 interface OpenParams {
@@ -257,13 +267,25 @@ export async function startReview(
   ) {
     return null;
   }
+  const subjectKey = reviewSubject(input.prNumber);
+  // `start` on a subject is start-or-JOIN and answers with an id either way, so it
+  // cannot tell us which happened. Ask first: whatever is open on this subject now
+  // is what a join would hand back.
+  //
+  // Check-then-act, deliberately. Two triggers landing in the same instant can
+  // still both read "nothing open" and both announce — but the subject key means
+  // only ONE run exists either way, so the cost is a duplicate comment, not
+  // duplicate work. Closing it properly wants a join signal from the port
+  // (`start` answering `{id, joined}`), which is worth doing when something needs
+  // to ACT on the difference; today only this message does.
+  const alreadyOpen = await project.assemblyRuns.findOpenBySubject(subjectKey);
   const id = await project.assemblyRuns.start("code-review", {
     branch: pr.branch,
     // One review run per PR. Keyed on the PR rather than its branch: the branch is
     // a shared workspace — recheck, reply and triage lines all ride it and are MEANT
     // to overlap — so a branch key made a review defer to whichever comment line
     // happened to be open. They now declare no subject and are unaffected.
-    subjectKey: reviewSubject(input.prNumber),
+    subjectKey,
     args: {
       pr_number: input.prNumber,
       mode: "review",
@@ -272,6 +294,14 @@ export async function startReview(
       description: reviewDescription(input.repo, input.prNumber, pr.branch),
     },
   });
+
+  // A JOIN starts nothing, so it has nothing to announce — the run it handed back
+  // was announced when it actually started. Announcing anyway posted the same
+  // "Lore is reviewing this PR" comment, naming the same run, every time somebody
+  // typed `@lore review` or pressed the UI button while a review was in flight.
+  if (alreadyOpen?.id === id) {
+    return id;
+  }
 
   await project.pulls.comment(
     input.prNumber,
@@ -464,10 +494,20 @@ export function createCodeReviewHandlers(deps: CodeReviewDeps): {
     // spec PR meant a merged spec PR closed the FEATURE-PLANNING line parked on
     // `merged` — killing the feature exactly one step before decomposition, on the
     // same event that was supposed to advance it.
-    await project.assemblyRuns.finishOpenByPr(
+    const closed = await project.assemblyRuns.finishOpenByPr(
       pr_number,
       "pr_closed",
       REVIEW_DEFINITIONS,
+    );
+
+    // Closing here BYPASSES finishLine, which is what normally reclaims a line's
+    // per-run token and catalog triple — and the node's own terminal event cannot
+    // pick up the slack, because it returns early once the row is no longer
+    // running. Without this, every PR closed while its review was still in flight
+    // left a `GH_TOKEN_*` key behind in `agent-secrets`, which is how that Secret
+    // reached its 1MiB ceiling and took the fleet down on 2026-08-25.
+    await Promise.all(
+      closed.map((run) => deps.cleanupToken(run.taskId ?? run.id)),
     );
   };
 
@@ -495,6 +535,7 @@ const handlers = createCodeReviewHandlers({
   project: (repo) => projectFor(repo),
   autoReview: shouldAutoReview,
   uiUrl: () => process.env.LORE_UI_URL,
+  cleanupToken: cleanupPerTaskToken,
 });
 
 export const codeReviewOnTrigger = handlers.onTrigger;

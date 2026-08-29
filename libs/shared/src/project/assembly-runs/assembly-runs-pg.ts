@@ -20,6 +20,7 @@ import type {
   AssemblyRunSummary,
   StationRunRecord,
   OpenRunSummary,
+  ClosedRunRef,
 } from "./assembly-runs-port.js";
 
 /** The graph-less projection both open-run reads use. `listOpen` hauls every open
@@ -435,9 +436,17 @@ export class PgAssemblyRuns implements AssemblyRunsPort {
   }
 
   async requeueStationRun(nodeRowId: string): Promise<boolean> {
+    // `started_at` is the ENQUEUE time of the current queue wait, which is what
+    // the reaper bounds a `queued` visit by — so a requeue must restart it.
+    // Leaving it at the original enqueue made a visit that had been claimed and
+    // lost arrive back on the queue already past the wait, and the next tick
+    // failed it terminally as "no cluster-agent claimed this run".
     const { rows } = await this.pool.query(
       `UPDATE pipeline.station_runs
-          SET status = 'queued', cluster_agent_id = NULL, claimed_at = NULL
+          SET status = 'queued',
+              cluster_agent_id = NULL,
+              claimed_at = NULL,
+              started_at = now()
         WHERE id = $1 AND outcome IS NULL
        RETURNING id`,
       [nodeRowId],
@@ -674,22 +683,25 @@ export class PgAssemblyRuns implements AssemblyRunsPort {
     prNumber: number,
     outcome: string,
     definitions?: readonly string[],
-  ): Promise<number> {
+  ): Promise<ClosedRunRef[]> {
     // A null $4 means "every definition" — the caller that owns only part of the
     // PR's lifecycle passes its own family instead, so closing a PR cannot close a
     // line that merely references it.
-    const { rows } = await this.pool.query<{ id: string }>(
+    const { rows } = await this.pool.query<{
+      id: string;
+      task_id: string | null;
+    }>(
       `UPDATE pipeline.assembly_runs
           SET status = 'finished', outcome = $1, finished_at = now()
         WHERE repo = $2
           AND (args->>'pr_number')::int = $3
           AND status IN ('queued', 'running')
           AND ($4::text[] IS NULL OR blueprint_name = ANY($4::text[]))
-      RETURNING id`,
+      RETURNING id, task_id`,
       [outcome, repo, prNumber, definitions ? [...definitions] : null],
     );
 
-    return rows.length;
+    return rows.map((row) => ({ id: row.id, taskId: row.task_id }));
   }
 
   async hasReviewedPr(repo: string, prNumber: number): Promise<boolean> {

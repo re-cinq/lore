@@ -104,7 +104,22 @@ export function buildPrompt(taskType: string, description: string): string {
   const template =
     cfg?.prompt_template ?? "Complete the following task: {description}";
 
-  return template.replace("{description}", description);
+  return fillDescription(template, description);
+}
+
+/**
+ * Substitute a task description into a prompt template's `{description}` slot,
+ * LITERALLY.
+ *
+ * `String.prototype.replace` reads `$&`, `` $` ``, `$'`, `$1` and `$$` in the
+ * REPLACEMENT argument, and a task description is user input — from the UI, Slack
+ * or an Issue body. A description quoting a shell variable (`$'`, "the text after
+ * the match") spliced the rest of the template back into itself and the agent ran
+ * on a silently corrupted prompt; nothing threw. A replacer FUNCTION is the one
+ * form that never interprets its result.
+ */
+export function fillDescription(template: string, description: string): string {
+  return template.replace("{description}", () => description);
 }
 
 /**
@@ -138,7 +153,7 @@ export function buildNodePrompt(
     `task type "${promptRef}" declares no prompt_template — the loaded task-types.yaml is older than this code`,
   );
 
-  return cfg.prompt_template.replace("{description}", description);
+  return fillDescription(cfg.prompt_template, description);
 }
 
 /**

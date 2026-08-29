@@ -123,3 +123,17 @@ describe("loadTaskTypes drift reporting", () => {
     );
   });
 });
+
+describe("a task description carrying $-replacement patterns", () => {
+  it("inserts $` and $1 verbatim into the general template", () => {
+    expect(buildPrompt("general", "use $` then $1")).toContain(
+      "Task: use $` then $1",
+    );
+  });
+
+  it("inserts $& verbatim into a node prompt", () => {
+    expect(buildNodePrompt("general", "match $& here")).toContain(
+      "Task: match $& here",
+    );
+  });
+});

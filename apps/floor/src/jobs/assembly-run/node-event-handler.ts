@@ -291,6 +291,11 @@ function contextFromRow(row: AssemblyRunRecord): CommentContext {
     comment_body: String(a.comment_body ?? ""),
     in_reply_to_id:
       typeof a.in_reply_to_id === "number" ? a.in_reply_to_id : null,
+    // The commenter rides along: the triage line stored who wrote the comment,
+    // and the line triage ROUTES TO is the one a person will look at in the run
+    // list. Dropping it here left "By" blank on exactly the runs a human asked
+    // for, while the keyword fast path — same destination — kept it.
+    actor: typeof a.actor === "string" ? a.actor : undefined,
   };
 }
 

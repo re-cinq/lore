@@ -174,7 +174,7 @@ export async function finalizeStationRun(opts: {
     branch,
     copy.title,
     `${copy.body}${footer}`,
-    "main",
+    await project.repo.defaultBranch(),
     ["needs-review"],
   );
 

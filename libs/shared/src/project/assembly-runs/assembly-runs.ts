@@ -4,6 +4,7 @@ import type {
   AssemblyRunRecord,
   OpenRunSummary,
   StationRunRecord,
+  ClosedRunRef,
 } from "./assembly-runs-port.js";
 
 /**
@@ -64,7 +65,7 @@ export class AssemblyRuns {
     prNumber: number,
     outcome: string,
     definitions?: readonly string[],
-  ): Promise<number> {
+  ): Promise<ClosedRunRef[]> {
     return this.port.finishOpenByPr(this.repo, prNumber, outcome, definitions);
   }
 
