@@ -66,13 +66,22 @@ function harness(
     },
     assemblyRuns: new AssemblyRuns(REPO, port),
   };
+  const reclaimed: string[] = [];
   const deps: CodeReviewDeps = {
     project: async () => project,
     autoReview: async () => autoReview,
     uiUrl: () => "https://lore.example.com",
+    cleanupToken: async (key: string) => {
+      reclaimed.push(key);
+    },
   };
 
-  return { port, comments, handlers: createCodeReviewHandlers(deps) };
+  return {
+    port,
+    comments,
+    reclaimed,
+    handlers: createCodeReviewHandlers(deps),
+  };
 }
 
 describe("code-review pure decisions", () => {
@@ -476,5 +485,61 @@ describe("onTrigger re-check routing", () => {
     await handlers.onTrigger({ repo: REPO, pr_number: 42 });
 
     expect(port.rows).toHaveLength(1);
+  });
+});
+
+describe("a PR closed while its review line is still running", () => {
+  it("reclaims the closed line's token key so agent-secrets does not grow a key per PR", async () => {
+    // Closing here bypasses finishLine, and the node's own terminal event returns
+    // early once the row is no longer running — so nothing else will ever free it.
+    // Every leaked key stayed in `agent-secrets` until it hit the 1MiB ceiling.
+    const h = harness(openPr({ state: "closed" }));
+    const runId = await h.port.start({
+      blueprintName: "code-review",
+      repo: REPO,
+      args: { pr_number: 42 },
+    });
+
+    await h.handlers.onClose({ repo: REPO, pr_number: 42 });
+
+    expect(h.reclaimed).toEqual([runId]);
+  });
+
+  it("reclaims nothing when the PR carried no open review line", async () => {
+    const h = harness(openPr({ state: "closed" }));
+
+    await h.handlers.onClose({ repo: REPO, pr_number: 42 });
+
+    expect(h.reclaimed).toEqual([]);
+  });
+});
+
+describe("a forced review while one is already in flight", () => {
+  it("posts the how-to comment once across two `@lore review` triggers", async () => {
+    // `start` on a subject is start-or-JOIN: the second trigger gets the FIRST
+    // run's id back. Announcing it again posted a second "Lore is reviewing this
+    // PR" naming the very same run — once per @lore review and once per press of
+    // the UI button, for as long as the review took.
+    const h = harness(openPr());
+
+    await h.handlers.onComment({
+      repo: REPO,
+      pr_number: 42,
+      comment_id: 1,
+      comment_author: "alice",
+      comment_body: "@lore review",
+    });
+    await h.handlers.onComment({
+      repo: REPO,
+      pr_number: 42,
+      comment_id: 2,
+      comment_author: "alice",
+      comment_body: "@lore review",
+    });
+
+    expect(
+      h.comments.filter((c) => c.body.includes("Lore is reviewing this PR")),
+    ).toHaveLength(1);
+    expect(h.port.rows).toHaveLength(1);
   });
 });

@@ -1619,3 +1619,25 @@ edges:
     ).toBeNull();
   });
 });
+
+describe("a losing finisher's once-only side effects", () => {
+  it("records one episode when the node event and the reaper both close the line", async () => {
+    // The episode ran BEFORE the first-writer-wins CAS, so the loser wrote the
+    // run's story a second time. The two doors do not always derive the same
+    // outcome, and two differing renderings are not deduplicated.
+    const port = new InMemoryAssemblyRuns();
+    const id = await runningLine(port);
+    const { deps } = makeDeps(port);
+    const episodes: Array<{ outcome: string; reason?: string }> = [];
+
+    deps.recordRunEpisode = async (_row, outcome, reason) => {
+      episodes.push({ outcome, reason });
+    };
+    const row = (await port.getById(id))!;
+
+    await finishLine(row, "completed", undefined, deps);
+    await finishLine(row, "error", "late racer", deps);
+
+    expect(episodes).toEqual([{ outcome: "completed", reason: undefined }]);
+  });
+});

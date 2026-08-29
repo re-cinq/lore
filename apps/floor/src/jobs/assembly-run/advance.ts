@@ -403,20 +403,6 @@ export async function finishLine(
   reason: string | undefined,
   deps: AdvanceDeps,
 ): Promise<void> {
-  // Telemetry, so it never decides whether the run closes: a run whose episode
-  // could not be written is still a finished run, and swallowing here is the same
-  // bias maybeStampPr takes for the same reason.
-  if (deps.recordRunEpisode && !lineWritesOwnEpisode(assemblyRun.graph)) {
-    try {
-      await deps.recordRunEpisode(assemblyRun, outcome, reason);
-    } catch (err) {
-      console.warn(
-        `[assembly-run] episode for ${assemblyRun.id} not recorded:`,
-        (err as Error).message,
-      );
-    }
-  }
-
   const jobRunId = assemblyRun.args.job_run_id;
 
   // Settle the detect fan-out's job_run BEFORE closing the row: if the row close
@@ -447,6 +433,29 @@ export async function finishLine(
   // closes 0 rows yet still reaches here, so cleanupToken MUST be idempotent
   // (cleanupPerTaskToken swallows 404s); the double-reclaim is a harmless no-op.
   await deps.cleanupToken(assemblyRun.taskId ?? assemblyRun.id);
+
+  // Telemetry, so it never decides whether the run closes: a run whose episode
+  // could not be written is still a finished run, and swallowing here is the same
+  // bias maybeStampPr takes for the same reason.
+  //
+  // Winner-gated like every other side effect below. Run before the CAS it fired
+  // for the LOSER too, so an event-vs-reaper race wrote one run's story twice —
+  // deduplicated only when both renderings came out byte-identical, which they do
+  // not when the two doors derive different outcomes.
+  if (
+    closedNow &&
+    deps.recordRunEpisode &&
+    !lineWritesOwnEpisode(assemblyRun.graph)
+  ) {
+    try {
+      await deps.recordRunEpisode(assemblyRun, outcome, reason);
+    } catch (err) {
+      console.warn(
+        `[assembly-run] episode for ${assemblyRun.id} not recorded:`,
+        (err as Error).message,
+      );
+    }
+  }
 
   // The winning finisher also settles the backing task. Without this a line-backed
   // task stays `running` with a NULL failure_reason forever — the watcher's

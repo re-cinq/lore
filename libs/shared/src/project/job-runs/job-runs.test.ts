@@ -177,3 +177,35 @@ describe("InMemoryJobRuns double", () => {
     expect(await jobRuns.lastRun("never-run")).toBeNull();
   });
 });
+
+describe("a job_run settled twice by racing finishers", () => {
+  it("keeps the winner's completed verdict when a loser then fails it", async () => {
+    // finishLine settles the job_run BEFORE closing the run row, deliberately, so
+    // a crash between the two cannot orphan it open — which means a losing racer
+    // reaches the settle too. Unconditional, the loser's verdict overwrote the
+    // winner's, and a detect line the event door completed was recorded failed by
+    // the reaper tick that lost.
+    const jobRuns = new InMemoryJobRuns();
+    const id = await jobRuns.start("gap_detection");
+
+    await jobRuns.complete(id, "all repos scanned");
+    await jobRuns.fail(id, "late racer");
+
+    expect(jobRuns.rows[0]).toMatchObject({
+      status: "completed",
+      resultSummary: "all repos scanned",
+      error: null,
+    });
+  });
+
+  it("guards both settles on completed_at IS NULL in SQL", async () => {
+    const { pool, calls } = fakePool([[], []]);
+    const port = new PgJobRuns(pool);
+
+    await port.complete("jr-1", "ok");
+    await port.fail("jr-1", "late");
+
+    expect(calls[0]?.text).toContain("completed_at IS NULL");
+    expect(calls[1]?.text).toContain("completed_at IS NULL");
+  });
+});

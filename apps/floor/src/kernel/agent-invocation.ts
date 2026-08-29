@@ -1,3 +1,5 @@
+import { fillDescription } from "./config.js";
+
 /**
  * Build the task prompt from a resolved agent definition (project.agentDefs): when
  * the definition carries its own prompt, substitute the task description into
@@ -9,5 +11,5 @@ export function agentPrompt(
   description: string,
   fallback: string,
 ): string {
-  return prompt ? prompt.replace("{description}", description) : fallback;
+  return prompt ? fillDescription(prompt, description) : fallback;
 }

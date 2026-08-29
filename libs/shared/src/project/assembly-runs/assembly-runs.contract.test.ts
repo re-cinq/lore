@@ -628,9 +628,11 @@ describe.each(IMPLEMENTATIONS)(
       await port.markRunning(planning);
 
       expect(
-        await port.finishOpenByPr(repo, 99, "pr_closed", ["code-review"]),
-      ).toBe(1);
-      // The count alone would pass even if the outcome were never written.
+        (await port.finishOpenByPr(repo, 99, "pr_closed", ["code-review"])).map(
+          (run) => run.id,
+        ),
+      ).toEqual([review]);
+      // The refs alone would pass even if the outcome were never written.
       expect(await port.getById(review)).toMatchObject({
         status: "finished",
         outcome: "pr_closed",
@@ -1092,6 +1094,36 @@ describe.each(IMPLEMENTATIONS)(
       await port.finishStationRunOnce(nodeRowId, "success");
 
       expect(await port.requeueStationRun(nodeRowId)).toBe(false);
+    });
+
+    it("requeue restarts the queue clock so the wait is measured from the requeue", async () => {
+      // The reaper bounds a `queued` visit by `startedAt`. Leaving it at the
+      // ORIGINAL enqueue meant a visit requeued after a long claim was already
+      // past the wait the moment it went back on the queue, and the very next
+      // tick failed it as "no cluster-agent claimed this run" — naming a timeout
+      // that had in fact been claimed and lost.
+      const { port, repo } = make();
+      const runId = await port.start({ blueprintName: "code-review", repo });
+      const { nodeRowId } = await port.ensureStationRun({
+        assemblyRunId: runId,
+        nodeId: "review",
+        iteration: 1,
+        status: "queued",
+      });
+
+      await port.enqueueStationRunDispatch(nodeRowId, { prompt: "p" });
+      await port.claimNextStationRun({
+        clusterAgentId: "33333333-3333-3333-3333-333333333333",
+        tags: [],
+      });
+      const enqueuedAt = (await port.listStationRuns(runId))[0].startedAt;
+
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      await port.requeueStationRun(nodeRowId);
+
+      expect(
+        (await port.listStationRuns(runId))[0].startedAt.getTime(),
+      ).toBeGreaterThan(enqueuedAt.getTime());
     });
   },
 );

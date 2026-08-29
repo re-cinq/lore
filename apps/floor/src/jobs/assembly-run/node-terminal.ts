@@ -125,6 +125,16 @@ export function reviewNodeResultOverride(
   output: string | undefined,
   result: NodeResult,
 ): NodeResult {
+  // A caller that already CLASSIFIED the failure knows more than this function
+  // can infer from an empty output. The reaper's timeout and queue-timeout doors
+  // arrive as `{failed, infra, "timed out after N minutes"}` with no output at
+  // all, which reads here exactly like a review that ran and published nothing —
+  // so an evicted pod was recorded, notified and retried as a recipe/contract
+  // bug. Judge only what the agent actually produced.
+  if (result.failureClass) {
+    return result;
+  }
+
   if (post === "no_findings" && parseReviewVerdict(output) !== "success") {
     // WHY it failed, not just that it did. Recorded bare — which this did — the
     // node renders as `node "recheck" failed` with no class and no detail, which

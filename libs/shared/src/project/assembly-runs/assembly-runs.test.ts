@@ -225,16 +225,24 @@ describe("PgAssemblyRuns adapter", () => {
     expect(calls[0]?.params).toEqual(["re-cinq/lore", 42]);
   });
 
-  it("finishOpenByPr closes matching open rows and returns the count", async () => {
-    const { pool, calls } = fakePool([[{ id: "al-1" }, { id: "al-2" }]]);
+  it("finishOpenByPr closes matching open rows and returns a ref each", async () => {
+    const { pool, calls } = fakePool([
+      [
+        { id: "al-1", task_id: null },
+        { id: "al-2", task_id: "task-2" },
+      ],
+    ]);
 
-    const count = await new PgAssemblyRuns(pool).finishOpenByPr(
+    const closed = await new PgAssemblyRuns(pool).finishOpenByPr(
       "re-cinq/lore",
       42,
       "pr_closed",
     );
 
-    expect(count).toBe(2);
+    expect(closed).toEqual([
+      { id: "al-1", taskId: null },
+      { id: "al-2", taskId: "task-2" },
+    ]);
     expect(calls[0]?.text).toContain("UPDATE pipeline.assembly_runs");
     expect(calls[0]?.text).toContain("WHERE repo = $2");
     expect(calls[0]?.text).toContain("(args->>'pr_number')::int = $3");
@@ -736,11 +744,11 @@ describe("InMemoryAssemblyRuns double", () => {
       args: { pr_number: 42 },
     });
 
-    const count = await assemblyRuns.finishOpenByPr("r/a", 42, "pr_closed", [
+    const closed = await assemblyRuns.finishOpenByPr("r/a", 42, "pr_closed", [
       "code-review",
     ]);
 
-    expect(count).toBe(1);
+    expect(closed.map((r) => r.id)).toEqual([review]);
     expect(await assemblyRuns.getById(review)).toMatchObject({
       status: "finished",
     });
@@ -759,10 +767,12 @@ describe("InMemoryAssemblyRuns double", () => {
       args: { pr_number: 42 },
     });
 
-    expect(await assemblyRuns.finishOpenByPr("r/a", 42, "pr_closed")).toBe(1);
+    expect(
+      await assemblyRuns.finishOpenByPr("r/a", 42, "pr_closed"),
+    ).toHaveLength(1);
   });
 
-  it("finishOpenByPr closes only the open matching rows and returns the count", async () => {
+  it("finishOpenByPr closes only the open matching rows and returns a ref each", async () => {
     const assemblyRuns = new InMemoryAssemblyRuns();
     const a = await assemblyRuns.start({
       blueprintName: "code-review",
@@ -775,9 +785,9 @@ describe("InMemoryAssemblyRuns double", () => {
       args: { pr_number: 99 },
     });
 
-    const count = await assemblyRuns.finishOpenByPr("r/a", 42, "pr_closed");
+    const closed = await assemblyRuns.finishOpenByPr("r/a", 42, "pr_closed");
 
-    expect(count).toBe(1);
+    expect(closed.map((r) => r.id)).toEqual([a]);
     expect(await assemblyRuns.getById(a)).toMatchObject({
       status: "finished",
       outcome: "pr_closed",
@@ -838,7 +848,9 @@ describe("AssemblyRuns facade", () => {
     const id = await facade.start("code-review", { args: { pr_number: 7 } });
 
     expect((await facade.findOpenByPr(7)).map((r) => r.id)).toEqual([id]);
-    expect(await facade.finishOpenByPr(7, "pr_closed")).toBe(1);
+    expect(await facade.finishOpenByPr(7, "pr_closed")).toEqual([
+      { id, taskId: null },
+    ]);
     expect(await facade.getById(id)).toMatchObject({
       status: "finished",
       outcome: "pr_closed",

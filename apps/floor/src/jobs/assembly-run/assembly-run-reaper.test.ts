@@ -883,3 +883,95 @@ describe("the offline sweep (FR4)", () => {
     });
   });
 });
+
+describe("the reaper's resolve and timeout doors", () => {
+  const validateLine: AssemblyLine = parseAssemblyLine(`
+name: with-validate
+description: validate → done
+version: 1
+entry: check
+exit: done
+nodes:
+  - id: check
+    type: validate
+  - id: done
+    type: retrospective
+edges:
+  - from: check
+    to: done
+    on: success
+  - from: check
+    to: done
+    on: always
+`);
+
+  it("names the validate station's 15-minute budget, not the global 60, when the YAML is silent", async () => {
+    // The decision applied the manifest budget while the message quoted the
+    // global default, so a node reaped at ~17 minutes reported a 60-minute
+    // timeout and the run page contradicted the clock the operator could see.
+    const h = harness();
+    const deps = {
+      ...h.deps,
+      definitions: async () => new Map([["with-validate", validateLine]]),
+    };
+    const id = await h.port.start({
+      blueprintName: "with-validate",
+      repo: "o/r",
+      args: {},
+    });
+
+    await h.port.markRunning(id);
+    const clock = h.port.clock;
+
+    h.port.clock = () => new Date(Date.now() - 30 * MIN);
+    await h.port.ensureStationRun({
+      assemblyRunId: id,
+      nodeId: "check",
+      iteration: 1,
+      agentCrName: `${id.substring(0, 12)}-check`,
+    });
+    h.port.clock = clock;
+
+    await assemblyLineReaperJob(deps);
+
+    expect(h.port.nodes[0]?.failureDetail).toBe(
+      "station node timed out after 15 minutes without reporting",
+    );
+  });
+
+  it("raises the agent-config alert on a failed node the resolve door recovers", async () => {
+    // The event door raises billing AND config; this one raised only billing, so
+    // an unreachable skills_source was silent whenever its event was dropped.
+    const h = harness();
+    const configAlerts: Array<{ repo: string; nodeType: string }> = [];
+    const deps = {
+      ...h.deps,
+      alertAgentConfig: async (repo: string, nodeType: string) => {
+        configAlerts.push({ repo, nodeType });
+      },
+    };
+    const id = await h.port.start({
+      blueprintName: "code-review",
+      repo: "o/r",
+      args: {},
+    });
+
+    await h.port.markRunning(id);
+    const crName = `${id.substring(0, 12)}-review`;
+
+    await h.port.ensureStationRun({
+      assemblyRunId: id,
+      nodeId: "review",
+      iteration: 1,
+      agentCrName: crName,
+    });
+    h.statusByName[crName] = {
+      phase: "Failed",
+      failureReason: "skills_source unreachable",
+    };
+
+    await assemblyLineReaperJob(deps);
+
+    expect(configAlerts).toEqual([{ repo: "o/r", nodeType: "agent" }]);
+  });
+});

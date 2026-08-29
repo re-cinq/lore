@@ -293,15 +293,19 @@ export async function assemblyLineReaperJob(
       const claimantOffline =
         openNode.clusterAgentId !== null &&
         offlineAgents.has(openNode.clusterAgentId);
+      // The station's own budget, not the global sixty, when the YAML is
+      // silent — every merge.yaml node is, and merge_step declares five.
+      // Resolved ONCE: the failure message below must name the budget the
+      // decision actually applied, or a node reaped at 7 minutes reports a
+      // 60-minute timeout and the operator concludes the clock is broken.
+      const budgetMinutes = nodeTimeoutMinutes({
+        yaml: node.timeout_minutes,
+        manifest: stationBudgetFor(node.type),
+      });
       const recovery = decideNodeRecovery({
         claimantOffline,
         node: openNode,
-        // The station's own budget, not the global sixty, when the YAML is
-        // silent — every merge.yaml node is, and merge_step declares five.
-        timeoutMinutes: nodeTimeoutMinutes({
-          yaml: node.timeout_minutes,
-          manifest: stationBudgetFor(node.type),
-        }),
+        timeoutMinutes: budgetMinutes,
         status,
         nodeType: node.type,
         crVisible,
@@ -331,6 +335,15 @@ export async function assemblyLineReaperJob(
           await deps.alertBilling(row.repo, node.type, status);
         }
 
+        // The same is true of the missing-settings alarm (an unreachable
+        // skills_source downs every Claude-agent node on the CLUSTER). Raising
+        // only the billing one here left the config outage visible on the event
+        // door and silent on this one — the door asymmetry #1456 closed for
+        // billing, reopened on the other axis.
+        if (result.outcome === "failed" && deps.alertAgentConfig) {
+          await deps.alertAgentConfig(row.repo, node.type, status);
+        }
+
         if (result.failureClass) {
           deps.llmGate?.trip(result.failureClass, result.failureDetail);
         }
@@ -348,7 +361,7 @@ export async function assemblyLineReaperJob(
         );
         resolved++;
       } else if (recovery.kind === "timeout") {
-        const budget = node.timeout_minutes ?? DEFAULT_TIMEOUT_MINUTES;
+        const budget = budgetMinutes ?? DEFAULT_TIMEOUT_MINUTES;
 
         await finishNodeTerminal(
           {

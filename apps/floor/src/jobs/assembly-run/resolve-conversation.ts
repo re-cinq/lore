@@ -57,10 +57,12 @@ async function rewindTarget(
   }
   const lines = await deps.linesForTask(from);
 
-  // The newest line for that task: a retried round ran more than one, and the last
-  // is the attempt whose state the author actually saw.
+  // The newest line for that task: a retried round ran more than one, and the
+  // newest is the attempt whose state the author actually saw. `listForTask`
+  // orders created_at DESC, so that attempt is the FIRST element — reading the
+  // last one resumed the oldest attempt, the one a retry had already superseded.
   return lines.length
-    ? { assemblyLineId: lines[lines.length - 1] }
+    ? { assemblyLineId: lines[0] }
     : { assemblyLineId: NO_SUCH_LINE };
 }
 

@@ -517,25 +517,25 @@ cooperation. ([validated by `session-tracker.test.ts:193`](libs/server-core/src/
 
 The system MUST support an opt-in, webhook-driven autonomous review loop per
 repo with a safety-net cron (ADR-015; the review agent runs on the
-ai-agent-subsystem per ADR-031). ([validated by `code-review.test.ts:91`](apps/floor/src/jobs/review/code-review.test.ts#L91))
+ai-agent-subsystem per ADR-031). ([validated by `code-review.test.ts:91`](apps/floor/src/jobs/review/code-review.test.ts#L100))
 
 - FR-13.1: After an implementation PR is created, an auto-review is started on
   the ai-agent-subsystem when `auto_review` is enabled on the repo (ADR-031
-  retired the loretask-watcher). ([validated by `should-auto-review.test.ts:5`](apps/floor/src/jobs/review/should-auto-review.test.ts#L5), [`code-review.test.ts:91`](apps/floor/src/jobs/review/code-review.test.ts#L91))
+  retired the loretask-watcher). ([validated by `should-auto-review.test.ts:5`](apps/floor/src/jobs/review/should-auto-review.test.ts#L5), [`code-review.test.ts:91`](apps/floor/src/jobs/review/code-review.test.ts#L100))
 - FR-13.2: The review agent reads spec + conventions and posts ONE formal PR
   review — inline comments per finding plus a summary, carrying the verdict as its
   GitHub review event (`APPROVE` / `REQUEST_CHANGES`, always on, no longer a neutral comment). ([validated by `post-review.test.ts:78`](apps/floor/src/jobs/review/post-review.test.ts#L78), [`post-review.test.ts:178`](apps/floor/src/jobs/review/post-review.test.ts#L178))
 - FR-13.3: On a formal `APPROVE` the PR becomes eligible for (auto-)merge once the
   remaining gates pass; auto-merge reads the bot's latest review, so a later push's re-check verdict supersedes the earlier one. ([validated by `post-review.test.ts:178`](apps/floor/src/jobs/review/post-review.test.ts#L178), [`auto-merge.test.ts:32`](apps/floor/src/jobs/merge/auto-merge.test.ts#L32))
 - FR-13.4: When changes are requested, a follow-up round is started on the same
-  branch carrying the feedback (the code-review-reply path). ([validated by `code-review.test.ts:113`](apps/floor/src/jobs/review/code-review.test.ts#L113))
+  branch carrying the feedback (the code-review-reply path). ([validated by `code-review.test.ts:113`](apps/floor/src/jobs/review/code-review.test.ts#L122))
 - FR-13.5: After further iterations the loop escalates to human review via a
   `needs-human-help` Issue, with no further autonomous iterations. ([validated by opens the issue and carries its url forward for the notify step](apps/stations/src/stations/escalation-step/escalation-step.test.ts#L27), [`escalation-line.test.ts:45`](libs/assembly-lines/src/escalation-line.test.ts#L45))
 - FR-13.6: The primary trigger is GitHub webhooks (ADR-015): the Floor webhook
   ingress maps qualifying `pull_request`, `pull_request_review`, and PR
   `issue_comment` events to the code-review choreography, which starts or
   replies on a code-review assembly line; bot-authored events are skipped as a
-  loop guard. ([validated by `code-review.test.ts:91`](apps/floor/src/jobs/review/code-review.test.ts#L91), [`code-review.test.ts:242`](apps/floor/src/jobs/review/code-review.test.ts#L242))
+  loop guard. ([validated by `code-review.test.ts:91`](apps/floor/src/jobs/review/code-review.test.ts#L100), [`code-review.test.ts:242`](apps/floor/src/jobs/review/code-review.test.ts#L251))
 - FR-13.7: **Safety-net cron** fires at `7 7-17 * * 1-5` (UTC,
   Mon-Fri) to catch dropped webhook deliveries. Cron-triggered runs
   are gated by `isBusinessHours()` (default: Europe/Berlin, 09:00-18:00

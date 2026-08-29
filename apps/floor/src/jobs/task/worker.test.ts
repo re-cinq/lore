@@ -176,7 +176,7 @@ describe("recoverStaleTasks", () => {
   const NOW = Date.UTC(2026, 5, 30, 12, 0, 0);
   const OLD = new Date(NOW - 31 * 60_000).toISOString();
 
-  it("recovers stale non-implementation tasks and skips CRD-managed implementation tasks", async () => {
+  it("recovers every stale task with no open line, implementation included", async () => {
     const queue = new InMemoryTaskQueue(
       [
         {
@@ -216,8 +216,17 @@ describe("recoverStaleTasks", () => {
       hasOpenLine: async () => false,
     });
 
-    expect(recovered).toBe(2);
-    expect(setStatus.mock.calls.map((c) => c[0])).toEqual(["task-2", "task-4"]);
+    // `implementation` used to be skipped here, citing the LoreTask CRD watcher
+    // that ADR-031 deleted. The open-line check below is what actually protects a
+    // line-backed task, so the type carve-out only stranded an implementation
+    // task whose line had already died — running forever, swept every tick.
+    expect(recovered).toBe(4);
+    expect(setStatus.mock.calls.map((c) => c[0])).toEqual([
+      "task-1",
+      "task-2",
+      "task-3",
+      "task-4",
+    ]);
     expect(setStatus).toHaveBeenCalledWith("task-2", "pending");
     expect(insertEvent).toHaveBeenCalledWith("task-4", "running", "pending", {
       reason: "crash-recovery",
