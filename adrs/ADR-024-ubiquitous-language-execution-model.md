@@ -143,8 +143,11 @@ and lose the update; no `resourceVersion` ever crosses the wire.
 - *(Removed 2026-08-30: `POST /api/cluster/per-task-tokens` and its route-level
   "provisions in one call" test are gone — every launch is a claim now (#1651),
   so provisioning runs in-process through `KubeTokenProvisioner.provision`
-  directly; the reclaim half, `DELETE /per-task-tokens/{taskId}`, is unaffected
-  and stays a route.)*
+  directly; the reclaim half stays a route.)*
+- `DELETE /api/cluster/per-task-tokens/{taskId}` reclaims a terminal task's
+  Secret key and catalog clones — the one per-task-token operation that stays
+  a route, since a settled task's cleanup runs from the Floor, not the cluster
+  that provisioned. ([validated by reclaims a task's token and catalog clones](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L217))
 - One call also means one OUTCOME: a provision whose recipe pair fails to land
   takes back everything it had already provisioned — the Secret key AND any
   catalog object that landed before the failure — before it throws. `cleanup`
