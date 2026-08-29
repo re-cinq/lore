@@ -146,11 +146,13 @@ and lose the update; no `resourceVersion` ever crosses the wire.
   network; the cost accepted is that the App private key lives in the agent.
   ([validated by provisions in one call — catalog read, mint, secret write and clone together](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L162), [`cluster.test.ts:173`](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L173), [`cluster.test.ts:263`](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L263))
 - One call also means one OUTCOME: a provision whose recipe pair fails to land
-  takes its token back out of the shared Secret before it throws. `cleanup` runs
-  off a task reaching a terminal state, and a task whose pod was never created
-  may never reach one — so the key would outlive the launch it was minted for,
-  as both a live credential nobody uses and a row in the accumulation that once
-  took `agent-secrets` past its 1MiB ceiling. ([validated by leaves no token behind when the recipe pair cannot be applied](apps/cluster-agent/src/kernel/kube-token-provisioner.test.ts#L82), [`kube-token-provisioner.test.ts:99`](apps/cluster-agent/src/kernel/kube-token-provisioner.test.ts#L99))
+  takes back everything it had already provisioned — the Secret key AND any
+  catalog object that landed before the failure — before it throws. `cleanup`
+  runs off a task reaching a terminal state, and a task whose pod was never
+  created may never reach one — so a partial triple would outlive the launch it
+  was minted for: a live credential nobody uses, a row in the accumulation that
+  once took `agent-secrets` past its 1MiB ceiling, or a recipe pointing at a
+  token that reclaim already removed. ([validated by leaves no token or AgentDefinition behind when applyStation fails](apps/cluster-agent/src/kernel/kube-token-provisioner.test.ts#L92), [`kube-token-provisioner.test.ts:115`](apps/cluster-agent/src/kernel/kube-token-provisioner.test.ts#L115), [`kube-token-provisioner.test.ts:137`](apps/cluster-agent/src/kernel/kube-token-provisioner.test.ts#L137))
 - A catalog pair is applied in one call, so create-409-replace cannot be split.
   ([validated by applies a catalog pair in one call, so create-409-replace cannot be split](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L187), [`cluster.test.ts:274`](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L274), [`cluster.test.ts:285`](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L285), [`cluster.test.ts:304`](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L304))
 - The log tail is clamped by the AGENT, because the Floor's clamp no longer

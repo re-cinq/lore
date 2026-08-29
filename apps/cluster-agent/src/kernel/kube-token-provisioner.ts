@@ -89,18 +89,29 @@ export class KubeTokenProvisioner implements TokenProvisioner, TokenCleanup {
         perTaskStation(catalogStation, name, name, spec.taskId),
       );
     } catch (err) {
-      // The key outlives the launch that failed unless it is taken back here:
-      // `cleanup` runs off a task reaching a terminal state, and a task whose
-      // pod was never created may never reach one. A per-task GitHub token left
-      // in a shared Secret is both a live credential nobody is using and a row
-      // in the accumulation that once took `agent-secrets` past 1MiB.
-      await this.secrets
-        .deleteKey(this.secretName, key)
-        .catch((cleanupErr: unknown) =>
+      // Everything provisioned so far outlives the launch that failed unless it
+      // is taken back here — not only the Secret key. applyAgentDefinition can
+      // have already landed when applyStation throws, leaving a recipe pointing
+      // at a token the key delete is about to remove. Reclaims the same triple
+      // `cleanup(taskId)` does, but — unlike cleanup, whose Promise.allSettled
+      // discards its results because a terminal task's cleanup has no one left
+      // to tell — warns per failure: a token stuck here is a live credential
+      // nobody is using, and a row in the accumulation that once took
+      // `agent-secrets` past 1MiB.
+      const reclaim: Array<[string, Promise<void>]> = [
+        [key, this.secrets.deleteKey(this.secretName, key)],
+        [name, this.catalog.deleteStation(name)],
+        [name, this.catalog.deleteAgentDefinition(name)],
+      ];
+      const settled = await Promise.allSettled(reclaim.map(([, p]) => p));
+
+      settled.forEach((result, i) => {
+        if (result.status === "rejected") {
           console.warn(
-            `[cluster-agent] could not reclaim ${key} after a failed provision: ${errorMessage(cleanupErr)}`,
-          ),
-        );
+            `[cluster-agent] could not reclaim ${reclaim[i][0]} after a failed provision: ${errorMessage(result.reason)}`,
+          );
+        }
+      });
       throw err;
     }
 
