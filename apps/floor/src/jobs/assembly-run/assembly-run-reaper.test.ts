@@ -1091,3 +1091,46 @@ edges:
     expect(configAlerts).toEqual([{ repo: "o/r", nodeType: "agent" }]);
   });
 });
+
+describe("a claimed single-CR visit the sweep must NOT own", () => {
+  it("leaves a claimed single-CR visit alone past its budget, because the watcher settles it", async () => {
+    // decideNodeRecovery answers `timeout` for a claimed, CR-invisible row once
+    // the default 60m budget passes. The single-CR arm deliberately acts on two
+    // kinds only, so this row is left for the terminal event the watcher hears —
+    // acting on it here would race that event and could fail a run that had in
+    // fact just succeeded.
+    const h = harness();
+    const singleCr = await h.port.start({
+      blueprintName: "runbook",
+      repo: "o/r",
+      taskId: "task-1",
+    });
+
+    await h.port.markRunning(singleCr);
+    const { nodeRowId } = await h.port.ensureStationRun({
+      assemblyRunId: singleCr,
+      nodeId: "agent",
+      iteration: 1,
+      status: "queued",
+      requiredTags: [],
+      dispatchSpec: { taskId: "task-1" },
+    });
+
+    await h.port.claimNextStationRun({
+      clusterAgentId: "some-cluster",
+      tags: [],
+    });
+    const node = h.port.nodes.find((n) => n.id === nodeRowId)!;
+
+    // Well past the 60m default budget, on the claim clock.
+    node.claimedAt = new Date(Date.now() - 24 * 60 * 60_000);
+    h.taskStatusById["task-1"] = "running";
+    await assemblyLineReaperJob(h.deps);
+
+    expect(h.port.nodes.find((n) => n.id === nodeRowId)).toMatchObject({
+      status: "claimed",
+      outcome: null,
+    });
+    expect(await h.port.getById(singleCr)).toMatchObject({ status: "running" });
+  });
+});
