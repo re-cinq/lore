@@ -27,6 +27,7 @@ import {
   resumeDecomposition,
 } from "@re-cinq/lore-shared/project/assembly-runs/decompose-resume.js";
 import type { EventHandler } from "../main-loop/types.js";
+import { dispatchTypeFromLabels } from "@re-cinq/lore-shared/task-types/dispatch-labels.js";
 
 /** Resolve the backing pipeline task for a PR and re-evaluate auto-merge (no-op if none). */
 async function autoMergeForPR(repo: string, prNumber: number): Promise<void> {
@@ -92,15 +93,10 @@ export const issuesLabeled: EventHandler = async (params) => {
     return;
   } // not the dispatch label → no-op
 
-  let taskType = dispatchDefaultType;
-
-  if (issue.labels.includes("lore:implementation")) {
-    taskType = "implementation";
-  } else if (issue.labels.includes("lore:review")) {
-    taskType = "review";
-  } else if (issue.labels.includes("lore:runbook")) {
-    taskType = "runbook";
-  }
+  // The same table onboarding seeds the repo from — a label a repo is GIVEN and
+  // a label this reader UNDERSTANDS have to be one declaration, or a seeded
+  // label silently dispatches as the repo's default type instead.
+  const taskType = dispatchTypeFromLabels(issue.labels) ?? dispatchDefaultType;
 
   const issues = (await projectFor(repo)).issues;
   const existing = await pipeline().taskQueue.activeTaskByIssue(

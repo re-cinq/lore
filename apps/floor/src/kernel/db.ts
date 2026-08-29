@@ -4,11 +4,13 @@
 // three services had produced a byte-identical copy of it, which is one copy
 // past the point where duplication is cheaper than a seam.
 //
-// What stays here is the pair below. `query`/`queryOne` are the Floor's last
-// inline-SQL escape hatch, kept because a handful of knowledge reads have not
-// moved behind a port yet (see "Floor data access" above). They are deliberately
-// NOT shared: giving every service this hatch would invite the next one to
-// reach through it, and the ports exist so it does not have to.
+// What stays here is `query`, the Floor's last inline-SQL escape hatch, kept
+// because a handful of knowledge reads have not moved behind a port yet (see
+// "Floor data access" above). It is deliberately NOT shared: giving every
+// service this hatch would invite the next one to reach through it, and the
+// ports exist so it does not have to. (There used to be a `queryOne` beside it
+// with no callers at all — an advertised hatch nobody used, which only made the
+// remaining migration look larger than it is.)
 
 export {
   getPool,
@@ -26,13 +28,4 @@ export async function query<T = Record<string, unknown>>(
   const { rows } = await getPool().query(text, params);
 
   return rows as T[];
-}
-
-export async function queryOne<T = Record<string, unknown>>(
-  text: string,
-  params?: unknown[],
-): Promise<T | null> {
-  const rows = await query<T>(text, params);
-
-  return rows[0] || null;
 }

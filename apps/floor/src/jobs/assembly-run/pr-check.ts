@@ -17,6 +17,10 @@ import type {
 import type { CheckRunInput } from "@re-cinq/lore-shared/project/lib/github-port.js";
 import { writeAuditLog } from "../lib/audit.js";
 import { isFailureOutcome } from "./notify-failure.js";
+import {
+  isReviewDefinition,
+  REVIEW_RERUN_HINT,
+} from "@re-cinq/lore-shared/review/review-definitions.js";
 
 /** The repo-bound surface the publisher writes through (project.repo). */
 export interface CheckPublisher {
@@ -79,10 +83,9 @@ function terminal(
   // (failed, error, iteration_max, ...) publishes a red check.
   if (isFailureOutcome(line.outcome ?? "")) {
     const why = line.reason ? ` — ${line.reason}` : "";
-    const rerunHint =
-      line.blueprintName === "code-review"
-        ? " Comment `@lore review` to re-run."
-        : "";
+    const rerunHint = isReviewDefinition(line.blueprintName)
+      ? ` ${REVIEW_RERUN_HINT}`
+      : "";
 
     return {
       conclusion: "failure",

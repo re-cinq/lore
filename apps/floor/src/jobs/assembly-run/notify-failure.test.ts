@@ -83,15 +83,37 @@ describe("failureNotice", () => {
     expect(notice.prComment).toContain("@lore review");
   });
 
-  it("omits the re-run hint for non-review definitions", () => {
+  it("omits the re-run hint for an implementation line", () => {
     const notice = failureNotice(
-      lineRow({ blueprintName: "comment-triage" }),
+      lineRow({ blueprintName: "implementation" }),
       "error",
       undefined,
       undefined,
     );
 
     expect(notice.prComment).not.toContain("@lore review");
+  });
+
+  it("carries the re-run hint on every line of the review family", () => {
+    // It used to be gated on `code-review` alone, so a failed recheck, reply or
+    // triage told the human nothing — and a recheck publishes under the
+    // `lore/code-review` check name, so its red check bore the review's own name
+    // and still said nothing about how to re-run it.
+    for (const blueprintName of [
+      "code-review",
+      "code-review-recheck",
+      "code-review-reply",
+      "comment-triage",
+    ]) {
+      const notice = failureNotice(
+        lineRow({ blueprintName }),
+        "error",
+        undefined,
+        undefined,
+      );
+
+      expect(notice.prComment).toContain("@lore review");
+    }
   });
 
   it("yields no PR comment for a line without a pr_number", () => {

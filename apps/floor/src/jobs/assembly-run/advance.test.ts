@@ -1186,8 +1186,8 @@ describe("a node finishing reaches its follow-up from every door", () => {
     const { deps } = makeDeps(port);
     const seen: Array<{ nodeId: string; result: NodeResult }> = [];
 
-    deps.onNodeFinished = async (_row, nodeId, result) => {
-      seen.push({ nodeId, result });
+    deps.onNodeFinished = async (_row, node, result) => {
+      seen.push({ nodeId: node.id, result });
     };
 
     await advanceLine(id, deps);
@@ -1215,8 +1215,8 @@ describe("a node finishing reaches its follow-up from every door", () => {
     const { deps } = makeDeps(port);
     const seen: string[] = [];
 
-    deps.onNodeFinished = async (_row, nodeId) => {
-      seen.push(nodeId);
+    deps.onNodeFinished = async (_row, node) => {
+      seen.push(node.id);
     };
 
     await advanceLine(id, deps);
@@ -1639,5 +1639,35 @@ describe("a losing finisher's once-only side effects", () => {
     await finishLine(row, "error", "late racer", deps);
 
     expect(episodes).toEqual([{ outcome: "completed", reason: undefined }]);
+  });
+});
+
+describe("what the node-finished reaction is told about the node", () => {
+  it("hands over the node's type, so a reaction need not match its id by string", async () => {
+    // routeCommentTriage used to compare the definition name AND the node id as
+    // literals, so renaming the node in comment-triage.yaml — or reusing a triage
+    // node on another definition — left `extras.action` unread: the walk finished
+    // green and the human's comment was silently never routed.
+    const port = new InMemoryAssemblyRuns();
+    const id = await runningLine(port);
+    const { deps } = makeDeps(port);
+    const seen: Array<{ id: string; type: string }> = [];
+
+    deps.onNodeFinished = async (_row, node) => {
+      seen.push({ id: node.id, type: node.type });
+    };
+
+    await advanceLine(id, deps);
+    await finishNodeAndAdvance(
+      {
+        assemblyLineId: id,
+        nodeId: "review",
+        iteration: 1,
+        result: { outcome: "success" },
+      },
+      deps,
+    );
+
+    expect(seen).toEqual([{ id: "review", type: "agent" }]);
   });
 });
