@@ -99,7 +99,7 @@ export async function registerOnce(
   deps: RegisterDeps,
 ): Promise<ClusterAgentIdentity | null> {
   try {
-    return await registerOrExplain(deps);
+    return await attemptRegistration(deps);
   } catch (err) {
     console.warn(
       `[cluster-agent] registration of ${deps.config.name} failed: ${errorMessage(err)}`,
@@ -109,7 +109,9 @@ export async function registerOnce(
   }
 }
 
-async function registerOrExplain(
+/** One attempt, which may throw: `registerOnce` is the wrapper that promises it
+ *  never does. Returns null for a refusal the caller should simply retry. */
+async function attemptRegistration(
   deps: RegisterDeps,
 ): Promise<ClusterAgentIdentity | null> {
   const { config, store } = deps;

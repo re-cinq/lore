@@ -337,6 +337,27 @@ describe("registerOnce never throws", () => {
     expect(calls).toEqual([]);
   });
 
+  it("keeps the persisted identity when only the telemetry publish fails", async () => {
+    // The store is written BEFORE the credential is published, so this attempt
+    // answers null while the identity is already saved. That is the recovery
+    // path, not a leak: the next attempt presents it as `current_token`, the
+    // server recognises the holder, and the publish is retried.
+    const { fetchFn } = fakeFetch([
+      jsonResponse(200, { id: "id-1", token: "tok-1" }),
+    ]);
+    const store = new InMemoryIdentityStore();
+
+    expect(
+      await registerOnce({
+        config,
+        store,
+        fetchFn,
+        publishTelemetryCredential: () => Promise.reject(new Error("EROFS")),
+      }),
+    ).toBeNull();
+    expect(await store.load()).toEqual({ id: "id-1", token: "tok-1" });
+  });
+
   it("returns null when the minted identity cannot be persisted", async () => {
     const { fetchFn } = fakeFetch([
       jsonResponse(200, { id: "id-1", token: "tok-1" }),

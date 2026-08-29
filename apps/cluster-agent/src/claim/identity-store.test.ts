@@ -107,6 +107,16 @@ describe("identityStoreConfig", () => {
     });
   });
 
+  it("takes the key from LORE_CLUSTER_AGENT_IDENTITY_KEY when one is named", () => {
+    expect(
+      identityStoreConfig({
+        LORE_CLUSTER_AGENT_IDENTITY_SECRET: "lore-cluster-agent-identity",
+        LORE_CLUSTER_AGENT_IDENTITY_NAMESPACE: "lore-cluster-agent",
+        LORE_CLUSTER_AGENT_IDENTITY_KEY: "satellite.json",
+      }),
+    ).toMatchObject({ key: "satellite.json" });
+  });
+
   it("refuses to boot when the Secret is named but its namespace is not", () => {
     expect(() =>
       identityStoreConfig({

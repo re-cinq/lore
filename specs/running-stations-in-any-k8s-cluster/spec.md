@@ -108,12 +108,12 @@ A new `pipeline.cluster_agents` table is the registry of execution clusters.
   and retried. A throw here has no catch above it — `pollUntil` ends, the boot
   registrant dies, and the pod goes on answering `/healthz` 200 while claiming
   nothing; through the shared re-registration the same throw ends the claim
-  loop, the heartbeat loop or the proxy's drain instead. ([validated by returns null when a 200 carries a body that is not JSON](apps/cluster-agent/src/claim/registration.test.ts#L307), [`registration.test.ts:321`](apps/cluster-agent/src/claim/registration.test.ts#L321), [`registration.test.ts:329`](apps/cluster-agent/src/claim/registration.test.ts#L329), [`registration.test.ts:340`](apps/cluster-agent/src/claim/registration.test.ts#L340))
+  loop, the heartbeat loop or the proxy's drain instead. ([validated by `registration.test.ts:307`](apps/cluster-agent/src/claim/registration.test.ts#L307), [`registration.test.ts:321`](apps/cluster-agent/src/claim/registration.test.ts#L321), [`registration.test.ts:329`](apps/cluster-agent/src/claim/registration.test.ts#L329), [`registration.test.ts:340`](apps/cluster-agent/src/claim/registration.test.ts#L340), [`registration.test.ts:361`](apps/cluster-agent/src/claim/registration.test.ts#L361))
 - Which identity store to use is decided at boot, beside the registration
   triple: a Secret named without its namespace refuses to start, naming the
   variable. Resolved later — inside the registrant's promise — the same
   misconfiguration was one log line behind a green probe, which is the
-  unregistered mode the refusal above exists to abolish. ([validated by chooses the file store when no identity Secret is named](apps/cluster-agent/src/claim/identity-store.test.ts#L90), [`identity-store.test.ts:96`](apps/cluster-agent/src/claim/identity-store.test.ts#L96), [`identity-store.test.ts:110`](apps/cluster-agent/src/claim/identity-store.test.ts#L110))
+  unregistered mode the refusal above exists to abolish. ([validated by chooses the file store when no identity Secret is named](apps/cluster-agent/src/claim/identity-store.test.ts#L90), [`identity-store.test.ts:96`](apps/cluster-agent/src/claim/identity-store.test.ts#L96), [`identity-store.test.ts:110`](apps/cluster-agent/src/claim/identity-store.test.ts#L110), [`identity-store.test.ts:120`](apps/cluster-agent/src/claim/identity-store.test.ts#L120))
 - Registration is idempotent on `name` — but only for the identity holder:
   re-registering an existing name **with the current per-agent bearer token**
   rotates the token and updates `tags` and `cluster_info`. Re-registering a
