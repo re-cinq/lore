@@ -166,11 +166,6 @@ export type AssemblyRunRecord = AssemblyRun;
 export type AssemblyRunSummary = Omit<AssemblyRunRecord, "graph">;
 
 /**
- * `pipeline.assembly_runs` + `pipeline.station_runs` — first-class
- * identity for one assembly line execution (per attempt, unlike the task id
- * which is stable across retries) plus the per-node trace.
- */
-/**
  * One line closed by {@link AssemblyRunsPort.finishOpenByPr}, in the shape its
  * caller needs to reclaim what the line held: `taskId ?? id` is the key the
  * per-run GitHub token and AgentDefinition/Station triple are filed under.
@@ -180,6 +175,11 @@ export interface ClosedRunRef {
   taskId: string | null;
 }
 
+/**
+ * `pipeline.assembly_runs` + `pipeline.station_runs` — first-class
+ * identity for one assembly line execution (per attempt, unlike the task id
+ * which is stable across retries) plus the per-node trace.
+ */
 export interface AssemblyRunsPort {
   /**
    * Mint a fresh assemblyLineId, persist the row (status `queued`), and insert

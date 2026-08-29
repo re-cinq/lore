@@ -87,6 +87,10 @@ export async function staleTaskCheckJob(
 function productionDeps(): StaleTaskCheckDeps {
   return {
     findStaleRunning: (hours) => pipeline().taskQueue.findStaleRunning(hours),
+    // The same read `recoverStaleTasks` binds, deliberately duplicated: "open =
+    // queued or running" is spelled out at a dozen sites across the Floor and
+    // shared, so single-sourcing it here would leave eleven copies and a helper
+    // reachable from two. It is one sweep or none.
     hasOpenLine: async (taskId) =>
       (await pipeline().assemblyRuns.listForTask(taskId)).some(
         (line) => line.status === "running" || line.status === "queued",

@@ -271,6 +271,13 @@ export async function startReview(
   // `start` on a subject is start-or-JOIN and answers with an id either way, so it
   // cannot tell us which happened. Ask first: whatever is open on this subject now
   // is what a join would hand back.
+  //
+  // Check-then-act, deliberately. Two triggers landing in the same instant can
+  // still both read "nothing open" and both announce — but the subject key means
+  // only ONE run exists either way, so the cost is a duplicate comment, not
+  // duplicate work. Closing it properly wants a join signal from the port
+  // (`start` answering `{id, joined}`), which is worth doing when something needs
+  // to ACT on the difference; today only this message does.
   const alreadyOpen = await project.assemblyRuns.findOpenBySubject(subjectKey);
   const id = await project.assemblyRuns.start("code-review", {
     branch: pr.branch,
