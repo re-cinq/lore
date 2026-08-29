@@ -12,15 +12,14 @@ import {
   type PodSummary,
   type PodLogSource,
 } from "@re-cinq/lore-shared";
+import { GROUP, VERSION, AGENT_PLURAL as PLURAL } from "./crd.js";
+import { coreApi, customObjectsApi } from "./kube-clients.js";
 import { isNotFound } from "./k8s-errors.js";
 
 /** Pods belonging to a Job, by the label the Job controller stamps. */
 export function podSelectorForJob(jobName: string): string {
   return `job-name=${jobName}`;
 }
-
-import { GROUP, VERSION, AGENT_PLURAL as PLURAL } from "./crd.js";
-import { coreApi, customObjectsApi } from "./kube-clients.js";
 
 export class KubePodLogs implements PodLogSource {
   private namespace(): string {

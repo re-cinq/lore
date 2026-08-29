@@ -1,4 +1,3 @@
-import { errorMessage } from "@re-cinq/lore-shared";
 /**
  * The cluster-agent's registered identity — the `{id, token}` pair
  * `POST /api/cluster-agents/register` returns exactly once. Losing it means the
@@ -13,6 +12,7 @@ import { errorMessage } from "@re-cinq/lore-shared";
 import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { errorMessage } from "@re-cinq/lore-shared";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 
 export interface ClusterAgentIdentity {

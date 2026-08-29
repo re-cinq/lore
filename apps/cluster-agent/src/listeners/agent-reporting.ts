@@ -1,4 +1,3 @@
-import { errorMessage } from "@re-cinq/lore-shared";
 // What the watch DOES with a CR, separated from the connection that delivers it.
 //
 // The reconnect loop and the live `Watch` next door cannot be unit-tested
@@ -12,14 +11,17 @@ import { errorMessage } from "@re-cinq/lore-shared";
 // mapping — observe a CR, hand the event over — which is all an input should
 // decide.
 
+import { errorMessage } from "@re-cinq/lore-shared";
 import type { Agent as AgentCr } from "@re-cinq/agent-contracts";
 import { mapAgentToEvent } from "@re-cinq/lore-shared/project/events/k8s-map.js";
 import type { Emit } from "@re-cinq/lore-shared/project/events/event-input-port.js";
 import { forEachPage } from "@re-cinq/lore-shared/lib/paginate.js";
 import type { CustomObjectsApi } from "@kubernetes/client-node";
-
-export { GROUP, VERSION, AGENT_PLURAL as PLURAL } from "../kernel/crd.js";
 import { GROUP, VERSION, AGENT_PLURAL as PLURAL } from "../kernel/crd.js";
+
+// Re-exported: k8s-watch.ts reads the CRD identity through this module rather
+// than a second import from ../kernel/crd.js.
+export { GROUP, VERSION, PLURAL };
 
 const LIST_PAGE_LIMIT = 50;
 
