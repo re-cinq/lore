@@ -27,7 +27,6 @@ export interface ClusterAgentsRepository {
    * register route reports as the same 409 as any other taken name.
    */
   create(input: RegisterClusterAgentInput): Promise<ClusterAgent | null>;
-  /** Token rotation + capability update for a re-registering identity. */
   /** Update a live identity's tags, cluster info and token hash in place. The
    *  hash is normally the one it already carries — a re-registration by the
    *  holder keeps its credential (a rotation there cuts off its own running
