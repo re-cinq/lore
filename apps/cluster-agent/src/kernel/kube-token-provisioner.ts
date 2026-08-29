@@ -124,16 +124,28 @@ export class GithubTokenMinter implements TokenMinter {
   }
 }
 
-/** The two Secret calls the writer makes; a test fakes exactly this. */
+/**
+ * The two Secret calls the writer makes; a test fakes exactly this.
+ *
+ * `metadata` is part of the shape on purpose. The replace below sends the object
+ * it just read straight back, and the apiserver decides the optimistic-
+ * concurrency race on the `resourceVersion` inside it — so a fake that cannot
+ * carry one cannot express the very collision this writer's retry exists for.
+ */
+export interface SecretMutation {
+  metadata?: { resourceVersion?: string };
+  data?: Record<string, string>;
+}
+
 export interface SecretClient {
   readNamespacedSecret(args: {
     name: string;
     namespace: string;
-  }): Promise<{ data?: Record<string, string> }>;
+  }): Promise<SecretMutation>;
   replaceNamespacedSecret(args: {
     name: string;
     namespace: string;
-    body: { data?: Record<string, string> };
+    body: SecretMutation;
   }): Promise<unknown>;
 }
 export type SecretClientFactory = () => Promise<SecretClient>;

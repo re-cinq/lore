@@ -34,13 +34,22 @@ describe("KubeSecretKeyWriter", () => {
 
   function fakeCore(failures: Error[]) {
     const replaced: Array<Record<string, string>> = [];
+    const versions: string[] = [];
+    let version = 1;
     const core = {
-      readNamespacedSecret: async () => ({ data: { existing: "a2VlcA==" } }),
+      readNamespacedSecret: async () => ({
+        metadata: { resourceVersion: `${version++}` },
+        data: { existing: "a2VlcA==" },
+      }),
       replaceNamespacedSecret: async ({
         body,
       }: {
-        body: { data?: Record<string, string> };
+        body: {
+          metadata?: { resourceVersion?: string };
+          data?: Record<string, string>;
+        };
       }) => {
+        versions.push(body.metadata?.resourceVersion ?? "none");
         const failure = failures.shift();
 
         if (failure) {
@@ -50,11 +59,11 @@ describe("KubeSecretKeyWriter", () => {
       },
     };
 
-    return { core, replaced };
+    return { core, replaced, versions };
   }
 
   it("retries the replace when the lost race arrives as a prose-only 409", async () => {
-    const { core, replaced } = fakeCore([proseConflict]);
+    const { core, replaced, versions } = fakeCore([proseConflict]);
     const writer = new KubeSecretKeyWriter("ai-agents", async () => core);
 
     await writer.setKey("agent-secrets", "GH_TOKEN_t1", "ghs_x");
@@ -65,6 +74,9 @@ describe("KubeSecretKeyWriter", () => {
         GH_TOKEN_t1: Buffer.from("ghs_x").toString("base64"),
       },
     ]);
+    // The retry re-READ first: it sends the winner's resourceVersion, not the
+    // one it lost with. Replaying the stale version would lose the race forever.
+    expect(versions).toEqual(["1", "2"]);
   });
 
   it("gives up after five conflicts rather than spinning", async () => {
