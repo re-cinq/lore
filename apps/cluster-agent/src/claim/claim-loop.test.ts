@@ -4,6 +4,8 @@ import {
   CLAIM_MAX_IDLE_DELAY_MS,
   claimIntervalMs,
   claimOnce,
+  releaseClaim,
+  stopLatch,
   nextClaimDelay,
   runClaimLoop,
   type ClaimOutcome,
@@ -173,14 +175,34 @@ describe("claimOnce", () => {
     });
   });
 
-  it("reports an error naming the station run when the launch throws", async () => {
-    const d = deps([jsonResponse(200, CLAIM_BODY)], () =>
-      Promise.reject(new Error("apiserver unreachable")),
+  it("hands the visit back and reports an error when the launch throws", async () => {
+    const d = deps(
+      [
+        jsonResponse(200, CLAIM_BODY),
+        jsonResponse(200, { status: "requeued" }),
+      ],
+      () => Promise.reject(new Error("apiserver unreachable")),
     );
 
     expect(await claimOnce(d.tick)).toEqual({
       kind: "error",
-      message: "launch failed for station run run-42: apiserver unreachable",
+      message:
+        "launch failed for station run run-42, visit handed back: apiserver unreachable",
+    });
+    expect(d.calls[1]?.url).toBe(
+      "https://lore-api.example.com/api/cluster-agents/agent-id-1/release",
+    );
+  });
+
+  it("reports already-running when the CR was already there", async () => {
+    const d = deps([jsonResponse(200, CLAIM_BODY)], () =>
+      Promise.resolve({ ref: "abc123def456-implement", launched: false }),
+    );
+
+    expect(await claimOnce(d.tick)).toEqual({
+      kind: "already-running",
+      stationRunId: "run-42",
+      crName: "abc123def456-implement",
     });
   });
 
@@ -272,5 +294,79 @@ describe("runClaimLoop", () => {
     await l.run();
 
     expect(l.sleeps).toEqual([15_000, 15_000]);
+  });
+});
+
+describe("releasing a claim the launch could not honour", () => {
+  const IDENTITY = { id: "agent-id-1", token: "per-agent-token" };
+
+  it("hands the visit back under the per-agent token, naming the cause", async () => {
+    const calls: Array<{ url: string; body: unknown }> = [];
+    const fetchFn = ((url: string, init: RequestInit) => {
+      calls.push({ url, body: JSON.parse(String(init.body)) });
+
+      return Promise.resolve({ ok: true, status: 200 } as Response);
+    }) as unknown as typeof fetch;
+
+    await releaseClaim({
+      apiUrl: "https://lore-api.example.com",
+      identity: () => IDENTITY,
+      nodeRowId: "412",
+      reason: "GitHub not configured",
+      fetchFn,
+    });
+
+    expect(calls).toEqual([
+      {
+        url: "https://lore-api.example.com/api/cluster-agents/agent-id-1/release",
+        body: { node_row_id: "412", reason: "GitHub not configured" },
+      },
+    ]);
+  });
+
+  it("swallows a refused release rather than ending the loop over it", async () => {
+    const fetchFn = (() =>
+      Promise.reject(new Error("connection reset"))) as unknown as typeof fetch;
+
+    await expect(
+      releaseClaim({
+        apiUrl: "https://lore-api.example.com",
+        identity: () => IDENTITY,
+        nodeRowId: "412",
+        reason: "boom",
+        fetchFn,
+      }),
+    ).resolves.toBeUndefined();
+  });
+});
+
+describe("stopLatch", () => {
+  it("keeps running until stopped", () => {
+    const latch = stopLatch();
+
+    expect(latch.running()).toBe(true);
+    latch.stop();
+    expect(latch.running()).toBe(false);
+  });
+
+  it("ends the claim loop after the tick in flight when shutdown stops it", async () => {
+    const latch = stopLatch();
+    const claimed: string[] = [];
+
+    await runClaimLoop({
+      claim: () => {
+        claimed.push("tick");
+
+        return Promise.resolve<ClaimOutcome>({ kind: "empty" });
+      },
+      reRegister: () => Promise.resolve(null),
+      sleep: () => Promise.resolve(),
+      baseDelayMs: 15_000,
+      running: latch.running,
+      log: () => {},
+      onOutcome: () => latch.stop(),
+    });
+
+    expect(claimed).toEqual(["tick"]);
   });
 });

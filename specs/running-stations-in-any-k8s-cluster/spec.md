@@ -208,12 +208,31 @@ one dispatch mechanism, not a special case plus a remote case.
   `enable_cluster_agent_registration` terraform gate are deleted with it —
   a flag whose false value is a silently broken factory is not a choice.)*
   ([validated by refuses to boot when LORE_API_URL is unset, naming it](apps/cluster-agent/src/claim/registration.test.ts#L45), [`registration.test.ts:52`](apps/cluster-agent/src/claim/registration.test.ts#L51), [`registration.test.ts:61`](apps/cluster-agent/src/claim/registration.test.ts#L60), [`registration.test.ts:67`](apps/cluster-agent/src/claim/registration.test.ts#L66))
+- A claim the agent then fails to LAUNCH is handed back:
+  `POST /api/cluster-agents/{id}/release` requeues that visit on the same row,
+  naming the cause. The claim CASes the row to `claimed` before any pod exists,
+  so a launch that throws — a recipe the catalog does not hold, a mint refused,
+  a Secret write that lost its race — leaves a claimed row with nothing behind
+  it. Unsaid, that row waits: centrally for the reaper to notice a missing CR,
+  and on a satellite, whose CRs the centre cannot see, for the whole node
+  budget. It requeues rather than fails because the cause is usually about the
+  cluster that claimed, and another may launch it; a row that keeps coming back
+  is for the queue-wait bound to end. ([validated by requeues the visit a claimant could not launch](apps/lore-api/src/api/routes/cluster-agents/release.test.ts#L39), [`release.test.ts:52`](apps/lore-api/src/api/routes/cluster-agents/release.test.ts#L52), [`release.test.ts:65`](apps/lore-api/src/api/routes/cluster-agents/release.test.ts#L65), [`release.test.ts:73`](apps/lore-api/src/api/routes/cluster-agents/release.test.ts#L73), [`release.test.ts:87`](apps/lore-api/src/api/routes/cluster-agents/release.test.ts#L87), [hands the visit back under the per-agent token, naming the cause](apps/cluster-agent/src/claim/claim-loop.test.ts#L303), [`claim-loop.test.ts:327`](apps/cluster-agent/src/claim/claim-loop.test.ts#L327))
+- A claim whose CR ALREADY EXISTS is not a fresh launch. A requeued visit
+  converges on the name its previous attempt used, and that attempt's CR may
+  still be standing — its terminal event has already been consumed, so nothing
+  further will settle the row. The claimant reports the two apart rather than
+  logging a launch that did not happen. ([validated by reports already-running when the CR was already there](apps/cluster-agent/src/claim/claim-loop.test.ts#L197))
+- Shutdown stops claiming before it waits for anything else. A claim that lands
+  during the drain is a visit recorded as claimed by an agent whose launch —
+  mint, Secret write, catalog clone, CR create — `process.exit` then cuts in the
+  middle, on every rollout, and the queue is busiest exactly when rollouts hurt. ([validated by keeps running until stopped](apps/cluster-agent/src/claim/claim-loop.test.ts#L344), [`claim-loop.test.ts:352`](apps/cluster-agent/src/claim/claim-loop.test.ts#L352))
 - Claim and heartbeat calls authenticate with the per-agent bearer token
-  issued at registration, like every other lore-api call the agent makes. ([validated by `claim.test.ts:50`](apps/lore-api/src/api/routes/cluster-agents/claim.test.ts#L50), [`claim.test.ts:60`](apps/lore-api/src/api/routes/cluster-agents/claim.test.ts#L60), [`claim.test.ts:69`](apps/lore-api/src/api/routes/cluster-agents/claim.test.ts#L69), [`claim-loop.test.ts:119`](apps/cluster-agent/src/claim/claim-loop.test.ts#L119), [`claim-loop.test.ts:164`](apps/cluster-agent/src/claim/claim-loop.test.ts#L164), [`claim-loop.test.ts:170`](apps/cluster-agent/src/claim/claim-loop.test.ts#L170), [`claim-loop.test.ts:244`](apps/cluster-agent/src/claim/claim-loop.test.ts#L258))
+  issued at registration, like every other lore-api call the agent makes. ([validated by `claim.test.ts:50`](apps/lore-api/src/api/routes/cluster-agents/claim.test.ts#L50), [`claim.test.ts:60`](apps/lore-api/src/api/routes/cluster-agents/claim.test.ts#L60), [`claim.test.ts:69`](apps/lore-api/src/api/routes/cluster-agents/claim.test.ts#L69), [`claim-loop.test.ts:119`](apps/cluster-agent/src/claim/claim-loop.test.ts#L121), [`claim-loop.test.ts:164`](apps/cluster-agent/src/claim/claim-loop.test.ts#L166), [`claim-loop.test.ts:170`](apps/cluster-agent/src/claim/claim-loop.test.ts#L172), [`claim-loop.test.ts:244`](apps/cluster-agent/src/claim/claim-loop.test.ts#L280))
 - A claim request with no matching queued run returns `204`. An idle agent
   backs its polling off (doubling to a 60 s ceiling, resetting on the first
   hit), so a fleet of quiet satellites costs the API a bounded trickle
-  rather than O(N) at the floor interval. ([validated by `claim.test.ts:78`](apps/lore-api/src/api/routes/cluster-agents/claim.test.ts#L78), [`claim.test.ts:136`](apps/lore-api/src/api/routes/cluster-agents/claim.test.ts#L136), [`claim-loop.test.ts:59`](apps/cluster-agent/src/claim/claim-loop.test.ts#L59), [`claim-loop.test.ts:63`](apps/cluster-agent/src/claim/claim-loop.test.ts#L63), [`claim-loop.test.ts:69`](apps/cluster-agent/src/claim/claim-loop.test.ts#L69), [`claim-loop.test.ts:77`](apps/cluster-agent/src/claim/claim-loop.test.ts#L77), [`claim-loop.test.ts:84`](apps/cluster-agent/src/claim/claim-loop.test.ts#L84), [`claim-loop.test.ts:88`](apps/cluster-agent/src/claim/claim-loop.test.ts#L88), [`claim-loop.test.ts:133`](apps/cluster-agent/src/claim/claim-loop.test.ts#L133), [`claim-loop.test.ts:230`](apps/cluster-agent/src/claim/claim-loop.test.ts#L244))
+  rather than O(N) at the floor interval. ([validated by `claim.test.ts:78`](apps/lore-api/src/api/routes/cluster-agents/claim.test.ts#L78), [`claim.test.ts:136`](apps/lore-api/src/api/routes/cluster-agents/claim.test.ts#L136), [`claim-loop.test.ts:59`](apps/cluster-agent/src/claim/claim-loop.test.ts#L61), [`claim-loop.test.ts:63`](apps/cluster-agent/src/claim/claim-loop.test.ts#L65), [`claim-loop.test.ts:69`](apps/cluster-agent/src/claim/claim-loop.test.ts#L71), [`claim-loop.test.ts:77`](apps/cluster-agent/src/claim/claim-loop.test.ts#L79), [`claim-loop.test.ts:84`](apps/cluster-agent/src/claim/claim-loop.test.ts#L86), [`claim-loop.test.ts:88`](apps/cluster-agent/src/claim/claim-loop.test.ts#L90), [`claim-loop.test.ts:133`](apps/cluster-agent/src/claim/claim-loop.test.ts#L135), [`claim-loop.test.ts:230`](apps/cluster-agent/src/claim/claim-loop.test.ts#L266))
 - The claim response carries the **complete `LoreTaskSpec`** the visit was
   enqueued with — the same object the push path handed the launch backend.
   The claiming cluster-agent materialises everything cluster-local itself:
@@ -225,7 +244,7 @@ one dispatch mechanism, not a special case plus a remote case.
   satellite run of one recipe differ; agent pods assemble their own through the
   live lore-mcp gateway), and the Agent CR is created under the exact CR name
   the Floor recorded on the station-run row — so no synced catalog is
-  required and no inbound push ever occurs. ([validated by `claim-loop.test.ts:139`](apps/cluster-agent/src/claim/claim-loop.test.ts#L139), [`claim-loop.test.ts:152`](apps/cluster-agent/src/claim/claim-loop.test.ts#L152), [`claim-loop.test.ts:176`](apps/cluster-agent/src/claim/claim-loop.test.ts#L176), [`claim-loop.test.ts:187`](apps/cluster-agent/src/claim/claim-loop.test.ts#L187), [`claim-loop.test.ts:194`](apps/cluster-agent/src/claim/claim-loop.test.ts#L194), [`claim-loop.test.ts:253`](apps/cluster-agent/src/claim/claim-loop.test.ts#L267), [`claim-loop.test.ts:200`](apps/cluster-agent/src/claim/claim-loop.test.ts#L200))
+  required and no inbound push ever occurs. ([validated by `claim-loop.test.ts:139`](apps/cluster-agent/src/claim/claim-loop.test.ts#L141), [`claim-loop.test.ts:152`](apps/cluster-agent/src/claim/claim-loop.test.ts#L154), [`claim-loop.test.ts:178`](apps/cluster-agent/src/claim/claim-loop.test.ts#L178), [`claim-loop.test.ts:187`](apps/cluster-agent/src/claim/claim-loop.test.ts#L209), [`claim-loop.test.ts:194`](apps/cluster-agent/src/claim/claim-loop.test.ts#L216), [`claim-loop.test.ts:253`](apps/cluster-agent/src/claim/claim-loop.test.ts#L289), [`claim-loop.test.ts:200`](apps/cluster-agent/src/claim/claim-loop.test.ts#L222))
 - Outcome reporting rides the existing path: the cluster-agent's watch
   reports terminal phases through the event-router front door with dedupe
   keys, and the central Floor's event loop advances the assembly line

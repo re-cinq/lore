@@ -24,7 +24,12 @@ import { KubeAgentApi } from "../kernel/kube-agent-api.js";
 import { kubeTokenProvisioner } from "../kernel/deps.js";
 import { KubeSecretKeyWriter } from "../kernel/kube-token-provisioner.js";
 import { writeAgentEventsAuth } from "./agent-events-secret.js";
-import { claimIntervalMs, claimOnce, runClaimLoop } from "./claim-loop.js";
+import {
+  claimIntervalMs,
+  claimOnce,
+  runClaimLoop,
+  stopLatch,
+} from "./claim-loop.js";
 import {
   heartbeatIntervalMs,
   heartbeatOnce,
@@ -62,6 +67,8 @@ async function runRegistrant(opts: {
    *  Agent-CR reporter can rotate the credential on a 401 the same way the
    *  claim and heartbeat loops do. */
   onReRegister: (reRegister: () => Promise<unknown>) => void;
+  /** Stops both loops; a shutdown flips it before the queue drains. */
+  running: () => boolean;
 }): Promise<void> {
   const {
     env,
@@ -70,6 +77,7 @@ async function runRegistrant(opts: {
     backend,
     publishTelemetryCredential,
     onReRegister,
+    running,
   } = opts;
   let identity: ClusterAgentIdentity = await registerWithBackoff({
     config,
@@ -113,6 +121,7 @@ async function runRegistrant(opts: {
     reRegister,
     sleep,
     intervalMs: heartbeatIntervalMs(env),
+    running,
   }).catch((err) => {
     console.error("[cluster-agent] heartbeat loop crashed:", err);
   });
@@ -127,6 +136,7 @@ async function runRegistrant(opts: {
     reRegister,
     sleep,
     baseDelayMs: claimIntervalMs(env),
+    running,
   });
 }
 
@@ -139,6 +149,10 @@ export interface StartClaimLoopOpts {
 }
 
 export interface ClaimLoopHandle {
+  /** Stop claiming. A claim that lands during a drain is a visit recorded as
+   *  claimed by an agent that is about to exit mid-launch, so the shutdown
+   *  flips this before it waits for anything else. */
+  stop: () => void;
   /** Rotates the per-agent token through the single-flight re-registration.
    *  Resolves null until this agent has registered once — a 401 before that is
    *  not a rotation, and the caller's plain retry is all there is to do. */
@@ -155,7 +169,9 @@ export function startClaimLoop(
   opts: StartClaimLoopOpts = {},
 ): ClaimLoopHandle {
   let reRegister: (() => Promise<unknown>) | null = null;
+  const latch = stopLatch();
   const handle: ClaimLoopHandle = {
+    stop: latch.stop,
     reRegister: () => reRegister?.() ?? Promise.resolve(null),
   };
 
@@ -197,6 +213,7 @@ export function startClaimLoop(
         onReRegister: (fn) => {
           reRegister = fn;
         },
+        running: latch.running,
       }),
     )
     .catch((err) => {

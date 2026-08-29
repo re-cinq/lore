@@ -153,6 +153,10 @@ async function main(): Promise<void> {
 
   const shutdown = async (signal: string): Promise<void> => {
     console.log(`[cluster-agent] ${signal} — shutting down`);
+    // FIRST, before anything that waits: a claim landing during the drain is a
+    // visit the API records as claimed by this agent, whose launch `exit` below
+    // then cuts in the middle — a claimed row with no CR, on every rollout.
+    claimLoop.stop();
     await stopServer();
 
     // Before exit, not after: `process.exit` would take the queue with it, and
