@@ -13,6 +13,7 @@ import {
   type PodSummary,
   type PodLogSource,
 } from "@re-cinq/lore-shared";
+import { isNotFound } from "./k8s-errors.js";
 
 /** Pods belonging to a Job, by the label the Job controller stamps. */
 export function podSelectorForJob(jobName: string): string {
@@ -66,9 +67,7 @@ export class KubePodLogs implements PodLogSource {
         jobName: obj.status?.jobName ?? null,
       };
     } catch (err) {
-      const e = err as { code?: number; response?: { statusCode?: number } };
-
-      if (e?.code === 404 || e?.response?.statusCode === 404) {
+      if (isNotFound(err)) {
         return null;
       }
       throw err;

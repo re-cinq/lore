@@ -12,6 +12,7 @@ import {
 } from "@re-cinq/lore-shared";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import type { TokenProvisioner } from "@re-cinq/lore-shared";
+import { isConflict, isNotFound } from "./k8s-errors.js";
 import {
   tokenSecretKey,
   perTaskName,
@@ -50,14 +51,6 @@ export interface CatalogApi {
 export interface TokenCleanup {
   cleanup(taskId: string): Promise<void>;
 }
-
-const statusOf = (err: unknown): number | undefined => {
-  const e = err as { code?: number; response?: { statusCode?: number } };
-
-  return e?.code ?? e?.response?.statusCode;
-};
-const isNotFound = (err: unknown): boolean => statusOf(err) === 404;
-const isConflict = (err: unknown): boolean => statusOf(err) === 409;
 
 export class KubeTokenProvisioner implements TokenProvisioner, TokenCleanup {
   constructor(
@@ -131,17 +124,38 @@ export class GithubTokenMinter implements TokenMinter {
   }
 }
 
+/** The two Secret calls the writer makes; a test fakes exactly this. */
+export interface SecretClient {
+  readNamespacedSecret(args: {
+    name: string;
+    namespace: string;
+  }): Promise<{ data?: Record<string, string> }>;
+  replaceNamespacedSecret(args: {
+    name: string;
+    namespace: string;
+    body: { data?: Record<string, string> };
+  }): Promise<unknown>;
+}
+export type SecretClientFactory = () => Promise<SecretClient>;
+
+const kubeSecretClient: SecretClientFactory = async () => {
+  const { KubeConfig, CoreV1Api: Api } =
+    await import("@kubernetes/client-node");
+  const kc = new KubeConfig();
+
+  loadKube(kc);
+
+  return kc.makeApiClient(Api);
+};
+
 export class KubeSecretKeyWriter implements SecretKeyWriter {
-  constructor(private readonly namespace = agentsNamespace()) {}
-
-  private async core() {
-    const { KubeConfig, CoreV1Api } = await import("@kubernetes/client-node");
-    const kc = new KubeConfig();
-
-    loadKube(kc);
-
-    return kc.makeApiClient(CoreV1Api);
-  }
+  /** Injectable so the conflict ladder below — the one that stayed dark
+   *  through the 2026-08-25 race because its classifier lived in a private
+   *  copy — can be driven without a cluster. */
+  constructor(
+    private readonly namespace = agentsNamespace(),
+    private readonly core: SecretClientFactory = kubeSecretClient,
+  ) {}
 
   setKey(secret: string, key: string, value: string): Promise<void> {
     return this.mutate(secret, (data) => {
