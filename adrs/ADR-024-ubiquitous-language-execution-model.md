@@ -123,14 +123,13 @@ and lose the update; no `resourceVersion` ever crosses the wire.
   match. A truncated list is worse than a failed one — it answers, and the
   caller acts on a subset it believes is complete.
   ([validated by returns every page's items, not just the first](libs/shared/src/cluster/cluster-agent-client.test.ts#L30), [`cluster-agent-client.test.ts:42`](libs/shared/src/cluster/cluster-agent-client.test.ts#L42), [`cluster-agent-client.test.ts:56`](libs/shared/src/cluster/cluster-agent-client.test.ts#L56), [`cluster-agent-client.test.ts:64`](libs/shared/src/cluster/cluster-agent-client.test.ts#L64))
-- The status subresource is patched in ONE call, so its read-modify-write
-  cannot be split across the network — and RETRIED on conflict, because keeping
-  the pair whole stops a caller splitting it but not the ai-agent controller
-  writing `status.phase` in between. The loser of that race merges its patch
-  onto the winner's status rather than overwriting it. ([validated by merges the patch onto the live status and replaces once](apps/cluster-agent/src/kernel/paired-writes.test.ts#L49), [`paired-writes.test.ts:62`](apps/cluster-agent/src/kernel/paired-writes.test.ts#L62), [`paired-writes.test.ts:73`](apps/cluster-agent/src/kernel/paired-writes.test.ts#L73), [`paired-writes.test.ts:82`](apps/cluster-agent/src/kernel/paired-writes.test.ts#L82), [`cluster.test.ts:115`](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L115), [`cluster.test.ts:208`](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L208), [`cluster.test.ts:220`](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L220))
+- *(Removed 2026-08-30: the status subresource route and `patchAgentStatus` are
+  gone — the watcher went cluster-blind and nothing calls it any more. The
+  read-modify-write conflict ladder this statement described no longer has
+  a caller to protect.)*
 - A catalog pair is written station-first and deleted station-last, so an
   AgentDefinition — the thing a dispatch looks up — is never visible pointing at
-  a station that does not exist. ([validated by writes the station before the agent definition that points at it](apps/cluster-agent/src/kernel/paired-writes.test.ts#L120), [`paired-writes.test.ts:128`](apps/cluster-agent/src/kernel/paired-writes.test.ts#L128), [`paired-writes.test.ts:147`](apps/cluster-agent/src/kernel/paired-writes.test.ts#L147))
+  a station that does not exist. ([validated by writes the station before the agent definition that points at it](apps/cluster-agent/src/kernel/paired-writes.test.ts#L35), [`paired-writes.test.ts:43`](apps/cluster-agent/src/kernel/paired-writes.test.ts#L43), [`paired-writes.test.ts:62`](apps/cluster-agent/src/kernel/paired-writes.test.ts#L62))
 - A refusal is read by its status, never collapsed: 404 is absence, 403 names
   the Role rule that is missing, anything else is a failure. ([validated by reads the code this client version sets](apps/cluster-agent/src/kernel/k8s-errors.test.ts#L13), [`k8s-errors.test.ts:17`](apps/cluster-agent/src/kernel/k8s-errors.test.ts#L17), [`k8s-errors.test.ts:21`](apps/cluster-agent/src/kernel/k8s-errors.test.ts#L21), [`k8s-errors.test.ts:25`](apps/cluster-agent/src/kernel/k8s-errors.test.ts#L25), [`k8s-errors.test.ts:31`](apps/cluster-agent/src/kernel/k8s-errors.test.ts#L31), [`k8s-errors.test.ts:38`](apps/cluster-agent/src/kernel/k8s-errors.test.ts#L38), [`k8s-errors.test.ts:47`](apps/cluster-agent/src/kernel/k8s-errors.test.ts#L47), [`k8s-errors.test.ts:59`](apps/cluster-agent/src/kernel/k8s-errors.test.ts#L59), [`k8s-errors.test.ts:69`](apps/cluster-agent/src/kernel/k8s-errors.test.ts#L69))
 - The status is read wherever this client puts it, including out of the message,
