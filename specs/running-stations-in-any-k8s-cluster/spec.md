@@ -377,7 +377,12 @@ that.
   written after EVERY successful registration, not only the first: a rotation
   mints a new token, and the pods' copy must never outlive it. A write
   failure is logged and swallowed — telemetry is not worth failing a
-  registration over. ([validated by `agent-events-secret.test.ts:25`](apps/cluster-agent/src/claim/agent-events-secret.test.ts#L25), [`agent-events-secret.test.ts:35`](apps/cluster-agent/src/claim/agent-events-secret.test.ts#L35), [`agent-events-secret.test.ts:49`](apps/cluster-agent/src/claim/agent-events-secret.test.ts#L49), [`registration.test.ts:195`](apps/cluster-agent/src/claim/registration.test.ts#L181), [`registration.test.ts:213`](apps/cluster-agent/src/claim/registration.test.ts#L199), [`registration.test.ts:234`](apps/cluster-agent/src/claim/registration.test.ts#L220))
+  registration over. ([validated by `agent-events-secret.test.ts:25`](apps/cluster-agent/src/claim/agent-events-secret.test.ts#L26), [`agent-events-secret.test.ts:35`](apps/cluster-agent/src/claim/agent-events-secret.test.ts#L36), [`agent-events-secret.test.ts:49`](apps/cluster-agent/src/claim/agent-events-secret.test.ts#L50), [`registration.test.ts:195`](apps/cluster-agent/src/claim/registration.test.ts#L181), [`registration.test.ts:213`](apps/cluster-agent/src/claim/registration.test.ts#L199), [`registration.test.ts:234`](apps/cluster-agent/src/claim/registration.test.ts#L220))
+- The SATELLITE publishes it; a cluster inside the platform does not. There ESO
+  templates the same key from `LORE_AGENT_INTERNAL_TOKEN` and rewrites it every
+  hour, so an agent writing it too makes two writers of one key, alternating,
+  with run pods carrying whichever landed before they started. Holding the
+  bus-wide token is what says which cluster this is. ([validated by publishes on a cluster that holds no bus-wide token](apps/cluster-agent/src/claim/agent-events-secret.test.ts#L68), [`agent-events-secret.test.ts:71`](apps/cluster-agent/src/claim/agent-events-secret.test.ts#L72))
 - The sink is reachable through its own ingress (`lore-agent-events.tf`,
   gated on `lore_agent_events_hostname`), not another path on the Floor's
   webhook door: that one carries GitHub's HMAC-verified control-plane

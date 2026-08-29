@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import {
   AGENT_EVENTS_AUTH_KEY,
   agentEventsAuthHeader,
+  publishesAgentEventsAuth,
   writeAgentEventsAuth,
 } from "./agent-events-secret.js";
 import type { SecretKeyWriter } from "../kernel/kube-token-provisioner.js";
@@ -59,5 +60,17 @@ describe("writeAgentEventsAuth", () => {
       expect.stringContaining("run telemetry will be dropped"),
     );
     warn.mockRestore();
+  });
+});
+
+describe("publishesAgentEventsAuth", () => {
+  it("publishes on a cluster that holds no bus-wide token", () => {
+    expect(publishesAgentEventsAuth({})).toBe(true);
+  });
+
+  it("leaves the key alone where ESO owns it", () => {
+    expect(
+      publishesAgentEventsAuth({ LORE_INGEST_TOKEN: "bus-wide-secret" }),
+    ).toBe(false);
   });
 });
