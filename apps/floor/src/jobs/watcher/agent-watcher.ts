@@ -1,20 +1,23 @@
 /**
- * Agent CR (agents.re-cinq.com) processing (ADR-031). The decisions that differ
- * from a LoreTask (Agent.status carries no changedFiles / reviewResult / taskType,
+ * Terminal Agent-run processing (ADR-031). The decisions that differ from a
+ * LoreTask (the reported status carries no changedFiles / reviewResult / taskType,
  * and the deterministic gate is the repo's GitHub Actions conclusion, D3) live in
  * agent-watcher-logic.ts; this is the IO shell.
  *
- * `processAgentCr` is a thin dispatcher: it derives the common context, applies the
- * DB re-entry guard, and routes a terminal CR to one of the extracted handlers
- * (`handleSucceededChanges` → no-changes / PR, `handleFailure`, `handleReviewVerdict`).
+ * `processAgentTerminal` is a thin dispatcher: it recovers the dispatch facts,
+ * applies the DB re-entry guard, and routes a terminal run to one of the extracted
+ * handlers (`handleSucceededChanges` → no-changes / PR, `handleFailure`,
+ * `handleReviewVerdict`).
  *
- * Event-driven (the event bus): the k8s watch emits `kubernetes.agent.{succeeded,
- * failed}` events; the handler re-GETs the CR and calls `processAgentCr`. The
- * reconcile path (k8s-watch listener) lists CRs, emits for terminal-unhandled ones,
- * and prunes old terminal CRs.
+ * Event-driven (the event bus): a cluster-agent's watch reports the terminal phase
+ * inward, the router writes `kubernetes.agent.{succeeded,failed}`, and the handler
+ * settles the run from THAT — it does not read the cluster back. It cannot: since
+ * dispatch went pull-based, the pod may have run in a cluster this process has no
+ * route to, and a CR read there answers "gone" indistinguishably from "never
+ * existed". The reconcile path (agent-reconcile) still lists and prunes CRs, but
+ * only in the cluster it can reach, and only as a re-emit backstop.
  */
 
-import type { Agent as AgentCr } from "@re-cinq/agent-contracts";
 import { resultTextFromOutput } from "@re-cinq/lore-assembly-lines";
 import { startEscalationLine } from "@re-cinq/lore-shared/escalation/start-escalation-line.js";
 import {
@@ -24,10 +27,6 @@ import {
 import { memoryLifecycle, pipeline, taskStore } from "../../kernel/queues.js";
 import { writeEpisode, writeEpisodeWithCuration } from "@re-cinq/lore-shared";
 import { tryAutoMergeForCompletedTask } from "../merge/auto-merge-trigger.js";
-import {
-  ASSEMBLY_RUN_ID_LABEL,
-  LEGACY_ASSEMBLY_LINE_ID_LABEL,
-} from "../assembly-run/floor-assembly-run.js";
 import {
   isTransientInfraFailure,
   MAX_INFRA_RETRIES,
@@ -41,8 +40,6 @@ import {
 import { generateArtifactCopy } from "../lib/artifact-copy.js";
 import { shouldAutoReview } from "../review/should-auto-review.js";
 import {
-  taskIdOf,
-  taskTypeOf,
   parseReviewResult,
   decideCiGate,
   decideTokenReclaim,
@@ -51,12 +48,11 @@ import {
   decideFeatureLink,
   taskPageUrl,
   stampPrOnOpenRuns,
+  dispatchFacts,
+  stationOutcomeForRunOutcome,
+  type AgentTerminalReport,
 } from "./agent-watcher-logic.js";
-import {
-  errorMessage,
-  HttpAgentApi,
-  HttpTokenProvisioner,
-} from "@re-cinq/lore-shared";
+import { errorMessage, HttpTokenProvisioner } from "@re-cinq/lore-shared";
 import { clusterAgent } from "../../kernel/queues.js";
 import type { NotifyLevel } from "@re-cinq/lore-shared/project/notify/notify-port.js";
 
@@ -90,7 +86,7 @@ export function cleanupPerTaskToken(taskId: string): Promise<void> {
  * exclusive per phase (a Succeeded CR reports either no-changes or a PR; a
  * Failed one reports a failure; a review verdict reports nothing here).
  *
- * There used to be a `SlackBatch` collected per `processAgentCr` invocation and
+ * There used to be a `SlackBatch` collected per invocation and
  * flushed at the end. Because it was per-invocation it never held more than one
  * entry, so its `byRepo` grouping and its whole `N PRs ready / N tasks completed
  * / N failed` summary branch — about sixty lines — could not be reached by any
@@ -207,37 +203,19 @@ async function commentFailureOnIssue(
   }
 }
 
-/** Mark an Agent's status so the watcher does not re-process it.
+/** The derived context threaded through the per-outcome handlers.
  *
- *  ONE call now: the read-modify-write happens agent-side, so it cannot be
- *  split across the network. Still best-effort — the CR may already be pruned —
- *  but LOGGED, because this catch spent its life hiding a 403 the Floor's RBAC
- *  never granted (`agents/status` was never in any Role bound to it). */
-async function patchAgentStatus(
-  cluster: HttpAgentApi,
-  name: string,
-  patch: Record<string, unknown>,
-): Promise<void> {
-  await cluster
-    .patchStatus(name, patch)
-    .catch((err) =>
-      console.warn(
-        `[agent-watcher] status patch for ${name} failed:`,
-        (err as Error).message,
-      ),
-    );
-}
-
-/** The derived context threaded through the per-outcome handlers. */
+ *  Holds no cluster handle and no CR name. Everything here was recovered from
+ *  what the Floor wrote down (the run row, the task row) plus what the event
+ *  reported — nothing is read back from the cluster that ran the pod, because
+ *  that cluster is not necessarily one this process can reach. */
 interface AgentContext {
-  cluster: HttpAgentApi;
   taskId: string;
   taskType: string;
   branch: string;
   targetRepo: string;
   description: string;
   output: string;
-  name: string;
 }
 
 /** Close a single-CR task's open run rows with an outcome derived from the task's
@@ -262,79 +240,90 @@ async function finishSingleCrRunRows(
   const outcome = runOutcomeFromTaskStatus(task?.status ?? "completed", phase);
 
   await Promise.all(
-    open.map((row) =>
-      pipeline().assemblyRuns.finish(row.id, outcome, failureReason),
-    ),
+    open.map(async (row) => {
+      // The visit before the run. A single CR's node row is now a real queued
+      // visit a cluster claimed, so leaving it open would leave the run's one
+      // station showing as still executing after the run itself had closed —
+      // and would keep the reaper interested in a row nobody is working.
+      const nodes = await pipeline().assemblyRuns.listStationRuns(row.id);
+
+      await Promise.all(
+        nodes
+          .filter((node) => node.outcome === null)
+          .map((node) =>
+            pipeline().assemblyRuns.finishStationRunOnce(
+              node.id,
+              stationOutcomeForRunOutcome(outcome),
+              undefined,
+              // `unknown`, not an invented class: failureClass is the closed
+              // taxonomy of INFRASTRUCTURE failures that drive retry and the
+              // account-wide dispatch gate. What this run reported belongs in
+              // the detail, which is the part a reader needs.
+              failureReason
+                ? { failureClass: "unknown", failureDetail: failureReason }
+                : undefined,
+            ),
+          ),
+      );
+      await pipeline().assemblyRuns.finish(row.id, outcome, failureReason);
+    }),
   );
 }
 
 /**
- * Process one terminal Agent CR. Invoked by the `kubernetes.agent.{succeeded,failed}`
- * event handlers (the event carries the agent name; the handler re-GETs the fresh
- * CR). Derives the context, applies the DB re-entry guard, and dispatches to the
- * matching handler; the Slack flush runs in `finally` so an early return still
- * delivers notifications.
+ * Settle one terminal Agent run from the report its event carried. Invoked by the
+ * `kubernetes.agent.{succeeded,failed}` handlers. Recovers the dispatch facts,
+ * applies the DB re-entry guard, and dispatches to the matching handler; the
+ * Slack flush runs in `finally` so an early return still delivers notifications.
+ *
+ * Nothing here touches a cluster. Assembly-line NODE CRs never arrive: the event
+ * mapper routes them to `kubernetes.agent_node.*` on their assembly-run label, so
+ * the label check this function used to make was unreachable by the time the
+ * params were built.
  */
-export async function processAgentCr(
-  agent: AgentCr,
-  cluster: HttpAgentApi,
+export async function processAgentTerminal(
+  report: AgentTerminalReport,
 ): Promise<void> {
-  const status = agent.status ?? {};
-  const phase = status.phase;
-  const taskId = taskIdOf(agent);
+  const { taskId, phase } = report;
 
-  if (!taskId) {
-    return;
-  }
-
-  // Assembly-line NODE CRs advance via kubernetes.agent_node.* transitions —
-  // the single-agent PR path must never see them (per-CR dedupe would otherwise
-  // route every node of a task-backed line into PR creation).
-  // Either spelling: a CR created before the rename carries the old one, and
-  // missing it would route an assembly-line node into PR creation.
-  if (
-    agent.metadata?.labels?.[ASSEMBLY_RUN_ID_LABEL] ??
-    agent.metadata?.labels?.[LEGACY_ASSEMBLY_LINE_ID_LABEL]
-  ) {
-    return;
-  }
-
-  const ctx: AgentContext = {
-    cluster,
-    taskId,
-    taskType: taskTypeOf(agent) ?? "general",
-    branch: agent.spec?.branch ?? "",
-    targetRepo: agent.spec?.targetRepo ?? "",
-    description: agent.spec?.parameters?.description ?? "",
-    output: resultTextFromOutput(status.output ?? ""),
-    name: agent.metadata?.name as string,
-  };
-
-  // DB-level re-entry guard (only act on tasks still running/queued). A CR whose
+  // DB-level re-entry guard (only act on tasks still running/queued). A run whose
   // taskId has no backing pipeline task is a task-less assembly line (e.g.
   // code-review, keyed on its assemblyLineId): the supervisor owns the run, so the
   // watcher has nothing to reconcile — return before any PR/no-changes work.
-  if (phase === "Succeeded" || phase === "Failed") {
-    const task = await taskStore().getById(taskId);
+  const task = await taskStore().getById(taskId);
 
-    if (!task) {
-      return;
-    }
-
-    if (!["running", "queued"].includes(task.status)) {
-      return;
-    }
+  if (!task || !["running", "queued"].includes(task.status)) {
+    return;
   }
+  // The run row first: it recorded the repo, branch and description AT dispatch,
+  // and unlike the Agent CR it is neither cluster-local nor pruned an hour later.
+  const runs = await pipeline().assemblyRuns.listForTask(taskId);
+  const run =
+    runs.find((row) => ["queued", "running"].includes(row.status)) ??
+    runs[runs.length - 1];
+  const facts = dispatchFacts(run ?? null, task);
 
-  if (phase === "Succeeded" && !status.prUrl && ctx.taskType !== "review") {
+  if (!facts) {
+    return;
+  }
+  const ctx: AgentContext = {
+    taskId,
+    ...facts,
+    output: resultTextFromOutput(report.output ?? ""),
+  };
+
+  // No `status.prUrl` guard: it was the CR's own re-entry marker, and every path
+  // that stamped it had already moved the task out of `running` first — so the
+  // DB guard above is the same gate, read from the source that survives the pod.
+  if (phase === "Succeeded" && ctx.taskType !== "review") {
     await handleSucceededChanges(ctx);
   }
 
-  if (phase === "Failed" && status.failureReason) {
-    await handleFailure(ctx, status.failureReason);
+  if (phase === "Failed" && report.failureReason) {
+    await handleFailure(ctx, report.failureReason);
   }
 
-  // Review verdict (parsed from status.output — Agent has no reviewResult field).
+  // Review verdict (parsed from the reported output — Agent has no reviewResult field).
   const reviewResult =
     phase === "Succeeded" && ctx.taskType === "review"
       ? parseReviewResult(ctx.output)
@@ -348,32 +337,21 @@ export async function processAgentCr(
   // lifecycle — no walk finishes these) and reclaim the per-task token (#784).
   // Multi-node station lines do both at line completion, so the tell is the
   // routing (builtin assembly line for the task type), not row existence.
-  if (phase === "Succeeded" || phase === "Failed") {
-    const isAssemblyLineTask = (await assemblyLineNames()).has(ctx.taskType);
+  const isAssemblyLineTask = (await assemblyLineNames()).has(ctx.taskType);
 
-    if (!isAssemblyLineTask) {
-      await finishSingleCrRunRows(taskId, phase, status.failureReason);
-    }
+  if (!isAssemblyLineTask) {
+    await finishSingleCrRunRows(taskId, phase, report.failureReason);
+  }
 
-    if (decideTokenReclaim({ phase, isAssemblyLineTask })) {
-      await cleanupPerTaskToken(taskId);
-    }
+  if (decideTokenReclaim({ phase, isAssemblyLineTask })) {
+    await cleanupPerTaskToken(taskId);
   }
 }
 
 /** Succeeded, non-review, no PR yet: compute the changed-file count and either close
  *  out a no-changes task (issue) or open a PR (+ CI gate, auto-review fan-out). */
 async function handleSucceededChanges(ctx: AgentContext): Promise<void> {
-  const {
-    taskId,
-    taskType,
-    branch,
-    targetRepo,
-    description,
-    output,
-    name,
-    cluster,
-  } = ctx;
+  const { taskId, taskType, branch, targetRepo, description, output } = ctx;
   const taskUrl = taskPageUrl(taskId, process.env.LORE_UI_URL);
   const logsRef = taskUrl ? `See [logs](${taskUrl})` : "See logs";
 
@@ -399,7 +377,6 @@ async function handleSucceededChanges(ctx: AgentContext): Promise<void> {
         await taskStore().recordEvent(taskId, "running", "completed", {
           feature_planning: true,
         });
-        await patchAgentStatus(cluster, name, { prUrl: "feature-planning" });
       } catch (err) {
         console.error(
           `[agent-watcher] feature-planning completion failed for ${taskId}: ${errorMessage(err)}`,
@@ -453,10 +430,6 @@ async function handleSucceededChanges(ctx: AgentContext): Promise<void> {
       await taskStore().recordEvent(taskId, "running", "completed", {
         no_changes: true,
         issue_number,
-      });
-      await patchAgentStatus(cluster, name, {
-        prUrl: "no-changes",
-        issueNumber: issue_number,
       });
 
       if (issue_number) {
@@ -528,10 +501,6 @@ async function handleSucceededChanges(ctx: AgentContext): Promise<void> {
       pr_url: pr.url,
     });
     await linkPrToIssue(target_repo, issue_number, pr.url);
-    await patchAgentStatus(cluster, name, {
-      prUrl: pr.url,
-      prNumber: pr.number,
-    });
 
     // Link the spec PR back to the feature row (ADR-027). Keyed on the task carrying
     // a feature, not on its type: the merged line runs a feature's whole life under
@@ -672,11 +641,6 @@ async function handleSucceededChanges(ctx: AgentContext): Promise<void> {
         ),
       );
 
-      try {
-        await cluster.remove(name);
-      } catch {
-        /* already gone */
-      }
       await cleanupPerTaskToken(taskId);
       console.log(
         `[agent-watcher] Marked ${taskId} needs-human-help (${reason})`,

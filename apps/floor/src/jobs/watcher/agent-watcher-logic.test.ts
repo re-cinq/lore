@@ -9,6 +9,9 @@ import {
   runOutcomeFromTaskStatus,
   decideFeatureLink,
   stampPrOnOpenRuns,
+  agentTerminalReport,
+  stationOutcomeForRunOutcome,
+  dispatchFacts,
 } from "./agent-watcher-logic.js";
 
 describe("taskIdOf / taskTypeOf", () => {
@@ -226,5 +229,152 @@ describe("a review output that names both verdict markers", () => {
     ].join("\n");
 
     expect(parseReviewResult(output)).toBe("changes_requested");
+  });
+});
+
+describe("agentTerminalReport", () => {
+  it("reads the taskId, phase and status the kubernetes.agent.* event carries", () => {
+    expect(
+      agentTerminalReport({
+        taskId: "t-1",
+        agentName: "agent-11111111",
+        phase: "Succeeded",
+        status: {
+          phase: "Succeeded",
+          output: "done",
+          failureReason: undefined,
+        },
+      }),
+    ).toEqual({
+      taskId: "t-1",
+      agentName: "agent-11111111",
+      phase: "Succeeded",
+      output: "done",
+      failureReason: undefined,
+    });
+  });
+
+  it("returns null for an event carrying no task id, so nothing is processed blind", () => {
+    expect(agentTerminalReport({ phase: "Succeeded" })).toBeNull();
+  });
+
+  it("returns null for a non-terminal phase rather than settling a live run", () => {
+    expect(agentTerminalReport({ taskId: "t-1", phase: "Running" })).toBeNull();
+  });
+
+  it("tolerates an event carrying no status block at all", () => {
+    // The mapper always sends one, but a hand-inserted or replayed event need
+    // not — and a run must still settle rather than throwing in the handler.
+    expect(agentTerminalReport({ taskId: "t-1", phase: "Succeeded" })).toEqual({
+      taskId: "t-1",
+      agentName: null,
+      phase: "Succeeded",
+      output: undefined,
+      failureReason: undefined,
+    });
+  });
+
+  it("reads a failure reason off a Failed report", () => {
+    expect(
+      agentTerminalReport({
+        taskId: "t-1",
+        phase: "Failed",
+        status: { failureReason: "BackoffLimitExceeded" },
+      }),
+    ).toMatchObject({ phase: "Failed", failureReason: "BackoffLimitExceeded" });
+  });
+});
+
+describe("stationOutcomeForRunOutcome", () => {
+  it("translates the run outcome into the station vocabulary", () => {
+    // NOT the run vocabulary (pr_created / completed / error): a station row's
+    // outcome is a StageOutcome, and writing a run outcome into it would invent a
+    // value no transition rule knows.
+    expect(stationOutcomeForRunOutcome("pr_created")).toBe("success");
+    expect(stationOutcomeForRunOutcome("completed")).toBe("success");
+    expect(stationOutcomeForRunOutcome("failed")).toBe("failed");
+    expect(stationOutcomeForRunOutcome("error")).toBe("failed");
+  });
+});
+
+describe("dispatchFacts", () => {
+  const run = {
+    blueprintName: "runbook",
+    repo: "o/r",
+    branch: "lore/runbook/x",
+    args: { description: "write it" },
+  };
+
+  it("reads what the run row recorded at dispatch, not what a cluster still holds", () => {
+    expect(dispatchFacts(run, null)).toEqual({
+      taskType: "runbook",
+      targetRepo: "o/r",
+      branch: "lore/runbook/x",
+      description: "write it",
+    });
+  });
+
+  it("tolerates a run row with no branch and no description recorded", () => {
+    // A run started by a choreography rather than a task carries neither; the
+    // handlers want strings, and `null` reaching a PR body is a crash.
+    expect(
+      dispatchFacts(
+        { blueprintName: "runbook", repo: "o/r", branch: null, args: {} },
+        null,
+      ),
+    ).toEqual({
+      taskType: "runbook",
+      targetRepo: "o/r",
+      branch: "",
+      description: "",
+    });
+  });
+
+  it("falls back to the task row when no run row exists", () => {
+    // A CR dispatched before run rows covered single-CR tasks still has to settle.
+    expect(
+      dispatchFacts(null, {
+        task_type: "onboard",
+        target_repo: "o/r2",
+        target_branch: "lore/onboard/y",
+        description: "onboard it",
+        context_bundle: null,
+      }),
+    ).toEqual({
+      taskType: "onboard",
+      targetRepo: "o/r2",
+      branch: "lore/onboard/y",
+      description: "onboard it",
+    });
+  });
+
+  it("prefers the task's context_bundle branch, which is the one dispatch used", () => {
+    expect(
+      dispatchFacts(null, {
+        task_type: "onboard",
+        target_repo: "o/r2",
+        target_branch: null,
+        description: "d",
+        context_bundle: { branch: "existing/branch" },
+      })?.branch,
+    ).toBe("existing/branch");
+  });
+
+  it("yields an empty branch when the task names none either way", () => {
+    // target_branch is only written once a PR exists, so a task that failed
+    // before one has neither it nor a context_bundle branch.
+    expect(
+      dispatchFacts(null, {
+        task_type: "onboard",
+        target_repo: "o/r2",
+        target_branch: null,
+        description: "d",
+        context_bundle: null,
+      })?.branch,
+    ).toBe("");
+  });
+
+  it("returns null when neither row exists, so nothing is settled from guesses", () => {
+    expect(dispatchFacts(null, null)).toBeNull();
   });
 });

@@ -53,13 +53,13 @@ githubAppSecret:
   privateKeyKey: private-key
   installationIdKey: installation-id
 
-# The central claim loop (FR3 of specs/running-stations-in-any-k8s-cluster).
-# The flip to pull-based dispatch means EVERY pod node queues for a claim —
-# an umbrella deploy without this block leaves the queue with no claimant and
-# every run dies at the queue-wait bound. Enabled by default: a central
-# cluster that cannot claim is not a working factory.
+# Registration + the claim loop (FR3 of specs/running-stations-in-any-k8s-cluster).
+# There is no `enabled` here on purpose: the flip to pull-based dispatch means
+# EVERY pod node queues for a claim, so a cluster-agent that does not register
+# leaves the queue with no claimant and every run dies at the queue-wait bound.
+# A flag whose false value is a silently broken factory is not a choice, and the
+# process refuses to boot without the three values below.
 claim:
-  enabled: true
   # The registry name; the reaper resolves CR visibility by it
   # (LORE_CENTRAL_CLUSTER_AGENT_NAME defaults to "central" on the Floor).
   name: central

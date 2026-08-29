@@ -107,12 +107,17 @@ underlying interactions are read-modify-write pairs. Exposing `get` and
 and lose the update; no `resourceVersion` ever crosses the wire.
 
 - A CR that already exists reports `created:false` rather than failing, so a
-  redelivered dispatch is idempotent. ([validated by reports created:false for a CR that already exists, so a retry is idempotent](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L85))
+  redelivered dispatch is idempotent. *(Amended 2026-08-29: this is no longer a
+  route. Dispatch is pull-only — the agent CREATES CRs only for runs it claimed
+  itself, so the inbound `POST /api/cluster/agents` was deleted and the
+  idempotency now lives in the adapter behind the claim. Everything below still
+  describes the read surface, which callers do still reach over HTTP.)*
+  ([validated by reports created:false for code 409, so a redelivered claim is idempotent](apps/cluster-agent/src/kernel/kube-agent-api.test.ts#L35), [`kube-agent-api.test.ts:28`](apps/cluster-agent/src/kernel/kube-agent-api.test.ts#L28), [`kube-agent-api.test.ts:42`](apps/cluster-agent/src/kernel/kube-agent-api.test.ts#L42), [`kube-agent-api.test.ts:48`](apps/cluster-agent/src/kernel/kube-agent-api.test.ts#L48), [`kube-agent-api.test.ts:54`](apps/cluster-agent/src/kernel/kube-agent-api.test.ts#L56))
 - A missing CR is an ordinary answer — `found:false` at 200, not a 404 that
-  would be indistinguishable from the route itself being absent. ([validated by answers 200 with found:false for a missing CR, not 404](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L104), [`cluster.test.ts:174`](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L174))
+  would be indistinguishable from the route itself being absent. ([validated by answers 200 with found:false for a missing CR, not 404](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L80), [`cluster.test.ts:150`](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L150))
 - The list serves ONE apiserver page per call and the caller drives `continue`.
   A one-shot list is not a convenience: 180 accumulated CRs at ~1.4MB of status
-  each blew Node's heap and crash-looped the Floor on 2026-07-24. ([validated by passes the caller's continue token straight through, one page per call](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L115), [`cluster.test.ts:128`](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L128), [`cluster.test.ts:335`](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L335), [`cluster.test.ts:318`](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L318))
+  each blew Node's heap and crash-looped the Floor on 2026-07-24. ([validated by passes the caller's continue token straight through, one page per call](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L91), [`cluster.test.ts:104`](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L104), [`cluster.test.ts:311`](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L311), [`cluster.test.ts:294`](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L294))
 - The paging the route requires is walked by the CLIENT, not pushed onto every
   caller: `listByLabel` follows `continue` to the end and returns the whole
   match. A truncated list is worse than a failed one — it answers, and the
@@ -122,7 +127,7 @@ and lose the update; no `resourceVersion` ever crosses the wire.
   cannot be split across the network — and RETRIED on conflict, because keeping
   the pair whole stops a caller splitting it but not the ai-agent controller
   writing `status.phase` in between. The loser of that race merges its patch
-  onto the winner's status rather than overwriting it. ([validated by merges the patch onto the live status and replaces once](apps/cluster-agent/src/kernel/paired-writes.test.ts#L49), [`paired-writes.test.ts:62`](apps/cluster-agent/src/kernel/paired-writes.test.ts#L62), [`paired-writes.test.ts:73`](apps/cluster-agent/src/kernel/paired-writes.test.ts#L73), [`paired-writes.test.ts:82`](apps/cluster-agent/src/kernel/paired-writes.test.ts#L82), [`cluster.test.ts:139`](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L139), [`cluster.test.ts:232`](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L232), [`cluster.test.ts:244`](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L244))
+  onto the winner's status rather than overwriting it. ([validated by merges the patch onto the live status and replaces once](apps/cluster-agent/src/kernel/paired-writes.test.ts#L49), [`paired-writes.test.ts:62`](apps/cluster-agent/src/kernel/paired-writes.test.ts#L62), [`paired-writes.test.ts:73`](apps/cluster-agent/src/kernel/paired-writes.test.ts#L73), [`paired-writes.test.ts:82`](apps/cluster-agent/src/kernel/paired-writes.test.ts#L82), [`cluster.test.ts:115`](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L115), [`cluster.test.ts:208`](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L208), [`cluster.test.ts:220`](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L220))
 - A catalog pair is written station-first and deleted station-last, so an
   AgentDefinition — the thing a dispatch looks up — is never visible pointing at
   a station that does not exist. ([validated by writes the station before the agent definition that points at it](apps/cluster-agent/src/kernel/paired-writes.test.ts#L120), [`paired-writes.test.ts:128`](apps/cluster-agent/src/kernel/paired-writes.test.ts#L128), [`paired-writes.test.ts:147`](apps/cluster-agent/src/kernel/paired-writes.test.ts#L147))
@@ -135,17 +140,17 @@ and lose the update; no `resourceVersion` ever crosses the wire.
   retry that exists for exactly that race never fires, and provisioning fails
   whenever two agents start at once. A thrown value whose message is not a string carries no status either,
   rather than throwing from inside the classifier that exists to keep failures
-  legible. ([validated by reads 409 out of the message when it is nowhere else](apps/cluster-agent/src/kernel/k8s-errors.test.ts#L87), [`k8s-errors.test.ts:91`](apps/cluster-agent/src/kernel/k8s-errors.test.ts#L91), [`k8s-errors.test.ts:96`](apps/cluster-agent/src/kernel/k8s-errors.test.ts#L96, [reads no status from a thrown value whose message is not a string](apps/cluster-agent/src/kernel/k8s-errors.test.ts#L101)))
+  legible. ([validated by reads 409 out of the message when it is nowhere else](apps/cluster-agent/src/kernel/k8s-errors.test.ts#L87), [`k8s-errors.test.ts:91`](apps/cluster-agent/src/kernel/k8s-errors.test.ts#L91), [`k8s-errors.test.ts:101`](apps/cluster-agent/src/kernel/k8s-errors.test.ts#L96, [reads no status from a thrown value whose message is not a string](apps/cluster-agent/src/kernel/k8s-errors.test.ts#L101)))
 - Provisioning is ONE call — catalog read, GitHub mint, Secret write and the
   per-task clone together. The agent mints, so no GitHub token crosses the
   network; the cost accepted is that the App private key lives in the agent.
-  ([validated by provisions in one call — catalog read, mint, secret write and clone together](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L186), [`cluster.test.ts:197`](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L197), [`cluster.test.ts:287`](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L287))
+  ([validated by provisions in one call — catalog read, mint, secret write and clone together](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L162), [`cluster.test.ts:173`](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L173), [`cluster.test.ts:263`](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L263))
 - A catalog pair is applied in one call, so create-409-replace cannot be split.
-  ([validated by applies a catalog pair in one call, so create-409-replace cannot be split](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L211), [`cluster.test.ts:298`](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L298), [`cluster.test.ts:309`](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L309), [`cluster.test.ts:328`](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L328))
+  ([validated by applies a catalog pair in one call, so create-409-replace cannot be split](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L187), [`cluster.test.ts:274`](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L274), [`cluster.test.ts:285`](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L285), [`cluster.test.ts:304`](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L304))
 - The log tail is clamped by the AGENT, because the Floor's clamp no longer
-  protects this process's heap. ([validated by clamps the tail server-side rather than trusting the caller](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L164), [`cluster.test.ts:267`](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L267), [`cluster.test.ts:277`](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L277), [`cluster.test.ts:257`](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L257))
+  protects this process's heap. ([validated by clamps the tail server-side rather than trusting the caller](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L140), [`cluster.test.ts:243`](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L243), [`cluster.test.ts:253`](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L253), [`cluster.test.ts:233`](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L233))
 - Every route requires the same bearer token every other service-to-service
-  call presents. ([validated by refuses every route without a bearer token](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L223))
+  call presents. ([validated by refuses every route without a bearer token](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L199))
 - A CR the controller has not stamped yet reads as Pending rather than absent —
   the distinction a watcher acts on. ([validated by a CR the controller has not stamped yet maps to Pending, not absence](libs/shared/src/cluster/agent-node-status.test.ts#L6), [`agent-node-status.test.ts:16`](libs/shared/src/cluster/agent-node-status.test.ts#L16))
 - An empty minted token is refused where the cause is legible, rather than
@@ -155,9 +160,17 @@ and lose the update; no `resourceVersion` ever crosses the wire.
 
 The callers keep their behaviour, not just their shape. A CR that no longer
 exists is an ordinary answer and stops the work; anything else throws so the
-drain loop retries rather than marking the event handled — the distinction the
-Floor used to make by sniffing a 404 out of a Kubernetes error.
-  ([validated by treats a pruned CR as nothing to do — no processing, no throw](apps/floor/src/jobs/kubernetes.test.ts#L26), [`kubernetes.test.ts:35`](apps/floor/src/jobs/kubernetes.test.ts#L35), [`kubernetes.test.ts:46`](apps/floor/src/jobs/kubernetes.test.ts#L46), [`kubernetes.test.ts:62`](apps/floor/src/jobs/kubernetes.test.ts#L62))
+caller retries rather than treating a denial as an absence — the distinction the
+Floor used to make by sniffing a 404 out of a Kubernetes error, and the reason
+`found:false` is served at 200.
+
+*Amended 2026-08-29: the `kubernetes.agent` handler is no longer one of these
+callers. It used to re-GET the terminal CR before processing it, which silently
+scoped settling a run to the one cluster this Floor can reach; it now settles
+from the event's own report, which carries the full status. The distinction
+above still governs the READ surface — the reconcile pass, the reaper's status
+probe, the pod-log reads — where a caller genuinely has to ask.*
+  ([validated by answers 200 with found:false for a missing CR, not 404](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L80), [`k8s-errors.test.ts:31`](apps/cluster-agent/src/kernel/k8s-errors.test.ts#L31), [`k8s-errors.test.ts:47`](apps/cluster-agent/src/kernel/k8s-errors.test.ts#L47), [`k8s-errors.test.ts:59`](apps/cluster-agent/src/kernel/k8s-errors.test.ts#L59), [`kubernetes.test.ts:30`](apps/floor/src/jobs/kubernetes.test.ts#L30), [`kubernetes.test.ts:58`](apps/floor/src/jobs/kubernetes.test.ts#L58), [`kubernetes.test.ts:64`](apps/floor/src/jobs/kubernetes.test.ts#L64))
 
 The reconcile pass keeps paging, and its seam narrowed with the cut: it now
 depends on one page-fetch method rather than a slice of a Kubernetes client, so
@@ -168,7 +181,7 @@ The Role this service carries also closes two gaps the Floor had been silently
 living with: it never held `delete` on `agents` or `agents/status`, yet issued
 both at sites that swallowed the failure — which is why the CR prune could
 never actually shrink the pile it was written to shrink.
-  ([validated by deletes a CR — the verb the Floor's RBAC never granted](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L151))
+  ([validated by deletes a CR — the verb the Floor's RBAC never granted](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L127))
 
 Hierarchy: **Factory ⊃ Floor(s) ⊃ AssemblyLines ⊃ Stations ⊃ Agents** — the design
 side; its runtime shadow is **AssemblyRun ⊃ StationRuns ⊃ Agents**.

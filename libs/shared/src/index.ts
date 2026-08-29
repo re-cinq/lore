@@ -39,6 +39,7 @@ export type { AgentNodeStatus } from "./cluster/agent-node-status.js";
 export { statusFromAgentCr } from "./cluster/agent-node-status.js";
 export type {
   AgentApi,
+  AgentLister,
   AgentStatusReader,
   TokenProvisioner,
   TokenCleanup,

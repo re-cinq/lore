@@ -6,10 +6,9 @@ import {
 } from "@re-cinq/lore-shared";
 import { loadBuiltinAssemblyLines } from "@re-cinq/lore-assembly-lines";
 import { getPool } from "../kernel/db.js";
-import { AgentCrBackend } from "@re-cinq/lore-shared/cluster/agent-backend.js";
-import { HttpAgentApi, HttpTokenProvisioner } from "@re-cinq/lore-shared";
+import { HttpAgentApi } from "@re-cinq/lore-shared";
 import { AssemblyLineStationBackend } from "../jobs/assembly-run/assembly-run-station-backend.js";
-import { clusterAgent, pipeline } from "../kernel/queues.js";
+import { clusterAgent, pipeline, settings } from "../kernel/queues.js";
 import { AgentCrStationBackend } from "../jobs/station/agent-cr-station-backend.js";
 import { memoizePerKey } from "./memoize-per-key.js";
 
@@ -28,32 +27,28 @@ const NO_OP_DGRAPH = {
 
 /**
  * The Station backend: the ai-agent-subsystem `Agent` path (ADR-031). Within it,
- * task types that have an assembly line run the Floor-side assembly line (one Agent CR per
- * node, #686); the rest run a single Agent. Both share the AgentCrBackend for CR
- * dispatch. (The legacy LoreTask + Docker backends were removed once agent-cr
- * became the sole path.)
+ * task types that have an assembly line run the Floor-side assembly line (one Agent CR
+ * per node, #686); the rest run a single Agent. (The legacy LoreTask + Docker
+ * backends were removed once agent-cr became the sole path.)
+ *
+ * Neither half holds anything that can create a CR. The Floor decides what to
+ * dispatch and writes it down; a cluster-agent claims it and launches it in its
+ * own cluster. What the Floor keeps is the READ — `HttpAgentApi` here is a
+ * lister, used to ask whether a task's Agents are still alive.
  */
-export function agentCrBackend(): AgentCrBackend {
-  // Both halves now go through the cluster agent: the Floor decides what to
-  // dispatch and provision, the agent performs it. No Kubernetes client here.
-  return new AgentCrBackend(
-    new HttpAgentApi(clusterAgent()),
-    new HttpTokenProvisioner(clusterAgent()),
-  );
-}
-
 export function stationBackend(
   assemblyLineDefinitions: ReadonlySet<string> = new Set(),
 ): StationBackend {
-  const agentBackend = agentCrBackend();
-
   return new AgentCrStationBackend(
     // launch() = project.assemblyRuns.start(); the assembly_line.start event
     // handler launches the entry node — the walk advances on agent_node events.
     new AssemblyLineStationBackend(pipeline().assemblyRuns),
-    agentBackend,
     assemblyLineDefinitions,
     pipeline().assemblyRuns,
+    new HttpAgentApi(clusterAgent()),
+    // The same read `advance.ts` resolves a node's required_tags from, so a
+    // single visit and a line's visits are tagged from one source.
+    (repo) => settings().rawSettings(repo),
   );
 }
 

@@ -42,15 +42,6 @@ variable "enable_anthropic_admin_key" {
 }
 
 # Gates satellite-cluster registration (specs/running-stations-in-any-k8s-cluster
-# FR1). When true, `lore-cluster-agent-registration-token` is mirrored into the
-# lore-api and lore-cluster-agent namespaces and lore-api starts accepting
-# registrations; only the registration call uses it, every later call uses the
-# per-agent token that registration mints. False leaves the route answering 401.
-variable "enable_cluster_agent_registration" {
-  type    = bool
-  default = false
-}
-
 variable "log_retention_days" {
   description = "Number of days to retain task logs in GCS"
   type        = number

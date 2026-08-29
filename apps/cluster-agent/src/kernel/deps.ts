@@ -8,7 +8,6 @@ import { KubeConfig, CustomObjectsApi } from "@kubernetes/client-node";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { agentsNamespace, loadKube } from "@re-cinq/lore-shared";
 import { PlatformGitHub } from "@re-cinq/lore-shared/project/lib/platform-github.js";
-import { KubeAgentApi } from "./kube-agent-api.js";
 import { KubePodLogs } from "./kube-pod-logs.js";
 import {
   KubeTokenProvisioner,
@@ -35,8 +34,9 @@ function customObjects(): CustomObjectsApi {
   return kc.makeApiClient(CustomObjectsApi);
 }
 
-/** The one per-task token provisioner, shared by the /agents HTTP routes and
- *  the satellite claim loop — both launch paths provision the same way. */
+/** The one per-task token provisioner. Every launch is a claim now, so the
+ *  claim loop is its only caller — kept a shared singleton because the Secret
+ *  writer it holds merges into `agent-secrets` and must not race itself. */
 export function kubeTokenProvisioner(): KubeTokenProvisioner {
   if (!provisionerSingleton) {
     provisionerSingleton = new KubeTokenProvisioner(
@@ -53,14 +53,12 @@ export function clusterDeps(): ClusterDeps {
   if (singleton) {
     return singleton;
   }
-  const api = new KubeAgentApi();
   const pods = new KubePodLogs();
   const catalog = new KubeCatalogApi();
   const tokens = kubeTokenProvisioner();
 
   singleton = {
     agents: {
-      create: (cr) => api.create(cr),
       get: async (name) => {
         try {
           return (await customObjects().getNamespacedCustomObject({

@@ -13,7 +13,18 @@
 //   - row queued > 30 min         → fail (assembly_line.start never completed)
 //   - row running, no open node   → advance (crash between transitions; replay
 //                                   converges on the next launch/finish)
-//   - single-CR (definition-less) row, backing task terminal → close from status
+//
+// A single-CR (definition-less) row has no graph and no walk, so its three arms
+// are handled separately — but by the SAME decisions, because its one visit is a
+// claimable row like any other since dispatch went pull-based:
+//
+//   - its visit queued past the wait → fail terminally, naming its required_tags
+//   - its claimant offline           → requeue the same row
+//   - backing task terminal          → close the visit, then the row, from status
+//
+// Deliberately NOT its execution timeout: a claimed single CR is settled by the
+// watcher, which hears the terminal event, and owning the budget here too would
+// race it.
 
 import { nodeTimeoutMinutes, stationBudgetFor } from "./node-timeout.js";
 import {
@@ -25,7 +36,10 @@ import type { StationRunRecord } from "@re-cinq/lore-shared/project/assembly-run
 import { advanceLine, finishLine } from "./advance.js";
 import { agentCrVisible } from "./cr-visibility.js";
 import { finishNodeTerminal, normalizeAgentStatus } from "./node-terminal.js";
-import { runOutcomeFromTaskStatus } from "../watcher/agent-watcher-logic.js";
+import {
+  runOutcomeFromTaskStatus,
+  stationOutcomeForRunOutcome,
+} from "../watcher/agent-watcher-logic.js";
 import {
   deliverTerminalArtifacts,
   type NodeEventDeps,
@@ -222,11 +236,75 @@ export async function assemblyLineReaperJob(
       const graph = await resolveRunGraph(row, deps.definitions);
 
       if (!graph) {
-        // Single-CR run record (FR6.8): normally the agent-watcher closes it, but
-        // a crash between the task's post-handler status write and that close (or
-        // a dropped terminal event past the reconcile window) leaves it open
-        // forever. Sweep it: if the backing task is terminal, close the row from
-        // its status; else leave it (the task is still in-flight).
+        // Single-CR run record (FR6.8). Two things can strand it, and they need
+        // different answers.
+        const singleCrNodes = await deps.assemblyRuns.listStationRuns(row.id);
+        const singleCrOpen = singleCrNodes.find((n) => n.outcome === null);
+
+        // FIRST, the queue. A single CR's visit is a claimable row now, so it
+        // can sit unclaimed exactly like a line's node — and with no graph there
+        // is no node budget and no walk to notice. Only these two arms: a
+        // `claimed` row that stops reporting is the WATCHER's to settle (it hears
+        // the terminal event), and owning its timeout here as well would race it.
+        if (singleCrOpen) {
+          const recovery = decideNodeRecovery({
+            claimantOffline:
+              singleCrOpen.clusterAgentId !== null &&
+              offlineAgents.has(singleCrOpen.clusterAgentId),
+            node: singleCrOpen,
+            timeoutMinutes: undefined,
+            status: null,
+            nodeType: "agent",
+            crVisible: false,
+            queueWaitMs,
+            nowMs,
+          });
+
+          if (recovery.kind === "queue-timeout") {
+            await deps.assemblyRuns.finishStationRunOnce(
+              singleCrOpen.id,
+              "failed",
+              undefined,
+              {
+                failureClass: "infra",
+                // Naming the tags is the point, exactly as on the graph arm.
+                failureDetail: `no registered cluster-agent claimed this run (required_tags: [${singleCrOpen.requiredTags.join(", ")}]) within ${queueWaitMs / MINUTE_MS}m`,
+              },
+            );
+            await finishLine(
+              row,
+              "error",
+              `no registered cluster-agent claimed this run (required_tags: [${singleCrOpen.requiredTags.join(", ")}])`,
+              deps,
+            );
+            queueTimedOut++;
+            continue;
+          }
+
+          if (recovery.kind === "requeue-offline") {
+            await deps.assemblyRuns.requeueStationRun(singleCrOpen.id);
+            await deps.audit?.({
+              event_type: "cluster_agent_offline",
+              payload: {
+                cluster_agent_id: singleCrOpen.clusterAgentId,
+                station_run_id: singleCrOpen.stationRunId,
+                assembly_run_id: row.id,
+                node_id: singleCrOpen.nodeId,
+                elapsed_since_claim_ms: singleCrOpen.claimedAt
+                  ? nowMs - singleCrOpen.claimedAt.getTime()
+                  : null,
+              },
+            });
+            requeued++;
+            continue;
+          }
+        }
+
+        // THEN the crash case: normally the agent-watcher closes the row, but a
+        // crash between the task's post-handler status write and that close (or a
+        // dropped terminal event past the reconcile window) leaves it open
+        // forever. If the backing task is terminal, close from its status; else
+        // leave it (the task is still in-flight).
         if (row.taskId) {
           const taskStatus = await deps.taskStatus(row.taskId);
           const terminal =
@@ -234,6 +312,16 @@ export async function assemblyLineReaperJob(
             !["running", "queued", "pending"].includes(taskStatus);
 
           if (terminal) {
+            // The visit before the run, so a closed run never shows a station
+            // still executing.
+            if (singleCrOpen) {
+              await deps.assemblyRuns.finishStationRunOnce(
+                singleCrOpen.id,
+                stationOutcomeForRunOutcome(
+                  runOutcomeFromTaskStatus(taskStatus),
+                ),
+              );
+            }
             // finishLine (not finish) so the single-CR row's token is reclaimed
             // and, though single-CR rows carry no job_run_id, every terminal close
             // routes through one path.

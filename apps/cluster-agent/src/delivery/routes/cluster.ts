@@ -38,7 +38,6 @@ const MAX_TAIL = 10_000;
 
 export interface ClusterDeps {
   agents: {
-    create(cr: AgentCr): Promise<{ name: string; created: boolean }>;
     get(name: string): Promise<AgentCr | null>;
     list(opts: {
       labelSelector?: string;
@@ -92,17 +91,6 @@ export function clusterRoutes(opts: ClusterRoutesDeps): ServerRoute[] {
   const raw = { auth: false as const, payload: { parse: false as const } };
 
   return [
-    {
-      method: "POST",
-      path: "/api/cluster/agents",
-      options: raw,
-      handler: async (request, h) => {
-        guard(request.headers);
-        const cr = JSON.parse(rawBody(request)) as AgentCr;
-
-        return h.response(await opts.deps().agents.create(cr)).code(200);
-      },
-    },
     {
       // 200 with `found:false` rather than 404: "no such CR" is an ordinary
       // answer to this question, and a 404 would be indistinguishable from the

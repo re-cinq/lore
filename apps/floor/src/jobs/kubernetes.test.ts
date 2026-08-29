@@ -1,67 +1,69 @@
-// The 404-vs-403 distinction still holds, but the mechanism moved: the cluster
-// agent answers `found:false` for a CR that is gone, and throws for anything
-// else. These drive the REAL HttpAgentApi against a fake transport, so the
-// adapter's own mapping is part of what is asserted.
+// The kubernetes.agent.* handler settles a run from what the event REPORTED,
+// never by reading the cluster back.
+//
+// It used to re-GET the CR through the central cluster-agent, which made the
+// handler silently cluster-bound: a run executed anywhere else answered
+// `found:false` and its task sat `running` until a sweep took it. The event
+// already carries the full status (mapAgentToEvent puts it there for this
+// reason), so there is nothing left to fetch.
+
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { agentFailed } from "./kubernetes.js";
-import { processAgentCr } from "./watcher/agent-watcher.js";
-import { clusterAgent } from "../kernel/queues.js";
+import { agentFailed, agentSucceeded } from "./kubernetes.js";
+import { processAgentTerminal } from "./watcher/agent-watcher.js";
 
-vi.mock("./watcher/agent-watcher.js", () => ({ processAgentCr: vi.fn() }));
-vi.mock("../kernel/queues.js", () => ({ clusterAgent: vi.fn() }));
+vi.mock("./watcher/agent-watcher.js", () => ({
+  processAgentTerminal: vi.fn(),
+}));
 
-/** A transport that answers as the agent's `GET /agents/{name}` would. */
-function transportReturning(answer: unknown) {
-  return { call: vi.fn().mockResolvedValue(answer) };
-}
-function transportRejecting(err: unknown) {
-  return { call: vi.fn().mockRejectedValue(err) };
-}
+const succeeded = {
+  taskId: "t-1",
+  agentName: "agent-11111111",
+  phase: "Succeeded",
+  status: { phase: "Succeeded", output: "done" },
+};
 
 beforeEach(() => {
-  vi.mocked(processAgentCr).mockReset();
+  vi.mocked(processAgentTerminal).mockReset();
 });
 
 describe("kubernetes.agent handler", () => {
-  it("treats a pruned CR as nothing to do — no processing, no throw", async () => {
-    vi.mocked(clusterAgent).mockReturnValue(
-      transportReturning({ found: false, cr: null }) as never,
-    );
+  it("settles the run from the event's own report, with no cluster read", async () => {
+    await agentSucceeded(succeeded);
 
-    await expect(agentFailed({ agentName: "a-1" })).resolves.toBeUndefined();
-    expect(processAgentCr).not.toHaveBeenCalled();
+    expect(processAgentTerminal).toHaveBeenCalledWith({
+      taskId: "t-1",
+      agentName: "agent-11111111",
+      phase: "Succeeded",
+      output: "done",
+      failureReason: undefined,
+    });
   });
 
-  it("rethrows a refusal so the loop retries instead of marking it handled", async () => {
-    vi.mocked(clusterAgent).mockReturnValue(
-      transportRejecting(
-        new Error("cluster GET /agents/a-1 failed: 403"),
-      ) as never,
-    );
+  it("passes a Failed report's reason through to the same processor", async () => {
+    await agentFailed({
+      taskId: "t-2",
+      agentName: "a-2",
+      phase: "Failed",
+      status: { phase: "Failed", failureReason: "BackoffLimitExceeded" },
+    });
 
-    await expect(agentFailed({ agentName: "a-1" })).rejects.toThrow(/403/);
-    expect(processAgentCr).not.toHaveBeenCalled();
-  });
-
-  it("processes a CR the agent found", async () => {
-    vi.mocked(clusterAgent).mockReturnValue(
-      transportReturning({
-        found: true,
-        cr: { metadata: { name: "a-1" } },
-      }) as never,
-    );
-
-    await agentFailed({ agentName: "a-1" });
-
-    expect(processAgentCr).toHaveBeenCalledWith(
-      { metadata: { name: "a-1" } },
-      expect.anything(),
+    expect(processAgentTerminal).toHaveBeenCalledWith(
+      expect.objectContaining({
+        phase: "Failed",
+        failureReason: "BackoffLimitExceeded",
+      }),
     );
   });
 
-  it("does nothing when the event carries no agent name", async () => {
-    await agentFailed({});
+  it("does nothing when the event carries no task id", async () => {
+    await agentFailed({ agentName: "a-1", phase: "Failed" });
 
-    expect(processAgentCr).not.toHaveBeenCalled();
+    expect(processAgentTerminal).not.toHaveBeenCalled();
+  });
+
+  it("does nothing for a non-terminal phase, which settles no run", async () => {
+    await agentSucceeded({ taskId: "t-1", phase: "Running" });
+
+    expect(processAgentTerminal).not.toHaveBeenCalled();
   });
 });

@@ -296,7 +296,10 @@ export class InMemoryAssemblyRuns implements AssemblyRunsPort {
   ): Promise<void> {
     const node = this.nodes.find((n) => n.id === nodeRowId);
 
-    if (node && node.outcome === null) {
+    // `queued` as well as open, matching the adapter's WHERE: a claimed row was
+    // already handed its spec, and re-arming it would leave the row describing
+    // something other than the pod that is actually being built.
+    if (node && node.outcome === null && node.status === "queued") {
       this.dispatchSpecs.set(nodeRowId, dispatchSpec);
     }
   }

@@ -13,11 +13,6 @@ let app: Hapi.Server;
 function fakeDeps(over: Partial<ClusterDeps> = {}): ClusterDeps {
   return {
     agents: {
-      create: async (cr) => {
-        calls.push(`create:${cr.metadata?.name}`);
-
-        return { name: cr.metadata?.name ?? "", created: true };
-      },
       get: async (name) => (name === "known" ? { metadata: { name } } : null),
       list: async (opts) => {
         calls.push(`list:${opts.limit}:${opts.continue ?? "-"}`);
@@ -82,25 +77,6 @@ const post = (
   });
 
 describe("Agent CR routes", () => {
-  it("reports created:false for a CR that already exists, so a retry is idempotent", async () => {
-    build({
-      agents: {
-        ...fakeDeps().agents,
-        create: async (cr) => ({
-          name: cr.metadata?.name ?? "",
-          created: false,
-        }),
-      },
-    });
-
-    const res = await post("/api/cluster/agents", {
-      metadata: { name: "a-1" },
-    });
-
-    expect(res.statusCode).toBe(200);
-    expect(res.result).toEqual({ name: "a-1", created: false });
-  });
-
   it("answers 200 with found:false for a missing CR, not 404", async () => {
     const res = await app.inject({
       method: "GET",

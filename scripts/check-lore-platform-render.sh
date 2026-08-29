@@ -78,6 +78,30 @@ for sub in lore-floor lore-api; do
 		fail=1
 	fi
 done
+# The registration token must be a HARD requirement on both ends. It was
+# `optional: true` on each while registration was a feature gate; now that every
+# cluster-agent registers, an optional ref means a pod that boots without the
+# token and then claims nothing — silently, which is the failure mode the whole
+# change exists to remove. Scoped per document: lore-api legitimately marks other
+# refs optional, so a render-wide grep would false-positive.
+deployment_doc() {
+	awk -v src="# Source: lore-platform/charts/$1/templates/deployment.yaml" \
+		'$0 == src {p=1; next} /^# Source: /{p=0} p' <<<"$deploy_out"
+}
+for sub in lore-cluster-agent lore-api; do
+	doc="$(deployment_doc "$sub")"
+	token_ref="$(grep -A5 "name: LORE_CLUSTER_AGENT_REGISTRATION_TOKEN" <<<"$doc" || true)"
+	if [ -z "$token_ref" ]; then
+		echo "  MISSING: $sub does not mount LORE_CLUSTER_AGENT_REGISTRATION_TOKEN" >&2
+		fail=1
+	elif grep -q "optional: true" <<<"$token_ref"; then
+		echo "  UNEXPECTED: $sub mounts the registration token as optional" >&2
+		fail=1
+	else
+		echo "  ok: $sub requires the registration token"
+	fi
+done
+
 if grep -q "lore-db-ownership-reconciler" <<<"$deploy_out"; then
 	echo "  UNEXPECTED: ownership-reconciler rendered despite enabled=false" >&2
 	fail=1

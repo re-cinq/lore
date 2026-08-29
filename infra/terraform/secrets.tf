@@ -41,9 +41,11 @@ locals {
     "lore-nextauth-secret",
     # Binary/base64 .dockerconfigjson for GHCR pull access.
     "lore-ghcr-pull-secret",
+    # Every cluster-agent registers — the central one included — so this is a
+    # platform secret, not a feature gate.
+    "lore-cluster-agent-registration-token",
     ],
     var.enable_anthropic_admin_key ? ["lore-anthropic-admin-api-key"] : [],
-    var.enable_cluster_agent_registration ? ["lore-cluster-agent-registration-token"] : [],
   )
 }
 

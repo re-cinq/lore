@@ -14,22 +14,33 @@ import {
   statusFromAgentCr,
 } from "@re-cinq/lore-shared";
 import type { AgentApi, AgentNodeStatus } from "@re-cinq/lore-shared";
+// Type-only, so the runtime import below stays lazy.
+import type { CustomObjectsApi } from "@kubernetes/client-node";
 
 const PLURAL = "agents";
 
+/** How this adapter reaches the apiserver. Injectable so the error mapping
+ *  below — which decides whether a claim produced a pod — can be driven without
+ *  a cluster. */
+export type CustomObjectsFactory = () => Promise<CustomObjectsApi>;
+
+const kubeCustomObjects: CustomObjectsFactory = async () => {
+  const { KubeConfig, CustomObjectsApi: Api } =
+    await import("@kubernetes/client-node");
+  const kc = new KubeConfig();
+
+  loadKube(kc);
+
+  return kc.makeApiClient(Api);
+};
+
 export class KubeAgentApi implements AgentApi {
+  constructor(
+    private readonly customObjects: CustomObjectsFactory = kubeCustomObjects,
+  ) {}
+
   private namespace(): string {
     return agentsNamespace();
-  }
-
-  private async customObjects() {
-    const { KubeConfig, CustomObjectsApi } =
-      await import("@kubernetes/client-node");
-    const kc = new KubeConfig();
-
-    loadKube(kc);
-
-    return kc.makeApiClient(CustomObjectsApi);
   }
 
   async create(agent: AgentCr): Promise<{ name: string; created: boolean }> {

@@ -61,16 +61,18 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.githubAppSecret.name }}
                   key: {{ .Values.githubAppSecret.installationIdKey }}
-            # The satellite-registration pre-shared token (FR1 of
-            # specs/running-stations-in-any-k8s-cluster). optional: without it
-            # POST /api/cluster-agents/register answers 401 and nothing else
-            # changes.
+            # The cluster-agent registration pre-shared token (FR1 of
+            # specs/running-stations-in-any-k8s-cluster). NOT optional: every
+            # cluster-agent registers, the central one included, so lore-api
+            # answering 401 to every registration is a dead factory rather than
+            # a disabled feature. It fails here the same way the agent fails
+            # without it, which is the point — a pair where one end degrades
+            # quietly and the other crashes is how the 2026-08-24 outage read.
             - name: LORE_CLUSTER_AGENT_REGISTRATION_TOKEN
               valueFrom:
                 secretKeyRef:
                   name: {{ .Values.clusterAgentRegistrationSecret.name }}
                   key: {{ .Values.clusterAgentRegistrationSecret.key }}
-                  optional: true
             - name: ANTHROPIC_API_KEY
               valueFrom:
                 secretKeyRef:

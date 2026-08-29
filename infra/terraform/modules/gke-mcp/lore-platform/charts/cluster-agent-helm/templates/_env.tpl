@@ -40,9 +40,11 @@ Usage:
     secretKeyRef:
       name: {{ .Values.githubAppSecret.name }}
       key: {{ .Values.githubAppSecret.installationIdKey }}
-{{- if .Values.claim.enabled }}
-# The central claim loop (FR3): registration + claim + heartbeat against the
-# in-cluster lore-api, identity persisted via the Kubernetes Secret API.
+# Registration + claim + heartbeat against the in-cluster lore-api, identity
+# persisted via the Kubernetes Secret API (FR3). NOT optional and not a flag:
+# dispatch is pull-only, so an agent that cannot register claims nothing and
+# every queued run in this cluster dies at the queue-wait bound. The process
+# refuses to boot without these three, which is the loud version of that.
 - name: LORE_API_URL
   value: {{ .Values.claim.loreApiUrl | quote }}
 - name: LORE_CLUSTER_AGENT_NAME
@@ -58,9 +60,4 @@ Usage:
     secretKeyRef:
       name: {{ .Values.claim.registrationTokenSecret.name }}
       key: {{ .Values.claim.registrationTokenSecret.key }}
-      # optional: without the mirrored token Secret the claim loop stays off
-      # and the service still serves its routes — same posture as lore-api's
-      # register endpoint.
-      optional: true
-{{- end }}
 {{- end -}}

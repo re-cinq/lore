@@ -1,34 +1,30 @@
 /**
- * Layer-3 handlers for kubernetes.agent.* events. The event carries the agent
- * name; we re-read the fresh CR (so status is current) and run the shared
- * `processAgentCr`. Succeeded and Failed map to the same processor — it branches
- * on the CR phase internally.
+ * Layer-3 handlers for kubernetes.agent.* events. Succeeded and Failed map to
+ * the same processor — it branches on the phase internally.
  *
- * The read goes through the cluster agent, which answers `found:false` for a CR
- * that no longer exists. That replaces the old 404-sniffing: "already pruned" is
- * now an ordinary answer rather than an error class this file had to classify,
- * and any REAL failure (RBAC, apiserver 5xx, network) throws so the loop retries
- * instead of silently marking the event handled.
+ * The event is the whole input. This handler used to re-read the CR through the
+ * cluster agent "so status is current", which made settling a run conditional on
+ * the Floor being able to reach the cluster that ran it — true of exactly one
+ * cluster. `mapAgentToEvent` already reports the full status alongside the name
+ * (it was changed to, for this reason), so the re-read bought nothing and cost
+ * every run executed elsewhere.
+ *
+ * Params that do not describe a terminal run are dropped rather than guessed at:
+ * a missing task id or a non-terminal phase settles nothing, and an event whose
+ * shape is wrong must not be able to close a task from a default.
  */
 
-import { HttpAgentApi } from "@re-cinq/lore-shared";
-import { processAgentCr } from "./watcher/agent-watcher.js";
-import { clusterAgent } from "../kernel/queues.js";
+import { agentTerminalReport } from "./watcher/agent-watcher-logic.js";
+import { processAgentTerminal } from "./watcher/agent-watcher.js";
 import type { EventHandler } from "../main-loop/types.js";
 
 const handleAgent: EventHandler = async (params) => {
-  const { agentName } = params as { agentName?: string };
+  const report = agentTerminalReport(params);
 
-  if (!agentName) {
+  if (!report) {
     return;
   }
-  const cluster = new HttpAgentApi(clusterAgent());
-  const cr = await cluster.get(agentName);
-
-  if (!cr) {
-    return;
-  }
-  await processAgentCr(cr, cluster);
+  await processAgentTerminal(report);
 };
 
 export const agentSucceeded = handleAgent;

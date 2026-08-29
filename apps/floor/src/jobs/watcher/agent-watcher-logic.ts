@@ -153,3 +153,132 @@ export async function stampPrOnOpenRuns(
     ),
   );
 }
+
+/**
+ * One terminal Agent CR, as the event reported it.
+ *
+ * The whole CR used to be re-read from the cluster before it was processed,
+ * which quietly meant "the cluster the Floor can reach" — so a run executed
+ * anywhere else answered `found:false` and settled nothing. Everything the
+ * handlers actually read is already in the event (`mapAgentToEvent` puts the
+ * full status there for exactly this reason), so the report IS the input.
+ */
+export interface AgentTerminalReport {
+  taskId: string;
+  agentName: string | null;
+  phase: "Succeeded" | "Failed";
+  output: string | undefined;
+  failureReason: string | undefined;
+}
+
+/** Read a `kubernetes.agent.*` event's params, or null when they do not describe
+ *  a terminal run this Floor should settle. */
+export function agentTerminalReport(
+  params: Record<string, unknown>,
+): AgentTerminalReport | null {
+  const taskId = params.taskId;
+  const phase = params.phase;
+
+  if (typeof taskId !== "string" || taskId === "") {
+    return null;
+  }
+
+  if (phase !== "Succeeded" && phase !== "Failed") {
+    return null;
+  }
+  const status = (params.status ?? {}) as {
+    output?: unknown;
+    failureReason?: unknown;
+  };
+  const agentName = params.agentName;
+
+  return {
+    taskId,
+    agentName: typeof agentName === "string" ? agentName : null,
+    phase,
+    output: typeof status.output === "string" ? status.output : undefined,
+    failureReason:
+      typeof status.failureReason === "string"
+        ? status.failureReason
+        : undefined,
+  };
+}
+
+/**
+ * A single CR's one visit, in the STATION vocabulary.
+ *
+ * Station rows carry a `StageOutcome` (`success` / `failed` / …), runs carry a
+ * run outcome (`pr_created` / `completed` / `error`). They are different
+ * alphabets, and writing one into the other's column invents a value no
+ * transition rule can read.
+ *
+ * Derived FROM the run outcome rather than from the phase, so the row and its
+ * visit cannot disagree: both doors that close a single-CR run (the watcher, the
+ * reaper's sweep) already compute the run outcome, and each computes it from
+ * what it knows — a reported phase, or the backing task's status.
+ */
+export function stationOutcomeForRunOutcome(
+  runOutcome: string,
+): "success" | "failed" {
+  return runOutcome === "failed" || runOutcome === "error"
+    ? "failed"
+    : "success";
+}
+
+/** What a run was dispatched WITH — the facts the handlers need that the event
+ *  does not carry. */
+export interface DispatchFacts {
+  taskType: string;
+  targetRepo: string;
+  branch: string;
+  description: string;
+}
+
+/**
+ * Recover a run's dispatch facts from what was written down, in preference
+ * order: the run row (which recorded them AT dispatch) then the backing task.
+ *
+ * These used to be read off `Agent.spec` — the CR's own copy — which is the one
+ * source that only exists in the cluster that ran it, and only until the prune.
+ */
+export function dispatchFacts(
+  run: {
+    blueprintName: string;
+    repo: string;
+    branch: string | null;
+    args: Record<string, unknown>;
+  } | null,
+  task: {
+    task_type: string;
+    target_repo: string;
+    target_branch?: string | null;
+    description: string;
+    context_bundle?: Record<string, unknown> | null;
+  } | null,
+): DispatchFacts | null {
+  if (run) {
+    return {
+      taskType: run.blueprintName,
+      targetRepo: run.repo,
+      branch: run.branch ?? "",
+      description: String(run.args.description ?? ""),
+    };
+  }
+
+  if (!task) {
+    return null;
+  }
+  // `context_bundle.branch` first: a revision task is dispatched onto the branch
+  // it names, while `target_branch` is only written once a PR exists.
+  const bundleBranch = task.context_bundle?.branch;
+
+  return {
+    taskType: task.task_type,
+    targetRepo: task.target_repo,
+    branch:
+      typeof bundleBranch === "string"
+        ? bundleBranch
+        : (task.target_branch ?? ""),
+    description: task.description,
+  };
+}

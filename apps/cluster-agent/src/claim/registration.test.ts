@@ -43,25 +43,33 @@ function fakeFetch(responses: Array<Response | Error>): {
 }
 
 describe("registrationConfig", () => {
-  it("returns null when LORE_API_URL is unset", () => {
-    expect(
+  it("refuses to boot when LORE_API_URL is unset, naming it", () => {
+    expect(() =>
       registrationConfig({ ...FULL_ENV, LORE_API_URL: undefined }),
-    ).toBeNull();
+    ).toThrow(/LORE_API_URL/);
   });
 
-  it("returns null when LORE_CLUSTER_AGENT_REGISTRATION_TOKEN is unset", () => {
-    expect(
+  it("refuses to boot when LORE_CLUSTER_AGENT_REGISTRATION_TOKEN is unset, naming it", () => {
+    expect(() =>
       registrationConfig({
         ...FULL_ENV,
         LORE_CLUSTER_AGENT_REGISTRATION_TOKEN: undefined,
       }),
-    ).toBeNull();
+    ).toThrow(/LORE_CLUSTER_AGENT_REGISTRATION_TOKEN/);
   });
 
-  it("returns null when LORE_CLUSTER_AGENT_NAME is unset", () => {
-    expect(
+  it("refuses to boot when LORE_CLUSTER_AGENT_NAME is unset, naming it", () => {
+    expect(() =>
       registrationConfig({ ...FULL_ENV, LORE_CLUSTER_AGENT_NAME: undefined }),
-    ).toBeNull();
+    ).toThrow(/LORE_CLUSTER_AGENT_NAME/);
+  });
+
+  it("names every missing variable at once, not just the first", () => {
+    // An operator fixing one variable per crash-loop is an operator restarting
+    // the pod three times to learn three names it could have said at once.
+    expect(() => registrationConfig({})).toThrow(
+      /LORE_API_URL, LORE_CLUSTER_AGENT_REGISTRATION_TOKEN, LORE_CLUSTER_AGENT_NAME/,
+    );
   });
 
   it("builds the config with empty tags when LORE_CLUSTER_AGENT_TAGS is unset", () => {
@@ -78,7 +86,7 @@ describe("registrationConfig", () => {
       registrationConfig({
         ...FULL_ENV,
         LORE_API_URL: "https://lore-api.example.com/",
-      })?.apiUrl,
+      }).apiUrl,
     ).toBe("https://lore-api.example.com");
   });
 });

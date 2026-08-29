@@ -3,14 +3,21 @@
 The **only process in the platform that talks to this cluster's Kubernetes
 API**. The Floor holds no Kubernetes client anymore
 ([ADR-024](../../adrs/ADR-024-ubiquitous-language-execution-model.md),
-amendment 2026-08-24): it and lore-api reach Agent-CR dispatch, pod logs, the
-recipe catalog, and per-task token provisioning over HTTP through the shared
-`ClusterAgentClient` (`libs/shared/src/cluster/cluster-agent-client.ts`,
-`CLUSTER_AGENT_URL`). The agent holds **no database** — callers bring their own
-state and ask it for cluster operations only. It runs as the `lore-cluster-agent`
-Deployment in the `lore-cluster-agent` namespace, part of the `lore-platform`
-umbrella Helm chart, acting on the `ai-agents` namespace where the Agent CRs,
-the token Secret, and the catalog live.
+amendment 2026-08-24): it and lore-api reach pod logs, the recipe catalog, and
+per-task token provisioning over HTTP through the shared `ClusterAgentClient`
+(`libs/shared/src/cluster/cluster-agent-client.ts`, `CLUSTER_AGENT_URL`). The
+agent holds **no database** — callers bring their own state and ask it for
+cluster operations only. It runs as the `lore-cluster-agent` Deployment in the
+`lore-cluster-agent` namespace, part of the `lore-platform` umbrella Helm chart,
+acting on the `ai-agents` namespace where the Agent CRs, the token Secret, and
+the catalog live.
+
+**It is not dispatched to.** Work arrives by CLAIM, never by push: the Floor
+parks each pod node `queued` in `pipeline.station_runs`, and this process pulls
+the ones its tags cover and launches them here. That is true of every
+cluster-agent including the central one — see [Registration and the claim
+loop](#registration-and-the-claim-loop). The HTTP routes below are what remains:
+reads, and the two writes a caller cannot do for itself.
 
 ## Design
 
@@ -49,7 +56,6 @@ probe the apiserver.
 
 | Route | Operation |
 | --- | --- |
-| `POST /api/cluster/agents` | Create an Agent CR; an existing CR reports `created:false`, so a redelivered dispatch is idempotent |
 | `GET /api/cluster/agents/{name}` | Fetch one CR; `{found:false}` at 200 when absent |
 | `GET /api/cluster/agents` | One page of CRs (`limit` ≤ 100, `labelSelector`, `continue`) |
 | `DELETE /api/cluster/agents/{name}` | Remove a CR; a lost delete race is a success |
@@ -67,28 +73,51 @@ probe the apiserver.
 
 | Variable | Purpose |
 | --- | --- |
+| `LORE_API_URL` | **Required.** Central lore-api, for register / claim / heartbeat |
+| `LORE_CLUSTER_AGENT_REGISTRATION_TOKEN` | **Required.** Pre-shared token, used once to register |
+| `LORE_CLUSTER_AGENT_NAME` | **Required.** This cluster's unique registry name (`central` on the platform's own) |
+| `LORE_CLUSTER_AGENT_TAGS` | Capability tags offered, comma-separated (e.g. `node:agent,node:validate`) |
+| `LORE_STATION_BACKEND` | Must resolve to `k8s`; in-cluster it does so on its own |
 | `PORT` | Listen port (default 8080) |
 | `LORE_INGEST_TOKEN` | The bearer token callers must present — same secret on both ends |
 | `LORE_AGENTS_NAMESPACE` | Namespace it acts on (default `ai-agents`) |
 | `LORE_AGENT_SECRETS_NAME` | Secret holding per-task token keys (default `agent-secrets`) |
 | `GITHUB_APP_ID` / `GITHUB_APP_PRIVATE_KEY` / `GITHUB_APP_INSTALLATION_ID` | The GitHub App triple used to mint per-task installation tokens |
+| `LORE_CLUSTER_AGENT_IDENTITY_SECRET` / `_NAMESPACE` / `_KEY` | Where the registered `{id, token}` persists; local runs fall back to `LORE_CLUSTER_AGENT_IDENTITY_FILE` |
 
-## Satellite mode
+The first three have no defaults and no off switch: the process exits naming
+whichever are missing.
 
-The same image runs as a **satellite** on clusters Lore does not own
-(specs/running-stations-in-any-k8s-cluster): set `LORE_API_URL`,
-`LORE_CLUSTER_AGENT_REGISTRATION_TOKEN`, `LORE_CLUSTER_AGENT_NAME` and
-`LORE_CLUSTER_AGENT_TAGS` and the process registers with the central
-lore-api, then runs a claim loop (pull-based dispatch: claim a queued
-station run whose `required_tags` its tags cover, launch it as a local
-Agent CR) and a 30 s heartbeat beside it. The registered `{id, token}`
-identity persists in a Kubernetes Secret via the API
-(`LORE_CLUSTER_AGENT_IDENTITY_SECRET`/`_NAMESPACE`/`_KEY`; local runs
-fall back to the file at `LORE_CLUSTER_AGENT_IDENTITY_FILE`). Deployed
-by `charts/cluster-agent-standalone-helm`, never the umbrella; see the
-[Platform Engineer Guide](../../docs/using-lore/platform-engineer.md#register-a-new-execution-cluster-satellite)
-for the operator walk-through. Without those env vars the satellite
-loops stay off and the service behaves exactly as above.
+## Registration and the claim loop
+
+**Every** cluster-agent registers with the central lore-api and then claims its
+work — the one running beside the platform on GKE exactly as much as one on a
+laptop's minikube. There is no second mode and no flag: since dispatch flipped
+from push to pull (specs/running-stations-in-any-k8s-cluster FR3) the Floor
+parks each pod node `queued`, so an agent that did not register would claim
+nothing and every run would sit until it died at the queue-wait bound. That
+failure is silent, which is why the registration triple is a boot requirement
+(`registrationConfig` throws, naming every missing variable) rather than a
+quieter startup.
+
+On boot the process registers under `LORE_CLUSTER_AGENT_NAME`, receives a
+durable id and a per-agent bearer token, and persists the pair in a Kubernetes
+Secret through the API (the container is read-only, so a file write would EROFS
+the minted identity into a 409 restart loop). It then polls
+`POST /api/cluster-agents/{id}/claim` — taking any queued station run whose
+`required_tags` its own tags cover, and launching it as a local Agent CR — with
+a 30 s heartbeat beside it, so a long claim never looks like a dead cluster.
+Registration *failure* is not fatal: it retries on a 30 s→5 m schedule while the
+read routes and the CR watch keep serving.
+
+What differs between clusters is **packaging and credentials**, not behaviour.
+The platform's own cluster ships in the `lore-platform` umbrella, reaches
+lore-api over in-cluster DNS, and mounts `LORE_INGEST_TOKEN` to report with. A
+cluster Lore does not own ships via `charts/cluster-agent-standalone-helm`,
+reaches a public URL, and reports with the per-agent token registration minted —
+the bus-wide one never leaves the platform (FR5). See the [Platform Engineer
+Guide](../../docs/using-lore/platform-engineer.md#register-a-new-execution-cluster-satellite)
+for the operator walk-through of the second case.
 
 ## Boundaries
 

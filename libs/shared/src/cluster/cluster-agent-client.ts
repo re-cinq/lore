@@ -12,7 +12,7 @@ import type {
 import { collectPages, type Page } from "../lib/paginate.js";
 import type { AgentNodeStatus } from "./agent-node-status.js";
 import type {
-  AgentApi,
+  AgentLister,
   AgentStatusReader,
   TokenProvisioner,
   TokenCleanup,
@@ -67,17 +67,17 @@ export class ClusterAgentClient {
  *  walk to the fewest round trips it can make. */
 const PAGE_LIMIT = 100;
 
-/** {@link AgentApi} + {@link AgentStatusReader} over the agent. */
-export class HttpAgentApi implements AgentApi, AgentStatusReader {
+/**
+ * {@link AgentLister} + {@link AgentStatusReader} over the agent — the READ half
+ * of the cluster surface, plus the two writes a caller cannot perform locally
+ * (a status patch, a delete).
+ *
+ * Deliberately NOT an {@link AgentApi}: it cannot create. Dispatch is pull-only,
+ * so a CR is created by the agent that claimed the run, in its own cluster.
+ * `POST /agents` was the last inbound push and is gone with its route.
+ */
+export class HttpAgentApi implements AgentLister, AgentStatusReader {
   constructor(private readonly client: ClusterAgentClient) {}
-
-  async create(agent: AgentCr): Promise<{ name: string; created: boolean }> {
-    return (await this.client.call<{ name: string; created: boolean }>(
-      "POST",
-      "/agents",
-      agent,
-    ))!;
-  }
 
   async listByLabel(selector: string): Promise<AgentCr[]> {
     // Walked, not truncated. A label selector narrow enough to fit one page

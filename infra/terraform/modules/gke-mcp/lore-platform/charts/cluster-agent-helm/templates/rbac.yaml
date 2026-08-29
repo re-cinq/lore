@@ -59,7 +59,6 @@ roleRef:
   kind: Role
   name: lore-cluster-agent
   apiGroup: rbac.authorization.k8s.io
-{{- if .Values.claim.enabled }}
 ---
 # The identity Secret ({{ .Values.claim.identitySecretName }}): the claim loop
 # PERSISTS its registered {id, token} there so restarts re-register with the
@@ -92,4 +91,3 @@ roleRef:
   kind: Role
   name: lore-cluster-agent-identity
   apiGroup: rbac.authorization.k8s.io
-{{- end }}
