@@ -33,7 +33,7 @@ import { DB_UNAVAILABLE } from "../common-schemas.js";
 const ReleaseBody = z.object({
   node_row_id: z.string().min(1),
   /** Recorded in the log, so a claim that keeps bouncing names its own cause. */
-  reason: z.string().max(2000),
+  reason: z.string().min(1).max(2000),
 });
 
 const ReleaseResponse = z.object({

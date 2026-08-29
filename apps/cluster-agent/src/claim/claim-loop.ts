@@ -274,7 +274,7 @@ export async function runClaimLoop(deps: ClaimLoopDeps): Promise<void> {
 
       if (outcome.kind === "already-running") {
         log(
-          `[cluster-agent] station run ${outcome.stationRunId} claimed, but Agent CR ${outcome.crName} already exists — no new pod; its terminal event settles the visit`,
+          `[cluster-agent] station run ${outcome.stationRunId} claimed, but Agent CR ${outcome.crName} already exists — no new pod launched; the CR's terminal event or the reaper will settle the visit`,
         );
       }
 
