@@ -22,7 +22,7 @@ import type { ProxyMessage } from "@re-cinq/lore-shared/project/events/event-inp
 import { AgentWatchInput } from "./listeners/k8s-watch.js";
 import { PodLogInput, podLogStreamingEnabled } from "./inputs/pod-log-input.js";
 import { TelemetrySink } from "./kernel/telemetry-sink.js";
-import { startSatellite } from "./satellite/start-satellite.js";
+import { startClaimLoop } from "./claim/start-claim-loop.js";
 
 const PORT = parseInt(process.env.PORT ?? "8080", 10);
 
@@ -34,10 +34,10 @@ const REPORT_RETRY = { attempts: 5, delayMs: 500 };
  *  clear, short enough that a wedged router cannot hold a rollout open. */
 const DRAIN_TIMEOUT_MS = 5_000;
 
-/** The satellite's current per-agent token, once it has registered. Lives in
- *  the composition root because that is where the reporter and the satellite
- *  are wired together. */
-let satelliteToken: string | undefined;
+/** This agent's per-agent token, once it has registered. Lives in the
+ *  composition root because that is where the reporter and the claim loop are
+ *  wired together. */
+let agentToken: string | undefined;
 
 async function main(): Promise<void> {
   const routerUrl = process.env.EVENT_ROUTER_URL;
@@ -45,27 +45,31 @@ async function main(): Promise<void> {
 
   // Claim-based dispatch (specs/running-stations-in-any-k8s-cluster FR1/FR3):
   // register with the Lore API, then pull queued station runs and launch them
-  // here. Gated on the same station backend as the watch; a failed
-  // registration retries in the background and never blocks the routes above.
-  // Started before the watch so the watch can borrow its re-registration.
-  const satellite = startSatellite(process.env, {
+  // here. Not optional and not a mode — dispatch is pull-only, so an agent that
+  // does not claim drains nothing. Missing configuration throws out of `main`
+  // below; a failed registration ATTEMPT retries in the background and never
+  // blocks the routes. Started before the watch so the watch can borrow its
+  // re-registration.
+  const claimLoop = startClaimLoop(process.env, {
     onIdentity: (identity) => {
-      satelliteToken = identity.token;
+      agentToken = identity.token;
     },
   });
 
-  // The central cluster reports with LORE_INGEST_TOKEN, because that is the one
-  // the router VERIFIES for every route. Presenting a different token that this
-  // pod happens to mount is how the 2026-08-24 outage happened: each end
-  // typechecked, and every call 401'd.
+  // Which credential this agent reports with is a question about what it was
+  // GIVEN, not about what kind of agent it is. A cluster inside the platform
+  // mounts LORE_INGEST_TOKEN — the token the router verifies for every route,
+  // and presenting a different one this pod happens to mount is how the
+  // 2026-08-24 outage happened: each end typechecked, and every call 401'd. A
+  // cluster outside it has no such token by design (FR5 of
+  // specs/running-stations-in-any-k8s-cluster) and reports with the per-agent
+  // token registration minted, which the router accepts against
+  // `pipeline.cluster_agents`.
   //
-  // A SATELLITE has no such token by design (FR5 of
-  // specs/running-stations-in-any-k8s-cluster) — so it reports with the
-  // per-agent token it received at registration, which the router accepts
-  // against `pipeline.cluster_agents`. A THUNK, resolved per call rather than
-  // captured: a re-registration rotates the token, and a stale one 401s every
-  // report. Without this the watch reported nothing and every node waited for
-  // the reaper instead — silently, since the retry log is the only symptom.
+  // A THUNK, resolved per call rather than captured: a re-registration rotates
+  // the token, and a stale one 401s every report. Without this the watch
+  // reported nothing and every node waited for the reaper instead — silently,
+  // since the retry log is the only symptom.
   //
   // Built only when there is a router to report to. This process holds no pool,
   // so the selector's local fallback cannot exist here; asking for one would
@@ -78,7 +82,7 @@ async function main(): Promise<void> {
             "the cluster-agent holds no database — there is no local reporter to fall back to",
           );
         },
-        token: () => process.env.LORE_INGEST_TOKEN ?? satelliteToken,
+        token: () => process.env.LORE_INGEST_TOKEN ?? agentToken,
         retry: REPORT_RETRY,
         // Telemetry rides the same queue and the same ladder, and lands
         // somewhere else entirely: the Floor projects it, the router would only
@@ -86,13 +90,13 @@ async function main(): Promise<void> {
         telemetry: floorUrl
           ? new TelemetrySink(
               floorUrl,
-              () => process.env.LORE_INGEST_TOKEN ?? satelliteToken,
+              () => process.env.LORE_INGEST_TOKEN ?? agentToken,
             )
           : undefined,
-        // A 401 on a satellite's report means its token rotated (another
-        // instance registered); re-register and retry, exactly like the claim
+        // A 401 on a report means the token rotated (another instance of this
+        // agent registered); re-register and retry, exactly like the claim
         // loop. Retrying with the same token lost run 595d2b0b's terminal event.
-        onUnauthorized: () => satellite.reRegister(),
+        onUnauthorized: () => claimLoop.reRegister(),
       })
     : null;
 
@@ -104,10 +108,10 @@ async function main(): Promise<void> {
     proxy && floorUrl
       ? {
           emit: (message: ProxyMessage) => proxy.emit(message),
-          // Resolved per request: a satellite's per-agent token rotates on
-          // every re-registration, and its own run pods present the copy this
+          // Resolved per request: the per-agent token rotates on every
+          // re-registration, and this cluster's run pods present the copy this
           // process published into `agent-secrets`.
-          acceptedTokens: () => [process.env.LORE_INGEST_TOKEN, satelliteToken],
+          acceptedTokens: () => [process.env.LORE_INGEST_TOKEN, agentToken],
         }
       : undefined;
 

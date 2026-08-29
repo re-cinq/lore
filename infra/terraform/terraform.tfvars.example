@@ -55,10 +55,5 @@ enable_ui_admin_token = false
 # the anthropic ExternalSecrets, for the cost-sync maintenance job.
 enable_anthropic_admin_key = false
 
-# Turns on satellite-cluster registration: mirrors
-# `lore-cluster-agent-registration-token` into lore-api + lore-cluster-agent.
-# False leaves POST /api/cluster-agents/register answering 401.
-enable_cluster_agent_registration = false
-
 # --- Misc ---
 log_retention_days = 30

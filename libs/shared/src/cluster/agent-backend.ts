@@ -21,8 +21,16 @@ export const TASK_TYPE_LABEL = "lore.re-cinq.com/task-type";
 
 /** Kubernetes operations on `Agent` CRs, returning structured results (no throw on
  *  409). The live implementation is KubeAgentApi; tests use an in-memory fake. */
-export type { AgentApi, TokenProvisioner } from "./cluster-ports.js";
-import type { AgentApi, TokenProvisioner } from "./cluster-ports.js";
+export type {
+  AgentApi,
+  AgentLister,
+  TokenProvisioner,
+} from "./cluster-ports.js";
+import type {
+  AgentApi,
+  AgentLister,
+  TokenProvisioner,
+} from "./cluster-ports.js";
 import { CONTEXT_BOOTSTRAP } from "../agents/recipe-prompt.js";
 
 /** Deterministic per-task Agent name, so a re-launch is idempotent (409). */
@@ -97,20 +105,33 @@ export class AgentCrBackend implements StationBackend {
     return { ref: name, launched: created };
   }
 
-  /** True while an Agent for `taskId` exists and is not yet terminal. No Agents →
-   *  not active (orphaned). A probe failure returns `true` so the reaper falls back
-   *  to its age window rather than killing a live run on a transient kube fault. */
-  async isActive(taskId: string): Promise<boolean> {
-    try {
-      const agents = await this.api.listByLabel(`${TASK_ID_LABEL}=${taskId}`);
+  isActive(taskId: string): Promise<boolean> {
+    return isTaskAgentActive(this.api, taskId);
+  }
+}
 
-      if (agents.length === 0) {
-        return false;
-      }
+/**
+ * True while an Agent for `taskId` exists and is not yet terminal. No Agents →
+ * not active (orphaned). A probe failure returns `true` so the reaper falls back
+ * to its age window rather than killing a live run on a transient kube fault.
+ *
+ * A free function over {@link AgentLister} rather than a method, because the
+ * callers that need to ASK this — the Floor's planning reaper and its station
+ * backend — have no business holding something that can also create a CR.
+ */
+export async function isTaskAgentActive(
+  agents: AgentLister,
+  taskId: string,
+): Promise<boolean> {
+  try {
+    const found = await agents.listByLabel(`${TASK_ID_LABEL}=${taskId}`);
 
-      return agents.some((agent) => !isTerminal(agent));
-    } catch {
-      return true;
+    if (found.length === 0) {
+      return false;
     }
+
+    return found.some((agent) => !isTerminal(agent));
+  } catch {
+    return true;
   }
 }

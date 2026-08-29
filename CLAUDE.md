@@ -367,7 +367,7 @@ Nine service workloads on GKE (one umbrella chart, `lore-platform`, spanning a n
 - PostgreSQL + pgvector: `lore-db` namespace
 - The Floor (coordinator): `lore-floor` namespace
 - event-router (sole writer of `pipeline.events`, ADR-044): `lore-event-router` namespace
-- cluster-agent (the only process holding a Kubernetes client): `lore-cluster-agent` namespace
+- cluster-agent (the only process holding a Kubernetes client): `lore-cluster-agent` namespace. **Every** cluster-agent registers with lore-api and CLAIMS its work — the platform's own (registered as `central`) exactly as much as a satellite. Dispatch is pull-only, so there is no unregistered mode: the process refuses to boot without `LORE_API_URL`/`LORE_CLUSTER_AGENT_REGISTRATION_TOKEN`/`LORE_CLUSTER_AGENT_NAME`, nothing is ever pushed to it, and the terminal-run handler settles a task from the reported event rather than by reading a CR back (a run may have executed in a cluster the Floor cannot reach)
 - Lore API server (remote REST): `lore-api` namespace
 - lore-mcp gateway (MCP over HTTP for agent pods): `lore-api` namespace
 - stations (service stations, `POST /api/stations/{name}`): `lore-stations` namespace

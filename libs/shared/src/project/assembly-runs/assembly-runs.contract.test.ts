@@ -1065,6 +1065,44 @@ describe.each(IMPLEMENTATIONS)(
       expect(await port.listSummaries({ clusterAgentId: agentId })).toEqual([]);
     });
 
+    it("arming a claimed row is a no-op, so a re-dispatch cannot rewrite what a pod is being built from", async () => {
+      // The window is real: a crash-recovery re-dispatch can land after another
+      // cluster took the row, and the claim already handed that cluster the
+      // spec. Rewriting it then changes nothing about the pod being launched and
+      // everything about what the row claims was launched.
+      const { port, repo } = make();
+      const runId = await port.start({ blueprintName: "code-review", repo });
+      const { nodeRowId } = await port.ensureStationRun({
+        assemblyRunId: runId,
+        nodeId: "review",
+        iteration: 1,
+        status: "queued",
+      });
+
+      await port.enqueueStationRunDispatch(nodeRowId, { prompt: "first" });
+      let claimed = await port.claimNextStationRun({
+        clusterAgentId: randomUUID(),
+        tags: [],
+      });
+
+      while (claimed && claimed.assemblyRunId !== runId) {
+        claimed = await port.claimNextStationRun({
+          clusterAgentId: randomUUID(),
+          tags: [],
+        });
+      }
+      await port.enqueueStationRunDispatch(nodeRowId, { prompt: "second" });
+
+      expect(claimed?.dispatchSpec).toEqual({ prompt: "first" });
+      await port.requeueStationRun(nodeRowId);
+      const reclaimed = await port.claimNextStationRun({
+        clusterAgentId: randomUUID(),
+        tags: [],
+      });
+
+      expect(reclaimed?.dispatchSpec).toEqual({ prompt: "first" });
+    });
+
     it("requeue resets the same row to queued and clears the claim; a finished visit refuses", async () => {
       const { port, repo } = make();
       const runId = await port.start({ blueprintName: "code-review", repo });

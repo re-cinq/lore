@@ -42,10 +42,10 @@ REQUIRED=(
   lore-github-oauth-client-secret
   lore-nextauth-secret
   lore-ghcr-pull-secret
+  lore-cluster-agent-registration-token
 )
 OPTIONAL=(
   lore-anthropic-admin-api-key
-  lore-cluster-agent-registration-token
   lore-admin-token
 )
 

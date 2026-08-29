@@ -110,6 +110,17 @@ export EVENT_ROUTER_URL="${EVENT_ROUTER_URL:-http://localhost:3003}"
 export STATIONS_URL="${STATIONS_URL:-http://localhost:3004}"
 export CLUSTER_AGENT_URL="${CLUSTER_AGENT_URL:-http://localhost:3005}"
 
+#     The cluster-agent registers and claims like every other one — there is no
+#     unregistered mode — so both ends of the registration need the same
+#     pre-shared token locally. lore-api reads it to authorize
+#     POST /api/cluster-agents/register; the agent presents it once at boot and
+#     uses the per-agent token it gets back for everything after.
+export LORE_CLUSTER_AGENT_REGISTRATION_TOKEN="${LORE_CLUSTER_AGENT_REGISTRATION_TOKEN:-lore-local-registration-token}"
+export LORE_CLUSTER_AGENT_NAME="${LORE_CLUSTER_AGENT_NAME:-central}"
+#     Every tag, as the umbrella chart's central agent carries: on a laptop this
+#     is the only cluster, so anything it cannot claim runs nowhere.
+export LORE_CLUSTER_AGENT_TAGS="${LORE_CLUSTER_AGENT_TAGS:-node:agent,node:validate,node:gate,node:retrospective,node:github_action,node:detect,node:ingest,node:comment-triage}"
+
 # Station execution. Tasks run as Agent CRs on the ai-agent-subsystem (agent-cr),
 # which needs a Kubernetes cluster. The default `inprocess` keeps the lightweight
 # feature-planning/finalize path for a dev without one; set LORE_STATION_BACKEND=k8s
@@ -225,24 +236,43 @@ set -m
 # dies with "Settings file not found", which is invisible from the Floor side.
 # LORE_AGENT_SKILLS_DIR is explicit because the gateway otherwise resolves the
 # bundle relative to cwd, and concurrently runs from the repo root.
-npx concurrently -k \
-  -n "shared,core,api-tsc,api,mcp-tsc,skills,agent-tsc,agent,router-tsc,router,stations-tsc,stations,cluster-tsc,cluster,ui" \
-  -c "blue,gray,green,greenBright,yellow,white,magenta,magentaBright,red,red,redBright,redBright,yellowBright,yellowBright,cyan" \
-  "npm run dev -w @re-cinq/lore-shared" \
-  "npm run dev -w @re-cinq/lore-server-core" \
-  "npm run dev -w @re-cinq/lore-api" \
-  "PORT=3001 npm run start:watch -w @re-cinq/lore-api" \
-  "npm run dev -w @re-cinq/lore-mcp" \
-  "LORE_MCP_HTTP=1 LORE_MCP_PORT=3002 LORE_AGENT_SKILLS_DIR=$ROOT/apps/mcp-server/agent-skills npm run start -w @re-cinq/lore-mcp" \
-  "npm run dev -w @re-cinq/lore-floor" \
-  "npm run start:watch -w @re-cinq/lore-floor" \
-  "npm run dev -w @re-cinq/lore-event-router" \
-  "PORT=3003 npm run start:watch -w @re-cinq/lore-event-router" \
-  "npm run dev -w @re-cinq/lore-stations" \
-  "PORT=3004 npm run start:watch -w @re-cinq/lore-stations" \
-  "npm run dev -w @re-cinq/lore-cluster-agent" \
-  "PORT=3005 npm run start:watch -w @re-cinq/lore-cluster-agent" \
-  "npm --prefix apps/web-ui run dev" &
+names="shared,core,api-tsc,api,mcp-tsc,skills,agent-tsc,agent,router-tsc,router,stations-tsc,stations"
+colors="blue,gray,green,greenBright,yellow,white,magenta,magentaBright,red,red,redBright,redBright"
+commands=(
+  "npm run dev -w @re-cinq/lore-shared"
+  "npm run dev -w @re-cinq/lore-server-core"
+  "npm run dev -w @re-cinq/lore-api"
+  "PORT=3001 npm run start:watch -w @re-cinq/lore-api"
+  "npm run dev -w @re-cinq/lore-mcp"
+  "LORE_MCP_HTTP=1 LORE_MCP_PORT=3002 LORE_AGENT_SKILLS_DIR=$ROOT/apps/mcp-server/agent-skills npm run start -w @re-cinq/lore-mcp"
+  "npm run dev -w @re-cinq/lore-floor"
+  "npm run start:watch -w @re-cinq/lore-floor"
+  "npm run dev -w @re-cinq/lore-event-router"
+  "PORT=3003 npm run start:watch -w @re-cinq/lore-event-router"
+  "npm run dev -w @re-cinq/lore-stations"
+  "PORT=3004 npm run start:watch -w @re-cinq/lore-stations"
+)
+
+# The cluster-agent runs only with a cluster to run against. It is a Kubernetes
+# client and a claim loop and nothing else, so without `k8s` it now refuses to
+# boot — and under `concurrently -k` one exiting process takes the whole stack
+# with it. Skipping it keeps `LORE_STATION_BACKEND=inprocess` (the default, for a
+# dev with no minikube) a working stack rather than an immediate teardown.
+if [ "$LORE_STATION_BACKEND" = "k8s" ]; then
+  names="$names,cluster-tsc,cluster"
+  colors="$colors,yellowBright,yellowBright"
+  commands+=(
+    "npm run dev -w @re-cinq/lore-cluster-agent"
+    "PORT=3005 npm run start:watch -w @re-cinq/lore-cluster-agent"
+  )
+else
+  log "LORE_STATION_BACKEND=$LORE_STATION_BACKEND — cluster-agent not started (it needs a cluster to claim into)"
+fi
+names="$names,ui"
+colors="$colors,cyan"
+commands+=("npm --prefix apps/web-ui run dev")
+
+npx concurrently -k -n "$names" -c "$colors" "${commands[@]}" &
 STACK_PGID=$!
 set +m
 wait "$STACK_PGID"

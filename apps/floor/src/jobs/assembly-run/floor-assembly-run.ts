@@ -152,14 +152,41 @@ export function stationRunInputFor(
         );
 
   return {
-    description: truncateForStorage(content, INPUT_DESCRIPTION_MAX_BYTES),
-    prompt:
-      prompt === null
-        ? null
-        : truncateForStorage(prompt, INPUT_PROMPT_MAX_BYTES),
+    ...boundedStationRunInput({
+      description: content,
+      prompt,
+      repo: task.targetRepo,
+      ref: cloneRef(task),
+    }),
     params,
-    repo: task.targetRepo,
-    ref: cloneRef(task),
+  };
+}
+
+/**
+ * The same write-time caps, for a visit that has no graph node to describe it:
+ * a single-CR task (runbook / onboard / review) is one agent visit whose whole
+ * definition is its dispatch spec. Shared with {@link stationRunInputFor} so the
+ * two kinds of visit are bounded by one pair of numbers rather than two.
+ */
+export function boundedStationRunInput(input: {
+  description: string;
+  prompt: string | null;
+  repo: string;
+  ref: string;
+}): StationRunInput {
+  return {
+    description: truncateForStorage(
+      input.description,
+      INPUT_DESCRIPTION_MAX_BYTES,
+    ),
+    prompt:
+      input.prompt === null
+        ? null
+        : truncateForStorage(input.prompt, INPUT_PROMPT_MAX_BYTES),
+    // An agent visit runs a prompt, not a command.
+    params: null,
+    repo: input.repo,
+    ref: input.ref,
   };
 }
 

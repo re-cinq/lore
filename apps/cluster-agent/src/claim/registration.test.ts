@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import { InMemoryIdentityStore } from "./identity-store.js";
 import {
   REGISTRATION_MAX_DELAY_MS,
-  nextRegistrationDelay,
   parseTags,
   registerOnce,
   registerWithBackoff,
@@ -43,25 +42,33 @@ function fakeFetch(responses: Array<Response | Error>): {
 }
 
 describe("registrationConfig", () => {
-  it("returns null when LORE_API_URL is unset", () => {
-    expect(
+  it("refuses to boot when LORE_API_URL is unset, naming it", () => {
+    expect(() =>
       registrationConfig({ ...FULL_ENV, LORE_API_URL: undefined }),
-    ).toBeNull();
+    ).toThrow(/LORE_API_URL/);
   });
 
-  it("returns null when LORE_CLUSTER_AGENT_REGISTRATION_TOKEN is unset", () => {
-    expect(
+  it("refuses to boot when LORE_CLUSTER_AGENT_REGISTRATION_TOKEN is unset, naming it", () => {
+    expect(() =>
       registrationConfig({
         ...FULL_ENV,
         LORE_CLUSTER_AGENT_REGISTRATION_TOKEN: undefined,
       }),
-    ).toBeNull();
+    ).toThrow(/LORE_CLUSTER_AGENT_REGISTRATION_TOKEN/);
   });
 
-  it("returns null when LORE_CLUSTER_AGENT_NAME is unset", () => {
-    expect(
+  it("refuses to boot when LORE_CLUSTER_AGENT_NAME is unset, naming it", () => {
+    expect(() =>
       registrationConfig({ ...FULL_ENV, LORE_CLUSTER_AGENT_NAME: undefined }),
-    ).toBeNull();
+    ).toThrow(/LORE_CLUSTER_AGENT_NAME/);
+  });
+
+  it("names every missing variable at once, not just the first", () => {
+    // An operator fixing one variable per crash-loop is an operator restarting
+    // the pod three times to learn three names it could have said at once.
+    expect(() => registrationConfig({})).toThrow(
+      /LORE_API_URL, LORE_CLUSTER_AGENT_REGISTRATION_TOKEN, LORE_CLUSTER_AGENT_NAME/,
+    );
   });
 
   it("builds the config with empty tags when LORE_CLUSTER_AGENT_TAGS is unset", () => {
@@ -78,7 +85,7 @@ describe("registrationConfig", () => {
       registrationConfig({
         ...FULL_ENV,
         LORE_API_URL: "https://lore-api.example.com/",
-      })?.apiUrl,
+      }).apiUrl,
     ).toBe("https://lore-api.example.com");
   });
 });
@@ -94,19 +101,6 @@ describe("parseTags", () => {
 
   it("drops empty entries so a trailing comma adds no tag", () => {
     expect(parseTags("gpu,,")).toEqual(["gpu"]);
-  });
-});
-
-describe("nextRegistrationDelay", () => {
-  it("doubles 30s to 60s", () => {
-    expect(nextRegistrationDelay(30_000)).toBe(60_000);
-  });
-
-  it("caps the schedule at 5 minutes", () => {
-    expect(nextRegistrationDelay(240_000)).toBe(REGISTRATION_MAX_DELAY_MS);
-    expect(nextRegistrationDelay(REGISTRATION_MAX_DELAY_MS)).toBe(
-      REGISTRATION_MAX_DELAY_MS,
-    );
   });
 });
 
@@ -266,5 +260,38 @@ describe("registerWithBackoff", () => {
 
     expect(identity).toEqual({ id: "id-3", token: "tok-3" });
     expect(sleeps).toEqual([30_000, 60_000]);
+  });
+
+  it("caps the retry schedule at 5 minutes and keeps polling there", async () => {
+    const { fetchFn } = fakeFetch([
+      ...Array.from({ length: 6 }, () => jsonResponse(503, { error: "down" })),
+      jsonResponse(200, { id: "id-9", token: "tok-9" }),
+    ]);
+    const sleeps: number[] = [];
+
+    await registerWithBackoff({
+      config: {
+        apiUrl: "https://lore-api.example.com",
+        registrationToken: "reg-token",
+        name: "minikube-bogdan",
+        tags: [],
+      },
+      store: new InMemoryIdentityStore(),
+      fetchFn,
+      sleep: (ms) => {
+        sleeps.push(ms);
+
+        return Promise.resolve();
+      },
+    });
+
+    expect(sleeps).toEqual([
+      30_000,
+      60_000,
+      120_000,
+      240_000,
+      REGISTRATION_MAX_DELAY_MS,
+      REGISTRATION_MAX_DELAY_MS,
+    ]);
   });
 });

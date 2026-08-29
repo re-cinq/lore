@@ -1,4 +1,5 @@
 import { errorMessage } from "@re-cinq/lore-shared";
+import { runPollLoop } from "@re-cinq/lore-shared/lib/poll-loop.js";
 import type { ClusterAgentIdentity } from "./identity-store.js";
 
 /**
@@ -10,6 +11,7 @@ import type { ClusterAgentIdentity } from "./identity-store.js";
  */
 
 const DEFAULT_HEARTBEAT_S = 30;
+const HEARTBEAT_TIMEOUT_MS = 30_000;
 
 export function heartbeatIntervalMs(env: NodeJS.ProcessEnv): number {
   const raw = Number(env.LORE_CLUSTER_AGENT_HEARTBEAT_S);
@@ -38,6 +40,7 @@ export async function heartbeatOnce(
       {
         method: "POST",
         headers: { authorization: `Bearer ${token}` },
+        signal: AbortSignal.timeout(HEARTBEAT_TIMEOUT_MS),
       },
     );
 
@@ -73,12 +76,15 @@ export interface HeartbeatLoopDeps {
 
 /** Beat forever at the fixed interval; an unauthorized beat re-registers. */
 export async function runHeartbeatLoop(deps: HeartbeatLoopDeps): Promise<void> {
-  while (deps.running?.() ?? true) {
-    const outcome = await deps.beat();
-
-    if (outcome === "unauthorized") {
-      await deps.reRegister();
-    }
-    await deps.sleep(deps.intervalMs);
-  }
+  await runPollLoop<"ok" | "unauthorized" | "error">({
+    tick: deps.beat,
+    onOutcome: async (outcome) => {
+      if (outcome === "unauthorized") {
+        await deps.reRegister();
+      }
+    },
+    delayFor: () => deps.intervalMs,
+    sleep: deps.sleep,
+    running: deps.running,
+  });
 }

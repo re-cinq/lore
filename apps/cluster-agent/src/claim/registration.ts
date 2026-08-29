@@ -10,10 +10,12 @@
  * cluster's identity — so the identity store is loaded before every attempt.
  *
  * All IO is injected (fetch, store, sleep) so the decisions test without a
- * network; the composition shell lives in start-satellite.ts.
+ * network; the composition shell lives in start-claim-loop.ts.
  */
 
 import { errorMessage } from "@re-cinq/lore-shared";
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
+import { pollUntil } from "@re-cinq/lore-shared/lib/poll-loop.js";
 import type { ClusterAgentIdentity, IdentityStore } from "./identity-store.js";
 
 const REGISTER_TIMEOUT_MS = 15_000;
@@ -35,18 +37,33 @@ export function parseTags(raw: string | undefined): string[] {
     .filter((tag) => tag.length > 0);
 }
 
-/** Null when any of the three required vars is unset — registration (and with
- *  it the claim loop) simply stays off; the inbound-push routes still work. */
-export function registrationConfig(
-  env: NodeJS.ProcessEnv,
-): RegistrationConfig | null {
+/**
+ * The registration triple, or a refusal to boot.
+ *
+ * There is no unregistered mode any more. Since dispatch flipped from push to
+ * pull (FR3) a cluster-agent that does not register claims nothing, and a
+ * cluster whose queued runs nobody claims does not fail — it goes quiet until
+ * every run dies at the queue-wait bound. A crash naming the missing variable
+ * is the only honest answer, and it is the one Kubernetes surfaces.
+ *
+ * Every missing name at once: an operator who learns one name per restart
+ * restarts three times to read a list this function already holds.
+ */
+export function registrationConfig(env: NodeJS.ProcessEnv): RegistrationConfig {
   const apiUrl = env.LORE_API_URL;
   const registrationToken = env.LORE_CLUSTER_AGENT_REGISTRATION_TOKEN;
   const name = env.LORE_CLUSTER_AGENT_NAME;
+  const missing = [
+    apiUrl ? "" : "LORE_API_URL",
+    registrationToken ? "" : "LORE_CLUSTER_AGENT_REGISTRATION_TOKEN",
+    name ? "" : "LORE_CLUSTER_AGENT_NAME",
+  ].filter((variable) => variable !== "");
 
-  if (!apiUrl || !registrationToken || !name) {
-    return null;
-  }
+  enforceTrue(
+    apiUrl && registrationToken && name,
+    Error,
+    `cluster-agent cannot start: ${missing.join(", ")} unset. Every cluster-agent registers and claims its work; there is no mode that runs without these.`,
+  );
 
   return {
     apiUrl: apiUrl.replace(/\/+$/, ""),
@@ -54,11 +71,6 @@ export function registrationConfig(
     name,
     tags: parseTags(env.LORE_CLUSTER_AGENT_TAGS),
   };
-}
-
-/** The idle schedule between failed registration attempts: 30s doubling to 5m. */
-export function nextRegistrationDelay(currentMs: number): number {
-  return Math.min(currentMs * 2, REGISTRATION_MAX_DELAY_MS);
 }
 
 export interface RegisterDeps {
@@ -135,15 +147,10 @@ export async function registerOnce(
 export async function registerWithBackoff(
   deps: RegisterDeps & { sleep: (ms: number) => Promise<void> },
 ): Promise<ClusterAgentIdentity> {
-  let delayMs = REGISTRATION_BASE_DELAY_MS;
-
-  for (;;) {
-    const identity = await registerOnce(deps);
-
-    if (identity) {
-      return identity;
-    }
-    await deps.sleep(delayMs);
-    delayMs = nextRegistrationDelay(delayMs);
-  }
+  return pollUntil<ClusterAgentIdentity>({
+    tick: () => registerOnce(deps),
+    baseDelayMs: REGISTRATION_BASE_DELAY_MS,
+    maxDelayMs: REGISTRATION_MAX_DELAY_MS,
+    sleep: deps.sleep,
+  });
 }

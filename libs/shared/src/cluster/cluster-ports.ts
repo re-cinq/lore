@@ -15,12 +15,26 @@ import type { Agent as AgentCr } from "@re-cinq/agent-contracts";
 import type { AgentNodeStatus } from "./agent-node-status.js";
 import type { LoreTaskSpec } from "../project/agents/k8s-port.js";
 
-/** Creating and reading this cluster's Agent CRs. */
-export interface AgentApi {
-  /** Create the Agent; `created:false` when it already exists (409). */
-  create(agent: AgentCr): Promise<{ name: string; created: boolean }>;
+/**
+ * Finding this cluster's Agent CRs.
+ *
+ * Split from {@link AgentApi} because reading and creating stopped being the
+ * same privilege. Since dispatch went pull-only, only the process INSIDE a
+ * cluster creates CRs there — for runs it claimed itself. Everyone else (the
+ * Floor's reaper, its reconcile pass, the liveness probe) only ever looks, and
+ * a port that offered them `create` would be offering a push path that no
+ * longer has a route behind it.
+ */
+export interface AgentLister {
   /** Agents matching a Kubernetes label selector. */
   listByLabel(selector: string): Promise<AgentCr[]>;
+}
+
+/** Creating and reading this cluster's Agent CRs — implemented only by the
+ *  in-cluster adapter, whose claim loop is the sole creator. */
+export interface AgentApi extends AgentLister {
+  /** Create the Agent; `created:false` when it already exists (409). */
+  create(agent: AgentCr): Promise<{ name: string; created: boolean }>;
 }
 
 /** Reading one Agent's terminal status. */

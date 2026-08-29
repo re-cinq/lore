@@ -15,6 +15,10 @@
  */
 
 import { errorMessage, type LoreTaskSpec } from "@re-cinq/lore-shared";
+import {
+  backoffDelay,
+  runPollLoop,
+} from "@re-cinq/lore-shared/lib/poll-loop.js";
 import type { ClusterAgentIdentity } from "./identity-store.js";
 
 const CLAIM_TIMEOUT_MS = 30_000;
@@ -68,7 +72,7 @@ export function nextClaimDelay(
     return baseMs;
   }
 
-  return Math.min(baseMs * 2 ** Math.max(0, idleTicks), maxIdleMs);
+  return backoffDelay(baseMs, idleTicks, maxIdleMs);
 }
 
 export interface ClaimTickDeps {
@@ -111,7 +115,19 @@ export async function claimOnce(deps: ClaimTickDeps): Promise<ClaimOutcome> {
     return { kind: "error", message: `claim refused (HTTP ${res.status})` };
   }
 
-  const claim = (await res.json()) as ClaimResponse;
+  let claim: ClaimResponse;
+
+  try {
+    claim = (await res.json()) as ClaimResponse;
+  } catch (err) {
+    // A 200 carrying a proxy error page would otherwise reject out of the loop
+    // and kill the poller for good — the one throw the outcome union missed.
+    return {
+      kind: "error",
+      message: `claim response parse failed: ${errorMessage(err)}`,
+    };
+  }
+
   // The CR name must be the one the Floor recorded on the station_run row —
   // the watch's terminal report and the fork replay both correlate by it.
   const specName = claim.spec.name ?? claim.agent_cr_name;
@@ -150,38 +166,37 @@ export interface ClaimLoopDeps {
 }
 
 export async function runClaimLoop(deps: ClaimLoopDeps): Promise<void> {
-  const running = deps.running ?? ((): boolean => true);
   const log = deps.log ?? ((message: string): void => console.log(message));
-  let idleTicks = 0;
 
-  while (running()) {
-    const outcome = await deps.claim();
+  await runPollLoop<ClaimOutcome>({
+    tick: deps.claim,
+    onOutcome: async (outcome) => {
+      if (outcome.kind === "claimed") {
+        log(
+          `[cluster-agent] claimed station run ${outcome.stationRunId} → Agent CR ${outcome.crName}`,
+        );
+      }
 
-    if (outcome.kind === "claimed") {
-      log(
-        `[cluster-agent] claimed station run ${outcome.stationRunId} → Agent CR ${outcome.crName}`,
-      );
-    }
+      if (outcome.kind === "error") {
+        log(`[cluster-agent] ${outcome.message}`);
+      }
 
-    if (outcome.kind === "error") {
-      log(`[cluster-agent] ${outcome.message}`);
-    }
-
-    if (outcome.kind === "unauthorized") {
-      log(
-        "[cluster-agent] claim unauthorized — per-agent token rotated elsewhere; re-registering",
-      );
-      await deps.reRegister();
-    }
-
-    const delayMs = nextClaimDelay(
-      deps.baseDelayMs,
-      idleTicks,
-      outcome.kind,
-      deps.maxIdleDelayMs,
-    );
-
-    idleTicks = outcome.kind === "empty" ? idleTicks + 1 : 0;
-    await deps.sleep(delayMs);
-  }
+      if (outcome.kind === "unauthorized") {
+        log(
+          "[cluster-agent] claim unauthorized — per-agent token rotated elsewhere; re-registering",
+        );
+        await deps.reRegister();
+      }
+    },
+    isIdle: (outcome) => outcome.kind === "empty",
+    delayFor: (outcome, idleTicks) =>
+      nextClaimDelay(
+        deps.baseDelayMs,
+        idleTicks,
+        outcome.kind,
+        deps.maxIdleDelayMs,
+      ),
+    sleep: deps.sleep,
+    running: deps.running,
+  });
 }

@@ -269,6 +269,11 @@ function harness() {
   const billingAlerts: Array<{ repo: string; nodeType: string }> = [];
   const crReads: string[] = [];
   const central = { clusterAgentId: null as string | null };
+  const offline = new Set<string>();
+  const audits: Array<{
+    event_type: string;
+    payload: Record<string, unknown>;
+  }> = [];
   // What the walk arms a queued row with — the sweep never launches directly.
   const armDispatch = port.enqueueStationRunDispatch.bind(port);
 
@@ -292,6 +297,13 @@ function harness() {
     },
     taskStatus: async (taskId: string) => taskStatusById[taskId] ?? null,
     centralClusterAgentId: async () => central.clusterAgentId,
+    offlineClusterAgents: async () => offline,
+    audit: async (entry: {
+      event_type: string;
+      payload: Record<string, unknown>;
+    }) => {
+      audits.push(entry);
+    },
     alertBilling: async (repo: string, nodeType: string) => {
       billingAlerts.push({ repo, nodeType });
     },
@@ -306,6 +318,8 @@ function harness() {
     crReads,
     deps,
     central,
+    offline,
+    audits,
   };
 }
 
@@ -485,6 +499,108 @@ describe("assemblyLineReaperJob", () => {
       outcome: "pr_created",
     });
     expect(h.enqueued).toEqual([]);
+  });
+
+  it("closes the single-CR run's open station row, not just the run", async () => {
+    // The visit is a real queued row a cluster claimed now, so a run closed with
+    // its station left open reads as a finished run still executing a station —
+    // and keeps the sweep interested in work nobody is doing.
+    const h = harness();
+    const singleCr = await h.port.start({
+      blueprintName: "runbook",
+      repo: "o/r",
+      taskId: "task-1",
+    });
+
+    await h.port.markRunning(singleCr);
+    await h.port.ensureStationRun({
+      assemblyRunId: singleCr,
+      nodeId: "agent",
+      iteration: 1,
+      status: "queued",
+      requiredTags: ["node:agent"],
+    });
+    h.taskStatusById["task-1"] = "pr-created";
+    await assemblyLineReaperJob(h.deps);
+
+    expect(await h.port.listStationRuns(singleCr)).toMatchObject([
+      { nodeId: "agent", outcome: "success" },
+    ]);
+  });
+
+  it("fails a single-CR run nobody claimed, naming the tags that went unmatched", async () => {
+    // Without this the row sits queued forever: no graph means no node budget,
+    // and the watcher only ever hears about a pod that actually ran.
+    const h = harness();
+    const singleCr = await h.port.start({
+      blueprintName: "runbook",
+      repo: "o/r",
+      taskId: "task-1",
+    });
+
+    await h.port.markRunning(singleCr);
+    const { nodeRowId } = await h.port.ensureStationRun({
+      assemblyRunId: singleCr,
+      nodeId: "agent",
+      iteration: 1,
+      status: "queued",
+      requiredTags: ["node:agent", "gpu"],
+      dispatchSpec: { taskId: "task-1" },
+    });
+
+    h.taskStatusById["task-1"] = "running";
+    h.port.nodes.find((n) => n.id === nodeRowId)!.startedAt = new Date(
+      Date.now() - 45 * 60_000,
+    );
+    await assemblyLineReaperJob(h.deps);
+
+    expect(await h.port.getById(singleCr)).toMatchObject({
+      status: "failed",
+      outcome: "error",
+    });
+    expect(await h.port.listStationRuns(singleCr)).toMatchObject([
+      { outcome: "failed", failureClass: "infra" },
+    ]);
+    expect((await h.port.listStationRuns(singleCr))[0].failureDetail).toMatch(
+      /node:agent, gpu/,
+    );
+  });
+
+  it("requeues a single-CR visit whose claiming cluster went offline", async () => {
+    const h = harness();
+    const singleCr = await h.port.start({
+      blueprintName: "runbook",
+      repo: "o/r",
+      taskId: "task-1",
+    });
+
+    await h.port.markRunning(singleCr);
+    const { nodeRowId } = await h.port.ensureStationRun({
+      assemblyRunId: singleCr,
+      nodeId: "agent",
+      iteration: 1,
+      status: "queued",
+      requiredTags: [],
+      dispatchSpec: { taskId: "task-1" },
+    });
+    const claimed = await h.port.claimNextStationRun({
+      clusterAgentId: "dead-cluster",
+      tags: [],
+    });
+
+    expect(claimed?.nodeRowId).toBe(nodeRowId);
+    h.taskStatusById["task-1"] = "running";
+    h.offline.add("dead-cluster");
+    await assemblyLineReaperJob(h.deps);
+
+    expect(h.port.nodes.find((n) => n.id === nodeRowId)).toMatchObject({
+      status: "queued",
+      clusterAgentId: null,
+      outcome: null,
+    });
+    expect(h.audits.map((entry) => entry.event_type)).toEqual([
+      "cluster_agent_offline",
+    ]);
   });
 });
 
@@ -973,5 +1089,48 @@ edges:
     await assemblyLineReaperJob(deps);
 
     expect(configAlerts).toEqual([{ repo: "o/r", nodeType: "agent" }]);
+  });
+});
+
+describe("a claimed single-CR visit the sweep must NOT own", () => {
+  it("leaves a claimed single-CR visit alone past its budget, because the watcher settles it", async () => {
+    // decideNodeRecovery answers `timeout` for a claimed, CR-invisible row once
+    // the default 60m budget passes. The single-CR arm deliberately acts on two
+    // kinds only, so this row is left for the terminal event the watcher hears —
+    // acting on it here would race that event and could fail a run that had in
+    // fact just succeeded.
+    const h = harness();
+    const singleCr = await h.port.start({
+      blueprintName: "runbook",
+      repo: "o/r",
+      taskId: "task-1",
+    });
+
+    await h.port.markRunning(singleCr);
+    const { nodeRowId } = await h.port.ensureStationRun({
+      assemblyRunId: singleCr,
+      nodeId: "agent",
+      iteration: 1,
+      status: "queued",
+      requiredTags: [],
+      dispatchSpec: { taskId: "task-1" },
+    });
+
+    await h.port.claimNextStationRun({
+      clusterAgentId: "some-cluster",
+      tags: [],
+    });
+    const node = h.port.nodes.find((n) => n.id === nodeRowId)!;
+
+    // Well past the 60m default budget, on the claim clock.
+    node.claimedAt = new Date(Date.now() - 24 * 60 * 60_000);
+    h.taskStatusById["task-1"] = "running";
+    await assemblyLineReaperJob(h.deps);
+
+    expect(h.port.nodes.find((n) => n.id === nodeRowId)).toMatchObject({
+      status: "claimed",
+      outcome: null,
+    });
+    expect(await h.port.getById(singleCr)).toMatchObject({ status: "running" });
   });
 });

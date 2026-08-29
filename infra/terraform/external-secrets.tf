@@ -329,9 +329,26 @@ resource "kubectl_manifest" "es_mcp_ingest_token" {
   depends_on = [kubectl_manifest.cluster_secret_store]
 }
 
-resource "kubectl_manifest" "es_cluster_agent_registration_token" {
-  count = var.enable_cluster_agent_registration ? 1 : 0
+# Unconditional since 2026-08-29: every cluster-agent registers, so the token is
+# a platform secret rather than a feature gate.
+#
+# `moved` is load-bearing. Dropping `count` renames the address from
+# `...[0]` to `...`, and without these blocks terraform plans a
+# destroy-then-create. ESO's default creationPolicy is Owner, so the destroy
+# takes the mirrored Kubernetes Secret with it — and with `optional: true` now
+# gone from both consumers, any pod restart inside that window is a
+# CreateContainerConfigError.
+moved {
+  from = kubectl_manifest.es_cluster_agent_registration_token[0]
+  to   = kubectl_manifest.es_cluster_agent_registration_token
+}
 
+moved {
+  from = kubectl_manifest.es_cluster_agent_registration_token_agent_ns[0]
+  to   = kubectl_manifest.es_cluster_agent_registration_token_agent_ns
+}
+
+resource "kubectl_manifest" "es_cluster_agent_registration_token" {
   yaml_body = yamlencode({
     apiVersion = "external-secrets.io/v1beta1"
     kind       = "ExternalSecret"
@@ -363,8 +380,6 @@ resource "kubectl_manifest" "es_cluster_agent_registration_token" {
 }
 
 resource "kubectl_manifest" "es_cluster_agent_registration_token_agent_ns" {
-  count = var.enable_cluster_agent_registration ? 1 : 0
-
   yaml_body = yamlencode({
     apiVersion = "external-secrets.io/v1beta1"
     kind       = "ExternalSecret"
