@@ -2,8 +2,10 @@ import { describe, it, expect } from "vitest";
 import {
   addLine,
   drain,
+  drainAtEnd,
   emptyBatch,
   followableAgents,
+  followTargets,
   pickPodToFollow,
   podLogEvent,
   type BatchLimits,
@@ -256,5 +258,55 @@ describe("pickPodToFollow", () => {
       ]),
       noSpec: pickPodToFollow([{ metadata: { name: "p" } }]),
     }).toEqual({ noName: null, noContainer: null, noSpec: null });
+  });
+});
+
+describe("drainAtEnd", () => {
+  it("emits the held-back partial line a stream ended without a newline", () => {
+    expect(
+      drainAtEnd({ lines: ["starting"], bytes: 9 }, "Error: ENOMEM"),
+    ).toEqual({
+      batch: { lines: [], bytes: 0 },
+      flushed: "starting\nError: ENOMEM\n",
+    });
+  });
+
+  it("emits a partial line that is all the pod ever wrote", () => {
+    expect(drainAtEnd({ lines: [], bytes: 0 }, "Killed")).toEqual({
+      batch: { lines: [], bytes: 0 },
+      flushed: "Killed\n",
+    });
+  });
+
+  it("emits nothing when neither a batch nor a partial line is held", () => {
+    expect(drainAtEnd({ lines: [], bytes: 0 }, "")).toEqual({
+      batch: { lines: [], bytes: 0 },
+      flushed: null,
+    });
+  });
+});
+
+describe("followTargets", () => {
+  const withTranscript = (name: string, jobName: string) => ({
+    metadata: { name },
+    status: { phase: "Running", jobName, output: "x".repeat(1024) },
+  });
+
+  it("keeps only the three fields a stream needs, not the CR it read them from", () => {
+    expect(followTargets([withTranscript("a-1", "job-1")], new Set())).toEqual([
+      { agentCrName: "a-1", jobName: "job-1" },
+    ]);
+  });
+
+  it("drops every reference to the CR, so a page cannot be held by its results", () => {
+    const page = [withTranscript("a-1", "job-1")];
+    const kept = followTargets(page, new Set()) as unknown as Array<
+      Record<string, unknown>
+    >;
+
+    expect(Object.values(kept[0]).some((v) => typeof v === "object")).toBe(
+      false,
+    );
+    expect(JSON.stringify(kept[0])).not.toContain("xxx");
   });
 });

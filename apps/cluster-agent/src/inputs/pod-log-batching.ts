@@ -81,6 +81,27 @@ export function drain(batch: PendingBatch): BatchStep {
 }
 
 /**
+ * The last flush of a stream that has ended: whatever the batch holds, plus the
+ * fragment held back for want of a newline.
+ *
+ * `carry` exists because a chunk boundary can split a line, so the tail of every
+ * write waits for the rest of its line. When the stream ENDS that rest never
+ * comes — and a pod that dies mid-write ends exactly there, so the line lost was
+ * the one worth reading. The ordinary `drain` cannot do this: mid-stream the
+ * fragment really is incomplete.
+ */
+export function drainAtEnd(batch: PendingBatch, carry: string): BatchStep {
+  if (!carry) {
+    return drain(batch);
+  }
+
+  return drain({
+    lines: [...batch.lines, carry],
+    bytes: batch.bytes + Buffer.byteLength(carry) + 1,
+  });
+}
+
+/**
  * One chunk as its event.
  *
  * Keyed on the POD and the sequence, never the job: both pods of a retried node
@@ -108,6 +129,28 @@ export interface FollowableAgent {
 }
 
 const TERMINAL_PHASES = new Set(["Succeeded", "Failed"]);
+
+/**
+ * The same choice as {@link followableAgents}, reduced to what a stream needs.
+ *
+ * Discovery must never hold a page of Agent CRs — each carries its run's whole
+ * transcript in `status.output`, and 130 accumulated CRs at over a megabyte each
+ * is more than the pod's whole memory limit. Accumulating them across pages
+ * OOM-killed a satellite's cluster-agent every seven seconds for twenty-one
+ * hours, which stopped its Agent-CR watch, which stranded every finished run in
+ * that cluster with nobody to report it.
+ *
+ * Returning names rather than objects is what makes that structural: the caller
+ * cannot retain a CR it was never handed.
+ */
+export function followTargets(
+  agents: readonly FollowableAgent[],
+  following: ReadonlySet<string>,
+): Array<{ agentCrName: string; jobName: string }> {
+  return followableAgents(agents, following).map(
+    ({ agentCrName, jobName }) => ({ agentCrName, jobName }),
+  );
+}
 
 /**
  * Which agents this tick should open a log stream for.
