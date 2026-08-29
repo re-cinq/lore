@@ -12,16 +12,40 @@
  */
 
 import { ClusterAgentClient, HttpAgentCatalog } from "@re-cinq/lore-shared";
+import { internalToken } from "@re-cinq/lore-shared/http/internal-token.js";
 import type { CrdPair } from "./agent-crd.js";
+
+/**
+ * Where the cluster agent is and what to present to it.
+ *
+ * The SERVICE-TO-SERVICE token, not the org-wide ingest one: the cluster-agent
+ * chart mounts `lore-agent-internal-token` on the guard these calls hit, while
+ * lore-api's own `LORE_INGEST_TOKEN` is a different secret with a different
+ * value. Sending it 401'd every catalog apply — a recipe saved in the UI wrote
+ * its DB row and then never reached the cluster, so the next dispatch ran the
+ * previous recipe. The Floor's client had this right; this one did not, which is
+ * why the choice is now a named function with a test rather than an env read.
+ */
+export function clusterAgentCredentials(env: NodeJS.ProcessEnv): {
+  baseUrl: string;
+  token: string | undefined;
+} {
+  return {
+    baseUrl: env.CLUSTER_AGENT_URL ?? "",
+    token: internalToken(env),
+  };
+}
 
 let catalog: HttpAgentCatalog | undefined;
 
 function agentCatalog(): HttpAgentCatalog {
-  return (catalog ??= new HttpAgentCatalog(
-    new ClusterAgentClient(
-      process.env.CLUSTER_AGENT_URL ?? "",
-      process.env.LORE_INGEST_TOKEN,
-    ),
+  if (catalog) {
+    return catalog;
+  }
+  const { baseUrl, token } = clusterAgentCredentials(process.env);
+
+  return (catalog = new HttpAgentCatalog(
+    new ClusterAgentClient(baseUrl, token),
   ));
 }
 
