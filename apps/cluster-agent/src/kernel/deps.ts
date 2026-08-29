@@ -17,7 +17,7 @@ import {
 } from "./kube-token-provisioner.js";
 import type { ClusterDeps } from "../delivery/routes/cluster.js";
 import { isNotFound, describeK8sError } from "./k8s-errors.js";
-import { applyCatalogPair, patchAgentStatus } from "./paired-writes.js";
+import { applyCatalogPair } from "./paired-writes.js";
 
 const GROUP = "agents.re-cinq.com";
 const VERSION = "v1alpha1";
@@ -123,8 +123,6 @@ export function clusterDeps(): ClusterDeps {
             );
           });
       },
-      patchStatus: (name, patch) =>
-        patchAgentStatus(customObjects(), name, patch),
     },
     pods: {
       agentInfo: (name) => pods.agentInfo(name),
@@ -132,7 +130,6 @@ export function clusterDeps(): ClusterDeps {
       podLog: (pod, tail) => pods.podLog(pod, tail),
     },
     tokens: {
-      provision: (spec) => tokens.provision(spec),
       cleanup: (taskId) => tokens.cleanup(taskId),
     },
     catalog: {

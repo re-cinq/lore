@@ -22,7 +22,6 @@ import type {
   Station,
 } from "@re-cinq/agent-contracts";
 import type { AgentPodInfo, PodSummary } from "@re-cinq/lore-shared";
-import type { LoreTaskSpec } from "@re-cinq/lore-shared";
 import { rawBody } from "@re-cinq/lore-shared/http/raw-body.js";
 import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import { parseBody } from "@re-cinq/lore-shared/http/json-body.js";
@@ -45,7 +44,6 @@ export interface ClusterDeps {
       continue?: string;
     }): Promise<{ items: AgentCr[]; continueToken?: string }>;
     remove(name: string): Promise<void>;
-    patchStatus(name: string, patch: Record<string, unknown>): Promise<void>;
   };
   pods: {
     agentInfo(name: string): Promise<AgentPodInfo | null>;
@@ -53,7 +51,6 @@ export interface ClusterDeps {
     podLog(podName: string, tailLines?: number): Promise<string>;
   };
   tokens: {
-    provision(spec: LoreTaskSpec): Promise<string | undefined>;
     cleanup(taskId: string): Promise<void>;
   };
   catalog: {
@@ -71,7 +68,6 @@ export interface ClusterRoutesDeps {
   bearerToken?: string;
 }
 
-const StatusPatch = z.object({ patch: z.record(z.unknown()) });
 // `metadata.name` is required, not merely hoped for: the apply reads it to
 // fetch the live object, so a body without one becomes a TypeError deep in a
 // Kubernetes call instead of the 400 it is. The rest of each CR stays open —
@@ -143,23 +139,6 @@ export function clusterRoutes(opts: ClusterRoutesDeps): ServerRoute[] {
       },
     },
     {
-      method: "PATCH",
-      path: "/api/cluster/agents/{name}/status",
-      options: raw,
-      handler: async (request, h) => {
-        guard(request.headers);
-        const { patch } = parseBody(
-          rawBody(request),
-          StatusPatch,
-          "status patch",
-        );
-
-        await opts.deps().agents.patchStatus(request.params.name, patch);
-
-        return h.response().code(204);
-      },
-    },
-    {
       method: "GET",
       path: "/api/cluster/agents/{name}/pod-info",
       options: { auth: false },
@@ -212,21 +191,9 @@ export function clusterRoutes(opts: ClusterRoutesDeps): ServerRoute[] {
       },
     },
     {
-      // ONE call: catalog read → mint the GitHub token → write the Secret key
-      // (409-retried) → clone the pt-* pair. The mint happens here so no GitHub
-      // token ever crosses the network.
-      method: "POST",
-      path: "/api/cluster/per-task-tokens",
-      options: raw,
-      handler: async (request, h) => {
-        guard(request.headers);
-        const spec = JSON.parse(rawBody(request)) as LoreTaskSpec;
-        const name = await opts.deps().tokens.provision(spec);
-
-        return h.response({ name: name ?? null }).code(200);
-      },
-    },
-    {
+      // The mint side is NOT a route: every launch is a claim, so the only
+      // caller is this process's own claim loop, in-process. What crosses the
+      // network is the reclaim, which the Floor drives when a task settles.
       method: "DELETE",
       path: "/api/cluster/per-task-tokens/{taskId}",
       options: { auth: false },
