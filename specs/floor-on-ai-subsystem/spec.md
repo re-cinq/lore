@@ -384,7 +384,8 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + agen
     recipe in `scripts/task-types.yaml`, so the skills a task type needs are stated
     where its prompt is, and a per-repo override saved from the /agents editor keeps
     them: the editor renders `resources.mcp_servers` only, and `preserveUnownedFields`
-    carries every key it does not render. A recipe MUST NOT name a skill the
+    carries every key it does not render — `skills` is copied as a whole array, so a
+    one-entry list and a four-entry list survive by the identical path. A recipe MUST NOT name a skill the
     gateway's bundle does not carry: the init fetches it as a 404 and the run
     proceeds without the contract the recipe asked for, which is FR26's failure
     one level down and just as silent. ([validated by `agent-catalog.test.ts:81`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L81), [`agent-catalog.test.ts:90`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L90), [`agent-crd.test.ts:253`](apps/lore-api/src/features/agents/agent-crd.test.ts#L253), [`skills-registry.test.ts:101`](apps/mcp-server/src/server/skills-registry.test.ts#L101); implemented by [`agent-catalog.ts:141`](apps/floor/src/jobs/agent/agent-catalog.ts#L141))
