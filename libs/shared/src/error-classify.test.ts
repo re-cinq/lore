@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   classifyError,
+  failureHint,
   isFailureCategory,
   isPermanentFailure,
   summarizeFailures,
@@ -166,6 +167,19 @@ describe("isPermanentFailure", () => {
   it("returns false for infra and unknown, which are worth one retry", () => {
     expect(isPermanentFailure("infra")).toEqual(false);
     expect(isPermanentFailure("unknown")).toEqual(false);
+  });
+
+  it("returns true for unclaimed — nothing ran, so a retry buys a second wait", () => {
+    // The queue-timeout class. It is not `infra`: no pod died, because no pod
+    // ever existed. Treating it as retryable is what re-ran a 25-minute
+    // implement node against a paused cluster and then reported the exhausted
+    // edge budget as the cause.
+    expect(isPermanentFailure("unclaimed")).toEqual(true);
+  });
+
+  it("carries a remediation hint for unclaimed that points at the registry", () => {
+    expect(failureHint("unclaimed")).toMatch(/registry/i);
+    expect(isFailureCategory("unclaimed")).toBe(true);
   });
 });
 

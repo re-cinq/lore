@@ -2,17 +2,20 @@ import { describe, it, expect } from "vitest";
 import { InMemoryAssemblyRuns } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-memory.js";
 import type { LoreTaskSpec } from "@re-cinq/lore-shared";
 import {
+  loadBuiltinAssemblyLines,
   parseAssemblyLine,
   type AssemblyLine,
   type AgentNodeStatus,
 } from "@re-cinq/lore-assembly-lines";
 import type { StationRunRecord } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
+import type { ClusterAgent } from "@re-cinq/lore-shared/models/cluster-agent.js";
 import {
   assemblyLineReaperJob,
   decideNodeRecovery,
   stationQueueWaitMs,
 } from "./assembly-run-reaper.js";
 import { LlmDispatchGate } from "./llm-dispatch-gate.js";
+import { advanceLine } from "./advance.js";
 
 const line: AssemblyLine = parseAssemblyLine(`
 name: code-review
@@ -37,6 +40,24 @@ edges:
 `);
 
 const MIN = 60_000;
+
+/** A registered cluster, as the sweep reads one out of the registry. */
+const clusterAgent = (
+  name: string,
+  tags: string[],
+  overrides: Partial<ClusterAgent> = {},
+): ClusterAgent => ({
+  id: `id-${name}`,
+  name,
+  tags,
+  tokenHash: "hash",
+  registeredAt: new Date(),
+  lastSeenAt: new Date(),
+  status: "active",
+  paused: false,
+  clusterInfo: null,
+  ...overrides,
+});
 
 const QUEUE_WAIT_MS = 30 * MIN;
 
@@ -269,6 +290,9 @@ function harness() {
   const billingAlerts: Array<{ repo: string; nodeType: string }> = [];
   const crReads: string[] = [];
   const central = { clusterAgentId: null as string | null };
+  // The registry the sweep consults to say WHY nobody claimed a row. Empty by
+  // default, which is the "nobody has ever registered" reading.
+  const registry = { agents: [] as ClusterAgent[] };
   const offline = new Set<string>();
   const audits: Array<{
     event_type: string;
@@ -296,6 +320,7 @@ function harness() {
       return statusByName[name] ?? null;
     },
     taskStatus: async (taskId: string) => taskStatusById[taskId] ?? null,
+    listClusterAgents: async () => registry.agents,
     centralClusterAgentId: async () => central.clusterAgentId,
     offlineClusterAgents: async () => offline,
     audit: async (entry: {
@@ -320,6 +345,7 @@ function harness() {
     central,
     offline,
     audits,
+    registry,
   };
 }
 
@@ -559,7 +585,7 @@ describe("assemblyLineReaperJob", () => {
       outcome: "error",
     });
     expect(await h.port.listStationRuns(singleCr)).toMatchObject([
-      { outcome: "failed", failureClass: "infra" },
+      { outcome: "failed", failureClass: "unclaimed" },
     ]);
     expect((await h.port.listStationRuns(singleCr))[0].failureDetail).toMatch(
       /node:agent, gpu/,
@@ -649,13 +675,73 @@ describe("the sweep's claim-lifecycle arms", () => {
 
     expect(h.port.nodes[0]).toMatchObject({
       outcome: "failed",
-      failureClass: "infra",
+      // NOT `infra`: no pod died, because no pod was ever created. The class is
+      // what stops the walk spending a retry budget on it.
+      failureClass: "unclaimed",
       failureDetail:
-        "no registered cluster-agent claimed this run (required_tags: [gpu]) within 30m",
+        "no cluster-agent claimed this run (required_tags: [gpu]) within 30m — no cluster-agent has ever registered",
     });
     // review --failed--> done: the line settles rather than wedging.
     expect(await h.port.getById(id)).toMatchObject({ status: "finished" });
     expect(summary).toContain("queue-timed-out 1");
+  });
+
+  it("names the paused cluster that could have claimed it, rather than blaming an absent one", async () => {
+    // #1648/#1654: `central` was registered, heartbeating and carrying the tag —
+    // it was switched off. "no registered cluster-agent" sent an operator
+    // hunting a missing agent for an hour.
+    const h = harness();
+    const id = await runningRow(h);
+
+    h.registry.agents = [
+      clusterAgent("central", ["node:review", "node:validate"], {
+        paused: true,
+      }),
+      clusterAgent("satellite", ["node:agent"]),
+    ];
+    await queuedRow(h, id, 45, ["node:review"]);
+    await assemblyLineReaperJob(h.deps);
+
+    expect(h.port.nodes[0]?.failureDetail).toBe(
+      "no cluster-agent claimed this run (required_tags: [node:review]) within 30m — every cluster-agent offering [node:review] is unavailable: central (paused)",
+    );
+  });
+
+  it("says a capable cluster ignored it when one was up the whole time", async () => {
+    const h = harness();
+    const id = await runningRow(h);
+
+    h.registry.agents = [clusterAgent("central", ["node:review"])];
+    await queuedRow(h, id, 45, ["node:review"]);
+    await assemblyLineReaperJob(h.deps);
+
+    expect(h.port.nodes[0]?.failureDetail).toContain(
+      "1 capable cluster-agent (central) was active but did not claim it",
+    );
+  });
+
+  it("bounds the wait by the injected queueWaitMs rather than the ambient env", async () => {
+    const h = harness();
+    const id = await runningRow(h);
+
+    await queuedRow(h, id, 10);
+    await assemblyLineReaperJob({ ...h.deps, queueWaitMs: 5 * MIN });
+
+    expect(h.port.nodes[0]).toMatchObject({ failureClass: "unclaimed" });
+    expect(h.port.nodes[0]?.failureDetail).toContain("within 5m");
+  });
+
+  it("reads the clock through the injected now, so a sweep can be aged without waiting", async () => {
+    const h = harness();
+    const id = await runningRow(h);
+
+    await queuedRow(h, id, 0);
+    await assemblyLineReaperJob({
+      ...h.deps,
+      now: () => new Date(Date.now() + 45 * MIN),
+    });
+
+    expect(h.port.nodes[0]).toMatchObject({ failureClass: "unclaimed" });
   });
 
   it("leaves an in-wait queued row alone and never reads its CR", async () => {
@@ -1132,5 +1218,69 @@ describe("a claimed single-CR visit the sweep must NOT own", () => {
       outcome: null,
     });
     expect(await h.port.getById(singleCr)).toMatchObject({ status: "running" });
+  });
+});
+
+describe("the implementation loop's unclaimed validate node", () => {
+  // The 2026-08-29 incident end to end, on the REAL blueprint: implement
+  // succeeded on the satellite, validate needed a tag only the paused `central`
+  // offered, and the walk answered by re-running implement for another 25
+  // minutes before reporting the exhausted edge budget as the cause.
+  it("fails the run once and never re-dispatches implement", async () => {
+    const h = harness();
+    const builtins = await loadBuiltinAssemblyLines();
+
+    h.deps.definitions = async () => builtins;
+    h.registry.agents = [
+      clusterAgent("central", ["node:agent", "node:validate"], {
+        paused: true,
+      }),
+      clusterAgent("satellite", ["node:agent"]),
+    ];
+    const id = await h.port.start({
+      blueprintName: "implementation-loop",
+      repo: "re-cinq/lore",
+      branch: "lore/impl/1650",
+      args: { description: "the ticket" },
+    });
+
+    await h.port.markRunning(id);
+    // implement ran and passed; the walk then parks validate on the queue.
+    const implement = await h.port.ensureStationRun({
+      assemblyRunId: id,
+      nodeId: "implement",
+      iteration: 1,
+      agentCrName: `${id.substring(0, 12)}-implement`,
+    });
+
+    await h.port.finishStationRunOnce(implement.nodeRowId, "success");
+    await advanceLine(id, h.deps);
+
+    expect(h.port.nodes.at(-1)).toMatchObject({
+      nodeId: "validate",
+      status: "queued",
+    });
+
+    await assemblyLineReaperJob({
+      ...h.deps,
+      now: () => new Date(Date.now() + 45 * MIN),
+    });
+
+    // A permanent failure settles as `error` (the walk refused the retry),
+    // where an exhausted budget would have settled `iteration_max`.
+    expect(await h.port.getById(id)).toMatchObject({
+      status: "failed",
+      outcome: "error",
+    });
+    expect(await h.port.getById(id)).toMatchObject({
+      reason: expect.stringContaining("central (paused)"),
+    });
+    expect(h.port.nodes.map((n) => `${n.nodeId}:${n.iteration}`)).toEqual([
+      "implement:1",
+      "validate:1",
+    ]);
+    expect(h.enqueued.map((spec) => spec.name)).not.toContain(
+      `${id.substring(0, 12)}-implement-2`,
+    );
   });
 });
