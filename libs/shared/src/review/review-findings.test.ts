@@ -47,6 +47,59 @@ describe("parseReviewFindings", () => {
     expect(parseReviewFindings(block("{ not json"))).toBeNull();
   });
 
+  it("recovers a finding whose narrative field carries an unescaped quote", () => {
+    // #1401, reproduced verbatim: the model free-writes a "discussion" string
+    // and quotes a symbol inside it without escaping — a well-formed
+    // REVIEW_FINDINGS block with one broken string value. JSON.parse alone
+    // dies on the embedded `"` and the whole review is lost.
+    const raw =
+      '{"verdict":"changes_requested","findings":[{"path":"a.ts","line":1,"label":"issue","subject":"null deref","discussion":"the "foo" case is unguarded"}]}';
+
+    expect(parseReviewFindings(block(raw))?.findings[0]).toMatchObject({
+      discussion: 'the "foo" case is unguarded',
+    });
+  });
+
+  it("recovers a finding whose narrative field carries a literal newline", () => {
+    const raw =
+      '{"verdict":"changes_requested","findings":[{"path":"a.ts","line":1,"label":"issue","subject":"s","discussion":"line one\nline two"}]}';
+
+    expect(parseReviewFindings(block(raw))?.findings[0]?.discussion).toBe(
+      "line one\nline two",
+    );
+  });
+
+  it("recovers a finding whose suggestion carries a literal tab, same as newlines", () => {
+    // A tabbed-indented code snippet in `suggestion` is a raw control
+    // character, which JSON forbids unescaped in a string exactly like a raw
+    // newline — the same class of bug, not a hypothetical.
+    const raw =
+      '{"verdict":"changes_requested","findings":[{"path":"a.ts","line":1,"label":"issue","subject":"s","suggestion":"if (x) {\treturn x;\t}"}]}';
+
+    expect(parseReviewFindings(block(raw))?.findings[0]?.suggestion).toBe(
+      "if (x) {\treturn x;\t}",
+    );
+  });
+
+  it("still recovers when several findings each carry an unescaped quote", () => {
+    const raw =
+      '{"verdict":"changes_requested","findings":[' +
+      '{"path":"a.ts","line":1,"label":"issue","subject":"s1","discussion":"has "x" here"},' +
+      '{"path":"b.ts","line":2,"label":"nit","subject":"s2","discussion":"has "y" there"}' +
+      "]}";
+
+    expect(parseReviewFindings(block(raw))?.findings).toEqual([
+      expect.objectContaining({ discussion: 'has "x" here' }),
+      expect.objectContaining({ discussion: 'has "y" there' }),
+    ]);
+  });
+
+  it("does not repair its way to a false positive on genuinely broken JSON", () => {
+    expect(
+      parseReviewFindings(block("{ verdict: changes_requested")),
+    ).toBeNull();
+  });
+
   it("returns null when a finding has an unknown label", () => {
     const output = block(
       JSON.stringify({

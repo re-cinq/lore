@@ -502,16 +502,34 @@ The code-review assembly line is the sole reviewer (ADR-012 amendment): a **deep
 
 - parses a valid findings block into a ReviewOutput. ([validated by](libs/shared/src/review/review-findings.test.ts#L8))
 - returns null when no findings block is present. ([validated by](libs/shared/src/review/review-findings.test.ts#L42))
-- returns null when the block is not valid JSON. ([validated by](libs/shared/src/review/review-findings.test.ts#L46))
-- returns null when a finding has an unknown label. ([validated by](libs/shared/src/review/review-findings.test.ts#L50))
-- returns null when the verdict is missing. ([validated by](libs/shared/src/review/review-findings.test.ts#L61))
+- returns null when the block is not valid JSON that a quote/newline repair
+  pass can recover either. ([validated by](libs/shared/src/review/review-findings.test.ts#L46))
+- recovers a finding whose narrative field carries a quote the model forgot to
+  escape — #1401 reproduced verbatim: a well-formed block with one broken
+  string killed `JSON.parse` outright and discarded every finding, including
+  the blocking one. A quote is read as closing the string only when the next
+  non-whitespace character is one JSON allows there (`,` `}` `]` `:` or end of
+  input); anything else is escaped instead, which a single regex cannot do
+  because whether a `"` closes the string depends on what comes after it.
+  ([validated by](libs/shared/src/review/review-findings.test.ts#L50))
+- recovers a finding whose narrative field carries a literal newline, escaping
+  it the same way. ([validated by](libs/shared/src/review/review-findings.test.ts#L63))
+- recovers a finding whose suggestion carries a literal tab the same way — a
+  tabbed-indented code snippet is a raw control character JSON forbids
+  unescaped in a string, exactly like a raw newline. ([validated by](libs/shared/src/review/review-findings.test.ts#L72))
+- recovers every finding when several each carry an unescaped quote, not just
+  the first. ([validated by](libs/shared/src/review/review-findings.test.ts#L84))
+- does not let the repair pass turn genuinely broken JSON into a false
+  positive — missing quotes around a key or value stay unparseable. ([validated by](libs/shared/src/review/review-findings.test.ts#L97))
+- returns null when a finding has an unknown label. ([validated by](libs/shared/src/review/review-findings.test.ts#L103))
+- returns null when the verdict is missing. ([validated by](libs/shared/src/review/review-findings.test.ts#L114))
 - treats an optional field written as `null` as absent, because that is what a
   model means by it — read as a value, ONE null failed its type check and the
   ENTIRE block was discarded, so a review that found ten things posted none and
-  its node failed with the findings lost. ([validated by](libs/shared/src/review/review-findings.test.ts#L83))
-- keeps every other finding when one carries a null optional. ([validated by](libs/shared/src/review/review-findings.test.ts#L89))
+  its node failed with the findings lost. ([validated by](libs/shared/src/review/review-findings.test.ts#L136))
+- keeps every other finding when one carries a null optional. ([validated by](libs/shared/src/review/review-findings.test.ts#L142))
 - still rejects a wrong TYPE in an optional field: this widens what counts as
-  absent, not what counts as valid. ([validated by](libs/shared/src/review/review-findings.test.ts#L97))
+  absent, not what counts as valid. ([validated by](libs/shared/src/review/review-findings.test.ts#L150))
 
 ### `libs/shared/src/review/review-summary.test.ts`
 
