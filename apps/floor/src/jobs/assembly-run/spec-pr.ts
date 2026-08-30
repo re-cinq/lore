@@ -77,12 +77,31 @@ export function decidePrStamp(input: {
   );
 }
 
+/** Whether this line's PR opens as a draft. Read off the RUN, never off the
+ *  blueprint name — the Floor stays domain-free about which lines want one, and a
+ *  line asks by seeding `pr_draft` on its args.
+ *
+ *  A draft PR gets no Lore code review (both review entry points gate on
+ *  `draft !== true`), which is what lets a line push many times before asking a
+ *  person to look. Strictly boolean: a stray string must not silently draft a PR
+ *  nobody would then review. */
+export function decidePrDraft(args: Record<string, unknown>): boolean {
+  return args.pr_draft === true;
+}
+
 /** The surface this writes through — a narrow, repo-bound slice of `project`, so a
  *  caller passes `project.pulls` and `project.features` straight in. */
 export interface SpecPrPorts {
   pulls: {
     list(): Promise<PullRef[]>;
-    open(branch: string, title: string, body: string): Promise<PullRef>;
+    open(
+      branch: string,
+      title: string,
+      body: string,
+      base?: string,
+      labels?: string[],
+      draft?: boolean,
+    ): Promise<PullRef>;
   };
   assemblyRuns: {
     mergeArgs(id: string, patch: Record<string, unknown>): Promise<void>;
@@ -132,7 +151,14 @@ export async function stampLinePr(
   const title = feature ? `spec: ${feature.title}` : `lore: ${branch}`;
   const pr =
     (await existingPrFor(branch, ports.pulls)) ??
-    (await ports.pulls.open(branch, title, prBody(branch, feature)));
+    (await ports.pulls.open(
+      branch,
+      title,
+      prBody(branch, feature),
+      undefined,
+      undefined,
+      decidePrDraft(row.args),
+    ));
 
   await ports.assemblyRuns.mergeArgs(row.id, {
     pr_number: pr.number,

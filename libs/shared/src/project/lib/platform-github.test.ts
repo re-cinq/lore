@@ -20,6 +20,9 @@ const state: {
   issuesData?: Array<Record<string, unknown>>;
   reviewThreadPages?: Array<Record<string, unknown>>;
   graphqlCalls: Array<{ query: string; vars: Record<string, unknown> }>;
+  createCall?: Record<string, unknown>;
+  updateCall?: Record<string, unknown>;
+  prNode?: { id: string; isDraft: boolean };
 } = { files: [], checkRuns: [], token: "", graphqlCalls: [] };
 
 vi.mock("octokit", () => ({
@@ -33,6 +36,10 @@ vi.mock("octokit", () => ({
 
       if (query.trimStart().startsWith("mutation")) {
         return { resolveReviewThread: { thread: { id: vars.threadId } } };
+      }
+
+      if (query.includes("isDraft")) {
+        return { repository: { pullRequest: state.prNode ?? null } };
       }
       const page = (state.reviewThreadPages ?? []).shift() ?? {
         nodes: [],
@@ -52,10 +59,28 @@ vi.mock("octokit", () => ({
         createReview: async (params: Record<string, unknown>) => {
           state.reviewCall = params;
         },
+        create: async (params: Record<string, unknown>) => {
+          state.createCall = params;
+
+          return {
+            data: {
+              number: 7,
+              title: "T",
+              head: { ref: "topic" },
+              state: "open",
+              html_url: "https://gh/pr/7",
+              draft: params.draft === true,
+            },
+          };
+        },
+        update: async (params: Record<string, unknown>) => {
+          state.updateCall = params;
+        },
       },
       checks: { listForRef: async () => state.checkRuns },
       git: { getTree: async () => ({ data: state.treeData }) },
       issues: {
+        addLabels: async () => ({}),
         listForRepo: async () => state.issuesData ?? [],
         createLabel: async () => {
           if (state.labelError) {
@@ -311,5 +336,58 @@ describe("PlatformGitHub review threads (GraphQL)", () => {
     expect(state.graphqlCalls).toHaveLength(1);
     expect(state.graphqlCalls[0]?.query).toContain("resolveReviewThread");
     expect(state.graphqlCalls[0]?.vars).toEqual({ threadId: "PRRT_42" });
+  });
+
+  it("open creates a draft pull request when asked for one", async () => {
+    await gh().open("re-cinq/lore", "topic", "T", "B", "main", [], true);
+
+    expect(state.createCall).toMatchObject({ draft: true });
+  });
+
+  it("open creates a ready pull request by default", async () => {
+    await gh().open("re-cinq/lore", "topic", "T", "B");
+
+    expect(state.createCall?.draft).toBeFalsy();
+  });
+
+  it("update rewrites the body of an existing pull request", async () => {
+    await gh().update("re-cinq/lore", 7, { body: "rewritten" });
+
+    expect(state.updateCall).toMatchObject({
+      owner: "re-cinq",
+      repo: "lore",
+      pull_number: 7,
+      body: "rewritten",
+    });
+  });
+
+  it("markReady sends the mutation carrying the pull request node id", async () => {
+    state.prNode = { id: "PR_42", isDraft: true };
+
+    await gh().markReady("re-cinq/lore", 7);
+
+    expect(state.graphqlCalls).toHaveLength(2);
+    expect(state.graphqlCalls[1]?.query).toContain(
+      "markPullRequestReadyForReview",
+    );
+    expect(state.graphqlCalls[1]?.vars).toEqual({ pullRequestId: "PR_42" });
+  });
+
+  it("markReady sends no mutation for a pull request already out of draft", async () => {
+    // GitHub errors the mutation on a non-draft PR, so a re-delivered event or a
+    // reaper re-drive would fail a run for work that is already done.
+    state.prNode = { id: "PR_42", isDraft: false };
+
+    await gh().markReady("re-cinq/lore", 7);
+
+    expect(state.graphqlCalls).toHaveLength(1);
+  });
+
+  it("markReady sends no mutation when the pull request cannot be read", async () => {
+    state.prNode = undefined;
+
+    await gh().markReady("re-cinq/lore", 7);
+
+    expect(state.graphqlCalls).toHaveLength(1);
   });
 });

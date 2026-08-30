@@ -66,8 +66,20 @@ export class PullRequests {
     body: string,
     base?: string,
     labels?: string[],
+    draft?: boolean,
   ): Promise<PullRef> {
-    return this.pulls.open(this.repo, branch, title, body, base, labels);
+    return this.pulls.open(this.repo, branch, title, body, base, labels, draft);
+  }
+
+  update(
+    number: number,
+    fields: { title?: string; body?: string },
+  ): Promise<void> {
+    return this.pulls.update(this.repo, number, fields);
+  }
+
+  markReady(number: number): Promise<void> {
+    return this.pulls.markReady(this.repo, number);
   }
 
   getDiff(number: number): Promise<string> {

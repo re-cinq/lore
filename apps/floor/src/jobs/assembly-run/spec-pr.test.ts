@@ -13,6 +13,7 @@ import { InMemoryAssemblyRuns } from "@re-cinq/lore-shared/project/assembly-runs
 import { InMemoryFeatures } from "@re-cinq/lore-shared/project/features/features-memory.js";
 import type { PullRef } from "@re-cinq/lore-shared/project/pulls/pull-requests-port.js";
 import {
+  decidePrDraft,
   decidePrStamp,
   decideStampFailure,
   emptyBranchReason,
@@ -25,7 +26,12 @@ const REPO = "re-cinq/lore";
 /** A PR surface that records what it was asked to open, so a test can assert the
  *  line was NOT given a second PR for a branch that already has one. */
 class FakePulls {
-  readonly opened: { branch: string; title: string; body: string }[] = [];
+  readonly opened: {
+    branch: string;
+    title: string;
+    body: string;
+    draft?: boolean;
+  }[] = [];
 
   constructor(private readonly existing: PullRef[] = []) {}
 
@@ -33,8 +39,15 @@ class FakePulls {
     return this.existing;
   }
 
-  async open(branch: string, title: string, body: string): Promise<PullRef> {
-    this.opened.push({ branch, title, body });
+  async open(
+    branch: string,
+    title: string,
+    body: string,
+    base?: string,
+    labels?: string[],
+    draft?: boolean,
+  ): Promise<PullRef> {
+    this.opened.push({ branch, title, body, draft });
 
     const pr: PullRef = {
       repo: REPO,
@@ -154,6 +167,7 @@ describe("stampLinePr", () => {
         branch: "feature/dark-factory-rollback",
         title: "spec: Dark factory rollback",
         body: expect.stringContaining("dark-factory-rollback"),
+        draft: false,
       },
     ]);
     expect((await h.lines.getById(h.lineId))?.args).toMatchObject({
@@ -258,6 +272,41 @@ describe("stampLinePr", () => {
     expect((await h.lines.getById(h.lineId))?.args).toMatchObject({
       pr_number: 4201,
     });
+  });
+});
+
+describe("stampLinePr draft", () => {
+  it("opens the pull request as a draft when the run's args ask for it", async () => {
+    const h = await harness();
+
+    await h.lines.mergeArgs(h.lineId, { pr_draft: true });
+    await stampLinePr(await lineRow(h), h.ports);
+
+    expect(h.pulls.opened[0]).toMatchObject({ draft: true });
+  });
+
+  it("opens a ready pull request when the run says nothing about drafts", async () => {
+    const h = await harness();
+
+    await stampLinePr(await lineRow(h), h.ports);
+
+    expect(h.pulls.opened[0]?.draft).toBeFalsy();
+  });
+});
+
+describe("decidePrDraft", () => {
+  it("opens a draft when the run asks for one", () => {
+    expect(decidePrDraft({ pr_draft: true })).toBe(true);
+  });
+
+  it("opens a ready pull request by default", () => {
+    // Read off the RUN, never off the blueprint name — the Floor stays domain-free
+    // about which lines want a draft.
+    expect(decidePrDraft({})).toBe(false);
+  });
+
+  it("ignores a non-boolean pr_draft rather than treating it as truthy", () => {
+    expect(decidePrDraft({ pr_draft: "yes" })).toBe(false);
   });
 });
 

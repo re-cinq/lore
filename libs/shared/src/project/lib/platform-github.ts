@@ -629,6 +629,7 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
     body: string,
     base?: string,
     labels: string[] = ["agent-generated"],
+    draft = false,
   ): Promise<PullRef> {
     const ok = await this.octo();
     const [owner, name] = split(repo);
@@ -639,6 +640,7 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
       body,
       head: branch,
       base: base ?? "main",
+      draft,
     });
 
     if (labels.length > 0) {
@@ -777,6 +779,58 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
         }
       }`,
       { threadId },
+    );
+  }
+
+  async update(
+    repo: string,
+    number: number,
+    fields: { title?: string; body?: string },
+  ): Promise<void> {
+    const ok = await this.octo();
+    const [owner, name] = split(repo);
+
+    await ok.rest.pulls.update({
+      owner,
+      repo: name,
+      pull_number: number,
+      ...(fields.title !== undefined ? { title: fields.title } : {}),
+      ...(fields.body !== undefined ? { body: fields.body } : {}),
+    });
+  }
+
+  async markReady(repo: string, number: number): Promise<void> {
+    const ok = await this.octo();
+    const [owner, name] = split(repo);
+
+    // Read first, for two reasons: the mutation needs the PR's NODE id (which
+    // `PullRef` does not carry), and GitHub errors it on a PR that is already
+    // ready. A re-delivered webhook or a reaper re-drive must not fail a run for
+    // work that is already done, so "already ready" is success, not an error.
+    const current = (await ok.graphql(
+      `query ($owner: String!, $name: String!, $number: Int!) {
+        repository(owner: $owner, name: $name) {
+          pullRequest(number: $number) { id isDraft }
+        }
+      }`,
+      { owner, name, number },
+    )) as {
+      repository?: { pullRequest?: { id: string; isDraft: boolean } | null };
+    };
+
+    const pr = current.repository?.pullRequest;
+
+    if (!pr?.isDraft) {
+      return;
+    }
+
+    await ok.graphql(
+      `mutation ($pullRequestId: ID!) {
+        markPullRequestReadyForReview(input: { pullRequestId: $pullRequestId }) {
+          pullRequest { id isDraft }
+        }
+      }`,
+      { pullRequestId: pr.id },
     );
   }
 

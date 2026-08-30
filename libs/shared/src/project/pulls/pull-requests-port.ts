@@ -139,7 +139,22 @@ export interface PullRequestsPort {
     body: string,
     base?: string,
     labels?: string[],
+    /** Open as a draft. A draft PR gets no Lore code review — both review entry
+     *  points gate on `draft !== true` — which is what lets a line push many
+     *  times before asking anyone to look. */
+    draft?: boolean,
   ): Promise<PullRef>;
+  /** Rewrite an open pull request's title and/or body. */
+  update(
+    repo: string,
+    number: number,
+    fields: { title?: string; body?: string },
+  ): Promise<void>;
+  /** Take a pull request out of draft, which is what starts the code review.
+   *  GraphQL-only: REST's `pulls.update` has no `draft` field. Idempotent — a PR
+   *  that is already ready is a no-op, because GitHub errors the mutation on one
+   *  and a re-delivered event must not fail a run for work already done. */
+  markReady(repo: string, number: number): Promise<void>;
   // reads
   getDiff(repo: string, number: number): Promise<string>;
   listReviews(repo: string, number: number): Promise<PullReview[]>;
