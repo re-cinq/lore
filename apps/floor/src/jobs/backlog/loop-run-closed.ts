@@ -81,16 +81,26 @@ async function blockedReasonFor(
     .filter((n) => prReviewIds.has(n.nodeId))
     .at(-1);
 
-  // `changes_requested` on the wait is now TRANSIENT — it routes to fix-ci and
-  // the line comes back to the wait. Only `failed` is terminal for a human:
-  // review threads the address round-trip did not clear. Keying on
-  // changes_requested here would have blocked every ticket whose build was red
-  // once and then fixed.
-  if (awaitPr?.outcome === "failed") {
+  // BOTH non-success resumes block, and the reason is the run being CLOSED at
+  // all. A repaired build never reaches here: fix-ci success routes back to the
+  // wait, which opens a new pr_review row and parks the run again. So a closed
+  // run whose last wait resumed `changes_requested` is one where fix-ci gave up
+  // — and blocking only on `failed` let that ticket re-arm, into a fresh run
+  // whose `await-pr -> fix-ci` counter starts at zero. A build that cannot be
+  // reproduced locally would have cycled across runs without bound, since
+  // iteration_max bounds one run and nothing bounded the re-arm.
+  if (
+    awaitPr?.outcome === "changes_requested" ||
+    awaitPr?.outcome === "failed"
+  ) {
     const detail =
       typeof run.args.reason === "string" ? ` (${run.args.reason})` : "";
+    const why =
+      awaitPr.outcome === "failed"
+        ? "review threads stayed unresolved after the address round-trip"
+        : "its build stayed red after the repair attempts were spent";
 
-    return `the pull request was not ready${detail}: review threads stayed unresolved after the address round-trip`;
+    return `the pull request was not ready${detail}: ${why}`;
   }
 
   return null;

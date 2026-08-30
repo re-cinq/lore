@@ -387,8 +387,8 @@ task_types:
     review_required: false
     execution_mode: claude-code
     model: claude-sonnet-4-6
-    skills:
-      - tdd-loop
+    # No tdd-loop here on purpose: the bar is already red and the job is to make
+    # it green, so a red-first contract is at best irrelevant to this step.
 
   # The implementation-loop line's `ready-for-review` node. The last check
   # before a human sees the PR, and the node whose artifact becomes the PR

@@ -85,15 +85,17 @@ describe("handleLoopRunClosed", () => {
     expect(ticks).toEqual(["acme/widgets"]);
   });
 
-  it("does not block a ticket whose red build was repaired", async () => {
-    // changes_requested on the wait is TRANSIENT now — it routes to fix-ci and
-    // the line returns to the wait. Blocking on it would have blocked every
-    // ticket whose CI went red once and was then fixed.
-    const { d, labeled, ticks } = deps("changes_requested");
+  it("blocks a ticket whose build stayed red after the repair attempts", async () => {
+    // A repaired build never closes the run here — fix-ci success routes back
+    // to the wait and parks it again. So a CLOSED run whose last wait resumed
+    // changes_requested is one where fix-ci gave up, and letting it re-arm
+    // would reset the fix budget and cycle the ticket across runs forever.
+    const { d, labeled, comments, ticks } = deps("changes_requested");
 
     await handleLoopRunClosed(run(), "completed", undefined, d);
 
-    expect(labeled).toEqual([]);
+    expect(labeled).toEqual([{ number: 7, label: "lore:blocked" }]);
+    expect(comments[0]?.body).toContain("stayed red");
     expect(ticks).toEqual(["acme/widgets"]);
   });
 
