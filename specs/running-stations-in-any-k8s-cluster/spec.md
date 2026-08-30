@@ -353,6 +353,38 @@ pull, so recovery splits by who holds the claim:
   claiming; its stale claims have already been requeued, and dedupe keys make
   any late duplicate report safe. ([validated by `heartbeat-loop.test.ts:100`](apps/cluster-agent/src/claim/heartbeat-loop.test.ts#L112), [`heartbeat-loop.test.ts:62`](apps/cluster-agent/src/claim/heartbeat-loop.test.ts#L74), [`assembly-runs.contract.test.ts:1099`](libs/shared/src/project/assembly-runs/assembly-runs.contract.test.ts#L1137))
 
+- **A cluster forgets what it finished with** *(added 2026-08-30)*. Every run
+  leaves an Agent CR plus the per-task `pt-*` AgentDefinition and Station it ran
+  on, and nothing deleted any of them: the subsystem controller's informer
+  caches all of it, so 176 terminal Agent CRs — 40MiB of JSON, each holding up
+  to `maxOutputBytes` (256KiB) of run output — OOMKilled it every nine minutes.
+  The Station's `successfulRunsHistoryLimit` cannot bound this, because it is
+  per-Station and Lore mints a Station per task: the denominator grows with the
+  numerator, so 176 runs across 243 Stations average under one each and nothing
+  is ever pruned. Raising the controller's memory is the stopgap that had
+  already failed once at a lower ceiling. An hourly sweep deletes terminal CRs
+  past a retention window, then the clones no surviving CR still references,
+  bounded per tick so a first pass over a backlog cannot storm the apiserver.
+  ([validated by [deletes a terminal CR older than the retention window](apps/cluster-agent/src/reap/decide-prune.test.ts#L45), [keeps a terminal CR inside the window, which is the forensic record](apps/cluster-agent/src/reap/decide-prune.test.ts#L51), [never deletes a CR that has not gone terminal, however old](apps/cluster-agent/src/reap/decide-prune.test.ts#L59), [bounds one tick, so a first sweep over a backlog does not storm the apiserver](apps/cluster-agent/src/reap/decide-prune.test.ts#L71), [keeps three days of evidence by default](apps/cluster-agent/src/reap/prune-loop.test.ts#L141), [ignores a zero or unparseable retention rather than deleting everything](apps/cluster-agent/src/reap/prune-loop.test.ts#L149), [sweeps hourly unless the environment says otherwise](apps/cluster-agent/src/reap/prune-loop.test.ts#L134); implemented by [`decide-prune.ts`](apps/cluster-agent/src/reap/decide-prune.ts))
+- The window is deliberately generous — three days by default, and a zero or
+  unparseable override falls back rather than deleting every terminal run the
+  moment it lands. Run `129235d4` was diagnosed two days after it died from
+  `.status.output` alone, once its pod logs and telemetry were already gone; a
+  retention measured in minutes would have made that question unanswerable. What
+  is kept is not tidiness but the only evidence a failed run leaves behind.
+- A clone is deleted only when no SURVIVING CR references it and it is itself
+  past the window — the clone is written before the CR that names it, so
+  "nothing references it" is briefly true of a task mid-dispatch, and a builtin
+  `def-*` recipe is catalog rather than litter and is never a candidate.
+  ([validated by [deletes a pt-* clone once no surviving CR references it](apps/cluster-agent/src/reap/decide-prune.test.ts#L81), [keeps a clone a surviving CR still references](apps/cluster-agent/src/reap/decide-prune.test.ts#L95), [never touches a builtin def-* recipe, whatever its age](apps/cluster-agent/src/reap/decide-prune.test.ts#L114), [keeps a young orphan clone, so a task mid-dispatch does not lose its recipe](apps/cluster-agent/src/reap/decide-prune.test.ts#L126), [reports nothing to do for an empty cluster](apps/cluster-agent/src/reap/decide-prune.test.ts#L137))
+- The sweep never throws: a cluster it cannot reach, or one object wedged by a
+  finalizer, is an outcome it logs and carries on from — a single stuck object
+  must not keep the rest of a 40MiB backlog in the cache. It runs in the
+  cluster-agent rather than the Floor, because the Floor cannot reach a
+  satellite's cluster at all: a Floor-side reaper would tidy central and leave
+  every satellite to grow until its controller died.
+  ([validated by [deletes what the plan names and reports the counts](apps/cluster-agent/src/reap/prune-loop.test.ts#L47), [reports nothing when the cluster is already tidy](apps/cluster-agent/src/reap/prune-loop.test.ts#L64), [skips one object it cannot delete and still sweeps the rest](apps/cluster-agent/src/reap/prune-loop.test.ts#L72), [answers with an outcome, never a throw, when the cluster is unreachable](apps/cluster-agent/src/reap/prune-loop.test.ts#L90), [logs a sweep and a failure, and stops when the latch closes](apps/cluster-agent/src/reap/prune-loop.test.ts#L109); implemented by [`prune-loop.ts`](apps/cluster-agent/src/reap/prune-loop.ts))
+
 ## FR5 — Reporting credentials for satellites
 
 A satellite must report outcomes without holding the bus-wide credential.
