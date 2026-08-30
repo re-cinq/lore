@@ -49,6 +49,25 @@ function readJsonFile(filePath: string): Record<string, unknown> | null {
   }
 }
 
+/**
+ * Whether the manifest declares a workspaces monorepo, in either spelling: npm's
+ * array of globs, or the `{ packages: [...] }` object Yarn uses and that plenty
+ * of npm-installed repos still carry.
+ */
+function declaresWorkspaces(pkg: Record<string, unknown>): boolean {
+  const workspaces = pkg.workspaces;
+
+  if (Array.isArray(workspaces)) {
+    return true;
+  }
+
+  if (typeof workspaces !== "object" || workspaces === null) {
+    return false;
+  }
+
+  return Array.isArray((workspaces as { packages?: unknown }).packages);
+}
+
 function hasEslintConfig(repoRoot: string): boolean {
   const isFlatConfig =
     existsSync(join(repoRoot, "eslint.config.js")) ||
@@ -128,6 +147,36 @@ function detectNode(repoRoot: string): RepoTooling | null {
     (quick.length > 0 || full.length > 0) &&
     !existsSync(join(repoRoot, "node_modules"))
   ) {
+    // A WORKSPACES repo must COMPILE before it lints: a sibling's `dist/` is
+    // what the others import, and an install does not produce it. Run
+    // b219a4f1 (2026-08-30) died on exactly that — `npm ci` succeeded and
+    // eslint then failed with `cannot import
+    // @re-cinq/lore-shared/spec-status.js`, because this repo's own ESLint
+    // plugin imports a workspace package's compiled output. Both implement
+    // nodes succeeded and both validate nodes failed identically, so the retry
+    // bought a second 40-minute implementation against a fault no
+    // implementation could fix.
+    //
+    // The build it ALREADY has is moved, never duplicated — a second step
+    // running the same command would compile the repo twice on every fresh
+    // clone — and it carries a cold-clone budget, since compiling every
+    // workspace from nothing is not the 60-second job a warm rebuild is.
+    //
+    // Gated on `workspaces`: a single-package repo's lint reads source, so
+    // compiling first buys nothing and costs every validate the time.
+    const buildAt = declaresWorkspaces(pkg)
+      ? quick.findIndex((step) => step.name === "build")
+      : -1;
+
+    if (buildAt >= 0) {
+      // Read before removing: destructuring the splice result would spread
+      // `undefined` if the index guard above ever stopped holding, and a step
+      // with no command reads as a check that passed.
+      const build = quick[buildAt];
+
+      quick.splice(buildAt, 1);
+      quick.unshift({ ...build, timeoutMs: 300_000 });
+    }
     quick.unshift({
       name: "install",
       command: existsSync(join(repoRoot, "package-lock.json"))
