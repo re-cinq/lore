@@ -69,6 +69,7 @@ export class AgentRunner implements AgentRunnerPort {
         featureId: opts?.featureId,
         roundFeedback: opts?.roundFeedback,
         resumeFromTask: opts?.resumeFromTask,
+        lineArgs: opts?.lineArgs,
       });
 
       // Sync backends (docker) carry completion back so the caller can finalize

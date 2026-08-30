@@ -51,6 +51,10 @@ export class AssemblyLineStationBackend implements StationBackend {
       // The engine stays domain-free: it never learns what a feature is, it just
       // carries the value the consumer put here.
       args: {
+        // Seeds FIRST: a context-bundle bag must never displace the keys below,
+        // and `description` in particular is what fills {description} in every
+        // agent prompt.
+        ...(spec.lineArgs ?? {}),
         description: spec.description,
         ...(spec.featureId ? { feature_id: spec.featureId } : {}),
         ...(spec.roundFeedback ? { round_feedback: spec.roundFeedback } : {}),

@@ -43,6 +43,8 @@ export interface AgentRunOpts {
   roundFeedback?: string;
   /** The task whose run this one continues (rewind). */
   resumeFromTask?: string;
+  /** Seed values for the assembly run's `args` (implementation-loop FR11). */
+  lineArgs?: Record<string, unknown>;
 }
 
 export interface AgentRunnerPort {

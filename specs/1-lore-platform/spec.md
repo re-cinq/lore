@@ -237,7 +237,7 @@ system is performing.
   session settings/hooks, and `GET /skills/<name>.tar.gz` streams a gzip tarball of the
   baked skill directory, rejecting an unsafe/traversing name with `404`. The
   ai-agent-subsystem init fetches these into a run's `$HOME/.claude` (recipe
-  `resources.skills` + `skills_source`, ADR-030). ([validated by `skills-registry.test.ts:42`](apps/mcp-server/src/server/skills-registry.test.ts#L42), [`skills-registry.test.ts:50`](apps/mcp-server/src/server/skills-registry.test.ts#L50), [`skills-registry.test.ts:63`](apps/mcp-server/src/server/skills-registry.test.ts#L63), [`skills-registry.test.ts:74`](apps/mcp-server/src/server/skills-registry.test.ts#L74))
+  `resources.skills` + `skills_source`, ADR-030). ([validated by `skills-registry.test.ts:47`](apps/mcp-server/src/server/skills-registry.test.ts#L47), [`skills-registry.test.ts:55`](apps/mcp-server/src/server/skills-registry.test.ts#L55), [`skills-registry.test.ts:68`](apps/mcp-server/src/server/skills-registry.test.ts#L68), [`skills-registry.test.ts:79`](apps/mcp-server/src/server/skills-registry.test.ts#L79))
 - Developer can check task status and retrieve results without
   leaving Claude Code.
 - The pipeline task is visible in the shared task tracker — no

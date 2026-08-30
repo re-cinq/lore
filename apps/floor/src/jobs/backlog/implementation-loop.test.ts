@@ -33,6 +33,8 @@ function deps(overrides: Partial<LoopTickDeps> = {}) {
     setTaskColumns: async (_taskId, cols) => {
       columns.push(cols);
     },
+    branchExists: async () => false,
+    openPrForBranch: async () => null,
   };
 
   return { deps: { ...base, ...overrides }, minted, columns };
@@ -53,6 +55,7 @@ describe("createImplementationLoopTickHandler", () => {
         contextBundle: {
           github_issue_number: 7,
           github_issue_url: "https://gh/acme/widgets/issues/7",
+          branch: "lore/implementation-loop/issue-7",
         },
       },
     ]);
@@ -123,5 +126,73 @@ describe("createImplementationLoopTickHandler", () => {
     await createImplementationLoopTickHandler(d.deps)({});
 
     expect(d.minted).toHaveLength(1);
+  });
+});
+
+describe("the ticket's branch", () => {
+  it("is named after the issue, so a re-pick finds the work already pushed", async () => {
+    const d = deps();
+
+    await createImplementationLoopTickHandler(d.deps)({});
+
+    expect(d.minted[0].contextBundle).toMatchObject({
+      branch: "lore/implementation-loop/issue-7",
+    });
+  });
+
+  it("seeds no resume args when no branch exists yet", async () => {
+    const d = deps();
+
+    await createImplementationLoopTickHandler(d.deps)({});
+
+    expect(d.minted[0].contextBundle).not.toHaveProperty("line_args");
+  });
+
+  it("seeds line_args from the open pull request when the branch is being resumed", async () => {
+    const d = deps({
+      branchExists: async () => true,
+      openPrForBranch: async () => ({
+        number: 77,
+        url: "https://gh/acme/widgets/pull/77",
+      }),
+    });
+
+    await createImplementationLoopTickHandler(d.deps)({});
+
+    expect(d.minted[0].contextBundle).toMatchObject({
+      line_args: {
+        resumed_from_branch: true,
+        pr_number: 77,
+        pr_url: "https://gh/acme/widgets/pull/77",
+      },
+    });
+  });
+
+  it("seeds no resume args for a blocked ticket even when its branch survives", async () => {
+    const d = deps({
+      listIssues: async () => [issue(7, ["priority:high", "lore:blocked"])],
+      branchExists: async () => true,
+    });
+
+    await createImplementationLoopTickHandler(d.deps)({});
+
+    // selectNextIssue already skips a blocked ticket, so nothing is minted at all —
+    // the resume guard is the second lock on a door that is already shut.
+    expect(d.minted).toEqual([]);
+  });
+
+  it("asks GitHub for the branch it is about to mint, not some other one", async () => {
+    const asked: string[] = [];
+    const d = deps({
+      branchExists: async (_repo, branch) => {
+        asked.push(branch);
+
+        return false;
+      },
+    });
+
+    await createImplementationLoopTickHandler(d.deps)({});
+
+    expect(asked).toEqual(["lore/implementation-loop/issue-7"]);
   });
 });

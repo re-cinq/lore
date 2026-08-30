@@ -141,7 +141,14 @@ export function buildAgentDefinition(
         // Agent skills fetched by the init from the gateway's /skills registry. The
         // subsystem is registry-agnostic (ADR-030): it fetches `<source>/<name>.tar.gz`
         // + `<source>/settings.json`. Empty source ⇒ no fetch, so inert until deployed.
-        skills: ["lore-context"],
+        //
+        // A recipe's own skills APPEND to lore-context rather than replacing it: a
+        // recipe that names its own would otherwise silently lose the context skill
+        // that makes `lore_assemble_context` the first thing every run does.
+        skills: [
+          "lore-context",
+          ...(cfg.skills ?? []).filter((name) => name !== "lore-context"),
+        ],
         skills_source: SKILLS_SOURCE_SENTINEL,
       },
       // Defense-in-depth (the gateway already omits it in agent mode): an agent
