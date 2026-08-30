@@ -3,12 +3,17 @@ import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import { PassThrough } from "node:stream";
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { readFile } from "node:fs/promises";
+import { parse } from "yaml";
 import { handleSkillsRequest } from "./skills-registry.js";
 
 const skillsRoot = resolve(
   dirname(fileURLToPath(import.meta.url)),
   "../../agent-skills",
 );
+
+/** The recipe file, from this test's dir: src/server -> repo root. */
+const TASK_TYPES_PATH = "../../../../scripts/task-types.yaml";
 
 function mockRes() {
   const res = new PassThrough();
@@ -86,5 +91,43 @@ describe("handleSkillsRequest", () => {
     const buf = await done;
 
     expect([buf[0], buf[1]]).toEqual([0x1f, 0x8b]); // gzip magic
+  });
+
+  // The drift guard for per-recipe skills (specs/floor-on-ai-subsystem FR34): a
+  // recipe naming a skill this bundle does not carry renders a `skills:` entry the
+  // init fetches as a 404. That is FR26's failure shape one level down — the run
+  // still starts, just without the contract the recipe asked for — so it is caught
+  // here, where the 404 would be served, rather than in a pod.
+  it("serves every skill the task-type recipes declare", async () => {
+    const recipes = parse(
+      await readFile(
+        resolve(dirname(fileURLToPath(import.meta.url)), TASK_TYPES_PATH),
+        "utf8",
+      ),
+    ) as { task_types?: Record<string, { skills?: string[] }> };
+
+    const declared = [
+      ...new Set(
+        Object.values(recipes.task_types ?? {}).flatMap((r) => r?.skills ?? []),
+      ),
+    ].sort();
+
+    const served = await Promise.all(
+      declared.map(async (name) => {
+        const { res, captured, body } = mockRes();
+        const done = body();
+
+        await handleSkillsRequest(
+          req("GET", `/skills/${name}.tar.gz`),
+          res,
+          skillsRoot,
+        );
+        await done;
+
+        return { name, status: captured.status };
+      }),
+    );
+
+    expect(served).toEqual(declared.map((name) => ({ name, status: 200 })));
   });
 });

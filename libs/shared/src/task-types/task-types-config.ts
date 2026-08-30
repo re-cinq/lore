@@ -42,6 +42,11 @@ export const TaskTypeConfigSchema = z.object({
   /** A file this run is expected to produce, raised as a named `kind:"file"`
    *  event once the agent exits (ai-agent-subsystem#188). */
   watch: z.object({ event: z.string(), path: z.string() }).optional(),
+  /** Extra agent skills this recipe needs, fetched by the init from the
+   *  gateway's /skills registry. APPENDED to `lore-context`, never replacing it:
+   *  every recipe keeps its Lore context skill, and a recipe naming a skill the
+   *  registry does not serve gets nothing for it rather than losing the rest. */
+  skills: z.array(z.string()).optional(),
 });
 
 export type TaskTypeConfig = z.infer<typeof TaskTypeConfigSchema>;

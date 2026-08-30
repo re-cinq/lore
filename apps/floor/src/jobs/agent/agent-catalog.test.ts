@@ -78,6 +78,24 @@ describe("buildAgentDefinition", () => {
     });
   });
 
+  it("appends a recipe's declared skills after lore-context", () => {
+    expect(
+      buildAgentDefinition("implementation-tdd", {
+        ...impl,
+        skills: ["tdd-loop", "legacy-characterize"],
+      }).spec?.resources?.skills,
+    ).toEqual(["lore-context", "tdd-loop", "legacy-characterize"]);
+  });
+
+  it("keeps one lore-context when a recipe declares it again", () => {
+    expect(
+      buildAgentDefinition("implementation-tdd", {
+        ...impl,
+        skills: ["lore-context", "tdd-loop"],
+      }).spec?.resources?.skills,
+    ).toEqual(["lore-context", "tdd-loop"]);
+  });
+
   it("a deterministic station recipe swaps ANTHROPIC for the Lore API pair every station pod needs", () => {
     const resources = buildStationDefinition("validate", {
       command: ["lore-station", "validate"],

@@ -350,6 +350,7 @@ spec:
 {{- if .Values.loreSkillsUrl }}
     skills:
       - lore-context
+      - tdd-loop
     skills_source: {{ .Values.loreSkillsUrl }}
 {{- end }}
   disallowed_tools:
