@@ -364,6 +364,54 @@ describe("detectTooling — a lint script that can be scoped", () => {
     expect(lint?.scopedCommand).toBeUndefined();
   });
 
+  it("replaces only the bare tree token, leaving dotted flags and paths alone", () => {
+    writeFile(
+      "package.json",
+      JSON.stringify({ scripts: { lint: "eslint . --ext .ts ./extra" } }),
+    );
+    writeFile("node_modules/.keep", "");
+
+    expect(
+      detectTooling(tmpDir).quickChecks.find((c) => c.name === "lint"),
+    ).toMatchObject({ scopedCommand: "npx eslint {files} --ext .ts ./extra" });
+  });
+
+  it("leaves an env-prefixed script unscoped rather than re-implementing the shell", () => {
+    writeFile(
+      "package.json",
+      JSON.stringify({
+        scripts: { lint: "NODE_OPTIONS=--max-old-space-size=4096 eslint ." },
+      }),
+    );
+    writeFile("node_modules/.keep", "");
+
+    expect(
+      detectTooling(tmpDir).quickChecks.find((c) => c.name === "lint")
+        ?.scopedCommand,
+    ).toBeUndefined();
+  });
+
+  it("never scopes a lint script it could not rewrite, even with changed files", async () => {
+    // The regex path used to claim the `lint` step too; it could only ever
+    // have matched a command ending in " .", which `npm run lint` never does.
+    // Dropping it makes "unscoped" the explicit outcome, not an accident.
+    const calls: string[] = [];
+    const exec: ValidationExec = async (command) => {
+      calls.push(command);
+
+      return { output: "", passed: true };
+    };
+
+    await runValidation(
+      tmpDir,
+      [{ name: "lint", command: "npm run lint --silent", timeoutMs: 5000 }],
+      ["src/a.ts"],
+      exec,
+    );
+
+    expect(calls).toEqual(["npm run lint --silent"]);
+  });
+
   it("gives lint a budget a whole monorepo can finish in, since scoping is best-effort", () => {
     // 30s was calibrated for the scoped run that never happened. Unscoped
     // `eslint .` on this repo takes minutes; a diff that cannot be derived

@@ -88,9 +88,16 @@ function declaresWorkspaces(pkg: Record<string, unknown>): boolean {
  * `npm run` would resolve it.
  */
 function scopedLintCommand(script: string): string | null {
+  // The script must START with the eslint binary. A script prefixed with an
+  // environment assignment (`NODE_OPTIONS=... eslint .`) or chained through
+  // another tool is deliberately left unscoped: rewriting it would mean
+  // re-implementing the shell, and unscoped is the safe default.
   if (!/^eslint(\s|$)/.test(script.trim())) {
     return null;
   }
+  // Exactly the bare "." token — the tree root — and only the first one.
+  // `.ts` in `--ext .ts` and `./extra` are not that token and stay; a script
+  // with no bare "." has nothing to scope.
   const scoped = script.trim().replace(/(^|\s)\.(?=\s|$)/, "$1{files}");
 
   return scoped === script.trim() ? null : `npx ${scoped}`;
@@ -433,7 +440,7 @@ export async function runValidation(
         continue;
       }
       command = step.scopedCommand
-        ? step.scopedCommand.replace("{files}", quoteFiles(relevantFiles))
+        ? step.scopedCommand.replaceAll("{files}", quoteFiles(relevantFiles))
         : scopeCommandToFiles(step.name, step.command, relevantFiles);
     }
 
@@ -488,11 +495,11 @@ function scopeCommandToFiles(
   files: string[],
 ): string {
   // Only scope lint/eslint and ruff — typecheck/build/test need full project
-  if (stepName === "lint" || stepName === "eslint" || stepName === "ruff") {
-    // Replace a trailing "." with the file list. This only ever matches a BARE
-    // tool invocation (`npx eslint --quiet .`); a script step is scoped through
-    // its derived `scopedCommand` instead, because `npm run lint` carries no
-    // "." to replace.
+  // Only the BARE tool invocations this module itself writes (`npx eslint
+  // --quiet .`, ruff). A `lint` step is never here: its command is always
+  // `npm run lint --silent`, which carries no "." to replace — that step is
+  // scoped through its derived `scopedCommand` or not at all.
+  if (stepName === "eslint" || stepName === "ruff") {
     return command.replace(/\s+\.$/, ` ${quoteFiles(files)}`);
   }
 
