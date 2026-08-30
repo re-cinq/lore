@@ -439,6 +439,46 @@ describe("agentStderrError", () => {
     expect(agentStderrError(output)).toBeNull();
   });
 
+  it("says nothing when the phase that failed was not the agent's", () => {
+    // An init-phase death has its own markers; the `[agent] ` relay is the
+    // engine's stderr, so attributing it to a different phase's failure would
+    // put the wrong cause on the run.
+    const output = [
+      '{"kind":"lifecycle","phase":"init","status":"started"}',
+      "[agent] Error: Settings file not found: /agent/.claude/settings.json",
+      '{"kind":"lifecycle","exitCode":1,"phase":"init","status":"failed"}',
+    ].join("\n");
+
+    expect(agentStderrError(output)).toBeNull();
+  });
+
+  it("still reads a failed envelope that names no phase at all", () => {
+    // `phase` is OPTIONAL on the lifecycle marker. Demanding it would let the
+    // exact defect this function exists for survive in a phase-less variant.
+    const output = [
+      "[agent] Error: Settings file not found: /agent/.claude/settings.json",
+      '{"kind":"lifecycle","exitCode":1,"status":"failed"}',
+    ].join("\n");
+
+    expect(agentStderrError(output)).toBe(
+      "Error: Settings file not found: /agent/.claude/settings.json",
+    );
+  });
+
+  it("reads the line that preceded the failure, not one logged after it", () => {
+    // The reverse scan is bounded by the failure: a shutdown line printed after
+    // the engine died is not what killed it.
+    const output = [
+      "[agent] Error: Settings file not found: /agent/.claude/settings.json",
+      '{"kind":"lifecycle","exitCode":1,"phase":"agent","status":"failed"}',
+      "[agent] cleaning up",
+    ].join("\n");
+
+    expect(agentStderrError(output)).toBe(
+      "Error: Settings file not found: /agent/.claude/settings.json",
+    );
+  });
+
   it("returns null for empty, absent, or unstructured output", () => {
     expect(agentStderrError("")).toBeNull();
     expect(agentStderrError(undefined)).toBeNull();

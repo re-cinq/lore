@@ -162,23 +162,45 @@ export function terminalErrorText(output?: string): string | null {
 /** The runner's relay prefix for the engine's own stderr. */
 const AGENT_STDERR_PREFIX = "[agent] ";
 
-/** True for a lifecycle envelope reporting the agent phase as failed.
+/** The lifecycle phase the relayed stderr belongs to. */
+const AGENT_PHASE = "agent";
+
+/**
+ * True for a lifecycle envelope reporting the AGENT phase as failed.
  *
- *  Parsed here rather than through `parseLine`, which answers only for RESULT
- *  shapes and so discards a lifecycle envelope entirely. */
+ * Parsed here rather than through `parseLine`, which answers only for RESULT
+ * shapes and so discards a lifecycle envelope entirely.
+ *
+ * A phase this marker NAMES must be the agent's: an init-phase death has its
+ * own markers, and attributing the engine's stderr to it would put the wrong
+ * cause on the run. A marker naming NO phase still counts — `phase` is optional
+ * on the shape, and demanding it would let the very defect this exists for
+ * survive in a phase-less variant.
+ */
 function isFailedLifecycle(line: string): boolean {
   try {
-    const value: unknown = JSON.parse(line);
+    const marker = failedLifecycleMarker(JSON.parse(line));
 
-    return (
-      typeof value === "object" &&
-      value !== null &&
-      (value as { kind?: unknown }).kind === "lifecycle" &&
-      (value as { status?: unknown }).status === "failed"
-    );
+    if (marker === null) {
+      return false;
+    }
+
+    return marker.phase === undefined || marker.phase === AGENT_PHASE;
   } catch {
     return false;
   }
+}
+
+/** The parsed value as a FAILED lifecycle marker, or null for anything else. */
+function failedLifecycleMarker(value: unknown): { phase?: unknown } | null {
+  if (typeof value !== "object" || value === null) {
+    return null;
+  }
+  const marker = value as { kind?: unknown; status?: unknown; phase?: unknown };
+  const isFailedMarker =
+    marker.kind === "lifecycle" && marker.status === "failed";
+
+  return isFailedMarker ? marker : null;
 }
 
 /**
@@ -205,12 +227,15 @@ export function agentStderrError(output?: string): string | null {
     return null;
   }
   const lines = output.split("\n").map((line) => line.trim());
+  // The scan is BOUNDED by the failure, not by the end of the stream: a line
+  // the runner logs while shutting down is not what killed the engine.
+  const failedAt = lines.findIndex(isFailedLifecycle);
 
-  if (!lines.some(isFailedLifecycle)) {
+  if (failedAt === -1) {
     return null;
   }
 
-  for (let i = lines.length - 1; i >= 0; i--) {
+  for (let i = failedAt; i >= 0; i--) {
     if (lines[i].startsWith(AGENT_STDERR_PREFIX)) {
       const text = lines[i].slice(AGENT_STDERR_PREFIX.length).trim();
 
