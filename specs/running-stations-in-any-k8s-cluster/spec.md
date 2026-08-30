@@ -302,6 +302,22 @@ one dispatch mechanism, not a special case plus a remote case.
   cluster and only until the prune.
   ([validated by reads what the run row recorded at dispatch, not what a cluster still holds](apps/floor/src/jobs/watcher/agent-watcher-logic.test.ts#L308), [`agent-watcher-logic.test.ts:333`](apps/floor/src/jobs/watcher/agent-watcher-logic.test.ts#L333), [`agent-watcher-logic.test.ts:351`](apps/floor/src/jobs/watcher/agent-watcher-logic.test.ts#L351), [`agent-watcher-logic.test.ts:363`](apps/floor/src/jobs/watcher/agent-watcher-logic.test.ts#L363), [`agent-watcher-logic.test.ts:377`](apps/floor/src/jobs/watcher/agent-watcher-logic.test.ts#L377), [`agent-watcher-logic.test.ts:317`](apps/floor/src/jobs/watcher/agent-watcher-logic.test.ts#L317))
 
+- **Whether an agent may be handed work is one rule, shared** *(added 2026-08-30)*.
+  It was a bare `if (agent.paused)` inside the claim route, where nothing else
+  could reach it — so "a paused cluster parks the queue" was the premise of the
+  reaper's whole retention story and was tested nowhere the walk could see. It
+  is `mayClaim` now, used by the route and by the acceptance harness alike.
+  Deliberately narrower than the capacity read that predicts who WILL claim: an
+  `offline` agent may still claim, because a claim arriving from it is itself
+  proof it is alive, and refusing those would turn a network blip into a cluster
+  that can never re-enter service.
+- The acceptance tier therefore spans registry → claim → walk → reaper on the
+  real `implementation-loop` blueprint: a paused central leaves `validate`
+  unclaimed and the run fails once naming it, an active central claims that same
+  node and the walk reaches `push`, and a satellite carrying only `node:agent`
+  cannot take it at all — which is why one paused cluster starves the line
+  rather than failing over to the other. ([validated by [with central paused, validate is never claimed and the run fails naming it](apps/floor/src/jobs/assembly-run/implementation-loop-acceptance.test.ts#L165), [with central active, validate is claimed by it and the walk reaches push](apps/floor/src/jobs/assembly-run/implementation-loop-acceptance.test.ts#L186), [a satellite offering only node:agent cannot take the validate node](apps/floor/src/jobs/assembly-run/implementation-loop-acceptance.test.ts#L203))
+
 ## FR4 — Liveness, recovery, and dead-agent reaping
 
 Recovery today assumes the reaper can interrogate the Agent CR — a pull

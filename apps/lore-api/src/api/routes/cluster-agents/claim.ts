@@ -7,6 +7,7 @@ import { z } from "zod";
 import type { ClusterAgentsRepository } from "@re-cinq/lore-shared/project/cluster-agents/cluster-agents-port.js";
 import { PgClusterAgents } from "@re-cinq/lore-shared/project/cluster-agents/cluster-agents-pg.js";
 import { hashAgentToken } from "@re-cinq/lore-shared/project/cluster-agents/cluster-agent-token.js";
+import { mayClaim } from "@re-cinq/lore-shared/project/cluster-agents/capacity.js";
 import type { AssemblyRunsPort } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
 import { PgAssemblyRuns } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-pg.js";
 import { zodResponse } from "../../../server/plugins/zod-response.js";
@@ -60,7 +61,7 @@ export async function handleClaim(
     return { code: 403, body: { error: "forbidden" } };
   }
 
-  if (agent.paused) {
+  if (!mayClaim(agent)) {
     // 204, the same answer as "nothing queued for you": a paused agent needs
     // no new client behaviour, its existing idle backoff simply keeps polling
     // until an operator un-pauses it. Enforced HERE rather than in the claim
