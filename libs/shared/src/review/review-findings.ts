@@ -122,8 +122,8 @@ function repairUnescapedStringContent(text: string): string {
       continue;
     }
 
-    if (ch === "\n" || ch === "\r") {
-      result += ch === "\n" ? "\\n" : "\\r";
+    if (ch === "\n" || ch === "\r" || ch === "\t") {
+      result += ch === "\n" ? "\\n" : ch === "\r" ? "\\r" : "\\t";
       continue;
     }
 
@@ -143,9 +143,19 @@ function repairUnescapedStringContent(text: string): string {
   return result;
 }
 
-/** Whether the character at `text[from]`, skipping whitespace, is one that can
- *  only follow the end of a JSON string — i.e. the quote just before it closed
- *  the string rather than sitting inside it. */
+/**
+ * Whether the character at `text[from]`, skipping whitespace, is one that can
+ * only follow the end of a JSON string — i.e. the quote just before it closed
+ * the string rather than sitting inside it.
+ *
+ * Including `:` is what lets a key's closing quote (`"key":`) be told apart
+ * from a literal one — but it also means a narrative value that itself
+ * quotes-then-colons a word, e.g. `"discussion":"the \"foo\": bar case"`, is
+ * read as closing early at that inner quote. That does not produce a wrong
+ * repair: the string JSON.parse then sees is malformed either way, so this
+ * input still comes back `null`, same as no repair at all — just a known
+ * limit of the heuristic, not a silent corruption.
+ */
 function closesAString(text: string, from: number): boolean {
   let j = from;
 

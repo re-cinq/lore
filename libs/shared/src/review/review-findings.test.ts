@@ -69,6 +69,18 @@ describe("parseReviewFindings", () => {
     );
   });
 
+  it("recovers a finding whose suggestion carries a literal tab, same as newlines", () => {
+    // A tabbed-indented code snippet in `suggestion` is a raw control
+    // character, which JSON forbids unescaped in a string exactly like a raw
+    // newline — the same class of bug, not a hypothetical.
+    const raw =
+      '{"verdict":"changes_requested","findings":[{"path":"a.ts","line":1,"label":"issue","subject":"s","suggestion":"if (x) {\treturn x;\t}"}]}';
+
+    expect(parseReviewFindings(block(raw))?.findings[0]?.suggestion).toBe(
+      "if (x) {\treturn x;\t}",
+    );
+  });
+
   it("still recovers when several findings each carry an unescaped quote", () => {
     const raw =
       '{"verdict":"changes_requested","findings":[' +
