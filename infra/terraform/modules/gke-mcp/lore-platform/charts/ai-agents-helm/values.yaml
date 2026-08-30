@@ -145,7 +145,17 @@ controller:
       cpu: 250m
       # 128Mi OOMKilled the controller in prod (2026-07-16: exit 137 ~60s after start,
       # 67 restarts) once the startup reconcile replayed the accumulated Agent CRs.
-      memory: 512Mi
+      # 512Mi then did the same on a dev cluster (2026-08-30: 149 restarts, a fresh
+      # exit 137 every ~9 minutes) for the SAME reason, which is the point worth
+      # recording: raising this number is not the fix, it is the second stopgap.
+      # The informer caches every Agent CR, each carrying up to `maxOutputBytes`
+      # (256KiB) of run output — 176 of them measured 40MiB of raw JSON — and
+      # nothing bounds that count. `successfulRunsHistoryLimit` cannot: it is
+      # per-Station, and Lore mints a Station per task, so the denominator grows
+      # with the numerator and the limit prunes almost nothing. Until a reaper
+      # deletes terminal CRs and their per-task clones, any ceiling here is a
+      # future outage with a longer fuse.
+      memory: 1Gi
 
 imagePullSecrets:
   - name: ghcr-pull-secret
