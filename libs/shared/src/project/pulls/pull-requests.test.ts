@@ -15,12 +15,24 @@ function fakePulls(
   pulls: PullRef[],
   merged: Array<{ number: number; method?: MergeMethod }>,
   resolutions: string[] = [],
+  updates: Array<{
+    repo: string;
+    number: number;
+    fields: { title?: string; body?: string };
+  }> = [],
+  readied: Array<{ repo: string; number: number }> = [],
 ): PullRequestsPort {
   return {
     list: async (repo) => pulls.filter((p) => p.repo === repo),
     get: async (repo, number) =>
       pulls.find((p) => p.repo === repo && p.number === number) ?? null,
     comment: async () => {},
+    update: async (repo, number, fields) => {
+      updates.push({ repo, number, fields });
+    },
+    markReady: async (repo, number) => {
+      readied.push({ repo, number });
+    },
     createReview: async () => {},
     replyToReviewComment: async () => {},
     review: async () => {},
@@ -159,5 +171,26 @@ describe("PullRequests review threads", () => {
     await pr.resolveReviewThread("PRRT_7");
 
     expect(resolutions).toEqual(["PRRT_7"]);
+  });
+
+  it("delegates update and markReady with the repo it was bound to", async () => {
+    const updates: Array<{
+      repo: string;
+      number: number;
+      fields: { title?: string; body?: string };
+    }> = [];
+    const readied: Array<{ repo: string; number: number }> = [];
+    const pr = new PullRequests(
+      "re-cinq/lore",
+      fakePulls([], [], [], updates, readied),
+    );
+
+    await pr.update(7, { body: "rewritten" });
+    await pr.markReady(7);
+
+    expect(updates).toEqual([
+      { repo: "re-cinq/lore", number: 7, fields: { body: "rewritten" } },
+    ]);
+    expect(readied).toEqual([{ repo: "re-cinq/lore", number: 7 }]);
   });
 });
