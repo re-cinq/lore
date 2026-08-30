@@ -55,3 +55,18 @@ export function ingestSubject(
 export function backlogSubject(): string {
   return "backlog";
 }
+
+/**
+ * The branch one backlog ticket's work lives on, spelled once for the same reason
+ * the keys above are: two spellings would not fail to compile, they would just
+ * never match — and a branch nobody can find reads exactly like a branch that was
+ * never pushed.
+ *
+ * Keyed on the ISSUE, never the task. The loop mints a new task per pick
+ * (implementation-loop FR2), so a task-derived name gave a re-picked ticket a fresh
+ * branch every time and abandoned whatever the last attempt had already committed.
+ * The issue is the ticket's identity; a task is one attempt at it.
+ */
+export function implementationLoopBranch(issueNumber: number): string {
+  return `lore/implementation-loop/issue-${issueNumber}`;
+}

@@ -69,6 +69,40 @@ describe("AssemblyLineStationBackend", () => {
     });
   });
 
+  it("spreads lineArgs into the run's args, so a resumed branch's PR is already known", async () => {
+    const port = new InMemoryAssemblyRuns();
+    const backend = new AssemblyLineStationBackend(port);
+
+    await backend.launch({
+      ...spec("t1"),
+      lineArgs: {
+        resumed_from_branch: true,
+        pr_number: 77,
+        pr_url: "https://gh/acme/widgets/pull/77",
+      },
+    });
+
+    expect(port.rows[0].args).toMatchObject({
+      resumed_from_branch: true,
+      pr_number: 77,
+      pr_url: "https://gh/acme/widgets/pull/77",
+    });
+  });
+
+  it("lineArgs never clobbers the description the run was started with", async () => {
+    // The seed is a bag from a context bundle; the description is the round's own
+    // brief and is what fills {description} in every agent prompt.
+    const port = new InMemoryAssemblyRuns();
+    const backend = new AssemblyLineStationBackend(port);
+
+    await backend.launch({
+      ...spec("t1"),
+      lineArgs: { description: "seeded over the top" },
+    });
+
+    expect(port.rows[0].args.description).toBe("implement the thing");
+  });
+
   it("carries no feature id for a run that has none", async () => {
     const port = new InMemoryAssemblyRuns();
     const backend = new AssemblyLineStationBackend(port);

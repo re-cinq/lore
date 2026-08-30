@@ -58,6 +58,9 @@ export async function handleClaudeCodeTask(
   const featureId = task.context_bundle?.feature_id;
   const roundFeedback = task.context_bundle?.round_feedback;
   const resumeFromTask = task.context_bundle?.resume_from_task;
+  // Seeds the run's args so a resumed branch arrives knowing its PR. An object,
+  // not a string — unlike the three above it is a bag, not one value.
+  const lineArgs = task.context_bundle?.line_args;
   const result = await project.agents.run(task.id, {
     mode: "cluster",
     taskType: task.task_type,
@@ -66,6 +69,9 @@ export async function handleClaudeCodeTask(
     ...(typeof featureId === "string" ? { featureId } : {}),
     ...(typeof roundFeedback === "string" ? { roundFeedback } : {}),
     ...(typeof resumeFromTask === "string" ? { resumeFromTask } : {}),
+    ...(lineArgs && typeof lineArgs === "object" && !Array.isArray(lineArgs)
+      ? { lineArgs: lineArgs as Record<string, unknown> }
+      : {}),
     description: task.description,
     prompt: fullPrompt,
     branch: branchName,

@@ -27,6 +27,11 @@ export interface LoreTaskSpec {
   stationRef?: string;
   /** Extra per-run parameters merged into the CR spec (e.g. `station_input`). */
   parameters?: Record<string, string>;
+  /** Seed values for the assembly run's `args`, from the task's context bundle.
+   *  Spread BENEATH the run's own keys, so a seeded bag can never displace the
+   *  description every agent prompt renders. Used to hand a resumed branch the PR
+   *  it already has (implementation-loop FR11). */
+  lineArgs?: Record<string, unknown>;
   /** false skips per-task token/clone provisioning: API-reading station nodes
    *  (detect/gate/retrospective/triage) need no repo, and their line branch is
    *  a synthetic lease key no `git checkout` could resolve. Default true. */

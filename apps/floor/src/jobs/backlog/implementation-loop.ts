@@ -1,6 +1,10 @@
 import type { IssueRef } from "@re-cinq/lore-shared";
 import { selectNextIssue } from "@re-cinq/lore-shared";
-import { backlogSubject } from "@re-cinq/lore-shared/project/assembly-runs/subject-keys.js";
+import {
+  backlogSubject,
+  implementationLoopBranch,
+} from "@re-cinq/lore-shared/project/assembly-runs/subject-keys.js";
+import { decideBranchResume } from "./resume-branch.js";
 import type { EventHandler } from "../../main-loop/types.js";
 import { implementationLoopEnabled } from "./implementation-loop-enabled.js";
 
@@ -29,6 +33,13 @@ export interface LoopTickDeps {
     taskId: string,
     columns: Record<string, unknown>,
   ): Promise<void>;
+  /** `undefined` when the port cannot answer — the shared port declares
+   *  `branchExists` optional, and unknown must never read as "no branch". */
+  branchExists(repo: string, branch: string): Promise<boolean | undefined>;
+  openPrForBranch(
+    repo: string,
+    branch: string,
+  ): Promise<{ number: number; url: string } | null>;
 }
 
 /**
@@ -84,6 +95,21 @@ async function tickRepo(repo: string, deps: LoopTickDeps): Promise<void> {
   if (await deps.activeTaskByIssue(repo, picked.number)) {
     return;
   }
+  const branch = implementationLoopBranch(picked.number);
+  // Continuing a branch is silent by design: no issue comment, no PR comment. It
+  // is recorded on the run's args instead, so the run page can say it and GitHub
+  // stays quiet. Deleting the branch is the owner's restart lever.
+  // Both reads hit GitHub and neither feeds the other, so they go together.
+  const [branchExists, openPr] = await Promise.all([
+    deps.branchExists(repo, branch),
+    deps.openPrForBranch(repo, branch),
+  ]);
+  const resume = decideBranchResume({
+    branchExists,
+    issueLabels: picked.labels ?? [],
+    openPr,
+  });
+
   const task = await deps.createTask({
     description: picked.title,
     taskType: "implementation-loop",
@@ -92,6 +118,8 @@ async function tickRepo(repo: string, deps: LoopTickDeps): Promise<void> {
     contextBundle: {
       github_issue_number: picked.number,
       ...(picked.url ? { github_issue_url: picked.url } : {}),
+      branch,
+      ...(resume.resume ? { line_args: resume.lineArgs } : {}),
     },
   });
 
@@ -100,7 +128,8 @@ async function tickRepo(repo: string, deps: LoopTickDeps): Promise<void> {
     ...(picked.url ? { issue_url: picked.url } : {}),
   });
   console.log(
-    `[implementation-loop] ${repo}: picked #${picked.number} as task ${task.task_id}`,
+    `[implementation-loop] ${repo}: picked #${picked.number} as task ${task.task_id}` +
+      (resume.resume ? ` (continuing ${branch})` : ""),
   );
 }
 
@@ -126,5 +155,18 @@ export const implementationLoopTick: EventHandler = async (params) => {
     createTask: (input) => taskStore().create(input),
     setTaskColumns: (taskId, columns) =>
       pipeline().taskQueue.setColumns(taskId, columns),
+    // `branchExists` is optional on the GitHub port, so the facade returns
+    // undefined when the adapter cannot answer. Passed straight through —
+    // decideBranchResume reads undefined as "unknown" and starts fresh.
+    branchExists: async (repo, branch) =>
+      (await projectFor(repo)).repo.branchExists(branch),
+    openPrForBranch: async (repo, branch) => {
+      const open = await (await projectFor(repo)).pulls.list();
+      const forBranch = open.find((pr) => pr.branch === branch);
+
+      return forBranch
+        ? { number: forBranch.number, url: forBranch.url }
+        : null;
+    },
   })(params);
 };
