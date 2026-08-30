@@ -647,6 +647,12 @@ async function maybeMarkPrReady(
     }
 
     await deps.markPrReady(assemblyRun);
+    // Recorded so a fix-ci round-trip back to the wait does not rewrite the PR
+    // body a second time. Written AFTER the flip: a crash between the two costs
+    // one redundant idempotent flip, where writing first would cost the flip.
+    await deps.assemblyRuns.mergeArgs(assemblyLineId, {
+      pr_ready_flipped: true,
+    });
   } catch (err) {
     console.error("[spec-pr] mark-ready failed:", (err as Error).message);
   }

@@ -94,7 +94,12 @@ export function decidePrDraft(args: Record<string, unknown>): boolean {
  *  Keyed on the DESTINATION node's TYPE, not on a node id: the `pr_merged` join
  *  died of exactly that rename (FR6.32), and "the step before the wait" is what
  *  this means regardless of what the wait is called. A run with no PR has
- *  nothing to flip. */
+ *  nothing to flip.
+ *
+ *  Once only. `fix-ci` also routes back to the wait, so this asks a second time
+ *  on every CI repair. `markReady` itself is idempotent — it reads `isDraft`
+ *  first — but the body rewrite beside it is NOT, and a second pass would
+ *  overwrite a description a human had edited since. */
 export function decideMarkReady(input: {
   outcome: string | null;
   nextNodeType: string | undefined;
@@ -103,7 +108,8 @@ export function decideMarkReady(input: {
   return (
     input.outcome === "success" &&
     input.nextNodeType === "pr_review" &&
-    typeof input.args.pr_number === "number"
+    typeof input.args.pr_number === "number" &&
+    input.args.pr_ready_flipped !== true
   );
 }
 

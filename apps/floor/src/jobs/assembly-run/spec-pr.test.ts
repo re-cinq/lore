@@ -314,6 +314,18 @@ describe("decideMarkReady", () => {
     expect(decideMarkReady({ ...base, outcome: "failed" })).toBe(false);
   });
 
+  it("does not flip again on a fix-ci round-trip back to the wait", () => {
+    // fix-ci success routes to await-pr too, so this fires a second time. The
+    // flip itself is idempotent, but the body rewrite beside it is not — a
+    // second pass would overwrite a description a human had edited.
+    expect(
+      decideMarkReady({
+        ...base,
+        args: { pr_number: 7, pr_ready_flipped: true },
+      }),
+    ).toBe(false);
+  });
+
   it("does not flip a run that has no pull request", () => {
     expect(decideMarkReady({ ...base, args: {} })).toBe(false);
   });

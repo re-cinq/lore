@@ -454,7 +454,13 @@ export async function productionNodeEventDeps(): Promise<NodeEventDeps> {
     },
     markPrReady: async (row) => {
       const project = await projectFor(row.repo);
-      const number = row.args.pr_number as number;
+      // Narrowed rather than cast: decideMarkReady already required a numeric
+      // pr_number before this fires, and a cast would outlive that guarantee.
+      const number = row.args.pr_number;
+
+      if (typeof number !== "number") {
+        return;
+      }
       // The description the pr-ready node produced, delivered as a declared
       // artifact and merged into args before the walk advanced. Absent means
       // the node did not write one, and a PR keeps its old body rather than
