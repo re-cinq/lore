@@ -10,6 +10,7 @@
 // reads the post-transition terminal state).
 
 import {
+  agentStderrError,
   resultTextFromOutput,
   terminalErrorText,
   parseReviewVerdict,
@@ -57,7 +58,17 @@ export function normalizeAgentStatus(status: AgentNodeStatus): AgentNodeStatus {
   }
   // Idempotent: a second pass over already-unwrapped text finds no result line,
   // so it must not erase what the first pass lifted.
-  const errorText = terminalErrorText(status.output) ?? status.errorText;
+  // Two shapes of "the agent's own last words", in order of richness. The
+  // result line is claude's own terminal statement; the relayed stderr is what
+  // the runner echoes when the engine dies at BOOT and never reaches one. With
+  // only the first, a boot crash fell through to Kubernetes' Job-level reason
+  // (`BackoffLimitExceeded`), which classifies `infra` — retryable — so the walk
+  // spent a 25-minute implement retry on a permanent misconfiguration and then
+  // reported the exhausted budget as the cause (run 129235d4, 2026-08-28).
+  const errorText =
+    terminalErrorText(status.output) ??
+    agentStderrError(status.output) ??
+    status.errorText;
   const unwrapped = { ...status, output: resultTextFromOutput(status.output) };
 
   return errorText === undefined ? unwrapped : { ...unwrapped, errorText };

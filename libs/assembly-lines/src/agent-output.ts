@@ -159,6 +159,95 @@ export function terminalErrorText(output?: string): string | null {
   return null;
 }
 
+/** The runner's relay prefix for the engine's own stderr. */
+const AGENT_STDERR_PREFIX = "[agent] ";
+
+/** The lifecycle phase the relayed stderr belongs to. */
+const AGENT_PHASE = "agent";
+
+/**
+ * True for a lifecycle envelope reporting the AGENT phase as failed.
+ *
+ * Parsed here rather than through `parseLine`, which answers only for RESULT
+ * shapes and so discards a lifecycle envelope entirely.
+ *
+ * A phase this marker NAMES must be the agent's: an init-phase death has its
+ * own markers, and attributing the engine's stderr to it would put the wrong
+ * cause on the run. A marker naming NO phase still counts — `phase` is optional
+ * on the shape, and demanding it would let the very defect this exists for
+ * survive in a phase-less variant.
+ */
+function isFailedLifecycle(line: string): boolean {
+  try {
+    const marker = failedLifecycleMarker(JSON.parse(line));
+
+    if (marker === null) {
+      return false;
+    }
+
+    return marker.phase === undefined || marker.phase === AGENT_PHASE;
+  } catch {
+    return false;
+  }
+}
+
+/** The parsed value as a FAILED lifecycle marker, or null for anything else. */
+function failedLifecycleMarker(value: unknown): { phase?: unknown } | null {
+  if (typeof value !== "object" || value === null) {
+    return null;
+  }
+  const marker = value as { kind?: unknown; status?: unknown; phase?: unknown };
+  const isFailedMarker =
+    marker.kind === "lifecycle" && marker.status === "failed";
+
+  return isFailedMarker ? marker : null;
+}
+
+/**
+ * The agent's own last words when it never reached a result line.
+ *
+ * `terminalErrorText` reads claude's terminal `is_error` result line, which is
+ * the richest statement of a failure — and does not exist when the engine dies
+ * at BOOT. The pod still says what happened, on the other stream: the runner
+ * relays the engine's stderr as `[agent] …` between lifecycle envelopes. Run
+ * 129235d4 (2026-08-28) printed exactly one such line —
+ * `Error: Settings file not found: /agent/.claude/settings.json` — and because
+ * nothing read it, the classifier fell through to Kubernetes' `BackoffLimit-
+ * Exceeded`, called a permanent misconfiguration retryable `infra`, and spent a
+ * 25-minute implement retry on a fault no retry could clear.
+ *
+ * Two gates keep this from reading ordinary chatter as a cause: the line must
+ * carry the runner's own prefix (model prose and tool results are JSON on their
+ * own lines and never prefixed), and the run must carry a lifecycle envelope
+ * reporting the agent phase FAILED. Bounded like its sibling — this text rides
+ * a CR status and a notification.
+ */
+export function agentStderrError(output?: string): string | null {
+  if (!output) {
+    return null;
+  }
+  const lines = output.split("\n").map((line) => line.trim());
+  // The scan is BOUNDED by the failure, not by the end of the stream: a line
+  // the runner logs while shutting down is not what killed the engine.
+  const failedAt = lines.findIndex(isFailedLifecycle);
+
+  if (failedAt === -1) {
+    return null;
+  }
+
+  for (let i = failedAt; i >= 0; i--) {
+    if (lines[i].startsWith(AGENT_STDERR_PREFIX)) {
+      const text = lines[i].slice(AGENT_STDERR_PREFIX.length).trim();
+
+      if (text.length > 0) {
+        return text.substring(0, 300);
+      }
+    }
+  }
+
+  return null;
+}
+
 /** True when `text` is already a serialized result line or attribution envelope. */
 function isWrappedAgentOutput(text: string): boolean {
   try {
