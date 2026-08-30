@@ -9,7 +9,11 @@
 // args-merge (#1462) and the dead planning join (#1162) lived while every unit
 // test stayed green.
 
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { InMemoryAssemblyRuns } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-memory.js";
+import { InMemoryClusterAgents } from "@re-cinq/lore-shared/project/cluster-agents/cluster-agents-memory.js";
+import { mayClaim } from "@re-cinq/lore-shared/project/cluster-agents/capacity.js";
+import { assemblyLineReaperJob } from "./assembly-run-reaper.js";
 import type { LoreTaskSpec } from "@re-cinq/lore-shared";
 import {
   loadBuiltinAssemblyLines,
@@ -34,9 +38,28 @@ export interface PublishedServiceNode {
   dedupeKey?: string;
 }
 
-/** The harness's stand-in for the central cluster's registered agent id. Every
- *  node claim is attributed to it unless a test names another cluster. */
-export const CENTRAL_CLUSTER_AGENT_ID = "central-acceptance";
+/** The central cluster's name in the harness registry. Its ID is whatever
+ *  registration minted — resolved through the registry exactly as production
+ *  does (`clusterAgents().findByName(...)`), because a second, hardcoded
+ *  identity for the same cluster makes `agentCrVisible` judge central's own CRs
+ *  unreadable, which is what a real claim through this harness first exposed. */
+export const CENTRAL_CLUSTER_AGENT_NAME = "central";
+
+/** The tag set cluster-agent-helm gives the central cluster — every node type,
+ *  including the central-only ones a satellite never receives. */
+export const CENTRAL_TAGS = [
+  "node:agent",
+  "node:validate",
+  "node:gate",
+  "node:retrospective",
+  "node:github_action",
+  "node:detect",
+  "node:ingest",
+  "node:comment-triage",
+];
+
+/** What the standalone installer defaults a satellite to (#1617). */
+export const SATELLITE_TAGS = ["node:agent"];
 
 export interface CompleteAgentNodeInput {
   /** Full scripted CR output (NDJSON envelope or plain text). Wins over `outcome`. */
@@ -94,6 +117,12 @@ export function createLineHarness(
   overrides: Partial<Pick<AdvanceDeps, "onRunClosed" | "stampPr">> = {},
 ) {
   const runs = new InMemoryAssemblyRuns();
+  // The registry the claim reads. Two clusters by default, exactly as the fleet
+  // is shaped: a central one carrying every tag and a satellite carrying only
+  // `node:agent` — which is why one paused central starves a line rather than
+  // failing over.
+  const agents = new InMemoryClusterAgents();
+  const agentIds = new Map<string, string>();
   const enqueued: LoreTaskSpec[] = [];
   const published: PublishedServiceNode[] = [];
   const statusByAgent = new Map<string, AgentNodeStatus>();
@@ -104,6 +133,14 @@ export function createLineHarness(
   runs.enqueueStationRunDispatch = async (nodeRowId, dispatchSpec) => {
     enqueued.push(dispatchSpec as LoreTaskSpec);
     await armDispatch(nodeRowId, dispatchSpec);
+  };
+
+  /** Resolved through the registry, exactly as production does. Named once
+   *  because the walk treats it as optional and the reaper requires it. */
+  const centralClusterAgentId = async (): Promise<string | null> => {
+    await ensureFleet();
+
+    return agentIds.get(CENTRAL_CLUSTER_AGENT_NAME) ?? null;
   };
 
   const deps: NodeEventDeps = {
@@ -117,7 +154,7 @@ export function createLineHarness(
       published.push(event);
     },
     readAgentStatus: async (name) => statusByAgent.get(name) ?? null,
-    centralClusterAgentId: async () => CENTRAL_CLUSTER_AGENT_ID,
+    centralClusterAgentId,
     ...overrides,
   };
 
@@ -131,6 +168,94 @@ export function createLineHarness(
     assemblyRuns: runs,
     finishNodeAndAdvance: (input) => finishNodeAndAdvance(input, deps),
   });
+
+  /** Register the default fleet once, lazily: central with every tag, a
+   *  satellite with `node:agent` alone. */
+  async function ensureFleet(): Promise<void> {
+    if (agentIds.size > 0) {
+      return;
+    }
+
+    for (const [name, tags] of [
+      [CENTRAL_CLUSTER_AGENT_NAME, CENTRAL_TAGS],
+      ["satellite", SATELLITE_TAGS],
+    ] as const) {
+      const created = await agents.create({
+        name,
+        tags: [...tags],
+        tokenHash: `hash-${name}`,
+        clusterInfo: null,
+      });
+
+      // A null create means the name was taken. Storing "" would hand every
+      // later lookup an id that matches nothing — the claim would silently find
+      // no work and the harness would report a walk that never happened.
+      enforceTrue(
+        created,
+        Error,
+        `acceptance harness: cluster agent "${name}" could not be registered`,
+      );
+      agentIds.set(name, created.id);
+    }
+  }
+
+  /**
+   * One cluster-agent polling for work — the REAL gate the route applies
+   * (`mayClaim`) over the REAL queue scan (`claimNextStationRun`), rather than
+   * a row mutated into place. Null is the 204 an agent backs off on, whether it
+   * is paused or simply carries none of the node's tags.
+   */
+  async function claimAs(name: string) {
+    await ensureFleet();
+    const agent = await agents.findByName(name);
+
+    if (!agent || !mayClaim(agent)) {
+      return null;
+    }
+
+    return runs.claimNextStationRun({
+      clusterAgentId: agent.id,
+      tags: agent.tags,
+    });
+  }
+
+  /** The operator's switch, as the Clusters page flips it. */
+  async function pause(name: string): Promise<void> {
+    await ensureFleet();
+    const agent = await agents.findByName(name);
+
+    if (agent) {
+      await agents.setPaused(agent.id, true);
+    }
+  }
+
+  async function unpause(name: string): Promise<void> {
+    await ensureFleet();
+    const agent = await agents.findByName(name);
+
+    if (agent) {
+      await agents.setPaused(agent.id, false);
+    }
+  }
+
+  /**
+   * The REAL reaper sweep, with the clock moved forward instead of slept
+   * through. This is what turns a queued row nobody claimed into a terminal
+   * failure, and it reads the same registry the claim does — so the reason it
+   * writes names the cluster this harness actually paused.
+   */
+  async function reap(input: { minutesLater?: number } = {}): Promise<string> {
+    await ensureFleet();
+    const shifted = new Date(Date.now() + (input.minutesLater ?? 0) * 60_000);
+
+    return assemblyLineReaperJob({
+      ...deps,
+      taskStatus: async () => null,
+      centralClusterAgentId,
+      listClusterAgents: () => agents.list(),
+      now: () => shifted,
+    });
+  }
 
   /** Persist the row and claim its start event — `assembly_run.start`, end to end. */
   async function start(
@@ -180,7 +305,9 @@ export function createLineHarness(
 
     if (claimed && claimed.status === "queued") {
       claimed.status = "claimed";
-      claimed.clusterAgentId = input.claimedBy ?? CENTRAL_CLUSTER_AGENT_ID;
+      await ensureFleet();
+      claimed.clusterAgentId =
+        input.claimedBy ?? agentIds.get(CENTRAL_CLUSTER_AGENT_NAME) ?? null;
       claimed.claimedAt = new Date();
     }
 
@@ -221,10 +348,15 @@ export function createLineHarness(
 
   return {
     runs,
+    agents,
     enqueued,
     published,
     start,
     completeAgentNode,
+    claimAs,
+    pause,
+    unpause,
+    reap,
     resume,
     visits,
   };

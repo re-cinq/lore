@@ -32,6 +32,22 @@ export type CapacityVerdict =
    */
   | { kind: "registry-empty" };
 
+/**
+ * Whether an agent may be handed new work at all.
+ *
+ * The operator's switch, and ONLY that: an `offline` agent is one the reaper
+ * stopped hearing from, and a claim arriving from it is itself proof it is
+ * alive (the heartbeat flips it back). Refusing those would turn a network blip
+ * into a cluster that can never re-enter service.
+ *
+ * Shared because it was previously a bare `if (agent.paused)` inside the claim
+ * route, where nothing else could reach it — so "a paused cluster parks the
+ * queue" could not be exercised anywhere the walk could see.
+ */
+export function mayClaim(agent: Pick<ClusterAgent, "paused">): boolean {
+  return !agent.paused;
+}
+
 /** Why one matching agent cannot take work right now. Paused wins: an operator
  *  turned it off, which is actionable, where offline is the reaper's own view. */
 function unavailableBecause(agent: ClusterAgent): string {
@@ -56,8 +72,11 @@ export function capacityFor(
       reason: `no registered cluster-agent offers ${tags}`,
     };
   }
+  // Stricter than `mayClaim`: this predicts who WILL take the work, so an agent
+  // the reaper has stopped hearing from does not count, even though its own
+  // claim would still be honoured if it turned up.
   const available = providers.filter(
-    (agent) => !agent.paused && agent.status === "active",
+    (agent) => mayClaim(agent) && agent.status === "active",
   );
 
   if (available.length > 0) {

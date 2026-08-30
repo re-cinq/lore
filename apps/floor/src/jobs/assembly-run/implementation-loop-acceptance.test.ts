@@ -156,3 +156,62 @@ describe("implementation-loop acceptance: a boot crash is not worth a retry", ()
     expect(h.labeled).toEqual([{ issue: 77, label: "lore:blocked" }]);
   });
 });
+
+describe("implementation-loop acceptance: the dispatch tier", () => {
+  // The half no test reached until now. `unclaimed -> fail once` was covered by
+  // replaying a row someone had already parked queued; that a PAUSED cluster is
+  // what parks it there was assumed. These two walks span registry -> claim ->
+  // walk -> reaper, which is where the 2026-08-29 incident actually lived.
+  it("with central paused, validate is never claimed and the run fails naming it", async () => {
+    const h = loopHarness();
+    const id = await h.start("implementation-loop", { taskId: "task-1" });
+
+    await h.completeAgentNode(id, "implement", { outcome: "success" });
+    await h.pause("central");
+
+    expect(await h.claimAs("central")).toBeNull();
+
+    await h.reap({ minutesLater: 31 });
+
+    expect(await h.runs.getById(id)).toMatchObject({
+      status: "failed",
+      outcome: "error",
+      reason: expect.stringContaining("central (paused)"),
+    });
+    expect(h.enqueued.map((s) => s.name)).not.toContain(
+      `${short(id)}-implement-2`,
+    );
+    // The ticket is parked for a human, exactly as every other terminal
+    // failure parks it — a run that died of a paused cluster is not a special
+    // case the driver skips.
+    expect(h.labeled).toEqual([{ issue: 77, label: "lore:blocked" }]);
+  });
+
+  it("with central active, validate is claimed by it and the walk reaches push", async () => {
+    const h = loopHarness();
+    const id = await h.start("implementation-loop", { taskId: "task-1" });
+
+    await h.completeAgentNode(id, "implement", { outcome: "success" });
+
+    expect(await h.claimAs("central")).toMatchObject({ nodeId: "validate" });
+
+    await h.completeAgentNode(id, "validate", { outcome: "success" });
+
+    expect(h.enqueued.map((s) => s.name)).toEqual([
+      `${short(id)}-implement`,
+      `${short(id)}-validate`,
+      `${short(id)}-push`,
+    ]);
+  });
+
+  it("a satellite offering only node:agent cannot take the validate node", async () => {
+    // Why one paused central starves the line: the satellite is not a fallback.
+    const h = loopHarness();
+    const id = await h.start("implementation-loop", { taskId: "task-1" });
+
+    await h.completeAgentNode(id, "implement", { outcome: "success" });
+    await h.pause("central");
+
+    expect(await h.claimAs("satellite")).toBeNull();
+  });
+});
