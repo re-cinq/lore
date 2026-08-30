@@ -124,6 +124,12 @@ task_types:
     review_required: true
     execution_mode: claude-code
     model: claude-sonnet-4-6
+    # The red-green-refactor contract this recipe's TEST-FIRST clause summarises,
+    # in full: the one-facet rule, designing away doubles, Beck's green-bar
+    # strategies and the Simple Design Dynamo. Appended to lore-context, never
+    # replacing it.
+    skills:
+      - tdd-loop
 
   # The implementation line's `address` node (`prompt_ref: address-feedback`) —
   # the second recipe the silent fallback hid (#1329). It ran `general` too, so a
