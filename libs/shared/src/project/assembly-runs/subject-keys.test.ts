@@ -11,6 +11,7 @@ import {
   ingestSubject,
   reviewSubject,
   backlogSubject,
+  implementationLoopBranch,
 } from "./subject-keys.js";
 
 describe("subject keys", () => {
@@ -57,5 +58,20 @@ describe("subject keys", () => {
 describe("backlogSubject", () => {
   it("is the constant backlog key — the repo is the index's other half", () => {
     expect(backlogSubject()).toBe("backlog");
+  });
+});
+
+describe("implementationLoopBranch", () => {
+  it("names the branch after the issue, not the task", () => {
+    expect(implementationLoopBranch(1406)).toBe(
+      "lore/implementation-loop/issue-1406",
+    );
+  });
+
+  it("is the same branch across two picks of one issue", () => {
+    // The loop mints a NEW task per pick, so a task-derived name gave a re-picked
+    // ticket a different branch every time and the work already pushed was
+    // unreachable. The issue is the ticket's identity; the task is one attempt at it.
+    expect(implementationLoopBranch(1406)).toBe(implementationLoopBranch(1406));
   });
 });
