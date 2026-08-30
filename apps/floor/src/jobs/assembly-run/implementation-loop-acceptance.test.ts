@@ -181,6 +181,10 @@ describe("implementation-loop acceptance: the dispatch tier", () => {
     expect(h.enqueued.map((s) => s.name)).not.toContain(
       `${short(id)}-implement-2`,
     );
+    // The ticket is parked for a human, exactly as every other terminal
+    // failure parks it — a run that died of a paused cluster is not a special
+    // case the driver skips.
+    expect(h.labeled).toEqual([{ issue: 77, label: "lore:blocked" }]);
   });
 
   it("with central active, validate is claimed by it and the walk reaches push", async () => {

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type { ClusterAgent } from "../../models/cluster-agent.js";
-import { capacityFor, unclaimedDetail } from "./capacity.js";
+import { capacityFor, mayClaim, unclaimedDetail } from "./capacity.js";
 
 const agent = (
   name: string,
@@ -20,6 +20,34 @@ const agent = (
 });
 
 const CENTRAL_TAGS = ["node:agent", "node:validate", "node:comment-triage"];
+
+describe("mayClaim", () => {
+  it("refuses a paused agent, which is the operator's switch", () => {
+    expect(mayClaim(agent("central", CENTRAL_TAGS, { paused: true }))).toBe(
+      false,
+    );
+  });
+
+  it("allows an OFFLINE agent, because the claim itself proves it is alive", () => {
+    // Deliberately narrower than capacityFor's notion of available. `offline`
+    // is the reaper's verdict on silence; an agent that turns up and claims has
+    // just disproved it, and its heartbeat flips the row back. Refusing these
+    // would turn a network blip into a cluster that can never re-enter service.
+    expect(
+      mayClaim(agent("central", CENTRAL_TAGS, { status: "offline" })),
+    ).toBe(true);
+    expect(
+      capacityFor(
+        ["node:validate"],
+        [agent("central", CENTRAL_TAGS, { status: "offline" })],
+      ),
+    ).toMatchObject({ kind: "all-unavailable" });
+  });
+
+  it("allows an ordinary active agent", () => {
+    expect(mayClaim(agent("central", CENTRAL_TAGS))).toBe(true);
+  });
+});
 
 describe("capacityFor", () => {
   it("returns capable with the agents that can take the work", () => {

@@ -9,6 +9,7 @@
 // args-merge (#1462) and the dead planning join (#1162) lived while every unit
 // test stayed green.
 
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { InMemoryAssemblyRuns } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-memory.js";
 import { InMemoryClusterAgents } from "@re-cinq/lore-shared/project/cluster-agents/cluster-agents-memory.js";
 import { mayClaim } from "@re-cinq/lore-shared/project/cluster-agents/capacity.js";
@@ -186,7 +187,15 @@ export function createLineHarness(
         clusterInfo: null,
       });
 
-      agentIds.set(name, created?.id ?? "");
+      // A null create means the name was taken. Storing "" would hand every
+      // later lookup an id that matches nothing — the claim would silently find
+      // no work and the harness would report a walk that never happened.
+      enforceTrue(
+        created,
+        Error,
+        `acceptance harness: cluster agent "${name}" could not be registered`,
+      );
+      agentIds.set(name, created.id);
     }
   }
 
