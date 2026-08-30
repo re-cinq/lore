@@ -4,6 +4,7 @@ import * as path from "node:path";
 import * as os from "node:os";
 import {
   detectTooling,
+  type ValidationExec,
   runValidation,
   formatValidationOutput,
 } from "./repo-validation.js";
@@ -202,6 +203,80 @@ describe("runValidation", () => {
     expect(result.steps).toEqual([]);
   });
 
+  it("scopes a lint SCRIPT to the changed files by rewriting the script, not the npm command", async () => {
+    // Run b6ed264c (2026-08-30), validate:3: `npm run lint --silent` ran
+    // `eslint .` over the whole monorepo and hit the 30s budget —
+    // `spawnSync /bin/sh ETIMEDOUT`. Scoping strips a trailing " ." from the
+    // COMMAND, and the command is `npm run lint --silent`; the "." lives
+    // inside package.json. So for every repo with a lint script — which is
+    // most of them — scoping has never applied at all.
+    const calls: string[] = [];
+    const exec: ValidationExec = async (command) => {
+      calls.push(command);
+
+      return { output: "", passed: true };
+    };
+
+    await runValidation(
+      tmpDir,
+      [
+        {
+          name: "lint",
+          command: "npm run lint --silent",
+          scopedCommand: "npx eslint {files}",
+          timeoutMs: 5000,
+        },
+      ],
+      ["src/a.ts", "README.md"],
+      exec,
+    );
+
+    expect(calls).toEqual(['npx eslint "src/a.ts"']);
+  });
+
+  it("still scopes the bare eslint fallback command the old way", async () => {
+    const calls: string[] = [];
+    const exec: ValidationExec = async (command) => {
+      calls.push(command);
+
+      return { output: "", passed: true };
+    };
+
+    await runValidation(
+      tmpDir,
+      [{ name: "eslint", command: "npx eslint --quiet .", timeoutMs: 5000 }],
+      ["src/a.ts"],
+      exec,
+    );
+
+    expect(calls).toEqual(['npx eslint --quiet "src/a.ts"']);
+  });
+
+  it("runs the script unscoped when no changed files are known", async () => {
+    const calls: string[] = [];
+    const exec: ValidationExec = async (command) => {
+      calls.push(command);
+
+      return { output: "", passed: true };
+    };
+
+    await runValidation(
+      tmpDir,
+      [
+        {
+          name: "lint",
+          command: "npm run lint --silent",
+          scopedCommand: "npx eslint {files}",
+          timeoutMs: 5000,
+        },
+      ],
+      undefined,
+      exec,
+    );
+
+    expect(calls).toEqual(["npm run lint --silent"]);
+  });
+
   it("skips lint steps when no matching changed files", async () => {
     const result = await runValidation(
       tmpDir,
@@ -258,6 +333,100 @@ describe("formatValidationOutput", () => {
 // ---------------------------------------------------------------------------
 // Dependency install — a fresh clone must be validatable
 // ---------------------------------------------------------------------------
+
+describe("detectTooling — a lint script that can be scoped", () => {
+  it("derives a scoped form from an eslint script by replacing its dot with the files", () => {
+    writeFile(
+      "package.json",
+      JSON.stringify({ scripts: { lint: "eslint . --max-warnings 0" } }),
+    );
+    writeFile("node_modules/.keep", "");
+    const lint = detectTooling(tmpDir).quickChecks.find(
+      (c) => c.name === "lint",
+    );
+
+    expect(lint).toMatchObject({
+      command: "npm run lint --silent",
+      scopedCommand: "npx eslint {files} --max-warnings 0",
+    });
+  });
+
+  it("derives no scoped form for a linter it does not know how to scope", () => {
+    writeFile(
+      "package.json",
+      JSON.stringify({ scripts: { lint: "biome check ." } }),
+    );
+    writeFile("node_modules/.keep", "");
+    const lint = detectTooling(tmpDir).quickChecks.find(
+      (c) => c.name === "lint",
+    );
+
+    expect(lint?.scopedCommand).toBeUndefined();
+  });
+
+  it("replaces only the bare tree token, leaving dotted flags and paths alone", () => {
+    writeFile(
+      "package.json",
+      JSON.stringify({ scripts: { lint: "eslint . --ext .ts ./extra" } }),
+    );
+    writeFile("node_modules/.keep", "");
+
+    expect(
+      detectTooling(tmpDir).quickChecks.find((c) => c.name === "lint"),
+    ).toMatchObject({ scopedCommand: "npx eslint {files} --ext .ts ./extra" });
+  });
+
+  it("leaves an env-prefixed script unscoped rather than re-implementing the shell", () => {
+    writeFile(
+      "package.json",
+      JSON.stringify({
+        scripts: { lint: "NODE_OPTIONS=--max-old-space-size=4096 eslint ." },
+      }),
+    );
+    writeFile("node_modules/.keep", "");
+
+    expect(
+      detectTooling(tmpDir).quickChecks.find((c) => c.name === "lint")
+        ?.scopedCommand,
+    ).toBeUndefined();
+  });
+
+  it("never scopes a lint script it could not rewrite, even with changed files", async () => {
+    // The regex path used to claim the `lint` step too; it could only ever
+    // have matched a command ending in " .", which `npm run lint` never does.
+    // Dropping it makes "unscoped" the explicit outcome, not an accident.
+    const calls: string[] = [];
+    const exec: ValidationExec = async (command) => {
+      calls.push(command);
+
+      return { output: "", passed: true };
+    };
+
+    await runValidation(
+      tmpDir,
+      [{ name: "lint", command: "npm run lint --silent", timeoutMs: 5000 }],
+      ["src/a.ts"],
+      exec,
+    );
+
+    expect(calls).toEqual(["npm run lint --silent"]);
+  });
+
+  it("gives lint a budget a whole monorepo can finish in, since scoping is best-effort", () => {
+    // 30s was calibrated for the scoped run that never happened. Unscoped
+    // `eslint .` on this repo takes minutes; a diff that cannot be derived
+    // (no origin/HEAD) still has to finish.
+    writeFile(
+      "package.json",
+      JSON.stringify({ scripts: { lint: "eslint ." } }),
+    );
+    writeFile("node_modules/.keep", "");
+
+    expect(
+      detectTooling(tmpDir).quickChecks.find((c) => c.name === "lint"),
+    ).toMatchObject({ timeoutMs: 120_000 });
+  });
+});
 
 describe("detectTooling — dependency install on a fresh clone", () => {
   it("prepends npm ci when a lockfile exists and node_modules does not", () => {

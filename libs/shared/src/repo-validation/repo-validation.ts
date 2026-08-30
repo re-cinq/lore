@@ -19,6 +19,17 @@ export interface ValidationStep {
   name: string;
   command: string;
   timeoutMs: number;
+  /**
+   * The command to run when the step is scoped to changed files, with
+   * `{files}` standing for the quoted file list. Derived at detection time
+   * from the repo's own script, because scoping cannot be done to the npm
+   * command: `npm run lint --silent` carries no "." to replace — the "." lives
+   * inside package.json — so a lint SCRIPT was never scoped at all, and on a
+   * monorepo `eslint .` then hit the budget (run b6ed264c, 2026-08-30:
+   * `spawnSync /bin/sh ETIMEDOUT`). Absent for a linter this module does not
+   * know how to rewrite; the step then runs unscoped.
+   */
+  scopedCommand?: string;
 }
 
 export interface RepoTooling {
@@ -68,6 +79,30 @@ function declaresWorkspaces(pkg: Record<string, unknown>): boolean {
   return Array.isArray((workspaces as { packages?: unknown }).packages);
 }
 
+/**
+ * The scoped form of a repo's lint script, or null when this module does not
+ * know how to scope it. Only eslint is understood: its "." argument is the
+ * tree, so replacing that one token with the changed files keeps every other
+ * flag the script carries (`--max-warnings 0`, a config path) intact. Run via
+ * `npx` so the script's binary resolves from node_modules/.bin exactly as
+ * `npm run` would resolve it.
+ */
+function scopedLintCommand(script: string): string | null {
+  // The script must START with the eslint binary. A script prefixed with an
+  // environment assignment (`NODE_OPTIONS=... eslint .`) or chained through
+  // another tool is deliberately left unscoped: rewriting it would mean
+  // re-implementing the shell, and unscoped is the safe default.
+  if (!/^eslint(\s|$)/.test(script.trim())) {
+    return null;
+  }
+  // Exactly the bare "." token — the tree root — and only the first one.
+  // `.ts` in `--ext .ts` and `./extra` are not that token and stay; a script
+  // with no bare "." has nothing to scope.
+  const scoped = script.trim().replace(/(^|\s)\.(?=\s|$)/, "$1{files}");
+
+  return scoped === script.trim() ? null : `npx ${scoped}`;
+}
+
 function hasEslintConfig(repoRoot: string): boolean {
   const isFlatConfig =
     existsSync(join(repoRoot, "eslint.config.js")) ||
@@ -92,17 +127,23 @@ function detectNode(repoRoot: string): RepoTooling | null {
   const full: ValidationStep[] = [];
 
   // Lint
+  // 120s, not 30: scoping is best-effort (a diff that cannot be derived runs
+  // the whole tree), and unscoped `eslint .` on a monorepo measures ~37s at
+  // 200% CPU on a warm laptop — minutes in a one-CPU pod with a cold cache.
   if (scripts.lint) {
+    const scopedCommand = scopedLintCommand(scripts.lint);
+
     quick.push({
       name: "lint",
       command: "npm run lint --silent",
-      timeoutMs: 30_000,
+      ...(scopedCommand ? { scopedCommand } : {}),
+      timeoutMs: 120_000,
     });
   } else if (hasEslintConfig(repoRoot)) {
     quick.push({
       name: "eslint",
       command: "npx eslint --quiet .",
-      timeoutMs: 30_000,
+      timeoutMs: 120_000,
     });
   }
 
@@ -398,7 +439,9 @@ export async function runValidation(
         });
         continue;
       }
-      command = scopeCommandToFiles(step.name, step.command, relevantFiles);
+      command = step.scopedCommand
+        ? step.scopedCommand.replaceAll("{files}", quoteFiles(relevantFiles))
+        : scopeCommandToFiles(step.name, step.command, relevantFiles);
     }
 
     const { output, passed } = await exec(command, {
@@ -452,21 +495,19 @@ function scopeCommandToFiles(
   files: string[],
 ): string {
   // Only scope lint/eslint and ruff — typecheck/build/test need full project
-  if (stepName === "lint" || stepName === "eslint") {
-    // Replace "." with file list
-    const fileArgs = files.map((f) => `"${f}"`).join(" ");
-
-    return command.replace(/\s+\.$/, ` ${fileArgs}`);
-  }
-
-  if (stepName === "ruff") {
-    const fileArgs = files.map((f) => `"${f}"`).join(" ");
-
-    return command.replace(/\s+\.$/, ` ${fileArgs}`);
+  // Only the BARE tool invocations this module itself writes (`npx eslint
+  // --quiet .`, ruff). A `lint` step is never here: its command is always
+  // `npm run lint --silent`, which carries no "." to replace — that step is
+  // scoped through its derived `scopedCommand` or not at all.
+  if (stepName === "eslint" || stepName === "ruff") {
+    return command.replace(/\s+\.$/, ` ${quoteFiles(files)}`);
   }
 
   return command;
 }
+
+const quoteFiles = (files: string[]): string =>
+  files.map((f) => `"${f}"`).join(" ");
 
 /**
  * Formats validation results into a human-readable summary for error
