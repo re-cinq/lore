@@ -384,6 +384,16 @@ pull, so recovery splits by who holds the claim:
   satellite's cluster at all: a Floor-side reaper would tidy central and leave
   every satellite to grow until its controller died.
   ([validated by [deletes what the plan names and reports the counts](apps/cluster-agent/src/reap/prune-loop.test.ts#L47), [reports nothing when the cluster is already tidy](apps/cluster-agent/src/reap/prune-loop.test.ts#L64), [skips one object it cannot delete and still sweeps the rest](apps/cluster-agent/src/reap/prune-loop.test.ts#L72), [answers with an outcome, never a throw, when the cluster is unreachable](apps/cluster-agent/src/reap/prune-loop.test.ts#L90), [logs a sweep and a failure, and stops when the latch closes](apps/cluster-agent/src/reap/prune-loop.test.ts#L109); implemented by [`prune-loop.ts`](apps/cluster-agent/src/reap/prune-loop.ts))
+- The sweep calls the cluster through its port rather than handing over bare
+  method references: an unbound `deleteAgent` loses its receiver, the live
+  adapter's first act is `this.remove(...)`, and the resulting throw is
+  swallowed into "could not delete" — so the reaper would report nothing
+  deleted, every hour, while the cache it exists to bound kept growing. The
+  in-memory doubles cannot catch that, because their methods are closures; the
+  live adapter is exercised against the real sweep instead. An object the
+  apiserver reports without a creation stamp reads as brand new, since
+  defaulting the other way would delete whatever the parse failed to
+  understand. ([validated by [deletes through the live adapter without losing `this`](apps/cluster-agent/src/kernel/kube-pruner.test.ts#L40), [reads an object the apiserver reports without a creation stamp as brand new](apps/cluster-agent/src/kernel/kube-pruner.test.ts#L68))
 
 ## FR5 — Reporting credentials for satellites
 

@@ -101,16 +101,26 @@ export async function pruneOnce(deps: PruneDeps): Promise<PruneOutcome> {
 
     // Agents FIRST, then the clones they referenced: a clone deleted while its
     // CR still stands would leave a run describing a recipe that is not there.
+    //
+    // CALLED THROUGH the port, never handed over as a bare method reference: an
+    // unbound `cluster.deleteAgent` loses its receiver, and the live adapter's
+    // first act is `this.remove(...)`. The throw is then swallowed into "could
+    // not delete" — so the sweep would report nothing deleted, every hour,
+    // while the cache it exists to bound kept growing.
     const deleted = {
-      agents: await deleteEach(plan.agents, deps.cluster.deleteAgent, deps),
+      agents: await deleteEach(
+        plan.agents,
+        (name) => deps.cluster.deleteAgent(name),
+        deps,
+      ),
       stations: await deleteEach(
         plan.stations,
-        deps.cluster.deleteStation,
+        (name) => deps.cluster.deleteStation(name),
         deps,
       ),
       definitions: await deleteEach(
         plan.definitions,
-        deps.cluster.deleteDefinition,
+        (name) => deps.cluster.deleteDefinition(name),
         deps,
       ),
     };
