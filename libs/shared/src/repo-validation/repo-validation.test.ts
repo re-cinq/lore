@@ -289,13 +289,13 @@ describe("detectTooling — dependency install on a fresh clone", () => {
     expect(tooling.fullChecks[0]?.name).toBe("install");
   });
 
-  it("builds the workspaces after installing, because lint may need their dist", () => {
+  it("runs the build BEFORE lint on a fresh-clone workspaces repo", () => {
     // Run b219a4f1 (2026-08-30): `npm ci` restored node_modules and eslint then
     // died on `cannot import @re-cinq/lore-shared/spec-status.js` — this repo's
     // own ESLint plugin imports a workspace package's COMPILED output, which an
-    // install does not produce. Both implement nodes succeeded and both validate
-    // nodes failed identically, so the retry bought a second 40-minute
-    // implementation against a fault no implementation could fix.
+    // install does not produce. Both implement nodes succeeded and both
+    // validate nodes failed identically, so the retry bought a second
+    // 40-minute implementation against a fault no implementation could fix.
     writeFile(
       "package.json",
       JSON.stringify({
@@ -306,44 +306,83 @@ describe("detectTooling — dependency install on a fresh clone", () => {
     writeFile("package-lock.json", "{}");
     const tooling = detectTooling(tmpDir);
 
-    expect(tooling.quickChecks.slice(0, 2)).toMatchObject([
-      { name: "install" },
-      { name: "workspace-build", command: "npm run build" },
+    expect(tooling.quickChecks.map((c) => c.name)).toEqual([
+      "install",
+      "build",
+      "lint",
     ]);
-    expect(tooling.fullChecks.slice(0, 2)).toMatchObject([
-      { name: "install" },
-      { name: "workspace-build" },
+    expect(tooling.fullChecks.map((c) => c.name).slice(0, 3)).toEqual([
+      "install",
+      "build",
+      "lint",
     ]);
   });
 
-  it("skips the workspace build for a repo that declares no workspaces", () => {
-    // A single-package repo's lint reads source, not a sibling's dist — paying
-    // for a build there is time every validate spends for nothing.
+  it("moves that build rather than adding a second one", () => {
+    // One command, one step. A `workspace-build` beside the existing `build`
+    // would compile the repo twice on every fresh clone.
+    writeFile(
+      "package.json",
+      JSON.stringify({
+        workspaces: ["libs/*"],
+        scripts: { lint: "eslint .", build: "tsc -b" },
+      }),
+    );
+    writeFile("package-lock.json", "{}");
+    const names = detectTooling(tmpDir).quickChecks.map((c) => c.name);
+
+    expect(names.filter((n) => n === "build")).toHaveLength(1);
+  });
+
+  it("gives the hoisted build a cold-clone budget, not the warm 60s one", () => {
+    writeFile(
+      "package.json",
+      JSON.stringify({
+        workspaces: ["libs/*"],
+        scripts: { lint: "eslint .", build: "tsc -b" },
+      }),
+    );
+    writeFile("package-lock.json", "{}");
+    const build = detectTooling(tmpDir).quickChecks.find(
+      (c) => c.name === "build",
+    );
+
+    expect(build).toMatchObject({
+      command: "npm run build --silent",
+      timeoutMs: 300_000,
+    });
+  });
+
+  it("leaves the build after lint for a repo that declares no workspaces", () => {
+    // A single-package repo's lint reads source, so compiling first buys
+    // nothing and costs every validate the time.
     writeFile(
       "package.json",
       JSON.stringify({ scripts: { lint: "eslint .", build: "tsc -b" } }),
     );
     writeFile("package-lock.json", "{}");
 
-    expect(detectTooling(tmpDir).quickChecks.map((c) => c.name)).not.toContain(
-      "workspace-build",
-    );
+    expect(detectTooling(tmpDir).quickChecks.map((c) => c.name)).toEqual([
+      "install",
+      "lint",
+      "build",
+    ]);
   });
 
-  it("skips the workspace build when the workspaces repo has no build script", () => {
+  it("hoists nothing when the workspaces repo has no build script", () => {
     writeFile(
       "package.json",
       JSON.stringify({ workspaces: ["libs/*"], scripts: { lint: "eslint ." } }),
     );
     writeFile("package-lock.json", "{}");
 
-    expect(detectTooling(tmpDir).quickChecks.map((c) => c.name)).not.toContain(
-      "workspace-build",
-    );
+    expect(detectTooling(tmpDir).quickChecks.map((c) => c.name)).toEqual([
+      "install",
+      "lint",
+    ]);
   });
 
-  it("skips the workspace build when node_modules is already there, like the install", () => {
-    // Same reasoning as the install it follows: a warm checkout has both.
+  it("hoists nothing when node_modules is already there, like the install", () => {
     writeFile(
       "package.json",
       JSON.stringify({
@@ -353,9 +392,10 @@ describe("detectTooling — dependency install on a fresh clone", () => {
     );
     writeFile("node_modules/.keep", "");
 
-    expect(detectTooling(tmpDir).quickChecks.map((c) => c.name)).not.toContain(
-      "workspace-build",
-    );
+    expect(detectTooling(tmpDir).quickChecks.map((c) => c.name)).toEqual([
+      "lint",
+      "build",
+    ]);
   });
 
   it("adds no install step when node_modules is already present", () => {

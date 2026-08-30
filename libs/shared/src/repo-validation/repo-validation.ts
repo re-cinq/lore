@@ -128,24 +128,31 @@ function detectNode(repoRoot: string): RepoTooling | null {
     (quick.length > 0 || full.length > 0) &&
     !existsSync(join(repoRoot, "node_modules"))
   ) {
-    // A WORKSPACES repo needs its packages COMPILED as well as installed: a
-    // sibling's `dist/` is what the others import, and an install does not
-    // produce it. Run b219a4f1 (2026-08-30) died on exactly this — `npm ci`
-    // succeeded and eslint then failed with `cannot import
+    // A WORKSPACES repo must COMPILE before it lints: a sibling's `dist/` is
+    // what the others import, and an install does not produce it. Run
+    // b219a4f1 (2026-08-30) died on exactly that — `npm ci` succeeded and
+    // eslint then failed with `cannot import
     // @re-cinq/lore-shared/spec-status.js`, because this repo's own ESLint
     // plugin imports a workspace package's compiled output. Both implement
     // nodes succeeded and both validate nodes failed identically, so the retry
     // bought a second 40-minute implementation against a fault no
     // implementation could fix.
     //
-    // Gated on `workspaces`: a single-package repo's lint reads source, and
-    // paying for a build there is time every validate spends for nothing.
-    if (scripts.build && Array.isArray(pkg.workspaces)) {
-      quick.unshift({
-        name: "workspace-build",
-        command: "npm run build",
-        timeoutMs: 300_000,
-      });
+    // The build it ALREADY has is moved, never duplicated — a second step
+    // running the same command would compile the repo twice on every fresh
+    // clone — and it carries a cold-clone budget, since compiling every
+    // workspace from nothing is not the 60-second job a warm rebuild is.
+    //
+    // Gated on `workspaces`: a single-package repo's lint reads source, so
+    // compiling first buys nothing and costs every validate the time.
+    const buildAt = Array.isArray(pkg.workspaces)
+      ? quick.findIndex((step) => step.name === "build")
+      : -1;
+
+    if (buildAt >= 0) {
+      const [build] = quick.splice(buildAt, 1);
+
+      quick.unshift({ ...build, timeoutMs: 300_000 });
     }
     quick.unshift({
       name: "install",
