@@ -289,6 +289,75 @@ describe("detectTooling — dependency install on a fresh clone", () => {
     expect(tooling.fullChecks[0]?.name).toBe("install");
   });
 
+  it("builds the workspaces after installing, because lint may need their dist", () => {
+    // Run b219a4f1 (2026-08-30): `npm ci` restored node_modules and eslint then
+    // died on `cannot import @re-cinq/lore-shared/spec-status.js` — this repo's
+    // own ESLint plugin imports a workspace package's COMPILED output, which an
+    // install does not produce. Both implement nodes succeeded and both validate
+    // nodes failed identically, so the retry bought a second 40-minute
+    // implementation against a fault no implementation could fix.
+    writeFile(
+      "package.json",
+      JSON.stringify({
+        workspaces: ["libs/*"],
+        scripts: { lint: "eslint .", build: "tsc -b" },
+      }),
+    );
+    writeFile("package-lock.json", "{}");
+    const tooling = detectTooling(tmpDir);
+
+    expect(tooling.quickChecks.slice(0, 2)).toMatchObject([
+      { name: "install" },
+      { name: "workspace-build", command: "npm run build" },
+    ]);
+    expect(tooling.fullChecks.slice(0, 2)).toMatchObject([
+      { name: "install" },
+      { name: "workspace-build" },
+    ]);
+  });
+
+  it("skips the workspace build for a repo that declares no workspaces", () => {
+    // A single-package repo's lint reads source, not a sibling's dist — paying
+    // for a build there is time every validate spends for nothing.
+    writeFile(
+      "package.json",
+      JSON.stringify({ scripts: { lint: "eslint .", build: "tsc -b" } }),
+    );
+    writeFile("package-lock.json", "{}");
+
+    expect(detectTooling(tmpDir).quickChecks.map((c) => c.name)).not.toContain(
+      "workspace-build",
+    );
+  });
+
+  it("skips the workspace build when the workspaces repo has no build script", () => {
+    writeFile(
+      "package.json",
+      JSON.stringify({ workspaces: ["libs/*"], scripts: { lint: "eslint ." } }),
+    );
+    writeFile("package-lock.json", "{}");
+
+    expect(detectTooling(tmpDir).quickChecks.map((c) => c.name)).not.toContain(
+      "workspace-build",
+    );
+  });
+
+  it("skips the workspace build when node_modules is already there, like the install", () => {
+    // Same reasoning as the install it follows: a warm checkout has both.
+    writeFile(
+      "package.json",
+      JSON.stringify({
+        workspaces: ["libs/*"],
+        scripts: { lint: "eslint .", build: "tsc -b" },
+      }),
+    );
+    writeFile("node_modules/.keep", "");
+
+    expect(detectTooling(tmpDir).quickChecks.map((c) => c.name)).not.toContain(
+      "workspace-build",
+    );
+  });
+
   it("adds no install step when node_modules is already present", () => {
     writeFile(
       "package.json",
