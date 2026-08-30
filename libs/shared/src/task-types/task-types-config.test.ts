@@ -1,4 +1,5 @@
 import { describe, it, expect, afterEach } from "vitest";
+import { DELIVERING_PROMPT_REFS } from "./delivering-recipes.js";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import {
@@ -149,11 +150,7 @@ describe("the implementation-tdd recipe", () => {
     // "commit it, and stop"; these never did.
     const parsed = parseTaskTypesFile(COMMITTED);
 
-    for (const name of [
-      "implementation-tdd",
-      "implementation",
-      "address-feedback",
-    ]) {
+    for (const name of DELIVERING_PROMPT_REFS) {
       const prompt = parsed.taskTypes[name]?.prompt_template ?? "";
 
       expect(prompt, name).toContain("git push origin HEAD");
@@ -162,11 +159,14 @@ describe("the implementation-tdd recipe", () => {
     }
   });
 
-  it("tells an implementing recipe to report failure when it delivered nothing", () => {
+  it("tells every implementing recipe to report failure when it delivered nothing", () => {
     const parsed = parseTaskTypesFile(COMMITTED);
-    const tdd = parsed.taskTypes["implementation-tdd"]?.prompt_template ?? "";
 
-    expect(tdd).toContain('LORE_NODE_RESULT: {"outcome":"failed"}');
+    for (const name of DELIVERING_PROMPT_REFS) {
+      const prompt = parsed.taskTypes[name]?.prompt_template ?? "";
+
+      expect(prompt, name).toContain('LORE_NODE_RESULT: {"outcome":"failed"}');
+    }
   });
 
   it("demands red before green, inline validated-by links, and the status flip, leaving implementation untouched", () => {
