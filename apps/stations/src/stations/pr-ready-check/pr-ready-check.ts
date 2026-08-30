@@ -153,6 +153,15 @@ export async function prReadyCheckJob(): Promise<string> {
 
     return cached;
   };
+  const ciHistory = new Map<string, Promise<boolean>>();
+  const readCiHistory = async (repo: string): Promise<boolean> => {
+    const project = await projectOf(repo);
+
+    return (
+      (await project.pulls.ciConclusion(await project.repo.defaultBranch())) !==
+      "none"
+    );
+  };
 
   return prReadyCheckSweep({
     listOpenLoopRuns: () =>
@@ -165,14 +174,15 @@ export async function prReadyCheckJob(): Promise<string> {
       (await (await projectOf(repo)).pulls.get(number))?.headSha ?? null,
     ciConclusion: async (repo, ref) =>
       (await projectOf(repo)).pulls.ciConclusion(ref),
-    hasCiHistory: async (repo) => {
-      const project = await projectOf(repo);
+    // Memoised per repo, for the same reason `projects` is: this is a REPO fact,
+    // and asking it once per parked PR would spend two GitHub reads per run on an
+    // answer that cannot differ between them.
+    hasCiHistory: (repo) => {
+      const cached = ciHistory.get(repo) ?? readCiHistory(repo);
 
-      return (
-        (await project.pulls.ciConclusion(
-          await project.repo.defaultBranch(),
-        )) !== "none"
-      );
+      ciHistory.set(repo, cached);
+
+      return cached;
     },
     listReviewThreads: async (repo, number) =>
       (await projectOf(repo)).pulls.listReviewThreads(number),
