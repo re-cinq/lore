@@ -1,42 +1,65 @@
-# One ticket per run (specs/implementation-loop FR3). The loop is NOT a
-# back-edge here — the loader refuses an unbounded cycle unless a human station
-# gates it, and an iteration_max would cap a repo's backlog at a literal
-# integer. The Floor driver re-arms instead: it starts the next run when this
-# one reaches a terminal state (FR2).
+# One ticket per run (specs/implementation-loop FR3). The TICKET loop is not a
+# back-edge — the Floor driver re-arms on the run's terminal state (FR2). The TDD
+# loop IS one, because a red-green-refactor round per pod is what keeps each
+# round's prompt bounded however many rounds precede it, and "how many rounds for
+# one ticket" is legitimately a small integer where "how many tickets in a repo's
+# backlog" never is.
 name: implementation-loop
-description: Work one backlog ticket test-first, open a PR, park until it is green with no unresolved review threads. Never merges.
+description: Work one backlog ticket top-down — acceptance tests first, then one red-green-refactor round per visit — behind a draft PR, and park until it is green with no unresolved review threads. Never merges.
 version: 1
-entry: implement
+entry: dod
 exit: done
 
 nodes:
-  - id: implement
+  - id: dod
     type: agent
-    prompt_ref: implementation-tdd
+    prompt_ref: acceptance-dod
     # Explicit, not inherited: an agent node's Station defaults to the LINE's
     # task type, and no Station named implementation-loop exists — the first
-    # live run died with "Station or AgentDefinition not found". Same shape as
-    # code-review-reply's node running on code-review-refine.
-    station_ref: implementation-tdd
+    # live run died with "Station or AgentDefinition not found".
+    station_ref: acceptance-dod
     model: claude-sonnet-4-6
-    description: Implement the ticket test-first; red before green.
+    description: Write the RED acceptance tests that mean "ticket done", pick a strategy, commit .lore/dod.md.
+
+  - id: open-pr
+    type: agent
+    # `push-only` is the ONLY prompt_ref the Floor stamps args.pr_url/pr_number
+    # for (spec-pr.ts decidePrStamp), and await-pr's route needs pr_url.
+    prompt_ref: push-only
+    station_ref: push-only
+    description: Open the DRAFT pull request, so CI has a target and code-review stays quiet.
+
+  - id: tdd-round
+    type: agent
+    prompt_ref: tdd-round
+    station_ref: tdd-round
+    model: claude-sonnet-4-6
+    description: ONE red-green-refactor round. Commit and push on green.
 
   - id: validate
     type: validate
-    description: Run lint + typecheck on changed files.
+    description: Run lint + typecheck on changed files, once, before asking for review.
 
-  - id: push
+  - id: ready-for-review
     type: agent
-    prompt_ref: push-only
-    description: Open or update the PR.
+    prompt_ref: pr-ready
+    station_ref: pr-ready
+    description: Re-run the acceptance suite, write the PR description artifact, drop .lore/dod.md.
 
   - id: await-pr
-    # Parks with no Agent CR; pr-ready-check resumes it with success (green +
-    # zero unresolved threads) or changes_requested (blocked). Review comments
-    # are handled by the code-review choreography, not by this line (FR5).
+    # Parks with no Agent CR; pr-ready-check resumes it. success = green with no
+    # unresolved threads; changes_requested = red CI, which fix-ci owns; failed =
+    # unresolved threads the review round-trip did not clear, which a human owns.
     type: pr_review
     route: "{args.pr_url}"
     description: Waiting on CI and review threads — the PR view is the station.
+
+  - id: fix-ci
+    type: agent
+    prompt_ref: fix-ci
+    station_ref: fix-ci
+    model: claude-sonnet-4-6
+    description: Reproduce the red build locally, fix it, push, and go back to waiting.
 
   - id: retrospective
     type: retrospective
@@ -47,43 +70,100 @@ nodes:
     description: Terminal marker.
 
 edges:
-  - from: implement
+  - from: dod
+    to: open-pr
+    on: success
+  - from: dod
+    to: dod
+    on: failed
+    iteration_max: 1
+  # "This ticket cannot be expressed as acceptance tests" is a scoping verdict,
+  # not a failure. A retry cannot make an unclear ticket clear; a human must.
+  - from: dod
+    to: retrospective
+    on: changes_requested
+
+  - from: open-pr
+    to: tdd-round
+    on: success
+  # No PR means await-pr's route resolves to nothing and the run would park
+  # forever on a node the reaper deliberately never times out.
+  - from: open-pr
+    to: retrospective
+    on: failed
+  - from: open-pr
+    to: retrospective
+    on: changes_requested
+
+  # The ONLY self-edge on this node. Two would share one from->to budget counter
+  # (transition.ts keys iteration_max on `${from}->${to}`), so a `failed` round
+  # would be judged against the round budget it never spent.
+  - from: tdd-round
+    to: tdd-round
+    on: changes_requested
+    iteration_max: 12
+  - from: tdd-round
     to: validate
     on: success
-  - from: implement
-    to: implement
-    on: failed
-    iteration_max: 1
-  - from: implement
+  # Stuck, or the pod died. No self-retry is available here by the shared-counter
+  # rule above, so the ticket parks for a human.
+  - from: tdd-round
     to: retrospective
-    on: changes_requested
-  - from: validate
-    to: push
-    on: success
-  - from: validate
-    to: implement
     on: failed
-    iteration_max: 1
-  - from: push
+
+  - from: validate
+    to: ready-for-review
+    on: success
+  # Its own counter, so lint breakage cannot eat the round budget.
+  - from: validate
+    to: tdd-round
+    on: failed
+    iteration_max: 2
+
+  - from: ready-for-review
     to: await-pr
     on: success
-  - from: push
-    to: retrospective
+  - from: ready-for-review
+    to: ready-for-review
     on: failed
-  - from: push
+    iteration_max: 1
+  - from: ready-for-review
     to: retrospective
     on: changes_requested
-  # success = ticket done, changes_requested = ticket blocked; both close
-  # through the same exit so the driver sees one terminal shape (FR3).
+
   - from: await-pr
     to: retrospective
     on: success
+  # Red CI is the one blocking condition this line can act on. The loader would
+  # not demand a budget here (await-pr is a human station, which exempts the
+  # cycle), but the runtime enforces any declared one — and without it a
+  # permanently red PR ping-pongs forever.
   - from: await-pr
-    to: retrospective
+    to: fix-ci
     on: changes_requested
+    iteration_max: 3
+  # Unresolved threads the choreography did not clear: a human conversation,
+  # not a build.
   - from: await-pr
     to: retrospective
     on: failed
+
+  # Straight back to the wait, not through validate: fix-ci pushes its own fix,
+  # the PR updates itself, and pr-ready-check re-reads the NEW head sha. CI is
+  # the validator on this half of the line — re-running the in-pod one would
+  # cost a pod to answer a question the build is already answering. Human-gated
+  # (await-pr is a pr_review station), so the loader demands no budget; the one
+  # on await-pr -> fix-ci is what bounds the ping-pong.
+  - from: fix-ci
+    to: await-pr
+    on: success
+  - from: fix-ci
+    to: retrospective
+    on: failed
+  - from: fix-ci
+    to: retrospective
+    on: changes_requested
+
   - from: retrospective
     to: done
     on: always

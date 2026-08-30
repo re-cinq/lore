@@ -10,7 +10,16 @@ export type PrReadyVerdict =
       kind: "wait";
       reason: "ci_pending" | "ci_not_started" | "address_in_flight";
     }
-  | { kind: "blocked"; reason: "ci_red" | "unresolved_threads" };
+  // `outcome` is what the walk routes on — `reason` reaches the run's args but
+  // steers nothing (selectEdge matches on outcome alone). So the two blocked
+  // reasons must resume with DIFFERENT outcomes or the line cannot tell a red
+  // build from an unanswered reviewer: ci_red goes to fix-ci, unresolved threads
+  // go to a human (specs/implementation-loop FR3).
+  | {
+      kind: "blocked";
+      reason: "ci_red" | "unresolved_threads";
+      outcome: "changes_requested" | "failed";
+    };
 
 /**
  * Pure verdict for one parked await-pr node. Red CI blocks immediately — no
@@ -42,7 +51,7 @@ export function decidePrReady(input: {
   }
 
   if (input.ci === "failure") {
-    return { kind: "blocked", reason: "ci_red" };
+    return { kind: "blocked", reason: "ci_red", outcome: "changes_requested" };
   }
   const unresolved = input.threads.filter(
     (t) => !t.isResolved && !t.isOutdated,
@@ -54,5 +63,9 @@ export function decidePrReady(input: {
 
   return input.openReviewRunCount > 0
     ? { kind: "wait", reason: "address_in_flight" }
-    : { kind: "blocked", reason: "unresolved_threads" };
+    : {
+        kind: "blocked",
+        reason: "unresolved_threads",
+        outcome: "failed",
+      };
 }

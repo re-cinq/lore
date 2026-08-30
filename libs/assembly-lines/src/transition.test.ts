@@ -516,11 +516,13 @@ describe("getNextTransition — a revisit numbers past every prior visit", () =>
 describe("an unclaimed node on the real implementation-loop blueprint", () => {
   // The 2026-08-29 incident, replayed: `validate` needed `node:validate`, the
   // only cluster offering it was paused, and the reaper failed the visit. The
-  // walk then spent the validate->implement budget re-running a 25-minute
-  // implement node — which could not change whether a cluster existed — waited
-  // out a second queue-timeout, and reported the exhausted edge as the cause.
+  // walk then spent the validate->round budget re-running a long agent node —
+  // which could not change whether a cluster existed — waited out a second
+  // queue-timeout, and reported the exhausted edge as the cause.
   const unclaimedValidate = async (): Promise<NodeVisit[]> => [
-    { nodeId: "implement", iteration: 1, outcome: "success" },
+    { nodeId: "dod", iteration: 1, outcome: "success" },
+    { nodeId: "open-pr", iteration: 1, outcome: "success" },
+    { nodeId: "tdd-round", iteration: 1, outcome: "success" },
     {
       nodeId: "validate",
       iteration: 1,
@@ -539,7 +541,7 @@ describe("an unclaimed node on the real implementation-loop blueprint", () => {
     return line!;
   };
 
-  it("fails the run instead of re-launching implement", async () => {
+  it("fails the run instead of re-launching the round", async () => {
     expect(
       getNextTransition(await implementationLoop(), await unclaimedValidate()),
     ).toMatchObject({ kind: "fail", outcome: "error" });
@@ -559,12 +561,14 @@ describe("an unclaimed node on the real implementation-loop blueprint", () => {
     );
   });
 
-  it("still routes a genuine validate failure back to implement", async () => {
+  it("still routes a genuine validate failure back to a round", async () => {
     // The suppression is scoped to the class, not to the edge: a validate that
-    // actually ran and found lint errors must still buy its one retry.
+    // actually ran and found lint errors must still buy its retry.
     expect(
       getNextTransition(await implementationLoop(), [
-        { nodeId: "implement", iteration: 1, outcome: "success" },
+        { nodeId: "dod", iteration: 1, outcome: "success" },
+        { nodeId: "open-pr", iteration: 1, outcome: "success" },
+        { nodeId: "tdd-round", iteration: 1, outcome: "success" },
         {
           nodeId: "validate",
           iteration: 1,
@@ -573,6 +577,6 @@ describe("an unclaimed node on the real implementation-loop blueprint", () => {
           failureDetail: 'Lore-Validation-Failed: "lint"',
         },
       ]),
-    ).toEqual({ kind: "launch", nodeId: "implement", iteration: 2 });
+    ).toEqual({ kind: "launch", nodeId: "tdd-round", iteration: 2 });
   });
 });

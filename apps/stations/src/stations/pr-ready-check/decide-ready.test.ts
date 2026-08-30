@@ -30,7 +30,11 @@ describe("decidePrReady", () => {
         openReviewRunCount: 3,
         hasCiHistory: true,
       }),
-    ).toEqual({ kind: "blocked", reason: "ci_red" });
+    ).toEqual({
+      kind: "blocked",
+      reason: "ci_red",
+      outcome: "changes_requested",
+    });
   });
 
   it("is ready on green CI with zero unresolved threads", () => {
@@ -88,7 +92,38 @@ describe("decidePrReady", () => {
         openReviewRunCount: 0,
         hasCiHistory: true,
       }),
-    ).toEqual({ kind: "blocked", reason: "unresolved_threads" });
+    ).toEqual({
+      kind: "blocked",
+      reason: "unresolved_threads",
+      outcome: "failed",
+    });
+  });
+});
+
+describe("the two blocked reasons resume differently", () => {
+  // Only `outcome` routes — selectEdge matches on it alone and `reason` reaches
+  // the run's args without steering anything. So a red build and an unanswered
+  // reviewer MUST carry different outcomes or the line cannot tell them apart.
+  it("red CI resumes changes_requested, which the line routes to fix-ci", () => {
+    expect(
+      decidePrReady({
+        ci: "failure",
+        threads: [],
+        openReviewRunCount: 0,
+        hasCiHistory: true,
+      }),
+    ).toMatchObject({ outcome: "changes_requested" });
+  });
+
+  it("unresolved threads resume failed, which the line routes to a human", () => {
+    expect(
+      decidePrReady({
+        ci: "success",
+        threads: [thread()],
+        openReviewRunCount: 0,
+        hasCiHistory: true,
+      }),
+    ).toMatchObject({ outcome: "failed" });
   });
 });
 
@@ -101,6 +136,10 @@ describe("decidePrReady with no checks configured", () => {
         openReviewRunCount: 0,
         hasCiHistory: false,
       }),
-    ).toEqual({ kind: "blocked", reason: "unresolved_threads" });
+    ).toEqual({
+      kind: "blocked",
+      reason: "unresolved_threads",
+      outcome: "failed",
+    });
   });
 });

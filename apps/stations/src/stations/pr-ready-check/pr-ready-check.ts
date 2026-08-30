@@ -34,7 +34,7 @@ export interface PrReadyCheckDeps {
   countOpenReviewRuns(repo: string, number: number): Promise<number>;
   report(
     target: ParkedTarget,
-    outcome: "success" | "changes_requested",
+    outcome: "success" | "changes_requested" | "failed",
     args?: Record<string, unknown>,
   ): Promise<void>;
 }
@@ -114,9 +114,7 @@ export async function prReadyCheckSweep(
         await deps.report(target, "success");
         resumed++;
       } else if (verdict.kind === "blocked") {
-        await deps.report(target, "changes_requested", {
-          reason: verdict.reason,
-        });
+        await deps.report(target, verdict.outcome, { reason: verdict.reason });
         blocked++;
       } else {
         waiting++;

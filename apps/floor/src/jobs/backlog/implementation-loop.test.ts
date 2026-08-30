@@ -56,6 +56,7 @@ describe("createImplementationLoopTickHandler", () => {
           github_issue_number: 7,
           github_issue_url: "https://gh/acme/widgets/issues/7",
           branch: "lore/implementation-loop/issue-7",
+          line_args: { pr_draft: true },
         },
       },
     ]);
@@ -140,12 +141,29 @@ describe("the ticket's branch", () => {
     });
   });
 
+  it("asks for a draft pull request, so twelve round-pushes get no review each", async () => {
+    // The line, not the Floor, declares this: decidePrDraft reads args.pr_draft
+    // so the Floor never learns which blueprints want a draft.
+    const d = deps();
+
+    await createImplementationLoopTickHandler(d.deps)({});
+
+    expect(d.minted[0].contextBundle).toMatchObject({
+      line_args: { pr_draft: true },
+    });
+  });
+
   it("seeds no resume args when no branch exists yet", async () => {
     const d = deps();
 
     await createImplementationLoopTickHandler(d.deps)({});
 
-    expect(d.minted[0].contextBundle).not.toHaveProperty("line_args");
+    expect(d.minted[0].contextBundle).toMatchObject({
+      line_args: { pr_draft: true },
+    });
+    expect(d.minted[0].contextBundle).not.toMatchObject({
+      line_args: { resumed_from_branch: true },
+    });
   });
 
   it("seeds line_args from the open pull request when the branch is being resumed", async () => {

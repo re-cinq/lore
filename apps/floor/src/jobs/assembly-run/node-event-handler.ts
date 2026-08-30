@@ -452,6 +452,26 @@ export async function productionNodeEventDeps(): Promise<NodeEventDeps> {
         features: project.features,
       });
     },
+    markPrReady: async (row) => {
+      const project = await projectFor(row.repo);
+      // Narrowed rather than cast: decideMarkReady already required a numeric
+      // pr_number before this fires, and a cast would outlive that guarantee.
+      const number = row.args.pr_number;
+
+      if (typeof number !== "number") {
+        return;
+      }
+      // The description the pr-ready node produced, delivered as a declared
+      // artifact and merged into args before the walk advanced. Absent means
+      // the node did not write one, and a PR keeps its old body rather than
+      // getting an empty one.
+      const body = row.args.pr_description;
+
+      if (typeof body === "string" && body.trim().length > 0) {
+        await project.pulls.update(number, { body });
+      }
+      await project.pulls.markReady(number);
+    },
     readAgentStatus: (name) => cluster.getStatus(name),
     // The same compare the watcher uses for a single-CR task, applied to a
     // node: an implement that pushed nothing is not done.

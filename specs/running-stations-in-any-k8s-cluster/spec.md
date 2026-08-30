@@ -316,7 +316,7 @@ one dispatch mechanism, not a special case plus a remote case.
   unclaimed and the run fails once naming it, an active central claims that same
   node and the walk reaches `push`, and a satellite carrying only `node:agent`
   cannot take it at all — which is why one paused cluster starves the line
-  rather than failing over to the other. ([validated by with central paused, validate is never claimed and the run fails naming it](apps/floor/src/jobs/assembly-run/implementation-loop-acceptance.test.ts#L165), [with central active, validate is claimed by it and the walk reaches push](apps/floor/src/jobs/assembly-run/implementation-loop-acceptance.test.ts#L190), [a satellite offering only node:agent cannot take the validate node](apps/floor/src/jobs/assembly-run/implementation-loop-acceptance.test.ts#L207))
+  rather than failing over to the other. ([validated by with central paused, validate is never claimed and the run fails naming it](apps/floor/src/jobs/assembly-run/implementation-loop-acceptance.test.ts#L219), [with central active, validate is claimed by it and the walk reaches push](apps/floor/src/jobs/assembly-run/implementation-loop-acceptance.test.ts#L188), [a satellite offering only node:agent cannot take the validate node](apps/floor/src/jobs/assembly-run/implementation-loop-acceptance.test.ts#L263))
 
 ## FR4 — Liveness, recovery, and dead-agent reaping
 

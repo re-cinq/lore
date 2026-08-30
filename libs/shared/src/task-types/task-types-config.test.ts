@@ -20,7 +20,7 @@ describe("parseTaskTypesFile", () => {
     const parsed = parseTaskTypesFile(COMMITTED);
 
     expect(parsed.drift).toEqual([]);
-    expect(Object.keys(parsed.taskTypes)).toHaveLength(17);
+    expect(Object.keys(parsed.taskTypes)).toHaveLength(21);
     // The NAMES, not a count: a bare number says a station went and not which,
     // and the recipes here have to stay in step with the station registry.
     expect(Object.keys(parsed.stations).sort()).toEqual([

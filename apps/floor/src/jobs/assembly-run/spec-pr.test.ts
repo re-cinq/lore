@@ -13,6 +13,7 @@ import { InMemoryAssemblyRuns } from "@re-cinq/lore-shared/project/assembly-runs
 import { InMemoryFeatures } from "@re-cinq/lore-shared/project/features/features-memory.js";
 import type { PullRef } from "@re-cinq/lore-shared/project/pulls/pull-requests-port.js";
 import {
+  decideMarkReady,
   decidePrDraft,
   decidePrStamp,
   decideStampFailure,
@@ -291,6 +292,42 @@ describe("stampLinePr draft", () => {
     await stampLinePr(await lineRow(h), h.ports);
 
     expect(h.pulls.opened[0]?.draft).toBeFalsy();
+  });
+});
+
+describe("decideMarkReady", () => {
+  const base = {
+    outcome: "success",
+    nextNodeType: "pr_review",
+    args: { pr_number: 7 },
+  };
+
+  it("flips the PR when a successful node hands off to the wait", () => {
+    expect(decideMarkReady(base)).toBe(true);
+  });
+
+  it("does not flip mid-line, where the next node is not the wait", () => {
+    expect(decideMarkReady({ ...base, nextNodeType: "validate" })).toBe(false);
+  });
+
+  it("does not flip on a node that failed", () => {
+    expect(decideMarkReady({ ...base, outcome: "failed" })).toBe(false);
+  });
+
+  it("does not flip again on a fix-ci round-trip back to the wait", () => {
+    // fix-ci success routes to await-pr too, so this fires a second time. The
+    // flip itself is idempotent, but the body rewrite beside it is not — a
+    // second pass would overwrite a description a human had edited.
+    expect(
+      decideMarkReady({
+        ...base,
+        args: { pr_number: 7, pr_ready_flipped: true },
+      }),
+    ).toBe(false);
+  });
+
+  it("does not flip a run that has no pull request", () => {
+    expect(decideMarkReady({ ...base, args: {} })).toBe(false);
   });
 });
 

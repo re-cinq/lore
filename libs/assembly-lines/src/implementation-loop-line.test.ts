@@ -6,10 +6,9 @@ import { getNextTransition, type NodeVisit } from "./transition.js";
 
 /**
  * The implementation loop's per-ticket line (specs/implementation-loop FR3).
- * One run = one ticket; the loop itself is the Floor driver, not a back-edge.
- * The line parks at await-pr (a pr_review human station) until pr-ready-check
- * resumes it, and both resume outcomes close through the same retrospective
- * exit so every ticket ends the same way.
+ * One run = one ticket; the TICKET loop is the Floor driver, not a back-edge.
+ * Acceptance tests bound the work up front, one red-green-refactor round runs
+ * per visit behind a draft PR, and red CI is repaired rather than escalated.
  */
 const line = parseAssemblyLine(
   readFileSync(
@@ -21,6 +20,9 @@ const line = parseAssemblyLine(
 const successorsOf = (nodeId: string, on: string) =>
   line.edges.filter((e) => e.from === nodeId && e.on === on).map((e) => e.to);
 
+const edge = (from: string, to: string) =>
+  line.edges.find((e) => e.from === from && e.to === to);
+
 const visit = (nodeId: string, outcome: string, iteration = 1): NodeVisit => ({
   nodeId,
   iteration,
@@ -28,97 +30,142 @@ const visit = (nodeId: string, outcome: string, iteration = 1): NodeVisit => ({
 });
 
 describe("the implementation-loop line", () => {
-  it("walks implement, validate, push, await-pr, retrospective, done on the happy path", () => {
-    expect(line.entry).toBe("implement");
+  it("walks dod, open-pr, tdd-round, validate, ready-for-review, await-pr, retrospective, done", () => {
+    expect(line.entry).toBe("dod");
     expect(line.exit).toBe("done");
-    expect(successorsOf("implement", "success")).toEqual(["validate"]);
-    expect(successorsOf("validate", "success")).toEqual(["push"]);
-    expect(successorsOf("push", "success")).toEqual(["await-pr"]);
+    expect(successorsOf("dod", "success")).toEqual(["open-pr"]);
+    expect(successorsOf("open-pr", "success")).toEqual(["tdd-round"]);
+    expect(successorsOf("tdd-round", "success")).toEqual(["validate"]);
+    expect(successorsOf("validate", "success")).toEqual(["ready-for-review"]);
+    expect(successorsOf("ready-for-review", "success")).toEqual(["await-pr"]);
     expect(successorsOf("await-pr", "success")).toEqual(["retrospective"]);
     expect(successorsOf("retrospective", "always")).toEqual(["done"]);
   });
 
-  it("parks await-pr as a pr_review human station routed at the run's pr_url", () => {
-    const awaitPr = line.nodes.find((n) => n.id === "await-pr");
+  it("gives every agent node an explicit station_ref, since none is named for this line", () => {
+    // An agent node's Station otherwise inherits the LINE's task type, and no
+    // Station named implementation-loop exists — the first live run died on it.
+    const agents = line.nodes.filter((n) => n.type === "agent");
 
-    expect(awaitPr).toMatchObject({
-      type: "pr_review",
-      route: "{args.pr_url}",
-    });
-  });
-
-  it("drives implement with the implementation-tdd recipe, not the implementation one", () => {
-    expect(line.nodes.find((n) => n.id === "implement")).toMatchObject({
-      type: "agent",
-      prompt_ref: "implementation-tdd",
-    });
-  });
-
-  it("retries implement once on failed and fails the run on the second failure", () => {
-    const retry = line.edges.find(
-      (e) => e.from === "implement" && e.to === "implement",
-    );
-
-    expect(retry).toMatchObject({ on: "failed", iteration_max: 1 });
-
-    const secondFailure = getNextTransition(line, [
-      visit("implement", "failed"),
-      visit("implement", "failed", 2),
+    expect(agents.map((n) => n.id)).toEqual([
+      "dod",
+      "open-pr",
+      "tdd-round",
+      "ready-for-review",
+      "fix-ci",
     ]);
+    expect(agents.every((n) => n.station_ref)).toBe(true);
+  });
 
-    expect(secondFailure).toMatchObject({
+  it("opens the pull request through push-only, the one recipe the Floor stamps a PR for", () => {
+    // decidePrStamp gates on promptRef === "push-only"; await-pr's route reads
+    // args.pr_url, which only that stamp writes.
+    expect(line.nodes.find((n) => n.id === "open-pr")).toMatchObject({
+      prompt_ref: "push-only",
+    });
+  });
+
+  it("loops tdd-round on changes_requested and leaves on success", () => {
+    expect(successorsOf("tdd-round", "changes_requested")).toEqual([
+      "tdd-round",
+    ]);
+    expect(edge("tdd-round", "tdd-round")).toMatchObject({
+      on: "changes_requested",
+      iteration_max: 12,
+    });
+  });
+
+  it("gives tdd-round exactly one self-edge, because two would share one budget", () => {
+    // iteration_max counters key on `${from}->${to}`, not on the outcome, so a
+    // second self-edge would be judged against a budget it never spent.
+    expect(
+      line.edges.filter((e) => e.from === "tdd-round" && e.to === "tdd-round"),
+    ).toHaveLength(1);
+    expect(successorsOf("tdd-round", "failed")).toEqual(["retrospective"]);
+  });
+
+  it("sends a red build to fix-ci and back to the wait, not to a blocked ticket", () => {
+    expect(successorsOf("await-pr", "changes_requested")).toEqual(["fix-ci"]);
+    expect(successorsOf("fix-ci", "success")).toEqual(["await-pr"]);
+  });
+
+  it("bounds the CI ping-pong even though a human station exempts the cycle", () => {
+    // The loader demands no iteration_max on a cycle touching a human station;
+    // the runtime enforces any declared one, and a permanently red PR needs it.
+    expect(edge("await-pr", "fix-ci")).toMatchObject({ iteration_max: 3 });
+  });
+
+  it("routes unresolved review threads to a human, not to another build fix", () => {
+    expect(successorsOf("await-pr", "failed")).toEqual(["retrospective"]);
+  });
+
+  it("parks an unexpressible ticket rather than retrying the definition of done", () => {
+    expect(successorsOf("dod", "changes_requested")).toEqual(["retrospective"]);
+    expect(edge("dod", "dod")).toMatchObject({
+      on: "failed",
+      iteration_max: 1,
+    });
+  });
+
+  it("sends lint breakage back to a round on its own budget", () => {
+    expect(successorsOf("validate", "failed")).toEqual(["tdd-round"]);
+    expect(edge("validate", "tdd-round")).toMatchObject({ iteration_max: 2 });
+  });
+
+  it("replays twelve rounds then fails the run on the thirteenth", () => {
+    const rounds: NodeVisit[] = [
+      visit("dod", "success"),
+      visit("open-pr", "success"),
+    ];
+
+    for (let i = 1; i <= 12; i++) {
+      rounds.push(visit("tdd-round", "changes_requested", i));
+    }
+    expect(getNextTransition(line, rounds)).toMatchObject({
+      kind: "launch",
+      nodeId: "tdd-round",
+    });
+
+    rounds.push(visit("tdd-round", "changes_requested", 13));
+    expect(getNextTransition(line, rounds)).toMatchObject({
       kind: "fail",
       outcome: "iteration_max",
     });
   });
 
-  it("closes a blocked ticket through the same retrospective exit as a ready one", () => {
-    for (const outcome of ["success", "changes_requested", "failed"]) {
-      const t = getNextTransition(line, [
-        visit("implement", "success"),
-        visit("validate", "success"),
-        visit("push", "success"),
-        visit("await-pr", outcome),
-      ]);
+  it("replays a fix-ci round-trip back onto the wait", () => {
+    const visits = [
+      visit("dod", "success"),
+      visit("open-pr", "success"),
+      visit("tdd-round", "success"),
+      visit("validate", "success"),
+      visit("ready-for-review", "success"),
+      visit("await-pr", "changes_requested"),
+    ];
 
-      expect(t).toMatchObject({ kind: "launch", nodeId: "retrospective" });
-    }
-  });
+    expect(getNextTransition(line, visits)).toMatchObject({
+      kind: "launch",
+      nodeId: "fix-ci",
+    });
 
-  it("routes implement changes_requested straight to retrospective", () => {
-    const t = getNextTransition(line, [
-      visit("implement", "changes_requested"),
-    ]);
-
-    expect(t).toMatchObject({ kind: "launch", nodeId: "retrospective" });
+    visits.push(visit("fix-ci", "success"));
+    expect(getNextTransition(line, visits)).toMatchObject({
+      kind: "launch",
+      nodeId: "await-pr",
+    });
   });
 
   it("finishes at done after the retrospective", () => {
-    const t = getNextTransition(line, [
-      visit("implement", "success"),
-      visit("validate", "success"),
-      visit("push", "success"),
-      visit("await-pr", "success"),
-      visit("retrospective", "success"),
-    ]);
-
-    expect(t).toEqual({ kind: "finish" });
-  });
-});
-
-describe("the implementation-loop line has no address node", () => {
-  it("carries no address node — review comments belong to the code-review choreography", () => {
-    expect(line.nodes.find((n) => n.id === "address")).toBeUndefined();
     expect(
-      line.nodes.find((n) => n.prompt_ref === "address-feedback"),
-    ).toBeUndefined();
-  });
-});
-
-describe("the implement node's Station", () => {
-  it("names implementation-tdd explicitly instead of inheriting the line's task type", () => {
-    const implement = line.nodes.find((n) => n.id === "implement");
-
-    expect(implement).toMatchObject({ station_ref: "implementation-tdd" });
+      getNextTransition(line, [
+        visit("dod", "success"),
+        visit("open-pr", "success"),
+        visit("tdd-round", "success"),
+        visit("validate", "success"),
+        visit("ready-for-review", "success"),
+        visit("await-pr", "success"),
+        visit("retrospective", "success"),
+      ]),
+    ).toEqual({ kind: "finish" });
   });
 });
