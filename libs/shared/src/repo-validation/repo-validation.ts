@@ -49,6 +49,25 @@ function readJsonFile(filePath: string): Record<string, unknown> | null {
   }
 }
 
+/**
+ * Whether the manifest declares a workspaces monorepo, in either spelling: npm's
+ * array of globs, or the `{ packages: [...] }` object Yarn uses and that plenty
+ * of npm-installed repos still carry.
+ */
+function declaresWorkspaces(pkg: Record<string, unknown>): boolean {
+  const workspaces = pkg.workspaces;
+
+  if (Array.isArray(workspaces)) {
+    return true;
+  }
+
+  if (typeof workspaces !== "object" || workspaces === null) {
+    return false;
+  }
+
+  return Array.isArray((workspaces as { packages?: unknown }).packages);
+}
+
 function hasEslintConfig(repoRoot: string): boolean {
   const isFlatConfig =
     existsSync(join(repoRoot, "eslint.config.js")) ||
@@ -145,13 +164,17 @@ function detectNode(repoRoot: string): RepoTooling | null {
     //
     // Gated on `workspaces`: a single-package repo's lint reads source, so
     // compiling first buys nothing and costs every validate the time.
-    const buildAt = Array.isArray(pkg.workspaces)
+    const buildAt = declaresWorkspaces(pkg)
       ? quick.findIndex((step) => step.name === "build")
       : -1;
 
     if (buildAt >= 0) {
-      const [build] = quick.splice(buildAt, 1);
+      // Read before removing: destructuring the splice result would spread
+      // `undefined` if the index guard above ever stopped holding, and a step
+      // with no command reads as a check that passed.
+      const build = quick[buildAt];
 
+      quick.splice(buildAt, 1);
       quick.unshift({ ...build, timeoutMs: 300_000 });
     }
     quick.unshift({

@@ -369,6 +369,43 @@ describe("detectTooling — dependency install on a fresh clone", () => {
     ]);
   });
 
+  it("hoists for Yarn's object spelling of workspaces too", () => {
+    // `{ packages: [...] }` is Yarn's form, and plenty of npm-installed repos
+    // still carry it. The intent of the guard is "is this a monorepo", not
+    // "which tool wrote the field".
+    writeFile(
+      "package.json",
+      JSON.stringify({
+        workspaces: { packages: ["libs/*"] },
+        scripts: { lint: "eslint .", build: "tsc -b" },
+      }),
+    );
+    writeFile("package-lock.json", "{}");
+
+    expect(detectTooling(tmpDir).quickChecks.map((c) => c.name)).toEqual([
+      "install",
+      "build",
+      "lint",
+    ]);
+  });
+
+  it("hoists nothing for a workspaces value that is neither shape", () => {
+    writeFile(
+      "package.json",
+      JSON.stringify({
+        workspaces: "libs/*",
+        scripts: { lint: "eslint .", build: "tsc -b" },
+      }),
+    );
+    writeFile("package-lock.json", "{}");
+
+    expect(detectTooling(tmpDir).quickChecks.map((c) => c.name)).toEqual([
+      "install",
+      "lint",
+      "build",
+    ]);
+  });
+
   it("hoists nothing when the workspaces repo has no build script", () => {
     writeFile(
       "package.json",
