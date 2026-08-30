@@ -140,6 +140,35 @@ describe("warnOnDrift", () => {
 });
 
 describe("the implementation-tdd recipe", () => {
+  it("tells every implementing recipe to commit and push, because the next node is another pod", () => {
+    // 18 of 18 implementation-loop branches ever created carry 0 commits
+    // (2026-08-30). The push recipe assumed it shared a worktree with implement;
+    // since the per-node-pod cutover each node clones fresh, so the implement
+    // pod's edits died with the pod, validate diffed an empty branch, and push
+    // found "nothing to deliver". spec-write — the one recipe that ships — says
+    // "commit it, and stop"; these never did.
+    const parsed = parseTaskTypesFile(COMMITTED);
+
+    for (const name of [
+      "implementation-tdd",
+      "implementation",
+      "address-feedback",
+    ]) {
+      const prompt = parsed.taskTypes[name]?.prompt_template ?? "";
+
+      expect(prompt, name).toContain("git push origin HEAD");
+      expect(prompt, name).toContain("dies with it");
+      expect(prompt, name).not.toContain("Do not commit or push");
+    }
+  });
+
+  it("tells an implementing recipe to report failure when it delivered nothing", () => {
+    const parsed = parseTaskTypesFile(COMMITTED);
+    const tdd = parsed.taskTypes["implementation-tdd"]?.prompt_template ?? "";
+
+    expect(tdd).toContain('LORE_NODE_RESULT: {"outcome":"failed"}');
+  });
+
   it("demands red before green, inline validated-by links, and the status flip, leaving implementation untouched", () => {
     const parsed = parseTaskTypesFile(COMMITTED);
     const tdd = parsed.taskTypes["implementation-tdd"]?.prompt_template ?? "";

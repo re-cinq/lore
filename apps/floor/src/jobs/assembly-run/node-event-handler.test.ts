@@ -491,3 +491,125 @@ describe("a declared artifact is delivered before the walk advances", () => {
     expect(visits[0].failureDetail).toContain("spec.plan (file not found)");
   });
 });
+
+describe("a delivering node that pushed nothing", () => {
+  // The deterministic half of the same fix: an implement node that ends with
+  // an empty branch is not a success, whatever it printed. Caught HERE, right
+  // after the node, rather than two nodes later at push — validate would
+  // otherwise diff an empty branch and lint the whole tree for nothing.
+  const implLine: AssemblyLine = parseAssemblyLine(`
+name: implementation-loop
+description: implement -> validate
+version: 1
+entry: implement
+exit: done
+nodes:
+  - id: implement
+    type: agent
+    prompt_ref: implementation-tdd
+    station_ref: implementation-tdd
+  - id: validate
+    type: validate
+  - id: done
+    type: retrospective
+edges:
+  - from: implement
+    to: validate
+    on: success
+  - from: implement
+    to: implement
+    on: failed
+    iteration_max: 1
+  - from: implement
+    to: done
+    on: changes_requested
+  - from: validate
+    to: done
+    on: always
+`);
+
+  async function implementRun(commitCount: number | null) {
+    const h = harness();
+    const calls: Array<{ repo: string; branch: string }> = [];
+
+    h.deps.definitions = async () =>
+      new Map([["implementation-loop", implLine]]);
+
+    if (commitCount !== null) {
+      (h.deps as Record<string, unknown>).deliveredChangeCount = async (
+        repo: string,
+        branch: string,
+      ) => {
+        calls.push({ repo, branch });
+
+        return commitCount;
+      };
+    }
+    const id = await h.port.start({
+      blueprintName: "implementation-loop",
+      repo: "o/r",
+      branch: "lore/implementation-loop/x",
+      args: {},
+    });
+
+    await h.port.markRunning(id);
+    await h.port.ensureStationRun({
+      assemblyRunId: id,
+      nodeId: "implement",
+      iteration: 1,
+      agentCrName: `${id.substring(0, 12)}-implement`,
+    });
+    h.statusByName[`${id.substring(0, 12)}-implement`] = {
+      phase: "Succeeded",
+      output: JSON.stringify({ type: "result", result: "done" }),
+    };
+    // Not the file's `params()` helper: that one names the review node.
+    await createNodeEventHandler(h.deps)({
+      assemblyLineId: id,
+      nodeId: "implement",
+      agentName: `${id.substring(0, 12)}-implement`,
+      taskId: id,
+      phase: "Succeeded",
+    });
+
+    return { h, id, calls };
+  }
+
+  it("records the node failed, naming the empty branch, when zero commits landed", async () => {
+    const { h, id, calls } = await implementRun(0);
+
+    expect(calls).toEqual([
+      { repo: "o/r", branch: "lore/implementation-loop/x" },
+    ]);
+    expect(h.port.nodes.find((n) => n.nodeId === "implement")).toMatchObject({
+      outcome: "failed",
+      failureDetail: expect.stringContaining("pushed nothing"),
+    });
+    // Retryable: the self-retry edge is exactly the right response to an agent
+    // that forgot to push, so the walk re-dispatches implement.
+    expect(h.port.nodes.map((n) => `${n.nodeId}:${n.iteration}`)).toEqual([
+      "implement:1",
+      "implement:2",
+    ]);
+    void id;
+  });
+
+  it("keeps the success when commits landed, and moves on to validate", async () => {
+    const { h } = await implementRun(3);
+
+    expect(
+      h.port.nodes.map(
+        (n) => `${n.nodeId}:${n.iteration}=${n.outcome ?? "open"}`,
+      ),
+    ).toEqual(["implement:1=success", "validate:1=open"]);
+  });
+
+  it("changes nothing when the composition provides no commit count", async () => {
+    const { h } = await implementRun(null);
+
+    expect(h.port.nodes[0]).toMatchObject({
+      nodeId: "implement",
+      outcome: "success",
+    });
+  });
+});

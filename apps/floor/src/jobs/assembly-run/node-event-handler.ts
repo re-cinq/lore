@@ -23,6 +23,7 @@ import { advanceLine, type AdvanceDeps } from "./advance.js";
 import { HttpAgentApi } from "@re-cinq/lore-shared";
 import { clusterAgent } from "../../kernel/queues.js";
 import { finishNodeTerminal, normalizeAgentStatus } from "./node-terminal.js";
+import { isDeliveringRecipe } from "@re-cinq/lore-shared/task-types/delivering-recipes.js";
 import { agentCrVisible } from "./cr-visibility.js";
 import { notifyLineFailure } from "./notify-failure.js";
 import { BillingAlertThrottle, maybeAlertBilling } from "./billing-alert.js";
@@ -43,6 +44,14 @@ export interface NodeEventDeps extends AdvanceDeps {
    *  when it lives in a cluster this Floor cannot reach, which is a different
    *  fact wearing the same null. {@link agentCrVisible} tells them apart. */
   readAgentStatus: (name: string) => Promise<AgentNodeStatus | null>;
+  /**
+   * How much a run's branch differs from the repo's default branch — what a
+   * DELIVERING node (one whose job is to change the branch) is held to. Zero
+   * turns its reported success into a failure. Optional seam: a composition
+   * without it trusts the node's own word, which is the pre-2026-08-30
+   * behaviour.
+   */
+  deliveredChangeCount?: (repo: string, branch: string) => Promise<number>;
   /** The central cluster's registered agent id. Resolved per call — the id is
    *  minted at registration, so a static env var cannot know it. Omitted or
    *  null leaves only legacy `running` rows visible, which is exactly the
@@ -203,9 +212,10 @@ export function createNodeEventHandler(deps: NodeEventDeps): EventHandler {
  */
 export async function deliverTerminalArtifacts(
   row: AssemblyRunRecord,
-  node: { type: string },
+  node: { type: string; prompt_ref?: string | null },
   rawStatus: AgentNodeStatus,
-  deps: Pick<AdvanceDeps, "assemblyRuns">,
+  deps: Pick<AdvanceDeps, "assemblyRuns"> &
+    Pick<NodeEventDeps, "deliveredChangeCount">,
 ): Promise<NodeResult> {
   const { args, missing } = artifactsFromTerminalOutput(rawStatus.output);
 
@@ -214,18 +224,43 @@ export async function deliverTerminalArtifacts(
   }
   const result = stationNodeOutcome(node, normalizeAgentStatus(rawStatus));
 
-  if (missing.length === 0 || result.outcome === "failed") {
+  if (result.outcome === "failed") {
     return result;
   }
-  const detail = `declared artifact not produced: ${missing.join(", ")}`;
 
-  return {
-    outcome: "failed",
-    failureClass: "unknown",
-    failureDetail: detail,
-    extras: { "Lore-Validation-Summary": detail },
-  };
+  if (missing.length > 0) {
+    return undelivered(`declared artifact not produced: ${missing.join(", ")}`);
+  }
+
+  // A node whose job was to CHANGE THE BRANCH and left it empty is not a
+  // success, whatever it printed. Decided here, right after the node, rather
+  // than two nodes later at push: the next node is another pod with a fresh
+  // clone, so validate would diff an empty branch and lint the whole tree for
+  // nothing (18 of 18 implementation-loop branches, 2026-08-30). Retryable —
+  // an agent that forgot to push is exactly what the self-retry edge is for.
+  if (
+    isDeliveringRecipe(node.prompt_ref) &&
+    deps.deliveredChangeCount &&
+    row.branch
+  ) {
+    const changed = await deps.deliveredChangeCount(row.repo, row.branch);
+
+    if (changed === 0) {
+      return undelivered(
+        `the ${node.prompt_ref} node reported success but pushed nothing — ${row.branch} has no changes against the default branch`,
+      );
+    }
+  }
+
+  return result;
 }
+
+const undelivered = (detail: string): NodeResult => ({
+  outcome: "failed",
+  failureClass: "unknown",
+  failureDetail: detail,
+  extras: { "Lore-Validation-Summary": detail },
+});
 
 /**
  * Stop dispatching agent nodes when THIS failure says the account, not the run,
@@ -418,6 +453,16 @@ export async function productionNodeEventDeps(): Promise<NodeEventDeps> {
       });
     },
     readAgentStatus: (name) => cluster.getStatus(name),
+    // The same compare the watcher uses for a single-CR task, applied to a
+    // node: an implement that pushed nothing is not done.
+    deliveredChangeCount: async (repo, branch) => {
+      const project = await projectFor(repo);
+
+      return project.pulls.changedFileCount(
+        await project.repo.defaultBranch(),
+        branch,
+      );
+    },
     llmGate: llmDispatchGate,
     alertBilling: async (repo, nodeType, status) => {
       await maybeAlertBilling(repo, nodeType, status, {
