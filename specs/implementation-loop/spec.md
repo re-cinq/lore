@@ -107,6 +107,15 @@ A fourth gap sits underneath the "wait until the PR has no outstanding comments"
 - The prompt requires a failing test before any implementation: red, then green, then refactor. No production edit precedes a red bar. ([validated by recipe demands red first](../../libs/shared/src/task-types/task-types-config.test.ts#L172))
 - The prompt requires that each test carry an inline traceability link on the spec or ADR statement it validates, in the repository's established parenthetical form, and that the test descriptor stamp the corresponding spec anchor so the test interface surfaces it. ([validated by recipe demands validated-by links](../../libs/shared/src/task-types/task-types-config.test.ts#L172))
 - The prompt requires that a change completing a `specs/<name>/spec.md` update that spec's `| Status |` header row in the same branch. ([validated by recipe demands the status flip](../../libs/shared/src/task-types/task-types-config.test.ts#L172))
+- The prompt requires the agent to COMMIT AND PUSH before it ends, and to end
+  with `LORE_NODE_RESULT: {"outcome":"failed"}` if it genuinely changed
+  nothing. Every node runs in its own pod with a fresh clone, so an edit that
+  is not pushed dies with the container: 18 of 18 implementation-loop branches
+  ever created carried zero commits (2026-08-30) — the push recipe assumed it
+  shared a worktree with implement, and `address-feedback` even said "do not
+  commit or push, the next step does that". `spec-write`, the one recipe that
+  ships, had said "commit it, and stop" all along. The same contract now closes
+  `implementation` and `address-feedback`. ([validated by tells every implementing recipe to commit and push, because the next node is another pod](../../libs/shared/src/task-types/task-types-config.test.ts#L144), [validated by tells every implementing recipe to report failure when it delivered nothing](../../libs/shared/src/task-types/task-types-config.test.ts#L162))
 - A `prompt_ref` naming no recipe is a build failure via the existing drift guard, and `buildNodePrompt` throws rather than silently substituting the `general` prompt. ([validated by prompt_ref drift guard](../../libs/assembly-lines/src/prompt-refs.test.ts#L53))
 
 ## FR7 — Per-repo enable toggle
