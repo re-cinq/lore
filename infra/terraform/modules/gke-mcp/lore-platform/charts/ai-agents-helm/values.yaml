@@ -152,9 +152,9 @@ controller:
       # (256KiB) of run output — 176 of them measured 40MiB of raw JSON — and
       # nothing bounds that count. `successfulRunsHistoryLimit` cannot: it is
       # per-Station, and Lore mints a Station per task, so the denominator grows
-      # with the numerator and the limit prunes almost nothing. Until a reaper
-      # deletes terminal CRs and their per-task clones, any ceiling here is a
-      # future outage with a longer fuse.
+      # with the numerator and the limit prunes almost nothing. Until the
+      # cluster-agent's hourly reaper (#1674) deletes terminal CRs and their
+      # per-task clones, any ceiling here is a future outage with a longer fuse.
       memory: 1Gi
 
 imagePullSecrets:
