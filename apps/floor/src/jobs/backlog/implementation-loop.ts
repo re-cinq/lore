@@ -99,14 +99,15 @@ async function tickRepo(repo: string, deps: LoopTickDeps): Promise<void> {
   // Continuing a branch is silent by design: no issue comment, no PR comment. It
   // is recorded on the run's args instead, so the run page can say it and GitHub
   // stays quiet. Deleting the branch is the owner's restart lever.
+  // Both reads hit GitHub and neither feeds the other, so they go together.
+  const [branchExists, openPr] = await Promise.all([
+    deps.branchExists(repo, branch),
+    deps.openPrForBranch(repo, branch),
+  ]);
   const resume = decideBranchResume({
-    branchExists: await deps.branchExists(repo, branch),
+    branchExists,
     issueLabels: picked.labels ?? [],
-    openPr: await deps.openPrForBranch(repo, branch),
-    // The newest prior run on this branch is not queryable yet — AssemblyRunQuery
-    // has no branch filter. Null reads as "no verdict", which is the resumable
-    // case; a dirty run's ticket carries `lore:blocked` and is skipped above.
-    priorRunOutcome: null,
+    openPr,
   });
 
   const task = await deps.createTask({

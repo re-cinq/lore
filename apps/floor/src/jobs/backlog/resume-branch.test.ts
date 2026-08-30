@@ -6,7 +6,6 @@ const base = {
   branchExists: true,
   issueLabels: [] as readonly string[],
   openPr: null,
-  priorRunOutcome: "completed" as string | null,
 };
 
 describe("decideBranchResume", () => {
@@ -30,23 +29,11 @@ describe("decideBranchResume", () => {
     ).toEqual({ resume: false });
   });
 
-  it("starts fresh when the prior run ended dirty", () => {
-    expect(
-      decideBranchResume({ ...base, priorRunOutcome: "iteration_max" }),
-    ).toEqual({ resume: false });
-  });
-
   it("resumes a clean branch with no pull request yet", () => {
     expect(decideBranchResume(base)).toEqual({
       resume: true,
       lineArgs: { resumed_from_branch: true },
     });
-  });
-
-  it("resumes an unknown prior outcome — an interrupted run left no verdict", () => {
-    expect(
-      decideBranchResume({ ...base, priorRunOutcome: null }),
-    ).toMatchObject({ resume: true });
   });
 
   it("seeds pr_number and pr_url so the parked node's route resolves", () => {

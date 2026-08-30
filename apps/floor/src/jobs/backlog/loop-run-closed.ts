@@ -26,9 +26,8 @@ export interface LoopRunClosedDeps {
   emitTick(repo: string): Promise<void>;
 }
 
-/** Terminal outcomes that are NOT failures — everything else blocks the ticket.
- *  Exported because the resume decision asks the same question of a prior run. */
-export const CLEAN_OUTCOMES = new Set(["completed", "lease_held"]);
+/** Terminal outcomes that are NOT failures — everything else blocks the ticket. */
+const CLEAN_OUTCOMES = new Set(["completed", "lease_held"]);
 
 /**
  * The loop's terminal hook (FR2 re-arm + FR8 blocked tickets). A blocked or
