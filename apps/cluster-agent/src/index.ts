@@ -23,6 +23,7 @@ import { AgentWatchInput } from "./listeners/k8s-watch.js";
 import { PodLogInput, podLogStreamingEnabled } from "./inputs/pod-log-input.js";
 import { TelemetrySink } from "./kernel/telemetry-sink.js";
 import { startClaimLoop } from "./claim/start-claim-loop.js";
+import { startPruneLoop } from "./reap/start-prune-loop.js";
 
 const PORT = parseInt(process.env.PORT ?? "8080", 10);
 
@@ -55,6 +56,14 @@ async function main(): Promise<void> {
       agentToken = identity.token;
     },
   });
+
+  // A cluster forgets what it finished with. Terminal Agent CRs and the
+  // per-task clones they ran on accumulate forever otherwise — 176 of them
+  // (40MiB, each holding up to 256KiB of run output) OOMKilled the controller
+  // every nine minutes on 2026-08-30. It runs HERE rather than Floor-side
+  // because the Floor cannot reach a satellite's cluster (#1651): every cluster
+  // tidies its own, central and satellite alike.
+  const pruneLoop = startPruneLoop(process.env);
 
   // Which credential this agent reports with is a question about what it was
   // GIVEN, not about what kind of agent it is. A cluster inside the platform
@@ -157,6 +166,7 @@ async function main(): Promise<void> {
     // visit the API records as claimed by this agent, whose launch `exit` below
     // then cuts in the middle — a claimed row with no CR, on every rollout.
     claimLoop.stop();
+    pruneLoop.stop();
     await stopServer();
 
     // Before exit, not after: `process.exit` would take the queue with it, and
