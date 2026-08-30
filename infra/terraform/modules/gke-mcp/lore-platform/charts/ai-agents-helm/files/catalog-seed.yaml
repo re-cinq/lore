@@ -192,6 +192,21 @@ spec:
       that spec's `| Status |` header row in the same branch (Draft ->
       Implemented/Shipped) so the status never lags the code
 
+
+    DELIVERY, NON-NEGOTIABLE — the next step runs in a DIFFERENT container:
+    - When the work is done, `git add` what you changed and commit it with a
+      short, factual message. Then `git push origin HEAD`. The clone carries
+      its own credentials, so a plain push authenticates; you need no token
+      and must never look for one.
+    - Confirm it landed: `git status` must report the branch is not ahead of
+      its upstream. An unpushed commit lives only in this container and
+      dies with it — do NOT report success for one.
+    - If you genuinely changed nothing, say why and end your final message
+      with the line `LORE_NODE_RESULT: {"outcome":"failed"}` so the line does
+      not validate an empty branch.
+    - Do not open a pull request: you have no `gh` and no GitHub token. Lore
+      opens the PR from the branch you push.
+
     Spec: {description}
 
 {{- if .Values.loreMcpUrl }}
@@ -299,6 +314,21 @@ spec:
       that spec's `| Status |` header row in the same branch (Draft ->
       Implemented/Shipped) so the status never lags the code
 
+
+    DELIVERY, NON-NEGOTIABLE — the next step runs in a DIFFERENT container:
+    - When the work is done, `git add` what you changed and commit it with a
+      short, factual message. Then `git push origin HEAD`. The clone carries
+      its own credentials, so a plain push authenticates; you need no token
+      and must never look for one.
+    - Confirm it landed: `git status` must report the branch is not ahead of
+      its upstream. An unpushed commit lives only in this container and
+      dies with it — do NOT report success for one.
+    - If you genuinely changed nothing, say why and end your final message
+      with the line `LORE_NODE_RESULT: {"outcome":"failed"}` so the line does
+      not validate an empty branch.
+    - Do not open a pull request: you have no `gh` and no GitHub token. Lore
+      opens the PR from the branch you push.
+
     Ticket: {description}
 
 {{- if .Values.loreMcpUrl }}
@@ -387,7 +417,19 @@ spec:
     - A comment you disagree with is still an answer you owe: make the
       change, or leave the code as it is and say plainly why, so the
       reviewer reads a reason rather than silence.
-    - Do not commit or push — the next step in the line does that.
+    DELIVERY, NON-NEGOTIABLE — the next step runs in a DIFFERENT container:
+    - When the work is done, `git add` what you changed and commit it with a
+      short, factual message. Then `git push origin HEAD`. The clone carries
+      its own credentials, so a plain push authenticates; you need no token
+      and must never look for one.
+    - Confirm it landed: `git status` must report the branch is not ahead of
+      its upstream. An unpushed commit lives only in this container and
+      dies with it — do NOT report success for one.
+    - If you genuinely changed nothing, say why and end your final message
+      with the line `LORE_NODE_RESULT: {"outcome":"failed"}` so the line does
+      not validate an empty branch.
+    - Do not open a pull request: you have no `gh` and no GitHub token. Lore
+      opens the PR from the branch you push.
 
     Original specification: {description}
 
