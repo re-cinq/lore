@@ -137,7 +137,9 @@ describe("unclaimedDetail", () => {
           [agent("central", CENTRAL_TAGS), agent("satellite", ["node:agent"])],
         ),
       }),
-    ).toContain("2 capable cluster-agents (central, satellite) were active");
+    ).toContain(
+      "2 capable cluster-agents (central, satellite) were active but did not claim it; they may be wedged",
+    );
   });
 
   it("says so plainly when the registry is empty", () => {

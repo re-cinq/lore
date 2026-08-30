@@ -62,7 +62,7 @@ A fourth gap sits underneath the "wait until the PR has no outstanding comments"
   and two full implementations to reach a `lore:blocked` label, and the driver
   re-armed straight into the next one (#1648, #1650, #1647, #1634, #1629). The
   queue-timeout class is `unclaimed` and permanent (6-dark-factory FR6.56), so
-  the run now fails once, naming the cluster that was switched off. ([validated by an unclaimed validate fails the run instead of re-launching implement](../../libs/assembly-lines/src/transition.test.ts#L542), [validated by the reason names the paused cluster, not the spent budget](../../libs/assembly-lines/src/transition.test.ts#L548), [validated by a genuine validate failure still routes back to implement](../../libs/assembly-lines/src/transition.test.ts#L562), [validated by the run fails once and implement is never re-dispatched](../../apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L1229))
+  the run now fails once, naming the cluster that was switched off. ([validated by fails the run instead of re-launching implement](../../libs/assembly-lines/src/transition.test.ts#L542), [validated by reports the paused cluster as the cause, not the spent retry budget](../../libs/assembly-lines/src/transition.test.ts#L548), [validated by still routes a genuine validate failure back to implement](../../libs/assembly-lines/src/transition.test.ts#L562), [validated by fails the run once and never re-dispatches implement](../../apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L1253))
 - A node dispatched after a failure is TOLD what failed. The retried agent
   receives the failing step's name and its own output appended to the prompt,
   under a heading naming it as the previous step's failure. Without it the

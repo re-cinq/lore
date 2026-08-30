@@ -104,7 +104,9 @@ function becauseOf(verdict: CapacityVerdict): string {
       const noun = count === 1 ? "cluster-agent" : "cluster-agents";
       const verb = count === 1 ? "was" : "were";
 
-      return `${count} capable ${noun} (${names}) ${verb} active but did not claim it; it may be wedged`;
+      const they = count === 1 ? "it" : "they";
+
+      return `${count} capable ${noun} (${names}) ${verb} active but did not claim it; ${they} may be wedged`;
     }
   }
 }

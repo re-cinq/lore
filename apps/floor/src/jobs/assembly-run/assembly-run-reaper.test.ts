@@ -720,6 +720,30 @@ describe("the sweep's claim-lifecycle arms", () => {
     );
   });
 
+  it("reads the registry AFTER the offline sweep, so a just-dead cluster reads offline, not wedged", async () => {
+    // The offline sweep MUTATES the registry (`markOffline` flips active →
+    // offline) and the queue-timeout message is read from it. Reading first
+    // reports the agent that just died as "capable ... it may be wedged" — the
+    // one sentence whose whole job is to say which of those it was.
+    const h = harness();
+    const id = await runningRow(h);
+
+    h.registry.agents = [clusterAgent("central", ["node:review"])];
+    h.deps.offlineClusterAgents = async () => {
+      h.registry.agents = h.registry.agents.map((agent) => ({
+        ...agent,
+        status: "offline" as const,
+      }));
+
+      return new Set(h.registry.agents.map((agent) => agent.id));
+    };
+    await queuedRow(h, id, 45, ["node:review"]);
+    await assemblyLineReaperJob(h.deps);
+
+    expect(h.port.nodes[0]?.failureDetail).toContain("central (offline)");
+    expect(h.port.nodes[0]?.failureDetail).not.toContain("wedged");
+  });
+
   it("bounds the wait by the injected queueWaitMs rather than the ambient env", async () => {
     const h = harness();
     const id = await runningRow(h);

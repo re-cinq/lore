@@ -232,8 +232,16 @@ export async function assemblyLineReaperJob(
   const open = await deps.assemblyRuns.listOpen();
   const nowMs = (deps.now?.() ?? new Date()).getTime();
   const queueWaitMs = deps.queueWaitMs ?? stationQueueWaitMs();
-  // One read per sweep, not one per stranded row: every queue-timeout in this
-  // tick is explained by the same registry.
+  const centralClusterAgentId = await deps.centralClusterAgentId();
+  const offlineAgents =
+    (await deps.offlineClusterAgents?.(
+      new Date(nowMs - OFFLINE_THRESHOLD_MS),
+    )) ?? new Set<string>();
+  // AFTER the offline sweep, which MUTATES what this reads: `markOffline` flips
+  // a silent agent active -> offline, and reading first would report a cluster
+  // that just died as "capable ... it may be wedged" — the one sentence whose
+  // whole job is to say which of those it was. One read per sweep, not one per
+  // stranded row: every queue-timeout in this tick has the same explanation.
   const clusterAgents = (await deps.listClusterAgents?.()) ?? [];
   const whyUnclaimed = (requiredTags: string[]): string =>
     unclaimedDetail({
@@ -241,11 +249,6 @@ export async function assemblyLineReaperJob(
       waitMinutes: queueWaitMs / MINUTE_MS,
       verdict: capacityFor(requiredTags, clusterAgents),
     });
-  const centralClusterAgentId = await deps.centralClusterAgentId();
-  const offlineAgents =
-    (await deps.offlineClusterAgents?.(
-      new Date(nowMs - OFFLINE_THRESHOLD_MS),
-    )) ?? new Set<string>();
   let resolved = 0;
   let requeued = 0;
   let timedOut = 0;
