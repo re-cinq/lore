@@ -24,6 +24,10 @@ export interface PrReadyCheckDeps {
   /** The PR's head sha — the ref ciConclusion is asked about. */
   getPrHeadSha(repo: string, number: number): Promise<string | null>;
   ciConclusion(repo: string, ref: string): Promise<CiConclusion>;
+  /** Does this repo run checks at all? Asked of the DEFAULT branch, which is a
+   *  repo fact rather than a clock — it tells `none` on a head sha apart from
+   *  `none` on a repo with no CI. */
+  hasCiHistory(repo: string): Promise<boolean>;
   listReviewThreads(repo: string, number: number): Promise<ReviewThread[]>;
   /** Open runs of the PR-review family for this PR — "the address round-trip
    *  is still in flight" signal. */
@@ -86,10 +90,19 @@ export async function prReadyCheckSweep(
         );
         continue;
       }
+      const [ci, threads, openReviewRunCount, hasCiHistory] = await Promise.all(
+        [
+          deps.ciConclusion(run.repo, headSha),
+          deps.listReviewThreads(run.repo, prNumber),
+          deps.countOpenReviewRuns(run.repo, prNumber),
+          deps.hasCiHistory(run.repo),
+        ],
+      );
       const verdict = decidePrReady({
-        ci: await deps.ciConclusion(run.repo, headSha),
-        threads: await deps.listReviewThreads(run.repo, prNumber),
-        openReviewRunCount: await deps.countOpenReviewRuns(run.repo, prNumber),
+        ci,
+        threads,
+        openReviewRunCount,
+        hasCiHistory,
       });
       const target: ParkedTarget = {
         lineId: run.id,
@@ -152,6 +165,15 @@ export async function prReadyCheckJob(): Promise<string> {
       (await (await projectOf(repo)).pulls.get(number))?.headSha ?? null,
     ciConclusion: async (repo, ref) =>
       (await projectOf(repo)).pulls.ciConclusion(ref),
+    hasCiHistory: async (repo) => {
+      const project = await projectOf(repo);
+
+      return (
+        (await project.pulls.ciConclusion(
+          await project.repo.defaultBranch(),
+        )) !== "none"
+      );
+    },
     listReviewThreads: async (repo, number) =>
       (await projectOf(repo)).pulls.listReviewThreads(number),
     countOpenReviewRuns: async (repo, number) =>
