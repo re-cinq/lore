@@ -43,6 +43,7 @@ function deps(overrides: Partial<PrReadyCheckDeps> = {}) {
       { nodeId: "await-pr", iteration: 1, outcome: null },
     ],
     getPrHeadSha: async () => "deadbeef",
+    hasCiHistory: async () => true,
     ciConclusion: async () => "success",
     listReviewThreads: async () => [],
     countOpenReviewRuns: async () => 0,
@@ -89,6 +90,30 @@ describe("prReadyCheckSweep", () => {
 
     expect(d.reported).toEqual([]);
     expect(summary).toBe("checked 1, resumed 0, blocked 0, waiting 1");
+  });
+
+  it("reports nothing when a CI-running repo has no checks yet for the head sha", async () => {
+    // The push-to-first-check window. Resuming here passed a build nobody ran.
+    const d = deps({
+      ciConclusion: async () => "none",
+      hasCiHistory: async () => true,
+    });
+
+    const summary = await prReadyCheckSweep(d.deps);
+
+    expect(d.reported).toEqual([]);
+    expect(summary).toBe("checked 1, resumed 0, blocked 0, waiting 1");
+  });
+
+  it("resumes a repo that runs no checks at all, so it cannot wedge its loop", async () => {
+    const d = deps({
+      ciConclusion: async () => "none",
+      hasCiHistory: async () => false,
+    });
+
+    const summary = await prReadyCheckSweep(d.deps);
+
+    expect(summary).toBe("checked 1, resumed 1, blocked 0, waiting 0");
   });
 
   it("waits on unresolved threads while a review-family run is open", async () => {
