@@ -72,14 +72,28 @@ describe("handleLoopRunClosed", () => {
     expect(comments).toEqual([]);
   });
 
-  it("labels lore:blocked and comments when await-pr resumed changes_requested", async () => {
-    const { d, labeled, comments, ticks } = deps("changes_requested");
+  it("labels lore:blocked and comments when await-pr resumed failed", async () => {
+    // `failed` on the wait = review threads the address round-trip did not
+    // clear. That is the terminal one a human owns.
+    const { d, labeled, comments, ticks } = deps("failed");
 
     await handleLoopRunClosed(run(), "completed", undefined, d);
 
     expect(labeled).toEqual([{ number: 7, label: "lore:blocked" }]);
     expect(comments).toHaveLength(1);
     expect(comments[0]?.body).toContain("https://gh/pr/12");
+    expect(ticks).toEqual(["acme/widgets"]);
+  });
+
+  it("does not block a ticket whose red build was repaired", async () => {
+    // changes_requested on the wait is TRANSIENT now — it routes to fix-ci and
+    // the line returns to the wait. Blocking on it would have blocked every
+    // ticket whose CI went red once and was then fixed.
+    const { d, labeled, ticks } = deps("changes_requested");
+
+    await handleLoopRunClosed(run(), "completed", undefined, d);
+
+    expect(labeled).toEqual([]);
     expect(ticks).toEqual(["acme/widgets"]);
   });
 

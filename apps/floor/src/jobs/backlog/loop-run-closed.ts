@@ -81,11 +81,16 @@ async function blockedReasonFor(
     .filter((n) => prReviewIds.has(n.nodeId))
     .at(-1);
 
-  if (awaitPr?.outcome === "changes_requested") {
+  // `changes_requested` on the wait is now TRANSIENT — it routes to fix-ci and
+  // the line comes back to the wait. Only `failed` is terminal for a human:
+  // review threads the address round-trip did not clear. Keying on
+  // changes_requested here would have blocked every ticket whose build was red
+  // once and then fixed.
+  if (awaitPr?.outcome === "failed") {
     const detail =
       typeof run.args.reason === "string" ? ` (${run.args.reason})` : "";
 
-    return `the pull request was not ready${detail}: it is red, or review threads stayed unresolved after the address round-trip`;
+    return `the pull request was not ready${detail}: review threads stayed unresolved after the address round-trip`;
   }
 
   return null;

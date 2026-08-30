@@ -38,9 +38,11 @@ function loopHarness() {
 async function parkedOnPr(h: ReturnType<typeof loopHarness>) {
   const id = await h.start("implementation-loop", { taskId: "task-1" });
 
-  await h.completeAgentNode(id, "implement", { outcome: "success" });
+  await h.completeAgentNode(id, "dod", { outcome: "success" });
+  await h.completeAgentNode(id, "open-pr", { outcome: "success" });
+  await h.completeAgentNode(id, "tdd-round", { outcome: "success" });
   await h.completeAgentNode(id, "validate", { outcome: "success" });
-  await h.completeAgentNode(id, "push", { outcome: "success" });
+  await h.completeAgentNode(id, "ready-for-review", { outcome: "success" });
 
   return id;
 }
@@ -57,21 +59,66 @@ async function retrospectiveReported(
 }
 
 describe("implementation-loop acceptance: one ticket, cluster-free", () => {
-  it("walks implement, validate, push and parks on the PR with no CR dispatched for it", async () => {
+  it("walks the ticket to the PR and parks there with no CR dispatched for the wait", async () => {
     const h = loopHarness();
     const id = await parkedOnPr(h);
 
     expect(h.enqueued.map((s) => s.name)).toEqual([
-      `${short(id)}-implement`,
+      `${short(id)}-dod`,
+      `${short(id)}-open-pr`,
+      `${short(id)}-tdd-round`,
       `${short(id)}-validate`,
-      `${short(id)}-push`,
+      `${short(id)}-ready-for-review`,
     ]);
     expect(h.visits()).toEqual([
-      ["implement", "success"],
+      ["dod", "success"],
+      ["open-pr", "success"],
+      ["tdd-round", "success"],
       ["validate", "success"],
-      ["push", "success"],
+      ["ready-for-review", "success"],
       ["await-pr", null],
     ]);
+  });
+
+  it("loops a round that reports work remaining, then leaves on success", async () => {
+    const h = loopHarness();
+    const id = await h.start("implementation-loop", { taskId: "task-1" });
+
+    await h.completeAgentNode(id, "dod", { outcome: "success" });
+    await h.completeAgentNode(id, "open-pr", { outcome: "success" });
+    await h.completeAgentNode(id, "tdd-round", {
+      outcome: "changes_requested",
+    });
+    await h.completeAgentNode(id, "tdd-round", {
+      outcome: "changes_requested",
+      iteration: 2,
+    });
+    await h.completeAgentNode(id, "tdd-round", {
+      outcome: "success",
+      iteration: 3,
+    });
+
+    expect(h.enqueued.map((s) => s.name)).toEqual([
+      `${short(id)}-dod`,
+      `${short(id)}-open-pr`,
+      `${short(id)}-tdd-round`,
+      `${short(id)}-tdd-round-2`,
+      `${short(id)}-tdd-round-3`,
+      // Leaving the loop: the successful round routes on to validate, numbered
+      // past the run's highest recorded iteration rather than restarting at 1.
+      `${short(id)}-validate-3`,
+    ]);
+  });
+
+  it("sends a red build to fix-ci and back to the wait, without blocking the ticket", async () => {
+    const h = loopHarness();
+    const id = await parkedOnPr(h);
+
+    await h.resume(id, "await-pr", "changes_requested", { reason: "ci_red" });
+    await h.completeAgentNode(id, "fix-ci", { outcome: "success" });
+
+    expect(h.visits().at(-1)).toEqual(["await-pr", null]);
+    expect(h.labeled).toEqual([]);
   });
 
   it("completes the run and re-arms the repo tick when the PR reports green", async () => {
@@ -89,11 +136,11 @@ describe("implementation-loop acceptance: one ticket, cluster-free", () => {
     expect(h.labeled).toEqual([]);
   });
 
-  it("marks the ticket blocked and still re-arms when the PR stays not-ready", async () => {
+  it("marks the ticket blocked and still re-arms when review threads stay unresolved", async () => {
     const h = loopHarness();
     const id = await parkedOnPr(h);
 
-    await h.resume(id, "await-pr", "changes_requested");
+    await h.resume(id, "await-pr", "failed", { reason: "unresolved_threads" });
     await retrospectiveReported(h, id);
 
     expect(h.labeled).toEqual([{ issue: 77, label: "lore:blocked" }]);
@@ -103,23 +150,23 @@ describe("implementation-loop acceptance: one ticket, cluster-free", () => {
     expect(h.ticks).toEqual(["re-cinq/lore"]);
   });
 
-  it("retries implement once, fails the run on the second failure, and blocks the ticket", async () => {
+  it("retries the definition of done once, then fails the run and blocks the ticket", async () => {
     const h = loopHarness();
     const id = await h.start("implementation-loop", { taskId: "task-1" });
 
-    await h.completeAgentNode(id, "implement", {
+    await h.completeAgentNode(id, "dod", {
       outcome: "failed",
       phase: "Failed",
     });
-    await h.completeAgentNode(id, "implement", {
+    await h.completeAgentNode(id, "dod", {
       outcome: "failed",
       phase: "Failed",
       iteration: 2,
     });
 
     expect(h.enqueued.map((s) => s.name)).toEqual([
-      `${short(id)}-implement`,
-      `${short(id)}-implement-2`,
+      `${short(id)}-dod`,
+      `${short(id)}-dod-2`,
     ]);
     expect((await h.runs.getById(id))?.outcome).toBe("iteration_max");
     expect(h.labeled).toEqual([{ issue: 77, label: "lore:blocked" }]);
@@ -142,12 +189,12 @@ describe("implementation-loop acceptance: a boot crash is not worth a retry", ()
     const h = loopHarness();
     const id = await h.start("implementation-loop", { taskId: "task-1" });
 
-    await h.completeAgentNode(id, "implement", {
+    await h.completeAgentNode(id, "dod", {
       output: bootCrash,
       phase: "Failed",
     });
 
-    expect(h.enqueued.map((s) => s.name)).toEqual([`${short(id)}-implement`]);
+    expect(h.enqueued.map((s) => s.name)).toEqual([`${short(id)}-dod`]);
     expect(await h.runs.getById(id)).toMatchObject({
       status: "failed",
       outcome: "error",
@@ -156,6 +203,13 @@ describe("implementation-loop acceptance: a boot crash is not worth a retry", ()
     expect(h.labeled).toEqual([{ issue: 77, label: "lore:blocked" }]);
   });
 });
+
+/** Walk far enough that `validate` is the node awaiting a claim. */
+async function reachValidate(h: ReturnType<typeof loopHarness>, id: string) {
+  await h.completeAgentNode(id, "dod", { outcome: "success" });
+  await h.completeAgentNode(id, "open-pr", { outcome: "success" });
+  await h.completeAgentNode(id, "tdd-round", { outcome: "success" });
+}
 
 describe("implementation-loop acceptance: the dispatch tier", () => {
   // The half no test reached until now. `unclaimed -> fail once` was covered by
@@ -166,7 +220,7 @@ describe("implementation-loop acceptance: the dispatch tier", () => {
     const h = loopHarness();
     const id = await h.start("implementation-loop", { taskId: "task-1" });
 
-    await h.completeAgentNode(id, "implement", { outcome: "success" });
+    await reachValidate(h, id);
     await h.pause("central");
 
     expect(await h.claimAs("central")).toBeNull();
@@ -187,20 +241,22 @@ describe("implementation-loop acceptance: the dispatch tier", () => {
     expect(h.labeled).toEqual([{ issue: 77, label: "lore:blocked" }]);
   });
 
-  it("with central active, validate is claimed by it and the walk reaches push", async () => {
+  it("with central active, validate is claimed by it and the walk reaches review", async () => {
     const h = loopHarness();
     const id = await h.start("implementation-loop", { taskId: "task-1" });
 
-    await h.completeAgentNode(id, "implement", { outcome: "success" });
+    await reachValidate(h, id);
 
     expect(await h.claimAs("central")).toMatchObject({ nodeId: "validate" });
 
     await h.completeAgentNode(id, "validate", { outcome: "success" });
 
     expect(h.enqueued.map((s) => s.name)).toEqual([
-      `${short(id)}-implement`,
+      `${short(id)}-dod`,
+      `${short(id)}-open-pr`,
+      `${short(id)}-tdd-round`,
       `${short(id)}-validate`,
-      `${short(id)}-push`,
+      `${short(id)}-ready-for-review`,
     ]);
   });
 
@@ -209,7 +265,7 @@ describe("implementation-loop acceptance: the dispatch tier", () => {
     const h = loopHarness();
     const id = await h.start("implementation-loop", { taskId: "task-1" });
 
-    await h.completeAgentNode(id, "implement", { outcome: "success" });
+    await reachValidate(h, id);
     await h.pause("central");
 
     expect(await h.claimAs("satellite")).toBeNull();

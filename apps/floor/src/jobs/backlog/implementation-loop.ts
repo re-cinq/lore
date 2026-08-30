@@ -119,7 +119,11 @@ async function tickRepo(repo: string, deps: LoopTickDeps): Promise<void> {
       github_issue_number: picked.number,
       ...(picked.url ? { github_issue_url: picked.url } : {}),
       branch,
-      ...(resume.resume ? { line_args: resume.lineArgs } : {}),
+      // The LINE declares it wants a draft PR; the Floor's decidePrDraft only
+      // reads the flag, so it never learns which blueprints want one. A draft
+      // gets no Lore code review, which is what stops twelve round-pushes
+      // triggering twelve reviews.
+      line_args: { pr_draft: true, ...(resume.resume ? resume.lineArgs : {}) },
     },
   });
 

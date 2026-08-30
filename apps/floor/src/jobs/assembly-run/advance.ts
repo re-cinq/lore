@@ -20,7 +20,7 @@ import {
   type NodeResult,
   type StageOutcome,
 } from "@re-cinq/lore-assembly-lines";
-import { resolveRunGraph } from "@re-cinq/lore-assembly-lines";
+import { resolveRunGraph, selectEdge } from "@re-cinq/lore-assembly-lines";
 import type { RunGraphNode } from "@re-cinq/lore-shared/project/assembly-runs/run-graph.js";
 import { nodeStationFor } from "@re-cinq/lore-stations";
 
@@ -54,6 +54,7 @@ import {
   type ResolveConversationFn,
 } from "./launch-spec.js";
 import {
+  decideMarkReady,
   decidePrStamp,
   decideStampFailure,
   emptyBranchReason,
@@ -176,6 +177,9 @@ export interface AdvanceDeps {
    *  does it: the push recipe defers to a watcher that ignores assembly-line CRs.
    *  Optional seam, same as notifyFailure. */
   stampPr?: (assemblyRun: AssemblyRunRecord) => Promise<void>;
+  /** Update the run's PR from its description artifact and take it out of
+   *  draft. Floor-side because the pod has no `gh` and no GitHub token. */
+  markPrReady?: (assemblyRun: AssemblyRunRecord) => Promise<void>;
 }
 
 /** A walk that reached exit still failed as a whole when a node failed on the way
@@ -531,6 +535,12 @@ export async function finishNodeAndAdvance(
   // delivery closed the node and then died before advancing.
   if (closedHere) {
     await maybeStampPr(input.assemblyLineId, input.nodeId, input.result, deps);
+    await maybeMarkPrReady(
+      input.assemblyLineId,
+      input.nodeId,
+      input.result,
+      deps,
+    );
     await reactToNodeFinished(
       input.assemblyLineId,
       input.nodeId,
@@ -601,6 +611,47 @@ async function reactToNodeFinished(
  *  is failed with a reason instead, which `advanceLine` then declines to walk
  *  (it only advances a `running` row) and `settleTask` puts in front of the
  *  author. */
+/** Flip the run's PR out of draft when the step it just finished hands off to
+ *  the human wait. Never fails the run: a PR left in draft is a run parked for
+ *  a human, which is recoverable; failing here would discard finished work. */
+async function maybeMarkPrReady(
+  assemblyLineId: string,
+  nodeId: string,
+  result: NodeResult,
+  deps: AdvanceDeps,
+): Promise<void> {
+  if (!deps.markPrReady) {
+    return;
+  }
+  const assemblyRun = await deps.assemblyRuns.getById(assemblyLineId);
+
+  if (!assemblyRun) {
+    return;
+  }
+
+  try {
+    const graph = await resolveRunGraph(assemblyRun, deps.definitions);
+    const node = graph?.nodes.find((n) => n.id === nodeId);
+    const next = node
+      ? selectEdge(graph!, nodeId, result.outcome)?.to
+      : undefined;
+
+    if (
+      !decideMarkReady({
+        outcome: result.outcome,
+        nextNodeType: graph?.nodes.find((n) => n.id === next)?.type,
+        args: assemblyRun.args,
+      })
+    ) {
+      return;
+    }
+
+    await deps.markPrReady(assemblyRun);
+  } catch (err) {
+    console.error("[spec-pr] mark-ready failed:", (err as Error).message);
+  }
+}
+
 async function maybeStampPr(
   assemblyLineId: string,
   nodeId: string,

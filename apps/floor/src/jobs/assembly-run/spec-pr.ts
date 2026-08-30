@@ -89,6 +89,24 @@ export function decidePrDraft(args: Record<string, unknown>): boolean {
   return args.pr_draft === true;
 }
 
+/** Whether the node that just finished hands its PR to a human.
+ *
+ *  Keyed on the DESTINATION node's TYPE, not on a node id: the `pr_merged` join
+ *  died of exactly that rename (FR6.32), and "the step before the wait" is what
+ *  this means regardless of what the wait is called. A run with no PR has
+ *  nothing to flip. */
+export function decideMarkReady(input: {
+  outcome: string | null;
+  nextNodeType: string | undefined;
+  args: Record<string, unknown>;
+}): boolean {
+  return (
+    input.outcome === "success" &&
+    input.nextNodeType === "pr_review" &&
+    typeof input.args.pr_number === "number"
+  );
+}
+
 /** The surface this writes through — a narrow, repo-bound slice of `project`, so a
  *  caller passes `project.pulls` and `project.features` straight in. */
 export interface SpecPrPorts {

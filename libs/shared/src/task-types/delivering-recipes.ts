@@ -14,6 +14,12 @@ export const DELIVERING_PROMPT_REFS = [
   "implementation-tdd",
   "implementation",
   "address-feedback",
+  // The TDD line's four: every one of them ends by committing and pushing,
+  // because every one of them runs in its own pod with a fresh clone.
+  "acceptance-dod",
+  "tdd-round",
+  "fix-ci",
+  "pr-ready",
 ] as const;
 
 export function isDeliveringRecipe(

@@ -1248,9 +1248,9 @@ describe("a claimed single-CR visit the sweep must NOT own", () => {
 describe("the implementation loop's unclaimed validate node", () => {
   // The 2026-08-29 incident end to end, on the REAL blueprint: implement
   // succeeded on the satellite, validate needed a tag only the paused `central`
-  // offered, and the walk answered by re-running implement for another 25
+  // offered, and the walk answered by re-running the agent node for another 25
   // minutes before reporting the exhausted edge budget as the cause.
-  it("fails the run once and never re-dispatches implement", async () => {
+  it("fails the run once and never re-dispatches the round", async () => {
     const h = harness();
     const builtins = await loadBuiltinAssemblyLines();
 
@@ -1269,16 +1269,20 @@ describe("the implementation loop's unclaimed validate node", () => {
     });
 
     await h.port.markRunning(id);
-    // implement ran and passed; the walk then parks validate on the queue.
-    const implement = await h.port.ensureStationRun({
-      assemblyRunId: id,
-      nodeId: "implement",
-      iteration: 1,
-      agentCrName: `${id.substring(0, 12)}-implement`,
-    });
 
-    await h.port.finishStationRunOnce(implement.nodeRowId, "success");
-    await advanceLine(id, h.deps);
+    // Walk to the node before validate: a round ran and passed, and the walk
+    // then parks validate on the queue.
+    for (const nodeId of ["dod", "open-pr", "tdd-round"]) {
+      const row = await h.port.ensureStationRun({
+        assemblyRunId: id,
+        nodeId,
+        iteration: 1,
+        agentCrName: `${id.substring(0, 12)}-${nodeId}`,
+      });
+
+      await h.port.finishStationRunOnce(row.nodeRowId, "success");
+      await advanceLine(id, h.deps);
+    }
 
     expect(h.port.nodes.at(-1)).toMatchObject({
       nodeId: "validate",
@@ -1300,11 +1304,13 @@ describe("the implementation loop's unclaimed validate node", () => {
       reason: expect.stringContaining("central (paused)"),
     });
     expect(h.port.nodes.map((n) => `${n.nodeId}:${n.iteration}`)).toEqual([
-      "implement:1",
+      "dod:1",
+      "open-pr:1",
+      "tdd-round:1",
       "validate:1",
     ]);
     expect(h.enqueued.map((spec) => spec.name)).not.toContain(
-      `${id.substring(0, 12)}-implement-2`,
+      `${id.substring(0, 12)}-tdd-round-2`,
     );
   });
 });
