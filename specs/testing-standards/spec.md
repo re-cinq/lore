@@ -33,7 +33,7 @@ both humans and the Lore agent. The decision record is `ADR-018`.
 1. **Test-first by default** — new behaviour is developed via the TDD
    Red-Green-Refactor cycle.
 2. **One runner** — vitest, `globals: true`, node environment.
-3. **Attributable CI** — each subproject's suite runs as its own CI job.
+3. **Attributable CI** — each subproject's suite runs as its own CI job. ([validated by `every package with a vitest.config.ts has a CI job in pr-checks.yml`](../../scripts/check-ci-coverage.test.mjs#L38))
 4. **Fast unit feedback** — unit suites carry no external dependencies;
    anything needing Postgres is an integration test, isolated.
 5. **Behaviour over implementation** — tests describe what code does, survive
