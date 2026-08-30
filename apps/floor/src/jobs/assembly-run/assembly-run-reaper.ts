@@ -28,6 +28,11 @@
 
 import { nodeTimeoutMinutes, stationBudgetFor } from "./node-timeout.js";
 import {
+  capacityFor,
+  unclaimedDetail,
+} from "@re-cinq/lore-shared/project/cluster-agents/capacity.js";
+import type { ClusterAgent } from "@re-cinq/lore-shared/models/cluster-agent.js";
+import {
   isHumanStation,
   type AgentNodeStatus,
 } from "@re-cinq/lore-assembly-lines";
@@ -66,6 +71,17 @@ export interface AssemblyLineReaperDeps extends NodeEventDeps {
    * the pre-claim-path behaviour.
    */
   centralClusterAgentId: () => Promise<string | null>;
+  /**
+   * The registry, read once per sweep so a queue-timeout can say WHY nobody
+   * claimed the row: absent, paused, offline, or up-and-ignoring-it. Optional —
+   * a composition without it reports what an empty registry means, which is
+   * exactly what the sweep knew before it could ask.
+   */
+  listClusterAgents?: () => Promise<ClusterAgent[]>;
+  /** The sweep's clock. Injected so a test can age a queue without sleeping. */
+  now?: () => Date;
+  /** The queue-wait bound, defaulting to {@link stationQueueWaitMs}. */
+  queueWaitMs?: number;
 }
 
 const DEFAULT_CENTRAL_CLUSTER_AGENT_NAME = "central";
@@ -214,13 +230,25 @@ export async function assemblyLineReaperJob(
   deps: AssemblyLineReaperDeps,
 ): Promise<string> {
   const open = await deps.assemblyRuns.listOpen();
-  const nowMs = Date.now();
-  const queueWaitMs = stationQueueWaitMs();
+  const nowMs = (deps.now?.() ?? new Date()).getTime();
+  const queueWaitMs = deps.queueWaitMs ?? stationQueueWaitMs();
   const centralClusterAgentId = await deps.centralClusterAgentId();
   const offlineAgents =
     (await deps.offlineClusterAgents?.(
       new Date(nowMs - OFFLINE_THRESHOLD_MS),
     )) ?? new Set<string>();
+  // AFTER the offline sweep, which MUTATES what this reads: `markOffline` flips
+  // a silent agent active -> offline, and reading first would report a cluster
+  // that just died as "capable ... it may be wedged" — the one sentence whose
+  // whole job is to say which of those it was. One read per sweep, not one per
+  // stranded row: every queue-timeout in this tick has the same explanation.
+  const clusterAgents = (await deps.listClusterAgents?.()) ?? [];
+  const whyUnclaimed = (requiredTags: string[]): string =>
+    unclaimedDetail({
+      requiredTags,
+      waitMinutes: queueWaitMs / MINUTE_MS,
+      verdict: capacityFor(requiredTags, clusterAgents),
+    });
   let resolved = 0;
   let requeued = 0;
   let timedOut = 0;
@@ -266,15 +294,15 @@ export async function assemblyLineReaperJob(
               "failed",
               undefined,
               {
-                failureClass: "infra",
+                failureClass: "unclaimed",
                 // Naming the tags is the point, exactly as on the graph arm.
-                failureDetail: `no registered cluster-agent claimed this run (required_tags: [${singleCrOpen.requiredTags.join(", ")}]) within ${queueWaitMs / MINUTE_MS}m`,
+                failureDetail: whyUnclaimed(singleCrOpen.requiredTags),
               },
             );
             await finishLine(
               row,
               "error",
-              `no registered cluster-agent claimed this run (required_tags: [${singleCrOpen.requiredTags.join(", ")}])`,
+              whyUnclaimed(singleCrOpen.requiredTags),
               deps,
             );
             queueTimedOut++;
@@ -483,8 +511,11 @@ export async function assemblyLineReaperJob(
             // cluster carries `gpu` must say so, not report a generic timeout.
             result: {
               outcome: "failed",
-              failureClass: "infra",
-              failureDetail: `no registered cluster-agent claimed this run (required_tags: [${openNode.requiredTags.join(", ")}]) within ${queueWaitMs / MINUTE_MS}m`,
+              // `unclaimed`, not `infra`: nothing ran, so re-running the node
+              // BEFORE it cannot change whether a cluster exists to take this
+              // one. The class is what makes the walk refuse the retry.
+              failureClass: "unclaimed",
+              failureDetail: whyUnclaimed(openNode.requiredTags),
             },
           },
           deps,

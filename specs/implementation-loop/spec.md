@@ -48,6 +48,21 @@ A fourth gap sits underneath the "wait until the PR has no outstanding comments"
 - Its nodes are `implement` (agent), `validate`, `push`, `await-pr` (human station of type `pr_review`), `retrospective`, and `done`. ([validated by pr_review park](../../libs/assembly-lines/src/implementation-loop-line.test.ts#L41))
 - The happy path is `implement` to `validate` to `push` to `await-pr` to `retrospective` to `done`. ([validated by finishes at done](../../libs/assembly-lines/src/implementation-loop-line.test.ts#L96))
 - `implement` retries itself once on `failed` via a back-edge with `iteration_max: 1`; `validate` failing routes back to `implement` on its own budget, and that revisit is numbered past the node's highest recorded iteration (`implement` iteration 3 after a self-retry), since `(node, iteration)` is the row identity — numbering per edge reissued iteration 2, the idempotent launch found the finished row, and run 595d2b0b sat `running` with no open node (2026-08-28). A second failure fails the run with outcome `iteration_max` — `getNextTransition` refuses an exhausted back-edge rather than consulting a further `failed` edge, exactly as the existing `implementation` line behaves — and the driver then marks the ticket blocked (FR8); the retrospective is skipped on that path. The terminal reason names the failing node and what it reported — station validation summaries ride `failureDetail`, lifted from the `Lore-Validation-Failed` extras — with the exhausted budget as the closing clause, not the whole story. ([validated by reason names the real failure](../../libs/assembly-lines/src/transition.test.ts#L404), [validated by detail-less visits degrade](../../libs/assembly-lines/src/transition.test.ts#L431), [validated by validation extras lifted](../../libs/assembly-lines/src/node-outcome.test.ts#L296), [validated by second failure fails the run](../../libs/assembly-lines/src/implementation-loop-line.test.ts#L57), [validated by the exhausted retry blocks the ticket](../../apps/floor/src/jobs/assembly-run/implementation-loop-acceptance.test.ts#L106), [validated by a revisit numbers past the highest iteration](../../libs/assembly-lines/src/transition.test.ts#L483), [`transition.test.ts:500`](../../libs/assembly-lines/src/transition.test.ts#L500))
+
+- A `validate` that no cluster ever claimed is NOT a `validate` failure and buys
+  no retry. The back-edge exists so a real lint or typecheck failure can be
+  fixed by the node that caused it; when the station never ran, re-running
+  `implement` cannot change whether a cluster exists to take the next visit.
+  Between 2026-08-28 and 2026-08-29 it did exactly that on five consecutive
+  tickets — `implement` succeeded on the satellite in ~25 minutes, `validate`
+  needed `node:validate`, the only cluster offering it was paused, the reaper
+  failed the visit as retryable `infra`, and the loop spent the budget on a
+  second 25-minute `implement` before waiting out another 30-minute
+  queue-timeout and blaming the exhausted edge. Each ticket cost about two hours
+  and two full implementations to reach a `lore:blocked` label, and the driver
+  re-armed straight into the next one (#1648, #1650, #1647, #1634, #1629). The
+  queue-timeout class is `unclaimed` and permanent (6-dark-factory FR6.56), so
+  the run now fails once, naming the cluster that was switched off. ([validated by fails the run instead of re-launching implement](../../libs/assembly-lines/src/transition.test.ts#L542), [validated by reports the paused cluster as the cause, not the spent retry budget](../../libs/assembly-lines/src/transition.test.ts#L548), [validated by still routes a genuine validate failure back to implement](../../libs/assembly-lines/src/transition.test.ts#L562), [validated by fails the run once and never re-dispatches implement](../../apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L1253))
 - A node dispatched after a failure is TOLD what failed. The retried agent
   receives the failing step's name and its own output appended to the prompt,
   under a heading naming it as the previous step's failure. Without it the

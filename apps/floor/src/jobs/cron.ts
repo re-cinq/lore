@@ -119,6 +119,9 @@ export const assemblyLineReaper: EventHandler = async () => {
       );
     },
     audit: (entry) => writeAuditLog(entry),
+    // What the queue-timeout message reads to name the cluster that could have
+    // taken the work and did not — paused, offline, or never registered.
+    listClusterAgents: () => clusterAgents().list(),
     centralClusterAgentId: async () =>
       (await clusterAgents().findByName(centralClusterAgentName()))?.id ?? null,
   });

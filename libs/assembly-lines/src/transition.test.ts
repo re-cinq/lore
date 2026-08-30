@@ -512,3 +512,67 @@ describe("getNextTransition — a revisit numbers past every prior visit", () =>
     });
   });
 });
+
+describe("an unclaimed node on the real implementation-loop blueprint", () => {
+  // The 2026-08-29 incident, replayed: `validate` needed `node:validate`, the
+  // only cluster offering it was paused, and the reaper failed the visit. The
+  // walk then spent the validate->implement budget re-running a 25-minute
+  // implement node — which could not change whether a cluster existed — waited
+  // out a second queue-timeout, and reported the exhausted edge as the cause.
+  const unclaimedValidate = async (): Promise<NodeVisit[]> => [
+    { nodeId: "implement", iteration: 1, outcome: "success" },
+    {
+      nodeId: "validate",
+      iteration: 1,
+      outcome: "failed",
+      failureClass: "unclaimed",
+      failureDetail:
+        "no cluster-agent claimed this run (required_tags: [node:validate]) within 30m — every cluster-agent offering [node:validate] is unavailable: central (paused)",
+    },
+  ];
+
+  const implementationLoop = async (): Promise<AssemblyLine> => {
+    const line = (await loadBuiltinAssemblyLines()).get("implementation-loop");
+
+    expect(line).toBeDefined();
+
+    return line!;
+  };
+
+  it("fails the run instead of re-launching implement", async () => {
+    expect(
+      getNextTransition(await implementationLoop(), await unclaimedValidate()),
+    ).toMatchObject({ kind: "fail", outcome: "error" });
+  });
+
+  it("reports the paused cluster as the cause, not the spent retry budget", async () => {
+    const transition = getNextTransition(
+      await implementationLoop(),
+      await unclaimedValidate(),
+    );
+
+    expect(transition.kind === "fail" && transition.reason).toContain(
+      "central (paused)",
+    );
+    expect(transition.kind === "fail" && transition.reason).not.toContain(
+      "retry budget",
+    );
+  });
+
+  it("still routes a genuine validate failure back to implement", async () => {
+    // The suppression is scoped to the class, not to the edge: a validate that
+    // actually ran and found lint errors must still buy its one retry.
+    expect(
+      getNextTransition(await implementationLoop(), [
+        { nodeId: "implement", iteration: 1, outcome: "success" },
+        {
+          nodeId: "validate",
+          iteration: 1,
+          outcome: "failed",
+          failureClass: "unknown",
+          failureDetail: 'Lore-Validation-Failed: "lint"',
+        },
+      ]),
+    ).toEqual({ kind: "launch", nodeId: "implement", iteration: 2 });
+  });
+});

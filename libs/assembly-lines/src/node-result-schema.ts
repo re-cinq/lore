@@ -15,20 +15,14 @@
 
 import { z } from "zod";
 import type { NodeResult } from "./node-types.js";
+import { FAILURE_CATEGORIES } from "@re-cinq/lore-shared/error-classify.js";
 
 const OUTCOME = z.enum(["success", "changes_requested", "failed"]);
 
-/** Mirrors FailureCategory in @re-cinq/lore-shared/error-classify. */
-const FAILURE_CLASS = z.enum([
-  "anthropic-credit",
-  "anthropic-rate-limit",
-  "github-workflows-permission",
-  "github-permission",
-  "auth",
-  "agent-settings-missing",
-  "infra",
-  "unknown",
-]);
+/** DERIVED from FailureCategory in @re-cinq/lore-shared/error-classify, not
+ *  copied: a mirror drifts the moment a class is added, and zod drops what it
+ *  does not declare — so the drift erases the new class rather than failing. */
+const FAILURE_CLASS = z.enum(FAILURE_CATEGORIES);
 
 /** Every field required, mirroring NodeLlmUsage: a parse DROPS what it does not
  *  declare, so an optional-everything schema would quietly discard a node's

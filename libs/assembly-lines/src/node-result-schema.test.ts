@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { NodeResultSchema } from "./node-result-schema.js";
+import { FAILURE_CATEGORIES } from "@re-cinq/lore-shared/error-classify.js";
 
 /**
  * The NodeResult crosses a process boundary now: a station reporting a node's
@@ -101,5 +102,17 @@ describe("produced args", () => {
     expect(() =>
       NodeResultSchema.parse({ outcome: "success", args: { n: 7 } }),
     ).toThrow();
+  });
+});
+
+describe("the schema mirrors every failure class the platform can produce", () => {
+  // A HAND-COPIED enum drifts the moment a class is added, and the failure is
+  // silent: zod DROPS what it does not declare, so a station reporting the new
+  // class would have its diagnosis erased on the way across. Deriving the enum
+  // from the shared list is what makes this test true by construction.
+  it.each(FAILURE_CATEGORIES)("accepts %s", (category) => {
+    expect(
+      NodeResultSchema.parse({ outcome: "failed", failureClass: category }),
+    ).toMatchObject({ failureClass: category });
   });
 });

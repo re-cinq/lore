@@ -1,12 +1,25 @@
-export type FailureCategory =
-  | "anthropic-credit"
-  | "anthropic-rate-limit"
-  | "github-workflows-permission"
-  | "github-permission"
-  | "auth"
-  | "agent-settings-missing"
-  | "infra"
-  | "unknown";
+/**
+ * Every class the platform can put on a failed node — the ONE list.
+ *
+ * Exported as a runtime array, not just a type, because the shape crosses a
+ * process boundary: `NodeResultSchema` validates a station's reported result and
+ * zod DROPS what its enum does not declare. A hand-copied mirror of this list
+ * therefore erases a class it has not heard of, silently, exactly when a new
+ * class is carrying the diagnosis.
+ */
+export const FAILURE_CATEGORIES = [
+  "anthropic-credit",
+  "anthropic-rate-limit",
+  "github-workflows-permission",
+  "github-permission",
+  "auth",
+  "agent-settings-missing",
+  "infra",
+  "unclaimed",
+  "unknown",
+] as const;
+
+export type FailureCategory = (typeof FAILURE_CATEGORIES)[number];
 
 export interface StepFailure {
   step: string;
@@ -32,6 +45,8 @@ const HINTS: Record<FailureCategory, string> = {
     "The AgentDefinition's skills_source is unreachable, so the init never wrote /agent/.claude/settings.json and Claude Code hard-errored. Verify skills_source on the recipe points at a reachable skills registry (see #1125) — every Claude-agent node on the affected cluster fails identically until it does.",
   infra:
     "The pod died rather than the work failing — a crash, an OOM, an eviction, or a Job deadline. Re-running is the right response; check pod events if it repeats.",
+  unclaimed:
+    "No cluster-agent claimed the run, so nothing ever ran. The clusters offering these tags are named above: check the registry (Clusters page) for one that is paused, offline, or absent. Re-running cannot help until one is active and un-paused.",
   unknown:
     "Unrecognized failure — see the Event Timeline metadata and agent pod logs.",
 };
@@ -120,6 +135,7 @@ const CATEGORY_LABELS: Record<FailureCategory, string> = {
   "agent-settings-missing":
     "Agent settings file missing (skills_source unreachable)",
   infra: "Pod or Job infrastructure failure",
+  unclaimed: "No cluster-agent claimed the run",
   unknown: "Unknown error",
 };
 
@@ -131,9 +147,16 @@ const CATEGORY_LABELS: Record<FailureCategory, string> = {
  * `anthropic-rate-limit` is deliberately absent — a later attempt genuinely can
  * succeed. So are `infra` and `unknown`: a crashed pod is the case the retry
  * budget exists for.
+ *
+ * `unclaimed` IS permanent, and is the one member here that is not about a
+ * credential: no pod ever started, so re-running the PREVIOUS node cannot change
+ * whether a cluster exists to take the next one. Retrying it re-ran a 25-minute
+ * implement node against a paused `central`, waited another 30 minutes, and then
+ * blamed the edge budget (#1648).
  */
 const PERMANENT: ReadonlySet<FailureCategory> = new Set<FailureCategory>([
   "anthropic-credit",
+  "unclaimed",
   "auth",
   "github-permission",
   "github-workflows-permission",
