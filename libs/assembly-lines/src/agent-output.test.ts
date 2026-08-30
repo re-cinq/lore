@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   resultTextFromOutput,
   terminalErrorText,
+  agentStderrError,
   resultLine,
   eventLine,
   unwrapAttribution,
@@ -383,5 +384,73 @@ describe("resultLine LLM usage", () => {
       is_error: false,
       result: 'LORE_NODE_RESULT: {"outcome":"success","extras":{}}',
     });
+  });
+});
+
+describe("agentStderrError", () => {
+  // Byte-for-byte what Agent CR 129235d4-ea2-implement recorded on 2026-08-28.
+  // The engine died before printing a result line, so the ONLY statement of
+  // what happened is the runner's relayed stderr.
+  const bootCrash = [
+    '{"kind":"lifecycle","phase":"agent","status":"started"}',
+    "[agent] Error: Settings file not found: /agent/.claude/settings.json",
+    '{"kind":"lifecycle","exitCode":1,"phase":"agent","status":"failed"}',
+  ].join("\n");
+
+  it("returns the relayed stderr line of a run the lifecycle says failed", () => {
+    expect(agentStderrError(bootCrash)).toBe(
+      "Error: Settings file not found: /agent/.claude/settings.json",
+    );
+  });
+
+  it("returns the LAST relayed line, which is the one that killed it", () => {
+    const output = [
+      '{"kind":"lifecycle","phase":"agent","status":"started"}',
+      "[agent] warming up",
+      "[agent] Error: Settings file not found: /agent/.claude/settings.json",
+      '{"kind":"lifecycle","exitCode":1,"phase":"agent","status":"failed"}',
+    ].join("\n");
+
+    expect(agentStderrError(output)).toBe(
+      "Error: Settings file not found: /agent/.claude/settings.json",
+    );
+  });
+
+  it("says nothing about a run the lifecycle never reported as failed", () => {
+    // The gate that keeps ordinary chatter from being read as a cause.
+    const output = [
+      '{"kind":"lifecycle","phase":"agent","status":"started"}',
+      "[agent] warming up",
+      '{"kind":"lifecycle","exitCode":0,"phase":"agent","status":"succeeded"}',
+    ].join("\n");
+
+    expect(agentStderrError(output)).toBeNull();
+  });
+
+  it("ignores model prose and tool output, reading only the runner's own prefix", () => {
+    // A fetched page quoting "403 Forbidden" must never become the run's cause.
+    const output = [
+      '{"kind":"lifecycle","phase":"agent","status":"started"}',
+      JSON.stringify({ type: "assistant", message: "403 Forbidden somewhere" }),
+      "not a prefixed line either",
+      '{"kind":"lifecycle","exitCode":1,"phase":"agent","status":"failed"}',
+    ].join("\n");
+
+    expect(agentStderrError(output)).toBeNull();
+  });
+
+  it("returns null for empty, absent, or unstructured output", () => {
+    expect(agentStderrError("")).toBeNull();
+    expect(agentStderrError(undefined)).toBeNull();
+    expect(agentStderrError("not json at all")).toBeNull();
+  });
+
+  it("caps the text at 300 chars, like the result-line reader", () => {
+    const output = [
+      `[agent] ${"x".repeat(500)}`,
+      '{"kind":"lifecycle","exitCode":1,"phase":"agent","status":"failed"}',
+    ].join("\n");
+
+    expect(agentStderrError(output)).toHaveLength(300);
   });
 });

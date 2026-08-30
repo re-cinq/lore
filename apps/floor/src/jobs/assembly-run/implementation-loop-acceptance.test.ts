@@ -126,3 +126,33 @@ describe("implementation-loop acceptance: one ticket, cluster-free", () => {
     expect(h.ticks).toEqual(["re-cinq/lore"]);
   });
 });
+
+describe("implementation-loop acceptance: a boot crash is not worth a retry", () => {
+  // Run 129235d4 (2026-08-28) cost two 25-minute implement attempts and ended
+  // `iteration_max`, because the engine died before printing a result line and
+  // the only string the classifier saw was the Job's BackoffLimitExceeded —
+  // `infra`, which is retryable. The pod had said exactly what was wrong.
+  const bootCrash = [
+    '{"kind":"lifecycle","phase":"agent","status":"started"}',
+    "[agent] Error: Settings file not found: /agent/.claude/settings.json",
+    '{"kind":"lifecycle","exitCode":1,"phase":"agent","status":"failed"}',
+  ].join("\n");
+
+  it("fails the run on the first attempt and names the misconfiguration", async () => {
+    const h = loopHarness();
+    const id = await h.start("implementation-loop", { taskId: "task-1" });
+
+    await h.completeAgentNode(id, "implement", {
+      output: bootCrash,
+      phase: "Failed",
+    });
+
+    expect(h.enqueued.map((s) => s.name)).toEqual([`${short(id)}-implement`]);
+    expect(await h.runs.getById(id)).toMatchObject({
+      status: "failed",
+      outcome: "error",
+      reason: expect.stringContaining("Settings file not found"),
+    });
+    expect(h.labeled).toEqual([{ issue: 77, label: "lore:blocked" }]);
+  });
+});

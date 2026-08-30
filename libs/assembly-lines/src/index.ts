@@ -29,6 +29,7 @@ export {
 
 export {
   resultTextFromOutput,
+  agentStderrError,
   terminalErrorText,
   resultLine,
   eventLine,

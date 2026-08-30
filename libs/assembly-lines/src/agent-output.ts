@@ -159,6 +159,70 @@ export function terminalErrorText(output?: string): string | null {
   return null;
 }
 
+/** The runner's relay prefix for the engine's own stderr. */
+const AGENT_STDERR_PREFIX = "[agent] ";
+
+/** True for a lifecycle envelope reporting the agent phase as failed.
+ *
+ *  Parsed here rather than through `parseLine`, which answers only for RESULT
+ *  shapes and so discards a lifecycle envelope entirely. */
+function isFailedLifecycle(line: string): boolean {
+  try {
+    const value: unknown = JSON.parse(line);
+
+    return (
+      typeof value === "object" &&
+      value !== null &&
+      (value as { kind?: unknown }).kind === "lifecycle" &&
+      (value as { status?: unknown }).status === "failed"
+    );
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * The agent's own last words when it never reached a result line.
+ *
+ * `terminalErrorText` reads claude's terminal `is_error` result line, which is
+ * the richest statement of a failure — and does not exist when the engine dies
+ * at BOOT. The pod still says what happened, on the other stream: the runner
+ * relays the engine's stderr as `[agent] …` between lifecycle envelopes. Run
+ * 129235d4 (2026-08-28) printed exactly one such line —
+ * `Error: Settings file not found: /agent/.claude/settings.json` — and because
+ * nothing read it, the classifier fell through to Kubernetes' `BackoffLimit-
+ * Exceeded`, called a permanent misconfiguration retryable `infra`, and spent a
+ * 25-minute implement retry on a fault no retry could clear.
+ *
+ * Two gates keep this from reading ordinary chatter as a cause: the line must
+ * carry the runner's own prefix (model prose and tool results are JSON on their
+ * own lines and never prefixed), and the run must carry a lifecycle envelope
+ * reporting the agent phase FAILED. Bounded like its sibling — this text rides
+ * a CR status and a notification.
+ */
+export function agentStderrError(output?: string): string | null {
+  if (!output) {
+    return null;
+  }
+  const lines = output.split("\n").map((line) => line.trim());
+
+  if (!lines.some(isFailedLifecycle)) {
+    return null;
+  }
+
+  for (let i = lines.length - 1; i >= 0; i--) {
+    if (lines[i].startsWith(AGENT_STDERR_PREFIX)) {
+      const text = lines[i].slice(AGENT_STDERR_PREFIX.length).trim();
+
+      if (text.length > 0) {
+        return text.substring(0, 300);
+      }
+    }
+  }
+
+  return null;
+}
+
 /** True when `text` is already a serialized result line or attribution envelope. */
 function isWrappedAgentOutput(text: string): boolean {
   try {

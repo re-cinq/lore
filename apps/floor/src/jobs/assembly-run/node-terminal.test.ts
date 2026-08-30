@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { stationNodeOutcome } from "@re-cinq/lore-assembly-lines";
 import {
   normalizeAgentStatus,
   postReplyFromNode,
@@ -116,6 +117,56 @@ const findingsText = (verdict: string) =>
   ].join("\n");
 
 describe("normalizeAgentStatus", () => {
+  // Byte-for-byte what Agent CR 129235d4-ea2-implement recorded on 2026-08-28.
+  const bootCrash = [
+    '{"kind":"lifecycle","phase":"agent","status":"started"}',
+    "[agent] Error: Settings file not found: /agent/.claude/settings.json",
+    '{"kind":"lifecycle","exitCode":1,"phase":"agent","status":"failed"}',
+  ].join("\n");
+
+  it("lifts the relayed stderr when the engine died before any result line", () => {
+    expect(
+      normalizeAgentStatus({ phase: "Failed", output: bootCrash }).errorText,
+    ).toBe("Error: Settings file not found: /agent/.claude/settings.json");
+  });
+
+  it("still prefers a real result line over the relayed stderr", () => {
+    const output = [
+      "[agent] noise on the other stream",
+      JSON.stringify({
+        type: "result",
+        is_error: true,
+        result: "Credit balance is too low",
+      }),
+      '{"kind":"lifecycle","exitCode":1,"phase":"agent","status":"failed"}',
+    ].join("\n");
+
+    expect(normalizeAgentStatus({ phase: "Failed", output }).errorText).toBe(
+      "Credit balance is too low",
+    );
+  });
+
+  it("classifies the boot crash as permanent config, not as retryable infra", () => {
+    // The whole chain, at the boundary where it actually runs: run 129235d4
+    // burned a 25-minute implement retry because the Job's BackoffLimitExceeded
+    // was the only string that reached the classifier.
+    expect(
+      stationNodeOutcome(
+        { type: "agent" },
+        normalizeAgentStatus({
+          phase: "Failed",
+          output: bootCrash,
+          failureReason:
+            "BackoffLimitExceeded: Job has reached the specified backoff limit",
+        }),
+      ),
+    ).toMatchObject({
+      failureClass: "agent-settings-missing",
+      failureDetail:
+        "Error: Settings file not found: /agent/.claude/settings.json",
+    });
+  });
+
   it("unwraps the NDJSON envelope into the agent text", () => {
     const output = JSON.stringify({
       type: "result",
