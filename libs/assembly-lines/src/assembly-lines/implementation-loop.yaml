@@ -36,10 +36,12 @@ nodes:
     model: claude-sonnet-4-6
     description: ONE red-green-refactor round. Commit and push on green.
 
-  - id: validate
-    type: validate
-    description: Run lint + typecheck on changed files, once, before asking for review.
-
+  # No `validate` node between the rounds and review. Lint and typecheck are
+  # what CI already runs, and since red CI now routes to `fix-ci` instead of
+  # blocking the ticket, an in-pod pre-check buys latency at the cost of a
+  # `node:validate` claim — the exact resource whose absence starved five
+  # tickets on 2026-08-28. The rounds run the repo's own format step before
+  # committing, which is what the failures it caught actually needed.
   - id: ready-for-review
     type: agent
     prompt_ref: pr-ready
@@ -103,22 +105,13 @@ edges:
     on: changes_requested
     iteration_max: 12
   - from: tdd-round
-    to: validate
+    to: ready-for-review
     on: success
   # Stuck, or the pod died. No self-retry is available here by the shared-counter
   # rule above, so the ticket parks for a human.
   - from: tdd-round
     to: retrospective
     on: failed
-
-  - from: validate
-    to: ready-for-review
-    on: success
-  # Its own counter, so lint breakage cannot eat the round budget.
-  - from: validate
-    to: tdd-round
-    on: failed
-    iteration_max: 2
 
   - from: ready-for-review
     to: await-pr

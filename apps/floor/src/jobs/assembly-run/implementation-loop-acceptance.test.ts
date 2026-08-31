@@ -41,7 +41,6 @@ async function parkedOnPr(h: ReturnType<typeof loopHarness>) {
   await h.completeAgentNode(id, "dod", { outcome: "success" });
   await h.completeAgentNode(id, "open-pr", { outcome: "success" });
   await h.completeAgentNode(id, "tdd-round", { outcome: "success" });
-  await h.completeAgentNode(id, "validate", { outcome: "success" });
   await h.completeAgentNode(id, "ready-for-review", { outcome: "success" });
 
   return id;
@@ -67,14 +66,12 @@ describe("implementation-loop acceptance: one ticket, cluster-free", () => {
       `${short(id)}-dod`,
       `${short(id)}-open-pr`,
       `${short(id)}-tdd-round`,
-      `${short(id)}-validate`,
       `${short(id)}-ready-for-review`,
     ]);
     expect(h.visits()).toEqual([
       ["dod", "success"],
       ["open-pr", "success"],
       ["tdd-round", "success"],
-      ["validate", "success"],
       ["ready-for-review", "success"],
       ["await-pr", null],
     ]);
@@ -104,9 +101,9 @@ describe("implementation-loop acceptance: one ticket, cluster-free", () => {
       `${short(id)}-tdd-round`,
       `${short(id)}-tdd-round-2`,
       `${short(id)}-tdd-round-3`,
-      // Leaving the loop: the successful round routes on to validate, numbered
-      // past the run's highest recorded iteration rather than restarting at 1.
-      `${short(id)}-validate-3`,
+      // Leaving the loop: the successful round routes straight to review,
+      // numbered past the run's highest recorded iteration rather than at 1.
+      `${short(id)}-ready-for-review-3`,
     ]);
   });
 
@@ -201,73 +198,5 @@ describe("implementation-loop acceptance: a boot crash is not worth a retry", ()
       reason: expect.stringContaining("Settings file not found"),
     });
     expect(h.labeled).toEqual([{ issue: 77, label: "lore:blocked" }]);
-  });
-});
-
-/** Walk far enough that `validate` is the node awaiting a claim. */
-async function reachValidate(h: ReturnType<typeof loopHarness>, id: string) {
-  await h.completeAgentNode(id, "dod", { outcome: "success" });
-  await h.completeAgentNode(id, "open-pr", { outcome: "success" });
-  await h.completeAgentNode(id, "tdd-round", { outcome: "success" });
-}
-
-describe("implementation-loop acceptance: the dispatch tier", () => {
-  // The half no test reached until now. `unclaimed -> fail once` was covered by
-  // replaying a row someone had already parked queued; that a PAUSED cluster is
-  // what parks it there was assumed. These two walks span registry -> claim ->
-  // walk -> reaper, which is where the 2026-08-29 incident actually lived.
-  it("with central paused, validate is never claimed and the run fails naming it", async () => {
-    const h = loopHarness();
-    const id = await h.start("implementation-loop", { taskId: "task-1" });
-
-    await reachValidate(h, id);
-    await h.pause("central");
-
-    expect(await h.claimAs("central")).toBeNull();
-
-    await h.reap({ minutesLater: 31 });
-
-    expect(await h.runs.getById(id)).toMatchObject({
-      status: "failed",
-      outcome: "error",
-      reason: expect.stringContaining("central (paused)"),
-    });
-    expect(h.enqueued.map((s) => s.name)).not.toContain(
-      `${short(id)}-implement-2`,
-    );
-    // The ticket is parked for a human, exactly as every other terminal
-    // failure parks it — a run that died of a paused cluster is not a special
-    // case the driver skips.
-    expect(h.labeled).toEqual([{ issue: 77, label: "lore:blocked" }]);
-  });
-
-  it("with central active, validate is claimed by it and the walk reaches review", async () => {
-    const h = loopHarness();
-    const id = await h.start("implementation-loop", { taskId: "task-1" });
-
-    await reachValidate(h, id);
-
-    expect(await h.claimAs("central")).toMatchObject({ nodeId: "validate" });
-
-    await h.completeAgentNode(id, "validate", { outcome: "success" });
-
-    expect(h.enqueued.map((s) => s.name)).toEqual([
-      `${short(id)}-dod`,
-      `${short(id)}-open-pr`,
-      `${short(id)}-tdd-round`,
-      `${short(id)}-validate`,
-      `${short(id)}-ready-for-review`,
-    ]);
-  });
-
-  it("a satellite offering only node:agent cannot take the validate node", async () => {
-    // Why one paused central starves the line: the satellite is not a fallback.
-    const h = loopHarness();
-    const id = await h.start("implementation-loop", { taskId: "task-1" });
-
-    await reachValidate(h, id);
-    await h.pause("central");
-
-    expect(await h.claimAs("satellite")).toBeNull();
   });
 });

@@ -149,22 +149,6 @@ describe("buildPrompt", () => {
   });
 });
 
-// ── issueRef (mirrors worker.ts) ────────────────────────────────────
-
-function issueRef(issueNumber: number | null): string {
-  return issueNumber ? `\n\nRefs #${issueNumber}` : "";
-}
-
-describe("issueRef", () => {
-  it("returns issue reference for a valid number", () => {
-    expect(issueRef(42)).toBe("\n\nRefs #42");
-  });
-
-  it("returns empty string for null", () => {
-    expect(issueRef(null)).toBe("");
-  });
-});
-
 // ── Claim ordering / grace ──────────────────────────────────────────
 // pollOnce's claim semantics (immediate-first, 30s grace, status filter,
 // FIFO) now live in the shared TaskQueue and are covered for real by

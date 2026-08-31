@@ -31,6 +31,15 @@ spec:
     secrets:
       - name: {{ .Values.agentLlmSecretKey }}
         ref: {{ .Values.agentLlmSecretKey }}
+    env:
+      - name: GIT_AUTHOR_NAME
+        value: Lore Agent
+      - name: GIT_AUTHOR_EMAIL
+        value: lore-agent@re-cinq.com
+      - name: GIT_COMMITTER_NAME
+        value: Lore Agent
+      - name: GIT_COMMITTER_EMAIL
+        value: lore-agent@re-cinq.com
 {{- if .Values.loreMcpUrl }}
     mcp_servers:
       - name: lore
@@ -110,6 +119,15 @@ spec:
     secrets:
       - name: {{ .Values.agentLlmSecretKey }}
         ref: {{ .Values.agentLlmSecretKey }}
+    env:
+      - name: GIT_AUTHOR_NAME
+        value: Lore Agent
+      - name: GIT_AUTHOR_EMAIL
+        value: lore-agent@re-cinq.com
+      - name: GIT_COMMITTER_NAME
+        value: Lore Agent
+      - name: GIT_COMMITTER_EMAIL
+        value: lore-agent@re-cinq.com
 {{- if .Values.loreMcpUrl }}
     mcp_servers:
       - name: lore
@@ -194,6 +212,11 @@ spec:
 
 
     DELIVERY, NON-NEGOTIABLE — the next step runs in a DIFFERENT container:
+    - Before you commit, run the repository's OWN format/fix step if it has one
+      (`npm run format`, `make fmt`, `cargo fmt`, whichever this repo uses).
+      Most lint failures a reviewer or CI would report are auto-fixable
+      whitespace and brace style; leaving them turns a finished piece of work
+      into a red build over nothing.
     - When the work is done, `git add` what you changed and commit it with a
       short, factual message. Then `git push origin HEAD`. The clone carries
       its own credentials, so a plain push authenticates; you need no token
@@ -218,6 +241,15 @@ spec:
     secrets:
       - name: {{ .Values.agentLlmSecretKey }}
         ref: {{ .Values.agentLlmSecretKey }}
+    env:
+      - name: GIT_AUTHOR_NAME
+        value: Lore Agent
+      - name: GIT_AUTHOR_EMAIL
+        value: lore-agent@re-cinq.com
+      - name: GIT_COMMITTER_NAME
+        value: Lore Agent
+      - name: GIT_COMMITTER_EMAIL
+        value: lore-agent@re-cinq.com
 {{- if .Values.loreMcpUrl }}
     mcp_servers:
       - name: lore
@@ -316,6 +348,11 @@ spec:
 
 
     DELIVERY, NON-NEGOTIABLE — the next step runs in a DIFFERENT container:
+    - Before you commit, run the repository's OWN format/fix step if it has one
+      (`npm run format`, `make fmt`, `cargo fmt`, whichever this repo uses).
+      Most lint failures a reviewer or CI would report are auto-fixable
+      whitespace and brace style; leaving them turns a finished piece of work
+      into a red build over nothing.
     - When the work is done, `git add` what you changed and commit it with a
       short, factual message. Then `git push origin HEAD`. The clone carries
       its own credentials, so a plain push authenticates; you need no token
@@ -340,6 +377,15 @@ spec:
     secrets:
       - name: {{ .Values.agentLlmSecretKey }}
         ref: {{ .Values.agentLlmSecretKey }}
+    env:
+      - name: GIT_AUTHOR_NAME
+        value: Lore Agent
+      - name: GIT_AUTHOR_EMAIL
+        value: lore-agent@re-cinq.com
+      - name: GIT_COMMITTER_NAME
+        value: Lore Agent
+      - name: GIT_COMMITTER_EMAIL
+        value: lore-agent@re-cinq.com
 {{- if .Values.loreMcpUrl }}
     mcp_servers:
       - name: lore
@@ -476,6 +522,11 @@ spec:
     - Do not edit `| Status |` on any spec. Nothing is implemented yet.
 
     DELIVERY, NON-NEGOTIABLE — the next step runs in a DIFFERENT container:
+    - Before you commit, run the repository's OWN format/fix step if it has one
+      (`npm run format`, `make fmt`, `cargo fmt`, whichever this repo uses).
+      Most lint failures a reviewer or CI would report are auto-fixable
+      whitespace and brace style; leaving them turns a finished piece of work
+      into a red build over nothing.
     - When the work is done, `git add` what you changed and commit it with a
       short, factual message. Then `git push origin HEAD`. The clone carries
       its own credentials, so a plain push authenticates; you need no token
@@ -511,6 +562,15 @@ spec:
     secrets:
       - name: {{ .Values.agentLlmSecretKey }}
         ref: {{ .Values.agentLlmSecretKey }}
+    env:
+      - name: GIT_AUTHOR_NAME
+        value: Lore Agent
+      - name: GIT_AUTHOR_EMAIL
+        value: lore-agent@re-cinq.com
+      - name: GIT_COMMITTER_NAME
+        value: Lore Agent
+      - name: GIT_COMMITTER_EMAIL
+        value: lore-agent@re-cinq.com
 {{- if .Values.loreMcpUrl }}
     mcp_servers:
       - name: lore
@@ -623,6 +683,11 @@ spec:
     - Commit ONLY on green. A red suite is never pushed.
 
     DELIVERY, NON-NEGOTIABLE — the next step runs in a DIFFERENT container:
+    - Before you commit, run the repository's OWN format/fix step if it has one
+      (`npm run format`, `make fmt`, `cargo fmt`, whichever this repo uses).
+      Most lint failures a reviewer or CI would report are auto-fixable
+      whitespace and brace style; leaving them turns a finished piece of work
+      into a red build over nothing.
     - When the work is done, `git add` what you changed and commit it with a
       short, factual message. Then `git push origin HEAD`. The clone carries
       its own credentials, so a plain push authenticates; you need no token
@@ -664,6 +729,15 @@ spec:
     secrets:
       - name: {{ .Values.agentLlmSecretKey }}
         ref: {{ .Values.agentLlmSecretKey }}
+    env:
+      - name: GIT_AUTHOR_NAME
+        value: Lore Agent
+      - name: GIT_AUTHOR_EMAIL
+        value: lore-agent@re-cinq.com
+      - name: GIT_COMMITTER_NAME
+        value: Lore Agent
+      - name: GIT_COMMITTER_EMAIL
+        value: lore-agent@re-cinq.com
 {{- if .Values.loreMcpUrl }}
     mcp_servers:
       - name: lore
@@ -753,6 +827,11 @@ spec:
       a finding, not a fix.
 
     DELIVERY, NON-NEGOTIABLE — the next step runs in a DIFFERENT container:
+    - Before you commit, run the repository's OWN format/fix step if it has one
+      (`npm run format`, `make fmt`, `cargo fmt`, whichever this repo uses).
+      Most lint failures a reviewer or CI would report are auto-fixable
+      whitespace and brace style; leaving them turns a finished piece of work
+      into a red build over nothing.
     - When the work is done, `git add` what you changed and commit it with a
       short, factual message. Then `git push origin HEAD`. The clone carries
       its own credentials, so a plain push authenticates; you need no token
@@ -783,6 +862,15 @@ spec:
     secrets:
       - name: {{ .Values.agentLlmSecretKey }}
         ref: {{ .Values.agentLlmSecretKey }}
+    env:
+      - name: GIT_AUTHOR_NAME
+        value: Lore Agent
+      - name: GIT_AUTHOR_EMAIL
+        value: lore-agent@re-cinq.com
+      - name: GIT_COMMITTER_NAME
+        value: Lore Agent
+      - name: GIT_COMMITTER_EMAIL
+        value: lore-agent@re-cinq.com
 {{- if .Values.loreMcpUrl }}
     mcp_servers:
       - name: lore
@@ -877,6 +965,11 @@ spec:
       missed it.
 
     DELIVERY, NON-NEGOTIABLE — the next step runs in a DIFFERENT container:
+    - Before you commit, run the repository's OWN format/fix step if it has one
+      (`npm run format`, `make fmt`, `cargo fmt`, whichever this repo uses).
+      Most lint failures a reviewer or CI would report are auto-fixable
+      whitespace and brace style; leaving them turns a finished piece of work
+      into a red build over nothing.
     - When the work is done, `git add` what you changed and commit it with a
       short, factual message. Then `git push origin HEAD`. The clone carries
       its own credentials, so a plain push authenticates; you need no token
@@ -910,6 +1003,15 @@ spec:
     secrets:
       - name: {{ .Values.agentLlmSecretKey }}
         ref: {{ .Values.agentLlmSecretKey }}
+    env:
+      - name: GIT_AUTHOR_NAME
+        value: Lore Agent
+      - name: GIT_AUTHOR_EMAIL
+        value: lore-agent@re-cinq.com
+      - name: GIT_COMMITTER_NAME
+        value: Lore Agent
+      - name: GIT_COMMITTER_EMAIL
+        value: lore-agent@re-cinq.com
 {{- if .Values.loreMcpUrl }}
     mcp_servers:
       - name: lore
@@ -992,6 +1094,11 @@ spec:
       change, or leave the code as it is and say plainly why, so the
       reviewer reads a reason rather than silence.
     DELIVERY, NON-NEGOTIABLE — the next step runs in a DIFFERENT container:
+    - Before you commit, run the repository's OWN format/fix step if it has one
+      (`npm run format`, `make fmt`, `cargo fmt`, whichever this repo uses).
+      Most lint failures a reviewer or CI would report are auto-fixable
+      whitespace and brace style; leaving them turns a finished piece of work
+      into a red build over nothing.
     - When the work is done, `git add` what you changed and commit it with a
       short, factual message. Then `git push origin HEAD`. The clone carries
       its own credentials, so a plain push authenticates; you need no token
@@ -1016,6 +1123,15 @@ spec:
     secrets:
       - name: {{ .Values.agentLlmSecretKey }}
         ref: {{ .Values.agentLlmSecretKey }}
+    env:
+      - name: GIT_AUTHOR_NAME
+        value: Lore Agent
+      - name: GIT_AUTHOR_EMAIL
+        value: lore-agent@re-cinq.com
+      - name: GIT_COMMITTER_NAME
+        value: Lore Agent
+      - name: GIT_COMMITTER_EMAIL
+        value: lore-agent@re-cinq.com
 {{- if .Values.loreMcpUrl }}
     mcp_servers:
       - name: lore
@@ -1114,6 +1230,15 @@ spec:
     secrets:
       - name: {{ .Values.agentLlmSecretKey }}
         ref: {{ .Values.agentLlmSecretKey }}
+    env:
+      - name: GIT_AUTHOR_NAME
+        value: Lore Agent
+      - name: GIT_AUTHOR_EMAIL
+        value: lore-agent@re-cinq.com
+      - name: GIT_COMMITTER_NAME
+        value: Lore Agent
+      - name: GIT_COMMITTER_EMAIL
+        value: lore-agent@re-cinq.com
 {{- if .Values.loreMcpUrl }}
     mcp_servers:
       - name: lore
@@ -1193,6 +1318,15 @@ spec:
     secrets:
       - name: {{ .Values.agentLlmSecretKey }}
         ref: {{ .Values.agentLlmSecretKey }}
+    env:
+      - name: GIT_AUTHOR_NAME
+        value: Lore Agent
+      - name: GIT_AUTHOR_EMAIL
+        value: lore-agent@re-cinq.com
+      - name: GIT_COMMITTER_NAME
+        value: Lore Agent
+      - name: GIT_COMMITTER_EMAIL
+        value: lore-agent@re-cinq.com
 {{- if .Values.loreMcpUrl }}
     mcp_servers:
       - name: lore
@@ -1284,6 +1418,15 @@ spec:
     secrets:
       - name: {{ .Values.agentLlmSecretKey }}
         ref: {{ .Values.agentLlmSecretKey }}
+    env:
+      - name: GIT_AUTHOR_NAME
+        value: Lore Agent
+      - name: GIT_AUTHOR_EMAIL
+        value: lore-agent@re-cinq.com
+      - name: GIT_COMMITTER_NAME
+        value: Lore Agent
+      - name: GIT_COMMITTER_EMAIL
+        value: lore-agent@re-cinq.com
 {{- if .Values.loreMcpUrl }}
     mcp_servers:
       - name: lore
@@ -1414,6 +1557,15 @@ spec:
     secrets:
       - name: {{ .Values.agentLlmSecretKey }}
         ref: {{ .Values.agentLlmSecretKey }}
+    env:
+      - name: GIT_AUTHOR_NAME
+        value: Lore Agent
+      - name: GIT_AUTHOR_EMAIL
+        value: lore-agent@re-cinq.com
+      - name: GIT_COMMITTER_NAME
+        value: Lore Agent
+      - name: GIT_COMMITTER_EMAIL
+        value: lore-agent@re-cinq.com
 {{- if .Values.loreMcpUrl }}
     mcp_servers:
       - name: lore
@@ -1534,6 +1686,15 @@ spec:
     secrets:
       - name: {{ .Values.agentLlmSecretKey }}
         ref: {{ .Values.agentLlmSecretKey }}
+    env:
+      - name: GIT_AUTHOR_NAME
+        value: Lore Agent
+      - name: GIT_AUTHOR_EMAIL
+        value: lore-agent@re-cinq.com
+      - name: GIT_COMMITTER_NAME
+        value: Lore Agent
+      - name: GIT_COMMITTER_EMAIL
+        value: lore-agent@re-cinq.com
 {{- if .Values.loreMcpUrl }}
     mcp_servers:
       - name: lore
@@ -1650,6 +1811,15 @@ spec:
     secrets:
       - name: {{ .Values.agentLlmSecretKey }}
         ref: {{ .Values.agentLlmSecretKey }}
+    env:
+      - name: GIT_AUTHOR_NAME
+        value: Lore Agent
+      - name: GIT_AUTHOR_EMAIL
+        value: lore-agent@re-cinq.com
+      - name: GIT_COMMITTER_NAME
+        value: Lore Agent
+      - name: GIT_COMMITTER_EMAIL
+        value: lore-agent@re-cinq.com
 {{- if .Values.loreMcpUrl }}
     mcp_servers:
       - name: lore
@@ -1746,6 +1916,15 @@ spec:
     secrets:
       - name: {{ .Values.agentLlmSecretKey }}
         ref: {{ .Values.agentLlmSecretKey }}
+    env:
+      - name: GIT_AUTHOR_NAME
+        value: Lore Agent
+      - name: GIT_AUTHOR_EMAIL
+        value: lore-agent@re-cinq.com
+      - name: GIT_COMMITTER_NAME
+        value: Lore Agent
+      - name: GIT_COMMITTER_EMAIL
+        value: lore-agent@re-cinq.com
 {{- if .Values.loreMcpUrl }}
     mcp_servers:
       - name: lore
@@ -2038,6 +2217,15 @@ spec:
     secrets:
       - name: {{ .Values.agentLlmSecretKey }}
         ref: {{ .Values.agentLlmSecretKey }}
+    env:
+      - name: GIT_AUTHOR_NAME
+        value: Lore Agent
+      - name: GIT_AUTHOR_EMAIL
+        value: lore-agent@re-cinq.com
+      - name: GIT_COMMITTER_NAME
+        value: Lore Agent
+      - name: GIT_COMMITTER_EMAIL
+        value: lore-agent@re-cinq.com
 {{- if .Values.loreMcpUrl }}
     mcp_servers:
       - name: lore
@@ -2205,6 +2393,15 @@ spec:
     secrets:
       - name: {{ .Values.agentLlmSecretKey }}
         ref: {{ .Values.agentLlmSecretKey }}
+    env:
+      - name: GIT_AUTHOR_NAME
+        value: Lore Agent
+      - name: GIT_AUTHOR_EMAIL
+        value: lore-agent@re-cinq.com
+      - name: GIT_COMMITTER_NAME
+        value: Lore Agent
+      - name: GIT_COMMITTER_EMAIL
+        value: lore-agent@re-cinq.com
 {{- if .Values.loreMcpUrl }}
     mcp_servers:
       - name: lore
@@ -2292,6 +2489,15 @@ spec:
     secrets:
       - name: {{ .Values.agentLlmSecretKey }}
         ref: {{ .Values.agentLlmSecretKey }}
+    env:
+      - name: GIT_AUTHOR_NAME
+        value: Lore Agent
+      - name: GIT_AUTHOR_EMAIL
+        value: lore-agent@re-cinq.com
+      - name: GIT_COMMITTER_NAME
+        value: Lore Agent
+      - name: GIT_COMMITTER_EMAIL
+        value: lore-agent@re-cinq.com
 {{- if .Values.loreMcpUrl }}
     mcp_servers:
       - name: lore
@@ -2367,6 +2573,15 @@ spec:
     secrets:
       - name: {{ .Values.agentLlmSecretKey }}
         ref: {{ .Values.agentLlmSecretKey }}
+    env:
+      - name: GIT_AUTHOR_NAME
+        value: Lore Agent
+      - name: GIT_AUTHOR_EMAIL
+        value: lore-agent@re-cinq.com
+      - name: GIT_COMMITTER_NAME
+        value: Lore Agent
+      - name: GIT_COMMITTER_EMAIL
+        value: lore-agent@re-cinq.com
 {{- if .Values.loreMcpUrl }}
     mcp_servers:
       - name: lore
@@ -2510,6 +2725,15 @@ spec:
     secrets:
       - name: {{ .Values.agentLlmSecretKey }}
         ref: {{ .Values.agentLlmSecretKey }}
+    env:
+      - name: GIT_AUTHOR_NAME
+        value: Lore Agent
+      - name: GIT_AUTHOR_EMAIL
+        value: lore-agent@re-cinq.com
+      - name: GIT_COMMITTER_NAME
+        value: Lore Agent
+      - name: GIT_COMMITTER_EMAIL
+        value: lore-agent@re-cinq.com
 {{- if .Values.loreMcpUrl }}
     mcp_servers:
       - name: lore

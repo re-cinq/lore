@@ -34,6 +34,12 @@ describe("buildAgentDefinition", () => {
         max_turns: 200,
         resources: {
           secrets: [{ name: "__LLM_SECRET_KEY__", ref: "__LLM_SECRET_KEY__" }],
+          env: [
+            { name: "GIT_AUTHOR_NAME", value: "Lore Agent" },
+            { name: "GIT_AUTHOR_EMAIL", value: "lore-agent@re-cinq.com" },
+            { name: "GIT_COMMITTER_NAME", value: "Lore Agent" },
+            { name: "GIT_COMMITTER_EMAIL", value: "lore-agent@re-cinq.com" },
+          ],
           mcp_servers: [
             {
               name: "lore",
@@ -65,6 +71,12 @@ describe("buildAgentDefinition", () => {
       buildAgentDefinition("implementation", impl).spec?.resources,
     ).toEqual({
       secrets: [{ name: "__LLM_SECRET_KEY__", ref: "__LLM_SECRET_KEY__" }],
+      env: [
+        { name: "GIT_AUTHOR_NAME", value: "Lore Agent" },
+        { name: "GIT_AUTHOR_EMAIL", value: "lore-agent@re-cinq.com" },
+        { name: "GIT_COMMITTER_NAME", value: "Lore Agent" },
+        { name: "GIT_COMMITTER_EMAIL", value: "lore-agent@re-cinq.com" },
+      ],
       mcp_servers: [
         {
           name: "lore",
@@ -76,6 +88,21 @@ describe("buildAgentDefinition", () => {
       skills: ["lore-context"],
       skills_source: "__LORE_SKILLS_URL__",
     });
+  });
+
+  it("gives every agent pod a git identity, so a commit does not need one invented", () => {
+    // A pod runs `git commit` itself and never goes through GitCli, whose env
+    // defaults cover the Floor. Without this the commit fails "Author identity
+    // unknown", the agent burns a turn on `git config`, and authorship becomes
+    // whatever that pod happened to guess.
+    expect(
+      buildAgentDefinition("implementation-tdd", impl).spec?.resources?.env,
+    ).toEqual([
+      { name: "GIT_AUTHOR_NAME", value: "Lore Agent" },
+      { name: "GIT_AUTHOR_EMAIL", value: "lore-agent@re-cinq.com" },
+      { name: "GIT_COMMITTER_NAME", value: "Lore Agent" },
+      { name: "GIT_COMMITTER_EMAIL", value: "lore-agent@re-cinq.com" },
+    ]);
   });
 
   it("appends a recipe's declared skills after lore-context", () => {

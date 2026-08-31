@@ -1245,12 +1245,12 @@ describe("a claimed single-CR visit the sweep must NOT own", () => {
   });
 });
 
-describe("the implementation loop's unclaimed validate node", () => {
+describe("the implementation line's unclaimed validate node", () => {
   // The 2026-08-29 incident end to end, on the REAL blueprint: implement
   // succeeded on the satellite, validate needed a tag only the paused `central`
   // offered, and the walk answered by re-running the agent node for another 25
   // minutes before reporting the exhausted edge budget as the cause.
-  it("fails the run once and never re-dispatches the round", async () => {
+  it("fails the run once and never re-dispatches implement", async () => {
     const h = harness();
     const builtins = await loadBuiltinAssemblyLines();
 
@@ -1262,7 +1262,9 @@ describe("the implementation loop's unclaimed validate node", () => {
       clusterAgent("satellite", ["node:agent"]),
     ];
     const id = await h.port.start({
-      blueprintName: "implementation-loop",
+      // `implementation`, not `implementation-loop`: the loop dropped its
+      // validate node, so the incident's shape lives on this line now.
+      blueprintName: "implementation",
       repo: "re-cinq/lore",
       branch: "lore/impl/1650",
       args: { description: "the ticket" },
@@ -1272,7 +1274,7 @@ describe("the implementation loop's unclaimed validate node", () => {
 
     // Walk to the node before validate: a round ran and passed, and the walk
     // then parks validate on the queue.
-    for (const nodeId of ["dod", "open-pr", "tdd-round"]) {
+    for (const nodeId of ["implement"]) {
       const row = await h.port.ensureStationRun({
         assemblyRunId: id,
         nodeId,
@@ -1304,13 +1306,11 @@ describe("the implementation loop's unclaimed validate node", () => {
       reason: expect.stringContaining("central (paused)"),
     });
     expect(h.port.nodes.map((n) => `${n.nodeId}:${n.iteration}`)).toEqual([
-      "dod:1",
-      "open-pr:1",
-      "tdd-round:1",
+      "implement:1",
       "validate:1",
     ]);
     expect(h.enqueued.map((spec) => spec.name)).not.toContain(
-      `${id.substring(0, 12)}-tdd-round-2`,
+      `${id.substring(0, 12)}-implement-2`,
     );
   });
 });

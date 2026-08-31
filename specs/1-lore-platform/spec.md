@@ -224,7 +224,7 @@ system is performing.
   targeted memory throughout the run — the only context path, since nothing is
   fetched before the pod starts. A shared `lore-mcp`
   gateway serves those tools over MCP-over-HTTP at a public `:443` host (the
-  agent-pod NetworkPolicy allows only public `:443` egress). ([validated by `agent-catalog.test.ts:63`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L63), [`agent-catalog.test.ts:21`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L21))
+  agent-pod NetworkPolicy allows only public `:443` egress). ([validated by `agent-catalog.test.ts:69`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L69), [`agent-catalog.test.ts:21`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L21))
 - The gateway reads each request body defensively: it JSON-parses the body
   (an empty body carries no payload), caps it at 1 MB (`413` over the cap) so an
   authenticated-but-rogue pod cannot exhaust gateway memory, and returns `400`

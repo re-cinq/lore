@@ -513,16 +513,14 @@ describe("getNextTransition — a revisit numbers past every prior visit", () =>
   });
 });
 
-describe("an unclaimed node on the real implementation-loop blueprint", () => {
+describe("an unclaimed node on the real implementation blueprint", () => {
   // The 2026-08-29 incident, replayed: `validate` needed `node:validate`, the
   // only cluster offering it was paused, and the reaper failed the visit. The
   // walk then spent the validate->round budget re-running a long agent node —
   // which could not change whether a cluster existed — waited out a second
   // queue-timeout, and reported the exhausted edge as the cause.
   const unclaimedValidate = async (): Promise<NodeVisit[]> => [
-    { nodeId: "dod", iteration: 1, outcome: "success" },
-    { nodeId: "open-pr", iteration: 1, outcome: "success" },
-    { nodeId: "tdd-round", iteration: 1, outcome: "success" },
+    { nodeId: "implement", iteration: 1, outcome: "success" },
     {
       nodeId: "validate",
       iteration: 1,
@@ -533,15 +531,18 @@ describe("an unclaimed node on the real implementation-loop blueprint", () => {
     },
   ];
 
+  // The `implementation` line, not `implementation-loop`: the loop dropped its
+  // validate node (lint is CI's job there, and fix-ci repairs it), so this is
+  // where the incident's shape still lives.
   const implementationLoop = async (): Promise<AssemblyLine> => {
-    const line = (await loadBuiltinAssemblyLines()).get("implementation-loop");
+    const line = (await loadBuiltinAssemblyLines()).get("implementation");
 
     expect(line).toBeDefined();
 
     return line!;
   };
 
-  it("fails the run instead of re-launching the round", async () => {
+  it("fails the run instead of re-launching implement", async () => {
     expect(
       getNextTransition(await implementationLoop(), await unclaimedValidate()),
     ).toMatchObject({ kind: "fail", outcome: "error" });
@@ -561,14 +562,12 @@ describe("an unclaimed node on the real implementation-loop blueprint", () => {
     );
   });
 
-  it("still routes a genuine validate failure back to a round", async () => {
+  it("still routes a genuine validate failure back to implement", async () => {
     // The suppression is scoped to the class, not to the edge: a validate that
     // actually ran and found lint errors must still buy its retry.
     expect(
       getNextTransition(await implementationLoop(), [
-        { nodeId: "dod", iteration: 1, outcome: "success" },
-        { nodeId: "open-pr", iteration: 1, outcome: "success" },
-        { nodeId: "tdd-round", iteration: 1, outcome: "success" },
+        { nodeId: "implement", iteration: 1, outcome: "success" },
         {
           nodeId: "validate",
           iteration: 1,
@@ -577,6 +576,6 @@ describe("an unclaimed node on the real implementation-loop blueprint", () => {
           failureDetail: 'Lore-Validation-Failed: "lint"',
         },
       ]),
-    ).toEqual({ kind: "launch", nodeId: "tdd-round", iteration: 2 });
+    ).toEqual({ kind: "launch", nodeId: "implement", iteration: 2 });
   });
 });

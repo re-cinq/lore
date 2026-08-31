@@ -99,6 +99,16 @@ const OUTPUT_SINKS: NonNullable<
   ],
 };
 
+/** The committer every Lore-authored commit carries, mirroring the Floor's
+ *  `GitCli` env defaults so a pod's commit and a Floor's commit are the same
+ *  author. */
+const GIT_IDENTITY = [
+  { name: "GIT_AUTHOR_NAME", value: "Lore Agent" },
+  { name: "GIT_AUTHOR_EMAIL", value: "lore-agent@re-cinq.com" },
+  { name: "GIT_COMMITTER_NAME", value: "Lore Agent" },
+  { name: "GIT_COMMITTER_EMAIL", value: "lore-agent@re-cinq.com" },
+];
+
 export function buildAgentDefinition(
   taskType: string,
   cfg: AgentCatalogConfig,
@@ -130,6 +140,14 @@ export function buildAgentDefinition(
       // See ADR-030 (the AgentTool seam) + specs/mcp-self-update siblings.
       resources: {
         secrets: AGENT_SECRETS,
+        // Every agent pod commits its own work — the delivery contract requires
+        // it, since the next node is a different container. git refuses without
+        // an identity, and a pod has no ambient git config: the commit fails
+        // "Author identity unknown", the agent spends a turn on `git config`,
+        // and authorship ends up whatever that pod invented. Same identity the
+        // Floor's GitCli already defaults to, so Lore-authored commits read the
+        // same whoever made them.
+        env: GIT_IDENTITY,
         mcp_servers: [
           {
             name: "lore",
