@@ -86,7 +86,11 @@ interface Harness {
 }
 
 async function harness(
-  options: { existingPulls?: PullRef[]; withFeature?: boolean } = {},
+  options: {
+    existingPulls?: PullRef[];
+    withFeature?: boolean;
+    withTask?: boolean;
+  } = {},
 ): Promise<Harness> {
   const lines = new InMemoryAssemblyRuns();
   const features = new InMemoryFeatures();
@@ -100,7 +104,7 @@ async function harness(
     repo: REPO,
     // Every production run of a line that opens a PR carries one; the footer's
     // `Lore-Task:` trailer is what the web-ui resolves PR to task through.
-    taskId: "task-1",
+    ...(options.withTask === false ? {} : { taskId: "task-1" }),
     branch: "feature/dark-factory-rollback",
     args: options.withFeature === false ? {} : { feature_id: feature.id },
   });
@@ -291,6 +295,16 @@ describe("stampLinePr footer", () => {
 
     expect(h.pulls.opened[0]?.body).toContain("Closes #1510");
     expect(h.pulls.opened[0]?.body).toContain("Lore-Task:");
+  });
+
+  it("carries no footer at all on a task-less line", async () => {
+    // Task-less lines exist — code-review runs without one — and there is no
+    // `Lore-Task:` to emit for them.
+    const h = await harness({ withTask: false });
+
+    await stampLinePr(await lineRow(h), h.ports);
+
+    expect(h.pulls.opened[0]?.body).not.toContain("Lore-Task:");
   });
 
   it("omits the issue line for a run with no ticket behind it", async () => {
