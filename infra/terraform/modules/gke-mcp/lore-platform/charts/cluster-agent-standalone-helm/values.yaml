@@ -137,7 +137,18 @@ imagePullSecrets:
 resources:
   limits:
     cpu: "300m"
-    memory: 256Mi
+    # 4Gi, not the 256Mi the central chart uses. A satellite watches the Agent
+    # CRs and streams pod logs for a cluster it does not otherwise serve, and on
+    # a laptop minikube that OOM-killed it roughly seven seconds after the claim
+    # loop started — repeatedly, on 2026-08-31, until the limit was raised.
+    # Central has never hit it, which is why the two charts differ rather than
+    # one default moving for both.
+    #
+    # A limit does not reserve: `requests` stays at 128Mi, so this costs nothing
+    # until the process actually needs it. What it buys is a satellite that does
+    # not crash-loop the first time a busy cluster makes it read more than the
+    # ceiling allowed.
+    memory: 4Gi
   requests:
     cpu: "50m"
     memory: 128Mi
