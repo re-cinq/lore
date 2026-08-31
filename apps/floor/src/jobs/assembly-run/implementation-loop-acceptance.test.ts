@@ -171,6 +171,45 @@ describe("implementation-loop acceptance: one ticket, cluster-free", () => {
   });
 });
 
+describe("implementation-loop acceptance: claim gate active, central paused (#1648)", () => {
+  // Before 2026-08-30, `mayClaim` lived only inside the claim route — nothing
+  // the walk could see. These tests exercise the acceptance harness's own
+  // `claimAs` / `pause` seam, which no prior acceptance test used, to prove the
+  // full registry → claim → walk path on the real blueprint.
+  it("satellite claims every node through the real gate — no validate means node:agent is enough", async () => {
+    const h = loopHarness();
+    await h.pause("central");
+    const id = await h.start("implementation-loop", { taskId: "task-1" });
+
+    for (const nodeId of ["dod", "open-pr", "tdd-round", "ready-for-review"]) {
+      const claim = await h.claimAs("satellite");
+      expect(claim?.nodeId, `satellite should claim ${nodeId}`).toBe(nodeId);
+      await h.completeAgentNode(id, nodeId, {
+        outcome: "success",
+        reportStatus: true,
+      });
+    }
+
+    expect(h.visits()).toEqual([
+      ["dod", "success"],
+      ["open-pr", "success"],
+      ["tdd-round", "success"],
+      ["ready-for-review", "success"],
+      ["await-pr", null],
+    ]);
+  });
+
+  it("paused central returns null from the claim gate — only the operator's switch blocks it", async () => {
+    const h = loopHarness();
+    await h.pause("central");
+    await h.start("implementation-loop", { taskId: "task-1" });
+
+    expect(await h.claimAs("central")).toBeNull();
+    const claim = await h.claimAs("satellite");
+    expect(claim?.nodeId).toBe("dod");
+  });
+});
+
 describe("implementation-loop acceptance: a boot crash is not worth a retry", () => {
   // Run 129235d4 (2026-08-28) cost two 25-minute implement attempts and ended
   // `iteration_max`, because the engine died before printing a result line and
