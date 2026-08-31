@@ -13,8 +13,10 @@ export function selectReporterToken(
   getAgentToken: () => string | undefined,
 ): () => string | undefined {
   const ingestToken = env.LORE_INGEST_TOKEN;
+
   if (ingestToken !== undefined) {
     return () => ingestToken;
   }
+
   return getAgentToken;
 }
