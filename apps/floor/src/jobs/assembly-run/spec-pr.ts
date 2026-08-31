@@ -17,6 +17,7 @@
  * a PR is a rule, and rules are worth testing without a GitHub double.
  */
 
+import { prFooter } from "@re-cinq/lore-shared";
 import type { AssemblyRunRecord } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
 import type { PullRef } from "@re-cinq/lore-shared/project/pulls/pull-requests-port.js";
 import type {
@@ -178,7 +179,7 @@ export async function stampLinePr(
     (await ports.pulls.open(
       branch,
       title,
-      prBody(branch, feature),
+      prBody(branch, feature, row),
       undefined,
       undefined,
       decidePrDraft(row.args),
@@ -206,16 +207,30 @@ export async function stampLinePr(
   }
 }
 
-function prBody(branch: string, feature: Feature | null): string {
-  if (!feature) {
-    return `Opened by the Lore assembly line from \`${branch}\`.`;
-  }
+/** The line's PR body, with the standard footer every Lore-authored PR carries.
+ *
+ *  It carried NEITHER before: no `Lore-Task:`, so the web-ui could not resolve
+ *  PR to task, and no issue line, so a merged backlog ticket stayed open and
+ *  was eligible to be picked again on the next tick. */
+function prBody(
+  branch: string,
+  feature: Feature | null,
+  run: AssemblyRunRecord,
+): string {
+  const head = feature
+    ? [
+        `## ${feature.title}`,
+        "",
+        feature.original_prompt,
+        "",
+        `Planned interactively; this PR carries the agreed spec from \`${branch}\`.`,
+      ].join("\n")
+    : `Opened by the Lore assembly line from \`${branch}\`.`;
 
-  return [
-    `## ${feature.title}`,
-    "",
-    feature.original_prompt,
-    "",
-    `Planned interactively; this PR carries the agreed spec from \`${branch}\`.`,
-  ].join("\n");
+  const issueNumber =
+    typeof run.args.issue_number === "number" ? run.args.issue_number : null;
+
+  return run.taskId
+    ? head + prFooter({ issueNumber, taskId: run.taskId })
+    : head;
 }

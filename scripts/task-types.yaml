@@ -48,6 +48,11 @@ task_types:
 
 
       DELIVERY, NON-NEGOTIABLE — the next step runs in a DIFFERENT container:
+      - Before you commit, run the repository's OWN format/fix step if it has one
+        (`npm run format`, `make fmt`, `cargo fmt`, whichever this repo uses).
+        Most lint failures a reviewer or CI would report are auto-fixable
+        whitespace and brace style; leaving them turns a finished piece of work
+        into a red build over nothing.
       - When the work is done, `git add` what you changed and commit it with a
         short, factual message. Then `git push origin HEAD`. The clone carries
         its own credentials, so a plain push authenticates; you need no token
@@ -106,6 +111,11 @@ task_types:
 
 
       DELIVERY, NON-NEGOTIABLE — the next step runs in a DIFFERENT container:
+      - Before you commit, run the repository's OWN format/fix step if it has one
+        (`npm run format`, `make fmt`, `cargo fmt`, whichever this repo uses).
+        Most lint failures a reviewer or CI would report are auto-fixable
+        whitespace and brace style; leaving them turns a finished piece of work
+        into a red build over nothing.
       - When the work is done, `git add` what you changed and commit it with a
         short, factual message. Then `git push origin HEAD`. The clone carries
         its own credentials, so a plain push authenticates; you need no token
@@ -207,6 +217,11 @@ task_types:
       - Do not edit `| Status |` on any spec. Nothing is implemented yet.
 
       DELIVERY, NON-NEGOTIABLE — the next step runs in a DIFFERENT container:
+      - Before you commit, run the repository's OWN format/fix step if it has one
+        (`npm run format`, `make fmt`, `cargo fmt`, whichever this repo uses).
+        Most lint failures a reviewer or CI would report are auto-fixable
+        whitespace and brace style; leaving them turns a finished piece of work
+        into a red build over nothing.
       - When the work is done, `git add` what you changed and commit it with a
         short, factual message. Then `git push origin HEAD`. The clone carries
         its own credentials, so a plain push authenticates; you need no token
@@ -293,6 +308,11 @@ task_types:
       - Commit ONLY on green. A red suite is never pushed.
 
       DELIVERY, NON-NEGOTIABLE — the next step runs in a DIFFERENT container:
+      - Before you commit, run the repository's OWN format/fix step if it has one
+        (`npm run format`, `make fmt`, `cargo fmt`, whichever this repo uses).
+        Most lint failures a reviewer or CI would report are auto-fixable
+        whitespace and brace style; leaving them turns a finished piece of work
+        into a red build over nothing.
       - When the work is done, `git add` what you changed and commit it with a
         short, factual message. Then `git push origin HEAD`. The clone carries
         its own credentials, so a plain push authenticates; you need no token
@@ -362,6 +382,11 @@ task_types:
         a finding, not a fix.
 
       DELIVERY, NON-NEGOTIABLE — the next step runs in a DIFFERENT container:
+      - Before you commit, run the repository's OWN format/fix step if it has one
+        (`npm run format`, `make fmt`, `cargo fmt`, whichever this repo uses).
+        Most lint failures a reviewer or CI would report are auto-fixable
+        whitespace and brace style; leaving them turns a finished piece of work
+        into a red build over nothing.
       - When the work is done, `git add` what you changed and commit it with a
         short, factual message. Then `git push origin HEAD`. The clone carries
         its own credentials, so a plain push authenticates; you need no token
@@ -426,6 +451,11 @@ task_types:
         missed it.
 
       DELIVERY, NON-NEGOTIABLE — the next step runs in a DIFFERENT container:
+      - Before you commit, run the repository's OWN format/fix step if it has one
+        (`npm run format`, `make fmt`, `cargo fmt`, whichever this repo uses).
+        Most lint failures a reviewer or CI would report are auto-fixable
+        whitespace and brace style; leaving them turns a finished piece of work
+        into a red build over nothing.
       - When the work is done, `git add` what you changed and commit it with a
         short, factual message. Then `git push origin HEAD`. The clone carries
         its own credentials, so a plain push authenticates; you need no token
@@ -480,6 +510,11 @@ task_types:
         change, or leave the code as it is and say plainly why, so the
         reviewer reads a reason rather than silence.
       DELIVERY, NON-NEGOTIABLE — the next step runs in a DIFFERENT container:
+      - Before you commit, run the repository's OWN format/fix step if it has one
+        (`npm run format`, `make fmt`, `cargo fmt`, whichever this repo uses).
+        Most lint failures a reviewer or CI would report are auto-fixable
+        whitespace and brace style; leaving them turns a finished piece of work
+        into a red build over nothing.
       - When the work is done, `git add` what you changed and commit it with a
         short, factual message. Then `git push origin HEAD`. The clone carries
         its own credentials, so a plain push authenticates; you need no token

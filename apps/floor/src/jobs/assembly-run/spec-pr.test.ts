@@ -86,7 +86,11 @@ interface Harness {
 }
 
 async function harness(
-  options: { existingPulls?: PullRef[]; withFeature?: boolean } = {},
+  options: {
+    existingPulls?: PullRef[];
+    withFeature?: boolean;
+    withTask?: boolean;
+  } = {},
 ): Promise<Harness> {
   const lines = new InMemoryAssemblyRuns();
   const features = new InMemoryFeatures();
@@ -98,6 +102,9 @@ async function harness(
   const lineId = await lines.start({
     blueprintName: "feature-planning",
     repo: REPO,
+    // Every production run of a line that opens a PR carries one; the footer's
+    // `Lore-Task:` trailer is what the web-ui resolves PR to task through.
+    ...(options.withTask === false ? {} : { taskId: "task-1" }),
     branch: "feature/dark-factory-rollback",
     args: options.withFeature === false ? {} : { feature_id: feature.id },
   });
@@ -273,6 +280,39 @@ describe("stampLinePr", () => {
     expect((await h.lines.getById(h.lineId))?.args).toMatchObject({
       pr_number: 4201,
     });
+  });
+});
+
+describe("stampLinePr footer", () => {
+  it("closes the ticket's issue and carries the task trailer", async () => {
+    // Without this the line's PRs carried neither: the backlog issue stayed open
+    // after merge and was eligible to be picked again, and the web-ui could not
+    // resolve PR to task.
+    const h = await harness();
+
+    await h.lines.mergeArgs(h.lineId, { issue_number: 1510 });
+    await stampLinePr(await lineRow(h), h.ports);
+
+    expect(h.pulls.opened[0]?.body).toContain("Closes #1510");
+    expect(h.pulls.opened[0]?.body).toContain("Lore-Task:");
+  });
+
+  it("carries no footer at all on a task-less line", async () => {
+    // Task-less lines exist — code-review runs without one — and there is no
+    // `Lore-Task:` to emit for them.
+    const h = await harness({ withTask: false });
+
+    await stampLinePr(await lineRow(h), h.ports);
+
+    expect(h.pulls.opened[0]?.body).not.toContain("Lore-Task:");
+  });
+
+  it("omits the issue line for a run with no ticket behind it", async () => {
+    const h = await harness();
+
+    await stampLinePr(await lineRow(h), h.ports);
+
+    expect(h.pulls.opened[0]?.body).not.toContain("Closes #");
   });
 });
 

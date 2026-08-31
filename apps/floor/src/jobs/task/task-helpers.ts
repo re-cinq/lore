@@ -67,7 +67,7 @@ export async function linkPrToIssue(
 }
 
 /**
- * Get the PR footer with optional `Refs #N` and required `Lore-Task: <uuid>`
+ * Get the PR footer with optional `Closes #N` and required `Lore-Task: <uuid>`
  * (T047 / FR1.5). Sourced from `@re-cinq/lore-shared` (pr-body) for reuse
  * across the agent.
  */

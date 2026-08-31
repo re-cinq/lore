@@ -30,13 +30,12 @@ const visit = (nodeId: string, outcome: string, iteration = 1): NodeVisit => ({
 });
 
 describe("the implementation-loop line", () => {
-  it("walks dod, open-pr, tdd-round, validate, ready-for-review, await-pr, retrospective, done", () => {
+  it("walks dod, open-pr, tdd-round, ready-for-review, await-pr, retrospective, done", () => {
     expect(line.entry).toBe("dod");
     expect(line.exit).toBe("done");
     expect(successorsOf("dod", "success")).toEqual(["open-pr"]);
     expect(successorsOf("open-pr", "success")).toEqual(["tdd-round"]);
-    expect(successorsOf("tdd-round", "success")).toEqual(["validate"]);
-    expect(successorsOf("validate", "success")).toEqual(["ready-for-review"]);
+    expect(successorsOf("tdd-round", "success")).toEqual(["ready-for-review"]);
     expect(successorsOf("ready-for-review", "success")).toEqual(["await-pr"]);
     expect(successorsOf("await-pr", "success")).toEqual(["retrospective"]);
     expect(successorsOf("retrospective", "always")).toEqual(["done"]);
@@ -107,9 +106,11 @@ describe("the implementation-loop line", () => {
     });
   });
 
-  it("sends lint breakage back to a round on its own budget", () => {
-    expect(successorsOf("validate", "failed")).toEqual(["tdd-round"]);
-    expect(edge("validate", "tdd-round")).toMatchObject({ iteration_max: 2 });
+  it("carries no validate node — lint is what CI runs, and fix-ci repairs it", () => {
+    // An in-pod pre-check buys latency at the cost of a `node:validate` claim,
+    // the resource whose absence starved five tickets on 2026-08-28. Red CI is
+    // no longer terminal, so the pre-check is not worth the claim.
+    expect(line.nodes.map((n) => n.type)).not.toContain("validate");
   });
 
   it("replays twelve rounds then fails the run on the thirteenth", () => {
@@ -138,7 +139,6 @@ describe("the implementation-loop line", () => {
       visit("dod", "success"),
       visit("open-pr", "success"),
       visit("tdd-round", "success"),
-      visit("validate", "success"),
       visit("ready-for-review", "success"),
       visit("await-pr", "changes_requested"),
     ];
@@ -161,7 +161,6 @@ describe("the implementation-loop line", () => {
         visit("dod", "success"),
         visit("open-pr", "success"),
         visit("tdd-round", "success"),
-        visit("validate", "success"),
         visit("ready-for-review", "success"),
         visit("await-pr", "success"),
         visit("retrospective", "success"),

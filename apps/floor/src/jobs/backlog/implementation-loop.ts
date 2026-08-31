@@ -123,7 +123,14 @@ async function tickRepo(repo: string, deps: LoopTickDeps): Promise<void> {
       // reads the flag, so it never learns which blueprints want one. A draft
       // gets no Lore code review, which is what stops twelve round-pushes
       // triggering twelve reviews.
-      line_args: { pr_draft: true, ...(resume.resume ? resume.lineArgs : {}) },
+      line_args: {
+        pr_draft: true,
+        // Rides onto the run's args so the PR footer can close the ticket on
+        // merge. A `Refs #N` only links it; the issue stayed open and eligible
+        // to be picked again on the next tick.
+        issue_number: picked.number,
+        ...(resume.resume ? resume.lineArgs : {}),
+      },
     },
   });
 

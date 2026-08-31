@@ -316,7 +316,7 @@ one dispatch mechanism, not a special case plus a remote case.
   unclaimed and the run fails once naming it, an active central claims that same
   node and the walk reaches `push`, and a satellite carrying only `node:agent`
   cannot take it at all — which is why one paused cluster starves the line
-  rather than failing over to the other. ([validated by with central paused, validate is never claimed and the run fails naming it](apps/floor/src/jobs/assembly-run/implementation-loop-acceptance.test.ts#L219), [with central active, validate is claimed by it and the walk reaches push](apps/floor/src/jobs/assembly-run/implementation-loop-acceptance.test.ts#L188), [a satellite offering only node:agent cannot take the validate node](apps/floor/src/jobs/assembly-run/implementation-loop-acceptance.test.ts#L263))
+  rather than failing over to the other. ([validated by `assembly-run-reaper.test.ts:1253`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L1253), [`single-cr-dispatch-acceptance.test.ts:226`](apps/floor/src/jobs/station/single-cr-dispatch-acceptance.test.ts#L226), [`single-cr-dispatch-acceptance.test.ts:210`](apps/floor/src/jobs/station/single-cr-dispatch-acceptance.test.ts#L210))
 
 ## FR4 — Liveness, recovery, and dead-agent reaping
 
@@ -473,7 +473,7 @@ execution node.
   satellite pod, of every node type — the first real satellite's every
   claimed run failed at init (#1575, found live 2026-08-26). Unset stays the
   default: a satellite reports its terminal outcome and nothing live, which
-  is the honest state for a cluster with nowhere to report to. ([validated by `agent-catalog.test.ts:220`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L220))
+  is the honest state for a cluster with nowhere to report to. ([validated by `agent-catalog.test.ts:247`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L247))
 - The installer's default tags advertise `node:agent` only *(2026-08-28)*.
   Every seeded station recipe (`def-validate`, `def-gate`, `def-detect`,
   `def-comment-triage`) mounts `LORE_INGEST_TOKEN`, which FR5 keeps on the

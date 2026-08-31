@@ -8,9 +8,9 @@ describe("prFooter (T047)", () => {
     );
   });
 
-  it("emits Refs #N + Lore-Task when issue exists", () => {
+  it("emits Closes #N + Lore-Task when issue exists", () => {
     expect(prFooter({ issueNumber: 42, taskId: "uuid-1" })).toBe(
-      "\n\nRefs #42\nLore-Task: uuid-1",
+      "\n\nCloses #42\nLore-Task: uuid-1",
     );
   });
 
