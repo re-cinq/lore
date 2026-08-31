@@ -31,6 +31,7 @@ test("service deploy workflows trigger without a paths: guard on push to main", 
   // canonical pattern.
   for (const wf of UMBRELLA_DEPLOY_WORKFLOWS) {
     const parsed = parse(readFileSync(wf, "utf-8"));
+
     assert.ok(
       !parsed["on"].push.paths,
       `${wf}: on.push must not have a paths: filter — ` +
