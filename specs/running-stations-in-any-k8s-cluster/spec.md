@@ -316,7 +316,7 @@ one dispatch mechanism, not a special case plus a remote case.
   unclaimed and the run fails once naming it, an active central claims that same
   node and the walk reaches `push`, and a satellite carrying only `node:agent`
   cannot take it at all — which is why one paused cluster starves the line
-  rather than failing over to the other. ([validated by `assembly-run-reaper.test.ts:1253`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L1253), [`single-cr-dispatch-acceptance.test.ts:226`](apps/floor/src/jobs/station/single-cr-dispatch-acceptance.test.ts#L226), [`single-cr-dispatch-acceptance.test.ts:210`](apps/floor/src/jobs/station/single-cr-dispatch-acceptance.test.ts#L210))
+  rather than failing over to the other. ([validated by `assembly-run-reaper.test.ts:1253`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L1253), [`single-cr-dispatch-acceptance.test.ts:226`](apps/floor/src/jobs/station/single-cr-dispatch-acceptance.test.ts#L226), [`single-cr-dispatch-acceptance.test.ts:210`](apps/floor/src/jobs/station/single-cr-dispatch-acceptance.test.ts#L210), [satellite claims every node through the real gate — no validate means node:agent is enough](apps/floor/src/jobs/assembly-run/implementation-loop-acceptance.test.ts#L179), [paused central returns null from the claim gate — only the operator's switch blocks it](apps/floor/src/jobs/assembly-run/implementation-loop-acceptance.test.ts#L202))
 
 ## FR4 — Liveness, recovery, and dead-agent reaping
 
