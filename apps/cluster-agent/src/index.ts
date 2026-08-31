@@ -5,6 +5,7 @@ import {
   runEntrypoint,
 } from "@re-cinq/lore-shared/lib/process-entry.js";
 import { selectEventProxy } from "@re-cinq/lore-shared/project/events/select-event-reporter.js";
+import { selectReporterToken } from "./events/claim/select-reporter-token.js";
 import type { EventProxy } from "@re-cinq/lore-shared/project/events/event-proxy.js";
 import { startServer } from "./transport/server.js";
 import type { AgentEventsDeps } from "./transport/routes/agent-events.js";
@@ -35,10 +36,8 @@ const DRAIN_TIMEOUT_MS = 5_000;
 /** This agent's per-agent token once registered, lived here since the reporter and the claim loop are wired together in this composition root. */
 let agentToken: string | undefined;
 
-// Resolved per call: the per-agent token is unknown until registration returns and rotates out of band — capturing it at boot reported `undefined` forever (the 2026-08-24 credential-mismatch outage).
-function currentToken(): string | undefined {
-  return process.env.LORE_INGEST_TOKEN ?? agentToken;
-}
+// Chosen ONCE at boot by selectReporterToken, not resolved per call: a central cluster reports with the LORE_INGEST_TOKEN it mounts, a satellite with the per-agent token registration mints (still a thunk there, so re-registration rotations are picked up). The old `LORE_INGEST_TOKEN ?? agentToken` let the variable appear on a satellite AFTER boot and shadow the per-agent token — the 2026-08-24 outage, where each end typechecked and every call 401'd.
+const currentToken = selectReporterToken(process.env, () => agentToken);
 
 // A THUNK — see currentToken. Absent EVENT_ROUTER_URL there is no reporter to build.
 function buildEventProxy(
