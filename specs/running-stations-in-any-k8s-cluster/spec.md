@@ -686,7 +686,7 @@ every deploy leaves a working dispatch path:
    claimed elsewhere was never readable from here — `HttpAgentApi.get` answered
    `found:false` indistinguishably from "no such CR". The single-CR row's queue
    wait and offline-requeue are picked up by the reaper's definition-less arm,
-   which previously bounded nothing.
+   which previously bounded nothing. ([validated by `assembly-run-reaper.test.ts:557`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L557), [`assembly-run-reaper.test.ts:595`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L595))
 
 Rollback at any stage is the reverse deploy; step 3's flip is the only
 behavioural change, and it is a single deploy boundary, not a long-lived
