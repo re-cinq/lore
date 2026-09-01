@@ -31,6 +31,15 @@ import {
   stopLatch,
 } from "./claim-loop.js";
 import {
+  catalogSyncOnce,
+  crdOptionsFromEnv,
+  runCatalogSyncLoop,
+  syncIntervalMs,
+  type CatalogTarget,
+} from "../catalog/catalog-sync-loop.js";
+import { clusterDeps } from "../kernel/deps.js";
+import { KubeCatalogApi } from "../kernel/kube-token-provisioner.js";
+import {
   heartbeatIntervalMs,
   heartbeatOnce,
   runHeartbeatLoop,
@@ -54,6 +63,11 @@ import type { RegistrationConfig } from "./registration.js";
 
 const sleep = (ms: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, ms));
+
+/** How long the claim loop's start waits on the first catalog sync before
+ *  proceeding without it — long enough for a snapshot to land, short enough
+ *  that a wedged API cannot keep a whole cluster from ever claiming. */
+const FIRST_SYNC_TIMEOUT_MS = 120_000;
 
 async function runRegistrant(opts: {
   env: NodeJS.ProcessEnv;
@@ -113,6 +127,45 @@ async function runRegistrant(opts: {
 
   onReRegister(reRegister);
 
+  // The catalog sync rides beside the claim loop too, and GATES its start:
+  // an Agent CR's stationRef must resolve in this cluster, and a fresh
+  // agent's first sync is the full-catalog snapshot that guarantees it — the
+  // replacement for the Helm catalog-seed hook's deploy-ordering guarantee.
+  // Bounded: an API outage that stalls the first sync would stall claims for
+  // the same reason, so after the timeout the claim loop starts anyway (a
+  // claim whose stationRef is missing fails visibly and is handed back).
+  const kubeCatalog = new KubeCatalogApi();
+  const catalog: CatalogTarget = {
+    applyPair: (pair) => clusterDeps().catalog.applyPair(pair),
+    deletePair: (name) => clusterDeps().catalog.deletePair(name),
+    getAgentDefinition: (name) => kubeCatalog.getAgentDefinition(name),
+  };
+  let resolveFirstSync = (): void => {};
+  const firstSync = new Promise<void>((resolve) => {
+    resolveFirstSync = resolve;
+  });
+
+  void runCatalogSyncLoop({
+    sync: (ack) =>
+      catalogSyncOnce(
+        {
+          apiUrl: config.apiUrl,
+          identity: () => identity,
+          catalog,
+          crdOptions: crdOptionsFromEnv(env),
+          ownSeeded: env.LORE_CATALOG_SYNC_OWN_SEEDED === "1",
+        },
+        ack,
+      ),
+    reRegister,
+    sleep,
+    baseDelayMs: syncIntervalMs(env),
+    running,
+    onFirstSync: () => resolveFirstSync(),
+  }).catch((err) => {
+    console.error("[cluster-agent] catalog sync loop crashed:", err);
+  });
+
   // The heartbeat rides beside the claim loop, not inside it: an agent busy
   // executing a long claim must still look alive.
   void runHeartbeatLoop({
@@ -125,6 +178,15 @@ async function runRegistrant(opts: {
   }).catch((err) => {
     console.error("[cluster-agent] heartbeat loop crashed:", err);
   });
+
+  await Promise.race([
+    firstSync,
+    sleep(FIRST_SYNC_TIMEOUT_MS).then(() => {
+      console.warn(
+        "[cluster-agent] first catalog sync has not completed — starting the claim loop anyway; a claim on a missing stationRef fails visibly and is handed back",
+      );
+    }),
+  ]);
 
   await runClaimLoop({
     claim: () =>

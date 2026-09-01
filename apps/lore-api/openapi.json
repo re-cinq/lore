@@ -3675,6 +3675,40 @@
         ]
       }
     },
+    "/api/cluster-agents/{id}/catalog-events": {
+      "get": {
+        "operationId": "get_api_cluster-agents_id_catalog-events",
+        "summary": "GET /api/cluster-agents/{id}/catalog-events",
+        "tags": ["Cluster Agents"],
+        "security": [],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "The catalog changes this cluster-agent has not applied yet — a full snapshot on first contact, an event tail after — each entry carrying the resolved definition to render, or null to delete",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClusterAgentCatalogEvents"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
     "/api/cluster-agents/install-info": {
       "get": {
         "operationId": "get_api_cluster-agents_install-info",
@@ -9973,6 +10007,146 @@
         ],
         "additionalProperties": false
       },
+      "ClusterAgentCatalogEvents": {
+        "type": "object",
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": ["snapshot", "tail"]
+          },
+          "cursor": {
+            "type": "string"
+          },
+          "entries": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "project_id": {
+                  "type": ["string", "null"]
+                },
+                "definition": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "type": "string"
+                        },
+                        "model": {
+                          "type": ["string", "null"]
+                        },
+                        "timeout_minutes": {
+                          "type": ["number", "null"]
+                        },
+                        "prompt": {
+                          "type": ["string", "null"]
+                        },
+                        "image": {
+                          "type": ["string", "null"]
+                        },
+                        "execution_mode": {
+                          "type": "string"
+                        },
+                        "review_required": {
+                          "type": "boolean"
+                        },
+                        "project_id": {
+                          "type": ["string", "null"]
+                        },
+                        "config": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "skills": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  }
+                                },
+                                "disallowed_tools": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  }
+                                },
+                                "watch": {
+                                  "type": "object",
+                                  "properties": {
+                                    "event": {
+                                      "type": "string"
+                                    },
+                                    "path": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": ["event", "path"],
+                                  "additionalProperties": false
+                                },
+                                "repo_workdir": {
+                                  "type": "boolean"
+                                },
+                                "command": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  }
+                                },
+                                "env": {
+                                  "type": "object",
+                                  "additionalProperties": {
+                                    "type": "string"
+                                  }
+                                },
+                                "pod_labels": {
+                                  "type": "object",
+                                  "additionalProperties": {
+                                    "type": "string"
+                                  }
+                                },
+                                "needs_model": {
+                                  "type": "boolean"
+                                }
+                              },
+                              "additionalProperties": true
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "name",
+                        "model",
+                        "timeout_minutes",
+                        "prompt",
+                        "image",
+                        "execution_mode",
+                        "review_required",
+                        "project_id",
+                        "config"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": ["name", "project_id", "definition"],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": ["mode", "cursor", "entries"],
+        "additionalProperties": false
+      },
       "ClusterAgentInstallInfo": {
         "type": "object",
         "properties": {
@@ -10318,6 +10492,68 @@
               },
               "project_id": {
                 "type": ["string", "null"]
+              },
+              "config": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "skills": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "disallowed_tools": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "watch": {
+                        "type": "object",
+                        "properties": {
+                          "event": {
+                            "type": "string"
+                          },
+                          "path": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["event", "path"],
+                        "additionalProperties": false
+                      },
+                      "repo_workdir": {
+                        "type": "boolean"
+                      },
+                      "command": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "env": {
+                        "type": "object",
+                        "additionalProperties": {
+                          "type": "string"
+                        }
+                      },
+                      "pod_labels": {
+                        "type": "object",
+                        "additionalProperties": {
+                          "type": "string"
+                        }
+                      },
+                      "needs_model": {
+                        "type": "boolean"
+                      }
+                    },
+                    "additionalProperties": true
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
               }
             },
             "required": [
@@ -10328,7 +10564,8 @@
               "image",
               "execution_mode",
               "review_required",
-              "project_id"
+              "project_id",
+              "config"
             ],
             "additionalProperties": false
           },
@@ -10363,6 +10600,68 @@
                     },
                     "project_id": {
                       "type": ["string", "null"]
+                    },
+                    "config": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "skills": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            "disallowed_tools": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            "watch": {
+                              "type": "object",
+                              "properties": {
+                                "event": {
+                                  "type": "string"
+                                },
+                                "path": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": ["event", "path"],
+                              "additionalProperties": false
+                            },
+                            "repo_workdir": {
+                              "type": "boolean"
+                            },
+                            "command": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            "env": {
+                              "type": "object",
+                              "additionalProperties": {
+                                "type": "string"
+                              }
+                            },
+                            "pod_labels": {
+                              "type": "object",
+                              "additionalProperties": {
+                                "type": "string"
+                              }
+                            },
+                            "needs_model": {
+                              "type": "boolean"
+                            }
+                          },
+                          "additionalProperties": true
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
@@ -10373,7 +10672,8 @@
                     "image",
                     "execution_mode",
                     "review_required",
-                    "project_id"
+                    "project_id",
+                    "config"
                   ],
                   "additionalProperties": false
                 }
@@ -10417,6 +10717,68 @@
               },
               "project_id": {
                 "type": ["string", "null"]
+              },
+              "config": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "skills": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "disallowed_tools": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "watch": {
+                        "type": "object",
+                        "properties": {
+                          "event": {
+                            "type": "string"
+                          },
+                          "path": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["event", "path"],
+                        "additionalProperties": false
+                      },
+                      "repo_workdir": {
+                        "type": "boolean"
+                      },
+                      "command": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "env": {
+                        "type": "object",
+                        "additionalProperties": {
+                          "type": "string"
+                        }
+                      },
+                      "pod_labels": {
+                        "type": "object",
+                        "additionalProperties": {
+                          "type": "string"
+                        }
+                      },
+                      "needs_model": {
+                        "type": "boolean"
+                      }
+                    },
+                    "additionalProperties": true
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
               }
             },
             "required": [
@@ -10427,7 +10789,8 @@
               "image",
               "execution_mode",
               "review_required",
-              "project_id"
+              "project_id",
+              "config"
             ],
             "additionalProperties": false
           },

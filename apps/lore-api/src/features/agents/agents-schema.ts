@@ -33,6 +33,9 @@ const normalize = (
   image: p.image ?? null,
   execution_mode: p.execution_mode,
   review_required: p.review_required,
+  // Not settable via this route -- config comes from the catalog seed
+  // (skills/disallowed_tools/etc), not the per-task-type Agents UI.
+  config: null,
 });
 
 export function parseAgentInput(body: unknown): AgentDefinitionInput {

@@ -13,6 +13,7 @@ const org: AgentDefinition = {
   image: null,
   execution_mode: "claude-code",
   review_required: true,
+  config: null,
   project_id: null,
 };
 const project: AgentDefinition = { ...org, name: "review", project_id: "p1" };

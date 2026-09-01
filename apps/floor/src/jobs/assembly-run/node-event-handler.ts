@@ -384,6 +384,16 @@ export async function productionNodeEventDeps(): Promise<NodeEventDeps> {
     // The enqueue-time half of FR2: `resolveRequiredTags` reads the repo's
     // `station_default_tags` from this raw settings object.
     repoSettings: (repo) => settings().rawSettings(repo),
+    // Per-repo override CRDs live under project-qualified names; the dispatch
+    // must spell its stationRef the way the catalog sync applied it.
+    qualifyStationRef: async (baseRef, repo) => {
+      const [{ qualifiedStationRef }, { getPool }] = await Promise.all([
+        import("@re-cinq/lore-shared/project/agents/agent-defs-pg.js"),
+        import("@re-cinq/lore-shared/db/pg-pool.js"),
+      ]);
+
+      return qualifiedStationRef(getPool(), baseRef, repo);
+    },
     // Strict: a node's prompt_ref names the recipe it runs, so an unknown one
     // fails the node instead of silently running `general` (#1329).
     resolvePrompt: buildNodePrompt,

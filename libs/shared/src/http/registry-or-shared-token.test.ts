@@ -19,6 +19,7 @@ const agent = (tokenHash: string): ClusterAgent => ({
   status: "active",
   paused: false,
   clusterInfo: null,
+  catalogCursor: null,
 });
 
 /** A registry that records whether it was consulted at all. */

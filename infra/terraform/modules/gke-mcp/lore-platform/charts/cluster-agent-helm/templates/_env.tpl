@@ -60,4 +60,35 @@ Usage:
     secretKeyRef:
       name: {{ .Values.claim.registrationTokenSecret.name }}
       key: {{ .Values.claim.registrationTokenSecret.key }}
+# The per-cluster values the catalog sync loop renders into the CRs it applies
+# (agent-crd.ts CatalogCrdOptions). Empty values are omitted entirely — an
+# unset env var omits the block it feeds, the seed's guard rule.
+{{- if .Values.catalog.eventsUrl }}
+- name: LORE_AGENT_EVENTS_URL
+  value: {{ .Values.catalog.eventsUrl | quote }}
+{{- end }}
+{{- if .Values.catalog.mcpUrl }}
+- name: LORE_MCP_URL
+  value: {{ .Values.catalog.mcpUrl | quote }}
+{{- end }}
+{{- if .Values.catalog.skillsUrl }}
+- name: LORE_SKILLS_URL
+  value: {{ .Values.catalog.skillsUrl | quote }}
+{{- end }}
+{{- if .Values.catalog.llmSecretKey }}
+- name: LORE_AGENT_LLM_SECRET_KEY
+  value: {{ .Values.catalog.llmSecretKey | quote }}
+{{- end }}
+{{- if .Values.catalog.stationImage }}
+- name: LORE_STATION_IMAGE
+  value: {{ .Values.catalog.stationImage | quote }}
+{{- end }}
+{{- if .Values.catalog.dgraphUrl }}
+- name: LORE_DGRAPH_HTTP
+  value: {{ .Values.catalog.dgraphUrl | quote }}
+{{- end }}
+{{- if .Values.catalog.ownSeeded }}
+- name: LORE_CATALOG_SYNC_OWN_SEEDED
+  value: "1"
+{{- end }}
 {{- end -}}

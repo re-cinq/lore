@@ -16,6 +16,7 @@ const agent = (
   status: "active",
   paused: false,
   clusterInfo: null,
+  catalogCursor: null,
   ...overrides,
 });
 

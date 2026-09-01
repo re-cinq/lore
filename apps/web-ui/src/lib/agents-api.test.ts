@@ -13,6 +13,7 @@ const def: AgentDefinition = {
   execution_mode: "claude-code",
   review_required: true,
   project_id: "p1",
+  config: null,
 };
 
 const mockFetch = (status: number, body: unknown) => {

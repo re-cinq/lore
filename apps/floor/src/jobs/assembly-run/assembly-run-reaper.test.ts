@@ -56,6 +56,7 @@ const clusterAgent = (
   status: "active",
   paused: false,
   clusterInfo: null,
+  catalogCursor: null,
   ...overrides,
 });
 

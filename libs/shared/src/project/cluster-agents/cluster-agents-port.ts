@@ -43,6 +43,12 @@ export interface ClusterAgentsRepository {
   /** Mark agents silent since `cutoff` offline; returns the newly offline. */
   markOffline(cutoff: Date): Promise<ClusterAgent[]>;
   list(): Promise<ClusterAgent[]>;
+  /**
+   * Advance this agent's `lore.catalog_events` high-water mark. Monotonic on
+   * the DB side (`GREATEST`) so a re-delivered older batch can never move the
+   * cursor backwards and replay the whole tail.
+   */
+  advanceCatalogCursor(id: string, cursor: string): Promise<void>;
 }
 
 export type RegistrationDecision =

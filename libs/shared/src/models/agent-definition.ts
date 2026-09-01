@@ -13,6 +13,28 @@ import type { ColumnMap } from "../lib/row.js";
  * application code.
  */
 
+/**
+ * The recipe fields beyond the scalar columns — what the Helm catalog seed used
+ * to carry per entry and no column ever stored: a task type's skills /
+ * disallowed_tools / watch / repo_workdir, a station's command / env /
+ * pod_labels / needs_model. Tolerant by the same reasoning as
+ * TaskTypeConfigSchema: a stale reader must keep serving the fields it knows.
+ */
+export const CatalogConfigSchema = z
+  .object({
+    skills: z.array(z.string()).optional(),
+    disallowed_tools: z.array(z.string()).optional(),
+    watch: z.object({ event: z.string(), path: z.string() }).optional(),
+    repo_workdir: z.boolean().optional(),
+    command: z.array(z.string()).optional(),
+    env: z.record(z.string()).optional(),
+    pod_labels: z.record(z.string()).optional(),
+    needs_model: z.boolean().optional(),
+  })
+  .passthrough();
+
+export type CatalogConfig = z.infer<typeof CatalogConfigSchema>;
+
 export const AgentDefinitionSchema = z.object({
   id: z.string(),
   name: z.string(),
@@ -23,6 +45,7 @@ export const AgentDefinitionSchema = z.object({
   projectId: z.string().nullable(),
   executionMode: z.string(),
   reviewRequired: z.boolean(),
+  config: CatalogConfigSchema.nullable(),
   createdAt: z.date(),
   updatedAt: z.date(),
 });
@@ -39,6 +62,7 @@ export const AGENT_DEFINITION_COLUMNS = {
   projectId: "project_id",
   executionMode: "execution_mode",
   reviewRequired: "review_required",
+  config: "config",
   createdAt: "created_at",
   updatedAt: "updated_at",
 } as const satisfies ColumnMap<AgentDefinition>;
@@ -65,6 +89,7 @@ export const ResolvedAgentDefinitionSchema = z.object({
   execution_mode: z.string(),
   review_required: z.boolean(),
   project_id: z.string().nullable(),
+  config: CatalogConfigSchema.nullable(),
 });
 
 export type ResolvedAgentDefinition = z.infer<

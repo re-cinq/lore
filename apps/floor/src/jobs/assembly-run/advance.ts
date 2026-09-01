@@ -74,6 +74,15 @@ export interface AdvanceDeps {
    *  reads `station_default_tags` from at enqueue time (FR2). Null when the
    *  repo has no row; the resolver treats that as "no default". */
   repoSettings: (repo: string) => Promise<Record<string, unknown> | null>;
+  /**
+   * The stationRef this repo's dispatch must carry for a catalog base name —
+   * project-qualified when the repo holds an override row for it, bare
+   * otherwise. Per-repo override CRDs render under qualified names (the
+   * bare-name collision let two repos silently replace each other's recipe),
+   * so the enqueue side has to point at the spelling the catalog sync applied.
+   * Optional seam: absent means bare names, the org-default catalog.
+   */
+  qualifyStationRef?: (baseRef: string, repo: string) => Promise<string>;
   resolvePrompt: (promptRef: string, description: string) => string;
   /** Post-close hook for choreography that re-arms on a run's terminal state
    *  (the implementation loop's driver). Winning finisher only, best-effort —
@@ -391,17 +400,27 @@ export async function advanceLine(
   // between the two leaves a row the queue-wait bound settles rather than a
   // claim with nothing to run. Iteration rides into the CR name + labels so a
   // revisited node runs a fresh pod.
-  await deps.assemblyRuns.enqueueStationRunDispatch(
-    nodeRowId,
-    nodeLaunchSpec(dispatch, {
-      node,
-      task,
-      iteration: transition.iteration,
-      stationRunId,
-      priorOutcome: priorOutcomeOf(visits, transition.nodeId),
-      incomingFailure: incomingFailureOf(visits),
-    }),
-  );
+  const spec = nodeLaunchSpec(dispatch, {
+    node,
+    task,
+    iteration: transition.iteration,
+    stationRunId,
+    priorOutcome: priorOutcomeOf(visits, transition.nodeId),
+    incomingFailure: incomingFailureOf(visits),
+  });
+
+  // Point the CR at the catalog spelling this repo actually gets: qualified
+  // when an override row exists, the bare org default otherwise. Resolved at
+  // enqueue time (the one builder feeds every door — first launch and reaper
+  // relaunch alike), so the claiming cluster needs no catalog knowledge.
+  if (deps.qualifyStationRef) {
+    spec.stationRef = await deps.qualifyStationRef(
+      spec.stationRef ?? task.taskType,
+      task.targetRepo,
+    );
+  }
+
+  await deps.assemblyRuns.enqueueStationRunDispatch(nodeRowId, spec);
 }
 
 /** Close the row, reclaim the token, and settle the detect fan-out's job_run. */

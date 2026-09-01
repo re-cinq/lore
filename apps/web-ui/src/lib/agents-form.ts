@@ -35,6 +35,9 @@ export function parseAgentForm(fd: FormData): ParsedAgentForm {
       image: ((fd.get("image") as string) || "").trim() || null,
       execution_mode: (fd.get("execution_mode") as string) || "claude-code",
       review_required: fd.get("review_required") === "1",
+      // Null inherits the org default's config (skills/disallowed_tools/etc);
+      // the form has no field for it.
+      config: null,
     },
     approvalPr: ((fd.get("approval_pr") as string) || "").trim() || undefined,
   };

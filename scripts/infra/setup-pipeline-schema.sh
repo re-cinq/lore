@@ -133,6 +133,14 @@ kubectl exec -n "$NS" "$POD" -- psql -U postgres -d lore -c "
       FROM pg_catalog.pg_class c
       JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
       WHERE n.nspname = 'pipeline' AND c.relkind IN ('r','S','v','m','i')
+        -- A sequence owned by a serial ('a') or identity ('i') column
+        -- cannot take ALTER SEQUENCE ... OWNER TO directly -- Postgres
+        -- requires it come from ALTER TABLE ... OWNER TO on the owning
+        -- table, which the 'r' branch above already covers.
+        AND NOT (c.relkind = 'S' AND EXISTS (
+          SELECT 1 FROM pg_catalog.pg_depend d
+          WHERE d.objid = c.oid AND d.deptype IN ('a', 'i')
+        ))
     LOOP
       IF r.relkind = 'r' THEN
         EXECUTE format('ALTER TABLE pipeline.%I OWNER TO lore', r.relname);

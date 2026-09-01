@@ -21,6 +21,7 @@ describe("parseAgentInput", () => {
       image: null,
       execution_mode: "claude-code",
       review_required: false,
+      config: null,
     });
   });
 

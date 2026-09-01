@@ -23,6 +23,7 @@ const yamlBase: AgentDefsPort = {
           image: null,
           execution_mode: "claude-code",
           review_required: true,
+          config: null,
           project_id: null,
         }
       : null,
@@ -61,6 +62,7 @@ const orgRow: Row = {
   image: null,
   execution_mode: "claude-code",
   review_required: true,
+  config: null,
   project_id: null,
 };
 
@@ -155,6 +157,7 @@ describe("PgAgentDefs", () => {
       image: null,
       execution_mode: "claude-code",
       review_required: true,
+      config: null,
     });
 
     expect(def.model).toBe("claude-opus-4-8");
@@ -173,5 +176,32 @@ describe("PgAgentDefs", () => {
 
     expect(capture[0].text).toMatch(/delete from lore\.agent_definitions/i);
     expect(capture[0].params).toEqual(["general", "re-cinq/re-plan"]);
+  });
+
+  it("create, update and delete each append a lore.catalog_events row in the same statement", async () => {
+    const capture: Array<{ text: string; params?: unknown[] }> = [];
+    const store = new PgAgentDefs(
+      fakePool(() => [orgRow], capture),
+      yamlBase,
+    );
+    const input = {
+      name: "general",
+      model: null,
+      timeout_minutes: null,
+      prompt: null,
+      image: null,
+      execution_mode: "claude-code",
+      review_required: false,
+      config: null,
+    };
+
+    await store.create("re-cinq/re-plan", input);
+    await store.update("re-cinq/re-plan", "general", input);
+    await store.delete("re-cinq/re-plan", "general");
+
+    for (const call of capture) {
+      expect(call.text).toMatch(/insert into lore\.catalog_events/i);
+    }
+    expect(capture[2].text).toMatch(/'delete' from removed/i);
   });
 });

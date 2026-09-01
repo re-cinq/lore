@@ -23,6 +23,7 @@ function recordingDefs(
     image: null,
     execution_mode: "claude-code",
     review_required: true,
+    config: null,
     project_id: null,
   };
 
@@ -77,6 +78,7 @@ describe("AgentDefs", () => {
       image: null,
       execution_mode: "claude-code",
       review_required: true,
+      config: null,
     });
     await agentDefs.delete("custom");
 

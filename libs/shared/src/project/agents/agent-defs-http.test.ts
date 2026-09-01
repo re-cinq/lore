@@ -17,6 +17,7 @@ const general: AgentDefinition = {
   image: null,
   execution_mode: "claude-code",
   review_required: true,
+  config: null,
   project_id: "cccccccc-cccc-cccc-cccc-cccccccccccc",
 };
 

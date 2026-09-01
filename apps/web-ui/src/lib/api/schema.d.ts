@@ -1088,6 +1088,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/cluster-agents/{id}/catalog-events": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** GET /api/cluster-agents/{id}/catalog-events */
+    get: operations["get_api_cluster-agents_id_catalog-events"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/cluster-agents/install-info": {
     parameters: {
       query?: never;
@@ -2709,6 +2726,46 @@ export interface components {
       agent_cr_name: string | null;
       spec?: unknown;
     };
+    ClusterAgentCatalogEvents: {
+      /** @enum {string} */
+      mode: "snapshot" | "tail";
+      cursor: string;
+      entries: {
+        name: string;
+        project_id: string | null;
+        definition: {
+          name: string;
+          model: string | null;
+          timeout_minutes: number | null;
+          prompt: string | null;
+          image: string | null;
+          execution_mode: string;
+          review_required: boolean;
+          project_id: string | null;
+          config:
+            | ({
+                skills?: string[];
+                disallowed_tools?: string[];
+                watch?: {
+                  event: string;
+                  path: string;
+                };
+                repo_workdir?: boolean;
+                command?: string[];
+                env?: {
+                  [key: string]: string;
+                };
+                pod_labels?: {
+                  [key: string]: string;
+                };
+                needs_model?: boolean;
+              } & {
+                [key: string]: unknown;
+              })
+            | null;
+        } | null;
+      }[];
+    };
     ClusterAgentInstallInfo: {
       available: boolean;
       reason: string | null;
@@ -2805,6 +2862,27 @@ export interface components {
           execution_mode: string;
           review_required: boolean;
           project_id: string | null;
+          config:
+            | ({
+                skills?: string[];
+                disallowed_tools?: string[];
+                watch?: {
+                  event: string;
+                  path: string;
+                };
+                repo_workdir?: boolean;
+                command?: string[];
+                env?: {
+                  [key: string]: string;
+                };
+                pod_labels?: {
+                  [key: string]: string;
+                };
+                needs_model?: boolean;
+              } & {
+                [key: string]: unknown;
+              })
+            | null;
         }
       | {
           agents: {
@@ -2816,6 +2894,27 @@ export interface components {
             execution_mode: string;
             review_required: boolean;
             project_id: string | null;
+            config:
+              | ({
+                  skills?: string[];
+                  disallowed_tools?: string[];
+                  watch?: {
+                    event: string;
+                    path: string;
+                  };
+                  repo_workdir?: boolean;
+                  command?: string[];
+                  env?: {
+                    [key: string]: string;
+                  };
+                  pod_labels?: {
+                    [key: string]: string;
+                  };
+                  needs_model?: boolean;
+                } & {
+                  [key: string]: unknown;
+                })
+              | null;
           }[];
         };
     AgentDefinitionWritten: {
@@ -2830,6 +2929,27 @@ export interface components {
         execution_mode: string;
         review_required: boolean;
         project_id: string | null;
+        config:
+          | ({
+              skills?: string[];
+              disallowed_tools?: string[];
+              watch?: {
+                event: string;
+                path: string;
+              };
+              repo_workdir?: boolean;
+              command?: string[];
+              env?: {
+                [key: string]: string;
+              };
+              pod_labels?: {
+                [key: string]: string;
+              };
+              needs_model?: boolean;
+            } & {
+              [key: string]: unknown;
+            })
+          | null;
       };
       ceremony: {
         /** @enum {string} */
@@ -5627,6 +5747,29 @@ export interface operations {
       };
       400: components["responses"]["BadRequest"];
       413: components["responses"]["PayloadTooLarge"];
+      429: components["responses"]["RateLimited"];
+    };
+  };
+  "get_api_cluster-agents_id_catalog-events": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The catalog changes this cluster-agent has not applied yet — a full snapshot on first contact, an event tail after — each entry carrying the resolved definition to render, or null to delete */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ClusterAgentCatalogEvents"];
+        };
+      };
       429: components["responses"]["RateLimited"];
     };
   };
