@@ -110,6 +110,8 @@ export const BODYLESS_WRITES = new Set<string>([
   "POST /api/cluster-agents/{id}/claim",
   // Liveness is the request itself; the timestamp is the server's clock.
   "POST /api/cluster-agents/{id}/heartbeat",
+  // Which agent to bounce is the path param; there is nothing for a body to say.
+  "POST /api/cluster-agents/{id}/restart",
 ]);
 
 /** Look up the documented body for a write route with no `zodValidate` schema. */

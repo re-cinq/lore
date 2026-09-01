@@ -187,6 +187,7 @@ describe("ClusterAgentsView", () => {
 
     expect(screen.getAllByRole("button", { name: "Restart" })).toHaveLength(1);
     fireEvent.click(screen.getByRole("button", { name: "Restart" }));
+    fireEvent.click(screen.getByRole("button", { name: "Confirm restart" }));
     await waitFor(() => expect(calls).toEqual(["a"]));
   });
 
