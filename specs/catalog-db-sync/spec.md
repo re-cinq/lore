@@ -102,12 +102,24 @@ blocked the whole tail. The contract closes the class.
 
 ## Retired mechanisms
 
-**Cutover done (2026-09-01).** `seedCatalog: false` turns the Helm
-`catalog-seed` hook off and `catalog.ownSeeded: true` hands the
-seed-labeled CRs to the sync loop, in one deploy: from here the DB is
-the only thing that puts a catalog CR in any cluster, central and
-satellite alike. lore-api's synchronous CRD push went with the render
-contract (FR8.6), so the loop is also the only writer.
+**Cutover done for CENTRAL (2026-09-01).** `seedCatalog = false` on the
+umbrella's `ai-agents` values turns the Helm `catalog-seed` hook off for
+this cluster, and `catalog.ownSeeded: true` hands the seed-labeled CRs
+to its sync loop, in one deploy: from here the DB is the only thing that
+puts a catalog CR in the central cluster. lore-api's synchronous CRD
+push went with the render contract (FR8.6), so the loop is also the only
+writer.
+
+The flag is set on the UMBRELLA, deliberately not on the subchart
+default, because `cluster-agent-standalone-helm` VENDORS the same
+`ai-agents` subchart: flipping the default would strip every satellite
+of its seeded catalog — and of the telemetry wiring that rides those
+seeded CRs — while satellite sync is still unproven (the registered
+satellite's `catalog_cursor` is NULL: it has never synced once). CI
+caught this: the standalone chart's render check asserts the events sink
+is present when telemetry is opted in, and that assertion fails the
+moment the seed disappears. A satellite's own cutover is a separate
+flip, gated on its cursor being non-null.
 
 The flip was gated on a rendered-parity check, not on confidence: all 28
 org definitions were rendered with the deployed cluster-agent's own env

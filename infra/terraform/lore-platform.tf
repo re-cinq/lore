@@ -181,12 +181,21 @@ resource "helm_release" "lore_platform" {
     }
 
     # ai-agents: 1 controller replica (leader-election still elects the sole pod);
-    # other config (seedCatalog, image digests, cross-ns refs) stays subchart default.
+    # other config (image digests, cross-ns refs) stays subchart default.
     # loreMcpUrl templates into the seeded agent recipes' mcp_servers URL (the live
     # Lore MCP the pods reach); the gateway serves MCP at /mcp. Empty leaves the
     # sentinel unreplaced-but-harmless (no mcp_servers URL to connect to).
     "ai-agents" = {
       controller = { replicas = 1 }
+      # CUTOVER (2026-09-01, specs/catalog-db-sync): THIS cluster's catalog now
+      # comes from the DB through the cluster-agent's sync loop, so the seed hook
+      # is off here. Set on the UMBRELLA, deliberately not on the subchart
+      # default: cluster-agent-standalone-helm vendors the same subchart, and a
+      # satellite still gets its catalog (and the telemetry wiring that rides
+      # those seeded CRs) from the hook until its own sync is verified — the
+      # satellite's catalog_cursor is still NULL. Flip the subchart default only
+      # when every registered cluster has synced at least once.
+      seedCatalog = false
       #
       # The URL is IN-CLUSTER, not var.lore_mcp_url's public host: Dataplane V2
       # short-circuits a VIP whose backend lives in this cluster and the post-DNAT 10.x
