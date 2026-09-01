@@ -119,6 +119,35 @@ If you cannot apply terraform right then, `kubectl apply` the ExternalSecret
 manifest directly to unblock; ESO syncs instantly and the next `terraform apply`
 adopts it.
 
+## The Gemini credential (`lore-gemini-api-key`)
+
+Gemini-model agent runs authenticate with a Generative Language API key the
+run pod reads as `GEMINI_API_KEY`. Everything is gated on `enable_gemini` in
+`terraform.tfvars` — the GSM container, the `agent-secrets` entry, and the
+`gemini` model family in the central catalog render — so a deployment without
+the key refuses gemini recipes cleanly (the reason shows on the /agents
+Rollout column) instead of starting pods that cannot call their model.
+
+Create the key IN the GCP project, so usage bills to the project and the key
+can be restricted to the one API it is for:
+
+```bash
+gcloud services enable generativelanguage.googleapis.com apikeys.googleapis.com
+gcloud services api-keys create --display-name="lore-gemini" \
+  --api-target=service=generativelanguage.googleapis.com
+KEY_NAME=$(gcloud services api-keys list --filter='displayName:lore-gemini' \
+  --format='value(name)')
+gcloud services api-keys get-key-string "$KEY_NAME" \
+  --format='value(keyString)' | tr -d '\n' \
+  | gcloud secrets versions add lore-gemini-api-key --data-file=-
+```
+
+Order: `terraform apply` first (it creates the GSM container the last command
+writes into), seed the version, then confirm with `check-secrets.sh`. With the
+key live, re-save each gemini-model definition on `/agents` — a refusal is
+acked past permanently, so the re-save is what emits the catalog event that
+makes the sync loop re-render and apply it.
+
 ## Change a non-secret value
 
 Hostnames, `project_id`, the `enable_*` gates, `log_retention_days` — these live
