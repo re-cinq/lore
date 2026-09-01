@@ -257,6 +257,18 @@ resource "helm_release" "lore_platform" {
         # reaper.
         EVENT_ROUTER_URL = local.event_router_in_cluster
       }
+      # Which credential each model FAMILY rides on this cluster (specs/
+      # catalog-db-sync FR8): the sync loop's render mounts the named key from
+      # agent-secrets, and validateCatalogEntry accepts only families listed
+      # here — an unlisted family's recipes are refused with the reason on the
+      # /agents Rollout column, and dispatch falls back to the org default.
+      # Anthropic is implicit (the chart's llmSecretKey); this map is only for
+      # the additional families. Gated on the SAME flag that puts the key into
+      # agent-secrets, because listing a family whose key the Secret does not
+      # hold renders pods that die CreateContainerConfigError.
+      catalog = var.enable_gemini ? {
+        modelSecretKeys = { gemini = "GEMINI_API_KEY" }
+      } : {}
     }
 
     # ---- Stations (lore-stations namespace) ----

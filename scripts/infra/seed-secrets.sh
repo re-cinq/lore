@@ -47,6 +47,10 @@ REQUIRED=(
 OPTIONAL=(
   lore-anthropic-admin-api-key
   lore-admin-token
+  # Behind enable_gemini: the Generative Language API key gemini-model agent
+  # runs read as GEMINI_API_KEY (docs/managing-secrets.md has the creation
+  # commands).
+  lore-gemini-api-key
 )
 
 has_value() {

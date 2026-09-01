@@ -55,5 +55,11 @@ enable_ui_admin_token = false
 # the anthropic ExternalSecrets, for the cost-sync maintenance job.
 enable_anthropic_admin_key = false
 
+# Gemini credential for agent runs (GEMINI_API_KEY into agent-secrets + the
+# gemini model family in the central catalog render). Seed lore-gemini-api-key
+# before or right after the apply; a listed family with no key in the Secret
+# fails run pods on their secretKeyRef.
+enable_gemini = false
+
 # --- Misc ---
 log_retention_days = 30
