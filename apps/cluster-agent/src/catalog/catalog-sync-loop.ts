@@ -27,9 +27,12 @@ import {
 import {
   agentDefToCrds,
   catalogCrdName,
-  SEED_MANAGED_BY,
+  SYNC_MANAGED_BY,
+  validateCatalogEntry,
   type CatalogCrdOptions,
 } from "@re-cinq/lore-shared/project/agents/agent-crd.js";
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
+import { statusOf } from "../kernel/k8s-errors.js";
 import type { ResolvedAgentDefinition } from "@re-cinq/lore-shared/models/agent-definition.js";
 import type { AgentDefinition, Station } from "@re-cinq/agent-contracts";
 import type { ClusterAgentIdentity } from "../claim/identity-store.js";
@@ -67,7 +70,56 @@ export function crdOptionsFromEnv(env: NodeJS.ProcessEnv): CatalogCrdOptions {
       : {}),
     ...(env.LORE_STATION_IMAGE ? { stationImage: env.LORE_STATION_IMAGE } : {}),
     ...(env.LORE_DGRAPH_HTTP ? { dgraphUrl: env.LORE_DGRAPH_HTTP } : {}),
+    ...(env.LORE_MODEL_SECRET_KEYS
+      ? { modelSecretKeys: parseModelSecretKeys(env.LORE_MODEL_SECRET_KEYS) }
+      : {}),
   };
+}
+
+/** `anthropic=ANTHROPIC_API_KEY,gemini=GEMINI_API_KEY` → the family→key map
+ *  the render and validator consult. Malformed pairs are dropped rather than
+ *  guessed at — an absent family is a loud refusal downstream, a mis-parsed
+ *  one would be a silently wrong secret. */
+export function parseModelSecretKeys(raw: string): Record<string, string> {
+  return Object.fromEntries(
+    raw
+      .split(",")
+      .map((pair) => pair.split("=").map((part) => part.trim()))
+      .filter(
+        (parts): parts is [string, string] =>
+          parts.length === 2 && parts[0].length > 0 && parts[1].length > 0,
+      ),
+  );
+}
+
+/**
+ * What this cluster CLAIMS to offer, declared — never inferred from which env
+ * vars happen to be set. `full` is a cluster with the platform around it (MCP
+ * gateway, skills registry, events sink); `bare` is a satellite that renders
+ * recipes without those blocks ON PURPOSE. The 2026-09-01 incident was a full
+ * cluster rendering the bare shape because two env vars went unset: with the
+ * profile declared, that misconfiguration refuses to boot instead.
+ */
+export function catalogProfile(env: NodeJS.ProcessEnv): "full" | "bare" {
+  return env.LORE_CATALOG_PROFILE === "full" ? "full" : "bare";
+}
+
+export function enforceCatalogProfile(env: NodeJS.ProcessEnv): void {
+  if (catalogProfile(env) !== "full") {
+    return;
+  }
+
+  for (const name of [
+    "LORE_MCP_URL",
+    "LORE_SKILLS_URL",
+    "LORE_AGENT_EVENTS_URL",
+  ] as const) {
+    enforceTrue(
+      env[name],
+      Error,
+      `cluster-agent cannot start: LORE_CATALOG_PROFILE=full but ${name} is unset — a full cluster rendering recipes without it produces pods that die at boot (see the 2026-09-01 settings.json incident). Set the value or declare the cluster bare.`,
+    );
+  }
 }
 
 /** The catalog-events response body (200). */
@@ -82,7 +134,15 @@ interface CatalogEventsResponse {
 }
 
 export type CatalogSyncOutcome =
-  | { kind: "synced"; applied: number; deleted: number; skipped: number }
+  | {
+      kind: "synced";
+      applied: number;
+      deleted: number;
+      skipped: number;
+      /** Entries the render contract or the apiserver refused permanently —
+       *  acked past, each with its reason, so they surface instead of loop. */
+      refused: string[];
+    }
   | { kind: "empty" }
   | { kind: "unauthorized" }
   | { kind: "error"; message: string };
@@ -200,6 +260,7 @@ export async function catalogSyncOnce(
   let applied = 0;
   let deleted = 0;
   let skipped = 0;
+  const refused: string[] = [];
 
   for (const entry of body.entries) {
     const crdName = catalogCrdName(entry.name, entry.project_id);
@@ -211,12 +272,29 @@ export async function catalogSyncOnce(
         continue;
       }
 
+      // The render contract, BEFORE the render: a refusal is permanent for
+      // this (row, cluster) pair — only a new event or new cluster config
+      // changes the answer — so the loop acks past it. Re-serving it instead
+      // is how one dead row (`def-github_action`, 422 forever) head-of-line
+      // blocked the entire tail for two hours on 2026-09-01. The previous CR,
+      // if any, stays live: last-known-good beats unbootable.
+      const refusal = validateCatalogEntry(entry.definition, deps.crdOptions);
+
+      if (refusal !== null) {
+        refused.push(`${crdName}: ${refusal}`);
+        continue;
+      }
+
       if (!deps.ownSeeded) {
         const live = await deps.catalog.getAgentDefinition(crdName);
         const managedBy =
           live?.metadata?.labels?.["app.kubernetes.io/managed-by"];
 
-        if (managedBy === SEED_MANAGED_BY) {
+        // While the transition holds, this loop touches only what IT owns (or
+        // what does not exist yet). Skipping just the SEED label left every
+        // UI-labeled CR fair game — which is how the sync took over the
+        // code-review family minutes after the 2026-09-01 deploy.
+        if (managedBy !== undefined && managedBy !== SYNC_MANAGED_BY) {
           skipped += 1;
           continue;
         }
@@ -226,9 +304,14 @@ export async function catalogSyncOnce(
       );
       applied += 1;
     } catch (err) {
-      // One bad entry must not hold the rest of the batch hostage — and NOT
-      // acking leaves the whole batch re-served next tick, so the failed
-      // entry is retried without special bookkeeping.
+      // The apiserver's verdict decides the retry: a 400/422 can never
+      // succeed (the validator's backstop), so it refuses and the loop moves
+      // on; anything else is transient — keep the ack so the batch re-serves.
+      if (isPermanentApplyError(err)) {
+        refused.push(`${crdName}: ${errorMessage(err)}`);
+        continue;
+      }
+
       return {
         outcome: {
           kind: "error",
@@ -240,9 +323,17 @@ export async function catalogSyncOnce(
   }
 
   return {
-    outcome: { kind: "synced", applied, deleted, skipped },
+    outcome: { kind: "synced", applied, deleted, skipped, refused },
     ack: body.cursor,
   };
+}
+
+/** A 400/422 from the apiserver cannot succeed on retry — the object itself is
+ *  the problem. Everything else (network, 5xx, RBAC being fixed) may. */
+function isPermanentApplyError(err: unknown): boolean {
+  const status = statusOf(err);
+
+  return status === 400 || status === 422;
 }
 
 export interface CatalogSyncLoopDeps {
@@ -288,8 +379,12 @@ export async function runCatalogSyncLoop(
 
       if (outcome.kind === "synced") {
         console.log(
-          `[cluster-agent] catalog sync landed ${outcome.applied} applied, ${outcome.deleted} deleted, ${outcome.skipped} seed-owned skipped`,
+          `[cluster-agent] catalog sync landed ${outcome.applied} applied, ${outcome.deleted} deleted, ${outcome.skipped} not-owned skipped, ${outcome.refused.length} refused`,
         );
+
+        for (const refusal of outcome.refused) {
+          console.warn(`[cluster-agent] catalog sync REFUSED ${refusal}`);
+        }
       }
 
       if (first) {

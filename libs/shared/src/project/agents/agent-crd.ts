@@ -28,6 +28,7 @@ export const SYNC_LABELS = {
   "app.kubernetes.io/managed-by": "lore-catalog-sync",
 };
 export const SEED_MANAGED_BY = "lore-catalog-seed";
+export const SYNC_MANAGED_BY = SYNC_LABELS["app.kubernetes.io/managed-by"];
 
 // Where the init clones the target repo, and therefore the only writable
 // directory the agent prompts can mean by "the working directory". Left unset,
@@ -80,8 +81,18 @@ export interface CatalogCrdOptions {
   /** The LLM credential key this cluster's agent-secrets Secret carries
    *  (ANTHROPIC_API_KEY on GKE, CLAUDE_CODE_OAUTH_TOKEN on a laptop). Unset
    *  omits the secret ref — a declared key missing from the Secret is a
-   *  CreateContainerConfigError on every run pod. */
+   *  CreateContainerConfigError on every run pod. The anthropic entry of
+   *  {@link modelSecretKeys} in older spelling; kept as its fallback. */
   llmSecretKey?: string;
+  /**
+   * The credential key per MODEL FAMILY this cluster can serve — the
+   * per-cluster fact that decides whether a definition naming a gemini model
+   * renders at all here. One hardcoded key was how a `gemini-2.5-pro` edit
+   * shipped a CR carrying ANTHROPIC_API_KEY (2026-09-01): the render cannot
+   * invent a credential, so a family absent from this map is a REFUSAL
+   * (validateCatalogEntry), never a silently wrong secret.
+   */
+  modelSecretKeys?: Record<string, string>;
   /** The lore-station image (per-cluster tag pin) station-mode rows run on. */
   stationImage?: string;
   /** Overrides a config.env LORE_DGRAPH_HTTP value — the row stores the GKE
@@ -103,6 +114,83 @@ export function catalogCrdName(
   return projectId
     ? `${baseName}--r${projectId.replace(/-/g, "").slice(0, 8)}`
     : baseName;
+}
+
+/** RFC-1123 subdomain — what the apiserver accepts as a resource name. A row
+ *  named outside it (`def-github_action`, an 0028 leftover) can NEVER apply:
+ *  the 422 is permanent, and retrying it head-of-line-blocked the whole sync
+ *  tail in production for two hours (2026-09-01). */
+const K8S_NAME = /^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/;
+
+/** The credential family a model id belongs to, or null for one no family
+ *  claims — a typo'd model must refuse, not render with somebody's key. */
+export function modelFamily(model: string): string | null {
+  if (model.startsWith("claude")) {
+    return "anthropic";
+  }
+
+  if (model.startsWith("gemini")) {
+    return "gemini";
+  }
+
+  if (model.startsWith("gpt") || /^o\d/.test(model)) {
+    return "openai";
+  }
+
+  return null;
+}
+
+/** The family→key map in effect: the explicit map, else the legacy single
+ *  anthropic key, else empty (a bare cluster that renders no secret refs). */
+function secretKeysOf(opts: CatalogCrdOptions): Record<string, string> {
+  if (opts.modelSecretKeys && Object.keys(opts.modelSecretKeys).length > 0) {
+    return opts.modelSecretKeys;
+  }
+
+  return opts.llmSecretKey ? { anthropic: opts.llmSecretKey } : {};
+}
+
+/**
+ * The render contract: why this entry must NOT be applied on this cluster, or
+ * null when it may. Called by the sync loop BEFORE the render, so a bad row
+ * degrades to a refused-with-reason entry (the previous CR stays live) instead
+ * of an unbootable pod minutes later — the 2026-09-01 incident's whole class.
+ * Every reason here is PERMANENT for this (row, cluster) pair: only a new
+ * catalog event or new cluster config can change the answer, so the loop acks
+ * past a refusal rather than re-serving it forever.
+ */
+export function validateCatalogEntry(
+  def: ResolvedAgentDefinition,
+  opts: CatalogCrdOptions,
+): string | null {
+  const name = catalogCrdName(def.name, def.project_id);
+
+  if (!K8S_NAME.test(name) || name.length > 253) {
+    return `"${name}" is not a valid Kubernetes resource name`;
+  }
+
+  if (def.execution_mode === "station") {
+    return null;
+  }
+
+  if (!def.prompt) {
+    return `recipe ${def.name} has no prompt — the subsystem rejects a promptless AgentDefinition at admission`;
+  }
+
+  if (def.model) {
+    const family = modelFamily(def.model);
+
+    if (family === null) {
+      return `model "${def.model}" belongs to no known credential family (anthropic/gemini/openai)`;
+    }
+    const keys = secretKeysOf(opts);
+
+    if (Object.keys(keys).length > 0 && !keys[family]) {
+      return `this cluster holds no credential for the "${family}" family (model "${def.model}") — configure modelSecretKeys and seed the key before pointing a recipe at it`;
+    }
+  }
+
+  return null;
 }
 
 function sinksFor(
@@ -136,6 +224,12 @@ function llmSpec(
   // (ai-agent-subsystem#155); failing here beats an opaque apply rejection.
   enforceTrue(def.prompt, Error, `recipe ${def.name} has no prompt`);
 
+  // The key follows the MODEL's family, not the cluster's habit: a gemini
+  // recipe rendered with ANTHROPIC_API_KEY is a pod that cannot call its model.
+  // validateCatalogEntry refused unknown/keyless families before this runs.
+  const family = def.model ? modelFamily(def.model) : "anthropic";
+  const secretKey = family ? secretKeysOf(opts)[family] : undefined;
+
   return {
     description: `Lore ${def.name} recipe.`,
     ...(def.model ? { model: def.model } : {}),
@@ -148,9 +242,7 @@ function llmSpec(
     permission_mode: "bypass",
     max_turns: AGENT_MAX_TURNS,
     resources: {
-      ...(opts.llmSecretKey
-        ? { secrets: [{ name: opts.llmSecretKey, ref: opts.llmSecretKey }] }
-        : {}),
+      ...(secretKey ? { secrets: [{ name: secretKey, ref: secretKey }] } : {}),
       // Every agent pod commits its own work; git refuses without an identity
       // and a pod has no ambient git config.
       env: GIT_IDENTITY,
@@ -230,8 +322,15 @@ function stationSpec(
       // success, silently dropping every human PR comment.
       secrets: [
         { name: "LORE_INGEST_TOKEN", ref: "LORE_INGEST_TOKEN" },
-        ...(def.config?.needs_model && opts.llmSecretKey
-          ? [{ name: opts.llmSecretKey, ref: opts.llmSecretKey }]
+        // needs_model stations call Anthropic (comment-triage's Haiku);
+        // family-specific stations would declare their model instead.
+        ...(def.config?.needs_model && secretKeysOf(opts).anthropic
+          ? [
+              {
+                name: secretKeysOf(opts).anthropic,
+                ref: secretKeysOf(opts).anthropic,
+              },
+            ]
           : []),
       ],
     },

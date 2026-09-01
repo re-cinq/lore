@@ -1,8 +1,11 @@
 import { describe, it, expect } from "vitest";
 import {
+  catalogProfile,
   catalogSyncOnce,
   crdOptionsFromEnv,
+  enforceCatalogProfile,
   nextSyncDelay,
+  parseModelSecretKeys,
   runCatalogSyncLoop,
   SYNC_BASE_INTERVAL_S_DEFAULT,
   syncIntervalMs,
@@ -113,7 +116,13 @@ describe("catalogSyncOnce", () => {
     );
 
     expect(result).toEqual({
-      outcome: { kind: "synced", applied: 1, deleted: 0, skipped: 0 },
+      outcome: {
+        kind: "synced",
+        applied: 1,
+        deleted: 0,
+        skipped: 0,
+        refused: [],
+      },
       ack: "7",
     });
     expect(applied).toEqual(["implementation"]);
@@ -144,6 +153,7 @@ describe("catalogSyncOnce", () => {
       applied: 0,
       deleted: 1,
       skipped: 0,
+      refused: [],
     });
     expect(deletedNames).toEqual(["implementation--r123e4567"]);
   });
@@ -179,6 +189,7 @@ describe("catalogSyncOnce", () => {
       applied: 0,
       deleted: 0,
       skipped: 1,
+      refused: [],
     });
     expect(guarded.applied).toEqual([]);
 
@@ -193,6 +204,7 @@ describe("catalogSyncOnce", () => {
       applied: 1,
       deleted: 0,
       skipped: 0,
+      refused: [],
     });
   });
 
@@ -246,6 +258,153 @@ describe("catalogSyncOnce", () => {
 
     expect(result).toEqual({ outcome: { kind: "unauthorized" }, ack: "3" });
   });
+
+  it("a render-contract refusal is acked past with its reason, never re-served — the def-github_action head-of-line block", async () => {
+    const { catalog, applied } = recordingCatalog();
+    const result = await catalogSyncOnce(
+      tickDeps(
+        catalog,
+        respondWith(200, {
+          mode: "tail",
+          cursor: "9",
+          entries: [
+            {
+              name: "def-github_action",
+              project_id: null,
+              definition: {
+                ...def("def-github_action"),
+                execution_mode: "station",
+              },
+            },
+            {
+              name: "implementation",
+              project_id: null,
+              definition: def("implementation"),
+            },
+          ],
+        }),
+      ),
+      "3",
+    );
+
+    expect(result.ack).toEqual("9");
+    expect(result.outcome).toMatchObject({
+      kind: "synced",
+      applied: 1,
+      refused: [
+        expect.stringContaining(
+          '"def-github_action" is not a valid Kubernetes resource name',
+        ),
+      ],
+    });
+    expect(applied).toEqual(["implementation"]);
+  });
+
+  it("an apiserver 422 refuses permanently and the batch still acks; a 500 stays transient and re-serves", async () => {
+    const body = {
+      mode: "tail",
+      cursor: "9",
+      entries: [
+        {
+          name: "implementation",
+          project_id: null,
+          definition: def("implementation"),
+        },
+      ],
+    };
+    const permanent = recordingCatalog();
+
+    permanent.catalog.applyPair = async () => {
+      throw new Error("HTTP-Code: 422\nMessage: invalid");
+    };
+    const refused = await catalogSyncOnce(
+      tickDeps(permanent.catalog, respondWith(200, body)),
+      "3",
+    );
+
+    expect(refused.ack).toEqual("9");
+    expect(refused.outcome.kind).toEqual("synced");
+
+    const transient = recordingCatalog();
+
+    transient.catalog.applyPair = async () => {
+      throw new Error("HTTP-Code: 503\nMessage: apiserver unavailable");
+    };
+    const retried = await catalogSyncOnce(
+      tickDeps(transient.catalog, respondWith(200, body)),
+      "3",
+    );
+
+    expect(retried.ack).toEqual("3");
+    expect(retried.outcome.kind).toEqual("error");
+  });
+
+  it("while not owning seeded CRs the loop skips ANY foreign managed-by label, ui-authored included", async () => {
+    const uiOwned: AgentDefinition = {
+      apiVersion: "agents.re-cinq.com/v1alpha1",
+      kind: "AgentDefinition",
+      metadata: {
+        name: "code-review",
+        labels: { "app.kubernetes.io/managed-by": "lore-catalog-ui" },
+      },
+    };
+    const { catalog, applied } = recordingCatalog({ "code-review": uiOwned });
+    const result = await catalogSyncOnce(
+      tickDeps(
+        catalog,
+        respondWith(200, {
+          mode: "tail",
+          cursor: "5",
+          entries: [
+            {
+              name: "code-review",
+              project_id: null,
+              definition: def("code-review"),
+            },
+          ],
+        }),
+      ),
+      undefined,
+    );
+
+    expect(result.outcome).toMatchObject({ kind: "synced", skipped: 1 });
+    expect(applied).toEqual([]);
+  });
+});
+
+describe("parseModelSecretKeys", () => {
+  it("parses family=KEY pairs and drops malformed ones instead of guessing", () => {
+    expect(
+      parseModelSecretKeys(
+        "anthropic=ANTHROPIC_API_KEY, gemini=GEMINI_API_KEY,broken,also=",
+      ),
+    ).toEqual({
+      anthropic: "ANTHROPIC_API_KEY",
+      gemini: "GEMINI_API_KEY",
+    });
+  });
+});
+
+describe("catalog profile", () => {
+  it("full requires the mcp, skills and events URLs; bare requires nothing", () => {
+    expect(catalogProfile({})).toEqual("bare");
+    expect(() => enforceCatalogProfile({})).not.toThrow();
+    expect(() =>
+      enforceCatalogProfile({
+        LORE_CATALOG_PROFILE: "full",
+        LORE_MCP_URL: "http://mcp",
+        LORE_AGENT_EVENTS_URL: "http://events",
+      }),
+    ).toThrow(/LORE_SKILLS_URL is unset/);
+    expect(() =>
+      enforceCatalogProfile({
+        LORE_CATALOG_PROFILE: "full",
+        LORE_MCP_URL: "http://mcp",
+        LORE_SKILLS_URL: "http://mcp/skills",
+        LORE_AGENT_EVENTS_URL: "http://events",
+      }),
+    ).not.toThrow();
+  });
 });
 
 describe("nextSyncDelay", () => {
@@ -278,6 +437,7 @@ describe("runCatalogSyncLoop", () => {
           applied: 1,
           deleted: 0,
           skipped: 0,
+          refused: [],
         },
         ack: "4",
       },

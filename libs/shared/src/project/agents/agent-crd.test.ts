@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { agentDefToCrds, catalogCrdName, SYNC_LABELS } from "./agent-crd.js";
+import {
+  agentDefToCrds,
+  catalogCrdName,
+  modelFamily,
+  SYNC_LABELS,
+  validateCatalogEntry,
+} from "./agent-crd.js";
 import type { ResolvedAgentDefinition } from "../../models/agent-definition.js";
 
 /**
@@ -255,5 +261,89 @@ describe("agentDefToCrds station recipes", () => {
     expect(agentDefinition.spec?.tool_config).toEqual({
       command: ["lore-station", "validate"],
     });
+  });
+});
+
+describe("modelFamily", () => {
+  it("maps claude to anthropic, gemini to gemini, gpt/oN to openai, and anything else to null", () => {
+    expect(modelFamily("claude-sonnet-4-6")).toEqual("anthropic");
+    expect(modelFamily("gemini-2.5-pro")).toEqual("gemini");
+    expect(modelFamily("gpt-5")).toEqual("openai");
+    expect(modelFamily("o3-mini")).toEqual("openai");
+    expect(modelFamily("llama-3")).toBeNull();
+  });
+});
+
+describe("validateCatalogEntry", () => {
+  it("refuses a name Kubernetes can never accept — the def-github_action leftover", () => {
+    expect(
+      validateCatalogEntry(
+        row({ name: "def-github_action", execution_mode: "station" }),
+        ALL_OPTS,
+      ),
+    ).toContain("not a valid Kubernetes resource name");
+  });
+
+  it("refuses a promptless LLM recipe before it can reach an apply", () => {
+    expect(validateCatalogEntry(row({ prompt: null }), ALL_OPTS)).toContain(
+      "has no prompt",
+    );
+  });
+
+  it("refuses a model whose family this cluster holds no credential for — the gemini-2.5-pro incident", () => {
+    expect(
+      validateCatalogEntry(row({ model: "gemini-2.5-pro" }), {
+        modelSecretKeys: { anthropic: "ANTHROPIC_API_KEY" },
+      }),
+    ).toContain('no credential for the "gemini" family');
+  });
+
+  it("refuses a model no family claims", () => {
+    expect(
+      validateCatalogEntry(row({ model: "totally-made-up-1" }), ALL_OPTS),
+    ).toContain("no known credential family");
+  });
+
+  it("accepts a served family, a station row, and a keyless bare cluster", () => {
+    expect(validateCatalogEntry(row(), ALL_OPTS)).toBeNull();
+    expect(
+      validateCatalogEntry(row({ model: "gemini-2.5-pro" }), {
+        modelSecretKeys: { gemini: "GEMINI_API_KEY" },
+      }),
+    ).toBeNull();
+    expect(
+      validateCatalogEntry(
+        row({ name: "def-validate", execution_mode: "station", prompt: null }),
+        ALL_OPTS,
+      ),
+    ).toBeNull();
+    expect(validateCatalogEntry(row(), {})).toBeNull();
+  });
+});
+
+describe("model-family credentials in the render", () => {
+  it("a gemini recipe renders the gemini key, not the cluster's anthropic habit", () => {
+    const { agentDefinition } = agentDefToCrds(
+      row({ model: "gemini-2.5-pro" }),
+      {
+        ...ALL_OPTS,
+        modelSecretKeys: {
+          anthropic: "ANTHROPIC_API_KEY",
+          gemini: "GEMINI_API_KEY",
+        },
+      },
+    );
+
+    expect(agentDefinition.spec?.resources?.secrets).toEqual([
+      { name: "GEMINI_API_KEY", ref: "GEMINI_API_KEY" },
+    ]);
+  });
+
+  it("the legacy llmSecretKey stays the anthropic fallback when no map is given", () => {
+    const { agentDefinition } = agentDefToCrds(row(), ALL_OPTS);
+
+    expect(agentDefinition.spec?.resources?.secrets).toEqual([
+      { name: "ANTHROPIC_API_KEY", ref: "ANTHROPIC_API_KEY" },
+    ]);
   });
 });

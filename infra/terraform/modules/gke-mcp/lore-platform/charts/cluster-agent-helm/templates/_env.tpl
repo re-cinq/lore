@@ -91,4 +91,19 @@ Usage:
 - name: LORE_CATALOG_SYNC_OWN_SEEDED
   value: "1"
 {{- end }}
+- name: LORE_CATALOG_PROFILE
+  value: {{ .Values.catalog.profile | quote }}
+{{- if .Values.catalog.modelSecretKeys }}
+- name: LORE_MODEL_SECRET_KEYS
+  value: {{ (include "lore-cluster-agent.modelSecretKeys" .) | quote }}
+{{- end }}
+{{- end -}}
+
+{{/* family=KEY pairs, comma-joined, sorted for a stable render. */}}
+{{- define "lore-cluster-agent.modelSecretKeys" -}}
+{{- $pairs := list -}}
+{{- range $family, $key := .Values.catalog.modelSecretKeys -}}
+{{- $pairs = append $pairs (printf "%s=%s" $family $key) -}}
+{{- end -}}
+{{- join "," $pairs -}}
 {{- end -}}
