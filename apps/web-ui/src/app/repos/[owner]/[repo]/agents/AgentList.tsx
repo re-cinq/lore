@@ -34,10 +34,11 @@ function usageLine(
 }
 
 /**
- * Read-only list of a repo's resolved agent definitions. A definition with no
- * project row is labelled `org` (the organisation default); once overridden it's
- * `project`. Editing/creating happens on dedicated pages (Edit / New links) so
- * the Agents tab stays selected with a breadcrumb.
+ * Read-only table of a repo's resolved agent definitions — the house `<table>`
+ * (globals.css), one row per definition. A definition with no project row is
+ * labelled `org` (the organisation default); once overridden it's `project`.
+ * Editing/creating happens on dedicated pages (Edit / New links) so the Agents
+ * tab stays selected with a breadcrumb.
  */
 export default function AgentList({
   base,
@@ -63,50 +64,74 @@ export default function AgentList({
           <p>No agent definitions resolved for this repo.</p>
         </div>
       ) : (
-        <div className={styles.list}>
-          {agents.map((a) => {
-            const isProject = a.project_id != null && a.project_id !== "";
-            const use = usageLine(a, usage[a.name]);
+        <div className={styles.tableWrap}>
+          <table>
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Scope</th>
+                <th>Model</th>
+                <th>Timeout</th>
+                <th>Mode</th>
+                <th>Used by</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {agents.map((a) => {
+                const isProject = a.project_id != null && a.project_id !== "";
+                const use = usageLine(a, usage[a.name]);
 
-            return (
-              <div key={a.name} className={styles.card}>
-                <span className={styles.name}>{a.name}</span>
-                <span
-                  className="status-pill"
-                  style={
-                    {
-                      "--pill-color": isProject
-                        ? "var(--accent)"
-                        : "var(--text-muted)",
-                    } as CSSProperties
-                  }
-                >
-                  {isProject ? "project" : "org"}
-                </span>
-                <span className={styles.detail}>
-                  {a.model ?? "(inherit)"} · {a.timeout_minutes ?? "–"}m
-                  {a.execution_mode === "graph-ingest" ? " · zero-LLM" : ""}
-                </span>
-                <span
-                  className={styles.detail}
-                  style={
-                    use.dormant
-                      ? ({ color: "var(--warning)" } as CSSProperties)
-                      : undefined
-                  }
-                  data-testid={`usage-${a.name}`}
-                >
-                  {use.text}
-                </span>
-                <Link
-                  className={`btn-secondary ${styles.spacer}`}
-                  href={`${base}/agents/${encodeURIComponent(a.name)}/edit`}
-                >
-                  Edit
-                </Link>
-              </div>
-            );
-          })}
+                return (
+                  <tr key={a.name}>
+                    <td className={styles.name}>{a.name}</td>
+                    <td>
+                      <span
+                        className="status-pill"
+                        style={
+                          {
+                            "--pill-color": isProject
+                              ? "var(--accent)"
+                              : "var(--text-muted)",
+                          } as CSSProperties
+                        }
+                      >
+                        {isProject ? "project" : "org"}
+                      </span>
+                    </td>
+                    <td className={styles.detail}>{a.model ?? "(inherit)"}</td>
+                    <td className={styles.detail}>
+                      {a.timeout_minutes ?? "–"}m
+                    </td>
+                    <td className={styles.detail}>
+                      {a.execution_mode === "graph-ingest"
+                        ? "zero-LLM"
+                        : a.execution_mode}
+                    </td>
+                    <td
+                      className={styles.detail}
+                      style={
+                        use.dormant
+                          ? ({ color: "var(--warning)" } as CSSProperties)
+                          : undefined
+                      }
+                      data-testid={`usage-${a.name}`}
+                    >
+                      {use.text}
+                    </td>
+                    <td>
+                      <Link
+                        className="btn-secondary"
+                        href={`${base}/agents/${encodeURIComponent(a.name)}/edit`}
+                      >
+                        Edit
+                      </Link>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       )}
     </div>

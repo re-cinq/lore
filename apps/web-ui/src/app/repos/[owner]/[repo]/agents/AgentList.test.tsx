@@ -19,6 +19,26 @@ const org: AgentDefinition = {
 const project: AgentDefinition = { ...org, name: "review", project_id: "p1" };
 
 describe("AgentList", () => {
+  it("renders one table row per definition under the Name/Scope/Model/Timeout/Mode/Used by columns", () => {
+    const { container } = render(
+      <AgentList base={base} agents={[org, project]} />,
+    );
+    const headers = Array.from(container.querySelectorAll("thead th")).map(
+      (th) => th.textContent,
+    );
+
+    expect(headers).toEqual([
+      "Name",
+      "Scope",
+      "Model",
+      "Timeout",
+      "Mode",
+      "Used by",
+      "",
+    ]);
+    expect(container.querySelectorAll("tbody tr")).toHaveLength(2);
+  });
+
   it('labels an inherited agent "org" and an overridden one "project"', () => {
     const { container } = render(
       <AgentList base={base} agents={[org, project]} />,
