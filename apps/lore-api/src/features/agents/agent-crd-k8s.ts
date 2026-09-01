@@ -1,19 +1,19 @@
 /**
- * Landing the UI-authored catalog in the cluster.
+ * lore-api's one call into the cluster agent.
  *
- * A shim over the cluster agent (ADR-024): lore-api renders the CRD pair from
- * the DB row, and the agent performs the create → 409 → replace that lands it.
- * The whole read-modify-write stays on the agent's side, so the live object's
- * unrendered fields — `output.watch`, helm's labels — cannot be amputated by a
- * merge split across the network. That amputation cost five days of
- * planning-result delivery in August 2026.
+ * What used to live here — rendering the UI-authored CRD pair and pushing it
+ * at `CLUSTER_AGENT_URL` — is gone (specs/catalog-db-sync FR8.6): a save
+ * writes its row and its catalog event, and every cluster's sync loop renders
+ * and applies from the DB. That closed the door where an unvalidated,
+ * credential-less render reached a cluster, and it removed the single-target
+ * push that never reached a satellite at all.
  *
- * lore-api holds no Kubernetes client and needs no Kubernetes RBAC.
+ * The operator restart below is unrelated and stays. lore-api holds no
+ * Kubernetes client and needs no Kubernetes RBAC.
  */
 
-import { ClusterAgentClient, HttpAgentCatalog } from "@re-cinq/lore-shared";
+import { ClusterAgentClient } from "@re-cinq/lore-shared";
 import { internalToken } from "@re-cinq/lore-shared/http/internal-token.js";
-import type { CrdPair } from "./agent-crd.js";
 
 /**
  * Where the cluster agent is and what to present to it.
@@ -34,30 +34,6 @@ export function clusterAgentCredentials(env: NodeJS.ProcessEnv): {
     baseUrl: env.CLUSTER_AGENT_URL ?? "",
     token: internalToken(env),
   };
-}
-
-let catalog: HttpAgentCatalog | undefined;
-
-function agentCatalog(): HttpAgentCatalog {
-  if (catalog) {
-    return catalog;
-  }
-  const { baseUrl, token } = clusterAgentCredentials(process.env);
-
-  return (catalog = new HttpAgentCatalog(
-    new ClusterAgentClient(baseUrl, token),
-  ));
-}
-
-export async function applyAgentCrds(pair: CrdPair): Promise<void> {
-  await agentCatalog().applyPair({
-    agentDefinition: pair.agentDefinition,
-    station: pair.station,
-  });
-}
-
-export async function deleteAgentCrds(name: string): Promise<void> {
-  await agentCatalog().deletePair(name);
 }
 
 /** Bounces the cluster-agent process itself — see restart.ts's route comment
