@@ -22,7 +22,7 @@ crdUpgrade:
 # each deploy, which is what stops a pruned or hand-edited field surviving one
 # (#1468); set false to hand ownership to the web UI (re-cinq/lore#698). Per-repo
 # override recipes are separate objects and are never touched either way.
-seedCatalog: true
+seedCatalog: false
 
 # Where seeded agents stream their NDJSON run output for cost accounting (D8, #687):
 # the Floor's in-cluster /api/agent-events endpoint. The recipes carry an

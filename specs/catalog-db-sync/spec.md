@@ -102,10 +102,34 @@ blocked the whole tail. The contract closes the class.
 
 ## Retired mechanisms
 
-The Helm `catalog-seed` hook, the committed `catalog-seed.yaml`, the
-`gen-catalog` CLI, `check-catalog-drift.sh` and lore-api's synchronous
-CRD push (`applyCatalogCrd`/`agent-crd-k8s.ts` catalog functions) are
-retired once the pull path is verified in production — sequencing and
-the dual-writer transition guard live in the plan and FR4.6.
+**Cutover done (2026-09-01).** `seedCatalog: false` turns the Helm
+`catalog-seed` hook off and `catalog.ownSeeded: true` hands the
+seed-labeled CRs to the sync loop, in one deploy: from here the DB is
+the only thing that puts a catalog CR in any cluster, central and
+satellite alike. lore-api's synchronous CRD push went with the render
+contract (FR8.6), so the loop is also the only writer.
+
+The flip was gated on a rendered-parity check, not on confidence: all 28
+org definitions were rendered with the deployed cluster-agent's own env
+and diffed against the live seed CRs. The only differences were the
+description wording and one newline before `{context}` — a Helm `{{-`
+chomp artifact in the seed, where the sync render matches what the seed
+generator always intended. `failedRunsHistoryLimit` and
+`successfulRunsHistoryLimit` read as differences until checked: both are
+CRD schema defaults the apiserver injects, absent from the seed file too.
+
+Still to delete, once the flip has run a release in production (each is
+now unreachable, not merely unused): the `gen-catalog` CLI, the committed
+`catalog-seed.yaml` and its hook templates, `check-catalog-drift.sh` and
+its PR check, lore-api's `features/agents/agent-crd.ts` renderer and the
+`applyAgentCrds`/`deleteAgentCrds` half of `agent-crd-k8s.ts` (keeping
+`restartClusterAgent`), `HttpAgentCatalog`, and cluster-agent's
+`/api/cluster/catalog/pairs` routes. `apps/floor`'s `agent-catalog.ts`
+goes with them, but `stationName` must move first — the Floor's dispatch
+still imports it, and it duplicates `builtinStationName` in
+`libs/assembly-lines`. Those deletions also retire statements in
+`specs/floor-on-ai-subsystem`, which is why they belong in one pass
+rather than several.
+
 `scripts/task-types.yaml` remains as the bottom-precedence resolve
 fallback only.
