@@ -43,7 +43,7 @@ assembly lines.
 We want all Floor task execution to run on that subsystem and to retire the LoreTask path — without
 losing any of Lore's deterministic guarantees.
 
-- A UI-authored recipe carries the same live Lore MCP entry and pipeline-tool deny as a seeded one. It carried NEITHER: a repo that overrode its recipe through `/agents` got a run with no `lore` server, so the agent silently lost the mid-run memory and context access every seeded recipe has, and lost the guard that stops it spawning more pipeline work from inside a run. *(2026-09-01: the /agents render this described is retired — specs/catalog-db-sync FR8.6 — and the guarantee now belongs to the one sync render every cluster applies from.)* Injected at CR-render time rather than surfaced as an editable field, because a capability every recipe needs should not depend on each author remembering to add it. The gateway URL comes from the DEPLOY value, never the recipe row — a host stored in the database would outlive the rollout that moved it — so an unset value leaves `mcp_servers` off entirely rather than pointing a pod at something unreachable. The deny is unconditional for the opposite reason: making it depend on deploy config would drop it exactly where the config is wrong. Stations get it too, since a custom station reads and writes through the same API surface. ([validated by renders the full recipe when every per-cluster value is set](../../libs/shared/src/project/agents/agent-crd.test.ts#L56), [validated by a satellite's empty options omit the mcp/skills/secret blocks, the http sink AND the {context} placeholder](../../libs/shared/src/project/agents/agent-crd.test.ts#L109))
+- EVERY recipe carries the live Lore MCP entry and pipeline-tool deny *(2026-09-01: the /agents render this was written about is retired — specs/catalog-db-sync FR8.6 — and the guarantee now belongs to the one sync render every cluster applies from)*. It carried NEITHER: a repo that overrode its recipe through `/agents` got a run with no `lore` server, so the agent silently lost the mid-run memory and context access every seeded recipe has, and lost the guard that stops it spawning more pipeline work from inside a run. Injected at CR-render time rather than surfaced as an editable field, because a capability every recipe needs should not depend on each author remembering to add it. The gateway URL comes from the DEPLOY value, never the recipe row — a host stored in the database would outlive the rollout that moved it — so an unset value leaves `mcp_servers` off entirely rather than pointing a pod at something unreachable. The deny is unconditional for the opposite reason: making it depend on deploy config would drop it exactly where the config is wrong. Stations get it too, since a custom station reads and writes through the same API surface. ([validated by renders the full recipe when every per-cluster value is set](../../libs/shared/src/project/agents/agent-crd.test.ts#L56), [validated by a satellite's empty options omit the mcp/skills/secret blocks, the http sink AND the {context} placeholder](../../libs/shared/src/project/agents/agent-crd.test.ts#L109))
 - An APPLY replaces nothing it does not render *(the /agents push this named is retired 2026-09-01, specs/catalog-db-sync FR8.6; the merge-onto-live it describes still guards every sync apply)* *(added 2026-08-18, #1301; extended to `spec.resources` 2026-08-28)*: the /agents apply path carries every field the live CR holds that the editor's mapping does not know — `output.watch`, helm's labels and annotations, and the members of `spec.resources` the render omits (`skills`, `skills_source`, `secrets`) — through the replace, with the editor winning only the fields it renders. A plain replace amputated `output.watch` from the feature-planning recipe on 2026-08-13 and silently killed planning-artifact delivery for five days; the same replace stripped `skills_source` from `implementation-tdd` and `spec-write` in 2026-08, and every Claude-agent node cloned from them died at startup with "Settings file not found" — skills config is per-cluster (owned by each cluster's catalog seed), which is exactly why the editor cannot re-render it and must preserve it. ([validated by carries labels the controller set onto the object being written](../../apps/cluster-agent/src/kernel/paired-writes.test.ts#L62))
 
 ## Solution
@@ -260,7 +260,7 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + agen
     fail every run pod at container creation rather than acting as a fallback. GKE
     supplies `ANTHROPIC_API_KEY` (the values.yaml default), a laptop minikube supplies
     `CLAUDE_CODE_OAUTH_TOKEN`, and the `claude` CLI accepts either from its
-    environment. *(retired 2026-09-01 with the seed generator — the catalog is DB-first now; see specs/catalog-db-sync)*
+    environment. ([validated by station catalog tests](apps/floor/src/jobs/agent/agent-catalog.test.ts#L301), [`agent-catalog.test.ts:21`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L21), [`agent-catalog.test.ts:69`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L69), [`agent-catalog.test.ts:126`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L126), [`agent-catalog.test.ts:158`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L158), [`agent-catalog.test.ts:166`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L166), [`agent-catalog.test.ts:194`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L194), [`agent-catalog.test.ts:202`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L202), [`agent-catalog.test.ts:220`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L220), [`agent-catalog.test.ts:243`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L243), [`agent-catalog.test.ts:239`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L239), [`agent-catalog.test.ts:258`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L258), [`agent-catalog.test.ts:267`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L267), [`agent-catalog.test.ts:284`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L284), [`agent-catalog.test.ts:288`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L288), [`agent-catalog.test.ts:301`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L301), [`agent-catalog.test.ts:334`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L334), [`agent-catalog.test.ts:401`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L401), [`agent-catalog.test.ts:416`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L416))
 
 21. Custom station images honor [station-contract.md](../6-dark-factory/contracts/station-contract.md).
 
@@ -305,7 +305,7 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + agen
     `<source>/settings.json`. A laptop minikube therefore points the value at the mcp
     adapter running in HTTP-gateway mode on the host
     (`http://host.minikube.internal:3002/skills`, served by `npm start`) rather than
-    leaving it empty *(retired 2026-09-01 with the seed generator — the catalog is DB-first now; see specs/catalog-db-sync)*
+    leaving it empty ([validated by `agent-catalog.test.ts:272`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L272); implemented by [`agent-catalog.ts:363`](apps/floor/src/jobs/agent/agent-catalog.ts#L363))
 
 27. *(added 2026-08-10)* The agent container MUST run in the cloned repo
     (`/workspace/target`), not the base image's default directory. Left unset, the
@@ -317,7 +317,7 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + agen
     so the run reported success while the round it existed for failed with no result
     posted. Read-only recipes (the review family) opt out via `repo_workdir: false` —
     see statement 31 (#1160)
-    *(retired 2026-09-01 with the seed generator — the catalog is DB-first now; see specs/catalog-db-sync)*
+    ([validated by `agent-catalog.test.ts:184`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L184); implemented by [`agent-catalog.ts:211`](apps/floor/src/jobs/agent/agent-catalog.ts#L211))
 
 28. *(added 2026-08-10)* A run whose deliverable is a **file** MUST declare it, so the
     artifact can leave the pod. The subsystem streams what an agent *says*
@@ -329,7 +329,7 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + agen
     delivery path. `feature-planning` declares `planning.result` →
     `target/result.json`; the path resolves against `WORKSPACE_DIR`, not the agent's
     cwd. A recipe whose deliverable is its own output declares nothing
-    *(retired 2026-09-01 with the seed generator — the catalog is DB-first now; see specs/catalog-db-sync)*
+    ([validated by `agent-catalog.test.ts:140`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L140), [`agent-catalog.test.ts:151`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L151); implemented by [`agent-catalog.ts:173`](apps/floor/src/jobs/agent/agent-catalog.ts#L173))
 
 29. *(added 2026-08-10)* The Floor MUST project those artifact events off the
     telemetry sink. The sink carries every run's events, so a file event with no name
@@ -354,7 +354,7 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + agen
     declares none keeps the base deny alone. The declared denies are dormant under
     the current `permission_mode: "bypass"` (the CLI skips deny-rule evaluation in
     that mode) and become enforced when the family moves to an enforcing mode
-    *(retired 2026-09-01 with the seed generator — the catalog is DB-first now; see specs/catalog-db-sync)*
+    ([validated by `agent-catalog.test.ts:439`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L439), [`agent-catalog.test.ts:449`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L449), [`agent-catalog.test.ts:455`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L455); implemented by [`agent-catalog.ts:166`](apps/floor/src/jobs/agent/agent-catalog.ts#L166), [`agent-catalog.ts:209`](apps/floor/src/jobs/agent/agent-catalog.ts#L209))
 
 32. *(added 2026-08-28)* Every agent run opens with the same instruction in the CR
     parameter the assembled context used to occupy: `CONTEXT_BOOTSTRAP` names
@@ -372,7 +372,7 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + agen
     A satellite renders no `mcp_servers` block — the gateway authenticates with
     `LORE_INGEST_TOKEN` and FR5 keeps that credential central — and telling such a pod
     to call a tool it does not have would burn a turn on a guaranteed failure
-    *(retired 2026-09-01 with the seed generator — the catalog is DB-first now; see specs/catalog-db-sync)*
+    ([validated by `agent-catalog.test.ts:228`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L228); implemented by [`agent-catalog.ts:424`](apps/floor/src/jobs/agent/agent-catalog.ts#L424))
 
 34. *(added 2026-08-30)* A recipe MAY declare its own `skills`, and they are APPENDED
     to `lore-context` rather than replacing it. A recipe that named its own would
@@ -388,10 +388,7 @@ http sink ─► Floor /api/agent-events ─► pipeline.llm_calls + OTEL + agen
     one-entry list and a four-entry list survive by the identical path. A recipe MUST NOT name a skill the
     gateway's bundle does not carry: the init fetches it as a 404 and the run
     proceeds without the contract the recipe asked for, which is FR26's failure
-    one level down and just as silent. The gateway half still holds — it serves
-    every skill the recipes declare — while the seed generator that rendered
-    them is retired (specs/catalog-db-sync).
-    ([validated by serves every skill the task-type recipes declare](../../apps/mcp-server/src/server/skills-registry.test.ts#L101))
+    one level down and just as silent. ([validated by `agent-catalog.test.ts:108`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L108), [`agent-catalog.test.ts:117`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L117), [`skills-registry.test.ts:101`](apps/mcp-server/src/server/skills-registry.test.ts#L101); implemented by [`agent-catalog.ts:141`](apps/floor/src/jobs/agent/agent-catalog.ts#L141))
 
 ## Out of scope
 
@@ -486,7 +483,7 @@ These statements pin the deterministic Floor glue that wraps the subsystem.
   prompt is rejected outright (the subsystem refuses a promptless AgentDefinition at admission, so
   emitting one only moved the failure to the apply), deadline defaults to 30 and image to
   `node:22-bookworm`, and stdout-only sinks stand in without an events URL. An `execution_mode:"station"` recipe materialises an exec-vendor station (`model:"exec"`,
-  `{station_input}` prompt, `max_turns:1`, `lore-station <type>` command) on its own image. *(retired 2026-09-01 with lore-api's CRD render; see specs/catalog-db-sync FR8.6)*
+  `{station_input}` prompt, `max_turns:1`, `lore-station <type>` command) on its own image. ([validated by renders the exec-vendor shape on the lore-station image with the ingest token](../../libs/shared/src/project/agents/agent-crd.test.ts#L200), [validated by a station row without a command falls back to lore-station plus the def-stripped name](../../libs/shared/src/project/agents/agent-crd.test.ts#L254))
 - **CR-watch idempotency.** Event dedupe keys collapse redundant deliveries so a Floor restart replays
   nothing twice: `githubDedupeKey` prefixes the delivery id, `k8sDedupeKey` keys a terminal Agent CR
   on task-id+phase (repeated `MODIFIED` events collapse), `cronDedupeKey` floors the tick to the

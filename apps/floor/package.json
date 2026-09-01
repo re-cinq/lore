@@ -12,6 +12,7 @@
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "test:watch": "vitest",
+    "gen:catalog": "node dist/delivery/gen-catalog.js",
     "job": "node dist/delivery/job-runner.js",
     "jobs:all": "for j in context_reindex eval_runner context_core_builder consolidation; do echo \"[jobs:all] === $j ===\"; node dist/delivery/job-runner.js $j || exit 1; done"
   },
