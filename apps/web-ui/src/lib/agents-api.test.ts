@@ -4,6 +4,7 @@ import {
   listAgents,
   listOrgAgents,
   saveAgent,
+  saveOrgAgent,
   deleteAgent,
 } from "./agents-api";
 import type { AgentDefinition } from "./agents-mirror";
@@ -163,6 +164,40 @@ describe("fetchAgentUsage", () => {
   it("an ok response with no usage key is a known-empty map, not unknown", async () => {
     mockFetch(200, {});
     expect(await fetchAgentUsage()).toEqual({});
+  });
+});
+
+describe("saveOrgAgent", () => {
+  it("PUTs the org-default resource and returns ok", async () => {
+    const spy = vi.fn(async (_url: string, _init?: RequestInit) => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ agent: { ...def, project_id: null } }),
+    }));
+
+    global.fetch = spy as unknown as typeof fetch;
+    const r = await saveOrgAgent({ name: "general", model: "claude-opus-4-8" });
+
+    expect(r).toEqual({ status: "ok", agent: { ...def, project_id: null } });
+    expect(spy.mock.calls[0][0]).toBe(
+      "https://lore-api.test/api/agent-definitions/general",
+    );
+    expect((spy.mock.calls[0][1] as RequestInit).method).toBe("PUT");
+  });
+
+  it("maps a 400 image_org_gated response to an error message", async () => {
+    mockFetch(400, { error: "image_org_gated", detail: "per-repo only" });
+    expect(await saveOrgAgent({ name: "general", image: "x" })).toEqual({
+      status: "error",
+      message: "image_org_gated",
+    });
+  });
+
+  it("returns unconfigured when env is missing", async () => {
+    delete process.env.LORE_ADMIN_TOKEN;
+    expect(await saveOrgAgent({ name: "general" })).toEqual({
+      status: "unconfigured",
+    });
   });
 });
 

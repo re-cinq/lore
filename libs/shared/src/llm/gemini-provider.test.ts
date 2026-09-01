@@ -134,6 +134,18 @@ describe("computeGeminiCost", () => {
     ).toBeCloseTo(1.25 + 10.0, 10);
   });
 
+  it("prices the Gemini 3-series models from their own per-1M rates", () => {
+    expect(
+      computeGeminiCost("gemini-3.1-pro-preview", 1_000_000, 1_000_000),
+    ).toBeCloseTo(2.0 + 12.0, 6);
+    expect(
+      computeGeminiCost("gemini-3.7-flash", 1_000_000, 1_000_000),
+    ).toBeCloseTo(0.75 + 3.75, 6);
+    expect(
+      computeGeminiCost("gemini-3.1-flash-lite", 1_000_000, 1_000_000),
+    ).toBeCloseTo(0.25 + 1.5, 6);
+  });
+
   it("falls back to the flash rate for an unrecognized model", () => {
     expect(computeGeminiCost("gemini-future-tier", 1000, 500)).toBeCloseTo(
       computeGeminiCost("gemini-2.5-flash", 1000, 500),

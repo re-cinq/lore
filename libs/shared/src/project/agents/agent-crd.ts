@@ -283,7 +283,7 @@ export function agentDefToCrds(
                 ...(isStation || def.config?.repo_workdir === false
                   ? {}
                   : { workingDir: REPO_WORKDIR }),
-                resources: POD_RESOURCES,
+                resources: def.config?.pod_resources ?? POD_RESOURCES,
               },
             ],
           },

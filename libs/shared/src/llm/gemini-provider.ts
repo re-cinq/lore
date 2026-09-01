@@ -43,6 +43,18 @@ export const GEMINI_MODEL_PRICING: Record<string, ModelPricing> = {
     inputPerToken: 0.1 / 1_000_000,
     outputPerToken: 0.4 / 1_000_000,
   },
+  "gemini-3.1-pro-preview": {
+    inputPerToken: 2.0 / 1_000_000,
+    outputPerToken: 12.0 / 1_000_000,
+  },
+  "gemini-3.7-flash": {
+    inputPerToken: 0.75 / 1_000_000,
+    outputPerToken: 3.75 / 1_000_000,
+  },
+  "gemini-3.1-flash-lite": {
+    inputPerToken: 0.25 / 1_000_000,
+    outputPerToken: 1.5 / 1_000_000,
+  },
 };
 
 const FALLBACK_PRICING = GEMINI_MODEL_PRICING["gemini-2.5-flash"];

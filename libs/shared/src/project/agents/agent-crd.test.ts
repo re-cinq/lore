@@ -163,6 +163,52 @@ describe("agentDefToCrds LLM recipes", () => {
     );
   });
 
+  it("config pod_resources replace the default pod resources on the Station", () => {
+    const { station } = agentDefToCrds(
+      row({
+        config: {
+          pod_resources: {
+            requests: {
+              cpu: "500m",
+              memory: "2Gi",
+              "ephemeral-storage": "2Gi",
+            },
+            limits: { cpu: "2", memory: "4Gi", "ephemeral-storage": "4Gi" },
+          },
+        },
+      }),
+      ALL_OPTS,
+    );
+    const template = station.spec?.template as {
+      spec: {
+        containers: Array<{
+          resources: Record<string, Record<string, string>>;
+        }>;
+      };
+    };
+
+    expect(template.spec.containers[0]?.resources).toEqual({
+      requests: { cpu: "500m", memory: "2Gi", "ephemeral-storage": "2Gi" },
+      limits: { cpu: "2", memory: "4Gi", "ephemeral-storage": "4Gi" },
+    });
+  });
+
+  it("a row without config pod_resources keeps the default 1Gi pod resources", () => {
+    const { station } = agentDefToCrds(row(), ALL_OPTS);
+    const template = station.spec?.template as {
+      spec: {
+        containers: Array<{
+          resources: Record<string, Record<string, string>>;
+        }>;
+      };
+    };
+
+    expect(template.spec.containers[0]?.resources).toEqual({
+      requests: { cpu: "250m", memory: "512Mi", "ephemeral-storage": "2Gi" },
+      limits: { cpu: "1", memory: "1Gi", "ephemeral-storage": "4Gi" },
+    });
+  });
+
   it("a per-repo override renders both CRs under the qualified name", () => {
     const { agentDefinition, station } = agentDefToCrds(
       row({ project_id: "123e4567-e89b-42d3-a456-426614174000" }),

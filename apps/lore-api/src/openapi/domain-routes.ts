@@ -70,6 +70,9 @@ export const DOMAIN_BODIES: Record<string, DomainBody> = {
   "PUT /api/repos/{owner}/{repo}/agent-definitions/{name}": {
     schema: AgentInputSchema,
   },
+  "PUT /api/agent-definitions/{name}": {
+    schema: AgentInputSchema,
+  },
 
   // dark-factory — likewise (dark-factory-settings.ts).
   "PUT /api/repos/{owner}/{repo}/settings/dark-factory": {

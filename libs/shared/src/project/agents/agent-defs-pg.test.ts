@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { PgAgentDefs } from "./agent-defs-pg.js";
+import { PgAgentDefs, updateOrgDefinition } from "./agent-defs-pg.js";
 import type { AgentDefsPort } from "./agent-defs-port.js";
 import type { PgPool } from "../../memory-store.js";
 
@@ -203,5 +203,34 @@ describe("PgAgentDefs", () => {
       expect(call.text).toMatch(/insert into lore\.catalog_events/i);
     }
     expect(capture[2].text).toMatch(/'delete' from removed/i);
+  });
+});
+
+describe("updateOrgDefinition", () => {
+  it("upserts the org row (project_id NULL conflict target) and appends a catalog event in one statement", async () => {
+    const capture: Array<{ text: string; params?: unknown[] }> = [];
+    const written: Row = { ...orgRow, timeout_minutes: 60 };
+
+    const def = await updateOrgDefinition(
+      fakePool(() => [written], capture),
+      {
+        name: "general",
+        model: "claude-sonnet-4-6",
+        timeout_minutes: 60,
+        prompt: null,
+        image: null,
+        execution_mode: "claude-code",
+        review_required: true,
+        config: null,
+      },
+    );
+
+    expect(def.timeout_minutes).toBe(60);
+    expect(def.project_id).toBeNull();
+    expect(capture[0].text).toMatch(
+      /on conflict \(name\) where project_id is null/i,
+    );
+    expect(capture[0].text).toMatch(/insert into lore\.catalog_events/i);
+    expect(capture[0].params?.[0]).toBe("general");
   });
 });

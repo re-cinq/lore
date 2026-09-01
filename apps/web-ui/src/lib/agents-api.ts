@@ -163,6 +163,44 @@ export async function saveAgent(
     return { status: "error", message: (err as Error).message };
   }
 
+  return mapWriteResponse(res);
+}
+
+/** Update an ORG-DEFAULT definition — the global /agents editor's write. The
+ *  API refuses a non-empty image here (repo-scoped two-key ceremony), which
+ *  surfaces as a plain error result. */
+export async function saveOrgAgent(
+  def: Partial<AgentDefinition> & { name: string },
+): Promise<AgentSaveResult> {
+  const c = cfg();
+
+  if (!c) {
+    return { status: "unconfigured" };
+  }
+  let res: Response;
+
+  try {
+    res = await fetch(
+      `${c.apiUrl}/api/agent-definitions/${encodeURIComponent(def.name)}`,
+      {
+        signal: AbortSignal.timeout(15_000),
+        method: "PUT",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${c.token}`,
+        },
+        body: JSON.stringify(def),
+        cache: "no-store",
+      },
+    );
+  } catch (err) {
+    return { status: "error", message: (err as Error).message };
+  }
+
+  return mapWriteResponse(res);
+}
+
+async function mapWriteResponse(res: Response): Promise<AgentSaveResult> {
   const data = await res.json().catch(() => ({}) as Record<string, unknown>);
 
   if (res.ok) {

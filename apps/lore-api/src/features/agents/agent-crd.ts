@@ -157,7 +157,7 @@ export function agentDefToCrds(def: RecipeDef, opts: CrdOptions = {}): CrdPair {
               {
                 name: "agent",
                 image: def.image ?? BASE_IMAGE,
-                resources: {
+                resources: def.config?.pod_resources ?? {
                   requests: { cpu: "250m", memory: "512Mi" },
                   limits: { cpu: "1", memory: "1Gi" },
                 },

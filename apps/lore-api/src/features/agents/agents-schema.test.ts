@@ -3,6 +3,7 @@ import {
   parseAgentInput,
   parseAgentPatch,
   imageFieldTouched,
+  configWithPodResources,
 } from "./agents-schema.js";
 
 describe("parseAgentInput", () => {
@@ -34,6 +35,27 @@ describe("parseAgentInput", () => {
       parseAgentInput({ name: "general", timeout_minutes: 5000 }),
     ).toThrow();
   });
+
+  it("folds pod_resources into config on create", () => {
+    expect(
+      parseAgentInput({
+        name: "fix-ci",
+        pod_resources: { limits: { memory: "4Gi" } },
+      }),
+    ).toMatchObject({
+      name: "fix-ci",
+      config: { pod_resources: { limits: { memory: "4Gi" } } },
+    });
+  });
+
+  it("rejects a pod_resources quantity that is not a Kubernetes quantity string", () => {
+    expect(() =>
+      parseAgentInput({
+        name: "fix-ci",
+        pod_resources: { limits: { memory: "lots" } },
+      }),
+    ).toThrow();
+  });
 });
 
 describe("parseAgentPatch", () => {
@@ -41,6 +63,58 @@ describe("parseAgentPatch", () => {
     expect(parseAgentPatch({ model: "claude-haiku-4-5-20251001" })).toEqual({
       model: "claude-haiku-4-5-20251001",
     });
+  });
+
+  it("carries pod_resources when present and omits it when absent", () => {
+    expect(
+      parseAgentPatch({
+        pod_resources: {
+          requests: { cpu: "500m" },
+          limits: { memory: "4Gi" },
+        },
+      }),
+    ).toEqual({
+      pod_resources: { requests: { cpu: "500m" }, limits: { memory: "4Gi" } },
+    });
+    expect(parseAgentPatch({ model: "claude-opus-4-8" })).not.toHaveProperty(
+      "pod_resources",
+    );
+  });
+
+  it("a null pod_resources means clear — carried as null", () => {
+    expect(parseAgentPatch({ pod_resources: null })).toEqual({
+      pod_resources: null,
+    });
+  });
+});
+
+describe("configWithPodResources", () => {
+  it("keeps the resolved config's other keys while replacing pod_resources", () => {
+    expect(
+      configWithPodResources(
+        {
+          command: ["lore-station", "validate"],
+          pod_resources: { limits: { memory: "1Gi" } },
+        },
+        { limits: { memory: "4Gi" } },
+      ),
+    ).toEqual({
+      command: ["lore-station", "validate"],
+      pod_resources: { limits: { memory: "4Gi" } },
+    });
+  });
+
+  it("null removes pod_resources and an empty result collapses to null", () => {
+    expect(
+      configWithPodResources({ pod_resources: { limits: { cpu: "2" } } }, null),
+    ).toBeNull();
+    expect(configWithPodResources(null, null)).toBeNull();
+  });
+
+  it("null existing config plus pod_resources yields just the block", () => {
+    expect(
+      configWithPodResources(null, { requests: { memory: "2Gi" } }),
+    ).toEqual({ pod_resources: { requests: { memory: "2Gi" } } });
   });
 });
 

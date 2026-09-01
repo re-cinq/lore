@@ -107,6 +107,51 @@ export async function qualifiedStationRef(
   return catalogCrdName(baseName, projectId ?? null);
 }
 
+/**
+ * Upsert the ORG-DEFAULT row for a name (the global /agents editor's write —
+ * no repo in hand, `project_id IS NULL`). Same one-statement row + catalog
+ * event shape as the project writes, so the cluster-agents' sync loops see
+ * every org edit too.
+ */
+export async function updateOrgDefinition(
+  pool: PgPool,
+  patch: AgentDefinitionInput,
+): Promise<AgentDefinition> {
+  const { rows } = await pool.query(
+    `WITH written AS (
+       INSERT INTO lore.agent_definitions
+         (name, model, timeout_minutes, prompt, image, execution_mode, review_required, config, project_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NULL)
+       ON CONFLICT (name) WHERE project_id IS NULL DO UPDATE SET
+         model = EXCLUDED.model,
+         timeout_minutes = EXCLUDED.timeout_minutes,
+         prompt = EXCLUDED.prompt,
+         image = EXCLUDED.image,
+         execution_mode = EXCLUDED.execution_mode,
+         review_required = EXCLUDED.review_required,
+         config = EXCLUDED.config,
+         updated_at = now()
+       RETURNING ${RET_COLS}
+     ), event AS (
+       INSERT INTO lore.catalog_events (name, project_id, op)
+       SELECT name, project_id, 'upsert' FROM written
+     )
+     SELECT ${RET_COLS} FROM written`,
+    [
+      patch.name,
+      patch.model ?? null,
+      patch.timeout_minutes ?? null,
+      patch.prompt ?? null,
+      patch.image ?? null,
+      patch.execution_mode ?? "claude-code",
+      patch.review_required ?? false,
+      patch.config ?? null,
+    ],
+  );
+
+  return toDef(rows[0] as unknown as AgentRow);
+}
+
 export class PgAgentDefs implements AgentDefsPort {
   constructor(
     private readonly pool: PgPool,

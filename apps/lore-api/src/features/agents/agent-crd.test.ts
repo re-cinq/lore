@@ -58,6 +58,32 @@ describe("agentDefToCrds", () => {
     expect(containers[0].image).toBe("ghcr.io/acme/runner:1");
   });
 
+  it("config pod_resources replace the default Station pod resources", () => {
+    const { station } = agentDefToCrds({
+      ...full,
+      config: {
+        pod_resources: {
+          requests: { cpu: "500m", memory: "2Gi" },
+          limits: { cpu: "2", memory: "4Gi" },
+        },
+      },
+    });
+    const containers = (
+      station.spec?.template as {
+        spec: {
+          containers: Array<{
+            resources: Record<string, Record<string, string>>;
+          }>;
+        };
+      }
+    ).spec.containers;
+
+    expect(containers[0].resources).toEqual({
+      requests: { cpu: "500m", memory: "2Gi" },
+      limits: { cpu: "2", memory: "4Gi" },
+    });
+  });
+
   it("omits model when inherited, defaults deadline + image, and stdout-only without an events url", () => {
     const { agentDefinition, station } = agentDefToCrds({
       ...full,

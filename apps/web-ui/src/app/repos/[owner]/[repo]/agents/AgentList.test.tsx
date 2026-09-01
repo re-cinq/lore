@@ -167,6 +167,19 @@ describe("AgentList", () => {
     expect(getByText(/org-default catalog every repo inherits/)).toBeTruthy();
   });
 
+  it("orgEditable links each row to the global org-default editor", () => {
+    const { getByText } = render(
+      <AgentList base={null} agents={[org]} usage={{}} orgEditable />,
+    );
+
+    expect(getByText("Edit").getAttribute("href")).toBe(
+      `/agents/edit/${org.name}`,
+    );
+    expect(
+      getByText(/updates the organisation default for every repo/),
+    ).toBeTruthy();
+  });
+
   it("the Mode cell keeps the station tag even when lines reference the station", () => {
     const station: AgentDefinition = {
       ...org,

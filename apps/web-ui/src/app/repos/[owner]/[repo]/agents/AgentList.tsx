@@ -91,15 +91,25 @@ export default function AgentList({
   base,
   agents,
   usage = null,
+  orgEditable = false,
 }: {
-  /** Repo base path for the Edit links — null renders the read-only table
-   *  (the global /agents page, where editing is a per-repo act). */
+  /** Repo base path for the Edit links — null renders the org-catalog table
+   *  (the global /agents page). */
   base: string | null;
   agents: AgentDefinition[];
   /** Blueprint references per definition name, from the usage endpoint —
    *  null when the endpoint could not answer (renders as unknown). */
   usage?: Record<string, AgentUsageRef[]> | null;
+  /** With base null: link each row to the global org-default editor
+   *  (`/agents/edit/[name]`) instead of rendering read-only. */
+  orgEditable?: boolean;
 }) {
+  const showEdit = base !== null || orgEditable;
+  const editHref = (name: string) =>
+    base !== null
+      ? `${base}/agents/${encodeURIComponent(name)}/edit`
+      : `/agents/edit/${encodeURIComponent(name)}`;
+
   return (
     <div>
       {base !== null ? (
@@ -108,6 +118,12 @@ export default function AgentList({
           organisation default; editing one creates a <strong>project</strong>{" "}
           definition for this repo, and later edits update that project
           definition.
+        </p>
+      ) : orgEditable ? (
+        <p className={styles.hint}>
+          The org-default catalog every repo inherits. Editing here updates the
+          organisation default for every repo without its own override; a
+          repo&apos;s Agents tab still overrides per repo.
         </p>
       ) : (
         <p className={styles.hint}>
@@ -131,7 +147,7 @@ export default function AgentList({
                 <th>Timeout</th>
                 <th>Mode</th>
                 <th>Used by</th>
-                {base !== null && <th></th>}
+                {showEdit && <th></th>}
               </tr>
             </thead>
             <tbody>
@@ -177,12 +193,9 @@ export default function AgentList({
                     >
                       {use.text}
                     </td>
-                    {base !== null && (
+                    {showEdit && (
                       <td>
-                        <Link
-                          className="btn-secondary"
-                          href={`${base}/agents/${encodeURIComponent(a.name)}/edit`}
-                        >
+                        <Link className="btn-secondary" href={editHref(a.name)}>
                           Edit
                         </Link>
                       </td>

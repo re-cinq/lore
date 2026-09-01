@@ -10,6 +10,7 @@ import {
   parseAgentInput,
   parseAgentPatch,
   imageFieldTouched,
+  configWithPodResources,
 } from "../../../features/agents/agents-schema.js";
 import { agentDefToCrds } from "../../../features/agents/agent-crd.js";
 import {
@@ -225,6 +226,19 @@ export function agentsPutRoute(getPool: () => Pool | null): ServerRoute {
             pr_ref: gate.evidence.prRef,
             approver: gate.evidence.approver,
           };
+        }
+
+        if (patch.pod_resources !== undefined) {
+          // config is whole-object across the resolution layers, so a write
+          // that only meant to set pod_resources must carry the rest of the
+          // resolved config with it or the fork would orphan command/env/etc.
+          const existing = await project.agentDefs.resolve(name);
+
+          patch.config = configWithPodResources(
+            existing?.config ?? null,
+            patch.pod_resources,
+          );
+          delete patch.pod_resources;
         }
 
         const def = await project.agentDefs.update(name, patch);

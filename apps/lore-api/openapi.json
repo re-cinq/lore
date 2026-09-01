@@ -4435,6 +4435,33 @@
                   "review_required": {
                     "type": "boolean",
                     "default": false
+                  },
+                  "pod_resources": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "requests": {
+                            "type": "object",
+                            "additionalProperties": {
+                              "type": "string",
+                              "pattern": "^\\d+(\\.\\d+)?(m|[kKMGTP]i?)?$"
+                            }
+                          },
+                          "limits": {
+                            "type": "object",
+                            "additionalProperties": {
+                              "type": "string",
+                              "pattern": "^\\d+(\\.\\d+)?(m|[kKMGTP]i?)?$"
+                            }
+                          }
+                        },
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   }
                 },
                 "required": ["name"],
@@ -4583,6 +4610,162 @@
         "x-required-scope": "read"
       }
     },
+    "/api/agent-definitions/{name}": {
+      "put": {
+        "operationId": "put_api_agent-definitions_name",
+        "summary": "PUT /api/agent-definitions/{name}",
+        "tags": ["Agents"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "The updated org-default definition",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrgAgentDefinitionWritten"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "admin",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128,
+                    "pattern": "^[a-z][a-z0-9-]*$"
+                  },
+                  "model": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 128
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "timeout_minutes": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "exclusiveMinimum": 0,
+                        "maximum": 1440
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "prompt": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 20000
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "image": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 512
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "execution_mode": {
+                    "type": "string",
+                    "enum": ["claude-code", "graph-ingest", "station"],
+                    "default": "claude-code"
+                  },
+                  "review_required": {
+                    "type": "boolean",
+                    "default": false
+                  },
+                  "pod_resources": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "requests": {
+                            "type": "object",
+                            "additionalProperties": {
+                              "type": "string",
+                              "pattern": "^\\d+(\\.\\d+)?(m|[kKMGTP]i?)?$"
+                            }
+                          },
+                          "limits": {
+                            "type": "object",
+                            "additionalProperties": {
+                              "type": "string",
+                              "pattern": "^\\d+(\\.\\d+)?(m|[kKMGTP]i?)?$"
+                            }
+                          }
+                        },
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": ["name"],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/repos/{owner}/{repo}/agent-definitions": {
       "post": {
         "operationId": "post_api_repos_owner_repo_agent-definitions",
@@ -4710,6 +4893,33 @@
                   "review_required": {
                     "type": "boolean",
                     "default": false
+                  },
+                  "pod_resources": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "requests": {
+                            "type": "object",
+                            "additionalProperties": {
+                              "type": "string",
+                              "pattern": "^\\d+(\\.\\d+)?(m|[kKMGTP]i?)?$"
+                            }
+                          },
+                          "limits": {
+                            "type": "object",
+                            "additionalProperties": {
+                              "type": "string",
+                              "pattern": "^\\d+(\\.\\d+)?(m|[kKMGTP]i?)?$"
+                            }
+                          }
+                        },
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   }
                 },
                 "required": ["name"],
@@ -10144,6 +10354,24 @@
                                     "type": "string"
                                   }
                                 },
+                                "pod_resources": {
+                                  "type": "object",
+                                  "properties": {
+                                    "requests": {
+                                      "type": "object",
+                                      "additionalProperties": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "limits": {
+                                      "type": "object",
+                                      "additionalProperties": {
+                                        "type": "string"
+                                      }
+                                    }
+                                  },
+                                  "additionalProperties": false
+                                },
                                 "disallowed_tools": {
                                   "type": "array",
                                   "items": {
@@ -10580,6 +10808,24 @@
                           "type": "string"
                         }
                       },
+                      "pod_resources": {
+                        "type": "object",
+                        "properties": {
+                          "requests": {
+                            "type": "object",
+                            "additionalProperties": {
+                              "type": "string"
+                            }
+                          },
+                          "limits": {
+                            "type": "object",
+                            "additionalProperties": {
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "additionalProperties": false
+                      },
                       "disallowed_tools": {
                         "type": "array",
                         "items": {
@@ -10687,6 +10933,24 @@
                               "items": {
                                 "type": "string"
                               }
+                            },
+                            "pod_resources": {
+                              "type": "object",
+                              "properties": {
+                                "requests": {
+                                  "type": "object",
+                                  "additionalProperties": {
+                                    "type": "string"
+                                  }
+                                },
+                                "limits": {
+                                  "type": "object",
+                                  "additionalProperties": {
+                                    "type": "string"
+                                  }
+                                }
+                              },
+                              "additionalProperties": false
                             },
                             "disallowed_tools": {
                               "type": "array",
@@ -10842,6 +11106,24 @@
                             "type": "string"
                           }
                         },
+                        "pod_resources": {
+                          "type": "object",
+                          "properties": {
+                            "requests": {
+                              "type": "object",
+                              "additionalProperties": {
+                                "type": "string"
+                              }
+                            },
+                            "limits": {
+                              "type": "object",
+                              "additionalProperties": {
+                                "type": "string"
+                              }
+                            }
+                          },
+                          "additionalProperties": false
+                        },
                         "disallowed_tools": {
                           "type": "array",
                           "items": {
@@ -10912,6 +11194,138 @@
         "required": ["agents"],
         "additionalProperties": false
       },
+      "OrgAgentDefinitionWritten": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "const": true
+          },
+          "agent": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "model": {
+                "type": ["string", "null"]
+              },
+              "timeout_minutes": {
+                "type": ["number", "null"]
+              },
+              "prompt": {
+                "type": ["string", "null"]
+              },
+              "image": {
+                "type": ["string", "null"]
+              },
+              "execution_mode": {
+                "type": "string"
+              },
+              "review_required": {
+                "type": "boolean"
+              },
+              "project_id": {
+                "type": ["string", "null"]
+              },
+              "config": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "skills": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "pod_resources": {
+                        "type": "object",
+                        "properties": {
+                          "requests": {
+                            "type": "object",
+                            "additionalProperties": {
+                              "type": "string"
+                            }
+                          },
+                          "limits": {
+                            "type": "object",
+                            "additionalProperties": {
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "additionalProperties": false
+                      },
+                      "disallowed_tools": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "watch": {
+                        "type": "object",
+                        "properties": {
+                          "event": {
+                            "type": "string"
+                          },
+                          "path": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["event", "path"],
+                        "additionalProperties": false
+                      },
+                      "repo_workdir": {
+                        "type": "boolean"
+                      },
+                      "command": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "env": {
+                        "type": "object",
+                        "additionalProperties": {
+                          "type": "string"
+                        }
+                      },
+                      "pod_labels": {
+                        "type": "object",
+                        "additionalProperties": {
+                          "type": "string"
+                        }
+                      },
+                      "needs_model": {
+                        "type": "boolean"
+                      }
+                    },
+                    "additionalProperties": true
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "name",
+              "model",
+              "timeout_minutes",
+              "prompt",
+              "image",
+              "execution_mode",
+              "review_required",
+              "project_id",
+              "config"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": ["ok", "agent"],
+        "additionalProperties": false
+      },
       "AgentDefinitionWritten": {
         "type": "object",
         "properties": {
@@ -10956,6 +11370,24 @@
                         "items": {
                           "type": "string"
                         }
+                      },
+                      "pod_resources": {
+                        "type": "object",
+                        "properties": {
+                          "requests": {
+                            "type": "object",
+                            "additionalProperties": {
+                              "type": "string"
+                            }
+                          },
+                          "limits": {
+                            "type": "object",
+                            "additionalProperties": {
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "additionalProperties": false
                       },
                       "disallowed_tools": {
                         "type": "array",

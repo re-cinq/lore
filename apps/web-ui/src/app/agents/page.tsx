@@ -38,7 +38,7 @@ export default async function AgentsPage() {
     <div>
       <section>
         <h2>Agent definitions</h2>
-        <AgentList base={null} agents={definitions} usage={usage} />
+        <AgentList base={null} agents={definitions} usage={usage} orgEditable />
       </section>
 
       <AgentsTable
