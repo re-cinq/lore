@@ -582,7 +582,7 @@ they are alive.
 - A web-ui page renders that list, marking offline agents and linking the
   running-claims count to the assembly-runs list filtered to that agent
   (`/assembly-runs?cluster_agent_id=…`, backed by the port's
-  `clusterAgentId` open-claim filter). ([validated by `assembly-runs.contract.test.ts:1035`](libs/shared/src/project/assembly-runs/assembly-runs.contract.test.ts#L1037), [validated by `ClusterAgentsView.test.tsx:64`](apps/web-ui/src/app/cluster-agents/ClusterAgentsView.test.tsx#L64), [`ClusterAgentsView.test.tsx:91`](apps/web-ui/src/app/cluster-agents/ClusterAgentsView.test.tsx#L91), [`ClusterAgentsView.test.tsx:108`](apps/web-ui/src/app/cluster-agents/ClusterAgentsView.test.tsx#L108), [`cluster-agents.test.ts:29`](apps/web-ui/src/lib/api/cluster-agents.test.ts#L29))
+  `clusterAgentId` open-claim filter). ([validated by `assembly-runs.contract.test.ts:1035`](libs/shared/src/project/assembly-runs/assembly-runs.contract.test.ts#L1037), [validated by `ClusterAgentsView.test.tsx:65`](apps/web-ui/src/app/cluster-agents/ClusterAgentsView.test.tsx#L65), [`ClusterAgentsView.test.tsx:93`](apps/web-ui/src/app/cluster-agents/ClusterAgentsView.test.tsx#L93), [`ClusterAgentsView.test.tsx:111`](apps/web-ui/src/app/cluster-agents/ClusterAgentsView.test.tsx#L111), [`cluster-agents.test.ts:29`](apps/web-ui/src/lib/api/cluster-agents.test.ts#L29))
 - The app hands out the connect-a-cluster values it already holds (#1572):
   admin-scoped `GET /api/cluster-agents/install-info` answers the central
   URLs and the registration token (or names exactly what is unconfigured),
@@ -591,7 +591,7 @@ they are alive.
   ready-to-paste command from them. The LLM credential and GHCR pull
   credentials stay deliberately un-baked. ([validated by `install.test.ts:11`](apps/lore-api/src/api/routes/cluster-agents/install.test.ts#L11), [`install.test.ts:22`](apps/lore-api/src/api/routes/cluster-agents/install.test.ts#L22), [`install.test.ts:38`](apps/lore-api/src/api/routes/cluster-agents/install.test.ts#L38), [`install.test.ts:49`](apps/lore-api/src/api/routes/cluster-agents/install.test.ts#L49), [`install.test.ts:61`](apps/lore-api/src/api/routes/cluster-agents/install.test.ts#L61), [`install.test.ts:68`](apps/lore-api/src/api/routes/cluster-agents/install.test.ts#L68), [`ConnectClusterPanel.test.tsx:20`](apps/web-ui/src/app/cluster-agents/ConnectClusterPanel.test.tsx#L20), [`ConnectClusterPanel.test.tsx:33`](apps/web-ui/src/app/cluster-agents/ConnectClusterPanel.test.tsx#L33), [`ConnectClusterPanel.test.tsx:44`](apps/web-ui/src/app/cluster-agents/ConnectClusterPanel.test.tsx#L44))
 - The audit log's `cluster_agent_offline` entries surface on the same page,
-  so a flapping cluster is diagnosable without database access. ([validated by `ClusterAgentsView.test.tsx:122`](apps/web-ui/src/app/cluster-agents/ClusterAgentsView.test.tsx#L122), [`ClusterAgentsView.test.tsx:143`](apps/web-ui/src/app/cluster-agents/ClusterAgentsView.test.tsx#L143), [`ClusterAgentsView.test.tsx:164`](apps/web-ui/src/app/cluster-agents/ClusterAgentsView.test.tsx#L164), [`ClusterAgentsView.test.tsx:180`](apps/web-ui/src/app/cluster-agents/ClusterAgentsView.test.tsx#L180), [`ClusterAgentsView.test.tsx:184`](apps/web-ui/src/app/cluster-agents/ClusterAgentsView.test.tsx#L184), [`audit-read.test.ts:7`](libs/shared/src/project/audit/audit-read.test.ts#L7), [`audit-read.test.ts:33`](libs/shared/src/project/audit/audit-read.test.ts#L33))
+  so a flapping cluster is diagnosable without database access. ([validated by `ClusterAgentsView.test.tsx:126`](apps/web-ui/src/app/cluster-agents/ClusterAgentsView.test.tsx#L126), [`ClusterAgentsView.test.tsx:148`](apps/web-ui/src/app/cluster-agents/ClusterAgentsView.test.tsx#L148), [`ClusterAgentsView.test.tsx:193`](apps/web-ui/src/app/cluster-agents/ClusterAgentsView.test.tsx#L193), [`ClusterAgentsView.test.tsx:210`](apps/web-ui/src/app/cluster-agents/ClusterAgentsView.test.tsx#L210), [`ClusterAgentsView.test.tsx:214`](apps/web-ui/src/app/cluster-agents/ClusterAgentsView.test.tsx#L214), [`audit-read.test.ts:7`](libs/shared/src/project/audit/audit-read.test.ts#L7), [`audit-read.test.ts:33`](libs/shared/src/project/audit/audit-read.test.ts#L33))
 
 ## FR9 — Pausing a cluster
 
@@ -621,7 +621,34 @@ nothing matches is a trick that loses the cluster's real tags.
   button takes the agent id as a BOUND parameter of the server action, never
   an inline closure over it: the view is a server component, and React
   refuses to serialize a plain function to a client component — which took
-  the whole page down the first time (fixed the same day). ([validated by `ClusterAgentsView.test.tsx:34`](apps/web-ui/src/app/cluster-agents/ClusterAgentsView.test.tsx#L34), [validated by `PauseClusterButton.test.tsx:7`](apps/web-ui/src/app/cluster-agents/PauseClusterButton.test.tsx#L7), [`PauseClusterButton.test.tsx:16`](apps/web-ui/src/app/cluster-agents/PauseClusterButton.test.tsx#L16), [`actions.test.ts:17`](apps/web-ui/src/app/cluster-agents/actions.test.ts#L17), [`actions.test.ts:26`](apps/web-ui/src/app/cluster-agents/actions.test.ts#L26))
+  the whole page down the first time (fixed the same day). ([validated by `ClusterAgentsView.test.tsx:34`](apps/web-ui/src/app/cluster-agents/ClusterAgentsView.test.tsx#L34), [validated by `PauseClusterButton.test.tsx:7`](apps/web-ui/src/app/cluster-agents/PauseClusterButton.test.tsx#L7), [`PauseClusterButton.test.tsx:16`](apps/web-ui/src/app/cluster-agents/PauseClusterButton.test.tsx#L16), [`actions.test.ts:23`](apps/web-ui/src/app/cluster-agents/actions.test.ts#L23), [`actions.test.ts:32`](apps/web-ui/src/app/cluster-agents/actions.test.ts#L32))
+
+## FR10 — Restarting a cluster
+
+Picking up a new cluster-agent build (the binary itself, not the digest-pinned
+ai-agent-subsystem pair it launches) meant an operator running `kubectl
+rollout restart` by hand — no RBAC to grant that from lore-api without giving
+it a Kubernetes client, which ADR-024 deliberately withholds.
+
+- `POST /api/cluster/restart` on the cluster-agent's own HTTP surface exits the
+  process rather than performing any Kubernetes call: with the standard
+  `restartPolicy` and this image's `pullPolicy: Always`, Kubernetes recreates
+  the container and re-pulls whatever `latest` now points at. The exit is
+  deferred one tick so the response reaches the caller first, and the route
+  carries the same bearer guard as every other `/api/cluster/*` route.
+  ([validated by `cluster.test.ts:277`](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L277), [`cluster.test.ts:303`](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L303))
+- `POST /api/cluster-agents/{id}/restart` on lore-api is the only caller with
+  a path to that route, and only for the CENTRAL agent: lore-api dials one
+  static in-cluster `CLUSTER_AGENT_URL` (terraform), and dispatch being
+  pull-only means lore-api holds no per-satellite address to call — a
+  satellite's cluster-agent has no inbound path from lore-api at all. Any
+  other registered id is refused `400` before an attempt that would just hang
+  or connection-refuse; an unknown id answers `404`.
+  ([validated by `restart.test.ts:23`](apps/lore-api/src/api/routes/cluster-agents/restart.test.ts#L23), [`restart.test.ts:39`](apps/lore-api/src/api/routes/cluster-agents/restart.test.ts#L39), [`restart.test.ts:52`](apps/lore-api/src/api/routes/cluster-agents/restart.test.ts#L52))
+- The Clusters page renders a Restart button only on the row named `central`
+  — the one row lore-api can actually reach — bound to that row's agent id
+  the same way the Pause button is (never an inline closure over a server
+  component's prop). ([validated by `ClusterAgentsView.test.tsx:170`](apps/web-ui/src/app/cluster-agents/ClusterAgentsView.test.tsx#L170), [`RestartClusterButton.test.tsx:7`](apps/web-ui/src/app/cluster-agents/RestartClusterButton.test.tsx#L7), [`actions.test.ts:44`](apps/web-ui/src/app/cluster-agents/actions.test.ts#L44), [`actions.test.ts:53`](apps/web-ui/src/app/cluster-agents/actions.test.ts#L53))
 
 ## Data Model
 

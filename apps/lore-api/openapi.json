@@ -3818,6 +3818,74 @@
         }
       }
     },
+    "/api/cluster-agents/{id}/restart": {
+      "post": {
+        "operationId": "post_api_cluster-agents_id_restart",
+        "summary": "POST /api/cluster-agents/{id}/restart",
+        "tags": ["Cluster Agents"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "Bounces the central cluster-agent so it re-pulls the latest image on restart. Refused for a satellite — lore-api has no inbound path to it.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClusterAgentRestart"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "write",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/cluster-agents/{id}/heartbeat": {
       "post": {
         "operationId": "post_api_cluster-agents_id_heartbeat",
@@ -9962,6 +10030,22 @@
           }
         },
         "required": ["id", "name", "paused"],
+        "additionalProperties": false
+      },
+      "ClusterAgentRestart": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "restarted": {
+            "type": "boolean"
+          }
+        },
+        "required": ["id", "name", "restarted"],
         "additionalProperties": false
       },
       "ClusterAgentHeartbeat": {

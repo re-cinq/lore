@@ -75,6 +75,7 @@ import { clusterAgentRegisterRoute } from "../api/routes/cluster-agents/register
 import { clusterAgentClaimRoute } from "../api/routes/cluster-agents/claim.js";
 import { clusterAgentInstallRoutes } from "../api/routes/cluster-agents/install.js";
 import { clusterAgentPauseRoute } from "../api/routes/cluster-agents/pause.js";
+import { clusterAgentRestartRoute } from "../api/routes/cluster-agents/restart.js";
 import { clusterAgentHeartbeatRoute } from "../api/routes/cluster-agents/heartbeat.js";
 import { clusterAgentReleaseRoute } from "../api/routes/cluster-agents/release.js";
 import { clusterAgentListRoute } from "../api/routes/cluster-agents/list.js";
@@ -166,6 +167,7 @@ export function routeList(getPool: () => Pool | null): ServerRoute[] {
     clusterAgentClaimRoute(getPool),
     ...clusterAgentInstallRoutes(),
     clusterAgentPauseRoute(getPool),
+    clusterAgentRestartRoute(getPool),
     clusterAgentHeartbeatRoute(getPool),
     clusterAgentReleaseRoute(getPool),
     clusterAgentListRoute(getPool),

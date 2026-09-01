@@ -1,15 +1,21 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const setClusterAgentPaused = vi.fn();
+const restartClusterAgent = vi.fn();
 const revalidatePath = vi.fn();
 
-vi.mock("@/lib/api/cluster-agents", () => ({ setClusterAgentPaused }));
+vi.mock("@/lib/api/cluster-agents", () => ({
+  setClusterAgentPaused,
+  restartClusterAgent,
+}));
 vi.mock("next/cache", () => ({ revalidatePath }));
 
-const { toggleClusterPausedAction } = await import("./actions.js");
+const { toggleClusterPausedAction, restartClusterAgentAction } =
+  await import("./actions.js");
 
 beforeEach(() => {
   setClusterAgentPaused.mockReset();
+  restartClusterAgent.mockReset();
   revalidatePath.mockReset();
 });
 
@@ -30,6 +36,27 @@ describe("toggleClusterPausedAction", () => {
     });
 
     await expect(toggleClusterPausedAction("gone", true)).rejects.toThrow();
+    expect(revalidatePath).not.toHaveBeenCalled();
+  });
+});
+
+describe("restartClusterAgentAction", () => {
+  it("restarts the bound agent and refreshes the page", async () => {
+    restartClusterAgent.mockResolvedValue({ status: "ok", data: {} });
+
+    await restartClusterAgentAction("agent-1");
+
+    expect(restartClusterAgent).toHaveBeenCalledWith("agent-1");
+    expect(revalidatePath).toHaveBeenCalledWith("/cluster-agents");
+  });
+
+  it("throws on a refusal rather than reporting a restart that did not happen", async () => {
+    restartClusterAgent.mockResolvedValue({
+      status: "error",
+      error: "only the central cluster-agent is reachable from lore-api",
+    });
+
+    await expect(restartClusterAgentAction("satellite-1")).rejects.toThrow();
     expect(revalidatePath).not.toHaveBeenCalled();
   });
 });

@@ -59,3 +59,11 @@ export async function applyAgentCrds(pair: CrdPair): Promise<void> {
 export async function deleteAgentCrds(name: string): Promise<void> {
   await agentCatalog().deletePair(name);
 }
+
+/** Bounces the cluster-agent process itself — see restart.ts's route comment
+ *  for why this can only ever reach the central cluster. */
+export async function restartClusterAgent(): Promise<void> {
+  const { baseUrl, token } = clusterAgentCredentials(process.env);
+
+  await new ClusterAgentClient(baseUrl, token).call("POST", "/restart");
+}

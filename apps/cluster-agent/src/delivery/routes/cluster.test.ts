@@ -272,3 +272,40 @@ describe("routes the Floor needs but the tests above do not reach", () => {
     expect(calls).toEqual(["list:100:-"]);
   });
 });
+
+describe("restart", () => {
+  it("answers 204 and fires the restart hook once the response is sent", async () => {
+    let restarted = false;
+
+    app = Hapi.server({ port: 0 });
+    app.route(
+      clusterRoutes({
+        deps: () => deps,
+        bearerToken: TOKEN,
+        restart: () => {
+          restarted = true;
+        },
+      }),
+    );
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/cluster/restart",
+      headers: auth,
+    });
+
+    expect(res.statusCode).toBe(204);
+    expect(restarted).toBe(false);
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(restarted).toBe(true);
+  });
+
+  it("refuses to restart without a bearer token", async () => {
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/cluster/restart",
+    });
+
+    expect(res.statusCode).toBe(401);
+  });
+});

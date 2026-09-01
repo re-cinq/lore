@@ -66,6 +66,9 @@ export interface ClusterRoutesDeps {
   /** A thunk: the Kubernetes clients are built lazily, after boot. */
   deps: () => ClusterDeps;
   bearerToken?: string;
+  /** Defaults to `process.exit(0)`. Injectable so a test can observe the call
+   *  without actually killing the test process. */
+  restart?: () => void;
 }
 
 // `metadata.name` is required, not merely hoped for: the apply reads it to
@@ -227,6 +230,20 @@ export function clusterRoutes(opts: ClusterRoutesDeps): ServerRoute[] {
       handler: async (request, h) => {
         guard(request.headers);
         await opts.deps().catalog.deletePair(request.params.name);
+
+        return h.response().code(204);
+      },
+    },
+    {
+      method: "POST",
+      path: "/api/cluster/restart",
+      options: { auth: false },
+      handler: (request, h) => {
+        guard(request.headers);
+        const restart = opts.restart ?? (() => process.exit(0));
+
+        // Deferred so the response reaches the caller before the process exits.
+        setImmediate(restart);
 
         return h.response().code(204);
       },

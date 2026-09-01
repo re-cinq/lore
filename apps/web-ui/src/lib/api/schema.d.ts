@@ -1139,6 +1139,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/cluster-agents/{id}/restart": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** POST /api/cluster-agents/{id}/restart */
+    post: operations["post_api_cluster-agents_id_restart"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/cluster-agents/{id}/heartbeat": {
     parameters: {
       query?: never;
@@ -2704,6 +2721,11 @@ export interface components {
       id: string;
       name: string;
       paused: boolean;
+    };
+    ClusterAgentRestart: {
+      id: string;
+      name: string;
+      restarted: boolean;
     };
     ClusterAgentHeartbeat: {
       /** @constant */
@@ -5678,6 +5700,41 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["ClusterAgentPause"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      404: components["responses"]["NotFound"];
+      413: components["responses"]["PayloadTooLarge"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "post_api_cluster-agents_id_restart": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          [key: string]: unknown;
+        };
+      };
+    };
+    responses: {
+      /** @description Bounces the central cluster-agent so it re-pulls the latest image on restart. Refused for a satellite — lore-api has no inbound path to it. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ClusterAgentRestart"];
         };
       };
       400: components["responses"]["BadRequest"];
