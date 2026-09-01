@@ -61,7 +61,6 @@ beforeEach(() => {
   build();
 });
 
-
 describe("Agent CR routes", () => {
   it("answers 200 with found:false for a missing CR, not 404", async () => {
     const res = await app.inject({
@@ -141,8 +140,6 @@ describe("auth", () => {
 
     expect(res.statusCode).toBe(401);
   });
-
-
 });
 
 describe("routes the Floor needs but the tests above do not reach", () => {
@@ -187,8 +184,6 @@ describe("routes the Floor needs but the tests above do not reach", () => {
     expect(calls).toEqual(["cleanup:t1"]);
   });
 
-
-
   it("serves the probe without a token", async () => {
     const res = await app.inject({
       method: "GET",
@@ -198,7 +193,6 @@ describe("routes the Floor needs but the tests above do not reach", () => {
 
     expect(res.statusCode).toBe(400);
   });
-
 
   it("defaults to the page ceiling when the caller names no limit", async () => {
     await app.inject({
