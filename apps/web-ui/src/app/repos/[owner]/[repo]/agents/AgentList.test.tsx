@@ -116,4 +116,63 @@ describe("AgentList", () => {
 
     expect(getByTestId("usage-general").textContent).toEqual("—");
   });
+
+  it("the Mode cell shows the deduped line names for a referenced claude-code recipe, single agent for a blueprint-less one, and the raw mode when usage is unknown", () => {
+    const referenced = render(
+      <AgentList
+        base={base}
+        agents={[org]}
+        usage={{
+          general: [
+            { blueprint: "general", node_id: "implement", inherited: true },
+            { blueprint: "general", node_id: "review", inherited: true },
+            { blueprint: "gap-fill", node_id: "refine", inherited: false },
+          ],
+        }}
+      />,
+    );
+
+    expect(referenced.getByTestId("mode-general").textContent).toEqual(
+      "general, gap-fill",
+    );
+    referenced.unmount();
+
+    const blueprintless = render(
+      <AgentList base={base} agents={[org]} usage={{}} />,
+    );
+
+    expect(blueprintless.getByTestId("mode-general").textContent).toEqual(
+      "single agent",
+    );
+    blueprintless.unmount();
+
+    const unknown = render(
+      <AgentList base={base} agents={[org]} usage={null} />,
+    );
+
+    expect(unknown.getByTestId("mode-general").textContent).toEqual(
+      "claude-code",
+    );
+  });
+
+  it("the Mode cell keeps the station tag even when lines reference the station", () => {
+    const station: AgentDefinition = {
+      ...org,
+      name: "def-validate",
+      execution_mode: "station",
+    };
+    const { getByTestId } = render(
+      <AgentList
+        base={base}
+        agents={[station]}
+        usage={{
+          "def-validate": [
+            { blueprint: "general", node_id: "validate", inherited: true },
+          ],
+        }}
+      />,
+    );
+
+    expect(getByTestId("mode-def-validate").textContent).toEqual("station");
+  });
 });

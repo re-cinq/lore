@@ -42,6 +42,34 @@ function usageLine(
 }
 
 /**
+ * The Mode cell: "claude-code" says nothing a reader can act on, so an LLM
+ * recipe shows the assembly line(s) that dispatch it instead — deduped, since
+ * a line can visit one station from several nodes. Station and zero-LLM modes
+ * keep their tags (a station can serve many lines and its mode is the fact
+ * that matters); a blueprint-less LLM recipe reads "single agent", and with no
+ * usage data at all the raw mode is the only honest answer left.
+ */
+function modeLabel(
+  def: AgentDefinition,
+  usage: Record<string, AgentUsageRef[]> | null,
+): string {
+  if (def.execution_mode === "station") {
+    return "station";
+  }
+
+  if (def.execution_mode === "graph-ingest") {
+    return "zero-LLM";
+  }
+  const refs = usage?.[def.name];
+
+  if (refs && refs.length > 0) {
+    return [...new Set(refs.map((ref) => ref.blueprint))].join(", ");
+  }
+
+  return usage === null ? def.execution_mode : "single agent";
+}
+
+/**
  * Read-only table of a repo's resolved agent definitions — the house `<table>`
  * (globals.css), one row per definition. A definition with no project row is
  * labelled `org` (the organisation default); once overridden it's `project`.
@@ -112,10 +140,11 @@ export default function AgentList({
                     <td className={styles.detail}>
                       {a.timeout_minutes ?? "–"}m
                     </td>
-                    <td className={styles.detail}>
-                      {a.execution_mode === "graph-ingest"
-                        ? "zero-LLM"
-                        : a.execution_mode}
+                    <td
+                      className={styles.detail}
+                      data-testid={`mode-${a.name}`}
+                    >
+                      {modeLabel(a, usage)}
                     </td>
                     <td
                       className={styles.detail}
