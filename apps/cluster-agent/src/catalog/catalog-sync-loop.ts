@@ -27,9 +27,13 @@ import {
 import {
   agentDefToCrds,
   catalogCrdName,
-  SEED_MANAGED_BY,
+  SYNC_MANAGED_BY,
+  UI_MANAGED_BY,
+  validateCatalogEntry,
   type CatalogCrdOptions,
 } from "@re-cinq/lore-shared/project/agents/agent-crd.js";
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
+import { isPermanentApplyError } from "../kernel/k8s-errors.js";
 import type { ResolvedAgentDefinition } from "@re-cinq/lore-shared/models/agent-definition.js";
 import type { AgentDefinition, Station } from "@re-cinq/agent-contracts";
 import type { ClusterAgentIdentity } from "../claim/identity-store.js";
@@ -67,7 +71,88 @@ export function crdOptionsFromEnv(env: NodeJS.ProcessEnv): CatalogCrdOptions {
       : {}),
     ...(env.LORE_STATION_IMAGE ? { stationImage: env.LORE_STATION_IMAGE } : {}),
     ...(env.LORE_DGRAPH_HTTP ? { dgraphUrl: env.LORE_DGRAPH_HTTP } : {}),
+    ...(env.LORE_MODEL_SECRET_KEYS
+      ? { modelSecretKeys: parseModelSecretKeys(env.LORE_MODEL_SECRET_KEYS) }
+      : {}),
   };
+}
+
+/**
+ * `{"gemini":"GEMINI_API_KEY"}` → the family→key map the render and validator
+ * consult. JSON on both ends — the chart serializes with `toJson` — because a
+ * hand-rolled k=v codec pair drops malformed entries SILENTLY, and a silently
+ * absent family degrades validation to the bare-cluster pass: the
+ * misconfigured-full-cluster class again. A set-but-unparseable value throws
+ * out of boot instead.
+ */
+export function parseModelSecretKeys(raw: string): Record<string, string> {
+  const parsed: unknown = JSON.parse(raw);
+
+  enforceTrue(
+    parsed !== null &&
+      typeof parsed === "object" &&
+      !Array.isArray(parsed) &&
+      Object.entries(parsed).every(
+        ([family, key]) =>
+          family.length > 0 && typeof key === "string" && key.length > 0,
+      ),
+    Error,
+    `LORE_MODEL_SECRET_KEYS must be a JSON object of family→secret-key strings, got: ${raw}`,
+  );
+
+  return parsed as Record<string, string>;
+}
+
+/**
+ * What this cluster CLAIMS to offer, declared — never inferred from which env
+ * vars happen to be set. `full` is a cluster with the platform around it (MCP
+ * gateway, skills registry, events sink); `bare` is a satellite that renders
+ * recipes without those blocks ON PURPOSE. The 2026-09-01 incident was a full
+ * cluster rendering the bare shape because two env vars went unset: with the
+ * profile declared, that misconfiguration refuses to boot instead.
+ */
+export function catalogProfile(env: NodeJS.ProcessEnv): "full" | "bare" {
+  const raw = env.LORE_CATALOG_PROFILE;
+
+  // Only the exact words: for a knob whose whole point is "declared, never
+  // inferred", coercing "Full"/"ful"/"true" to the permissive value would put
+  // the incident one typo away.
+  enforceTrue(
+    raw === undefined || raw === "" || raw === "full" || raw === "bare",
+    Error,
+    `unknown LORE_CATALOG_PROFILE "${raw}" — expected "full" or "bare"`,
+  );
+
+  return raw === "full" ? "full" : "bare";
+}
+
+export function enforceCatalogProfile(env: NodeJS.ProcessEnv): void {
+  if (catalogProfile(env) !== "full") {
+    return;
+  }
+
+  for (const name of [
+    "LORE_MCP_URL",
+    "LORE_SKILLS_URL",
+    "LORE_AGENT_EVENTS_URL",
+  ] as const) {
+    enforceTrue(
+      env[name],
+      Error,
+      `cluster-agent cannot start: LORE_CATALOG_PROFILE=full but ${name} is unset — a full cluster rendering recipes without it produces pods that die at boot (see the 2026-09-01 settings.json incident). Set the value or declare the cluster bare.`,
+    );
+  }
+
+  // The credential axis of the same incident class: a full cluster with no
+  // anthropic key renders every default recipe secretless while validation
+  // passes (an empty map reads as a deliberate bare cluster).
+  enforceTrue(
+    env.LORE_AGENT_LLM_SECRET_KEY ||
+      (env.LORE_MODEL_SECRET_KEYS &&
+        parseModelSecretKeys(env.LORE_MODEL_SECRET_KEYS).anthropic),
+    Error,
+    "cluster-agent cannot start: LORE_CATALOG_PROFILE=full but no anthropic credential key is configured (LORE_AGENT_LLM_SECRET_KEY or modelSecretKeys.anthropic) — every default recipe would render without its LLM secret.",
+  );
 }
 
 /** The catalog-events response body (200). */
@@ -82,7 +167,16 @@ interface CatalogEventsResponse {
 }
 
 export type CatalogSyncOutcome =
-  | { kind: "synced"; applied: number; deleted: number; skipped: number }
+  | {
+      kind: "synced";
+      applied: number;
+      deleted: number;
+      /** CRs another writer owns (label named per entry), left untouched. */
+      skipped: string[];
+      /** Entries the render contract or the apiserver refused permanently —
+       *  acked past, each with its reason, so they surface instead of loop. */
+      refused: string[];
+    }
   | { kind: "empty" }
   | { kind: "unauthorized" }
   | { kind: "error"; message: string };
@@ -199,36 +293,72 @@ export async function catalogSyncOnce(
 
   let applied = 0;
   let deleted = 0;
-  let skipped = 0;
+  const skippedNames: string[] = [];
+  const refused: string[] = [];
 
   for (const entry of body.entries) {
     const crdName = catalogCrdName(entry.name, entry.project_id);
 
     try {
+      // Ownership FIRST — for deletes as much as applies: a null-definition
+      // event must not remove a seed-owned org default (delete/re-seed flap)
+      // or an operator's hand-applied CR. While the transition holds the loop
+      // owns its own label, the UI push's (that render is degraded on purpose
+      // and this loop's validated render repairing it is the point), and what
+      // does not exist yet. The seed label stays the chart's until cutover,
+      // and an UNLABELED live CR is a human's — never clobbered, never
+      // validated, never REFUSED-logged on their behalf.
+      if (!deps.ownSeeded) {
+        const live = await deps.catalog.getAgentDefinition(crdName);
+        const managedBy =
+          live?.metadata?.labels?.["app.kubernetes.io/managed-by"];
+
+        if (
+          live !== null &&
+          managedBy !== SYNC_MANAGED_BY &&
+          managedBy !== UI_MANAGED_BY
+        ) {
+          skippedNames.push(`${crdName} (${managedBy ?? "unlabeled"})`);
+          continue;
+        }
+      }
+
       if (entry.definition === null) {
         await deps.catalog.deletePair(crdName);
         deleted += 1;
         continue;
       }
 
-      if (!deps.ownSeeded) {
-        const live = await deps.catalog.getAgentDefinition(crdName);
-        const managedBy =
-          live?.metadata?.labels?.["app.kubernetes.io/managed-by"];
+      // The render contract, BEFORE the render: a refusal is permanent for
+      // this (row, cluster) pair — only a new event or new cluster config
+      // changes the answer — so the loop acks past it. Re-serving it instead
+      // is how one dead row (`def-github_action`, 422 forever) head-of-line
+      // blocked the entire tail for two hours on 2026-09-01. The previous CR,
+      // if any, stays live: last-known-good beats unbootable.
+      const refusal = validateCatalogEntry(entry.definition, deps.crdOptions);
 
-        if (managedBy === SEED_MANAGED_BY) {
-          skipped += 1;
-          continue;
-        }
+      if (refusal !== null) {
+        refused.push(`${crdName}: ${refusal}`);
+        continue;
       }
       await deps.catalog.applyPair(
         agentDefToCrds(entry.definition, deps.crdOptions),
       );
       applied += 1;
     } catch (err) {
-      // One bad entry must not hold the rest of the batch hostage — and NOT
-      // acking leaves the whole batch re-served next tick, so the failed
-      // entry is retried without special bookkeeping.
+      // The apiserver's verdict decides the retry: a 400/422 can never
+      // succeed (the validator's backstop), so it refuses and the loop moves
+      // on; anything else is transient — keep the ack so the batch re-serves.
+      // Known edge, accepted: applyCatalogPair writes Station first, so a
+      // permanent rejection of the AgentDefinition half leaves the new
+      // Station template live beside the old recipe — the refusal names it.
+      if (isPermanentApplyError(err)) {
+        refused.push(
+          `${crdName}: ${errorMessage(err)} (pair may be half-applied — Station half lands first)`,
+        );
+        continue;
+      }
+
       return {
         outcome: {
           kind: "error",
@@ -240,7 +370,13 @@ export async function catalogSyncOnce(
   }
 
   return {
-    outcome: { kind: "synced", applied, deleted, skipped },
+    outcome: {
+      kind: "synced",
+      applied,
+      deleted,
+      skipped: skippedNames,
+      refused,
+    },
     ack: body.cursor,
   };
 }
@@ -288,8 +424,18 @@ export async function runCatalogSyncLoop(
 
       if (outcome.kind === "synced") {
         console.log(
-          `[cluster-agent] catalog sync landed ${outcome.applied} applied, ${outcome.deleted} deleted, ${outcome.skipped} seed-owned skipped`,
+          `[cluster-agent] catalog sync landed ${outcome.applied} applied, ${outcome.deleted} deleted, ${outcome.skipped.length} not-owned skipped, ${outcome.refused.length} refused`,
         );
+
+        for (const name of outcome.skipped) {
+          console.log(
+            `[cluster-agent] catalog sync skipped ${name} — not this loop's to write`,
+          );
+        }
+
+        for (const refusal of outcome.refused) {
+          console.warn(`[cluster-agent] catalog sync REFUSED ${refusal}`);
+        }
       }
 
       if (first) {

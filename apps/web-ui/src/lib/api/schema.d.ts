@@ -3034,13 +3034,11 @@ export interface components {
         pr_ref?: string;
         approver?: string;
       };
-      crd_applied: boolean;
     };
     AgentDefinitionDeleted: {
       /** @constant */
       ok: true;
       deleted: string;
-      crd_deleted: boolean;
     };
     AgentUsage: {
       [key: string]: unknown;

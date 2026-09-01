@@ -224,7 +224,6 @@ describe("routes — agents", () => {
       expect(res.result).toEqual({
         ok: true,
         deleted: "general",
-        crd_deleted: false,
       });
       expect(fakeAgents.delete).toHaveBeenCalledWith("general");
     });

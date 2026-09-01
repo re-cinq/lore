@@ -83,9 +83,25 @@ claim:
 # gateway, events sink or skills registry (the standalone chart leaves them
 # empty). Defaults mirror the ai-agents-helm values the seed rendered with.
 catalog:
+  # Declared, never inferred: `full` REFUSES TO BOOT unless eventsUrl, mcpUrl
+  # and skillsUrl are all set — a full cluster rendering the bare (satellite)
+  # shape because a value went unset shipped pods that died at boot on
+  # 2026-09-01. This chart deploys the IN-PLATFORM cluster-agent, so full is
+  # the only correct profile here; the standalone satellite chart is bare.
+  profile: full
   eventsUrl: http://lore-floor.lore-floor.svc.cluster.local:8080/api/agent-events
-  mcpUrl: ""
-  skillsUrl: ""
+  # In-cluster URLs (same host the retired Helm seed rendered): the run-pod
+  # NetworkPolicy's gateway carve-out must keep matching these.
+  mcpUrl: http://lore-mcp-gateway.lore-api.svc.cluster.local:8080/mcp
+  skillsUrl: http://lore-mcp-gateway.lore-api.svc.cluster.local:8080/skills
+  # Credential keys for model families BEYOND anthropic (whose key is
+  # llmSecretKey below — the legacy knob stays the anthropic channel so a
+  # laptop's CLAUDE_CODE_OAUTH_TOKEN override keeps working). A definition
+  # naming a model whose family is absent is REFUSED by the sync loop (reason
+  # logged), never rendered with somebody else's key. Add
+  # `gemini: GEMINI_API_KEY` only after seeding that key (the four-place
+  # secrets checklist in CLAUDE.md). Serialized to env as JSON.
+  modelSecretKeys: {}
   # (Station pods' LORE_API_URL rides the claim.loreApiUrl env var this chart
   # already sets — one URL, both duties.)
   # The LLM credential key this cluster's agent-secrets Secret carries:
