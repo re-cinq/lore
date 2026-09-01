@@ -16,6 +16,7 @@ const yamlGeneral: AgentDefinition = {
   image: null,
   execution_mode: "claude-code",
   review_required: true,
+  config: null,
   project_id: null,
 };
 
@@ -50,6 +51,7 @@ describe("resolveAgentConfig", () => {
       image: null,
       execution_mode: "claude-code",
       review_required: true,
+      config: null,
       project_id: "11111111-1111-1111-1111-111111111111",
     };
 

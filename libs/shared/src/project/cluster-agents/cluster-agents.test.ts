@@ -36,6 +36,7 @@ const agentRow = (over: Partial<ClusterAgent> = {}): ClusterAgent => ({
   status: "active",
   paused: false,
   clusterInfo: null,
+  catalogCursor: null,
   ...over,
 });
 
@@ -264,6 +265,34 @@ describe("InMemoryClusterAgents", () => {
 
     expect((await repo.list()).map((a) => a.name)).toEqual(["alpha", "zeta"]);
   });
+
+  it("a fresh registration carries a null catalog cursor, the never-resynced signal", async () => {
+    const repo = new InMemoryClusterAgents();
+    const created = await repo.create({
+      name: "minikube-bogdan",
+      tags: [],
+      tokenHash: hashAgentToken("lca_x"),
+      clusterInfo: null,
+    });
+
+    expect(created?.catalogCursor).toBeNull();
+  });
+
+  it("advanceCatalogCursor moves forward but never backwards", async () => {
+    const repo = new InMemoryClusterAgents();
+    const created = await repo.create({
+      name: "minikube-bogdan",
+      tags: [],
+      tokenHash: hashAgentToken("lca_x"),
+      clusterInfo: null,
+    });
+    const id = created?.id ?? "";
+
+    await repo.advanceCatalogCursor(id, "42");
+    await repo.advanceCatalogCursor(id, "17");
+
+    expect((await repo.findById(id))?.catalogCursor).toEqual("42");
+  });
 });
 
 describe("PgClusterAgents adapter", () => {
@@ -341,5 +370,16 @@ describe("PgClusterAgents adapter", () => {
       "SET last_seen_at = $2, status = 'active'",
     );
     expect(calls[0]?.params).toEqual(["a-1", new Date("2026-08-26T10:07:00Z")]);
+  });
+
+  it("advanceCatalogCursor is monotonic on the DB side via GREATEST", async () => {
+    const { pool, calls } = fakePool();
+
+    await new PgClusterAgents(pool).advanceCatalogCursor("a-1", "42");
+
+    expect(calls[0]?.text).toContain(
+      "GREATEST(COALESCE(catalog_cursor, 0), $2::bigint)",
+    );
+    expect(calls[0]?.params).toEqual(["a-1", "42"]);
   });
 });

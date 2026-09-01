@@ -76,6 +76,31 @@ claim:
   # named Secret).
   identitySecretName: lore-cluster-agent-identity
 
+# The per-cluster values the catalog sync loop renders into AgentDefinition/
+# Station CRs — everything the retired Helm catalog-seed hook used to template
+# into the committed seed (agent-crd.ts CatalogCrdOptions). Empty OMITS the
+# block it feeds, which is exactly right on a satellite that has no MCP
+# gateway, events sink or skills registry (the standalone chart leaves them
+# empty). Defaults mirror the ai-agents-helm values the seed rendered with.
+catalog:
+  eventsUrl: http://lore-floor.lore-floor.svc.cluster.local:8080/api/agent-events
+  mcpUrl: ""
+  skillsUrl: ""
+  # (Station pods' LORE_API_URL rides the claim.loreApiUrl env var this chart
+  # already sets — one URL, both duties.)
+  # The LLM credential key this cluster's agent-secrets Secret carries:
+  # ANTHROPIC_API_KEY on GKE, CLAUDE_CODE_OAUTH_TOKEN on a laptop minikube.
+  llmSecretKey: ANTHROPIC_API_KEY
+  # The lore-station image station-mode recipes run on (per-cluster tag pin;
+  # the deploy script may override the tag alongside the stations image).
+  stationImage: ghcr.io/re-cinq/lore-station:latest
+  dgraphUrl: http://lore-dgraph-alpha.lore-dgraph.svc.cluster.local:8080
+  # Transition guard: while the ai-agents chart's catalog-seed hook still runs
+  # (seedCatalog: true), the sync loop SKIPS seed-labeled CRs rather than
+  # fighting its server-side force-apply. Flip to true in the same release
+  # that sets seedCatalog: false.
+  ownSeeded: false
+
 # Stream run-pod stdout to the bus as it happens (LORE_POD_LOG_STREAMING). OFF
 # by default: this is the input that puts log VOLUME on pipeline.events. The
 # central cluster needs it least — its pod logs are already readable live — so

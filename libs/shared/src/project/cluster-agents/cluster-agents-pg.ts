@@ -117,6 +117,15 @@ export class PgClusterAgents implements ClusterAgentsRepository {
     return rows.map((row) => fromRow<ClusterAgent>(CLUSTER_AGENT_COLUMNS, row));
   }
 
+  async advanceCatalogCursor(id: string, cursor: string): Promise<void> {
+    await this.pool.query(
+      `UPDATE ${CLUSTER_AGENT_TABLE}
+          SET catalog_cursor = GREATEST(COALESCE(catalog_cursor, 0), $2::bigint)
+        WHERE id = $1`,
+      [id, cursor],
+    );
+  }
+
   async list(): Promise<ClusterAgent[]> {
     const { rows } = await this.pool.query<DbRow>(
       `SELECT ${selectList(CLUSTER_AGENT_COLUMNS)}

@@ -51,6 +51,7 @@ export {
 } from "./loader.js";
 
 export { loadBuiltinAssemblyLines } from "./builtin-assembly-lines.js";
+export { stationUsage, type StationUsageRef } from "./station-usage.js";
 export {
   resolveNodeStation,
   builtinStationName,

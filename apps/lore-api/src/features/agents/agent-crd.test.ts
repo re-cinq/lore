@@ -11,6 +11,7 @@ const full: RecipeDef = {
   execution_mode: "claude-code",
   review_required: true,
   project_id: null,
+  config: null,
 };
 
 describe("agentDefToCrds", () => {
@@ -147,6 +148,7 @@ describe("agentDefToCrds — station mode", () => {
       execution_mode: "station",
       review_required: false,
       project_id: null,
+      config: null,
     });
 
     expect(agentDefinition.spec).toMatchObject({

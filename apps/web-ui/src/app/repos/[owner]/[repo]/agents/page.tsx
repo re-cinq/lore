@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 import Link from "next/link";
 import { getAgentActivity } from "@/lib/api/tasks";
 import { classifyAgent } from "@/lib/agent-classify";
-import { listAgents } from "@/lib/agents-api";
+import { fetchAgentUsage, listAgents } from "@/lib/agents-api";
 import AgentsTable, { type AgentRow } from "@/components/AgentsTable";
 import AgentList from "./AgentList";
 import styles from "./agents.module.css";
@@ -22,7 +22,10 @@ export default async function RepoAgents({
   const { owner, repo } = await params;
   const fullName = `${owner}/${repo}`;
 
-  const agents = await listAgents(fullName);
+  const [agents, usage] = await Promise.all([
+    listAgents(fullName),
+    fetchAgentUsage(),
+  ]);
 
   // Union task agents (pipeline tasks targeting this repo) with local MCP agents
   // (memories tagged with this repo) so a developer's own agent shows up here too.
@@ -53,7 +56,11 @@ export default async function RepoAgents({
           from — config, not a run. Org defaults overlaid with this repo&apos;s
           overrides.
         </p>
-        <AgentList base={`/repos/${owner}/${repo}`} agents={agents} />
+        <AgentList
+          base={`/repos/${owner}/${repo}`}
+          agents={agents}
+          usage={usage}
+        />
       </section>
 
       <section className={styles.section}>

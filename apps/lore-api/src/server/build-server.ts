@@ -73,6 +73,9 @@ import {
 import { tokensRoute } from "../api/routes/tokens/tokens.js";
 import { clusterAgentRegisterRoute } from "../api/routes/cluster-agents/register.js";
 import { clusterAgentClaimRoute } from "../api/routes/cluster-agents/claim.js";
+import { clusterAgentCatalogEventsRoute } from "../api/routes/cluster-agents/catalog-events.js";
+import { agentDefinitionUsageRoute } from "../api/routes/agent-definitions/usage.js";
+import { orgAgentDefinitionsRoute } from "../api/routes/agent-definitions/org-list.js";
 import { clusterAgentInstallRoutes } from "../api/routes/cluster-agents/install.js";
 import { clusterAgentPauseRoute } from "../api/routes/cluster-agents/pause.js";
 import { clusterAgentRestartRoute } from "../api/routes/cluster-agents/restart.js";
@@ -165,6 +168,7 @@ export function routeList(getPool: () => Pool | null): ServerRoute[] {
     ...tokensRoute(getPool),
     clusterAgentRegisterRoute(getPool),
     clusterAgentClaimRoute(getPool),
+    clusterAgentCatalogEventsRoute(getPool),
     ...clusterAgentInstallRoutes(),
     clusterAgentPauseRoute(getPool),
     clusterAgentRestartRoute(getPool),
@@ -173,6 +177,8 @@ export function routeList(getPool: () => Pool | null): ServerRoute[] {
     clusterAgentListRoute(getPool),
     ...darkFactoryRoute(getPool),
     agentsGetRoute(getPool),
+    agentDefinitionUsageRoute(),
+    orgAgentDefinitionsRoute(getPool),
     agentsPostRoute(getPool),
     agentsPutRoute(getPool),
     agentsDeleteRoute(getPool),

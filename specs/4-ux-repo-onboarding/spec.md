@@ -251,7 +251,7 @@ The system MUST reorganize the UI around repos. ([validated by `HomeView.test.ts
   pills and a filter-chip row (an All chip counting the true list
   length plus one chip per present status, aria-pressed on the active
   filter, a legend distinguishing status from coverage). ([validated by `SpecListView.test.tsx:7`](apps/web-ui/src/app/repos/[owner]/[repo]/specs/SpecListView.test.tsx#L7), [`SpecStatusChips.test.tsx:7`](apps/web-ui/src/components/SpecStatusChips.test.tsx#L7), [`SpecStatusChips.test.tsx:15`](apps/web-ui/src/components/SpecStatusChips.test.tsx#L15), [`SpecStatusChips.test.tsx:31`](apps/web-ui/src/components/SpecStatusChips.test.tsx#L31), [`SpecStatusChips.test.tsx:46`](apps/web-ui/src/components/SpecStatusChips.test.tsx#L46), [`SpecStatusChips.test.tsx:66`](apps/web-ui/src/components/SpecStatusChips.test.tsx#L66), [`SpecStatusChips.test.tsx:82`](apps/web-ui/src/components/SpecStatusChips.test.tsx#L82), [`SpecStatusPill.test.tsx:7`](apps/web-ui/src/components/SpecStatusPill.test.tsx#L7), [`SpecStatusPill.test.tsx:13`](apps/web-ui/src/components/SpecStatusPill.test.tsx#L13))
-- FR-3.7: Agents tab shows agent definitions scoped to this repo. ([validated by `AgentList.test.tsx:21`](apps/web-ui/src/app/repos/[owner]/[repo]/agents/AgentList.test.tsx#L21))
+- FR-3.7: Agents tab shows agent definitions scoped to this repo. ([validated by `AgentList.test.tsx:21`](apps/web-ui/src/app/repos/[owner]/[repo]/agents/AgentList.test.tsx#L42))
 - FR-3.8: Global search, audit, and shared pools remain as
   top-level nav items; a shared-pool detail page renders the pool
   heading/breadcrumb, a truncated creator, singular/plural entry

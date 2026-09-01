@@ -50,6 +50,7 @@ describe("AgentDefsYaml", () => {
       image: null,
       execution_mode: "claude-code",
       review_required: true,
+      config: null,
       project_id: null,
     });
   });
@@ -143,6 +144,7 @@ describe("AgentDefsYaml", () => {
         image: null,
         execution_mode: "claude-code",
         review_required: false,
+        config: null,
       }),
     ).rejects.toThrow(
       new Error("agent definitions are read-only without a database"),

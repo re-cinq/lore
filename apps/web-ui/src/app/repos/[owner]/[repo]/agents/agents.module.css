@@ -1,10 +1,10 @@
-/* Agent definition list — co-located with AgentList.tsx. Cards use the app's
-   surface/border tokens so they match the other repo views. */
+/* Agent definition table — co-located with AgentList.tsx. Rows ride the house
+   <table> styles (globals.css); this module only adds the page chrome. */
 
 /* Two stacked sections on the Agents tab: "Agent definitions" and "Sessions".
    Header-band layout (accent bar + title + count + description) rather than a
    filled panel — --bg-surface equals --bg-elevated in every theme, so a filled
-   card would blend with the inner definition cards. */
+   card would blend with the table surface. */
 .section {
   margin-bottom: 32px;
 }
@@ -51,25 +51,10 @@
   margin-bottom: 12px;
 }
 
-.list {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
+/* Wide content scrolls inside its own container — the page body must not. */
+.tableWrap {
+  overflow-x: auto;
   margin-bottom: 24px;
-}
-
-.card {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px 16px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--bg-surface);
-  transition: var(--transition);
-}
-.card:hover {
-  border-color: var(--border-hover);
 }
 
 .name {
@@ -81,10 +66,6 @@
   color: var(--text-muted);
   font-size: var(--fs-sm);
   font-family: var(--font-mono);
-}
-
-.spacer {
-  margin-left: auto;
 }
 
 .formNote {

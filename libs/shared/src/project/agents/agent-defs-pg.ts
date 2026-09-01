@@ -1,4 +1,5 @@
 import type { PgPool } from "../../memory-store.js";
+import { catalogCrdName } from "./agent-crd.js";
 import {
   resolveAgentConfig,
   type AgentDefinition,
@@ -17,10 +18,10 @@ import {
 // Qualified with the `a` alias: the resolve/list queries LEFT JOIN lore.repos,
 // which also has `name`/`id` columns, so unqualified selects are ambiguous.
 const JOIN_COLS =
-  "a.name, a.model, a.timeout_minutes, a.prompt, a.image, a.execution_mode, a.review_required, a.project_id";
+  "a.name, a.model, a.timeout_minutes, a.prompt, a.image, a.execution_mode, a.review_required, a.project_id, a.config";
 // Unqualified for INSERT ... RETURNING (single table, no alias in scope).
 const RET_COLS =
-  "name, model, timeout_minutes, prompt, image, execution_mode, review_required, project_id";
+  "name, model, timeout_minutes, prompt, image, execution_mode, review_required, project_id, config";
 
 interface AgentRow {
   name: string;
@@ -31,6 +32,7 @@ interface AgentRow {
   execution_mode: string;
   review_required: boolean;
   project_id: string | null;
+  config: AgentDefinition["config"];
 }
 
 const toDef = (r: AgentRow): AgentDefinition => ({
@@ -42,12 +44,68 @@ const toDef = (r: AgentRow): AgentDefinition => ({
   execution_mode: r.execution_mode,
   review_required: r.review_required,
   project_id: r.project_id,
+  config: r.config ?? null,
 });
 
 const split = (rows: AgentRow[]) => ({
   project: rows.find((r) => r.project_id !== null) ?? null,
   org: rows.find((r) => r.project_id === null) ?? null,
 });
+
+/**
+ * The effective definition for a catalog entry addressed the way the
+ * catalog-events feed addresses it — by `(name, projectId)`, no repo full_name
+ * in hand. A named projectId whose override row is gone resolves to null (the
+ * reader deletes the CRD pair); an org entry falls through to the yaml layer,
+ * the same safety net PgAgentDefs.resolve keeps.
+ */
+export async function resolveCatalogEntry(
+  pool: PgPool,
+  base: AgentDefsPort,
+  name: string,
+  projectId: string | null,
+): Promise<AgentDefinition | null> {
+  const { rows } = await pool.query<AgentRow>(
+    `SELECT ${JOIN_COLS} FROM lore.agent_definitions a
+      WHERE a.name = $1 AND (a.project_id IS NULL OR a.project_id = $2)`,
+    [name, projectId],
+  );
+  const { project, org } = split(rows as AgentRow[]);
+
+  if (projectId !== null && !project) {
+    return null;
+  }
+  const yamlDefault = await base.resolve("", name);
+
+  return resolveAgentConfig(
+    project ? toDef(project) : null,
+    org ? toDef(org) : null,
+    yamlDefault,
+  );
+}
+
+/**
+ * The stationRef a dispatch for `repo` should carry for a catalog base name:
+ * the project-qualified CRD name when the repo holds an override row, the bare
+ * name otherwise. Per-repo overrides render under qualified CRD names (two
+ * repos overriding one task type used to silently replace each other's CR),
+ * so the dispatch side must point at the same spelling the sync loop applied.
+ */
+export async function qualifiedStationRef(
+  pool: PgPool,
+  baseName: string,
+  repo: string,
+): Promise<string> {
+  const { rows } = await pool.query<{ project_id: string }>(
+    `SELECT a.project_id FROM lore.agent_definitions a
+       JOIN lore.repos r ON r.id = a.project_id
+      WHERE a.name = $1 AND r.full_name = $2`,
+    [baseName, repo],
+  );
+  const projectId = (rows[0] as { project_id: string } | undefined)?.project_id;
+
+  return catalogCrdName(baseName, projectId ?? null);
+}
 
 export class PgAgentDefs implements AgentDefsPort {
   constructor(
@@ -116,11 +174,20 @@ export class PgAgentDefs implements AgentDefsPort {
     repo: string,
     def: AgentDefinitionInput,
   ): Promise<AgentDefinition> {
+    // The written CTE row and the catalog_events append land in ONE statement,
+    // so a definition can never exist without the change event the
+    // cluster-agents' sync loops tail (and vice versa).
     const { rows } = await this.pool.query(
-      `INSERT INTO lore.agent_definitions
-         (name, model, timeout_minutes, prompt, image, execution_mode, review_required, project_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, (SELECT id FROM lore.repos WHERE full_name = $8))
-       RETURNING ${RET_COLS}`,
+      `WITH written AS (
+         INSERT INTO lore.agent_definitions
+           (name, model, timeout_minutes, prompt, image, execution_mode, review_required, config, project_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, (SELECT id FROM lore.repos WHERE full_name = $9))
+         RETURNING ${RET_COLS}
+       ), event AS (
+         INSERT INTO lore.catalog_events (name, project_id, op)
+         SELECT name, project_id, 'upsert' FROM written
+       )
+       SELECT ${RET_COLS} FROM written`,
       [
         def.name,
         def.model,
@@ -129,6 +196,7 @@ export class PgAgentDefs implements AgentDefsPort {
         def.image,
         def.execution_mode,
         def.review_required,
+        def.config ?? null,
         repo,
       ],
     );
@@ -143,18 +211,25 @@ export class PgAgentDefs implements AgentDefsPort {
   ): Promise<AgentDefinition> {
     // Upsert the project row so editing an inherited org default forks a row.
     const { rows } = await this.pool.query(
-      `INSERT INTO lore.agent_definitions
-         (name, model, timeout_minutes, prompt, image, execution_mode, review_required, project_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, (SELECT id FROM lore.repos WHERE full_name = $8))
-       ON CONFLICT (name, project_id) WHERE project_id IS NOT NULL DO UPDATE SET
-         model = EXCLUDED.model,
-         timeout_minutes = EXCLUDED.timeout_minutes,
-         prompt = EXCLUDED.prompt,
-         image = EXCLUDED.image,
-         execution_mode = EXCLUDED.execution_mode,
-         review_required = EXCLUDED.review_required,
-         updated_at = now()
-       RETURNING ${RET_COLS}`,
+      `WITH written AS (
+         INSERT INTO lore.agent_definitions
+           (name, model, timeout_minutes, prompt, image, execution_mode, review_required, config, project_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, (SELECT id FROM lore.repos WHERE full_name = $9))
+         ON CONFLICT (name, project_id) WHERE project_id IS NOT NULL DO UPDATE SET
+           model = EXCLUDED.model,
+           timeout_minutes = EXCLUDED.timeout_minutes,
+           prompt = EXCLUDED.prompt,
+           image = EXCLUDED.image,
+           execution_mode = EXCLUDED.execution_mode,
+           review_required = EXCLUDED.review_required,
+           config = EXCLUDED.config,
+           updated_at = now()
+         RETURNING ${RET_COLS}
+       ), event AS (
+         INSERT INTO lore.catalog_events (name, project_id, op)
+         SELECT name, project_id, 'upsert' FROM written
+       )
+       SELECT ${RET_COLS} FROM written`,
       [
         name,
         patch.model ?? null,
@@ -163,6 +238,7 @@ export class PgAgentDefs implements AgentDefsPort {
         patch.image ?? null,
         patch.execution_mode ?? "claude-code",
         patch.review_required ?? false,
+        patch.config ?? null,
         repo,
       ],
     );
@@ -172,9 +248,14 @@ export class PgAgentDefs implements AgentDefsPort {
 
   async delete(repo: string, name: string): Promise<void> {
     await this.pool.query(
-      `DELETE FROM lore.agent_definitions
-        WHERE name = $1
-          AND project_id = (SELECT id FROM lore.repos WHERE full_name = $2)`,
+      `WITH removed AS (
+         DELETE FROM lore.agent_definitions
+          WHERE name = $1
+            AND project_id = (SELECT id FROM lore.repos WHERE full_name = $2)
+         RETURNING name, project_id
+       )
+       INSERT INTO lore.catalog_events (name, project_id, op)
+       SELECT name, project_id, 'delete' FROM removed`,
       [name, repo],
     );
   }

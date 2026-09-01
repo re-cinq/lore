@@ -47,6 +47,83 @@ export async function listAgents(repo: string): Promise<AgentDefinition[]> {
   }
 }
 
+/** The org-default catalog — org rows overlaid on the yaml fallback, no
+ *  per-repo layer. Feeds the global /agents page. */
+export async function listOrgAgents(): Promise<AgentDefinition[]> {
+  const c = cfg();
+
+  if (!c) {
+    return [];
+  }
+
+  try {
+    const res = await fetch(`${c.apiUrl}/api/agent-definitions`, {
+      signal: AbortSignal.timeout(15_000),
+      headers: { authorization: `Bearer ${c.token}` },
+      cache: "no-store",
+    });
+
+    if (!res.ok) {
+      return [];
+    }
+    const data = (await res.json()) as { agents?: AgentDefinition[] };
+
+    return data.agents ?? [];
+  } catch {
+    return [];
+  }
+}
+
+export interface AgentUsageRef {
+  blueprint: string;
+  node_id: string;
+  inherited: boolean;
+}
+
+/**
+ * Where each catalog entry is dispatched from — every builtin blueprint node
+ * that resolves to it, keyed by definition name. A name absent from the map is
+ * either a blueprint-less task type (runs as a single Agent CR) or dormant;
+ * the list view tells the two apart by the definition's execution_mode.
+ *
+ * NULL, not `{}`, when the endpoint is unreachable or refuses: an empty map
+ * asserts "nothing references anything", and the list would then claim every
+ * definition runs outside any assembly line — a wrong statement dressed as a
+ * fact (a stale lore-api 404'd exactly this way). Unknown must render as
+ * unknown.
+ */
+export async function fetchAgentUsage(): Promise<Record<
+  string,
+  AgentUsageRef[]
+> | null> {
+  const c = cfg();
+
+  if (!c) {
+    return null;
+  }
+
+  try {
+    const res = await fetch(`${c.apiUrl}/api/agent-definitions/usage`, {
+      signal: AbortSignal.timeout(15_000),
+      headers: { authorization: `Bearer ${c.token}` },
+      cache: "no-store",
+    });
+
+    if (!res.ok) {
+      return null;
+    }
+    const data = (await res.json()) as {
+      usage?: Array<{ name: string; used_by: AgentUsageRef[] }>;
+    };
+
+    return Object.fromEntries(
+      (data.usage ?? []).map((entry) => [entry.name, entry.used_by]),
+    );
+  } catch {
+    return null;
+  }
+}
+
 export async function saveAgent(
   repo: string,
   def: Partial<AgentDefinition> & { name: string },

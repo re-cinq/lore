@@ -13,6 +13,7 @@ const agent: AgentDefinition = {
   image: null,
   execution_mode: "claude-code",
   review_required: true,
+  config: null,
   project_id: null,
 };
 

@@ -51,6 +51,7 @@ export class InMemoryClusterAgents implements ClusterAgentsRepository {
       status: "active",
       paused: false,
       clusterInfo: input.clusterInfo,
+      catalogCursor: null,
     };
 
     this.agents.set(agent.id, agent);
@@ -110,6 +111,21 @@ export class InMemoryClusterAgents implements ClusterAgentsRepository {
     }
 
     return newlyOffline.map((agent) => ({ ...agent, status: "offline" }));
+  }
+
+  async advanceCatalogCursor(id: string, cursor: string): Promise<void> {
+    const existing = this.agents.get(id);
+
+    // Null → set even when the ack is "0": an agent acking an empty snapshot
+    // must land in tail mode, not loop on snapshots (mirrors Pg's
+    // GREATEST(COALESCE(catalog_cursor, 0), ack), which never yields NULL).
+    if (
+      existing &&
+      (existing.catalogCursor === null ||
+        BigInt(cursor) > BigInt(existing.catalogCursor))
+    ) {
+      this.agents.set(id, { ...existing, catalogCursor: cursor });
+    }
   }
 
   async list(): Promise<ClusterAgent[]> {

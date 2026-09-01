@@ -98,5 +98,9 @@ export function resolveAgentConfig(
         yamlDefault?.review_required,
       ) ?? false,
     project_id: project?.project_id ?? null,
+    // Whole-object, not field-merged: a layer that sets config owns ALL of it.
+    // Splicing a project's skills into an org's disallowed_tools would produce
+    // a recipe nobody wrote.
+    config: pick(project?.config, org?.config, yamlDefault?.config),
   };
 }

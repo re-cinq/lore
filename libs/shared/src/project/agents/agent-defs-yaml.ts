@@ -74,6 +74,20 @@ export class AgentDefsYaml implements AgentDefsPort {
         const map = new Map<string, AgentDefinition>();
 
         for (const [name, cfg] of Object.entries(taskTypes)) {
+          // The recipe extras (skills, disallowed_tools, watch, repo_workdir)
+          // ride the config object so the CRD builder sees the same shape from
+          // this fallback as from a DB row. Null when the entry declares none.
+          const config = {
+            ...(cfg.skills ? { skills: cfg.skills } : {}),
+            ...(cfg.disallowed_tools
+              ? { disallowed_tools: cfg.disallowed_tools }
+              : {}),
+            ...(cfg.watch ? { watch: cfg.watch } : {}),
+            ...(cfg.repo_workdir !== undefined
+              ? { repo_workdir: cfg.repo_workdir }
+              : {}),
+          };
+
           map.set(name, {
             name,
             model: cfg.model ?? null,
@@ -83,6 +97,7 @@ export class AgentDefsYaml implements AgentDefsPort {
             execution_mode: cfg.execution_mode ?? "claude-code",
             review_required: cfg.review_required ?? false,
             project_id: null,
+            config: Object.keys(config).length > 0 ? config : null,
           });
         }
         // feature-planning is NOT overridden: its prompt_template IS the canonical

@@ -30,6 +30,13 @@ export const ClusterAgentSchema = z.object({
   status: ClusterAgentStatusSchema,
   paused: z.boolean(),
   clusterInfo: z.record(z.string(), z.unknown()).nullable(),
+  /**
+   * High-water mark over `lore.catalog_events` — the last event id this
+   * cluster's sync loop has been handed. String-encoded bigint (the
+   * agent_run_events precedent). NULL = never resynced: the catalog-events
+   * endpoint answers with a full snapshot instead of a tail.
+   */
+  catalogCursor: z.string().nullable(),
 });
 
 export type ClusterAgent = z.infer<typeof ClusterAgentSchema>;
@@ -44,6 +51,7 @@ export const CLUSTER_AGENT_COLUMNS = {
   status: "status",
   paused: "paused",
   clusterInfo: "cluster_info",
+  catalogCursor: "catalog_cursor",
 } as const satisfies ColumnMap<ClusterAgent>;
 
 export const CLUSTER_AGENT_TABLE = "pipeline.cluster_agents";

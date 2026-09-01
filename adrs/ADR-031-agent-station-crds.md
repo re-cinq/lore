@@ -322,3 +322,47 @@ The consequence is this ADR's original semantic finally made real: while
 every field each deploy, so a UI edit to a seeded recipe reverts. An operator who
 wants the UI to own them sets `seedCatalog: false` — the switch this ADR always
 described. Per-repo override recipes are separate objects and are never touched.
+
+## Amendment (2026-09-01): the catalog is DB-first, delivered by pull fan-out
+
+The chart-owned seed and the single-target UI push both stopped fitting the
+multi-cluster reality (`specs/running-stations-in-any-k8s-cluster`): the Helm
+`catalog-seed` hook reached only the cluster the umbrella deploy targeted, and
+a `/agents` save pushed its CRD pair to the one `CLUSTER_AGENT_URL` — a
+satellite never received either. Worse, override CRDs were named by bare
+task-type name, so two repos overriding the same task type silently replaced
+each other's live recipe in a shared cluster (the second save's create 409'd
+into a wholesale replace, with `crd_applied: true` reported to both).
+
+The catalog therefore becomes DB-first (`specs/catalog-db-sync`):
+
+- **`lore.agent_definitions` is the one source of truth.** Migration 0054
+  seeds every `task-types.yaml` entry (not just the `stations:` rows 0027/0028
+  covered) as an org-default row, with the recipe extras that never had a
+  column (skills, disallowed_tools, watch, command, env, needs_model, …) in a
+  new `config` JSONB column. The yaml stays as the bottom-precedence resolve
+  fallback only.
+- **Delivery is a pull fan-out, not a push.** Every write appends to the
+  append-only `lore.catalog_events` log in the same statement; every
+  registered cluster-agent tails it with its own cursor
+  (`pipeline.cluster_agents.catalog_cursor`) via
+  `GET /api/cluster-agents/{id}/catalog-events` — full snapshot on first
+  contact, ack-advanced at-least-once tail after — and applies the CRD pair
+  to ITS cluster, rendering per-cluster values (MCP/events/skills URLs, LLM
+  secret key, station image) from its own environment instead of chart
+  sentinels. The claim loop's start is gated on the first successful sync,
+  which is what replaced the seed hook's deploy-ordering guarantee.
+- **Override CRDs are project-qualified** (`<name>--r<projectId8>`, the
+  perTaskName shape one dimension over), and the Floor's dispatch resolves
+  each visit's `stationRef` to the spelling the repo actually gets — so the
+  bare-name collision is structurally gone and fan-out of per-repo overrides
+  to every cluster is inert clutter at worst, never a replaced recipe.
+
+D2's "the CRDs are the source of truth" narrows accordingly: the CRDs remain
+the subsystem's dispatch-time read model, but their content is a projection of
+the DB row, owned by the sync loop (`lore-catalog-sync` label). While
+`seedCatalog` is still true the loop defers to seed-labeled objects
+(`LORE_CATALOG_SYNC_OWN_SEEDED` flips ownership at cutover); once the pull
+path is verified, the seed hook, `gen-catalog`, the committed
+`catalog-seed.yaml`, `check-catalog-drift.sh` and lore-api's synchronous
+push are deleted.

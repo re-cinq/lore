@@ -3675,6 +3675,40 @@
         ]
       }
     },
+    "/api/cluster-agents/{id}/catalog-events": {
+      "get": {
+        "operationId": "get_api_cluster-agents_id_catalog-events",
+        "summary": "GET /api/cluster-agents/{id}/catalog-events",
+        "tags": ["Cluster Agents"],
+        "security": [],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "The catalog changes this cluster-agent has not applied yet — a full snapshot on first contact, an event tail after — each entry carrying the resolved definition to render, or null to delete",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClusterAgentCatalogEvents"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
     "/api/cluster-agents/install-info": {
       "get": {
         "operationId": "get_api_cluster-agents_install-info",
@@ -4471,6 +4505,82 @@
             }
           }
         ]
+      }
+    },
+    "/api/agent-definitions/usage": {
+      "get": {
+        "operationId": "get_api_agent-definitions_usage",
+        "summary": "GET /api/agent-definitions/usage",
+        "tags": ["Agents"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "Every station name a builtin blueprint node dispatches, with the nodes that reference it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentDefinitionUsage"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "read"
+      }
+    },
+    "/api/agent-definitions": {
+      "get": {
+        "operationId": "get_api_agent-definitions",
+        "summary": "GET /api/agent-definitions",
+        "tags": ["Agents"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "Every org-default agent definition — org rows overlaid on the task-types.yaml fallback, no per-repo layer",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrgAgentDefinitions"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "read"
       }
     },
     "/api/repos/{owner}/{repo}/agent-definitions": {
@@ -9973,6 +10083,146 @@
         ],
         "additionalProperties": false
       },
+      "ClusterAgentCatalogEvents": {
+        "type": "object",
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": ["snapshot", "tail"]
+          },
+          "cursor": {
+            "type": "string"
+          },
+          "entries": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "project_id": {
+                  "type": ["string", "null"]
+                },
+                "definition": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "type": "string"
+                        },
+                        "model": {
+                          "type": ["string", "null"]
+                        },
+                        "timeout_minutes": {
+                          "type": ["number", "null"]
+                        },
+                        "prompt": {
+                          "type": ["string", "null"]
+                        },
+                        "image": {
+                          "type": ["string", "null"]
+                        },
+                        "execution_mode": {
+                          "type": "string"
+                        },
+                        "review_required": {
+                          "type": "boolean"
+                        },
+                        "project_id": {
+                          "type": ["string", "null"]
+                        },
+                        "config": {
+                          "anyOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "skills": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  }
+                                },
+                                "disallowed_tools": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  }
+                                },
+                                "watch": {
+                                  "type": "object",
+                                  "properties": {
+                                    "event": {
+                                      "type": "string"
+                                    },
+                                    "path": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": ["event", "path"],
+                                  "additionalProperties": false
+                                },
+                                "repo_workdir": {
+                                  "type": "boolean"
+                                },
+                                "command": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  }
+                                },
+                                "env": {
+                                  "type": "object",
+                                  "additionalProperties": {
+                                    "type": "string"
+                                  }
+                                },
+                                "pod_labels": {
+                                  "type": "object",
+                                  "additionalProperties": {
+                                    "type": "string"
+                                  }
+                                },
+                                "needs_model": {
+                                  "type": "boolean"
+                                }
+                              },
+                              "additionalProperties": true
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "name",
+                        "model",
+                        "timeout_minutes",
+                        "prompt",
+                        "image",
+                        "execution_mode",
+                        "review_required",
+                        "project_id",
+                        "config"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": ["name", "project_id", "definition"],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": ["mode", "cursor", "entries"],
+        "additionalProperties": false
+      },
       "ClusterAgentInstallInfo": {
         "type": "object",
         "properties": {
@@ -10318,6 +10568,68 @@
               },
               "project_id": {
                 "type": ["string", "null"]
+              },
+              "config": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "skills": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "disallowed_tools": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "watch": {
+                        "type": "object",
+                        "properties": {
+                          "event": {
+                            "type": "string"
+                          },
+                          "path": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["event", "path"],
+                        "additionalProperties": false
+                      },
+                      "repo_workdir": {
+                        "type": "boolean"
+                      },
+                      "command": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "env": {
+                        "type": "object",
+                        "additionalProperties": {
+                          "type": "string"
+                        }
+                      },
+                      "pod_labels": {
+                        "type": "object",
+                        "additionalProperties": {
+                          "type": "string"
+                        }
+                      },
+                      "needs_model": {
+                        "type": "boolean"
+                      }
+                    },
+                    "additionalProperties": true
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
               }
             },
             "required": [
@@ -10328,7 +10640,8 @@
               "image",
               "execution_mode",
               "review_required",
-              "project_id"
+              "project_id",
+              "config"
             ],
             "additionalProperties": false
           },
@@ -10363,6 +10676,68 @@
                     },
                     "project_id": {
                       "type": ["string", "null"]
+                    },
+                    "config": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "skills": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            "disallowed_tools": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            "watch": {
+                              "type": "object",
+                              "properties": {
+                                "event": {
+                                  "type": "string"
+                                },
+                                "path": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": ["event", "path"],
+                              "additionalProperties": false
+                            },
+                            "repo_workdir": {
+                              "type": "boolean"
+                            },
+                            "command": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            "env": {
+                              "type": "object",
+                              "additionalProperties": {
+                                "type": "string"
+                              }
+                            },
+                            "pod_labels": {
+                              "type": "object",
+                              "additionalProperties": {
+                                "type": "string"
+                              }
+                            },
+                            "needs_model": {
+                              "type": "boolean"
+                            }
+                          },
+                          "additionalProperties": true
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     }
                   },
                   "required": [
@@ -10373,7 +10748,8 @@
                     "image",
                     "execution_mode",
                     "review_required",
-                    "project_id"
+                    "project_id",
+                    "config"
                   ],
                   "additionalProperties": false
                 }
@@ -10383,6 +10759,158 @@
             "additionalProperties": false
           }
         ]
+      },
+      "AgentDefinitionUsage": {
+        "type": "object",
+        "properties": {
+          "usage": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "used_by": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "blueprint": {
+                        "type": "string"
+                      },
+                      "node_id": {
+                        "type": "string"
+                      },
+                      "inherited": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": ["blueprint", "node_id", "inherited"],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": ["name", "used_by"],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": ["usage"],
+        "additionalProperties": false
+      },
+      "OrgAgentDefinitions": {
+        "type": "object",
+        "properties": {
+          "agents": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "model": {
+                  "type": ["string", "null"]
+                },
+                "timeout_minutes": {
+                  "type": ["number", "null"]
+                },
+                "prompt": {
+                  "type": ["string", "null"]
+                },
+                "image": {
+                  "type": ["string", "null"]
+                },
+                "execution_mode": {
+                  "type": "string"
+                },
+                "review_required": {
+                  "type": "boolean"
+                },
+                "project_id": {
+                  "type": ["string", "null"]
+                },
+                "config": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "skills": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "disallowed_tools": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "watch": {
+                          "type": "object",
+                          "properties": {
+                            "event": {
+                              "type": "string"
+                            },
+                            "path": {
+                              "type": "string"
+                            }
+                          },
+                          "required": ["event", "path"],
+                          "additionalProperties": false
+                        },
+                        "repo_workdir": {
+                          "type": "boolean"
+                        },
+                        "command": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "env": {
+                          "type": "object",
+                          "additionalProperties": {
+                            "type": "string"
+                          }
+                        },
+                        "pod_labels": {
+                          "type": "object",
+                          "additionalProperties": {
+                            "type": "string"
+                          }
+                        },
+                        "needs_model": {
+                          "type": "boolean"
+                        }
+                      },
+                      "additionalProperties": true
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "name",
+                "model",
+                "timeout_minutes",
+                "prompt",
+                "image",
+                "execution_mode",
+                "review_required",
+                "project_id",
+                "config"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": ["agents"],
+        "additionalProperties": false
       },
       "AgentDefinitionWritten": {
         "type": "object",
@@ -10417,6 +10945,68 @@
               },
               "project_id": {
                 "type": ["string", "null"]
+              },
+              "config": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "skills": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "disallowed_tools": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "watch": {
+                        "type": "object",
+                        "properties": {
+                          "event": {
+                            "type": "string"
+                          },
+                          "path": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["event", "path"],
+                        "additionalProperties": false
+                      },
+                      "repo_workdir": {
+                        "type": "boolean"
+                      },
+                      "command": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "env": {
+                        "type": "object",
+                        "additionalProperties": {
+                          "type": "string"
+                        }
+                      },
+                      "pod_labels": {
+                        "type": "object",
+                        "additionalProperties": {
+                          "type": "string"
+                        }
+                      },
+                      "needs_model": {
+                        "type": "boolean"
+                      }
+                    },
+                    "additionalProperties": true
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
               }
             },
             "required": [
@@ -10427,7 +11017,8 @@
               "image",
               "execution_mode",
               "review_required",
-              "project_id"
+              "project_id",
+              "config"
             ],
             "additionalProperties": false
           },
