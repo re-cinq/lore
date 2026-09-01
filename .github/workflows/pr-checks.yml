@@ -212,6 +212,15 @@ jobs:
           # web-ui lint — install its own deps so react/next types resolve.
           # Build shared first: the flat config loads the lore plugin, whose
           # require-spec-link rule imports @re-cinq/lore-shared/dist at config load.
+          - name: cluster-agent
+            build: npm run build -w @re-cinq/lore-shared
+            test: npm test -w @re-cinq/lore-cluster-agent
+          - name: event-router
+            build: npm run build -w @re-cinq/lore-shared
+            test: npm test -w @re-cinq/lore-event-router
+          - name: vscode-extension
+            build: npm run build -w @re-cinq/lore-shared
+            test: npm test -w lore-vscode
           - name: lint-web-ui
             install: npm ci --ignore-scripts && npm ci --prefix apps/web-ui --ignore-scripts
             build: npm run build -w @re-cinq/lore-shared
