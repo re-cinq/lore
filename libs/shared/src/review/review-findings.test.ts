@@ -151,3 +151,86 @@ describe("an optional field written as null", () => {
     expect(parseReviewFindings(block(`{${base},"suggestion":42}`))).toBeNull();
   });
 });
+
+describe("the other findings schema this repo defines", () => {
+  // Captured verbatim from the review of PR #1703 (run 5328bfa8, 2026-09-01):
+  // valid JSON in a well-formed block, every finding rejected by the shape
+  // check, so a real changes_requested review reached nobody.
+  const REPORT_FINDINGS_SHAPE = `\`\`\`REVIEW_FINDINGS
+{
+  "verdict": "changes_requested",
+  "summary": "Stale vitest coverage path reference should be removed.",
+  "findings": [
+    {
+      "file": "apps/mcp-server/vitest.config.ts",
+      "line": 14,
+      "category": "cleanup",
+      "short_summary": "Stale coverage include references non-existent path",
+      "summary": "The coverage include points to a file that does not exist.",
+      "failure_scenario": "The glob matches nothing, so the thresholds do not apply.",
+      "verdict": "CONFIRMED"
+    }
+  ]
+}
+\`\`\``;
+
+  it("reads file as path, short_summary as subject, and keeps the finding", () => {
+    expect(parseReviewFindings(REPORT_FINDINGS_SHAPE)).toMatchObject({
+      verdict: "changes_requested",
+      findings: [
+        {
+          path: "apps/mcp-server/vitest.config.ts",
+          line: 14,
+          subject: "Stale coverage include references non-existent path",
+          label: "issue",
+        },
+      ],
+    });
+  });
+
+  it("carries summary and failure_scenario into the discussion so nothing is dropped", () => {
+    const parsed = parseReviewFindings(REPORT_FINDINGS_SHAPE);
+
+    expect(parsed?.findings[0].discussion).toEqual(
+      "The coverage include points to a file that does not exist.\n\nThe glob matches nothing, so the thresholds do not apply.",
+    );
+  });
+
+  it("takes a category only when it is one of our labels, never inventing a downgrade", () => {
+    const asNit = REPORT_FINDINGS_SHAPE.replace(
+      '"category": "cleanup"',
+      '"category": "nit"',
+    );
+
+    expect(parseReviewFindings(asNit)?.findings[0].label).toEqual("nit");
+  });
+
+  it("leaves a finding already written the recipe's way untouched", () => {
+    const canonical = `\`\`\`REVIEW_FINDINGS
+{
+  "verdict": "approved",
+  "findings": [
+    { "path": "src/a.ts", "line": 3, "label": "praise", "subject": "clean" }
+  ]
+}
+\`\`\``;
+
+    expect(parseReviewFindings(canonical)).toEqual({
+      verdict: "approved",
+      findings: [
+        { path: "src/a.ts", line: 3, label: "praise", subject: "clean" },
+      ],
+    });
+  });
+
+  it("still rejects a finding carrying neither spelling of a required field", () => {
+    const neither = `\`\`\`REVIEW_FINDINGS
+{
+  "verdict": "changes_requested",
+  "findings": [{ "line": 14, "category": "cleanup" }]
+}
+\`\`\``;
+
+    expect(parseReviewFindings(neither)).toBeNull();
+  });
+});
