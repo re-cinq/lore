@@ -58,14 +58,21 @@ export interface AgentUsageRef {
  * that resolves to it, keyed by definition name. A name absent from the map is
  * either a blueprint-less task type (runs as a single Agent CR) or dormant;
  * the list view tells the two apart by the definition's execution_mode.
+ *
+ * NULL, not `{}`, when the endpoint is unreachable or refuses: an empty map
+ * asserts "nothing references anything", and the list would then claim every
+ * definition runs outside any assembly line — a wrong statement dressed as a
+ * fact (a stale lore-api 404'd exactly this way). Unknown must render as
+ * unknown.
  */
-export async function fetchAgentUsage(): Promise<
-  Record<string, AgentUsageRef[]>
-> {
+export async function fetchAgentUsage(): Promise<Record<
+  string,
+  AgentUsageRef[]
+> | null> {
   const c = cfg();
 
   if (!c) {
-    return {};
+    return null;
   }
 
   try {
@@ -76,7 +83,7 @@ export async function fetchAgentUsage(): Promise<
     });
 
     if (!res.ok) {
-      return {};
+      return null;
     }
     const data = (await res.json()) as {
       usage?: Array<{ name: string; used_by: AgentUsageRef[] }>;
@@ -86,7 +93,7 @@ export async function fetchAgentUsage(): Promise<
       (data.usage ?? []).map((entry) => [entry.name, entry.used_by]),
     );
   } catch {
-    return {};
+    return null;
   }
 }
 

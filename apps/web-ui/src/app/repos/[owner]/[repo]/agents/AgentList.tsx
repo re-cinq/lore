@@ -13,8 +13,16 @@ import styles from "./agents.module.css";
  */
 function usageLine(
   def: AgentDefinition,
-  refs: AgentUsageRef[] | undefined,
+  usage: Record<string, AgentUsageRef[]> | null,
 ): { text: string; dormant: boolean } {
+  // Unknown is not "unreferenced": with no usage data (endpoint unreachable,
+  // older lore-api) claiming "no assembly line" would be a wrong statement
+  // dressed as a fact — a stale server 404'd exactly this way once.
+  if (usage === null) {
+    return { text: "—", dormant: false };
+  }
+  const refs = usage[def.name];
+
   if (refs && refs.length > 0) {
     const nodes = refs
       .map(
@@ -43,12 +51,13 @@ function usageLine(
 export default function AgentList({
   base,
   agents,
-  usage = {},
+  usage = null,
 }: {
   base: string;
   agents: AgentDefinition[];
-  /** Blueprint references per definition name, from the usage endpoint. */
-  usage?: Record<string, AgentUsageRef[]>;
+  /** Blueprint references per definition name, from the usage endpoint —
+   *  null when the endpoint could not answer (renders as unknown). */
+  usage?: Record<string, AgentUsageRef[]> | null;
 }) {
   return (
     <div>
@@ -80,7 +89,7 @@ export default function AgentList({
             <tbody>
               {agents.map((a) => {
                 const isProject = a.project_id != null && a.project_id !== "";
-                const use = usageLine(a, usage[a.name]);
+                const use = usageLine(a, usage);
 
                 return (
                   <tr key={a.name}>

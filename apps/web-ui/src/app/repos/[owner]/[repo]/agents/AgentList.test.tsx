@@ -108,4 +108,12 @@ describe("AgentList", () => {
       "not referenced by any assembly line",
     );
   });
+
+  it("null usage (endpoint unreachable) renders a dash, never an unreferenced claim", () => {
+    const { getByTestId } = render(
+      <AgentList base={base} agents={[org]} usage={null} />,
+    );
+
+    expect(getByTestId("usage-general").textContent).toEqual("—");
+  });
 });
