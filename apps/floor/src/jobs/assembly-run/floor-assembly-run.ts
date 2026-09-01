@@ -5,7 +5,7 @@
 import type { RunGraphNode } from "@re-cinq/lore-shared/project/assembly-runs/run-graph.js";
 import type { LoreTaskSpec } from "@re-cinq/lore-shared";
 import { serializeStationInput } from "@re-cinq/lore-shared/station-input.js";
-import { stationName } from "../agent/agent-catalog.js";
+import { builtinStationName } from "@re-cinq/lore-assembly-lines";
 import { truncateForStorage } from "../agent/agent-run-events.js";
 import type { StationRunInput } from "@re-cinq/lore-shared/models/station-run.js";
 import {
@@ -256,7 +256,7 @@ export function nodeStationSpec(
     branch: cloneRef(task),
     name: nodeAgentName(task.assemblyLineId, node.id, iteration),
     extraLabels: nodeLabels(node, task, iteration, stationRunId),
-    stationRef: node.station ?? stationName(node.type),
+    stationRef: node.station ?? builtinStationName(node.type),
     clone: CLONING_STATION_TYPES.has(node.type),
     parameters: {
       // Written through the shared writer, not an object literal: the shape is a

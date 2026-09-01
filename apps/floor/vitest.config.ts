@@ -17,7 +17,6 @@ export default defineConfig({
       // Paths track the jobs/ layout after the #730 re-slice + #731 LoreTask removal
       // (execution-backend / routing-station-backend were deleted with the router).
       include: [
-        "src/jobs/agent/agent-catalog.ts",
         "src/jobs/agent/agent-events.ts",
         "src/jobs/agent/agent-run-events.ts",
         "src/jobs/agent/agent-event-bus.ts",

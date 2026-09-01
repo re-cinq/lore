@@ -61,16 +61,6 @@ beforeEach(() => {
   build();
 });
 
-const post = (
-  url: string,
-  payload?: unknown,
-): Promise<Hapi.ServerInjectResponse> =>
-  app.inject({
-    method: "POST",
-    url,
-    headers: auth,
-    ...(payload === undefined ? {} : { payload: JSON.stringify(payload) }),
-  });
 
 describe("Agent CR routes", () => {
   it("answers 200 with found:false for a missing CR, not 404", async () => {
@@ -142,18 +132,6 @@ describe("pod log routes", () => {
   });
 });
 
-describe("provisioning and catalog", () => {
-  it("applies a catalog pair in one call, so create-409-replace cannot be split", async () => {
-    const res = await post("/api/cluster/catalog/pairs", {
-      agentDefinition: { metadata: { name: "def-x" } },
-      station: { metadata: { name: "def-x" } },
-    });
-
-    expect(res.statusCode).toBe(204);
-    expect(calls).toEqual(["applyPair"]);
-  });
-});
-
 describe("auth", () => {
   it("refuses every route without a bearer token", async () => {
     const res = await app.inject({
@@ -164,23 +142,7 @@ describe("auth", () => {
     expect(res.statusCode).toBe(401);
   });
 
-  it("refuses a catalog pair whose body is not a pair", async () => {
-    const res = await post("/api/cluster/catalog/pairs", { nope: 1 });
 
-    expect(res.statusCode).toBe(400);
-    expect(calls).toEqual([]);
-  });
-
-  it("refuses a catalog pair that is not JSON at all", async () => {
-    const res = await app.inject({
-      method: "POST",
-      url: "/api/cluster/catalog/pairs",
-      headers: auth,
-      payload: "{not json",
-    });
-
-    expect(res.statusCode).toBe(400);
-  });
 });
 
 describe("routes the Floor needs but the tests above do not reach", () => {
@@ -225,25 +187,7 @@ describe("routes the Floor needs but the tests above do not reach", () => {
     expect(calls).toEqual(["cleanup:t1"]);
   });
 
-  it("deletes a catalog pair by name", async () => {
-    const res = await app.inject({
-      method: "DELETE",
-      url: "/api/cluster/catalog/pairs/def-x",
-      headers: auth,
-    });
 
-    expect(res.statusCode).toBe(204);
-    expect(calls).toEqual(["deletePair:def-x"]);
-  });
-
-  it("refuses a catalog pair missing its station", async () => {
-    const res = await post("/api/cluster/catalog/pairs", {
-      agentDefinition: { metadata: { name: "def-x" } },
-    });
-
-    expect(res.statusCode).toBe(400);
-    expect(calls).toEqual([]);
-  });
 
   it("serves the probe without a token", async () => {
     const res = await app.inject({
@@ -255,12 +199,6 @@ describe("routes the Floor needs but the tests above do not reach", () => {
     expect(res.statusCode).toBe(400);
   });
 
-  it("names the body itself when the payload is not an object", async () => {
-    const res = await post("/api/cluster/catalog/pairs", []);
-
-    expect(res.statusCode).toBe(400);
-    expect((res.result as { error: string }).error).toMatch(/\(body\)/);
-  });
 
   it("defaults to the page ceiling when the caller names no limit", async () => {
     await app.inject({
