@@ -59,9 +59,71 @@ export function parseReviewFindings(output: string): ReviewOutput | null {
   if (!match) {
     return null;
   }
-  const raw = safeParseJson(match[1].trim());
+  const raw = normalizeAliases(safeParseJson(match[1].trim()));
 
   return isReviewOutput(raw) ? raw : null;
+}
+
+/**
+ * Accept the OTHER findings schema this repo also defines, so a review written
+ * in it reaches the author instead of vanishing.
+ *
+ * The reviewer reads this codebase, which documents a second findings shape —
+ * the `/code-review` skill's and the `ReportFindings` tool's
+ * `file`/`category`/`short_summary`/`summary`/`failure_scenario` — and models
+ * reliably emit THAT when reviewing this repo: three PRs on 2026-09-01
+ * (#1698, #1699, #1703) each produced a well-formed block of valid JSON whose
+ * every finding failed the shape check, so the node reported "the findings are
+ * lost" and a real `changes_requested` review reached nobody. Same failure as
+ * #1401, one layer up: the block parses, the SHAPE is what rejects it.
+ *
+ * Only fills what is missing — a finding already spelled the recipe's way is
+ * untouched — and it invents nothing: a finding carrying neither spelling of a
+ * required field still fails validation below.
+ */
+function normalizeAliases(value: unknown): unknown {
+  if (!isRecord(value) || !Array.isArray(value.findings)) {
+    return value;
+  }
+
+  return {
+    ...value,
+    findings: value.findings.map((finding) =>
+      isRecord(finding) ? normalizeFinding(finding) : finding,
+    ),
+  };
+}
+
+function normalizeFinding(finding: Record<string, unknown>): unknown {
+  const str = (v: unknown): string | undefined =>
+    typeof v === "string" && v.length > 0 ? v : undefined;
+  // A PRESENT label is left exactly as written, valid or not: rejecting an
+  // unknown label is deliberate, and a fallback here would swallow the typo
+  // this parser exists to catch. Only a finding with no label at all — which
+  // is what the other schema emits — is given one, from `category` when that
+  // happens to be a label, else `issue`, since a finding worth reporting is
+  // never silently downgraded to a nit.
+  const label =
+    finding.label !== undefined
+      ? finding.label
+      : includes(LABELS, finding.category)
+        ? finding.category
+        : "issue";
+  const joined = [str(finding.summary), str(finding.failure_scenario)]
+    .filter((part): part is string => part !== undefined)
+    .join("\n\n");
+  const discussion = str(finding.discussion) ?? str(joined);
+
+  return {
+    ...finding,
+    path: str(finding.path) ?? str(finding.file),
+    subject:
+      str(finding.subject) ??
+      str(finding.short_summary) ??
+      str(finding.summary),
+    label,
+    ...(discussion === undefined ? {} : { discussion }),
+  };
 }
 
 /**
