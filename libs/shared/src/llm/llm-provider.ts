@@ -44,7 +44,7 @@ export interface LlmToolResult<T> extends LlmUsage {
 }
 
 export interface LlmProvider {
-  /** Vendor discriminator: "anthropic" | "openai" | "ollama" | "none" | "fake". */
+  /** Vendor discriminator: "anthropic" | "openai" | "ollama" | "gemini" | "none" | "fake". */
   readonly vendor: string;
   complete(req: LlmCompleteRequest): Promise<LlmCompletion>;
   completeWithTool<T>(req: LlmToolRequest): Promise<LlmToolResult<T>>;

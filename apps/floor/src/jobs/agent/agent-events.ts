@@ -26,6 +26,7 @@ import {
   MAX_RUN_TURNS_PER_BATCH,
 } from "./agent-run-turns.js";
 import { isRecord } from "@re-cinq/lore-shared/lib/is-record.js";
+import { computeGeminiCost } from "@re-cinq/lore-shared/llm/gemini-provider.js";
 
 export interface LlmCallRow {
   /** Always non-empty — rowFromEnvelope returns null when the envelope carries
@@ -47,8 +48,11 @@ export interface LlmCallRow {
 
 const num = (x: unknown): number => (typeof x === "number" ? x : 0);
 
-// Multi-model runs carry per-model usage under `modelUsage`; its first key is the
-// primary model. Fall back to a flat `model`, then to "unknown".
+// Multi-model runs carry per-model usage under `modelUsage` (Claude Code); its
+// first key is the primary model. A Gemini run's `stats.models` is the same
+// idea under a different key (confirmed against a real `gemini` CLI run — its
+// stream-json result has no `modelUsage`/`usage`, only `stats`). Fall back to
+// a flat `model`, then to "unknown".
 function resultModel(ev: Record<string, unknown>): string {
   const modelUsage = ev.modelUsage;
 
@@ -60,7 +64,72 @@ function resultModel(ev: Record<string, unknown>): string {
     }
   }
 
+  if (isRecord(ev.stats) && isRecord(ev.stats.models)) {
+    const keys = Object.keys(ev.stats.models);
+
+    if (keys.length > 0) {
+      return keys[0];
+    }
+  }
+
   return typeof ev.model === "string" ? ev.model : "unknown";
+}
+
+interface ResultTokens {
+  inputTokens: number;
+  outputTokens: number;
+}
+
+// Claude Code (and Codex) carry cumulative usage under `usage`; a `gemini` CLI
+// run instead carries it under `stats` — same fields, different parent key.
+// Null (not zero-filled) when neither is present, so a line missing usage
+// entirely stays skipped exactly as it always has.
+function resultTokens(ev: Record<string, unknown>): ResultTokens | null {
+  if (isRecord(ev.usage)) {
+    return {
+      inputTokens: num(ev.usage.input_tokens),
+      outputTokens: num(ev.usage.output_tokens),
+    };
+  }
+
+  if (isRecord(ev.stats)) {
+    return {
+      inputTokens: num(ev.stats.input_tokens),
+      outputTokens: num(ev.stats.output_tokens),
+    };
+  }
+
+  return null;
+}
+
+// Claude Code's/Codex's terminal event reports `duration_ms` at the top
+// level; a `gemini` CLI run reports it under `stats` instead.
+function resultDurationMs(ev: Record<string, unknown>): number {
+  if (typeof ev.duration_ms === "number") {
+    return ev.duration_ms;
+  }
+
+  return isRecord(ev.stats) ? num(ev.stats.duration_ms) : 0;
+}
+
+// Claude Code and Codex self-report `total_cost_usd` on the terminal event;
+// Gemini's CLI does not (its billing is quota-based, not always a $ figure) —
+// price it ourselves from the reported tokens instead of defaulting to zero.
+// Model-string-keyed rather than vendor-keyed, since the envelope carries no
+// vendor field — safe because Anthropic/OpenAI model ids never collide with
+// the "gemini-" prefix.
+function resultCostUsd(
+  ev: Record<string, unknown>,
+  model: string,
+  tokens: ResultTokens,
+): number {
+  if (typeof ev.total_cost_usd === "number") {
+    return ev.total_cost_usd;
+  }
+
+  return model.startsWith("gemini-")
+    ? computeGeminiCost(model, tokens.inputTokens, tokens.outputTokens)
+    : 0;
 }
 
 function rowFromEnvelope(envelope: unknown): LlmCallRow | null {
@@ -71,19 +140,27 @@ function rowFromEnvelope(envelope: unknown): LlmCallRow | null {
     return null;
   }
 
-  if (!isRecord(ev) || ev.type !== "result" || !isRecord(ev.usage)) {
+  if (!isRecord(ev) || ev.type !== "result") {
     return null;
   }
+
+  const tokens = resultTokens(ev);
+
+  if (!tokens) {
+    return null;
+  }
+
+  const model = resultModel(ev);
 
   return {
     taskId,
     agentCrName: typeof source?.agent === "string" ? source.agent : null,
     carried: parseCarriedRunIdentity(source),
-    model: resultModel(ev),
-    inputTokens: num(ev.usage.input_tokens),
-    outputTokens: num(ev.usage.output_tokens),
-    costUsd: num(ev.total_cost_usd),
-    durationMs: num(ev.duration_ms),
+    model,
+    inputTokens: tokens.inputTokens,
+    outputTokens: tokens.outputTokens,
+    costUsd: resultCostUsd(ev, model, tokens),
+    durationMs: resultDurationMs(ev),
   };
 }
 

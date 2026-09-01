@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { resultLine } from "@re-cinq/lore-assembly-lines";
+import { computeGeminiCost } from "@re-cinq/lore-shared/llm/gemini-provider.js";
 import { parseAgentEvents, parseAgentSink } from "./agent-events.js";
 
 const line = (source: unknown, event: unknown): string =>
@@ -35,6 +36,75 @@ describe("parseAgentEvents", () => {
         durationMs: 42000,
       },
     ]);
+  });
+
+  // Real shape captured from a `gemini` CLI (v0.57.0) stream-json terminal
+  // event: no `usage`/`total_cost_usd`, tokens and per-model breakdown live
+  // under `stats` instead.
+  it("maps a gemini-shaped result event (stats, no total_cost_usd) to one llm_calls row", () => {
+    const ndjson = line(
+      src,
+      result({
+        status: "success",
+        stats: {
+          total_tokens: 15,
+          input_tokens: 10,
+          output_tokens: 5,
+          duration_ms: 900,
+          models: {
+            "gemini-2.5-flash": { input_tokens: 10, output_tokens: 5 },
+          },
+        },
+      }),
+    );
+
+    expect(parseAgentEvents(ndjson)).toEqual([
+      {
+        taskId: "task-uuid-1",
+        agentCrName: "agent-abc",
+        carried: null,
+        model: "gemini-2.5-flash",
+        inputTokens: 10,
+        outputTokens: 5,
+        costUsd: computeGeminiCost("gemini-2.5-flash", 10, 5),
+        durationMs: 900,
+      },
+    ]);
+  });
+
+  it("prices a gemini result at zero tokens as zero cost, not a thrown error", () => {
+    const ndjson = line(
+      src,
+      result({
+        status: "error",
+        stats: {
+          input_tokens: 0,
+          output_tokens: 0,
+          duration_ms: 0,
+          models: {},
+        },
+        model: "gemini-2.5-flash",
+      }),
+    );
+
+    expect(parseAgentEvents(ndjson)[0]).toMatchObject({
+      model: "gemini-2.5-flash",
+      inputTokens: 0,
+      outputTokens: 0,
+      costUsd: 0,
+    });
+  });
+
+  it("does not price a non-gemini model with no total_cost_usd (leaves it zero)", () => {
+    const ndjson = line(
+      src,
+      result({
+        model: "claude-sonnet-4-6",
+        usage: { input_tokens: 100, output_tokens: 50 },
+      }),
+    );
+
+    expect(parseAgentEvents(ndjson)[0].costUsd).toBe(0);
   });
 
   it("falls back to a flat model field, then to unknown", () => {
