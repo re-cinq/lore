@@ -111,11 +111,15 @@ catalog:
   # the deploy script may override the tag alongside the stations image).
   stationImage: ghcr.io/re-cinq/lore-station:latest
   dgraphUrl: http://lore-dgraph-alpha.lore-dgraph.svc.cluster.local:8080
-  # Transition guard: while the ai-agents chart's catalog-seed hook still runs
-  # (seedCatalog: true), the sync loop SKIPS seed-labeled CRs rather than
-  # fighting its server-side force-apply. Flip to true in the same release
-  # that sets seedCatalog: false.
-  ownSeeded: false
+  # CUTOVER (2026-09-01): the ai-agents chart's catalog-seed hook is off
+  # (seedCatalog: false), so this loop now owns every catalog CR — including
+  # the ones the seed left labeled `lore-catalog-seed`. Verified before the
+  # flip by rendering all 28 org definitions with this cluster's env and
+  # diffing against the live seed CRs: the only differences were the
+  # description wording and one newline before {context} (a Helm `{{-` chomp
+  # artifact in the seed; the sync render matches the generator's intent).
+  # Set back to false only alongside re-enabling seedCatalog.
+  ownSeeded: true
 
 # Stream run-pod stdout to the bus as it happens (LORE_POD_LOG_STREAMING). OFF
 # by default: this is the input that puts log VOLUME on pipeline.events. The
