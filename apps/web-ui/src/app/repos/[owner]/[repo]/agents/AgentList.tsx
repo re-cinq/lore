@@ -1,7 +1,11 @@
 import Link from "next/link";
 import type { CSSProperties } from "react";
 import type { AgentDefinition } from "@/lib/agents-mirror";
-import type { AgentUsageRef } from "@/lib/agents-api";
+import type {
+  AgentApplyStatus,
+  AgentUsage,
+  AgentUsageRef,
+} from "@/lib/agents-api";
 import styles from "./agents.module.css";
 
 /**
@@ -13,23 +17,23 @@ import styles from "./agents.module.css";
  */
 function usageLine(
   def: AgentDefinition,
-  usage: Record<string, AgentUsageRef[]> | null,
+  refs: Record<string, AgentUsageRef[]> | null,
 ): { text: string; dormant: boolean } {
   // Unknown is not "unreferenced": with no usage data (endpoint unreachable,
   // older lore-api) claiming "no assembly line" would be a wrong statement
   // dressed as a fact — a stale server 404'd exactly this way once.
-  if (usage === null) {
+  if (refs === null) {
     return { text: "—", dormant: false };
   }
-  const refs = usage[def.name];
+  const own = refs[def.name];
 
-  if (refs && refs.length > 0) {
+  if (own && own.length > 0) {
     // Grouped per line, each line named once: a station visited by five nodes
     // of one blueprint reads "general · a, b, c, d, e", not five repetitions
     // of the blueprint name. Duplicate (line, node) pairs collapse too.
     const byLine = new Map<string, string[]>();
 
-    for (const ref of refs) {
+    for (const ref of own) {
       const node = `${ref.node_id}${ref.inherited ? "" : " (station_ref)"}`;
       const nodes = byLine.get(ref.blueprint) ?? [];
 
@@ -62,7 +66,7 @@ function usageLine(
  */
 function modeLabel(
   def: AgentDefinition,
-  usage: Record<string, AgentUsageRef[]> | null,
+  refs: Record<string, AgentUsageRef[]> | null,
 ): string {
   if (def.execution_mode === "station") {
     return "station";
@@ -71,13 +75,49 @@ function modeLabel(
   if (def.execution_mode === "graph-ingest") {
     return "zero-LLM";
   }
-  const refs = usage?.[def.name];
+  const own = refs?.[def.name];
 
-  if (refs && refs.length > 0) {
-    return [...new Set(refs.map((ref) => ref.blueprint))].join(", ");
+  if (own && own.length > 0) {
+    return [...new Set(own.map((ref) => ref.blueprint))].join(", ");
   }
 
-  return usage === null ? def.execution_mode : "single agent";
+  return refs === null ? def.execution_mode : "single agent";
+}
+
+/**
+ * What the clusters did with this definition. The distinction that matters is
+ * refused-vs-unknown: no verdict means nobody has reported yet, which is NOT a
+ * claim that every cluster applied it — the whole reason this column exists is
+ * that a refusal used to live only in one pod's stdout.
+ */
+function rolloutCell(
+  def: AgentDefinition,
+  applied: Record<string, AgentApplyStatus[]> | null,
+): { text: string; bad: boolean } {
+  if (applied === null) {
+    return { text: "—", bad: false };
+  }
+  const own = (applied[def.name] ?? []).filter(
+    (s) => (s.project_id ?? null) === (def.project_id ?? null),
+  );
+
+  if (own.length === 0) {
+    return { text: "not reported", bad: false };
+  }
+  const problems = own.filter(
+    (s) => s.state !== "applied" && s.state !== "deleted",
+  );
+
+  if (problems.length === 0) {
+    return { text: `applied · ${own.length} cluster(s)`, bad: false };
+  }
+
+  return {
+    text: problems
+      .map((s) => `${s.cluster}: ${s.state}${s.reason ? ` — ${s.reason}` : ""}`)
+      .join("; "),
+    bad: true,
+  };
 }
 
 /**
@@ -96,9 +136,9 @@ export default function AgentList({
    *  (the global /agents page, where editing is a per-repo act). */
   base: string | null;
   agents: AgentDefinition[];
-  /** Blueprint references per definition name, from the usage endpoint —
+  /** Blueprint references and per-cluster verdicts, from the usage endpoint —
    *  null when the endpoint could not answer (renders as unknown). */
-  usage?: Record<string, AgentUsageRef[]> | null;
+  usage?: AgentUsage | null;
 }) {
   return (
     <div>
@@ -131,13 +171,15 @@ export default function AgentList({
                 <th>Timeout</th>
                 <th>Mode</th>
                 <th>Used by</th>
+                <th>Rollout</th>
                 {base !== null && <th></th>}
               </tr>
             </thead>
             <tbody>
               {agents.map((a) => {
                 const isProject = a.project_id != null && a.project_id !== "";
-                const use = usageLine(a, usage);
+                const use = usageLine(a, usage?.refs ?? null);
+                const rollout = rolloutCell(a, usage?.applied ?? null);
 
                 return (
                   <tr key={a.name}>
@@ -164,7 +206,7 @@ export default function AgentList({
                       className={styles.detail}
                       data-testid={`mode-${a.name}`}
                     >
-                      {modeLabel(a, usage)}
+                      {modeLabel(a, usage?.refs ?? null)}
                     </td>
                     <td
                       className={styles.detail}
@@ -176,6 +218,17 @@ export default function AgentList({
                       data-testid={`usage-${a.name}`}
                     >
                       {use.text}
+                    </td>
+                    <td
+                      className={styles.detail}
+                      style={
+                        rollout.bad
+                          ? ({ color: "var(--danger)" } as CSSProperties)
+                          : undefined
+                      }
+                      data-testid={`rollout-${a.name}`}
+                    >
+                      {rollout.text}
                     </td>
                     {base !== null && (
                       <td>

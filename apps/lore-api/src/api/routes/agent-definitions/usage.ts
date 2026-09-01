@@ -4,6 +4,8 @@ import {
   loadBuiltinAssemblyLines,
   stationUsage,
 } from "@re-cinq/lore-assembly-lines";
+import type { Pool } from "pg";
+import { PgCatalogStatus } from "@re-cinq/lore-shared/project/agents/catalog-status-pg.js";
 import { bearerScope } from "../../../server/plugins/bearer-scope.js";
 import { zodResponse } from "../../../server/plugins/zod-response.js";
 
@@ -28,6 +30,14 @@ const UsageRefSchema = z.object({
   inherited: z.boolean(),
 });
 
+const ApplyStatusSchema = z.object({
+  name: z.string(),
+  project_id: z.string().nullable(),
+  cluster: z.string(),
+  state: z.enum(["applied", "refused", "skipped", "deleted"]),
+  reason: z.string().nullable(),
+});
+
 const UsageResponse = z.object({
   usage: z.array(
     z.object({
@@ -35,6 +45,10 @@ const UsageResponse = z.object({
       used_by: z.array(UsageRefSchema),
     }),
   ),
+  /** What each cluster actually did with each definition. Empty without a
+   *  database, or before any cluster has reported — an absence of verdicts is
+   *  not a claim that everything applied. */
+  applied: z.array(ApplyStatusSchema),
 });
 
 /** The wire shape from the walk's map — sorted so the response is stable. */
@@ -43,6 +57,7 @@ export function usageResponse(
     string,
     Array<{ blueprint: string; nodeId: string; inherited: boolean }>
   >,
+  applied: z.infer<typeof UsageResponse>["applied"] = [],
 ): z.infer<typeof UsageResponse> {
   return {
     usage: [...usage]
@@ -55,10 +70,13 @@ export function usageResponse(
         })),
       }))
       .sort((a, b) => a.name.localeCompare(b.name)),
+    applied,
   };
 }
 
-export function agentDefinitionUsageRoute(): ServerRoute {
+export function agentDefinitionUsageRoute(
+  getPool: () => Pool | null = () => null,
+): ServerRoute {
   return {
     method: "GET",
     path: "/api/agent-definitions/usage",
@@ -68,8 +86,21 @@ export function agentDefinitionUsageRoute(): ServerRoute {
         "Every station name a builtin blueprint node dispatches, with the nodes that reference it",
     }),
     handler: async (_request, h) => {
+      const pool = getPool();
+      // No database is not a claim that nothing applied — it is the absence of
+      // an answer, and the caller renders it as unknown.
+      const applied = pool
+        ? (await new PgCatalogStatus(pool).list()).map((s) => ({
+            name: s.name,
+            project_id: s.projectId,
+            cluster: s.clusterName,
+            state: s.state,
+            reason: s.reason,
+          }))
+        : [];
+
       return h.response(
-        usageResponse(stationUsage(await loadBuiltinAssemblyLines())),
+        usageResponse(stationUsage(await loadBuiltinAssemblyLines()), applied),
       );
     },
   };

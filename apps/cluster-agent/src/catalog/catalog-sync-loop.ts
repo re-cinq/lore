@@ -35,6 +35,7 @@ import {
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { isPermanentApplyError } from "../kernel/k8s-errors.js";
 import type { ResolvedAgentDefinition } from "@re-cinq/lore-shared/models/agent-definition.js";
+import type { CatalogApplyReport } from "@re-cinq/lore-shared/project/agents/catalog-status-port.js";
 import type { AgentDefinition, Station } from "@re-cinq/agent-contracts";
 import type { ClusterAgentIdentity } from "../claim/identity-store.js";
 import { secondsEnvMs } from "../claim/intervals.js";
@@ -295,6 +296,22 @@ export async function catalogSyncOnce(
   let deleted = 0;
   const skippedNames: string[] = [];
   const refused: string[] = [];
+  // The same verdicts, structured, for the status report: a log line dies with
+  // the pod, and a refusal nobody can read afterwards is a refusal nobody acts
+  // on (2026-09-01).
+  const reports: CatalogApplyReport[] = [];
+  const report = (
+    entry: { name: string; project_id: string | null },
+    state: CatalogApplyReport["state"],
+    reason: string | null,
+  ): void => {
+    reports.push({
+      name: entry.name,
+      projectId: entry.project_id,
+      state,
+      reason,
+    });
+  };
 
   for (const entry of body.entries) {
     const crdName = catalogCrdName(entry.name, entry.project_id);
@@ -319,6 +336,11 @@ export async function catalogSyncOnce(
           managedBy !== UI_MANAGED_BY
         ) {
           skippedNames.push(`${crdName} (${managedBy ?? "unlabeled"})`);
+          report(
+            entry,
+            "skipped",
+            `owned by ${managedBy ?? "an unlabeled writer"}`,
+          );
           continue;
         }
       }
@@ -326,6 +348,7 @@ export async function catalogSyncOnce(
       if (entry.definition === null) {
         await deps.catalog.deletePair(crdName);
         deleted += 1;
+        report(entry, "deleted", null);
         continue;
       }
 
@@ -339,12 +362,14 @@ export async function catalogSyncOnce(
 
       if (refusal !== null) {
         refused.push(`${crdName}: ${refusal}`);
+        report(entry, "refused", refusal);
         continue;
       }
       await deps.catalog.applyPair(
         agentDefToCrds(entry.definition, deps.crdOptions),
       );
       applied += 1;
+      report(entry, "applied", null);
     } catch (err) {
       // The apiserver's verdict decides the retry: a 400/422 can never
       // succeed (the validator's backstop), so it refuses and the loop moves
@@ -353,9 +378,10 @@ export async function catalogSyncOnce(
       // permanent rejection of the AgentDefinition half leaves the new
       // Station template live beside the old recipe — the refusal names it.
       if (isPermanentApplyError(err)) {
-        refused.push(
-          `${crdName}: ${errorMessage(err)} (pair may be half-applied — Station half lands first)`,
-        );
+        const reason = `${errorMessage(err)} (pair may be half-applied — Station half lands first)`;
+
+        refused.push(`${crdName}: ${reason}`);
+        report(entry, "refused", reason);
         continue;
       }
 
@@ -369,6 +395,10 @@ export async function catalogSyncOnce(
     }
   }
 
+  // Best effort, and deliberately after the applies: a cluster that cannot
+  // report must keep syncing. A failed report costs visibility, never delivery.
+  await reportStatus(deps, reports);
+
   return {
     outcome: {
       kind: "synced",
@@ -379,6 +409,50 @@ export async function catalogSyncOnce(
     },
     ack: body.cursor,
   };
+}
+
+/** POST the batch's verdicts. Never throws: visibility must not cost delivery. */
+async function reportStatus(
+  deps: CatalogSyncTickDeps,
+  reports: CatalogApplyReport[],
+): Promise<void> {
+  if (reports.length === 0) {
+    return;
+  }
+  const fetchFn = deps.fetchFn ?? fetch;
+  const { id, token } = deps.identity();
+
+  try {
+    const res = await fetchFn(
+      `${deps.apiUrl}/api/cluster-agents/${id}/catalog-status`,
+      {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${token}`,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          reports: reports.map((r) => ({
+            name: r.name,
+            project_id: r.projectId,
+            state: r.state,
+            reason: r.reason,
+          })),
+        }),
+        signal: AbortSignal.timeout(SYNC_TIMEOUT_MS),
+      },
+    );
+
+    if (!res.ok) {
+      console.warn(
+        `[cluster-agent] catalog status report refused (HTTP ${res.status}) — this cluster's verdicts will look stale until the next batch`,
+      );
+    }
+  } catch (err) {
+    console.warn(
+      `[cluster-agent] catalog status report failed: ${errorMessage(err)}`,
+    );
+  }
 }
 
 export interface CatalogSyncLoopDeps {
