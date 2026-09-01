@@ -109,6 +109,17 @@ describe("computeCost", () => {
     );
   });
 
+  it("prices claude-fable-5 at its own rate, not the haiku fallback", () => {
+    expect(computeCost("claude-fable-5", 1_000_000, 0, 0, 0)).toBeCloseTo(
+      10.0,
+      10,
+    );
+    expect(computeCost("claude-fable-5", 0, 1_000_000, 0, 0)).toBeCloseTo(
+      50.0,
+      10,
+    );
+  });
+
   it("falls back to the haiku rate for an unrecognized model", () => {
     expect(computeCost("claude-some-future-tier", 1000, 500, 0, 0)).toBeCloseTo(
       computeCost(HAIKU, 1000, 500, 0, 0),

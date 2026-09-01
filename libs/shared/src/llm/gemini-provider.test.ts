@@ -81,6 +81,30 @@ describe("GeminiProvider", () => {
     expect(result.model).toBe("gemini-2.5-pro");
   });
 
+  it("throws a clear error instead of a JSON.parse crash when candidates carry no content", async () => {
+    const fetchFn = async () =>
+      new Response(
+        JSON.stringify({
+          candidates: [{ content: { parts: [] } }],
+          usageMetadata: { promptTokenCount: 3, candidatesTokenCount: 0 },
+        }),
+        { status: 200 },
+      );
+    const provider = new GeminiProvider({
+      apiKey: "k",
+      fetchFn: fetchFn as typeof fetch,
+    });
+
+    await expect(
+      provider.completeWithTool({
+        prompt: "extract",
+        toolName: "extract_facts",
+        toolDescription: "Extract facts",
+        toolSchema: { type: "object" },
+      }),
+    ).rejects.toThrow("Gemini returned no content in candidates");
+  });
+
   it("throws with the status text on a non-ok response", async () => {
     const fetchFn = async () =>
       new Response("nope", { status: 500, statusText: "Server Error" });

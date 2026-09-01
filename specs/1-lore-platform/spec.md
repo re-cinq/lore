@@ -611,7 +611,9 @@ API calls to reduce token cost (ADR-015, added 2026-04-17). ([validated by `prom
 - FR-16.6: `computeCost(model, ...)` prices a call at that model's own
   per-1M-token rate rather than a single flat rate, so a Sonnet or Opus
   call is not silently billed at Haiku's price; an unrecognized model
-  falls back to the Haiku-tier rate rather than throwing. ([validated by `anthropic-provider.test.ts:104`](libs/shared/src/llm/anthropic-provider.test.ts#L104), [`anthropic-provider.test.ts:115`](libs/shared/src/llm/anthropic-provider.test.ts#L115))
+  falls back to the Haiku-tier rate rather than throwing. Every model
+  offered in the agent-definitions `KNOWN_MODELS` picker has its own
+  `MODEL_PRICING` entry, so none of them silently falls back. ([validated by `anthropic-provider.test.ts:101`](libs/shared/src/llm/anthropic-provider.test.ts#L101), [`anthropic-provider.test.ts:112`](libs/shared/src/llm/anthropic-provider.test.ts#L112), [`anthropic-provider.test.ts:123`](libs/shared/src/llm/anthropic-provider.test.ts#L123))
 
 ### FR-17: Per-Template Context Budgets (Phase 1)
 

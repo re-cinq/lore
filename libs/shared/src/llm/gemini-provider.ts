@@ -1,4 +1,3 @@
-import { enforceTrue } from "../lib/enforce.js";
 /**
  * Google Gemini provider. Raw `fetch` against the Generative Language API —
  * mirrors `openai-provider.ts`'s hand-rolled-HTTP shape rather than adding a
@@ -13,7 +12,9 @@ import { enforceTrue } from "../lib/enforce.js";
  * skipped.
  */
 
+import { enforceTrue } from "../lib/enforce.js";
 import type { UsagePort } from "../project/usage/usage-port.js";
+import type { ModelPricing } from "./model-pricing.js";
 import type {
   LlmCompleteRequest,
   LlmCompletion,
@@ -23,11 +24,6 @@ import type {
 } from "./llm-provider.js";
 
 const ZERO_CACHE = { cacheCreationTokens: 0, cacheReadTokens: 0 };
-
-interface ModelPricing {
-  inputPerToken: number;
-  outputPerToken: number;
-}
 
 // $/token, derived from published $/1M rates for prompts under the 200k-token
 // tier boundary (Pro/Flash step to a higher rate above it — not modelled here,
@@ -245,6 +241,8 @@ export class GeminiProvider implements LlmProvider {
       );
       const durationMs = Date.now() - start;
       const text = response.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+
+      enforceTrue(text, Error, "Gemini returned no content in candidates");
       const inputTokens = response.usageMetadata?.promptTokenCount ?? 0;
       const outputTokens = response.usageMetadata?.candidatesTokenCount ?? 0;
       const costUsd = computeGeminiCost(model, inputTokens, outputTokens);

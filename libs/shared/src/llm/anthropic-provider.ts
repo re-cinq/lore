@@ -24,11 +24,7 @@ import {
   analyzeCacheBreak,
   type CacheBreakAnalysis,
 } from "./prompt-cache.js";
-
-interface ModelPricing {
-  inputPerToken: number;
-  outputPerToken: number;
-}
+import type { ModelPricing } from "./model-pricing.js";
 
 const DEFAULT_MODEL = "claude-haiku-4-5-20251001";
 const DEFAULT_MAX_TOKENS = 8192;
@@ -39,6 +35,10 @@ const DEFAULT_MAX_TOKENS = 8192;
 // Reverify against shared/live-sources.md -> Pricing when adding a new tier;
 // these numbers drift.
 const MODEL_PRICING: Record<string, ModelPricing> = {
+  "claude-fable-5": {
+    inputPerToken: 10.0 / 1_000_000,
+    outputPerToken: 50.0 / 1_000_000,
+  },
   "claude-opus-5": {
     inputPerToken: 5.0 / 1_000_000,
     outputPerToken: 25.0 / 1_000_000,
