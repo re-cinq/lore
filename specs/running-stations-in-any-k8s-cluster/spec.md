@@ -425,7 +425,7 @@ A satellite must report outcomes without holding the bus-wide credential.
   satellite's reporter RESOLVES that token per call rather than capturing it:
   a re-registration rotates it, and a captured value would 401 every report
   from then on — which is what the watch did silently until the credential
-  was wired at all, leaving every node to the reaper instead. ([validated by [`server-auth.test.ts:39`](apps/event-router/src/delivery/server-auth.test.ts#L39), [`event-reporter-http.test.ts:66`](libs/shared/src/project/events/event-reporter-http.test.ts#L66), [`event-reporter-http.test.ts:96`](libs/shared/src/project/events/event-reporter-http.test.ts#L96))
+  was wired at all, leaving every node to the reaper instead. ([validated by [`server-auth.test.ts:39`](apps/event-router/src/delivery/server-auth.test.ts#L39), [`event-reporter-http.test.ts:66`](libs/shared/src/project/events/event-reporter-http.test.ts#L66), [`event-reporter-http.test.ts:96`](libs/shared/src/project/events/event-reporter-http.test.ts#L96), [`select-reporter-token.test.ts:22`](apps/cluster-agent/src/claim/select-reporter-token.test.ts#L22), [`select-reporter-token.test.ts:32`](apps/cluster-agent/src/claim/select-reporter-token.test.ts#L32), [`select-reporter-token.test.ts:41`](apps/cluster-agent/src/claim/select-reporter-token.test.ts#L41))
 - A report the router REFUSES (401/403) re-registers before it retries, via
   the same single-flight re-registration the claim and heartbeat loops share
   *(2026-08-28)*: the token rotates whenever another instance of this

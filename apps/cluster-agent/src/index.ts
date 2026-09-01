@@ -23,6 +23,7 @@ import { AgentWatchInput } from "./listeners/k8s-watch.js";
 import { PodLogInput, podLogStreamingEnabled } from "./inputs/pod-log-input.js";
 import { TelemetrySink } from "./kernel/telemetry-sink.js";
 import { startClaimLoop } from "./claim/start-claim-loop.js";
+import { selectReporterToken } from "./claim/select-reporter-token.js";
 import { startPruneLoop } from "./reap/start-prune-loop.js";
 
 const PORT = parseInt(process.env.PORT ?? "8080", 10);
@@ -65,22 +66,17 @@ async function main(): Promise<void> {
   // tidies its own, central and satellite alike.
   const pruneLoop = startPruneLoop(process.env);
 
-  // Which credential this agent reports with is a question about what it was
-  // GIVEN, not about what kind of agent it is. A cluster inside the platform
-  // mounts LORE_INGEST_TOKEN — the token the router verifies for every route,
-  // and presenting a different one this pod happens to mount is how the
-  // 2026-08-24 outage happened: each end typechecked, and every call 401'd. A
-  // cluster outside it has no such token by design (FR5 of
-  // specs/running-stations-in-any-k8s-cluster) and reports with the per-agent
-  // token registration minted, which the router accepts against
-  // `pipeline.cluster_agents`.
-  //
-  // A THUNK, resolved per call rather than captured: the token this process
-  // reports with is not known until registration returns, and it is replaced
-  // whenever one is issued out of band. Capturing it at boot reported with
-  // `undefined` forever — the watch said nothing and every node waited for the
-  // reaper instead, silently, since the retry log is the only symptom.
-  //
+  // Which credential this agent reports with is chosen once at boot by
+  // selectReporterToken: central clusters mount LORE_INGEST_TOKEN and report
+  // with that stable capture; satellite clusters have no such token and report
+  // with the per-agent token registration minted — resolved per call so
+  // re-registration rotations are picked up (FR5 of
+  // specs/running-stations-in-any-k8s-cluster). The old per-call fallback
+  // (`LORE_INGEST_TOKEN ?? agentToken`) let LORE_INGEST_TOKEN appear on a
+  // satellite after boot and shadow the per-agent token — the 2026-08-24
+  // outage: each end typechecked, and every call 401'd.
+  const reporterToken = selectReporterToken(process.env, () => agentToken);
+
   // Built only when there is a router to report to. This process holds no pool,
   // so the selector's local fallback cannot exist here; asking for one would
   // turn a missing variable into a crashed boot, and the routes below work
@@ -92,16 +88,13 @@ async function main(): Promise<void> {
             "the cluster-agent holds no database — there is no local reporter to fall back to",
           );
         },
-        token: () => process.env.LORE_INGEST_TOKEN ?? agentToken,
+        token: reporterToken,
         retry: REPORT_RETRY,
         // Telemetry rides the same queue and the same ladder, and lands
         // somewhere else entirely: the Floor projects it, the router would only
         // be handed volume it has no handler for.
         telemetry: floorUrl
-          ? new TelemetrySink(
-              floorUrl,
-              () => process.env.LORE_INGEST_TOKEN ?? agentToken,
-            )
+          ? new TelemetrySink(floorUrl, reporterToken)
           : undefined,
         // A 401 means the credential this process holds is not the one the
         // registry has — an out-of-band reset, or an identity restored from a
