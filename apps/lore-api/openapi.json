@@ -11038,12 +11038,9 @@
             },
             "required": ["tier"],
             "additionalProperties": false
-          },
-          "crd_applied": {
-            "type": "boolean"
           }
         },
-        "required": ["ok", "agent", "ceremony", "crd_applied"],
+        "required": ["ok", "agent", "ceremony"],
         "additionalProperties": false
       },
       "AgentDefinitionDeleted": {
@@ -11055,12 +11052,9 @@
           },
           "deleted": {
             "type": "string"
-          },
-          "crd_deleted": {
-            "type": "boolean"
           }
         },
-        "required": ["ok", "deleted", "crd_deleted"],
+        "required": ["ok", "deleted"],
         "additionalProperties": false
       },
       "AgentUsage": {

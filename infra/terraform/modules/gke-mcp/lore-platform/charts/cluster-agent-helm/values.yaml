@@ -94,13 +94,14 @@ catalog:
   # NetworkPolicy's gateway carve-out must keep matching these.
   mcpUrl: http://lore-mcp-gateway.lore-api.svc.cluster.local:8080/mcp
   skillsUrl: http://lore-mcp-gateway.lore-api.svc.cluster.local:8080/skills
-  # The credential key per model family this cluster's agent-secrets Secret
-  # carries. A definition naming a model whose family is absent here is
-  # REFUSED by the sync loop (with the reason logged), never rendered with
-  # somebody else's key. Add `gemini: GEMINI_API_KEY` only after seeding that
-  # key (the four-place secrets checklist in CLAUDE.md).
-  modelSecretKeys:
-    anthropic: ANTHROPIC_API_KEY
+  # Credential keys for model families BEYOND anthropic (whose key is
+  # llmSecretKey below — the legacy knob stays the anthropic channel so a
+  # laptop's CLAUDE_CODE_OAUTH_TOKEN override keeps working). A definition
+  # naming a model whose family is absent is REFUSED by the sync loop (reason
+  # logged), never rendered with somebody else's key. Add
+  # `gemini: GEMINI_API_KEY` only after seeding that key (the four-place
+  # secrets checklist in CLAUDE.md). Serialized to env as JSON.
+  modelSecretKeys: {}
   # (Station pods' LORE_API_URL rides the claim.loreApiUrl env var this chart
   # already sets — one URL, both duties.)
   # The LLM credential key this cluster's agent-secrets Secret carries:

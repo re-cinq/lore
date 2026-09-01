@@ -120,7 +120,7 @@ describe("catalogSyncOnce", () => {
         kind: "synced",
         applied: 1,
         deleted: 0,
-        skipped: 0,
+        skipped: [],
         refused: [],
       },
       ack: "7",
@@ -152,7 +152,7 @@ describe("catalogSyncOnce", () => {
       kind: "synced",
       applied: 0,
       deleted: 1,
-      skipped: 0,
+      skipped: [],
       refused: [],
     });
     expect(deletedNames).toEqual(["implementation--r123e4567"]);
@@ -188,7 +188,7 @@ describe("catalogSyncOnce", () => {
       kind: "synced",
       applied: 0,
       deleted: 0,
-      skipped: 1,
+      skipped: ["implementation (lore-catalog-seed)"],
       refused: [],
     });
     expect(guarded.applied).toEqual([]);
@@ -203,7 +203,7 @@ describe("catalogSyncOnce", () => {
       kind: "synced",
       applied: 1,
       deleted: 0,
-      skipped: 0,
+      skipped: [],
       refused: [],
     });
   });
@@ -322,8 +322,10 @@ describe("catalogSyncOnce", () => {
       "3",
     );
 
-    expect(refused.ack).toEqual("9");
-    expect(refused.outcome.kind).toEqual("synced");
+    expect(refused).toMatchObject({
+      ack: "9",
+      outcome: { kind: "synced" },
+    });
 
     const transient = recordingCatalog();
 
@@ -335,58 +337,80 @@ describe("catalogSyncOnce", () => {
       "3",
     );
 
-    expect(retried.ack).toEqual("3");
-    expect(retried.outcome.kind).toEqual("error");
+    expect(retried).toMatchObject({
+      ack: "3",
+      outcome: { kind: "error" },
+    });
   });
 
-  it("while not owning seeded CRs the loop skips ANY foreign managed-by label, ui-authored included", async () => {
-    const uiOwned: AgentDefinition = {
+  it("the loop owns UI-labeled CRs (repairing the push path's degraded render) but never an unlabeled hand-applied one", async () => {
+    const label = (managedBy?: string): AgentDefinition => ({
       apiVersion: "agents.re-cinq.com/v1alpha1",
       kind: "AgentDefinition",
       metadata: {
         name: "code-review",
-        labels: { "app.kubernetes.io/managed-by": "lore-catalog-ui" },
+        ...(managedBy
+          ? { labels: { "app.kubernetes.io/managed-by": managedBy } }
+          : {}),
       },
+    });
+    const body = {
+      mode: "tail",
+      cursor: "5",
+      entries: [
+        {
+          name: "code-review",
+          project_id: null,
+          definition: def("code-review"),
+        },
+      ],
     };
-    const { catalog, applied } = recordingCatalog({ "code-review": uiOwned });
-    const result = await catalogSyncOnce(
-      tickDeps(
-        catalog,
-        respondWith(200, {
-          mode: "tail",
-          cursor: "5",
-          entries: [
-            {
-              name: "code-review",
-              project_id: null,
-              definition: def("code-review"),
-            },
-          ],
-        }),
-      ),
+
+    const uiOwned = recordingCatalog({
+      "code-review": label("lore-catalog-ui"),
+    });
+    const repaired = await catalogSyncOnce(
+      tickDeps(uiOwned.catalog, respondWith(200, body)),
       undefined,
     );
 
-    expect(result.outcome).toMatchObject({ kind: "synced", skipped: 1 });
-    expect(applied).toEqual([]);
+    expect(repaired.outcome).toMatchObject({ kind: "synced", applied: 1 });
+    expect(uiOwned.applied).toEqual(["code-review"]);
+
+    const handApplied = recordingCatalog({ "code-review": label() });
+    const respected = await catalogSyncOnce(
+      tickDeps(handApplied.catalog, respondWith(200, body)),
+      undefined,
+    );
+
+    expect(respected.outcome).toMatchObject({
+      kind: "synced",
+      applied: 0,
+      skipped: ["code-review (unlabeled)"],
+    });
+    expect(handApplied.applied).toEqual([]);
   });
 });
 
 describe("parseModelSecretKeys", () => {
-  it("parses family=KEY pairs and drops malformed ones instead of guessing", () => {
+  it("parses a JSON family→key object and throws on anything malformed instead of silently degrading", () => {
     expect(
       parseModelSecretKeys(
-        "anthropic=ANTHROPIC_API_KEY, gemini=GEMINI_API_KEY,broken,also=",
+        '{"anthropic":"ANTHROPIC_API_KEY","gemini":"GEMINI_API_KEY"}',
       ),
     ).toEqual({
       anthropic: "ANTHROPIC_API_KEY",
       gemini: "GEMINI_API_KEY",
     });
+    expect(() => parseModelSecretKeys("anthropic=ANTHROPIC_API_KEY")).toThrow();
+    expect(() => parseModelSecretKeys('{"anthropic":""}')).toThrow(
+      /JSON object of family→secret-key strings/,
+    );
   });
 });
 
 describe("catalog profile", () => {
-  it("full requires the mcp, skills and events URLs; bare requires nothing", () => {
+  it("full requires the mcp, skills and events URLs plus an anthropic credential; bare requires nothing", () => {
     expect(catalogProfile({})).toEqual("bare");
     expect(() => enforceCatalogProfile({})).not.toThrow();
     expect(() =>
@@ -403,7 +427,22 @@ describe("catalog profile", () => {
         LORE_SKILLS_URL: "http://mcp/skills",
         LORE_AGENT_EVENTS_URL: "http://events",
       }),
+    ).toThrow(/no anthropic credential key/);
+    expect(() =>
+      enforceCatalogProfile({
+        LORE_CATALOG_PROFILE: "full",
+        LORE_MCP_URL: "http://mcp",
+        LORE_SKILLS_URL: "http://mcp/skills",
+        LORE_AGENT_EVENTS_URL: "http://events",
+        LORE_AGENT_LLM_SECRET_KEY: "ANTHROPIC_API_KEY",
+      }),
     ).not.toThrow();
+  });
+
+  it('a typo\'d profile ("Full") refuses to boot instead of silently reading as bare', () => {
+    expect(() => catalogProfile({ LORE_CATALOG_PROFILE: "Full" })).toThrow(
+      /unknown LORE_CATALOG_PROFILE/,
+    );
   });
 });
 
@@ -436,7 +475,7 @@ describe("runCatalogSyncLoop", () => {
           kind: "synced" as const,
           applied: 1,
           deleted: 0,
-          skipped: 0,
+          skipped: [],
           refused: [],
         },
         ack: "4",

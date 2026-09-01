@@ -24,11 +24,15 @@ const BASE_IMAGE = "node:22-bookworm";
 // One writer, one label. The chart seed's `lore-catalog-seed` and the old push
 // path's `lore-catalog-ui` both retire with their writers; during the overlap
 // release the sync loop skips seed-labeled CRs (see catalog-sync-loop).
+export const SYNC_MANAGED_BY = "lore-catalog-sync";
 export const SYNC_LABELS = {
-  "app.kubernetes.io/managed-by": "lore-catalog-sync",
+  "app.kubernetes.io/managed-by": SYNC_MANAGED_BY,
 };
-export const SEED_MANAGED_BY = "lore-catalog-seed";
-export const SYNC_MANAGED_BY = SYNC_LABELS["app.kubernetes.io/managed-by"];
+/** lore-api's push-path label (agents.ts applyCatalogCrd) — a render that is
+ *  degraded on purpose to die with its writer. The sync loop OWNS these: its
+ *  validated full render repairing a UI save is the point, and leaving them
+ *  would freeze the degraded shape in place until cutover. */
+export const UI_MANAGED_BY = "lore-catalog-ui";
 
 // Where the init clones the target repo, and therefore the only writable
 // directory the agent prompts can mean by "the working directory". Left unset,
@@ -140,14 +144,17 @@ export function modelFamily(model: string): string | null {
   return null;
 }
 
-/** The family→key map in effect: the explicit map, else the legacy single
- *  anthropic key, else empty (a bare cluster that renders no secret refs). */
+/** The family→key map in effect. The legacy `llmSecretKey` WINS the anthropic
+ *  slot when set: it is the operator's explicit per-cluster override (a laptop's
+ *  `CLAUDE_CODE_OAUTH_TOKEN`), and the chart ships a default map — map-wins
+ *  would silently shadow that override with the GKE default and
+ *  CreateContainerConfigError every run pod. Empty = a bare cluster rendering
+ *  no secret refs. */
 function secretKeysOf(opts: CatalogCrdOptions): Record<string, string> {
-  if (opts.modelSecretKeys && Object.keys(opts.modelSecretKeys).length > 0) {
-    return opts.modelSecretKeys;
-  }
-
-  return opts.llmSecretKey ? { anthropic: opts.llmSecretKey } : {};
+  return {
+    ...(opts.modelSecretKeys ?? {}),
+    ...(opts.llmSecretKey ? { anthropic: opts.llmSecretKey } : {}),
+  };
 }
 
 /**
@@ -164,12 +171,23 @@ export function validateCatalogEntry(
   opts: CatalogCrdOptions,
 ): string | null {
   const name = catalogCrdName(def.name, def.project_id);
+  const keys = secretKeysOf(opts);
+  // An empty map is a bare cluster that renders no secret refs on purpose;
+  // any configured key makes credential coverage a checkable claim.
+  const checkFamilies = Object.keys(keys).length > 0;
 
   if (!K8S_NAME.test(name) || name.length > 253) {
     return `"${name}" is not a valid Kubernetes resource name`;
   }
 
   if (def.execution_mode === "station") {
+    // A needs_model station calls Anthropic (stationSpec renders the
+    // anthropic key) — the silent-drop comment-triage failure, guarded here
+    // the same way LLM recipes are.
+    if (def.config?.needs_model && checkFamilies && !keys.anthropic) {
+      return `station ${def.name} needs a model but this cluster holds no anthropic credential`;
+    }
+
     return null;
   }
 
@@ -177,17 +195,17 @@ export function validateCatalogEntry(
     return `recipe ${def.name} has no prompt — the subsystem rejects a promptless AgentDefinition at admission`;
   }
 
-  if (def.model) {
-    const family = modelFamily(def.model);
+  // The SAME default the render uses: a modelless recipe runs the subsystem's
+  // claude default, so it needs the anthropic key exactly as a claude-* model
+  // does — validate and render must never disagree on the effective family.
+  const family = def.model ? modelFamily(def.model) : "anthropic";
 
-    if (family === null) {
-      return `model "${def.model}" belongs to no known credential family (anthropic/gemini/openai)`;
-    }
-    const keys = secretKeysOf(opts);
+  if (family === null) {
+    return `model "${def.model}" belongs to no known credential family (anthropic/gemini/openai)`;
+  }
 
-    if (Object.keys(keys).length > 0 && !keys[family]) {
-      return `this cluster holds no credential for the "${family}" family (model "${def.model}") — configure modelSecretKeys and seed the key before pointing a recipe at it`;
-    }
+  if (checkFamilies && !keys[family]) {
+    return `this cluster holds no credential for the "${family}" family (model "${def.model ?? "(default)"}") — configure modelSecretKeys and seed the key before pointing a recipe at it`;
   }
 
   return null;
@@ -220,13 +238,18 @@ function llmSpec(
   def: ResolvedAgentDefinition,
   opts: CatalogCrdOptions,
 ): AgentDefinitionSpec {
-  // The subsystem rejects a promptless AgentDefinition at admission
-  // (ai-agent-subsystem#155); failing here beats an opaque apply rejection.
-  enforceTrue(def.prompt, Error, `recipe ${def.name} has no prompt`);
+  // Unreachable: agentDefToCrds ran validateCatalogEntry first, whose
+  // promptless refusal carries the same message. Kept as the type narrowing
+  // the render below relies on.
+  enforceTrue(
+    def.prompt,
+    Error,
+    `recipe ${def.name} has no prompt — the subsystem rejects a promptless AgentDefinition at admission`,
+  );
 
   // The key follows the MODEL's family, not the cluster's habit: a gemini
   // recipe rendered with ANTHROPIC_API_KEY is a pod that cannot call its model.
-  // validateCatalogEntry refused unknown/keyless families before this runs.
+  // Same default family as validateCatalogEntry — the two must never disagree.
   const family = def.model ? modelFamily(def.model) : "anthropic";
   const secretKey = family ? secretKeysOf(opts)[family] : undefined;
 
@@ -288,6 +311,7 @@ function stationSpec(
   def: ResolvedAgentDefinition,
   opts: CatalogCrdOptions,
 ): AgentDefinitionSpec {
+  const anthropicKey = secretKeysOf(opts).anthropic;
   const envEntries = Object.entries(def.config?.env ?? {}).map(
     ([name, value]) => ({
       name,
@@ -324,13 +348,8 @@ function stationSpec(
         { name: "LORE_INGEST_TOKEN", ref: "LORE_INGEST_TOKEN" },
         // needs_model stations call Anthropic (comment-triage's Haiku);
         // family-specific stations would declare their model instead.
-        ...(def.config?.needs_model && secretKeysOf(opts).anthropic
-          ? [
-              {
-                name: secretKeysOf(opts).anthropic,
-                ref: secretKeysOf(opts).anthropic,
-              },
-            ]
+        ...(def.config?.needs_model && anthropicKey
+          ? [{ name: anthropicKey, ref: anthropicKey }]
           : []),
       ],
     },

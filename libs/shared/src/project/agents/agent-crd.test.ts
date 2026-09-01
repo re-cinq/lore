@@ -347,3 +347,38 @@ describe("model-family credentials in the render", () => {
     ]);
   });
 });
+
+describe("validate/render agreement on defaults and merges", () => {
+  it("a modelless recipe on a gemini-only cluster is refused — the render's anthropic default is the validator's too", () => {
+    expect(
+      validateCatalogEntry(row({ model: null }), {
+        modelSecretKeys: { gemini: "GEMINI_API_KEY" },
+      }),
+    ).toContain('no credential for the "anthropic" family');
+  });
+
+  it("a needs_model station on an anthropic-less cluster is refused instead of silently dropping its key", () => {
+    expect(
+      validateCatalogEntry(
+        row({
+          name: "def-comment-triage",
+          execution_mode: "station",
+          prompt: null,
+          config: { needs_model: true },
+        }),
+        { modelSecretKeys: { gemini: "GEMINI_API_KEY" } },
+      ),
+    ).toContain("no anthropic credential");
+  });
+
+  it("an explicit llmSecretKey override wins the anthropic slot over the chart's default map", () => {
+    const { agentDefinition } = agentDefToCrds(row(), {
+      llmSecretKey: "CLAUDE_CODE_OAUTH_TOKEN",
+      modelSecretKeys: { anthropic: "ANTHROPIC_API_KEY" },
+    });
+
+    expect(agentDefinition.spec?.resources?.secrets).toEqual([
+      { name: "CLAUDE_CODE_OAUTH_TOKEN", ref: "CLAUDE_CODE_OAUTH_TOKEN" },
+    ]);
+  });
+});

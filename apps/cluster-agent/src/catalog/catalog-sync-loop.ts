@@ -28,11 +28,12 @@ import {
   agentDefToCrds,
   catalogCrdName,
   SYNC_MANAGED_BY,
+  UI_MANAGED_BY,
   validateCatalogEntry,
   type CatalogCrdOptions,
 } from "@re-cinq/lore-shared/project/agents/agent-crd.js";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
-import { statusOf } from "../kernel/k8s-errors.js";
+import { isPermanentApplyError } from "../kernel/k8s-errors.js";
 import type { ResolvedAgentDefinition } from "@re-cinq/lore-shared/models/agent-definition.js";
 import type { AgentDefinition, Station } from "@re-cinq/agent-contracts";
 import type { ClusterAgentIdentity } from "../claim/identity-store.js";
@@ -76,20 +77,30 @@ export function crdOptionsFromEnv(env: NodeJS.ProcessEnv): CatalogCrdOptions {
   };
 }
 
-/** `anthropic=ANTHROPIC_API_KEY,gemini=GEMINI_API_KEY` → the family→key map
- *  the render and validator consult. Malformed pairs are dropped rather than
- *  guessed at — an absent family is a loud refusal downstream, a mis-parsed
- *  one would be a silently wrong secret. */
+/**
+ * `{"gemini":"GEMINI_API_KEY"}` → the family→key map the render and validator
+ * consult. JSON on both ends — the chart serializes with `toJson` — because a
+ * hand-rolled k=v codec pair drops malformed entries SILENTLY, and a silently
+ * absent family degrades validation to the bare-cluster pass: the
+ * misconfigured-full-cluster class again. A set-but-unparseable value throws
+ * out of boot instead.
+ */
 export function parseModelSecretKeys(raw: string): Record<string, string> {
-  return Object.fromEntries(
-    raw
-      .split(",")
-      .map((pair) => pair.split("=").map((part) => part.trim()))
-      .filter(
-        (parts): parts is [string, string] =>
-          parts.length === 2 && parts[0].length > 0 && parts[1].length > 0,
+  const parsed: unknown = JSON.parse(raw);
+
+  enforceTrue(
+    parsed !== null &&
+      typeof parsed === "object" &&
+      !Array.isArray(parsed) &&
+      Object.entries(parsed).every(
+        ([family, key]) =>
+          family.length > 0 && typeof key === "string" && key.length > 0,
       ),
+    Error,
+    `LORE_MODEL_SECRET_KEYS must be a JSON object of family→secret-key strings, got: ${raw}`,
   );
+
+  return parsed as Record<string, string>;
 }
 
 /**
@@ -101,7 +112,18 @@ export function parseModelSecretKeys(raw: string): Record<string, string> {
  * profile declared, that misconfiguration refuses to boot instead.
  */
 export function catalogProfile(env: NodeJS.ProcessEnv): "full" | "bare" {
-  return env.LORE_CATALOG_PROFILE === "full" ? "full" : "bare";
+  const raw = env.LORE_CATALOG_PROFILE;
+
+  // Only the exact words: for a knob whose whole point is "declared, never
+  // inferred", coercing "Full"/"ful"/"true" to the permissive value would put
+  // the incident one typo away.
+  enforceTrue(
+    raw === undefined || raw === "" || raw === "full" || raw === "bare",
+    Error,
+    `unknown LORE_CATALOG_PROFILE "${raw}" — expected "full" or "bare"`,
+  );
+
+  return raw === "full" ? "full" : "bare";
 }
 
 export function enforceCatalogProfile(env: NodeJS.ProcessEnv): void {
@@ -120,6 +142,17 @@ export function enforceCatalogProfile(env: NodeJS.ProcessEnv): void {
       `cluster-agent cannot start: LORE_CATALOG_PROFILE=full but ${name} is unset — a full cluster rendering recipes without it produces pods that die at boot (see the 2026-09-01 settings.json incident). Set the value or declare the cluster bare.`,
     );
   }
+
+  // The credential axis of the same incident class: a full cluster with no
+  // anthropic key renders every default recipe secretless while validation
+  // passes (an empty map reads as a deliberate bare cluster).
+  enforceTrue(
+    env.LORE_AGENT_LLM_SECRET_KEY ||
+      (env.LORE_MODEL_SECRET_KEYS &&
+        parseModelSecretKeys(env.LORE_MODEL_SECRET_KEYS).anthropic),
+    Error,
+    "cluster-agent cannot start: LORE_CATALOG_PROFILE=full but no anthropic credential key is configured (LORE_AGENT_LLM_SECRET_KEY or modelSecretKeys.anthropic) — every default recipe would render without its LLM secret.",
+  );
 }
 
 /** The catalog-events response body (200). */
@@ -138,7 +171,8 @@ export type CatalogSyncOutcome =
       kind: "synced";
       applied: number;
       deleted: number;
-      skipped: number;
+      /** CRs another writer owns (label named per entry), left untouched. */
+      skipped: string[];
       /** Entries the render contract or the apiserver refused permanently —
        *  acked past, each with its reason, so they surface instead of loop. */
       refused: string[];
@@ -259,13 +293,36 @@ export async function catalogSyncOnce(
 
   let applied = 0;
   let deleted = 0;
-  let skipped = 0;
+  const skippedNames: string[] = [];
   const refused: string[] = [];
 
   for (const entry of body.entries) {
     const crdName = catalogCrdName(entry.name, entry.project_id);
 
     try {
+      // Ownership FIRST — for deletes as much as applies: a null-definition
+      // event must not remove a seed-owned org default (delete/re-seed flap)
+      // or an operator's hand-applied CR. While the transition holds the loop
+      // owns its own label, the UI push's (that render is degraded on purpose
+      // and this loop's validated render repairing it is the point), and what
+      // does not exist yet. The seed label stays the chart's until cutover,
+      // and an UNLABELED live CR is a human's — never clobbered, never
+      // validated, never REFUSED-logged on their behalf.
+      if (!deps.ownSeeded) {
+        const live = await deps.catalog.getAgentDefinition(crdName);
+        const managedBy =
+          live?.metadata?.labels?.["app.kubernetes.io/managed-by"];
+
+        if (
+          live !== null &&
+          managedBy !== SYNC_MANAGED_BY &&
+          managedBy !== UI_MANAGED_BY
+        ) {
+          skippedNames.push(`${crdName} (${managedBy ?? "unlabeled"})`);
+          continue;
+        }
+      }
+
       if (entry.definition === null) {
         await deps.catalog.deletePair(crdName);
         deleted += 1;
@@ -284,21 +341,6 @@ export async function catalogSyncOnce(
         refused.push(`${crdName}: ${refusal}`);
         continue;
       }
-
-      if (!deps.ownSeeded) {
-        const live = await deps.catalog.getAgentDefinition(crdName);
-        const managedBy =
-          live?.metadata?.labels?.["app.kubernetes.io/managed-by"];
-
-        // While the transition holds, this loop touches only what IT owns (or
-        // what does not exist yet). Skipping just the SEED label left every
-        // UI-labeled CR fair game — which is how the sync took over the
-        // code-review family minutes after the 2026-09-01 deploy.
-        if (managedBy !== undefined && managedBy !== SYNC_MANAGED_BY) {
-          skipped += 1;
-          continue;
-        }
-      }
       await deps.catalog.applyPair(
         agentDefToCrds(entry.definition, deps.crdOptions),
       );
@@ -307,8 +349,13 @@ export async function catalogSyncOnce(
       // The apiserver's verdict decides the retry: a 400/422 can never
       // succeed (the validator's backstop), so it refuses and the loop moves
       // on; anything else is transient — keep the ack so the batch re-serves.
+      // Known edge, accepted: applyCatalogPair writes Station first, so a
+      // permanent rejection of the AgentDefinition half leaves the new
+      // Station template live beside the old recipe — the refusal names it.
       if (isPermanentApplyError(err)) {
-        refused.push(`${crdName}: ${errorMessage(err)}`);
+        refused.push(
+          `${crdName}: ${errorMessage(err)} (pair may be half-applied — Station half lands first)`,
+        );
         continue;
       }
 
@@ -323,17 +370,15 @@ export async function catalogSyncOnce(
   }
 
   return {
-    outcome: { kind: "synced", applied, deleted, skipped, refused },
+    outcome: {
+      kind: "synced",
+      applied,
+      deleted,
+      skipped: skippedNames,
+      refused,
+    },
     ack: body.cursor,
   };
-}
-
-/** A 400/422 from the apiserver cannot succeed on retry — the object itself is
- *  the problem. Everything else (network, 5xx, RBAC being fixed) may. */
-function isPermanentApplyError(err: unknown): boolean {
-  const status = statusOf(err);
-
-  return status === 400 || status === 422;
 }
 
 export interface CatalogSyncLoopDeps {
@@ -379,8 +424,14 @@ export async function runCatalogSyncLoop(
 
       if (outcome.kind === "synced") {
         console.log(
-          `[cluster-agent] catalog sync landed ${outcome.applied} applied, ${outcome.deleted} deleted, ${outcome.skipped} not-owned skipped, ${outcome.refused.length} refused`,
+          `[cluster-agent] catalog sync landed ${outcome.applied} applied, ${outcome.deleted} deleted, ${outcome.skipped.length} not-owned skipped, ${outcome.refused.length} refused`,
         );
+
+        for (const name of outcome.skipped) {
+          console.log(
+            `[cluster-agent] catalog sync skipped ${name} — not this loop's to write`,
+          );
+        }
 
         for (const refusal of outcome.refused) {
           console.warn(`[cluster-agent] catalog sync REFUSED ${refusal}`);
