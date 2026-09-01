@@ -65,7 +65,7 @@ describe("AgentList", () => {
     expect(getByText(/No agent definitions resolved/)).toBeInTheDocument();
   });
 
-  it("shows the blueprint nodes that use a definition, marking explicit station_refs", () => {
+  it("shows the blueprint nodes that use a definition, naming each line once with its nodes grouped and duplicates collapsed", () => {
     const { getByTestId } = render(
       <AgentList
         base={base}
@@ -73,6 +73,8 @@ describe("AgentList", () => {
         usage={{
           general: [
             { blueprint: "general", node_id: "implement", inherited: true },
+            { blueprint: "general", node_id: "review", inherited: true },
+            { blueprint: "general", node_id: "review", inherited: true },
             { blueprint: "gap-fill", node_id: "refine", inherited: false },
           ],
         }}
@@ -80,7 +82,7 @@ describe("AgentList", () => {
     );
 
     expect(getByTestId("usage-general").textContent).toEqual(
-      "used by general · implement, gap-fill · refine (station_ref)",
+      "used by general · implement, review; gap-fill · refine (station_ref)",
     );
   });
 

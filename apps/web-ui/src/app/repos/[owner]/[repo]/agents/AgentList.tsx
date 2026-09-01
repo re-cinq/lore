@@ -24,14 +24,25 @@ function usageLine(
   const refs = usage[def.name];
 
   if (refs && refs.length > 0) {
-    const nodes = refs
-      .map(
-        (ref) =>
-          `${ref.blueprint} · ${ref.node_id}${ref.inherited ? "" : " (station_ref)"}`,
-      )
-      .join(", ");
+    // Grouped per line, each line named once: a station visited by five nodes
+    // of one blueprint reads "general · a, b, c, d, e", not five repetitions
+    // of the blueprint name. Duplicate (line, node) pairs collapse too.
+    const byLine = new Map<string, string[]>();
 
-    return { text: `used by ${nodes}`, dormant: false };
+    for (const ref of refs) {
+      const node = `${ref.node_id}${ref.inherited ? "" : " (station_ref)"}`;
+      const nodes = byLine.get(ref.blueprint) ?? [];
+
+      if (!nodes.includes(node)) {
+        nodes.push(node);
+      }
+      byLine.set(ref.blueprint, nodes);
+    }
+    const lines = [...byLine]
+      .map(([blueprint, nodes]) => `${blueprint} · ${nodes.join(", ")}`)
+      .join("; ");
+
+    return { text: `used by ${lines}`, dormant: false };
   }
 
   if (def.execution_mode === "station") {
