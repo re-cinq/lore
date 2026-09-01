@@ -25,6 +25,8 @@ export const KNOWN_MODELS: ReadonlyArray<{ id: string; label: string }> = [
   { id: "claude-sonnet-4-6", label: "Sonnet 4.6" },
   { id: "claude-haiku-4-5-20251001", label: "Haiku 4.5" },
   { id: "claude-fable-5", label: "Fable 5" },
+  { id: "gemini-2.5-pro", label: "Gemini 2.5 Pro" },
+  { id: "gemini-2.5-flash", label: "Gemini 2.5 Flash" },
 ];
 
 /**

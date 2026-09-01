@@ -26,6 +26,12 @@ describe("selectProvider", () => {
     );
   });
 
+  it("picks gemini for LORE_LLM_PROVIDER=gemini", () => {
+    expect(selectProvider({ LORE_LLM_PROVIDER: "gemini" }).vendor).toBe(
+      "gemini",
+    );
+  });
+
   it("honors LORE_FACT_LLM when LORE_LLM_PROVIDER is unset", () => {
     expect(selectProvider({ LORE_FACT_LLM: "ollama" }).vendor).toBe("ollama");
   });

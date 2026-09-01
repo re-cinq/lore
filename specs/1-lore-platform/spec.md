@@ -604,10 +604,14 @@ API calls to reduce token cost (ADR-015, added 2026-04-17). ([validated by `prom
   break:ttl(Nm)`. ([validated by `prompt-cache.test.ts:123`](libs/shared/src/llm/prompt-cache.test.ts#L123), [`prompt-cache.test.ts:129`](libs/shared/src/llm/prompt-cache.test.ts#L129))
 - FR-16.5: `response.usage.cache_creation_input_tokens` and
   `cache_read_input_tokens` feed cost accounting (1.25× writes,
-  0.1× reads). ([validated by `anthropic-provider.test.ts:79`](libs/shared/src/llm/anthropic-provider.test.ts#L79), [`anthropic-provider.test.ts:87`](libs/shared/src/llm/anthropic-provider.test.ts#L87), [`anthropic-provider.test.ts:95`](libs/shared/src/llm/anthropic-provider.test.ts#L95))
+  0.1× reads). ([validated by `anthropic-provider.test.ts:81`](libs/shared/src/llm/anthropic-provider.test.ts#L81), [`anthropic-provider.test.ts:89`](libs/shared/src/llm/anthropic-provider.test.ts#L89), [`anthropic-provider.test.ts:97`](libs/shared/src/llm/anthropic-provider.test.ts#L97))
 - Decision: MCP-server raw fetch call sites (fact extraction, graph
   extraction) have static prefixes below Haiku's 2048-token cache
   minimum — caching is not applied there.
+- FR-16.6: `computeCost(model, ...)` prices a call at that model's own
+  per-1M-token rate rather than a single flat rate, so a Sonnet or Opus
+  call is not silently billed at Haiku's price; an unrecognized model
+  falls back to the Haiku-tier rate rather than throwing. ([validated by `anthropic-provider.test.ts:104`](libs/shared/src/llm/anthropic-provider.test.ts#L104), [`anthropic-provider.test.ts:115`](libs/shared/src/llm/anthropic-provider.test.ts#L115))
 
 ### FR-17: Per-Template Context Budgets (Phase 1)
 

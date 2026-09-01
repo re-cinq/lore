@@ -10,6 +10,7 @@ import type { UsagePort } from "../project/usage/usage-port.js";
 import { AnthropicProvider } from "./anthropic-provider.js";
 import { OpenAiProvider } from "./openai-provider.js";
 import { OllamaProvider } from "./ollama-provider.js";
+import { GeminiProvider } from "./gemini-provider.js";
 import { CliProvider } from "./cli-provider.js";
 
 export function selectProvider(
@@ -29,6 +30,12 @@ export function selectProvider(
       });
     case "ollama":
       return new OllamaProvider({ model: env.LORE_FACT_MODEL || "llama3" });
+    case "gemini":
+      return new GeminiProvider({
+        model: env.LORE_FACT_MODEL || "gemini-2.5-flash",
+        apiKey: env.GEMINI_API_KEY,
+        usage: opts.usage,
+      });
     case "cli":
       return new CliProvider();
     case "claude":

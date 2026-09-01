@@ -25,14 +25,50 @@ import {
   type CacheBreakAnalysis,
 } from "./prompt-cache.js";
 
-// Haiku pricing: $0.80/M input, $4.00/M output. Cache writes 1.25x, reads 0.1x.
-const COST_PER_INPUT_TOKEN = 0.8 / 1_000_000;
-const COST_PER_OUTPUT_TOKEN = 4.0 / 1_000_000;
-const COST_PER_CACHE_WRITE_TOKEN = COST_PER_INPUT_TOKEN * 1.25;
-const COST_PER_CACHE_READ_TOKEN = COST_PER_INPUT_TOKEN * 0.1;
+interface ModelPricing {
+  inputPerToken: number;
+  outputPerToken: number;
+}
 
 const DEFAULT_MODEL = "claude-haiku-4-5-20251001";
 const DEFAULT_MAX_TOKENS = 8192;
+
+// $/token, derived from the published $/1M rates. Cache writes are always
+// 1.25x the input rate and cache reads 0.1x, regardless of tier — Anthropic
+// prices caching as a multiplier on whichever model served the call.
+// Reverify against shared/live-sources.md -> Pricing when adding a new tier;
+// these numbers drift.
+const MODEL_PRICING: Record<string, ModelPricing> = {
+  "claude-opus-5": {
+    inputPerToken: 5.0 / 1_000_000,
+    outputPerToken: 25.0 / 1_000_000,
+  },
+  "claude-opus-4-8": {
+    inputPerToken: 5.0 / 1_000_000,
+    outputPerToken: 25.0 / 1_000_000,
+  },
+  "claude-sonnet-5": {
+    inputPerToken: 2.0 / 1_000_000,
+    outputPerToken: 10.0 / 1_000_000,
+  },
+  "claude-sonnet-4-6": {
+    inputPerToken: 3.0 / 1_000_000,
+    outputPerToken: 15.0 / 1_000_000,
+  },
+  "claude-haiku-4-5-20251001": {
+    inputPerToken: 0.8 / 1_000_000,
+    outputPerToken: 4.0 / 1_000_000,
+  },
+};
+
+// An unrecognized model (a new tier not yet added above, or a dated snapshot
+// id) still needs an approximate cost rather than a thrown error — the
+// cheapest current tier is the least-wrong default for logging purposes.
+const FALLBACK_PRICING = MODEL_PRICING["claude-haiku-4-5-20251001"];
+
+function pricingFor(model: string): ModelPricing {
+  return MODEL_PRICING[model] ?? FALLBACK_PRICING;
+}
 
 export function buildCacheableSystem(
   systemPrompt: string,
@@ -79,16 +115,19 @@ function formatBreakLogTag(a: CacheBreakAnalysis): string {
 }
 
 export function computeCost(
+  model: string,
   inputTokens: number,
   outputTokens: number,
   cacheCreationTokens: number,
   cacheReadTokens: number,
 ): number {
+  const pricing = pricingFor(model);
+
   return (
-    inputTokens * COST_PER_INPUT_TOKEN +
-    outputTokens * COST_PER_OUTPUT_TOKEN +
-    cacheCreationTokens * COST_PER_CACHE_WRITE_TOKEN +
-    cacheReadTokens * COST_PER_CACHE_READ_TOKEN
+    inputTokens * pricing.inputPerToken +
+    outputTokens * pricing.outputPerToken +
+    cacheCreationTokens * pricing.inputPerToken * 1.25 +
+    cacheReadTokens * pricing.inputPerToken * 0.1
   );
 }
 
@@ -191,6 +230,7 @@ export class AnthropicProvider implements LlmProvider {
         response.usage.cache_creation_input_tokens ?? 0;
       const cacheReadTokens = response.usage.cache_read_input_tokens ?? 0;
       const costUsd = computeCost(
+        model,
         inputTokens,
         outputTokens,
         cacheCreationTokens,
@@ -285,6 +325,7 @@ export class AnthropicProvider implements LlmProvider {
         response.usage.cache_creation_input_tokens ?? 0;
       const cacheReadTokens = response.usage.cache_read_input_tokens ?? 0;
       const costUsd = computeCost(
+        model,
         inputTokens,
         outputTokens,
         cacheCreationTokens,
