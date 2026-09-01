@@ -47,6 +47,49 @@ export async function listAgents(repo: string): Promise<AgentDefinition[]> {
   }
 }
 
+export interface AgentUsageRef {
+  blueprint: string;
+  node_id: string;
+  inherited: boolean;
+}
+
+/**
+ * Where each catalog entry is dispatched from — every builtin blueprint node
+ * that resolves to it, keyed by definition name. A name absent from the map is
+ * either a blueprint-less task type (runs as a single Agent CR) or dormant;
+ * the list view tells the two apart by the definition's execution_mode.
+ */
+export async function fetchAgentUsage(): Promise<
+  Record<string, AgentUsageRef[]>
+> {
+  const c = cfg();
+
+  if (!c) {
+    return {};
+  }
+
+  try {
+    const res = await fetch(`${c.apiUrl}/api/agent-definitions/usage`, {
+      signal: AbortSignal.timeout(15_000),
+      headers: { authorization: `Bearer ${c.token}` },
+      cache: "no-store",
+    });
+
+    if (!res.ok) {
+      return {};
+    }
+    const data = (await res.json()) as {
+      usage?: Array<{ name: string; used_by: AgentUsageRef[] }>;
+    };
+
+    return Object.fromEntries(
+      (data.usage ?? []).map((entry) => [entry.name, entry.used_by]),
+    );
+  } catch {
+    return {};
+  }
+}
+
 export async function saveAgent(
   repo: string,
   def: Partial<AgentDefinition> & { name: string },

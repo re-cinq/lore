@@ -44,4 +44,48 @@ describe("AgentList", () => {
 
     expect(getByText(/No agent definitions resolved/)).toBeInTheDocument();
   });
+
+  it("shows the blueprint nodes that use a definition, marking explicit station_refs", () => {
+    const { getByTestId } = render(
+      <AgentList
+        base={base}
+        agents={[org]}
+        usage={{
+          general: [
+            { blueprint: "general", node_id: "implement", inherited: true },
+            { blueprint: "gap-fill", node_id: "refine", inherited: false },
+          ],
+        }}
+      />,
+    );
+
+    expect(getByTestId("usage-general").textContent).toEqual(
+      "used by general · implement, gap-fill · refine (station_ref)",
+    );
+  });
+
+  it("an unreferenced claude-code definition reads as a single-agent task type, not dormant", () => {
+    const { getByTestId } = render(
+      <AgentList base={base} agents={[org]} usage={{}} />,
+    );
+
+    expect(getByTestId("usage-general").textContent).toEqual(
+      "no assembly line — runs as a single agent",
+    );
+  });
+
+  it("an unreferenced station-mode definition is flagged as not referenced by any assembly line", () => {
+    const station: AgentDefinition = {
+      ...org,
+      name: "def-github_action",
+      execution_mode: "station",
+    };
+    const { getByTestId } = render(
+      <AgentList base={base} agents={[station]} usage={{}} />,
+    );
+
+    expect(getByTestId("usage-def-github_action").textContent).toEqual(
+      "not referenced by any assembly line",
+    );
+  });
 });

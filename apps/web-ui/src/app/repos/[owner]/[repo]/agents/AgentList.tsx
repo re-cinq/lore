@@ -1,7 +1,37 @@
 import Link from "next/link";
 import type { CSSProperties } from "react";
 import type { AgentDefinition } from "@/lib/agents-mirror";
+import type { AgentUsageRef } from "@/lib/agents-api";
 import styles from "./agents.module.css";
+
+/**
+ * Where a definition is dispatched from, as one line under its card. The three
+ * shapes are deliberately distinct: blueprint references name the nodes, a
+ * blueprint-less LLM/ingest recipe still runs (as a single Agent CR whose
+ * stationRef is the task type), and only a station-mode recipe nothing
+ * references is genuinely dormant.
+ */
+function usageLine(
+  def: AgentDefinition,
+  refs: AgentUsageRef[] | undefined,
+): { text: string; dormant: boolean } {
+  if (refs && refs.length > 0) {
+    const nodes = refs
+      .map(
+        (ref) =>
+          `${ref.blueprint} · ${ref.node_id}${ref.inherited ? "" : " (station_ref)"}`,
+      )
+      .join(", ");
+
+    return { text: `used by ${nodes}`, dormant: false };
+  }
+
+  if (def.execution_mode === "station") {
+    return { text: "not referenced by any assembly line", dormant: true };
+  }
+
+  return { text: "no assembly line — runs as a single agent", dormant: false };
+}
 
 /**
  * Read-only list of a repo's resolved agent definitions. A definition with no
@@ -12,9 +42,12 @@ import styles from "./agents.module.css";
 export default function AgentList({
   base,
   agents,
+  usage = {},
 }: {
   base: string;
   agents: AgentDefinition[];
+  /** Blueprint references per definition name, from the usage endpoint. */
+  usage?: Record<string, AgentUsageRef[]>;
 }) {
   return (
     <div>
@@ -33,6 +66,7 @@ export default function AgentList({
         <div className={styles.list}>
           {agents.map((a) => {
             const isProject = a.project_id != null && a.project_id !== "";
+            const use = usageLine(a, usage[a.name]);
 
             return (
               <div key={a.name} className={styles.card}>
@@ -52,6 +86,17 @@ export default function AgentList({
                 <span className={styles.detail}>
                   {a.model ?? "(inherit)"} · {a.timeout_minutes ?? "–"}m
                   {a.execution_mode === "graph-ingest" ? " · zero-LLM" : ""}
+                </span>
+                <span
+                  className={styles.detail}
+                  style={
+                    use.dormant
+                      ? ({ color: "var(--warning)" } as CSSProperties)
+                      : undefined
+                  }
+                  data-testid={`usage-${a.name}`}
+                >
+                  {use.text}
                 </span>
                 <Link
                   className={`btn-secondary ${styles.spacer}`}

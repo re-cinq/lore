@@ -73,6 +73,16 @@ live recipe.
 - FR6.1: An org default keeps the bare CR name; a per-repo override folds the project id into it, and both CRs of the pair plus the `agentDefRef` between them carry the qualified spelling. ([validated by an org default keeps the bare name](../../libs/shared/src/project/agents/agent-crd.test.ts#L38), [validated by a per-repo override folds the first 8 project-id hex chars into the name](../../libs/shared/src/project/agents/agent-crd.test.ts#L42), [validated by a per-repo override renders both CRs under the qualified name](../../libs/shared/src/project/agents/agent-crd.test.ts#L166))
 - FR6.2: The Floor's dispatch points each visit's `stationRef` at the spelling the sync applied — qualified when the repo holds an override row, bare otherwise — resolved at enqueue time through the one spec builder every door shares.
 
+## FR7 — Usage visibility
+
+The catalog is the roster and the blueprints are one consumer of it, so
+"is this definition used?" was answerable only by grep. The `/agents`
+page now shows, per definition, exactly where it is dispatched from.
+
+- FR7.1: A pure walk over the blueprint graphs maps every station a node resolves to — inherited agent nodes to their line's name, explicit `station_ref`s to their own name, non-agent pod nodes to `def-<type>`, human nodes skipped — and a blueprint-less task type like runbook is deliberately absent, which is why usage alone cannot define the roster. ([validated by maps inherited agent nodes to the line name, explicit station_refs to their own name, and station nodes to def-<type>](../../libs/assembly-lines/src/station-usage.test.ts#L57), [validated by the builtin catalog references implementation and def-validate but never runbook](../../libs/assembly-lines/src/station-usage.test.ts#L73))
+- FR7.2: `GET /api/agent-definitions/usage` publishes the walk as a stable, name-sorted wire shape built from the builtin blueprints baked into the image. ([validated by maps the walk's refs to snake_case wire entries sorted by name](../../apps/lore-api/src/api/routes/agent-definitions/usage.test.ts#L9), [validated by the builtin catalog's response names implementation but never runbook](../../apps/lore-api/src/api/routes/agent-definitions/usage.test.ts#L47))
+- FR7.3: The repo `/agents` list renders each definition's references, telling the three unreferenced shapes apart: blueprint nodes when they exist, "runs as a single agent" for a blueprint-less LLM/ingest task type, and a dormant flag only for a station-mode definition nothing references. ([validated by shows the blueprint nodes that use a definition, marking explicit station_refs](apps/web-ui/src/app/repos/[owner]/[repo]/agents/AgentList.test.tsx#L48), [validated by an unreferenced claude-code definition reads as a single-agent task type, not dormant](apps/web-ui/src/app/repos/[owner]/[repo]/agents/AgentList.test.tsx#L67), [validated by an unreferenced station-mode definition is flagged as not referenced by any assembly line](apps/web-ui/src/app/repos/[owner]/[repo]/agents/AgentList.test.tsx#L77))
+
 ## Retired mechanisms
 
 The Helm `catalog-seed` hook, the committed `catalog-seed.yaml`, the

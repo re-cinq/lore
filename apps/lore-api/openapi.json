@@ -4507,6 +4507,44 @@
         ]
       }
     },
+    "/api/agent-definitions/usage": {
+      "get": {
+        "operationId": "get_api_agent-definitions_usage",
+        "summary": "GET /api/agent-definitions/usage",
+        "tags": ["Agents"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "Every station name a builtin blueprint node dispatches, with the nodes that reference it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentDefinitionUsage"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "read"
+      }
+    },
     "/api/repos/{owner}/{repo}/agent-definitions": {
       "post": {
         "operationId": "post_api_repos_owner_repo_agent-definitions",
@@ -10683,6 +10721,45 @@
             "additionalProperties": false
           }
         ]
+      },
+      "AgentDefinitionUsage": {
+        "type": "object",
+        "properties": {
+          "usage": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "used_by": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "blueprint": {
+                        "type": "string"
+                      },
+                      "node_id": {
+                        "type": "string"
+                      },
+                      "inherited": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": ["blueprint", "node_id", "inherited"],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": ["name", "used_by"],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": ["usage"],
+        "additionalProperties": false
       },
       "AgentDefinitionWritten": {
         "type": "object",

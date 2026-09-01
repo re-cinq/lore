@@ -1264,6 +1264,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/agent-definitions/usage": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** GET /api/agent-definitions/usage */
+    get: operations["get_api_agent-definitions_usage"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/repos/{owner}/{repo}/agent-definitions": {
     parameters: {
       query?: never;
@@ -2917,6 +2934,16 @@ export interface components {
               | null;
           }[];
         };
+    AgentDefinitionUsage: {
+      usage: {
+        name: string;
+        used_by: {
+          blueprint: string;
+          node_id: string;
+          inherited: boolean;
+        }[];
+      }[];
+    };
     AgentDefinitionWritten: {
       /** @constant */
       ok: true;
@@ -6138,6 +6165,30 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["AgentDefinitionDeleted"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "get_api_agent-definitions_usage": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Every station name a builtin blueprint node dispatches, with the nodes that reference it */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AgentDefinitionUsage"];
         };
       };
       401: components["responses"]["Unauthorized"];
