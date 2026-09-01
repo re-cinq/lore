@@ -47,6 +47,33 @@ export async function listAgents(repo: string): Promise<AgentDefinition[]> {
   }
 }
 
+/** The org-default catalog — org rows overlaid on the yaml fallback, no
+ *  per-repo layer. Feeds the global /agents page. */
+export async function listOrgAgents(): Promise<AgentDefinition[]> {
+  const c = cfg();
+
+  if (!c) {
+    return [];
+  }
+
+  try {
+    const res = await fetch(`${c.apiUrl}/api/agent-definitions`, {
+      signal: AbortSignal.timeout(15_000),
+      headers: { authorization: `Bearer ${c.token}` },
+      cache: "no-store",
+    });
+
+    if (!res.ok) {
+      return [];
+    }
+    const data = (await res.json()) as { agents?: AgentDefinition[] };
+
+    return data.agents ?? [];
+  } catch {
+    return [];
+  }
+}
+
 export interface AgentUsageRef {
   blueprint: string;
   node_id: string;

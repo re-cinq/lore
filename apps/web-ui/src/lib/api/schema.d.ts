@@ -1281,6 +1281,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/agent-definitions": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** GET /api/agent-definitions */
+    get: operations["get_api_agent-definitions"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/repos/{owner}/{repo}/agent-definitions": {
     parameters: {
       query?: never;
@@ -2942,6 +2959,39 @@ export interface components {
           node_id: string;
           inherited: boolean;
         }[];
+      }[];
+    };
+    OrgAgentDefinitions: {
+      agents: {
+        name: string;
+        model: string | null;
+        timeout_minutes: number | null;
+        prompt: string | null;
+        image: string | null;
+        execution_mode: string;
+        review_required: boolean;
+        project_id: string | null;
+        config:
+          | ({
+              skills?: string[];
+              disallowed_tools?: string[];
+              watch?: {
+                event: string;
+                path: string;
+              };
+              repo_workdir?: boolean;
+              command?: string[];
+              env?: {
+                [key: string]: string;
+              };
+              pod_labels?: {
+                [key: string]: string;
+              };
+              needs_model?: boolean;
+            } & {
+              [key: string]: unknown;
+            })
+          | null;
       }[];
     };
     AgentDefinitionWritten: {
@@ -6189,6 +6239,30 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["AgentDefinitionUsage"];
+        };
+      };
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "get_api_agent-definitions": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Every org-default agent definition — org rows overlaid on the task-types.yaml fallback, no per-repo layer */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["OrgAgentDefinitions"];
         };
       };
       401: components["responses"]["Unauthorized"];

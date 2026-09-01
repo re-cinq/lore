@@ -157,6 +157,16 @@ describe("AgentList", () => {
     );
   });
 
+  it("a null base renders the read-only org catalog — no Edit column, org-default hint", () => {
+    const { container, getByText, queryByText } = render(
+      <AgentList base={null} agents={[org]} usage={{}} />,
+    );
+
+    expect(queryByText("Edit")).toBeNull();
+    expect(container.querySelectorAll("thead th")).toHaveLength(6);
+    expect(getByText(/org-default catalog every repo inherits/)).toBeTruthy();
+  });
+
   it("the Mode cell keeps the station tag even when lines reference the station", () => {
     const station: AgentDefinition = {
       ...org,

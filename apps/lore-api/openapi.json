@@ -4545,6 +4545,44 @@
         "x-required-scope": "read"
       }
     },
+    "/api/agent-definitions": {
+      "get": {
+        "operationId": "get_api_agent-definitions",
+        "summary": "GET /api/agent-definitions",
+        "tags": ["Agents"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "Every org-default agent definition — org rows overlaid on the task-types.yaml fallback, no per-repo layer",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrgAgentDefinitions"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "read"
+      }
+    },
     "/api/repos/{owner}/{repo}/agent-definitions": {
       "post": {
         "operationId": "post_api_repos_owner_repo_agent-definitions",
@@ -10759,6 +10797,119 @@
           }
         },
         "required": ["usage"],
+        "additionalProperties": false
+      },
+      "OrgAgentDefinitions": {
+        "type": "object",
+        "properties": {
+          "agents": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "model": {
+                  "type": ["string", "null"]
+                },
+                "timeout_minutes": {
+                  "type": ["number", "null"]
+                },
+                "prompt": {
+                  "type": ["string", "null"]
+                },
+                "image": {
+                  "type": ["string", "null"]
+                },
+                "execution_mode": {
+                  "type": "string"
+                },
+                "review_required": {
+                  "type": "boolean"
+                },
+                "project_id": {
+                  "type": ["string", "null"]
+                },
+                "config": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "skills": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "disallowed_tools": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "watch": {
+                          "type": "object",
+                          "properties": {
+                            "event": {
+                              "type": "string"
+                            },
+                            "path": {
+                              "type": "string"
+                            }
+                          },
+                          "required": ["event", "path"],
+                          "additionalProperties": false
+                        },
+                        "repo_workdir": {
+                          "type": "boolean"
+                        },
+                        "command": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "env": {
+                          "type": "object",
+                          "additionalProperties": {
+                            "type": "string"
+                          }
+                        },
+                        "pod_labels": {
+                          "type": "object",
+                          "additionalProperties": {
+                            "type": "string"
+                          }
+                        },
+                        "needs_model": {
+                          "type": "boolean"
+                        }
+                      },
+                      "additionalProperties": true
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "name",
+                "model",
+                "timeout_minutes",
+                "prompt",
+                "image",
+                "execution_mode",
+                "review_required",
+                "project_id",
+                "config"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": ["agents"],
         "additionalProperties": false
       },
       "AgentDefinitionWritten": {

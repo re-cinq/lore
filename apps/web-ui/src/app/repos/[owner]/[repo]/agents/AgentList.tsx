@@ -92,7 +92,9 @@ export default function AgentList({
   agents,
   usage = null,
 }: {
-  base: string;
+  /** Repo base path for the Edit links — null renders the read-only table
+   *  (the global /agents page, where editing is a per-repo act). */
+  base: string | null;
   agents: AgentDefinition[];
   /** Blueprint references per definition name, from the usage endpoint —
    *  null when the endpoint could not answer (renders as unknown). */
@@ -100,12 +102,19 @@ export default function AgentList({
 }) {
   return (
     <div>
-      <p className={styles.hint}>
-        Per-repo agent definitions. An <strong>org</strong> definition is the
-        organisation default; editing one creates a <strong>project</strong>{" "}
-        definition for this repo, and later edits update that project
-        definition.
-      </p>
+      {base !== null ? (
+        <p className={styles.hint}>
+          Per-repo agent definitions. An <strong>org</strong> definition is the
+          organisation default; editing one creates a <strong>project</strong>{" "}
+          definition for this repo, and later edits update that project
+          definition.
+        </p>
+      ) : (
+        <p className={styles.hint}>
+          The org-default catalog every repo inherits. Editing is a per-repo act
+          — open a repo&apos;s Agents tab to override a definition there.
+        </p>
+      )}
 
       {agents.length === 0 ? (
         <div className={`empty-state ${styles.emptyLeft}`}>
@@ -122,7 +131,7 @@ export default function AgentList({
                 <th>Timeout</th>
                 <th>Mode</th>
                 <th>Used by</th>
-                <th></th>
+                {base !== null && <th></th>}
               </tr>
             </thead>
             <tbody>
@@ -168,14 +177,16 @@ export default function AgentList({
                     >
                       {use.text}
                     </td>
-                    <td>
-                      <Link
-                        className="btn-secondary"
-                        href={`${base}/agents/${encodeURIComponent(a.name)}/edit`}
-                      >
-                        Edit
-                      </Link>
-                    </td>
+                    {base !== null && (
+                      <td>
+                        <Link
+                          className="btn-secondary"
+                          href={`${base}/agents/${encodeURIComponent(a.name)}/edit`}
+                        >
+                          Edit
+                        </Link>
+                      </td>
+                    )}
                   </tr>
                 );
               })}
