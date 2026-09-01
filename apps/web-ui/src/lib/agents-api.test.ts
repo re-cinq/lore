@@ -1,5 +1,11 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { listAgents, saveAgent, deleteAgent } from "./agents-api";
+import {
+  fetchAgentUsage,
+  listAgents,
+  listOrgAgents,
+  saveAgent,
+  deleteAgent,
+} from "./agents-api";
 import type { AgentDefinition } from "./agents-mirror";
 
 const realFetch = global.fetch;
@@ -82,6 +88,81 @@ describe("listAgents", () => {
   it("returns [] when the envelope has no agents key", async () => {
     mockFetch(200, {});
     expect(await listAgents("o/r")).toEqual([]);
+  });
+});
+
+describe("listOrgAgents", () => {
+  it("returns the org catalog envelope on 200", async () => {
+    mockFetch(200, { agents: [def] });
+    expect(await listOrgAgents()).toEqual([def]);
+  });
+
+  it("returns [] when env is missing", async () => {
+    delete process.env.LORE_API_URL;
+    expect(await listOrgAgents()).toEqual([]);
+  });
+
+  it("returns [] on a non-ok response", async () => {
+    mockFetch(503, { error: "db unavailable" });
+    expect(await listOrgAgents()).toEqual([]);
+  });
+
+  it("returns [] when fetch throws", async () => {
+    global.fetch = vi.fn(async () => {
+      throw new Error("network down");
+    }) as unknown as typeof fetch;
+    expect(await listOrgAgents()).toEqual([]);
+  });
+
+  it("returns [] when the envelope has no agents key", async () => {
+    mockFetch(200, {});
+    expect(await listOrgAgents()).toEqual([]);
+  });
+});
+
+describe("fetchAgentUsage", () => {
+  it("keys the usage entries by definition name on 200", async () => {
+    mockFetch(200, {
+      usage: [
+        {
+          name: "implementation",
+          used_by: [
+            {
+              blueprint: "implementation",
+              node_id: "implement",
+              inherited: true,
+            },
+          ],
+        },
+      ],
+    });
+    expect(await fetchAgentUsage()).toEqual({
+      implementation: [
+        { blueprint: "implementation", node_id: "implement", inherited: true },
+      ],
+    });
+  });
+
+  it("returns null when env is missing — unknown, never known-empty", async () => {
+    delete process.env.LORE_API_URL;
+    expect(await fetchAgentUsage()).toBeNull();
+  });
+
+  it("returns null on a non-ok response (a stale lore-api 404s exactly here)", async () => {
+    mockFetch(404, { error: "Not Found" });
+    expect(await fetchAgentUsage()).toBeNull();
+  });
+
+  it("returns null when fetch throws", async () => {
+    global.fetch = vi.fn(async () => {
+      throw new Error("network down");
+    }) as unknown as typeof fetch;
+    expect(await fetchAgentUsage()).toBeNull();
+  });
+
+  it("an ok response with no usage key is a known-empty map, not unknown", async () => {
+    mockFetch(200, {});
+    expect(await fetchAgentUsage()).toEqual({});
   });
 });
 
