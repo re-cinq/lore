@@ -19,6 +19,7 @@ describe("usageResponse", () => {
     ]);
 
     expect(usageResponse(usage)).toEqual({
+      applied: [],
       usage: [
         {
           name: "def-validate",
@@ -52,5 +53,25 @@ describe("usageResponse", () => {
 
     expect(names).toContain("implementation");
     expect(names).not.toContain("runbook");
+  });
+});
+
+describe("apply status on the usage response", () => {
+  it("carries each cluster's verdict through, reason included", () => {
+    const applied = [
+      {
+        name: "review",
+        project_id: null,
+        cluster: "satellite-1",
+        state: "refused" as const,
+        reason: "no anthropic credential",
+      },
+    ];
+
+    expect(usageResponse(new Map(), applied)).toEqual({ usage: [], applied });
+  });
+
+  it("defaults to no verdicts, which the caller reads as unknown rather than as all-applied", () => {
+    expect(usageResponse(new Map()).applied).toEqual([]);
   });
 });

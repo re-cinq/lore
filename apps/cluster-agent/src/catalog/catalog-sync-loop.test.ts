@@ -508,3 +508,102 @@ describe("runCatalogSyncLoop", () => {
     expect(firstSyncs).toEqual(1);
   });
 });
+
+describe("status reporting", () => {
+  /** A fetch that answers the events GET from `body` and records any POST. */
+  function withStatusCapture(body: unknown) {
+    const posts: Array<{ url: string; payload: unknown }> = [];
+    const fetchFn = (async (url: string, init?: RequestInit) => {
+      if (init?.method === "POST") {
+        posts.push({ url, payload: JSON.parse(String(init.body)) });
+
+        return new Response(null, { status: 200 });
+      }
+
+      return new Response(JSON.stringify(body), { status: 200 });
+    }) as unknown as typeof fetch;
+
+    return { fetchFn, posts };
+  }
+
+  const batch = {
+    mode: "tail",
+    cursor: "9",
+    entries: [
+      {
+        name: "implementation",
+        project_id: null,
+        definition: def("implementation"),
+      },
+      {
+        name: "def-github_action",
+        project_id: null,
+        definition: { ...def("def-github_action"), execution_mode: "station" },
+      },
+      { name: "gone", project_id: "p-1", definition: null },
+    ],
+  };
+
+  it("reports one structured verdict per entry — applied, refused with its reason, and deleted", async () => {
+    const { catalog } = recordingCatalog();
+    const { fetchFn, posts } = withStatusCapture(batch);
+
+    await catalogSyncOnce(tickDeps(catalog, fetchFn), "3");
+
+    expect(posts).toHaveLength(1);
+    expect(posts[0].url).toContain(
+      "/api/cluster-agents/agent-1/catalog-status",
+    );
+    expect(posts[0].payload).toMatchObject({
+      // Batch order, not a sorted one: the report mirrors what the loop did,
+      // in the order it did it.
+      reports: [
+        {
+          name: "implementation",
+          project_id: null,
+          state: "applied",
+          reason: null,
+        },
+        {
+          name: "def-github_action",
+          project_id: null,
+          state: "refused",
+          reason: expect.stringContaining(
+            "not a valid Kubernetes resource name",
+          ),
+        },
+        { name: "gone", project_id: "p-1", state: "deleted", reason: null },
+      ],
+    });
+  });
+
+  it("a refused status report never fails the sync — visibility must not cost delivery", async () => {
+    const { catalog } = recordingCatalog();
+    const fetchFn = (async (_url: string, init?: RequestInit) =>
+      init?.method === "POST"
+        ? new Response(null, { status: 500 })
+        : new Response(JSON.stringify(batch), {
+            status: 200,
+          })) as unknown as typeof fetch;
+
+    const result = await catalogSyncOnce(tickDeps(catalog, fetchFn), "3");
+
+    expect(result).toMatchObject({
+      ack: "9",
+      outcome: { kind: "synced", applied: 1 },
+    });
+  });
+
+  it("posts nothing when the batch was empty", async () => {
+    const { catalog } = recordingCatalog();
+    const { fetchFn, posts } = withStatusCapture({
+      mode: "tail",
+      cursor: "9",
+      entries: [],
+    });
+
+    await catalogSyncOnce(tickDeps(catalog, fetchFn), "3");
+
+    expect(posts).toEqual([]);
+  });
+});

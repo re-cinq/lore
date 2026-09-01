@@ -77,7 +77,7 @@ route is that home: three windowed aggregates over `pipeline.tasks` joined to
 
 Per-period task counts and token totals come back as a JSON usage object keyed by today / 7_day / 30_day. ([validated by `returns per-period task and token totals for the agent`](apps/lore-api/src/api/routes/analytics/usage.test.ts#L28))
 
-One query is issued per window, parameterized with the agent id and its 8-char LIKE prefix, with the correct interval filters. ([validated by `queries each period with the agent id and its 8-char LIKE prefix`](apps/lore-api/src/api/routes/analytics/usage.test.ts#L53))
+One query is issued per window, parameterized with the agent id and its 8-char LIKE prefix, with the correct interval filters. ([validated by `queries each period with the agent id and its 8-char LIKE prefix`](apps/lore-api/src/api/routes/analytics/usage.test.ts#L54))
 
 A missing `agent_id` is rejected with 400. ([validated by `returns 400 when agent_id is missing`](apps/lore-api/src/api/routes/analytics/usage.test.ts#L73))
 

@@ -1,0 +1,76 @@
+import type { PgPool } from "../../memory-store.js";
+import type {
+  CatalogApplyReport,
+  CatalogApplyStatus,
+  CatalogStatusRepository,
+} from "./catalog-status-port.js";
+
+/** Postgres-backed {@link CatalogStatusRepository} over `lore.catalog_apply_status`. */
+
+const NIL_UUID = "'00000000-0000-0000-0000-000000000000'::uuid";
+
+interface StatusRow {
+  cluster_agent_id: string;
+  cluster_name: string;
+  name: string;
+  project_id: string | null;
+  state: CatalogApplyStatus["state"];
+  reason: string | null;
+  updated_at: Date;
+}
+
+export class PgCatalogStatus implements CatalogStatusRepository {
+  constructor(private readonly pool: PgPool) {}
+
+  async record(
+    clusterAgentId: string,
+    reports: readonly CatalogApplyReport[],
+  ): Promise<void> {
+    if (reports.length === 0) {
+      return;
+    }
+
+    // One statement for the whole batch: a sync tick reports every entry it
+    // touched, and a row-per-round-trip would put the apiserver's work back on
+    // the API. UNNEST keeps it a single parameterised call regardless of size.
+    await this.pool.query(
+      `INSERT INTO lore.catalog_apply_status
+         (cluster_agent_id, name, project_id, state, reason)
+       SELECT $1, u.name, u.project_id::uuid, u.state, u.reason
+         FROM UNNEST($2::text[], $3::text[], $4::text[], $5::text[])
+              AS u(name, project_id, state, reason)
+       ON CONFLICT (cluster_agent_id, name, (COALESCE(project_id, ${NIL_UUID})))
+       DO UPDATE SET
+         state = EXCLUDED.state,
+         reason = EXCLUDED.reason,
+         updated_at = now()`,
+      [
+        clusterAgentId,
+        reports.map((r) => r.name),
+        reports.map((r) => r.projectId),
+        reports.map((r) => r.state),
+        reports.map((r) => r.reason),
+      ],
+    );
+  }
+
+  async list(): Promise<CatalogApplyStatus[]> {
+    const { rows } = await this.pool.query<StatusRow>(
+      `SELECT s.cluster_agent_id::text, c.name AS cluster_name, s.name,
+              s.project_id::text, s.state, s.reason, s.updated_at
+         FROM lore.catalog_apply_status s
+         JOIN pipeline.cluster_agents c ON c.id = s.cluster_agent_id
+        ORDER BY s.name, c.name`,
+    );
+
+    return (rows as StatusRow[]).map((r) => ({
+      clusterAgentId: r.cluster_agent_id,
+      clusterName: r.cluster_name,
+      name: r.name,
+      projectId: r.project_id,
+      state: r.state,
+      reason: r.reason,
+      updatedAt: r.updated_at,
+    }));
+  }
+}
