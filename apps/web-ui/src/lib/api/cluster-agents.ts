@@ -34,6 +34,18 @@ export function setClusterAgentPaused(
   });
 }
 
+export type ClusterAgentRestart = components["schemas"]["ClusterAgentRestart"];
+
+/** Bounces the cluster-agent process so it re-pulls `latest` on restart.
+ *  Only the central cluster is reachable — lore-api refuses any other id. */
+export function restartClusterAgent(
+  id: string,
+): Promise<ApiResult<ClusterAgentRestart>> {
+  return apiFetch("lore-api", `/api/cluster-agents/${id}/restart`, {
+    method: "POST",
+  });
+}
+
 export type ClusterInstallInfo =
   components["schemas"]["ClusterAgentInstallInfo"];
 

@@ -8,6 +8,13 @@ import type {
 } from "@/lib/api/cluster-agents";
 import ConnectClusterPanel from "./ConnectClusterPanel";
 import PauseClusterButton from "./PauseClusterButton";
+import RestartClusterButton from "./RestartClusterButton";
+
+/** The platform's own cluster always registers under this name (see
+ *  ai-agents-helm/values.yaml's `claim.name`). lore-api dials one static
+ *  in-cluster address, so a restart is only ever reachable for this row —
+ *  a satellite has no inbound path back to lore-api. */
+const CENTRAL_CLUSTER_AGENT_NAME = "central";
 
 export interface ClusterAgentsViewProps {
   agents: ClusterAgentRow[];
@@ -17,6 +24,8 @@ export interface ClusterAgentsViewProps {
   /** Takes one cluster out of the rotation, or puts it back. The container
    *  binds the agent id, so this view never chooses which. */
   togglePaused: (id: string, paused: boolean) => Promise<void>;
+  /** Bounces the central cluster-agent. The container binds the agent id. */
+  restart: (id: string) => Promise<void>;
 }
 
 /** "12m 30s" from milliseconds; a claim age is minutes, not dates. */
@@ -41,6 +50,7 @@ export default function ClusterAgentsView({
   offlineEvents,
   installInfo,
   togglePaused,
+  restart,
 }: ClusterAgentsViewProps) {
   const nameById = new Map(agents.map((agent) => [agent.id, agent.name]));
 
@@ -121,6 +131,11 @@ export default function ClusterAgentsView({
                     paused={agent.paused}
                     toggle={togglePaused.bind(null, agent.id)}
                   />
+                  {agent.name === CENTRAL_CLUSTER_AGENT_NAME && (
+                    <RestartClusterButton
+                      restart={restart.bind(null, agent.id)}
+                    />
+                  )}
                 </td>
               </tr>
             ))}
