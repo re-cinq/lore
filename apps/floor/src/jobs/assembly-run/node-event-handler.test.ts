@@ -460,6 +460,7 @@ describe("createNodeEventHandler", () => {
 
     h.deps.readAgentStatus = async (name) => {
       crReads.push(name);
+
       return null; // satellite's CR is not visible from the central cluster
     };
     await h.handler(params(id, crName));
