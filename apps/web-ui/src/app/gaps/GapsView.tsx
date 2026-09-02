@@ -1,3 +1,4 @@
+import { Alert } from "@/components/Alert";
 import { TimeAgo } from "@/components/TimeAgo";
 import styles from "./GapsView.module.css";
 
@@ -56,7 +57,9 @@ export default function GapsView({
       <section className={styles.section}>
         <h2>Gap Detection Agent Findings</h2>
         {gapMemories.length === 0 ? (
-          <p className="meta">No findings from the gap detection agent yet.</p>
+          <Alert variant="secondary">
+            No findings from the gap detection agent yet.
+          </Alert>
         ) : (
           gapMemories.map((mem, i) => (
             <div key={i} className="spec-card">
@@ -77,7 +80,7 @@ export default function GapsView({
           organizational context.
         </p>
         {zeroResultSearches.length === 0 ? (
-          <p className="meta">No zero-result searches recorded.</p>
+          <Alert variant="secondary">No zero-result searches recorded.</Alert>
         ) : (
           <table className={styles.table}>
             <thead>

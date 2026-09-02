@@ -1,3 +1,4 @@
+import { Alert } from "@/components/Alert";
 import EventRow from "./EventRow";
 import InfiniteEvents from "./InfiniteEvents";
 import { EVENTS_PAGE_SIZE, type RepoEvent } from "./pagination";
@@ -29,7 +30,7 @@ export default function EventsView({
         Event-bus activity for {owner}/{repo}, newest first.
       </p>
       {events.length === 0 ? (
-        <p className="meta">No events yet.</p>
+        <Alert variant="secondary">No events yet.</Alert>
       ) : (
         <table>
           <thead>

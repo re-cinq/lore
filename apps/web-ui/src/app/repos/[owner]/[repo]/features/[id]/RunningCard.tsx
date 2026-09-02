@@ -1,5 +1,6 @@
 "use client";
 
+import { Alert } from "@/components/Alert";
 import { useEffect, useState } from "react";
 import styles from "./RunningCard.module.scss";
 import { formatSeconds } from "@/lib/format-time";
@@ -110,11 +111,11 @@ export default function RunningCard({
         <ElapsedTimer since={since} timeoutMinutes={budget} />
         <TokenCount tokens={run?.tokens} />
       </p>
-      <p className="meta">
+      <Alert>
         {spec
           ? "The spec PR opens when this finishes. This refreshes automatically."
           : "The planning agent is running. This refreshes automatically."}
-      </p>
+      </Alert>
       {run && (
         <RunVisualizationPanel
           runId={run.id}

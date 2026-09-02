@@ -1,5 +1,6 @@
 "use client";
 
+import { Alert } from "@/components/Alert";
 import { TimeAgo } from "@/components/TimeAgo";
 
 // The spec PR merged and the line resumed: the `decompose` agent is breaking the
@@ -32,9 +33,7 @@ export default function DecompositionProgressCard({
           ? ` · attempt ${iteration} — the previous decomposition was sent back for a correction`
           : ""}
       </p>
-      <p className="meta">
-        The filed stories and tasks appear here when it finishes.
-      </p>
+      <Alert>The filed stories and tasks appear here when it finishes.</Alert>
     </div>
   );
 }

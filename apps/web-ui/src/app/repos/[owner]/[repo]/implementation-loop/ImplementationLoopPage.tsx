@@ -1,3 +1,4 @@
+import { Alert } from "@/components/Alert";
 import { getImplementationLoop } from "@/lib/api/backlog";
 import ImplementationLoopView from "./ImplementationLoopView";
 import { toggleImplementationLoopAction } from "./actions";
@@ -15,11 +16,11 @@ export default async function ImplementationLoopPage({
   // backlog — say what actually happened.
   if (result.status !== "ok") {
     return (
-      <p className="meta">
+      <Alert variant="secondary">
         Could not load the backlog state (
         {result.status === "error" ? result.message : "Lore API unconfigured"})
         — check the Lore API connection and reload.
-      </p>
+      </Alert>
     );
   }
 

@@ -1,3 +1,4 @@
+import { Alert } from "@/components/Alert";
 import Linkified from "@/components/Linkified";
 import { TimeAgo } from "@/components/TimeAgo";
 import type { TaskRuntimeLlmCall } from "@/lib/task-runtime";
@@ -66,7 +67,7 @@ export default function LlmCallsTable({
           </tbody>
         </table>
       ) : (
-        <p className="meta">No LLM calls recorded for this task.</p>
+        <Alert variant="secondary">No LLM calls recorded for this task.</Alert>
       )}
     </>
   );

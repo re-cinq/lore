@@ -1,5 +1,6 @@
 "use client";
 
+import { Alert } from "@/components/Alert";
 import Link from "next/link";
 import styles from "./FeatureDetailView.module.scss";
 import CollapsibleCard from "@/components/CollapsibleCard";
@@ -53,7 +54,7 @@ function FinalizedView({
             )}
           </p>
         ) : (
-          <p className="meta">Creating the spec PR…</p>
+          <Alert>Creating the spec PR…</Alert>
         )}
       </div>
       <DecompositionView

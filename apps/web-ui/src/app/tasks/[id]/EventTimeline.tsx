@@ -1,3 +1,4 @@
+import { Alert } from "@/components/Alert";
 import { TimeAgo } from "@/components/TimeAgo";
 import { formatEnumLabel } from "@/lib/enum-label";
 import type { TaskRuntimeEvent } from "@/lib/task-runtime";
@@ -13,7 +14,7 @@ export default function EventTimeline({
     <>
       <h2>Event Timeline</h2>
       {events.length === 0 ? (
-        <p className="meta">No events recorded for this task.</p>
+        <Alert variant="secondary">No events recorded for this task.</Alert>
       ) : (
         <div className="memory-list">
           {events.map((e) => (

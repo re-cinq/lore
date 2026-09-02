@@ -1,3 +1,4 @@
+import { Alert } from "@/components/Alert";
 import Link from "next/link";
 import Icon from "@/components/Icon";
 import type { DarkFactoryConsoleModel } from "./derive-console";
@@ -124,7 +125,7 @@ export default function DarkFactoryConsoleView({
           </tbody>
         </table>
       ) : (
-        <p className="meta">No recent tasks.</p>
+        <Alert variant="secondary">No recent tasks.</Alert>
       )}
 
       <h3>Decision feed</h3>
@@ -138,7 +139,7 @@ export default function DarkFactoryConsoleView({
           ))}
         </ul>
       ) : (
-        <p className="meta">No dark-factory audit events yet.</p>
+        <Alert variant="secondary">No dark-factory audit events yet.</Alert>
       )}
     </div>
   );

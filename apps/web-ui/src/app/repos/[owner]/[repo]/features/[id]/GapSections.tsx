@@ -1,5 +1,6 @@
 "use client";
 
+import { Alert } from "@/components/Alert";
 import MockupSection from "./MockupSection";
 import styles from "./GapSections.module.scss";
 import Markdown from "@/components/Markdown";
@@ -160,18 +161,18 @@ export default function GapSections({
     <div>
       {sections.length === 0 && draft && (
         <SectionCard title="Draft specification" highlight>
-          <p className="meta">
+          <Alert>
             This round returned a single draft rather than reviewable sections.
-          </p>
+          </Alert>
           <Markdown markdown={draft} />
         </SectionCard>
       )}
       {sections.length === 0 && !draft && (
         <SectionCard title="No analysis to review">
-          <p className="meta">
+          <Alert>
             This round produced no reviewable analysis. Add direction below and
             refine again.
-          </p>
+          </Alert>
         </SectionCard>
       )}
       {sections.map((section, i) => (

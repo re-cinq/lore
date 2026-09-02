@@ -1,5 +1,6 @@
 "use client";
 
+import { Alert } from "@/components/Alert";
 import Link from "next/link";
 import StatusBadge from "./StatusBadge";
 import styles from "./FeatureListView.module.scss";
@@ -30,10 +31,10 @@ export default function FeatureListView({
 
       {features.length === 0 ? (
         <div className="spec-card">
-          <p className="meta">
+          <Alert variant="secondary">
             No features yet. Click <strong>+ Feature</strong> to plan one from a
             prompt.
-          </p>
+          </Alert>
         </div>
       ) : (
         <div className={styles.grid}>

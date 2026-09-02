@@ -1,3 +1,4 @@
+import { Alert } from "@/components/Alert";
 import { getAssemblyLineDefinition } from "@/lib/api/assembly-lines";
 import { runIdOf } from "@/lib/api/run-id";
 import {
@@ -36,7 +37,7 @@ export default async function FeatureDetailPage({
   if (!feature) {
     return (
       <div className="spec-card">
-        <p className="meta">Feature not found.</p>
+        <Alert variant="secondary">Feature not found.</Alert>
       </div>
     );
   }

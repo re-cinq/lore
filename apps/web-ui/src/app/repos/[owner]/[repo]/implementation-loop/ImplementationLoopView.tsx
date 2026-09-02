@@ -1,5 +1,6 @@
 "use client";
 
+import { Alert } from "@/components/Alert";
 import { useTransition } from "react";
 import type { ImplementationLoop, LoopTicket } from "@/lib/api/backlog";
 import styles from "./ImplementationLoopView.module.scss";
@@ -123,7 +124,7 @@ function TicketTable({
   emptyText: string;
 }) {
   if (tickets.length === 0) {
-    return <p className="meta">{emptyText}</p>;
+    return <Alert variant="secondary">{emptyText}</Alert>;
   }
 
   return (

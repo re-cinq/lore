@@ -1,5 +1,6 @@
 "use client";
 
+import { Alert } from "@/components/Alert";
 import { useState } from "react";
 import type { ClusterInstallInfo } from "@/lib/api/cluster-agents";
 
@@ -39,11 +40,11 @@ export default function ConnectClusterPanel({
     return (
       <details className="connect-cluster">
         <summary>Connect a cluster</summary>
-        <p className="meta">
+        <Alert variant="secondary">
           Not available: {info.reason ?? "install info is not configured"}. Set{" "}
           <code>cluster_agent_registration_token</code> in{" "}
           <code>secrets.tfvars</code> and apply, then redeploy lore-api.
-        </p>
+        </Alert>
       </details>
     );
   }

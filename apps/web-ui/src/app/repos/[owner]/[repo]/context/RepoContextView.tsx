@@ -1,3 +1,4 @@
+import { Alert } from "@/components/Alert";
 import HelpPopover from "@/components/HelpPopover";
 import ContextFilters from "./ContextFilters";
 import ContextCard from "./ContextCard";
@@ -97,7 +98,7 @@ export default function RepoContextView({
       </p>
 
       {chunks.length === 0 ? (
-        <p className="meta">{emptyMessage(q, type)}</p>
+        <Alert variant="secondary">{emptyMessage(q, type)}</Alert>
       ) : (
         <>
           {chunks.map((c) => (
