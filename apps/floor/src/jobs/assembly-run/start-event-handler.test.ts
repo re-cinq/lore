@@ -88,6 +88,43 @@ function params(
 }
 
 describe("createStartEventHandler", () => {
+  it("a fork's start reopens the settled task behind it before the walk launches", async () => {
+    // The source's terminal walk settled the task (usually failed); the fork
+    // resumes that work, so the task-keyed surfaces must see it open again.
+    const { port, assemblyLineId } = await seededPort("implementation");
+    const reopened: string[] = [];
+    const { deps, calls } = makeDeps(port, {
+      reopenTask: async (row) => {
+        reopened.push(`${row.id}:${row.taskId}`);
+      },
+    });
+
+    await createStartEventHandler(deps)({
+      ...params(assemblyLineId, "implementation"),
+      resumedFrom: { lineId: "src-run", nodeId: "implement", iteration: 1 },
+    });
+
+    expect(reopened).toEqual([`${assemblyLineId}:task-9`]);
+    expect(calls.advanced).toEqual([assemblyLineId]);
+  });
+
+  it("a plain start reopens nothing — resumedFrom is null", async () => {
+    const { port, assemblyLineId } = await seededPort("implementation");
+    const reopened: string[] = [];
+    const { deps } = makeDeps(port, {
+      reopenTask: async (row) => {
+        reopened.push(row.id);
+      },
+    });
+
+    await createStartEventHandler(deps)({
+      ...params(assemblyLineId, "implementation"),
+      resumedFrom: null,
+    });
+
+    expect(reopened).toEqual([]);
+  });
+
   it("marks a station line running and launches its entry node via advance", async () => {
     const { port, assemblyLineId } = await seededPort("implementation");
     const { deps, calls } = makeDeps(port);
