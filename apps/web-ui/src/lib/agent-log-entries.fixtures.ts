@@ -118,6 +118,49 @@ export const TOOL_PROGRESS_SKILL_LAST =
 export const SYSTEM_COMPACT_BOUNDARY =
   '{"type":"system","subtype":"compact_boundary","compact_metadata":{"trigger":"auto","pre_tokens":154238},"uuid":"7c1e9d40-8a2b-4f6c-b1d3-9e0a5c7f2b18","session_id":"c83b4bb1-f1fb-4039-b39c-d34f445d6c68"}';
 
+// gemini-cli `--output-format stream-json` lines from a live GeminiAgent review
+// pod (run 6cb4b352, pod agent-job-6cb4b352-f9e-review-p52r7, 2026-09-02). The
+// dialect is FLAT — no message.content blocks: `init` (not system/init),
+// `message` with a string `content`, top-level `tool_use`/`tool_result` keyed
+// by `tool_id`, and `parameters` where claude says `input`. Assistant prose
+// arrives ONLY as `delta: true` chunks — the CLI never emits a final complete
+// message (nonInteractiveCli.ts), so rendering depends on merging them.
+
+export const GEMINI_INIT =
+  '{"type":"init","model":"gemini-3.1-pro-preview","timestamp":"2026-09-02T07:09:20.459Z","session_id":"c8f63789-c5d5-4844-a11d-009f61886864"}';
+
+export const GEMINI_USER_MESSAGE =
+  '{"role":"user","type":"message","content":"Review pull request #1687 in re-cinq/lore (branch lore/implementation-loop/issue-1625).","timestamp":"2026-09-02T07:09:20.464Z"}';
+
+export const GEMINI_TOOL_USE =
+  '{"type":"tool_use","tool_id":"run_shell_command__call_659048","timestamp":"2026-09-02T07:09:23.523Z","tool_name":"run_shell_command","parameters":{"command":"git -C /workspace/target diff main...HEAD"}}';
+
+// `status` is the CLI's own verdict on the dispatch, not the command's exit —
+// this live line carries a failed external diff under status "success".
+export const GEMINI_TOOL_RESULT_OK =
+  '{"type":"tool_result","output":"error: cannot run : No such file or directory\\nfatal: external diff died, stopping at .lore/pr-body.md","status":"success","tool_id":"run_shell_command__call_659048","timestamp":"2026-09-02T07:09:23.683Z"}';
+
+// Shapes below follow packages/core/src/output/types.ts of gemini-cli (the
+// run above ended before emitting them, so these are schema-true, not captured).
+
+export const GEMINI_TOOL_RESULT_ERROR =
+  '{"type":"tool_result","status":"error","error":{"type":"ToolError","message":"File not found: /workspace/target/missing.ts"},"tool_id":"read_file__call_112233","timestamp":"2026-09-02T07:10:01.000Z"}';
+
+export const GEMINI_ASSISTANT_DELTA_FIRST =
+  '{"type":"message","role":"assistant","content":"The PR adds a traceability","delta":true,"timestamp":"2026-09-02T07:10:02.000Z"}';
+
+export const GEMINI_ASSISTANT_DELTA_LAST =
+  '{"type":"message","role":"assistant","content":" link to the Rollout section.","delta":true,"timestamp":"2026-09-02T07:10:02.400Z"}';
+
+export const GEMINI_ERROR_EVENT =
+  '{"type":"error","severity":"error","message":"Model gemini-2.5-pro not found for this API key","timestamp":"2026-09-02T07:10:03.000Z"}';
+
+export const GEMINI_RESULT_SUCCESS =
+  '{"type":"result","status":"success","stats":{"total_tokens":48211},"timestamp":"2026-09-02T07:10:04.000Z"}';
+
+export const GEMINI_RESULT_ERROR =
+  '{"type":"result","status":"error","error":{"type":"QuotaError","message":"Resource has been exhausted"},"timestamp":"2026-09-02T07:10:04.000Z"}';
+
 // The ai-agent-subsystem's attribution envelope (ADR-031 D8) — single and the
 // transitional double wrap both appear in prod streams.
 export function wrapped(line: string): string {

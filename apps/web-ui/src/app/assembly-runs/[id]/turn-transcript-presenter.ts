@@ -6,6 +6,7 @@
 import type { AgentRunTurn } from "@/lib/run-turn-types";
 import {
   logEntriesFromValue,
+  mergedDelta,
   supersedesPrevious,
   type LogEntry,
 } from "@/lib/agent-log-entries";
@@ -145,6 +146,14 @@ export function conversationEntries(
 
     for (const entry of entries) {
       const last = timed[timed.length - 1];
+      const merged = mergedDelta(last?.entry, entry);
+
+      // A gemini delta chunk keeps the FIRST chunk's clock — the merged entry
+      // is one utterance, and it started when its first fragment did.
+      if (merged !== null && last !== undefined) {
+        timed[timed.length - 1] = { at: last.at, entry: merged };
+        continue;
+      }
 
       if (supersedesPrevious(last?.entry, entry)) {
         timed[timed.length - 1] = { at: turn.createdAt, entry };

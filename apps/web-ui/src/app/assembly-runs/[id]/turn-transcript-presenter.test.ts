@@ -23,6 +23,8 @@ import {
   HOOK_RESPONSE_BOOTSTRAP,
   TOOL_PROGRESS_SKILL_FIRST,
   TOOL_PROGRESS_SKILL_LAST,
+  GEMINI_ASSISTANT_DELTA_FIRST,
+  GEMINI_ASSISTANT_DELTA_LAST,
 } from "@/lib/agent-log-entries.fixtures";
 
 function turn(id: string, nodeId: string | null): AgentRunTurn {
@@ -356,5 +358,31 @@ describe("conversationEntries — tool progress turns", () => {
         },
       },
     });
+  });
+});
+
+describe("conversationEntries — gemini delta turns", () => {
+  // The reported bug: gemini runs (pod agent-job-6cb4b352-f9e-review-p52r7,
+  // 2026-09-02) render every event as raw JSON. Assistant prose arrives only
+  // as delta chunks, so the merged utterance keeps the FIRST chunk's clock.
+  const geminiTurn = (id: string, line: string, at: string) =>
+    turnWithEnvelope(id, JSON.parse(line), at);
+
+  it("merges delta chunk turns into one assistant-text on the first turn's timestamp", () => {
+    const entries = conversationEntries([
+      geminiTurn("1", GEMINI_ASSISTANT_DELTA_FIRST, "2026-09-02T07:10:02.000Z"),
+      geminiTurn("2", GEMINI_ASSISTANT_DELTA_LAST, "2026-09-02T07:10:02.400Z"),
+    ]);
+
+    expect(entries).toEqual([
+      {
+        at: "2026-09-02T07:10:02.000Z",
+        entry: {
+          kind: "assistant-text",
+          text: "The PR adds a traceability link to the Rollout section.",
+          delta: true,
+        },
+      },
+    ]);
   });
 });
