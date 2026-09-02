@@ -44,6 +44,11 @@ export interface NodeLaunchInput {
   /** The failure that routed INTO this dispatch, whichever node produced it.
    *  Derive with {@link incomingFailureOf}. Null when nothing failed before it. */
   incomingFailure?: IncomingFailure | null;
+  /** This node's OWN earlier failed attempts — in-run loop iterations plus, on a
+   *  forked run, the source runs' visits (a fork copies rows with their details
+   *  nulled, so those live only on the source). Derive the in-run half with
+   *  {@link priorFailuresOf}; the fork chain is the caller's read. */
+  priorFailures?: PriorFailure[];
 }
 
 /** A preceding node's failure, as the next node needs to hear it. */
@@ -84,6 +89,39 @@ export function incomingFailureOf(
 const isFailure = (outcome: string | null): boolean =>
   outcome !== null && outcome !== "success" && outcome !== "changes_requested";
 
+/** One earlier failed attempt of the node being launched, as its retry prompt
+ *  carries it. */
+export interface PriorFailure {
+  nodeId: string;
+  iteration: number;
+  detail: string;
+}
+
+/**
+ * Every recorded FAILED visit of `nodeId` that carries a detail, oldest first —
+ * the launched node's own history, so a retry can be told what each earlier
+ * attempt broke on instead of only the failure that just routed here.
+ */
+export function priorFailuresOf(
+  visits: ReadonlyArray<{
+    nodeId: string;
+    iteration: number;
+    outcome: string | null;
+    failureDetail?: string | null;
+  }>,
+  nodeId: string,
+): PriorFailure[] {
+  return visits
+    .filter(
+      (v) => v.nodeId === nodeId && isFailure(v.outcome) && v.failureDetail,
+    )
+    .map((v) => ({
+      nodeId: v.nodeId,
+      iteration: v.iteration,
+      detail: v.failureDetail as string,
+    }));
+}
+
 /** How much of a preceding failure the next prompt carries. The detail is
  *  already bounded upstream; this is the backstop against a pathological one
  *  crowding out the instructions it is appended to. */
@@ -119,6 +157,47 @@ the change that produced it.
 \`\`\`
 ${detail}
 \`\`\`
+`;
+}
+
+/** The retry prompt carries at most this many earlier attempts — the most
+ *  recent ones, which are the closest to what the retry is about to face. */
+const MAX_PRIOR_FAILURES = 3;
+
+/**
+ * Append the launched node's own earlier failed attempts to its prompt, so the
+ * agent avoids repeating them. Complements {@link withIncomingFailure}: that
+ * one says what just routed here (whichever node it was), this one says what
+ * THIS node broke on before. Empty in, prompt out untouched.
+ */
+export function withPriorFailures(
+  prompt: string,
+  failures: readonly PriorFailure[],
+): string {
+  if (failures.length === 0) {
+    return prompt;
+  }
+  const kept = failures.slice(-MAX_PRIOR_FAILURES);
+  const entries = kept
+    .map((failure) => {
+      const detail =
+        failure.detail.length > MAX_FEEDBACK_CHARS
+          ? `${failure.detail.substring(0, MAX_FEEDBACK_CHARS)}\n...(truncated)`
+          : failure.detail;
+
+      return `### Attempt ${failure.iteration}\n\n\`\`\`\n${detail}\n\`\`\``;
+    })
+    .join("\n\n");
+
+  return `${prompt}
+
+## Earlier attempts of this step failed — do not repeat them
+
+This step has failed before. Each attempt below shows what broke. Read them,
+avoid the same causes, and take a different approach where the same fix
+already failed twice.
+
+${entries}
 `;
 }
 
@@ -184,14 +263,29 @@ export async function resolveNodeDispatch(
       : undefined;
   const content = resolveRoundContent(task, conversation);
 
+  const incomingFailure = input.incomingFailure ?? null;
+  // The incoming failure already gets its own block — repeating it as a prior
+  // attempt would show the agent the same output twice.
+  const priorFailures = (input.priorFailures ?? []).filter(
+    (f) =>
+      !(
+        incomingFailure &&
+        f.nodeId === incomingFailure.nodeId &&
+        f.detail === incomingFailure.detail
+      ),
+  );
+
   return {
     conversation,
     content,
     prompt:
       node.type === "agent"
-        ? withIncomingFailure(
-            deps.resolvePrompt(node.prompt_ref ?? node.type, content),
-            input.incomingFailure ?? null,
+        ? withPriorFailures(
+            withIncomingFailure(
+              deps.resolvePrompt(node.prompt_ref ?? node.type, content),
+              incomingFailure,
+            ),
+            priorFailures,
           )
         : null,
   };

@@ -1273,6 +1273,27 @@
                   "args": {
                     "type": "object",
                     "additionalProperties": {}
+                  },
+                  "resume_from": {
+                    "type": "object",
+                    "properties": {
+                      "run_id": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 200
+                      },
+                      "node_id": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 200
+                      },
+                      "iteration": {
+                        "type": "integer",
+                        "minimum": 1
+                      }
+                    },
+                    "required": ["run_id", "node_id"],
+                    "additionalProperties": false
                   }
                 },
                 "required": ["definition", "repo"],

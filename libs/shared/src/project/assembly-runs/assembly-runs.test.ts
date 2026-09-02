@@ -1271,6 +1271,24 @@ describe("InMemoryAssemblyRuns resumeFrom", () => {
     ]);
   });
 
+  it("copies through the named iteration only when resumeFrom carries one", async () => {
+    const port = new InMemoryAssemblyRuns();
+    const source = await terminalSource(port);
+
+    const fork = await port.start({
+      blueprintName: "implementation",
+      repo: "o/r",
+      blueprintHash: HASH,
+      resumeFrom: { lineId: source, nodeId: "review", iteration: 1 },
+    });
+
+    expect(
+      (await port.listStationRuns(fork)).map(
+        (n) => `${n.nodeId}:${n.iteration}`,
+      ),
+    ).toEqual(["implement:1", "review:1"]);
+  });
+
   it("leaves the source line and its node rows untouched", async () => {
     const port = new InMemoryAssemblyRuns();
     const source = await terminalSource(port);
@@ -1516,6 +1534,8 @@ describe("PgAssemblyRuns resumeFrom", () => {
       null,
       // The source's subject too — a fork re-runs the same work, so it takes over
       // the guard. Null because this fixture's source declared no subject.
+      null,
+      // No iteration named: the fork cut at the node's latest completed row.
       null,
     ]);
   });

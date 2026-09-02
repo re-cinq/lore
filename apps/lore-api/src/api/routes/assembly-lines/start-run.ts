@@ -22,14 +22,36 @@ import { repoFullName } from "../common-schemas.js";
  * Nothing here knows what the line does.
  */
 
-const StartBody = z.object({
-  /** Blueprint name, e.g. `memory-consolidation`. `blueprintName` on the wire
-   *  would leak an internal spelling into a hand-written CronJob body. */
-  definition: z.string().min(1).max(200),
-  repo: repoFullName,
-  branch: z.string().min(1).max(300).optional(),
-  args: z.record(z.unknown()).optional(),
-});
+const StartBody = z
+  .object({
+    /** Blueprint name, e.g. `memory-consolidation`. `blueprintName` on the wire
+     *  would leak an internal spelling into a hand-written CronJob body. */
+    definition: z.string().min(1).max(200),
+    repo: repoFullName,
+    branch: z.string().min(1).max(300).optional(),
+    args: z.record(z.unknown()).optional(),
+    /** Fork-and-rerun (specs/fork-rerun-from-node): copy the source run's rows
+     *  through `node_id`'s latest completed visit and let the walk resume at its
+     *  successor. `run_id`/`node_id` on the wire for the same reason `definition`
+     *  is not `blueprintName`. */
+    resume_from: z
+      .object({
+        run_id: z.string().min(1).max(200),
+        node_id: z.string().min(1).max(200),
+        /** Fork from exactly this visit of `node_id` (loop-exact: on a line with
+         *  back-edges the node's LATEST row can postdate the retry target).
+         *  Omitted, the latest completed visit is the cutoff. */
+        iteration: z.number().int().min(1).optional(),
+      })
+      .optional(),
+  })
+  .refine(
+    (body) => body.resume_from === undefined || body.branch === undefined,
+    {
+      message:
+        "branch cannot ride alongside resume_from — a fork inherits the source run's branch",
+    },
+  );
 
 /** Declared so the generator emits 201 + `{ id }`. Without a contract it infers
  *  a bodyless 200, and web-ui's generated client types then describe a response
@@ -60,6 +82,17 @@ export function startRunRoute(start: StartRun = defaultStart): ServerRoute {
         repo: body.repo,
         ...(body.branch === undefined ? {} : { branch: body.branch }),
         ...(body.args === undefined ? {} : { args: body.args }),
+        ...(body.resume_from === undefined
+          ? {}
+          : {
+              resumeFrom: {
+                lineId: body.resume_from.run_id,
+                nodeId: body.resume_from.node_id,
+                ...(body.resume_from.iteration === undefined
+                  ? {}
+                  : { iteration: body.resume_from.iteration }),
+              },
+            }),
       });
 
       return h.response({ id }).code(201);

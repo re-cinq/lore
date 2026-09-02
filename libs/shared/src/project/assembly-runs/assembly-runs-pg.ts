@@ -218,7 +218,7 @@ export class PgAssemblyRuns implements AssemblyRunsPort {
                   'branch', $4,
                   'taskId', $2,
                   'args', $5::jsonb,
-                  'resumedFrom', jsonb_build_object('lineId', $7, 'nodeId', $8)
+                  'resumedFrom', jsonb_build_object('lineId', $7, 'nodeId', $8, 'iteration', $13::int)
                 ),
                 $3, '${RUN_START_EVENT}:' || al.id
          FROM al
@@ -258,6 +258,7 @@ export class PgAssemblyRuns implements AssemblyRunsPort {
         // undefined here reaches the driver as an absent parameter rather than
         // SQL NULL, which is a different thing from "this run has no subject".
         input.subjectKey ?? source.subjectKey ?? null,
+        resumeFrom.iteration ?? null,
       ],
     );
 

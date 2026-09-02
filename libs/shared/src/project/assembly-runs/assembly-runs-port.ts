@@ -39,6 +39,11 @@ export interface AssemblyRunResumeFrom {
   /** Rows through THIS node's latest completed row are copied; the walk resumes
    *  at its successor. */
   nodeId: string;
+  /** Copy through exactly this visit of `nodeId` instead of its latest completed
+   *  row — the loop-exact form: on a line with back-edges the node's latest row
+   *  can postdate the retry target, and only the (nodeId, iteration) pair names
+   *  the prefix that replays to the wanted launch. */
+  iteration?: number;
 }
 
 export interface AssemblyRunStartInput {

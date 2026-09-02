@@ -49,8 +49,10 @@ import { isFailureOutcome } from "./notify-failure.js";
 import {
   incomingFailureOf,
   nodeLaunchSpec,
+  priorFailuresOf,
   priorOutcomeOf,
   resolveNodeDispatch,
+  type PriorFailure,
   type ResolveConversationFn,
 } from "./launch-spec.js";
 import {
@@ -198,7 +200,15 @@ export function lineOutcomeFromVisits(visits: NodeVisit[]): {
   outcome: "completed" | "failed";
   reason?: string;
 } {
-  const failed = visits.find((v) => visitFailed(v.outcome));
+  // A failure the walk recovered from — a later visit of the SAME node closed
+  // non-failed — must not decide the line: run 52c3fdd5 blamed a retried-and-
+  // recovered ready-for-review while fix-ci, the failure that actually routed
+  // the walk out, went unreported. The LAST unrecovered failure is that one.
+  const unrecovered = visits.filter(
+    (visit, index) =>
+      visitFailed(visit.outcome) && !recoveredLater(visits, visit, index),
+  );
+  const failed = unrecovered[unrecovered.length - 1];
 
   // `nodeFailureReason` degrades to the old `node "<id>" failed` wording when the
   // visit carries no classification, so rows written before migration 0042 read
@@ -206,6 +216,23 @@ export function lineOutcomeFromVisits(visits: NodeVisit[]): {
   return failed
     ? { outcome: "failed", reason: nodeFailureReason(failed) }
     : { outcome: "completed" };
+}
+
+/** True when a later visit of the same node closed non-failed — the retry edge
+ *  did its job, so this failure is history, not the line's verdict. */
+function recoveredLater(
+  visits: NodeVisit[],
+  visit: NodeVisit,
+  index: number,
+): boolean {
+  return visits
+    .slice(index + 1)
+    .some(
+      (later) =>
+        later.nodeId === visit.nodeId &&
+        later.outcome !== null &&
+        !visitFailed(later.outcome),
+    );
 }
 
 function visitFailed(outcome: StageOutcome | null): boolean {
@@ -236,6 +263,46 @@ export function taskFromAssemblyRun(
     branch: assemblyRun.branch ?? "",
     args: assemblyRun.args,
   };
+}
+
+/** A fork chain deeper than this stops contributing prior-failure context — a
+ *  bound, not a business rule: `resumed_from_run_id` cannot cycle, but a run
+ *  forked many times over carries diminishing history at growing read cost. */
+const MAX_FORK_HOPS = 5;
+
+/**
+ * The launched node's earlier failed attempts, oldest first: the fork chain's
+ * (a fork copies its prefix rows with `failure_detail` NULLED, so what each
+ * source attempt broke on lives only on the source run's own rows), then this
+ * run's. A run that is no fork reads nothing beyond the visits it already has.
+ */
+export async function collectPriorNodeFailures(
+  assemblyRun: AssemblyRunRecord,
+  nodeId: string,
+  visits: ReadonlyArray<{
+    nodeId: string;
+    iteration: number;
+    outcome: string | null;
+    failureDetail?: string | null;
+  }>,
+  deps: Pick<AdvanceDeps, "assemblyRuns">,
+): Promise<PriorFailure[]> {
+  const chain: PriorFailure[] = [];
+  let sourceId = assemblyRun.resumedFromRunId;
+
+  for (let hop = 0; sourceId !== null && hop < MAX_FORK_HOPS; hop++) {
+    const sourceRun = await deps.assemblyRuns.getById(sourceId);
+
+    if (!sourceRun) {
+      break;
+    }
+    const sourceRows = await deps.assemblyRuns.listStationRuns(sourceId);
+
+    chain.unshift(...priorFailuresOf(sourceRows, nodeId));
+    sourceId = sourceRun.resumedFromRunId;
+  }
+
+  return [...chain, ...priorFailuresOf(visits, nodeId)];
 }
 
 /** Re-derive the line's next step from its node rows and perform it: launch the next
@@ -325,6 +392,17 @@ export async function advanceLine(
       // What just failed, whichever node it was — this is how a retried node
       // learns why it is running again instead of repeating itself.
       incomingFailure: incomingFailureOf(visits),
+      // And what THIS node broke on before, fork chain included — only an
+      // agent's prompt reads it, and only a fork pays the source-run reads.
+      priorFailures:
+        node.type === "agent"
+          ? await collectPriorNodeFailures(
+              assemblyRun,
+              transition.nodeId,
+              visits,
+              deps,
+            )
+          : undefined,
     },
     deps,
   );

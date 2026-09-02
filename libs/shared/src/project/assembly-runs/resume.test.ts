@@ -103,6 +103,22 @@ describe("resumeCutoffIndex", () => {
 
     expect(resumeCutoffIndex(nodes, "implement")).toBe(0);
   });
+
+  it("names the exact visit when an iteration is given, not the latest", () => {
+    expect(resumeCutoffIndex(NODES, "implement", 1)).toBe(0);
+    expect(resumeCutoffIndex(NODES, "review", 1)).toBe(1);
+    expect(resumeCutoffIndex(NODES, "implement", 2)).toBe(2);
+  });
+
+  it("returns -1 for an iteration the line never ran", () => {
+    expect(resumeCutoffIndex(NODES, "implement", 3)).toBe(-1);
+  });
+
+  it("returns -1 for a named iteration that is still open", () => {
+    expect(
+      resumeCutoffIndex([node("1", "implement", 1, null)], "implement", 1),
+    ).toBe(-1);
+  });
 });
 
 describe("resolveResumePrefix", () => {
@@ -229,6 +245,42 @@ describe("resolveResumePrefix", () => {
 
     expect(() => resolveResumePrefix(input(), drifted, NODES)).toThrow(
       /definition "implementation" has changed since that run \(bbbbbbbbbbbb ≠ aaaaaaaaaaaa\)/,
+    );
+  });
+
+  it("copies through the named iteration only, so a self-loop retry excludes the failed later visit", () => {
+    // implement@2 failed on a self-edge: retrying it names implement@1 so the
+    // fork's replay re-derives the launch of implement@2 with a fresh budget.
+    const nodes = [
+      node("1", "implement", 1, "failed"),
+      node("2", "implement", 2, "failed"),
+    ];
+    const { prefix } = resolveResumePrefix(
+      input({
+        resumeFrom: { lineId: "src", nodeId: "implement", iteration: 1 },
+      }),
+      source(),
+      nodes,
+    );
+
+    expect(prefix.map((n) => `${n.nodeId}:${n.iteration}`)).toEqual([
+      "implement:1",
+    ]);
+  });
+
+  it("rejects an iteration the source line never completed", () => {
+    expect(() =>
+      resolveResumePrefix(
+        input({
+          resumeFrom: { lineId: "src", nodeId: "implement", iteration: 7 },
+        }),
+        source(),
+        NODES,
+      ),
+    ).toThrow(
+      new Error(
+        'resume-from source line "src" has no completed "implement" iteration 7 to fork from',
+      ),
     );
   });
 

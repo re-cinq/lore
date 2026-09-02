@@ -9,8 +9,10 @@ import {
 import { snapshotGraph } from "@re-cinq/lore-assembly-lines";
 import {
   advanceLine,
+  collectPriorNodeFailures,
   finishLine,
   finishNodeAndAdvance,
+  lineOutcomeFromVisits,
   taskFromAssemblyRun,
   type AdvanceDeps,
 } from "./advance.js";
@@ -630,6 +632,153 @@ describe("finishNodeAndAdvance", () => {
     expect(prompt).toContain("foo.ts:1 error");
     // And the FIRST dispatch carried no such block — this is feedback, not boilerplate.
     expect(enqueued[0]?.prompt ?? "").not.toContain("previous step failed");
+  });
+
+  it("a forked run's first launch carries the source run's failure detail for the retried node", async () => {
+    // The fork copies the prefix rows with their failure details NULLED (a
+    // copied verdict would kill the fork's replay), so the retried agent can
+    // only learn what its earlier attempts broke on from the SOURCE run's rows.
+    const port = new InMemoryAssemblyRuns();
+    const source = await port.start({
+      blueprintName: "implementation-loop",
+      repo: "re-cinq/lore",
+      branch: "feat/x",
+      args: { description: "implement the thing" },
+    });
+
+    await port.stampBlueprint(
+      source,
+      "hash-loop",
+      snapshotGraph(implementThenValidate, "implementation-loop"),
+    );
+    await port.markRunning(source);
+
+    for (const v of [
+      { nodeId: "implement", iteration: 1, outcome: "success" },
+      {
+        nodeId: "validate",
+        iteration: 1,
+        outcome: "failed",
+        failureDetail: "lint: unused var `skim`",
+      },
+      {
+        nodeId: "implement",
+        iteration: 2,
+        outcome: "failed",
+        failureDetail: "agent crashed: OOM while bending girders",
+      },
+    ]) {
+      const { nodeRowId } = await port.ensureStationRun({
+        assemblyRunId: source,
+        nodeId: v.nodeId,
+        iteration: v.iteration,
+        agentCrName: `${source.slice(0, 12)}-${v.nodeId}`,
+      });
+
+      await port.finishStationRunOnce(nodeRowId, v.outcome, undefined, {
+        failureDetail: v.failureDetail,
+      });
+    }
+    await port.finish(source, "error", "node failed");
+
+    // Retry implement@2: keep through validate@1, replay re-launches implement.
+    const fork = await port.start({
+      blueprintName: "implementation-loop",
+      repo: "re-cinq/lore",
+      blueprintHash: "hash-loop",
+      resumeFrom: { lineId: source, nodeId: "validate", iteration: 1 },
+    });
+
+    await port.markRunning(fork);
+    const { deps, enqueued } = makeDeps(port);
+
+    await advanceLine(fork, deps);
+
+    expect(enqueued.at(-1)).toMatchObject({
+      name: `${fork.substring(0, 12)}-implement-2`,
+    });
+    const prompt = enqueued.at(-1)?.prompt ?? "";
+
+    expect(prompt).toContain("Earlier attempts of this step failed");
+    expect(prompt).toContain("agent crashed: OOM while bending girders");
+  });
+
+  it("collectPriorNodeFailures follows a fork-of-fork chain oldest first and stops at the hop bound", async () => {
+    // Chain of 7 ancestors, each with one failed implement visit; only the 5
+    // nearest contribute, ordered oldest → newest, with this run's own last.
+    const runs = new Map<
+      string,
+      { resumedFromRunId: string | null; detail: string }
+    >();
+
+    for (let i = 1; i <= 7; i++) {
+      runs.set(`run-${i}`, {
+        resumedFromRunId: i === 7 ? null : `run-${i + 1}`,
+        detail: `ancestor-${i} broke`,
+      });
+    }
+    const deps = {
+      assemblyRuns: {
+        getById: async (id: string) => {
+          const run = runs.get(id);
+
+          return run
+            ? ({ resumedFromRunId: run.resumedFromRunId } as never)
+            : null;
+        },
+        listStationRuns: async (id: string) =>
+          [
+            {
+              nodeId: "implement",
+              iteration: 1,
+              outcome: "failed",
+              failureDetail: runs.get(id)?.detail,
+            },
+          ] as never,
+      },
+    } as unknown as Pick<AdvanceDeps, "assemblyRuns">;
+
+    const failures = await collectPriorNodeFailures(
+      { resumedFromRunId: "run-1" } as never,
+      "implement",
+      [
+        {
+          nodeId: "implement",
+          iteration: 1,
+          outcome: "failed",
+          failureDetail: "own attempt broke",
+        },
+      ],
+      deps,
+    );
+
+    expect(failures.map((f) => f.detail)).toEqual([
+      "ancestor-5 broke",
+      "ancestor-4 broke",
+      "ancestor-3 broke",
+      "ancestor-2 broke",
+      "ancestor-1 broke",
+      "own attempt broke",
+    ]);
+  });
+
+  it("a plain run reads no source runs while dispatching", async () => {
+    const port = new InMemoryAssemblyRuns();
+    const id = await runningLine(port);
+    const { deps, enqueued } = makeDeps(port);
+    const reads: string[] = [];
+    const getById = port.getById.bind(port);
+
+    port.getById = async (runId) => {
+      reads.push(runId);
+
+      return getById(runId);
+    };
+
+    await advanceLine(id, deps);
+
+    expect(enqueued).toHaveLength(1);
+    expect(reads).toEqual([id]);
   });
 
   it("keeps the stored outcome when a duplicate event races the first writer", async () => {
@@ -1669,5 +1818,58 @@ describe("what the node-finished reaction is told about the node", () => {
     );
 
     expect(seen).toEqual([{ id: "review", type: "agent" }]);
+  });
+});
+
+describe("lineOutcomeFromVisits", () => {
+  // Run 52c3fdd5: ready-for-review failed once, its retry succeeded, and the
+  // walk went on until fix-ci died for real — yet the stored reason blamed
+  // ready-for-review, the one failure the line had already recovered from.
+  it("blames the terminal fix-ci failure, not the recovered ready-for-review retry", () => {
+    const outcome = lineOutcomeFromVisits([
+      { nodeId: "tdd-round", iteration: 1, outcome: "success" },
+      {
+        nodeId: "ready-for-review",
+        iteration: 1,
+        outcome: "failed",
+        failureDetail: "BackoffLimitExceeded",
+      },
+      { nodeId: "ready-for-review", iteration: 2, outcome: "success" },
+      { nodeId: "await-pr", iteration: 2, outcome: "changes_requested" },
+      {
+        nodeId: "fix-ci",
+        iteration: 1,
+        outcome: "failed",
+        failureDetail: "pod died",
+      },
+      { nodeId: "retrospective", iteration: 1, outcome: "success" },
+    ]);
+
+    expect(outcome).toEqual({
+      outcome: "failed",
+      reason: 'node "fix-ci" failed: pod died',
+    });
+  });
+
+  it("closes completed when the only failure was recovered by the node's later success", () => {
+    const outcome = lineOutcomeFromVisits([
+      { nodeId: "review", iteration: 1, outcome: "failed" },
+      { nodeId: "review", iteration: 2, outcome: "success" },
+      { nodeId: "done", iteration: 1, outcome: "success" },
+    ]);
+
+    expect(outcome).toEqual({ outcome: "completed" });
+  });
+
+  it("still fails on an unrecovered failure that routed to the retrospective", () => {
+    const outcome = lineOutcomeFromVisits([
+      { nodeId: "review", iteration: 1, outcome: "failed" },
+      { nodeId: "retrospective", iteration: 1, outcome: "success" },
+    ]);
+
+    expect(outcome).toEqual({
+      outcome: "failed",
+      reason: 'node "review" failed',
+    });
   });
 });

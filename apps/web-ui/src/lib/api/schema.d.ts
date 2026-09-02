@@ -4694,6 +4694,11 @@ export interface operations {
           args?: {
             [key: string]: unknown;
           };
+          resume_from?: {
+            run_id: string;
+            node_id: string;
+            iteration?: number;
+          };
         };
       };
     };
