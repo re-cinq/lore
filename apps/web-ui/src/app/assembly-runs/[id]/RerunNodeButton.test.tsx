@@ -9,7 +9,11 @@ afterEach(() => {
 
 function renderButton() {
   return render(
-    <RerunNodeButton runId="run-1" resumeNodeId="implement" resumeIteration={2} />,
+    <RerunNodeButton
+      runId="run-1"
+      resumeNodeId="implement"
+      resumeIteration={2}
+    />,
   );
 }
 

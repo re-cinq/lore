@@ -104,9 +104,9 @@ describe("CollapsibleCard", () => {
       </CollapsibleCard>,
     );
 
-    expect(
-      container.querySelector("summary button")?.textContent,
-    ).toBe("Retry from this node");
+    expect(container.querySelector("summary button")?.textContent).toBe(
+      "Retry from this node",
+    );
   });
 
   it("reports true through onToggle when opened", () => {
