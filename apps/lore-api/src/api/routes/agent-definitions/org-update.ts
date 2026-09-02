@@ -2,10 +2,7 @@ import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import type { ServerRoute } from "@hapi/hapi";
 import type { Pool } from "pg";
 import { z } from "zod";
-import {
-  PgAgentDefs,
-  updateOrgDefinition,
-} from "@re-cinq/lore-shared/project/agents/agent-defs-pg.js";
+import { updateOrgDefinition } from "@re-cinq/lore-shared/project/agents/agent-defs-pg.js";
 import { AgentDefsYaml } from "@re-cinq/lore-shared/project/agents/agent-defs-yaml.js";
 import { ResolvedAgentDefinitionSchema } from "@re-cinq/lore-shared/models/agent-definition.js";
 import { apiError, rethrowBoom } from "../../../server/api-error.js";
@@ -15,7 +12,6 @@ import { DB_UNAVAILABLE } from "../common-schemas.js";
 import {
   parseAgentPatch,
   imageFieldTouched,
-  configWithPodResources,
 } from "../../../features/agents/agents-schema.js";
 
 /**
@@ -72,30 +68,36 @@ export function orgAgentDefinitionUpdateRoute(
           "image_org_gated",
         );
 
-        const defs = new PgAgentDefs(pool, new AgentDefsYaml());
+        const { pod_resources, ...fields } = patch;
+        // The merge happens inside the upsert, over the org row's own config
+        // (atomic under the row lock — no read-then-write to lose a concurrent
+        // edit to). The yaml layer is only the fallback for an org row that
+        // has no config of its own, so it keeps the seed's skills around the
+        // block instead of orphaning them. A body that never mentions
+        // pod_resources leaves the row's config exactly as it was.
+        const podResources =
+          pod_resources === undefined
+            ? undefined
+            : {
+                podResources: pod_resources,
+                inheritedConfig:
+                  (await new AgentDefsYaml().resolve("", name))?.config ?? null,
+              };
 
-        if (patch.pod_resources !== undefined) {
-          // config is whole-object across the resolution layers — carry the
-          // resolved config's other keys or the write would orphan them.
-          const existing = await defs.resolve("", name);
-
-          patch.config = configWithPodResources(
-            existing?.config ?? null,
-            patch.pod_resources,
-          );
-          delete patch.pod_resources;
-        }
-
-        const agent = await updateOrgDefinition(pool, {
-          name,
-          model: patch.model ?? null,
-          timeout_minutes: patch.timeout_minutes ?? null,
-          prompt: patch.prompt ?? null,
-          image: patch.image ?? null,
-          execution_mode: patch.execution_mode ?? "claude-code",
-          review_required: patch.review_required ?? false,
-          config: patch.config ?? null,
-        });
+        const agent = await updateOrgDefinition(
+          pool,
+          {
+            name,
+            model: fields.model ?? null,
+            timeout_minutes: fields.timeout_minutes ?? null,
+            prompt: fields.prompt ?? null,
+            image: fields.image ?? null,
+            execution_mode: fields.execution_mode ?? "claude-code",
+            review_required: fields.review_required ?? false,
+            config: fields.config ?? null,
+          },
+          podResources,
+        );
 
         await audit(pool, "agent_org_updated", { name });
 

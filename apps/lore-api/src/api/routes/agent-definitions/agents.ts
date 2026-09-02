@@ -159,7 +159,21 @@ export function agentsPostRoute(getPool: () => Pool | null): ServerRoute {
           };
         }
 
-        const def = await project.agentDefs.create(create);
+        const { pod_resources, ...fields } = create;
+
+        if (pod_resources) {
+          // config is whole-object across the resolution layers, so the new
+          // row must carry the config it inherits (org → yaml) around the
+          // block or it would orphan the skills/command the layer below sets.
+          const inherited = await project.agentDefs.resolve(fields.name);
+
+          fields.config = configWithPodResources(
+            inherited?.config ?? null,
+            pod_resources,
+          );
+        }
+
+        const def = await project.agentDefs.create(fields);
         const crd_applied = await applyCatalogCrd(def);
 
         await audit(pool, repo, "agent_created", {
@@ -228,20 +242,20 @@ export function agentsPutRoute(getPool: () => Pool | null): ServerRoute {
           };
         }
 
-        if (patch.pod_resources !== undefined) {
-          // config is whole-object across the resolution layers, so a write
-          // that only meant to set pod_resources must carry the rest of the
-          // resolved config with it or the fork would orphan command/env/etc.
-          const existing = await project.agentDefs.resolve(name);
+        const { pod_resources, ...fields } = patch;
+        // The merge itself happens inside the upsert (atomic under the row
+        // lock); the resolved config is only the fallback for a row that has
+        // none of its own, so a fresh fork keeps the org/yaml keys it inherits.
+        const podResources =
+          pod_resources === undefined
+            ? undefined
+            : {
+                podResources: pod_resources,
+                inheritedConfig:
+                  (await project.agentDefs.resolve(name))?.config ?? null,
+              };
 
-          patch.config = configWithPodResources(
-            existing?.config ?? null,
-            patch.pod_resources,
-          );
-          delete patch.pod_resources;
-        }
-
-        const def = await project.agentDefs.update(name, patch);
+        const def = await project.agentDefs.update(name, fields, podResources);
         const crd_applied = await applyCatalogCrd(def);
 
         await audit(pool, repo, "agent_updated", {

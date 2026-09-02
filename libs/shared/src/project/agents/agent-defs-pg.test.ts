@@ -233,4 +233,110 @@ describe("updateOrgDefinition", () => {
     expect(capture[0].text).toMatch(/insert into lore\.catalog_events/i);
     expect(capture[0].params?.[0]).toBe("general");
   });
+
+  it("without a pod_resources write binds touched=false and keeps the row's config in the conflict branch", async () => {
+    const capture: Array<{ text: string; params?: unknown[] }> = [];
+
+    await updateOrgDefinition(
+      fakePool(() => [orgRow], capture),
+      {
+        name: "general",
+        model: null,
+        timeout_minutes: null,
+        prompt: null,
+        image: null,
+        execution_mode: "claude-code",
+        review_required: false,
+        config: null,
+      },
+    );
+
+    expect(capture[0].params?.slice(8)).toEqual([false, null, null]);
+    expect(capture[0].text).toMatch(
+      /config = CASE WHEN \$9::boolean[\s\S]*ELSE lore\.agent_definitions\.config END/,
+    );
+  });
+
+  it("with a pod_resources write merges the block over the row's own config in SQL, the inherited layer as fallback", async () => {
+    const capture: Array<{ text: string; params?: unknown[] }> = [];
+
+    await updateOrgDefinition(
+      fakePool(() => [orgRow], capture),
+      {
+        name: "general",
+        model: null,
+        timeout_minutes: null,
+        prompt: null,
+        image: null,
+        execution_mode: "claude-code",
+        review_required: false,
+        config: null,
+      },
+      {
+        podResources: { limits: { memory: "4Gi" } },
+        inheritedConfig: { skills: ["lore-context"] },
+      },
+    );
+
+    expect(capture[0].params?.slice(8)).toEqual([
+      true,
+      { skills: ["lore-context"] },
+      { pod_resources: { limits: { memory: "4Gi" } } },
+    ]);
+    expect(capture[0].text).toMatch(
+      /COALESCE\(lore\.agent_definitions\.config, \$10::jsonb, '\{\}'::jsonb\) - 'pod_resources'\)\s*\|\| COALESCE\(\$11::jsonb/,
+    );
+  });
+
+  it("a null pod_resources write removes the block: binds touched=true with no block so an emptied config collapses to NULL", async () => {
+    const capture: Array<{ text: string; params?: unknown[] }> = [];
+
+    await updateOrgDefinition(
+      fakePool(() => [orgRow], capture),
+      {
+        name: "general",
+        model: null,
+        timeout_minutes: null,
+        prompt: null,
+        image: null,
+        execution_mode: "claude-code",
+        review_required: false,
+        config: null,
+      },
+      { podResources: null, inheritedConfig: null },
+    );
+
+    expect(capture[0].params?.slice(8)).toEqual([true, null, null]);
+    expect(capture[0].text).toMatch(/NULLIF\([\s\S]*'\{\}'::jsonb\)/);
+  });
+});
+
+describe("PgAgentDefs.update with a pod_resources write", () => {
+  it("binds touched, inherited config and block after the repo and merges in the project row's conflict branch", async () => {
+    const capture: Array<{ text: string; params?: unknown[] }> = [];
+    const store = new PgAgentDefs(
+      fakePool(() => [orgRow], capture),
+      yamlBase,
+    );
+
+    await store.update(
+      "re-cinq/re-plan",
+      "general",
+      { model: "claude-opus-4-8" },
+      {
+        podResources: { requests: { cpu: "500m" } },
+        inheritedConfig: { skills: ["lore-context"] },
+      },
+    );
+
+    expect(capture[0].params?.slice(8)).toEqual([
+      "re-cinq/re-plan",
+      true,
+      { skills: ["lore-context"] },
+      { pod_resources: { requests: { cpu: "500m" } } },
+    ]);
+    expect(capture[0].text).toMatch(
+      /config = CASE WHEN \$10::boolean[\s\S]*COALESCE\(lore\.agent_definitions\.config, \$11::jsonb/,
+    );
+  });
 });

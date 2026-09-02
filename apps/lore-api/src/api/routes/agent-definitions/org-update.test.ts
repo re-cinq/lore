@@ -22,16 +22,13 @@ const orgRow = {
   config: { skills: ["lore-context"] },
 };
 
-/** Answers the resolve SELECT with the org row and echoes the upsert's bound
- *  row back, capturing every call for SQL/param assertions. */
+/** Echoes the upsert's bound row back, capturing every call for SQL/param
+ *  assertions. The pod_resources merge happens in SQL, so the echo just
+ *  reflects the bound block (params 8..10: touched, inherited, block). */
 function fakePool(capture: Array<{ text: string; params?: unknown[] }>): Pool {
   return {
     query: async (text: string, params?: unknown[]) => {
       capture.push({ text, params });
-
-      if (/select/i.test(text) && !/insert/i.test(text)) {
-        return { rows: [orgRow] };
-      }
 
       return {
         rows: [
@@ -39,7 +36,7 @@ function fakePool(capture: Array<{ text: string; params?: unknown[] }>): Pool {
             ...orgRow,
             model: params?.[1] ?? orgRow.model,
             timeout_minutes: params?.[2] ?? orgRow.timeout_minutes,
-            config: params?.[7] ?? null,
+            config: params?.[10] ?? orgRow.config,
           },
         ],
       };
@@ -89,7 +86,7 @@ describe("PUT /api/agent-definitions/{name}", () => {
     expect(upsert?.text).toMatch(/where project_id is null/i);
   });
 
-  it("merges pod_resources over the resolved org config on the written row", async () => {
+  it("merges pod_resources inside the upsert: binds touched=true and the block, and merges over the row's own config in SQL", async () => {
     const capture: Array<{ text: string; params?: unknown[] }> = [];
     const s = await server(fakePool(capture));
 
@@ -104,12 +101,35 @@ describe("PUT /api/agent-definitions/{name}", () => {
     });
 
     expect(res.statusCode).toBe(200);
-    const upsert = capture.find((c) => /on conflict \(name\)/i.test(c.text));
+    expect(capture).toHaveLength(2);
+    const [upsert] = capture;
 
-    expect(upsert?.params?.[7]).toEqual({
-      skills: ["lore-context"],
-      pod_resources: { limits: { memory: "4Gi" } },
+    expect(upsert.text).toMatch(
+      /COALESCE\(lore\.agent_definitions\.config, \$10::jsonb, '\{\}'::jsonb\) - 'pod_resources'/,
+    );
+    expect(upsert.params?.slice(8)).toEqual([
+      true,
+      null,
+      { pod_resources: { limits: { memory: "4Gi" } } },
+    ]);
+  });
+
+  it("a PUT that never mentions pod_resources binds touched=false so the row's config is kept as is", async () => {
+    const capture: Array<{ text: string; params?: unknown[] }> = [];
+    const s = await server(fakePool(capture));
+
+    const res = await s.inject({
+      method: "PUT",
+      url: "/api/agent-definitions/fix-ci",
+      headers: AUTH,
+      payload: { name: "fix-ci", model: "claude-opus-4-8" },
     });
+
+    expect(res.statusCode).toBe(200);
+    const [upsert] = capture;
+
+    expect(upsert.text).toMatch(/ELSE lore\.agent_definitions\.config END/);
+    expect(upsert.params?.slice(8)).toEqual([false, null, null]);
   });
 
   it("rejects a non-empty image with 400 — org image changes go through the per-repo two-key flow", async () => {

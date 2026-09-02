@@ -7,10 +7,10 @@ import type { AgentDefinitionInput } from "@re-cinq/lore-shared";
  * two-key-gated field — imageFieldTouched flags when a write sets it.
  */
 
-// A Kubernetes resource quantity ("500m", "2", "4Gi", "1.5G") — validated at
-// the edge so a typo becomes a 400 here instead of an apply rejection in the
-// cluster-agent's sync loop.
-const QUANTITY = /^\d+(\.\d+)?(m|[kKMGTP]i?)?$/;
+// A Kubernetes resource quantity ("500m", "2", "4Gi", "1.5G", up to E/Ei) —
+// validated at the edge so a typo becomes a 400 here instead of an apply
+// rejection in the cluster-agent's sync loop.
+const QUANTITY = /^\d+(\.\d+)?(m|[kKMGTPE]i?)?$/;
 const PodResourcesSchema = z.object({
   requests: z.record(z.string().regex(QUANTITY)).optional(),
   limits: z.record(z.string().regex(QUANTITY)).optional(),
@@ -35,9 +35,15 @@ export const AgentInputSchema = z.object({
   pod_resources: PodResourcesSchema.nullish(),
 });
 
-const normalize = (
-  p: z.infer<typeof AgentInputSchema>,
-): AgentDefinitionInput => ({
+/** A POST body: the row fields, plus `pod_resources` kept separate — the route
+ *  merges it over the config the new row inherits (org → yaml). Writing
+ *  `{pod_resources}` alone as the fork's config would orphan the skills/command
+ *  it inherits, since config is whole-object across the resolution layers. */
+export type AgentCreate = AgentDefinitionInput & {
+  pod_resources?: PodResources;
+};
+
+const normalize = (p: z.infer<typeof AgentInputSchema>): AgentCreate => ({
   name: p.name,
   model: p.model ?? null,
   timeout_minutes: p.timeout_minutes ?? null,
@@ -45,21 +51,20 @@ const normalize = (
   image: p.image ?? null,
   execution_mode: p.execution_mode,
   review_required: p.review_required,
-  // config is otherwise not settable via this route (skills/disallowed_tools
-  // come from the catalog seed) — pod_resources is the one key the Agents UI
-  // owns, and the PUT route merges it over the resolved config so a project
-  // fork keeps the keys it inherits.
-  config: p.pod_resources ? { pod_resources: p.pod_resources } : null,
+  // config is not settable via this route (skills/disallowed_tools come from
+  // the catalog seed) — pod_resources is the one key the Agents UI owns.
+  config: null,
+  ...(p.pod_resources ? { pod_resources: p.pod_resources } : {}),
 });
 
-export function parseAgentInput(body: unknown): AgentDefinitionInput {
+export function parseAgentInput(body: unknown): AgentCreate {
   return normalize(AgentInputSchema.parse(body));
 }
 
 /** A PUT body: the row fields actually present, plus `pod_resources` kept
- *  separate — the route merges it over the RESOLVED config (null clears it),
- *  since a project fork that wrote `{pod_resources}` alone would orphan the
- *  config keys it inherits (config is whole-object across layers). */
+ *  separate (null clears it) — the adapter merges it over the row's config
+ *  inside the upsert, falling back to the inherited layer's config so a fork
+ *  keeps the keys it inherits (config is whole-object across layers). */
 export type AgentPatch = Partial<AgentDefinitionInput> & {
   pod_resources?: PodResources | null;
 };
@@ -106,10 +111,11 @@ export function parseAgentPatch(body: unknown): AgentPatch {
 }
 
 /**
- * The config a PUT should write when the body touched pod_resources: the
- * resolved config's other keys survive (whole-object config means the written
+ * The config a CREATE should write when the body carried pod_resources: the
+ * inherited config's other keys survive (whole-object config means the written
  * layer owns ALL of it), pod_resources is replaced or — on null — removed, and
  * an empty result collapses to null so the row falls through to the org layer.
+ * (Updates do the same merge in SQL — see mergedConfigSql in the pg adapter.)
  */
 export function configWithPodResources(
   existing: Record<string, unknown> | null,

@@ -19,6 +19,20 @@ export type AgentDefinition = ResolvedAgentDefinition;
 /** A new/updated definition as submitted by the UI/skill (id + timestamps are server-side). */
 export type AgentDefinitionInput = Omit<AgentDefinition, "project_id">;
 
+/**
+ * A write that touches `config.pod_resources` — the one config key the Agents
+ * UI owns. The adapter merges it over the row's own config INSIDE the upsert
+ * (atomic under the row lock, so two concurrent edits serialise instead of one
+ * being read-then-lost), falling back to `inheritedConfig` — the layer below,
+ * which a row that wrote `{pod_resources}` alone would orphan, since config is
+ * whole-object across layers. A null `podResources` removes the block; an
+ * emptied config collapses to NULL so the row falls through to the layer below.
+ */
+export interface PodResourcesWrite {
+  podResources: Record<string, unknown> | null;
+  inheritedConfig: Record<string, unknown> | null;
+}
+
 /** Curated model dropdown for the Agents tab (custom text is still allowed). */
 export const KNOWN_MODELS: ReadonlyArray<{ id: string; label: string }> = [
   { id: "claude-opus-4-8", label: "Opus 4.8" },
@@ -44,6 +58,7 @@ export interface AgentDefsPort {
     repo: string,
     name: string,
     patch: Partial<AgentDefinitionInput>,
+    podResources?: PodResourcesWrite,
   ): Promise<AgentDefinition>;
   delete(repo: string, name: string): Promise<void>;
 }

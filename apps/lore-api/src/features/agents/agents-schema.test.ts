@@ -36,7 +36,7 @@ describe("parseAgentInput", () => {
     ).toThrow();
   });
 
-  it("folds pod_resources into config on create", () => {
+  it("keeps pod_resources beside a null config on create so the route can merge it over the inherited layer", () => {
     expect(
       parseAgentInput({
         name: "fix-ci",
@@ -44,7 +44,19 @@ describe("parseAgentInput", () => {
       }),
     ).toMatchObject({
       name: "fix-ci",
-      config: { pod_resources: { limits: { memory: "4Gi" } } },
+      config: null,
+      pod_resources: { limits: { memory: "4Gi" } },
+    });
+  });
+
+  it("accepts exa-scale quantities 1E and 2Ei", () => {
+    expect(
+      parseAgentInput({
+        name: "fix-ci",
+        pod_resources: { limits: { memory: "2Ei", "ephemeral-storage": "1E" } },
+      }),
+    ).toMatchObject({
+      pod_resources: { limits: { memory: "2Ei", "ephemeral-storage": "1E" } },
     });
   });
 

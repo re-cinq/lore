@@ -2,6 +2,7 @@ import type {
   AgentDefinition,
   AgentDefinitionInput,
   AgentDefsPort,
+  PodResourcesWrite,
 } from "./agent-defs-port.js";
 
 /**
@@ -35,8 +36,9 @@ export class AgentDefs {
   update(
     name: string,
     patch: Partial<AgentDefinitionInput>,
+    podResources?: PodResourcesWrite,
   ): Promise<AgentDefinition> {
-    return this.defs.update(this.repo, name, patch);
+    return this.defs.update(this.repo, name, patch, podResources);
   }
 
   delete(name: string): Promise<void> {
