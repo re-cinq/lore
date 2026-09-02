@@ -1,5 +1,5 @@
 import type { IssueRef } from "@re-cinq/lore-shared";
-import { selectNextIssue } from "@re-cinq/lore-shared";
+import { orderBacklog } from "@re-cinq/lore-shared";
 import {
   backlogSubject,
   implementationLoopBranch,
@@ -86,13 +86,36 @@ async function tickRepo(repo: string, deps: LoopTickDeps): Promise<void> {
   if (await deps.findOpenBySubject(repo, backlogSubject())) {
     return;
   }
-  const picked = selectNextIssue(await deps.listIssues(repo));
+  // Walk the queue in pick order, past tickets an earlier task still guards —
+  // completed-awaiting-merge, mostly. Returning on the guarded HEAD froze the
+  // whole backlog behind one unmerged PR twice (27h on 2026-08-30, overnight on
+  // 2026-09-02), and the repo tab already promises the skip: its next-up list
+  // filters guarded tickets out, so the first ticket it shows must be the one
+  // this picks. Serial execution is not this gate's job — the open-run subject
+  // check above is what holds the loop to one run at a time.
+  const ordered = orderBacklog(await deps.listIssues(repo));
+  const guarded: number[] = [];
+  let picked: (typeof ordered)[number] | null = null;
 
-  if (!picked) {
-    return;
+  for (const candidate of ordered) {
+    if (await deps.activeTaskByIssue(repo, candidate.number)) {
+      guarded.push(candidate.number);
+      continue;
+    }
+    picked = candidate;
+    break;
   }
 
-  if (await deps.activeTaskByIssue(repo, picked.number)) {
+  if (!picked) {
+    // An empty backlog is a normal state and stays quiet; a backlog that EXISTS
+    // but cannot be picked is the state that ate a morning of diagnosis when it
+    // was silent — the loop must say what it is waiting for.
+    if (guarded.length > 0) {
+      console.log(
+        `[implementation-loop] ${repo}: no pick — ${guarded.length} eligible ticket(s), all awaiting an earlier task (${guarded.map((n) => `#${n}`).join(", ")})`,
+      );
+    }
+
     return;
   }
   const branch = implementationLoopBranch(picked.number);
