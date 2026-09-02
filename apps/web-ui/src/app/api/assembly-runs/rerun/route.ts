@@ -98,9 +98,16 @@ export async function POST(req: Request) {
     });
 
     if (!upstream.ok) {
+      // The fork's refusals (definition drift, non-terminal source, missing
+      // visit) come back as 4xx with the reason in `error` — hand that reason
+      // to the button verbatim; only a reasonless answer degrades to a 502.
+      const detail = (await upstream.json().catch(() => null)) as {
+        error?: string;
+      } | null;
+
       return NextResponse.json(
-        { error: `lore-api returned ${upstream.status}` },
-        { status: 502 },
+        { error: detail?.error ?? `lore-api returned ${upstream.status}` },
+        { status: upstream.status < 500 ? upstream.status : 502 },
       );
     }
 

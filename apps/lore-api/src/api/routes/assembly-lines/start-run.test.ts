@@ -1,7 +1,37 @@
 import Hapi from "@hapi/hapi";
 import { describe, expect, it } from "vitest";
 import type { AssemblyRunStartInput } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
+import {
+  definitionHash,
+  parseAssemblyLine,
+  type AssemblyLine,
+} from "@re-cinq/lore-assembly-lines";
+import { ResumeRefusedError } from "@re-cinq/lore-shared/project/assembly-runs/resume.js";
 import { startRunRoute } from "./start-run.js";
+
+const implementationLoopLike: AssemblyLine = parseAssemblyLine(`
+name: implementation-loop
+description: implement then validate
+version: 1
+entry: implement
+exit: done
+nodes:
+  - id: implement
+    type: agent
+    prompt_ref: implementation-tdd
+  - id: done
+    type: retrospective
+edges:
+  - from: implement
+    to: done
+    on: success
+  - from: implement
+    to: done
+    on: failed
+  - from: implement
+    to: done
+    on: changes_requested
+`);
 
 interface Started {
   calls: AssemblyRunStartInput[];
@@ -10,6 +40,9 @@ interface Started {
 
 async function serverWith(
   start: (input: AssemblyRunStartInput) => Promise<string>,
+  definitions: Map<string, AssemblyLine> = new Map([
+    ["implementation-loop", implementationLoopLike],
+  ]),
 ): Promise<Started> {
   const calls: AssemblyRunStartInput[] = [];
   const server = Hapi.server();
@@ -20,11 +53,14 @@ async function serverWith(
   server.auth.strategy("bearer-scope", "stub");
   server.auth.default("bearer-scope");
   server.route(
-    startRunRoute(async (input) => {
-      calls.push(input);
+    startRunRoute(
+      async (input) => {
+        calls.push(input);
 
-      return start(input);
-    }),
+        return start(input);
+      },
+      async () => definitions,
+    ),
   );
 
   return { calls, server };
@@ -144,9 +180,97 @@ describe("resume_from (fork-and-rerun)", () => {
       started: {
         blueprintName: "implementation-loop",
         repo: "re-cinq/lore",
+        blueprintHash: definitionHash(implementationLoopLike),
         resumeFrom: { lineId: "run-abc", nodeId: "tdd-round" },
       },
     });
+  });
+
+  it("fills blueprintHash from the current definition, so the drift guard has its left-hand side", async () => {
+    // resolveResumePrefix REQUIRES the current definition's hash; the route is
+    // where the definition actually loads. Without this every HTTP fork died as
+    // an opaque 500 ("resume-from start requires definitionHash").
+    const { server, calls } = await serverWith(async () => "run-fork");
+
+    await server.inject(
+      POST({
+        definition: "implementation-loop",
+        repo: "re-cinq/lore",
+        resume_from: { run_id: "run-abc", node_id: "implement" },
+      }),
+    );
+
+    expect(calls[0]?.blueprintHash).toBe(
+      definitionHash(implementationLoopLike),
+    );
+  });
+
+  it("returns 400 for a resume_from naming a definition that does not exist", async () => {
+    const { server, calls } = await serverWith(
+      async () => "run-fork",
+      new Map(),
+    );
+    const res = await server.inject(
+      POST({
+        definition: "implementation-loop",
+        repo: "re-cinq/lore",
+        resume_from: { run_id: "run-abc", node_id: "implement" },
+      }),
+    );
+
+    expect({
+      status: res.statusCode,
+      body: JSON.parse(res.payload),
+      started: calls.length,
+    }).toEqual({
+      status: 400,
+      body: { error: 'unknown definition "implementation-loop"' },
+      started: 0,
+    });
+  });
+
+  it("returns 409 carrying the port's refusal instead of an opaque 500", async () => {
+    // The fork's validations (drift, non-terminal source, missing node) throw
+    // ResumeRefusedError before anything is written; the person clicking retry
+    // needs the reason, not "Internal Server Error".
+    const { server } = await serverWith(async () => {
+      throw new ResumeRefusedError(
+        'resume-from source line "run-abc": definition "implementation-loop" has changed since that run (aaaaaaaaaaaa ≠ bbbbbbbbbbbb)',
+      );
+    });
+    const res = await server.inject(
+      POST({
+        definition: "implementation-loop",
+        repo: "re-cinq/lore",
+        resume_from: { run_id: "run-abc", node_id: "implement" },
+      }),
+    );
+
+    expect({ status: res.statusCode, body: JSON.parse(res.payload) }).toEqual({
+      status: 409,
+      body: {
+        error:
+          'resume-from source line "run-abc": definition "implementation-loop" has changed since that run (aaaaaaaaaaaa ≠ bbbbbbbbbbbb)',
+      },
+    });
+  });
+
+  it("lets an unexpected start failure surface as the 500 it is, never a 409", async () => {
+    // Only the port's typed refusals become conflicts — a dropped DB
+    // connection dressed as "the fork was refused" would send the operator
+    // chasing definition drift instead of the outage.
+    const { server } = await serverWith(async () => {
+      throw new Error("connection terminated unexpectedly");
+    });
+    const res = await server.inject(
+      POST({
+        definition: "implementation-loop",
+        repo: "re-cinq/lore",
+        resume_from: { run_id: "run-abc", node_id: "implement" },
+      }),
+    );
+
+    expect(res.statusCode).toBe(500);
   });
 
   it("passes resume_from.iteration through, naming the exact visit on a looping line", async () => {
@@ -164,6 +288,7 @@ describe("resume_from (fork-and-rerun)", () => {
       started: {
         blueprintName: "implementation-loop",
         repo: "re-cinq/lore",
+        blueprintHash: definitionHash(implementationLoopLike),
         resumeFrom: { lineId: "run-abc", nodeId: "implement", iteration: 1 },
       },
     });

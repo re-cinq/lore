@@ -14,6 +14,14 @@ import type {
   AssemblyRunStartInput,
 } from "./assembly-runs-port.js";
 
+/**
+ * A fork the validation REFUSED — drift, a non-terminal source, a missing
+ * visit. Its own type because the API edge answers a refusal with a 409
+ * carrying the message, and anything else must stay the 500 it is: matching on
+ * message prose would make a DB outage read as "the fork was refused".
+ */
+export class ResumeRefusedError extends Error {}
+
 /** Index (in visit order) of the latest COMPLETED row for `nodeId` — or, with
  *  `iteration`, of exactly that completed visit. -1 when no such row exists.
  *  Naming the iteration is what makes a loop retry exact: the latest row of a
@@ -61,52 +69,52 @@ export function resolveResumePrefix(
 
   enforceTrue(
     resumeFrom,
-    Error,
+    ResumeRefusedError,
     "resolveResumePrefix called without resumeFrom",
   );
   enforceTrue(
     input.branch === undefined,
-    Error,
+    ResumeRefusedError,
     "resume-from start inherits branch from the source line — do not pass it",
   );
   enforceTrue(
     input.taskId === undefined,
-    Error,
+    ResumeRefusedError,
     "resume-from start inherits taskId from the source line — do not pass it",
   );
   enforceTrue(
     input.blueprintHash,
-    Error,
+    ResumeRefusedError,
     "resume-from start requires definitionHash — the current definition's content hash",
   );
   enforceTrue(
     source,
-    Error,
+    ResumeRefusedError,
     `resume-from source line "${resumeFrom.lineId}" not found`,
   );
   enforceTrue(
     source.repo === input.repo,
-    Error,
+    ResumeRefusedError,
     `resume-from source line "${source.id}" belongs to repo "${source.repo}", not "${input.repo}"`,
   );
   enforceTrue(
     source.blueprintName === input.blueprintName,
-    Error,
+    ResumeRefusedError,
     `resume-from source line "${source.id}" ran definition "${source.blueprintName}", not "${input.blueprintName}"`,
   );
   enforceTrue(
     source.status === "finished" || source.status === "failed",
-    Error,
+    ResumeRefusedError,
     `resume-from source line "${source.id}" is still ${source.status} — only a finished or failed line can be forked`,
   );
   enforceTrue(
     source.blueprintHash,
-    Error,
+    ResumeRefusedError,
     `resume-from source line "${source.id}" predates definition hashing — backfill pipeline.assembly_runs.blueprint_hash before forking it`,
   );
   enforceTrue(
     source.blueprintHash === input.blueprintHash,
-    Error,
+    ResumeRefusedError,
     `resume-from source line "${source.id}": definition "${source.blueprintName}" has changed since that run (${short(source.blueprintHash)} ≠ ${short(input.blueprintHash)})`,
   );
 
@@ -118,7 +126,7 @@ export function resolveResumePrefix(
 
   enforceTrue(
     cutoff >= 0,
-    Error,
+    ResumeRefusedError,
     resumeFrom.iteration === undefined
       ? `resume-from source line "${source.id}" has no completed "${resumeFrom.nodeId}" node to fork from`
       : `resume-from source line "${source.id}" has no completed "${resumeFrom.nodeId}" iteration ${resumeFrom.iteration} to fork from`,
@@ -129,7 +137,7 @@ export function resolveResumePrefix(
 
   enforceTrue(
     !unfinished,
-    Error,
+    ResumeRefusedError,
     `resume-from source line "${source.id}" has an unfinished "${unfinished?.nodeId}" node inside the prefix — its history is not replayable`,
   );
 
