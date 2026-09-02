@@ -16,6 +16,8 @@ import {
   TOOL_PROGRESS_SKILL_LAST,
   SYSTEM_COMPACT_BOUNDARY,
   GEMINI_ERROR_EVENT,
+  FILE_EVENT_PR_DESCRIPTION,
+  FILE_EVENT_MISSING,
   wrapped,
 } from "@/lib/agent-log-entries.fixtures";
 
@@ -329,5 +331,30 @@ describe("LogEntriesView — gemini agent errors", () => {
     expect(screen.getByText("✗ warning: context truncated")).toHaveClass(
       styles.dim,
     );
+  });
+});
+
+describe("file artifact entries", () => {
+  it("renders the pr.description delivery as a collapsed details naming the event and path", () => {
+    render(
+      <LogEntriesView entries={parseAgentLog(FILE_EVENT_PR_DESCRIPTION)} />,
+    );
+
+    expect(
+      screen.getByText("⇢ pr.description — /workspace/target/.lore/pr-body.md"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/The codebase already consolidated the duplicated clip/),
+    ).toBeInTheDocument();
+  });
+
+  it("renders a never-produced artifact as an error line carrying the reason", () => {
+    render(<LogEntriesView entries={parseAgentLog(FILE_EVENT_MISSING)} />);
+
+    expect(
+      screen.getByText(
+        "✗ pr.description not produced: agent exited before writing the file",
+      ),
+    ).toHaveClass(styles.error);
   });
 });

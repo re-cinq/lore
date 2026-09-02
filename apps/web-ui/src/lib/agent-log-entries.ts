@@ -31,6 +31,17 @@ export type LogEntry =
       numTurns?: number;
     }
   | { kind: "station-log"; text: string }
+  /** A declared artifact the subsystem raised after the agent exited
+   *  (`output.watch` → `{"kind":"file"}`). `reason` is present — and `content`
+   *  empty — when the agent never produced the file. */
+  | {
+      kind: "file";
+      /** The recipe-declared event name, e.g. `pr.description`. */
+      event: string;
+      path: string;
+      content: string;
+      reason?: string;
+    }
   | {
       kind: "hook";
       hookId: string;
@@ -449,6 +460,20 @@ function classify(value: unknown, originalLine: string): LogEntry[] {
         ...(typeof value.num_turns === "number"
           ? { numTurns: value.num_turns }
           : {}),
+      },
+    ];
+  }
+
+  // The subsystem's declared-artifact delivery. An event name is required —
+  // without one the floor projection cannot route it either, so the bytes stay.
+  if (value.kind === "file" && typeof value.event === "string") {
+    return [
+      {
+        kind: "file",
+        event: value.event,
+        path: typeof value.path === "string" ? value.path : "",
+        content: typeof value.content === "string" ? value.content : "",
+        ...(typeof value.reason === "string" ? { reason: value.reason } : {}),
       },
     ];
   }

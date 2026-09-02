@@ -161,6 +161,18 @@ export const GEMINI_RESULT_SUCCESS =
 export const GEMINI_RESULT_ERROR =
   '{"type":"result","status":"error","error":{"type":"QuotaError","message":"Resource has been exhausted"},"timestamp":"2026-09-02T07:10:04.000Z"}';
 
+// A declared-artifact delivery captured from a live implement pod (task
+// b0f8665a, 2026-09-02): the subsystem raises each `output.watch` file as a
+// `kind:"file"` event once the agent exits. The inner object carries its own
+// `event` name string, which must not be mistaken for an attribution wrapper.
+export const FILE_EVENT_PR_DESCRIPTION =
+  '{"event":{"kind":"file","path":"/workspace/target/.lore/pr-body.md","event":"pr.description","content":"The codebase already consolidated the duplicated clip.\\n\\nNo deviations were necessary.\\n"},"source":{"pod":"agent-job-94600b2c-cd7-ready-for-review-3-t2dnm","task":"b0f8665a-07ea-41e2-a602-92d871c192fd","agent":"94600b2c-cd7-ready-for-review-3","station":"pt-b0f8665a","namespace":"ai-agents"}}';
+
+// The other half of the contract: a declared artifact the agent never produced
+// reports `reason` instead of `content` (mutually exclusive).
+export const FILE_EVENT_MISSING =
+  '{"kind":"file","path":"/workspace/target/.lore/pr-body.md","event":"pr.description","reason":"agent exited before writing the file"}';
+
 // The ai-agent-subsystem's attribution envelope (ADR-031 D8) — single and the
 // transitional double wrap both appear in prod streams.
 export function wrapped(line: string): string {
