@@ -224,3 +224,62 @@ describe("the ticket's branch", () => {
     expect(asked).toEqual(["lore/implementation-loop/issue-7"]);
   });
 });
+
+describe("a guarded head does not freeze the queue", () => {
+  const twoTickets = async () => [
+    issue(5, ["priority:medium"]),
+    issue(9, ["priority:medium"]),
+  ];
+
+  it("skips a head whose task is completed-awaiting-merge and picks the next eligible ticket", async () => {
+    const d = deps({
+      listIssues: twoTickets,
+      activeTaskByIssue: async (_repo, n) =>
+        n === 5 ? { id: "done-task" } : null,
+    });
+
+    await createImplementationLoopTickHandler(d.deps)({});
+
+    expect(d.minted).toMatchObject([
+      { contextBundle: { github_issue_number: 9 } },
+    ]);
+  });
+
+  it("says why when every eligible ticket is guarded, instead of exiting silently", async () => {
+    const lines: string[] = [];
+    const orig = console.log;
+
+    console.log = (msg: string) => void lines.push(String(msg));
+
+    try {
+      const d = deps({
+        listIssues: twoTickets,
+        activeTaskByIssue: async () => ({ id: "t" }),
+      });
+
+      await createImplementationLoopTickHandler(d.deps)({});
+      expect(d.minted).toEqual([]);
+    } finally {
+      console.log = orig;
+    }
+    expect(lines.filter((l) => l.includes("[implementation-loop]"))).toEqual([
+      "[implementation-loop] acme/widgets: no pick — 2 eligible ticket(s), all awaiting an earlier task (#5, #9)",
+    ]);
+  });
+
+  it("stays silent about an empty backlog — a normal state, not a stall", async () => {
+    const lines: string[] = [];
+    const orig = console.log;
+
+    console.log = (msg: string) => void lines.push(String(msg));
+
+    try {
+      const d = deps({ listIssues: async () => [] });
+
+      await createImplementationLoopTickHandler(d.deps)({});
+    } finally {
+      console.log = orig;
+    }
+    expect(lines.filter((l) => l.includes("no pick"))).toEqual([]);
+  });
+});
