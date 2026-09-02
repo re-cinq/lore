@@ -398,33 +398,6 @@ describe("node transcript drill-in", () => {
 
     expect(screen.getByText("npm run build")).toBeInTheDocument();
   });
-
-  it("keeps the transcript scroll handler working when the reader scrolls", async () => {
-    stubHistory([
-      eventRow({
-        id: "1",
-        nodeId: "implement",
-        eventType: "message",
-        summary: "alpha",
-      }),
-    ]);
-    useFakeEventSource();
-
-    const view = renderPanel("running");
-
-    await settle();
-    await selectNode("implement");
-
-    const box = view.container.querySelector("div[class*='transcriptScroll']");
-
-    expect(box).not.toBeNull();
-
-    await act(async () => {
-      box?.dispatchEvent(new Event("scroll", { bubbles: true }));
-    });
-
-    expect(screen.getByText("alpha")).toBeInTheDocument();
-  });
 });
 
 describe("heatmap and timeline wiring", () => {

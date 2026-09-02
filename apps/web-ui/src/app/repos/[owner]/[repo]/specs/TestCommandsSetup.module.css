@@ -5,10 +5,6 @@
   position: relative;
 }
 
-.heading {
-  margin: 0;
-}
-
 .block :global(.btn-secondary) {
   position: absolute;
   top: 8px;

@@ -7,6 +7,12 @@
   flex-flow: wrap;
 }
 
+/* The fold line: an open card separates its header from its content, so the
+   summary reads as a control and the body as the disclosed document. Bodies
+   are one text flow by convention, so line breaks in that text must render. */
 .body {
   margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+  white-space: pre-wrap;
 }

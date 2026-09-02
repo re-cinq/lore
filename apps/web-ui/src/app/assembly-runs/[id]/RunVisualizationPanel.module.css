@@ -77,14 +77,6 @@
   font-style: italic;
 }
 
-.transcriptScroll {
-  margin-top: 0.5rem;
-  max-height: 24rem;
-  overflow-y: auto;
-  border: 1px solid var(--tone-muted-border, #d8dde3);
-  border-radius: 6px;
-}
-
 .outcomesToggle {
   display: inline-block;
   margin: 0.25rem 0 1rem;

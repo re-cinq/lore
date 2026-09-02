@@ -29,11 +29,7 @@ import { stepViews } from "@/lib/step-presenter";
 import FileHeatmapView from "./FileHeatmapView";
 import FullTranscriptPanel from "./FullTranscriptPanel";
 import NodeLogPanel from "./NodeLogPanel";
-import NodeTranscriptView, {
-  recallScroll,
-  rememberScroll,
-  shouldFollowTail,
-} from "./NodeTranscriptView";
+import NodeTranscriptView from "./NodeTranscriptView";
 import ReplayScrubberView from "./ReplayScrubberView";
 import RunGraphView from "./RunGraphView";
 import RunNodeDetail from "./RunNodeDetail";
@@ -108,12 +104,6 @@ export default function RunVisualizationPanel({
   const [connection, setConnection] = useState<ConnectionState>("connecting");
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [showAllFiles, setShowAllFiles] = useState(false);
-  const scrollRef = useRef<HTMLDivElement | null>(null);
-  // Refs, not state: neither the remembered offsets nor the follow flag may
-  // trigger a render — a scroll handler that re-rendered the transcript on every
-  // wheel tick would be its own performance bug.
-  const offsetsRef = useRef<Record<string, number>>({});
-  const followTailRef = useRef(true);
 
   // The history fold runs once per run and is the only promise this component
   // owns. A rejection degrades to the seeded graph plus an Offline chip rather
@@ -425,54 +415,6 @@ export default function RunVisualizationPanel({
     [definition, hasRunData, runData, graphMode],
   );
 
-  const onTranscriptScroll = useCallback(() => {
-    const box = scrollRef.current;
-
-    if (box === null) {
-      return;
-    }
-
-    followTailRef.current = shouldFollowTail(
-      box.scrollTop,
-      box.scrollHeight,
-      box.clientHeight,
-    );
-
-    if (selectedNodeId !== null) {
-      offsetsRef.current = rememberScroll(
-        offsetsRef.current,
-        selectedNodeId,
-        box.scrollTop,
-      );
-    }
-  }, [selectedNodeId]);
-
-  // Selection change restores where this node was left, so switching away and
-  // back does not silently reset the reader to the top.
-  useEffect(() => {
-    const box = scrollRef.current;
-
-    if (box === null || selectedNodeId === null) {
-      return;
-    }
-
-    box.scrollTop = recallScroll(offsetsRef.current, selectedNodeId);
-    followTailRef.current = shouldFollowTail(
-      box.scrollTop,
-      box.scrollHeight,
-      box.clientHeight,
-    );
-  }, [selectedNodeId]);
-
-  // New rows follow the tail only for a reader already at the bottom.
-  useEffect(() => {
-    const box = scrollRef.current;
-
-    if (box !== null && followTailRef.current) {
-      box.scrollTop = box.scrollHeight;
-    }
-  }, [rows]);
-
   return (
     <section className={styles.panel}>
       <div className={styles.header}>
@@ -532,17 +474,11 @@ export default function RunVisualizationPanel({
             attempts={selectedAttempts}
           />
           {selected ? (
-            <div
-              className={styles.transcriptScroll}
-              ref={scrollRef}
-              onScroll={onTranscriptScroll}
-            >
-              <NodeTranscriptView
-                nodeId={selectedNodeId}
-                rows={rows}
-                droppedCount={selected.droppedCount}
-              />
-            </div>
+            <NodeTranscriptView
+              nodeId={selectedNodeId}
+              rows={rows}
+              droppedCount={selected.droppedCount}
+            />
           ) : null}
           {selectedRows
             .filter((row) => row.agentCrName)
