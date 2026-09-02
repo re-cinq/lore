@@ -20,7 +20,11 @@ import type {
   AgentDefinition,
   Station,
 } from "@re-cinq/agent-contracts";
-import type { AgentPodInfo, PodSummary } from "@re-cinq/lore-shared";
+import type {
+  AgentPodInfo,
+  PodSummary,
+  RunningPodInfo,
+} from "@re-cinq/lore-shared";
 import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import { enforceBearer } from "@re-cinq/lore-shared/http/bearer.js";
 
@@ -46,6 +50,10 @@ export interface ClusterDeps {
     agentInfo(name: string): Promise<AgentPodInfo | null>;
     podsForJob(jobName: string): Promise<PodSummary[]>;
     podLog(podName: string, tailLines?: number): Promise<string>;
+    /** Every non-terminal run pod in the agents namespace, with the agent
+     *  container's resource requests — the live half of the compute-cost
+     *  estimate on the spend page. */
+    listRunning(): Promise<RunningPodInfo[]>;
   };
   tokens: {
     cleanup(taskId: string): Promise<void>;
@@ -154,6 +162,18 @@ export function clusterRoutes(opts: ClusterRoutesDeps): ServerRoute[] {
           .response({
             pods: await opts.deps().pods.podsForJob(request.params.jobName),
           })
+          .code(200);
+      },
+    },
+    {
+      method: "GET",
+      path: "/api/cluster/pods",
+      options: { auth: false },
+      handler: async (request, h) => {
+        guard(request.headers);
+
+        return h
+          .response({ pods: await opts.deps().pods.listRunning() })
           .code(200);
       },
     },

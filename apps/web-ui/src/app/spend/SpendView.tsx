@@ -69,6 +69,9 @@ export interface SpendViewProps {
    * renders exactly as before.
    */
   loreByCluster?: LoreByClusterRow[];
+  /** The interval-scoped view (LLM + Kubernetes estimate) — a slot, so this
+   *  view stays pure while the panel owns its own fetching (DDAU). */
+  intervalPanel?: React.ReactNode;
 }
 
 const usd = (n: number) =>
@@ -214,6 +217,7 @@ export default function SpendView({
   loreByRepo,
   loreByTaskType,
   loreByCluster,
+  intervalPanel,
 }: SpendViewProps) {
   return (
     <div>
@@ -224,6 +228,8 @@ export default function SpendView({
         Anthropic&apos;s authoritative billed total needs an admin key and
         appears only when one is configured.
       </p>
+
+      {intervalPanel}
 
       <h2>Month to Date</h2>
       <div className={styles.cards}>

@@ -15,6 +15,18 @@ export interface PodSummary {
   creationTimestamp?: string;
 }
 
+/** One live run pod as the compute-cost estimator needs it: identity, when it
+ *  started, and the agent container's resource REQUESTS — requests, not usage,
+ *  because requests are what size the node the autoscaler bills for. Labels
+ *  carry the run correlation (`lore.re-cinq.com/*`). */
+export interface RunningPodInfo {
+  name: string;
+  phase: string;
+  startedAt: string | null;
+  requests: Record<string, string>;
+  labels: Record<string, string>;
+}
+
 /** The Kubernetes IO seam — the live impl talks to CoreV1Api/CustomObjectsApi;
  *  tests supply an in-memory double. */
 export interface PodLogSource {

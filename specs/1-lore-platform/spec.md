@@ -982,6 +982,26 @@ attempt). ([validated by `TaskDetailView.test.tsx:109`](apps/web-ui/src/app/task
   drag the balance negative on money the account never spent.
   ([validated by [`spend.test.ts:392`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L392), [`spend.test.ts:411`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L411), [`spend.test.ts:432`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L432), [`spend.test.ts:449`](apps/lore-api/src/api/routes/analytics/spend.test.ts#L449), [`SpendView.test.tsx:609`](apps/web-ui/src/app/spend/SpendView.test.tsx#L609), [`SpendView.test.tsx:627`](apps/web-ui/src/app/spend/SpendView.test.tsx#L627), [`SpendView.test.tsx:635`](apps/web-ui/src/app/spend/SpendView.test.tsx#L635)])
 
+- **FR-19f — Interval-scoped spend, with the Kubernetes half** *(added
+  2026-09-02)*. The spend page carries a date-interval selector — presets
+  (today / 7 days / 30 days / month-to-date) plus free date bounds — and
+  `GET /api/analytics/spend-window?from&to` serves the selected window:
+  the metered LLM spend (realtime — the agent-events sink writes cost rows
+  within seconds of each model call), by assembly line and by repo, plus
+  the Kubernetes compute ESTIMATE. That estimate has two halves, and both
+  say what they assumed: interval pod-hours from `station_runs` (rows that
+  named an Agent CR were pods; a run's size is not recorded, so hours are
+  priced at a named default profile), and the pods running RIGHT NOW, each
+  priced from its ACTUAL resource requests — requests, because requests
+  are what size the nodes the autoscaler bills for — read through the
+  central cluster-agent's `GET /api/cluster/pods`. Bad intervals are a 400
+  naming the rule (YYYY-MM-DD, from ≤ to, at most 92 days); an unreachable
+  cluster-agent degrades to an empty live list, never a failed page; rates
+  are env-overridable and echoed in the response so the UI labels the
+  number as the estimate it is — Google's invoice lags a day and stays the
+  truth.
+  ([validated by windows the metered llm spend and prices pod-hours at the assumed profile](apps/lore-api/src/api/routes/analytics/spend-window.test.ts#L46), [prices each live pod from its ACTUAL requests](apps/lore-api/src/api/routes/analytics/spend-window.test.ts#L73), [`spend-window.test.ts:102`](apps/lore-api/src/api/routes/analytics/spend-window.test.ts#L102), [`spend-window.test.ts:125`](apps/lore-api/src/api/routes/analytics/spend-window.test.ts#L125), [`compute-cost.test.ts:12`](apps/lore-api/src/features/analytics/compute-cost.test.ts#L12), [`compute-cost.test.ts:25`](apps/lore-api/src/features/analytics/compute-cost.test.ts#L25), [`compute-cost.test.ts:34`](apps/lore-api/src/features/analytics/compute-cost.test.ts#L34), [`compute-cost.test.ts:40`](apps/lore-api/src/features/analytics/compute-cost.test.ts#L40), [`compute-cost.test.ts:47`](apps/lore-api/src/features/analytics/compute-cost.test.ts#L47), [`compute-cost.test.ts:56`](apps/lore-api/src/features/analytics/compute-cost.test.ts#L56), [`compute-cost.test.ts:65`](apps/lore-api/src/features/analytics/compute-cost.test.ts#L65), [`compute-cost.test.ts:75`](apps/lore-api/src/features/analytics/compute-cost.test.ts#L75), [`compute-cost.test.ts:82`](apps/lore-api/src/features/analytics/compute-cost.test.ts#L82), [`compute-cost.test.ts:89`](apps/lore-api/src/features/analytics/compute-cost.test.ts#L89), [lists the running pods with their requests](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L155), [fetches the default 7-day window and renders both halves of the spend](apps/web-ui/src/app/spend/SpendWindowPanel.test.tsx#L58), [`SpendWindowPanel.test.tsx:86`](apps/web-ui/src/app/spend/SpendWindowPanel.test.tsx#L86), [`SpendWindowPanel.test.tsx:101`](apps/web-ui/src/app/spend/SpendWindowPanel.test.tsx#L101), [`spend-window-presets.test.ts:7`](apps/web-ui/src/app/spend/spend-window-presets.test.ts#L7), [`spend-window-presets.test.ts:14`](apps/web-ui/src/app/spend/spend-window-presets.test.ts#L14), [`spend-window-presets.test.ts:25`](apps/web-ui/src/app/spend/spend-window-presets.test.ts#L25), [`spend-window-presets.test.ts:34`](apps/web-ui/src/app/spend/spend-window-presets.test.ts#L34)])
+
 ### FR-20: Project Facade Ports (Phase 1)
 
 The `Project` facade (ADR-024) exposes every data capability — tasks,

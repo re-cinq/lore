@@ -11,6 +11,7 @@ import {
   type AgentPodInfo,
   type PodSummary,
   type PodLogSource,
+  type RunningPodInfo,
 } from "@re-cinq/lore-shared";
 import { GROUP, VERSION, AGENT_PLURAL as PLURAL } from "./crd.js";
 import { coreApi, customObjectsApi } from "./kube-clients.js";
@@ -63,6 +64,44 @@ export class KubePodLogs implements PodLogSource {
         ? new Date(pod.metadata.creationTimestamp).toISOString()
         : undefined,
     }));
+  }
+
+  async listRunning(): Promise<RunningPodInfo[]> {
+    const api = coreApi();
+    const res = await api.listNamespacedPod({ namespace: this.namespace() });
+
+    return (res.items ?? [])
+      .filter(
+        (pod) =>
+          pod.status?.phase === "Running" || pod.status?.phase === "Pending",
+      )
+      .map((pod) => {
+        // The AGENT container's requests are the cost driver; init containers
+        // finish before the bill starts and sidecars this stack does not run.
+        const agent =
+          pod.spec?.containers?.find((c) => c.name === "agent") ??
+          pod.spec?.containers?.[0];
+        const labels: Record<string, string> = {};
+
+        for (const [k, v] of Object.entries(pod.metadata?.labels ?? {})) {
+          if (k.startsWith("lore.re-cinq.com/") || k === "job-name") {
+            labels[k] = v;
+          }
+        }
+
+        return {
+          name: pod.metadata?.name ?? "",
+          phase: pod.status?.phase ?? "",
+          startedAt: pod.status?.startTime
+            ? new Date(pod.status.startTime).toISOString()
+            : null,
+          requests: { ...(agent?.resources?.requests ?? {}) } as Record<
+            string,
+            string
+          >,
+          labels,
+        };
+      });
   }
 
   async podLog(podName: string, tailLines?: number): Promise<string> {
