@@ -18,6 +18,7 @@ export default function CollapsibleCard({
   hint,
   defaultOpen = false,
   emptyState,
+  actions,
   onToggle,
   className = "",
   children,
@@ -36,6 +37,10 @@ export default function CollapsibleCard({
   /** The note shown when the card has no content — every empty card says it the
    *  same way (plain body text) instead of each caller rolling its own. */
   emptyState?: string;
+  /** Interactive header content (a retry button) rendered at the summary's far
+   *  end. The action itself must preventDefault on click, or activating it also
+   *  toggles the fold — a <summary> treats any click as its own. */
+  actions?: ReactNode;
   /** Reports the fold state on every toggle — for callers that fetch lazily on
    *  first open. */
   onToggle?: (open: boolean) => void;
@@ -64,6 +69,7 @@ export default function CollapsibleCard({
               </span>
             ))}
           {hint ? <span className="meta">{hint}</span> : null}
+          {actions ? <span className={styles.actions}>{actions}</span> : null}
         </summary>
         <div className={styles.body}>
           {hasContent ? children : null}

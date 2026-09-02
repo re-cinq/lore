@@ -33,6 +33,8 @@ export interface RunNodeDetailProps {
   repo: string;
   /** Every walk row of this node in execution order — the loop history. */
   attempts: StepView[];
+  /** Header-row actions (the retry button), forwarded to the card's summary. */
+  actions?: React.ReactNode;
 }
 
 function Fact({
@@ -59,6 +61,7 @@ export default function RunNodeDetail(props: RunNodeDetailProps) {
       title={props.nodeId}
       status={{ label: detail.statusLabel, tone: detail.tone }}
       labels={[detail.nodeType]}
+      actions={props.actions}
     >
       <p className={`${styles.why} ${WHY_CLASS[detail.tone]}`}>{detail.why}</p>
 
