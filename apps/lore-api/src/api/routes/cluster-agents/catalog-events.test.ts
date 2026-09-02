@@ -98,6 +98,10 @@ describe("handleCatalogEvents", () => {
 
     events.setEntries([{ name: "implementation", projectId: null }]);
     events.append("implementation", null, "upsert");
+    // A delete PENDING past the stored cursor: absent from the snapshot, so
+    // the answer must hand back the STORED cursor — acking the max would skip
+    // the tail and leak the deleted pair's CRs forever.
+    events.append("deleted-thing", null, "delete");
     await agents.advanceCatalogCursor(agent.id, "1");
 
     const result = await handleCatalogEvents(
