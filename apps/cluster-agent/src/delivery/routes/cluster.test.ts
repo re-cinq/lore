@@ -120,6 +120,65 @@ describe("pod log routes", () => {
     expect(calls).toEqual(["log:pod-1:10000"]);
   });
 
+  it("answers 404 when the kubelet reports the container terminated (400), so the Floor can fall back to the archive", async () => {
+    build({
+      pods: {
+        ...fakeDeps().pods,
+        podLog: () =>
+          Promise.reject(
+            Object.assign(
+              new Error(
+                'container "agent" in pod "agent-job-x-h5sj7" is terminated',
+              ),
+              { code: 400 },
+            ),
+          ),
+      },
+    });
+
+    const res = await app.inject({
+      method: "GET",
+      url: "/api/cluster/pods/agent-job-x-h5sj7/log",
+      headers: auth,
+    });
+
+    expect(res.statusCode).toBe(404);
+  });
+
+  it("answers 404 when the pod itself is already gone", async () => {
+    build({
+      pods: {
+        ...fakeDeps().pods,
+        podLog: () => Promise.reject({ code: 404 }),
+      },
+    });
+
+    const res = await app.inject({
+      method: "GET",
+      url: "/api/cluster/pods/pod-gone/log",
+      headers: auth,
+    });
+
+    expect(res.statusCode).toBe(404);
+  });
+
+  it("keeps a genuine fault (403 RBAC) as a 500, not a quiet 404", async () => {
+    build({
+      pods: {
+        ...fakeDeps().pods,
+        podLog: () => Promise.reject({ code: 403 }),
+      },
+    });
+
+    const res = await app.inject({
+      method: "GET",
+      url: "/api/cluster/pods/pod-1/log",
+      headers: auth,
+    });
+
+    expect(res.statusCode).toBe(500);
+  });
+
   it("reports found:false for an agent with no CR", async () => {
     const res = await app.inject({
       method: "GET",
