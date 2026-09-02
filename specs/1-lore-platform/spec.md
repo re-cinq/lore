@@ -689,11 +689,13 @@ attempt). ([validated by `TaskDetailView.test.tsx:109`](apps/web-ui/src/app/task
 - FR-19.6: The run detail page renders the task's event timeline: one
   badge per status transition (sentence-cased to-status with a
   from-status arrow), pretty-printed event metadata as JSON, and an
-  empty-state note when there are no events. ([validated by `EventTimeline.test.tsx:18`](apps/web-ui/src/app/tasks/[id]/EventTimeline.test.tsx#L18), [`EventTimeline.test.tsx:32`](apps/web-ui/src/app/tasks/[id]/EventTimeline.test.tsx#L32), [`EventTimeline.test.tsx:40`](apps/web-ui/src/app/tasks/[id]/EventTimeline.test.tsx#L40))
+  empty-state note when there are no events; the section is a collapsible
+  card titled Event Timeline. ([validated by `EventTimeline.test.tsx:26`](apps/web-ui/src/app/tasks/[id]/EventTimeline.test.tsx#L26), [`EventTimeline.test.tsx:40`](apps/web-ui/src/app/tasks/[id]/EventTimeline.test.tsx#L40), [`EventTimeline.test.tsx:48`](apps/web-ui/src/app/tasks/[id]/EventTimeline.test.tsx#L48), [`EventTimeline.test.tsx:18`](apps/web-ui/src/app/tasks/[id]/EventTimeline.test.tsx#L18))
 - FR-19.7: The run detail page renders the task's LLM-call table: one
   row per call with the model, `input / output` token counts, duration,
   and a status badge (red with the error text on failure), and an
-  empty-state note in place of the table when there are none. ([validated by `LlmCallsTable.test.tsx:19`](apps/web-ui/src/app/tasks/[id]/LlmCallsTable.test.tsx#L19), [`LlmCallsTable.test.tsx:27`](apps/web-ui/src/app/tasks/[id]/LlmCallsTable.test.tsx#L27), [`LlmCallsTable.test.tsx:35`](apps/web-ui/src/app/tasks/[id]/LlmCallsTable.test.tsx#L35))
+  empty-state note in place of the table when there are none; the section
+  is a collapsible card titled LLM Calls. ([validated by `LlmCallsTable.test.tsx:25`](apps/web-ui/src/app/tasks/[id]/LlmCallsTable.test.tsx#L25), [`LlmCallsTable.test.tsx:33`](apps/web-ui/src/app/tasks/[id]/LlmCallsTable.test.tsx#L33), [`LlmCallsTable.test.tsx:41`](apps/web-ui/src/app/tasks/[id]/LlmCallsTable.test.tsx#L41), [`LlmCallsTable.test.tsx:19`](apps/web-ui/src/app/tasks/[id]/LlmCallsTable.test.tsx#L19))
 - FR-19.10: The pure PR status card shows a loading placeholder until
   details arrive, an "unavailable" fallback with a "View on GitHub" link
   when only an error is present, keeps the loaded details on screen even

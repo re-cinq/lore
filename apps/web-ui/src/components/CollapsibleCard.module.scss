@@ -5,14 +5,34 @@
   align-items: baseline;
   cursor: pointer;
   flex-flow: wrap;
+  border-radius: var(--radius-sm, 6px);
+  transition: background 0.15s ease;
+  padding: 8px 12px;
+}
+
+.summary:hover {
+  background: var(--bg-hover);
+}
+
+/* flex on a summary suppresses the native disclosure marker; put the
+   expand affordance back explicitly, rotating it while the card is open. */
+.summary::before {
+  content: "▸";
+  color: var(--text-muted);
+  font-size: var(--fs-md);
+  transition: transform 0.15s ease;
+}
+
+details[open] > .summary::before {
+  transform: rotate(90deg);
 }
 
 /* The fold line: an open card separates its header from its content, so the
    summary reads as a control and the body as the disclosed document. Bodies
    are one text flow by convention, so line breaks in that text must render. */
 .body {
-  margin-top: 10px;
-  padding-top: 10px;
+  margin-top: 4px;
+  padding: 8px 12px;
   border-top: 1px solid var(--border);
   white-space: pre-wrap;
 }

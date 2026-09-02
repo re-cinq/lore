@@ -15,6 +15,14 @@ const event = (over: Partial<TaskRuntimeEvent> = {}): TaskRuntimeEvent => ({
 });
 
 describe("EventTimeline", () => {
+  it("renders as a collapsible card titled Event Timeline", () => {
+    render(<EventTimeline events={[]} />);
+
+    expect(
+      screen.getByText("Event Timeline").closest("summary"),
+    ).not.toBeNull();
+  });
+
   it("renders a badge per transition with the from-status", () => {
     render(
       <EventTimeline

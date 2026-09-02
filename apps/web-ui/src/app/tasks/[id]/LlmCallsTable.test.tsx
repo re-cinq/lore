@@ -16,6 +16,12 @@ const call = (over: Partial<TaskRuntimeLlmCall> = {}): TaskRuntimeLlmCall => ({
 });
 
 describe("LlmCallsTable", () => {
+  it("renders as a collapsible card titled LLM Calls", () => {
+    render(<LlmCallsTable llmCalls={[]} repo="o/r" />);
+
+    expect(screen.getByText("LLM Calls").closest("summary")).not.toBeNull();
+  });
+
   it("renders the empty note when there are no calls", () => {
     render(<LlmCallsTable llmCalls={[]} repo="re-cinq/lore" />);
 
