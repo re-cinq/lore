@@ -1,7 +1,14 @@
 import type { ServerRoute } from "@hapi/hapi";
 import { z } from "zod";
 import type { AssemblyRunStartInput } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
+import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
+import {
+  definitionHash,
+  loadBuiltinAssemblyLines,
+  type AssemblyLine,
+} from "@re-cinq/lore-assembly-lines";
 import { projectFor } from "../../../platform/project-boot.js";
+import { apiError, rethrowBoom } from "../../../server/api-error.js";
 import { bearerScope } from "../../../server/plugins/bearer-scope.js";
 import { zodValidate } from "../../../server/plugins/zod-validate.js";
 import { zodResponse } from "../../../server/plugins/zod-response.js";
@@ -59,11 +66,15 @@ const StartBody = z
 const StartResponse = z.object({ id: z.string() });
 
 type StartRun = (input: AssemblyRunStartInput) => Promise<string>;
+type LoadDefinitions = () => Promise<ReadonlyMap<string, AssemblyLine>>;
 
 const defaultStart: StartRun = async ({ blueprintName, repo, ...opts }) =>
   (await projectFor(repo)).assemblyRuns.start(blueprintName, opts);
 
-export function startRunRoute(start: StartRun = defaultStart): ServerRoute {
+export function startRunRoute(
+  start: StartRun = defaultStart,
+  loadDefinitions: LoadDefinitions = loadBuiltinAssemblyLines,
+): ServerRoute {
   return {
     method: "POST",
     path: "/api/assembly-runs",
@@ -73,29 +84,58 @@ export function startRunRoute(start: StartRun = defaultStart): ServerRoute {
         validate: { payload: zodValidate(StartBody) },
       },
       StartResponse,
-      { name: "AssemblyRunStarted", status: 201, description: "Run started" },
+      {
+        name: "AssemblyRunStarted",
+        status: 201,
+        description: "Run started",
+        errors: [400, 409],
+      },
     ),
     handler: async (request, h) => {
       const body = request.payload as z.infer<typeof StartBody>;
-      const id = await start({
+      const input: AssemblyRunStartInput = {
         blueprintName: body.definition,
         repo: body.repo,
         ...(body.branch === undefined ? {} : { branch: body.branch }),
         ...(body.args === undefined ? {} : { args: body.args }),
-        ...(body.resume_from === undefined
-          ? {}
-          : {
-              resumeFrom: {
-                lineId: body.resume_from.run_id,
-                nodeId: body.resume_from.node_id,
-                ...(body.resume_from.iteration === undefined
-                  ? {}
-                  : { iteration: body.resume_from.iteration }),
-              },
-            }),
-      });
+      };
 
-      return h.response({ id }).code(201);
+      if (body.resume_from === undefined) {
+        return h.response({ id: await start(input) }).code(201);
+      }
+
+      // The fork's drift guard needs the CURRENT definition's hash as its
+      // left-hand side, and this route is where the definition loads —
+      // `libs/shared` cannot derive it (the dependency runs the other way).
+      const definition = (await loadDefinitions()).get(body.definition);
+
+      enforceTrue(
+        definition,
+        apiError(400),
+        `unknown definition "${body.definition}"`,
+      );
+
+      try {
+        const id = await start({
+          ...input,
+          blueprintHash: definitionHash(definition),
+          resumeFrom: {
+            lineId: body.resume_from.run_id,
+            nodeId: body.resume_from.node_id,
+            ...(body.resume_from.iteration === undefined
+              ? {}
+              : { iteration: body.resume_from.iteration }),
+          },
+        });
+
+        return h.response({ id }).code(201);
+      } catch (err) {
+        rethrowBoom(err);
+        // The port validates the fork BEFORE writing anything, so a throw here
+        // is a refusal (drift, non-terminal source, missing visit) the caller
+        // must hear — not an internal failure to hide behind a 500.
+        throw apiError(409)(err instanceof Error ? err.message : String(err));
+      }
     },
   };
 }
