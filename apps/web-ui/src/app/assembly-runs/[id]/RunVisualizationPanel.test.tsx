@@ -1073,3 +1073,73 @@ describe("retry from node", () => {
     ).not.toBeInTheDocument();
   });
 });
+
+describe("agent edit link", () => {
+  function renderWithHrefs(nodes: AssemblyRunNode[]) {
+    return render(
+      <RunVisualizationPanel
+        runId="run-1"
+        runStatus="running"
+        startedAt={null}
+        definition={definition}
+        nodes={nodes}
+        repo="re-cinq/lore"
+        reason={null}
+        agentEditHrefs={{
+          implement: "/repos/re-cinq/lore/agents/implement/edit",
+        }}
+      />,
+    );
+  }
+
+  const row = (nodeId: string): AssemblyRunNode => ({
+    nodeId,
+    iteration: 1,
+    outcome: null,
+    agentCrName: null,
+    commitSha: null,
+    durationSeconds: 10,
+  });
+
+  async function select(name: string) {
+    await act(async () => {
+      fireEvent.click(
+        screen.getByRole("button", { name: new RegExp(`^${name} —`) }),
+      );
+    });
+  }
+
+  it("links an agent node's card header to its resolved agents editor, live run included", async () => {
+    stubHistory([]);
+    useFakeEventSource();
+
+    const { container } = renderWithHrefs([row("implement")]);
+
+    await settle();
+    await select("implement");
+
+    const link = screen.getByRole("link", { name: "Edit agent" });
+
+    expect(link).toHaveAttribute(
+      "href",
+      "/repos/re-cinq/lore/agents/implement/edit",
+    );
+    expect(link.closest("summary")).toBe(
+      container.querySelector("section summary"),
+    );
+  });
+
+  it("offers no edit link on a node the href map does not name", async () => {
+    stubHistory([]);
+    useFakeEventSource();
+
+    renderWithHrefs([row("implement"), row("validate")]);
+
+    await settle();
+    await select("validate");
+
+    expect(
+      screen.queryByRole("link", { name: "Edit agent" }),
+    ).not.toBeInTheDocument();
+  });
+});
