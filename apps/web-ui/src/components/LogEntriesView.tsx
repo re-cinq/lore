@@ -178,6 +178,24 @@ export function EntryLine({ entry }: { entry: LogEntry }) {
       );
     case "station-log":
       return <div className={styles.dim}>· {entry.text}</div>;
+    case "file": {
+      if (entry.reason !== undefined) {
+        return (
+          <div className={styles.error}>
+            ✗ {entry.event} not produced: {entry.reason}
+          </div>
+        );
+      }
+
+      return (
+        <details className={styles.dim}>
+          <summary className={styles.summary}>
+            ⇢ {entry.event} — {entry.path}
+          </summary>
+          <pre className={styles.detailsPre}>{entry.content}</pre>
+        </details>
+      );
+    }
     case "raw":
       return <div className={styles.rawLine}>{entry.text}</div>;
   }

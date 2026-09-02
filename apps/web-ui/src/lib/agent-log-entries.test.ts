@@ -29,6 +29,8 @@ import {
   RESULT_TERMINAL,
   STATION_LOG,
   NODE_RESULT_LINE,
+  FILE_EVENT_PR_DESCRIPTION,
+  FILE_EVENT_MISSING,
   RUNNER_MARKER,
   wrapped,
   doubleWrapped,
@@ -745,5 +747,37 @@ describe("gemini stream-json dialect", () => {
       text: "done now",
       delta: true,
     });
+  });
+});
+
+describe("file artifact events", () => {
+  it("parses the wrapped pr.description artifact delivery into a file entry with its path and content", () => {
+    expect(parseAgentLog(FILE_EVENT_PR_DESCRIPTION)).toEqual([
+      {
+        kind: "file",
+        event: "pr.description",
+        path: "/workspace/target/.lore/pr-body.md",
+        content:
+          "The codebase already consolidated the duplicated clip.\n\nNo deviations were necessary.\n",
+      },
+    ]);
+  });
+
+  it("parses a never-produced artifact report into a file entry carrying the reason and empty content", () => {
+    expect(parseAgentLog(FILE_EVENT_MISSING)).toEqual([
+      {
+        kind: "file",
+        event: "pr.description",
+        path: "/workspace/target/.lore/pr-body.md",
+        content: "",
+        reason: "agent exited before writing the file",
+      },
+    ]);
+  });
+
+  it("keeps a kind:file line without an event name as a raw entry", () => {
+    const line = '{"kind":"file","path":"/w/x.md","content":"c"}';
+
+    expect(parseAgentLog(line)).toEqual([{ kind: "raw", text: line }]);
   });
 });
