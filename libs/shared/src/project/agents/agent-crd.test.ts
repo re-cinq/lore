@@ -169,7 +169,7 @@ describe("agentDefToCrds LLM recipes", () => {
     );
   });
 
-  it("config pod_resources replace the default pod resources on the Station", () => {
+  it("a full pod_resources override takes every key of both maps", () => {
     const { station } = agentDefToCrds(
       row({
         config: {
@@ -196,6 +196,36 @@ describe("agentDefToCrds LLM recipes", () => {
     expect(template.spec.containers[0]?.resources).toEqual({
       requests: { cpu: "500m", memory: "2Gi", "ephemeral-storage": "2Gi" },
       limits: { cpu: "2", memory: "4Gi", "ephemeral-storage": "4Gi" },
+    });
+  });
+
+  it("a memory-only pod_resources override keeps the cpu and ephemeral-storage defaults", () => {
+    // Whole-object replacement is what evicted every tdd-round pod at 1Gi of
+    // disk: a memory-only override dropped the ephemeral-storage defaults and
+    // Autopilot backfilled a bare 1Gi. Overrides merge per key ONTO the
+    // defaults — you say what you mean to change, nothing else moves.
+    const { station } = agentDefToCrds(
+      row({
+        config: {
+          pod_resources: {
+            requests: { memory: "10Gi" },
+            limits: { memory: "16Gi" },
+          },
+        },
+      }),
+      ALL_OPTS,
+    );
+    const template = station.spec?.template as {
+      spec: {
+        containers: Array<{
+          resources: Record<string, Record<string, string>>;
+        }>;
+      };
+    };
+
+    expect(template.spec.containers[0]?.resources).toEqual({
+      requests: { cpu: "250m", memory: "10Gi", "ephemeral-storage": "2Gi" },
+      limits: { cpu: "1", memory: "16Gi", "ephemeral-storage": "4Gi" },
     });
   });
 
