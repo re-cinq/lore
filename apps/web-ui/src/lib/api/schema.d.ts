@@ -1451,23 +1451,6 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/api/spend": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** GET /api/spend */
-    get: operations["get_api_spend"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
   "/api/analytics/spend-window": {
     parameters: {
       query?: never;
@@ -3238,72 +3221,6 @@ export interface components {
       auto_merged: number | null;
       escalations: number | null;
     };
-    Spend: {
-      budget: {
-        ledger_total_usd: number;
-        spent_since_usd: number;
-        remaining_usd: number;
-        anchored_at: string;
-      } | null;
-      org_available: boolean;
-      org_mtd: {
-        billed_usd: number;
-        input_tokens: number;
-        output_tokens: number;
-        as_of: string | null;
-        billed_through: string | null;
-      };
-      org_by_model: {
-        model: string;
-        cost_usd: number;
-        input_tokens: number;
-        output_tokens: number;
-      }[];
-      org_daily: {
-        bucket_date: string;
-        cost_usd: number;
-      }[];
-      lore_unbilled_usd: number;
-      lore_unbilled_days: number;
-      lore_mtd: {
-        computed_usd: number;
-        calls: number;
-        input_tokens: number;
-        output_tokens: number;
-      };
-      lore_by_model: {
-        model: string;
-        calls: number;
-        cost_usd: number;
-        input_tokens: number;
-        output_tokens: number;
-      }[];
-      lore_by_kind: {
-        kind: string;
-        calls: number;
-        cost_usd: number;
-      }[];
-      lore_daily: {
-        bucket_date: string;
-        calls: number;
-        cost_usd: number;
-      }[];
-      lore_by_repo: {
-        target_repo: string;
-        tasks: number;
-        cost_usd: number;
-      }[];
-      lore_by_task_type: {
-        task_type: string;
-        tasks: number;
-        cost_usd: number;
-      }[];
-      lore_by_cluster: {
-        cluster: string | null;
-        calls: number;
-        cost_usd: number;
-      }[];
-    };
     SpendWindow: {
       interval: {
         from: string;
@@ -3312,6 +3229,8 @@ export interface components {
       llm: {
         total_usd: number;
         calls: number;
+        input_tokens: number;
+        output_tokens: number;
         by_blueprint: {
           blueprint: string;
           runs: number;
@@ -3321,7 +3240,60 @@ export interface components {
           repo: string;
           usd: number;
         }[];
+        by_model: {
+          model: string;
+          calls: number;
+          cost_usd: number;
+          input_tokens: number;
+          output_tokens: number;
+        }[];
+        by_kind: {
+          kind: string;
+          calls: number;
+          cost_usd: number;
+        }[];
+        daily: {
+          bucket_date: string;
+          calls: number;
+          cost_usd: number;
+        }[];
+        by_task_type: {
+          task_type: string;
+          tasks: number;
+          cost_usd: number;
+        }[];
+        by_cluster: {
+          cluster: string | null;
+          calls: number;
+          cost_usd: number;
+        }[];
       };
+      billed: {
+        available: boolean;
+        total_usd: number;
+        input_tokens: number;
+        output_tokens: number;
+        as_of: string | null;
+        billed_through: string | null;
+        by_model: {
+          model: string;
+          cost_usd: number;
+          input_tokens: number;
+          output_tokens: number;
+        }[];
+        daily: {
+          bucket_date: string;
+          cost_usd: number;
+        }[];
+        unbilled_usd: number;
+        unbilled_days: number;
+      };
+      budget: {
+        ledger_total_usd: number;
+        spent_since_usd: number;
+        remaining_usd: number;
+        anchored_at: string;
+      } | null;
       compute: {
         rates: {
           cpu_hour_usd: number;
@@ -6771,30 +6743,6 @@ export interface operations {
       503: components["responses"]["ServiceUnavailable"];
     };
   };
-  get_api_spend: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description Billed and attributed spend, side by side */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["Spend"];
-        };
-      };
-      401: components["responses"]["Unauthorized"];
-      403: components["responses"]["Forbidden"];
-      429: components["responses"]["RateLimited"];
-      503: components["responses"]["ServiceUnavailable"];
-    };
-  };
   "get_api_analytics_spend-window": {
     parameters: {
       query?: never;
@@ -6804,7 +6752,7 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Interval-scoped LLM spend plus the estimated Kubernetes compute cost */
+      /** @description The spend screen in one interval-scoped call: metered and billed LLM spend, their breakdowns, the recorded balance, and the estimated Kubernetes compute cost */
       200: {
         headers: {
           [name: string]: unknown;

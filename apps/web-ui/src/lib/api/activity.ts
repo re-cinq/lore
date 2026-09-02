@@ -80,35 +80,6 @@ export function getRepoActivityCounts(repo: string): Promise<
   return apiFetch("lore-api", `/api/repos/${repo}/activity-counts`);
 }
 
-/** The whole spend screen: billed figures from the daily Anthropic sync, Lore's
- *  own computed figures, and every month-to-date breakdown they render with.
- *  `org_available` is false when the sync has never run — the view hides the
- *  billed sections rather than showing a confident zero. */
-/** What is left of the recorded balance, or null when nobody has recorded one.
- *  Aliased off the generated contract rather than restated — the neighbouring
- *  `Record<string, unknown>` entries predate that document. */
-export type SpendBudget = components["schemas"]["Spend"]["budget"];
-
-export function getSpend(): Promise<
-  ApiResult<{
-    budget: SpendBudget;
-    org_available: boolean;
-    org_mtd: Record<string, unknown>;
-    org_by_model: Record<string, unknown>[];
-    org_daily: Record<string, unknown>[];
-    lore_unbilled_usd: number;
-    lore_unbilled_days: number;
-    lore_mtd: Record<string, unknown>;
-    lore_by_model: Record<string, unknown>[];
-    lore_by_kind: Record<string, unknown>[];
-    lore_daily: Record<string, unknown>[];
-    lore_by_repo: Record<string, unknown>[];
-    lore_by_task_type: Record<string, unknown>[];
-  }>
-> {
-  return apiFetch("lore-api", "/api/spend");
-}
-
 /**
  * Record money added to the Anthropic account. The one write on this screen,
  * and the only way the remaining figure ever moves upward — Anthropic's Admin

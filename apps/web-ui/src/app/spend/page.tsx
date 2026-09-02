@@ -1,88 +1,22 @@
 export const dynamic = "force-dynamic";
-import { getSpend } from "@/lib/api/activity";
 import { recordTopUpAction } from "./actions";
 import SpendWindowPanel from "./SpendWindowPanel";
-import SpendView, {
-  type BudgetRow,
-  type OrgMtdRow,
-  type OrgByModelRow,
-  type OrgDailyRow,
-  type LoreMtdRow,
-  type LoreByModelRow,
-  type LoreByKindRow,
-  type LoreDailyRow,
-  type LoreByRepoRow,
-  type LoreByTaskTypeRow,
-  type LoreByClusterRow,
-} from "./SpendView";
+import styles from "./SpendView.module.css";
 
-export default async function SpendPage() {
-  // One call: ten month-to-date aggregates that only ever render together.
-  const result = await getSpend();
-  const empty = {
-    // Null, not a zeroed shape: a failed read has not established that the
-    // balance is nothing, and the view renders the two states differently.
-    budget: null,
-    org_available: false,
-    org_mtd: {
-      billed_usd: 0,
-      input_tokens: 0,
-      output_tokens: 0,
-      as_of: null,
-      billed_through: null,
-    },
-    org_by_model: [],
-    org_daily: [],
-    lore_unbilled_usd: 0,
-    lore_unbilled_days: 0,
-    lore_mtd: {
-      computed_usd: 0,
-      calls: 0,
-      input_tokens: 0,
-      output_tokens: 0,
-    },
-    lore_by_model: [],
-    lore_by_kind: [],
-    lore_daily: [],
-    lore_by_repo: [],
-    lore_by_task_type: [],
-    lore_by_cluster: [],
-  };
-  const spend = (result.status === "ok" ? result.data : empty) as unknown as {
-    budget: BudgetRow;
-    org_available: boolean;
-    org_mtd: OrgMtdRow;
-    org_by_model: OrgByModelRow[];
-    org_daily: OrgDailyRow[];
-    lore_unbilled_usd: number;
-    lore_unbilled_days: number;
-    lore_mtd: LoreMtdRow;
-    lore_by_model: LoreByModelRow[];
-    lore_by_kind: LoreByKindRow[];
-    lore_daily: LoreDailyRow[];
-    lore_by_repo: LoreByRepoRow[];
-    lore_by_task_type: LoreByTaskTypeRow[];
-    lore_by_cluster: LoreByClusterRow[];
-  };
-
+// One interval-scoped view: every figure on the page comes from
+// /api/spend-window for the interval the panel selects. The server's only
+// contributions are the static chrome and the top-up server action.
+export default function SpendPage() {
   return (
-    <SpendView
-      budget={spend.budget}
-      recordAction={recordTopUpAction}
-      orgMtd={spend.org_mtd}
-      orgAvailable={spend.org_available}
-      loreUnbilledUsd={spend.lore_unbilled_usd}
-      loreUnbilledDays={spend.lore_unbilled_days}
-      orgByModel={spend.org_by_model}
-      orgDaily={spend.org_daily}
-      loreMtd={spend.lore_mtd}
-      loreByModel={spend.lore_by_model}
-      loreByKind={spend.lore_by_kind}
-      loreDaily={spend.lore_daily}
-      loreByRepo={spend.lore_by_repo}
-      loreByTaskType={spend.lore_by_task_type}
-      loreByCluster={spend.lore_by_cluster}
-      intervalPanel={<SpendWindowPanel />}
-    />
+    <div>
+      <h1>Claude API Spend</h1>
+      <p className={`meta ${styles.subnote}`}>
+        Figures are Lore-computed from <code>pipeline.llm_calls</code> token
+        counts (input/output × per-model pricing, cache-adjusted).
+        Anthropic&apos;s authoritative billed total needs an admin key and
+        appears only when one is configured.
+      </p>
+      <SpendWindowPanel recordAction={recordTopUpAction} />
+    </div>
   );
 }

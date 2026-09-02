@@ -9,7 +9,6 @@ const {
   getRepoEvents,
   getJobRun,
   getRepoActivityCounts,
-  getSpend,
   getAnalyticsOverview,
 } = await import("./activity");
 
@@ -101,27 +100,6 @@ describe("getRepoActivityCounts", () => {
     expect(await getRepoActivityCounts("re-cinq/lore")).toEqual({
       status: "ok",
       data: { tasks: 12, auto_merged: null, escalations: 0 },
-    });
-  });
-});
-
-describe("getSpend", () => {
-  it("reads the whole spend screen in one call", async () => {
-    await getSpend();
-
-    expect(url()).toEqual("http://api:3000/api/spend");
-  });
-
-  it("carries the org-unavailable flag through", async () => {
-    fetchMock.mockResolvedValue(
-      new Response(
-        JSON.stringify({ org_available: false, lore_unbilled_usd: 4 }),
-      ),
-    );
-
-    expect(await getSpend()).toMatchObject({
-      status: "ok",
-      data: { org_available: false, lore_unbilled_usd: 4 },
     });
   });
 });
