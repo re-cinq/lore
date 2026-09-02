@@ -68,9 +68,7 @@ export default function CollapsibleCard({
         </summary>
         <div className={styles.body}>
           {hasContent ? children : null}
-          {!hasContent && emptyState ? (
-            <Alert variant="secondary">{emptyState}</Alert>
-          ) : null}
+          {!hasContent && emptyState ? <>{emptyState}</> : null}
         </div>
       </details>
     </div>

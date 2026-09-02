@@ -43,9 +43,3 @@ button.tick:hover {
 .neutral {
   background: var(--chart-neutral);
 }
-
-.empty {
-  margin: 0;
-  font-size: var(--fs-sm);
-  color: var(--text-muted);
-}

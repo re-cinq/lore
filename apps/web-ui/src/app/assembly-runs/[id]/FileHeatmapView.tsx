@@ -3,6 +3,7 @@
 // the show-all flag (lore/no-io-in-view). The reducer has already aggregated the
 // tally per path; this view only ranks, weights, and truncates for display.
 
+import CollapsibleCard from "@/components/CollapsibleCard";
 import {
   aggregateFileTouches,
   hiddenTouchCount,
@@ -55,18 +56,17 @@ function Bar({ touch }: { touch: FileTouch }) {
   );
 }
 
-export default function FileHeatmapView({
-  touches,
+function HeatmapBars({
+  ranked,
+  hidden,
   showAll,
   onToggleShowAll,
-}: FileHeatmapViewProps) {
-  const ranked = aggregateFileTouches(touches, showAll ? undefined : TOP_N);
-  const hidden = hiddenTouchCount(touches, TOP_N);
-
-  if (ranked.length === 0) {
-    return <p className={styles.empty}>No files touched yet.</p>;
-  }
-
+}: {
+  ranked: FileTouch[];
+  hidden: number;
+  showAll: boolean;
+  onToggleShowAll: () => void;
+}) {
   return (
     <div className={styles.heatmap}>
       <ol className={styles.rows}>
@@ -84,5 +84,31 @@ export default function FileHeatmapView({
         </button>
       ) : null}
     </div>
+  );
+}
+
+export default function FileHeatmapView({
+  touches,
+  showAll,
+  onToggleShowAll,
+}: FileHeatmapViewProps) {
+  const ranked = aggregateFileTouches(touches, showAll ? undefined : TOP_N);
+  const hidden = hiddenTouchCount(touches, TOP_N);
+
+  return (
+    <CollapsibleCard
+      title="Files touched"
+      defaultOpen
+      emptyState="No files touched yet."
+    >
+      {ranked.length === 0 ? null : (
+        <HeatmapBars
+          ranked={ranked}
+          hidden={hidden}
+          showAll={showAll}
+          onToggleShowAll={onToggleShowAll}
+        />
+      )}
+    </CollapsibleCard>
   );
 }
