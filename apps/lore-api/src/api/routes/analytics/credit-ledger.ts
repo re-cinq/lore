@@ -5,8 +5,9 @@ import { apiError } from "../../../server/api-error.js";
  *
  * This exists because Anthropic's Admin API reports usage and cost and does
  * NOT expose a credit balance: there is no endpoint to read, so the balance
- * has to be told to us, and this is where it gets told. `GET /api/spend`
- * turns the accumulated tellings into the remaining figure.
+ * has to be told to us, and this is where it gets told.
+ * `GET /api/analytics/spend-window` turns the accumulated tellings into the
+ * remaining figure.
  *
  * Append-only. A wrong entry is corrected with a compensating row
  * (`kind: "correction"`, negative amount), never an update — which is why
