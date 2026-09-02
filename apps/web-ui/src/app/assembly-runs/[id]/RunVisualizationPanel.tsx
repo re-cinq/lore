@@ -34,6 +34,8 @@ import ReplayScrubberView from "./ReplayScrubberView";
 import RunGraphView from "./RunGraphView";
 import RunNodeDetail from "./RunNodeDetail";
 import RunTimelineView from "./RunTimelineView";
+import { RerunNodeButton } from "./RerunNodeButton";
+import { retryResumeSource } from "./retry-resume";
 import styles from "./RunVisualizationPanel.module.css";
 import {
   HISTORY_POLL_MS,
@@ -360,6 +362,16 @@ export default function RunVisualizationPanel({
   const [showOutcomes, setShowOutcomes] = useState(false);
   const graphMode = hasRunData && !showOutcomes ? "run" : "definition";
   const latestRows = useMemo(() => latestRowByNode(nodes), [nodes]);
+  // The fork source for "retry this node" — null hides the button: a live run,
+  // an unvisited node, the entry node, or a prefix the fork API cannot name
+  // exactly (see retry-resume.ts).
+  const retrySource = useMemo(
+    () =>
+      runIsLive || selectedNodeId === null
+        ? null
+        : retryResumeSource(nodes, selectedNodeId),
+    [runIsLive, nodes, selectedNodeId],
+  );
   // Mid-scrub only: the cursor sits strictly before the history's end, so the
   // slider's right end stays byte-identical to Back to live — nodes with walk
   // rows but no events (a `done` terminal) keep their verdict at max cursor.
@@ -473,6 +485,9 @@ export default function RunVisualizationPanel({
             repo={repo}
             attempts={selectedAttempts}
           />
+          {retrySource !== null ? (
+            <RerunNodeButton runId={runId} resumeNodeId={retrySource} />
+          ) : null}
           {selected ? (
             <NodeTranscriptView
               nodeId={selectedNodeId}

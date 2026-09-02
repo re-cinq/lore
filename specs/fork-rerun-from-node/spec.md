@@ -122,11 +122,29 @@ a debugging affordance rather than a fault-tolerance one.
   backfilled. No backfill ships here; the rejection message names the
   column so the operator knows what to fill.
 
-## Out of Scope
+## FR6 — The run-page retry affordance *(added 2026-09-02)*
 
-- The run-detail "rerun from here" UI affordance. This feature delivers the
-  port/facade API and the Floor stamping only; no HTTP route and no UI
-  control are added, so today's only caller is a programmatic one.
+The fork stopped being programmatic-only: the run page's node inspector offers
+"Retry from this node" on a terminal run, and the click travels
+web-ui → lore-api `POST /api/assembly-runs` → the FR1 `resumeFrom` start. ([validated by `RunVisualizationPanel.test.tsx:1124`](apps/web-ui/src/app/assembly-runs/[id]/RunVisualizationPanel.test.tsx#L1124), [`start-run.test.ts:127`](apps/lore-api/src/api/routes/assembly-lines/start-run.test.ts#L127)) The
+retried node is never named on the wire — the button names the fork SOURCE (the
+kept prefix's last node) and the walk replays the retried node as its
+successor, so the HTTP surface adds no second routing rule. ([validated by `retry-resume.test.ts:7`](apps/web-ui/src/app/assembly-runs/[id]/retry-resume.test.ts#L7), [`RunVisualizationPanel.test.tsx:1124`](apps/web-ui/src/app/assembly-runs/[id]/RunVisualizationPanel.test.tsx#L1124))
+
+- `POST /api/assembly-runs` accepts an optional `resume_from: { run_id, node_id }` and forwards it to `start` as the FR1 `resumeFrom` input, on the same wire-naming grounds as `definition`. ([validated by `start-run.test.ts:127`](apps/lore-api/src/api/routes/assembly-lines/start-run.test.ts#L127), [`start-run.test.ts:152`](apps/lore-api/src/api/routes/assembly-lines/start-run.test.ts#L152))
+- `branch` alongside `resume_from` is rejected at the route edge — the FR1 port refuses it too, but a schema 400 names the field instead of surfacing a thrown error as a 500. ([validated by `start-run.test.ts:168`](apps/lore-api/src/api/routes/assembly-lines/start-run.test.ts#L168))
+- The retry target maps to its fork source purely from the visit rows: the visit immediately before the target's latest row. ([validated by `retry-resume.test.ts:7`](apps/web-ui/src/app/assembly-runs/[id]/retry-resume.test.ts#L7), [`retry-resume.test.ts:49`](apps/web-ui/src/app/assembly-runs/[id]/retry-resume.test.ts#L49))
+- No retry is offered where the node-granular fork API cannot express the exact prefix: the entry node (no prefix to keep), an unvisited node, a prefix holding a still-open visit, or a source node that ran again after the target's latest visit — naming it would copy more history than the target's prefix. ([validated by `retry-resume.test.ts:22`](apps/web-ui/src/app/assembly-runs/[id]/retry-resume.test.ts#L22), [`retry-resume.test.ts:31`](apps/web-ui/src/app/assembly-runs/[id]/retry-resume.test.ts#L31), [`retry-resume.test.ts:35`](apps/web-ui/src/app/assembly-runs/[id]/retry-resume.test.ts#L35), [`retry-resume.test.ts:60`](apps/web-ui/src/app/assembly-runs/[id]/retry-resume.test.ts#L60))
+- The inspector shows the button only on a terminal run with a resolvable fork source, carrying the run id and the SOURCE node id as the form's fields. ([validated by `RunVisualizationPanel.test.tsx:1124`](apps/web-ui/src/app/assembly-runs/[id]/RunVisualizationPanel.test.tsx#L1124), [`RunVisualizationPanel.test.tsx:1149`](apps/web-ui/src/app/assembly-runs/[id]/RunVisualizationPanel.test.tsx#L1149), [`RunVisualizationPanel.test.tsx:1166`](apps/web-ui/src/app/assembly-runs/[id]/RunVisualizationPanel.test.tsx#L1166))
+### Rationale — the proxy's trust boundary
+
+The web-ui proxy (`/api/assembly-runs/rerun`) reads the source run from
+lore-api to learn its repo and blueprint — the browser is trusted with ids,
+never with authz facts — authorizes the user against that repo, starts the
+fork, and redirects to the new run's page. It is coverage-exempt IO glue
+(`src/app/api/**`), same as the review-trigger proxy it mirrors.
+
+## Out of Scope
 - Editing inherited node state (outcomes, commit shas) on fork.
 - Backfilling `blueprint_hash` for historical rows.
 - Forking a line whose definition is not a builtin assembly line (a

@@ -1058,3 +1058,97 @@ describe("a node's input opens its transcript", () => {
     ).toBeInTheDocument();
   });
 });
+
+describe("retry from node", () => {
+  function retryRow(over: Partial<AssemblyRunNode>): AssemblyRunNode {
+    return {
+      nodeId: "implement",
+      iteration: 1,
+      outcome: "success",
+      agentCrName: null,
+      commitSha: null,
+      durationSeconds: 30,
+      ...over,
+    };
+  }
+
+  function renderRun(runStatus: string, nodes: AssemblyRunNode[]) {
+    return render(
+      <RunVisualizationPanel
+        runId="run-1"
+        runStatus={runStatus}
+        startedAt={null}
+        definition={definition}
+        nodes={nodes}
+        repo="re-cinq/lore"
+        reason={null}
+      />,
+    );
+  }
+
+  async function select(name: string) {
+    await act(async () => {
+      fireEvent.click(
+        screen.getByRole("button", { name: new RegExp(`^${name} —`) }),
+      );
+    });
+  }
+
+  it("offers retry on a finished run's validate node, forking from implement", async () => {
+    stubHistory([]);
+    useFakeEventSource();
+
+    const { container } = renderRun("finished", [
+      retryRow({ nodeId: "implement" }),
+      retryRow({ nodeId: "validate", outcome: "failed" }),
+    ]);
+
+    await settle();
+    await select("validate");
+
+    expect(
+      screen.getByRole("button", { name: "Retry from this node" }),
+    ).toBeInTheDocument();
+    expect(
+      (container.querySelector('input[name="node_id"]') as HTMLInputElement)
+        .value,
+    ).toBe("implement");
+    expect(
+      (container.querySelector('input[name="run_id"]') as HTMLInputElement)
+        .value,
+    ).toBe("run-1");
+  });
+
+  it("offers no retry while the run is still running", async () => {
+    stubHistory([]);
+    useFakeEventSource();
+
+    renderRun("running", [
+      retryRow({ nodeId: "implement" }),
+      retryRow({ nodeId: "validate", outcome: "failed" }),
+    ]);
+
+    await settle();
+    await select("validate");
+
+    expect(
+      screen.queryByRole("button", { name: "Retry from this node" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("offers no retry on the entry node — there is no prefix to fork from", async () => {
+    stubHistory([]);
+    useFakeEventSource();
+
+    renderRun("finished", [
+      retryRow({ nodeId: "implement", outcome: "failed" }),
+    ]);
+
+    await settle();
+    await select("implement");
+
+    expect(
+      screen.queryByRole("button", { name: "Retry from this node" }),
+    ).not.toBeInTheDocument();
+  });
+});

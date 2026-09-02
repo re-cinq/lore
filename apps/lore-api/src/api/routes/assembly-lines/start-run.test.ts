@@ -122,3 +122,65 @@ describe("wiring", () => {
     expect(res.statusCode).toBe(401);
   });
 });
+
+describe("resume_from (fork-and-rerun)", () => {
+  it("passes resume_from through to start as resumeFrom", async () => {
+    const { server, calls } = await serverWith(async () => "run-fork");
+    const res = await server.inject(
+      POST({
+        definition: "implementation-loop",
+        repo: "re-cinq/lore",
+        resume_from: { run_id: "run-abc", node_id: "tdd-round" },
+      }),
+    );
+
+    expect({
+      status: res.statusCode,
+      body: JSON.parse(res.payload),
+      started: calls[0],
+    }).toEqual({
+      status: 201,
+      body: { id: "run-fork" },
+      started: {
+        blueprintName: "implementation-loop",
+        repo: "re-cinq/lore",
+        resumeFrom: { lineId: "run-abc", nodeId: "tdd-round" },
+      },
+    });
+  });
+
+  it("returns 400 for a resume_from with an empty node_id", async () => {
+    const { server, calls } = await serverWith(async () => "run-fork");
+    const res = await server.inject(
+      POST({
+        definition: "implementation-loop",
+        repo: "re-cinq/lore",
+        resume_from: { run_id: "run-abc", node_id: "" },
+      }),
+    );
+
+    expect({ status: res.statusCode, started: calls.length }).toEqual({
+      status: 400,
+      started: 0,
+    });
+  });
+
+  it("returns 400 when branch rides alongside resume_from", async () => {
+    // The port inherits the source's branch; the route refuses the override
+    // up front rather than letting the port throw a 500-shaped error.
+    const { server, calls } = await serverWith(async () => "run-fork");
+    const res = await server.inject(
+      POST({
+        definition: "implementation-loop",
+        repo: "re-cinq/lore",
+        branch: "feat/override",
+        resume_from: { run_id: "run-abc", node_id: "tdd-round" },
+      }),
+    );
+
+    expect({ status: res.statusCode, started: calls.length }).toEqual({
+      status: 400,
+      started: 0,
+    });
+  });
+});
