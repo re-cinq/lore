@@ -103,6 +103,14 @@ The `ThemeSwitcher` maps each appearance option to its icon (sun / monitor / moo
 marks the active family label and the active appearance label as selected, and
 calls `setFamily` / `setScheme` when one of the inactive radios is chosen. ([validated by `ThemeSwitcher.test.tsx:51`](apps/web-ui/src/components/ThemeSwitcher.test.tsx#L52), [`ThemeSwitcher.test.tsx:74`](apps/web-ui/src/components/ThemeSwitcher.test.tsx#L75), [`ThemeSwitcher.test.tsx:88`](apps/web-ui/src/components/ThemeSwitcher.test.tsx#L89), [`ThemeSwitcher.test.tsx:103`](apps/web-ui/src/components/ThemeSwitcher.test.tsx#L104), [`ThemeSwitcher.test.tsx:116`](apps/web-ui/src/components/ThemeSwitcher.test.tsx#L117), [`ThemeSwitcher.test.tsx:125`](apps/web-ui/src/components/ThemeSwitcher.test.tsx#L126), [`ThemeSwitcher.test.tsx:136`](apps/web-ui/src/components/ThemeSwitcher.test.tsx#L137))
 
+The shared `Alert` atom (`web-ui/src/components/Alert.tsx`) is the one way a
+page shows a passive informational note — a bootstrap-style alert box drawn from
+the status tokens, announced politely as a `role="status"` region rather than an
+interruptive `role="alert"` (that stays FormError's job).
+
+- It defaults to the `info` variant. ([validated by](apps/web-ui/src/components/Alert.test.tsx#L7))
+- It offers a muted `secondary` variant for ambient notes. ([validated by](apps/web-ui/src/components/Alert.test.tsx#L16))
+
 The `Icon` component defaults its width and height to 16 when no size is given
 (using the provided size for both otherwise), appends a custom `className`
 alongside the iconify base classes (and none when omitted), exposes an

@@ -49,7 +49,7 @@ The three imported components from `apps/web-ui/src/app/tasks/[id]/` (`EventTime
 ## FR4 — Task accounting stays at page bottom, visually grouped
 
 - When `run.taskId` is present, `EventTimeline` and `LlmCallsTable` (imported from `apps/web-ui/src/app/tasks/[id]/`) remain on the page, grouped under a "Task accounting" heading below the visualization panel.
-- When `run.taskId` is absent, the "Task accounting" section is omitted and the existing explanatory paragraph ("This run has no backing task…") is removed with it. A run without a task is not a degraded state that requires explanation — it is a normal case for detection lines.
+- When `run.taskId` is absent, the "Task accounting" section is omitted and the existing explanatory paragraph ("This run has no backing task…") is removed with it. A run without a task is not a degraded state that requires explanation — it is a normal case for detection lines. *Amended 2026-09-02:* the note stays for now, but renders through the shared secondary `Alert` atom (`specs/web-ui-theming`) instead of a bare `className="meta"` paragraph.
 
 ## FR5 — No new components; redundant paths are deleted
 
