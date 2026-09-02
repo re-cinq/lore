@@ -41,7 +41,6 @@ const CENTRAL_TAGS = [
   "node:github_action",
   "node:detect",
   "node:ingest",
-  "node:comment-triage",
 ];
 
 const spec = (taskType: string): LoreTaskSpec => ({

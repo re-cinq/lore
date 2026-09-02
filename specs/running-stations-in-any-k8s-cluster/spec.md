@@ -69,7 +69,7 @@ rather than smuggled through existing columns:
   default, and the backfill value for every existing row). `status` is
   meaningful only while `outcome IS NULL`; terminality stays exactly what it
   is today — a non-null `outcome` — so `nextTransition()`'s await logic
-  (`visits.some(v => v.outcome === null)`) is untouched. ([validated by `advance.test.ts:1461`](apps/floor/src/jobs/assembly-run/advance.test.ts#L1610))
+  (`visits.some(v => v.outcome === null)`) is untouched. ([validated by `advance.test.ts:1461`](apps/floor/src/jobs/assembly-run/advance.test.ts#L1618))
 - `started_at` keeps its NOT NULL row-creation meaning (now: enqueue time).
   Execution timing moves to the new `claimed_at`: the reaper measures the
   node's `timeout_minutes` budget from `claimed_at`, never from `started_at`,
@@ -179,13 +179,13 @@ scoring.
   workloads central: ingest pods mount `LORE_INGEST_TOKEN`, which never
   ships to satellites, so satellites simply never register `node:ingest`
   (the first registered satellite legally drained the production ingest
-  queue into pods that could never start, #1576). ([validated by `required-tags.test.ts:9`](libs/shared/src/project/cluster-agents/required-tags.test.ts#L9), [`required-tags.test.ts:15`](libs/shared/src/project/cluster-agents/required-tags.test.ts#L15), [`required-tags.test.ts:26`](libs/shared/src/project/cluster-agents/required-tags.test.ts#L26), [`advance.test.ts:1494`](apps/floor/src/jobs/assembly-run/advance.test.ts#L1643))
+  queue into pods that could never start, #1576). ([validated by `required-tags.test.ts:9`](libs/shared/src/project/cluster-agents/required-tags.test.ts#L9), [`required-tags.test.ts:15`](libs/shared/src/project/cluster-agents/required-tags.test.ts#L15), [`required-tags.test.ts:26`](libs/shared/src/project/cluster-agents/required-tags.test.ts#L26), [`advance.test.ts:1494`](apps/floor/src/jobs/assembly-run/advance.test.ts#L1651))
 - Assembly-line YAML nodes accept an optional `required_tags` list in the
   loader schema, added ON TOP of the type tag; an absent list inherits the
   repo-level default `settings.station_default_tags`, and an absent default
   adds nothing beyond the type tag. The default is applied at enqueue time,
   never baked into the parsed definition, so it stays out of
-  `definitionHash`. ([validated by `required-tags.test.ts:49`](libs/shared/src/project/cluster-agents/required-tags.test.ts#L49), [`required-tags.test.ts:63`](libs/shared/src/project/cluster-agents/required-tags.test.ts#L63), [validated by `loader.test.ts:1027`](libs/assembly-lines/src/loader.test.ts#L1027), [`loader.test.ts:1045`](libs/assembly-lines/src/loader.test.ts#L1045), [`loader.test.ts:1053`](libs/assembly-lines/src/loader.test.ts#L1053), [`snapshot-graph.test.ts:91`](libs/assembly-lines/src/snapshot-graph.test.ts#L91), [`advance.test.ts:1521`](apps/floor/src/jobs/assembly-run/advance.test.ts#L1670), [`required-tags.test.ts:33`](libs/shared/src/project/cluster-agents/required-tags.test.ts#L33), [`required-tags.test.ts:41`](libs/shared/src/project/cluster-agents/required-tags.test.ts#L41), [`required-tags.test.ts:49`](libs/shared/src/project/cluster-agents/required-tags.test.ts#L49))
+  `definitionHash`. ([validated by `required-tags.test.ts:49`](libs/shared/src/project/cluster-agents/required-tags.test.ts#L49), [`required-tags.test.ts:63`](libs/shared/src/project/cluster-agents/required-tags.test.ts#L63), [validated by `loader.test.ts:1027`](libs/assembly-lines/src/loader.test.ts#L1027), [`loader.test.ts:1045`](libs/assembly-lines/src/loader.test.ts#L1045), [`loader.test.ts:1053`](libs/assembly-lines/src/loader.test.ts#L1053), [`snapshot-graph.test.ts:91`](libs/assembly-lines/src/snapshot-graph.test.ts#L91), [`advance.test.ts:1521`](apps/floor/src/jobs/assembly-run/advance.test.ts#L1678), [`required-tags.test.ts:33`](libs/shared/src/project/cluster-agents/required-tags.test.ts#L33), [`required-tags.test.ts:41`](libs/shared/src/project/cluster-agents/required-tags.test.ts#L41), [`required-tags.test.ts:49`](libs/shared/src/project/cluster-agents/required-tags.test.ts#L49))
 - Only a run whose stored `required_tags` are `{}` (rows enqueued before the
   type-tag invariant) is claimable by every registered cluster-agent. ([validated by `required-tags.test.ts:19`](libs/shared/src/project/cluster-agents/required-tags.test.ts#L19))
 
@@ -203,7 +203,7 @@ one dispatch mechanism, not a special case plus a remote case.
   never become `queued` and are therefore never claimable. Arming is
   queued-only: a row another cluster has already claimed was handed its spec
   with the claim, so re-arming it would leave the row describing something
-  other than the pod being built from it. ([validated by arming a claimed row is a no-op, so a re-dispatch cannot rewrite what a pod is being built from](libs/shared/src/project/assembly-runs/assembly-runs.contract.test.ts#L1068), [`advance.test.ts:1461`](apps/floor/src/jobs/assembly-run/advance.test.ts#L1610), [`advance.test.ts:1549`](apps/floor/src/jobs/assembly-run/advance.test.ts#L1698), [`advance.test.ts:1562`](apps/floor/src/jobs/assembly-run/advance.test.ts#L1711), [`advance.test.ts:1589`](apps/floor/src/jobs/assembly-run/advance.test.ts#L1738))
+  other than the pod being built from it. ([validated by arming a claimed row is a no-op, so a re-dispatch cannot rewrite what a pod is being built from](libs/shared/src/project/assembly-runs/assembly-runs.contract.test.ts#L1068), [`advance.test.ts:1461`](apps/floor/src/jobs/assembly-run/advance.test.ts#L1618), [`advance.test.ts:1549`](apps/floor/src/jobs/assembly-run/advance.test.ts#L1706), [`advance.test.ts:1562`](apps/floor/src/jobs/assembly-run/advance.test.ts#L1719), [`advance.test.ts:1589`](apps/floor/src/jobs/assembly-run/advance.test.ts#L1746))
 - A cluster-agent polls `POST /api/cluster-agents/{id}/claim` on a
   configurable interval (default 15 s); the claim is a single
   `SELECT … FOR UPDATE SKIP LOCKED` CTE that sets `status = 'claimed'`,
@@ -316,7 +316,7 @@ one dispatch mechanism, not a special case plus a remote case.
   unclaimed and the run fails once naming it, an active central claims that same
   node and the walk reaches `push`, and a satellite carrying only `node:agent`
   cannot take it at all — which is why one paused cluster starves the line
-  rather than failing over to the other. ([validated by `assembly-run-reaper.test.ts:1253`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L1254), [`single-cr-dispatch-acceptance.test.ts:226`](apps/floor/src/jobs/station/single-cr-dispatch-acceptance.test.ts#L226), [`single-cr-dispatch-acceptance.test.ts:210`](apps/floor/src/jobs/station/single-cr-dispatch-acceptance.test.ts#L210))
+  rather than failing over to the other. ([validated by `assembly-run-reaper.test.ts:1253`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L1254), [`single-cr-dispatch-acceptance.test.ts:226`](apps/floor/src/jobs/station/single-cr-dispatch-acceptance.test.ts#L225), [`single-cr-dispatch-acceptance.test.ts:210`](apps/floor/src/jobs/station/single-cr-dispatch-acceptance.test.ts#L209))
 
 ## FR4 — Liveness, recovery, and dead-agent reaping
 
@@ -750,20 +750,20 @@ config flag.
   with empty `required_tags` is claimable by any agent. Asserted against the
   real `required_tags <@ tags` containment as well as the in-memory double,
   because that operator reads correctly in either direction and is wrong in
-  one of them. ([validated by does not hand a run to an agent missing one of its required tags](apps/lore-api/src/integration-tests/cluster-agent-claim.test.ts#L194), [`single-cr-dispatch-acceptance.test.ts:226`](apps/floor/src/jobs/station/single-cr-dispatch-acceptance.test.ts#L226), [`single-cr-dispatch-acceptance.test.ts:210`](apps/floor/src/jobs/station/single-cr-dispatch-acceptance.test.ts#L210), [`single-cr-dispatch-acceptance.test.ts:239`](apps/floor/src/jobs/station/single-cr-dispatch-acceptance.test.ts#L239))
+  one of them. ([validated by does not hand a run to an agent missing one of its required tags](apps/lore-api/src/integration-tests/cluster-agent-claim.test.ts#L194), [`single-cr-dispatch-acceptance.test.ts:226`](apps/floor/src/jobs/station/single-cr-dispatch-acceptance.test.ts#L225), [`single-cr-dispatch-acceptance.test.ts:210`](apps/floor/src/jobs/station/single-cr-dispatch-acceptance.test.ts#L209), [`single-cr-dispatch-acceptance.test.ts:239`](apps/floor/src/jobs/station/single-cr-dispatch-acceptance.test.ts#L238))
 - FR3: two agents claiming concurrently never receive the same run; a
   human-station or service-node row is never returned by a claim; the
   minikube acceptance walk ends with a PR authored from a locally executed
   station run. A queued row that has not been armed yet is likewise never
   handed out — the walk writes the row and its dispatch spec in two
   statements, and a claim between them would consume a visit with nothing to
-  launch. ([validated by never hands one visit to two clusters](apps/lore-api/src/integration-tests/cluster-agent-claim.test.ts#L275), [`cluster-agent-claim.test.ts:226`](apps/lore-api/src/integration-tests/cluster-agent-claim.test.ts#L226), [`cluster-agent-claim.test.ts:165`](apps/lore-api/src/integration-tests/cluster-agent-claim.test.ts#L165), [`single-cr-dispatch-acceptance.test.ts:258`](apps/floor/src/jobs/station/single-cr-dispatch-acceptance.test.ts#L258))
+  launch. ([validated by never hands one visit to two clusters](apps/lore-api/src/integration-tests/cluster-agent-claim.test.ts#L275), [`cluster-agent-claim.test.ts:226`](apps/lore-api/src/integration-tests/cluster-agent-claim.test.ts#L226), [`cluster-agent-claim.test.ts:165`](apps/lore-api/src/integration-tests/cluster-agent-claim.test.ts#L165), [`single-cr-dispatch-acceptance.test.ts:258`](apps/floor/src/jobs/station/single-cr-dispatch-acceptance.test.ts#L257))
 - FR3 (single-CR): a task type with no assembly line takes the same path. The
   round trip is walked cluster-free through the production functions of all
   three processes — the Floor's launch seam, the claim, the CR the claiming
   cluster builds, the terminal event its watch reports, and the report the
   Floor settles from — so a hand-off that is correct on one side and wrong on
-  the other fails here rather than in a silent run. ([validated by reaches the Floor's terminal report carrying the task it started from](apps/floor/src/jobs/station/single-cr-dispatch-acceptance.test.ts#L88), [`single-cr-dispatch-acceptance.test.ts:120`](apps/floor/src/jobs/station/single-cr-dispatch-acceptance.test.ts#L120), [`single-cr-dispatch-acceptance.test.ts:160`](apps/floor/src/jobs/station/single-cr-dispatch-acceptance.test.ts#L160), [`single-cr-dispatch-acceptance.test.ts:184`](apps/floor/src/jobs/station/single-cr-dispatch-acceptance.test.ts#L184))
+  the other fails here rather than in a silent run. ([validated by reaches the Floor's terminal report carrying the task it started from](apps/floor/src/jobs/station/single-cr-dispatch-acceptance.test.ts#L87), [`single-cr-dispatch-acceptance.test.ts:120`](apps/floor/src/jobs/station/single-cr-dispatch-acceptance.test.ts#L119), [`single-cr-dispatch-acceptance.test.ts:160`](apps/floor/src/jobs/station/single-cr-dispatch-acceptance.test.ts#L159), [`single-cr-dispatch-acceptance.test.ts:184`](apps/floor/src/jobs/station/single-cr-dispatch-acceptance.test.ts#L183))
 - FR4: killing a satellite mid-run requeues its claim within the offline
   threshold (5 min) plus two reaper cycles (one to mark offline, one to
   requeue), with a `cluster_agent_offline` audit entry; a satellite-claimed

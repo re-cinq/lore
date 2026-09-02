@@ -22,9 +22,10 @@ describe("parseTaskTypesFile", () => {
     expect(parsed.drift).toEqual([]);
     expect(Object.keys(parsed.taskTypes)).toHaveLength(21);
     // The NAMES, not a count: a bare number says a station went and not which,
-    // and the recipes here have to stay in step with the station registry.
+    // and the recipes here have to stay in step with the station registry —
+    // pod-runtime stations only; comment-triage left when it pooled (its
+    // manifest says runtime "service", so no pod recipe exists for it).
     expect(Object.keys(parsed.stations).sort()).toEqual([
-      "comment-triage",
       "detect",
       "ingest",
       "issues",
