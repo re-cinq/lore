@@ -49,7 +49,9 @@ function exits(statement) {
   if (statement.type === "BlockStatement") {
     return exits(statement.body[statement.body.length - 1]);
   }
-  return statement.type === "ReturnStatement" || statement.type === "ThrowStatement";
+  return (
+    statement.type === "ReturnStatement" || statement.type === "ThrowStatement"
+  );
 }
 
 function statementCount(statement) {
@@ -100,10 +102,7 @@ export default {
 
       // `else { ... }` — replace keyword-through-block with the block's body.
       if (node.alternate.type === "BlockStatement") {
-        const inner = sourceCode
-          .getText(node.alternate)
-          .slice(1, -1)
-          .trim();
+        const inner = sourceCode.getText(node.alternate).slice(1, -1).trim();
 
         return fixer.replaceTextRange(
           [elseToken.range[0], node.alternate.range[1]],
@@ -142,10 +141,7 @@ export default {
         // a loop is already guard-shaped, its wrapped block being the
         // exceptional path — and only a REAL block (≥ MIN_WRAPPED statements)
         // outweighing its tail is worth a warning.
-        if (
-          node.parent.type !== "BlockStatement" ||
-          !exits(node.consequent)
-        ) {
+        if (node.parent.type !== "BlockStatement" || !exits(node.consequent)) {
           return;
         }
         const siblings = node.parent.body;

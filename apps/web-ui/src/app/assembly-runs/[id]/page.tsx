@@ -74,13 +74,4 @@ export default async function AssemblyLineResolverPage({
       </>
     );
   }
-
-  // The id may be a TASK id rather than a run id — the old links pointed here.
-  const taskResult = await getTask(id);
-
-  if (taskResult.status === "ok") {
-    redirect(`/tasks/${id}`);
-  }
-
-  return <p>Not found.</p>;
 }
