@@ -140,6 +140,12 @@ export function EntryLine({ entry }: { entry: LogEntry }) {
       );
     case "rate-limit":
       return <div className={styles.rateLimit}>{rateLimitSummary(entry)}</div>;
+    case "agent-error":
+      return (
+        <div className={entry.severity === "error" ? styles.error : styles.dim}>
+          ✗ {entry.severity}: {entry.message}
+        </div>
+      );
     case "hook": {
       const errorClass =
         entry.outcome !== undefined && !hookPassed(entry)

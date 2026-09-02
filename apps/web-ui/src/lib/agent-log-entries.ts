@@ -12,7 +12,13 @@ export type LogEntry =
     }
   | { kind: "thinking-tokens"; tokens: number }
   | { kind: "thinking"; text: string }
-  | { kind: "assistant-text"; text: string }
+  | {
+      kind: "assistant-text";
+      text: string;
+      /** Present on a gemini streaming chunk — the fold appends it to the
+       *  previous assistant-text instead of starting a new paragraph. */
+      delta?: true;
+    }
   | { kind: "tool-use"; summary: string }
   | { kind: "tool-result"; text: string; isError: boolean }
   | { kind: "user-text"; text: string }
@@ -49,6 +55,9 @@ export type LogEntry =
     }
   | { kind: "system"; subtype: string; detailsJson: string }
   | { kind: "rate-limit"; status: string; windows: RateLimitWindow[] }
+  /** gemini-cli's standalone error event — claude carries errors inside its
+   *  result line, gemini emits them as their own stream event. */
+  | { kind: "agent-error"; severity: "warning" | "error"; message: string }
   | { kind: "raw"; text: string };
 
 /** One usage window of a rate_limit_event. `utilization` is the fraction the
@@ -173,6 +182,33 @@ export function supersedesPrevious(
   );
 }
 
+/**
+ * The join of a gemini streaming chunk onto the assistant text before it, or
+ * null when `next` starts its own entry. Gemini emits assistant prose ONLY as
+ * `delta: true` fragments — there is no final complete message to prefer — so
+ * without this append the transcript reads as one line per fragment.
+ * Adjacent-only, like `supersedesPrevious`: a tool call between chunks starts
+ * a new paragraph rather than gluing across it.
+ */
+export function mergedDelta(
+  previous: LogEntry | undefined,
+  next: LogEntry,
+): LogEntry | null {
+  if (
+    next.kind !== "assistant-text" ||
+    next.delta !== true ||
+    previous?.kind !== "assistant-text"
+  ) {
+    return null;
+  }
+
+  return {
+    kind: "assistant-text",
+    text: previous.text + next.text,
+    delta: true,
+  };
+}
+
 /** Classifies an already-decoded envelope. Callers holding the object (the
  *  transcript store hands out parsed JSONB) must not stringify to re-parse it. */
 export function logEntriesFromValue(
@@ -211,7 +247,15 @@ export function parseAgentLog(raw: string): LogEntry[] {
 
   for (const line of raw.split("\n")) {
     for (const entry of parseAgentLogLine(line)) {
-      if (supersedesPrevious(entries[entries.length - 1], entry)) {
+      const previous = entries[entries.length - 1];
+      const merged = mergedDelta(previous, entry);
+
+      if (merged !== null) {
+        entries[entries.length - 1] = merged;
+        continue;
+      }
+
+      if (supersedesPrevious(previous, entry)) {
         entries[entries.length - 1] = entry;
         continue;
       }
@@ -224,6 +268,13 @@ export function parseAgentLog(raw: string): LogEntry[] {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
+}
+
+/** The message inside a gemini `error: {type, message}` object, or empty. */
+function errorMessage(error: unknown): string {
+  return isRecord(error) && typeof error.message === "string"
+    ? error.message
+    : "";
 }
 
 // The ai-agent-subsystem's {"source":…,"event":…} attribution envelope
@@ -311,12 +362,84 @@ function classify(value: unknown, originalLine: string): LogEntry[] {
     return entries.length > 0 ? entries : [{ kind: "raw", text: originalLine }];
   }
 
+  // gemini-cli's `--output-format stream-json` dialect (the GeminiAgent
+  // vendor): flat events instead of claude's message.content blocks —
+  // `init`, `message` with string content, top-level `tool_use`/`tool_result`,
+  // a standalone `error`, and a `result` keyed by `status`.
+  if (value.type === "init" && typeof value.model === "string") {
+    return [
+      {
+        kind: "session-init",
+        model: value.model,
+        detailsJson: JSON.stringify(value, null, 2),
+      },
+    ];
+  }
+
+  if (value.type === "message" && typeof value.content === "string") {
+    // A delta chunk keeps even whitespace-only content: it joins the previous
+    // chunk at fold time, and trimming it would glue the words around it.
+    if (value.delta === true && value.role !== "user") {
+      return value.content
+        ? [{ kind: "assistant-text", text: value.content, delta: true }]
+        : [];
+    }
+
+    if (!value.content.trim()) {
+      return [];
+    }
+
+    return [
+      value.role === "user"
+        ? { kind: "user-text", text: value.content }
+        : { kind: "assistant-text", text: value.content },
+    ];
+  }
+
+  if (value.type === "tool_use" && typeof value.tool_name === "string") {
+    return [
+      {
+        kind: "tool-use",
+        summary: toolSummary({
+          name: value.tool_name,
+          ...(isRecord(value.parameters) ? { input: value.parameters } : {}),
+        }),
+      },
+    ];
+  }
+
+  if (value.type === "tool_result" && typeof value.tool_id === "string") {
+    return [
+      {
+        kind: "tool-result",
+        text:
+          typeof value.output === "string"
+            ? value.output
+            : errorMessage(value.error),
+        isError: value.status === "error",
+      },
+    ];
+  }
+
+  if (value.type === "error" && typeof value.message === "string") {
+    return [
+      {
+        kind: "agent-error",
+        severity: value.severity === "warning" ? "warning" : "error",
+        message: value.message,
+      },
+    ];
+  }
+
   if (value.type === "result") {
     return [
       {
         kind: "result",
-        text: typeof value.result === "string" ? value.result : "",
-        isError: value.is_error === true,
+        text:
+          typeof value.result === "string"
+            ? value.result
+            : errorMessage(value.error),
+        isError: value.is_error === true || value.status === "error",
         ...(typeof value.duration_ms === "number"
           ? { durationMs: value.duration_ms }
           : {}),

@@ -15,6 +15,8 @@ import {
   TOOL_PROGRESS_SKILL_FIRST,
   TOOL_PROGRESS_SKILL_LAST,
   SYSTEM_COMPACT_BOUNDARY,
+  GEMINI_ERROR_EVENT,
+  wrapped,
 } from "@/lib/agent-log-entries.fixtures";
 
 describe("LogEntriesView", () => {
@@ -295,5 +297,37 @@ describe("hook entries", () => {
     render(<LogEntriesView entries={parseAgentLog(SYSTEM_COMPACT_BOUNDARY)} />);
 
     expect(screen.getByText("· system: compact_boundary")).toBeInTheDocument();
+  });
+});
+
+describe("LogEntriesView — gemini agent errors", () => {
+  it("renders an error-severity agent-error styled as an error", () => {
+    render(
+      <LogEntriesView entries={parseAgentLog(wrapped(GEMINI_ERROR_EVENT))} />,
+    );
+
+    expect(
+      screen.getByText(
+        "✗ error: Model gemini-2.5-pro not found for this API key",
+      ),
+    ).toHaveClass(styles.error);
+  });
+
+  it("renders a warning-severity agent-error dimmed, not as an error", () => {
+    render(
+      <LogEntriesView
+        entries={[
+          {
+            kind: "agent-error",
+            severity: "warning",
+            message: "context truncated",
+          },
+        ]}
+      />,
+    );
+
+    expect(screen.getByText("✗ warning: context truncated")).toHaveClass(
+      styles.dim,
+    );
   });
 });
