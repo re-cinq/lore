@@ -5330,6 +5330,47 @@
         "x-required-scope": "read"
       }
     },
+    "/api/analytics/spend-window": {
+      "get": {
+        "operationId": "get_api_analytics_spend-window",
+        "summary": "GET /api/analytics/spend-window",
+        "tags": ["Analytics"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "Interval-scoped LLM spend plus the estimated Kubernetes compute cost",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpendWindow"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "read"
+      }
+    },
     "/api/spend/credits": {
       "post": {
         "operationId": "post_api_spend_credits",
@@ -12089,6 +12130,177 @@
           "lore_by_task_type",
           "lore_by_cluster"
         ],
+        "additionalProperties": false
+      },
+      "SpendWindow": {
+        "type": "object",
+        "properties": {
+          "interval": {
+            "type": "object",
+            "properties": {
+              "from": {
+                "type": "string"
+              },
+              "to": {
+                "type": "string"
+              }
+            },
+            "required": ["from", "to"],
+            "additionalProperties": false
+          },
+          "llm": {
+            "type": "object",
+            "properties": {
+              "total_usd": {
+                "type": "number"
+              },
+              "calls": {
+                "type": "number"
+              },
+              "by_blueprint": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "blueprint": {
+                      "type": "string"
+                    },
+                    "runs": {
+                      "type": "number"
+                    },
+                    "usd": {
+                      "type": "number"
+                    }
+                  },
+                  "required": ["blueprint", "runs", "usd"],
+                  "additionalProperties": false
+                }
+              },
+              "by_repo": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "repo": {
+                      "type": "string"
+                    },
+                    "usd": {
+                      "type": "number"
+                    }
+                  },
+                  "required": ["repo", "usd"],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": ["total_usd", "calls", "by_blueprint", "by_repo"],
+            "additionalProperties": false
+          },
+          "compute": {
+            "type": "object",
+            "properties": {
+              "rates": {
+                "type": "object",
+                "properties": {
+                  "cpu_hour_usd": {
+                    "type": "number"
+                  },
+                  "mem_gib_hour_usd": {
+                    "type": "number"
+                  }
+                },
+                "required": ["cpu_hour_usd", "mem_gib_hour_usd"],
+                "additionalProperties": false
+              },
+              "assumed_profile": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              },
+              "pod_hours": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "blueprint": {
+                      "type": "string"
+                    },
+                    "pods": {
+                      "type": "number"
+                    },
+                    "hours": {
+                      "type": "number"
+                    },
+                    "est_usd": {
+                      "type": "number"
+                    }
+                  },
+                  "required": ["blueprint", "pods", "hours", "est_usd"],
+                  "additionalProperties": false
+                }
+              },
+              "est_total_usd": {
+                "type": "number"
+              },
+              "live_pods": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "phase": {
+                      "type": "string"
+                    },
+                    "started_at": {
+                      "type": ["string", "null"]
+                    },
+                    "requests": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "string"
+                      }
+                    },
+                    "usd_per_hour": {
+                      "type": "number"
+                    },
+                    "usd_so_far": {
+                      "type": "number"
+                    },
+                    "station_run_id": {
+                      "type": ["string", "null"]
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "phase",
+                    "started_at",
+                    "requests",
+                    "usd_per_hour",
+                    "usd_so_far",
+                    "station_run_id"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "live_usd_per_hour": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "rates",
+              "assumed_profile",
+              "pod_hours",
+              "est_total_usd",
+              "live_pods",
+              "live_usd_per_hour"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": ["interval", "llm", "compute"],
         "additionalProperties": false
       },
       "CreditEntryRecorded": {

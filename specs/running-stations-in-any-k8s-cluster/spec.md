@@ -636,7 +636,7 @@ it a Kubernetes client, which ADR-024 deliberately withholds.
   the container and re-pulls whatever `latest` now points at. The exit is
   deferred one tick so the response reaches the caller first, and the route
   carries the same bearer guard as every other `/api/cluster/*` route.
-  ([validated by answers 204 and fires the restart hook once the response is sent](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L215), [validated by refuses to restart without a bearer token](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L241))
+  ([validated by answers 204 and fires the restart hook once the response is sent](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L247), [validated by refuses to restart without a bearer token](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L273))
 - `POST /api/cluster-agents/{id}/restart` on lore-api is the only caller with
   a path to that route, and only for the CENTRAL agent: lore-api dials one
   static in-cluster `CLUSTER_AGENT_URL` (terraform), and dispatch being

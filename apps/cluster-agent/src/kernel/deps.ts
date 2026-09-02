@@ -117,6 +117,7 @@ export function clusterDeps(): ClusterDeps {
       agentInfo: (name) => pods.agentInfo(name),
       podsForJob: (job) => pods.podsForJob(job),
       podLog: (pod, tail) => pods.podLog(pod, tail),
+      listRunning: () => pods.listRunning(),
     },
     tokens: {
       cleanup: (taskId) => tokens.cleanup(taskId),

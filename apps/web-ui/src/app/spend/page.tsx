@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 import { getSpend } from "@/lib/api/activity";
 import { recordTopUpAction } from "./actions";
+import SpendWindowPanel from "./SpendWindowPanel";
 import SpendView, {
   type BudgetRow,
   type OrgMtdRow,
@@ -81,6 +82,7 @@ export default async function SpendPage() {
       loreByRepo={spend.lore_by_repo}
       loreByTaskType={spend.lore_by_task_type}
       loreByCluster={spend.lore_by_cluster}
+      intervalPanel={<SpendWindowPanel />}
     />
   );
 }

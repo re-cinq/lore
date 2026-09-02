@@ -27,6 +27,15 @@ function fakeDeps(over: Partial<ClusterDeps> = {}): ClusterDeps {
       agentInfo: async (name) =>
         name === "known" ? { phase: "Running", jobName: "job-1" } : null,
       podsForJob: async () => [{ name: "pod-1" }],
+      listRunning: async () => [
+        {
+          name: "agent-job-run1-tdd-round-abc",
+          phase: "Running",
+          startedAt: "2026-09-02T10:00:00.000Z",
+          requests: { cpu: "1", memory: "16Gi" },
+          labels: { "lore.re-cinq.com/station-run-id": "sr-1" },
+        },
+      ],
       podLog: async (pod, tail) => {
         calls.push(`log:${pod}:${tail}`);
 
@@ -143,6 +152,29 @@ describe("auth", () => {
 });
 
 describe("routes the Floor needs but the tests above do not reach", () => {
+  it("lists the running pods with their requests — the live compute-cost read", async () => {
+    const res = await app.inject({
+      method: "GET",
+      url: "/api/cluster/pods",
+      headers: auth,
+    });
+
+    expect({ status: res.statusCode, body: JSON.parse(res.payload) }).toEqual({
+      status: 200,
+      body: {
+        pods: [
+          {
+            name: "agent-job-run1-tdd-round-abc",
+            phase: "Running",
+            startedAt: "2026-09-02T10:00:00.000Z",
+            requests: { cpu: "1", memory: "16Gi" },
+            labels: { "lore.re-cinq.com/station-run-id": "sr-1" },
+          },
+        ],
+      },
+    });
+  });
+
   it("lists the pods of a job", async () => {
     const res = await app.inject({
       method: "GET",

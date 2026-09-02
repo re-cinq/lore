@@ -99,6 +99,7 @@ import {
   analyticsOverviewRoute,
 } from "../api/routes/analytics/spend.js";
 import { creditLedgerRoute } from "../api/routes/analytics/credit-ledger.js";
+import { spendWindowRoute } from "../api/routes/analytics/spend-window.js";
 import { agentStatsRoute } from "../api/routes/analytics/agent-stats.js";
 import { impactRoute } from "../api/routes/impact/impact.js";
 import { impactBaseRoute } from "../api/routes/impact/impact-base.js";
@@ -190,6 +191,7 @@ export function routeList(getPool: () => Pool | null): ServerRoute[] {
     analyticsRoute(getPool),
     ...activityRoutes(getPool),
     spendRoute(getPool),
+    spendWindowRoute(getPool),
     creditLedgerRoute(getPool),
     analyticsOverviewRoute(getPool),
     agentStatsRoute(getPool),

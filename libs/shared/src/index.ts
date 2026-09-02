@@ -47,6 +47,7 @@ export type {
 export type {
   AgentPodInfo,
   PodSummary,
+  RunningPodInfo,
   PodLogSource,
 } from "./cluster/pod-logs-port.js";
 export {
