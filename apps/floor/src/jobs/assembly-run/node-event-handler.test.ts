@@ -428,6 +428,45 @@ describe("createNodeEventHandler", () => {
     expect(h.port.nodes).toHaveLength(1);
     expect(await h.port.getById(id)).toMatchObject({ outcome: "completed" });
   });
+
+  it("does not read the central cluster's CR when a duplicate event arrives for a node a satellite already settled while the line is still running", async () => {
+    // Scenario: "review" settles with changes_requested → walk advances to "refine"
+    // (run still "running"). A duplicate terminal event for "review" then arrives
+    // WITHOUT params.status — the form an old cluster-agent sends. Because the
+    // satellite's CR lives in a cluster the central Floor cannot reach,
+    // readAgentStatus would answer null. The fallback converts that null to
+    // { phase: "Succeeded" }, which degrades "the satellite produced
+    // REVIEW_RESULT:CHANGES_REQUESTED" into "Succeeded with no output" — a
+    // phantom re-settlement the reaper already closed correctly. The handler
+    // must detect that no open station-run row exists for this node (it was
+    // settled on the first delivery) and return without interrogating any cluster.
+    const h = harness();
+    const { id, crName } = await reviewInFlight(h);
+
+    // First delivery: settle "review" → walk advances to "refine"
+    h.statusByName[crName] = {
+      phase: "Succeeded",
+      output: "notes\nREVIEW_RESULT:CHANGES_REQUESTED: fix the null check",
+    };
+    await h.handler(params(id, crName));
+    expect(await h.port.getById(id)).toMatchObject({ status: "running" });
+    expect(h.port.nodes[0]).toMatchObject({
+      nodeId: "review",
+      outcome: "changes_requested",
+    });
+
+    // Duplicate delivery without params.status — record any central CR reads
+    const crReads: string[] = [];
+
+    h.deps.readAgentStatus = async (name) => {
+      crReads.push(name);
+      return null; // satellite's CR is not visible from the central cluster
+    };
+    await h.handler(params(id, crName));
+
+    // The satellite ran this node — the Floor must not read the central cluster's CR
+    expect(crReads).toEqual([]);
+  });
 });
 
 describe("a declared artifact is delivered before the walk advances", () => {
