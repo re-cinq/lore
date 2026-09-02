@@ -20,7 +20,11 @@ import type {
  * carrying the message, and anything else must stay the 500 it is: matching on
  * message prose would make a DB outage read as "the fork was refused".
  */
-export class ResumeRefusedError extends Error {}
+export class ResumeRefusedError extends Error {
+  // Explicit, or a stack trace reads "Error: resume-from …" and the refusal
+  // is indistinguishable from breakage in a log line.
+  override name = "ResumeRefusedError";
+}
 
 /** Index (in visit order) of the latest COMPLETED row for `nodeId` — or, with
  *  `iteration`, of exactly that completed visit. -1 when no such row exists.

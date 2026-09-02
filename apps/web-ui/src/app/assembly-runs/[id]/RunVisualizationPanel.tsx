@@ -13,6 +13,7 @@ import {
   useRef,
   useState,
 } from "react";
+import Link from "next/link";
 import type { AssemblyLineDefinition } from "@/lib/assembly-line-definition";
 import type { AssemblyRunNode } from "@/lib/assembly-runs";
 import {
@@ -491,14 +492,15 @@ export default function RunVisualizationPanel({
                   {agentEditHrefs?.[selectedNodeId] !== undefined ? (
                     // Inside a <summary>: navigation is the click's own
                     // default, but without stopPropagation the card would also
-                    // toggle shut behind the navigation.
-                    <a
+                    // toggle shut behind the navigation. Link, not <a> — an
+                    // internal route deserves client-side navigation.
+                    <Link
                       className="btn-secondary"
-                      href={agentEditHrefs?.[selectedNodeId]}
+                      href={agentEditHrefs?.[selectedNodeId] ?? ""}
                       onClick={(event) => event.stopPropagation()}
                     >
                       Edit agent
-                    </a>
+                    </Link>
                   ) : null}
                   {retrySource !== null ? (
                     <RerunNodeButton

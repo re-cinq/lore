@@ -184,7 +184,7 @@ describe("resolveResumePrefix", () => {
     expect(() =>
       resolveResumePrefix(input({ branch: "other" }), source(), NODES),
     ).toThrow(
-      new Error(
+      new ResumeRefusedError(
         "resume-from start inherits branch from the source line — do not pass it",
       ),
     );
@@ -194,7 +194,7 @@ describe("resolveResumePrefix", () => {
     expect(() =>
       resolveResumePrefix(input({ taskId: "task-1" }), source(), NODES),
     ).toThrow(
-      new Error(
+      new ResumeRefusedError(
         "resume-from start inherits taskId from the source line — do not pass it",
       ),
     );
@@ -204,7 +204,7 @@ describe("resolveResumePrefix", () => {
     expect(() =>
       resolveResumePrefix(input({ blueprintHash: undefined }), source(), NODES),
     ).toThrow(
-      new Error(
+      new ResumeRefusedError(
         "resume-from start requires definitionHash — the current definition's content hash",
       ),
     );
@@ -212,7 +212,7 @@ describe("resolveResumePrefix", () => {
 
   it("rejects a source line that does not exist", () => {
     expect(() => resolveResumePrefix(input(), null, [])).toThrow(
-      new Error('resume-from source line "src" not found'),
+      new ResumeRefusedError('resume-from source line "src" not found'),
     );
   });
 
@@ -220,7 +220,7 @@ describe("resolveResumePrefix", () => {
     expect(() =>
       resolveResumePrefix(input({ repo: "re-cinq/other" }), source(), NODES),
     ).toThrow(
-      new Error(
+      new ResumeRefusedError(
         'resume-from source line "src" belongs to repo "re-cinq/lore", not "re-cinq/other"',
       ),
     );
@@ -234,7 +234,7 @@ describe("resolveResumePrefix", () => {
         NODES,
       ),
     ).toThrow(
-      new Error(
+      new ResumeRefusedError(
         'resume-from source line "src" ran definition "implementation", not "code-review"',
       ),
     );
@@ -244,7 +244,7 @@ describe("resolveResumePrefix", () => {
     expect(() =>
       resolveResumePrefix(input(), source({ status: "running" }), NODES),
     ).toThrow(
-      new Error(
+      new ResumeRefusedError(
         'resume-from source line "src" is still running — only a finished or failed line can be forked',
       ),
     );
@@ -257,7 +257,7 @@ describe("resolveResumePrefix", () => {
     expect(() =>
       resolveResumePrefix(input(), source({ blueprintHash: null }), NODES),
     ).toThrow(
-      new Error(
+      new ResumeRefusedError(
         'resume-from source line "src" predates definition hashing — backfill pipeline.assembly_runs.blueprint_hash before forking it',
       ),
     );
@@ -301,7 +301,7 @@ describe("resolveResumePrefix", () => {
         NODES,
       ),
     ).toThrow(
-      new Error(
+      new ResumeRefusedError(
         'resume-from source line "src" has no completed "implement" iteration 7 to fork from',
       ),
     );
@@ -315,7 +315,7 @@ describe("resolveResumePrefix", () => {
         NODES,
       ),
     ).toThrow(
-      new Error(
+      new ResumeRefusedError(
         'resume-from source line "src" has no completed "retrospective" node to fork from',
       ),
     );
@@ -334,7 +334,7 @@ describe("resolveResumePrefix", () => {
         nodes,
       ),
     ).toThrow(
-      new Error(
+      new ResumeRefusedError(
         'resume-from source line "src" has an unfinished "implement" node inside the prefix — its history is not replayable',
       ),
     );
