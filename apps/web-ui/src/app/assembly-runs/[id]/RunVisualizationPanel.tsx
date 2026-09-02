@@ -494,7 +494,7 @@ export default function RunVisualizationPanel({
                     // toggle shut behind the navigation.
                     <a
                       className="btn-secondary"
-                      href={agentEditHrefs[selectedNodeId]}
+                      href={agentEditHrefs?.[selectedNodeId]}
                       onClick={(event) => event.stopPropagation()}
                     >
                       Edit agent
