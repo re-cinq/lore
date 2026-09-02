@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { restoreEnv } from "../../../integration-tests/restore-env.js";
 import type { MemoryOperationSchema as Schema } from "./memory.js";
 
 /**
@@ -54,11 +55,7 @@ beforeAll(async () => {
 });
 
 afterAll(() => {
-  if (originalHome === undefined) {
-    delete process.env.HOME;
-  } else {
-    process.env.HOME = originalHome;
-  }
+  restoreEnv("HOME", originalHome);
   rmSync(tmpHome, { recursive: true, force: true });
 });
 

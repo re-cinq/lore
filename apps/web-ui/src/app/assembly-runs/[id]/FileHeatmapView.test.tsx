@@ -133,4 +133,16 @@ describe("FileHeatmapView", () => {
 
     expect(screen.getByText("No files touched yet.")).toBeInTheDocument();
   });
+
+  it("renders as a collapsible card titled Files touched", () => {
+    render(
+      <FileHeatmapView
+        touches={{}}
+        showAll={false}
+        onToggleShowAll={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("Files touched").closest("summary")).not.toBeNull();
+  });
 });

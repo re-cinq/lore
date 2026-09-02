@@ -489,7 +489,10 @@ function detectCycles(wf: AssemblyLine, source: string): void {
             source,
           );
         }
-      } else if (c === WHITE) {
+        continue;
+      }
+
+      if (c === WHITE) {
         color.set(e.to, GRAY);
         stack.push({ id: e.to, edgeIndex: 0 });
       }

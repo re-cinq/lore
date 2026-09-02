@@ -110,43 +110,47 @@ export async function handleReviewResult(
   }
 
   if (approved) {
+    // Agent approval logged but human still needs to approve
     await updateTaskStatus(taskId, "review", {
       review_result: "approved",
       comments,
     });
-    // Agent approval logged but human still needs to approve
-  } else {
-    // Check iteration count
-    const iteration = ((task.review_iteration as number) || 0) + 1;
 
-    await getPool().query(
-      `UPDATE pipeline.tasks SET review_iteration = $1 WHERE id = $2`,
-      [iteration, taskId],
-    );
-
-    if (iteration >= 2) {
-      // Max iterations reached, escalate to human
-      await updateTaskStatus(taskId, "review", {
-        review_result: "needs-human-review",
-        comments,
-        iterations: iteration,
-      });
-    } else {
-      // Re-trigger implementation agent with review feedback (immediate — active feedback loop)
-      await createTask(
-        `Address review feedback on PR: ${comments.substring(0, 200)}`,
-        task.task_type as string,
-        task.target_repo ?? undefined,
-        "review-agent",
-        { branch: task.target_branch, review_comments: comments },
-        "immediate",
-      );
-      await updateTaskStatus(taskId, "review", {
-        review_result: "changes-requested",
-        iteration,
-      });
-    }
+    return;
   }
+
+  // Check iteration count
+  const iteration = ((task.review_iteration as number) || 0) + 1;
+
+  await getPool().query(
+    `UPDATE pipeline.tasks SET review_iteration = $1 WHERE id = $2`,
+    [iteration, taskId],
+  );
+
+  if (iteration >= 2) {
+    // Max iterations reached, escalate to human
+    await updateTaskStatus(taskId, "review", {
+      review_result: "needs-human-review",
+      comments,
+      iterations: iteration,
+    });
+
+    return;
+  }
+
+  // Re-trigger implementation agent with review feedback (immediate — active feedback loop)
+  await createTask(
+    `Address review feedback on PR: ${comments.substring(0, 200)}`,
+    task.task_type as string,
+    task.target_repo ?? undefined,
+    "review-agent",
+    { branch: task.target_branch, review_comments: comments },
+    "immediate",
+  );
+  await updateTaskStatus(taskId, "review", {
+    review_result: "changes-requested",
+    iteration,
+  });
 }
 
 // ── Task retry (single source in shared) ────────────────────────────

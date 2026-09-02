@@ -117,9 +117,10 @@ export async function handleOne(ev: EventRow, deps: LoopDeps): Promise<void> {
 
     if (decision.kind === "retry") {
       await deps.markFailed(ev.id, message, decision.backoffSeconds);
-    } else {
-      await deadLetter(deps, ev, message);
+
+      return;
     }
+    await deadLetter(deps, ev, message);
   }
 }
 

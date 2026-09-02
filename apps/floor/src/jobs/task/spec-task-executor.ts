@@ -137,7 +137,9 @@ export async function specTaskExecutorJob(): Promise<string> {
         console.log(
           `[spec-task-executor] Dispatched ${specTaskId} (${task.id}) → Agent CR`,
         );
-      } else {
+      }
+
+      if (!result.started) {
         console.log(
           `[spec-task-executor] Agent CR for ${task.id} already exists, skipping`,
         );

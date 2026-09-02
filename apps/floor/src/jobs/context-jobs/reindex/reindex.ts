@@ -260,7 +260,11 @@ async function ingestFile(
       console.log(
         `[job] Embedded ${filePath} chunk ${chunk.metadata.chunk_index} (id ${chunkId})`,
       );
-    } else if (chunkId) {
+
+      continue;
+    }
+
+    if (chunkId) {
       console.log(
         `[job] Ingested ${filePath} chunk ${chunk.metadata.chunk_index} without embedding (id ${chunkId})`,
       );
@@ -328,24 +332,26 @@ export async function reindexJob(): Promise<string> {
       const hasChunks =
         (await chunks().countChunks(schema, repo.full_name)) > 0;
 
-      let filePaths: string[];
       let treePaths: string[] | null = null;
+      const lastIngestedAt = hasChunks ? repo.last_ingested_at : null;
 
-      if (repo.last_ingested_at && hasChunks) {
-        filePaths = await getChangedFiles(
-          repo.full_name,
-          repo.last_ingested_at,
-        );
-      } else {
+      if (!lastIngestedAt) {
         treePaths = await getTree(repo.full_name);
-        filePaths = selectSeedFiles(treePaths);
       }
+
+      const filePaths = lastIngestedAt
+        ? await getChangedFiles(repo.full_name, lastIngestedAt)
+        : selectSeedFiles(treePaths ?? []);
 
       let repoFileCount = 0;
 
-      if (filePaths.length === 0) {
+      const nothingToReindex = filePaths.length === 0;
+
+      if (nothingToReindex) {
         console.log(`[job] No files to reindex for ${repo.full_name}`);
-      } else {
+      }
+
+      if (!nothingToReindex) {
         console.log(
           `[job] Processing ${filePaths.length} files for ${repo.full_name}`,
         );

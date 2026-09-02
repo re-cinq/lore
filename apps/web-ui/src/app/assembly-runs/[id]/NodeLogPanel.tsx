@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { parseAgentLog } from "@/lib/agent-log-entries";
+import CollapsibleCard from "@/components/CollapsibleCard";
 import LogEntriesView from "@/components/LogEntriesView";
 import LogFormatToggle from "@/components/LogFormatToggle";
 import {
@@ -79,16 +80,11 @@ export default function NodeLogPanel({
   }, [resp]);
 
   return (
-    <details
-      className={styles.panel}
-      onToggle={(e) => setOpen(e.currentTarget.open)}
+    <CollapsibleCard
+      title={label}
+      labels={[resp?.phase, resp?.archived ? "retained" : null]}
+      onToggle={setOpen}
     >
-      <summary className={styles.summary}>
-        <span>{label}</span>
-        {resp?.phase && <span className="meta"> · {resp.phase}</span>}
-        {resp?.archived && <span className="meta"> · retained</span>}
-      </summary>
-
       {error && <p className={styles.error}>Failed to load logs: {error}</p>}
 
       {!error && resp && !resp.available && (
@@ -119,6 +115,6 @@ export default function NodeLogPanel({
       {!error && open && resp === null && (
         <p className={`meta ${styles.placeholder}`}>Loading…</p>
       )}
-    </details>
+    </CollapsibleCard>
   );
 }

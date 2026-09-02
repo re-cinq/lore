@@ -1,0 +1,19 @@
+.alert {
+  margin: 0;
+  padding: 10px 14px;
+  border: 1px solid;
+  border-radius: var(--radius);
+  font-size: var(--fs-sm);
+}
+
+.info {
+  color: var(--info);
+  background: var(--info-bg);
+  border-color: var(--info);
+}
+
+.secondary {
+  color: var(--text-muted);
+  background: var(--bg-surface);
+  border-color: var(--border);
+}

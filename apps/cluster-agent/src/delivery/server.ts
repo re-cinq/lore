@@ -59,13 +59,14 @@ export async function startServer(
   } catch (err) {
     const e = err as NodeJS.ErrnoException;
 
-    if (e.code === "EADDRINUSE") {
-      console.error(
-        `[cluster-agent] port ${port} already in use — another instance is running. Exiting.`,
-      );
-    } else {
-      console.error("[cluster-agent] server error:", err);
-    }
+    const failureLog =
+      e.code === "EADDRINUSE"
+        ? [
+            `[cluster-agent] port ${port} already in use — another instance is running. Exiting.`,
+          ]
+        : ["[cluster-agent] server error:", err];
+
+    console.error(...failureLog);
     process.exit(1);
   }
 }

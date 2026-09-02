@@ -7,12 +7,14 @@ vi.mock("../../../main-loop/store.js", () => ({ insertEventList: vi.fn() }));
 const ORIG = process.env.LORE_INGEST_TOKEN;
 
 afterEach(() => {
+  vi.mocked(insertEventList).mockReset();
+
   if (ORIG === undefined) {
     delete process.env.LORE_INGEST_TOKEN;
-  } else {
-    process.env.LORE_INGEST_TOKEN = ORIG;
+
+    return;
   }
-  vi.mocked(insertEventList).mockReset();
+  process.env.LORE_INGEST_TOKEN = ORIG;
 });
 
 const authed = (payload: string) =>

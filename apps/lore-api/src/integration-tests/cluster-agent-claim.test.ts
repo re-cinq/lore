@@ -4,6 +4,7 @@ import pg from "pg";
 import { PgAssemblyRuns } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-pg.js";
 import type { LoreTaskSpec } from "@re-cinq/lore-shared";
 import { buildServer } from "../server/build-server.js";
+import { restoreEnv } from "./restore-env.js";
 
 /**
  * Register, then claim, against a migrated Postgres.
@@ -132,11 +133,7 @@ describe("the cluster-agent claim, against real Postgres", () => {
     await server.stop();
     await pool.end();
 
-    if (prevRegistration === undefined) {
-      delete process.env.LORE_CLUSTER_AGENT_REGISTRATION_TOKEN;
-    } else {
-      process.env.LORE_CLUSTER_AGENT_REGISTRATION_TOKEN = prevRegistration;
-    }
+    restoreEnv("LORE_CLUSTER_AGENT_REGISTRATION_TOKEN", prevRegistration);
   });
 
   it("hands a registered agent the visit it enqueued, with its dispatch spec intact", async () => {

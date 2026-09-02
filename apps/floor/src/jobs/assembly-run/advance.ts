@@ -423,6 +423,33 @@ export async function advanceLine(
   await deps.assemblyRuns.enqueueStationRunDispatch(nodeRowId, spec);
 }
 
+/** Classify by "complete only on completed/lease_held; fail everything else" so a
+ *  future fail outcome added to Transition can never record a failed run as
+ *  complete. */
+async function settleJobRun(
+  jobRunId: string,
+  assemblyRun: AssemblyRunRecord,
+  outcome: string,
+  reason: string | undefined,
+  deps: AdvanceDeps,
+): Promise<void> {
+  if (outcome === "completed") {
+    await deps.jobRuns.complete(
+      jobRunId,
+      `station run: ${assemblyRun.blueprintName}:${assemblyRun.repo} ${outcome}`,
+    );
+
+    return;
+  }
+
+  if (outcome === "lease_held") {
+    await deps.jobRuns.complete(jobRunId, `skipped: ${reason}`);
+
+    return;
+  }
+  await deps.jobRuns.fail(jobRunId, reason ?? outcome);
+}
+
 /** Close the row, reclaim the token, and settle the detect fan-out's job_run. */
 export async function finishLine(
   assemblyRun: AssemblyRunRecord,
@@ -434,20 +461,9 @@ export async function finishLine(
 
   // Settle the detect fan-out's job_run BEFORE closing the row: if the row close
   // commits but this step then throws, the event retry's advanceLine early-returns
-  // on the now-terminal row and the job_run would orphan open forever. Classify by
-  // "complete only on completed/lease_held; fail everything else" so a future fail
-  // outcome added to Transition can never record a failed run as complete.
+  // on the now-terminal row and the job_run would orphan open forever.
   if (typeof jobRunId === "string" && jobRunId.length > 0) {
-    if (outcome === "completed") {
-      await deps.jobRuns.complete(
-        jobRunId,
-        `station run: ${assemblyRun.blueprintName}:${assemblyRun.repo} ${outcome}`,
-      );
-    } else if (outcome === "lease_held") {
-      await deps.jobRuns.complete(jobRunId, `skipped: ${reason}`);
-    } else {
-      await deps.jobRuns.fail(jobRunId, reason ?? outcome);
-    }
+    await settleJobRun(jobRunId, assemblyRun, outcome, reason, deps);
   }
 
   const closedNow = await deps.assemblyRuns.finish(

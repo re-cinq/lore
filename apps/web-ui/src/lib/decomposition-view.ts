@@ -45,9 +45,9 @@ export function groupDecomposition(rows: DecompTaskRow[]): {
 
     if (list) {
       list.push(task);
-    } else {
-      byStory.set(key, [task]);
+      continue;
     }
+    byStory.set(key, [task]);
   }
 
   const stories = [...byStory.entries()]

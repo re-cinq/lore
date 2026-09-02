@@ -33,12 +33,24 @@ export default function ReplayScrubberView({
 
     if (event.key === "ArrowRight") {
       step(1);
-    } else if (event.key === "ArrowLeft") {
+
+      return;
+    }
+
+    if (event.key === "ArrowLeft") {
       step(-1);
-    } else if (event.key === "Home") {
+
+      return;
+    }
+
+    if (event.key === "Home") {
       event.preventDefault();
       onCursorChange(0);
-    } else if (event.key === "End") {
+
+      return;
+    }
+
+    if (event.key === "End") {
       event.preventDefault();
       onCursorChange(eventCount);
     }

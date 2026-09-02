@@ -28,9 +28,15 @@ function renderEvent(event: StreamEvent): string | null {
     for (const block of content) {
       if (block.type === "text" && block.text?.trim()) {
         parts.push(clip(block.text, 300));
-      } else if (block.type === "thinking" && block.thinking?.trim()) {
+        continue;
+      }
+
+      if (block.type === "thinking" && block.thinking?.trim()) {
         parts.push(`thinking: ${clip(block.thinking, 240)}`);
-      } else if (block.type === "tool_use") {
+        continue;
+      }
+
+      if (block.type === "tool_use") {
         parts.push(toolSummary(block));
       }
     }
@@ -80,7 +86,10 @@ export function formatStationConversation(
       if (rendered) {
         out.push(rendered);
       }
-    } else if (MARKER_RE.test(trimmed)) {
+      continue;
+    }
+
+    if (MARKER_RE.test(trimmed)) {
       out.push(trimmed);
     }
   }

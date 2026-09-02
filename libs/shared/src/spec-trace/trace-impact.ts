@@ -270,6 +270,44 @@ function statementLabel(s: ImpactStatement): string {
  * too — on its own line, and for a rewritten statement can show the real
  * before/after, which the graph and the head file between them already know.
  */
+/** The rewrite section of a statement block: a windowed diff for a real text
+ *  change, a links-only note when only the parentheticals moved, a plain quote
+ *  when there is no rewrite but a section label carried the text elsewhere. */
+function rewriteLines(
+  before: string,
+  after: string | null,
+  section: string | undefined,
+): string[] {
+  if (after && after !== before) {
+    // Windowed on the divergence: a spec statement is often a paragraph, and
+    // truncating both sides at the same length renders two identical-looking
+    // lines that prove a change happened without showing it.
+    const win = windowRewrite(before, after);
+
+    return ["", "```diff", `- ${win.before}`, `+ ${win.after}`, "```"];
+  }
+
+  if (after) {
+    // The texts are identical once the inline ([validated by …]) parentheticals
+    // are stripped, so only the coverage annotation moved. Saying so beats
+    // rendering a diff of two identical lines — and it is genuinely different
+    // news: the contract did not change, its bookkeeping did.
+    return [
+      "",
+      "only its test links changed — the statement text itself is unchanged",
+      ...(section ? ["", `> ${before}`] : []),
+    ];
+  }
+
+  if (section) {
+    // Without a section the label already carried this text; repeating it as a
+    // quote printed the same sentence twice.
+    return ["", `> ${before}`];
+  }
+
+  return [];
+}
+
 function statementBlock(s: ImpactStatement): string[] {
   const before = summarizeStatement(s.statementText);
   const after = s.rewrittenAs ? summarizeStatement(s.rewrittenAs) : null;
@@ -281,28 +319,7 @@ function statementBlock(s: ImpactStatement): string[] {
       : "⚠ the tests that validate it are **not** touched by this PR",
   );
 
-  if (after && after !== before) {
-    // Windowed on the divergence: a spec statement is often a paragraph, and
-    // truncating both sides at the same length renders two identical-looking
-    // lines that prove a change happened without showing it.
-    const win = windowRewrite(before, after);
-
-    lines.push("", "```diff", `- ${win.before}`, `+ ${win.after}`, "```");
-  } else if (after) {
-    // The texts are identical once the inline ([validated by …]) parentheticals
-    // are stripped, so only the coverage annotation moved. Saying so beats
-    // rendering a diff of two identical lines — and it is genuinely different
-    // news: the contract did not change, its bookkeeping did.
-    lines.push(
-      "",
-      "only its test links changed — the statement text itself is unchanged",
-      ...(s.section ? ["", `> ${before}`] : []),
-    );
-  } else if (s.section) {
-    // Without a section the label already carried this text; repeating it as a
-    // quote printed the same sentence twice.
-    lines.push("", `> ${before}`);
-  }
+  lines.push(...rewriteLines(before, after, s.section));
 
   const tests = s.tests.length
     ? s.tests

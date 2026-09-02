@@ -150,7 +150,9 @@ export async function featurePlanningReaperJob(): Promise<string> {
         console.log(
           `[feature-planning-reaper] recovered orphaned round ${action.iteration} for ${row.repo}/${row.id}`,
         );
-      } else if (action.kind === "transition") {
+      }
+
+      if (action.kind === "transition") {
         const gap = latest!.gap_result!;
 
         await project.features.transitionStatus(
@@ -295,7 +297,8 @@ async function recoverOrphan(
         draft_spec_md: lastGood.draft_spec_markdown,
       },
     );
-  } else {
-    await project.features.transitionStatus(feature.id, "draft");
+
+    return;
   }
+  await project.features.transitionStatus(feature.id, "draft");
 }

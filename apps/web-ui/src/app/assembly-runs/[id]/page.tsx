@@ -4,9 +4,10 @@ import { redirect } from "next/navigation";
 import { fetchAssemblyRun, fetchAssemblyRunNodes } from "@/lib/assembly-runs";
 import { fetchTaskEvents, fetchLlmCalls } from "@/lib/task-runtime";
 import { definitionForRun } from "@/lib/run-graph-definition";
+import { Alert } from "@/components/Alert";
 import AssemblyRunView from "./AssemblyRunView";
 import RunVisualizationPanel from "./RunVisualizationPanel";
-import { TriggerReviewButton } from "./TriggerReviewButton";
+import { AssemblyRunOptions } from "./AssemblyRunOptions";
 import EventTimeline from "@/app/tasks/[id]/EventTimeline";
 import LlmCallsTable from "@/app/tasks/[id]/LlmCallsTable";
 
@@ -33,50 +34,6 @@ export default async function AssemblyLineResolverPage({
 
   const run = await fetchAssemblyRun(id);
 
-  if (run) {
-    const nodes = await fetchAssemblyRunNodes(id);
-    const [events, llmCalls] = run.taskId
-      ? await Promise.all([
-          fetchTaskEvents(run.taskId),
-          fetchLlmCalls(run.taskId),
-        ])
-      : [[], []];
-    const { definition } = definitionForRun(
-      run.blueprintName,
-      nodes,
-      run.graph,
-    );
-
-    return (
-      <>
-        <AssemblyRunView run={run} />
-        {run.blueprintName === "code-review" && run.prNumber ? (
-          <TriggerReviewButton repo={run.repo} prNumber={run.prNumber} />
-        ) : null}
-        <RunVisualizationPanel
-          runId={run.id}
-          runStatus={run.status}
-          startedAt={run.startedAt}
-          definition={definition}
-          nodes={nodes}
-          repo={run.repo}
-          reason={run.reason}
-        />
-        {run.taskId ? (
-          <>
-            <EventTimeline events={events} />
-            <LlmCallsTable llmCalls={llmCalls} repo={run.repo} />
-          </>
-        ) : (
-          <p className="meta">
-            This run has no backing task — cost and status-transition history
-            are not available.
-          </p>
-        )}
-      </>
-    );
-  }
-
   // The id may be a TASK id rather than a run id — the old links pointed here.
   const taskResult = await getTask(id);
 
@@ -84,5 +41,46 @@ export default async function AssemblyLineResolverPage({
     redirect(`/tasks/${id}`);
   }
 
-  return <p>Not found.</p>;
+  if (!run) {
+    return <p>Not found.</p>;
+  }
+
+  const nodes = await fetchAssemblyRunNodes(id);
+  const [events, llmCalls] = run.taskId
+    ? await Promise.all([
+        fetchTaskEvents(run.taskId),
+        fetchLlmCalls(run.taskId),
+      ])
+    : [[], []];
+  const { definition } = definitionForRun(run.blueprintName, nodes, run.graph);
+
+  return (
+    <>
+      <AssemblyRunView run={run} />
+      <AssemblyRunOptions run={run} />
+      <RunVisualizationPanel
+        runId={run.id}
+        runStatus={run.status}
+        startedAt={run.startedAt}
+        definition={definition}
+        nodes={nodes}
+        repo={run.repo}
+        reason={run.reason}
+      />
+
+      {run.taskId && (
+        <>
+          <EventTimeline events={events} />
+          <LlmCallsTable llmCalls={llmCalls} repo={run.repo} />
+        </>
+      )}
+
+      {!run.taskId && (
+        <Alert variant="secondary">
+          This run has no backing task — cost and status-transition history are
+          not available.
+        </Alert>
+      )}
+    </>
+  );
 }

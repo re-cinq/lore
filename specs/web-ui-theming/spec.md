@@ -103,6 +103,31 @@ The `ThemeSwitcher` maps each appearance option to its icon (sun / monitor / moo
 marks the active family label and the active appearance label as selected, and
 calls `setFamily` / `setScheme` when one of the inactive radios is chosen. ([validated by `ThemeSwitcher.test.tsx:51`](apps/web-ui/src/components/ThemeSwitcher.test.tsx#L52), [`ThemeSwitcher.test.tsx:74`](apps/web-ui/src/components/ThemeSwitcher.test.tsx#L75), [`ThemeSwitcher.test.tsx:88`](apps/web-ui/src/components/ThemeSwitcher.test.tsx#L89), [`ThemeSwitcher.test.tsx:103`](apps/web-ui/src/components/ThemeSwitcher.test.tsx#L104), [`ThemeSwitcher.test.tsx:116`](apps/web-ui/src/components/ThemeSwitcher.test.tsx#L117), [`ThemeSwitcher.test.tsx:125`](apps/web-ui/src/components/ThemeSwitcher.test.tsx#L126), [`ThemeSwitcher.test.tsx:136`](apps/web-ui/src/components/ThemeSwitcher.test.tsx#L137))
 
+The shared `Alert` atom (`web-ui/src/components/Alert.tsx`) is the one way a
+page shows a passive informational note — a bootstrap-style alert box drawn from
+the status tokens, announced politely as a `role="status"` region rather than an
+interruptive `role="alert"` (that stays FormError's job).
+
+- It defaults to the `info` variant. ([validated by](apps/web-ui/src/components/Alert.test.tsx#L7))
+- It offers a muted `secondary` variant for ambient notes. ([validated by](apps/web-ui/src/components/Alert.test.tsx#L16))
+
+The `CollapsibleCard` atom (`specs/7-feature-planning` documents its folding
+behaviour) is also the card chrome other views extract into — the run page's
+node detail renders through it rather than its own bespoke card.
+
+- Its header args are string data, never markup: plain-text `labels` render as muted tags beside the title. ([validated by](apps/web-ui/src/components/CollapsibleCard.test.tsx#L61))
+- Empty `labels` entries are dropped inside the card, so callers pass optional values unfiltered. ([validated by](apps/web-ui/src/components/CollapsibleCard.test.tsx#L73))
+- A `status` of `{ label, tone }` renders as the shared toned pill in the header. ([validated by](apps/web-ui/src/components/CollapsibleCard.test.tsx#L84))
+- `onToggle` reports the fold state on every toggle, so lazy panels (pod logs, the full transcript) fetch on first open through the shared card instead of a bespoke `<details>`. ([validated by](apps/web-ui/src/components/CollapsibleCard.test.tsx#L97))
+- A card given `emptyState` and no content renders the note as plain body text, so every empty card says it the same way. ([validated by](apps/web-ui/src/components/CollapsibleCard.test.tsx#L116))
+- When content is present the `emptyState` note stays hidden. ([validated by](apps/web-ui/src/components/CollapsibleCard.test.tsx#L126))
+
+The `StatusPill` atom (`web-ui/src/components/StatusPill.tsx`) is the one
+tone→color map for outcome pills — six tones drawn from the status tokens,
+shared by the card header and the run page's attempt rows.
+
+- It styles its label by the given tone, `ok` through `err`. ([validated by](apps/web-ui/src/components/StatusPill.test.tsx#L7), [validated by](apps/web-ui/src/components/StatusPill.test.tsx#L16))
+
 The `Icon` component defaults its width and height to 16 when no size is given
 (using the provided size for both otherwise), appends a custom `className`
 alongside the iconify base classes (and none when omitted), exposes an

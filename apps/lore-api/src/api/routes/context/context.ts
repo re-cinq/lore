@@ -76,65 +76,66 @@ export function contextRoute(getPool: () => Pool | null): ServerRoute {
       } = request.query as unknown as ContextQuery;
 
       try {
-        if (query && pool) {
-          // Fail-soft: null when LORE_DGRAPH_HTTP is unset, so the coupling source
-          // degrades to an empty section.
-          const dgraph = createDgraphClient(process.env);
-          const crossRepo = await resolveCrossRepo(
-            pool,
-            repo || undefined,
-            crossRepoRequested,
-          );
-          const result = await assembleContext(
-            pool,
-            query,
-            template,
-            maxTokens,
-            repo || undefined,
-            agentId,
-            crossRepo,
-            undefined,
-            debug,
-            dgraph,
-          );
+        if (!(query && pool)) {
+          const parts: string[] = [];
+
+          if (repo && pool) {
+            const schema = await resolveChunkSchemaForRepo(pool, repo);
+            const { rows } = await pool.query(
+              `SELECT content, content_type, file_path FROM ${schema}.chunks
+               WHERE repo = $1 AND content_type IN ('doc', 'adr', 'spec')
+               ORDER BY content_type, ingested_at DESC`,
+              [repo],
+            );
+            // The join must honour the token budget too: whole chunks until the
+            // next would overflow the char budget. Unbounded, this path
+            // returned ~3 MB for a repo — which, injected into an Agent CR's
+            // parameters, blew the 2 MiB apiserver limit (2026-07-17).
+            const maxChars = maxTokens * CHARS_PER_TOKEN;
+            let used = 0;
+
+            for (const r of rows as Array<{ content: string }>) {
+              const cost =
+                r.content.length + (parts.length > 0 ? SEPARATOR.length : 0);
+
+              if (parts.length > 0 && used + cost > maxChars) {
+                break;
+              }
+              parts.push(r.content);
+              used += cost;
+            }
+          }
 
           return h.response({
-            text: result.text || null,
-            sections: result.sections,
-            trace: result.trace,
+            text: parts.length > 0 ? parts.join(SEPARATOR) : null,
           });
         }
-        const parts: string[] = [];
 
-        if (repo && pool) {
-          const schema = await resolveChunkSchemaForRepo(pool, repo);
-          const { rows } = await pool.query(
-            `SELECT content, content_type, file_path FROM ${schema}.chunks
-             WHERE repo = $1 AND content_type IN ('doc', 'adr', 'spec')
-             ORDER BY content_type, ingested_at DESC`,
-            [repo],
-          );
-          // The join must honour the token budget too: whole chunks until the
-          // next would overflow the char budget. Unbounded, this path
-          // returned ~3 MB for a repo — which, injected into an Agent CR's
-          // parameters, blew the 2 MiB apiserver limit (2026-07-17).
-          const maxChars = maxTokens * CHARS_PER_TOKEN;
-          let used = 0;
-
-          for (const r of rows as Array<{ content: string }>) {
-            const cost =
-              r.content.length + (parts.length > 0 ? SEPARATOR.length : 0);
-
-            if (parts.length > 0 && used + cost > maxChars) {
-              break;
-            }
-            parts.push(r.content);
-            used += cost;
-          }
-        }
+        // Fail-soft: null when LORE_DGRAPH_HTTP is unset, so the coupling source
+        // degrades to an empty section.
+        const dgraph = createDgraphClient(process.env);
+        const crossRepo = await resolveCrossRepo(
+          pool,
+          repo || undefined,
+          crossRepoRequested,
+        );
+        const result = await assembleContext(
+          pool,
+          query,
+          template,
+          maxTokens,
+          repo || undefined,
+          agentId,
+          crossRepo,
+          undefined,
+          debug,
+          dgraph,
+        );
 
         return h.response({
-          text: parts.length > 0 ? parts.join(SEPARATOR) : null,
+          text: result.text || null,
+          sections: result.sections,
+          trace: result.trace,
         });
       } catch (err) {
         return h.response({ error: errorMessage(err) }).code(500);

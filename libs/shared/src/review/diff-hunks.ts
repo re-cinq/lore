@@ -61,9 +61,15 @@ export function commentablePositions(diff: string): CommentablePositions {
 
     if (line.startsWith("+")) {
       add(right, path, newLine++);
-    } else if (line.startsWith("-")) {
+      continue;
+    }
+
+    if (line.startsWith("-")) {
       add(left, path, oldLine++);
-    } else if (line.startsWith(" ")) {
+      continue;
+    }
+
+    if (line.startsWith(" ")) {
       add(right, path, newLine++);
       add(left, path, oldLine++);
     }

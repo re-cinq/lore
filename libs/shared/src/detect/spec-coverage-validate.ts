@@ -369,11 +369,15 @@ export async function validateSpecCoverageJob(
           return [] as Awaited<ReturnType<typeof project.issues.list>>;
         });
 
-      if (hasOpenLinkRotIssue(openIssues)) {
+      const alreadyReported = hasOpenLinkRotIssue(openIssues);
+
+      if (alreadyReported) {
         console.log(
           `[job] spec-coverage-validate: ${repo} — ${broken.length} broken links, open spec-link-rot issue exists, skipping`,
         );
-      } else {
+      }
+
+      if (!alreadyReported) {
         const issue = await project.issues.create(
           "Broken test links in spec.md",
           formatBrokenLinksReport(broken),

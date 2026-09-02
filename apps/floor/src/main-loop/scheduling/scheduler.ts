@@ -72,9 +72,13 @@ async function runJob(job: JobDef): Promise<void> {
     status = "failed";
     const message = err instanceof Error ? err.message : String(err);
 
-    if (runId) {
-      await failJobRun(runId, message);
-    } else {
+    const failedRunId = runId;
+
+    if (failedRunId) {
+      await failJobRun(failedRunId, message);
+    }
+
+    if (!failedRunId) {
       console.error(`[scheduler] Failed to start run for ${job.name}:`, err);
     }
   } finally {

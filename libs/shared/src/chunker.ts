@@ -425,11 +425,10 @@ function chunkCodeAST(
         line.startsWith("'''");
       const isCommentOrBlank = isSlashComment || isDocstring || line === "";
 
-      if (isCommentOrBlank) {
-        startLine = row;
-      } else {
+      if (!isCommentOrBlank) {
         break;
       }
+      startLine = row;
     }
 
     // Trim leading blank lines from the comment block

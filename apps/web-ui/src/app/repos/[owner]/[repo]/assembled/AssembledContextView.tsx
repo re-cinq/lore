@@ -1,5 +1,6 @@
 "use client";
 
+import { Alert } from "@/components/Alert";
 import { useState } from "react";
 import HelpPopover from "@/components/HelpPopover";
 import Markdown from "@/components/Markdown";
@@ -230,17 +231,17 @@ export default function AssembledContextView({
         </div>
       </form>
 
-      {loading && <p className="meta">Assembling context…</p>}
+      {loading && <Alert>Assembling context…</Alert>}
       {error && <p className={styles.error}>Context unavailable: {error}</p>}
 
       {!loading &&
         !error &&
         result &&
         (result.text === null && !trace ? (
-          <p className="meta">
+          <Alert variant="secondary">
             No context assembled — the repo may not be onboarded or ingested
             yet.
-          </p>
+          </Alert>
         ) : trace ? (
           <div>
             {/* Inputs + budget summary */}

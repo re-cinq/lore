@@ -58,7 +58,9 @@ export async function runStation(
 
   if (tracker) {
     Llm.setInstance(tracker);
-  } else {
+  }
+
+  if (!tracker) {
     console.warn(
       "[station] UsagePort configured — per-call cost logging is active; terminal-line usage is suppressed to avoid double-counting",
     );

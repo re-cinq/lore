@@ -263,9 +263,13 @@ async function processTask(task: PipelineTask): Promise<void> {
     // dispatch (dark-mode repos run the Floor-side graph, one Agent CR per node).
     const darkFactoryEnabled = repoSettings?.dark_factory?.enabled === true;
 
-    if (task.task_type === "onboard") {
+    const taskType = task.task_type;
+
+    if (taskType === "onboard") {
       await handleOnboard(task, targetRepo, branchName, model, issueNumber);
-    } else if (task.task_type === "feature-request") {
+    }
+
+    if (taskType === "feature-request") {
       await handleFeatureRequest(
         task,
         targetRepo,
@@ -273,7 +277,9 @@ async function processTask(task: PipelineTask): Promise<void> {
         model,
         issueNumber,
       );
-    } else {
+    }
+
+    if (taskType !== "onboard" && taskType !== "feature-request") {
       // All other task types dispatch an Agent CR (agent-cr / ai-agent-subsystem).
       // For dark-mode repos with an assembly line defined for the task type, pass the
       // assembly line name through so AgentCrStationBackend runs the Floor-side graph
@@ -369,7 +375,11 @@ async function ensureIssue(
   const isIssueEligibleTaskType =
     task.task_type !== "general" && !isFeaturePlanningType;
 
-  if (!issueNumber && isIssueEligibleTaskType && issueGate.create) {
+  const createIssue =
+    !issueNumber && isIssueEligibleTaskType && issueGate.create;
+  const hasExistingIssue = Boolean(issueNumber);
+
+  if (createIssue) {
     try {
       const taskTypeLabel =
         task.task_type === "feature-request" ? "spec" : task.task_type;
@@ -401,11 +411,18 @@ async function ensureIssue(
         `[floor] Could not create issue on ${targetRepo}: ${errorMessage(err)}`,
       );
     }
-  } else if (issueNumber) {
+  }
+
+  if (!createIssue && hasExistingIssue) {
     console.log(
       `[floor] Using existing issue #${issueNumber} on ${targetRepo} (webhook-dispatched)`,
     );
-  } else if (!issueGate.create && task.task_type !== "general") {
+  }
+
+  const issueSkippedByGate =
+    !createIssue && !hasExistingIssue && !issueGate.create;
+
+  if (issueSkippedByGate && task.task_type !== "general") {
     console.log(
       `[floor] Skipping issue for ${targetRepo} task ${task.id} (dark-factory: ${issueGate.reason})`,
     );

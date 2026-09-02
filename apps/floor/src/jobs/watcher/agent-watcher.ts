@@ -19,6 +19,7 @@
  */
 
 import { resultTextFromOutput } from "@re-cinq/lore-assembly-lines";
+import type { PipelineTask } from "@re-cinq/lore-shared";
 import { startEscalationLine } from "@re-cinq/lore-shared/escalation/start-escalation-line.js";
 import {
   projectFor,
@@ -393,7 +394,9 @@ async function handleSucceededChanges(ctx: AgentContext): Promise<void> {
         target_repo = targetRepo;
       }
 
-      if (!issue_number) {
+      const existingIssue = issue_number;
+
+      if (!existingIssue) {
         try {
           const copy = await generateArtifactCopy({
             kind: "issue",
@@ -417,13 +420,15 @@ async function handleSucceededChanges(ctx: AgentContext): Promise<void> {
         } catch {
           /* best effort */
         }
-      } else {
+      }
+
+      if (existingIssue) {
         const body = output
           ? `## Result\n\n${tailOutput(output)}`
           : `Task completed (no code changes). ${logsRef} for full output.`;
 
         await projectFor(target_repo)
-          .then((p) => p.issues.comment(issue_number!, body))
+          .then((p) => p.issues.comment(existingIssue, body))
           .catch(() => {});
       }
       await taskStore().setStatus(taskId, "completed", { log_url: taskUrl });
@@ -548,14 +553,18 @@ async function handleSucceededChanges(ctx: AgentContext): Promise<void> {
       /* treat probe failure as proceed; auto-merge re-checks */
     }
 
-    if (gate === "proceed") {
+    const ciGreen = gate === "proceed";
+
+    if (ciGreen) {
       tryAutoMergeForCompletedTask({ taskId }).catch((err) =>
         console.warn(
           `[agent-watcher] auto-merge trigger failed for task ${taskId}:`,
           (err as Error).message,
         ),
       );
-    } else {
+    }
+
+    if (!ciGreen) {
       console.log(
         `[agent-watcher] CI not green for ${taskId} — deferring auto-merge to the webhook re-trigger`,
       );
@@ -662,37 +671,18 @@ async function handleFailure(ctx: AgentContext, reason: string): Promise<void> {
     isTransientInfraFailure(reason) &&
     infraRetries < MAX_INFRA_RETRIES
   ) {
-    await taskStore().setStatus(taskId, "failed", {
-      failure_reason: reason,
-      log_url: taskUrl,
-    });
-    await taskStore().recordEvent(taskId, "running", "failed", {
-      error: reason,
-      transient_infra: true,
-      infra_retry: infraRetries + 1,
-    });
-    const requeuedId = await pipeline().taskQueue.insertTask({
-      description,
-      taskType,
-      status: "pending",
-      targetRepo,
-      createdBy: failedTask.created_by,
-      contextBundle: {
-        ...bundle,
-        infra_retry_count: infraRetries + 1,
-        retry_of: taskId,
-      },
-    });
-
-    if (requeuedId && failedTask.issue_number != null) {
-      await pipeline().taskQueue.setColumns(requeuedId, {
-        issue_number: failedTask.issue_number,
-      });
-    }
-    console.log(
-      `[agent-watcher] Task ${taskId} transient infra failure (${reason}) — re-queued ${infraRetries + 1}/${MAX_INFRA_RETRIES}`,
+    await requeueTransientInfraFailure(
+      ctx,
+      failedTask,
+      reason,
+      taskUrl,
+      infraRetries,
     );
-  } else if (failedTask?.status === "running") {
+
+    return;
+  }
+
+  if (failedTask?.status === "running") {
     await taskStore().setStatus(taskId, "failed", {
       failure_reason: reason,
       log_url: taskUrl,
@@ -721,6 +711,50 @@ async function handleFailure(ctx: AgentContext, reason: string): Promise<void> {
     ).catch(() => {});
     console.log(`[agent-watcher] Task ${taskId} failed: ${reason}`);
   }
+}
+
+/** Bounded re-queue of a transient-infra failure: fail the current row, insert a
+ *  fresh pending task carrying the retry count, and keep the Issue thread. */
+async function requeueTransientInfraFailure(
+  ctx: AgentContext,
+  failedTask: PipelineTask,
+  reason: string,
+  taskUrl: string | undefined,
+  infraRetries: number,
+): Promise<void> {
+  const { taskId, taskType, targetRepo, description } = ctx;
+  const bundle = failedTask.context_bundle ?? {};
+
+  await taskStore().setStatus(taskId, "failed", {
+    failure_reason: reason,
+    log_url: taskUrl,
+  });
+  await taskStore().recordEvent(taskId, "running", "failed", {
+    error: reason,
+    transient_infra: true,
+    infra_retry: infraRetries + 1,
+  });
+  const requeuedId = await pipeline().taskQueue.insertTask({
+    description,
+    taskType,
+    status: "pending",
+    targetRepo,
+    createdBy: failedTask.created_by,
+    contextBundle: {
+      ...bundle,
+      infra_retry_count: infraRetries + 1,
+      retry_of: taskId,
+    },
+  });
+
+  if (requeuedId && failedTask.issue_number != null) {
+    await pipeline().taskQueue.setColumns(requeuedId, {
+      issue_number: failedTask.issue_number,
+    });
+  }
+  console.log(
+    `[agent-watcher] Task ${taskId} transient infra failure (${reason}) — re-queued ${infraRetries + 1}/${MAX_INFRA_RETRIES}`,
+  );
 }
 
 /** A review Agent's verdict drives the iteration-capped fix loop on the parent task. */
@@ -768,94 +802,97 @@ async function handleReviewVerdict(
     console.log(
       `[agent-watcher] Review approved for parent task ${parentTaskId}`,
     );
-  } else {
-    const parent = await taskStore().getById(parentTaskId);
 
-    if (!parent) {
-      return;
-    }
-    const iteration = (Number(parent.review_iteration) || 0) + 1;
+    return;
+  }
 
-    await pipeline().taskQueue.setColumns(parentTaskId, {
-      review_iteration: iteration,
+  const parent = await taskStore().getById(parentTaskId);
+
+  if (!parent) {
+    return;
+  }
+  const iteration = (Number(parent.review_iteration) || 0) + 1;
+
+  await pipeline().taskQueue.setColumns(parentTaskId, {
+    review_iteration: iteration,
+  });
+
+  if (iteration >= 2) {
+    await taskStore().recordEvent(parentTaskId, "review", "review", {
+      review_result: "needs-human-review",
+      iterations: iteration,
     });
 
-    if (iteration >= 2) {
-      await taskStore().recordEvent(parentTaskId, "review", "review", {
-        review_result: "needs-human-review",
-        iterations: iteration,
-      });
-
-      if (parent.issue_number) {
-        await projectFor(parent.target_repo)
-          .then((p) =>
-            p.issues.comment(
-              parent.issue_number!,
-              `Agent review: changes requested (iteration ${iteration}/2). Escalating to human review.`,
-            ),
-          )
-          .catch(() => {});
-        await projectFor(parent.target_repo)
-          .then((p) =>
-            p.issues.addLabel(parent.issue_number!, "needs-human-review"),
-          )
-          .catch(() => {});
-      }
-      await taskStore().setStatus(taskId, "completed");
-      console.log(
-        `[agent-watcher] Review escalated to human for ${parentTaskId} (iteration ${iteration})`,
-      );
-    } else {
-      const comments = parent.pr_number
-        ? await projectFor(parent.target_repo)
-            .then((p) => p.pulls.listComments(parent.pr_number!))
-            .catch(() => [])
-        : [];
-      const feedback =
-        formatReviewFeedback(comments) ||
-        "The agent review requested changes. Read the review comments on the PR and address them.";
-      const fixDescription = buildReviewFixDescription({
-        prNumber: parent.pr_number ?? null,
-        iteration,
-      });
-      const fixTaskId = (await pipeline().taskQueue.insertTask({
-        description: fixDescription,
-        taskType: "implementation",
-        targetRepo: parent.target_repo,
-        createdBy: "review-loop",
-        contextBundle: {
-          branch: parent.target_branch,
-          review_feedback: feedback,
-          parent_task_id: parentTaskId,
-        },
-      })) as string;
-
-      await (
-        await projectFor(parent.target_repo)
-      ).agents.run(fixTaskId, {
-        mode: "cluster",
-        taskType: "implementation",
-        description: fixDescription,
-        prompt: `Address the following review feedback on PR #${parent.pr_number ?? "?"}. The PR already exists — push fixes to the same branch.\n\nFeedback:\n${feedback}`,
-        branch: parent.target_branch || branch,
-        model: "claude-sonnet-4-6",
-        timeoutMinutes: 30,
-      });
-
-      if (parent.issue_number) {
-        await projectFor(parent.target_repo)
-          .then((p) =>
-            p.issues.comment(
-              parent.issue_number!,
-              `Agent review: changes requested (iteration ${iteration}/2). Auto-fixing...`,
-            ),
-          )
-          .catch(() => {});
-      }
-      await taskStore().setStatus(taskId, "completed");
-      console.log(
-        `[agent-watcher] Review changes requested, created fix task ${fixTaskId} (iteration ${iteration})`,
-      );
+    if (parent.issue_number) {
+      await projectFor(parent.target_repo)
+        .then((p) =>
+          p.issues.comment(
+            parent.issue_number!,
+            `Agent review: changes requested (iteration ${iteration}/2). Escalating to human review.`,
+          ),
+        )
+        .catch(() => {});
+      await projectFor(parent.target_repo)
+        .then((p) =>
+          p.issues.addLabel(parent.issue_number!, "needs-human-review"),
+        )
+        .catch(() => {});
     }
+    await taskStore().setStatus(taskId, "completed");
+    console.log(
+      `[agent-watcher] Review escalated to human for ${parentTaskId} (iteration ${iteration})`,
+    );
+
+    return;
   }
+  const comments = parent.pr_number
+    ? await projectFor(parent.target_repo)
+        .then((p) => p.pulls.listComments(parent.pr_number!))
+        .catch(() => [])
+    : [];
+  const feedback =
+    formatReviewFeedback(comments) ||
+    "The agent review requested changes. Read the review comments on the PR and address them.";
+  const fixDescription = buildReviewFixDescription({
+    prNumber: parent.pr_number ?? null,
+    iteration,
+  });
+  const fixTaskId = (await pipeline().taskQueue.insertTask({
+    description: fixDescription,
+    taskType: "implementation",
+    targetRepo: parent.target_repo,
+    createdBy: "review-loop",
+    contextBundle: {
+      branch: parent.target_branch,
+      review_feedback: feedback,
+      parent_task_id: parentTaskId,
+    },
+  })) as string;
+
+  await (
+    await projectFor(parent.target_repo)
+  ).agents.run(fixTaskId, {
+    mode: "cluster",
+    taskType: "implementation",
+    description: fixDescription,
+    prompt: `Address the following review feedback on PR #${parent.pr_number ?? "?"}. The PR already exists — push fixes to the same branch.\n\nFeedback:\n${feedback}`,
+    branch: parent.target_branch || branch,
+    model: "claude-sonnet-4-6",
+    timeoutMinutes: 30,
+  });
+
+  if (parent.issue_number) {
+    await projectFor(parent.target_repo)
+      .then((p) =>
+        p.issues.comment(
+          parent.issue_number!,
+          `Agent review: changes requested (iteration ${iteration}/2). Auto-fixing...`,
+        ),
+      )
+      .catch(() => {});
+  }
+  await taskStore().setStatus(taskId, "completed");
+  console.log(
+    `[agent-watcher] Review changes requested, created fix task ${fixTaskId} (iteration ${iteration})`,
+  );
 }

@@ -26,9 +26,10 @@ export default function AppShell({
   useEffect(() => {
     if (sidebarOpen) {
       closeButtonRef.current?.focus();
-    } else {
-      hamburgerRef.current?.focus();
+
+      return;
     }
+    hamburgerRef.current?.focus();
   }, [sidebarOpen]);
 
   // Close sidebar on Escape key

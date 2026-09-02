@@ -104,7 +104,10 @@ function findTrailingParenSpan(
 
     if (c === ")") {
       depth++;
-    } else if (c === "(") {
+      continue;
+    }
+
+    if (c === "(") {
       depth--;
 
       if (depth === 0) {

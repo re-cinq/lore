@@ -1,5 +1,6 @@
 "use client";
 
+import { Alert } from "@/components/Alert";
 import {
   useEffect,
   useRef,
@@ -227,10 +228,10 @@ export default function PlanningWizard({
       failureBlock
     ) : (
       <div className="spec-card">
-        <p className="meta">
+        <Alert variant="secondary">
           Planning hasn&apos;t produced an analysis yet — it will appear here
           once the first round finishes.
-        </p>
+        </Alert>
       </div>
     );
   }

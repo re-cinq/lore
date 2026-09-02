@@ -78,51 +78,50 @@ export async function dispatchSpecTrace(
   payload: unknown,
   deps: SpecTraceDispatchDeps,
 ): Promise<{ logLine: string; audit: AuditLogEntry }> {
-  if (REPO_READ_KINDS.has(kind)) {
+  if (!REPO_READ_KINDS.has(kind)) {
+    enforceTrue(
+      PAYLOAD_KINDS.has(kind),
+      Error,
+      `unknown spec-trace kind "${kind}"`,
+    );
+
+    // FR3/FR6: payload kinds ride the ingest line too — the station fetches the
+    // body back by reference (a test report is ~1 MB; station_input is an argv
+    // element), so the scheduling event's id is mandatory.
+    enforceTrue(
+      deps.startLine !== undefined,
+      Error,
+      `spec-trace ${kind} for ${repo} requires the startLine dep — the inline projector was retired (specs/ingest-station FR6)`,
+    );
+    enforceTrue(
+      typeof deps.eventId === "string" && deps.eventId.length > 0,
+      Error,
+      `spec-trace payload kind "${kind}" for ${repo} requires the scheduling eventId — the pod fetches the body by reference (FR3)`,
+    );
     const p = (payload ?? {}) as RepoReadPayload;
+    const ref = p.commit || p.branch || "main";
+    // The lease key carries the scheduling event's id: each POSTed chunk of one
+    // commit's report is DISTINCT data (specs/ingest-station: one pod per event
+    // payload), so chunks must never take each other's lease — only a re-drive
+    // of the same event dedupes.
+    const lineId = await deps.startLine!({
+      blueprintName: "ingest",
+      repo,
+      branch: ingestLineBranch(kind, ref, deps.eventId),
+      subjectKey: ingestSubject(kind, ref, deps.eventId),
+      args: { kind, ref, payload_event_id: deps.eventId },
+    });
 
-    // A force pass with no glob re-projects EVERY file with per-statement
-    // embeddings — as one pod it would blow the station deadline. Self-chunk
-    // instead: one child event per top-level directory, each seconds-long.
-    // Chunks carry a glob, so they can never re-chunk.
-    if (p.force && !p.glob) {
-      enforceTrue(
-        deps.insertEvent !== undefined,
-        Error,
-        "self-chunking a force projection requires the insertEvent dep",
-      );
-      const project = await deps.projectFor(repo);
-      const ref = p.commit || p.branch || undefined;
-      const globs = chunkGlobsForKind(kind, await project.repo.tree(ref));
+    return routedResult(
+      repo,
+      kind,
+      `routed to ingest line ${lineId.slice(0, 8)} (payload by reference, event ${deps.eventId})`,
+    );
+  }
 
-      for (const glob of globs) {
-        await deps.insertEvent!({
-          eventName: "internal.ingest.spec_trace",
-          source: "internal",
-          dedupeKey: `spec-trace-force:${kind}:${ref ?? "head"}:${glob}`,
-          params: {
-            kind,
-            repo,
-            payload: { ...(ref ? { commit: ref } : {}), force: true, glob },
-          },
-        });
-      }
-      const message = `force chunked into ${globs.length} per-directory event(s)`;
+  const p = (payload ?? {}) as RepoReadPayload;
 
-      return {
-        logLine: `[floor] spec-trace ${kind} ${repo}: ${message}`,
-        audit: graphIngestAuditEntry(repo, {
-          kind,
-          projected: 0,
-          skipped: 0,
-          failed: 0,
-          failedFiles: [],
-          status: "completed",
-          message: `${kind}: ${message}`,
-        }),
-      };
-    }
-
+  if (!(p.force && !p.glob)) {
     // FR2/FR6: docs projection runs ONLY in an ingest-station pod — one line
     // per payload, the clone pinned to the commit via args.ref.
     enforceTrue(
@@ -152,42 +151,43 @@ export async function dispatchSpecTrace(
     );
   }
 
+  // A force pass with no glob re-projects EVERY file with per-statement
+  // embeddings — as one pod it would blow the station deadline. Self-chunk
+  // instead: one child event per top-level directory, each seconds-long.
+  // Chunks carry a glob, so they can never re-chunk.
   enforceTrue(
-    PAYLOAD_KINDS.has(kind),
+    deps.insertEvent !== undefined,
     Error,
-    `unknown spec-trace kind "${kind}"`,
+    "self-chunking a force projection requires the insertEvent dep",
   );
+  const project = await deps.projectFor(repo);
+  const ref = p.commit || p.branch || undefined;
+  const globs = chunkGlobsForKind(kind, await project.repo.tree(ref));
 
-  // FR3/FR6: payload kinds ride the ingest line too — the station fetches the
-  // body back by reference (a test report is ~1 MB; station_input is an argv
-  // element), so the scheduling event's id is mandatory.
-  enforceTrue(
-    deps.startLine !== undefined,
-    Error,
-    `spec-trace ${kind} for ${repo} requires the startLine dep — the inline projector was retired (specs/ingest-station FR6)`,
-  );
-  enforceTrue(
-    typeof deps.eventId === "string" && deps.eventId.length > 0,
-    Error,
-    `spec-trace payload kind "${kind}" for ${repo} requires the scheduling eventId — the pod fetches the body by reference (FR3)`,
-  );
-  const p = (payload ?? {}) as RepoReadPayload;
-  const ref = p.commit || p.branch || "main";
-  // The lease key carries the scheduling event's id: each POSTed chunk of one
-  // commit's report is DISTINCT data (specs/ingest-station: one pod per event
-  // payload), so chunks must never take each other's lease — only a re-drive
-  // of the same event dedupes.
-  const lineId = await deps.startLine!({
-    blueprintName: "ingest",
-    repo,
-    branch: ingestLineBranch(kind, ref, deps.eventId),
-    subjectKey: ingestSubject(kind, ref, deps.eventId),
-    args: { kind, ref, payload_event_id: deps.eventId },
-  });
+  for (const glob of globs) {
+    await deps.insertEvent!({
+      eventName: "internal.ingest.spec_trace",
+      source: "internal",
+      dedupeKey: `spec-trace-force:${kind}:${ref ?? "head"}:${glob}`,
+      params: {
+        kind,
+        repo,
+        payload: { ...(ref ? { commit: ref } : {}), force: true, glob },
+      },
+    });
+  }
+  const message = `force chunked into ${globs.length} per-directory event(s)`;
 
-  return routedResult(
-    repo,
-    kind,
-    `routed to ingest line ${lineId.slice(0, 8)} (payload by reference, event ${deps.eventId})`,
-  );
+  return {
+    logLine: `[floor] spec-trace ${kind} ${repo}: ${message}`,
+    audit: graphIngestAuditEntry(repo, {
+      kind,
+      projected: 0,
+      skipped: 0,
+      failed: 0,
+      failedFiles: [],
+      status: "completed",
+      message: `${kind}: ${message}`,
+    }),
+  };
 }

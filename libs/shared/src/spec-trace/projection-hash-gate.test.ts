@@ -91,25 +91,25 @@ function fakeDgraph(): FakeDgraph {
       }
       const rawUid = setJson["uid"] as string;
 
-      if (rawUid.startsWith("_:")) {
-        const label = rawUid.slice(2);
-        const uid = `0x${nextUid++}`;
-        const { uid: _blank, ...fields } = setJson;
+      if (!rawUid.startsWith("_:")) {
+        const { uid: _existing, ...fields } = setJson;
 
-        nodesByUid.set(uid, fields);
-        const xid = xidOf(fields);
+        nodesByUid.set(rawUid, { ...nodesByUid.get(rawUid), ...fields });
 
-        if (xid !== undefined) {
-          uidByXid.set(xid, uid);
-        }
-
-        return { data: { uids: { [label]: uid } } };
+        return { data: {} };
       }
-      const { uid: _existing, ...fields } = setJson;
+      const label = rawUid.slice(2);
+      const uid = `0x${nextUid++}`;
+      const { uid: _blank, ...fields } = setJson;
 
-      nodesByUid.set(rawUid, { ...nodesByUid.get(rawUid), ...fields });
+      nodesByUid.set(uid, fields);
+      const xid = xidOf(fields);
 
-      return { data: {} };
+      if (xid !== undefined) {
+        uidByXid.set(xid, uid);
+      }
+
+      return { data: { uids: { [label]: uid } } };
     },
 
     discard: async () => {},

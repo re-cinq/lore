@@ -14,12 +14,14 @@ function sign(secret: string, body: string): string {
 const ORIG = process.env.LORE_WEBHOOK_SECRET;
 
 afterEach(() => {
+  vi.mocked(insertEventList).mockReset();
+
   if (ORIG === undefined) {
     delete process.env.LORE_WEBHOOK_SECRET;
-  } else {
-    process.env.LORE_WEBHOOK_SECRET = ORIG;
+
+    return;
   }
-  vi.mocked(insertEventList).mockReset();
+  process.env.LORE_WEBHOOK_SECRET = ORIG;
 });
 
 describe("POST /api/webhook/github", () => {

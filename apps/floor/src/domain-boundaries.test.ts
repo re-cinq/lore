@@ -30,7 +30,10 @@ function tsFiles(dir: string): string[] {
 
     if (statSync(full).isDirectory()) {
       out.push(...tsFiles(full));
-    } else if (e.endsWith(".ts")) {
+      continue;
+    }
+
+    if (e.endsWith(".ts")) {
       out.push(full);
     }
   }

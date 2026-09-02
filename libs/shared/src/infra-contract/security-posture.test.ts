@@ -48,7 +48,10 @@ function walkFiles(dir: string): string[] {
 
     if (entry.isDirectory()) {
       found.push(...walkFiles(full));
-    } else if (entry.isFile()) {
+      continue;
+    }
+
+    if (entry.isFile()) {
       found.push(full);
     }
   }

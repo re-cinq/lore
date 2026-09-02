@@ -68,6 +68,60 @@ function daysAgo(now: number, iso: string): string {
   return d <= 0 ? "today" : `${d}d ago`;
 }
 
+function ingestedCheck(
+  lastIngestedAt: string | null,
+  now: number,
+  chunkCount: number,
+): Check {
+  if (!lastIngestedAt) {
+    return {
+      id: "ingested",
+      label: "Context ingested",
+      status: "fail",
+      detail: "never ingested",
+    };
+  }
+  const stale = now - new Date(lastIngestedAt).getTime() > STALE_MS;
+  const when = daysAgo(now, lastIngestedAt);
+
+  return {
+    id: "ingested",
+    label: "Context ingested",
+    status: stale ? "warn" : "pass",
+    detail: `${stale ? "stale · " : ""}${chunkCount} chunks · last ingest ${when}`,
+  };
+}
+
+function githubFileCheck(path: string, exists: boolean | null): Check {
+  const status: CheckStatus =
+    exists === true ? "pass" : exists === false ? "fail" : "unknown";
+  const purpose = GH_FILE_PURPOSE[path];
+  const check: Check = {
+    id: `gh:${path}`,
+    label: `${path} on GitHub`,
+    status,
+  };
+
+  if (status === "unknown") {
+    check.detail = "GitHub App has no repo access";
+
+    return check;
+  }
+
+  if (status === "fail") {
+    check.detail = purpose ? `missing · ${purpose}` : "missing";
+    check.action = { kind: "reonboard", text: "create a PR with this file" };
+
+    return check;
+  }
+
+  if (purpose) {
+    check.detail = purpose;
+  }
+
+  return check;
+}
+
 export function computeEnrollmentChecks(rawInput: EnrollmentInput): Check[] {
   const input = { ...rawInput, now: rawInput.now ?? Date.now() };
   const checks: Check[] = [];
@@ -95,25 +149,7 @@ export function computeEnrollmentChecks(rawInput: EnrollmentInput): Check[] {
     });
   }
 
-  if (!input.lastIngestedAt) {
-    checks.push({
-      id: "ingested",
-      label: "Context ingested",
-      status: "fail",
-      detail: "never ingested",
-    });
-  } else {
-    const stale =
-      input.now - new Date(input.lastIngestedAt).getTime() > STALE_MS;
-    const when = daysAgo(input.now, input.lastIngestedAt);
-
-    checks.push({
-      id: "ingested",
-      label: "Context ingested",
-      status: stale ? "warn" : "pass",
-      detail: `${stale ? "stale · " : ""}${input.chunkCount} chunks · last ingest ${when}`,
-    });
-  }
+  checks.push(ingestedCheck(input.lastIngestedAt, input.now, input.chunkCount));
 
   checks.push({
     id: "conventions",
@@ -132,24 +168,7 @@ export function computeEnrollmentChecks(rawInput: EnrollmentInput): Check[] {
   });
 
   for (const [path, exists] of Object.entries(input.githubFiles)) {
-    const status: CheckStatus =
-      exists === true ? "pass" : exists === false ? "fail" : "unknown";
-    const purpose = GH_FILE_PURPOSE[path];
-    const check: Check = {
-      id: `gh:${path}`,
-      label: `${path} on GitHub`,
-      status,
-    };
-
-    if (status === "unknown") {
-      check.detail = "GitHub App has no repo access";
-    } else if (status === "fail") {
-      check.detail = purpose ? `missing · ${purpose}` : "missing";
-      check.action = { kind: "reonboard", text: "create a PR with this file" };
-    } else if (purpose) {
-      check.detail = purpose;
-    }
-    checks.push(check);
+    checks.push(githubFileCheck(path, exists));
   }
 
   if (input.webhook) {

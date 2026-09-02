@@ -99,12 +99,13 @@ export async function ingestFiles(
     const filePath = typeof fileEntry === "string" ? fileEntry : fileEntry.path;
 
     try {
-      let content: string | null = null;
+      // Content provided directly needs no GitHub fetch.
+      let content: string | null =
+        typeof fileEntry !== "string" && fileEntry.content
+          ? fileEntry.content
+          : null;
 
-      if (typeof fileEntry !== "string" && fileEntry.content) {
-        // Content provided directly — no GitHub fetch needed
-        content = fileEntry.content;
-      } else {
+      if (!content) {
         // Fetch from GitHub — try the given ref, fall back to default branch
         for (const ref of [commit, "HEAD"]) {
           try {

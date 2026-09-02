@@ -1,22 +1,24 @@
 import { TEST_COMMAND_SETUP_PROMPT } from "@/lib/test-command-setup-prompt";
+import CollapsibleCard from "@/components/CollapsibleCard";
 import CopyButton from "@/components/CopyButton";
 import styles from "./TestCommandsSetup.module.css";
 
 /**
- * Presentational view for the test-command setup prompt. Pure render — the
- * prompt text is a static constant fed verbatim into a wrapping `<pre>`, no
- * data access or state. Follows the colocated-CSS-module convention.
+ * The guard against test suites no CI job runs: the setup prompt that wires a
+ * repo's tests into the traceability graph. Folded closed by default — the
+ * prompt is long, and the card summary is enough until a developer needs it.
  */
 export default function TestCommandsSetup() {
   return (
-    <div className={styles.block}>
-      <h2 className={styles.heading}>Set up test commands</h2>
+    <CollapsibleCard title="Set up test commands">
       <p className="meta">
         Copy this prompt and run it with Claude in your repo to generate{" "}
         <code>.lore/test-commands.yml</code>.
       </p>
-      <CopyButton text={TEST_COMMAND_SETUP_PROMPT} />
-      <pre className={styles.prompt}>{TEST_COMMAND_SETUP_PROMPT}</pre>
-    </div>
+      <div className={styles.block}>
+        <CopyButton text={TEST_COMMAND_SETUP_PROMPT} />
+        <pre className={styles.prompt}>{TEST_COMMAND_SETUP_PROMPT}</pre>
+      </div>
+    </CollapsibleCard>
   );
 }

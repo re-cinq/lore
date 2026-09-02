@@ -20,6 +20,12 @@ async function main() {
 
   const dbHost = process.env.LORE_DB_HOST;
 
+  if (!dbHost) {
+    console.error(
+      "[lore-api] Database mode: none (LORE_DB_HOST not set) — routes fail soft with 503",
+    );
+  }
+
   if (dbHost) {
     const dbPool = new pg.Pool({
       host: dbHost,
@@ -39,10 +45,6 @@ async function main() {
     Llm.configure({ usage: new PgUsage(dbPool) });
     state.pool = dbPool;
     console.error(`[lore-api] Database mode: PostgreSQL at ${dbHost}`);
-  } else {
-    console.error(
-      "[lore-api] Database mode: none (LORE_DB_HOST not set) — routes fail soft with 503",
-    );
   }
 
   loadTaskTypes();

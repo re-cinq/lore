@@ -116,7 +116,9 @@ export async function deliverPlanningResults(
 
       if (result.outcome === "ready") {
         delivered++;
-      } else if (result.outcome === "failed") {
+      }
+
+      if (result.outcome === "failed") {
         console.warn(
           `[planning-result] task ${fileEvent.taskId}: ${result.error}`,
         );

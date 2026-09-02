@@ -18,7 +18,9 @@ export function summarizeMarkdown(source: string): {
 
     if (heading && title === "") {
       title = heading[1].trim();
-    } else if (!heading && description === "" && line.trim() !== "") {
+    }
+
+    if (!heading && description === "" && line.trim() !== "") {
       description = line.trim();
     }
 

@@ -18,6 +18,15 @@ async function loadResolveAgentId(home: string) {
   return (await import("./agent-id.js")).resolveAgentId;
 }
 
+function restoreEnv(key: string, saved: string | undefined): void {
+  if (saved === undefined) {
+    delete process.env[key];
+
+    return;
+  }
+  process.env[key] = saved;
+}
+
 describe("resolveAgentId", () => {
   let home: string;
   const savedHome = process.env.HOME;
@@ -30,18 +39,8 @@ describe("resolveAgentId", () => {
 
   afterEach(() => {
     rmSync(home, { recursive: true, force: true });
-
-    if (savedHome === undefined) {
-      delete process.env.HOME;
-    } else {
-      process.env.HOME = savedHome;
-    }
-
-    if (savedEnvId === undefined) {
-      delete process.env.LORE_AGENT_ID;
-    } else {
-      process.env.LORE_AGENT_ID = savedEnvId;
-    }
+    restoreEnv("HOME", savedHome);
+    restoreEnv("LORE_AGENT_ID", savedEnvId);
   });
 
   it("returns the explicit agent id over all other sources", async () => {

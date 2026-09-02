@@ -314,7 +314,9 @@ export async function handleOnboard(
     console.log(
       "[floor] Onboard: test interface already configured — scaffolding nothing",
     );
-  } else {
+  }
+
+  if (interfaceCheck.status !== "configured") {
     for (const scaffoldPath of interfaceCheck.files) {
       if (existingFiles.has(scaffoldPath)) {
         continue;
@@ -344,7 +346,9 @@ export async function handleOnboard(
       });
       adrNum++;
     }
-  } else {
+  }
+
+  if (hasAdrs) {
     console.log(
       `[floor] Onboard: skipping ADRs (adrs/ or docs/ already exists)`,
     );
@@ -503,7 +507,9 @@ export async function handleOnboard(
         `the \`LORE_INGEST_URL\` repo variable could not be set: ${errorMessage(err)}`,
       );
     }
-  } else {
+  }
+
+  if (!ingestUrl) {
     configFailures.push(
       "`LORE_INGEST_URL` is not configured on the Floor — set the repo variable manually or fix the Floor deployment, or ingest calls will never reach Lore",
     );
@@ -517,15 +523,21 @@ export async function handleOnboard(
         `the \`LORE_INGEST_TOKEN\` repo secret could not be set: ${errorMessage(err)}`,
       );
     }
-  } else {
+  }
+
+  if (!ingestToken) {
     configFailures.push(
       "`LORE_INGEST_TOKEN` is not configured on the Floor — set the repo secret manually, or every ingest call will be rejected with 401",
     );
   }
 
-  if (configFailures.length === 0) {
+  const ingestConfigured = configFailures.length === 0;
+
+  if (ingestConfigured) {
     console.log(`[floor] Configured ingest secrets on ${targetRepo}`);
-  } else {
+  }
+
+  if (!ingestConfigured) {
     console.error(
       `[floor] Ingest config incomplete on ${targetRepo}: ${configFailures.join("; ")}`,
     );

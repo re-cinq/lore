@@ -77,13 +77,10 @@ async function upsertMemoryWithVersion(
     [lookupValue, key],
   );
 
-  let version: number;
-  let memoryId: string;
-
   if (existing.rows.length > 0) {
     // Update: increment version
-    version = (existing.rows[0].version as number) + 1;
-    memoryId = existing.rows[0].id as string;
+    const version = (existing.rows[0].version as number) + 1;
+    const memoryId = existing.rows[0].id as string;
 
     await db.query(
       `UPDATE memory.memories
@@ -93,27 +90,39 @@ async function upsertMemoryWithVersion(
        WHERE id = $6`,
       [value, version, embeddingParam, ttlSeconds, ttlSeconds, memoryId],
     );
-  } else {
-    // New memory
-    version = 1;
-    const result = await db.query(
-      `INSERT INTO memory.memories (agent_id, key, value, embedding, version, ttl_seconds, expires_at, repo)
-       VALUES ($1, $2, $3, $4, 1, $5, now() + make_interval(secs => $6), $7)
-       RETURNING id, created_at`,
-      [agent, key, value, embeddingParam, ttlSeconds, ttlSeconds, repo || null],
-    );
+    await insertVersionRecord(db, memoryId, version, value, embeddingParam);
 
-    memoryId = result.rows[0].id as string;
+    return { memoryId, version };
   }
 
-  // Always insert a version record
+  // New memory
+  const version = 1;
+  const result = await db.query(
+    `INSERT INTO memory.memories (agent_id, key, value, embedding, version, ttl_seconds, expires_at, repo)
+     VALUES ($1, $2, $3, $4, 1, $5, now() + make_interval(secs => $6), $7)
+     RETURNING id, created_at`,
+    [agent, key, value, embeddingParam, ttlSeconds, ttlSeconds, repo || null],
+  );
+  const memoryId = result.rows[0].id as string;
+
+  await insertVersionRecord(db, memoryId, version, value, embeddingParam);
+
+  return { memoryId, version };
+}
+
+// A memories row is never written without its version record (#1154).
+async function insertVersionRecord(
+  db: Pick<PgPool, "query">,
+  memoryId: string,
+  version: number,
+  value: string,
+  embeddingParam: string | null,
+): Promise<void> {
   await db.query(
     `INSERT INTO memory.memory_versions (memory_id, version, value, embedding)
      VALUES ($1, $2, $3, $4)`,
     [memoryId, version, value, embeddingParam],
   );
-
-  return { memoryId, version };
 }
 
 export async function writeMemory(
@@ -257,6 +266,26 @@ export async function deleteMemory(
 
 // ── List ─────────────────────────────────────────────────────────────
 
+function listScope(
+  repo: string | undefined,
+  agentId: string | undefined,
+  limit: number,
+  offset: number,
+): { filter: string; params: unknown[] } {
+  if (repo) {
+    return { filter: "repo = $1 AND", params: [repo, limit, offset] };
+  }
+
+  if (agentId) {
+    return {
+      filter: "agent_id = $1 AND",
+      params: [resolveAgentId(agentId), limit, offset],
+    };
+  }
+
+  return { filter: "", params: [limit, offset] };
+}
+
 export async function listMemories(
   agentId?: string,
   limit: number = 50,
@@ -264,19 +293,7 @@ export async function listMemories(
   repo?: string,
 ): Promise<{ memories: Record<string, unknown>[]; total: number }> {
   // Scope by repo (preferred) or agent_id
-  let filter: string;
-  let params: unknown[];
-
-  if (repo) {
-    filter = "repo = $1 AND";
-    params = [repo, limit, offset];
-  } else if (agentId) {
-    filter = "agent_id = $1 AND";
-    params = [resolveAgentId(agentId), limit, offset];
-  } else {
-    filter = "";
-    params = [limit, offset];
-  }
+  const { filter, params } = listScope(repo, agentId, limit, offset);
 
   const { rows } = await pool!.query(
     `SELECT key, agent_id, repo, version, created_at, ttl_seconds,

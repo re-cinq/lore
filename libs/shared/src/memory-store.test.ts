@@ -34,9 +34,10 @@ describe("selectMemoryStore", () => {
   afterEach(() => {
     if (savedBackend === undefined) {
       delete process.env.LORE_MEMORY_BACKEND;
-    } else {
-      process.env.LORE_MEMORY_BACKEND = savedBackend;
+
+      return;
     }
+    process.env.LORE_MEMORY_BACKEND = savedBackend;
   });
 
   it("returns a postgres store when LORE_MEMORY_BACKEND is unset", () => {

@@ -11,16 +11,9 @@ import {
 import { describeNode, type NodeDetail } from "@/lib/run-node-detail-presenter";
 import type { NodeStatusTone } from "@/lib/run-node-status";
 import type { StepView } from "@/lib/step-presenter";
+import CollapsibleCard from "@/components/CollapsibleCard";
+import { StatusPill } from "@/components/StatusPill";
 import styles from "./RunNodeDetail.module.css";
-
-const PILL_CLASS: Record<NodeStatusTone, string> = {
-  ok: styles.pillOk,
-  warn: styles.pillWarn,
-  err: styles.pillErr,
-  running: styles.pillRunning,
-  waiting: styles.pillWaiting,
-  idle: styles.pillIdle,
-};
 
 const WHY_CLASS: Record<NodeStatusTone, string> = {
   ok: styles.whyOk,
@@ -61,17 +54,12 @@ export default function RunNodeDetail(props: RunNodeDetailProps) {
   const detail: NodeDetail = describeNode(props);
 
   return (
-    <section className={styles.card} aria-label={`${props.nodeId} detail`}>
-      <div className={styles.head}>
-        <span className={styles.name}>{props.nodeId}</span>
-        <span className={`${styles.pill} ${PILL_CLASS[detail.tone]}`}>
-          {detail.statusLabel}
-        </span>
-        {detail.nodeType ? (
-          <span className={styles.meta}>{detail.nodeType}</span>
-        ) : null}
-      </div>
-
+    <CollapsibleCard
+      defaultOpen
+      title={props.nodeId}
+      status={{ label: detail.statusLabel, tone: detail.tone }}
+      labels={[detail.nodeType]}
+    >
       <p className={`${styles.why} ${WHY_CLASS[detail.tone]}`}>{detail.why}</p>
 
       {detail.failures.length > 0 ? (
@@ -138,9 +126,7 @@ export default function RunNodeDetail(props: RunNodeDetailProps) {
                 <span className={styles.attemptMeta}>
                   attempt {step.iteration}
                 </span>
-                <span className={`${styles.pill} ${PILL_CLASS[step.tone]}`}>
-                  {step.label}
-                </span>
+                <StatusPill label={step.label} tone={step.tone} />
                 <span className={styles.attemptMeta}>
                   {formatDuration(step.durationSeconds)}
                 </span>
@@ -180,6 +166,6 @@ export default function RunNodeDetail(props: RunNodeDetailProps) {
           ))}
         </ul>
       ) : null}
-    </section>
+    </CollapsibleCard>
   );
 }

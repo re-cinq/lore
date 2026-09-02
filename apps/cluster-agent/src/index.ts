@@ -141,6 +141,14 @@ async function main(): Promise<void> {
     );
   }
 
+  if (!proxy) {
+    // Loud, because the symptom is silence: no watch means no terminal Agent
+    // event reaches the bus, and every node waits for the reaper instead.
+    console.warn(
+      "[cluster-agent] EVENT_ROUTER_URL unset — Agent-CR watch NOT started",
+    );
+  }
+
   if (proxy) {
     proxy.register(new AgentWatchInput());
 
@@ -152,12 +160,6 @@ async function main(): Promise<void> {
       proxy.register(new PodLogInput());
     }
     await proxy.start();
-  } else {
-    // Loud, because the symptom is silence: no watch means no terminal Agent
-    // event reaches the bus, and every node waits for the reaper instead.
-    console.warn(
-      "[cluster-agent] EVENT_ROUTER_URL unset — Agent-CR watch NOT started",
-    );
   }
 
   const shutdown = async (signal: string): Promise<void> => {

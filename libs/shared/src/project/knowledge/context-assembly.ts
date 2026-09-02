@@ -224,19 +224,19 @@ export function fitItemsToBudget(
     if (it.tokens <= limit) {
       kept.push(it);
       used += it.tokens;
-    } else {
-      const text = truncateText(it.text, limit);
-      const tokens = estimateTokens(text);
+      continue;
+    }
+    const text = truncateText(it.text, limit);
+    const tokens = estimateTokens(text);
 
-      kept.push({ ...it, text, tokens });
-      used += tokens;
-      truncated = true;
+    kept.push({ ...it, text, tokens });
+    used += tokens;
+    truncated = true;
 
-      // Stop only when the BUDGET was the binding limit; a per-doc cap leaves
-      // room, so keep packing more documents.
-      if (limit >= remaining) {
-        break;
-      }
+    // Stop only when the BUDGET was the binding limit; a per-doc cap leaves
+    // room, so keep packing more documents.
+    if (limit >= remaining) {
+      break;
     }
   }
 
@@ -890,6 +890,100 @@ export function computeFreshness(
   return age > STALE_AGE_MS ? "stale" : "fresh";
 }
 
+function freshnessForRepo(
+  row: { last_ingested_at: string | Date | null } | undefined,
+  now: Date,
+): { state: string; warning: string } {
+  if (!row) {
+    return {
+      state: "first-run",
+      warning: `> **Welcome to Lore!** This repo is not yet onboarded.\n> Suggested actions:\n> 1. Call \`lore_onboard_repo\` to generate CLAUDE.md and register the repo\n> 2. Call \`lore_ingest_files\` to manually add specific files\n> 3. Call \`lore_search_memory\` to check if others have left learnings\n\n`,
+    };
+  }
+  const lastIngestedAt = row.last_ingested_at;
+  const state = computeFreshness(lastIngestedAt, now);
+
+  if (state === "never-ingested") {
+    return {
+      state,
+      warning: `> ⚠ **Context may be stale** — this repo has never been ingested. Run \`lore_ingest_files\` or wait for the nightly reindex.\n\n`,
+    };
+  }
+
+  if (state === "stale" && lastIngestedAt) {
+    const days = Math.floor(
+      (now.getTime() - new Date(lastIngestedAt).getTime()) / 86400000,
+    );
+
+    return {
+      state,
+      warning: `> ⚠ **Context may be stale** — last ingested ${days} days ago.\n\n`,
+    };
+  }
+
+  return { state, warning: "" };
+}
+
+interface SectionFit {
+  allocatedBudget: number;
+  finalTokens: number;
+  truncated: boolean;
+  included: boolean;
+  omitReason?: string;
+  keptItems: SourceItem[];
+}
+
+/** Budget one section's deduped items: how much it gets, what survives, and why
+ *  it was omitted when nothing did. Pure — the caller applies the deduction. */
+function fitSection(
+  deduped: SourceItem[],
+  status: FetchStatus,
+  section: { priority: number; max_tokens?: number },
+  remaining: number,
+  minTokens: number,
+  nonEmptyWeight: number,
+): SectionFit {
+  const excluded = {
+    allocatedBudget: 0,
+    finalTokens: 0,
+    truncated: false,
+    included: false,
+    keptItems: [] as SourceItem[],
+  };
+
+  if (deduped.length === 0) {
+    return { ...excluded, omitReason: STATUS_REASON[status] || "empty" };
+  }
+
+  if (remaining <= 0) {
+    return { ...excluded, omitReason: "budget exhausted" };
+  }
+  const weight = (6 - section.priority) / nonEmptyWeight;
+  const allocatedBudget = Math.min(
+    section.max_tokens ?? Infinity,
+    Math.floor(minTokens * weight * 1.5), // allow some per-section overflow
+    remaining,
+  );
+
+  if (allocatedBudget <= 100) {
+    return { ...excluded, allocatedBudget, omitReason: "budget exhausted" };
+  }
+  // When documents compete for a section, cap any single one to half the
+  // budget so a mega-doc (e.g. CLAUDE.md) can't crowd out smaller, more-
+  // relevant chunks. A lone document keeps the whole budget.
+  const perDocCap =
+    deduped.length > 1 ? Math.floor(allocatedBudget * 0.5) : undefined;
+  const fit = fitItemsToBudget(deduped, allocatedBudget, perDocCap);
+
+  return {
+    allocatedBudget,
+    finalTokens: fit.items.reduce((sum, i) => sum + i.tokens, 0),
+    truncated: fit.truncated,
+    included: fit.items.length > 0,
+    keptItems: fit.items,
+  };
+}
+
 export async function assembleContext(
   pool: PgPool,
   query: string,
@@ -919,27 +1013,10 @@ export async function assembleContext(
       }>(`SELECT last_ingested_at FROM lore.repos WHERE full_name = $1`, [
         repo,
       ]);
+      const freshness = freshnessForRepo(rows[0], new Date());
 
-      if (rows.length === 0) {
-        freshnessState = "first-run";
-        freshnessWarning = `> **Welcome to Lore!** This repo is not yet onboarded.\n> Suggested actions:\n> 1. Call \`lore_onboard_repo\` to generate CLAUDE.md and register the repo\n> 2. Call \`lore_ingest_files\` to manually add specific files\n> 3. Call \`lore_search_memory\` to check if others have left learnings\n\n`;
-      } else {
-        const lastIngestedAt = rows[0].last_ingested_at;
-
-        const now = new Date();
-
-        freshnessState = computeFreshness(lastIngestedAt, now);
-
-        if (freshnessState === "never-ingested") {
-          freshnessWarning = `> ⚠ **Context may be stale** — this repo has never been ingested. Run \`lore_ingest_files\` or wait for the nightly reindex.\n\n`;
-        } else if (freshnessState === "stale" && lastIngestedAt) {
-          const days = Math.floor(
-            (now.getTime() - new Date(lastIngestedAt).getTime()) / 86400000,
-          );
-
-          freshnessWarning = `> ⚠ **Context may be stale** — last ingested ${days} days ago.\n\n`;
-        }
-      }
+      freshnessState = freshness.state;
+      freshnessWarning = freshness.warning;
     } catch {
       /* non-fatal */
     }
@@ -1001,52 +1078,24 @@ export async function assembleContext(
     const deduped = dropSeen(dedupeItems(res.items), seenAcrossSections);
     const rawTokens = deduped.reduce((sum, i) => sum + i.tokens, 0);
 
-    let allocatedBudget = 0;
-    let finalTokens = 0;
-    let truncated = false;
-    let included = false;
-    let omitReason: string | undefined;
-    let keptItems: SourceItem[] = [];
+    const fit = fitSection(
+      deduped,
+      res.status,
+      section,
+      remaining,
+      minTokens,
+      nonEmptyWeight,
+    );
 
-    if (deduped.length === 0) {
-      omitReason = STATUS_REASON[res.status] || "empty";
-    } else if (remaining <= 0) {
-      omitReason = "budget exhausted";
-    } else {
-      const weight = (6 - section.priority) / nonEmptyWeight;
-
-      allocatedBudget = Math.min(
-        section.max_tokens ?? Infinity,
-        Math.floor(minTokens * weight * 1.5), // allow some per-section overflow
-        remaining,
-      );
-
-      if (allocatedBudget <= 100) {
-        omitReason = "budget exhausted";
-      } else {
-        // When documents compete for a section, cap any single one to half the
-        // budget so a mega-doc (e.g. CLAUDE.md) can't crowd out smaller, more-
-        // relevant chunks. A lone document keeps the whole budget.
-        const perDocCap =
-          deduped.length > 1 ? Math.floor(allocatedBudget * 0.5) : undefined;
-        const fit = fitItemsToBudget(deduped, allocatedBudget, perDocCap);
-
-        keptItems = fit.items;
-        truncated = fit.truncated;
-        finalTokens = keptItems.reduce((sum, i) => sum + i.tokens, 0);
-        included = keptItems.length > 0;
-
-        if (included) {
-          remaining -= finalTokens;
-          serialized.push({
-            header: section.header,
-            source: section.source,
-            priority: section.priority,
-            items: keptItems,
-            truncated,
-          });
-        }
-      }
+    if (fit.included) {
+      remaining -= fit.finalTokens;
+      serialized.push({
+        header: section.header,
+        source: section.source,
+        priority: section.priority,
+        items: fit.keptItems,
+        truncated: fit.truncated,
+      });
     }
 
     traceSections.push({
@@ -1054,15 +1103,15 @@ export async function assembleContext(
       source: section.source,
       priority: section.priority,
       status: res.status,
-      allocatedBudget: Number.isFinite(allocatedBudget)
-        ? allocatedBudget
+      allocatedBudget: Number.isFinite(fit.allocatedBudget)
+        ? fit.allocatedBudget
         : (section.max_tokens ?? 0),
       rawTokens,
-      finalTokens,
-      truncated,
-      included,
-      omitReason,
-      items: included ? keptItems : deduped,
+      finalTokens: fit.finalTokens,
+      truncated: fit.truncated,
+      included: fit.included,
+      omitReason: fit.omitReason,
+      items: fit.included ? fit.keptItems : deduped,
     });
   }
 
@@ -1085,9 +1134,9 @@ export async function assembleContext(
 
         if (r.source === "memory") {
           collectedMemoryIds.push(r.id);
-        } else {
-          collectedFactIds.push(r.id);
+          continue;
         }
+        collectedFactIds.push(r.id);
       }
     } catch {
       /* non-fatal */

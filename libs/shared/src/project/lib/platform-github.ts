@@ -397,21 +397,20 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
         sha: ref.object.sha,
       });
     } catch (err) {
-      if ((err as { status?: number }).status === 422) {
-        await ok.rest.git.deleteRef({
-          owner,
-          repo: name,
-          ref: `heads/${branch}`,
-        });
-        await ok.rest.git.createRef({
-          owner,
-          repo: name,
-          ref: `refs/heads/${branch}`,
-          sha: ref.object.sha,
-        });
-      } else {
+      if ((err as { status?: number }).status !== 422) {
         throw err;
       }
+      await ok.rest.git.deleteRef({
+        owner,
+        repo: name,
+        ref: `heads/${branch}`,
+      });
+      await ok.rest.git.createRef({
+        owner,
+        repo: name,
+        ref: `refs/heads/${branch}`,
+        sha: ref.object.sha,
+      });
     }
   }
 

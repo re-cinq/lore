@@ -1,27 +1,27 @@
-/* Scroll geometry deliberately lives on the Panel's wrapper, not here: the
-   Panel owns the ref, the follow-the-tail effect, and the per-node offsets. */
 .transcript {
   background: var(--bg-subtle, #fbfcfd);
 }
 
 .rows {
-  list-style: none;
   margin: 0;
   padding: 0;
-  font-size: 0.8rem;
-  line-height: 1.45;
 }
 
-.rows > li {
+/* Row chrome and typography for the plain event lines; the CollapsibleCard
+   rows bring their own card chrome and must render like every other card,
+   so both are scoped away from them. */
+.rows > :not(:global(.spec-card)) {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
   gap: 0.5rem;
   padding: 0.35rem 0.6rem;
   border-bottom: 1px solid var(--tone-muted-border, #eef1f4);
+  font-size: 0.8rem;
+  line-height: 1.45;
 }
 
-.rows > li:last-child {
+.rows > :not(:global(.spec-card)):last-child {
   border-bottom: none;
 }
 
@@ -57,15 +57,6 @@
   color: var(--tone-error-fg, #9a2020);
 }
 
-.badge {
-  border-radius: 999px;
-  padding: 0 0.4rem;
-  font-size: 0.7rem;
-  color: var(--tone-running-fg, #7a5200);
-  background: var(--tone-running-bg, #fff5da);
-  border: 1px solid var(--tone-running-border, #f0dca6);
-}
-
 .divider {
   justify-content: center;
   font-size: 0.72rem;
@@ -73,46 +64,6 @@
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--fg-muted, #5b6672);
-  background: var(--tone-muted-bg, #f0f2f5);
-}
-
-.detail {
-  flex-basis: 100%;
-  margin: 0.4rem 0 0;
-  padding: 0.5rem;
-  max-height: 18rem;
-  overflow: auto;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  font-size: 0.75rem;
-  background: var(--tone-muted-bg, #f0f2f5);
-  border-radius: 4px;
-}
-
-.toolResult summary,
-.errorRow summary {
-  cursor: pointer;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 0.5rem;
-  border-radius: 4px;
-}
-/* flex on a summary suppresses the native disclosure marker; put the
-   expand affordance back explicitly. */
-.toolResult summary::before,
-.errorRow summary::before {
-  content: "▸";
-  color: var(--tone-muted-fg, #5b6672);
-  font-size: 0.7rem;
-  transition: transform 0.15s ease;
-}
-.toolResult details[open] summary::before,
-.errorRow details[open] summary::before {
-  transform: rotate(90deg);
-}
-.toolResult summary:hover,
-.errorRow summary:hover {
   background: var(--tone-muted-bg, #f0f2f5);
 }
 
@@ -130,30 +81,4 @@
   padding: 0.75rem 0.6rem;
   font-size: 0.8rem;
   color: var(--fg-muted, #5b6672);
-}
-
-.input {
-  padding: var(--space-2) var(--space-3);
-  border-left: 2px solid var(--color-border-strong);
-}
-
-.input .meta {
-  margin: var(--space-2) 0 0;
-  font-size: var(--font-size-xs);
-  color: var(--color-text-muted);
-}
-
-.params {
-  margin: var(--space-2) 0 0;
-  font-size: var(--font-size-xs);
-}
-
-.params dt {
-  color: var(--color-text-muted);
-}
-
-.params dd {
-  margin: 0 0 var(--space-1);
-  font-family: var(--font-mono);
-  overflow-wrap: anywhere;
 }

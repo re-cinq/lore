@@ -28,10 +28,11 @@ export default function PRStatusPanel({
       .then((data) => {
         if (data.error) {
           setError(data.error);
-        } else {
-          setDetails(data);
-          setError(null);
+
+          return;
         }
+        setDetails(data);
+        setError(null);
       })
       .catch(() => setError("Status unavailable"));
   }, [taskId]);

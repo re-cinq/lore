@@ -463,28 +463,29 @@ async function classifyAllStatements(
 
     if (c.matchedBySection) {
       out.set(s.ordinal, c);
-    } else {
-      unclassified.push(s);
+      continue;
     }
+    unclassified.push(s);
   }
   const llm = await classifyLLM(specPath, unclassified);
 
   for (const s of unclassified) {
     const decision = llm.get(s.ordinal);
 
-    if (decision && decision.testability === "untestable") {
-      out.set(s.ordinal, {
-        testability: "untestable",
-        category: decision.category,
-        matchedBySection: false,
-      });
-    } else {
-      out.set(s.ordinal, {
-        testability: "testable",
-        category: null,
-        matchedBySection: false,
-      });
-    }
+    const classification: Classification =
+      decision && decision.testability === "untestable"
+        ? {
+            testability: "untestable",
+            category: decision.category,
+            matchedBySection: false,
+          }
+        : {
+            testability: "testable",
+            category: null,
+            matchedBySection: false,
+          };
+
+    out.set(s.ordinal, classification);
   }
 
   return out;

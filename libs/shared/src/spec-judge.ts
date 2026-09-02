@@ -228,6 +228,32 @@ function candidateKey(link: { test_file: string; test_name: string }): string {
   return `${link.test_file} ${link.test_name}`;
 }
 
+/** The strongest pre-filter signal linking a test chunk to the spec, or null. */
+function matchKindFor(
+  symbol: string | null,
+  spec: SpecInput,
+  chunk: TestChunk,
+  threshold: number,
+): MatchKind | null {
+  if (symbol) {
+    return "assertion";
+  }
+
+  if (hasDirectoryAffinity(spec.file_path, chunk.file_path)) {
+    return "directory";
+  }
+
+  if (
+    spec.embedding &&
+    chunk.embedding &&
+    cosineSimilarity(spec.embedding, chunk.embedding) >= threshold
+  ) {
+    return "embedding";
+  }
+
+  return null;
+}
+
 /**
  * Pre-filters test chunks into judge candidates by three signals — assertion
  * overlap (strongest), directory affinity, embedding proximity. De-duplicates
@@ -251,19 +277,7 @@ export function selectCandidates(
     }
 
     const symbol = matchedAssertion(chunk.content, assertions);
-    let kind: MatchKind | null = null;
-
-    if (symbol) {
-      kind = "assertion";
-    } else if (hasDirectoryAffinity(spec.file_path, chunk.file_path)) {
-      kind = "directory";
-    } else if (
-      spec.embedding &&
-      chunk.embedding &&
-      cosineSimilarity(spec.embedding, chunk.embedding) >= threshold
-    ) {
-      kind = "embedding";
-    }
+    const kind = matchKindFor(symbol, spec, chunk, threshold);
 
     if (!kind) {
       continue;

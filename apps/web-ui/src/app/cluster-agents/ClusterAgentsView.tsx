@@ -1,3 +1,4 @@
+import { Alert } from "@/components/Alert";
 import Link from "next/link";
 import { TimeAgo } from "@/components/TimeAgo";
 import { EmptyState } from "@/components/EmptyState";
@@ -148,7 +149,7 @@ export default function ClusterAgentsView({
         station run it held — a flapping cluster shows up here.
       </p>
       {offlineEvents.length === 0 ? (
-        <p className="meta">No offline events recorded.</p>
+        <Alert variant="secondary">No offline events recorded.</Alert>
       ) : (
         <table>
           <thead>

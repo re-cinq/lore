@@ -32,12 +32,17 @@ beforeAll(async () => {
 
     if (req.url === "/api/repos/re-cinq/re-plan/agent-definitions/general") {
       res.end(JSON.stringify(general));
-    } else if (req.url === "/api/repos/re-cinq/re-plan/agent-definitions") {
-      res.end(JSON.stringify({ agents: [general] }));
-    } else {
-      res.statusCode = 404;
-      res.end(JSON.stringify({ error: "not found" }));
+
+      return;
     }
+
+    if (req.url === "/api/repos/re-cinq/re-plan/agent-definitions") {
+      res.end(JSON.stringify({ agents: [general] }));
+
+      return;
+    }
+    res.statusCode = 404;
+    res.end(JSON.stringify({ error: "not found" }));
   });
   await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
   const addr = server.address();

@@ -117,11 +117,15 @@ export async function startHealthServer(
   } catch (err) {
     const e = err as NodeJS.ErrnoException;
 
-    if (e.code === "EADDRINUSE") {
+    const portInUse = e.code === "EADDRINUSE";
+
+    if (portInUse) {
       console.error(
         `[floor] Health server port ${port} already in use — another agent instance is running. Exiting.`,
       );
-    } else {
+    }
+
+    if (!portInUse) {
       console.error("[floor] Health server error:", err);
     }
     process.exit(1);

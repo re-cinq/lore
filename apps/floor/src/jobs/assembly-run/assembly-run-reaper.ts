@@ -476,7 +476,11 @@ export async function assemblyLineReaperJob(
           deps,
         );
         resolved++;
-      } else if (recovery.kind === "timeout") {
+
+        continue;
+      }
+
+      if (recovery.kind === "timeout") {
         const budget = budgetMinutes ?? DEFAULT_TIMEOUT_MINUTES;
 
         await finishNodeTerminal(
@@ -500,7 +504,11 @@ export async function assemblyLineReaperJob(
         console.warn(
           `[assembly-run-reaper] node ${openNode.nodeId} of ${row.id} timed out (${node.type === "agent" ? "agent" : "station"}-timeout)`,
         );
-      } else if (recovery.kind === "queue-timeout") {
+
+        continue;
+      }
+
+      if (recovery.kind === "queue-timeout") {
         await finishNodeTerminal(
           {
             row,
@@ -524,7 +532,11 @@ export async function assemblyLineReaperJob(
         console.warn(
           `[assembly-run-reaper] node ${openNode.nodeId} of ${row.id} sat queued past ${queueWaitMs / MINUTE_MS}m unclaimed`,
         );
-      } else if (recovery.kind === "requeue-offline") {
+
+        continue;
+      }
+
+      if (recovery.kind === "requeue-offline") {
         // Same row back on the shelf; the audit entry is what makes a flapping
         // cluster diagnosable without database access (FR7 renders it).
         await deps.assemblyRuns.requeueStationRun(openNode.id);
@@ -541,7 +553,11 @@ export async function assemblyLineReaperJob(
           },
         });
         requeued++;
-      } else if (recovery.kind === "requeue") {
+
+        continue;
+      }
+
+      if (recovery.kind === "requeue") {
         // Crash between claim and CR create: reset the SAME row to `queued` so
         // another claim takes it — no second builder, the armed dispatch spec
         // rides the row. (The old relaunch arm rebuilt and pushed a CR itself.)

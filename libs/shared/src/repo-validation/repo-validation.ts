@@ -130,8 +130,10 @@ function detectNode(repoRoot: string): RepoTooling | null {
   // 120s, not 30: scoping is best-effort (a diff that cannot be derived runs
   // the whole tree), and unscoped `eslint .` on a monorepo measures ~37s at
   // 200% CPU on a warm laptop — minutes in a one-CPU pod with a cold cache.
-  if (scripts.lint) {
-    const scopedCommand = scopedLintCommand(scripts.lint);
+  const lintScript = scripts.lint;
+
+  if (lintScript) {
+    const scopedCommand = scopedLintCommand(lintScript);
 
     quick.push({
       name: "lint",
@@ -139,7 +141,9 @@ function detectNode(repoRoot: string): RepoTooling | null {
       ...(scopedCommand ? { scopedCommand } : {}),
       timeoutMs: 120_000,
     });
-  } else if (hasEslintConfig(repoRoot)) {
+  }
+
+  if (!lintScript && hasEslintConfig(repoRoot)) {
     quick.push({
       name: "eslint",
       command: "npx eslint --quiet .",
@@ -148,13 +152,17 @@ function detectNode(repoRoot: string): RepoTooling | null {
   }
 
   // Typecheck
-  if (scripts.typecheck) {
+  const typecheckScript = scripts.typecheck;
+
+  if (typecheckScript) {
     quick.push({
       name: "typecheck",
       command: "npm run typecheck --silent",
       timeoutMs: 60_000,
     });
-  } else if (existsSync(join(repoRoot, "tsconfig.json"))) {
+  }
+
+  if (!typecheckScript && existsSync(join(repoRoot, "tsconfig.json"))) {
     quick.push({ name: "tsc", command: "npx tsc --noEmit", timeoutMs: 60_000 });
   }
 
@@ -171,13 +179,12 @@ function detectNode(repoRoot: string): RepoTooling | null {
   if (scripts.test) {
     const testCmd = scripts.test as string;
     // Vitest and Jest support --bail/--run for fast failure
-    let cmd = "npm run test --silent";
+    const cmd = testCmd.includes("vitest")
+      ? "npm run test --silent -- --run"
+      : testCmd.includes("jest")
+        ? "npm run test --silent -- --bail"
+        : "npm run test --silent";
 
-    if (testCmd.includes("vitest")) {
-      cmd = "npm run test --silent -- --run";
-    } else if (testCmd.includes("jest")) {
-      cmd = "npm run test --silent -- --bail";
-    }
     full.push({ name: "test", command: cmd, timeoutMs: 120_000 });
   }
 

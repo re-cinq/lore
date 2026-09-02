@@ -80,6 +80,22 @@ export function buildTimeline(
   return stageCommits;
 }
 
+/** Wire shape of a held-or-lapsed lease row; `held` reflects the clock, not the
+ *  row's existence. */
+function leaseFromRow(row: { holder: string; expires_at: string }): {
+  held: boolean;
+  holder?: string;
+  expires_at?: string;
+} {
+  const expiresAt = new Date(row.expires_at);
+
+  return {
+    held: expiresAt.getTime() > Date.now(),
+    holder: row.holder,
+    expires_at: expiresAt.toISOString(),
+  };
+}
+
 export function timelineRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "GET",
@@ -203,22 +219,15 @@ export function timelineRoute(getPool: () => Pool | null): ServerRoute {
       } | null = null;
 
       try {
-        const { rows } = await pool.query(
+        const { rows } = await pool.query<{
+          holder: string;
+          expires_at: string;
+        }>(
           `SELECT holder, expires_at FROM pipeline.task_leases WHERE branch_name = $1`,
           [branch],
         );
 
-        if (rows.length > 0) {
-          const expiresAt = new Date(rows[0].expires_at);
-
-          lease = {
-            held: expiresAt.getTime() > Date.now(),
-            holder: rows[0].holder,
-            expires_at: expiresAt.toISOString(),
-          };
-        } else {
-          lease = { held: false };
-        }
+        lease = rows.length > 0 ? leaseFromRow(rows[0]) : { held: false };
       } catch {
         // Lease table may not exist yet — non-fatal.
       }

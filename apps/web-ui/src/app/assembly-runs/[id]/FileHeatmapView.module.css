@@ -90,9 +90,3 @@
   background: var(--bg-hover);
   border-color: var(--border-hover);
 }
-
-.empty {
-  margin: 0;
-  font-size: var(--fs-sm);
-  color: var(--text-muted);
-}

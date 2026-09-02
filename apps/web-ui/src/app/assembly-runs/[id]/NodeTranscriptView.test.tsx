@@ -1,11 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
-import NodeTranscriptView, {
-  recallScroll,
-  rememberScroll,
-  shouldFollowTail,
-} from "./NodeTranscriptView";
+import NodeTranscriptView from "./NodeTranscriptView";
 import type { TranscriptRow } from "@/lib/transcript-rows";
 
 const ts = "2026-07-20T10:00:00.000Z";
@@ -44,9 +40,12 @@ function renderView(rows: readonly TranscriptRow[], droppedCount = 0) {
 
 describe("NodeTranscriptView", () => {
   it("renders one row per transcript event", () => {
-    renderView([message("1", "alpha"), message("2", "beta")]);
+    const { container } = renderView([
+      message("1", "alpha"),
+      message("2", "beta"),
+    ]);
 
-    expect(screen.getAllByRole("listitem")).toHaveLength(2);
+    expect(container.querySelectorAll('[class*="rows"] > *')).toHaveLength(2);
   });
 
   it("renders a tool call with its tool name and summary", () => {
@@ -153,43 +152,9 @@ describe("NodeTranscriptView", () => {
 
     const { container } = renderView(rows);
 
-    expect(container.querySelectorAll("ol > li")).toHaveLength(3000);
-  });
-});
-
-describe("shouldFollowTail", () => {
-  it("returns true from shouldFollowTail when the viewport sits at the bottom", () => {
-    expect(shouldFollowTail(900, 1000, 100)).toBe(true);
-  });
-
-  it("returns false from shouldFollowTail when the reader has scrolled up 400 pixels", () => {
-    expect(shouldFollowTail(500, 1000, 100)).toBe(false);
-  });
-
-  it("returns true from shouldFollowTail for a transcript shorter than its viewport", () => {
-    expect(shouldFollowTail(0, 100, 400)).toBe(true);
-  });
-});
-
-describe("per-node scroll retention", () => {
-  it("recalls the implement offset after the selection moved to validate and back", () => {
-    const afterImplement = rememberScroll({}, "implement", 320);
-    const afterValidate = rememberScroll(afterImplement, "validate", 40);
-
-    expect(recallScroll(afterValidate, "implement")).toBe(320);
-    expect(recallScroll(afterValidate, "validate")).toBe(40);
-  });
-
-  it("recalls 0 for a node whose offset was never remembered", () => {
-    expect(recallScroll({}, "implement")).toBe(0);
-  });
-
-  it("leaves the passed offsets unmutated when remembering a new offset", () => {
-    const offsets = {};
-
-    rememberScroll(offsets, "implement", 320);
-
-    expect(offsets).toEqual({});
+    expect(container.querySelectorAll('[class*="rows"] > *')).toHaveLength(
+      3000,
+    );
   });
 });
 
@@ -210,7 +175,7 @@ describe("the input row", () => {
   });
 
   it("renders the input as the first row of the transcript", () => {
-    render(
+    const { container } = render(
       <NodeTranscriptView
         nodeId="review"
         rows={[inputRow(), message("1", "starting")]}
@@ -218,7 +183,9 @@ describe("the input row", () => {
       />,
     );
 
-    expect(screen.getAllByRole("listitem")[0]).toHaveTextContent("Input");
+    expect(container.querySelector('[class*="rows"] > *')).toHaveTextContent(
+      "Input",
+    );
   });
 
   it("collapses the prompt behind a details disclosure with the description head as its summary", () => {
@@ -231,10 +198,26 @@ describe("the input row", () => {
     );
 
     expect(screen.getByText("review the PR")).toBeInTheDocument();
-    // Present but folded away: a 16KB prompt must not bury the transcript.
-    expect(
-      screen.getByText("you are a reviewer").closest("details"),
-    ).not.toBeNull();
+    // Present but folded away: a 16KB prompt must not bury the transcript. The
+    // body is one text flow, the same structure as every other card.
+    const item = screen.getByText("review the PR").closest("details");
+
+    expect(item).not.toBeNull();
+    expect(item?.open).toBe(false);
+    expect(item).toHaveTextContent("review the PR, carefully");
+    expect(item).toHaveTextContent("you are a reviewer");
+  });
+
+  it("renders the input text as markdown, not raw", () => {
+    render(
+      <NodeTranscriptView
+        nodeId="review"
+        rows={[inputRow({ description: "review **carefully**" })]}
+        droppedCount={0}
+      />,
+    );
+
+    expect(screen.getByText("carefully").tagName).toBe("STRONG");
   });
 
   it("shows the truncated badge on a capped input", () => {
@@ -258,8 +241,9 @@ describe("the input row", () => {
       />,
     );
 
-    expect(screen.getByText("job_ref")).toBeInTheDocument();
-    expect(screen.getByText("spec_drift")).toBeInTheDocument();
-    expect(screen.getByText("o/r @ feat/x")).toBeInTheDocument();
+    const item = screen.getByText("Input").closest("details");
+
+    expect(item).toHaveTextContent("job_ref: spec_drift");
+    expect(item).toHaveTextContent("o/r @ feat/x");
   });
 });

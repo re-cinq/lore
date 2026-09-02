@@ -169,47 +169,29 @@ export async function createTask(
   const contextJson = input.contextBundle
     ? JSON.stringify(input.contextBundle)
     : null;
-  let rows: Array<{
+  const insertSql = input.taskGroupId
+    ? `INSERT INTO pipeline.tasks (description, task_type, target_repo, created_by, context_bundle, priority, task_group_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       RETURNING id, status, priority, created_at`
+    : `INSERT INTO pipeline.tasks (description, task_type, target_repo, created_by, context_bundle, priority)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING id, status, priority, created_at`;
+  const insertParams = [
+    input.description,
+    taskType,
+    repo,
+    createdBy,
+    contextJson,
+    resolvedPriority,
+    ...(input.taskGroupId ? [input.taskGroupId] : []),
+  ];
+  const result = await pool.query<{
     id: string;
     status: string;
     priority: string;
     created_at: string;
-  }>;
-
-  if (input.taskGroupId) {
-    const result = await pool.query<(typeof rows)[number]>(
-      `INSERT INTO pipeline.tasks (description, task_type, target_repo, created_by, context_bundle, priority, task_group_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
-       RETURNING id, status, priority, created_at`,
-      [
-        input.description,
-        taskType,
-        repo,
-        createdBy,
-        contextJson,
-        resolvedPriority,
-        input.taskGroupId,
-      ],
-    );
-
-    rows = result.rows;
-  } else {
-    const result = await pool.query<(typeof rows)[number]>(
-      `INSERT INTO pipeline.tasks (description, task_type, target_repo, created_by, context_bundle, priority)
-       VALUES ($1, $2, $3, $4, $5, $6)
-       RETURNING id, status, priority, created_at`,
-      [
-        input.description,
-        taskType,
-        repo,
-        createdBy,
-        contextJson,
-        resolvedPriority,
-      ],
-    );
-
-    rows = result.rows;
-  }
+  }>(insertSql, insertParams);
+  const rows = result.rows;
   const task = rows[0];
 
   if (

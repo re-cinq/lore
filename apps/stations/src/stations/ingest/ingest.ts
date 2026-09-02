@@ -142,9 +142,9 @@ async function listClone(root: string, prefix = ""): Promise<string[]> {
 
     if (entry.isDirectory()) {
       paths.push(...(await listClone(root, rel)));
-    } else {
-      paths.push(rel);
+      continue;
     }
+    paths.push(rel);
   }
 
   return paths;
@@ -187,54 +187,54 @@ export async function runIngestStation(
     "ingest station: LORE_DGRAPH_HTTP not configured — the def-ingest recipe must inject it (FR4)",
   );
 
-  if (PAYLOAD_KINDS.has(kind!)) {
-    const eventId = input.params.payload_event_id as string | undefined;
-
-    enforceTrue(
-      eventId,
-      Error,
-      `ingest station: kind "${kind}" requires the payload_event_id param`,
+  if (!PAYLOAD_KINDS.has(kind!)) {
+    const summary = await runIngestGraph(
+      {
+        kind: kind as "specs" | "adrs",
+        repo: input.repo,
+        glob: input.params.glob as string | undefined,
+        force: input.params.force === "true",
+      },
+      {
+        dgraph,
+        listTree: () => listClone(workspaceDir),
+        readFile: async (path: string) =>
+          readFile(join(workspaceDir, path), "utf8"),
+        embed: deps.embed ?? defaultEmbed(),
+      },
     );
-    const payload = await (
-      deps.fetchPayload ?? ((id: string) => fetchPayloadFromApi(input.repo, id))
-    )(eventId!);
-    const outcome = await ingestSpecTrace(dgraph!, input.repo, kind!, payload);
-    const summaryLine = `validated_by=${outcome.validatedBy} violated=${outcome.violated} coverage_nodes=${outcome.coverageNodes} covers_edges=${outcome.coversEdges} test_chunks=${outcome.testChunks}`;
 
-    console.log(eventLine(`ingest ${kind} complete: ${summaryLine}`));
+    const extras = summaryExtras(summary);
 
+    console.log(
+      eventLine(`ingest ${kind} complete: ${extras["Lore-Ingest-Summary"]}`),
+    );
+
+    // Partial failure routes the line's failed edge — never a silent success
+    // with files missing (same contract as the Floor handler it replaces).
     return {
-      outcome: "success",
-      extras: { "Lore-Ingest-Summary": summaryLine },
+      outcome: summary.failed > 0 ? "failed" : "success",
+      extras,
     };
   }
 
-  const summary = await runIngestGraph(
-    {
-      kind: kind as "specs" | "adrs",
-      repo: input.repo,
-      glob: input.params.glob as string | undefined,
-      force: input.params.force === "true",
-    },
-    {
-      dgraph,
-      listTree: () => listClone(workspaceDir),
-      readFile: async (path: string) =>
-        readFile(join(workspaceDir, path), "utf8"),
-      embed: deps.embed ?? defaultEmbed(),
-    },
+  const eventId = input.params.payload_event_id as string | undefined;
+
+  enforceTrue(
+    eventId,
+    Error,
+    `ingest station: kind "${kind}" requires the payload_event_id param`,
   );
+  const payload = await (
+    deps.fetchPayload ?? ((id: string) => fetchPayloadFromApi(input.repo, id))
+  )(eventId!);
+  const outcome = await ingestSpecTrace(dgraph!, input.repo, kind!, payload);
+  const summaryLine = `validated_by=${outcome.validatedBy} violated=${outcome.violated} coverage_nodes=${outcome.coverageNodes} covers_edges=${outcome.coversEdges} test_chunks=${outcome.testChunks}`;
 
-  const extras = summaryExtras(summary);
+  console.log(eventLine(`ingest ${kind} complete: ${summaryLine}`));
 
-  console.log(
-    eventLine(`ingest ${kind} complete: ${extras["Lore-Ingest-Summary"]}`),
-  );
-
-  // Partial failure routes the line's failed edge — never a silent success
-  // with files missing (same contract as the Floor handler it replaces).
   return {
-    outcome: summary.failed > 0 ? "failed" : "success",
-    extras,
+    outcome: "success",
+    extras: { "Lore-Ingest-Summary": summaryLine },
   };
 }

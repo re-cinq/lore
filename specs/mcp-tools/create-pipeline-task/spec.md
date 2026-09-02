@@ -74,7 +74,7 @@ Enqueues a new server-side pipeline task and returns its UUID and a pickup hint.
    non-trust query errors are swallowed). Then `INSERT INTO pipeline.tasks
    (description, task_type, target_repo, created_by, context_bundle, priority[, task_group_id])
    … RETURNING id, status, priority, created_at`, optional `UPDATE … SET context_refs`,
-   then `recordEvent(pool, id, null, "pending", {created_by, priority})`.
+   then `recordEvent(pool, id, null, "pending", {created_by, priority})`. ([validated by `inserts task_group_id grp-1 as the seventh insert parameter`](../../../libs/shared/src/pipeline-tasks.trust.test.ts#L92), [validated by `inserts six parameters and no task_group_id column without a group id`](../../../libs/shared/src/pipeline-tasks.trust.test.ts#L110))
 5. **Success message** — both transports return:
    `"Task created: {task_id}\nType: {type}\nPriority: {priority}\nRepo: {repo|'default'}\n\n{pickupMsg}"`
    where `pickupMsg` is *"The GKE agent will pick this up within 30 seconds."*

@@ -6,6 +6,7 @@ import { AgentDefsYaml } from "@re-cinq/lore-shared/project/agents/agent-defs-ya
 import { agentDefToCrds } from "@re-cinq/lore-shared/project/agents/agent-crd.js";
 import type { ResolvedAgentDefinition } from "@re-cinq/lore-shared/models/agent-definition.js";
 import { buildServer } from "../server/build-server.js";
+import { restoreEnv } from "./restore-env.js";
 
 /**
  * The catalog fan-out end to end, against a migrated Postgres: a definition
@@ -113,11 +114,7 @@ describe("the catalog-events fan-out, against real Postgres", () => {
     await server.stop();
     await pool.end();
 
-    if (prevRegistration === undefined) {
-      delete process.env.LORE_CLUSTER_AGENT_REGISTRATION_TOKEN;
-    } else {
-      process.env.LORE_CLUSTER_AGENT_REGISTRATION_TOKEN = prevRegistration;
-    }
+    restoreEnv("LORE_CLUSTER_AGENT_REGISTRATION_TOKEN", prevRegistration);
   });
 
   it("a fresh agent's first poll is the full snapshot, including the 0054-seeded org defaults", async () => {

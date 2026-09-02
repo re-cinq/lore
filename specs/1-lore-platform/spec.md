@@ -393,7 +393,7 @@ The system MUST ingest content from multiple sources into the vector
 store via the Lore Agent service. ([validated by `content-classify.test.ts:5`](libs/shared/src/content-classify.test.ts#L5))
 
 - FR-7.1: Fast path: on-push to main triggers incremental ingestion
-  via pipeline task. ([validated by `ingest-workflow.test.ts:22`](libs/shared/src/ingest-workflow.test.ts#L22), [`ci-ingest.test.ts:78`](apps/floor/src/delivery/http/routes/ci-ingest.test.ts#L78))
+  via pipeline task. ([validated by `ingest-workflow.test.ts:22`](libs/shared/src/ingest-workflow.test.ts#L22), [`ci-ingest.test.ts:78`](apps/floor/src/delivery/http/routes/ci-ingest.test.ts#L80))
 - FR-7.2: Full path: nightly job triggers complete re-index via
   pipeline task. ([validated by `reindex-backfill.test.ts:24`](apps/floor/src/jobs/context-jobs/reindex/reindex-backfill.test.ts#L24), [`reindex-seed.test.ts:5`](apps/floor/src/jobs/context-jobs/reindex/reindex-seed.test.ts#L5))
 - FR-7.3: Content types: code (AST-split), pull requests (diff +
@@ -511,7 +511,7 @@ cooperation. ([validated by `session-tracker.test.ts:193`](libs/server-core/src/
 - FR-12.5: After every pipeline task completion (PR, no-changes,
   failure), an episode is automatically written. For high-signal
   events (PRs, failures), Haiku extracts a lesson and stores it
-  as `auto-curation/{ref}` memory. ([validated by `episode-writer.test.ts:79`](libs/shared/src/episode-writer.test.ts#L79))
+  as `auto-curation/{ref}` memory. ([validated by `episode-writer.test.ts:81`](libs/shared/src/episode-writer.test.ts#L81))
 
 ### FR-13: Autonomous Review Loop (Phase 1, opt-in)
 
@@ -644,7 +644,7 @@ non-terminal states and resolve them without manual intervention. ([validated by
   detection and the state write, the write is a no-op. ([validated by `task-store-pg.test.ts:74`](libs/shared/src/project/tasks/task-store-pg.test.ts#L74))
 - FR-18.4: A failure episode is written for each stuck task so the
   auto-curation pipeline can surface patterns (e.g. a task type that
-  consistently times out). ([validated by `episode-writer.test.ts:79`](libs/shared/src/episode-writer.test.ts#L79), [`episode-writer.test.ts:13`](libs/shared/src/episode-writer.test.ts#L13))
+  consistently times out). ([validated by `episode-writer.test.ts:81`](libs/shared/src/episode-writer.test.ts#L81), [`episode-writer.test.ts:13`](libs/shared/src/episode-writer.test.ts#L13))
 
 ### FR-19: Task Detail UI (Phase 1)
 
@@ -689,11 +689,13 @@ attempt). ([validated by `TaskDetailView.test.tsx:109`](apps/web-ui/src/app/task
 - FR-19.6: The run detail page renders the task's event timeline: one
   badge per status transition (sentence-cased to-status with a
   from-status arrow), pretty-printed event metadata as JSON, and an
-  empty-state note when there are no events. ([validated by `EventTimeline.test.tsx:18`](apps/web-ui/src/app/tasks/[id]/EventTimeline.test.tsx#L18), [`EventTimeline.test.tsx:32`](apps/web-ui/src/app/tasks/[id]/EventTimeline.test.tsx#L32), [`EventTimeline.test.tsx:40`](apps/web-ui/src/app/tasks/[id]/EventTimeline.test.tsx#L40))
+  empty-state note when there are no events; the section is a collapsible
+  card titled Event Timeline. ([validated by `EventTimeline.test.tsx:26`](apps/web-ui/src/app/tasks/[id]/EventTimeline.test.tsx#L26), [`EventTimeline.test.tsx:40`](apps/web-ui/src/app/tasks/[id]/EventTimeline.test.tsx#L40), [`EventTimeline.test.tsx:48`](apps/web-ui/src/app/tasks/[id]/EventTimeline.test.tsx#L48), [`EventTimeline.test.tsx:18`](apps/web-ui/src/app/tasks/[id]/EventTimeline.test.tsx#L18))
 - FR-19.7: The run detail page renders the task's LLM-call table: one
   row per call with the model, `input / output` token counts, duration,
   and a status badge (red with the error text on failure), and an
-  empty-state note in place of the table when there are none. ([validated by `LlmCallsTable.test.tsx:19`](apps/web-ui/src/app/tasks/[id]/LlmCallsTable.test.tsx#L19), [`LlmCallsTable.test.tsx:27`](apps/web-ui/src/app/tasks/[id]/LlmCallsTable.test.tsx#L27), [`LlmCallsTable.test.tsx:35`](apps/web-ui/src/app/tasks/[id]/LlmCallsTable.test.tsx#L35))
+  empty-state note in place of the table when there are none; the section
+  is a collapsible card titled LLM Calls. ([validated by `LlmCallsTable.test.tsx:25`](apps/web-ui/src/app/tasks/[id]/LlmCallsTable.test.tsx#L25), [`LlmCallsTable.test.tsx:33`](apps/web-ui/src/app/tasks/[id]/LlmCallsTable.test.tsx#L33), [`LlmCallsTable.test.tsx:41`](apps/web-ui/src/app/tasks/[id]/LlmCallsTable.test.tsx#L41), [`LlmCallsTable.test.tsx:19`](apps/web-ui/src/app/tasks/[id]/LlmCallsTable.test.tsx#L19))
 - FR-19.10: The pure PR status card shows a loading placeholder until
   details arrive, an "unavailable" fallback with a "View on GitHub" link
   when only an error is present, keeps the loaded details on screen even
@@ -1108,7 +1110,7 @@ share one persistence surface instead of inline SQL. ([validated by `task-queue.
   `feature-decompose`, and returns null for an unknown name; the facade
   lists and delegates create/delete with the bound repo; and the HTTP
   adapter resolves/lists via the bearer-authed API (null on 404).
-  ([validated by `agent-defs-port.test.ts:23`](libs/shared/src/project/agents/agent-defs-port.test.ts#L24), [`agent-defs-port.test.ts:27`](libs/shared/src/project/agents/agent-defs-port.test.ts#L28), [`agent-defs-port.test.ts:31`](libs/shared/src/project/agents/agent-defs-port.test.ts#L32), [`agent-defs-port.test.ts:67`](libs/shared/src/project/agents/agent-defs-port.test.ts#L69), [`agent-defs-pg.test.ts:101`](libs/shared/src/project/agents/agent-defs-pg.test.ts#L103), [`agent-defs-pg.test.ts:110`](libs/shared/src/project/agents/agent-defs-pg.test.ts#L112), [`agent-defs-pg.test.ts:122`](libs/shared/src/project/agents/agent-defs-pg.test.ts#L124), [`agent-defs-pg.test.ts:138`](libs/shared/src/project/agents/agent-defs-pg.test.ts#L140), [`agent-defs-pg.test.ts:165`](libs/shared/src/project/agents/agent-defs-pg.test.ts#L168), [`agent-defs-yaml.test.ts:43`](libs/shared/src/project/agents/agent-defs-yaml.test.ts#L42), [`agent-defs-yaml.test.ts:58`](libs/shared/src/project/agents/agent-defs-yaml.test.ts#L58), [`agent-defs-yaml.test.ts:68`](libs/shared/src/project/agents/agent-defs-yaml.test.ts#L68), [`agent-defs-yaml.test.ts:77`](libs/shared/src/project/agents/agent-defs-yaml.test.ts#L77), [`agent-defs-yaml.test.ts:109`](libs/shared/src/project/agents/agent-defs-yaml.test.ts#L111), [`agent-defs.test.ts:60`](libs/shared/src/project/agents/agent-defs.test.ts#L61), [`agent-defs.test.ts:68`](libs/shared/src/project/agents/agent-defs.test.ts#L69), [`agent-defs-http.test.ts:55`](libs/shared/src/project/agents/agent-defs-http.test.ts#L56), [`agent-defs-http.test.ts:64`](libs/shared/src/project/agents/agent-defs-http.test.ts#L65), [`agent-defs-http.test.ts:70`](libs/shared/src/project/agents/agent-defs-http.test.ts#L71))
+  ([validated by `agent-defs-port.test.ts:23`](libs/shared/src/project/agents/agent-defs-port.test.ts#L24), [`agent-defs-port.test.ts:27`](libs/shared/src/project/agents/agent-defs-port.test.ts#L28), [`agent-defs-port.test.ts:31`](libs/shared/src/project/agents/agent-defs-port.test.ts#L32), [`agent-defs-port.test.ts:67`](libs/shared/src/project/agents/agent-defs-port.test.ts#L69), [`agent-defs-pg.test.ts:101`](libs/shared/src/project/agents/agent-defs-pg.test.ts#L103), [`agent-defs-pg.test.ts:110`](libs/shared/src/project/agents/agent-defs-pg.test.ts#L112), [`agent-defs-pg.test.ts:122`](libs/shared/src/project/agents/agent-defs-pg.test.ts#L124), [`agent-defs-pg.test.ts:138`](libs/shared/src/project/agents/agent-defs-pg.test.ts#L140), [`agent-defs-pg.test.ts:165`](libs/shared/src/project/agents/agent-defs-pg.test.ts#L168), [`agent-defs-yaml.test.ts:43`](libs/shared/src/project/agents/agent-defs-yaml.test.ts#L42), [`agent-defs-yaml.test.ts:58`](libs/shared/src/project/agents/agent-defs-yaml.test.ts#L58), [`agent-defs-yaml.test.ts:68`](libs/shared/src/project/agents/agent-defs-yaml.test.ts#L68), [`agent-defs-yaml.test.ts:77`](libs/shared/src/project/agents/agent-defs-yaml.test.ts#L77), [`agent-defs-yaml.test.ts:109`](libs/shared/src/project/agents/agent-defs-yaml.test.ts#L111), [`agent-defs.test.ts:60`](libs/shared/src/project/agents/agent-defs.test.ts#L61), [`agent-defs.test.ts:68`](libs/shared/src/project/agents/agent-defs.test.ts#L69), [`agent-defs-http.test.ts:61`](libs/shared/src/project/agents/agent-defs-http.test.ts#L61), [`agent-defs-http.test.ts:70`](libs/shared/src/project/agents/agent-defs-http.test.ts#L70), [`agent-defs-http.test.ts:76`](libs/shared/src/project/agents/agent-defs-http.test.ts#L76))
 - FR-20.13: The `Workspace`/`Git` ports carry the installation token as a
   base64 `x-access-token` `http.extraheader` override (honouring a
   non-default host, never embedding the raw token in the args or
@@ -1211,9 +1213,9 @@ share one persistence surface instead of inline SQL. ([validated by `task-queue.
 
 ### NFR-1: Security
 
-- No long-lived credentials anywhere in the system. ([validated by `security-posture.test.ts:109`](libs/shared/src/infra-contract/security-posture.test.ts#L109), [`security-posture.test.ts:130`](libs/shared/src/infra-contract/security-posture.test.ts#L130))
-- Workload Identity for all GKE workloads. ([validated by `security-posture.test.ts:101`](libs/shared/src/infra-contract/security-posture.test.ts#L101))
-- Workload Identity Federation for GitHub Actions. ([validated by `security-posture.test.ts:126`](libs/shared/src/infra-contract/security-posture.test.ts#L126), [`security-posture.test.ts:130`](libs/shared/src/infra-contract/security-posture.test.ts#L130))
+- No long-lived credentials anywhere in the system. ([validated by `security-posture.test.ts:112`](libs/shared/src/infra-contract/security-posture.test.ts#L112), [`security-posture.test.ts:133`](libs/shared/src/infra-contract/security-posture.test.ts#L133))
+- Workload Identity for all GKE workloads. ([validated by `security-posture.test.ts:104`](libs/shared/src/infra-contract/security-posture.test.ts#L104))
+- Workload Identity Federation for GitHub Actions. ([validated by `security-posture.test.ts:129`](libs/shared/src/infra-contract/security-posture.test.ts#L129), [`security-posture.test.ts:133`](libs/shared/src/infra-contract/security-posture.test.ts#L133))
 - Schema-per-team isolation in the vector store. ([validated by `chunks.test.ts:153`](libs/shared/src/project/chunks/chunks.test.ts#L153), [`chunks.test.ts:171`](libs/shared/src/project/chunks/chunks.test.ts#L171))
 - Secret and PII redaction runs at ingest time and on every memory write:
   `sanitizeContent()` / `redactSecrets()` strip API keys, JWTs, private keys,
@@ -1224,7 +1226,7 @@ share one persistence surface instead of inline SQL. ([validated by `task-queue.
   and per-client scoped tokens with SHA-256 hashes. ([validated by `auth.test.ts:58`](apps/lore-api/src/api/routes/auth.test.ts#L58), [`bearer-scope.test.ts:45`](apps/lore-api/src/server/plugins/bearer-scope.test.ts#L45))
 - Job pods run as non-root (uid 1000), drop all Linux capabilities,
   disallow privilege escalation. NetworkPolicy restricts egress to
-  DNS + HTTPS + internal Lore API only. ([validated by `security-posture.test.ts:73`](libs/shared/src/infra-contract/security-posture.test.ts#L73), [`security-posture.test.ts:78`](libs/shared/src/infra-contract/security-posture.test.ts#L78), [`security-posture.test.ts:86`](libs/shared/src/infra-contract/security-posture.test.ts#L86), [`security-posture.test.ts:92`](libs/shared/src/infra-contract/security-posture.test.ts#L92))
+  DNS + HTTPS + internal Lore API only. ([validated by `security-posture.test.ts:76`](libs/shared/src/infra-contract/security-posture.test.ts#L76), [`security-posture.test.ts:81`](libs/shared/src/infra-contract/security-posture.test.ts#L81), [`security-posture.test.ts:89`](libs/shared/src/infra-contract/security-posture.test.ts#L89), [`security-posture.test.ts:95`](libs/shared/src/infra-contract/security-posture.test.ts#L95))
 - Rate limiting: 30/min webhooks, 60/min task ops, 200/min other
   (in-memory sliding window). 1 MB body size limit. ([validated by `rate-limit.test.ts:42`](apps/lore-api/src/server/plugins/rate-limit.test.ts#L42), [`auth.test.ts:19`](apps/lore-api/src/api/routes/auth.test.ts#L19), [`webhook-incident.test.ts:144`](apps/lore-api/src/api/routes/webhooks/webhook-incident.test.ts#L144))
 - Slack indexing opt-in per channel only; DMs never indexed. ([validated by `notify-slack.test.ts:16`](libs/shared/src/project/notify/notify-slack.test.ts#L16), [`notify-decision.test.ts:35`](libs/shared/src/project/notify/notify-decision.test.ts#L35))

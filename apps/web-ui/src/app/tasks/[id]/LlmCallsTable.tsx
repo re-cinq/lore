@@ -1,3 +1,4 @@
+import CollapsibleCard from "@/components/CollapsibleCard";
 import Linkified from "@/components/Linkified";
 import { TimeAgo } from "@/components/TimeAgo";
 import type { TaskRuntimeLlmCall } from "@/lib/task-runtime";
@@ -12,9 +13,12 @@ export default function LlmCallsTable({
   repo: string;
 }) {
   return (
-    <>
-      <h2>LLM Calls</h2>
-      {llmCalls.length > 0 ? (
+    <CollapsibleCard
+      title="LLM Calls"
+      defaultOpen
+      emptyState="No LLM calls recorded for this task."
+    >
+      {llmCalls.length === 0 ? null : (
         <table>
           <thead>
             <tr>
@@ -65,9 +69,7 @@ export default function LlmCallsTable({
             ))}
           </tbody>
         </table>
-      ) : (
-        <p className="meta">No LLM calls recorded for this task.</p>
       )}
-    </>
+    </CollapsibleCard>
   );
 }

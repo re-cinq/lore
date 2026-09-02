@@ -366,6 +366,12 @@ async function monitorTask(task: LocalTask): Promise<void> {
               changedFiles,
             );
 
+            if (retryValidation.passed) {
+              console.log(
+                `[lore] local-runner: fix retry succeeded for ${task.taskId}`,
+              );
+            }
+
             if (!retryValidation.passed) {
               const retryOutput = formatValidationOutput(retryValidation);
 
@@ -398,9 +404,6 @@ async function monitorTask(task: LocalTask): Promise<void> {
 
               return;
             }
-            console.log(
-              `[lore] local-runner: fix retry succeeded for ${task.taskId}`,
-            );
           }
         }
       }
@@ -431,7 +434,9 @@ async function monitorTask(task: LocalTask): Promise<void> {
           tasks[idx].status = "completed";
         }
         await updateTaskViaAPI(task.taskId, "completed", { no_changes: true });
-      } else {
+      }
+
+      if (stagedFiles) {
         const branchTail = task.branch.split("/").pop() || task.taskId;
 
         execSync(`git commit -m "lore: local \u2014 ${branchTail}"`, {
@@ -465,7 +470,9 @@ async function monitorTask(task: LocalTask): Promise<void> {
 
         await updateTaskViaAPI(task.taskId, "pr-created", { pr_url: prUrl });
       }
-    } else {
+    }
+
+    if (!status) {
       // No changes — mark completed without PR
       if (idx >= 0) {
         tasks[idx].status = "completed";

@@ -311,11 +311,9 @@ export async function applyOutcomeFeedback(
     const factIds = refs.fact_ids ?? [];
     const memoryIds = refs.memory_ids ?? [];
 
-    if (action === "boost") {
-      await memoryLifecycle().boostContributors(factIds, memoryIds);
-    } else {
-      await memoryLifecycle().penalizeContributors(factIds, memoryIds);
-    }
+    await (action === "boost"
+      ? memoryLifecycle().boostContributors(factIds, memoryIds)
+      : memoryLifecycle().penalizeContributors(factIds, memoryIds));
     await memoryLifecycle()
       .writeAuditLog({
         agentId: "merge-check",

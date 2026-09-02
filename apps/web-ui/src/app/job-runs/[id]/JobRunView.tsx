@@ -1,3 +1,4 @@
+import { Alert } from "@/components/Alert";
 import Link from "next/link";
 import styles from "./JobRunView.module.css";
 import type { components } from "@/lib/api/schema";
@@ -16,7 +17,7 @@ export default function JobRunView({ id, run, logs }: JobRunViewProps) {
     return (
       <div>
         <h1>Job Run</h1>
-        <p className="meta">Run not found: {id}</p>
+        <Alert variant="secondary">Run not found: {id}</Alert>
         <p>
           <Link href="/analytics">← Back to analytics</Link>
         </p>
@@ -67,11 +68,11 @@ export default function JobRunView({ id, run, logs }: JobRunViewProps) {
 
       <h2>Output</h2>
       {logs === null ? (
-        <p className="meta">
+        <Alert variant="secondary">
           {run.log_path
             ? "Log object missing or unreadable."
             : "No log_path recorded for this run (in-process jobs do not yet capture per-run output)."}
-        </p>
+        </Alert>
       ) : (
         <pre className={styles.output}>{logs}</pre>
       )}

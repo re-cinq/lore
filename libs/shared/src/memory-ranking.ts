@@ -150,9 +150,13 @@ export function scoreImportance(
   const strength = Math.pow(0.5, effectiveAgeDays / halfLife);
   let score = Math.round(strength * 10);
 
-  if (memory.value.length < 50) {
+  const isShortValue = memory.value.length < 50;
+
+  if (isShortValue) {
     score -= 2;
-  } else if (memory.value.length > 500) {
+  }
+
+  if (!isShortValue && memory.value.length > 500) {
     score += 1;
   }
 
@@ -175,7 +179,9 @@ export function scoreImportance(
 
   if (retrievals >= 20) {
     score += 2;
-  } else if (retrievals >= 5) {
+  }
+
+  if (retrievals >= 5 && retrievals < 20) {
     score += 1;
   }
 

@@ -1,3 +1,4 @@
+import { Alert } from "@/components/Alert";
 import Link from "next/link";
 import ReadmeBox from "./ReadmeBox";
 import EnrollmentSection from "@/components/EnrollmentSection";
@@ -165,10 +166,10 @@ export default function RepoOverviewView({
           </tbody>
         </table>
       ) : (
-        <p className="meta">
+        <Alert variant="secondary">
           No tasks yet.{" "}
           <Link href={`/repos/${owner}/${repo}/tasks`}>Create one</Link>
-        </p>
+        </Alert>
       )}
 
       <div className={styles.eventsHead}>
@@ -194,7 +195,7 @@ export default function RepoOverviewView({
           </tbody>
         </table>
       ) : (
-        <p className="meta">No events yet.</p>
+        <Alert variant="secondary">No events yet.</Alert>
       )}
     </div>
   );

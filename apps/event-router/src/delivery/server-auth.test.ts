@@ -24,9 +24,10 @@ beforeEach(() => {
 afterEach(() => {
   if (savedIngest === undefined) {
     delete process.env.LORE_INGEST_TOKEN;
-  } else {
-    process.env.LORE_INGEST_TOKEN = savedIngest;
+
+    return;
   }
+  process.env.LORE_INGEST_TOKEN = savedIngest;
 });
 
 describe("per-agent tokens stop at the reporting front door", () => {

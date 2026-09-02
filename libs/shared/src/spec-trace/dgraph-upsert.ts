@@ -129,9 +129,9 @@ function splitEmptyStringFields(fields: Record<string, unknown>): {
   for (const [predicate, value] of Object.entries(fields)) {
     if (value === "") {
       emptyStringPredicates.push(predicate);
-    } else {
-      jsonFields[predicate] = value;
+      continue;
     }
+    jsonFields[predicate] = value;
   }
 
   return { jsonFields, emptyStringPredicates };

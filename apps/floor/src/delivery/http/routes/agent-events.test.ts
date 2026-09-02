@@ -76,9 +76,10 @@ afterEach(() => {
 
   if (ORIG === undefined) {
     delete process.env.LORE_AGENT_INTERNAL_TOKEN;
-  } else {
-    process.env.LORE_AGENT_INTERNAL_TOKEN = ORIG;
+
+    return;
   }
+  process.env.LORE_AGENT_INTERNAL_TOKEN = ORIG;
 });
 
 describe("POST /api/agent-events", () => {

@@ -1,3 +1,4 @@
+import CollapsibleCard from "@/components/CollapsibleCard";
 import { TimeAgo } from "@/components/TimeAgo";
 import { formatEnumLabel } from "@/lib/enum-label";
 import type { TaskRuntimeEvent } from "@/lib/task-runtime";
@@ -10,11 +11,12 @@ export default function EventTimeline({
   events: TaskRuntimeEvent[];
 }) {
   return (
-    <>
-      <h2>Event Timeline</h2>
-      {events.length === 0 ? (
-        <p className="meta">No events recorded for this task.</p>
-      ) : (
+    <CollapsibleCard
+      title="Event Timeline"
+      defaultOpen
+      emptyState="No events recorded for this task."
+    >
+      {events.length === 0 ? null : (
         <div className="memory-list">
           {events.map((e) => (
             <div key={e.id} className={`version ${styles.event}`}>
@@ -39,6 +41,6 @@ export default function EventTimeline({
           ))}
         </div>
       )}
-    </>
+    </CollapsibleCard>
   );
 }

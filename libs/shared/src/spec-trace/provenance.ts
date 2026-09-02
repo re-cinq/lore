@@ -161,7 +161,10 @@ export function detectProvenanceConflicts(
         ordinal: ref.ordinal,
         targets: [ref.target],
       });
-    } else if (!existing.targets.includes(ref.target)) {
+      continue;
+    }
+
+    if (!existing.targets.includes(ref.target)) {
       existing.targets.push(ref.target);
     }
   }

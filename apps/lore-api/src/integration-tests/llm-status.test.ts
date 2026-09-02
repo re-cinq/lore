@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import type { Server } from "@hapi/hapi";
 import pg from "pg";
 import { buildServer } from "../server/build-server.js";
+import { restoreEnv } from "./restore-env.js";
 
 /**
  * The banner's read, against real rows.
@@ -69,11 +70,7 @@ describe("the llm-status recent-failure query", () => {
     await server.stop();
     await pool.end();
 
-    if (prevToken === undefined) {
-      delete process.env.LORE_INGEST_TOKEN;
-    } else {
-      process.env.LORE_INGEST_TOKEN = prevToken;
-    }
+    restoreEnv("LORE_INGEST_TOKEN", prevToken);
   });
 
   it("quotes the detail belonging to the failure it dates", async () => {

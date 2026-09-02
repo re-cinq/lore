@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import type { Server } from "@hapi/hapi";
 import pg from "pg";
 import { buildServer } from "../server/build-server.js";
+import { restoreEnv } from "./restore-env.js";
 import { proxyToApi, proxyGetApi } from "@re-cinq/lore-server-core/proxy.js";
 
 // Proxy seam introduced by the local/remote split (ADR-032). The lean
@@ -75,17 +76,9 @@ describe("mcp-server proxy <-> lore-api round-trip", () => {
     await server.stop();
     await pool.end();
 
-    if (prevApiUrl === undefined) {
-      delete process.env.LORE_API_URL;
-    } else {
-      process.env.LORE_API_URL = prevApiUrl;
-    }
+    restoreEnv("LORE_API_URL", prevApiUrl);
 
-    if (prevToken === undefined) {
-      delete process.env.LORE_INGEST_TOKEN;
-    } else {
-      process.env.LORE_INGEST_TOKEN = prevToken;
-    }
+    restoreEnv("LORE_INGEST_TOKEN", prevToken);
   });
 
   it("proxies a GET read to lore-api and parses the DB response", async () => {

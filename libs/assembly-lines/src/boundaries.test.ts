@@ -22,7 +22,10 @@ function tsFiles(dir: string): string[] {
 
     if (statSync(full).isDirectory()) {
       out.push(...tsFiles(full));
-    } else if (entry.endsWith(".ts") && !entry.endsWith(".test.ts")) {
+      continue;
+    }
+
+    if (entry.endsWith(".ts") && !entry.endsWith(".test.ts")) {
       out.push(full);
     }
   }

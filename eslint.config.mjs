@@ -82,6 +82,10 @@ export default tseslint.config(
       // nothing (architecture boundaries, migrations, CSS tokens). That list is
       // a triage queue, and turning it red would block unrelated work.
       "lore/test-imports-its-subject": "warn",
+      // error from day one: the rollout sweep fixed all 195 pre-existing sites
+      // (guard clauses, two-ifs splits, wrapped-tail flips) in the same branch
+      // that introduced the rule, so there is no triage queue to stay yellow for.
+      "lore/prefer-early-return": "error",
       "lore/default-export-matches-filename": "error",
       "lore/no-inline-styles": "warn",
       "lore/require-fetch-timeout": "error",

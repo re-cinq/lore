@@ -7,7 +7,7 @@ import type { PgPool } from "./memory-store.js";
  * INSERT, and the pending-event insert all run on the same pool.
  */
 function poolWithTrust(level: string | null) {
-  const query = vi.fn((sql: string) => {
+  const query = vi.fn((sql: string, _params?: unknown[]) => {
     if (sql.includes("SELECT settings")) {
       return Promise.resolve({
         rows: level === null ? [] : [{ settings: { trust: { level } } }],
@@ -85,5 +85,42 @@ describe("implementation-loop trust", () => {
         targetRepo: "o/r",
       }),
     ).rejects.toThrow(/not allowed at trust level "tests"/);
+  });
+});
+
+describe("createTask group linking", () => {
+  it("inserts task_group_id grp-1 as the seventh insert parameter", async () => {
+    const { pool, query } = poolWithTrust("full");
+
+    await createTask(pool, {
+      description: "onboard o/r",
+      taskType: "onboard",
+      targetRepo: "o/r",
+      taskGroupId: "grp-1",
+    });
+
+    const insert = query.mock.calls.find(([sql]) =>
+      sql.includes("INSERT INTO pipeline.tasks"),
+    );
+
+    expect(insert?.[0]).toContain("task_group_id");
+    expect(insert?.[1]).toMatchObject({ 6: "grp-1", length: 7 });
+  });
+
+  it("inserts six parameters and no task_group_id column without a group id", async () => {
+    const { pool, query } = poolWithTrust("full");
+
+    await createTask(pool, {
+      description: "onboard o/r",
+      taskType: "onboard",
+      targetRepo: "o/r",
+    });
+
+    const insert = query.mock.calls.find(([sql]) =>
+      sql.includes("INSERT INTO pipeline.tasks"),
+    );
+
+    expect(insert?.[0]).not.toContain("task_group_id");
+    expect(insert?.[1]).toMatchObject({ length: 6 });
   });
 });

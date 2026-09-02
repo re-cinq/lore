@@ -13,13 +13,15 @@ vi.mock("../../../composition/project-boot.js", () => ({
 const ORIG = process.env.LORE_INGEST_TOKEN;
 
 afterEach(() => {
-  if (ORIG === undefined) {
-    delete process.env.LORE_INGEST_TOKEN;
-  } else {
-    process.env.LORE_INGEST_TOKEN = ORIG;
-  }
   vi.mocked(startReview).mockReset();
   vi.mocked(projectFor).mockClear();
+
+  if (ORIG === undefined) {
+    delete process.env.LORE_INGEST_TOKEN;
+
+    return;
+  }
+  process.env.LORE_INGEST_TOKEN = ORIG;
 });
 
 const post = (payload: string, token = "right-token") =>

@@ -1,5 +1,6 @@
 "use client";
 
+import { Alert } from "@/components/Alert";
 import type { FeatureRow } from "@/lib/feature-types";
 
 // The spec PR is open and the line is parked on its `merged` wait node.
@@ -20,7 +21,7 @@ export default function SpecPrCard({ feature }: { feature: FeatureRow }) {
           {feature.spec_path ? ` — ${feature.spec_path}` : ""}
         </p>
       ) : (
-        <p className="meta">The branch is pushed; the PR link is on its way.</p>
+        <Alert>The branch is pushed; the PR link is on its way.</Alert>
       )}
       <p className="meta">
         Review and merge it when you are ready. Decomposition into user stories

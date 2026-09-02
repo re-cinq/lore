@@ -90,4 +90,10 @@ describe("RunTimelineView", () => {
 
     expect(screen.getByText("No timeline activity yet.")).toBeInTheDocument();
   });
+
+  it("renders as a collapsible card titled Timeline", () => {
+    render(<RunTimelineView ticks={[]} runStartedAt={null} now={END} />);
+
+    expect(screen.getByText("Timeline").closest("summary")).not.toBeNull();
+  });
 });

@@ -4,6 +4,7 @@
 // fraction of [start, now], so a node whose last tick lags far behind the now
 // edge reads as stalled without a per-tool event stream.
 
+import CollapsibleCard from "@/components/CollapsibleCard";
 import type { TimelineEntry } from "@/lib/run-event-reducer";
 import { eventTone, timeToFraction, timelineBounds } from "@/lib/run-timeline";
 import styles from "./RunTimelineView.module.css";
@@ -15,16 +16,12 @@ export interface RunTimelineViewProps {
   onSeek?: (id: string) => void;
 }
 
-export default function RunTimelineView({
+function TimelineRail({
   ticks,
   runStartedAt,
   now,
   onSeek,
 }: RunTimelineViewProps) {
-  if (ticks.length === 0) {
-    return <p className={styles.empty}>No timeline activity yet.</p>;
-  }
-
   const bounds = timelineBounds(ticks, runStartedAt, now);
 
   return (
@@ -59,5 +56,17 @@ export default function RunTimelineView({
         })}
       </div>
     </div>
+  );
+}
+
+export default function RunTimelineView(props: RunTimelineViewProps) {
+  return (
+    <CollapsibleCard
+      title="Timeline"
+      defaultOpen
+      emptyState="No timeline activity yet."
+    >
+      {props.ticks.length === 0 ? null : <TimelineRail {...props} />}
+    </CollapsibleCard>
   );
 }

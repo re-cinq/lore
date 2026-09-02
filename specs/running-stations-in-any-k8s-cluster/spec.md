@@ -425,7 +425,7 @@ A satellite must report outcomes without holding the bus-wide credential.
   satellite's reporter RESOLVES that token per call rather than capturing it:
   a re-registration rotates it, and a captured value would 401 every report
   from then on — which is what the watch did silently until the credential
-  was wired at all, leaving every node to the reaper instead. ([validated by [`server-auth.test.ts:39`](apps/event-router/src/delivery/server-auth.test.ts#L39), [`event-reporter-http.test.ts:66`](libs/shared/src/project/events/event-reporter-http.test.ts#L66), [`event-reporter-http.test.ts:96`](libs/shared/src/project/events/event-reporter-http.test.ts#L96))
+  was wired at all, leaving every node to the reaper instead. ([validated by [`server-auth.test.ts:40`](apps/event-router/src/delivery/server-auth.test.ts#L40), [`event-reporter-http.test.ts:66`](libs/shared/src/project/events/event-reporter-http.test.ts#L66), [`event-reporter-http.test.ts:96`](libs/shared/src/project/events/event-reporter-http.test.ts#L96))
 - A report the router REFUSES (401/403) re-registers before it retries, via
   the same single-flight re-registration the claim and heartbeat loops share
   *(2026-08-28)*: the token rotates whenever another instance of this
@@ -498,12 +498,12 @@ that.
   agent `status` is deliberately not checked, since a cluster that has gone
   quiet is still the sender of what it is delivering. The rule is one shared
   function both doors call — two front doors disagreeing about who a
-  satellite is would only surface in production. ([validated by `registry-or-shared-token.test.ts:51`](libs/shared/src/http/registry-or-shared-token.test.ts#L52), [`registry-or-shared-token.test.ts:64`](libs/shared/src/http/registry-or-shared-token.test.ts#L65), [`registry-or-shared-token.test.ts:77`](libs/shared/src/http/registry-or-shared-token.test.ts#L78), [`registry-or-shared-token.test.ts:91`](libs/shared/src/http/registry-or-shared-token.test.ts#L92), [`registry-or-shared-token.test.ts:134`](libs/shared/src/http/registry-or-shared-token.test.ts#L135), [`agent-events.test.ts:113`](apps/floor/src/delivery/http/routes/agent-events.test.ts#L113), [`agent-events.test.ts:130`](apps/floor/src/delivery/http/routes/agent-events.test.ts#L130))
+  satellite is would only surface in production. ([validated by `registry-or-shared-token.test.ts:51`](libs/shared/src/http/registry-or-shared-token.test.ts#L52), [`registry-or-shared-token.test.ts:64`](libs/shared/src/http/registry-or-shared-token.test.ts#L65), [`registry-or-shared-token.test.ts:77`](libs/shared/src/http/registry-or-shared-token.test.ts#L78), [`registry-or-shared-token.test.ts:91`](libs/shared/src/http/registry-or-shared-token.test.ts#L92), [`registry-or-shared-token.test.ts:134`](libs/shared/src/http/registry-or-shared-token.test.ts#L135), [`agent-events.test.ts:113`](apps/floor/src/delivery/http/routes/agent-events.test.ts#L114), [`agent-events.test.ts:130`](apps/floor/src/delivery/http/routes/agent-events.test.ts#L131))
 - The check runs inside the handler rather than as a hapi auth strategy,
   because a strategy holds exactly one expected token. An unconfigured shared
   token is therefore a `500`, not a `401` — an operator redeploys to fix it,
   no caller can — and the refusal names the env var that door actually reads
-  rather than the ingest token every other door uses. ([validated by `agent-events.test.ts:97`](apps/floor/src/delivery/http/routes/agent-events.test.ts#L97), [`registry-or-shared-token.test.ts:99`](libs/shared/src/http/registry-or-shared-token.test.ts#L100), [`registry-or-shared-token.test.ts:117`](libs/shared/src/http/registry-or-shared-token.test.ts#L118))
+  rather than the ingest token every other door uses. ([validated by `agent-events.test.ts:97`](apps/floor/src/delivery/http/routes/agent-events.test.ts#L98), [`registry-or-shared-token.test.ts:99`](libs/shared/src/http/registry-or-shared-token.test.ts#L100), [`registry-or-shared-token.test.ts:117`](libs/shared/src/http/registry-or-shared-token.test.ts#L118))
 - The satellite publishes its own per-agent token into `agent-secrets` under
   the `agent-events-auth` key the seeded recipes name, as the whole
   `Authorization: Bearer <token>` line the subsystem sends verbatim. It is
@@ -554,9 +554,9 @@ proxy everything else in that cluster reports through.
   cluster's own pods the moment a re-registration rotated the token. ([validated by [accepts the satellite's own per-agent token](apps/cluster-agent/src/delivery/routes/agent-events.test.ts#L47), [resolves the token per call](apps/cluster-agent/src/kernel/telemetry-sink.test.ts#L49))
 - A credential matching neither is refused `401`, and a cluster holding NO
   credential yet refuses `500` rather than accepting anything — before
-  registration completes there is no door to open. ([validated by [refuses a token that matches none](apps/cluster-agent/src/delivery/routes/agent-events.test.ts#L60), [refuses when this cluster holds no credential yet](apps/cluster-agent/src/delivery/routes/agent-events.test.ts#L69), [refuses a request carrying no authorization header](apps/cluster-agent/src/delivery/routes/agent-events.test.ts#L80))
+  registration completes there is no door to open. ([validated by [refuses a token that matches none](apps/cluster-agent/src/delivery/routes/agent-events.test.ts#L60), [refuses when this cluster holds no credential yet](apps/cluster-agent/src/delivery/routes/agent-events.test.ts#L69), [refuses a request carrying no authorization header](apps/cluster-agent/src/delivery/routes/agent-events.test.ts#L81))
 - A body past the Floor's own 8 MiB cap is refused `413` here rather than
-  buffered and then found undeliverable. ([validated by [refuses a body past the cap](apps/cluster-agent/src/delivery/routes/agent-events.test.ts#L86))
+  buffered and then found undeliverable. ([validated by [refuses a body past the cap](apps/cluster-agent/src/delivery/routes/agent-events.test.ts#L87))
 - Before registration completes there is no token to present, and the relay
   forwards ANYWAY rather than dropping the batch: the Floor refuses it, the
   ladder reads that refusal as a rotation, re-registers, and the retry carries

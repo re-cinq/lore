@@ -17,6 +17,54 @@ import { Project } from "./project.js";
  * clients for capabilities beyond pg+dgraph (LLM/k8s/embeddings) — methods that
  * need an absent provider throw a clear error.
  */
+// Agent DEFINITIONS port — three-way optional-port seam by environment:
+//   DB present   → PgAgentDefs (floor, mcp-server on GKE)
+//   API only     → AgentDefsHttp (Station pod / local stdio: fetch over egress)
+//   neither      → AgentDefsYaml (offline/bootstrap from task-types.yaml)
+async function agentDefsForEnv(
+  env: NodeJS.ProcessEnv,
+  pgPool: PgPool,
+): Promise<unknown> {
+  if (env.LORE_DB_HOST) {
+    const { PgAgentDefs } = await import("../agents/agent-defs-pg.js");
+    const { AgentDefsYaml } = await import("../agents/agent-defs-yaml.js");
+
+    return new PgAgentDefs(pgPool, new AgentDefsYaml(undefined, env));
+  }
+
+  if (env.LORE_API_URL) {
+    const { AgentDefsHttp } = await import("../agents/agent-defs-http.js");
+
+    return new AgentDefsHttp(env.LORE_API_URL, env.LORE_INGEST_TOKEN);
+  }
+  const { AgentDefsYaml } = await import("../agents/agent-defs-yaml.js");
+
+  return new AgentDefsYaml(undefined, env);
+}
+
+// Leases: Postgres in cluster mode (LORE_DB_HOST set), file-backed under
+// ~/.lore/leases for the local runner. Mirrors the agent's leaseBackendForEnv.
+async function leasesForEnv(
+  env: NodeJS.ProcessEnv,
+  pgPool: PgPool,
+  providers: ProjectProviders,
+): Promise<unknown> {
+  const { DbLeaseBackend, FileLeaseBackend } =
+    await import("../leases/lease-backends.js");
+
+  if (env.LORE_DB_HOST) {
+    // The real pg pool returns rowCount; PgPool's narrow type omits it.
+    return (
+      providers.pipeline?.leases ??
+      new DbLeaseBackend(pgPool as unknown as LeasePool)
+    );
+  }
+  const os = await import("node:os");
+  const path = await import("node:path");
+
+  return new FileLeaseBackend(path.join(os.homedir(), ".lore", "leases"));
+}
+
 export async function createProject(
   fullName: string,
   pgPool: PgPool,
@@ -95,30 +143,7 @@ export async function createProject(
     new AgentRunner(env, { station: providers.station, llm: providers.llm }),
   );
 
-  // Agent DEFINITIONS port — three-way optional-port seam by environment:
-  //   DB present   → PgAgentDefs (floor, mcp-server on GKE)
-  //   API only     → AgentDefsHttp (Station pod / local stdio: fetch over egress)
-  //   neither      → AgentDefsYaml (offline/bootstrap from task-types.yaml)
-  if (env.LORE_DB_HOST) {
-    const { PgAgentDefs } = await import("../agents/agent-defs-pg.js");
-    const { AgentDefsYaml } = await import("../agents/agent-defs-yaml.js");
-
-    ports.set(
-      "agentDefs",
-      new PgAgentDefs(pgPool, new AgentDefsYaml(undefined, env)),
-    );
-  } else if (env.LORE_API_URL) {
-    const { AgentDefsHttp } = await import("../agents/agent-defs-http.js");
-
-    ports.set(
-      "agentDefs",
-      new AgentDefsHttp(env.LORE_API_URL, env.LORE_INGEST_TOKEN),
-    );
-  } else {
-    const { AgentDefsYaml } = await import("../agents/agent-defs-yaml.js");
-
-    ports.set("agentDefs", new AgentDefsYaml(undefined, env));
-  }
+  ports.set("agentDefs", await agentDefsForEnv(env, pgPool));
 
   const { PgAudit } = await import("../audit/audit-pg.js");
 
@@ -132,27 +157,7 @@ export async function createProject(
 
   ports.set("features", new PgFeatures(pgPool));
 
-  // Leases: Postgres in cluster mode (LORE_DB_HOST set), file-backed under
-  // ~/.lore/leases for the local runner. Mirrors the agent's leaseBackendForEnv.
-  const { DbLeaseBackend, FileLeaseBackend } =
-    await import("../leases/lease-backends.js");
-
-  if (env.LORE_DB_HOST) {
-    // The real pg pool returns rowCount; PgPool's narrow type omits it.
-    ports.set(
-      "leases",
-      providers.pipeline?.leases ??
-        new DbLeaseBackend(pgPool as unknown as LeasePool),
-    );
-  } else {
-    const os = await import("node:os");
-    const path = await import("node:path");
-
-    ports.set(
-      "leases",
-      new FileLeaseBackend(path.join(os.homedir(), ".lore", "leases")),
-    );
-  }
+  ports.set("leases", await leasesForEnv(env, pgPool, providers));
 
   return new Project(fullName, ports, env);
 }

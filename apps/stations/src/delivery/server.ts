@@ -51,13 +51,14 @@ export async function startServer(port: number): Promise<() => Promise<void>> {
   } catch (err) {
     const e = err as NodeJS.ErrnoException;
 
-    if (e.code === "EADDRINUSE") {
-      console.error(
-        `[stations] port ${port} already in use — another instance is running. Exiting.`,
-      );
-    } else {
-      console.error("[stations] server error:", err);
-    }
+    const failureLog =
+      e.code === "EADDRINUSE"
+        ? [
+            `[stations] port ${port} already in use — another instance is running. Exiting.`,
+          ]
+        : ["[stations] server error:", err];
+
+    console.error(...failureLog);
     process.exit(1);
   }
 }
