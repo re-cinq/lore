@@ -5,11 +5,54 @@ import type { AgentSaveResult } from "./agents-api";
 // actions, plus the save-result → form-state mapping. Kept here (not in the
 // coverage-excluded page.tsx) so the branchy bits are unit-tested.
 
+/** K8s resource quantities keyed cpu/memory/ephemeral-storage, as the API's
+ *  `pod_resources` field expects them. */
+export interface PodResources {
+  requests?: Record<string, string>;
+  limits?: Record<string, string>;
+}
+
 export interface ParsedAgentForm {
   name: string;
   isNew: boolean;
-  def: Omit<AgentDefinition, "project_id">;
+  def: Omit<AgentDefinition, "project_id"> & {
+    /** null clears a previously saved value — the API treats absence as "leave". */
+    pod_resources: PodResources | null;
+  };
   approvalPr?: string;
+}
+
+const RESOURCE_INPUTS: ReadonlyArray<[field: string, resource: string]> = [
+  ["cpu", "cpu"],
+  ["memory", "memory"],
+  ["ephemeral", "ephemeral-storage"],
+];
+
+function resourceBlock(
+  fd: FormData,
+  kind: "requests" | "limits",
+): Record<string, string> | undefined {
+  const entries = RESOURCE_INPUTS.flatMap(([field, resource]) => {
+    const value = ((fd.get(`res_${kind}_${field}`) as string) || "").trim();
+
+    return value ? [[resource, value] as const] : [];
+  });
+
+  return entries.length > 0 ? Object.fromEntries(entries) : undefined;
+}
+
+function parsePodResources(fd: FormData): PodResources | null {
+  const requests = resourceBlock(fd, "requests");
+  const limits = resourceBlock(fd, "limits");
+
+  if (!requests && !limits) {
+    return null;
+  }
+
+  return {
+    ...(requests ? { requests } : {}),
+    ...(limits ? { limits } : {}),
+  };
 }
 
 export function parseAgentForm(fd: FormData): ParsedAgentForm {
@@ -36,8 +79,10 @@ export function parseAgentForm(fd: FormData): ParsedAgentForm {
       execution_mode: (fd.get("execution_mode") as string) || "claude-code",
       review_required: fd.get("review_required") === "1",
       // Null inherits the org default's config (skills/disallowed_tools/etc);
-      // the form has no field for it.
+      // the form has no field for it — pod_resources rides its own wire field
+      // and the API merges it over the resolved config.
       config: null,
+      pod_resources: parsePodResources(fd),
     },
     approvalPr: ((fd.get("approval_pr") as string) || "").trim() || undefined,
   };

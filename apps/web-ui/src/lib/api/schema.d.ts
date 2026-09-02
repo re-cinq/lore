@@ -1315,6 +1315,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/agent-definitions/{name}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /** PUT /api/agent-definitions/{name} */
+    put: operations["put_api_agent-definitions_name"];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/repos/{owner}/{repo}/agent-definitions": {
     parameters: {
       query?: never;
@@ -2796,6 +2813,14 @@ export interface components {
           config:
             | ({
                 skills?: string[];
+                pod_resources?: {
+                  requests?: {
+                    [key: string]: string;
+                  };
+                  limits?: {
+                    [key: string]: string;
+                  };
+                };
                 disallowed_tools?: string[];
                 watch?: {
                   event: string;
@@ -2916,6 +2941,14 @@ export interface components {
           config:
             | ({
                 skills?: string[];
+                pod_resources?: {
+                  requests?: {
+                    [key: string]: string;
+                  };
+                  limits?: {
+                    [key: string]: string;
+                  };
+                };
                 disallowed_tools?: string[];
                 watch?: {
                   event: string;
@@ -2948,6 +2981,14 @@ export interface components {
             config:
               | ({
                   skills?: string[];
+                  pod_resources?: {
+                    requests?: {
+                      [key: string]: string;
+                    };
+                    limits?: {
+                      [key: string]: string;
+                    };
+                  };
                   disallowed_tools?: string[];
                   watch?: {
                     event: string;
@@ -3004,6 +3045,14 @@ export interface components {
         config:
           | ({
               skills?: string[];
+              pod_resources?: {
+                requests?: {
+                  [key: string]: string;
+                };
+                limits?: {
+                  [key: string]: string;
+                };
+              };
               disallowed_tools?: string[];
               watch?: {
                 event: string;
@@ -3024,6 +3073,49 @@ export interface components {
           | null;
       }[];
     };
+    OrgAgentDefinitionWritten: {
+      /** @constant */
+      ok: true;
+      agent: {
+        name: string;
+        model: string | null;
+        timeout_minutes: number | null;
+        prompt: string | null;
+        image: string | null;
+        execution_mode: string;
+        review_required: boolean;
+        project_id: string | null;
+        config:
+          | ({
+              skills?: string[];
+              pod_resources?: {
+                requests?: {
+                  [key: string]: string;
+                };
+                limits?: {
+                  [key: string]: string;
+                };
+              };
+              disallowed_tools?: string[];
+              watch?: {
+                event: string;
+                path: string;
+              };
+              repo_workdir?: boolean;
+              command?: string[];
+              env?: {
+                [key: string]: string;
+              };
+              pod_labels?: {
+                [key: string]: string;
+              };
+              needs_model?: boolean;
+            } & {
+              [key: string]: unknown;
+            })
+          | null;
+      };
+    };
     AgentDefinitionWritten: {
       /** @constant */
       ok: true;
@@ -3039,6 +3131,14 @@ export interface components {
         config:
           | ({
               skills?: string[];
+              pod_resources?: {
+                requests?: {
+                  [key: string]: string;
+                };
+                limits?: {
+                  [key: string]: string;
+                };
+              };
               disallowed_tools?: string[];
               watch?: {
                 event: string;
@@ -6202,6 +6302,14 @@ export interface operations {
           execution_mode?: "claude-code" | "graph-ingest" | "station";
           /** @default false */
           review_required?: boolean;
+          pod_resources?: {
+            requests?: {
+              [key: string]: string;
+            };
+            limits?: {
+              [key: string]: string;
+            };
+          } | null;
         };
       };
     };
@@ -6336,6 +6444,59 @@ export interface operations {
       503: components["responses"]["ServiceUnavailable"];
     };
   };
+  "put_api_agent-definitions_name": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        name: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          name: string;
+          model?: string | null;
+          timeout_minutes?: number | null;
+          prompt?: string | null;
+          image?: string | null;
+          /**
+           * @default claude-code
+           * @enum {string}
+           */
+          execution_mode?: "claude-code" | "graph-ingest" | "station";
+          /** @default false */
+          review_required?: boolean;
+          pod_resources?: {
+            requests?: {
+              [key: string]: string;
+            };
+            limits?: {
+              [key: string]: string;
+            };
+          } | null;
+        };
+      };
+    };
+    responses: {
+      /** @description The updated org-default definition */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["OrgAgentDefinitionWritten"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      413: components["responses"]["PayloadTooLarge"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
   "post_api_repos_owner_repo_agent-definitions": {
     parameters: {
       query?: never;
@@ -6361,6 +6522,14 @@ export interface operations {
           execution_mode?: "claude-code" | "graph-ingest" | "station";
           /** @default false */
           review_required?: boolean;
+          pod_resources?: {
+            requests?: {
+              [key: string]: string;
+            };
+            limits?: {
+              [key: string]: string;
+            };
+          } | null;
         };
       };
     };

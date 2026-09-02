@@ -136,6 +136,63 @@ describe("AgentForm", () => {
     expect(queryByText(/overriding the organisation default/)).toBeNull();
   });
 
+  it("prefills the pod-resource inputs from the agent's config", () => {
+    const { container } = render(
+      <AgentForm
+        repo="re-cinq/lore"
+        agent={{
+          ...agent,
+          config: {
+            pod_resources: {
+              requests: { cpu: "500m", memory: "2Gi" },
+              limits: { memory: "4Gi", "ephemeral-storage": "6Gi" },
+            },
+          },
+        }}
+        action={noop}
+        isNew={false}
+      />,
+    );
+    const value = (name: string) =>
+      (container.querySelector(`input[name="${name}"]`) as HTMLInputElement)
+        .value;
+
+    expect(value("res_requests_cpu")).toBe("500m");
+    expect(value("res_requests_memory")).toBe("2Gi");
+    expect(value("res_limits_cpu")).toBe("");
+    expect(value("res_limits_memory")).toBe("4Gi");
+    expect(value("res_limits_ephemeral")).toBe("6Gi");
+  });
+
+  it("renders empty pod-resource inputs with the default limits as placeholders when config carries none", () => {
+    const { container } = render(
+      <AgentForm
+        repo="re-cinq/lore"
+        agent={agent}
+        action={noop}
+        isNew={false}
+      />,
+    );
+    const memoryLimit = container.querySelector(
+      'input[name="res_limits_memory"]',
+    ) as HTMLInputElement;
+
+    expect(memoryLimit.value).toBe("");
+    expect(memoryLimit.placeholder).toBe("1Gi");
+  });
+
+  it("orgScope notes the org-wide save and hides the image + approval inputs", () => {
+    const { container, getByText } = render(
+      <AgentForm repo="" agent={agent} action={noop} isNew={false} orgScope />,
+    );
+
+    expect(
+      getByText(/Saving updates it for every repo without its own override/),
+    ).toBeTruthy();
+    expect(container.querySelector('input[name="image"]')).toBeNull();
+    expect(container.querySelector('input[name="approval_pr"]')).toBeNull();
+  });
+
   it("surfaces an error returned by the action", async () => {
     const failing = vi.fn(async () => ({ error: "boom" }));
     const { container, findByText } = render(

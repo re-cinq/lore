@@ -20,9 +20,19 @@ import type { ColumnMap } from "../lib/row.js";
  * pod_labels / needs_model. Tolerant by the same reasoning as
  * TaskTypeConfigSchema: a stale reader must keep serving the fields it knows.
  */
+/** A pod resource block in Kubernetes shape (`cpu`/`memory`/`ephemeral-storage`
+ *  quantity strings), stored per definition so an operator can raise one
+ *  station's ceiling without a release — the catalog seed never overwrites an
+ *  existing org row, so the DB value survives deploys. */
+const PodResourcesSchema = z.object({
+  requests: z.record(z.string()).optional(),
+  limits: z.record(z.string()).optional(),
+});
+
 export const CatalogConfigSchema = z
   .object({
     skills: z.array(z.string()).optional(),
+    pod_resources: PodResourcesSchema.optional(),
     disallowed_tools: z.array(z.string()).optional(),
     watch: z.object({ event: z.string(), path: z.string() }).optional(),
     repo_workdir: z.boolean().optional(),

@@ -10,6 +10,7 @@ import {
   parseAgentInput,
   parseAgentPatch,
   imageFieldTouched,
+  configWithPodResources,
 } from "../../../features/agents/agents-schema.js";
 import { bearerScope } from "../../../server/plugins/bearer-scope.js";
 import { zodResponse } from "../../../server/plugins/zod-response.js";
@@ -151,7 +152,21 @@ export function agentsPostRoute(getPool: () => Pool | null): ServerRoute {
           };
         }
 
-        const def = await project.agentDefs.create(create);
+        const { pod_resources, ...fields } = create;
+
+        if (pod_resources) {
+          // config is whole-object across the resolution layers, so the new
+          // row must carry the config it inherits (org → yaml) around the
+          // block or it would orphan the skills/command the layer below sets.
+          const inherited = await project.agentDefs.resolve(fields.name);
+
+          fields.config = configWithPodResources(
+            inherited?.config ?? null,
+            pod_resources,
+          );
+        }
+
+        const def = await project.agentDefs.create(fields);
 
         await audit(pool, repo, "agent_created", {
           name: def.name,
@@ -218,7 +233,20 @@ export function agentsPutRoute(getPool: () => Pool | null): ServerRoute {
           };
         }
 
-        const def = await project.agentDefs.update(name, patch);
+        const { pod_resources, ...fields } = patch;
+        // The merge itself happens inside the upsert (atomic under the row
+        // lock); the resolved config is only the fallback for a row that has
+        // none of its own, so a fresh fork keeps the org/yaml keys it inherits.
+        const podResources =
+          pod_resources === undefined
+            ? undefined
+            : {
+                podResources: pod_resources,
+                inheritedConfig:
+                  (await project.agentDefs.resolve(name))?.config ?? null,
+              };
+
+        const def = await project.agentDefs.update(name, fields, podResources);
 
         await audit(pool, repo, "agent_updated", {
           name,

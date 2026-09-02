@@ -29,7 +29,9 @@ const ZERO_CACHE = { cacheCreationTokens: 0, cacheReadTokens: 0 };
 // tier boundary (Pro/Flash step to a higher rate above it — not modelled here,
 // most Lore-internal jobs stay well under it). Reverify current figures at
 // https://ai.google.dev/gemini-api/docs/pricing before relying on this table;
-// Gemini pricing changes more often than Anthropic's.
+// Gemini pricing changes more often than Anthropic's. Every figure below was
+// read off that page on 2026-09-01; the 3.7 Flash rate is a launch price
+// (through 2026-12-31 — it doubles after).
 export const GEMINI_MODEL_PRICING: Record<string, ModelPricing> = {
   "gemini-2.5-pro": {
     inputPerToken: 1.25 / 1_000_000,
@@ -42,6 +44,18 @@ export const GEMINI_MODEL_PRICING: Record<string, ModelPricing> = {
   "gemini-2.5-flash-lite": {
     inputPerToken: 0.1 / 1_000_000,
     outputPerToken: 0.4 / 1_000_000,
+  },
+  "gemini-3.1-pro-preview": {
+    inputPerToken: 2.0 / 1_000_000,
+    outputPerToken: 12.0 / 1_000_000,
+  },
+  "gemini-3.7-flash": {
+    inputPerToken: 0.75 / 1_000_000,
+    outputPerToken: 3.75 / 1_000_000,
+  },
+  "gemini-3.1-flash-lite": {
+    inputPerToken: 0.25 / 1_000_000,
+    outputPerToken: 1.5 / 1_000_000,
   },
 };
 

@@ -5,6 +5,7 @@ import {
   type AgentDefinition,
   type AgentDefinitionInput,
   type AgentDefsPort,
+  type PodResourcesWrite,
 } from "./agent-defs-port.js";
 
 /**
@@ -46,6 +47,41 @@ const toDef = (r: AgentRow): AgentDefinition => ({
   project_id: r.project_id,
   config: r.config ?? null,
 });
+
+/**
+ * The config an upsert writes, merged in SQL so a pod_resources edit is applied
+ * under the row lock — never read in one statement and written back in another,
+ * where a concurrent edit could be silently discarded. `touched` false keeps
+ * `own` (the row's config on conflict, the plain bound value on insert); true
+ * replaces `pod_resources` in the row's own config — or in the inherited
+ * layer's when the row has none — and collapses an emptied object to NULL so
+ * the row falls through to the layer below.
+ */
+function mergedConfigSql(
+  own: string,
+  touched: number,
+  inherited: number,
+  block: number,
+): string {
+  return `CASE WHEN $${touched}::boolean
+    THEN NULLIF(
+      (COALESCE(${own}, $${inherited}::jsonb, '{}'::jsonb) - 'pod_resources')
+        || COALESCE($${block}::jsonb, '{}'::jsonb),
+      '{}'::jsonb)
+    ELSE ${own} END`;
+}
+
+/** The three trailing bind values mergedConfigSql reads: touched, inherited, block. */
+const podResourcesParams = (
+  write: PodResourcesWrite | undefined,
+): [boolean, Record<string, unknown> | null, Record<string, unknown> | null] =>
+  write
+    ? [
+        true,
+        write.inheritedConfig,
+        write.podResources ? { pod_resources: write.podResources } : null,
+      ]
+    : [false, null, null];
 
 const split = (rows: AgentRow[]) => ({
   project: rows.find((r) => r.project_id !== null) ?? null,
@@ -133,6 +169,53 @@ export async function qualifiedStationRef(
   const projectId = (rows[0] as { project_id: string } | undefined)?.project_id;
 
   return catalogCrdName(baseName, projectId ?? null);
+}
+
+/**
+ * Upsert the ORG-DEFAULT row for a name (the global /agents editor's write —
+ * no repo in hand, `project_id IS NULL`). Same one-statement row + catalog
+ * event shape as the project writes, so the cluster-agents' sync loops see
+ * every org edit too.
+ */
+export async function updateOrgDefinition(
+  pool: PgPool,
+  patch: AgentDefinitionInput,
+  podResources?: PodResourcesWrite,
+): Promise<AgentDefinition> {
+  const { rows } = await pool.query(
+    `WITH written AS (
+       INSERT INTO lore.agent_definitions
+         (name, model, timeout_minutes, prompt, image, execution_mode, review_required, config, project_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, ${mergedConfigSql("$8::jsonb", 9, 10, 11)}, NULL)
+       ON CONFLICT (name) WHERE project_id IS NULL DO UPDATE SET
+         model = EXCLUDED.model,
+         timeout_minutes = EXCLUDED.timeout_minutes,
+         prompt = EXCLUDED.prompt,
+         image = EXCLUDED.image,
+         execution_mode = EXCLUDED.execution_mode,
+         review_required = EXCLUDED.review_required,
+         config = ${mergedConfigSql("lore.agent_definitions.config", 9, 10, 11)},
+         updated_at = now()
+       RETURNING ${RET_COLS}
+     ), event AS (
+       INSERT INTO lore.catalog_events (name, project_id, op)
+       SELECT name, project_id, 'upsert' FROM written
+     )
+     SELECT ${RET_COLS} FROM written`,
+    [
+      patch.name,
+      patch.model ?? null,
+      patch.timeout_minutes ?? null,
+      patch.prompt ?? null,
+      patch.image ?? null,
+      patch.execution_mode ?? "claude-code",
+      patch.review_required ?? false,
+      patch.config ?? null,
+      ...podResourcesParams(podResources),
+    ],
+  );
+
+  return toDef(rows[0] as unknown as AgentRow);
 }
 
 export class PgAgentDefs implements AgentDefsPort {
@@ -236,13 +319,14 @@ export class PgAgentDefs implements AgentDefsPort {
     repo: string,
     name: string,
     patch: Partial<AgentDefinitionInput>,
+    podResources?: PodResourcesWrite,
   ): Promise<AgentDefinition> {
     // Upsert the project row so editing an inherited org default forks a row.
     const { rows } = await this.pool.query(
       `WITH written AS (
          INSERT INTO lore.agent_definitions
            (name, model, timeout_minutes, prompt, image, execution_mode, review_required, config, project_id)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, (SELECT id FROM lore.repos WHERE full_name = $9))
+         VALUES ($1, $2, $3, $4, $5, $6, $7, ${mergedConfigSql("$8::jsonb", 10, 11, 12)}, (SELECT id FROM lore.repos WHERE full_name = $9))
          ON CONFLICT (name, project_id) WHERE project_id IS NOT NULL DO UPDATE SET
            model = EXCLUDED.model,
            timeout_minutes = EXCLUDED.timeout_minutes,
@@ -250,7 +334,7 @@ export class PgAgentDefs implements AgentDefsPort {
            image = EXCLUDED.image,
            execution_mode = EXCLUDED.execution_mode,
            review_required = EXCLUDED.review_required,
-           config = EXCLUDED.config,
+           config = ${mergedConfigSql("lore.agent_definitions.config", 10, 11, 12)},
            updated_at = now()
          RETURNING ${RET_COLS}
        ), event AS (
@@ -268,6 +352,7 @@ export class PgAgentDefs implements AgentDefsPort {
         patch.review_required ?? false,
         patch.config ?? null,
         repo,
+        ...podResourcesParams(podResources),
       ],
     );
 

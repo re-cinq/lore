@@ -212,9 +212,58 @@ describe("routes — agents", () => {
       });
 
       expect(res.result).toMatchObject({ ok: true, agent: def });
-      expect(fakeAgents.update).toHaveBeenCalledWith("general", {
-        model: "claude-haiku-4-5-20251001",
+      expect(fakeAgents.update).toHaveBeenCalledWith(
+        "general",
+        { model: "claude-haiku-4-5-20251001" },
+        undefined,
+      );
+    });
+
+    it("a create with pod_resources writes the block merged over the inherited config, never the block alone", async () => {
+      fakeAgents.resolve.mockResolvedValue({
+        ...def,
+        config: { skills: ["lore-context"] },
       });
+      fakeAgents.create.mockResolvedValue(def);
+      const { res } = await call(BASE, "POST", {
+        name: "general",
+        pod_resources: { limits: { memory: "4Gi" } },
+      });
+
+      expect(res.statusCode).toBe(200);
+      expect(fakeAgents.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: "general",
+          config: {
+            skills: ["lore-context"],
+            pod_resources: { limits: { memory: "4Gi" } },
+          },
+        }),
+      );
+      expect(fakeAgents.create.mock.calls[0][0]).not.toHaveProperty(
+        "pod_resources",
+      );
+    });
+
+    it("an update with pod_resources hands the adapter the block plus the inherited config to merge inside the upsert", async () => {
+      fakeAgents.resolve.mockResolvedValue({
+        ...def,
+        config: { skills: ["lore-context"] },
+      });
+      fakeAgents.update.mockResolvedValue(def);
+      const { res } = await call(`${BASE}/general`, "PUT", {
+        pod_resources: { limits: { memory: "4Gi" } },
+      });
+
+      expect(res.statusCode).toBe(200);
+      expect(fakeAgents.update).toHaveBeenCalledWith(
+        "general",
+        {},
+        {
+          podResources: { limits: { memory: "4Gi" } },
+          inheritedConfig: { skills: ["lore-context"] },
+        },
+      );
     });
 
     it("deletes an agent by name", async () => {
