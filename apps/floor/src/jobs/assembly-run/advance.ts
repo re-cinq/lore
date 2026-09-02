@@ -198,7 +198,15 @@ export function lineOutcomeFromVisits(visits: NodeVisit[]): {
   outcome: "completed" | "failed";
   reason?: string;
 } {
-  const failed = visits.find((v) => visitFailed(v.outcome));
+  // A failure the walk recovered from — a later visit of the SAME node closed
+  // non-failed — must not decide the line: run 52c3fdd5 blamed a retried-and-
+  // recovered ready-for-review while fix-ci, the failure that actually routed
+  // the walk out, went unreported. The LAST unrecovered failure is that one.
+  const unrecovered = visits.filter(
+    (visit, index) =>
+      visitFailed(visit.outcome) && !recoveredLater(visits, visit, index),
+  );
+  const failed = unrecovered[unrecovered.length - 1];
 
   // `nodeFailureReason` degrades to the old `node "<id>" failed` wording when the
   // visit carries no classification, so rows written before migration 0042 read
@@ -206,6 +214,23 @@ export function lineOutcomeFromVisits(visits: NodeVisit[]): {
   return failed
     ? { outcome: "failed", reason: nodeFailureReason(failed) }
     : { outcome: "completed" };
+}
+
+/** True when a later visit of the same node closed non-failed — the retry edge
+ *  did its job, so this failure is history, not the line's verdict. */
+function recoveredLater(
+  visits: NodeVisit[],
+  visit: NodeVisit,
+  index: number,
+): boolean {
+  return visits
+    .slice(index + 1)
+    .some(
+      (later) =>
+        later.nodeId === visit.nodeId &&
+        later.outcome !== null &&
+        !visitFailed(later.outcome),
+    );
 }
 
 function visitFailed(outcome: StageOutcome | null): boolean {
