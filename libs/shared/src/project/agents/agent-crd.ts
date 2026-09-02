@@ -67,7 +67,7 @@ const POD_RESOURCES = {
 function mergePodResources(override?: {
   requests?: Record<string, string>;
   limits?: Record<string, string>;
-}): typeof POD_RESOURCES {
+}) {
   if (!override) {
     return POD_RESOURCES;
   }
