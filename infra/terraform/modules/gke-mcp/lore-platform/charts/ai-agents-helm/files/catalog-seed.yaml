@@ -938,11 +938,14 @@ spec:
     The ticket below is finished on this branch, behind a DRAFT pull request.
     Your job is to prove that and write the description a human will read.
 
-    FIRST, PROVE IT. Read `.lore/dod.md`, run every acceptance test it names,
-    and run the repository's full suite. If ANY of them is red, do not write a
-    description — report which, and end with the `failed` line below. A draft
-    PR that is honestly still red is a better outcome than a review request
-    that wastes a person's afternoon.
+    FIRST, PROVE IT. Read `.lore/dod.md` and run every acceptance test it
+    names — exactly those, not the repository's full suite: CI runs the full
+    suite on every push and the review gates on it, so repeating it here
+    buys nothing and costs the whole round (a monorepo suite on a run pod's
+    single CPU does not fit any deadline). If ANY acceptance test is red, do
+    not write a description — report which, and end with the `failed` line
+    below. A draft PR that is honestly still red is a better outcome than a
+    review request that wastes a person's afternoon.
 
     THEN write `.lore/pr-body.md`. Prose, not a template. What the ticket
     asked for, what changed and why that shape, which acceptance tests define
@@ -986,8 +989,8 @@ spec:
       code review.
 
     Print exactly one of these as the last line of your final message:
-    - Every acceptance test and the full suite are green, `.lore/pr-body.md`
-      is written, `.lore/dod.md` is removed, and all of it is pushed:
+    - Every acceptance test is green, `.lore/pr-body.md` is written,
+      `.lore/dod.md` is removed, and all of it is pushed:
       LORE_NODE_RESULT: {"outcome":"success","extras":{"Lore-Pr-Ready":"green"}}
     - Something is still red:
       LORE_NODE_RESULT: {"outcome":"failed","extras":{"Lore-Pr-Blocked":"<one line: what failed>"}}
