@@ -7,6 +7,7 @@
 -- yaml change alone never reaches a freshly-seeded environment. Idempotent:
 -- only a row still carrying a full-suite pr-ready prompt is rewritten, so a
 -- deliberately hand-edited prompt is left alone.
+WITH updated AS (
 UPDATE lore.agent_definitions
    SET prompt = $lore_mig$The ticket below is finished on this branch, behind a DRAFT pull request.
 Your job is to prove that and write the description a human will read.
@@ -72,9 +73,11 @@ Ticket: {description}
 $lore_mig$,
        updated_at = now()
  WHERE name = 'pr-ready'
-   AND prompt LIKE '%run the repository''s full suite%';
-
+   AND prompt LIKE '%run the repository''s full suite%'
+RETURNING project_id
+)
+-- Only the rows the UPDATE actually rewrote get a catalog event — an
+-- untouched (hand-edited or already-migrated) row must not be re-rendered.
 INSERT INTO lore.catalog_events (name, project_id, op)
 SELECT 'pr-ready', project_id, 'upsert'
-  FROM lore.agent_definitions
- WHERE name = 'pr-ready';
+  FROM updated;
