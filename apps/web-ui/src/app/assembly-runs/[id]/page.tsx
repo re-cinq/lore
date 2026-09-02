@@ -6,6 +6,7 @@ import { fetchTaskEvents, fetchLlmCalls } from "@/lib/task-runtime";
 import { definitionForRun } from "@/lib/run-graph-definition";
 import { Alert } from "@/components/Alert";
 import AssemblyRunView from "./AssemblyRunView";
+import { RunAutoRefresh } from "./RunAutoRefresh";
 import RunVisualizationPanel from "./RunVisualizationPanel";
 import { AssemblyRunOptions } from "./AssemblyRunOptions";
 import EventTimeline from "@/app/tasks/[id]/EventTimeline";
@@ -56,6 +57,7 @@ export default async function AssemblyLineResolverPage({
 
   return (
     <>
+      <RunAutoRefresh runStatus={run.status} />
       <AssemblyRunView run={run} />
       <AssemblyRunOptions run={run} />
       <RunVisualizationPanel
