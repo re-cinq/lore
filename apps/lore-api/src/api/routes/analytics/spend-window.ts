@@ -164,12 +164,20 @@ export function spendWindowRoute(
       );
       // Pod-hours: rows whose run overlaps the interval, clipped to it. Only
       // rows that named an Agent CR were pods; service-node rows cost nothing.
+      // A row with no finished_at is NOT treated as still running: stale rows
+      // whose pod died unrecorded would each bill the whole window (177
+      // comment-triage pods once claimed 8,606 pod-hours this way). No pod
+      // outlives the reaper by more than the 2h ceiling, so an open row is
+      // capped at started_at + 2h.
       const { rows: podHours } = await pool.query(
         `SELECT ar.blueprint_name AS blueprint,
                 count(*)::int AS pods,
                 coalesce(sum(
                   extract(epoch FROM
-                    least(coalesce(sr.finished_at, now()), $2::timestamptz)
+                    least(
+                      coalesce(sr.finished_at,
+                               least(now(), sr.started_at + interval '2 hours')),
+                      $2::timestamptz)
                     - greatest(sr.started_at, $1::timestamptz)
                   )
                 ) / 3600.0, 0)::float AS hours
@@ -177,7 +185,8 @@ export function spendWindowRoute(
            JOIN pipeline.assembly_runs ar ON ar.id = sr.assembly_run_id
           WHERE sr.agent_cr_name IS NOT NULL
             AND sr.started_at < $2
-            AND coalesce(sr.finished_at, now()) > $1
+            AND coalesce(sr.finished_at,
+                         least(now(), sr.started_at + interval '2 hours')) > $1
           GROUP BY 1 ORDER BY 3 DESC`,
         [fromTs, toTs],
       );

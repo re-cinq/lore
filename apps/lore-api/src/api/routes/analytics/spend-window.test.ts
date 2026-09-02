@@ -4,17 +4,22 @@ import { spendWindowRoute, type SpendWindowDeps } from "./spend-window.js";
 
 const NOW = new Date("2026-09-02T12:00:00Z");
 
-function poolWith(rows: unknown[][]) {
+function poolWith(rows: unknown[][], issued: string[] = []) {
   let call = 0;
 
   return {
-    query: async () => ({ rows: rows[call++] ?? [] }),
+    query: async (sql: string) => {
+      issued.push(sql);
+
+      return { rows: rows[call++] ?? [] };
+    },
   } as never;
 }
 
 async function serverWith(
   rows: unknown[][],
   deps: Partial<SpendWindowDeps> = {},
+  issued: string[] = [],
 ) {
   const server = Hapi.server();
 
@@ -24,7 +29,7 @@ async function serverWith(
   server.auth.strategy("bearer-scope", "stub");
   server.auth.default("bearer-scope");
   server.route(
-    spendWindowRoute(() => poolWith(rows), {
+    spendWindowRoute(() => poolWith(rows, issued), {
       livePods: async () => [],
       env: {},
       now: () => NOW,
@@ -120,6 +125,21 @@ describe("GET /api/analytics/spend-window", () => {
       status: 400,
       body: { error: "from must not be after to" },
     });
+  });
+
+  it("caps a never-finished station-run row at 2 hours instead of billing it as still running", async () => {
+    const issued: string[] = [];
+    const server = await serverWith(BASE_ROWS, {}, issued);
+
+    await server.inject({ method: "GET", url: "/api/analytics/spend-window" });
+
+    // The pod-hours read is the 4th query. A row whose pod died without a
+    // finished_at write must be clipped to started_at + 2h — 177 stale
+    // comment-triage rows once billed 8,606 pod-hours by riding now().
+    const podHoursSql = issued[3];
+
+    expect(podHoursSql).toContain("sr.started_at + interval '2 hours'");
+    expect(podHoursSql).not.toMatch(/coalesce\(sr\.finished_at,\s*now\(\)\)/);
   });
 
   it("an unreachable cluster-agent degrades to an empty live list, never a failed page", async () => {
