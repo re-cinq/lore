@@ -32,6 +32,9 @@ export interface StartEventHandlerDeps {
     outcome: string,
     reason?: string,
   ) => Promise<void>;
+  /** Reopen the settled task behind a FORK (reopenTaskForFork) — settle-task's
+   *  start-side twin. Optional seam like notifyFailure; never throws. */
+  reopenTask?: (row: { id: string; taskId: string | null }) => Promise<void>;
 }
 
 export function createStartEventHandler(
@@ -68,6 +71,15 @@ export function createStartEventHandler(
         snapshotGraph(definition, blueprintName),
       );
       await deps.assemblyRuns.markRunning(assemblyLineId);
+
+      // A FORK resumes work whose task the source's terminal walk already
+      // settled — reopen it before the walk launches, so the task-keyed
+      // surfaces (the implementation-loop page's current ticket) see the
+      // resumption instead of the source's verdict. Plain starts carry a null
+      // `resumedFrom` and skip this.
+      if (params.resumedFrom != null && taskId && deps.reopenTask) {
+        await deps.reopenTask({ id: assemblyLineId, taskId });
+      }
 
       // Launch the entry node and return — the walk advances on
       // `kubernetes.agent_node.*` events; a Floor restart loses nothing because
@@ -136,6 +148,8 @@ export const assemblyLineStart: EventHandler = async (params) => {
   ]);
 
   const { notifyLineFailure } = await import("./notify-failure.js");
+  const { reopenTaskForFork } = await import("./reopen-task.js");
+  const { taskStore } = await import("../../kernel/queues.js");
 
   const handler = createStartEventHandler({
     assemblyRuns: pipeline().assemblyRuns,
@@ -143,6 +157,7 @@ export const assemblyLineStart: EventHandler = async (params) => {
     advance: async (assemblyLineId) =>
       advanceLine(assemblyLineId, await productionNodeEventDeps()),
     notifyFailure: notifyLineFailure,
+    reopenTask: (row) => reopenTaskForFork(row, { tasks: taskStore() }),
   });
 
   await handler(params);
