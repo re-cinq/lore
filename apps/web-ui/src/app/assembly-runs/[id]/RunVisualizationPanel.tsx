@@ -479,15 +479,17 @@ export default function RunVisualizationPanel({
             reason={reason}
             repo={repo}
             attempts={selectedAttempts}
+            actions={
+              retrySource !== null ? (
+                <RerunNodeButton
+                  runId={runId}
+                  resumeNodeId={retrySource.nodeId}
+                  resumeIteration={retrySource.iteration}
+                />
+              ) : undefined
+            }
           />
           <NodeInputCard inputs={nodeInputs} />
-          {retrySource !== null ? (
-            <RerunNodeButton
-              runId={runId}
-              resumeNodeId={retrySource.nodeId}
-              resumeIteration={retrySource.iteration}
-            />
-          ) : null}
           {selectedRows
             .filter((row) => row.agentCrName)
             .map((row) => (

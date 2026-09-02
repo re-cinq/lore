@@ -281,17 +281,6 @@ describe("live events", () => {
   });
 });
 
-describe("node transcript drill-in", () => {
-  async function selectNode(name: string) {
-    await act(async () => {
-      fireEvent.click(
-        screen.getByRole("button", { name: new RegExp(`^${name} —`) }),
-      );
-    });
-  }
-
-});
-
 describe("heatmap and timeline wiring", () => {
   it("grows the file heatmap as tool call events stream in and mounts the timeline", async () => {
     stubHistory([
@@ -980,8 +969,9 @@ describe("retry from node", () => {
     });
   }
 
-  it("offers retry on a finished run's validate node, forking from implement", async () => {
-    stubHistory([]);
+  it("offers retry in the node card's header on a finished run, posting the implement fork source", async () => {
+    const fetchMock = stubHistory([]);
+
     useFakeEventSource();
 
     const { container } = renderRun("finished", [
@@ -992,24 +982,37 @@ describe("retry from node", () => {
     await settle();
     await select("validate");
 
-    expect(
-      screen.getByRole("button", { name: "Retry from this node" }),
-    ).toBeInTheDocument();
-    expect(
-      (container.querySelector('input[name="node_id"]') as HTMLInputElement)
-        .value,
-    ).toBe("implement");
-    expect(
-      (container.querySelector('input[name="run_id"]') as HTMLInputElement)
-        .value,
-    ).toBe("run-1");
+    const button = screen.getByRole("button", {
+      name: "Retry from this node",
+    });
+
+    expect(button.closest("summary")).toBe(
+      container.querySelector("section summary"),
+    );
+
+    await act(async () => {
+      fireEvent.click(button);
+    });
+
+    const rerunCall = fetchMock.mock.calls.find(
+      ([url]) => String(url) === "/api/assembly-runs/rerun",
+    );
+    const body = rerunCall?.[1]?.body as URLSearchParams;
+
+    expect(rerunCall?.[1]).toMatchObject({ method: "POST" });
+    expect(Object.fromEntries(body)).toEqual({
+      run_id: "run-1",
+      node_id: "implement",
+      iteration: "1",
+    });
   });
 
-  it("offers retry on a looping run's validate node, naming implement@2 in the form", async () => {
-    stubHistory([]);
+  it("offers retry on a looping run's validate node, posting implement@2 as the fork source", async () => {
+    const fetchMock = stubHistory([]);
+
     useFakeEventSource();
 
-    const { container } = renderRun("failed", [
+    renderRun("failed", [
       retryRow({ nodeId: "implement", iteration: 1 }),
       retryRow({ nodeId: "validate", iteration: 1, outcome: "failed" }),
       retryRow({ nodeId: "implement", iteration: 2 }),
@@ -1018,18 +1021,23 @@ describe("retry from node", () => {
 
     await settle();
     await select("validate");
+    await act(async () => {
+      fireEvent.click(
+        screen.getByRole("button", { name: "Retry from this node" }),
+      );
+    });
 
-    expect(
-      screen.getByRole("button", { name: "Retry from this node" }),
-    ).toBeInTheDocument();
-    expect(
-      (container.querySelector('input[name="node_id"]') as HTMLInputElement)
-        .value,
-    ).toBe("implement");
-    expect(
-      (container.querySelector('input[name="iteration"]') as HTMLInputElement)
-        .value,
-    ).toBe("2");
+    const rerunCall = fetchMock.mock.calls.find(
+      ([url]) => String(url) === "/api/assembly-runs/rerun",
+    );
+
+    expect(Object.fromEntries(rerunCall?.[1]?.body as URLSearchParams)).toEqual(
+      {
+        run_id: "run-1",
+        node_id: "implement",
+        iteration: "2",
+      },
+    );
   });
 
   it("offers no retry while the run is still running", async () => {

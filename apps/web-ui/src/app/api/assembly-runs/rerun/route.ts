@@ -10,8 +10,9 @@ import { serverError } from "@/lib/api-error";
  * (specs/fork-rerun-from-node). Reads the source run from lore-api to learn its
  * repo and blueprint (the client is trusted with ids, never with authz facts),
  * authorizes the user against that repo, then starts the fork via lore-api's
- * POST /api/assembly-runs with `resume_from` and redirects to the new run's
- * page. Body is the button's form fields (run_id, node_id).
+ * POST /api/assembly-runs with `resume_from` and returns the new run's id —
+ * the button navigates. Body is the button's form fields (run_id, node_id,
+ * iteration).
  */
 export async function POST(req: Request) {
   try {
@@ -104,13 +105,11 @@ export async function POST(req: Request) {
     }
 
     const { id } = (await upstream.json()) as { id: string };
-    // Own origin, never the referer header — a forged referer would steer the
-    // redirect to a foreign host.
-    const base = new URL(req.url).origin;
 
-    return NextResponse.redirect(new URL(`/assembly-runs/${id}`, base), {
-      status: 303,
-    });
+    // JSON, not a redirect: the caller is the retry button's fetch, and it
+    // navigates to the new run itself — a 303 would make fetch swallow the
+    // run page as an opaque followed response.
+    return NextResponse.json({ id });
   } catch (err) {
     return serverError("assembly-run-rerun", err);
   }

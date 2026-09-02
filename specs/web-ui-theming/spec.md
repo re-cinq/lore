@@ -118,9 +118,10 @@ node detail renders through it rather than its own bespoke card.
 - Its header args are string data, never markup: plain-text `labels` render as muted tags beside the title. ([validated by](apps/web-ui/src/components/CollapsibleCard.test.tsx#L61))
 - Empty `labels` entries are dropped inside the card, so callers pass optional values unfiltered. ([validated by](apps/web-ui/src/components/CollapsibleCard.test.tsx#L73))
 - A `status` of `{ label, tone }` renders as the shared toned pill in the header. ([validated by](apps/web-ui/src/components/CollapsibleCard.test.tsx#L84))
-- `onToggle` reports the fold state on every toggle, so lazy panels (pod logs, the full transcript) fetch on first open through the shared card instead of a bespoke `<details>`. ([validated by](apps/web-ui/src/components/CollapsibleCard.test.tsx#L97))
-- A card given `emptyState` and no content renders the note as plain body text, so every empty card says it the same way. ([validated by](apps/web-ui/src/components/CollapsibleCard.test.tsx#L116))
-- When content is present the `emptyState` note stays hidden. ([validated by](apps/web-ui/src/components/CollapsibleCard.test.tsx#L126))
+- An `actions` node renders at the summary row's far end, so a card-scoped control (the run page's retry button) lives in the header beside the status pill; the action must preventDefault on click, or activating it also toggles the fold. ([validated by](apps/web-ui/src/components/CollapsibleCard.test.tsx#L97))
+- `onToggle` reports the fold state on every toggle, so lazy panels (pod logs, the full transcript) fetch on first open through the shared card instead of a bespoke `<details>`. ([validated by](apps/web-ui/src/components/CollapsibleCard.test.tsx#L112))
+- A card given `emptyState` and no content renders the note as plain body text, so every empty card says it the same way. ([validated by](apps/web-ui/src/components/CollapsibleCard.test.tsx#L131))
+- When content is present the `emptyState` note stays hidden. ([validated by](apps/web-ui/src/components/CollapsibleCard.test.tsx#L139))
 
 The `StatusPill` atom (`web-ui/src/components/StatusPill.tsx`) is the one
 tone→color map for outcome pills — six tones drawn from the status tokens,

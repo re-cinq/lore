@@ -94,6 +94,21 @@ describe("CollapsibleCard", () => {
     expect(screen.getByText("succeeded").className).toContain("ok");
   });
 
+  it("renders the actions slot inside the header row", () => {
+    const { container } = render(
+      <CollapsibleCard
+        title="open-pr"
+        actions={<button type="button">Retry from this node</button>}
+      >
+        <p>body</p>
+      </CollapsibleCard>,
+    );
+
+    expect(
+      container.querySelector("summary button")?.textContent,
+    ).toBe("Retry from this node");
+  });
+
   it("reports true through onToggle when opened", () => {
     const onToggle = vi.fn();
     const { container } = render(

@@ -27,6 +27,12 @@ details[open] > .summary::before {
   transform: rotate(90deg);
 }
 
+/* Header actions sit at the row's far end, clear of the title cluster. */
+.actions {
+  @include t.row(8px);
+  margin-left: auto;
+}
+
 /* The fold line: an open card separates its header from its content, so the
    summary reads as a control and the body as the disclosed document. Bodies
    are one text flow by convention, so line breaks in that text must render. */
