@@ -93,30 +93,54 @@ async function reconcileAgent(
 ): Promise<void> {
   const ev = mapAgentToEvent(agent as never);
 
-  if (ev && ev.eventName.startsWith("kubernetes.agent_node.")) {
-    // Node CRs guard on the assembly-line ROW, not a task (task-less lines
-    // have none): re-emit while the line is still open. Dedupe rows persist
-    // ~7 days, so a handled event's re-emit is a no-op — recovery for a
-    // dead-lettered transition is the assembly-line reaper, not this pass.
-    const assemblyLineId = String((ev.params ?? {}).assemblyLineId ?? "");
-    const row = assemblyLineId
-      ? await pipeline().assemblyRuns.getById(assemblyLineId)
-      : null;
-
-    if (row && ["running", "queued"].includes(row.status)) {
-      await emitEvent(ev);
-    }
-  } else if (ev) {
-    const taskId = String((ev.params ?? {}).taskId ?? "");
-    const dbStatus = taskId
-      ? (await taskStore().getById(taskId))?.status
-      : undefined;
-
-    if (dbStatus && ["running", "queued"].includes(dbStatus)) {
-      await emitEvent(ev);
-    }
+  if (ev) {
+    await reemitWhileSubjectOpen(ev);
   }
   await pruneIfOld(agent, cluster);
+}
+
+/** Re-emit a terminal event while its subject — the assembly-line row for a
+ *  node CR, the task for a single-CR run — is still open. */
+async function reemitWhileSubjectOpen(
+  ev: NonNullable<ReturnType<typeof mapAgentToEvent>>,
+): Promise<void> {
+  if (ev.eventName.startsWith("kubernetes.agent_node.")) {
+    await reemitWhileLineOpen(ev);
+
+    return;
+  }
+  await reemitWhileTaskOpen(ev);
+}
+
+/** Node CRs guard on the assembly-line ROW, not a task (task-less lines
+ *  have none): re-emit while the line is still open. Dedupe rows persist
+ *  ~7 days, so a handled event's re-emit is a no-op — recovery for a
+ *  dead-lettered transition is the assembly-line reaper, not this pass. */
+async function reemitWhileLineOpen(
+  ev: NonNullable<ReturnType<typeof mapAgentToEvent>>,
+): Promise<void> {
+  const assemblyLineId = String((ev.params ?? {}).assemblyLineId ?? "");
+  const row = assemblyLineId
+    ? await pipeline().assemblyRuns.getById(assemblyLineId)
+    : null;
+
+  if (row && ["running", "queued"].includes(row.status)) {
+    await emitEvent(ev);
+  }
+}
+
+/** Single-CR runs guard on the task row instead. */
+async function reemitWhileTaskOpen(
+  ev: NonNullable<ReturnType<typeof mapAgentToEvent>>,
+): Promise<void> {
+  const taskId = String((ev.params ?? {}).taskId ?? "");
+  const dbStatus = taskId
+    ? (await taskStore().getById(taskId))?.status
+    : undefined;
+
+  if (dbStatus && ["running", "queued"].includes(dbStatus)) {
+    await emitEvent(ev);
+  }
 }
 
 /** Delete a terminal CR an hour after it finished.

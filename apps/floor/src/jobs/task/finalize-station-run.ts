@@ -109,84 +109,83 @@ export async function finalizeStationRun(opts: {
     return;
   }
 
-  // feature-planning self-POSTs its GapResult from inside the container. Verify it
-  // actually landed — a run that exits 0 but posts nothing must surface as a
-  // failure (with logs), not a silent "completed" that leaves the wizard stuck
-  // "analyzing" forever.
-  if (task.task_type === "feature-planning") {
-    const featureId = task.context_bundle?.feature_id as string | undefined;
-    const iteration = task.context_bundle?.iteration as number | undefined;
-    const feature = featureId ? await project.features.get(featureId) : null;
-    const row = feature?.iterations.find((i) => i.iteration === iteration);
-
-    if (row?.status === "ready" && row.gap_result) {
+  if (task.task_type !== "feature-planning") {
+    // Non-planning, no file changes → no PR. Just close the task out.
+    if (completion.changedFiles === 0) {
       await setStatus(task.id, "completed");
       await insertEvent(task.id, "running", "completed", {
-        feature_id: featureId,
-        iteration,
+        changedFiles: completion.changedFiles,
       });
 
       return;
     }
-    const tail = stationLogTail(completion.output);
-    const reason =
-      `Planning run finished (exit 0) but posted no result — the agent did not produce a result.json the container could POST.` +
-      (tail ? `\n\n${tail}` : "");
 
-    if (featureId && iteration != null) {
-      await project.features
-        .setIterationResult(featureId, iteration, null, "failed")
-        .catch(() => {});
-      await revertFeatureAfterFailure(project, featureId);
-    }
-    await setStatus(task.id, "failed", { failure_reason: reason });
-    await insertEvent(task.id, "running", "failed", {
-      reason: "planning posted no result",
+    // The container pushed a branch — open the PR for it.
+    const copy = await generateArtifactCopy({
+      kind: "pr",
+      taskType: task.task_type,
+      description: task.description,
+      agentOutput: completion.output,
+      changedFiles: completion.changedFiles,
+      repo: targetRepo,
     });
+    const footer = prFooter({
+      issueNumber: task.issue_number ?? undefined,
+      taskId: task.id,
+    });
+    const pr = await project.pulls.open(
+      branch,
+      copy.title,
+      `${copy.body}${footer}`,
+      await project.repo.defaultBranch(),
+      ["needs-review"],
+    );
 
+    await setStatus(task.id, "pr-created", {
+      pr_url: pr.url,
+      pr_number: pr.number,
+      target_branch: branch,
+    });
+    await insertEvent(task.id, "running", "pr-created", { pr_url: pr.url });
+
+    // The feature's own move to `pr-open` is NOT done here. A feature's spec PR is
+    // opened by the merged planning line's `push` node, and `spec-pr.ts` owns that
+    // transition (FR6.33); this branch was the retired feature-finalize task's copy
+    // of it.
     return;
   }
 
-  // Non-planning, no file changes → no PR. Just close the task out.
-  if (completion.changedFiles === 0) {
+  // feature-planning self-POSTs its GapResult from inside the container. Verify it
+  // actually landed — a run that exits 0 but posts nothing must surface as a
+  // failure (with logs), not a silent "completed" that leaves the wizard stuck
+  // "analyzing" forever.
+  const featureId = task.context_bundle?.feature_id as string | undefined;
+  const iteration = task.context_bundle?.iteration as number | undefined;
+  const feature = featureId ? await project.features.get(featureId) : null;
+  const row = feature?.iterations.find((i) => i.iteration === iteration);
+
+  if (row?.status === "ready" && row.gap_result) {
     await setStatus(task.id, "completed");
     await insertEvent(task.id, "running", "completed", {
-      changedFiles: completion.changedFiles,
+      feature_id: featureId,
+      iteration,
     });
 
     return;
   }
+  const tail = stationLogTail(completion.output);
+  const reason =
+    `Planning run finished (exit 0) but posted no result — the agent did not produce a result.json the container could POST.` +
+    (tail ? `\n\n${tail}` : "");
 
-  // The container pushed a branch — open the PR for it.
-  const copy = await generateArtifactCopy({
-    kind: "pr",
-    taskType: task.task_type,
-    description: task.description,
-    agentOutput: completion.output,
-    changedFiles: completion.changedFiles,
-    repo: targetRepo,
+  if (featureId && iteration != null) {
+    await project.features
+      .setIterationResult(featureId, iteration, null, "failed")
+      .catch(() => {});
+    await revertFeatureAfterFailure(project, featureId);
+  }
+  await setStatus(task.id, "failed", { failure_reason: reason });
+  await insertEvent(task.id, "running", "failed", {
+    reason: "planning posted no result",
   });
-  const footer = prFooter({
-    issueNumber: task.issue_number ?? undefined,
-    taskId: task.id,
-  });
-  const pr = await project.pulls.open(
-    branch,
-    copy.title,
-    `${copy.body}${footer}`,
-    await project.repo.defaultBranch(),
-    ["needs-review"],
-  );
-
-  await setStatus(task.id, "pr-created", {
-    pr_url: pr.url,
-    pr_number: pr.number,
-    target_branch: branch,
-  });
-  await insertEvent(task.id, "running", "pr-created", { pr_url: pr.url });
-
-  // The feature's own move to `pr-open` is NOT done here. A feature's spec PR is
-  // opened by the merged planning line's `push` node, and `spec-pr.ts` owns that
-  // transition (FR6.33); this branch was the retired feature-finalize task's copy
-  // of it.
 }
