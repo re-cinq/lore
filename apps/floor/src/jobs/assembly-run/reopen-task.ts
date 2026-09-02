@@ -13,10 +13,17 @@
 
 import type { SettleTaskDeps } from "./settle-task.js";
 
-/** Terminal task states a fork reopens. Open states are a duplicate delivery's
- *  no-op; `merged` is past reopening — that work shipped, and a fork over it is
- *  a rerun someone owns deliberately, not the task coming back. */
-const REOPENABLE = new Set(["failed", "cancelled", "completed"]);
+/** Terminal task states a fork reopens — `needs-human-help` included, because
+ *  a human retrying from the run page IS the help the task was waiting for.
+ *  Open states are a duplicate delivery's no-op; `merged` is past reopening —
+ *  that work shipped, and a fork over it is a rerun someone owns deliberately,
+ *  not the task coming back. */
+const REOPENABLE = new Set([
+  "failed",
+  "cancelled",
+  "completed",
+  "needs-human-help",
+]);
 
 /** What a fork's start means for the inherited task. null = leave it alone. */
 export function decideTaskReopen(taskStatus: string): "running" | null {
@@ -47,7 +54,16 @@ export async function reopenTaskForFork(
     if (!reopenTo) {
       return;
     }
-    const won = await deps.tasks.setStatusIf(task.id, previousStatus, reopenTo);
+    // failure_reason cleared with the flip: a running task wearing the source
+    // attempt's failure text would read as failing all over again.
+    const won = await deps.tasks.setStatusIf(
+      task.id,
+      previousStatus,
+      reopenTo,
+      {
+        failure_reason: null,
+      },
+    );
 
     if (!won) {
       return;

@@ -4,7 +4,11 @@ import { decideTaskReopen, reopenTaskForFork } from "./reopen-task.js";
 
 function fakeTasks(task: Partial<PipelineTask> | null) {
   const calls = {
-    setStatus: [] as Array<{ expected: string; status: string }>,
+    setStatus: [] as Array<{
+      expected: string;
+      status: string;
+      failure_reason?: string | null;
+    }>,
     events: [] as Array<{ from: string | null; to: string | null }>,
   };
 
@@ -15,8 +19,13 @@ function fakeTasks(task: Partial<PipelineTask> | null) {
         task
           ? ({ id: "task-9", status: "failed", ...task } as PipelineTask)
           : null,
-      setStatusIf: async (_id: string, expected: string, status: string) => {
-        calls.setStatus.push({ expected, status });
+      setStatusIf: async (
+        _id: string,
+        expected: string,
+        status: string,
+        extra?: Record<string, unknown>,
+      ) => {
+        calls.setStatus.push({ expected, status, ...extra });
 
         return true;
       },
@@ -32,10 +41,12 @@ function fakeTasks(task: Partial<PipelineTask> | null) {
 }
 
 describe("decideTaskReopen", () => {
-  it("reopens a failed, cancelled or completed task as running", () => {
+  it("reopens a failed, cancelled, completed or needs-human-help task as running", () => {
     expect(decideTaskReopen("failed")).toBe("running");
     expect(decideTaskReopen("cancelled")).toBe("running");
     expect(decideTaskReopen("completed")).toBe("running");
+    // A human retrying from the run page IS the help the task waited for.
+    expect(decideTaskReopen("needs-human-help")).toBe("running");
   });
 
   it("leaves an already-open or merged task alone", () => {
@@ -60,7 +71,9 @@ describe("reopenTaskForFork", () => {
     await reopenTaskForFork({ id: "run-fork", taskId: "task-9" }, { tasks });
 
     expect(calls.setStatus).toEqual([
-      { expected: "failed", status: "running" },
+      // failure_reason cleared with the flip — a running task must not wear
+      // the source attempt's failure text.
+      { expected: "failed", status: "running", failure_reason: null },
     ]);
     expect(calls.events).toEqual([{ from: "failed", to: "running" }]);
   });
