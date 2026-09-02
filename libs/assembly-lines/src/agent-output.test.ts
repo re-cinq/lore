@@ -494,3 +494,50 @@ describe("agentStderrError", () => {
     expect(agentStderrError(output)).toHaveLength(300);
   });
 });
+
+describe("the gemini result shape", () => {
+  // The real stream shape from run 6cb4b352 (2026-09-02): assistant delta
+  // chunks carrying the text, then a stats-only result line. Claude's result
+  // carries the text itself; gemini's carries none.
+  const geminiStream = [
+    `{"type":"tool_call","name":"read_file"}`,
+    `{"type":"message","role":"assistant","content":"\`\`\`REVIEW_FINDINGS\\n{\\n  \\"verdict\\": \\"changes_requested\\",\\n","delta":true}`,
+    `{"type":"message","role":"assistant","content":"  \\"findings\\": []\\n}\\n\`\`\`\\n\\n","delta":true}`,
+    `{"type":"message","role":"assistant","content":"REVIEW_RESULT:CHANGES_REQUESTED:tighten the guard","delta":true}`,
+    `{"type":"result","timestamp":"2026-09-02T07:11:49Z","status":"success","stats":{"total_tokens":9}}`,
+  ].join("\n");
+
+  it("reassembles the final assistant message when the result line carries no text", () => {
+    expect(resultTextFromOutput(geminiStream)).toEqual(
+      '```REVIEW_FINDINGS\n{\n  "verdict": "changes_requested",\n' +
+        '  "findings": []\n}\n```\n\n' +
+        "REVIEW_RESULT:CHANGES_REQUESTED:tighten the guard",
+    );
+  });
+
+  it("stops at the first non-assistant event, so a marker mentioned in an earlier turn cannot shadow the block actually written", () => {
+    const withEarlierMention = [
+      `{"type":"message","role":"assistant","content":"I will write a REVIEW_FINDINGS block now.","delta":true}`,
+      `{"type":"tool_call","name":"write_file"}`,
+      `{"type":"message","role":"assistant","content":"done","delta":true}`,
+      `{"type":"result","status":"success"}`,
+    ].join("\n");
+
+    expect(resultTextFromOutput(withEarlierMention)).toEqual("done");
+  });
+
+  it("falls back to the raw output when a text-less result has no assistant chunks before it", () => {
+    const bare = `{"type":"result","status":"error"}`;
+
+    expect(resultTextFromOutput(bare)).toEqual(bare);
+  });
+
+  it("still prefers the claude-style result text when both shapes appear", () => {
+    const claude = [
+      `{"type":"message","role":"assistant","content":"chunk","delta":true}`,
+      `{"type":"result","is_error":false,"result":"the final text"}`,
+    ].join("\n");
+
+    expect(resultTextFromOutput(claude)).toEqual("the final text");
+  });
+});

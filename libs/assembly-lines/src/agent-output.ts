@@ -21,6 +21,14 @@ interface ResultLine {
   is_error?: unknown;
 }
 
+/** A gemini-style assistant chunk: the CLI streams the message as delta
+ *  fragments and its terminal result line carries stats only — no text. */
+interface MessageLine {
+  type: string;
+  role?: unknown;
+  content?: unknown;
+}
+
 // TRANSITIONAL (delete once no pre-cutover CRs remain): before the
 // ai-agent-subsystem stopped stamping its {"source": {...}, "event": <line>}
 // attribution envelope onto stdout, every status.output line arrived wrapped
@@ -54,6 +62,65 @@ function isResultLine(value: unknown): value is ResultLine {
     value !== null &&
     (value as ResultLine).type === "result"
   );
+}
+
+function isAssistantChunk(value: unknown): value is MessageLine {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+  const msg = value as MessageLine;
+
+  return msg.type === "message" && msg.role === "assistant";
+}
+
+function parseAssistantLine(line: string): string | null {
+  try {
+    let value: unknown = JSON.parse(line);
+
+    if (isAttributedLine(value)) {
+      value = value.event;
+    }
+
+    if (!isAssistantChunk(value)) {
+      return null;
+    }
+
+    return typeof value.content === "string" ? value.content : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The final assistant message, reassembled from the delta chunks that
+ * immediately precede the result line. Walks backwards and stops at the first
+ * line that is not an assistant chunk: earlier turns are separated by tool
+ * events, and including them would let a marker MENTIONED mid-run (an agent
+ * thinking aloud about the REVIEW_FINDINGS block it is about to write) shadow
+ * the block it actually wrote. Chunks concatenate with no separator — they are
+ * fragments of one text, not lines.
+ */
+function trailingAssistantText(
+  lines: readonly string[],
+  resultIndex: number,
+): string | null {
+  const chunks: string[] = [];
+
+  for (let i = resultIndex - 1; i >= 0; i--) {
+    const trimmed = lines[i].trim();
+
+    if (trimmed.length === 0) {
+      continue;
+    }
+    const content = parseAssistantLine(trimmed);
+
+    if (content === null) {
+      break;
+    }
+    chunks.unshift(content);
+  }
+
+  return chunks.length > 0 ? chunks.join("") : null;
 }
 
 function isAttributedLine(value: unknown): value is AttributedLine {
@@ -124,6 +191,16 @@ export function resultTextFromOutput(output: string): string {
 
     if (parsed && typeof parsed.result === "string") {
       return parsed.result;
+    }
+
+    // A result line with NO text payload is the gemini shape: its stream-json
+    // terminal line carries stats only, and the agent's final text arrives as
+    // assistant delta chunks just before it. Reassemble those — otherwise the
+    // fallback hands the parsers raw NDJSON, where a fenced block's newlines
+    // are escaped inside a JSON string and can never match (run 6cb4b352,
+    // 2026-09-02: verdict seen, findings lost, review failed).
+    if (parsed) {
+      return trailingAssistantText(lines, i) ?? output;
     }
   }
 
