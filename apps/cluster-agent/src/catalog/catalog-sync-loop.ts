@@ -228,14 +228,28 @@ export interface CatalogSyncTickDeps {
 }
 
 /** One poll: fetch the unapplied batch, land every entry, remember the cursor
- *  to ack on the NEXT call. Never throws — every failure shape is an outcome. */
+ *  to ack on the NEXT call. Never throws — every failure shape is an outcome.
+ *  `snapshot` asks for the FULL catalog regardless of the stored cursor — the
+ *  boot resync: applied-state is a function of row content AND this binary's
+ *  rendering, so a restart re-renders everything, repairing an apply a dying
+ *  pod lost or one an older binary rendered differently (issue #1727). */
 export async function catalogSyncOnce(
   deps: CatalogSyncTickDeps,
   ack: string | undefined,
+  snapshot = false,
 ): Promise<{ outcome: CatalogSyncOutcome; ack: string | undefined }> {
   const fetchFn = deps.fetchFn ?? fetch;
   const { id, token } = deps.identity();
-  const query = ack === undefined ? "" : `?ack=${ack}`;
+  const params = new URLSearchParams();
+
+  if (ack !== undefined) {
+    params.set("ack", ack);
+  }
+
+  if (snapshot) {
+    params.set("snapshot", "1");
+  }
+  const query = params.size > 0 ? `?${params.toString()}` : "";
 
   let res: Response;
 
@@ -458,6 +472,7 @@ async function reportStatus(
 export interface CatalogSyncLoopDeps {
   sync: (
     ack: string | undefined,
+    snapshot: boolean,
   ) => Promise<{ outcome: CatalogSyncOutcome; ack: string | undefined }>;
   /** The single-flight re-registration a 401/403 rotates through. */
   reRegister: () => Promise<unknown>;
@@ -474,10 +489,13 @@ export async function runCatalogSyncLoop(
 ): Promise<void> {
   let ack: string | undefined;
   let first = true;
+  // The boot resync flag: true until one sync actually LANDS (synced or
+  // empty), so an unauthorized or failed first poll does not eat it.
+  let resync = true;
 
   await runPollLoop<CatalogSyncOutcome>({
     tick: async () => {
-      const result = await deps.sync(ack);
+      const result = await deps.sync(ack, resync);
 
       ack = result.ack;
 
@@ -511,6 +529,10 @@ export async function runCatalogSyncLoop(
           console.warn(`[cluster-agent] catalog sync REFUSED ${refusal}`);
         }
       }
+
+      // Reached only for synced/empty (the failure kinds return above): the
+      // resync landed, so later polls tail from the acked cursor.
+      resync = false;
 
       if (first) {
         first = false;

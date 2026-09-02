@@ -87,6 +87,43 @@ describe("handleCatalogEvents", () => {
     });
   });
 
+  it("a requested snapshot re-serves the full catalog even for an agent with a stored cursor", async () => {
+    // The boot resync: applied-state is a function of row content AND the
+    // agent binary's rendering, so a restarted agent re-renders everything —
+    // the cursor only tracks row content, and an apply the dying pod lost (or
+    // rendered with older logic) is otherwise never repaired.
+    const { deps, agent, agents, events } = await harness(
+      new Map([["implementation ", def("implementation")]]),
+    );
+
+    events.setEntries([{ name: "implementation", projectId: null }]);
+    events.append("implementation", null, "upsert");
+    await agents.advanceCatalogCursor(agent.id, "1");
+
+    const result = await handleCatalogEvents(
+      deps,
+      TOKEN,
+      agent.id,
+      undefined,
+      true,
+    );
+
+    expect(result).toEqual({
+      code: 200,
+      body: {
+        mode: "snapshot",
+        cursor: "1",
+        entries: [
+          {
+            name: "implementation",
+            project_id: null,
+            definition: def("implementation"),
+          },
+        ],
+      },
+    });
+  });
+
   it("the same tail is re-served until the agent acks it, then only newer events follow", async () => {
     const { deps, agent, agents, events } = await harness(
       new Map([
