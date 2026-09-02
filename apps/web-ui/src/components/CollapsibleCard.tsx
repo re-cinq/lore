@@ -8,7 +8,6 @@
 // The same idiom is already used for the failure block's "Your input for this round".
 
 import type { ReactNode } from "react";
-import { Alert } from "./Alert";
 import { StatusPill, type StatusTone } from "./StatusPill";
 import styles from "./CollapsibleCard.module.scss";
 
@@ -35,7 +34,7 @@ export default function CollapsibleCard({
    *  taking the page over. Callers whose content IS the point pass this. */
   defaultOpen?: boolean;
   /** The note shown when the card has no content — every empty card says it the
-   *  same way (the secondary Alert) instead of each caller rolling its own. */
+   *  same way (plain body text) instead of each caller rolling its own. */
   emptyState?: string;
   /** Reports the fold state on every toggle — for callers that fetch lazily on
    *  first open. */

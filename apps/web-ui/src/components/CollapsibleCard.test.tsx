@@ -118,9 +118,7 @@ describe("CollapsibleCard", () => {
       <CollapsibleCard title="Attempts" emptyState="No attempts recorded." />,
     );
 
-    expect(screen.getByRole("status")).toHaveTextContent(
-      "No attempts recorded.",
-    );
+    expect(screen.getByText("No attempts recorded.")).toBeInTheDocument();
   });
 
   it("shows the content, not the empty-state note, when content is present", () => {
