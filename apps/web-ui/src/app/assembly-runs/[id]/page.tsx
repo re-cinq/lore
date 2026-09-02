@@ -4,6 +4,8 @@ import { redirect } from "next/navigation";
 import { fetchAssemblyRun, fetchAssemblyRunNodes } from "@/lib/assembly-runs";
 import { fetchTaskEvents, fetchLlmCalls } from "@/lib/task-runtime";
 import { definitionForRun } from "@/lib/run-graph-definition";
+import { agentEditHrefs } from "@/lib/agent-edit-href";
+import { listAgents } from "@/lib/agents-api";
 import { Alert } from "@/components/Alert";
 import AssemblyRunView from "./AssemblyRunView";
 import { RunAutoRefresh } from "./RunAutoRefresh";
@@ -54,6 +56,14 @@ export default async function AssemblyLineResolverPage({
       ])
     : [[], []];
   const { definition } = definitionForRun(run.blueprintName, nodes, run.graph);
+  // Resolved defs carry project_id, the repo-override discriminator the node
+  // inspector's "Edit agent" link routes on. listAgents degrades to [] when
+  // the API is unreachable, which simply renders no links.
+  const editHrefs = agentEditHrefs(
+    definition,
+    await listAgents(run.repo),
+    run.repo,
+  );
 
   return (
     <>
@@ -68,6 +78,7 @@ export default async function AssemblyLineResolverPage({
         nodes={nodes}
         repo={run.repo}
         reason={run.reason}
+        agentEditHrefs={editHrefs}
       />
 
       {run.taskId && (

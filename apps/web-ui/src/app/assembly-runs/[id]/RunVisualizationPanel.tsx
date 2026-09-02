@@ -58,6 +58,10 @@ export interface RunVisualizationPanelProps {
   nodes: readonly AssemblyRunNode[];
   repo: string;
   reason: string | null;
+  /** nodeId → agents-editor href for each agent node whose recipe the catalog
+   *  holds (repo override or org default — `agentEditHrefs` decides which).
+   *  Resolved server-side; the panel only renders what it is handed. */
+  agentEditHrefs?: Record<string, string>;
 }
 
 interface HistoryPage {
@@ -72,6 +76,7 @@ export default function RunVisualizationPanel({
   nodes,
   repo,
   reason,
+  agentEditHrefs,
 }: RunVisualizationPanelProps) {
   // The timeline's right edge is `now`. A stalled node emits no events, so without
   // a clock it would freeze at the last tick and the stall would be invisible.
@@ -480,12 +485,29 @@ export default function RunVisualizationPanel({
             repo={repo}
             attempts={selectedAttempts}
             actions={
-              retrySource !== null ? (
-                <RerunNodeButton
-                  runId={runId}
-                  resumeNodeId={retrySource.nodeId}
-                  resumeIteration={retrySource.iteration}
-                />
+              retrySource !== null ||
+              agentEditHrefs?.[selectedNodeId] !== undefined ? (
+                <>
+                  {agentEditHrefs?.[selectedNodeId] !== undefined ? (
+                    // Inside a <summary>: navigation is the click's own
+                    // default, but without stopPropagation the card would also
+                    // toggle shut behind the navigation.
+                    <a
+                      className="btn-secondary"
+                      href={agentEditHrefs?.[selectedNodeId]}
+                      onClick={(event) => event.stopPropagation()}
+                    >
+                      Edit agent
+                    </a>
+                  ) : null}
+                  {retrySource !== null ? (
+                    <RerunNodeButton
+                      runId={runId}
+                      resumeNodeId={retrySource.nodeId}
+                      resumeIteration={retrySource.iteration}
+                    />
+                  ) : null}
+                </>
               ) : undefined
             }
           />
