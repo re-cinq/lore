@@ -208,6 +208,18 @@ describe("the input row", () => {
     expect(item).toHaveTextContent("you are a reviewer");
   });
 
+  it("renders the input text as markdown, not raw", () => {
+    render(
+      <NodeTranscriptView
+        nodeId="review"
+        rows={[inputRow({ description: "review **carefully**" })]}
+        droppedCount={0}
+      />,
+    );
+
+    expect(screen.getByText("carefully").tagName).toBe("STRONG");
+  });
+
   it("shows the truncated badge on a capped input", () => {
     render(
       <NodeTranscriptView

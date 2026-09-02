@@ -4,6 +4,7 @@
 import { memo } from "react";
 import type { TranscriptRow } from "@/lib/transcript-rows";
 import CollapsibleCard from "@/components/CollapsibleCard";
+import Markdown from "@/components/Markdown";
 import styles from "./NodeTranscriptView.module.css";
 
 export interface NodeTranscriptViewProps {
@@ -44,7 +45,7 @@ const Row = memo(function Row({ row }: { row: TranscriptRow }) {
         title="Input"
         labels={[row.summary, row.truncated ? "truncated" : null]}
       >
-        {inputCardText(row)}
+        <Markdown markdown={inputCardText(row)} />
       </CollapsibleCard>
     );
   }
