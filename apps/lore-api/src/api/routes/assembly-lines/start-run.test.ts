@@ -6,6 +6,7 @@ import {
   parseAssemblyLine,
   type AssemblyLine,
 } from "@re-cinq/lore-assembly-lines";
+import { ResumeRefusedError } from "@re-cinq/lore-shared/project/assembly-runs/resume.js";
 import { startRunRoute } from "./start-run.js";
 
 const implementationLoopLike: AssemblyLine = parseAssemblyLine(`
@@ -230,10 +231,10 @@ describe("resume_from (fork-and-rerun)", () => {
 
   it("returns 409 carrying the port's refusal instead of an opaque 500", async () => {
     // The fork's validations (drift, non-terminal source, missing node) throw
-    // plain Errors before anything is written; the person clicking retry needs
-    // the reason, not "Internal Server Error".
+    // ResumeRefusedError before anything is written; the person clicking retry
+    // needs the reason, not "Internal Server Error".
     const { server } = await serverWith(async () => {
-      throw new Error(
+      throw new ResumeRefusedError(
         'resume-from source line "run-abc": definition "implementation-loop" has changed since that run (aaaaaaaaaaaa ≠ bbbbbbbbbbbb)',
       );
     });
@@ -252,6 +253,24 @@ describe("resume_from (fork-and-rerun)", () => {
           'resume-from source line "run-abc": definition "implementation-loop" has changed since that run (aaaaaaaaaaaa ≠ bbbbbbbbbbbb)',
       },
     });
+  });
+
+  it("lets an unexpected start failure surface as the 500 it is, never a 409", async () => {
+    // Only the port's typed refusals become conflicts — a dropped DB
+    // connection dressed as "the fork was refused" would send the operator
+    // chasing definition drift instead of the outage.
+    const { server } = await serverWith(async () => {
+      throw new Error("connection terminated unexpectedly");
+    });
+    const res = await server.inject(
+      POST({
+        definition: "implementation-loop",
+        repo: "re-cinq/lore",
+        resume_from: { run_id: "run-abc", node_id: "implement" },
+      }),
+    );
+
+    expect(res.statusCode).toBe(500);
   });
 
   it("passes resume_from.iteration through, naming the exact visit on a looping line", async () => {

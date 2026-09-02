@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { resumeCutoffIndex, resolveResumePrefix } from "./resume.js";
+import {
+  resumeCutoffIndex,
+  resolveResumePrefix,
+  ResumeRefusedError,
+} from "./resume.js";
 import type {
   StationRunRecord,
   AssemblyRunRecord,
@@ -155,6 +159,25 @@ describe("resolveResumePrefix", () => {
     expect(resolveResumePrefix(input(), finished, NODES).prefix).toHaveLength(
       3,
     );
+  });
+
+  it("throws ResumeRefusedError for every refusal, so the API edge can tell a refusal from breakage", () => {
+    // The start route maps refusals to a 409 carrying the message; anything
+    // else must surface as the 500 it is. A plain Error here would make a DB
+    // outage read as "the fork was refused".
+    expect(() => resolveResumePrefix(input(), null, [])).toThrow(
+      ResumeRefusedError,
+    );
+    expect(() =>
+      resolveResumePrefix(input({ branch: "other" }), source(), NODES),
+    ).toThrow(ResumeRefusedError);
+    expect(() =>
+      resolveResumePrefix(
+        input(),
+        source({ blueprintHash: "b".repeat(64) }),
+        NODES,
+      ),
+    ).toThrow(ResumeRefusedError);
   });
 
   it("rejects a branch passed alongside resumeFrom", () => {

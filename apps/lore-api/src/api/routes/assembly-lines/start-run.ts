@@ -2,6 +2,7 @@ import type { ServerRoute } from "@hapi/hapi";
 import { z } from "zod";
 import type { AssemblyRunStartInput } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
+import { ResumeRefusedError } from "@re-cinq/lore-shared/project/assembly-runs/resume.js";
 import {
   definitionHash,
   loadBuiltinAssemblyLines,
@@ -131,10 +132,15 @@ export function startRunRoute(
         return h.response({ id }).code(201);
       } catch (err) {
         rethrowBoom(err);
-        // The port validates the fork BEFORE writing anything, so a throw here
-        // is a refusal (drift, non-terminal source, missing visit) the caller
-        // must hear — not an internal failure to hide behind a 500.
-        throw apiError(409)(err instanceof Error ? err.message : String(err));
+
+        // Only the port's typed REFUSALS (drift, non-terminal source, missing
+        // visit — all pre-write) become a 409 the caller must hear; anything
+        // else stays the internal failure it is.
+        if (err instanceof ResumeRefusedError) {
+          throw apiError(409)(err.message);
+        }
+
+        throw err;
       }
     },
   };
