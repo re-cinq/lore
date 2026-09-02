@@ -476,9 +476,10 @@ export async function postReplyFromNode(
     if (inReplyTo > 0) {
       await pulls.replyToReviewComment(prNumber, inReplyTo, stamped);
       await resolveRepliedThread(row, pulls, prNumber, inReplyTo, ports);
-    } else {
-      await pulls.comment(prNumber, stamped);
+
+      return "posted";
     }
+    await pulls.comment(prNumber, stamped);
 
     return "posted";
   } catch (err) {

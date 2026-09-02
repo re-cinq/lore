@@ -199,19 +199,20 @@ function parseQuestion(raw: unknown, i: number): GapQuestion {
     kind,
   };
 
-  if (kind === "choice") {
-    const options = asStringArray(o.options, `questions[${i}].options`);
-
-    if (options.length === 0) {
-      fail(
-        `questions[${i}].options`,
-        "must be non-empty for a choice question",
-      );
+  if (kind !== "choice") {
+    if (o.options !== undefined) {
+      question.options = lenientStringArray(o.options);
     }
-    question.options = options;
-  } else if (o.options !== undefined) {
-    question.options = lenientStringArray(o.options);
+
+    return question;
   }
+
+  const options = asStringArray(o.options, `questions[${i}].options`);
+
+  if (options.length === 0) {
+    fail(`questions[${i}].options`, "must be non-empty for a choice question");
+  }
+  question.options = options;
 
   return question;
 }

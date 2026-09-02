@@ -27,33 +27,36 @@ function usageLine(
   }
   const own = refs[def.name];
 
-  if (own && own.length > 0) {
-    // Grouped per line, each line named once: a station visited by five nodes
-    // of one blueprint reads "general · a, b, c, d, e", not five repetitions
-    // of the blueprint name. Duplicate (line, node) pairs collapse too.
-    const byLine = new Map<string, string[]>();
-
-    for (const ref of own) {
-      const node = `${ref.node_id}${ref.inherited ? "" : " (station_ref)"}`;
-      const nodes = byLine.get(ref.blueprint) ?? [];
-
-      if (!nodes.includes(node)) {
-        nodes.push(node);
-      }
-      byLine.set(ref.blueprint, nodes);
+  if (!(own && own.length > 0)) {
+    if (def.execution_mode === "station") {
+      return { text: "not referenced by any assembly line", dormant: true };
     }
-    const lines = [...byLine]
-      .map(([blueprint, nodes]) => `${blueprint} · ${nodes.join(", ")}`)
-      .join("; ");
 
-    return { text: `used by ${lines}`, dormant: false };
+    return {
+      text: "no assembly line — runs as a single agent",
+      dormant: false,
+    };
   }
 
-  if (def.execution_mode === "station") {
-    return { text: "not referenced by any assembly line", dormant: true };
-  }
+  // Grouped per line, each line named once: a station visited by five nodes
+  // of one blueprint reads "general · a, b, c, d, e", not five repetitions
+  // of the blueprint name. Duplicate (line, node) pairs collapse too.
+  const byLine = new Map<string, string[]>();
 
-  return { text: "no assembly line — runs as a single agent", dormant: false };
+  for (const ref of own) {
+    const node = `${ref.node_id}${ref.inherited ? "" : " (station_ref)"}`;
+    const nodes = byLine.get(ref.blueprint) ?? [];
+
+    if (!nodes.includes(node)) {
+      nodes.push(node);
+    }
+    byLine.set(ref.blueprint, nodes);
+  }
+  const lines = [...byLine]
+    .map(([blueprint, nodes]) => `${blueprint} · ${nodes.join(", ")}`)
+    .join("; ");
+
+  return { text: `used by ${lines}`, dormant: false };
 }
 
 /**

@@ -244,22 +244,22 @@ export async function syncTasksToDb(
          WHERE id = $4`,
         [title, JSON.stringify(metadata), status, existing[0].id],
       );
-    } else {
-      if (taskGroupId) {
-        await pool.query(
-          `INSERT INTO pipeline.tasks (description, task_type, target_repo, status, context_bundle, created_by, task_group_id)
-           VALUES ($1, 'spec-task', $2, $3, $4, 'lore_sync_tasks', $5)`,
-          [title, repo, status, JSON.stringify(metadata), taskGroupId],
-        );
-      } else {
-        await pool.query(
-          `INSERT INTO pipeline.tasks (description, task_type, target_repo, status, context_bundle, created_by)
-           VALUES ($1, 'spec-task', $2, $3, $4, 'lore_sync_tasks')`,
-          [title, repo, status, JSON.stringify(metadata)],
-        );
-      }
-      created++;
+      continue;
     }
+    const insertSql = taskGroupId
+      ? `INSERT INTO pipeline.tasks (description, task_type, target_repo, status, context_bundle, created_by, task_group_id)
+         VALUES ($1, 'spec-task', $2, $3, $4, 'lore_sync_tasks', $5)`
+      : `INSERT INTO pipeline.tasks (description, task_type, target_repo, status, context_bundle, created_by)
+         VALUES ($1, 'spec-task', $2, $3, $4, 'lore_sync_tasks')`;
+
+    await pool.query(insertSql, [
+      title,
+      repo,
+      status,
+      JSON.stringify(metadata),
+      ...(taskGroupId ? [taskGroupId] : []),
+    ]);
+    created++;
   }
 
   return { synced: tasks.length, created };

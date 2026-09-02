@@ -149,19 +149,19 @@ available to agents — the authoritative interface.
 
 ## Agent ID Resolution
 
-Agent ID is resolved in this priority order: ([validated by `agent-id.test.ts:47`](libs/shared/src/agent-id.test.ts#L47))
+Agent ID is resolved in this priority order: ([validated by `agent-id.test.ts:46`](libs/shared/src/agent-id.test.ts#L46))
 
-1. Explicit `agent_id` parameter on any tool call. ([validated by `agent-id.test.ts:47`](libs/shared/src/agent-id.test.ts#L47))
+1. Explicit `agent_id` parameter on any tool call. ([validated by `agent-id.test.ts:46`](libs/shared/src/agent-id.test.ts#L46))
 
-2. `LORE_AGENT_ID` environment variable. ([validated by `agent-id.test.ts:56`](libs/shared/src/agent-id.test.ts#L56))
+2. `LORE_AGENT_ID` environment variable. ([validated by `agent-id.test.ts:55`](libs/shared/src/agent-id.test.ts#L55))
 
-3. `~/.lore/agent-id` file (stable per machine across sessions). ([validated by `agent-id.test.ts:65`](libs/shared/src/agent-id.test.ts#L65))
+3. `~/.lore/agent-id` file (stable per machine across sessions). ([validated by `agent-id.test.ts:64`](libs/shared/src/agent-id.test.ts#L64))
 
-4. Auto-generated UUID (written to `~/.lore/agent-id` for future use). ([validated by `agent-id.test.ts:73`](libs/shared/src/agent-id.test.ts#L73))
+4. Auto-generated UUID (written to `~/.lore/agent-id` for future use). ([validated by `agent-id.test.ts:72`](libs/shared/src/agent-id.test.ts#L72))
 
 Lore Agent pods use their pod name (passed as `LORE_AGENT_ID`), so memories
 written by cluster agents stay attributable to a specific pod even after
-restart. ([validated by `agent-id.test.ts:56`](libs/shared/src/agent-id.test.ts#L56))
+restart. ([validated by `agent-id.test.ts:55`](libs/shared/src/agent-id.test.ts#L55))
 
 ## Data Model
 
@@ -348,7 +348,7 @@ extraction, with no agent cooperation needed. ([validated by `session-dump.test.
 
 After every task completion (PR created, no-changes, failure), an episode is
 automatically written via `episode-writer.ts`, and for high-signal events Haiku
-extracts a "lesson learned" stored as an `auto-curation/{ref}` memory. ([validated by `episode-writer.test.ts:79`](libs/shared/src/episode-writer.test.ts#L79))
+extracts a "lesson learned" stored as an `auto-curation/{ref}` memory. ([validated by `episode-writer.test.ts:81`](libs/shared/src/episode-writer.test.ts#L81))
 
 ## TTL and Expiration
 
@@ -364,7 +364,7 @@ When PostgreSQL is unavailable, the key-value memory operations
 (`write`/`read`/`search`/`delete`/`list`) fall back transparently to
 `~/.lore/memory/` on disk (`memory-file.ts`) — reads and writes continue with
 degraded search (no vector similarity); availability is decided by whether a
-Postgres pool has been configured via `setMemoryPool`. ([validated by `memory.test.ts:43`](libs/server-core/src/features/memory/memory.test.ts#L43), [`memory.test.ts:48`](libs/server-core/src/features/memory/memory.test.ts#L48), [`memory-file.test.ts:37`](libs/server-core/src/features/memory/memory-file.test.ts#L37), [`memory-file.test.ts:50`](libs/server-core/src/features/memory/memory-file.test.ts#L50), [`memory-file.test.ts:64`](libs/server-core/src/features/memory/memory-file.test.ts#L64), [`memory-file.test.ts:93`](libs/server-core/src/features/memory/memory-file.test.ts#L93), [`memory-file.test.ts:107`](libs/server-core/src/features/memory/memory-file.test.ts#L107))
+Postgres pool has been configured via `setMemoryPool`. ([validated by `memory.test.ts:43`](libs/server-core/src/features/memory/memory.test.ts#L43), [`memory.test.ts:48`](libs/server-core/src/features/memory/memory.test.ts#L48), [`memory-file.test.ts:39`](libs/server-core/src/features/memory/memory-file.test.ts#L39), [`memory-file.test.ts:52`](libs/server-core/src/features/memory/memory-file.test.ts#L52), [`memory-file.test.ts:66`](libs/server-core/src/features/memory/memory-file.test.ts#L66), [`memory-file.test.ts:95`](libs/server-core/src/features/memory/memory-file.test.ts#L95), [`memory-file.test.ts:109`](libs/server-core/src/features/memory/memory-file.test.ts#L109))
 
 Tools without a file representation proxy to the GKE server over
 `LORE_API_URL` instead: `lore_write_episode` (`POST /api/episode`) and

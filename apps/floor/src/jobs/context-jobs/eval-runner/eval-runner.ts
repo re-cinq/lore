@@ -54,11 +54,13 @@ export async function evalRunnerJob(): Promise<string> {
           `[job] eval-runner: eval failed for team ${team}:`,
           evalResult.error,
         );
-      } else {
-        console.error(
-          `[job] eval-runner: no usable stats for team ${team} (${evalResult.reason})`,
-        );
+
+        continue;
       }
+      console.error(
+        `[job] eval-runner: no usable stats for team ${team} (${evalResult.reason})`,
+      );
+
       continue;
     }
 

@@ -62,6 +62,49 @@ async function refusable<T extends object>(
   }
 }
 
+const ALLOWED_STATUSES = [
+  "running",
+  "pr-created",
+  "completed",
+  "failed",
+  "needs-human-help",
+  "cancelled",
+];
+
+/** Status update from the local runner (no action field, has task_id + status). */
+async function updateTaskStatus(
+  pool: Pool,
+  taskId: string,
+  status: string,
+  prUrl: string | undefined,
+  error: string | undefined,
+) {
+  enforceTrue(
+    ALLOWED_STATUSES.includes(status),
+    apiError(400),
+    `invalid status: ${status}`,
+  );
+  const setClauses = ["status = $1", "updated_at = now()"];
+  const values: unknown[] = [status];
+
+  if (prUrl) {
+    setClauses.push(`pr_url = $${values.length + 1}`);
+    values.push(prUrl);
+  }
+
+  if (error) {
+    setClauses.push(`error = $${values.length + 1}`);
+    values.push(error);
+  }
+  values.push(taskId);
+  await pool.query(
+    `UPDATE pipeline.tasks SET ${setClauses.join(", ")} WHERE id = $${values.length}`,
+    values,
+  );
+
+  return { ok: true, task_id: taskId, status };
+}
+
 /**
  * One POST multiplexes create, cancel, retry, run-now, revise and set-priority,
  * so the contract is the union of what those answer — the created task, or the
@@ -153,43 +196,15 @@ export function taskPostRoute(getPool: () => Pool | null): ServerRoute {
 
         // Status update from local runner (no action field, has task_id + status)
         if (!parsed.action && parsed.task_id && parsed.status) {
-          const allowedStatuses = [
-            "running",
-            "pr-created",
-            "completed",
-            "failed",
-            "needs-human-help",
-            "cancelled",
-          ];
-
-          enforceTrue(
-            allowedStatuses.includes(parsed.status),
-            apiError(400),
-            `invalid status: ${parsed.status}`,
+          return h.response(
+            await updateTaskStatus(
+              pool,
+              parsed.task_id,
+              parsed.status,
+              parsed.pr_url,
+              parsed.error,
+            ),
           );
-          const setClauses = ["status = $1", "updated_at = now()"];
-          const values: unknown[] = [parsed.status];
-
-          if (parsed.pr_url) {
-            setClauses.push(`pr_url = $${values.length + 1}`);
-            values.push(parsed.pr_url);
-          }
-
-          if (parsed.error) {
-            setClauses.push(`error = $${values.length + 1}`);
-            values.push(parsed.error);
-          }
-          values.push(parsed.task_id);
-          await pool.query(
-            `UPDATE pipeline.tasks SET ${setClauses.join(", ")} WHERE id = $${values.length}`,
-            values,
-          );
-
-          return h.response({
-            ok: true,
-            task_id: parsed.task_id,
-            status: parsed.status,
-          });
         }
 
         // Create action (default)

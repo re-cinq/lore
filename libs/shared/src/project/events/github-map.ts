@@ -157,12 +157,13 @@ export function mapGitHubEvent(
   }
 
   if (eventType === "issue_comment") {
-    if (payload.action !== "created" || !payload.issue?.pull_request) {
-      return [];
-    }
     const prNumber: number | undefined = payload.issue?.number;
 
-    if (!prNumber) {
+    if (
+      payload.action !== "created" ||
+      !payload.issue?.pull_request ||
+      !prNumber
+    ) {
       return [];
     }
 
@@ -181,12 +182,9 @@ export function mapGitHubEvent(
   }
 
   if (eventType === "pull_request_review_comment") {
-    if (payload.action !== "created") {
-      return [];
-    }
     const prNumber: number | undefined = payload.pull_request?.number;
 
-    if (!prNumber) {
+    if (payload.action !== "created" || !prNumber) {
       return [];
     }
 
@@ -207,36 +205,36 @@ export function mapGitHubEvent(
     ];
   }
 
-  if (eventType === "issues") {
-    if (payload.action !== "labeled") {
-      return [];
-    }
-    const issue = payload.issue;
-    const label: string | undefined = payload.label?.name;
-
-    if (!issue || !label) {
-      return [];
-    }
-
-    return [
-      {
-        eventName: "github.issues.labeled",
-        source: "github",
-        params: {
-          repo,
-          label,
-          issue: {
-            number: issue.number,
-            title: issue.title ?? "",
-            body: issue.body ?? "",
-            html_url: issue.html_url ?? "",
-            labels: labelNames(issue.labels),
-          },
-        },
-        dedupeKey: key,
-      },
-    ];
+  if (eventType !== "issues") {
+    return [];
   }
 
-  return [];
+  if (payload.action !== "labeled") {
+    return [];
+  }
+  const issue = payload.issue;
+  const label: string | undefined = payload.label?.name;
+
+  if (!issue || !label) {
+    return [];
+  }
+
+  return [
+    {
+      eventName: "github.issues.labeled",
+      source: "github",
+      params: {
+        repo,
+        label,
+        issue: {
+          number: issue.number,
+          title: issue.title ?? "",
+          body: issue.body ?? "",
+          html_url: issue.html_url ?? "",
+          labels: labelNames(issue.labels),
+        },
+      },
+      dedupeKey: key,
+    },
+  ];
 }

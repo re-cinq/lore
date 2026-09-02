@@ -111,6 +111,22 @@ interruptive `role="alert"` (that stays FormError's job).
 - It defaults to the `info` variant. ([validated by](apps/web-ui/src/components/Alert.test.tsx#L7))
 - It offers a muted `secondary` variant for ambient notes. ([validated by](apps/web-ui/src/components/Alert.test.tsx#L16))
 
+The `CollapsibleCard` atom (`specs/7-feature-planning` documents its folding
+behaviour) is also the card chrome other views extract into — the run page's
+node detail renders through it rather than its own bespoke card.
+
+- Its header args are string data, never markup: plain-text `labels` render as muted tags beside the title. ([validated by](apps/web-ui/src/components/CollapsibleCard.test.tsx#L61))
+- Empty `labels` entries are dropped inside the card, so callers pass optional values unfiltered. ([validated by](apps/web-ui/src/components/CollapsibleCard.test.tsx#L73))
+- A `status` of `{ label, tone }` renders as the shared toned pill in the header. ([validated by](apps/web-ui/src/components/CollapsibleCard.test.tsx#L84))
+- A card given `emptyState` and no content renders the note through the secondary `Alert`, so every empty card says it the same way. ([validated by](apps/web-ui/src/components/CollapsibleCard.test.tsx#L97))
+- When content is present the `emptyState` note stays hidden. ([validated by](apps/web-ui/src/components/CollapsibleCard.test.tsx#L107))
+
+The `StatusPill` atom (`web-ui/src/components/StatusPill.tsx`) is the one
+tone→color map for outcome pills — six tones drawn from the status tokens,
+shared by the card header and the run page's attempt rows.
+
+- It styles its label by the given tone, `ok` through `err`. ([validated by](apps/web-ui/src/components/StatusPill.test.tsx#L7), [validated by](apps/web-ui/src/components/StatusPill.test.tsx#L16))
+
 The `Icon` component defaults its width and height to 16 when no size is given
 (using the provided size for both otherwise), appends a custom `className`
 alongside the iconify base classes (and none when omitted), exposes an

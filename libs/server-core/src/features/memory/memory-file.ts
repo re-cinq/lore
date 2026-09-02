@@ -269,50 +269,53 @@ export function readMemoryFile(
     return [...history].sort((a, b) => b.version - a.version);
   }
 
-  // Return a specific version
-  if (typeof version === "number") {
-    const versions = readJson<Record<string, VersionRecord[]>>(
-      versionsPath(id),
+  // Return latest version
+  if (typeof version !== "number") {
+    const memories = readJson<Record<string, MemoryRecord>>(
+      memoriesPath(id),
       {},
     );
-    const history = versions[key];
+    const record = memories[key];
 
-    if (!history) {
-      return null;
-    }
-    const match = history.find((v) => v.version === version);
-
-    if (!match) {
+    if (!record || record.is_deleted || isExpired(record)) {
       return null;
     }
 
     return {
       key,
-      value: match.value,
-      version: match.version,
-      created_at: match.created_at,
-      ttl_seconds: null,
-      is_deleted: false,
-      expires_at: null,
+      value: record.value,
+      version: record.version,
+      created_at: record.created_at,
+      ttl_seconds: record.ttl_seconds,
+      is_deleted: record.is_deleted,
+      expires_at: record.expires_at,
     };
   }
 
-  // Return latest version
-  const memories = readJson<Record<string, MemoryRecord>>(memoriesPath(id), {});
-  const record = memories[key];
+  // Return a specific version
+  const versions = readJson<Record<string, VersionRecord[]>>(
+    versionsPath(id),
+    {},
+  );
+  const history = versions[key];
 
-  if (!record || record.is_deleted || isExpired(record)) {
+  if (!history) {
+    return null;
+  }
+  const match = history.find((v) => v.version === version);
+
+  if (!match) {
     return null;
   }
 
   return {
     key,
-    value: record.value,
-    version: record.version,
-    created_at: record.created_at,
-    ttl_seconds: record.ttl_seconds,
-    is_deleted: record.is_deleted,
-    expires_at: record.expires_at,
+    value: match.value,
+    version: match.version,
+    created_at: match.created_at,
+    ttl_seconds: null,
+    is_deleted: false,
+    expires_at: null,
   };
 }
 

@@ -47,14 +47,13 @@ export async function searchMemories(
       [poolName],
     );
 
-    if (rows.length > 0) {
-      poolId = rows[0].id;
-    } else {
+    if (rows.length === 0) {
       // Pool does not exist — return empty
       await auditLog(pool, agent, query, 0);
 
       return [];
     }
+    poolId = rows[0].id;
   }
 
   // Attempt to get query embedding from Vertex AI

@@ -153,9 +153,10 @@ export default function TaskRefreshProvider({
 
       if (active) {
         next.add(id);
-      } else {
-        next.delete(id);
+
+        return next;
       }
+      next.delete(id);
 
       return next;
     });

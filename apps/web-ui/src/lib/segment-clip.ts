@@ -90,9 +90,9 @@ export function visibleSegments(
 
     if (enter <= last[1]) {
       last[1] = Math.max(last[1], exit);
-    } else {
-      merged.push([enter, exit]);
+      continue;
     }
+    merged.push([enter, exit]);
   }
 
   const pieces: Array<{ a: Point; b: Point }> = [];

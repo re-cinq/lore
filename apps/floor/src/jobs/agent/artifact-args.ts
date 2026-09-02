@@ -111,11 +111,9 @@ export function artifactsFromTerminalOutput(
 
     if (fileEvent.content !== null) {
       args[argNameForEvent(fileEvent.event)] = fileEvent.content;
-    } else {
-      missing.push(
-        `${fileEvent.event} (${fileEvent.reason ?? "not produced"})`,
-      );
+      continue;
     }
+    missing.push(`${fileEvent.event} (${fileEvent.reason ?? "not produced"})`);
   }
 
   return { args, missing };

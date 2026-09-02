@@ -176,36 +176,54 @@ export function startHttpGateway(opts: HttpGatewayOptions): Server {
     const sessionId = req.headers["mcp-session-id"] as string | undefined;
 
     if (req.method === "POST") {
-      const body = await readJsonBody(req);
-      let transport = sessionId ? sessions.get(sessionId) : undefined;
-
-      if (!transport) {
-        if (!isInitializeRequest(body)) {
-          jsonRpcError(res, 400, "No valid session — send initialize first");
-
-          return;
-        }
-        transport = newSession(opts, sessions);
-      }
-      await transport.handleRequest(req, res, body);
+      await handleMcpPost(req, res, sessionId);
 
       return;
     }
 
     if (req.method === "GET" || req.method === "DELETE") {
-      const transport = sessionId ? sessions.get(sessionId) : undefined;
-
-      if (!transport) {
-        jsonRpcError(res, 400, "Unknown or missing session");
-
-        return;
-      }
-      await transport.handleRequest(req, res);
+      await handleMcpSession(req, res, sessionId);
 
       return;
     }
 
     res.writeHead(405).end();
+  }
+
+  /** POST /mcp — an existing session's message, or an initialize minting one. */
+  async function handleMcpPost(
+    req: IncomingMessage,
+    res: ServerResponse,
+    sessionId: string | undefined,
+  ): Promise<void> {
+    const body = await readJsonBody(req);
+    let transport = sessionId ? sessions.get(sessionId) : undefined;
+
+    if (!transport) {
+      if (!isInitializeRequest(body)) {
+        jsonRpcError(res, 400, "No valid session — send initialize first");
+
+        return;
+      }
+      transport = newSession(opts, sessions);
+    }
+    await transport.handleRequest(req, res, body);
+  }
+
+  /** GET/DELETE /mcp — stream or teardown on an already-minted session. */
+  async function handleMcpSession(
+    req: IncomingMessage,
+    res: ServerResponse,
+    sessionId: string | undefined,
+  ): Promise<void> {
+    const transport = sessionId ? sessions.get(sessionId) : undefined;
+
+    if (!transport) {
+      jsonRpcError(res, 400, "Unknown or missing session");
+
+      return;
+    }
+    await transport.handleRequest(req, res);
   }
 
   server.listen(opts.port, () => {

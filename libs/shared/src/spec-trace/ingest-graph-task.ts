@@ -321,9 +321,9 @@ export async function runIngestGraph(
 
       if (result.projected) {
         projected += 1;
-      } else {
-        skipped += 1;
+        continue;
       }
+      skipped += 1;
     } catch (err) {
       // Per-file isolation must NOT mean a silent failure: log the actual reason
       // (file + kind + repo) so a failed projection is debuggable from pod /

@@ -46,12 +46,14 @@ export function registerRequestTracing(server: Server): void {
     span.updateName(`${request.method.toUpperCase()} ${route}`);
     span.setAttribute("http.route", route);
 
+    span.setAttribute(
+      "http.status_code",
+      Boom.isBoom(res) ? res.output.statusCode : res.statusCode,
+    );
+
     if (Boom.isBoom(res)) {
-      span.setAttribute("http.status_code", res.output.statusCode);
       span.recordException(res);
       span.setStatus({ code: SpanStatusCode.ERROR, message: res.message });
-    } else {
-      span.setAttribute("http.status_code", res.statusCode);
     }
 
     span.end();

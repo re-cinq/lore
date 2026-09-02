@@ -251,6 +251,23 @@ async function writeOnboard(
   return { repoId: rows[0].id, taskId: task.task_id };
 }
 
+/** Webhook wiring is best-effort — a skip is worth a warning, never a failure. */
+function logWebhookOutcome(
+  webhook: EnsureFloorWebhookResult,
+  fullName: string,
+): void {
+  if (webhook.ok) {
+    console.log(
+      `[onboard] Webhook ${webhook.created ? "created" : "updated"} for ${fullName} (hook ${webhook.hookId})`,
+    );
+
+    return;
+  }
+  console.warn(
+    `[onboard] Webhook not configured for ${fullName}: ${webhook.reason}${webhook.detail ? ` (${webhook.detail})` : ""}`,
+  );
+}
+
 /**
  * Onboards a repo by inserting it into lore.repos and submitting an
  * "onboard" task to the Lore Agent pipeline. The agent will inspect the repo,
@@ -299,15 +316,7 @@ export async function onboardRepo(
   // a missing secret/host or a lacking App permission is reported, never fatal.
   const webhook = await ensureFloorWebhook(fullName);
 
-  if (webhook.ok) {
-    console.log(
-      `[onboard] Webhook ${webhook.created ? "created" : "updated"} for ${fullName} (hook ${webhook.hookId})`,
-    );
-  } else {
-    console.warn(
-      `[onboard] Webhook not configured for ${fullName}: ${webhook.reason}${webhook.detail ? ` (${webhook.detail})` : ""}`,
-    );
-  }
+  logWebhookOutcome(webhook, fullName);
 
   return {
     repo_id: written.repoId,

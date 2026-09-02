@@ -22,6 +22,62 @@ interface UpsertInput {
   repo?: string;
 }
 
+interface StoredValueMeta {
+  embedding: string | null;
+  ttlSeconds: number | null;
+}
+
+async function bumpExistingMemory(
+  db: Pick<PgPool, "query">,
+  head: { version: number; id: string },
+  input: UpsertInput,
+  meta: StoredValueMeta,
+): Promise<{ memoryId: string; version: number }> {
+  // Update: increment version
+  const version = head.version + 1;
+
+  await db.query(
+    `UPDATE memory.memories
+     SET value = $1, version = $2, embedding = $3,
+         ttl_seconds = $4, expires_at = now() + make_interval(secs => $5),
+         created_at = now()
+     WHERE id = $6`,
+    [
+      input.value,
+      version,
+      meta.embedding,
+      meta.ttlSeconds,
+      meta.ttlSeconds,
+      head.id,
+    ],
+  );
+
+  return { memoryId: head.id, version };
+}
+
+async function insertNewMemory(
+  db: Pick<PgPool, "query">,
+  input: UpsertInput,
+  meta: StoredValueMeta,
+): Promise<{ memoryId: string; version: number }> {
+  const result = await db.query<{ id: string }>(
+    `INSERT INTO memory.memories (agent_id, key, value, embedding, version, ttl_seconds, expires_at, repo)
+     VALUES ($1, $2, $3, $4, 1, $5, now() + make_interval(secs => $6), $7)
+     RETURNING id, created_at`,
+    [
+      input.agentId,
+      input.key,
+      input.value,
+      meta.embedding,
+      meta.ttlSeconds,
+      meta.ttlSeconds,
+      input.repo || null,
+    ],
+  );
+
+  return { memoryId: result.rows[0].id, version: 1 };
+}
+
 async function upsertMemoryWithVersion(
   db: Pick<PgPool, "query">,
   input: UpsertInput,
@@ -39,42 +95,12 @@ async function upsertMemoryWithVersion(
     [lookupValue, input.key],
   );
 
-  let version: number;
-  let memoryId: string;
-
-  if (existing.rows.length > 0) {
-    // Update: increment version
-    version = existing.rows[0].version + 1;
-    memoryId = existing.rows[0].id;
-
-    await db.query(
-      `UPDATE memory.memories
-       SET value = $1, version = $2, embedding = $3,
-           ttl_seconds = $4, expires_at = now() + make_interval(secs => $5),
-           created_at = now()
-       WHERE id = $6`,
-      [input.value, version, embedding, ttlSeconds, ttlSeconds, memoryId],
-    );
-  } else {
-    // New memory
-    version = 1;
-    const result = await db.query<{ id: string }>(
-      `INSERT INTO memory.memories (agent_id, key, value, embedding, version, ttl_seconds, expires_at, repo)
-       VALUES ($1, $2, $3, $4, 1, $5, now() + make_interval(secs => $6), $7)
-       RETURNING id, created_at`,
-      [
-        input.agentId,
-        input.key,
-        input.value,
+  const { memoryId, version } = existing.rows[0]
+    ? await bumpExistingMemory(db, existing.rows[0], input, {
         embedding,
         ttlSeconds,
-        ttlSeconds,
-        input.repo || null,
-      ],
-    );
-
-    memoryId = result.rows[0].id;
-  }
+      })
+    : await insertNewMemory(db, input, { embedding, ttlSeconds });
 
   // Always insert a version record
   await db.query(
@@ -84,6 +110,23 @@ async function upsertMemoryWithVersion(
   );
 
   return { memoryId, version };
+}
+
+function listScope(
+  repo: string | undefined,
+  agentId: string | undefined,
+  limit: number,
+  offset: number,
+): { filter: string; params: unknown[] } {
+  if (repo) {
+    return { filter: "repo = $1 AND", params: [repo, limit, offset] };
+  }
+
+  if (agentId) {
+    return { filter: "agent_id = $1 AND", params: [agentId, limit, offset] };
+  }
+
+  return { filter: "", params: [limit, offset] };
 }
 
 export class PostgresMemoryStore implements MemoryStore {
@@ -220,19 +263,7 @@ export class PostgresMemoryStore implements MemoryStore {
     const offset = opts.offset ?? 0;
 
     // Scope by repo (preferred) or agent_id
-    let filter: string;
-    let params: unknown[];
-
-    if (repo) {
-      filter = "repo = $1 AND";
-      params = [repo, limit, offset];
-    } else if (agentId) {
-      filter = "agent_id = $1 AND";
-      params = [agentId, limit, offset];
-    } else {
-      filter = "";
-      params = [limit, offset];
-    }
+    const { filter, params } = listScope(repo, agentId, limit, offset);
 
     const { rows } = await this.pool.query(
       `SELECT key, agent_id, repo, version, created_at, ttl_seconds,

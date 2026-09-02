@@ -57,4 +57,61 @@ describe("CollapsibleCard", () => {
 
     expect(screen.getByText(/412 lines/)).toBeTruthy();
   });
+
+  it("renders string labels beside the title", () => {
+    render(
+      <CollapsibleCard title="node-a" labels={["claude_code", "validate"]}>
+        <p>x</p>
+      </CollapsibleCard>,
+    );
+
+    expect(screen.getByText("node-a")).toBeTruthy();
+    expect(screen.getByText("claude_code")).toBeTruthy();
+    expect(screen.getByText("validate")).toBeTruthy();
+  });
+
+  it("drops empty labels, so callers pass them unfiltered", () => {
+    const { container } = render(
+      <CollapsibleCard title="node-a" labels={[null, undefined, "", "detect"]}>
+        <p>x</p>
+      </CollapsibleCard>,
+    );
+
+    expect(screen.getByText("detect")).toBeTruthy();
+    expect(container.querySelectorAll("summary .meta")).toHaveLength(1);
+  });
+
+  it("renders a toned status pill in the header from string data", () => {
+    render(
+      <CollapsibleCard
+        title="node-a"
+        status={{ label: "succeeded", tone: "ok" }}
+      >
+        <p>x</p>
+      </CollapsibleCard>,
+    );
+
+    expect(screen.getByText("succeeded").className).toContain("ok");
+  });
+
+  it("shows the empty-state note when it has no content", () => {
+    render(
+      <CollapsibleCard title="Attempts" emptyState="No attempts recorded." />,
+    );
+
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "No attempts recorded.",
+    );
+  });
+
+  it("shows the content, not the empty-state note, when content is present", () => {
+    render(
+      <CollapsibleCard title="Attempts" emptyState="No attempts recorded.">
+        <p>attempt 1</p>
+      </CollapsibleCard>,
+    );
+
+    expect(screen.queryByRole("status")).toBeNull();
+    expect(screen.getByText("attempt 1")).toBeTruthy();
+  });
 });

@@ -118,9 +118,10 @@ export class InMemorySettings implements SettingsPort {
 
     if (row) {
       row.settings = settings;
-    } else {
-      this.repos.push({ full_name: repo, settings });
+
+      return;
     }
+    this.repos.push({ full_name: repo, settings });
   }
 
   async team(repo: string): Promise<string | null> {
@@ -188,9 +189,10 @@ export class InMemorySettings implements SettingsPort {
 
     if (row) {
       row.onboarding_pr_url = url;
-    } else {
-      this.repos.push({ full_name: repo, onboarding_pr_url: url });
+
+      return;
     }
+    this.repos.push({ full_name: repo, onboarding_pr_url: url });
   }
 
   async bumpOutcomeStats(

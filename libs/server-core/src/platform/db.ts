@@ -123,14 +123,7 @@ export async function hybridSearch(
   // Get query embedding from Vertex AI
   const embedding = await getQueryEmbedding(query);
 
-  if (embedding) {
-    // Full hybrid search (vector + keyword)
-    const embeddingStr = `[${embedding.join(",")}]`;
-    const sql = buildHybridSearchSQL(resolvedSchema);
-    const { rows } = await getPool().query(sql, [embeddingStr, query, limit]);
-
-    return rows as SearchResult[];
-  } else {
+  if (!embedding) {
     // Fallback: keyword-only search (no embedding available)
     const sql = `
       SELECT id, content, metadata,
@@ -143,4 +136,11 @@ export async function hybridSearch(
 
     return rows as SearchResult[];
   }
+
+  // Full hybrid search (vector + keyword)
+  const embeddingStr = `[${embedding.join(",")}]`;
+  const sql = buildHybridSearchSQL(resolvedSchema);
+  const { rows } = await getPool().query(sql, [embeddingStr, query, limit]);
+
+  return rows as SearchResult[];
 }

@@ -214,6 +214,32 @@ export const PLANNING_RECOVERY_STALE_MS = 30 * 60_000;
  *  cover a controller restart or image pull, far short of the round timeout. */
 export const PLANNING_STARTUP_GRACE_MS = 2 * 60_000;
 
+/** The `running`-status half of {@link decidePlanningRecovery}: orphan a round
+ *  whose runtime died past the startup grace or that outlived the window. */
+function runningRecovery(
+  latest: { created_at: string; iteration: number },
+  probe: {
+    runOpen?: boolean;
+    isActive: boolean;
+    nowMs: number;
+    windowMs: number;
+  },
+): PlanningRecovery {
+  if (probe.runOpen) {
+    return { kind: "none" };
+  }
+  const ageMs = probe.nowMs - Date.parse(latest.created_at);
+  const stale = ageMs > probe.windowMs;
+  // Inside the grace window an absent runtime means the CR has not been created
+  // yet, so the probe cannot be read as "died". Staleness still orphans: a wedged
+  // container that never exits must not be protected by the grace period.
+  const startingUp = ageMs < PLANNING_STARTUP_GRACE_MS;
+
+  return (!probe.isActive && !startingUp) || stale
+    ? { kind: "orphan", iteration: latest.iteration }
+    : { kind: "none" };
+}
+
 /** What the feature-planning reaper should do for one mid-planning feature. */
 export type PlanningRecovery =
   | { kind: "none" }
@@ -261,19 +287,12 @@ export function decidePlanningRecovery(args: {
   }
 
   if (latest.status === "running") {
-    if (args.runOpen) {
-      return { kind: "none" };
-    }
-    const ageMs = nowMs - Date.parse(latest.created_at);
-    const stale = ageMs > windowMs;
-    // Inside the grace window an absent runtime means the CR has not been created
-    // yet, so the probe cannot be read as "died". Staleness still orphans: a wedged
-    // container that never exits must not be protected by the grace period.
-    const startingUp = ageMs < PLANNING_STARTUP_GRACE_MS;
-
-    return (!isActive && !startingUp) || stale
-      ? { kind: "orphan", iteration: latest.iteration }
-      : { kind: "none" };
+    return runningRecovery(latest, {
+      runOpen: args.runOpen,
+      isActive,
+      nowMs,
+      windowMs,
+    });
   }
 
   if (

@@ -96,7 +96,11 @@ export async function specDriftJob(opts: SpecDriftOptions): Promise<string> {
         if (outcome === "filed") {
           totalDrift++;
           filed++;
-        } else if (outcome === "deferred") {
+
+          return;
+        }
+
+        if (outcome === "deferred") {
           deferred++;
         }
       };

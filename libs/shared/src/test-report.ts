@@ -61,7 +61,10 @@ export function parseTestDescriptors(raw: unknown): TestDescriptor[] {
 
     if (typeof entry.spec === "string") {
       descriptor.spec = entry.spec;
-    } else if (
+    }
+
+    if (
+      typeof entry.spec !== "string" &&
       Array.isArray(entry.spec) &&
       entry.spec.every((anchor) => typeof anchor === "string")
     ) {

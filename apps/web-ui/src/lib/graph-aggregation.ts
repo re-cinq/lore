@@ -71,9 +71,9 @@ export function aggregateLeaves(
 
     if (badge) {
       badge.count += 1;
-    } else {
-      groups.set(key, { parentId, type: node.type, count: 1 });
+      continue;
     }
+    groups.set(key, { parentId, type: node.type, count: 1 });
   }
 
   return { hidden, badges: [...groups.values()] };

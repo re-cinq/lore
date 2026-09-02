@@ -961,17 +961,17 @@ export default function SpecGraphD3({
       const hitId = findNodeAtPoint(world, leafHitNodes(), HIT_SLOP);
       const hit = hitId ? nodeById.get(hitId) : undefined;
 
-      if (hit) {
-        selectedIdRef.current = hit.id;
-        setSelected(hit);
-        highlight(hit.id);
-        centerOn(hit);
+      if (!hit) {
+        selectedIdRef.current = null;
+        setSelected(null);
+        clearHighlight();
 
         return;
       }
-      selectedIdRef.current = null;
-      setSelected(null);
-      clearHighlight();
+      selectedIdRef.current = hit.id;
+      setSelected(hit);
+      highlight(hit.id);
+      centerOn(hit);
     });
 
     const centerOn = (d: SimNode) => {
@@ -1280,9 +1280,13 @@ export default function SpecGraphD3({
       }
       sim.alpha(0).restart();
 
-      if (selectedIdRef.current && adj.has(selectedIdRef.current)) {
-        highlight(selectedIdRef.current);
-      } else {
+      const selectedId = selectedIdRef.current;
+
+      if (selectedId && adj.has(selectedId)) {
+        highlight(selectedId);
+      }
+
+      if (!(selectedId && adj.has(selectedId))) {
         draw();
       }
       measureCrossings();

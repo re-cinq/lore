@@ -65,9 +65,10 @@ function addEntry(index: SpecCodeIndex, path: string, entry: RangeEntry): void {
 
   if (existing) {
     existing.push(entry);
-  } else {
-    index.set(path, [entry]);
+
+    return;
   }
+  index.set(path, [entry]);
 }
 
 /** Drop the trailing `([…](…))` link parenthetical so the hover shows prose. */

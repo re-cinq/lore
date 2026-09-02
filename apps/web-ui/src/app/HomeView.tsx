@@ -50,11 +50,13 @@ function freshnessIndicator(lastIngestedAt: string | null): {
 
   if (hoursAgo < 24) {
     return { color: "var(--success)", label: "Fresh (< 24h)" };
-  } else if (hoursAgo < 7 * 24) {
-    return { color: "var(--warning)", label: "Stale (< 7d)" };
-  } else {
-    return { color: "var(--danger)", label: "Outdated (> 7d)" };
   }
+
+  if (hoursAgo < 7 * 24) {
+    return { color: "var(--warning)", label: "Stale (< 7d)" };
+  }
+
+  return { color: "var(--danger)", label: "Outdated (> 7d)" };
 }
 
 function ingestBadge(

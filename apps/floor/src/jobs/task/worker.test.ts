@@ -53,11 +53,13 @@ function routeTask(
 ): "handleOnboard" | "handleFeatureRequest" | "handleClaudeCodeTask" {
   if (taskType === "onboard") {
     return "handleOnboard";
-  } else if (taskType === "feature-request") {
-    return "handleFeatureRequest";
-  } else {
-    return "handleClaudeCodeTask";
   }
+
+ if (taskType === "feature-request") {
+    return "handleFeatureRequest";
+  }
+
+ return "handleClaudeCodeTask";
 }
 
 describe("task routing", () => {

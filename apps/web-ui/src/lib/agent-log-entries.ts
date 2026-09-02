@@ -570,7 +570,10 @@ function messageEntries(value: Record<string, unknown>): LogEntry[] {
       if (block.thinking.trim()) {
         entries.push({ kind: "thinking", text: block.thinking });
       }
-    } else if (block.type === "text" && typeof block.text === "string") {
+      continue;
+    }
+
+    if (block.type === "text" && typeof block.text === "string") {
       if (block.text.trim()) {
         entries.push(
           value.type === "user"
@@ -578,14 +581,20 @@ function messageEntries(value: Record<string, unknown>): LogEntry[] {
             : { kind: "assistant-text", text: block.text },
         );
       }
-    } else if (block.type === "tool_use") {
+      continue;
+    }
+
+    if (block.type === "tool_use") {
       entries.push({
         kind: "tool-use",
         summary: toolSummary(
           block as { name?: string; input?: Record<string, unknown> },
         ),
       });
-    } else if (block.type === "tool_result") {
+      continue;
+    }
+
+    if (block.type === "tool_result") {
       entries.push({
         kind: "tool-result",
         text: toolResultText(block.content),

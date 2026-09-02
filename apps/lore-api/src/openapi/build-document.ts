@@ -483,30 +483,53 @@ function buildOperation(
   }
 
   if (hasBody) {
-    const key = `${method} ${route.path}`;
-
-    if (selfHandlesBody(route)) {
-      coverage.selfHandled.push(key);
-      const raw = rawBodyOf(route);
-
-      if (raw) {
-        op.description = raw.description;
-        op.requestBody = {
-          required: true,
-          content: { [raw.contentType]: { schema: { type: "string" } } },
-        };
-      } else {
-        op.description =
-          "Request body is verified and parsed by the handler (HMAC/form-encoded), not JSON.";
-      }
-    } else if (BODYLESS_WRITES.has(key)) {
-      coverage.bodyless.push(key);
-    } else {
-      op.requestBody = resolveBody(route, method, key, coverage);
-    }
+    applyRequestBody(op, route, method, coverage);
   }
 
   return op;
+}
+
+/** A self-handled body publishes either its declared raw shape or a note that
+ *  the handler, not JSON parsing, verifies it. */
+function applySelfHandledBody(op: Operation, route: ServerRoute): void {
+  const raw = rawBodyOf(route);
+
+  if (!raw) {
+    op.description =
+      "Request body is verified and parsed by the handler (HMAC/form-encoded), not JSON.";
+
+    return;
+  }
+  op.description = raw.description;
+  op.requestBody = {
+    required: true,
+    content: { [raw.contentType]: { schema: { type: "string" } } },
+  };
+}
+
+/** Classify the write route's body — self-handled, bodyless, or Zod-derived —
+ *  recording each in the coverage report. */
+function applyRequestBody(
+  op: Operation,
+  route: ServerRoute,
+  method: string,
+  coverage: Coverage,
+): void {
+  const key = `${method} ${route.path}`;
+
+  if (selfHandlesBody(route)) {
+    coverage.selfHandled.push(key);
+    applySelfHandledBody(op, route);
+
+    return;
+  }
+
+  if (BODYLESS_WRITES.has(key)) {
+    coverage.bodyless.push(key);
+
+    return;
+  }
+  op.requestBody = resolveBody(route, method, key, coverage);
 }
 
 /** Generate the OpenAPI document plus the per-route coverage classification. */

@@ -20,9 +20,10 @@ afterEach(() => {
 
   if (ORIG === undefined) {
     delete process.env.LORE_INGEST_TOKEN;
-  } else {
-    process.env.LORE_INGEST_TOKEN = ORIG;
+
+    return;
   }
+  process.env.LORE_INGEST_TOKEN = ORIG;
 });
 
 function row(

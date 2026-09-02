@@ -113,12 +113,15 @@ export async function prReadyCheckSweep(
       if (verdict.kind === "ready") {
         await deps.report(target, "success");
         resumed++;
-      } else if (verdict.kind === "blocked") {
+        continue;
+      }
+
+      if (verdict.kind === "blocked") {
         await deps.report(target, verdict.outcome, { reason: verdict.reason });
         blocked++;
-      } else {
-        waiting++;
+        continue;
       }
+      waiting++;
     } catch (err) {
       errors++;
       console.error(

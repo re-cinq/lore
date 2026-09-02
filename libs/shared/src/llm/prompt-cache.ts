@@ -192,6 +192,47 @@ export interface CacheBreakAnalysis {
  * call returns so we can see cache_read_tokens. Pure enough to unit
  * test — reads/writes module-level state keyed by jobName.
  */
+function classifyCacheBreak(
+  prev: CacheState | undefined,
+  newHash: PrefixHash,
+  isHit: boolean,
+  cacheCreationTokens: number,
+  now: number,
+): CacheBreakAnalysis {
+  if (isHit) {
+    return { status: "hit" };
+  }
+
+  if (!prev) {
+    return { status: "first-call" };
+  }
+  const systemChanged = prev.systemHash !== newHash.system;
+  const toolsChanged = prev.toolsHash !== newHash.tools;
+
+  if (!(systemChanged || toolsChanged)) {
+    if (cacheCreationTokens > 0) {
+      // Hashes match but we paid to write again — prefix aged out
+      return {
+        status: "ttl-expired",
+        ageMinutes: Math.round((now - prev.lastCallAt) / 60_000),
+      };
+    }
+
+    return { status: "unknown-miss" };
+  }
+  const parts: string[] = [];
+
+  if (systemChanged) {
+    parts.push("system");
+  }
+
+  if (toolsChanged) {
+    parts.push("tools");
+  }
+
+  return { status: "prompt-changed", reason: parts.join("+") };
+}
+
 export function analyzeCacheBreak(
   jobName: string | undefined,
   newHash: PrefixHash,
@@ -202,37 +243,13 @@ export function analyzeCacheBreak(
   const prev = cacheStateByJob.get(key);
   const now = Date.now();
   const isHit = cacheReadTokens > 0;
-
-  let analysis: CacheBreakAnalysis;
-
-  if (isHit) {
-    analysis = { status: "hit" };
-  } else if (!prev) {
-    analysis = { status: "first-call" };
-  } else {
-    const systemChanged = prev.systemHash !== newHash.system;
-    const toolsChanged = prev.toolsHash !== newHash.tools;
-
-    if (systemChanged || toolsChanged) {
-      const parts: string[] = [];
-
-      if (systemChanged) {
-        parts.push("system");
-      }
-
-      if (toolsChanged) {
-        parts.push("tools");
-      }
-      analysis = { status: "prompt-changed", reason: parts.join("+") };
-    } else if (cacheCreationTokens > 0) {
-      // Hashes match but we paid to write again — prefix aged out
-      const ageMinutes = Math.round((now - prev.lastCallAt) / 60_000);
-
-      analysis = { status: "ttl-expired", ageMinutes };
-    } else {
-      analysis = { status: "unknown-miss" };
-    }
-  }
+  const analysis = classifyCacheBreak(
+    prev,
+    newHash,
+    isHit,
+    cacheCreationTokens,
+    now,
+  );
 
   cacheStateByJob.set(key, {
     systemHash: newHash.system,

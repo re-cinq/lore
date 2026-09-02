@@ -247,11 +247,7 @@ function buildHighlighter(
         const tail = { type: "text", value: after } as Text;
         const recursed = processTextNode(tail);
 
-        if (recursed) {
-          parts.push(...recursed);
-        } else {
-          parts.push(tail);
-        }
+        parts.push(...(recursed ?? [tail]));
       }
 
       return parts;

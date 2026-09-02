@@ -33,7 +33,10 @@ export function parseFrontmatter(source: string): Frontmatter {
 
     if (value.startsWith("[") && value.endsWith("]")) {
       meta[key] = value.slice(1, -1).split(",").map(unquote).filter(Boolean);
-    } else if (value === "") {
+      continue;
+    }
+
+    if (value === "") {
       const items: string[] = [];
 
       while (i + 1 < lines.length && /^\s*-\s+/.test(lines[i + 1])) {
@@ -44,9 +47,9 @@ export function parseFrontmatter(source: string): Frontmatter {
       if (items.length > 0) {
         meta[key] = items;
       }
-    } else {
-      meta[key] = unquote(value);
+      continue;
     }
+    meta[key] = unquote(value);
   }
 
   return { meta, body: source.slice(match[0].length) };

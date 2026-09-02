@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import type { Server } from "@hapi/hapi";
 import pg from "pg";
 import { buildServer } from "../server/build-server.js";
+import { restoreEnv } from "./restore-env.js";
 
 /**
  * `ENRICH_SELECT` is the one query the run reads WRITE rather than move: the
@@ -88,11 +89,7 @@ describe("the run reads' enrichment query", () => {
     await server.stop();
     await pool.end();
 
-    if (prevToken === undefined) {
-      delete process.env.LORE_INGEST_TOKEN;
-    } else {
-      process.env.LORE_INGEST_TOKEN = prevToken;
-    }
+    restoreEnv("LORE_INGEST_TOKEN", prevToken);
   });
 
   const listed = async (): Promise<RunRow> => {

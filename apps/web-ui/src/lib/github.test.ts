@@ -131,9 +131,10 @@ describe("isGitHubConfigured", () => {
     keys.forEach((k) => {
       if (saved[k] === undefined) {
         delete process.env[k];
-      } else {
-        process.env[k] = saved[k];
+
+        return;
       }
+      process.env[k] = saved[k];
     });
   });
 

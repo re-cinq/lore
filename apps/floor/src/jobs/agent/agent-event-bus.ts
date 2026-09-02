@@ -55,9 +55,9 @@ function groupByRun(
 
     if (existing) {
       existing.push(row);
-    } else {
-      byRun.set(row.assemblyLineId, [row]);
+      continue;
     }
+    byRun.set(row.assemblyLineId, [row]);
   }
 
   return byRun;
@@ -138,25 +138,24 @@ export class AgentEventBus {
     subscriber.buffer.push(batch);
     subscriber.buffered += batch.length;
 
-    if (subscriber.buffered > MAX_BUFFERED_EVENTS) {
-      this.remove(assemblyRunId, subscribers, subscriber);
-      subscriber.buffer = [];
-      subscriber.buffered = 0;
-      this.safely(subscriber.onOverflow);
+    if (!(subscriber.buffered > MAX_BUFFERED_EVENTS)) {
+      if (subscriber.draining) {
+        return;
+      }
+      subscriber.draining = true;
+
+      try {
+        this.drain(subscriber);
+      } finally {
+        subscriber.draining = false;
+      }
 
       return;
     }
-
-    if (subscriber.draining) {
-      return;
-    }
-    subscriber.draining = true;
-
-    try {
-      this.drain(subscriber);
-    } finally {
-      subscriber.draining = false;
-    }
+    this.remove(assemblyRunId, subscribers, subscriber);
+    subscriber.buffer = [];
+    subscriber.buffered = 0;
+    this.safely(subscriber.onOverflow);
   }
 
   // A subscriber's own failure is its own; it must never stop the bus mid-fan-out

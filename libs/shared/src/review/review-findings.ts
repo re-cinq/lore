@@ -193,9 +193,11 @@ function repairUnescapedStringContent(text: string): string {
       if (closesAString(text, i + 1)) {
         inString = false;
         result += ch;
-      } else {
-        result += '\\"';
+
+        continue;
       }
+      result += '\\"';
+
       continue;
     }
 

@@ -34,9 +34,13 @@ export async function contextCoreBuilderJob(): Promise<string> {
 
       if (result === "promoted") {
         promoted++;
-      } else if (result === "rejected") {
+      }
+
+      if (result === "rejected") {
         rejected++;
-      } else {
+      }
+
+      if (result === "unchanged") {
         unchanged++;
       }
     } catch (err) {
@@ -75,12 +79,13 @@ async function evaluateNamespace(
       console.log(
         `[job] context-core: no eval config for ${namespace}, skipping`,
       );
-    } else {
-      console.error(
-        `[job] context-core: eval did not produce a score for ${namespace} (${evalResult.reason})`,
-        evalResult.reason === "exec-failed" ? evalResult.error : "",
-      );
+
+      return "unchanged";
     }
+    console.error(
+      `[job] context-core: eval did not produce a score for ${namespace} (${evalResult.reason})`,
+      evalResult.reason === "exec-failed" ? evalResult.error : "",
+    );
 
     return "unchanged";
   }
@@ -112,36 +117,36 @@ async function evaluateNamespace(
     return "promoted";
   }
 
-  if (delta < -REGRESSION_THRESHOLD) {
-    // Reject: log regression and create alert task
+  if (!(delta < -REGRESSION_THRESHOLD)) {
+    // No significant change
     await contextCore().insert({
       version,
       namespace,
       evalScore: currentScore,
-      status: "rejected-regression",
+      status: "no-change",
     });
 
-    await taskStore().create({
-      description: `Context quality regression: ${namespace} dropped from ${(prevScore * 100).toFixed(1)}% to ${(currentScore * 100).toFixed(1)}% (${(delta * 100).toFixed(1)}%)`,
-      taskType: "gap-fill",
-      targetRepo: namespace,
-      createdBy: "context-core-builder",
-    });
-
-    console.log(
-      `[job] context-core: REJECTED ${namespace} ${version} — regression of ${(delta * 100).toFixed(1)}%`,
-    );
-
-    return "rejected";
+    return "unchanged";
   }
 
-  // No significant change
+  // Reject: log regression and create alert task
   await contextCore().insert({
     version,
     namespace,
     evalScore: currentScore,
-    status: "no-change",
+    status: "rejected-regression",
   });
 
-  return "unchanged";
+  await taskStore().create({
+    description: `Context quality regression: ${namespace} dropped from ${(prevScore * 100).toFixed(1)}% to ${(currentScore * 100).toFixed(1)}% (${(delta * 100).toFixed(1)}%)`,
+    taskType: "gap-fill",
+    targetRepo: namespace,
+    createdBy: "context-core-builder",
+  });
+
+  console.log(
+    `[job] context-core: REJECTED ${namespace} ${version} — regression of ${(delta * 100).toFixed(1)}%`,
+  );
+
+  return "rejected";
 }

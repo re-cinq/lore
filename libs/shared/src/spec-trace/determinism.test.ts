@@ -96,19 +96,17 @@ describe.skipIf(!reachable)("Spec Traceability Graph", () => {
           const fields: Record<string, unknown> = {};
 
           for (const [pred, value] of Object.entries(node)) {
-            if (Array.isArray(value)) {
-              // an outgoing edge — normalize to a sorted array of target xids
-              fields[pred] = value
-                .map(
-                  (target) =>
-                    Object.values(
-                      target as Record<string, unknown>,
-                    )[0] as string,
-                )
-                .sort();
-            } else {
-              fields[pred] = value;
-            }
+            // an outgoing edge — normalize to a sorted array of target xids
+            fields[pred] = Array.isArray(value)
+              ? value
+                  .map(
+                    (target) =>
+                      Object.values(
+                        target as Record<string, unknown>,
+                      )[0] as string,
+                  )
+                  .sort()
+              : value;
           }
           records.push({ key: `${group}|${node[xidKey] as string}`, fields });
         }

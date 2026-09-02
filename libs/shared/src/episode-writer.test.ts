@@ -58,7 +58,9 @@ describe("writeEpisodeWithCuration", () => {
   afterEach(() => {
     if (savedKey === undefined) {
       delete process.env.ANTHROPIC_API_KEY;
-    } else {
+    }
+
+    if (savedKey !== undefined) {
       process.env.ANTHROPIC_API_KEY = savedKey;
     }
     Llm.reset();

@@ -73,9 +73,10 @@ beforeEach(() => {
 afterEach(() => {
   if (ORIG_TOKEN === undefined) {
     delete process.env.LORE_AGENT_INTERNAL_TOKEN;
-  } else {
-    process.env.LORE_AGENT_INTERNAL_TOKEN = ORIG_TOKEN;
+
+    return;
   }
+  process.env.LORE_AGENT_INTERNAL_TOKEN = ORIG_TOKEN;
 });
 
 describe("POST /api/agent-events object-storage retirement", () => {

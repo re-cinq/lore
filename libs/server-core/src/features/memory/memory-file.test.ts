@@ -25,12 +25,14 @@ beforeAll(async () => {
 });
 
 afterAll(() => {
+  rmSync(tmpHome, { recursive: true, force: true });
+
   if (originalHome === undefined) {
     delete process.env.HOME;
-  } else {
-    process.env.HOME = originalHome;
+
+    return;
   }
-  rmSync(tmpHome, { recursive: true, force: true });
+  process.env.HOME = originalHome;
 });
 
 describe("memory-file round-trips against real disk", () => {

@@ -285,10 +285,10 @@ export function radialTree(
 
     if (children.length === 0) {
       leaves.push(id);
-    } else {
-      for (const child of children) {
-        visit(child, d + 1);
-      }
+    }
+
+    for (const child of children) {
+      visit(child, d + 1);
     }
     postOrder.push(id);
   };

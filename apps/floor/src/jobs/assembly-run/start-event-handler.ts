@@ -55,68 +55,70 @@ export function createStartEventHandler(
     const definitions = await deps.definitions();
     const definition = definitions.get(blueprintName);
 
-    if (!definition) {
-      // A task-backed row without a builtin definition is a single-CR run record
-      // (onboard / review / runbook — total coverage): mark it running and return;
-      // the agent-watcher finishes it when the task's one CR goes terminal.
-      //
-      // Caveat: a task-backed start with a typo'd/unknown blueprintName is
-      // indistinguishable from a legit single-CR here and becomes a silently
-      // forever-running row (no CR was launched for it). Only reachable outside
-      // AgentCrStationBackend (manual insert / future producer bug) — log it so
-      // the silent failure leaves a breadcrumb.
-      if (taskId) {
-        console.warn(
-          `[assembly-line-start] task-backed row ${assemblyLineId} has no builtin definition "${blueprintName}" — treating as single-CR (verify a CR was launched for task ${taskId})`,
-        );
-        await deps.assemblyRuns.markRunning(assemblyLineId);
-
-        return;
-      }
-
-      // Task-less + unknown definition is a config error, not a transient failure —
-      // close the row and resolve so the loop never retries a line that can't exist.
-      const reason = `no assembly line defined for task type "${blueprintName}"`;
-      const row = await deps.assemblyRuns.getById(assemblyLineId);
-      const closedNow = await deps.assemblyRuns.finish(
+    if (definition) {
+      // Record WHICH blueprint this run executes, once (FR6.38, and
+      // specs/fork-rerun-from-node FR4). This is the only place holding both the
+      // row id and a RESOLVED blueprint — `start` is called by lore-api and by
+      // choreographies that deliberately ship no definitions — so it is where the
+      // hash AND the graph the run will walk get recorded. Everything downstream
+      // reads the clone instead of re-reading the file.
+      await deps.assemblyRuns.stampBlueprint(
         assemblyLineId,
-        "error",
-        reason,
+        definitionHash(definition),
+        snapshotGraph(definition, blueprintName),
       );
+      await deps.assemblyRuns.markRunning(assemblyLineId);
 
-      // Winner-only, like finishLine — a redelivered event must not re-notify.
-      if (closedNow && row && deps.notifyFailure) {
-        try {
-          await deps.notifyFailure(row, "error", reason);
-        } catch (err) {
-          console.error(
-            "[notify-failure] notifier threw:",
-            (err as Error).message,
-          );
-        }
-      }
+      // Launch the entry node and return — the walk advances on
+      // `kubernetes.agent_node.*` events; a Floor restart loses nothing because
+      // the state is the node rows. A throw here propagates so the event loop
+      // retries transient launch failures (advance is idempotent end to end).
+      await deps.advance(assemblyLineId);
 
       return;
     }
 
-    // Record WHICH blueprint this run executes, once (FR6.38, and
-    // specs/fork-rerun-from-node FR4). This is the only place holding both the
-    // row id and a RESOLVED blueprint — `start` is called by lore-api and by
-    // choreographies that deliberately ship no definitions — so it is where the
-    // hash AND the graph the run will walk get recorded. Everything downstream
-    // reads the clone instead of re-reading the file.
-    await deps.assemblyRuns.stampBlueprint(
-      assemblyLineId,
-      definitionHash(definition),
-      snapshotGraph(definition, blueprintName),
-    );
-    await deps.assemblyRuns.markRunning(assemblyLineId);
+    // A task-backed row without a builtin definition is a single-CR run record
+    // (onboard / review / runbook — total coverage): mark it running and return;
+    // the agent-watcher finishes it when the task's one CR goes terminal.
+    //
+    // Caveat: a task-backed start with a typo'd/unknown blueprintName is
+    // indistinguishable from a legit single-CR here and becomes a silently
+    // forever-running row (no CR was launched for it). Only reachable outside
+    // AgentCrStationBackend (manual insert / future producer bug) — log it so
+    // the silent failure leaves a breadcrumb.
+    if (taskId) {
+      console.warn(
+        `[assembly-line-start] task-backed row ${assemblyLineId} has no builtin definition "${blueprintName}" — treating as single-CR (verify a CR was launched for task ${taskId})`,
+      );
+      await deps.assemblyRuns.markRunning(assemblyLineId);
 
-    // Launch the entry node and return — the walk advances on
-    // `kubernetes.agent_node.*` events; a Floor restart loses nothing because
-    // the state is the node rows. A throw here propagates so the event loop
-    // retries transient launch failures (advance is idempotent end to end).
-    await deps.advance(assemblyLineId);
+      return;
+    }
+
+    // Task-less + unknown definition is a config error, not a transient failure —
+    // close the row and resolve so the loop never retries a line that can't exist.
+    const reason = `no assembly line defined for task type "${blueprintName}"`;
+    const row = await deps.assemblyRuns.getById(assemblyLineId);
+    const closedNow = await deps.assemblyRuns.finish(
+      assemblyLineId,
+      "error",
+      reason,
+    );
+
+    // Winner-only, like finishLine — a redelivered event must not re-notify.
+    if (closedNow && row && deps.notifyFailure) {
+      try {
+        await deps.notifyFailure(row, "error", reason);
+      } catch (err) {
+        console.error(
+          "[notify-failure] notifier threw:",
+          (err as Error).message,
+        );
+      }
+    }
+
+    return;
   };
 }
 
