@@ -19,6 +19,7 @@ export default function CollapsibleCard({
   hint,
   defaultOpen = false,
   emptyState,
+  onToggle,
   className = "",
   children,
 }: {
@@ -36,6 +37,9 @@ export default function CollapsibleCard({
   /** The note shown when the card has no content — every empty card says it the
    *  same way (the secondary Alert) instead of each caller rolling its own. */
   emptyState?: string;
+  /** Reports the fold state on every toggle — for callers that fetch lazily on
+   *  first open. */
+  onToggle?: (open: boolean) => void;
   className?: string;
   children?: ReactNode;
 }) {
@@ -44,7 +48,10 @@ export default function CollapsibleCard({
 
   return (
     <div className={`spec-card ${className}`.trim()}>
-      <details open={defaultOpen}>
+      <details
+        open={defaultOpen}
+        onToggle={onToggle ? (e) => onToggle(e.currentTarget.open) : undefined}
+      >
         <summary className={styles.summary}>
           <strong>{title}</strong>
           {status ? (

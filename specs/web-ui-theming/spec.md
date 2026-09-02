@@ -118,8 +118,9 @@ node detail renders through it rather than its own bespoke card.
 - Its header args are string data, never markup: plain-text `labels` render as muted tags beside the title. ([validated by](apps/web-ui/src/components/CollapsibleCard.test.tsx#L61))
 - Empty `labels` entries are dropped inside the card, so callers pass optional values unfiltered. ([validated by](apps/web-ui/src/components/CollapsibleCard.test.tsx#L73))
 - A `status` of `{ label, tone }` renders as the shared toned pill in the header. ([validated by](apps/web-ui/src/components/CollapsibleCard.test.tsx#L84))
-- A card given `emptyState` and no content renders the note through the secondary `Alert`, so every empty card says it the same way. ([validated by](apps/web-ui/src/components/CollapsibleCard.test.tsx#L97))
-- When content is present the `emptyState` note stays hidden. ([validated by](apps/web-ui/src/components/CollapsibleCard.test.tsx#L107))
+- `onToggle` reports the fold state on every toggle, so lazy panels (pod logs, the full transcript) fetch on first open through the shared card instead of a bespoke `<details>`. ([validated by](apps/web-ui/src/components/CollapsibleCard.test.tsx#L97))
+- A card given `emptyState` and no content renders the note through the secondary `Alert`, so every empty card says it the same way. ([validated by](apps/web-ui/src/components/CollapsibleCard.test.tsx#L116))
+- When content is present the `emptyState` note stays hidden. ([validated by](apps/web-ui/src/components/CollapsibleCard.test.tsx#L126))
 
 The `StatusPill` atom (`web-ui/src/components/StatusPill.tsx`) is the one
 tone→color map for outcome pills — six tones drawn from the status tokens,

@@ -33,6 +33,7 @@ import {
   turnsUrl,
 } from "./turn-transcript-presenter";
 import { segmentLabel, segmentTurns } from "@/lib/turn-segments";
+import CollapsibleCard from "@/components/CollapsibleCard";
 import { EntryLine } from "@/components/LogEntriesView";
 import LogFormatToggle from "@/components/LogFormatToggle";
 import styles from "./FullTranscriptPanel.module.css";
@@ -164,11 +165,7 @@ export default function FullTranscriptPanel({
   );
 
   return (
-    <details
-      className={styles.panel}
-      onToggle={(e) => setOpen(e.currentTarget.open)}
-    >
-      <summary className={styles.summary}>Full transcript</summary>
+    <CollapsibleCard title="Full transcript" onToggle={setOpen}>
       <p className={`meta ${styles.hint}`}>
         Untruncated turns from the transcript store (30-day retention). The live
         view above stays truncated by design.
@@ -245,6 +242,6 @@ export default function FullTranscriptPanel({
           ))}
         </ol>
       )}
-    </details>
+    </CollapsibleCard>
   );
 }

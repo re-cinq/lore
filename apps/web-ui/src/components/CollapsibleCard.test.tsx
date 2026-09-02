@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { describe, it, expect, afterEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { describe, it, expect, afterEach, vi } from "vitest";
+import { render, screen, cleanup, fireEvent } from "@testing-library/react";
 import CollapsibleCard from "./CollapsibleCard";
 
 afterEach(cleanup);
@@ -92,6 +92,25 @@ describe("CollapsibleCard", () => {
     );
 
     expect(screen.getByText("succeeded").className).toContain("ok");
+  });
+
+  it("reports true through onToggle when opened", () => {
+    const onToggle = vi.fn();
+    const { container } = render(
+      <CollapsibleCard title="Pod logs" onToggle={onToggle}>
+        <p>x</p>
+      </CollapsibleCard>,
+    );
+
+    const details = container.querySelector("details");
+
+    if (!details) {
+      throw new Error("details not rendered");
+    }
+    details.open = true;
+    fireEvent(details, new Event("toggle"));
+
+    expect(onToggle).toHaveBeenCalledWith(true);
   });
 
   it("shows the empty-state note when it has no content", () => {
