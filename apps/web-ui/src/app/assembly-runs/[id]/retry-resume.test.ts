@@ -1,64 +1,97 @@
 import { describe, it, expect } from "vitest";
 import { retryResumeSource } from "./retry-resume";
 
-const visit = (nodeId: string, outcome: string | null) => ({ nodeId, outcome });
+const visit = (nodeId: string, iteration: number, outcome: string | null) => ({
+  nodeId,
+  iteration,
+  outcome,
+});
 
 describe("retryResumeSource", () => {
   it("resolves await-pr as the kept prefix when retrying fix-ci", () => {
     // Run 52c3fdd5's walk: retrying the node that died forks from the visit
     // just before it.
     const visits = [
-      visit("tdd-round", "success"),
-      visit("ready-for-review", "failed"),
-      visit("ready-for-review", "success"),
-      visit("await-pr", "changes_requested"),
-      visit("fix-ci", "failed"),
-      visit("retrospective", "success"),
+      visit("tdd-round", 1, "success"),
+      visit("ready-for-review", 1, "failed"),
+      visit("ready-for-review", 2, "success"),
+      visit("await-pr", 1, "changes_requested"),
+      visit("fix-ci", 1, "failed"),
+      visit("retrospective", 1, "success"),
     ];
 
-    expect(retryResumeSource(visits, "fix-ci")).toBe("await-pr");
+    expect(retryResumeSource(visits, "fix-ci")).toEqual({
+      nodeId: "await-pr",
+      iteration: 1,
+    });
   });
 
   it("returns null for the entry node — there is no prefix to keep", () => {
     expect(
       retryResumeSource(
-        [visit("dod", "failed"), visit("done", "success")],
+        [visit("dod", 1, "failed"), visit("done", 1, "success")],
         "dod",
       ),
     ).toBeNull();
   });
 
   it("returns null for a node the run never visited", () => {
-    expect(retryResumeSource([visit("dod", "success")], "validate")).toBeNull();
+    expect(
+      retryResumeSource([visit("dod", 1, "success")], "validate"),
+    ).toBeNull();
   });
 
-  it("returns null when the preceding node ran again later — the fork API is node-granular", () => {
-    // resumeFrom copies through the NAMED node's latest completed row; validate
-    // ran again after implement's last visit, so naming validate would keep
-    // more history than the retry target's prefix. Refuse rather than mis-fork.
+  it("names the predecessor row by iteration when that node ran again later", () => {
+    // implement's latest visit sits between two validate visits: naming
+    // validate@1 (not validate's latest row) keeps exactly the prefix before
+    // the retry target, so loops don't hide the retry.
     const visits = [
-      visit("implement", "success"),
-      visit("validate", "failed"),
-      visit("implement", "success"),
-      visit("validate", "failed"),
+      visit("implement", 1, "success"),
+      visit("validate", 1, "failed"),
+      visit("implement", 2, "success"),
+      visit("validate", 2, "failed"),
     ];
 
-    expect(retryResumeSource(visits, "implement")).toBeNull();
+    expect(retryResumeSource(visits, "implement")).toEqual({
+      nodeId: "validate",
+      iteration: 1,
+    });
+  });
+
+  it("retrying a self-looped node names its own earlier iteration", () => {
+    // implement failed twice on a self-edge: the kept prefix ends at
+    // implement@1, and the fork's replay re-launches implement with a fresh
+    // budget for the spent back-edge.
+    const visits = [
+      visit("implement", 1, "failed"),
+      visit("implement", 2, "failed"),
+    ];
+
+    expect(retryResumeSource(visits, "implement")).toEqual({
+      nodeId: "implement",
+      iteration: 1,
+    });
   });
 
   it("resolves through loop history when the predecessor's latest row is the one before", () => {
     const visits = [
-      visit("implement", "success"),
-      visit("validate", "failed"),
-      visit("implement", "success"),
-      visit("validate", "failed"),
+      visit("implement", 1, "success"),
+      visit("validate", 1, "failed"),
+      visit("implement", 2, "success"),
+      visit("validate", 2, "failed"),
     ];
 
-    expect(retryResumeSource(visits, "validate")).toBe("implement");
+    expect(retryResumeSource(visits, "validate")).toEqual({
+      nodeId: "implement",
+      iteration: 2,
+    });
   });
 
   it("returns null while any visit in the kept prefix is still open", () => {
-    const visits = [visit("implement", null), visit("validate", "failed")];
+    const visits = [
+      visit("implement", 1, null),
+      visit("validate", 1, "failed"),
+    ];
 
     expect(retryResumeSource(visits, "validate")).toBeNull();
   });

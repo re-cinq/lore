@@ -4697,6 +4697,7 @@ export interface operations {
           resume_from?: {
             run_id: string;
             node_id: string;
+            iteration?: number;
           };
         };
       };

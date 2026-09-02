@@ -149,6 +149,42 @@ describe("resume_from (fork-and-rerun)", () => {
     });
   });
 
+  it("passes resume_from.iteration through, naming the exact visit on a looping line", async () => {
+    const { server, calls } = await serverWith(async () => "run-fork");
+    const res = await server.inject(
+      POST({
+        definition: "implementation-loop",
+        repo: "re-cinq/lore",
+        resume_from: { run_id: "run-abc", node_id: "implement", iteration: 1 },
+      }),
+    );
+
+    expect({ status: res.statusCode, started: calls[0] }).toEqual({
+      status: 201,
+      started: {
+        blueprintName: "implementation-loop",
+        repo: "re-cinq/lore",
+        resumeFrom: { lineId: "run-abc", nodeId: "implement", iteration: 1 },
+      },
+    });
+  });
+
+  it("returns 400 for a resume_from iteration of 0 — visits count from 1", async () => {
+    const { server, calls } = await serverWith(async () => "run-fork");
+    const res = await server.inject(
+      POST({
+        definition: "implementation-loop",
+        repo: "re-cinq/lore",
+        resume_from: { run_id: "run-abc", node_id: "implement", iteration: 0 },
+      }),
+    );
+
+    expect({ status: res.statusCode, started: calls.length }).toEqual({
+      status: 400,
+      started: 0,
+    });
+  });
+
   it("returns 400 for a resume_from with an empty node_id", async () => {
     const { server, calls } = await serverWith(async () => "run-fork");
     const res = await server.inject(

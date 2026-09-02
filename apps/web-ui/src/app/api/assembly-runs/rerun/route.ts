@@ -26,10 +26,23 @@ export async function POST(req: Request) {
     const form = await req.formData();
     const runId = String(form.get("run_id") ?? "");
     const nodeId = String(form.get("node_id") ?? "");
+    const iterationField = form.get("iteration");
+    const iteration =
+      iterationField === null ? undefined : Number(iterationField);
 
     if (!runId || !nodeId) {
       return NextResponse.json(
         { error: "run_id and node_id are required" },
+        { status: 400 },
+      );
+    }
+
+    if (
+      iteration !== undefined &&
+      (!Number.isInteger(iteration) || iteration < 1)
+    ) {
+      return NextResponse.json(
+        { error: "iteration must be a positive integer" },
         { status: 400 },
       );
     }
@@ -75,7 +88,11 @@ export async function POST(req: Request) {
       body: JSON.stringify({
         definition: line.blueprintName,
         repo: line.repo,
-        resume_from: { run_id: runId, node_id: nodeId },
+        resume_from: {
+          run_id: runId,
+          node_id: nodeId,
+          ...(iteration === undefined ? {} : { iteration }),
+        },
       }),
     });
 
@@ -87,7 +104,9 @@ export async function POST(req: Request) {
     }
 
     const { id } = (await upstream.json()) as { id: string };
-    const base = req.headers.get("referer") ?? new URL(req.url).origin;
+    // Own origin, never the referer header — a forged referer would steer the
+    // redirect to a foreign host.
+    const base = new URL(req.url).origin;
 
     return NextResponse.redirect(new URL(`/assembly-runs/${id}`, base), {
       status: 303,

@@ -49,8 +49,10 @@ import { isFailureOutcome } from "./notify-failure.js";
 import {
   incomingFailureOf,
   nodeLaunchSpec,
+  priorFailuresOf,
   priorOutcomeOf,
   resolveNodeDispatch,
+  type PriorFailure,
   type ResolveConversationFn,
 } from "./launch-spec.js";
 import {
@@ -263,6 +265,46 @@ export function taskFromAssemblyRun(
   };
 }
 
+/** A fork chain deeper than this stops contributing prior-failure context — a
+ *  bound, not a business rule: `resumed_from_run_id` cannot cycle, but a run
+ *  forked many times over carries diminishing history at growing read cost. */
+const MAX_FORK_HOPS = 5;
+
+/**
+ * The launched node's earlier failed attempts, oldest first: the fork chain's
+ * (a fork copies its prefix rows with `failure_detail` NULLED, so what each
+ * source attempt broke on lives only on the source run's own rows), then this
+ * run's. A run that is no fork reads nothing beyond the visits it already has.
+ */
+export async function collectPriorNodeFailures(
+  assemblyRun: AssemblyRunRecord,
+  nodeId: string,
+  visits: ReadonlyArray<{
+    nodeId: string;
+    iteration: number;
+    outcome: string | null;
+    failureDetail?: string | null;
+  }>,
+  deps: Pick<AdvanceDeps, "assemblyRuns">,
+): Promise<PriorFailure[]> {
+  const chain: PriorFailure[] = [];
+  let sourceId = assemblyRun.resumedFromRunId;
+
+  for (let hop = 0; sourceId !== null && hop < MAX_FORK_HOPS; hop++) {
+    const sourceRun = await deps.assemblyRuns.getById(sourceId);
+
+    if (!sourceRun) {
+      break;
+    }
+    const sourceRows = await deps.assemblyRuns.listStationRuns(sourceId);
+
+    chain.unshift(...priorFailuresOf(sourceRows, nodeId));
+    sourceId = sourceRun.resumedFromRunId;
+  }
+
+  return [...chain, ...priorFailuresOf(visits, nodeId)];
+}
+
 /** Re-derive the line's next step from its node rows and perform it: launch the next
  *  node CR, finish the row, or fail it. Safe to call redundantly — no-ops unless the
  *  replay says there is something to do. */
@@ -350,6 +392,17 @@ export async function advanceLine(
       // What just failed, whichever node it was — this is how a retried node
       // learns why it is running again instead of repeating itself.
       incomingFailure: incomingFailureOf(visits),
+      // And what THIS node broke on before, fork chain included — only an
+      // agent's prompt reads it, and only a fork pays the source-run reads.
+      priorFailures:
+        node.type === "agent"
+          ? await collectPriorNodeFailures(
+              assemblyRun,
+              transition.nodeId,
+              visits,
+              deps,
+            )
+          : undefined,
     },
     deps,
   );

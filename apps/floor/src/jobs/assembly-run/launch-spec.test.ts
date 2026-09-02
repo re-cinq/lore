@@ -1,15 +1,18 @@
 import { describe, it, expect } from "vitest";
 import {
   incomingFailureOf,
+  priorFailuresOf,
   priorOutcomeOf,
   withIncomingFailure,
+  withPriorFailures,
 } from "./launch-spec.js";
 
 const visit = (
   nodeId: string,
   outcome: string | null,
   failureDetail?: string,
-) => ({ nodeId, outcome, failureDetail });
+  iteration = 1,
+) => ({ nodeId, iteration, outcome, failureDetail });
 
 describe("incomingFailureOf", () => {
   it("names the failure that just routed here, from ANOTHER node", () => {
@@ -86,5 +89,66 @@ describe("withIncomingFailure", () => {
 
     expect(out).toContain("...(truncated)");
     expect(out.length).toBeLessThan(3200);
+  });
+});
+
+describe("priorFailuresOf", () => {
+  it("collects every failed attempt of the launched node, oldest first, skipping visits without detail", () => {
+    const visits = [
+      visit("implement", "failed", "tests red: foo.test.ts", 1),
+      visit("validate", "failed", "someone else's failure", 1),
+      visit("implement", "failed", undefined, 2),
+      visit("implement", "failed", "lint: unused var", 3),
+      visit("implement", null, undefined, 4),
+    ];
+
+    expect(priorFailuresOf(visits, "implement")).toEqual([
+      { nodeId: "implement", iteration: 1, detail: "tests red: foo.test.ts" },
+      { nodeId: "implement", iteration: 3, detail: "lint: unused var" },
+    ]);
+  });
+
+  it("skips successful and changes_requested visits — only failures teach", () => {
+    const visits = [
+      visit("implement", "success", "not a failure", 1),
+      visit("implement", "changes_requested", "revise", 2),
+    ];
+
+    expect(priorFailuresOf(visits, "implement")).toEqual([]);
+  });
+});
+
+describe("withPriorFailures", () => {
+  it("returns the prompt untouched with no prior failures", () => {
+    expect(withPriorFailures("do the thing", [])).toBe("do the thing");
+  });
+
+  it("appends each earlier attempt with its iteration and detail", () => {
+    const out = withPriorFailures("do the thing", [
+      { nodeId: "implement", iteration: 1, detail: "tests red: foo.test.ts" },
+      { nodeId: "implement", iteration: 2, detail: "lint: unused var" },
+    ]);
+
+    expect(out).toContain("do the thing");
+    expect(out).toContain("Earlier attempts of this step failed");
+    expect(out).toContain("Attempt 1");
+    expect(out).toContain("tests red: foo.test.ts");
+    expect(out).toContain("Attempt 2");
+    expect(out).toContain("lint: unused var");
+  });
+
+  it("keeps only the last 3 attempts and truncates each pathological detail", () => {
+    const failures = [1, 2, 3, 4].map((iteration) => ({
+      nodeId: "implement",
+      iteration,
+      detail: `attempt-${iteration}: ` + "x".repeat(9000),
+    }));
+    const out = withPriorFailures("prompt", failures);
+
+    expect(out).not.toContain("attempt-1:");
+    expect(out).toContain("attempt-2:");
+    expect(out).toContain("attempt-4:");
+    expect(out).toContain("...(truncated)");
+    expect(out.length).toBeLessThan(3 * 2700 + 600);
   });
 });

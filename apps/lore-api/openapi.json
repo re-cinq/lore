@@ -1286,6 +1286,10 @@
                         "type": "string",
                         "minLength": 1,
                         "maxLength": 200
+                      },
+                      "iteration": {
+                        "type": "integer",
+                        "minimum": 1
                       }
                     },
                     "required": ["run_id", "node_id"],

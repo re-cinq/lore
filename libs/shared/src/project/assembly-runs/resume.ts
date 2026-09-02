@@ -14,14 +14,23 @@ import type {
   AssemblyRunStartInput,
 } from "./assembly-runs-port.js";
 
-/** Index (in visit order) of the latest COMPLETED row for `nodeId`, or -1 when
- *  the line never finished that node. */
+/** Index (in visit order) of the latest COMPLETED row for `nodeId` — or, with
+ *  `iteration`, of exactly that completed visit. -1 when no such row exists.
+ *  Naming the iteration is what makes a loop retry exact: the latest row of a
+ *  node that ran again after the retry target would keep more history than the
+ *  target's own prefix. */
 export function resumeCutoffIndex(
   nodes: StationRunRecord[],
   nodeId: string,
+  iteration?: number,
 ): number {
+  const isCompletedVisit = (row: StationRunRecord): boolean =>
+    row.nodeId === nodeId && row.outcome !== null;
+  const matchesIteration = (row: StationRunRecord): boolean =>
+    iteration === undefined || row.iteration === iteration;
+
   for (let i = nodes.length - 1; i >= 0; i--) {
-    if (nodes[i].nodeId === nodeId && nodes[i].outcome !== null) {
+    if (isCompletedVisit(nodes[i]) && matchesIteration(nodes[i])) {
       return i;
     }
   }
@@ -101,12 +110,18 @@ export function resolveResumePrefix(
     `resume-from source line "${source.id}": definition "${source.blueprintName}" has changed since that run (${short(source.blueprintHash)} ≠ ${short(input.blueprintHash)})`,
   );
 
-  const cutoff = resumeCutoffIndex(nodes, resumeFrom.nodeId);
+  const cutoff = resumeCutoffIndex(
+    nodes,
+    resumeFrom.nodeId,
+    resumeFrom.iteration,
+  );
 
   enforceTrue(
     cutoff >= 0,
     Error,
-    `resume-from source line "${source.id}" has no completed "${resumeFrom.nodeId}" node to fork from`,
+    resumeFrom.iteration === undefined
+      ? `resume-from source line "${source.id}" has no completed "${resumeFrom.nodeId}" node to fork from`
+      : `resume-from source line "${source.id}" has no completed "${resumeFrom.nodeId}" iteration ${resumeFrom.iteration} to fork from`,
   );
 
   const prefix = nodes.slice(0, cutoff + 1);

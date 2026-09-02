@@ -486,7 +486,11 @@ export default function RunVisualizationPanel({
             attempts={selectedAttempts}
           />
           {retrySource !== null ? (
-            <RerunNodeButton runId={runId} resumeNodeId={retrySource} />
+            <RerunNodeButton
+              runId={runId}
+              resumeNodeId={retrySource.nodeId}
+              resumeIteration={retrySource.iteration}
+            />
           ) : null}
           {selected ? (
             <NodeTranscriptView

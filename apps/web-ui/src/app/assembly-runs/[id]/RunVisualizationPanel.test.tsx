@@ -1119,6 +1119,33 @@ describe("retry from node", () => {
     ).toBe("run-1");
   });
 
+  it("offers retry on a looping run's validate node, naming implement@2 in the form", async () => {
+    stubHistory([]);
+    useFakeEventSource();
+
+    const { container } = renderRun("failed", [
+      retryRow({ nodeId: "implement", iteration: 1 }),
+      retryRow({ nodeId: "validate", iteration: 1, outcome: "failed" }),
+      retryRow({ nodeId: "implement", iteration: 2 }),
+      retryRow({ nodeId: "validate", iteration: 2, outcome: "failed" }),
+    ]);
+
+    await settle();
+    await select("validate");
+
+    expect(
+      screen.getByRole("button", { name: "Retry from this node" }),
+    ).toBeInTheDocument();
+    expect(
+      (container.querySelector('input[name="node_id"]') as HTMLInputElement)
+        .value,
+    ).toBe("implement");
+    expect(
+      (container.querySelector('input[name="iteration"]') as HTMLInputElement)
+        .value,
+    ).toBe("2");
+  });
+
   it("offers no retry while the run is still running", async () => {
     stubHistory([]);
     useFakeEventSource();

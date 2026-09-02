@@ -38,6 +38,10 @@ const StartBody = z
       .object({
         run_id: z.string().min(1).max(200),
         node_id: z.string().min(1).max(200),
+        /** Fork from exactly this visit of `node_id` (loop-exact: on a line with
+         *  back-edges the node's LATEST row can postdate the retry target).
+         *  Omitted, the latest completed visit is the cutoff. */
+        iteration: z.number().int().min(1).optional(),
       })
       .optional(),
   })
@@ -84,6 +88,9 @@ export function startRunRoute(start: StartRun = defaultStart): ServerRoute {
               resumeFrom: {
                 lineId: body.resume_from.run_id,
                 nodeId: body.resume_from.node_id,
+                ...(body.resume_from.iteration === undefined
+                  ? {}
+                  : { iteration: body.resume_from.iteration }),
               },
             }),
       });
