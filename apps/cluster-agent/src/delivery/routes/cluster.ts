@@ -23,6 +23,7 @@ import type {
 import type { AgentPodInfo, PodSummary } from "@re-cinq/lore-shared";
 import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import { enforceBearer } from "@re-cinq/lore-shared/http/bearer.js";
+import { isPodLogUnavailable } from "../../kernel/k8s-errors.js";
 
 /** The apiserver's own page ceiling for this service. A caller asking for more
  *  is refused rather than quietly served a smaller page — a silent clamp is how
@@ -169,13 +170,25 @@ export function clusterRoutes(opts: ClusterRoutesDeps): ServerRoute[] {
         );
         const tail = Number.isInteger(asked) && asked > 0 ? asked : MAX_TAIL;
 
-        return h
-          .response({
-            logs: await opts
-              .deps()
-              .pods.podLog(request.params.podName, Math.min(tail, MAX_TAIL)),
-          })
-          .code(200);
+        try {
+          return h
+            .response({
+              logs: await opts
+                .deps()
+                .pods.podLog(request.params.podName, Math.min(tail, MAX_TAIL)),
+            })
+            .code(200);
+        } catch (err) {
+          // A terminated container's stdout being gone is the pod-log
+          // lifecycle, not a fault — 404 lets the Floor fall back to the
+          // durable archive instead of surfacing a 500 to the run page.
+          if (isPodLogUnavailable(err)) {
+            throw apiError(404)(
+              `pod ${request.params.podName} has no readable log`,
+            );
+          }
+          throw err;
+        }
       },
     },
     {

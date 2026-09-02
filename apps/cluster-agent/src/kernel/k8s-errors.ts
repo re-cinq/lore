@@ -51,6 +51,17 @@ export function isConflict(err: unknown): boolean {
   return statusOf(err) === 409;
 }
 
+/** A pod-log read the kubelet cannot serve: the pod is gone (404), or the
+ *  container is in a state with no readable stdout — `container "agent" … is
+ *  terminated` / `is waiting to start` arrive as 400. The request's own shape
+ *  is never the cause here (this service builds it), so a 400 means the log,
+ *  not the caller, is unavailable. 403 and 5xx stay genuine faults. */
+export function isPodLogUnavailable(err: unknown): boolean {
+  const status = statusOf(err);
+
+  return status === 404 || status === 400;
+}
+
 /** Name the verb and the status, because "Forbidden" alone does not say which
  *  Role is missing which rule. */
 export function describeK8sError(

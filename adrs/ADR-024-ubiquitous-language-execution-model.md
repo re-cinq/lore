@@ -114,10 +114,10 @@ and lose the update; no `resourceVersion` ever crosses the wire.
   describes the read surface, which callers do still reach over HTTP.)*
   ([validated by reports created:false for code 409, so a redelivered claim is idempotent](apps/cluster-agent/src/kernel/kube-agent-api.test.ts#L35), [`kube-agent-api.test.ts:28`](apps/cluster-agent/src/kernel/kube-agent-api.test.ts#L28), [`kube-agent-api.test.ts:42`](apps/cluster-agent/src/kernel/kube-agent-api.test.ts#L42), [`kube-agent-api.test.ts:48`](apps/cluster-agent/src/kernel/kube-agent-api.test.ts#L48), [`kube-agent-api.test.ts:54`](apps/cluster-agent/src/kernel/kube-agent-api.test.ts#L56))
 - A missing CR is an ordinary answer — `found:false` at 200, not a 404 that
-  would be indistinguishable from the route itself being absent. ([validated by answers 200 with found:false for a missing CR, not 404](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L66), [`cluster.test.ts:150`](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L124))
+  would be indistinguishable from the route itself being absent. ([validated by answers 200 with found:false for a missing CR, not 404](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L66), [`cluster.test.ts:150`](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L183))
 - The list serves ONE apiserver page per call and the caller drives `continue`.
   A one-shot list is not a convenience: 180 accumulated CRs at ~1.4MB of status
-  each blew Node's heap and crash-looped the Floor on 2026-07-24. ([validated by passes the caller's continue token straight through, one page per call](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L77), [`cluster.test.ts:104`](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L90), [`cluster.test.ts:311`](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L203), [`cluster.test.ts:294`](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L192))
+  each blew Node's heap and crash-looped the Floor on 2026-07-24. ([validated by passes the caller's continue token straight through, one page per call](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L77), [`cluster.test.ts:104`](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L90), [`cluster.test.ts:311`](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L262), [`cluster.test.ts:294`](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L251))
 - The paging the route requires is walked by the CLIENT, not pushed onto every
   caller: `listByLabel` follows `continue` to the end and returns the whole
   match. A truncated list is worse than a failed one — it answers, and the
@@ -132,7 +132,7 @@ and lose the update; no `resourceVersion` ever crosses the wire.
   a station that does not exist. The per-task provisioner writes the SAME pair
   through its own call site and answers to the same rule. ([validated by writes the station before the agent definition that points at it](apps/cluster-agent/src/kernel/paired-writes.test.ts#L35), [`paired-writes.test.ts:43`](apps/cluster-agent/src/kernel/paired-writes.test.ts#L43), [`paired-writes.test.ts:62`](apps/cluster-agent/src/kernel/paired-writes.test.ts#L62), [`kube-token-provisioner.test.ts:229`](apps/cluster-agent/src/kernel/kube-token-provisioner.test.ts#L229))
 - A refusal is read by its status, never collapsed: 404 is absence, 403 names
-  the Role rule that is missing, anything else is a failure. ([validated by reads the code this client version sets](apps/cluster-agent/src/kernel/k8s-errors.test.ts#L13), [`k8s-errors.test.ts:17`](apps/cluster-agent/src/kernel/k8s-errors.test.ts#L17), [`k8s-errors.test.ts:21`](apps/cluster-agent/src/kernel/k8s-errors.test.ts#L21), [`k8s-errors.test.ts:25`](apps/cluster-agent/src/kernel/k8s-errors.test.ts#L25), [`k8s-errors.test.ts:31`](apps/cluster-agent/src/kernel/k8s-errors.test.ts#L31), [`k8s-errors.test.ts:38`](apps/cluster-agent/src/kernel/k8s-errors.test.ts#L38), [`k8s-errors.test.ts:47`](apps/cluster-agent/src/kernel/k8s-errors.test.ts#L47), [`k8s-errors.test.ts:59`](apps/cluster-agent/src/kernel/k8s-errors.test.ts#L59), [`k8s-errors.test.ts:69`](apps/cluster-agent/src/kernel/k8s-errors.test.ts#L69))
+  the Role rule that is missing, anything else is a failure. ([validated by reads the code this client version sets](apps/cluster-agent/src/kernel/k8s-errors.test.ts#L14), [`k8s-errors.test.ts:18`](apps/cluster-agent/src/kernel/k8s-errors.test.ts#L18), [`k8s-errors.test.ts:22`](apps/cluster-agent/src/kernel/k8s-errors.test.ts#L22), [`k8s-errors.test.ts:26`](apps/cluster-agent/src/kernel/k8s-errors.test.ts#L26), [`k8s-errors.test.ts:32`](apps/cluster-agent/src/kernel/k8s-errors.test.ts#L32), [`k8s-errors.test.ts:39`](apps/cluster-agent/src/kernel/k8s-errors.test.ts#L39), [`k8s-errors.test.ts:77`](apps/cluster-agent/src/kernel/k8s-errors.test.ts#L77), [`k8s-errors.test.ts:89`](apps/cluster-agent/src/kernel/k8s-errors.test.ts#L89), [`k8s-errors.test.ts:99`](apps/cluster-agent/src/kernel/k8s-errors.test.ts#L99))
 - The status is read wherever this client puts it, including out of the message,
   which is the only place it appears for some refusals. A Secret write that loses
   an optimistic-concurrency race arrives as `HTTP-Code: 409 / Unknown API Status
@@ -140,7 +140,7 @@ and lose the update; no `resourceVersion` ever crosses the wire.
   retry that exists for exactly that race never fires, and provisioning fails
   whenever two agents start at once. A thrown value whose message is not a string carries no status either,
   rather than throwing from inside the classifier that exists to keep failures
-  legible. ([validated by reads 409 out of the message when it is nowhere else](apps/cluster-agent/src/kernel/k8s-errors.test.ts#L87), [`k8s-errors.test.ts:91`](apps/cluster-agent/src/kernel/k8s-errors.test.ts#L91), [`k8s-errors.test.ts:96`](apps/cluster-agent/src/kernel/k8s-errors.test.ts#L96), [`k8s-errors.test.ts:101`](apps/cluster-agent/src/kernel/k8s-errors.test.ts#L101), [retries the replace when the lost race arrives as a prose-only 409](apps/cluster-agent/src/kernel/kube-token-provisioner.test.ts#L68), [`kube-token-provisioner.test.ts:85`](apps/cluster-agent/src/kernel/kube-token-provisioner.test.ts#L85), [`kube-token-provisioner.test.ts:94`](apps/cluster-agent/src/kernel/kube-token-provisioner.test.ts#L94))
+  legible. ([validated by reads 409 out of the message when it is nowhere else](apps/cluster-agent/src/kernel/k8s-errors.test.ts#L117), [`k8s-errors.test.ts:121`](apps/cluster-agent/src/kernel/k8s-errors.test.ts#L121), [`k8s-errors.test.ts:126`](apps/cluster-agent/src/kernel/k8s-errors.test.ts#L126), [`k8s-errors.test.ts:131`](apps/cluster-agent/src/kernel/k8s-errors.test.ts#L131), [retries the replace when the lost race arrives as a prose-only 409](apps/cluster-agent/src/kernel/kube-token-provisioner.test.ts#L68), [`kube-token-provisioner.test.ts:85`](apps/cluster-agent/src/kernel/kube-token-provisioner.test.ts#L85), [`kube-token-provisioner.test.ts:94`](apps/cluster-agent/src/kernel/kube-token-provisioner.test.ts#L94))
 - *(Removed 2026-08-30: `POST /api/cluster/per-task-tokens` and its route-level
   "provisions in one call" test are gone — every launch is a claim now (#1651),
   so provisioning runs in-process through `KubeTokenProvisioner.provision`
@@ -148,7 +148,7 @@ and lose the update; no `resourceVersion` ever crosses the wire.
 - `DELETE /api/cluster/per-task-tokens/{taskId}` reclaims a terminal task's
   Secret key and catalog clones — the one per-task-token operation that stays
   a route, since a settled task's cleanup runs from the Floor, not the cluster
-  that provisioned. ([validated by reclaims a task's token and catalog clones](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L179))
+  that provisioned. ([validated by reclaims a task's token and catalog clones](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L238))
 - One call also means one OUTCOME: a provision whose recipe pair fails to land
   takes back everything it had already provisioned — the Secret key AND any
   catalog object that landed before the failure — before it throws. `cleanup`
@@ -165,9 +165,19 @@ and lose the update; no `resourceVersion` ever crosses the wire.
   from being amputated by a merge split across the network.
   ([validated by writes the station before the agent definition that points at it](apps/cluster-agent/src/kernel/paired-writes.test.ts#L35), [`paired-writes.test.ts:43`](apps/cluster-agent/src/kernel/paired-writes.test.ts#L43), [`paired-writes.test.ts:62`](apps/cluster-agent/src/kernel/paired-writes.test.ts#L62))
 - The log tail is clamped by the AGENT, because the Floor's clamp no longer
-  protects this process's heap. ([validated by clamps the tail server-side rather than trusting the caller](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L114), [`cluster.test.ts:243`](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L159), [`cluster.test.ts:253`](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L169), [`cluster.test.ts:233`](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L149))
+  protects this process's heap. ([validated by clamps the tail server-side rather than trusting the caller](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L114), [`cluster.test.ts:243`](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L218), [`cluster.test.ts:253`](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L228), [`cluster.test.ts:233`](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L208))
+- A pod-log read the kubelet cannot serve is an ordinary absence, not a fault:
+  the pod already gone arrives as a 404, and a container whose stdout is no
+  longer readable — `container "agent" … is terminated`, or not started yet —
+  arrives as a 400, sometimes with the status carried only in the message. Both
+  answer 404 from the log route, and the transport attaches the upstream status
+  structurally to what it throws, so the Floor's reader can tell "log gone,
+  fall back to the durable archive" from a genuine fault (403 RBAC, 5xx),
+  which stays a 500. Before this, a viewer opening a finished node's logs got
+  a bare 500 even though Cloud Logging still held the transcript (2026-09-02).
+  ([validated by treats a 404 (pod gone) and a 400 (container terminated) as unavailable](apps/cluster-agent/src/kernel/k8s-errors.test.ts#L48), [`k8s-errors.test.ts:58`](apps/cluster-agent/src/kernel/k8s-errors.test.ts#L58), [`k8s-errors.test.ts:68`](apps/cluster-agent/src/kernel/k8s-errors.test.ts#L68), [answers 404 when the kubelet reports the container terminated](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L123), [`cluster.test.ts:148`](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L148), [`cluster.test.ts:165`](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L165), [throws with the upstream status as code](libs/shared/src/cluster/cluster-agent-client.test.ts#L74))
 - Every route requires the same bearer token every other service-to-service
-  call presents. ([validated by refuses every route without a bearer token](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L136), [validated by refuses to restart without a bearer token](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L241))
+  call presents. ([validated by refuses every route without a bearer token](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L195), [validated by refuses to restart without a bearer token](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L300))
 - A CR the controller has not stamped yet reads as Pending rather than absent —
   the distinction a watcher acts on. ([validated by a CR the controller has not stamped yet maps to Pending, not absence](libs/shared/src/cluster/agent-node-status.test.ts#L6), [`agent-node-status.test.ts:16`](libs/shared/src/cluster/agent-node-status.test.ts#L16))
 - An empty minted token is refused where the cause is legible, rather than
@@ -187,7 +197,7 @@ scoped settling a run to the one cluster this Floor can reach; it now settles
 from the event's own report, which carries the full status. The distinction
 above still governs the READ surface — the reconcile pass, the reaper's status
 probe, the pod-log reads — where a caller genuinely has to ask.*
-  ([validated by answers 200 with found:false for a missing CR, not 404](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L66), [`k8s-errors.test.ts:31`](apps/cluster-agent/src/kernel/k8s-errors.test.ts#L31), [`k8s-errors.test.ts:47`](apps/cluster-agent/src/kernel/k8s-errors.test.ts#L47), [`k8s-errors.test.ts:59`](apps/cluster-agent/src/kernel/k8s-errors.test.ts#L59), [`kubernetes.test.ts:30`](apps/floor/src/jobs/kubernetes.test.ts#L30), [`kubernetes.test.ts:58`](apps/floor/src/jobs/kubernetes.test.ts#L58), [`kubernetes.test.ts:64`](apps/floor/src/jobs/kubernetes.test.ts#L64))
+  ([validated by answers 200 with found:false for a missing CR, not 404](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L66), [`k8s-errors.test.ts:32`](apps/cluster-agent/src/kernel/k8s-errors.test.ts#L32), [`k8s-errors.test.ts:77`](apps/cluster-agent/src/kernel/k8s-errors.test.ts#L77), [`k8s-errors.test.ts:89`](apps/cluster-agent/src/kernel/k8s-errors.test.ts#L89), [`kubernetes.test.ts:30`](apps/floor/src/jobs/kubernetes.test.ts#L30), [`kubernetes.test.ts:58`](apps/floor/src/jobs/kubernetes.test.ts#L58), [`kubernetes.test.ts:64`](apps/floor/src/jobs/kubernetes.test.ts#L64))
 
 The reconcile pass keeps paging, and its seam narrowed with the cut: it now
 depends on one page-fetch method rather than a slice of a Kubernetes client, so

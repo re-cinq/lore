@@ -53,7 +53,13 @@ export class ClusterAgentClient {
     });
 
     if (!res.ok) {
-      throw new Error(`cluster ${method} ${path} failed: ${res.status}`);
+      // `code` carries the status structurally: the Floor's `isNotFound`
+      // (agent-pod-logs) reads it to tell "log gone, use the archive" from a
+      // genuine fault — a message-only Error made every 404 look like a 500.
+      throw Object.assign(
+        new Error(`cluster ${method} ${path} failed: ${res.status}`),
+        { code: res.status },
+      );
     }
 
     return res.status === 204 ? undefined : ((await res.json()) as T);

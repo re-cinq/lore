@@ -6,6 +6,7 @@ import {
   describeK8sError,
   isConflict,
   isNotFound,
+  isPodLogUnavailable,
   statusOf,
 } from "./k8s-errors.js";
 
@@ -40,6 +41,35 @@ describe("isNotFound / isConflict", () => {
       true,
       false,
     ]);
+  });
+});
+
+describe("isPodLogUnavailable", () => {
+  it("treats a 404 (pod gone) and a 400 (container terminated) as unavailable", () => {
+    expect([
+      isPodLogUnavailable({ code: 404 }),
+      isPodLogUnavailable({
+        code: 400,
+        message: 'container "agent" in pod "agent-job-x-h5sj7" is terminated',
+      }),
+    ]).toEqual([true, true]);
+  });
+
+  it("reads the prose-only variant the client surfaces for a kubelet 400", () => {
+    expect(
+      isPodLogUnavailable(
+        new Error(
+          'HTTP-Code: 400\nMessage: Unknown API Status Code!\nBody: "{}"',
+        ),
+      ),
+    ).toBe(true);
+  });
+
+  it("keeps a 403 and a 500 as genuine faults", () => {
+    expect([
+      isPodLogUnavailable({ code: 403 }),
+      isPodLogUnavailable({ code: 500 }),
+    ]).toEqual([false, false]);
   });
 });
 

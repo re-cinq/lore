@@ -2,7 +2,7 @@
 // from its caller, so the loop is what these assert: a selector matching more
 // than one page must come back whole, not truncated to the first.
 import { describe, it, expect, vi } from "vitest";
-import { HttpAgentApi } from "./cluster-agent-client.js";
+import { ClusterAgentClient, HttpAgentApi } from "./cluster-agent-client.js";
 import type { Agent as AgentCr } from "@re-cinq/agent-contracts";
 
 function cr(name: string): AgentCr {
@@ -67,5 +67,19 @@ describe("HttpAgentApi.listByLabel", () => {
     expect(
       await new HttpAgentApi(transport as never).listByLabel("k=v"),
     ).toEqual([]);
+  });
+});
+
+describe("ClusterAgentClient.call", () => {
+  it("throws with the upstream status as code, so a 404 is tellable from a fault", async () => {
+    const fetchImpl = vi.fn(
+      async () => new Response("gone", { status: 404 }),
+    ) as unknown as typeof fetch;
+    const client = new ClusterAgentClient("http://agent", undefined, fetchImpl);
+
+    await expect(client.call("GET", "/pods/pod-1/log")).rejects.toMatchObject({
+      code: 404,
+      message: "cluster GET /pods/pod-1/log failed: 404",
+    });
   });
 });
