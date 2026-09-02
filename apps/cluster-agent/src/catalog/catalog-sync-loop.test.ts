@@ -128,6 +128,30 @@ describe("catalogSyncOnce", () => {
     expect(applied).toEqual(["implementation"]);
   });
 
+  it("a boot resync asks the server for the full snapshot with snapshot=1", async () => {
+    // Applied-state is a function of row content AND this binary's rendering:
+    // a restarted agent must re-render everything, because an apply a dying
+    // pod lost — or one rendered by older logic — is otherwise never repaired.
+    const urls: string[] = [];
+    const fetchFn = (async (url: string) => {
+      urls.push(String(url));
+
+      return new Response(
+        JSON.stringify({ mode: "snapshot", cursor: "9", entries: [] }),
+        { status: 200 },
+      );
+    }) as unknown as typeof fetch;
+    const { catalog } = recordingCatalog();
+
+    await catalogSyncOnce(tickDeps(catalog, fetchFn), undefined, true);
+    await catalogSyncOnce(tickDeps(catalog, fetchFn), "9", false);
+
+    expect(urls).toEqual([
+      "https://api.example/api/cluster-agents/agent-1/catalog-events?snapshot=1",
+      "https://api.example/api/cluster-agents/agent-1/catalog-events?ack=9",
+    ]);
+  });
+
   it("a null definition deletes the pair under the project-qualified name", async () => {
     const { catalog, deletedNames } = recordingCatalog();
     const result = await catalogSyncOnce(
@@ -486,9 +510,12 @@ describe("runCatalogSyncLoop", () => {
     let firstSyncs = 0;
     let ticks = 0;
 
+    const snapshots: boolean[] = [];
+
     await runCatalogSyncLoop({
-      sync: async (ack) => {
+      sync: async (ack, snapshot) => {
         acks.push(ack);
+        snapshots.push(snapshot);
 
         return outcomes[ticks++] ?? { outcome: { kind: "empty" }, ack };
       },
@@ -504,6 +531,9 @@ describe("runCatalogSyncLoop", () => {
     });
 
     expect(acks).toEqual([undefined, undefined, "4"]);
+    // The boot resync holds through the failed tick and releases only once a
+    // sync actually LANDS — an unauthorized first poll must not eat it.
+    expect(snapshots).toEqual([true, true, false]);
     expect(reRegistered).toEqual(1);
     expect(firstSyncs).toEqual(1);
   });

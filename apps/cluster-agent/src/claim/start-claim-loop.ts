@@ -147,7 +147,7 @@ async function runRegistrant(opts: {
   });
 
   void runCatalogSyncLoop({
-    sync: (ack) =>
+    sync: (ack, snapshot) =>
       catalogSyncOnce(
         {
           apiUrl: config.apiUrl,
@@ -157,6 +157,7 @@ async function runRegistrant(opts: {
           ownSeeded: env.LORE_CATALOG_SYNC_OWN_SEEDED === "1",
         },
         ack,
+        snapshot,
       ),
     reRegister,
     sleep,
