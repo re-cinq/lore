@@ -55,11 +55,11 @@ function routeTask(
     return "handleOnboard";
   }
 
- if (taskType === "feature-request") {
+  if (taskType === "feature-request") {
     return "handleFeatureRequest";
   }
 
- return "handleClaudeCodeTask";
+  return "handleClaudeCodeTask";
 }
 
 describe("task routing", () => {
