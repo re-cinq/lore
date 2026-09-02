@@ -483,7 +483,7 @@ These statements pin the deterministic Floor glue that wraps the subsystem.
   prompt is rejected outright (the subsystem refuses a promptless AgentDefinition at admission, so
   emitting one only moved the failure to the apply), deadline defaults to 30 and image to
   `node:22-bookworm`, and stdout-only sinks stand in without an events URL. An `execution_mode:"station"` recipe materialises an exec-vendor station (`model:"exec"`,
-  `{station_input}` prompt, `max_turns:1`, `lore-station <type>` command) on its own image. ([validated by renders the exec-vendor shape on the lore-station image with the ingest token](../../libs/shared/src/project/agents/agent-crd.test.ts#L246), [validated by a station row without a command falls back to lore-station plus the def-stripped name](../../libs/shared/src/project/agents/agent-crd.test.ts#L300))
+  `{station_input}` prompt, `max_turns:1`, `lore-station <type>` command) on its own image. ([validated by renders the exec-vendor shape on the lore-station image with the ingest token](../../libs/shared/src/project/agents/agent-crd.test.ts#L276), [validated by a station row without a command falls back to lore-station plus the def-stripped name](../../libs/shared/src/project/agents/agent-crd.test.ts#L330))
 - **CR-watch idempotency.** Event dedupe keys collapse redundant deliveries so a Floor restart replays
   nothing twice: `githubDedupeKey` prefixes the delivery id, `k8sDedupeKey` keys a terminal Agent CR
   on task-id+phase (repeated `MODIFIED` events collapse), `cronDedupeKey` floors the tick to the

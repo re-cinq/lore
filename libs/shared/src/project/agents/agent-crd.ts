@@ -55,6 +55,29 @@ const POD_RESOURCES = {
   limits: { cpu: "1", memory: "1Gi", "ephemeral-storage": "4Gi" },
 };
 
+/**
+ * A `pod_resources` override merges per key ONTO the defaults — you say what
+ * you mean to change, nothing else moves. Whole-object replacement is what
+ * evicted every tdd-round pod at 1Gi of disk: a memory-only override dropped
+ * the ephemeral-storage defaults, and on Autopilot an absent request backfills
+ * to a bare 1Gi. The price is that a default cannot be UNSET, only overridden
+ * with a bigger (or smaller) value — acceptable, since "no limit at all" is
+ * not a shape the catalog means to offer.
+ */
+function mergePodResources(override?: {
+  requests?: Record<string, string>;
+  limits?: Record<string, string>;
+}) {
+  if (!override) {
+    return POD_RESOURCES;
+  }
+
+  return {
+    requests: { ...POD_RESOURCES.requests, ...override.requests },
+    limits: { ...POD_RESOURCES.limits, ...override.limits },
+  };
+}
+
 export interface CrdPair {
   agentDefinition: AgentDefinition;
   station: Station;
@@ -401,7 +424,7 @@ export function agentDefToCrds(
                 ...(isStation || def.config?.repo_workdir === false
                   ? {}
                   : { workingDir: REPO_WORKDIR }),
-                resources: def.config?.pod_resources ?? POD_RESOURCES,
+                resources: mergePodResources(def.config?.pod_resources),
               },
             ],
           },
