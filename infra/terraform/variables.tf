@@ -41,6 +41,17 @@ variable "enable_anthropic_admin_key" {
   default = false
 }
 
+# Gates the Gemini credential for agent runs. When true, agent-secrets carries
+# a GEMINI_API_KEY entry sourced from `lore-gemini-api-key` and the central
+# cluster-agent's catalog render maps the gemini model family onto it — which
+# is what makes the render contract ACCEPT gemini recipes instead of refusing
+# them (specs/catalog-db-sync FR8). Left false, a gemini-model definition is
+# refused per cluster and dispatch falls back to the org default.
+variable "enable_gemini" {
+  type    = bool
+  default = false
+}
+
 # Gates satellite-cluster registration (specs/running-stations-in-any-k8s-cluster
 variable "log_retention_days" {
   description = "Number of days to retain task logs in GCS"

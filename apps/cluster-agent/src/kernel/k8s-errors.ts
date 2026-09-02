@@ -64,3 +64,13 @@ export function describeK8sError(
 
   return `${verb} agents/${name} failed with ${status ?? "no status"}${detail}: ${errorMessage(err)}`;
 }
+
+/** A 400/422 from the apiserver cannot succeed on retry — the object itself is
+ *  the problem. Everything else (network, 5xx, RBAC being fixed) may. The
+ *  catalog sync loop refuses-and-acks on this; forking the status set forks
+ *  FR8.4's retry semantics, so the predicate lives here with its siblings. */
+export function isPermanentApplyError(err: unknown): boolean {
+  const status = statusOf(err);
+
+  return status === 400 || status === 422;
+}

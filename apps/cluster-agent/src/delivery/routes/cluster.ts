@@ -13,7 +13,6 @@
  * status each blew Node's heap and crash-looped the Floor on 2026-07-24.
  */
 
-import { z } from "zod";
 import type { ServerRoute } from "@hapi/hapi";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import type {
@@ -22,9 +21,7 @@ import type {
   Station,
 } from "@re-cinq/agent-contracts";
 import type { AgentPodInfo, PodSummary } from "@re-cinq/lore-shared";
-import { rawBody } from "@re-cinq/lore-shared/http/raw-body.js";
 import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
-import { parseBody } from "@re-cinq/lore-shared/http/json-body.js";
 import { enforceBearer } from "@re-cinq/lore-shared/http/bearer.js";
 
 /** The apiserver's own page ceiling for this service. A caller asking for more
@@ -73,21 +70,9 @@ export interface ClusterRoutesDeps {
 
 // `metadata.name` is required, not merely hoped for: the apply reads it to
 // fetch the live object, so a body without one becomes a TypeError deep in a
-// Kubernetes call instead of the 400 it is. The rest of each CR stays open —
-// this route forwards recipes it deliberately does not model.
-const NamedCr = z
-  .object({ metadata: z.object({ name: z.string().min(1) }).passthrough() })
-  .passthrough();
-
-const CatalogPair = z.object({
-  agentDefinition: NamedCr,
-  station: NamedCr,
-});
-
 export function clusterRoutes(opts: ClusterRoutesDeps): ServerRoute[] {
   const guard = (headers: Record<string, unknown>): void =>
     enforceBearer(headers, opts.bearerToken);
-  const raw = { auth: false as const, payload: { parse: false as const } };
 
   return [
     {
@@ -203,33 +188,6 @@ export function clusterRoutes(opts: ClusterRoutesDeps): ServerRoute[] {
       handler: async (request, h) => {
         guard(request.headers);
         await opts.deps().tokens.cleanup(request.params.taskId);
-
-        return h.response().code(204);
-      },
-    },
-    {
-      method: "POST",
-      path: "/api/cluster/catalog/pairs",
-      options: raw,
-      handler: async (request, h) => {
-        guard(request.headers);
-        const pair = parseBody(rawBody(request), CatalogPair, "catalog pair");
-
-        await opts.deps().catalog.applyPair({
-          agentDefinition: pair.agentDefinition as unknown as AgentDefinition,
-          station: pair.station as unknown as Station,
-        });
-
-        return h.response().code(204);
-      },
-    },
-    {
-      method: "DELETE",
-      path: "/api/cluster/catalog/pairs/{name}",
-      options: { auth: false },
-      handler: async (request, h) => {
-        guard(request.headers);
-        await opts.deps().catalog.deletePair(request.params.name);
 
         return h.response().code(204);
       },

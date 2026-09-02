@@ -33,6 +33,7 @@ import {
 import {
   catalogSyncOnce,
   crdOptionsFromEnv,
+  enforceCatalogProfile,
   runCatalogSyncLoop,
   syncIntervalMs,
   type CatalogTarget,
@@ -247,6 +248,12 @@ export function startClaimLoop(
     "cluster-agent cannot start: the station backend is not k8s. This process launches claimed runs as Agent CRs — set LORE_STATION_BACKEND=k8s and point LORE_KUBECONFIG at the cluster.",
   );
   const config = registrationConfig(env);
+
+  // A full cluster missing its per-cluster render values must refuse to boot,
+  // not render bare recipes: two unset env vars produced pods that died at
+  // boot cluster-wide on 2026-09-01. Same decided-synchronously reasoning as
+  // the registration triple above.
+  enforceCatalogProfile(env);
   // Decided here, synchronously, for the same reason the triple above is: a
   // Secret store missing its namespace used to land in the catch below — one
   // log line, pod Ready, nothing ever registered.

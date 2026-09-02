@@ -1281,6 +1281,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/cluster-agents/{id}/catalog-status": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** POST /api/cluster-agents/{id}/catalog-status */
+    post: operations["post_api_cluster-agents_id_catalog-status"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/agent-definitions": {
     parameters: {
       query?: never;
@@ -3001,6 +3018,19 @@ export interface components {
           inherited: boolean;
         }[];
       }[];
+      applied: {
+        name: string;
+        project_id: string | null;
+        cluster: string;
+        /** @enum {string} */
+        state: "applied" | "refused" | "skipped" | "deleted";
+        reason: string | null;
+      }[];
+    };
+    ClusterAgentCatalogStatus: {
+      /** @constant */
+      ok: true;
+      recorded: number;
     };
     OrgAgentDefinitions: {
       agents: {
@@ -3134,13 +3164,11 @@ export interface components {
         pr_ref?: string;
         approver?: string;
       };
-      crd_applied: boolean;
     };
     AgentDefinitionDeleted: {
       /** @constant */
       ok: true;
       deleted: string;
-      crd_deleted: boolean;
     };
     AgentUsage: {
       [key: string]: unknown;
@@ -6353,6 +6381,43 @@ export interface operations {
       403: components["responses"]["Forbidden"];
       429: components["responses"]["RateLimited"];
       503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "post_api_cluster-agents_id_catalog-status": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          reports: {
+            name: string;
+            project_id: string | null;
+            /** @enum {string} */
+            state: "applied" | "refused" | "skipped" | "deleted";
+            reason: string | null;
+          }[];
+        };
+      };
+    };
+    responses: {
+      /** @description Record what this cluster did with each catalog entry it read — applied, refused (with the reason), skipped or deleted */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ClusterAgentCatalogStatus"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      413: components["responses"]["PayloadTooLarge"];
+      429: components["responses"]["RateLimited"];
     };
   };
   "get_api_agent-definitions": {

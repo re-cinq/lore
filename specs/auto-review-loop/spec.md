@@ -500,6 +500,19 @@ The code-review assembly line is the sole reviewer (ADR-012 amendment): a **deep
 
 ### `libs/shared/src/review/review-findings.test.ts`
 
+- accepts the OTHER findings schema this repo defines — the `/code-review`
+  skill's and `ReportFindings`' `file`/`category`/`short_summary`/`summary`/
+  `failure_scenario` — because the reviewer reads this codebase and reliably
+  emits that shape when reviewing it. Three PRs on 2026-09-01 (#1698, #1699,
+  #1703) each produced a well-formed block of VALID JSON whose every finding
+  failed the shape check, so the node reported the findings lost and a real
+  `changes_requested` review reached nobody. `file` reads as `path`,
+  `short_summary` as `subject`, and `summary` + `failure_scenario` carry into
+  the discussion so nothing is dropped. A finding already written the recipe's
+  way is untouched, a PRESENT-but-unknown label is still rejected (that
+  strictness is the point), and a finding carrying neither spelling of a
+  required field still yields null.
+  ([validated by](libs/shared/src/review/review-findings.test.ts#L177), [validated by](libs/shared/src/review/review-findings.test.ts#L191), [validated by](libs/shared/src/review/review-findings.test.ts#L199), [validated by](libs/shared/src/review/review-findings.test.ts#L208), [validated by](libs/shared/src/review/review-findings.test.ts#L226))
 - parses a valid findings block into a ReviewOutput. ([validated by](libs/shared/src/review/review-findings.test.ts#L8))
 - returns null when no findings block is present. ([validated by](libs/shared/src/review/review-findings.test.ts#L42))
 - returns null when the block is not valid JSON that a quote/newline repair

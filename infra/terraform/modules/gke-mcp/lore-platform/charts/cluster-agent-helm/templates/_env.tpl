@@ -91,4 +91,11 @@ Usage:
 - name: LORE_CATALOG_SYNC_OWN_SEEDED
   value: "1"
 {{- end }}
+- name: LORE_CATALOG_PROFILE
+  value: {{ .Values.catalog.profile | quote }}
+{{- if .Values.catalog.modelSecretKeys }}
+- name: LORE_MODEL_SECRET_KEYS
+  value: {{ .Values.catalog.modelSecretKeys | toJson | quote }}
+{{- end }}
 {{- end -}}
+

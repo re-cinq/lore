@@ -74,6 +74,7 @@ import { tokensRoute } from "../api/routes/tokens/tokens.js";
 import { clusterAgentRegisterRoute } from "../api/routes/cluster-agents/register.js";
 import { clusterAgentClaimRoute } from "../api/routes/cluster-agents/claim.js";
 import { clusterAgentCatalogEventsRoute } from "../api/routes/cluster-agents/catalog-events.js";
+import { clusterAgentCatalogStatusRoute } from "../api/routes/cluster-agents/catalog-status.js";
 import { agentDefinitionUsageRoute } from "../api/routes/agent-definitions/usage.js";
 import { orgAgentDefinitionsRoute } from "../api/routes/agent-definitions/org-list.js";
 import { orgAgentDefinitionUpdateRoute } from "../api/routes/agent-definitions/org-update.js";
@@ -178,7 +179,8 @@ export function routeList(getPool: () => Pool | null): ServerRoute[] {
     clusterAgentListRoute(getPool),
     ...darkFactoryRoute(getPool),
     agentsGetRoute(getPool),
-    agentDefinitionUsageRoute(),
+    agentDefinitionUsageRoute(getPool),
+    clusterAgentCatalogStatusRoute(getPool),
     orgAgentDefinitionsRoute(getPool),
     orgAgentDefinitionUpdateRoute(getPool),
     agentsPostRoute(getPool),

@@ -132,10 +132,38 @@ export async function qualifiedStationRef(
   baseName: string,
   repo: string,
 ): Promise<string> {
+  // An override only earns the qualified name if some cluster actually applied
+  // its CR. A row every cluster REFUSED — a model whose credential family none
+  // of them holds, say — has no CR and never will, so pointing dispatch at the
+  // qualified name would send every run at a stationRef that cannot resolve.
+  //
+  // That is not hypothetical: it took central's reviews down on 2026-09-01.
+  // Qualification alone was safe, and refusing to render an unservable recipe
+  // was safe; together they turned "runs on the org default" — the wrong model
+  // but a working one — into "Station or AgentDefinition not found". The
+  // fallback is deliberately silent HERE and loud on the /agents page, where
+  // the Rollout column names the cluster and the reason (FR9.6): a review that
+  // runs on the org default beats no review, as long as nobody has to guess why.
+  //
+  // Absence of a verdict is NOT refusal: a cluster that has not reported yet
+  // (or an older agent that never reports) leaves no rows, and the override
+  // keeps its qualified name exactly as before.
   const { rows } = await pool.query<{ project_id: string }>(
     `SELECT a.project_id FROM lore.agent_definitions a
        JOIN lore.repos r ON r.id = a.project_id
-      WHERE a.name = $1 AND r.full_name = $2`,
+      WHERE a.name = $1 AND r.full_name = $2
+        AND NOT (
+          EXISTS (
+            SELECT 1 FROM lore.catalog_apply_status s
+             WHERE s.name = a.name AND s.project_id = a.project_id
+               AND s.state = 'refused'
+          )
+          AND NOT EXISTS (
+            SELECT 1 FROM lore.catalog_apply_status s
+             WHERE s.name = a.name AND s.project_id = a.project_id
+               AND s.state = 'applied'
+          )
+        )`,
     [baseName, repo],
   );
   const projectId = (rows[0] as { project_id: string } | undefined)?.project_id;

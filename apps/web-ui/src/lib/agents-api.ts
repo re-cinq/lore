@@ -74,6 +74,15 @@ export async function listOrgAgents(): Promise<AgentDefinition[]> {
   }
 }
 
+/** One cluster's verdict on one definition, from the sync loop's report. */
+export interface AgentApplyStatus {
+  name: string;
+  project_id: string | null;
+  cluster: string;
+  state: "applied" | "refused" | "skipped" | "deleted";
+  reason: string | null;
+}
+
 export interface AgentUsageRef {
   blueprint: string;
   node_id: string;
@@ -92,10 +101,14 @@ export interface AgentUsageRef {
  * fact (a stale lore-api 404'd exactly this way). Unknown must render as
  * unknown.
  */
-export async function fetchAgentUsage(): Promise<Record<
-  string,
-  AgentUsageRef[]
-> | null> {
+export interface AgentUsage {
+  refs: Record<string, AgentUsageRef[]>;
+  /** Verdicts keyed by definition name. An empty list for a name means no
+   *  cluster has reported on it — unknown, not "applied everywhere". */
+  applied: Record<string, AgentApplyStatus[]>;
+}
+
+export async function fetchAgentUsage(): Promise<AgentUsage | null> {
   const c = cfg();
 
   if (!c) {
@@ -114,11 +127,20 @@ export async function fetchAgentUsage(): Promise<Record<
     }
     const data = (await res.json()) as {
       usage?: Array<{ name: string; used_by: AgentUsageRef[] }>;
+      applied?: AgentApplyStatus[];
     };
+    const applied: Record<string, AgentApplyStatus[]> = {};
 
-    return Object.fromEntries(
-      (data.usage ?? []).map((entry) => [entry.name, entry.used_by]),
-    );
+    for (const status of data.applied ?? []) {
+      (applied[status.name] ??= []).push(status);
+    }
+
+    return {
+      refs: Object.fromEntries(
+        (data.usage ?? []).map((entry) => [entry.name, entry.used_by]),
+      ),
+      applied,
+    };
   } catch {
     return null;
   }

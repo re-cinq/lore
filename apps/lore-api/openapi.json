@@ -4572,6 +4572,85 @@
         "x-required-scope": "read"
       }
     },
+    "/api/cluster-agents/{id}/catalog-status": {
+      "post": {
+        "operationId": "post_api_cluster-agents_id_catalog-status",
+        "summary": "POST /api/cluster-agents/{id}/catalog-status",
+        "tags": ["Cluster Agents"],
+        "security": [],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "Record what this cluster did with each catalog entry it read — applied, refused (with the reason), skipped or deleted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClusterAgentCatalogStatus"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "reports": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "project_id": {
+                          "type": ["string", "null"]
+                        },
+                        "state": {
+                          "type": "string",
+                          "enum": ["applied", "refused", "skipped", "deleted"]
+                        },
+                        "reason": {
+                          "type": ["string", "null"]
+                        }
+                      },
+                      "required": ["name", "project_id", "state", "reason"],
+                      "additionalProperties": false
+                    },
+                    "maxItems": 2000
+                  }
+                },
+                "required": ["reports"],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/agent-definitions": {
       "get": {
         "operationId": "get_api_agent-definitions",
@@ -11058,9 +11137,49 @@
               "required": ["name", "used_by"],
               "additionalProperties": false
             }
+          },
+          "applied": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "project_id": {
+                  "type": ["string", "null"]
+                },
+                "cluster": {
+                  "type": "string"
+                },
+                "state": {
+                  "type": "string",
+                  "enum": ["applied", "refused", "skipped", "deleted"]
+                },
+                "reason": {
+                  "type": ["string", "null"]
+                }
+              },
+              "required": ["name", "project_id", "cluster", "state", "reason"],
+              "additionalProperties": false
+            }
           }
         },
-        "required": ["usage"],
+        "required": ["usage", "applied"],
+        "additionalProperties": false
+      },
+      "ClusterAgentCatalogStatus": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "const": true
+          },
+          "recorded": {
+            "type": "number"
+          }
+        },
+        "required": ["ok", "recorded"],
         "additionalProperties": false
       },
       "OrgAgentDefinitions": {
@@ -11470,12 +11589,9 @@
             },
             "required": ["tier"],
             "additionalProperties": false
-          },
-          "crd_applied": {
-            "type": "boolean"
           }
         },
-        "required": ["ok", "agent", "ceremony", "crd_applied"],
+        "required": ["ok", "agent", "ceremony"],
         "additionalProperties": false
       },
       "AgentDefinitionDeleted": {
@@ -11487,12 +11603,9 @@
           },
           "deleted": {
             "type": "string"
-          },
-          "crd_deleted": {
-            "type": "boolean"
           }
         },
-        "required": ["ok", "deleted", "crd_deleted"],
+        "required": ["ok", "deleted"],
         "additionalProperties": false
       },
       "AgentUsage": {

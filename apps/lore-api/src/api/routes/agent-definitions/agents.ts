@@ -2,7 +2,7 @@ import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import type { Pool } from "pg";
 import { rethrowBoom, apiError } from "../../../server/api-error.js";
 import type { ServerRoute } from "@hapi/hapi";
-import type { AgentDefinition } from "@re-cinq/lore-shared";
+
 import { ResolvedAgentDefinitionSchema } from "@re-cinq/lore-shared/models/agent-definition.js";
 import { z } from "zod";
 import { projectFor } from "../../../platform/project-boot.js";
@@ -12,11 +12,6 @@ import {
   imageFieldTouched,
   configWithPodResources,
 } from "../../../features/agents/agents-schema.js";
-import { agentDefToCrds } from "../../../features/agents/agent-crd.js";
-import {
-  applyAgentCrds,
-  deleteAgentCrds,
-} from "../../../features/agents/agent-crd-k8s.js";
 import { bearerScope } from "../../../server/plugins/bearer-scope.js";
 import { zodResponse } from "../../../server/plugins/zod-response.js";
 import { checkApproval } from "../two-key.js";
@@ -49,13 +44,11 @@ const AgentWrittenSchema = z.object({
   ok: z.literal(true),
   agent: ResolvedAgentDefinitionSchema,
   ceremony: CeremonySchema,
-  crd_applied: z.boolean(),
 });
 
 const AgentDeletedSchema = z.object({
   ok: z.literal(true),
   deleted: z.string(),
-  crd_deleted: z.boolean(),
 });
 
 const IMAGE_DETAIL =
@@ -174,15 +167,13 @@ export function agentsPostRoute(getPool: () => Pool | null): ServerRoute {
         }
 
         const def = await project.agentDefs.create(fields);
-        const crd_applied = await applyCatalogCrd(def);
 
         await audit(pool, repo, "agent_created", {
           name: def.name,
           ceremony,
-          crd_applied,
         });
 
-        return h.response({ ok: true, agent: def, ceremony, crd_applied });
+        return h.response({ ok: true, agent: def, ceremony });
       } catch (err) {
         console.error("[agents] route failed:", err);
 
@@ -256,15 +247,13 @@ export function agentsPutRoute(getPool: () => Pool | null): ServerRoute {
               };
 
         const def = await project.agentDefs.update(name, fields, podResources);
-        const crd_applied = await applyCatalogCrd(def);
 
         await audit(pool, repo, "agent_updated", {
           name,
           ceremony,
-          crd_applied,
         });
 
-        return h.response({ ok: true, agent: def, ceremony, crd_applied });
+        return h.response({ ok: true, agent: def, ceremony });
       } catch (err) {
         console.error("[agents] route failed:", err);
 
@@ -293,11 +282,10 @@ export function agentsDeleteRoute(getPool: () => Pool | null): ServerRoute {
         const project = await projectFor(repo);
 
         await project.agentDefs.delete(name);
-        const crd_deleted = await deleteCatalogCrd(name);
 
-        await audit(pool, repo, "agent_deleted", { name, crd_deleted });
+        await audit(pool, repo, "agent_deleted", { name });
 
-        return h.response({ ok: true, deleted: name, crd_deleted });
+        return h.response({ ok: true, deleted: name });
       } catch (err) {
         console.error("[agents] route failed:", err);
 
@@ -311,50 +299,6 @@ function issuesOf(err: unknown): unknown {
   return typeof err === "object" && err !== null && "issues" in err
     ? (err as { issues: unknown }).issues
     : (err as Error).message;
-}
-
-/**
- * Materialise the resolved recipe's AgentDefinition + Station CRDs (D2).
- * Best-effort + reported: the Postgres write already succeeded, so a k8s hiccup
- * surfaces as crd_applied:false rather than failing the edit.
- */
-async function applyCatalogCrd(def: AgentDefinition): Promise<boolean> {
-  if (!process.env.KUBERNETES_SERVICE_HOST) {
-    return false;
-  } // not in-cluster (local dev / tests)
-
-  try {
-    await applyAgentCrds(
-      // Both URLs come from the deploy, never from the recipe row: a host stored in
-      // the DB would survive a rollout that moved it (#1080).
-      agentDefToCrds(def, {
-        eventsUrl: process.env.LORE_AGENT_EVENTS_URL,
-        mcpUrl: process.env.LORE_MCP_URL,
-      }),
-    );
-
-    return true;
-  } catch (err) {
-    console.error(`[agents] CRD apply failed for ${def.name}:`, err);
-
-    return false;
-  }
-}
-
-async function deleteCatalogCrd(name: string): Promise<boolean> {
-  if (!process.env.KUBERNETES_SERVICE_HOST) {
-    return false;
-  }
-
-  try {
-    await deleteAgentCrds(name);
-
-    return true;
-  } catch (err) {
-    console.error(`[agents] CRD delete failed for ${name}:`, err);
-
-    return false;
-  }
 }
 
 async function audit(

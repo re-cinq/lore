@@ -114,10 +114,10 @@ and lose the update; no `resourceVersion` ever crosses the wire.
   describes the read surface, which callers do still reach over HTTP.)*
   ([validated by reports created:false for code 409, so a redelivered claim is idempotent](apps/cluster-agent/src/kernel/kube-agent-api.test.ts#L35), [`kube-agent-api.test.ts:28`](apps/cluster-agent/src/kernel/kube-agent-api.test.ts#L28), [`kube-agent-api.test.ts:42`](apps/cluster-agent/src/kernel/kube-agent-api.test.ts#L42), [`kube-agent-api.test.ts:48`](apps/cluster-agent/src/kernel/kube-agent-api.test.ts#L48), [`kube-agent-api.test.ts:54`](apps/cluster-agent/src/kernel/kube-agent-api.test.ts#L56))
 - A missing CR is an ordinary answer — `found:false` at 200, not a 404 that
-  would be indistinguishable from the route itself being absent. ([validated by answers 200 with found:false for a missing CR, not 404](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L76), [`cluster.test.ts:150`](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L134))
+  would be indistinguishable from the route itself being absent. ([validated by answers 200 with found:false for a missing CR, not 404](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L66), [`cluster.test.ts:150`](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L124))
 - The list serves ONE apiserver page per call and the caller drives `continue`.
   A one-shot list is not a convenience: 180 accumulated CRs at ~1.4MB of status
-  each blew Node's heap and crash-looped the Floor on 2026-07-24. ([validated by passes the caller's continue token straight through, one page per call](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L87), [`cluster.test.ts:104`](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L100), [`cluster.test.ts:311`](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L265), [`cluster.test.ts:294`](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L248))
+  each blew Node's heap and crash-looped the Floor on 2026-07-24. ([validated by passes the caller's continue token straight through, one page per call](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L77), [`cluster.test.ts:104`](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L90), [`cluster.test.ts:311`](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L203), [`cluster.test.ts:294`](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L192))
 - The paging the route requires is walked by the CLIENT, not pushed onto every
   caller: `listByLabel` follows `continue` to the end and returns the whole
   match. A truncated list is worse than a failed one — it answers, and the
@@ -148,7 +148,7 @@ and lose the update; no `resourceVersion` ever crosses the wire.
 - `DELETE /api/cluster/per-task-tokens/{taskId}` reclaims a terminal task's
   Secret key and catalog clones — the one per-task-token operation that stays
   a route, since a settled task's cleanup runs from the Floor, not the cluster
-  that provisioned. ([validated by reclaims a task's token and catalog clones](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L217))
+  that provisioned. ([validated by reclaims a task's token and catalog clones](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L179))
 - One call also means one OUTCOME: a provision whose recipe pair fails to land
   takes back everything it had already provisioned — the Secret key AND any
   catalog object that landed before the failure — before it throws. `cleanup`
@@ -157,12 +157,17 @@ and lose the update; no `resourceVersion` ever crosses the wire.
   was minted for: a live credential nobody uses, a row in the accumulation that
   once took `agent-secrets` past its 1MiB ceiling, or a recipe pointing at a
   token that reclaim already removed. ([validated by leaves no token or AgentDefinition behind when applyStation fails](apps/cluster-agent/src/kernel/kube-token-provisioner.test.ts#L167), [`kube-token-provisioner.test.ts:190`](apps/cluster-agent/src/kernel/kube-token-provisioner.test.ts#L190), [`kube-token-provisioner.test.ts:212`](apps/cluster-agent/src/kernel/kube-token-provisioner.test.ts#L212))
-- A catalog pair is applied in one call, so create-409-replace cannot be split.
-  ([validated by applies a catalog pair in one call, so create-409-replace cannot be split](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L146), [`cluster.test.ts:274`](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L228), [`cluster.test.ts:285`](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L239), [`cluster.test.ts:304`](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L258), [refuses a catalog pair whose body is not a pair](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L167), [`cluster.test.ts:174`](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L174))
+- A catalog pair is applied in one call, so create-409-replace cannot be
+  split. The HTTP door that let a remote caller invoke it is gone with
+  lore-api's push (specs/catalog-db-sync FR8.6) — each cluster's sync loop
+  now calls this in-process — but the whole read-modify-write still happens
+  on the agent's side, which is what keeps a live object's unrendered fields
+  from being amputated by a merge split across the network.
+  ([validated by writes the station before the agent definition that points at it](apps/cluster-agent/src/kernel/paired-writes.test.ts#L35), [`paired-writes.test.ts:43`](apps/cluster-agent/src/kernel/paired-writes.test.ts#L43), [`paired-writes.test.ts:62`](apps/cluster-agent/src/kernel/paired-writes.test.ts#L62))
 - The log tail is clamped by the AGENT, because the Floor's clamp no longer
-  protects this process's heap. ([validated by clamps the tail server-side rather than trusting the caller](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L124), [`cluster.test.ts:243`](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L197), [`cluster.test.ts:253`](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L207), [`cluster.test.ts:233`](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L187))
+  protects this process's heap. ([validated by clamps the tail server-side rather than trusting the caller](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L114), [`cluster.test.ts:243`](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L159), [`cluster.test.ts:253`](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L169), [`cluster.test.ts:233`](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L149))
 - Every route requires the same bearer token every other service-to-service
-  call presents. ([validated by refuses every route without a bearer token](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L158))
+  call presents. ([validated by refuses every route without a bearer token](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L136), [validated by refuses to restart without a bearer token](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L241))
 - A CR the controller has not stamped yet reads as Pending rather than absent —
   the distinction a watcher acts on. ([validated by a CR the controller has not stamped yet maps to Pending, not absence](libs/shared/src/cluster/agent-node-status.test.ts#L6), [`agent-node-status.test.ts:16`](libs/shared/src/cluster/agent-node-status.test.ts#L16))
 - An empty minted token is refused where the cause is legible, rather than
@@ -182,7 +187,7 @@ scoped settling a run to the one cluster this Floor can reach; it now settles
 from the event's own report, which carries the full status. The distinction
 above still governs the READ surface — the reconcile pass, the reaper's status
 probe, the pod-log reads — where a caller genuinely has to ask.*
-  ([validated by answers 200 with found:false for a missing CR, not 404](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L76), [`k8s-errors.test.ts:31`](apps/cluster-agent/src/kernel/k8s-errors.test.ts#L31), [`k8s-errors.test.ts:47`](apps/cluster-agent/src/kernel/k8s-errors.test.ts#L47), [`k8s-errors.test.ts:59`](apps/cluster-agent/src/kernel/k8s-errors.test.ts#L59), [`kubernetes.test.ts:30`](apps/floor/src/jobs/kubernetes.test.ts#L30), [`kubernetes.test.ts:58`](apps/floor/src/jobs/kubernetes.test.ts#L58), [`kubernetes.test.ts:64`](apps/floor/src/jobs/kubernetes.test.ts#L64))
+  ([validated by answers 200 with found:false for a missing CR, not 404](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L66), [`k8s-errors.test.ts:31`](apps/cluster-agent/src/kernel/k8s-errors.test.ts#L31), [`k8s-errors.test.ts:47`](apps/cluster-agent/src/kernel/k8s-errors.test.ts#L47), [`k8s-errors.test.ts:59`](apps/cluster-agent/src/kernel/k8s-errors.test.ts#L59), [`kubernetes.test.ts:30`](apps/floor/src/jobs/kubernetes.test.ts#L30), [`kubernetes.test.ts:58`](apps/floor/src/jobs/kubernetes.test.ts#L58), [`kubernetes.test.ts:64`](apps/floor/src/jobs/kubernetes.test.ts#L64))
 
 The reconcile pass keeps paging, and its seam narrowed with the cut: it now
 depends on one page-fetch method rather than a slice of a Kubernetes client, so
@@ -193,7 +198,7 @@ The Role this service carries also closes two gaps the Floor had been silently
 living with: it never held `delete` on `agents` or `agents/status`, yet issued
 both at sites that swallowed the failure — which is why the CR prune could
 never actually shrink the pile it was written to shrink.
-  ([validated by deletes a CR — the verb the Floor's RBAC never granted](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L111))
+  ([validated by deletes a CR — the verb the Floor's RBAC never granted](apps/cluster-agent/src/delivery/routes/cluster.test.ts#L101))
 
 Hierarchy: **Factory ⊃ Floor(s) ⊃ AssemblyLines ⊃ Stations ⊃ Agents** — the design
 side; its runtime shadow is **AssemblyRun ⊃ StationRuns ⊃ Agents**.

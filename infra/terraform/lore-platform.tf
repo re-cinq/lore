@@ -181,12 +181,21 @@ resource "helm_release" "lore_platform" {
     }
 
     # ai-agents: 1 controller replica (leader-election still elects the sole pod);
-    # other config (seedCatalog, image digests, cross-ns refs) stays subchart default.
+    # other config (image digests, cross-ns refs) stays subchart default.
     # loreMcpUrl templates into the seeded agent recipes' mcp_servers URL (the live
     # Lore MCP the pods reach); the gateway serves MCP at /mcp. Empty leaves the
     # sentinel unreplaced-but-harmless (no mcp_servers URL to connect to).
     "ai-agents" = {
       controller = { replicas = 1 }
+      # CUTOVER (2026-09-01, specs/catalog-db-sync): THIS cluster's catalog now
+      # comes from the DB through the cluster-agent's sync loop, so the seed hook
+      # is off here. Set on the UMBRELLA, deliberately not on the subchart
+      # default: cluster-agent-standalone-helm vendors the same subchart, and a
+      # satellite still gets its catalog (and the telemetry wiring that rides
+      # those seeded CRs) from the hook until its own sync is verified — the
+      # satellite's catalog_cursor is still NULL. Flip the subchart default only
+      # when every registered cluster has synced at least once.
+      seedCatalog = false
       #
       # The URL is IN-CLUSTER, not var.lore_mcp_url's public host: Dataplane V2
       # short-circuits a VIP whose backend lives in this cluster and the post-DNAT 10.x
@@ -248,6 +257,18 @@ resource "helm_release" "lore_platform" {
         # reaper.
         EVENT_ROUTER_URL = local.event_router_in_cluster
       }
+      # Which credential each model FAMILY rides on this cluster (specs/
+      # catalog-db-sync FR8): the sync loop's render mounts the named key from
+      # agent-secrets, and validateCatalogEntry accepts only families listed
+      # here — an unlisted family's recipes are refused with the reason on the
+      # /agents Rollout column, and dispatch falls back to the org default.
+      # Anthropic is implicit (the chart's llmSecretKey); this map is only for
+      # the additional families. Gated on the SAME flag that puts the key into
+      # agent-secrets, because listing a family whose key the Secret does not
+      # hold renders pods that die CreateContainerConfigError.
+      catalog = var.enable_gemini ? {
+        modelSecretKeys = { gemini = "GEMINI_API_KEY" }
+      } : {}
     }
 
     # ---- Stations (lore-stations namespace) ----

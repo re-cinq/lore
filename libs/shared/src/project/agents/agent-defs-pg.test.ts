@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { PgAgentDefs, updateOrgDefinition } from "./agent-defs-pg.js";
+import {
+  PgAgentDefs,
+  qualifiedStationRef,
+  updateOrgDefinition,
+} from "./agent-defs-pg.js";
 import type { AgentDefsPort } from "./agent-defs-port.js";
 import type { PgPool } from "../../memory-store.js";
 
@@ -338,5 +342,53 @@ describe("PgAgentDefs.update with a pod_resources write", () => {
     expect(capture[0].text).toMatch(
       /config = CASE WHEN \$10::boolean[\s\S]*COALESCE\(lore\.agent_definitions\.config, \$11::jsonb/,
     );
+  });
+});
+
+describe("qualifiedStationRef", () => {
+  /** Captures the SQL so the guard's shape can be asserted without a database. */
+  function capturingPool(rows: Row[]) {
+    const capture: Array<{ text: string; params?: unknown[] }> = [];
+
+    return { pool: fakePool(() => rows, capture), capture };
+  }
+
+  it("qualifies to the override's CRD name when a repo row exists", async () => {
+    const { pool } = capturingPool([
+      { project_id: "2263bc7a-0767-42ef-80f0-fc6bc5dea98c" },
+    ]);
+
+    expect(
+      await qualifiedStationRef(pool, "code-review", "re-cinq/lore"),
+    ).toEqual("code-review--r2263bc7a");
+  });
+
+  it("keeps the bare org-default name when the repo has no override", async () => {
+    const { pool } = capturingPool([]);
+
+    expect(
+      await qualifiedStationRef(pool, "code-review", "re-cinq/lore"),
+    ).toEqual("code-review");
+  });
+
+  it("excludes an override every cluster refused, so dispatch cannot point at a CR that will never exist", async () => {
+    // The guard lives in SQL: the row is filtered out, so the same empty result
+    // as "no override" comes back — and the caller falls back to the org
+    // default rather than failing with Station or AgentDefinition not found.
+    const { pool, capture } = capturingPool([]);
+
+    await qualifiedStationRef(pool, "code-review", "re-cinq/lore");
+
+    expect(capture[0].text).toContain("catalog_apply_status");
+    expect(capture[0].text).toContain("'refused'");
+    expect(capture[0].text).toContain("'applied'");
+  });
+
+  it("binds the definition name and the repo, never interpolating them", async () => {
+    const { pool, capture } = capturingPool([]);
+
+    await qualifiedStationRef(pool, "code-review", "re-cinq/lore");
+
+    expect(capture[0].params).toEqual(["code-review", "re-cinq/lore"]);
   });
 });

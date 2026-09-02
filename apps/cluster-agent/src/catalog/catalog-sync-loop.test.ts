@@ -1,8 +1,11 @@
 import { describe, it, expect } from "vitest";
 import {
+  catalogProfile,
   catalogSyncOnce,
   crdOptionsFromEnv,
+  enforceCatalogProfile,
   nextSyncDelay,
+  parseModelSecretKeys,
   runCatalogSyncLoop,
   SYNC_BASE_INTERVAL_S_DEFAULT,
   syncIntervalMs,
@@ -113,7 +116,13 @@ describe("catalogSyncOnce", () => {
     );
 
     expect(result).toEqual({
-      outcome: { kind: "synced", applied: 1, deleted: 0, skipped: 0 },
+      outcome: {
+        kind: "synced",
+        applied: 1,
+        deleted: 0,
+        skipped: [],
+        refused: [],
+      },
       ack: "7",
     });
     expect(applied).toEqual(["implementation"]);
@@ -143,7 +152,8 @@ describe("catalogSyncOnce", () => {
       kind: "synced",
       applied: 0,
       deleted: 1,
-      skipped: 0,
+      skipped: [],
+      refused: [],
     });
     expect(deletedNames).toEqual(["implementation--r123e4567"]);
   });
@@ -178,7 +188,8 @@ describe("catalogSyncOnce", () => {
       kind: "synced",
       applied: 0,
       deleted: 0,
-      skipped: 1,
+      skipped: ["implementation (lore-catalog-seed)"],
+      refused: [],
     });
     expect(guarded.applied).toEqual([]);
 
@@ -192,7 +203,8 @@ describe("catalogSyncOnce", () => {
       kind: "synced",
       applied: 1,
       deleted: 0,
-      skipped: 0,
+      skipped: [],
+      refused: [],
     });
   });
 
@@ -246,6 +258,192 @@ describe("catalogSyncOnce", () => {
 
     expect(result).toEqual({ outcome: { kind: "unauthorized" }, ack: "3" });
   });
+
+  it("a render-contract refusal is acked past with its reason, never re-served — the def-github_action head-of-line block", async () => {
+    const { catalog, applied } = recordingCatalog();
+    const result = await catalogSyncOnce(
+      tickDeps(
+        catalog,
+        respondWith(200, {
+          mode: "tail",
+          cursor: "9",
+          entries: [
+            {
+              name: "def-github_action",
+              project_id: null,
+              definition: {
+                ...def("def-github_action"),
+                execution_mode: "station",
+              },
+            },
+            {
+              name: "implementation",
+              project_id: null,
+              definition: def("implementation"),
+            },
+          ],
+        }),
+      ),
+      "3",
+    );
+
+    expect(result.ack).toEqual("9");
+    expect(result.outcome).toMatchObject({
+      kind: "synced",
+      applied: 1,
+      refused: [
+        expect.stringContaining(
+          '"def-github_action" is not a valid Kubernetes resource name',
+        ),
+      ],
+    });
+    expect(applied).toEqual(["implementation"]);
+  });
+
+  it("an apiserver 422 refuses permanently and the batch still acks; a 500 stays transient and re-serves", async () => {
+    const body = {
+      mode: "tail",
+      cursor: "9",
+      entries: [
+        {
+          name: "implementation",
+          project_id: null,
+          definition: def("implementation"),
+        },
+      ],
+    };
+    const permanent = recordingCatalog();
+
+    permanent.catalog.applyPair = async () => {
+      throw new Error("HTTP-Code: 422\nMessage: invalid");
+    };
+    const refused = await catalogSyncOnce(
+      tickDeps(permanent.catalog, respondWith(200, body)),
+      "3",
+    );
+
+    expect(refused).toMatchObject({
+      ack: "9",
+      outcome: { kind: "synced" },
+    });
+
+    const transient = recordingCatalog();
+
+    transient.catalog.applyPair = async () => {
+      throw new Error("HTTP-Code: 503\nMessage: apiserver unavailable");
+    };
+    const retried = await catalogSyncOnce(
+      tickDeps(transient.catalog, respondWith(200, body)),
+      "3",
+    );
+
+    expect(retried).toMatchObject({
+      ack: "3",
+      outcome: { kind: "error" },
+    });
+  });
+
+  it("the loop owns UI-labeled CRs (repairing the push path's degraded render) but never an unlabeled hand-applied one", async () => {
+    const label = (managedBy?: string): AgentDefinition => ({
+      apiVersion: "agents.re-cinq.com/v1alpha1",
+      kind: "AgentDefinition",
+      metadata: {
+        name: "code-review",
+        ...(managedBy
+          ? { labels: { "app.kubernetes.io/managed-by": managedBy } }
+          : {}),
+      },
+    });
+    const body = {
+      mode: "tail",
+      cursor: "5",
+      entries: [
+        {
+          name: "code-review",
+          project_id: null,
+          definition: def("code-review"),
+        },
+      ],
+    };
+
+    const uiOwned = recordingCatalog({
+      "code-review": label("lore-catalog-ui"),
+    });
+    const repaired = await catalogSyncOnce(
+      tickDeps(uiOwned.catalog, respondWith(200, body)),
+      undefined,
+    );
+
+    expect(repaired.outcome).toMatchObject({ kind: "synced", applied: 1 });
+    expect(uiOwned.applied).toEqual(["code-review"]);
+
+    const handApplied = recordingCatalog({ "code-review": label() });
+    const respected = await catalogSyncOnce(
+      tickDeps(handApplied.catalog, respondWith(200, body)),
+      undefined,
+    );
+
+    expect(respected.outcome).toMatchObject({
+      kind: "synced",
+      applied: 0,
+      skipped: ["code-review (unlabeled)"],
+    });
+    expect(handApplied.applied).toEqual([]);
+  });
+});
+
+describe("parseModelSecretKeys", () => {
+  it("parses a JSON family→key object and throws on anything malformed instead of silently degrading", () => {
+    expect(
+      parseModelSecretKeys(
+        '{"anthropic":"ANTHROPIC_API_KEY","gemini":"GEMINI_API_KEY"}',
+      ),
+    ).toEqual({
+      anthropic: "ANTHROPIC_API_KEY",
+      gemini: "GEMINI_API_KEY",
+    });
+    expect(() => parseModelSecretKeys("anthropic=ANTHROPIC_API_KEY")).toThrow();
+    expect(() => parseModelSecretKeys('{"anthropic":""}')).toThrow(
+      /JSON object of family→secret-key strings/,
+    );
+  });
+});
+
+describe("catalog profile", () => {
+  it("full requires the mcp, skills and events URLs plus an anthropic credential; bare requires nothing", () => {
+    expect(catalogProfile({})).toEqual("bare");
+    expect(() => enforceCatalogProfile({})).not.toThrow();
+    expect(() =>
+      enforceCatalogProfile({
+        LORE_CATALOG_PROFILE: "full",
+        LORE_MCP_URL: "http://mcp",
+        LORE_AGENT_EVENTS_URL: "http://events",
+      }),
+    ).toThrow(/LORE_SKILLS_URL is unset/);
+    expect(() =>
+      enforceCatalogProfile({
+        LORE_CATALOG_PROFILE: "full",
+        LORE_MCP_URL: "http://mcp",
+        LORE_SKILLS_URL: "http://mcp/skills",
+        LORE_AGENT_EVENTS_URL: "http://events",
+      }),
+    ).toThrow(/no anthropic credential key/);
+    expect(() =>
+      enforceCatalogProfile({
+        LORE_CATALOG_PROFILE: "full",
+        LORE_MCP_URL: "http://mcp",
+        LORE_SKILLS_URL: "http://mcp/skills",
+        LORE_AGENT_EVENTS_URL: "http://events",
+        LORE_AGENT_LLM_SECRET_KEY: "ANTHROPIC_API_KEY",
+      }),
+    ).not.toThrow();
+  });
+
+  it('a typo\'d profile ("Full") refuses to boot instead of silently reading as bare', () => {
+    expect(() => catalogProfile({ LORE_CATALOG_PROFILE: "Full" })).toThrow(
+      /unknown LORE_CATALOG_PROFILE/,
+    );
+  });
 });
 
 describe("nextSyncDelay", () => {
@@ -277,7 +475,8 @@ describe("runCatalogSyncLoop", () => {
           kind: "synced" as const,
           applied: 1,
           deleted: 0,
-          skipped: 0,
+          skipped: [],
+          refused: [],
         },
         ack: "4",
       },
@@ -307,5 +506,104 @@ describe("runCatalogSyncLoop", () => {
     expect(acks).toEqual([undefined, undefined, "4"]);
     expect(reRegistered).toEqual(1);
     expect(firstSyncs).toEqual(1);
+  });
+});
+
+describe("status reporting", () => {
+  /** A fetch that answers the events GET from `body` and records any POST. */
+  function withStatusCapture(body: unknown) {
+    const posts: Array<{ url: string; payload: unknown }> = [];
+    const fetchFn = (async (url: string, init?: RequestInit) => {
+      if (init?.method === "POST") {
+        posts.push({ url, payload: JSON.parse(String(init.body)) });
+
+        return new Response(null, { status: 200 });
+      }
+
+      return new Response(JSON.stringify(body), { status: 200 });
+    }) as unknown as typeof fetch;
+
+    return { fetchFn, posts };
+  }
+
+  const batch = {
+    mode: "tail",
+    cursor: "9",
+    entries: [
+      {
+        name: "implementation",
+        project_id: null,
+        definition: def("implementation"),
+      },
+      {
+        name: "def-github_action",
+        project_id: null,
+        definition: { ...def("def-github_action"), execution_mode: "station" },
+      },
+      { name: "gone", project_id: "p-1", definition: null },
+    ],
+  };
+
+  it("reports one structured verdict per entry — applied, refused with its reason, and deleted", async () => {
+    const { catalog } = recordingCatalog();
+    const { fetchFn, posts } = withStatusCapture(batch);
+
+    await catalogSyncOnce(tickDeps(catalog, fetchFn), "3");
+
+    expect(posts).toHaveLength(1);
+    expect(posts[0].url).toContain(
+      "/api/cluster-agents/agent-1/catalog-status",
+    );
+    expect(posts[0].payload).toMatchObject({
+      // Batch order, not a sorted one: the report mirrors what the loop did,
+      // in the order it did it.
+      reports: [
+        {
+          name: "implementation",
+          project_id: null,
+          state: "applied",
+          reason: null,
+        },
+        {
+          name: "def-github_action",
+          project_id: null,
+          state: "refused",
+          reason: expect.stringContaining(
+            "not a valid Kubernetes resource name",
+          ),
+        },
+        { name: "gone", project_id: "p-1", state: "deleted", reason: null },
+      ],
+    });
+  });
+
+  it("a refused status report never fails the sync — visibility must not cost delivery", async () => {
+    const { catalog } = recordingCatalog();
+    const fetchFn = (async (_url: string, init?: RequestInit) =>
+      init?.method === "POST"
+        ? new Response(null, { status: 500 })
+        : new Response(JSON.stringify(batch), {
+            status: 200,
+          })) as unknown as typeof fetch;
+
+    const result = await catalogSyncOnce(tickDeps(catalog, fetchFn), "3");
+
+    expect(result).toMatchObject({
+      ack: "9",
+      outcome: { kind: "synced", applied: 1 },
+    });
+  });
+
+  it("posts nothing when the batch was empty", async () => {
+    const { catalog } = recordingCatalog();
+    const { fetchFn, posts } = withStatusCapture({
+      mode: "tail",
+      cursor: "9",
+      entries: [],
+    });
+
+    await catalogSyncOnce(tickDeps(catalog, fetchFn), "3");
+
+    expect(posts).toEqual([]);
   });
 });
