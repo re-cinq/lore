@@ -290,114 +290,6 @@ describe("node transcript drill-in", () => {
     });
   }
 
-  it("shows the implement node transcript after clicking the implement node", async () => {
-    stubHistory([
-      eventRow({ id: "1", nodeId: "implement", eventType: "init" }),
-      eventRow({
-        id: "2",
-        nodeId: "implement",
-        eventType: "tool_call",
-        toolName: "Edit",
-        summary: "spec.md",
-      }),
-    ]);
-    useFakeEventSource();
-
-    renderPanel("running");
-    await settle();
-    await selectNode("implement");
-
-    expect(screen.getByText("Edit")).toBeInTheDocument();
-    expect(screen.getByText("spec.md")).toBeInTheDocument();
-  });
-
-  it("swaps to the validate node transcript when the selection changes", async () => {
-    stubHistory([
-      eventRow({
-        id: "1",
-        nodeId: "implement",
-        eventType: "tool_call",
-        toolName: "Edit",
-        summary: "spec.md",
-      }),
-      eventRow({
-        id: "2",
-        nodeId: "validate",
-        eventType: "tool_call",
-        toolName: "Bash",
-        summary: "npm test",
-      }),
-    ]);
-    useFakeEventSource();
-
-    renderPanel("running");
-    await settle();
-    await selectNode("implement");
-    await selectNode("validate");
-
-    expect(screen.getByText("npm test")).toBeInTheDocument();
-    expect(screen.queryByText("spec.md")).not.toBeInTheDocument();
-  });
-
-  it("renders the empty transcript message for a node with no events", async () => {
-    stubHistory([]);
-    useFakeEventSource();
-
-    // A walk row makes the node participate (so it renders and is selectable)
-    // while its transcript stays empty.
-    render(
-      <RunVisualizationPanel
-        runId="run-1"
-        runStatus="running"
-        startedAt={null}
-        definition={definition}
-        nodes={[
-          {
-            nodeId: "implement",
-            iteration: 1,
-            outcome: null,
-            agentCrName: null,
-            commitSha: null,
-            durationSeconds: null,
-          },
-        ]}
-        repo="re-cinq/lore"
-        reason={null}
-      />,
-    );
-    await settle();
-    await selectNode("implement");
-
-    expect(
-      screen.getByText("No agent events for implement yet."),
-    ).toBeInTheDocument();
-  });
-
-  it("appends a live tool_call row to the open transcript", async () => {
-    stubHistory([
-      eventRow({ id: "1", nodeId: "implement", eventType: "init" }),
-    ]);
-    useFakeEventSource();
-
-    renderPanel("running");
-    await settle();
-    await selectNode("implement");
-
-    await act(async () => {
-      FakeEventSource.instances[0].emit(
-        "agent-event",
-        eventRow({
-          id: "9",
-          nodeId: "implement",
-          eventType: "tool_call",
-          toolName: "Bash",
-          summary: "npm run build",
-        }),
-      );
-    });
-
-    expect(screen.getByText("npm run build")).toBeInTheDocument();
-  });
 });
 
 describe("heatmap and timeline wiring", () => {
@@ -976,7 +868,7 @@ describe("a node's input opens its transcript", () => {
     },
   ];
 
-  it("opens a selected node's transcript with the input that node was given", async () => {
+  it("shows the selected node's input card with the brief it was given", async () => {
     stubHistory([
       eventRow({ id: "1", nodeId: "implement", eventType: "init" }),
     ]);
@@ -1004,9 +896,9 @@ describe("a node's input opens its transcript", () => {
     expect(screen.getAllByText("implement the spec").length).toBeGreaterThan(0);
   });
 
-  it("shows a dispatched-but-silent node's input instead of the bare empty state", async () => {
-    // The case the feature exists for: the row is minted, the pod has not spoken,
-    // and the page used to say "No agent events" over a node holding a full brief.
+  it("shows a dispatched-but-silent node's input card", async () => {
+    // The case the feature exists for: the row is minted, the pod has not
+    // spoken, and the brief lives in the Input card below the node detail.
     stubHistory([]);
     useFakeEventSource();
     render(
@@ -1029,14 +921,10 @@ describe("a node's input opens its transcript", () => {
     await settle();
     await selectNode("implement");
 
-    // The summary and the expanded body carry the same short brief.
     expect(screen.getAllByText("implement the spec").length).toBeGreaterThan(0);
-    expect(
-      screen.queryByText("No agent events for implement yet."),
-    ).not.toBeInTheDocument();
   });
 
-  it("renders a pre-migration node's transcript unchanged when its row has no input", async () => {
+  it("renders no Input card for a pre-migration row that recorded none", async () => {
     stubHistory([]);
     useFakeEventSource();
     render(
@@ -1053,9 +941,7 @@ describe("a node's input opens its transcript", () => {
     await settle();
     await selectNode("implement");
 
-    expect(
-      screen.getByText("No agent events for implement yet."),
-    ).toBeInTheDocument();
+    expect(screen.queryByText("Input")).not.toBeInTheDocument();
   });
 });
 

@@ -24,14 +24,13 @@ import { takenEdgeKeys } from "@/lib/run-taken-edges";
 import { latestRowByNode, replayRunData } from "@/lib/run-replay-view";
 import { deriveVisibleGraph, type RunData } from "@/lib/graph-view-model";
 import { parseRunStreamRow, type RunStreamEvent } from "@/lib/run-stream-types";
-import { toTranscriptRows } from "@/lib/transcript-rows";
 import { stepViews } from "@/lib/step-presenter";
 import FileHeatmapView from "./FileHeatmapView";
 import FullTranscriptPanel from "./FullTranscriptPanel";
 import NodeLogPanel from "./NodeLogPanel";
-import NodeTranscriptView from "./NodeTranscriptView";
 import ReplayScrubberView from "./ReplayScrubberView";
 import RunGraphView from "./RunGraphView";
+import NodeInputCard from "./NodeInputCard";
 import RunNodeDetail from "./RunNodeDetail";
 import RunTimelineView from "./RunTimelineView";
 import { RerunNodeButton } from "./RerunNodeButton";
@@ -336,10 +335,6 @@ export default function RunVisualizationPanel({
       ),
     [selectedRows],
   );
-  const rows = useMemo(
-    () => (selected ? toTranscriptRows(selected.transcript, nodeInputs) : []),
-    [selected, nodeInputs],
-  );
   const selectedAttempts = useMemo(
     () => stepViews(definition, selectedRows, reason),
     [definition, selectedRows, reason],
@@ -485,18 +480,12 @@ export default function RunVisualizationPanel({
             repo={repo}
             attempts={selectedAttempts}
           />
+          <NodeInputCard inputs={nodeInputs} />
           {retrySource !== null ? (
             <RerunNodeButton
               runId={runId}
               resumeNodeId={retrySource.nodeId}
               resumeIteration={retrySource.iteration}
-            />
-          ) : null}
-          {selected ? (
-            <NodeTranscriptView
-              nodeId={selectedNodeId}
-              rows={rows}
-              droppedCount={selected.droppedCount}
             />
           ) : null}
           {selectedRows
