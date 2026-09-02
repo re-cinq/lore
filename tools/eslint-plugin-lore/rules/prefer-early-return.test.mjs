@@ -15,6 +15,11 @@ ruleTester.run("prefer-early-return", rule, {
     `function f(x) { if (x) { return early(); } const a = 1; const b = 2; return late(a, b); }`,
     // equal weight either way — no opinion
     `function f(x) { if (x) { return a(); } return b(); }`,
+    // a chunky continue-guard in a loop is already guard-shaped — the wrapped
+    // block is the exceptional path, and flipping it would be wrong advice
+    `function f(rows) { for (const r of rows) { if (r.err) { count(); log(r); warn(r); record(r); continue; } ok(r); } }`,
+    // small wrap over small tail: not worth a warning
+    `function f(x) { if (x) { prime(x); return a(x); } return b(); }`,
   ],
   invalid: [
     {

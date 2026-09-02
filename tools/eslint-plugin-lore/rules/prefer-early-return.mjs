@@ -31,6 +31,9 @@ const DECLARATIONS = new Set([
   "ClassDeclaration",
 ]);
 
+/** A wrapped happy path is only worth flipping when it is a real block. */
+const MIN_WRAPPED = 4;
+
 /** True when control cannot flow past this statement into the next sibling. */
 function terminates(statement) {
   if (!statement) return false;
@@ -38,6 +41,15 @@ function terminates(statement) {
     return terminates(statement.body[statement.body.length - 1]);
   }
   return TERMINATORS.has(statement.type);
+}
+
+/** Like {@link terminates}, but only for leaving the function entirely. */
+function exits(statement) {
+  if (!statement) return false;
+  if (statement.type === "BlockStatement") {
+    return exits(statement.body[statement.body.length - 1]);
+  }
+  return statement.type === "ReturnStatement" || statement.type === "ThrowStatement";
 }
 
 function statementCount(statement) {
@@ -126,16 +138,24 @@ export default {
         }
 
         // Shape 2: a terminating, else-less if that wraps the happy path.
+        // Only `return`/`throw` wraps qualify — a chunky continue/break guard in
+        // a loop is already guard-shaped, its wrapped block being the
+        // exceptional path — and only a REAL block (≥ MIN_WRAPPED statements)
+        // outweighing its tail is worth a warning.
         if (
           node.parent.type !== "BlockStatement" ||
-          !terminates(node.consequent)
+          !exits(node.consequent)
         ) {
           return;
         }
         const siblings = node.parent.body;
         const tail = siblings.slice(siblings.indexOf(node) + 1);
 
-        if (tail.length > 0 && statementCount(node.consequent) > tail.length) {
+        if (
+          tail.length > 0 &&
+          statementCount(node.consequent) >= MIN_WRAPPED &&
+          statementCount(node.consequent) > tail.length
+        ) {
           context.report({
             node,
             messageId: "flipToGuard",

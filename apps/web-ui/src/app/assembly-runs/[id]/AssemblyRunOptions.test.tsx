@@ -37,7 +37,9 @@ describe("AssemblyRunOptions", () => {
 
   it("renders nothing for an implementation run", () => {
     const { container } = render(
-      <AssemblyRunOptions run={buildRun({ blueprintName: "implementation" })} />,
+      <AssemblyRunOptions
+        run={buildRun({ blueprintName: "implementation" })}
+      />,
     );
 
     expect(container).toBeEmptyDOMElement();
