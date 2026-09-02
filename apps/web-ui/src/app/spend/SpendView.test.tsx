@@ -1,11 +1,7 @@
 // @vitest-environment jsdom
 import { afterAll, beforeAll, describe, it, expect, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
-import SpendView, {
-  budgetOutlook,
-  type SpendViewProps,
-  type LoreMtdRow,
-} from "./SpendView";
+import SpendView, { budgetOutlook, type SpendWindow } from "./SpendView";
 
 const usd = (n: number) =>
   Number(n).toLocaleString(undefined, { style: "currency", currency: "USD" });
@@ -30,111 +26,160 @@ const tableByHeading = (heading: string): HTMLElement => {
   return table;
 };
 
-const loreMtd: LoreMtdRow = {
-  computed_usd: 37.7,
-  calls: 85,
-  input_tokens: 12345,
-  output_tokens: 735021,
-};
-
-// The no-admin-key case (orgAvailable false) with full Lore-computed data.
-const loreOnly: SpendViewProps = {
-  orgMtd: {
-    billed_usd: 0,
+// The no-admin-key case (billed unavailable) with full Lore-computed data.
+const loreOnly: SpendWindow = {
+  interval: { from: "2026-08-26", to: "2026-09-02" },
+  llm: {
+    total_usd: 37.7,
+    calls: 85,
+    input_tokens: 12345,
+    output_tokens: 735021,
+    by_blueprint: [{ blueprint: "implementation-loop", runs: 15, usd: 27.47 }],
+    by_repo: [{ repo: "re-cinq/lore", usd: 80.1 }],
+    by_model: [
+      {
+        model: "claude-sonnet-4-6",
+        calls: 50,
+        cost_usd: 31.73,
+        input_tokens: 3372,
+        output_tokens: 597948,
+      },
+      { model: "", calls: 3, cost_usd: 0, input_tokens: 0, output_tokens: 0 },
+    ],
+    by_kind: [
+      { kind: "Code review / detection line", calls: 78, cost_usd: 37.68 },
+      { kind: "Memory & curation", calls: 7, cost_usd: 0.02 },
+    ],
+    daily: [
+      { bucket_date: "2026-09-01", calls: 32, cost_usd: 14.24 },
+      { bucket_date: "2026-08-31", calls: 20, cost_usd: 6.75 },
+    ],
+    by_task_type: [
+      { task_type: "implementation", tasks: 30, cost_usd: 222.22 },
+    ],
+    by_cluster: [],
+  },
+  billed: {
+    available: false,
+    total_usd: 0,
     input_tokens: 0,
     output_tokens: 0,
     as_of: null,
     billed_through: null,
+    by_model: [],
+    daily: [],
+    unbilled_usd: 0,
+    unbilled_days: 0,
   },
-  orgAvailable: false,
-  orgByModel: [],
-  orgDaily: [],
-  loreMtd,
-  loreByModel: [
-    {
-      model: "claude-sonnet-4-6",
-      calls: 50,
-      cost_usd: 31.73,
-      input_tokens: 3372,
-      output_tokens: 597948,
-    },
-    { model: "", calls: 3, cost_usd: 0, input_tokens: 0, output_tokens: 0 },
-  ],
-  loreByKind: [
-    { kind: "Code review / detection line", calls: 78, cost_usd: 37.68 },
-    { kind: "Memory & curation", calls: 7, cost_usd: 0.02 },
-  ],
-  loreDaily: [
-    { bucket_date: "2026-08-07", calls: 32, cost_usd: 14.24 },
-    { bucket_date: "2026-08-06", calls: 20, cost_usd: 6.75 },
-  ],
-  loreByRepo: [{ target_repo: "re-cinq/lore", tasks: 42, cost_usd: 333.33 }],
-  loreByTaskType: [
-    { task_type: "implementation", tasks: 30, cost_usd: 222.22 },
-  ],
+  budget: null,
+  compute: {
+    rates: { cpu_hour_usd: 0.022, mem_gib_hour_usd: 0.003 },
+    assumed_profile: { cpu: "1", memory: "4Gi" },
+    pod_hours: [
+      { blueprint: "implementation-loop", pods: 9, hours: 6.5, est_usd: 0.22 },
+    ],
+    est_total_usd: 0.22,
+    live_pods: [
+      {
+        name: "agent-job-run1-tdd-round-abc",
+        phase: "Running",
+        started_at: "2026-09-02T11:00:00.000Z",
+        requests: { cpu: "1", memory: "16Gi" },
+        usd_per_hour: 0.07,
+        usd_so_far: 0.07,
+        station_run_id: "sr-1",
+      },
+    ],
+    live_usd_per_hour: 0.07,
+  },
 };
 
 // Same data plus a configured admin key (the optional billed sections light up).
-const withAdminKey: SpendViewProps = {
+const withAdminKey: SpendWindow = {
   ...loreOnly,
-  orgAvailable: true,
-  orgMtd: {
-    billed_usd: 1234.5,
+  billed: {
+    available: true,
+    total_usd: 1234.5,
     input_tokens: 1000000,
     output_tokens: 50000,
-    as_of: "2026-08-07T10:00:00.000Z",
-    billed_through: "2026-08-07",
+    as_of: "2026-09-02T10:00:00.000Z",
+    billed_through: "2026-09-01",
+    by_model: [
+      {
+        model: "claude-opus-4",
+        cost_usd: 900.25,
+        input_tokens: 1000000,
+        output_tokens: 50000,
+      },
+      { model: "", cost_usd: 12.75, input_tokens: 0, output_tokens: 0 },
+    ],
+    daily: [{ bucket_date: "2026-09-01", cost_usd: 400.1 }],
+    unbilled_usd: 0,
+    unbilled_days: 0,
   },
-  orgByModel: [
-    {
-      model: "claude-opus-4",
-      cost_usd: 900.25,
-      input_tokens: 1000000,
-      output_tokens: 50000,
-    },
-    { model: "", cost_usd: 12.75, input_tokens: 0, output_tokens: 0 },
-  ],
-  orgDaily: [{ bucket_date: "2026-08-07", cost_usd: 400.1 }],
 };
 
-const empty: SpendViewProps = {
-  orgMtd: {
-    billed_usd: 0,
+const unbilled = (spend: SpendWindow, usdValue: number, days: number) => ({
+  ...spend,
+  billed: { ...spend.billed, unbilled_usd: usdValue, unbilled_days: days },
+});
+
+const empty: SpendWindow = {
+  ...loreOnly,
+  llm: {
+    ...loreOnly.llm,
+    total_usd: 0,
+    calls: 0,
     input_tokens: 0,
     output_tokens: 0,
-    as_of: null,
-    billed_through: null,
+    by_blueprint: [],
+    by_repo: [],
+    by_model: [],
+    by_kind: [],
+    daily: [],
+    by_task_type: [],
+    by_cluster: [],
   },
-  orgAvailable: false,
-  orgByModel: [],
-  orgDaily: [],
-  loreMtd: { computed_usd: 0, calls: 0, input_tokens: 0, output_tokens: 0 },
-  loreByModel: [],
-  loreByKind: [],
-  loreDaily: [],
-  loreByRepo: [],
-  loreByTaskType: [],
+  compute: {
+    ...loreOnly.compute,
+    pod_hours: [],
+    est_total_usd: 0,
+    live_pods: [],
+    live_usd_per_hour: 0,
+  },
 };
 
 describe("SpendView", () => {
-  it("renders the title and every Lore-computed section heading", () => {
-    render(<SpendView {...loreOnly} />);
+  it("renders every interval-scoped section heading with no month-to-date scope", () => {
+    render(<SpendView spend={loreOnly} />);
 
     for (const name of [
-      "Claude API Spend",
-      "Month to Date",
-      "Cost by Model (MTD)",
-      "Cost by Kind (MTD)",
-      "Daily Cost (This Month)",
-      "Cost by Repo (MTD)",
-      "Cost by Task Type (MTD)",
+      "Balance",
+      "LLM by Assembly Line",
+      "Cost by Model",
+      "Cost by Kind",
+      "Daily Cost",
+      "Cost by Repo",
+      "Cost by Task Type",
+      "Cost by Cluster",
+      "Pods Running Now",
+      "Pod-Hours in Interval",
     ]) {
-      expect(screen.getByRole("heading", { name })).toBeInTheDocument();
+      expect(
+        screen.getByRole("heading", { name, level: 2 }),
+      ).toBeInTheDocument();
     }
+    // The merge's whole point: nothing on the page is month-to-date any more.
+    expect(screen.queryByText(/Month to Date|MTD|This Month/)).toBeNull();
   });
 
-  it("headlines the Lore-computed cost, call count, and token totals", () => {
-    render(<SpendView {...loreOnly} />);
+  it("headlines the interval, the Lore-computed cost, calls and token totals", () => {
+    render(<SpendView spend={loreOnly} />);
+    expect(
+      screen.getByText(
+        `Lore-computed cost ${day("2026-08-26")} → ${day("2026-09-02")}`,
+      ),
+    ).toBeInTheDocument();
     expect(screen.getByText(usd(37.7))).toBeInTheDocument();
     expect(screen.getByText("estimate from token counts")).toBeInTheDocument();
     expect(screen.getByText(num(85))).toBeInTheDocument();
@@ -142,9 +187,46 @@ describe("SpendView", () => {
     expect(screen.getByText(num(735021))).toBeInTheDocument();
   });
 
+  it("renders the Kubernetes estimate card with the live burn rate", () => {
+    render(<SpendView spend={loreOnly} />);
+    expect(screen.getByText("Kubernetes (estimated)")).toBeInTheDocument();
+    expect(
+      screen.getByText(`+ ${usd(0.07)}/h burning now`),
+    ).toBeInTheDocument();
+  });
+
+  it("renders the assembly-line, live-pod and pod-hours breakdowns with the rate note", () => {
+    render(<SpendView spend={loreOnly} />);
+    expect(
+      within(tableByHeading("LLM by Assembly Line")).getByText(usd(27.47)),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("agent-job-run1-tdd-round-abc"),
+    ).toBeInTheDocument();
+    // Twice: the LLM table and the pod-hours table each carry the line.
+    expect(screen.getAllByText("implementation-loop")).toHaveLength(2);
+    // The estimate is labeled as one, with the rates it assumed.
+    expect(
+      screen.getByText(
+        (_, element) =>
+          element?.tagName === "P" &&
+          /estimate from resource requests × on-demand rates \(\$0\.022\/cpu-h/.test(
+            element.textContent ?? "",
+          ),
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("says so when no run pods are live", () => {
+    render(<SpendView spend={empty} />);
+    expect(
+      screen.getByText("No run pods are live right now."),
+    ).toBeInTheDocument();
+  });
+
   it("renders cost-by-model rows, including the (non-token) fallback label", () => {
-    render(<SpendView {...loreOnly} />);
-    const table = tableByHeading("Cost by Model (MTD)");
+    render(<SpendView spend={loreOnly} />);
+    const table = tableByHeading("Cost by Model");
 
     expect(within(table).getByText("claude-sonnet-4-6")).toBeInTheDocument();
     expect(within(table).getByText("(non-token)")).toBeInTheDocument();
@@ -154,8 +236,8 @@ describe("SpendView", () => {
   });
 
   it("renders cost-by-kind rows attributing spend to reviews vs tasks", () => {
-    render(<SpendView {...loreOnly} />);
-    const table = tableByHeading("Cost by Kind (MTD)");
+    render(<SpendView spend={loreOnly} />);
+    const table = tableByHeading("Cost by Kind");
 
     expect(
       within(table).getByText("Code review / detection line"),
@@ -166,39 +248,35 @@ describe("SpendView", () => {
   });
 
   it("renders daily cost rows with localized dates and call counts", () => {
-    render(<SpendView {...loreOnly} />);
-    const table = tableByHeading("Daily Cost (This Month)");
+    render(<SpendView spend={loreOnly} />);
+    const table = tableByHeading("Daily Cost");
 
-    expect(within(table).getByText(day("2026-08-07"))).toBeInTheDocument();
+    expect(within(table).getByText(day("2026-09-01"))).toBeInTheDocument();
     expect(within(table).getByText(usd(14.24))).toBeInTheDocument();
     expect(within(table).getByText(num(32))).toBeInTheDocument();
   });
 
-  it("renders by-repo and by-task-type rows when tasks are attributed", () => {
-    render(<SpendView {...loreOnly} />);
+  it("renders by-repo and by-task-type rows", () => {
+    render(<SpendView spend={loreOnly} />);
     expect(
-      within(tableByHeading("Cost by Repo (MTD)")).getByText("re-cinq/lore"),
+      within(tableByHeading("Cost by Repo")).getByText("re-cinq/lore"),
     ).toBeInTheDocument();
-    const byType = tableByHeading("Cost by Task Type (MTD)");
+    const byType = tableByHeading("Cost by Task Type");
 
     expect(within(byType).getByText("implementation")).toBeInTheDocument();
     expect(within(byType).getByText(usd(222.22))).toBeInTheDocument();
   });
 
   it("hides the billed card and Anthropic sections without an admin key", () => {
-    render(<SpendView {...loreOnly} />);
+    render(<SpendView spend={loreOnly} />);
     expect(
       screen.queryByText("Billed cost (Anthropic)"),
     ).not.toBeInTheDocument();
     expect(
-      screen.queryByRole("heading", {
-        name: "Anthropic Billed by Model (MTD)",
-      }),
+      screen.queryByRole("heading", { name: "Anthropic Billed by Model" }),
     ).not.toBeInTheDocument();
     expect(
-      screen.queryByRole("heading", {
-        name: "Anthropic Daily Billed (This Month)",
-      }),
+      screen.queryByRole("heading", { name: "Anthropic Daily Billed" }),
     ).not.toBeInTheDocument();
     // No em-dash placeholders anywhere Lore data reaches — the Anthropic
     // sections are absent rather than degraded, which is the point of this
@@ -214,7 +292,7 @@ describe("SpendView", () => {
   });
 
   it("shows the billed card and Anthropic sections when an admin key is configured", () => {
-    render(<SpendView {...withAdminKey} />);
+    render(<SpendView spend={withAdminKey} />);
     expect(screen.getByText("Billed cost (Anthropic)")).toBeInTheDocument();
     expect(screen.getByText(usd(1234.5))).toBeInTheDocument();
     // Asserted by SHAPE, not by rebuilding the string the way the view does:
@@ -227,38 +305,29 @@ describe("SpendView", () => {
     const asOf = screen.getByText(/^as of /).textContent ?? "";
 
     expect(asOf).toMatch(/^as of \d{2}-\d{2}-\d{4} \d{2}:\d{2}$/);
-    expect(asOf).toContain("-08-2026");
+    expect(asOf).toContain("-09-2026");
     expect(asOf).not.toContain("/");
     expect(
-      within(tableByHeading("Anthropic Billed by Model (MTD)")).getByText(
+      within(tableByHeading("Anthropic Billed by Model")).getByText(
         "claude-opus-4",
       ),
     ).toBeInTheDocument();
     expect(
-      within(tableByHeading("Anthropic Daily Billed (This Month)")).getByText(
-        usd(400.1),
-      ),
+      within(tableByHeading("Anthropic Daily Billed")).getByText(usd(400.1)),
     ).toBeInTheDocument();
   });
 
   it("shows empty-state rows for every table when there is no data", () => {
-    render(<SpendView {...empty} />);
-    expect(screen.getByText(usd(0))).toBeInTheDocument();
-    expect(screen.getAllByText("No data")).toHaveLength(3); // model + kind + daily
-    expect(
-      screen.getByText(/No task-attributed spend \(e\.g\./),
-    ).toBeInTheDocument(); // repo
-    expect(screen.getByText("No task-attributed spend")).toBeInTheDocument(); // task type
+    render(<SpendView spend={empty} />);
+    // assembly line + model + kind + daily + pod-hours
+    expect(screen.getAllByText("No data")).toHaveLength(5);
+    expect(screen.getByText("No run-attributed spend")).toBeInTheDocument();
+    expect(screen.getByText("No task-attributed spend")).toBeInTheDocument();
+    expect(screen.getByText("No cluster-attributed spend")).toBeInTheDocument();
   });
 
   it("brings the billed card current with today's Lore-computed spend, labeled", () => {
-    render(
-      <SpendView
-        {...withAdminKey}
-        loreUnbilledUsd={1.95}
-        loreUnbilledDays={1}
-      />,
-    );
+    render(<SpendView spend={unbilled(withAdminKey, 1.95, 1)} />);
 
     const note = screen.getByText(/billed through/);
 
@@ -267,17 +336,13 @@ describe("SpendView", () => {
   });
 
   it("omits the unbilled line when the unbilled Lore-computed spend is zero", () => {
-    render(
-      <SpendView {...withAdminKey} loreUnbilledUsd={0} loreUnbilledDays={0} />,
-    );
+    render(<SpendView spend={withAdminKey} />);
 
     expect(screen.queryByText(/billed through/)).not.toBeInTheDocument();
   });
 
   it("shows no unbilled line without billed data even when there is spend", () => {
-    render(
-      <SpendView {...empty} loreUnbilledUsd={1.95} loreUnbilledDays={1} />,
-    );
+    render(<SpendView spend={unbilled(loreOnly, 1.95, 1)} />);
 
     expect(screen.queryByText(/billed through/)).not.toBeInTheDocument();
   });
@@ -285,14 +350,8 @@ describe("SpendView", () => {
   it("names the last billed day and the whole span when two days are unbilled", () => {
     // The reported case: the sync stamped 8/19 but its buckets ended at 8/18,
     // so 8/19 AND 8/20 were unbilled while the card claimed only today's
-    // $11.95 was missing — understating the gap by a full day's spend.
-    render(
-      <SpendView
-        {...withAdminKey}
-        loreUnbilledUsd={47.74}
-        loreUnbilledDays={2}
-      />,
-    );
+    // spend was missing — understating the gap by a full day's spend.
+    render(<SpendView spend={unbilled(withAdminKey, 47.74, 2)} />);
 
     const note = screen.getByText(/billed through/);
 
@@ -302,30 +361,27 @@ describe("SpendView", () => {
   });
 
   it("dates the billed-through day in local time, not the UTC instant", () => {
-    // `new Date("2026-08-07")` is UTC midnight, which renders as the 6th for
+    // `new Date("2026-09-01")` is UTC midnight, which renders as 31-08 for
     // every viewer west of Greenwich: an off-by-one day inside the fix for an
     // off-by-one day. Formatted from the string's parts, so no Date is built
     // and no timezone can shift it.
-    render(
-      <SpendView
-        {...withAdminKey}
-        loreUnbilledUsd={1.95}
-        loreUnbilledDays={1}
-      />,
-    );
+    render(<SpendView spend={unbilled(withAdminKey, 1.95, 1)} />);
 
     expect(screen.getByText(/billed through/).textContent).toContain(
-      "07-08-2026",
+      "01-09-2026",
     );
   });
 
   it("falls back to the undated wording when nothing has ever been billed", () => {
     render(
       <SpendView
-        {...withAdminKey}
-        orgMtd={{ ...withAdminKey.orgMtd, billed_through: null }}
-        loreUnbilledUsd={47.74}
-        loreUnbilledDays={2}
+        spend={{
+          ...unbilled(withAdminKey, 47.74, 2),
+          billed: {
+            ...unbilled(withAdminKey, 47.74, 2).billed,
+            billed_through: null,
+          },
+        }}
       />,
     );
 
@@ -345,24 +401,16 @@ describe("SpendView", () => {
     screen.getByRole("heading", { name: "Balance", level: 2 })
       .nextElementSibling as HTMLElement;
 
-  it("renders the remaining balance below the month-to-date figures", () => {
-    // Position is deliberate: the balance is month-to-date spend subtracted
-    // from what was recorded, so it reads better after those figures than
-    // before them.
-    render(<SpendView {...loreOnly} budget={budget} />);
+  it("renders the remaining balance below the interval figures", () => {
+    // Position is deliberate: the balance is spend subtracted from what was
+    // recorded, so it reads better after those figures than before them.
+    render(<SpendView spend={{ ...loreOnly, budget }} />);
 
-    const headings = screen
-      .getAllByRole("heading", { level: 2 })
-      .map((h) => h.textContent);
-
-    expect(headings.indexOf("Balance")).toBeGreaterThan(
-      headings.indexOf("Month to Date"),
-    );
     expect(within(balanceCard()).getByText(usd(187.5))).toBeTruthy();
   });
 
   it("shows the recorded total, the spend and the day the count starts", () => {
-    render(<SpendView {...loreOnly} budget={budget} />);
+    render(<SpendView spend={{ ...loreOnly, budget }} />);
 
     const note = within(balanceCard()).getByText(/recorded/);
 
@@ -374,7 +422,7 @@ describe("SpendView", () => {
   it("shows an em dash and a prompt when no balance has been recorded", () => {
     // Never "$0.00": an unrecorded balance and an exhausted one are different
     // facts, and only one of them is a number.
-    render(<SpendView {...loreOnly} />);
+    render(<SpendView spend={loreOnly} />);
 
     const card = balanceCard();
 
@@ -386,8 +434,10 @@ describe("SpendView", () => {
   it("says the balance is overrun when spend has passed it", () => {
     render(
       <SpendView
-        {...loreOnly}
-        budget={{ ...budget, spent_since_usd: 545, remaining_usd: -45 }}
+        spend={{
+          ...loreOnly,
+          budget: { ...budget, spent_since_usd: 545, remaining_usd: -45 },
+        }}
       />,
     );
 
@@ -447,10 +497,7 @@ describe("SpendView top-up form", () => {
   const recordAction = async () => ({});
 
   it("asks for the opening balance when no balance is recorded", () => {
-    // Mounting matters as much as the wording: the form is the one client
-    // component on an otherwise server-rendered page, and a broken boundary
-    // shows up here rather than at runtime.
-    render(<SpendView {...loreOnly} recordAction={recordAction} />);
+    render(<SpendView spend={loreOnly} recordAction={recordAction} />);
 
     expect(
       screen.getByRole("button", { name: "Record balance" }),
@@ -461,14 +508,16 @@ describe("SpendView top-up form", () => {
   it("asks for a top-up once a balance exists", () => {
     render(
       <SpendView
-        {...loreOnly}
-        recordAction={recordAction}
-        budget={{
-          ledger_total_usd: 500,
-          spent_since_usd: 100,
-          remaining_usd: 400,
-          anchored_at: "2026-08-01T00:00:00Z",
+        spend={{
+          ...loreOnly,
+          budget: {
+            ledger_total_usd: 500,
+            spent_since_usd: 100,
+            remaining_usd: 400,
+            anchored_at: "2026-08-01T00:00:00Z",
+          },
         }}
+        recordAction={recordAction}
       />,
     );
 
@@ -478,7 +527,7 @@ describe("SpendView top-up form", () => {
   });
 
   it("omits the form entirely when no record action is supplied", () => {
-    render(<SpendView {...loreOnly} />);
+    render(<SpendView spend={loreOnly} />);
 
     expect(screen.queryByLabelText(/Amount/)).toBeNull();
   });
@@ -501,24 +550,27 @@ describe("SpendView runout wording", () => {
   });
 
   const withDaysLeft = (spent: number, remaining: number) => ({
-    ledger_total_usd: spent + remaining,
-    spent_since_usd: spent,
-    remaining_usd: remaining,
-    anchored_at: "2026-08-01T00:00:00Z",
+    ...loreOnly,
+    budget: {
+      ledger_total_usd: spent + remaining,
+      spent_since_usd: spent,
+      remaining_usd: remaining,
+      anchored_at: "2026-08-01T00:00:00Z",
+    },
   });
 
   it("says a day, not 1 days, on the last day of runway", () => {
     // Caught by rendering the component and reading it, not by an assertion —
     // every figure was correct and the sentence was still wrong. This is the
     // line someone reads on the day it matters most.
-    render(<SpendView {...loreOnly} budget={withDaysLeft(561, 39)} />);
+    render(<SpendView spend={withDaysLeft(561, 39)} />);
 
     expect(screen.getByText(/about a day left/)).toBeTruthy();
     expect(screen.queryByText(/1 days left/)).toBeNull();
   });
 
   it("pluralises every other runway length", () => {
-    render(<SpendView {...loreOnly} budget={withDaysLeft(214, 386)} />);
+    render(<SpendView spend={withDaysLeft(214, 386)} />);
 
     expect(screen.getByText(/about 37 days left/)).toBeTruthy();
   });
@@ -526,16 +578,19 @@ describe("SpendView runout wording", () => {
 
 describe("SpendView anchor precision", () => {
   const at = (anchored_at: string) => ({
-    ledger_total_usd: 600,
-    spent_since_usd: 214,
-    remaining_usd: 386,
-    anchored_at,
+    ...loreOnly,
+    budget: {
+      ledger_total_usd: 600,
+      spent_since_usd: 214,
+      remaining_usd: 386,
+      anchored_at,
+    },
   });
 
   it("shows no clock when the balance anchors to the start of its day", () => {
     // Printing "00:00" would dress a deliberate approximation up as a
     // measurement: a day without a known time counts the WHOLE day.
-    render(<SpendView {...loreOnly} budget={at("2026-08-01T00:00:00Z")} />);
+    render(<SpendView spend={at("2026-08-01T00:00:00Z")} />);
 
     const note = screen.getByText(/recorded/);
 
@@ -546,7 +601,7 @@ describe("SpendView anchor precision", () => {
   it("shows the clock when the balance anchors to a known moment", () => {
     // An opening entered at 14:30 on an already-spending day: the precision is
     // real, so it is stated rather than implied.
-    render(<SpendView {...loreOnly} budget={at("2026-08-01T14:30:00Z")} />);
+    render(<SpendView spend={at("2026-08-01T14:30:00Z")} />);
 
     expect(screen.getByText(/14:30 UTC/)).toBeTruthy();
   });
@@ -555,8 +610,10 @@ describe("SpendView anchor precision", () => {
     // The outlook divides by whole days; an afternoon anchor must not parse to
     // NaN, which is what splitting an ISO instant on "-" used to produce.
     expect(
-      budgetOutlook(at("2026-08-01T14:30:00Z"), new Date(2026, 7, 10)),
-    ).toEqual(budgetOutlook(at("2026-08-01T00:00:00Z"), new Date(2026, 7, 10)));
+      budgetOutlook(at("2026-08-01T14:30:00Z").budget, new Date(2026, 7, 10)),
+    ).toEqual(
+      budgetOutlook(at("2026-08-01T00:00:00Z").budget, new Date(2026, 7, 10)),
+    );
   });
 });
 
@@ -567,7 +624,7 @@ describe("SpendView top-up legend", () => {
     // The wording this replaces said "defaults to today", which a reader could
     // equally take as "defaults to now" — and those anchor the arithmetic at
     // opposite ends of a day's spend.
-    render(<SpendView {...loreOnly} recordAction={recordAction} />);
+    render(<SpendView spend={loreOnly} recordAction={recordAction} />);
 
     expect(
       screen.getByText(/Leave both blank to count from the start of today/),
@@ -579,7 +636,7 @@ describe("SpendView top-up legend", () => {
   it("explains which entry moves the counting window", () => {
     // Counter-intuitive enough to have been got wrong during this feature's
     // own review, so it is stated on the form rather than inferred.
-    render(<SpendView {...loreOnly} recordAction={recordAction} />);
+    render(<SpendView spend={loreOnly} recordAction={recordAction} />);
 
     const legend = screen.getByText(/Which entry moves the window/)
       .nextElementSibling as HTMLElement;
@@ -589,7 +646,7 @@ describe("SpendView top-up legend", () => {
   });
 
   it("explains that a negative amount is a correction", () => {
-    render(<SpendView {...loreOnly} recordAction={recordAction} />);
+    render(<SpendView spend={loreOnly} recordAction={recordAction} />);
 
     const legend = screen.getByText("Amount").nextElementSibling as HTMLElement;
 
@@ -599,24 +656,27 @@ describe("SpendView top-up legend", () => {
   });
 
   it("omits the legend along with the form when no record action is supplied", () => {
-    render(<SpendView {...loreOnly} />);
+    render(<SpendView spend={loreOnly} />);
 
     expect(screen.queryByText(/Which entry moves the window/)).toBeNull();
   });
 });
 
 describe("SpendView cost by cluster", () => {
-  it("renders a cost-by-cluster row per execution cluster when passed", () => {
-    render(
-      <SpendView
-        {...loreOnly}
-        loreByCluster={[
-          { cluster: "colleague-satellite", calls: 12, cost_usd: 88.5 },
-          { cluster: null, calls: 40, cost_usd: 20 },
-        ]}
-      />,
-    );
-    const table = tableByHeading("Cost by Cluster (MTD)");
+  const withClusters = {
+    ...loreOnly,
+    llm: {
+      ...loreOnly.llm,
+      by_cluster: [
+        { cluster: "colleague-satellite", calls: 12, cost_usd: 88.5 },
+        { cluster: null, calls: 40, cost_usd: 20 },
+      ],
+    },
+  };
+
+  it("renders a cost-by-cluster row per execution cluster", () => {
+    render(<SpendView spend={withClusters} />);
+    const table = tableByHeading("Cost by Cluster");
 
     expect(within(table).getByText("colleague-satellite")).toBeInTheDocument();
     expect(within(table).getByText("(no cluster)")).toBeInTheDocument();
@@ -624,19 +684,17 @@ describe("SpendView cost by cluster", () => {
     expect(within(table).getByText(num(12))).toBeInTheDocument();
   });
 
-  it("omits the cost-by-cluster section when no cluster data is passed", () => {
-    render(<SpendView {...loreOnly} />);
-
-    expect(
-      screen.queryByRole("heading", { name: "Cost by Cluster (MTD)" }),
-    ).not.toBeInTheDocument();
+  it("notes that satellite spend is excluded from the balance only when a cluster exists", () => {
+    render(<SpendView spend={withClusters} />);
+    expect(screen.getByText(/excluded from this balance/)).toBeInTheDocument();
   });
 
-  it("shows an empty-state row when cluster data is present but empty", () => {
-    render(<SpendView {...loreOnly} loreByCluster={[]} />);
+  it("omits the satellite note and shows an empty state without cluster rows", () => {
+    render(<SpendView spend={loreOnly} />);
 
+    expect(screen.queryByText(/excluded from this balance/)).toBeNull();
     expect(
-      within(tableByHeading("Cost by Cluster (MTD)")).getByText(
+      within(tableByHeading("Cost by Cluster")).getByText(
         "No cluster-attributed spend",
       ),
     ).toBeInTheDocument();

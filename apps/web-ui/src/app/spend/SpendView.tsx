@@ -3,75 +3,26 @@ import type { components } from "@/lib/api/schema";
 import RecordTopUp from "./RecordTopUp";
 import type { RecordTopUpState } from "./actions";
 
-// Anthropic's authoritative billed cost (Admin Cost API → anthropic_cost_daily).
-// Optional — only present when an sk-ant-admin… key is configured.
 // Every row here is an alias over the OpenAPI document lore-api generates from
-// the /api/spend contract (ADR-035). None of these shapes comes from a table —
-// they are SQL aggregates — so the contract is stated beside the queries that
-// produce them, and this file reads it rather than restating it.
+// the /api/analytics/spend-window contract (ADR-035). None of these shapes
+// comes from a table — they are SQL aggregates — so the contract is stated
+// beside the queries that produce them, and this file reads it rather than
+// restating it. The whole page is scoped to ONE selected interval; the
+// balance is the deliberate exception (a balance added in June is still money
+// in August), and the live pod list is by nature "now".
 
-type Spend = components["schemas"]["Spend"];
+export type SpendWindow = components["schemas"]["SpendWindow"];
 
-export type OrgMtdRow = Spend["org_mtd"];
-export type OrgByModelRow = Spend["org_by_model"][number];
-export type OrgDailyRow = Spend["org_daily"][number];
-export type LoreMtdRow = Spend["lore_mtd"];
-export type LoreByModelRow = Spend["lore_by_model"][number];
-export type LoreByKindRow = Spend["lore_by_kind"][number];
-export type LoreDailyRow = Spend["lore_daily"][number];
-export type LoreByRepoRow = Spend["lore_by_repo"][number];
-export type LoreByTaskTypeRow = Spend["lore_by_task_type"][number];
-export type LoreByClusterRow = Spend["lore_by_cluster"][number];
-
-export type BudgetRow = Spend["budget"];
+export type BudgetRow = SpendWindow["budget"];
 
 export interface SpendViewProps {
-  /**
-   * What is LEFT of the recorded balance, or null when nobody has recorded
-   * one. Null renders a prompt to record it, never a confident "$0.00
-   * remaining" — an unrecorded balance and an exhausted one are different
-   * facts and only one of them is a number.
-   *
-   * Optional, like the unbilled figures below and for the same reason: a
-   * caller that does not pass it renders exactly as before.
-   */
-  budget?: BudgetRow;
+  spend: SpendWindow;
   /** Records money added. Omitted → the form is not rendered; the figures are
    *  read-only either way. */
   recordAction?: (
     prev: RecordTopUpState | null,
     formData: FormData,
   ) => Promise<RecordTopUpState>;
-  orgMtd: OrgMtdRow;
-  orgAvailable: boolean;
-  /**
-   * Lore-computed spend for every day Anthropic has not billed yet, and how
-   * many days that is. Usually one — the cost report never emits the day in
-   * progress — but a sync that ran late, failed, or has not run yet leaves
-   * more, and the previous today-only figure could not say so: it named a
-   * one-day gap while whole days sat in neither number. `llm_calls` is
-   * token-exact against Anthropic's hourly usage report. Optional so callers
-   * without them render exactly as before.
-   */
-  loreUnbilledUsd?: number;
-  loreUnbilledDays?: number;
-  orgByModel: OrgByModelRow[];
-  orgDaily: OrgDailyRow[];
-  loreMtd: LoreMtdRow;
-  loreByModel: LoreByModelRow[];
-  loreByKind: LoreByKindRow[];
-  loreDaily: LoreDailyRow[];
-  loreByRepo: LoreByRepoRow[];
-  loreByTaskType: LoreByTaskTypeRow[];
-  /**
-   * Computed spend per execution cluster — a satellite cluster's burn set
-   * apart from the home cluster's. Optional so a caller that does not pass it
-   * renders exactly as before.
-   */
-  loreByCluster?: LoreByClusterRow[];
-  /** The interval-scoped view (LLM + Kubernetes estimate) — a slot, so this
-   *  view stays pure while the panel owns its own fetching (DDAU). */
-  intervalPanel?: React.ReactNode;
 }
 
 const usd = (n: number) =>
@@ -201,63 +152,39 @@ function BudgetOutlookNote({ budget }: { budget: NonNullable<BudgetRow> }) {
   );
 }
 
-export default function SpendView({
-  budget,
-  recordAction,
-  orgMtd,
-  orgAvailable,
-  loreUnbilledUsd,
-  loreUnbilledDays,
-  orgByModel,
-  orgDaily,
-  loreMtd,
-  loreByModel,
-  loreByKind,
-  loreDaily,
-  loreByRepo,
-  loreByTaskType,
-  loreByCluster,
-  intervalPanel,
-}: SpendViewProps) {
+export default function SpendView({ spend, recordAction }: SpendViewProps) {
+  const { interval, llm, billed, budget, compute } = spend;
+
   return (
     <div>
-      <h1>Claude API Spend</h1>
-      <p className={`meta ${styles.subnote}`}>
-        Figures are Lore-computed from <code>pipeline.llm_calls</code> token
-        counts (input/output × per-model pricing, cache-adjusted).
-        Anthropic&apos;s authoritative billed total needs an admin key and
-        appears only when one is configured.
-      </p>
-
-      {intervalPanel}
-
-      <h2>Month to Date</h2>
       <div className={styles.cards}>
         <div className={`spec-card ${styles.card}`}>
-          <div className="meta">Lore-computed cost</div>
-          <div className={styles.figureInfo}>{usd(loreMtd.computed_usd)}</div>
+          <div className="meta">
+            Lore-computed cost {day(interval.from)} → {day(interval.to)}
+          </div>
+          <div className={styles.figureInfo}>{usd(llm.total_usd)}</div>
           <div className={`meta ${styles.subnote}`}>
             estimate from token counts
           </div>
         </div>
         <div className={`spec-card ${styles.card}`}>
           <div className="meta">API calls</div>
-          <div className={styles.figure}>{num(loreMtd.calls)}</div>
+          <div className={styles.figure}>{num(llm.calls)}</div>
         </div>
         <div className={`spec-card ${styles.card}`}>
           <div className="meta">Input tokens</div>
-          <div className={styles.figure}>{num(loreMtd.input_tokens)}</div>
+          <div className={styles.figure}>{num(llm.input_tokens)}</div>
         </div>
         <div className={`spec-card ${styles.card}`}>
           <div className="meta">Output tokens</div>
-          <div className={styles.figure}>{num(loreMtd.output_tokens)}</div>
+          <div className={styles.figure}>{num(llm.output_tokens)}</div>
         </div>
-        {orgAvailable && (
+        {billed.available && (
           <div className={`spec-card ${styles.card}`}>
             <div className="meta">Billed cost (Anthropic)</div>
-            <div className={styles.figure}>{usd(orgMtd.billed_usd)}</div>
+            <div className={styles.figure}>{usd(billed.total_usd)}</div>
             <div className={`meta ${styles.subnote}`}>
-              as of {stamp(orgMtd.as_of as string)}
+              as of {stamp(billed.as_of as string)}
             </div>
             {/* Anthropic's cost report never includes the in-progress day, so
                 the billed figure always trails. Surface the remainder
@@ -266,91 +193,37 @@ export default function SpendView({
                 span is read from `billed_through`, never assumed to be one day
                 — assuming it is what made this line understate the gap by a
                 whole day's spend whenever the sync fell behind. */}
-            {loreUnbilledUsd !== undefined && loreUnbilledUsd > 0 && (
+            {billed.unbilled_usd > 0 && (
               <div className={`meta ${styles.subnote}`}>
-                {orgMtd.billed_through
-                  ? `billed through ${day(orgMtd.billed_through)}`
+                {billed.billed_through
+                  ? `billed through ${day(billed.billed_through)}`
                   : "not yet billed"}{" "}
-                — + {usd(loreUnbilledUsd)}{" "}
-                {loreUnbilledDays === 1
+                — + {usd(billed.unbilled_usd)}{" "}
+                {billed.unbilled_days === 1
                   ? "today"
-                  : `over ${num(loreUnbilledDays ?? 0)} days since`}{" "}
+                  : `over ${num(billed.unbilled_days)} days since`}{" "}
                 (Lore-computed)
               </div>
             )}
           </div>
         )}
+        <div className={`spec-card ${styles.card}`}>
+          <div className="meta">Kubernetes (estimated)</div>
+          <div className={styles.figureInfo}>{usd(compute.est_total_usd)}</div>
+          <div className={`meta ${styles.subnote}`}>
+            + {usd(compute.live_usd_per_hour)}/h burning now
+          </div>
+        </div>
       </div>
 
-      {loreByCluster && (
-        <>
-          <h2>Cost by Cluster (MTD)</h2>
-          <table>
-            <thead>
-              <tr>
-                <th>Cluster</th>
-                <th>Calls</th>
-                <th>Cost</th>
-              </tr>
-            </thead>
-            <tbody>
-              {/* Two honest groups: the null bucket is the home account's own
-                  spend (no cluster-agent claim), the rest are registered
-                  clusters. A satellite here bills to its own credential, so its
-                  spend does not touch the balance below. */}
-              {loreByCluster.some((r) => r.cluster === null) && (
-                <tr>
-                  <td colSpan={3} className={styles.subhead}>
-                    No cluster
-                  </td>
-                </tr>
-              )}
-              {loreByCluster
-                .filter((r) => r.cluster === null)
-                .map((r) => (
-                  <tr key="no-cluster">
-                    <td>
-                      <span className="badge">(no cluster)</span>
-                    </td>
-                    <td>{num(r.calls)}</td>
-                    <td>{usd(r.cost_usd)}</td>
-                  </tr>
-                ))}
-              {loreByCluster.some((r) => r.cluster !== null) && (
-                <tr>
-                  <td colSpan={3} className={styles.subhead}>
-                    Clusters
-                  </td>
-                </tr>
-              )}
-              {loreByCluster
-                .filter((r) => r.cluster !== null)
-                .map((r) => (
-                  <tr key={r.cluster}>
-                    <td>
-                      <span className="badge">{r.cluster}</span>
-                    </td>
-                    <td>{num(r.calls)}</td>
-                    <td>{usd(r.cost_usd)}</td>
-                  </tr>
-                ))}
-              {loreByCluster.length === 0 && (
-                <tr>
-                  <td colSpan={3} className={`meta ${styles.center}`}>
-                    No cluster-attributed spend
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </>
-      )}
-
-      {/* Below Month to Date, so the figures it depends on are read first: the
-          balance is month-to-date spend subtracted from what was recorded, and
-          it makes more sense after you have seen the spend than before.
-          Anthropic exposes no credit-balance endpoint, so the recorded side of
-          that subtraction is whatever a person has entered. */}
+      {/* Below the interval figures, so the numbers it depends on are read
+          first: the balance is spend subtracted from what was recorded, and it
+          makes more sense after you have seen the spend than before. Anthropic
+          exposes no credit-balance endpoint, so the recorded side of that
+          subtraction is whatever a person has entered. The one section NOT
+          scoped to the interval — a balance added in June is still money in
+          August, and clipping it to the window would silently forgive every
+          dollar spent outside it. */}
       <h2>Balance</h2>
       <div className={styles.cards}>
         {budget ? (
@@ -392,9 +265,9 @@ export default function SpendView({
           </div>
         )}
       </div>
-      {loreByCluster?.some((r) => r.cluster !== null) && (
+      {llm.by_cluster.some((r) => r.cluster !== null) && (
         <p className={`meta ${styles.subnote}`}>
-          Cluster spend shown above is excluded from this balance: a satellite
+          Cluster spend shown below is excluded from this balance: a satellite
           runs on its own credential and does not draw these credits.
         </p>
       )}
@@ -402,7 +275,34 @@ export default function SpendView({
         <RecordTopUp first={!budget} recordAction={recordAction} />
       )}
 
-      <h2>Cost by Model (MTD)</h2>
+      <h2>LLM by Assembly Line</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Assembly line</th>
+            <th>Runs</th>
+            <th>Cost</th>
+          </tr>
+        </thead>
+        <tbody>
+          {llm.by_blueprint.map((r) => (
+            <tr key={r.blueprint}>
+              <td>{r.blueprint}</td>
+              <td>{num(r.runs)}</td>
+              <td>{usd(r.usd)}</td>
+            </tr>
+          ))}
+          {llm.by_blueprint.length === 0 && (
+            <tr>
+              <td colSpan={3} className={`meta ${styles.center}`}>
+                No data
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+
+      <h2>Cost by Model</h2>
       <table>
         <thead>
           <tr>
@@ -414,7 +314,7 @@ export default function SpendView({
           </tr>
         </thead>
         <tbody>
-          {loreByModel.map((r) => (
+          {llm.by_model.map((r) => (
             <tr key={r.model || "(non-token)"}>
               <td>
                 <span className="badge">{r.model || "(non-token)"}</span>
@@ -425,7 +325,7 @@ export default function SpendView({
               <td className={styles.mono}>{num(r.output_tokens)}</td>
             </tr>
           ))}
-          {loreByModel.length === 0 && (
+          {llm.by_model.length === 0 && (
             <tr>
               <td colSpan={5} className={`meta ${styles.center}`}>
                 No data
@@ -435,7 +335,7 @@ export default function SpendView({
         </tbody>
       </table>
 
-      <h2>Cost by Kind (MTD)</h2>
+      <h2>Cost by Kind</h2>
       <table>
         <thead>
           <tr>
@@ -445,14 +345,14 @@ export default function SpendView({
           </tr>
         </thead>
         <tbody>
-          {loreByKind.map((r) => (
+          {llm.by_kind.map((r) => (
             <tr key={r.kind}>
               <td>{r.kind}</td>
               <td>{num(r.calls)}</td>
               <td>{usd(r.cost_usd)}</td>
             </tr>
           ))}
-          {loreByKind.length === 0 && (
+          {llm.by_kind.length === 0 && (
             <tr>
               <td colSpan={3} className={`meta ${styles.center}`}>
                 No data
@@ -462,7 +362,7 @@ export default function SpendView({
         </tbody>
       </table>
 
-      <h2>Daily Cost (This Month)</h2>
+      <h2>Daily Cost</h2>
       <table>
         <thead>
           <tr>
@@ -472,14 +372,14 @@ export default function SpendView({
           </tr>
         </thead>
         <tbody>
-          {loreDaily.map((r) => (
+          {llm.daily.map((r) => (
             <tr key={r.bucket_date}>
               <td>{day(r.bucket_date)}</td>
               <td>{num(r.calls)}</td>
               <td>{usd(r.cost_usd)}</td>
             </tr>
           ))}
-          {loreDaily.length === 0 && (
+          {llm.daily.length === 0 && (
             <tr>
               <td colSpan={3} className={`meta ${styles.center}`}>
                 No data
@@ -489,34 +389,32 @@ export default function SpendView({
         </tbody>
       </table>
 
-      <h2>Cost by Repo (MTD)</h2>
+      <h2>Cost by Repo</h2>
       <table>
         <thead>
           <tr>
             <th>Repo</th>
-            <th>Tasks</th>
             <th>Cost</th>
           </tr>
         </thead>
         <tbody>
-          {loreByRepo.map((r) => (
-            <tr key={r.target_repo}>
-              <td className={styles.mono}>{r.target_repo}</td>
-              <td>{num(r.tasks)}</td>
-              <td>{usd(r.cost_usd)}</td>
+          {llm.by_repo.map((r) => (
+            <tr key={r.repo}>
+              <td className={styles.mono}>{r.repo}</td>
+              <td>{usd(r.usd)}</td>
             </tr>
           ))}
-          {loreByRepo.length === 0 && (
+          {llm.by_repo.length === 0 && (
             <tr>
-              <td colSpan={3} className={`meta ${styles.center}`}>
-                No task-attributed spend (e.g. code-review lines carry no task)
+              <td colSpan={2} className={`meta ${styles.center}`}>
+                No run-attributed spend
               </td>
             </tr>
           )}
         </tbody>
       </table>
 
-      <h2>Cost by Task Type (MTD)</h2>
+      <h2>Cost by Task Type</h2>
       <table>
         <thead>
           <tr>
@@ -526,7 +424,7 @@ export default function SpendView({
           </tr>
         </thead>
         <tbody>
-          {loreByTaskType.map((r) => (
+          {llm.by_task_type.map((r) => (
             <tr key={r.task_type}>
               <td>
                 <span className="badge">{r.task_type}</span>
@@ -535,7 +433,7 @@ export default function SpendView({
               <td>{usd(r.cost_usd)}</td>
             </tr>
           ))}
-          {loreByTaskType.length === 0 && (
+          {llm.by_task_type.length === 0 && (
             <tr>
               <td colSpan={3} className={`meta ${styles.center}`}>
                 No task-attributed spend
@@ -545,9 +443,69 @@ export default function SpendView({
         </tbody>
       </table>
 
-      {orgAvailable && (
+      <h2>Cost by Cluster</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Cluster</th>
+            <th>Calls</th>
+            <th>Cost</th>
+          </tr>
+        </thead>
+        <tbody>
+          {/* Two honest groups: the null bucket is the home account's own
+              spend (no cluster-agent claim), the rest are registered
+              clusters. A satellite here bills to its own credential, so its
+              spend does not touch the balance above. */}
+          {llm.by_cluster.some((r) => r.cluster === null) && (
+            <tr>
+              <td colSpan={3} className={styles.subhead}>
+                No cluster
+              </td>
+            </tr>
+          )}
+          {llm.by_cluster
+            .filter((r) => r.cluster === null)
+            .map((r) => (
+              <tr key="no-cluster">
+                <td>
+                  <span className="badge">(no cluster)</span>
+                </td>
+                <td>{num(r.calls)}</td>
+                <td>{usd(r.cost_usd)}</td>
+              </tr>
+            ))}
+          {llm.by_cluster.some((r) => r.cluster !== null) && (
+            <tr>
+              <td colSpan={3} className={styles.subhead}>
+                Clusters
+              </td>
+            </tr>
+          )}
+          {llm.by_cluster
+            .filter((r) => r.cluster !== null)
+            .map((r) => (
+              <tr key={r.cluster}>
+                <td>
+                  <span className="badge">{r.cluster}</span>
+                </td>
+                <td>{num(r.calls)}</td>
+                <td>{usd(r.cost_usd)}</td>
+              </tr>
+            ))}
+          {llm.by_cluster.length === 0 && (
+            <tr>
+              <td colSpan={3} className={`meta ${styles.center}`}>
+                No cluster-attributed spend
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+
+      {billed.available && (
         <>
-          <h2>Anthropic Billed by Model (MTD)</h2>
+          <h2>Anthropic Billed by Model</h2>
           <table>
             <thead>
               <tr>
@@ -558,7 +516,7 @@ export default function SpendView({
               </tr>
             </thead>
             <tbody>
-              {orgByModel.map((r) => (
+              {billed.by_model.map((r) => (
                 <tr key={r.model || "(non-token)"}>
                   <td>
                     <span className="badge">{r.model || "(non-token)"}</span>
@@ -571,7 +529,7 @@ export default function SpendView({
             </tbody>
           </table>
 
-          <h2>Anthropic Daily Billed (This Month)</h2>
+          <h2>Anthropic Daily Billed</h2>
           <table>
             <thead>
               <tr>
@@ -580,7 +538,7 @@ export default function SpendView({
               </tr>
             </thead>
             <tbody>
-              {orgDaily.map((r) => (
+              {billed.daily.map((r) => (
                 <tr key={r.bucket_date}>
                   <td>{day(r.bucket_date)}</td>
                   <td>{usd(r.cost_usd)}</td>
@@ -590,6 +548,70 @@ export default function SpendView({
           </table>
         </>
       )}
+
+      <h2>Pods Running Now</h2>
+      {compute.live_pods.length === 0 ? (
+        <p className="meta">No run pods are live right now.</p>
+      ) : (
+        <table>
+          <thead>
+            <tr>
+              <th>Pod</th>
+              <th>Requests</th>
+              <th>$/hour</th>
+              <th>So far</th>
+            </tr>
+          </thead>
+          <tbody>
+            {compute.live_pods.map((pod) => (
+              <tr key={pod.name}>
+                <td>{pod.name}</td>
+                <td>
+                  {pod.requests.cpu ?? "—"} cpu · {pod.requests.memory ?? "—"}
+                </td>
+                <td>{usd(pod.usd_per_hour)}</td>
+                <td>{usd(pod.usd_so_far)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+
+      <h2>Pod-Hours in Interval</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Assembly line</th>
+            <th>Pods</th>
+            <th>Hours</th>
+            <th>Est. cost</th>
+          </tr>
+        </thead>
+        <tbody>
+          {compute.pod_hours.map((r) => (
+            <tr key={r.blueprint}>
+              <td>{r.blueprint}</td>
+              <td>{num(r.pods)}</td>
+              <td>{num(r.hours)}</td>
+              <td>{usd(r.est_usd)}</td>
+            </tr>
+          ))}
+          {compute.pod_hours.length === 0 && (
+            <tr>
+              <td colSpan={4} className={`meta ${styles.center}`}>
+                No data
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+      <p className={`meta ${styles.subnote}`}>
+        Compute is an estimate from resource requests × on-demand rates ($
+        {compute.rates.cpu_hour_usd}/cpu-h, ${compute.rates.mem_gib_hour_usd}
+        /GiB-h); interval pod-hours assume a {compute.assumed_profile.cpu} cpu /{" "}
+        {compute.assumed_profile.memory} pod. Google&apos;s invoice lags a day
+        and is the truth.
+      </p>
     </div>
   );
 }

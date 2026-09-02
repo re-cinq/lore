@@ -5292,44 +5292,6 @@
         ]
       }
     },
-    "/api/spend": {
-      "get": {
-        "operationId": "get_api_spend",
-        "summary": "GET /api/spend",
-        "tags": ["Analytics"],
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "x-rate-limit-bucket": "default",
-        "responses": {
-          "200": {
-            "description": "Billed and attributed spend, side by side",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Spend"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "403": {
-            "$ref": "#/components/responses/Forbidden"
-          },
-          "429": {
-            "$ref": "#/components/responses/RateLimited"
-          },
-          "503": {
-            "$ref": "#/components/responses/ServiceUnavailable"
-          }
-        },
-        "x-required-scope": "read"
-      }
-    },
     "/api/analytics/spend-window": {
       "get": {
         "operationId": "get_api_analytics_spend-window",
@@ -5343,7 +5305,7 @@
         "x-rate-limit-bucket": "default",
         "responses": {
           "200": {
-            "description": "Interval-scoped LLM spend plus the estimated Kubernetes compute cost",
+            "description": "The spend screen in one interval-scoped call: metered and billed LLM spend, their breakdowns, the recorded balance, and the estimated Kubernetes compute cost",
             "content": {
               "application/json": {
                 "schema": {
@@ -11849,289 +11811,6 @@
         "required": ["tasks", "auto_merged", "escalations"],
         "additionalProperties": false
       },
-      "Spend": {
-        "type": "object",
-        "properties": {
-          "budget": {
-            "anyOf": [
-              {
-                "type": "object",
-                "properties": {
-                  "ledger_total_usd": {
-                    "type": "number"
-                  },
-                  "spent_since_usd": {
-                    "type": "number"
-                  },
-                  "remaining_usd": {
-                    "type": "number"
-                  },
-                  "anchored_at": {
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "ledger_total_usd",
-                  "spent_since_usd",
-                  "remaining_usd",
-                  "anchored_at"
-                ],
-                "additionalProperties": false
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "org_available": {
-            "type": "boolean"
-          },
-          "org_mtd": {
-            "type": "object",
-            "properties": {
-              "billed_usd": {
-                "type": "number"
-              },
-              "input_tokens": {
-                "type": "number"
-              },
-              "output_tokens": {
-                "type": "number"
-              },
-              "as_of": {
-                "type": ["string", "null"]
-              },
-              "billed_through": {
-                "type": ["string", "null"]
-              }
-            },
-            "required": [
-              "billed_usd",
-              "input_tokens",
-              "output_tokens",
-              "as_of",
-              "billed_through"
-            ],
-            "additionalProperties": false
-          },
-          "org_by_model": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "model": {
-                  "type": "string"
-                },
-                "cost_usd": {
-                  "type": "number"
-                },
-                "input_tokens": {
-                  "type": "number"
-                },
-                "output_tokens": {
-                  "type": "number"
-                }
-              },
-              "required": [
-                "model",
-                "cost_usd",
-                "input_tokens",
-                "output_tokens"
-              ],
-              "additionalProperties": false
-            }
-          },
-          "org_daily": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "bucket_date": {
-                  "type": "string"
-                },
-                "cost_usd": {
-                  "type": "number"
-                }
-              },
-              "required": ["bucket_date", "cost_usd"],
-              "additionalProperties": false
-            }
-          },
-          "lore_unbilled_usd": {
-            "type": "number"
-          },
-          "lore_unbilled_days": {
-            "type": "number"
-          },
-          "lore_mtd": {
-            "type": "object",
-            "properties": {
-              "computed_usd": {
-                "type": "number"
-              },
-              "calls": {
-                "type": "number"
-              },
-              "input_tokens": {
-                "type": "number"
-              },
-              "output_tokens": {
-                "type": "number"
-              }
-            },
-            "required": [
-              "computed_usd",
-              "calls",
-              "input_tokens",
-              "output_tokens"
-            ],
-            "additionalProperties": false
-          },
-          "lore_by_model": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "model": {
-                  "type": "string"
-                },
-                "calls": {
-                  "type": "number"
-                },
-                "cost_usd": {
-                  "type": "number"
-                },
-                "input_tokens": {
-                  "type": "number"
-                },
-                "output_tokens": {
-                  "type": "number"
-                }
-              },
-              "required": [
-                "model",
-                "calls",
-                "cost_usd",
-                "input_tokens",
-                "output_tokens"
-              ],
-              "additionalProperties": false
-            }
-          },
-          "lore_by_kind": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "kind": {
-                  "type": "string"
-                },
-                "calls": {
-                  "type": "number"
-                },
-                "cost_usd": {
-                  "type": "number"
-                }
-              },
-              "required": ["kind", "calls", "cost_usd"],
-              "additionalProperties": false
-            }
-          },
-          "lore_daily": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "bucket_date": {
-                  "type": "string"
-                },
-                "calls": {
-                  "type": "number"
-                },
-                "cost_usd": {
-                  "type": "number"
-                }
-              },
-              "required": ["bucket_date", "calls", "cost_usd"],
-              "additionalProperties": false
-            }
-          },
-          "lore_by_repo": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "target_repo": {
-                  "type": "string"
-                },
-                "tasks": {
-                  "type": "number"
-                },
-                "cost_usd": {
-                  "type": "number"
-                }
-              },
-              "required": ["target_repo", "tasks", "cost_usd"],
-              "additionalProperties": false
-            }
-          },
-          "lore_by_task_type": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "task_type": {
-                  "type": "string"
-                },
-                "tasks": {
-                  "type": "number"
-                },
-                "cost_usd": {
-                  "type": "number"
-                }
-              },
-              "required": ["task_type", "tasks", "cost_usd"],
-              "additionalProperties": false
-            }
-          },
-          "lore_by_cluster": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "cluster": {
-                  "type": ["string", "null"]
-                },
-                "calls": {
-                  "type": "number"
-                },
-                "cost_usd": {
-                  "type": "number"
-                }
-              },
-              "required": ["cluster", "calls", "cost_usd"],
-              "additionalProperties": false
-            }
-          }
-        },
-        "required": [
-          "budget",
-          "org_available",
-          "org_mtd",
-          "org_by_model",
-          "org_daily",
-          "lore_unbilled_usd",
-          "lore_unbilled_days",
-          "lore_mtd",
-          "lore_by_model",
-          "lore_by_kind",
-          "lore_daily",
-          "lore_by_repo",
-          "lore_by_task_type",
-          "lore_by_cluster"
-        ],
-        "additionalProperties": false
-      },
       "SpendWindow": {
         "type": "object",
         "properties": {
@@ -12155,6 +11834,12 @@
                 "type": "number"
               },
               "calls": {
+                "type": "number"
+              },
+              "input_tokens": {
+                "type": "number"
+              },
+              "output_tokens": {
                 "type": "number"
               },
               "by_blueprint": {
@@ -12191,10 +11876,245 @@
                   "required": ["repo", "usd"],
                   "additionalProperties": false
                 }
+              },
+              "by_model": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "model": {
+                      "type": "string"
+                    },
+                    "calls": {
+                      "type": "number"
+                    },
+                    "cost_usd": {
+                      "type": "number"
+                    },
+                    "input_tokens": {
+                      "type": "number"
+                    },
+                    "output_tokens": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "model",
+                    "calls",
+                    "cost_usd",
+                    "input_tokens",
+                    "output_tokens"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "by_kind": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string"
+                    },
+                    "calls": {
+                      "type": "number"
+                    },
+                    "cost_usd": {
+                      "type": "number"
+                    }
+                  },
+                  "required": ["kind", "calls", "cost_usd"],
+                  "additionalProperties": false
+                }
+              },
+              "daily": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "bucket_date": {
+                      "type": "string"
+                    },
+                    "calls": {
+                      "type": "number"
+                    },
+                    "cost_usd": {
+                      "type": "number"
+                    }
+                  },
+                  "required": ["bucket_date", "calls", "cost_usd"],
+                  "additionalProperties": false
+                }
+              },
+              "by_task_type": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "task_type": {
+                      "type": "string"
+                    },
+                    "tasks": {
+                      "type": "number"
+                    },
+                    "cost_usd": {
+                      "type": "number"
+                    }
+                  },
+                  "required": ["task_type", "tasks", "cost_usd"],
+                  "additionalProperties": false
+                }
+              },
+              "by_cluster": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "cluster": {
+                      "type": ["string", "null"]
+                    },
+                    "calls": {
+                      "type": "number"
+                    },
+                    "cost_usd": {
+                      "type": "number"
+                    }
+                  },
+                  "required": ["cluster", "calls", "cost_usd"],
+                  "additionalProperties": false
+                }
               }
             },
-            "required": ["total_usd", "calls", "by_blueprint", "by_repo"],
+            "required": [
+              "total_usd",
+              "calls",
+              "input_tokens",
+              "output_tokens",
+              "by_blueprint",
+              "by_repo",
+              "by_model",
+              "by_kind",
+              "daily",
+              "by_task_type",
+              "by_cluster"
+            ],
             "additionalProperties": false
+          },
+          "billed": {
+            "type": "object",
+            "properties": {
+              "available": {
+                "type": "boolean"
+              },
+              "total_usd": {
+                "type": "number"
+              },
+              "input_tokens": {
+                "type": "number"
+              },
+              "output_tokens": {
+                "type": "number"
+              },
+              "as_of": {
+                "type": ["string", "null"]
+              },
+              "billed_through": {
+                "type": ["string", "null"]
+              },
+              "by_model": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "model": {
+                      "type": "string"
+                    },
+                    "cost_usd": {
+                      "type": "number"
+                    },
+                    "input_tokens": {
+                      "type": "number"
+                    },
+                    "output_tokens": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "model",
+                    "cost_usd",
+                    "input_tokens",
+                    "output_tokens"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "daily": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "bucket_date": {
+                      "type": "string"
+                    },
+                    "cost_usd": {
+                      "type": "number"
+                    }
+                  },
+                  "required": ["bucket_date", "cost_usd"],
+                  "additionalProperties": false
+                }
+              },
+              "unbilled_usd": {
+                "type": "number"
+              },
+              "unbilled_days": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "available",
+              "total_usd",
+              "input_tokens",
+              "output_tokens",
+              "as_of",
+              "billed_through",
+              "by_model",
+              "daily",
+              "unbilled_usd",
+              "unbilled_days"
+            ],
+            "additionalProperties": false
+          },
+          "budget": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "ledger_total_usd": {
+                    "type": "number"
+                  },
+                  "spent_since_usd": {
+                    "type": "number"
+                  },
+                  "remaining_usd": {
+                    "type": "number"
+                  },
+                  "anchored_at": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "ledger_total_usd",
+                  "spent_since_usd",
+                  "remaining_usd",
+                  "anchored_at"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "compute": {
             "type": "object",
@@ -12300,7 +12220,7 @@
             "additionalProperties": false
           }
         },
-        "required": ["interval", "llm", "compute"],
+        "required": ["interval", "llm", "billed", "budget", "compute"],
         "additionalProperties": false
       },
       "CreditEntryRecorded": {

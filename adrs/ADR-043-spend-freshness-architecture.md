@@ -64,7 +64,7 @@ day-old data.
    `pipeline.anthropic_cost_daily`; everything current-day comes from
    `pipeline.llm_calls`, which is the only source that can cover today at
    all — and the only one with kind attribution (Anthropic reports by model
-   only). ([validated by `SpendView.test.tsx:188`](apps/web-ui/src/app/spend/SpendView.test.tsx#L188), [`SpendView.test.tsx:216`](apps/web-ui/src/app/spend/SpendView.test.tsx#L216))
+   only). ([validated by `SpendView.test.tsx:270`](apps/web-ui/src/app/spend/SpendView.test.tsx#L270), [`SpendView.test.tsx:294`](apps/web-ui/src/app/spend/SpendView.test.tsx#L294))
 3. **Everything Anthropic has not billed yet is shown as a labeled computed
    line on the billed card** ("billed through 8/18 — + $47.74 over 2 days
    since (Lore-computed)"), never silently summed into the authoritative
@@ -72,7 +72,7 @@ day-old data.
    day: the consequence below makes a cron outage surface as staleness, and
    a line hardcoded to "yesterday — + today" reported a one-day gap through
    an outage of any length, quietly stranding whole days of spend between
-   the two figures. ([validated by `SpendView.test.tsx:244`](apps/web-ui/src/app/spend/SpendView.test.tsx#L244), [`SpendView.test.tsx:269`](apps/web-ui/src/app/spend/SpendView.test.tsx#L269), [`SpendView.test.tsx:277`](apps/web-ui/src/app/spend/SpendView.test.tsx#L277))
+   the two figures. ([validated by `SpendView.test.tsx:329`](apps/web-ui/src/app/spend/SpendView.test.tsx#L329), [`SpendView.test.tsx:338`](apps/web-ui/src/app/spend/SpendView.test.tsx#L338), [`SpendView.test.tsx:344`](apps/web-ui/src/app/spend/SpendView.test.tsx#L344))
 
 ## Consequences
 
