@@ -6,7 +6,7 @@ import { fetchTaskEvents, fetchLlmCalls } from "@/lib/task-runtime";
 import { definitionForRun } from "@/lib/run-graph-definition";
 import AssemblyRunView from "./AssemblyRunView";
 import RunVisualizationPanel from "./RunVisualizationPanel";
-import { TriggerReviewButton } from "./TriggerReviewButton";
+import { AssemblyRunOptions } from "./AssemblyRunOptions";
 import EventTimeline from "@/app/tasks/[id]/EventTimeline";
 import LlmCallsTable from "@/app/tasks/[id]/LlmCallsTable";
 
@@ -50,9 +50,7 @@ export default async function AssemblyLineResolverPage({
     return (
       <>
         <AssemblyRunView run={run} />
-        {run.blueprintName === "code-review" && run.prNumber ? (
-          <TriggerReviewButton repo={run.repo} prNumber={run.prNumber} />
-        ) : null}
+        <AssemblyRunOptions run={run} />
         <RunVisualizationPanel
           runId={run.id}
           runStatus={run.status}

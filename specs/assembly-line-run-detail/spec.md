@@ -4,7 +4,7 @@
 |-----------|--------------------------------------------------------------------|
 | Feature   | Assembly Line Run Detail — Information Hierarchy                   |
 | Branch    | `lore/feature-planning/what-s-wrong-assembly-lines-id-3a7a7bd2`   |
-| Status    | Draft                                                              |
+| Status    | In Progress                                                        |
 | Created   | 2026-08-13                                                         |
 | Owner     | Platform Engineering                                               |
 | Builds on | [specs/assembly-line-run-viz](../assembly-line-run-viz/spec.md)    |
@@ -56,7 +56,7 @@ The three imported components from `apps/web-ui/src/app/tasks/[id]/` (`EventTime
 - The refactor moves and resizes existing components. It does not introduce new component files.
 - `NodePodLogs.tsx` prop signature changes (FR2) but its rendering logic is unchanged.
 - `AssemblyRunView.tsx` loses the step list and `stepViews()` helper. The component is not deleted — its header rendering is still server-rendered above the visualization panel.
-- `TriggerReviewButton` placement is unchanged (below the header, gated on `code-review` definition and PR number).
+- `TriggerReviewButton` placement is unchanged (below the header, gated on `code-review` definition and PR number). *Amended 2026-09-02:* the gate moved out of `page.tsx` into `AssemblyRunOptions`, the component that decides which actions a run offers from the run itself. A `code-review` run with a PR number renders the trigger-review button ([validated by](../../apps/web-ui/src/app/assembly-runs/[id]/AssemblyRunOptions.test.tsx#L30)); a run of another definition renders no options ([validated by](../../apps/web-ui/src/app/assembly-runs/[id]/AssemblyRunOptions.test.tsx#L38)), as does a `code-review` run without a PR number ([validated by](../../apps/web-ui/src/app/assembly-runs/[id]/AssemblyRunOptions.test.tsx#L46)).
 
 ## Alternatives Rejected
 

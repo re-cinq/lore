@@ -82,6 +82,11 @@ export default tseslint.config(
       // nothing (architecture boundaries, migrations, CSS tokens). That list is
       // a triage queue, and turning it red would block unrelated work.
       "lore/test-imports-its-subject": "warn",
+      // warn, not error: guard-clause style (no else, no wrapped tails) rolled
+      // out over the existing codebase — the pre-existing branches are a triage
+      // queue, and the autofix (de-nesting an else after a terminating if) is
+      // safe to apply file-by-file as they are touched. Promote once quiet.
+      "lore/prefer-early-return": "warn",
       "lore/default-export-matches-filename": "error",
       "lore/no-inline-styles": "warn",
       "lore/require-fetch-timeout": "error",
