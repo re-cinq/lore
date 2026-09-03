@@ -22,6 +22,13 @@ resource "kubernetes_ingress_v1" "lore_floor_webhook" {
     annotations = {
       "cert-manager.io/cluster-issuer"            = "letsencrypt-prod"
       "external-dns.alpha.kubernetes.io/hostname" = var.lore_webhook_hostname
+      # NGINX defaults to a 1 MB body, while the Floor's own server accepts 25 MB
+      # (GitHub caps webhook deliveries there) — so without this the edge rejects
+      # a delivery the app was built to take. It also bounds the ci-tests ingest
+      # POST, which rides this same /api/webhook prefix: the 4 MB chunks this
+      # branch introduces would 413 before reaching hapi. Matches the
+      # event-router and agent-events ingresses, which already carry it.
+      "nginx.ingress.kubernetes.io/proxy-body-size" = "25m"
     }
   }
 

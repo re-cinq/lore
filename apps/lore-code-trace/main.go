@@ -18,9 +18,20 @@ import (
 	"time"
 )
 
+// Each chunk is POSTed separately, and every POST becomes one event, one
+// assembly run and one Kubernetes pod. At 512 KB this repo's suite packed into
+// 72 chunks per push to main — 72 pods and ~2,500 pod-hours a month to deliver
+// a report that fits comfortably in a single request. The Floor's ingress
+// accepts 25 MB bodies, so 4 MB keeps a wide margin (and stays a reasonable
+// jsonb event payload) while cutting the fan-out roughly eight-fold.
+//
+// This is the cheap lever, not the destination: the incremental sink added in
+// #1742 (POST /api/repos/{owner}/{repo}/ingest, after a GET of the repo's
+// ingest-state) projects in-process with no event, no pod and no clone. Its
+// client side was never wired up; until it is, this constant bounds the cost.
 const (
 	manifestRelPath = ".lore/test-commands.yml"
-	maxChunkBytes   = 512_000
+	maxChunkBytes   = 4_000_000
 	runConcurrency  = 4
 )
 
