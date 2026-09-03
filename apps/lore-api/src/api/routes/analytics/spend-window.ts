@@ -9,6 +9,8 @@ import { bearerScope } from "../../../server/plugins/bearer-scope.js";
 import { zodResponse } from "../../../server/plugins/zod-response.js";
 import { DB_UNAVAILABLE } from "../common-schemas.js";
 import { clusterAgentCredentials } from "../../../features/agents/agent-crd-k8s.js";
+import { NON_ANTHROPIC_LIKE_PATTERNS } from "@re-cinq/lore-shared/llm/model-vendor.js";
+import { vendorSplit } from "../../../features/analytics/vendor-split.js";
 import {
   DEFAULT_POD_PROFILE,
   podHourlyUsd,
@@ -60,6 +62,7 @@ async function remainingBudget(
     [anchoredAt],
   );
   // `created_at >= $1::timestamptz` compares MOMENTS not days (day-granularity always understated what's left); bound is a param, not a subquery, so an absent anthropic_cost_daily can't take this half down too; LEFT JOIN excludes satellite-cluster calls (ran on a colleague's own credential, priced in llm_calls but never billed to this account) while keeping direct-API and home/central runs.
+  // Only spend that bills THIS account draws these credits: since 2026-09-02 the review family runs on Gemini (bills Google), and counting it drew the balance down on money Anthropic never charged — the patterns are the shared vendor declaration, so page and classifier cannot drift.
   const [computed] = await optionalTableRows<{ cost_usd: number }>(
     pool,
     `SELECT COALESCE(SUM(lc.cost_usd), 0)::float8 AS cost_usd
@@ -68,8 +71,13 @@ async function remainingBudget(
          ON sr.station_run_id = lc.station_run_id
       WHERE lc.created_at >= $1::timestamptz
         AND ($2::date IS NULL OR lc.created_at::date > $2::date)
-        AND sr.cluster_agent_id IS NULL`,
-    [anchoredAt, billed?.billed_through ?? null],
+        AND sr.cluster_agent_id IS NULL
+        AND lc.model NOT LIKE ALL($3::text[])`,
+    [
+      anchoredAt,
+      billed?.billed_through ?? null,
+      [...NON_ANTHROPIC_LIKE_PATTERNS],
+    ],
   );
   const spentSinceUsd = (billed?.billed_usd ?? 0) + (computed?.cost_usd ?? 0);
 
@@ -126,6 +134,19 @@ const SpendWindowSchema = z.object({
         cost_usd: z.number(),
         input_tokens: z.number(),
         output_tokens: z.number(),
+      }),
+    ),
+    /**
+     * Metered spend folded by the account each model bills. The one figure that
+     * says which invoice a line of work lands on — the review family moved to
+     * Gemini on 2026-09-02, so "LLM spend" and "spend against the Anthropic
+     * balance" stopped being the same number.
+     */
+    by_vendor: z.array(
+      z.object({
+        vendor: z.string(),
+        calls: z.number(),
+        cost_usd: z.number(),
       }),
     ),
     by_kind: z.array(
@@ -416,8 +437,14 @@ export function spendWindowRoute(
                 COUNT(DISTINCT created_at::date)::int AS days
            FROM pipeline.llm_calls
           WHERE created_at >= $1 AND created_at < $2
-            AND ($3::date IS NULL OR created_at::date > $3::date)`,
-        [fromTs, toTs, billedTotal?.billed_through ?? null],
+            AND ($3::date IS NULL OR created_at::date > $3::date)
+            AND model NOT LIKE ALL($4::text[])`,
+        [
+          fromTs,
+          toTs,
+          billedTotal?.billed_through ?? null,
+          [...NON_ANTHROPIC_LIKE_PATTERNS],
+        ],
       );
 
       // Same rules as the Anthropic reads (interval-filtered totals, whole-table stamps, optionalTableRows for the migration+export lag); cost is gross+credits, summed to the invoice's net.
@@ -551,6 +578,13 @@ export function spendWindowRoute(
             by_blueprint: byBlueprint,
             by_repo: byRepo,
             by_model: byModel,
+            by_vendor: vendorSplit(
+              byModel as Array<{
+                model: string;
+                calls: number;
+                cost_usd: number;
+              }>,
+            ),
             by_kind: byKind,
             daily,
             by_task_type: byTaskType,
