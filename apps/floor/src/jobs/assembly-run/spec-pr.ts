@@ -207,6 +207,40 @@ export async function stampLinePr(
   }
 }
 
+/** The body the ready flip rewrites the PR with: the pr-ready node's prose plus
+ *  the same footer the draft carried. The flip's `pulls.update` is a FULL
+ *  replacement, so writing `args.pr_description` verbatim destroyed the footer
+ *  stampLinePr had put on the draft — the merged PR closed no issue and the
+ *  web-ui lost PR-to-task resolution. Recomposing here is also where the
+ *  coverage verdict lands (#1745): a `Lore-Issue-Coverage: "partial"` extra
+ *  from the pr-ready node downgrades `Closes #N` to `Refs #N`, so a branch
+ *  resolving only part of its ticket leaves the ticket open on merge. Absent
+ *  or malformed extras mean full coverage — the close-on-merge default.
+ *
+ *  Null when the node delivered no prose; the caller then keeps the PR's old
+ *  body rather than replacing it with a bare footer. */
+export function readyPrBody(
+  run: AssemblyRunRecord,
+  extras: Record<string, string> | undefined,
+): string | null {
+  const prose = run.args.pr_description;
+
+  if (typeof prose !== "string" || prose.trim().length === 0) {
+    return null;
+  }
+  const head = prose.trim();
+
+  if (!run.taskId) {
+    return head;
+  }
+  const issueNumber =
+    typeof run.args.issue_number === "number" ? run.args.issue_number : null;
+  const coverage =
+    extras?.["Lore-Issue-Coverage"] === "partial" ? "partial" : "full";
+
+  return head + prFooter({ issueNumber, taskId: run.taskId, coverage });
+}
+
 /** The line's PR body, with the standard footer every Lore-authored PR carries.
  *
  *  It carried NEITHER before: no `Lore-Task:`, so the web-ui could not resolve

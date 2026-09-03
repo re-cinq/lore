@@ -18,6 +18,7 @@ import {
   decidePrStamp,
   decideStampFailure,
   emptyBranchReason,
+  readyPrBody,
   stampLinePr,
   type SpecPrPorts,
 } from "./spec-pr.js";
@@ -313,6 +314,91 @@ describe("stampLinePr footer", () => {
     await stampLinePr(await lineRow(h), h.ports);
 
     expect(h.pulls.opened[0]?.body).not.toContain("Closes #");
+  });
+});
+
+describe("readyPrBody", () => {
+  // The ready flip rewrites the PR body with the prose the pr-ready node wrote.
+  // Before this composer the rewrite was `args.pr_description` verbatim, which
+  // destroyed the footer stampLinePr had put on the draft: the merged PR closed
+  // no issue and the web-ui lost PR-to-task resolution.
+  it("appends Closes #N + Lore-Task to the pr-ready prose by default", async () => {
+    const h = await harness();
+
+    await h.lines.mergeArgs(h.lineId, {
+      issue_number: 1745,
+      pr_description: "What changed and why.",
+    });
+
+    expect(readyPrBody(await lineRow(h), undefined)).toBe(
+      "What changed and why.\n\nCloses #1745\nLore-Task: task-1",
+    );
+  });
+
+  it("downgrades to Refs #N when the node reports partial issue coverage", async () => {
+    // A branch that resolves only part of what the ticket reports must not
+    // close the ticket on merge (#1745 — bowman-ui #11 would have closed a
+    // 248-link report on a 15-link tangent).
+    const h = await harness();
+
+    await h.lines.mergeArgs(h.lineId, {
+      issue_number: 1745,
+      pr_description: "Partial fix.",
+    });
+
+    expect(
+      readyPrBody(await lineRow(h), { "Lore-Issue-Coverage": "partial" }),
+    ).toBe("Partial fix.\n\nRefs #1745\nLore-Task: task-1");
+  });
+
+  it("keeps Closes #N on an explicit full-coverage verdict", async () => {
+    const h = await harness();
+
+    await h.lines.mergeArgs(h.lineId, {
+      issue_number: 1745,
+      pr_description: "Complete fix.",
+    });
+
+    expect(
+      readyPrBody(await lineRow(h), { "Lore-Issue-Coverage": "full" }),
+    ).toBe("Complete fix.\n\nCloses #1745\nLore-Task: task-1");
+  });
+
+  it("returns null when the node delivered no prose, keeping the old body", async () => {
+    const h = await harness();
+
+    await h.lines.mergeArgs(h.lineId, { issue_number: 1745 });
+
+    expect(readyPrBody(await lineRow(h), undefined)).toBeNull();
+  });
+
+  it("returns null on blank prose rather than replacing the body with a bare footer", async () => {
+    const h = await harness();
+
+    await h.lines.mergeArgs(h.lineId, { pr_description: "   \n" });
+
+    expect(readyPrBody(await lineRow(h), undefined)).toBeNull();
+  });
+
+  it("carries no footer on a task-less run", async () => {
+    const h = await harness({ withTask: false });
+
+    await h.lines.mergeArgs(h.lineId, {
+      issue_number: 1745,
+      pr_description: "Prose only.",
+    });
+
+    expect(readyPrBody(await lineRow(h), undefined)).toBe("Prose only.");
+  });
+
+  it("omits the issue line when the run carries no issue number", async () => {
+    const h = await harness();
+
+    await h.lines.mergeArgs(h.lineId, { pr_description: "No ticket." });
+
+    expect(readyPrBody(await lineRow(h), undefined)).toBe(
+      "No ticket.\n\nLore-Task: task-1",
+    );
   });
 });
 
