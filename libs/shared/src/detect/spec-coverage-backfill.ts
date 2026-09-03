@@ -254,9 +254,9 @@ ${candidate.content.substring(0, 4000)}
     jobName: "spec_coverage_backfill",
   });
 
-  const data = result.data;
-  const matches = data.matches === true;
-  const rationale = (data.rationale || "").trim();
+  const suggestion = result.data;
+  const matches = suggestion.matches === true;
+  const rationale = (suggestion.rationale || "").trim();
   const safeRationale =
     rationale.length > 0
       ? rationale
@@ -272,7 +272,9 @@ ${candidate.content.substring(0, 4000)}
     };
   }
   const ordinal =
-    typeof data.statement_ordinal === "number" ? data.statement_ordinal : null;
+    typeof suggestion.statement_ordinal === "number"
+      ? suggestion.statement_ordinal
+      : null;
   const match = testable.find((s) => s.ordinal === ordinal);
 
   if (!match) {
@@ -285,8 +287,10 @@ ${candidate.content.substring(0, 4000)}
     };
   }
   const score =
-    typeof data.score === "number" && data.score >= 0 && data.score <= 1
-      ? data.score
+    typeof suggestion.score === "number" &&
+    suggestion.score >= 0 &&
+    suggestion.score <= 1
+      ? suggestion.score
       : JUDGE_SCORE_THRESHOLD;
 
   return {

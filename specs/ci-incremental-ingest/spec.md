@@ -83,7 +83,7 @@ already owns the dgraph egress and the Vertex embed path.
   doomed Coverage covered are garbage-collected through the shared ownership
   rules, so a code chunk still covered by another test file survives. A path
   with no graph presence prunes as a no-op, so a re-driven prune converges.
-  ([validated by prunes every TestChunk and TestSuite of the named files and keeps the rest](libs/shared/src/spec-trace/prune-test-files.test.ts#L116), [`prune-test-files.test.ts:151`](libs/shared/src/spec-trace/prune-test-files.test.ts#L151), [`prune-test-files.test.ts:198`](libs/shared/src/spec-trace/prune-test-files.test.ts#L198), [`prune-test-files.test.ts:232`](libs/shared/src/spec-trace/prune-test-files.test.ts#L232), [`prune-test-files.test.ts:176`](libs/shared/src/spec-trace/prune-test-files.test.ts#L176))
+  ([validated by prunes every TestChunk and TestSuite of the named files and keeps the rest](libs/shared/src/spec-trace/prune-test-files.test.ts#L116), [`prune-test-files.test.ts:151`](libs/shared/src/spec-trace/prune-test-files.test.ts#L151), [`prune-test-files.test.ts:202`](libs/shared/src/spec-trace/prune-test-files.test.ts#L202), [`prune-test-files.test.ts:236`](libs/shared/src/spec-trace/prune-test-files.test.ts#L236), [`prune-test-files.test.ts:180`](libs/shared/src/spec-trace/prune-test-files.test.ts#L180))
 
 ## Planned (next slices)
 

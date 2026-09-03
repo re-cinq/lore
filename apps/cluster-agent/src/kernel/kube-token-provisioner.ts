@@ -192,10 +192,10 @@ export class KubeSecretKeyWriter implements SecretKeyWriter {
         name: secret,
         namespace: this.namespace,
       });
-      const data = (current.data ?? {}) as Record<string, string>;
+      const entries = (current.data ?? {}) as Record<string, string>;
 
-      change(data);
-      current.data = data;
+      change(entries);
+      current.data = entries;
 
       try {
         await core.replaceNamespacedSecret({

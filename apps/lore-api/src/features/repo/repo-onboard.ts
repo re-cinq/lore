@@ -49,20 +49,21 @@ export async function getInstallationRepos(): Promise<InstallationRepo[]> {
   const perPage = 100;
 
   while (true) {
-    const { data } = await octokit.rest.apps.listReposAccessibleToInstallation({
-      per_page: perPage,
-      page,
-    });
+    const { data: installed } =
+      await octokit.rest.apps.listReposAccessibleToInstallation({
+        per_page: perPage,
+        page,
+      });
 
     repos.push(
-      ...data.repositories.map((repo) => ({
+      ...installed.repositories.map((repo) => ({
         full_name: repo.full_name,
         owner: repo.owner?.login || repo.full_name.split("/")[0],
         name: repo.name,
       })),
     );
 
-    if (data.repositories.length < perPage) {
+    if (installed.repositories.length < perPage) {
       break;
     }
     page++;
@@ -379,14 +380,14 @@ export async function fetchRepoContext(fullName: string): Promise<RepoContext> {
   let tree: string[] = [];
 
   try {
-    const { data } = await octokit.rest.repos.getContent({
+    const { data: content } = await octokit.rest.repos.getContent({
       owner,
       repo,
       path: "",
     });
 
-    if (Array.isArray(data)) {
-      tree = data.map((entry) => entry.name);
+    if (Array.isArray(content)) {
+      tree = content.map((entry) => entry.name);
     }
   } catch (err) {
     console.error(
@@ -400,14 +401,18 @@ export async function fetchRepoContext(fullName: string): Promise<RepoContext> {
   await Promise.all(
     KEY_FILES.map(async (path) => {
       try {
-        const { data } = await octokit.rest.repos.getContent({
+        const { data: content } = await octokit.rest.repos.getContent({
           owner,
           repo,
           path,
         });
 
-        if (!Array.isArray(data) && data.type === "file" && data.content) {
-          files[path] = decodeContent(data.content);
+        if (
+          !Array.isArray(content) &&
+          content.type === "file" &&
+          content.content
+        ) {
+          files[path] = decodeContent(content.content);
         }
       } catch (err) {
         if ((err as { status?: number }).status !== 404) {
@@ -430,14 +435,14 @@ export async function fetchRepoContext(fullName: string): Promise<RepoContext> {
     let entries: Array<{ name: string; path: string; type: string }> = [];
 
     try {
-      const { data } = await octokit.rest.repos.getContent({
+      const { data: content } = await octokit.rest.repos.getContent({
         owner,
         repo,
         path: dir,
       });
 
-      if (Array.isArray(data)) {
-        entries = data.filter((e) => e.type === "file");
+      if (Array.isArray(content)) {
+        entries = content.filter((e) => e.type === "file");
       }
     } catch (err) {
       if ((err as { status?: number }).status !== 404) {
@@ -478,14 +483,18 @@ async function sampleSourceFiles(
     }
 
     try {
-      const { data } = await octokit.rest.repos.getContent({
+      const { data: content } = await octokit.rest.repos.getContent({
         owner: ref.owner,
         repo: ref.repo,
         path: entry.path,
       });
 
-      if (!Array.isArray(data) && data.type === "file" && data.content) {
-        const full = decodeContent(data.content);
+      if (
+        !Array.isArray(content) &&
+        content.type === "file" &&
+        content.content
+      ) {
+        const full = decodeContent(content.content);
         const first200 = full.split("\n").slice(0, 200).join("\n");
 
         samples[entry.path] = first200;

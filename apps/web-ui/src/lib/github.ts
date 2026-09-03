@@ -190,21 +190,21 @@ export async function getRepoFileContent(
   const [owner, name] = split(repo);
 
   try {
-    const { data } = await ok.rest.repos.getContent({
+    const { data: content } = await ok.rest.repos.getContent({
       owner,
       repo: name,
       path,
     });
 
     if (
-      Array.isArray(data) ||
-      data.type !== "file" ||
-      typeof data.content !== "string"
+      Array.isArray(content) ||
+      content.type !== "file" ||
+      typeof content.content !== "string"
     ) {
       return null;
     }
 
-    return Buffer.from(data.content, "base64").toString("utf-8");
+    return Buffer.from(content.content, "base64").toString("utf-8");
   } catch (e) {
     if ((e as { status?: number }).status === 404) {
       return null;
@@ -269,15 +269,15 @@ async function openWorkflowPR(
   let sha: string | undefined;
 
   try {
-    const { data } = await ok.rest.repos.getContent({
+    const { data: content } = await ok.rest.repos.getContent({
       owner,
       repo: name,
       path,
       ref: branch,
     });
 
-    if (!Array.isArray(data) && "sha" in data) {
-      sha = data.sha;
+    if (!Array.isArray(content) && "sha" in content) {
+      sha = content.sha;
     }
   } catch {
     // file not on the branch yet — create it fresh
@@ -356,12 +356,12 @@ export async function getRepoMeta(repo: string): Promise<RepoMeta | null> {
   }
   const ok = await octokit();
   const [owner, name] = split(repo);
-  const { data } = await ok.rest.repos.get({ owner, repo: name });
+  const { data: repository } = await ok.rest.repos.get({ owner, repo: name });
 
   return {
-    description: data.description ?? null,
-    default_branch: data.default_branch,
-    html_url: data.html_url,
+    description: repository.description ?? null,
+    default_branch: repository.default_branch,
+    html_url: repository.html_url,
   };
 }
 
@@ -379,11 +379,14 @@ export async function getReadme(repo: string): Promise<RepoReadme | null> {
   const [owner, name] = split(repo);
 
   try {
-    const { data } = await ok.rest.repos.getReadme({ owner, repo: name });
-    const markdown = Buffer.from(data.content, "base64").toString("utf-8");
-    const rawBaseUrl = (data.download_url ?? "").replace(/[^/]+$/, "");
+    const { data: readme } = await ok.rest.repos.getReadme({
+      owner,
+      repo: name,
+    });
+    const markdown = Buffer.from(readme.content, "base64").toString("utf-8");
+    const rawBaseUrl = (readme.download_url ?? "").replace(/[^/]+$/, "");
 
-    return { markdown, rawBaseUrl, htmlUrl: data.html_url ?? "" };
+    return { markdown, rawBaseUrl, htmlUrl: readme.html_url ?? "" };
   } catch {
     return null;
   }

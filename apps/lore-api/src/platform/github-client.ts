@@ -108,15 +108,15 @@ export async function commitFile(
   let sha: string | undefined;
 
   try {
-    const { data } = await octokit.rest.repos.getContent({
+    const { data: content } = await octokit.rest.repos.getContent({
       owner,
       repo: repoName,
       path,
       ref: branch,
     });
 
-    if ("sha" in data) {
-      sha = data.sha;
+    if ("sha" in content) {
+      sha = content.sha;
     }
   } catch {
     // file doesn't exist yet
