@@ -45,11 +45,11 @@ export function escapeXmlAttr(value: string): string {
  * most recently ingested) copy. Items without a source_path are never merged —
  * memories, facts, and graph edges have no canonical path to dedup on.
  */
-export function dedupeItems(items: SourceItem[]): SourceItem[] {
+export function dedupeItems(sources: SourceItem[]): SourceItem[] {
   const byPath = new Map<string, SourceItem>();
   const passthrough: SourceItem[] = [];
 
-  for (const it of items) {
+  for (const it of sources) {
     if (!it.source_path) {
       passthrough.push(it);
       continue;
@@ -80,23 +80,23 @@ function isBetter(candidate: SourceItem, current: SourceItem): boolean {
 }
 
 export function serializeDocument(
-  item: SourceItem,
+  source: SourceItem,
   opts: { truncated?: boolean } = {},
 ): string {
   const attrs = [
-    item.source_path ? `source="${escapeXmlAttr(item.source_path)}"` : "",
-    item.content_type ? `type="${escapeXmlAttr(item.content_type)}"` : "",
-    item.repo ? `repo="${escapeXmlAttr(item.repo)}"` : "",
-    typeof item.score === "number"
-      ? `relevance="${item.score.toFixed(2)}"`
+    source.source_path ? `source="${escapeXmlAttr(source.source_path)}"` : "",
+    source.content_type ? `type="${escapeXmlAttr(source.content_type)}"` : "",
+    source.repo ? `repo="${escapeXmlAttr(source.repo)}"` : "",
+    typeof source.score === "number"
+      ? `relevance="${source.score.toFixed(2)}"`
       : "",
-    `tokens="${item.tokens}"`,
+    `tokens="${source.tokens}"`,
     opts.truncated ? 'truncated="true"' : "",
   ]
     .filter(Boolean)
     .join(" ");
 
-  return `<document ${attrs}>\n${item.text}\n</document>`;
+  return `<document ${attrs}>\n${source.text}\n</document>`;
 }
 
 export function serializeSection(section: SerializedSection): string {
