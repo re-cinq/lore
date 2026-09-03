@@ -37,7 +37,9 @@ already owns the dgraph egress and the Vertex embed path.
   ([validated by returns the stored commit for the repo and kind](apps/lore-api/src/api/routes/ingest/ingest-state.test.ts#L38), [`ingest-state.test.ts:57`](apps/lore-api/src/api/routes/ingest/ingest-state.test.ts#L57), [`ingest-state.test.ts:69`](apps/lore-api/src/api/routes/ingest/ingest-state.test.ts#L69), [`ingest-state.test.ts:81`](apps/lore-api/src/api/routes/ingest/ingest-state.test.ts#L81))
 
 - **FR2 — the pointer advances by compare-and-set, never a blind write.**
-  Every delta names the `base_commit` it was diffed from; the state row moves
+  Every delta names the state it OBSERVED as `base_commit` — what
+  `GET …/ingest-state` returned, which is also the diff basis except when
+  that commit is unreachable (FR5); the state row moves
   to the new commit only while it still equals that base (`IS NOT DISTINCT
   FROM`, so a first ingest CAS-es against null). A mismatch is a 409 carrying
   the current commit — the racing merge's CI re-fetches the state and
@@ -86,8 +88,12 @@ The CI half and the rollout are follow-up slices, specified here so the
 routes above have their consumer named:
 
 - **FR5 — the runner diffs and filters (lore-code-trace).** Fetch the state;
-  no state or an unreachable base commit ⇒ full ingest with `base_commit:
-  null`. Otherwise `git diff --name-status <base>..HEAD` (the workflow
+  no state ⇒ full ingest with `base_commit: null`. A state whose commit is
+  UNREACHABLE in the runner's history (force-pushed main, over-shallow
+  clone) ⇒ full ingest CONTENT with `base_commit` still set to the observed
+  commit — the CAS target is the observed state, not the diff basis, and
+  posting null against a recorded state would 409 on every retry forever.
+  Otherwise `git diff --name-status <base>..HEAD` (the workflow
   checkout needs `fetch-depth: 0`; a shallow clone cannot reach the base) and
   send: tests living in changed test files, every test whose coverage touches
   ANY changed file (an edit shifts the line ranges of everything below it in

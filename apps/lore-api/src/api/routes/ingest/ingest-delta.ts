@@ -38,9 +38,14 @@ import { INGEST_DELTA_KINDS } from "./ingest-kinds.js";
  * that never landed); projection itself is idempotent xid upserts, so the
  * losing side of the rare mid-flight race redoes harmless work.
  *
- * A full ingest (no recorded state, or an unreachable base) is the same POST
- * with `base_commit: null` — sent in `{seq, total}` chunks when large, and
- * the state advances only with the final chunk.
+ * `base_commit` is the OBSERVED state — exactly what `GET …/ingest-state`
+ * returned — never merely "what I diffed from". A full ingest is the same
+ * POST (sent in `{seq, total}` chunks when large; the state advances only
+ * with the final chunk): with `base_commit: null` when no state was
+ * recorded, and with the observed commit when the state exists but is
+ * unreachable in the runner's history (force-pushed main). Posting null
+ * against a recorded state would 409 on every retry — a deadlock, since
+ * re-fetching returns the same unreachable commit forever.
  */
 
 const SHA = /^[0-9a-f]{7,40}$/;
@@ -138,7 +143,7 @@ async function storedCommit(
 
     return rows[0]?.commit_sha ?? null;
   } catch (err) {
-    if ((err as { code?: string }).code === UNDEFINED_TABLE) {
+    if (err instanceof Error && "code" in err && err.code === UNDEFINED_TABLE) {
       return null;
     }
 

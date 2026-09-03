@@ -59,7 +59,11 @@ export function ingestStateRoute(getPool: () => Pool | null): ServerRoute {
       } catch (err) {
         // Pre-migration cluster → "never ingested", which correctly makes the
         // caller run a full ingest rather than failing its CI job.
-        if ((err as { code?: string }).code !== UNDEFINED_TABLE) {
+        if (!(
+          err instanceof Error &&
+          "code" in err &&
+          err.code === UNDEFINED_TABLE
+        )) {
           throw err;
         }
       }
