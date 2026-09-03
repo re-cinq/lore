@@ -1,5 +1,11 @@
 export const dynamic = "force-dynamic";
 import { getRepoChunkSummary } from "@/lib/api/chunks";
+import {
+  enrollmentFromRepo,
+  isoTimestamp,
+  needsWebhookSecret,
+  overviewSettings,
+} from "@/lib/repo-overview";
 import { getRepo } from "@/lib/api/repos";
 import {
   getRepoActivityCounts,
@@ -43,11 +49,6 @@ export default async function RepoOverview({
   );
 }
 
-/** pg returns TIMESTAMPTZ columns as Date objects — normalize to ISO strings. */
-function iso(value: unknown): string | null {
-  return value ? new Date(value as string | Date).toISOString() : null;
-}
-
 /** Everything the overview renders, fetched fail-soft. A failed call costs its own panel, never the page. */
 async function loadRepoOverview(fullName: string) {
   const panels = await fetchOverviewPanels(fullName);
@@ -58,11 +59,7 @@ async function loadRepoOverview(fullName: string) {
     ),
     withWebhookSecret(fullName, panels.webhook),
   ]);
-  // The record carries settings as opaque JSONB; this page reads two keys of it.
-  const settings = (repoInfo?.settings ?? {}) as {
-    dark_factory?: { enabled?: boolean };
-    trust?: { level?: string };
-  };
+  const settings = overviewSettings(repoInfo?.settings);
 
   return {
     readme: panels.readme,
@@ -74,11 +71,11 @@ async function loadRepoOverview(fullName: string) {
       webhook,
       localMcp: {
         developerCount: panels.localMcpRow?.devs ?? 0,
-        lastActivity: iso(panels.localMcpRow?.last),
+        lastActivity: isoTimestamp(panels.localMcpRow?.last),
       },
     }),
-    darkFactoryEnabled: settings.dark_factory?.enabled === true,
-    trustLevel: settings.trust?.level ?? "unset",
+    darkFactoryEnabled: settings.darkFactoryEnabled,
+    trustLevel: settings.trustLevel,
     // Dark Factory dashboard counts (T052) — a figure that failed to load reads as zero, not as a gap.
     darkTasksWeek: activityCounts.tasks ?? 0,
     autoMergedWeek: activityCounts.auto_merged ?? 0,
@@ -88,26 +85,12 @@ async function loadRepoOverview(fullName: string) {
   };
 }
 
-/** The enrollment ladder's view of the repo record: when it was onboarded, whether that PR merged, and when it was last ingested. */
-function enrollmentFromRepo(
-  repoInfo: Awaited<ReturnType<typeof fetchOverviewPanels>>["repoInfo"],
-) {
-  return {
-    onboarded: !!repoInfo,
-    onboardedAt: iso(repoInfo?.onboarded_at),
-    onboardingPrMerged: repoInfo?.onboarding_pr_merged === true,
-    onboardingPrUrl: repoInfo?.onboarding_pr_url ?? null,
-    lastIngestedAt: iso(repoInfo?.last_ingested_at),
-    team: repoInfo?.team ?? null,
-  };
-}
-
 /** The secret is admin-scoped and fetched only for a hook that still needs setting up by hand — it is pasted into GitHub, never sent to a client. */
 async function withWebhookSecret(
   fullName: string,
   webhook: Awaited<ReturnType<typeof getWebhookStatus>> | null,
 ) {
-  if (webhook === null || webhook.state === "configured") {
+  if (!needsWebhookSecret(webhook)) {
     return webhook;
   }
   const secret = await getWebhookSecret(fullName).catch(() => null);

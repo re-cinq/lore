@@ -368,7 +368,7 @@ async function reindexRepo(repo: {
 }
 
 /** One optional pass. A sweep that throws costs its own contribution and nothing else — the repo keeps what the passes before it ingested. */
-async function sweep(
+export async function sweep(
   repo: string,
   name: string,
   run: () => Promise<number | void>,
