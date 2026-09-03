@@ -250,3 +250,72 @@ func TestDeltaFlowGivesUpLoudlyAfterASecondStaleBase(t *testing.T) {
 		t.Fatalf("posts = %d, want exactly 2", len(*posts))
 	}
 }
+
+func TestPostIngestDeltaSerializesTheChunkEnvelopeOnlyWhenSet(t *testing.T) {
+	var bodies []map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var b map[string]any
+		raw, _ := io.ReadAll(r.Body)
+		json.Unmarshal(raw, &b)
+		bodies = append(bodies, b)
+		json.NewEncoder(w).Encode(map[string]any{"state": "pending-chunks"})
+	}))
+	defer srv.Close()
+
+	seq, total := 2, 5
+	_ = postIngestDelta(context.Background(), srv.URL, "tok", "re-cinq/lore",
+		ingestDelta{Kind: "test-report", Commit: "abc123", Report: report(), Seq: &seq, Total: &total}, srv.Client())
+	_ = postIngestDelta(context.Background(), srv.URL, "tok", "re-cinq/lore",
+		ingestDelta{Kind: "test-report", Commit: "abc123", Report: report()}, srv.Client())
+
+	if bodies[0]["seq"] != float64(2) || bodies[0]["total"] != float64(5) {
+		t.Fatalf("chunked body = %v", bodies[0])
+	}
+	if _, has := bodies[1]["seq"]; has {
+		t.Fatalf("an unchunked delta must not carry seq: %v", bodies[1])
+	}
+}
+
+func TestDeltaFlowChunksAnOversizeIngestUnderTheBodyCap(t *testing.T) {
+	// lore-api caps a body at 1 MB; a full ingest (~26 MB on this repo) rides the
+	// server's {seq,total} envelope — every chunk CASes against the same base,
+	// the state advances only with the final one, and the deleted paths go once.
+	deps, posts := flowDeps([]*string{nil}, false, nil, []string{"src/gone.test.ts"}, []error{nil})
+	deps.maxChunkBytes = 200 // three descriptors will not fit one 200-byte body
+
+	if err := runDeltaFlow(context.Background(), deps, report()); err != nil {
+		t.Fatalf("err = %v", err)
+	}
+	if len(*posts) < 2 {
+		t.Fatalf("an oversize ingest must be chunked, got %d post(s)", len(*posts))
+	}
+	total := len(*posts)
+	seen := 0
+	for i, p := range *posts {
+		d := p.delta
+		if d.Seq == nil || d.Total == nil || *d.Seq != i+1 || *d.Total != total {
+			t.Fatalf("chunk %d envelope = seq %v total %v, want %d/%d", i, d.Seq, d.Total, i+1, total)
+		}
+		if d.BaseCommit != nil {
+			t.Fatalf("every chunk must carry the observed base (nil here), got %v", *d.BaseCommit)
+		}
+		seen += len(d.Report.Tests)
+	}
+	if seen != 3 {
+		t.Fatalf("chunks must partition every test exactly once, saw %d", seen)
+	}
+}
+
+func TestDeltaFlowSendsASmallDeltaAsOneUnchunkedBody(t *testing.T) {
+	base := "base1234"
+	deps, posts := flowDeps([]*string{&base}, true, []string{"src/b.test.ts"}, nil, []error{nil})
+	deps.maxChunkBytes = 900_000
+
+	if err := runDeltaFlow(context.Background(), deps, report()); err != nil {
+		t.Fatalf("err = %v", err)
+	}
+	if len(*posts) != 1 || (*posts)[0].delta.Seq != nil {
+		t.Fatalf("a delta under the cap must be one unchunked post, got %d post(s), seq %v",
+			len(*posts), (*posts)[0].delta.Seq)
+	}
+}

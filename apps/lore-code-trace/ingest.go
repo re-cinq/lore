@@ -28,7 +28,18 @@ type ingestDelta struct {
 	BaseCommit *string    `json:"base_commit"`
 	Deleted    []string   `json:"deleted,omitempty"`
 	Report     TestReport `json:"report"`
+	// The chunk envelope, set only when one body would exceed lore-api's cap:
+	// every chunk CASes against the same base, and the server advances the
+	// state only with the final one (seq == total).
+	Seq   *int `json:"seq,omitempty"`
+	Total *int `json:"total,omitempty"`
 }
+
+// deltaChunkBytes keeps each posted body under lore-api's 1 MiB payload cap
+// (MAX_BODY_BYTES in build-server.ts) with headroom for the envelope fields.
+// A typical delta is a handful of tests and never chunks; the full ingest that
+// follows a missing or unreachable state is what this exists for.
+const deltaChunkBytes = 900_000
 
 // staleStateError is the server's 409: the pointer moved under us (a racing
 // merge landed first). Current is what it moved to — the caller re-fetches and
@@ -127,6 +138,8 @@ type deltaDeps struct {
 	reachable    func(sha string) bool
 	changedSince func(base string) (changed, deleted []string, err error)
 	post         func(context.Context, ingestDelta) error
+	// Body budget per post; zero means deltaChunkBytes.
+	maxChunkBytes int
 }
 
 // runDeltaFlow is FR5 end to end. No state ⇒ full ingest against null. A state
@@ -150,11 +163,42 @@ func runDeltaFlow(ctx context.Context, deps deltaDeps, report TestReport) error 
 			delta.Report = selectDelta(report, changed)
 			delta.Deleted = deleted
 		}
-		err = deps.post(ctx, delta)
+		err = postDeltaChunked(ctx, deps, delta)
 		var stale *staleStateError
 		if errors.As(err, &stale) && attempt == 0 {
 			continue
 		}
 		return err
 	}
+}
+
+// postDeltaChunked sends a delta whole when it fits one body, and otherwise
+// splits its report per descriptor into the {seq,total} envelope. Deleted
+// paths ride the first chunk only — the prune is idempotent, but there is no
+// reason to drive it once per chunk. Any chunk's 409 surfaces as-is so the
+// flow's single re-diff applies to the whole ingest.
+func postDeltaChunked(ctx context.Context, deps deltaDeps, delta ingestDelta) error {
+	budget := deps.maxChunkBytes
+	if budget <= 0 {
+		budget = deltaChunkBytes
+	}
+	if jsonLen(delta) <= budget {
+		return deps.post(ctx, delta)
+	}
+	parts := chunkReport(delta.Report, budget)
+	total := len(parts)
+	for i, part := range parts {
+		seq := i + 1
+		chunk := ingestDelta{
+			Kind: delta.Kind, Commit: delta.Commit, BaseCommit: delta.BaseCommit,
+			Report: part, Seq: &seq, Total: &total,
+		}
+		if i == 0 {
+			chunk.Deleted = delta.Deleted
+		}
+		if err := deps.post(ctx, chunk); err != nil {
+			return fmt.Errorf("chunk %d/%d: %w", seq, total, err)
+		}
+	}
+	return nil
 }
