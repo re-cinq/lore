@@ -19,6 +19,7 @@ import {
   decideStampFailure,
   emptyBranchReason,
   readyPrBody,
+  readyPrTitle,
   stampLinePr,
   type SpecPrPorts,
 } from "./spec-pr.js";
@@ -398,6 +399,78 @@ describe("readyPrBody", () => {
 
     expect(readyPrBody(await lineRow(h), undefined)).toBe(
       "No ticket.\n\nLore-Task: task-1",
+    );
+  });
+});
+
+describe("stampLinePr title", () => {
+  // `lore: lore/implementation-loop/issue-1744` is what every backlog PR was
+  // called: a branch name a reviewer has to open the PR to decode. The ticket
+  // title is the one meaningful thing known when the draft opens.
+  it("titles a ticket run's draft after the ticket", async () => {
+    const h = await harness({ withFeature: false });
+
+    await h.lines.mergeArgs(h.lineId, {
+      issue_title: "Backlog PRs are titled after their branch",
+    });
+    await stampLinePr(await lineRow(h), h.ports);
+
+    expect(h.pulls.opened[0]?.title).toBe(
+      "Backlog PRs are titled after their branch",
+    );
+  });
+
+  it("clamps a 96-character ticket title to 70 characters", async () => {
+    const h = await harness({ withFeature: false });
+
+    await h.lines.mergeArgs(h.lineId, {
+      issue_title:
+        "The implementation loop opens every pull request under a title composed of its branch name",
+    });
+    await stampLinePr(await lineRow(h), h.ports);
+
+    expect(h.pulls.opened[0]?.title).toBe(
+      "The implementation loop opens every pull request under a title compos…",
+    );
+  });
+
+  it("falls back to the branch when the run carries no ticket title", async () => {
+    const h = await harness({ withFeature: false });
+
+    await stampLinePr(await lineRow(h), h.ports);
+
+    expect(h.pulls.opened[0]?.title).toBe(
+      "lore: feature/dark-factory-rollback",
+    );
+  });
+});
+
+describe("readyPrTitle", () => {
+  // The draft's title is written before a line of code exists. The pr-ready
+  // node has read the finished branch, so it gets to rename the PR at the flip.
+  it("takes the title the pr-ready node reported", () => {
+    expect(
+      readyPrTitle({ "Lore-Pr-Title": "Title backlog PRs after the work" }),
+    ).toBe("Title backlog PRs after the work");
+  });
+
+  it("returns null when the node reported no title, keeping the draft's", () => {
+    expect(readyPrTitle(undefined)).toBeNull();
+    expect(readyPrTitle({ "Lore-Issue-Coverage": "full" })).toBeNull();
+  });
+
+  it("returns null on a blank title rather than blanking the PR", () => {
+    expect(readyPrTitle({ "Lore-Pr-Title": "  \n " })).toBeNull();
+  });
+
+  it("clamps a reported title of 96 characters to 70", () => {
+    expect(
+      readyPrTitle({
+        "Lore-Pr-Title":
+          "The implementation loop opens every pull request under a title composed of its branch name",
+      }),
+    ).toBe(
+      "The implementation loop opens every pull request under a title compos…",
     );
   });
 });

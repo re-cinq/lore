@@ -114,6 +114,58 @@ export function decideMarkReady(input: {
   );
 }
 
+/** How long a pull-request title may be. GitHub allows far more, but a title is
+ *  read in a list, and one that does not fit there is a title nobody reads. */
+const TITLE_MAX = 70;
+
+/** One line, no runs of whitespace, cut with an ellipsis past the cap. */
+function clampTitle(text: string): string {
+  const oneLine = text.replace(/\s+/g, " ").trim();
+
+  return oneLine.length > TITLE_MAX
+    ? `${oneLine.slice(0, TITLE_MAX - 1)}\u2026`
+    : oneLine;
+}
+
+/** The title the DRAFT opens under, before a reviewer ever sees the branch.
+ *
+ *  `lore: <branch>` is what every backlog pull request was called — a branch
+ *  name a reader has to open the PR to decode, on the one artifact the loop
+ *  asks a human to look at. The ticket title the run was minted from is the
+ *  only meaningful thing known at this point, so it is what the draft carries;
+ *  the branch stays as the fallback for a run that carries no ticket. */
+export function draftPrTitle(input: {
+  featureTitle: string | null;
+  args: Record<string, unknown>;
+  branch: string;
+}): string {
+  if (input.featureTitle) {
+    return `spec: ${input.featureTitle}`;
+  }
+  const ticket = input.args.issue_title;
+
+  if (typeof ticket === "string" && ticket.trim().length > 0) {
+    return clampTitle(ticket);
+  }
+
+  return `lore: ${input.branch}`;
+}
+
+/** The title the ready flip renames the PR to: the one the pr-ready node
+ *  reported after reading the finished branch. Null when it reported none, and
+ *  the PR keeps the ticket title the draft opened under — never blanked. */
+export function readyPrTitle(
+  extras: Record<string, string> | undefined,
+): string | null {
+  const reported = extras?.["Lore-Pr-Title"];
+
+  if (typeof reported !== "string" || reported.trim().length === 0) {
+    return null;
+  }
+
+  return clampTitle(reported);
+}
+
 /** The surface this writes through — a narrow, repo-bound slice of `project`, so a
  *  caller passes `project.pulls` and `project.features` straight in. */
 export interface SpecPrPorts {
@@ -173,7 +225,11 @@ export async function stampLinePr(
   const featureId =
     typeof row.args.feature_id === "string" ? row.args.feature_id : null;
   const feature = featureId ? await ports.features.get(featureId) : null;
-  const title = feature ? `spec: ${feature.title}` : `lore: ${branch}`;
+  const title = draftPrTitle({
+    featureTitle: feature?.title ?? null,
+    args: row.args,
+    branch,
+  });
   const pr =
     (await existingPrFor(branch, ports.pulls)) ??
     (await ports.pulls.open(
