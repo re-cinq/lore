@@ -6,8 +6,7 @@ export interface Check {
   status: CheckStatus;
   detail?: string;
   link?: { href: string; text: string };
-  /** A fixable check the UI can act on directly (open a PR with the file, or
-   *  create/repoint the GitHub webhook). */
+  /** A fixable check the UI can act on directly (open PR or create/repoint webhook). */
   action?:
     | { kind: "reonboard"; text: string }
     | { kind: "setup-webhook"; text: string };
@@ -213,9 +212,7 @@ function webhookCheckRow(w: WebhookCheck): Check {
     check.action = { kind: "setup-webhook", text: "set up" };
   }
 
-  // Show the URL to set by hand whenever it's known and not already in place —
-  // covers manual setup and the App-lacks-permission case where the button can't help.
-  // The signing secret rides alongside (fetched only in this not-configured case).
+  // Show URL for manual setup when known and not configured; signing secret included.
   if (w.canonicalUrl && w.state !== "configured") {
     check.copy = { value: w.canonicalUrl, label: "set this URL" };
   }

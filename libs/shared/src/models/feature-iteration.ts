@@ -1,14 +1,7 @@
 import { z } from "zod";
 import type { ColumnMap } from "../lib/row.js";
 
-/**
- * `lore.feature_iterations` — one planning round of a feature.
- *
- * DDL: migration `0017_feature_planning.sql`, plus `parent_iteration` (0036).
- * `taskId` is a SOFT reference to
- * `pipeline.tasks` with no FK, deliberately: a pruned task must not take the
- * planning history with it. `(featureId, iteration)` is unique.
- */
+/** One planning round of a feature; taskId is soft reference with no FK; (featureId, iteration) is unique. */
 
 export const FeatureIterationStatusSchema = z.enum([
   "running",

@@ -159,51 +159,51 @@ the header `X-Lore-Approval-PR`.
 ## Acceptance Criteria
 
 A null pool returns `503 { error: "database unavailable" }`. ([validated by
-`dark-factory.test.ts:111`](apps/lore-api/src/api/routes/dark-factory/dark-factory.test.ts#L111))
+`dark-factory.test.ts:111`](apps/lore-api/src/api/routes/dark-factory/dark-factory.test.ts#L106))
 
 Any method other than GET/PUT returns `405 { error: "method not allowed" }`.
-([validated by `dark-factory.test.ts:117`](apps/lore-api/src/api/routes/dark-factory/dark-factory.test.ts#L117))
+([validated by `dark-factory.test.ts:117`](apps/lore-api/src/api/routes/dark-factory/dark-factory.test.ts#L112))
 
 GET on an un-onboarded repo returns `404 { error: "repo not onboarded", repo }`.
-([validated by `dark-factory.test.ts:128`](apps/lore-api/src/api/routes/dark-factory/dark-factory.test.ts#L128))
+([validated by `dark-factory.test.ts:128`](apps/lore-api/src/api/routes/dark-factory/dark-factory.test.ts#L123))
 
-GET returns the resolved dark-factory settings. ([validated by `dark-factory.test.ts:134`](apps/lore-api/src/api/routes/dark-factory/dark-factory.test.ts#L134))
+GET returns the resolved dark-factory settings. ([validated by `dark-factory.test.ts:134`](apps/lore-api/src/api/routes/dark-factory/dark-factory.test.ts#L129))
 
 A GET resolution throw degrades to `500 { error: "internal" }`. ([validated by
-`dark-factory.test.ts:146`](apps/lore-api/src/api/routes/dark-factory/dark-factory.test.ts#L146))
+`dark-factory.test.ts:146`](apps/lore-api/src/api/routes/dark-factory/dark-factory.test.ts#L141))
 
 PUT with an unparseable or oversized body returns `400 { error: "invalid_body" }`.
-([validated by `dark-factory.test.ts:170`](apps/lore-api/src/api/routes/dark-factory/dark-factory.test.ts#L170))
+([validated by `dark-factory.test.ts:170`](apps/lore-api/src/api/routes/dark-factory/dark-factory.test.ts#L165))
 
 PUT with a schema-invalid patch returns `400 { error: "invalid_settings", issues }`.
-([validated by `dark-factory.test.ts:185`](apps/lore-api/src/api/routes/dark-factory/dark-factory.test.ts#L185))
+([validated by `dark-factory.test.ts:185`](apps/lore-api/src/api/routes/dark-factory/dark-factory.test.ts#L177))
 
 A non-privileged PUT applies at `tier: "admin"` and writes the audit log.
-([validated by `dark-factory.test.ts:209`](apps/lore-api/src/api/routes/dark-factory/dark-factory.test.ts#L209))
+([validated by `dark-factory.test.ts:209`](apps/lore-api/src/api/routes/dark-factory/dark-factory.test.ts#L201))
 
 PUT deep-merges the nested `auto_merge` object over prior settings. ([validated by
-`dark-factory.test.ts:222`](apps/lore-api/src/api/routes/dark-factory/dark-factory.test.ts#L222))
+`dark-factory.test.ts:222`](apps/lore-api/src/api/routes/dark-factory/dark-factory.test.ts#L214))
 
 A privileged-field PUT with no `X-Lore-Approval-PR` header returns `403 { error:
-"two_key_required" }`. ([validated by `dark-factory.test.ts:250`](apps/lore-api/src/api/routes/dark-factory/dark-factory.test.ts#L250), [validated by `two-key.test.ts:38`](apps/lore-api/src/api/routes/two-key.test.ts#L38), [validated by `two-key.test.ts:58`](apps/lore-api/src/api/routes/two-key.test.ts#L58))
+"two_key_required" }`. ([validated by `dark-factory.test.ts:250`](apps/lore-api/src/api/routes/dark-factory/dark-factory.test.ts#L242), [validated by `two-key.test.ts:38`](apps/lore-api/src/api/routes/two-key.test.ts#L35), [validated by `two-key.test.ts:58`](apps/lore-api/src/api/routes/two-key.test.ts#L55))
 
 A privileged-field PUT applies at `tier: "two_key"` after a passing CODEOWNERS
-approval. ([validated by `dark-factory.test.ts:275`](apps/lore-api/src/api/routes/dark-factory/dark-factory.test.ts#L275), [validated by `two-key.test.ts:73`](apps/lore-api/src/api/routes/two-key.test.ts#L73))
+approval. ([validated by `dark-factory.test.ts:275`](apps/lore-api/src/api/routes/dark-factory/dark-factory.test.ts#L267), [validated by `two-key.test.ts:73`](apps/lore-api/src/api/routes/two-key.test.ts#L70))
 
 A failed CODEOWNERS check returns `403 { error: "codeowners_check_failed", code }`.
-([validated by `dark-factory.test.ts:300`](apps/lore-api/src/api/routes/dark-factory/dark-factory.test.ts#L300), [validated by `two-key.test.ts:94`](apps/lore-api/src/api/routes/two-key.test.ts#L94))
+([validated by `dark-factory.test.ts:300`](apps/lore-api/src/api/routes/dark-factory/dark-factory.test.ts#L292), [validated by `two-key.test.ts:94`](apps/lore-api/src/api/routes/two-key.test.ts#L91))
 
 A non-`TwoKeyError` GitHub failure returns `503 { error: "github_api_unavailable" }`.
-([validated by `dark-factory.test.ts:314`](apps/lore-api/src/api/routes/dark-factory/dark-factory.test.ts#L314), [validated by `two-key.test.ts:117`](apps/lore-api/src/api/routes/two-key.test.ts#L117))
+([validated by `dark-factory.test.ts:314`](apps/lore-api/src/api/routes/dark-factory/dark-factory.test.ts#L306), [validated by `two-key.test.ts:117`](apps/lore-api/src/api/routes/two-key.test.ts#L114))
 
 A repo deleted between auth and the `FOR UPDATE` read returns `404`. ([validated by
-`dark-factory.test.ts:323`](apps/lore-api/src/api/routes/dark-factory/dark-factory.test.ts#L323))
+`dark-factory.test.ts:323`](apps/lore-api/src/api/routes/dark-factory/dark-factory.test.ts#L315))
 
 A best-effort audit-log insert failure does not block the settings commit.
-([validated by `dark-factory.test.ts:332`](apps/lore-api/src/api/routes/dark-factory/dark-factory.test.ts#L332))
+([validated by `dark-factory.test.ts:332`](apps/lore-api/src/api/routes/dark-factory/dark-factory.test.ts#L324))
 
 A write failure rolls the transaction back and returns `500 { error: "internal" }`.
-([validated by `dark-factory.test.ts:341`](apps/lore-api/src/api/routes/dark-factory/dark-factory.test.ts#L341))
+([validated by `dark-factory.test.ts:341`](apps/lore-api/src/api/routes/dark-factory/dark-factory.test.ts#L333))
 
 The route requires `admin` scope via the `SCOPE_OVERRIDES` override. ([validated by
 `bearer-scope.test.ts`](apps/lore-api/src/server/plugins/bearer-scope.test.ts) and `applies the

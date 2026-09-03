@@ -4,19 +4,19 @@ import { isTestFile, normalizeTestName } from "./test-paths.js";
 describe("isTestFile", () => {
   it("recognizes test-path conventions across languages and rejects production paths", () => {
     const testPaths = [
-      "mcp-server/src/local-runner.test.ts", // JS/TS .test.
-      "web-ui/src/lib/spec-summary.test.tsx", // JSX/TSX .test.
-      "agent/src/jobs/spec-test-linker.spec.ts", // JS/TS .spec.
-      "src/__tests__/router.ts", // __tests__ dir
-      "pkg/store/store_test.go", // Go
-      "api/tests/test_user.py", // pytest leading test_
-      "api/user_test.py", // pytest trailing _test
-      "src/main/CalculatorTest.java", // JUnit
-      "src/test/CalculatorTests.kt", // Kotlin
-      "src/store/store_test.rs", // Rust
-      "spec/models/user_spec.rb", // RSpec
-      "Tests/CalculatorTests.cs", // .NET
-      "tests/CalculatorTest.php", // PHP
+      "mcp-server/src/local-runner.test.ts",
+      "web-ui/src/lib/spec-summary.test.tsx",
+      "agent/src/jobs/spec-test-linker.spec.ts",
+      "src/__tests__/router.ts",
+      "pkg/store/store_test.go",
+      "api/tests/test_user.py",
+      "api/user_test.py",
+      "src/main/CalculatorTest.java",
+      "src/test/CalculatorTests.kt",
+      "src/store/store_test.rs",
+      "spec/models/user_spec.rb",
+      "Tests/CalculatorTests.cs",
+      "tests/CalculatorTest.php",
     ];
     const productionPaths = [
       "shared/src/test-paths.ts",

@@ -33,18 +33,7 @@ const enforceOrderByTerms = (orderBy: string): void => {
   );
 };
 
-/**
- * Build a UNION ALL query across chunk schemas. With `order`, each branch is
- * wrapped as `(SELECT ... ORDER BY ... LIMIT n)` so Postgres prunes per schema
- * (top-N per branch), and the union gets an outer ORDER BY + LIMIT for the
- * global top-N — equivalent to sorting the full union, without fetching it.
- *
- * `order.orderBy` and each branch's sql are interpolated: callers pass trusted
- * literals only (same trust model as the schema interpolation in `selectFn`).
- * `order.limit` is enforced as a positive integer and `order.orderBy` as
- * comma-separated `column [ASC|DESC]` terms before any SQL is built. Returns
- * null when there are no schemas to query.
- */
+// UNION ALL across schemas with per-branch pruning; orderBy/limit validated, null when no schemas.
 export function buildChunkUnionQuery(
   schemas: string[],
   selectFn: ChunkSelectFn,

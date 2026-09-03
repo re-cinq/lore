@@ -103,7 +103,6 @@ function collect(stream: PassThrough): () => string {
 const flush = (): Promise<void> =>
   new Promise((resolve) => setImmediate(resolve));
 
-/** Pages a fixed row list the way the Pg adapter does: id > afterId, ascending, capped. */
 function pagedEvents(rows: AgentRunEventRow[]) {
   return {
     listSince: (assemblyLineId: string, afterId: string, limit: number) =>
@@ -465,8 +464,6 @@ describe("streamRunEvents", () => {
       after: "0",
       events: {
         listSince: async (line, after, limit) => {
-          // Yield first: the driver calls listSince synchronously, before the
-          // caller below has had a chance to capture its teardown.
           await Promise.resolve();
           teardownRef();
 

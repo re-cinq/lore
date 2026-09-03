@@ -5,11 +5,7 @@ import { useCoordinatedRefresh } from "./TaskRefreshProvider";
 
 const TERMINAL_STATES = new Set<PRStatus>(["merged", "closed"]);
 
-/**
- * Client container for PRStatusCard — fetches the PR status on mount and
- * re-fetches on the page coordinator's ticks while the PR is live, threading
- * the resolved details / error down to the pure card.
- */
+/** Container: fetch on mount, re-fetch on coordinator ticks, thread details to Card. */
 export default function PRStatusPanel({
   taskId,
   prUrl,
@@ -41,9 +37,7 @@ export default function PRStatusPanel({
     fetchStatus();
   }, [fetchStatus]);
 
-  // Refresh while the PR is live. Merged/closed and error are both terminal:
-  // without the error stop, a persistently failing endpoint (deleted PR,
-  // rate limit) would be re-fetched on every tick for the tab's lifetime.
+  // Merged/closed and error are both terminal; prevent eternal re-fetch of deleted/rate-limited PRs
   const isTerminal = details
     ? TERMINAL_STATES.has(details.computed_status)
     : false;

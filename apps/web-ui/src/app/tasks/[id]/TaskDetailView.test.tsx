@@ -179,8 +179,6 @@ describe("TaskDetailView", () => {
 
   it("renders the Cancel Task control for non-terminal tasks", () => {
     renderView({ task: task({ status: "running" }) });
-    // The confirm-gated submit form lives in CancelTaskButton (tested there);
-    // here we only assert the trigger is present for a cancellable task.
     expect(
       screen.getByRole("button", { name: "Cancel Task" }),
     ).toBeInTheDocument();

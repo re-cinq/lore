@@ -4,9 +4,6 @@ import { InMemoryChunks } from "./chunks-memory.js";
 import type { ChunkInsert } from "./chunks-port.js";
 import type { PgPool } from "../../memory-store.js";
 
-/** Results are consumed in order per query; the last one is sticky, so
- *  single-result callers keep working and resolved-schema methods (team
- *  lookup → schemaExists → real query) can script a sequence. */
 function fakePool(...results: Array<{ rows: any[] }>): {
   pool: PgPool;
   calls: Array<{ text: string; params?: unknown[] }>;
@@ -513,7 +510,7 @@ describe("InMemoryChunks double", () => {
       ...sampleChunk,
       contentType: "code",
       filePath: "b.ts",
-      metadata: {}, // no symbol_name → excluded
+      metadata: {},
     });
 
     expect(await chunks.specChunks("octo/repo")).toMatchObject([

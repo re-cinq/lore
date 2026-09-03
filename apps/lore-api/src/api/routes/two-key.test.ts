@@ -2,9 +2,6 @@ import { describe, it, expect, afterEach, vi } from "vitest";
 import type { Request } from "@hapi/hapi";
 import { makeOctokit } from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
 
-// checkApproval is the shared CODEOWNERS-approval ceremony. verifyApproval and
-// getOctokit are the mocked boundaries; TwoKeyError must be the same class the
-// SUT imports so `err instanceof TwoKeyError` narrows the 403 vs 503 split.
 vi.mock("../../features/dark-factory/dark-factory-authz.js", () => {
   class TwoKeyError extends Error {
     constructor(

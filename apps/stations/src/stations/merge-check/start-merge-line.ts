@@ -1,14 +1,4 @@
-/**
- * Start the merge line for a task whose PR has merged.
- *
- * The sweep used to DO the post-merge work inline; it now only notices the merge
- * and starts the line that does it. That is what turns nine consecutive
- * statements — five of them behind swallowing catches — into nine recorded
- * visits whose failures route forward instead of skipping what follows.
- *
- * Keyed by the TASK, so the per-minute sweep and a webhook noticing the same
- * merge converge on one run rather than racing to start two.
- */
+/** Start the merge line for a task whose PR has merged. */
 
 export interface MergeLineTask {
   id: string;
@@ -32,15 +22,7 @@ export interface StartMergeLineDeps {
   }): Promise<string>;
 }
 
-/**
- * How many merge lines one task may burn before the sweep stops re-starting it.
- *
- * `settle` is the line's only hard stop, and it fails BEFORE the task is marked
- * merged — so the task stays in `mergeableTasks()` and the per-minute sweep
- * would start a fresh ten-node line every minute, forever, with no backoff.
- * A few retries absorb a transient database blip; past that the failure is
- * recorded on three runs and re-running it only burns the factory.
- */
+/** Max retries before abandoning a failed merge line. */
 export const MAX_MERGE_LINE_ATTEMPTS = 3;
 
 /** One line per task, whoever notices the merge first. */

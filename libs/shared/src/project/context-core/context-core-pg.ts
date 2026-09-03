@@ -4,10 +4,7 @@ import type {
   ContextCoreRecord,
 } from "./context-core-port.js";
 
-/**
- * Postgres-backed {@link ContextCorePort}: the latest-production read and the
- * append INSERT lifted byte-for-byte from the Floor's context-core-builder.
- */
+/** Postgres-backed {@link ContextCorePort}: latest-production read and append INSERT from Floor's context-core-builder. */
 export class PgContextCore implements ContextCorePort {
   constructor(private readonly pool: PgPool) {}
 

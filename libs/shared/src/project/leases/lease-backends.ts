@@ -2,11 +2,7 @@ import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { trace, type Span, type Tracer } from "@opentelemetry/api";
 
-/**
- * The narrow Postgres surface {@link DbLeaseBackend} needs — `query` returning
- * `rowCount` so the CTE/UPSERT outcome can be read. A real `pg.Pool` satisfies
- * this structurally; keeping it local means shared never imports `pg`.
- */
+/** Postgres interface for DbLeaseBackend (query + rowCount). */
 export interface LeasePool {
   query<R = unknown>(
     text: string,
@@ -18,10 +14,7 @@ const DEFAULT_TTL_SEC = 600;
 
 const tracer: Tracer = trace.getTracer("lore.lease");
 
-/**
- * A lease the reaper swept because its `expires_at` was past the cutoff.
- * `expires_at` is widened to tolerate both a pg `Date` and a serialized string.
- */
+/** Swept lease row with Date|string expires_at. */
 export interface ExpiredLease {
   branch_name: string;
   /** Null for task-less runs (detection assembly lines). */
@@ -32,30 +25,13 @@ export interface ExpiredLease {
 
 export interface AcquireResult {
   acquired: boolean;
-  /**
-   * Set when `acquired === false`. The holder of the still-valid lease
-   * the caller should yield to.
-   */
+  /** Set when acquired === false; holder of the conflicting lease. */
   currentHolder?: string;
-  /**
-   * Set when `acquired === true` AND the acquire was a takeover from an
-   * expired prior holder. The supervisor uses this to emit a
-   * `lease_expired` audit entry naming the previous holder (T027).
-   * `undefined` when the acquire was a fresh insert with no prior row.
-   */
+  /** Set on takeover from expired prior holder; undefined on fresh insert. */
   tookOverFrom?: string;
 }
 
-/**
- * Single supervisor lease abstraction. Two implementations:
- *  - {@link DbLeaseBackend} — the canonical Postgres-backed lease used by
- *    cluster supervisors (FR1.6, Q4 clarification).
- *  - {@link FileLeaseBackend} — file-system fallback for the local runner
- *    when no `LORE_DB_HOST` is configured.
- *
- * The supervisor selects a backend at startup; downstream code never
- * needs to know which is in use.
- */
+/** Supervisor lease abstraction with Db + File implementations. */
 export interface LeaseBackend {
   /** `taskId` is null for task-less runs (detection assembly lines). */
   acquire(
@@ -74,16 +50,11 @@ export interface LeaseBackend {
 
   release(branchName: string, holder: string): Promise<boolean>;
 
-  /**
-   * Janitor sweep: remove every lease whose `expires_at` is before `cutoff`,
-   * returning the swept rows so the caller can audit each takeover. Used by the
-   * lease-reaper (org-wide, no repo in scope).
-   */
+  /** Sweep expired leases (expires_at < cutoff) for audit. */
   reapExpired(cutoff: Date): Promise<ExpiredLease[]>;
 }
 
-/** Stamp the acquire span and shape the result for a won upsert — a takeover
- * when a previous (expired) holder existed, a fresh acquire otherwise. */
+/** Shape the result for a won upsert (takeover vs. fresh acquire). */
 function acquiredResult(
   span: Span,
   tookOverFrom: string | undefined,
@@ -114,8 +85,7 @@ export class DbLeaseBackend implements LeaseBackend {
       span.setAttribute("backend", "db");
 
       try {
-        // The CTE captures the previous holder (if any) so a takeover
-        // from an expired prior pod can be reported and audited (T027).
+        // CTE captures prior holder for takeover audit (#T027).
         const result = await this.pool.query<{
           previous_holder: string | null;
         }>(
@@ -246,8 +216,8 @@ interface FileLeaseRecord {
   branch_name: string;
   task_id: string | null;
   holder: string;
-  acquired_at: string; // ISO8601
-  expires_at: string; // ISO8601
+  acquired_at: string;
+  expires_at: string;
   phase?: string;
 }
 
@@ -255,8 +225,7 @@ export class FileLeaseBackend implements LeaseBackend {
   constructor(private readonly leasesDir: string) {}
 
   private filename(branchName: string): string {
-    // Branch names contain slashes (e.g. "lore/feature/foo"); URL-encode
-    // so each lease lands as a single flat file.
+    // URL-encode branch names (contain slashes) to flat file names.
     return path.join(this.leasesDir, encodeURIComponent(branchName) + ".json");
   }
 
@@ -443,11 +412,7 @@ export interface LeaseReaper {
   reapExpired(cutoff: Date): Promise<ExpiredLease[]>;
 }
 
-/**
- * In-memory {@link LeaseReaper}: seeded with leases, removes and returns those
- * before the cutoff. The double for the lease-reaper job (relocated from the
- * Floor kernel so it stays a unit with the Db/File reap semantics).
- */
+/** In-memory {@link LeaseReaper}: behavioral spec double. */
 export class InMemoryLeaseReaper implements LeaseReaper {
   constructor(public leases: ExpiredLease[] = []) {}
 

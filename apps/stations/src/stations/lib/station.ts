@@ -1,37 +1,4 @@
-/**
- * What a station is, and how work reaches it.
- *
- * "Station" named three unrelated things in three homes, with three registries —
- * two of them sharing a byte-identical signature and knowing nothing about each
- * other. This is the one declaration they collapse into: a manifest saying what
- * the station is triggered by, paired with the handler shape that trigger
- * implies.
- *
- * Deliberately dependency-light. This package is imported by BOTH runtimes — the
- * long-lived service that holds a pool and a GitHub App, and the one-shot pod
- * that holds neither credential (ADR-031 D6/D7) — so nothing here may reach for
- * a database, a client, or a credential. A station that needs data is GIVEN it.
- *
- * It lives in `apps/stations` — the app that RUNS the stations — and both the
- * Floor and lore-api import it from there. That inverts the usual deployable
- * boundary, and it is a known debt rather than a design: an app importing
- * another app resolves only because npm hoists the workspace.
- *
- * It is survivable today because of what actually crosses. The Floor reads
- * `.manifest` and never a handler — a node's runtime and its timeout budget —
- * so nothing about a station's implementation reaches it. lore-api is the real
- * offender: its maintenance route still CALLS `.run`, which is the leftover the
- * cutover meant to remove.
- *
- * The fix, when it is taken, is the split the plan named: manifests reachable
- * from a lib, handlers staying in their station's folder here. It is not taken
- * yet because it separates a station's manifest from its folder, and one folder
- * per station is the property this consolidation exists to give.
- *
- * (Nothing here may reach for a database, a client, or a credential regardless:
- * this file is imported by BOTH runtimes, the long-lived service that holds a
- * pool and a GitHub App, and the one-shot pod that holds neither.)
- */
+/** What a station is and how work reaches it (ADR-031 D6/D7). */
 
 import type {
   EdgeConditionValue,
@@ -66,16 +33,7 @@ export interface NodeTrigger {
   timeoutMinutes: number;
 }
 
-/**
- * A person does the work; the run parks until that person reports.
- *
- * No `route`. The page a run parks on belongs to the NODE: the YAML declares it
- * per node, the loader rejects a human node without one, it is snapshotted into
- * the run graph and resolved from that run's args by `resolveRoute`. A
- * station-level route would be a second declaration with no reader — `feature_review`
- * parks on the feature page and `pr_review` on `{args.pr_url}`, so the station
- * could not name one anyway.
- */
+/** A human approves work; the run parks until then. */
 export interface HumanTrigger {
   kind: "human";
   nodeType: NodeTypeValue;
@@ -87,8 +45,7 @@ export interface EventTrigger {
   eventNames: readonly string[];
 }
 
-/** A schedule. Sugar over an event trigger — the tick arrives on the bus like
- *  anything else — kept separate so the emitter set can be derived from it. */
+/** A schedule trigger. */
 export interface CronTrigger {
   kind: "cron";
   schedule: string;
@@ -110,14 +67,7 @@ export interface StationManifest {
   readonly name: string;
   readonly description: string;
   readonly triggers: readonly StationTrigger[];
-  /**
-   * The host ports this station reaches for.
-   *
-   * Declared so a host can expose exactly the stations it can actually RUN.
-   * Without it, lore-api — which has a pool but no GitHub App — advertised a
-   * repo sweep it could only fail, and the failure was reachable from the
-   * outside rather than impossible.
-   */
+  /** Host ports this station requires. */
   readonly requires?: readonly StationPortName[];
 }
 
@@ -132,25 +82,7 @@ export interface StationEnv {
   workspaceDir: string;
 }
 
-/**
- * The data a sweep reaches through, supplied by whichever process hosts it.
- *
- * A facade rather than each sweep importing kernel singletons: this package is
- * shared with a pod that has no pool, so a station that resolved its own
- * database could not live here at all. It is also what lets the sweeps be tested
- * without one.
- *
- * Narrow on purpose — it grows one method at a time, as a sweep needs it, so it
- * stays a description of what stations actually use rather than a mirror of the
- * host's whole surface.
- *
- * Not every host can serve every port, and that is fine: lore-api runs the
- * scheduled data operations and has no GitHub App, while the stations service
- * runs the repo sweeps. A host declares what it cannot serve with
- * {@link unsupportedPort}, so calling it fails by NAME at the call site rather
- * than as `undefined is not a function` — and a station only ever reaches for
- * what its own trigger implies it needs.
- */
+/** Facade over host capabilities, narrowly scoped to what stations actually use. */
 export interface StationHost {
   /** Tasks parked on a human approving their issue. */
   awaitingApproval(): Promise<
@@ -212,11 +144,7 @@ export interface HumanStationModule {
   readonly manifest: StationManifest;
 }
 
-/**
- * Merging the two run shapes would force every sweep to invent a NodeResult and
- * every node visit to invent a summary line. They stay distinct, and the union
- * is what the registry holds.
- */
+/** Union of sweep and HTTP handler run shapes. */
 export type StationModule =
   NodeStationModule | SweepStationModule | HumanStationModule;
 
@@ -238,14 +166,7 @@ export const isNodeModule = (mod: StationModule): mod is NodeStationModule =>
 export const isSweepModule = (mod: StationModule): mod is SweepStationModule =>
   "run" in mod && nodeTriggers(mod.manifest).length === 0;
 
-/**
- * A port this host does not serve.
- *
- * Returns a function that throws when CALLED, naming both the port and the host,
- * rather than a cast that claims the host is something it is not. A station
- * reaching a port its host cannot serve is a wiring bug, and this is what makes
- * it say so.
- */
+/** A port this host does not serve. */
 export const unsupportedPort = (port: string, host: string): (() => never) => {
   return () => {
     throw new Error(

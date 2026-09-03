@@ -1,7 +1,4 @@
-// The "why" behind a single node: assembles the plain-language explanation and
-// the supporting facts a reader wants when they click a node — did it run, what
-// ran, why is it in this state. Pure; the transcript comes from the reducer and
-// the walk facts from the row, so this stays unit-testable.
+// Assemble plain-language explanation + supporting facts for a clicked node; pure (transcript from reducer, walk facts from row).
 
 import type { AssemblyLineDefinition } from "./assembly-line-definition";
 import type { AssemblyRunNode } from "./assembly-runs";
@@ -28,8 +25,7 @@ export interface NodeDetail {
   tone: NodeStatusTone;
   statusLabel: string;
   why: string;
-  /** Every errored step in the node's transcript, in order — the full "why it
-   *  failed" trace behind the one-line `why`. Empty when nothing errored. */
+  /** Every errored step in order; empty when nothing errored. */
   failures: FailedStep[];
   files: string[];
   eventCount: number;
@@ -63,8 +59,7 @@ function uniqueFiles(state: NodeRunState | undefined): string[] {
   return [...files];
 }
 
-/** The last errored `result` line's summary — the closest thing to a failure
- *  message the stream carries. */
+/** Last errored result line's summary; closest thing to a failure message in the stream. */
 function failureSummary(state: NodeRunState | undefined): string | null {
   for (const event of [...(state?.transcript ?? [])].reverse()) {
     if (event.eventType === "result" && event.isError && event.summary) {
@@ -75,8 +70,7 @@ function failureSummary(state: NodeRunState | undefined): string | null {
   return null;
 }
 
-/** Every errored step carrying a message, in order — the concrete causes (a
- *  failed tool call, the agent's error verdict) behind the one-line why. */
+/** Every errored step with message, in order; concrete causes (tool calls, verdicts) behind the one-line why. */
 function erroredSteps(state: NodeRunState | undefined): FailedStep[] {
   const steps: FailedStep[] = [];
 
@@ -111,8 +105,7 @@ function whyText(
     return `In progress — ${noun} is running.`;
   }
 
-  // A parked human station has no pod and no progress to report; what the reader
-  // needs is whose move it is, since it is often their own.
+  // Parked human station: reader needs to know whose move it is (often their own).
   if (tone === "waiting") {
     return (
       humanStation(type)?.whyParked ??
@@ -142,10 +135,8 @@ function whyText(
 }
 
 export function describeNode(input: NodeDetailInput): NodeDetail {
-  // The ONE lookup — every fact below reads this node, not its own find.
+  // Single lookup; every fact below reads this node, not its own find; verdict row is authoritative.
   const node = input.definition?.nodes.find((n) => n.id === input.nodeId);
-  // The verdict on the walk row is authoritative; the execution status only fills
-  // in while a node is still in flight (no recorded outcome yet).
   const visual = nodeRunVisual(
     input.row?.outcome ?? null,
     input.state?.status ?? "idle",
@@ -165,8 +156,7 @@ export function describeNode(input: NodeDetailInput): NodeDetail {
       terminal,
       duration: formatDuration(durationSeconds),
     }),
-    // Only a failed node lists errored steps: a succeeded node can carry errored
-    // tool calls it retried past, which are not the reason for anything.
+    // Only failed nodes list errored steps; succeeded nodes may carry retried tool calls (not the reason for success).
     failures: visual.tone === "err" ? erroredSteps(input.state) : [],
     files: uniqueFiles(input.state),
     eventCount: input.state?.transcript.length ?? 0,

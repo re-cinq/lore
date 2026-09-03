@@ -1,25 +1,4 @@
-/**
- * POST /api/events — the single front door to `pipeline.events` (ADR-044).
- *
- * ONE path, two callers, because a producer should not have to know which door
- * its event qualifies for:
- *
- *   - GitHub sends its own webhook body with `X-Hub-Signature-256`. Verified by
- *     HMAC over the RAW body (hence `payload.parse = false`), then mapped by the
- *     pure `mapGitHubEvent`.
- *   - Everyone else — the Agent CR watch, human-station resumes, cron ticks,
- *     CI ingest, internal triggers — reports the generic `EventInsert` shape
- *     with a bearer token.
- *
- * The signature header decides which, and it is checked FIRST: an untrusted
- * caller and a trusted one cannot share a single hapi auth strategy, so both
- * checks run here in sequence instead. That is the cost of one front door, and
- * it is paid in this file rather than spread across every producer.
- *
- * Returns 202 fast either way — GitHub's delivery times out, and the loop does
- * the actual work. Every insert is idempotent on `dedupeKey`, so a redelivery
- * collapses to one row.
- */
+/** POST /api/events (ADR-044): one front door, GitHub or bearer; 202 fast, deduped on dedupeKey. */
 
 import { z } from "zod";
 import type { ServerRoute } from "@hapi/hapi";
@@ -36,9 +15,7 @@ import { verifyGitHubSignature } from "@re-cinq/lore-shared/http/github-signatur
 import { enforceReporterToken } from "./reporter-auth.js";
 import type { ReporterAuthDeps } from "./reporter-auth.js";
 
-/** The reported-event body. `source` is the closed vocabulary rather than a
- *  string: an event whose source is a typo reaches no handler, and is then found
- *  only by its absence. */
+/** Reported-event body: source is closed vocabulary to catch typos as absences. */
 const ReportedEvent = z.object({
   eventName: z.string().min(1),
   source: z.enum(SOURCES),
@@ -52,10 +29,7 @@ export interface EventsRouteDeps {
   webhookSecret?: string;
   /** The token the reporting branch accepts; absent means it is unconfigured. */
   bearerToken?: string;
-  /** The cluster-agent registry lookup (FR5): a bearer whose SHA-256 matches a
-   *  `pipeline.cluster_agents.token_hash` row may report events — and only
-   *  report; the drain/delivery surfaces never see this. Absent means
-   *  per-agent tokens are not accepted. */
+  /** The cluster-agent registry lookup (FR5): bearer token validated against pipeline.cluster_agents.token_hash. */
   findByTokenHash?: ReporterAuthDeps["findByTokenHash"];
 }
 
@@ -63,8 +37,7 @@ export function eventsRoute(deps: EventsRouteDeps): ServerRoute {
   return {
     method: "POST",
     path: "/api/events",
-    // No hapi auth strategy: the two branches authenticate differently, and a
-    // strategy would have to pick one before the handler can tell them apart.
+    // No hapi auth: two branches authenticate differently; strategy can't pick before handler.
     options: { auth: false, payload: { parse: false } },
     handler: async (request, h) => {
       const raw = rawBody(request);
@@ -74,8 +47,7 @@ export function eventsRoute(deps: EventsRouteDeps): ServerRoute {
         ? fromGitHub(request.headers, raw, signature, deps)
         : [await fromReporter(raw, request.headers, deps)];
 
-      // Sequential, not concurrent: a partial failure must still surface as a
-      // 5xx so the sender retries, and every insert is idempotent.
+      // Sequential: partial failure surfaces as 5xx so sender retries; every insert is idempotent.
       for (const event of events) {
         await deps.insert(event);
       }
@@ -90,9 +62,7 @@ export function eventsRoute(deps: EventsRouteDeps): ServerRoute {
   };
 }
 
-/** GitHub's own signature header, when it sent one. Its presence — not its
- *  validity — is what selects the branch; validity is the branch's own first
- *  act. Named so the choice reads as a question rather than a header lookup. */
+/** GitHub's signature header (presence selects branch); validity checked by branch itself. */
 function githubSignature(headers: Record<string, unknown>): string | undefined {
   const sig = headers["x-hub-signature-256"];
 
@@ -109,13 +79,10 @@ function fromGitHub(
   const eventType = headers["x-github-event"] as string | undefined;
   const deliveryId = (headers["x-github-delivery"] as string | undefined) ?? "";
 
-  // Each refusal names the thing to go and change: these reach a webhook
-  // delivery log nobody reads with the code open, so "invalid signature" costs
-  // more to diagnose than the sentence saying which two secrets disagree.
+  // Errors name what to fix: delivery logs need clear messages about secret mismatches.
   enforceTrue(
     deps.webhookSecret,
-    // 500, not 503: 503 tells GitHub to redeliver, and no number of
-    // redeliveries supplies a missing env var. The fix is a redeploy.
+    // 500 not 503: 503 tells GitHub to redeliver, but missing env var needs redeploy.
     apiError(500),
     "webhook secret not configured — set LORE_WEBHOOK_SECRET on the event-router deployment",
   );
@@ -133,8 +100,7 @@ function fromGitHub(
   );
 }
 
-/** The reporting branch: ingest token or a registered per-agent token, then
- *  the generic shape. */
+/** The reporting branch: validate ingest or per-agent token, return generic shape. */
 async function fromReporter(
   raw: string,
   headers: Record<string, unknown>,

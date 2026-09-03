@@ -143,14 +143,14 @@ Defaults: label=`lore`, type=`general`.
 
 ## Acceptance Criteria
 
-1. Adding `lore` label to a GitHub Issue creates a pipeline task ([validated by `webhook.test.ts:32`](apps/lore-api/src/integration-tests/webhook.test.ts#L32))
+1. Adding `lore` label to a GitHub Issue creates a pipeline task ([validated by `webhook.test.ts:32`](apps/lore-api/src/integration-tests/webhook.test.ts#L31))
 
 2. Task type determined from `lore:*` label variants
 3. Agent works on the task, creates PR linked to the issue
 4. Issue gets comment with task ID and PR link; `loreTaskRef` links the task uuid to its deployed
    assembly-line page and trims a trailing slash on the UI url. ([validated by `issue-body.test.ts:11`](apps/floor/src/jobs/task/issue-body.test.ts#L11))
 
-5. Duplicate issues (same issue, active task) are skipped ([validated by `webhook.test.ts:43`](apps/lore-api/src/integration-tests/webhook.test.ts#L43))
+5. Duplicate issues (same issue, active task) are skipped ([validated by `webhook.test.ts:43`](apps/lore-api/src/integration-tests/webhook.test.ts#L42))
 
 6. Works on any onboarded repo with webhook configured
 
@@ -160,4 +160,4 @@ Defaults: label=`lore`, type=`general`.
    to no work; `parseJsonBody` returns the typed object and throws a 400 on a
    malformed body, naming the ingress that was parsing it and quoting the parser's own
    objection — five routes parse bodies this way, and a bare "invalid JSON" said a body
-   was rejected without saying which ingress rejected it or where the body went wrong. ([validated by `github-webhook.test.ts:26`](apps/floor/src/delivery/http/routes/github-webhook.test.ts#L28), [`github-webhook.test.ts:108`](apps/floor/src/delivery/http/routes/github-webhook.test.ts#L110), [`raw-body.test.ts:6`](apps/floor/src/delivery/http/raw-body.test.ts#L6), [`raw-body.test.ts:12`](apps/floor/src/delivery/http/raw-body.test.ts#L12))
+   was rejected without saying which ingress rejected it or where the body went wrong. ([validated by `github-webhook.test.ts:26`](apps/floor/src/delivery/http/routes/github-webhook.test.ts#L28), [`github-webhook.test.ts:108`](apps/floor/src/delivery/http/routes/github-webhook.test.ts#L108), [`raw-body.test.ts:6`](apps/floor/src/delivery/http/raw-body.test.ts#L6), [`raw-body.test.ts:12`](apps/floor/src/delivery/http/raw-body.test.ts#L12))

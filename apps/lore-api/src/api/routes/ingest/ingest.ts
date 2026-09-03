@@ -48,10 +48,7 @@ export function ingestRoute(getPool: () => Pool | null): ServerRoute {
       try {
         const { files, repo, commit } = request.payload as IngestBody;
         const result = await ingestFiles(pool, files, repo, commit || "HEAD");
-        // Post-ingest fan-out: re-link tests against any changed specs. Fire-and-
-        // forget (fired before the response returns, but it never touches it) —
-        // the content-hash gate elides the work when nothing relevant changed.
-        // Gated on at least one file actually landing.
+        // Fire-and-forget test re-link (gate: content-hash, landed files only).
         const landed = Array.isArray(result?.results)
           ? result.results.some(
               (r: { status?: string }) =>

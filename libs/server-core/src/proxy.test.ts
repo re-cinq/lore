@@ -1,12 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { proxyToApi, proxyGetApi } from "./proxy.js";
 
-// Failure-mapping unit tests for the proxy client (the data path the lean
-// mcp-server uses to reach lore-api). The in-process proxy<->lore-api
-// integration test cannot reach the server-side denial branch — client and
-// server share LORE_INGEST_TOKEN there — so the 401/403 -> "denied" and the
-// 4xx -> "unreachable" mappings are pinned here with a mocked fetch instead.
-
 function fetchReturning(response: {
   ok: boolean;
   status?: number;

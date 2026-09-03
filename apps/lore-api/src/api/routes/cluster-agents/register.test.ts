@@ -125,8 +125,6 @@ describe("handleRegister", () => {
     const findGate = new Promise<void>((resolve) => {
       releaseFind = resolve;
     });
-    // Hold findByName open so both registrations see the name as free, then
-    // let their creates race — the loser must get the same 409 as a taken name.
     const racingRepository = new Proxy(repository, {
       get(target, prop, receiver) {
         if (prop === "findByName") {

@@ -1,17 +1,4 @@
-/**
- * `kubernetes.pod_log.appended` — persist a span of a run pod's stdout.
- *
- * The producer is the cluster-agent's pod-log input, which follows a running
- * pod and emits batches through its event proxy. The point of persisting them
- * is reach, not storage: live pod logs come from the Kubernetes API of ONE
- * cluster and the Cloud Logging fallback names ONE project, so a run claimed by
- * a satellite has no log path at all. A chunk that got here came over the bus,
- * which every cluster can do.
- *
- * SKIP-NOT-FAIL on a malformed event, like every other ingest path here: a
- * handler that throws sends the delivery round the retry ladder to a dead
- * letter, and a malformed event is just as malformed on the fifth attempt.
- */
+/** Persist pod log chunks for cross-cluster reach; SKIP-NOT-FAIL on malformed events. */
 
 import type { PodLogChunkInsert } from "@re-cinq/lore-shared/project/pod-logs/pod-logs-port.js";
 import type { PodLogsRepository } from "@re-cinq/lore-shared/project/pod-logs/pod-logs-port.js";
@@ -26,8 +13,7 @@ export function parsePodLogAppended(params: unknown): PodLogChunkInsert[] {
   const jobName = asText(event.jobName);
   const podName = asText(event.podName);
 
-  // All three identify the chunk: without them a stored span cannot be found
-  // again, which is the only reason to store it.
+  // All three fields are required to find a stored chunk
   if (!agentCrName || !jobName || !podName) {
     return [];
   }
@@ -36,9 +22,7 @@ export function parsePodLogAppended(params: unknown): PodLogChunkInsert[] {
   return (
     chunks
       .map((chunk) => (chunk ?? {}) as Record<string, unknown>)
-      // Number.isInteger, not typeof "number": 1.5 and NaN are both numbers and
-      // both break the int[] the batch insert unnests them into — a malformed
-      // chunk must be dropped here, not turned into a failed delivery downstream.
+      // Drop malformed chunks (invalid seq or non-string lines); batch unnesting needs int[]
       .filter(
         (chunk) =>
           Number.isInteger(chunk.seq) && typeof chunk.lines === "string",

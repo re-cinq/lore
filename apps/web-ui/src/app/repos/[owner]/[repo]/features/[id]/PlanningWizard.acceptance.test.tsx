@@ -1,16 +1,4 @@
 // @vitest-environment jsdom
-//
-// The accept flow, end to end, against a mocked server.
-//
-// Every part of this walk broke in production during one evening — the button did
-// nothing visible, the graph vanished, a finished line left a progress card ticking
-// past 80 minutes, and the controls never came back — and not one of those was caught
-// by a unit test, because each component was individually correct. What was wrong was
-// the SEQUENCE. So this drives the sequence: parked → press → spec phase → the line
-// finishing, asserting what the author can SEE at each step.
-//
-// The server is the poll endpoint plus the `finalize` action; both are mocked, so the
-// test asserts the wizard's reaction to server states rather than any real pipeline.
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, act, cleanup } from "@testing-library/react";
@@ -24,8 +12,6 @@ import type {
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 
-/** The run panel opens an SSE stream; jsdom has no EventSource, and the graph's
- *  own rendering is not what this test is about — only whether it is on screen. */
 vi.mock("@/app/assembly-runs/[id]/RunVisualizationPanel", () => ({
   default: () => <div data-testid="run-graph" />,
 }));
@@ -63,7 +49,6 @@ const feature = (
     ...over,
   }) as unknown as FeatureWithIterations;
 
-/** One node row as the poll payload carries it. */
 const node = (nodeId: string, outcome: string | null) => ({
   nodeId,
   iteration: 3,
@@ -74,7 +59,6 @@ const node = (nodeId: string, outcome: string | null) => ({
   durationSeconds: null,
 });
 
-/** A poll response: the feature, its latest round, and the line's current shape. */
 const poll = (
   status: string,
   nodes: ReturnType<typeof node>[],
@@ -95,9 +79,6 @@ const poll = (
   },
 });
 
-/** The server's CURRENT state, which the test moves explicitly. Deliberately not a
- *  queue keyed on call count: the wizard polls on a timer and on mount, so a queue
- *  makes the assertions depend on how many times it happened to fetch. */
 function server(initial: object) {
   let state = initial;
 
@@ -113,7 +94,6 @@ function server(initial: object) {
   };
 }
 
-/** Let the polling interval fire once and the resulting state settle. */
 async function tick() {
   await act(async () => {
     await vi.advanceTimersByTimeAsync(4000);
@@ -185,9 +165,6 @@ describe("pressing Create the spec PR", () => {
   });
 
   it("carries what the author typed before pressing accept", async () => {
-    // The author fills the form and accepts in one motion. Those answers used to
-    // go nowhere: the accept sent an empty body, so the last thing the author said
-    // about the plan never reached the nodes that turn it into a spec.
     const { finalize } = mount(parked);
 
     await userEvent.type(
@@ -204,9 +181,6 @@ describe("pressing Create the spec PR", () => {
   });
 
   it("replaces the decision with the spec phase, and shows the graph", async () => {
-    // The two bugs the author actually hit: a row of DISABLED buttons ("press one and
-    // the other says waiting"), and the run graph disappearing — it rendered only
-    // while a planning round was running, so accepting blanked the one live view.
     const { srv } = mount(parked);
 
     await userEvent.click(
@@ -224,9 +198,6 @@ describe("pressing Create the spec PR", () => {
   });
 
   it("gives the controls back when the line ends without a PR", async () => {
-    // The worst of the four: a finished line left "Writing the spec…" on screen
-    // forever, because the phase came from a local flag that only the feature
-    // leaving the planning phase could clear — and with no PR, it never did.
     const { srv } = mount(parked);
 
     await userEvent.click(
@@ -246,9 +217,6 @@ describe("pressing Create the spec PR", () => {
   });
 
   it("keeps showing the spec phase while the line is still walking it", async () => {
-    // write follows analyse-specs on the same line: the author is not back in
-    // control between nodes, and a flicker to the decision row would invite the
-    // second press that mints a second line.
     const writing = poll("running", [
       node("analyse-specs", "success"),
       node("write", null),
@@ -270,11 +238,6 @@ describe("pressing Create the spec PR", () => {
 });
 
 describe("reloading the page while the spec work runs", () => {
-  // A refresh destroys `finalizing`, so the wizard must learn the phase from the
-  // SERVER. It could not: polling ran only while a planning ROUND was running, and
-  // during the spec phase none is — so a reload showed the decision row, offered the
-  // button again, and never discovered the line was mid-walk. Pressing it then mints
-  // a SECOND line, which is how one feature collected seven branches.
   const midSpec = poll("running", [
     node("analyze", "success"),
     node("author", "success"),
@@ -293,8 +256,6 @@ describe("reloading the page while the spec work runs", () => {
   });
 
   it("keeps polling after a reload, so the page is not frozen on stale state", async () => {
-    // The guard cut the interval whenever no round was running, which on a reload
-    // mid-spec-phase meant the first render was also the last.
     const done = poll("finished", [node("push", "success")]);
 
     const { srv } = mount(midSpec);
@@ -312,9 +273,6 @@ describe("reloading the page while the spec work runs", () => {
   });
 });
 
-// The detail page keeps the wizard mounted for as long as the LIFECYCLE is moving,
-// which now includes an open spec PR — so these states must survive a fresh page
-// load, not only a session that was already watching when the line got there.
 describe("a feature whose spec PR is open", () => {
   const prOpen: Partial<FeatureWithIterations> = {
     status: "pr-open",

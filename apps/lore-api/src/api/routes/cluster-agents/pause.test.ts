@@ -43,8 +43,6 @@ describe("handleSetPaused", () => {
   });
 
   it("leaves liveness alone — a paused agent is alive, not lost", async () => {
-    // The whole point of pause over scale-to-zero: `status` stays the reaper's,
-    // so nothing this agent already claimed gets requeued out from under it.
     const { agents, agent } = await registered();
 
     await handleSetPaused({ agents }, agent.id, { paused: true });

@@ -2,12 +2,6 @@ import { describe, it, expect } from "vitest";
 import { Workspace } from "./workspace.js";
 import type { GitPort } from "./git-port.js";
 
-/**
- * The Workspace owns writes over a fake GitPort (the GitCli adapter against real
- * git is the live counterpart). Proves write/commit delegation and that openPr
- * pushes before delegating to the pulls port.
- */
-
 function fakeGit(log: string[]): GitPort {
   const files = new Map<string, string>();
 

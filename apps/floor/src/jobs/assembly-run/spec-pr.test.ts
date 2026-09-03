@@ -1,12 +1,3 @@
-// Opening + recording the PR a `push` node produced.
-//
-// Nothing did this. The push recipe ends "commit it, and stop. The watcher opens
-// the PR" — and the watcher returns early for every assembly-line node CR, so on
-// the merged planning line no spec PR was ever opened, `lore.features.spec_pr_url`
-// stayed null, and the feature never left the planning phase. `findOpenByPr` also
-// reads `args->>'pr_number'`, so a line whose PR was never stamped cannot be found
-// when that PR merges.
-
 import { describe, it, expect } from "vitest";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { InMemoryAssemblyRuns } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-memory.js";
@@ -26,8 +17,6 @@ import {
 
 const REPO = "re-cinq/lore";
 
-/** A PR surface that records what it was asked to open, so a test can assert the
- *  line was NOT given a second PR for a branch that already has one. */
 class FakePulls {
   readonly opened: {
     branch: string;
@@ -100,8 +89,6 @@ async function harness(
   const lineId = await lines.start({
     blueprintName: "feature-planning",
     repo: REPO,
-    // Every production run of a line that opens a PR carries one; the footer's
-    // `Lore-Task:` trailer is what the web-ui resolves PR to task through.
     ...(options.withTask === false ? {} : { taskId: "task-1" }),
     branch: "feature/dark-factory-rollback",
     args: options.withFeature === false ? {} : { feature_id: feature.id },
@@ -116,8 +103,6 @@ async function harness(
     ports: {
       pulls,
       assemblyRuns: lines,
-      // Production passes `project.features`, which is already repo-bound; the
-      // in-memory double is the raw port, so the test binds the repo the same way.
       features: {
         get: (id) => features.get(REPO, id),
         transitionStatus: (id, status, patch) =>
@@ -157,7 +142,6 @@ describe("decidePrStamp", () => {
   });
 
   it("does not stamp a line that already carries a PR number", () => {
-    // Re-running push after an objection must not mint a second PR for the branch.
     expect(decidePrStamp({ ...base, args: { pr_number: 17 } })).toBe(false);
   });
 });
@@ -183,8 +167,6 @@ describe("stampLinePr", () => {
   });
 
   it("reuses the open PR the branch already has", async () => {
-    // The push node re-runs after a write/analyse correction. A second PR for the
-    // same branch would split the review and orphan the first.
     const h = await harness({
       existingPulls: [pullRef("feature/dark-factory-rollback", 99)],
     });
@@ -223,8 +205,6 @@ describe("stampLinePr", () => {
   });
 
   it("still records the PR on a line that carries no feature", async () => {
-    // Every line with a push node stamps its PR — that is what lets findOpenByPr
-    // resolve it later. Only the feature transition is feature-specific.
     const h = await harness({ withFeature: false });
 
     await stampLinePr(await lineRow(h), h.ports);
@@ -235,9 +215,6 @@ describe("stampLinePr", () => {
   });
 
   it("records the PR even when the feature transition throws", async () => {
-    // The stamp is what makes the merge findable; losing it because the feature
-    // write failed would strand the line at the merged node forever. Ordering, not
-    // just error handling: the stamp must already be committed when this throws.
     const h = await harness();
 
     await stampLinePr(await lineRow(h), {
@@ -266,7 +243,6 @@ describe("stampLinePr", () => {
   });
 
   it("skips a feature the line names but the repo no longer has", async () => {
-    // A deleted feature must not stop the PR being recorded.
     const h = await harness();
     const row = await lineRow(h);
 
@@ -283,9 +259,6 @@ describe("stampLinePr", () => {
 
 describe("stampLinePr footer", () => {
   it("closes the ticket's issue and carries the task trailer", async () => {
-    // Without this the line's PRs carried neither: the backlog issue stayed open
-    // after merge and was eligible to be picked again, and the web-ui could not
-    // resolve PR to task.
     const h = await harness();
 
     await h.lines.mergeArgs(h.lineId, { issue_number: 1510 });
@@ -296,8 +269,6 @@ describe("stampLinePr footer", () => {
   });
 
   it("carries no footer at all on a task-less line", async () => {
-    // Task-less lines exist — code-review runs without one — and there is no
-    // `Lore-Task:` to emit for them.
     const h = await harness({ withTask: false });
 
     await stampLinePr(await lineRow(h), h.ports);
@@ -315,10 +286,6 @@ describe("stampLinePr footer", () => {
 });
 
 describe("readyPrBody", () => {
-  // The ready flip rewrites the PR body with the prose the pr-ready node wrote.
-  // Before this composer the rewrite was `args.pr_description` verbatim, which
-  // destroyed the footer stampLinePr had put on the draft: the merged PR closed
-  // no issue and the web-ui lost PR-to-task resolution.
   it("appends Closes #N + Lore-Task to the pr-ready prose by default", async () => {
     const h = await harness();
 
@@ -333,9 +300,6 @@ describe("readyPrBody", () => {
   });
 
   it("downgrades to Refs #N when the node reports partial issue coverage", async () => {
-    // A branch that resolves only part of what the ticket reports must not
-    // close the ticket on merge (#1745 — bowman-ui #11 would have closed a
-    // 248-link report on a 15-link tangent).
     const h = await harness();
 
     await h.lines.mergeArgs(h.lineId, {
@@ -400,9 +364,6 @@ describe("readyPrBody", () => {
 });
 
 describe("stampLinePr title", () => {
-  // `lore: lore/implementation-loop/issue-1744` is what every backlog PR was
-  // called: a branch name a reviewer has to open the PR to decode. The ticket
-  // title is the one meaningful thing known when the draft opens.
   it("titles a ticket run's draft after the ticket", async () => {
     const h = await harness({ withFeature: false });
 
@@ -442,8 +403,6 @@ describe("stampLinePr title", () => {
 });
 
 describe("readyPrTitle", () => {
-  // The draft's title is written before a line of code exists. The pr-ready
-  // node has read the finished branch, so it gets to rename the PR at the flip.
   it("takes the title the pr-ready node reported", () => {
     expect(
       readyPrTitle({ "Lore-Pr-Title": "Title backlog PRs after the work" }),
@@ -510,9 +469,6 @@ describe("decideMarkReady", () => {
   });
 
   it("does not flip again on a fix-ci round-trip back to the wait", () => {
-    // fix-ci success routes to await-pr too, so this fires a second time. The
-    // flip itself is idempotent, but the body rewrite beside it is not — a
-    // second pass would overwrite a description a human had edited.
     expect(
       decideMarkReady({
         ...base,
@@ -532,8 +488,6 @@ describe("decidePrDraft", () => {
   });
 
   it("opens a ready pull request by default", () => {
-    // Read off the RUN, never off the blueprint name — the Floor stays domain-free
-    // about which lines want a draft.
     expect(decidePrDraft({})).toBe(false);
   });
 

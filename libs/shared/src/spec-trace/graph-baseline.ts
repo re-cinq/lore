@@ -1,28 +1,11 @@
-/**
- * graph-baseline — the commit whose line numbering the trace graph's ranges are
- * expressed in.
- *
- * Every line range in the graph (`Coverage.covers|ranges`, `TestChunk.start_line`)
- * was recorded against one commit of the repo. A pre-merge query that overlaps
- * those ranges against a PR diff is only sound if it knows which commit that was
- * — otherwise it silently compares two different coordinate systems and drifts
- * into both false positives and false negatives.
- *
- * Deliberately NOT named `last_ingest_*`: "ingest" already means the pgvector
- * reindex (`lore.repos.last_ingested_at`) and the specs/adrs doc projection,
- * neither of which defines these coordinates.
- */
+/** Graph baseline commit; ranges recorded against one commit; pre-merge query must know which to sound. */
 
 import type { DgraphClientPort } from "./deps.js";
 import { withTxn, upsertByXid } from "./dgraph-upsert.js";
 
 export interface GraphBaseline {
   commit: string | null;
-  /**
-   * ISO-8601 wall-clock time the stamp was WRITTEN — when ingest ran, not the
-   * commit's author/committer date. Useful for "how long ago did the graph last
-   * move"; do not read it as anything about `commit` itself.
-   */
+  /** ISO-8601 wall-clock time the stamp was written (ingest time, not commit date). */
   at: string | null;
   source: "repo-stamp" | "none";
 }
@@ -41,11 +24,7 @@ interface GraphRepoBaseline {
   "Repo.trace_commit_at"?: string;
 }
 
-/**
- * Reads the repo's stamped baseline. A repo that has never been stamped — or one
- * whose stamp predates this feature — reads back as `source: "none"` rather than
- * an error, so a caller degrades to "coordinates unverified" instead of failing.
- */
+/** Reads repo's stamped baseline; unstamped repos return source: "none" rather than error. */
 export async function readGraphBaseline(
   dgraph: DgraphClientPort,
   repo: string,
@@ -70,15 +49,7 @@ export async function readGraphBaseline(
   };
 }
 
-/**
- * Stamps the repo with the commit its freshly-written ranges belong to. Called
- * by the ingest that writes those ranges, so the stamp cannot disagree with the
- * data it describes.
- *
- * An empty commit is a no-op, not a write: several callers default the field to
- * `""`, and blanking a good baseline would be strictly worse than keeping a
- * slightly older true one.
- */
+/** Stamps repo with commit for its ranges; empty commit is no-op to avoid blanking older baseline. */
 export async function stampGraphBaseline(
   dgraph: DgraphClientPort,
   repo: string,

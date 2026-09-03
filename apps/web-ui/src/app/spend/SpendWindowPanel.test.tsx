@@ -105,19 +105,15 @@ describe("SpendWindowPanel", () => {
       /^\/api\/spend-window\?from=\d{4}-\d{2}-\d{2}&to=\d{4}-\d{2}-\d{2}$/,
     );
     expect(screen.getByText("$82.50")).toBeInTheDocument();
-    // Twice: the LLM table and the pod-hours table each carry the line.
     expect(screen.getAllByText("implementation-loop")).toHaveLength(2);
     expect(
       screen.getByText("agent-job-run1-tdd-round-abc"),
     ).toBeInTheDocument();
     expect(screen.getByText("+ $0.07/h burning now")).toBeInTheDocument();
-    // The merged sections render from the same fetch — there is no second,
-    // month-to-date data source any more.
     expect(screen.getByText("claude-sonnet-4-6")).toBeInTheDocument();
     expect(
       screen.getByRole("heading", { name: "Balance", level: 2 }),
     ).toBeInTheDocument();
-    // The estimate is labeled as one, with the rates it assumed.
     expect(
       screen.getByText(
         (_, element) =>

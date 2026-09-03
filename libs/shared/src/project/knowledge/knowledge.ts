@@ -5,10 +5,7 @@ import type {
 } from "./knowledge-port.js";
 import type { LiveGraphResult } from "./live-graph.js";
 
-/**
- * project.knowledge — repo-bound reads over specs, ADRs, the live knowledge
- * graph, and the spec-traceability graph. Everything delegates to the port.
- */
+/** Repo-bound reads over specs, ADRs, knowledge graph, and trace. */
 export class KnowledgeView {
   constructor(
     private readonly repo: string,

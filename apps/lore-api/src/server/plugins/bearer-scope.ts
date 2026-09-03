@@ -1,18 +1,5 @@
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
-/**
- * Bearer-token scope auth as a hapi scheme + strategy (ADR-033) — the
- * framework-native replacement for the legacy dispatcher's inline
- * `authorization?.replace("Bearer ", "")` + `validateClientToken` gate. It
- * authenticates the bearer once (via `resolveTokenScopes`), sets
- * `credentials.scope` to the token's scopes, and enforces the route's required
- * scope. Outcomes match the legacy gate byte-for-byte: a MISSING bearer → 401
- * `{ error: "unauthorized" }`; any present-but-invalid or under-scoped token →
- * 403 `{ error: "insufficient scope" }`. The LORE_INGEST_TOKEN full-access
- * fallback is preserved inside `resolveTokenScopes`.
- *
- * Routes opt in with `options: bearerScope("read")`; webhook routes (their own
- * HMAC verification) and `/healthz` set `auth: false`.
- */
+/** Bearer-token scope auth as a hapi scheme + strategy (ADR-033). */
 
 import Boom from "@hapi/boom";
 import { apiError } from "../api-error.js";
@@ -29,8 +16,7 @@ export function bearerScope(
   return { auth: STRATEGY, plugins: { [STRATEGY]: { scope } } };
 }
 
-// The `{ error }` envelope every Lore client parses; `apiError` owns that stomp
-// so the auth scheme, zod validation and the routes cannot drift apart.
+// `apiError` owns the error envelope format to prevent drift between auth/zod/routes.
 const denied = (statusCode: 401 | 403, error: string): Boom.Boom =>
   apiError(statusCode)(error);
 

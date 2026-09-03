@@ -365,8 +365,7 @@ async function completeNoChangeTask(
   }
 }
 
-/** Succeeded, non-review, no PR yet: compute the changed-file count and either close
- *  out a no-changes task (issue) or open a PR (+ CI gate, auto-review fan-out). */
+/** Succeeded non-review: compute changed-file count, close no-changes task or open PR. */
 async function handleSucceededChanges(ctx: AgentContext): Promise<void> {
   const { taskId, taskType, branch, targetRepo, description, output } = ctx;
   const taskUrl = taskPageUrl(taskId, process.env.LORE_UI_URL);

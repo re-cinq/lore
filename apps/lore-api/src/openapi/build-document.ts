@@ -1,16 +1,4 @@
-/**
- * OpenAPI 3.1 document generation (ADR-035). Walks the shared `routeList` — the
- * one source of truth for the API surface — and projects each route into an
- * operation: path + params, required scope, rate-limit bucket, request body
- * (converted zod schema for covered routes; lifted domain schema or freeform for
- * the domain-validated ones), and the shared error envelope.
- *
- * The document describes both directions: request contracts, the `{ error }`
- * envelope, and success bodies declared with `zodResponse`. A body that shares
- * fields with a table derives them from that table's model, so the contract and
- * the schema cannot drift apart. `info.description` states the two routes that
- * declare nothing, and why.
- */
+/** OpenAPI 3.1 document generation (ADR-035): projects routeList to operations with request/response contracts. */
 
 import type { ServerRoute, RouteOptions } from "@hapi/hapi";
 import type { ZodType } from "zod";
@@ -59,15 +47,15 @@ export interface OpenApiDocument {
 
 /** Per-route coverage classification — consumed by the drift-guard test and logged. */
 export interface Coverage {
-  covered: string[]; // "METHOD path" validated by a route-level zodValidate schema
-  lifted: string[]; // documented via a domain schema referenced in the sidecar
-  freeform: string[]; // documented as a permissive object (known, allowlisted)
-  selfHandled: string[]; // parse:false — the handler owns its (HMAC/form) body
-  bodyless: string[]; // write route that legitimately carries no request body
-  uncovered: string[]; // write method with neither a schema nor a sidecar entry — drift
-  excluded: string[]; // operational non-API paths
-  responses: string[]; // "METHOD path" with a declared success body
-  responsesMissing: string[]; // still documented generically
+  covered: string[];
+  lifted: string[];
+  freeform: string[];
+  selfHandled: string[];
+  bodyless: string[];
+  uncovered: string[];
+  excluded: string[];
+  responses: string[];
+  responsesMissing: string[];
 }
 
 /** A route with `payload.parse === false` self-handles its body (webhooks: HMAC/form). */
@@ -77,10 +65,7 @@ function selfHandlesBody(route: ServerRoute): boolean {
   return payload?.parse === false;
 }
 
-/** A parse:false route whose raw body is a real API surface (an NDJSON relay),
- *  not a handler-verified webhook payload, declares it via `options.app.rawBody`
- *  so the document carries its true description and request body instead of the
- *  HMAC boilerplate. */
+/** Parse:false route with real API surface (NDJSON) declared via options.app.rawBody; not webhook. */
 interface RawBodyMeta {
   contentType: string;
   description: string;
@@ -143,18 +128,7 @@ function methodsOf(route: ServerRoute): string[] {
   return method.map((m) => m.toUpperCase());
 }
 
-/**
- * Wildcard routes that say nothing about what they serve.
- *
- * `methodsOf` documents a `method: "*"` route as whatever `WILDCARD_METHODS`
- * names, and an unlisted one contributes no operations at all — right for a 405
- * fallback, silent data loss for a wildcard that means to serve real verbs. On a
- * NEW path the omission surfaces as a missing path key; on a path that concrete
- * verbs already document it surfaces as nothing whatsoever.
- *
- * So each wildcard declares which it is, and this reports the ones that declare
- * neither.
- */
+/** Report wildcard routes that declare neither real methods nor a wildcard in WILDCARD_METHODS. */
 export function undeclaredWildcards(routes: ServerRoute[]): string[] {
   const isWildcard = (route: ServerRoute) =>
     (Array.isArray(route.method) ? route.method : [route.method]).includes("*");
@@ -174,12 +148,7 @@ export function normalizePath(hapiPath: string): string {
   return hapiPath.replace(/\{(\w+)[?*]\}/g, "{$1}");
 }
 
-/**
- * Sidebar categories in display order — Redoc renders groups in the order of the
- * document's root `tags` array. Each operation is tagged by its path via `tagFor`;
- * the drift guard asserts every operation lands in a real category (never the
- * `UNCATEGORIZED` fallback), so a new route surfaces as an untagged failure.
- */
+/** Sidebar categories in display order; drift guard asserts every operation lands in real category. */
 const CATEGORY_ORDER: Array<{ name: string; description: string }> = [
   { name: "Context", description: "Context assembly and the knowledge graph." },
   {
@@ -244,8 +213,7 @@ const TAG_RULES: Array<[RegExp, string]> = [
     /^\/api\/(usage|analytics|analytics-overview|spend|agent-stats|memory-audit|events|job-runs)\b/,
     "Analytics",
   ],
-  // Org-wide platform health (is model access down right now) reads as analytics
-  // rather than as a category of its own — same audience, same question shape.
+  // Platform health (model access status) tagged analytics: same audience, same question.
   [/^\/api\/platform\//, "Analytics"],
   [/\/features\b/, "Features"],
   [/\/agent-definitions\b/, "Agents"],
@@ -328,9 +296,7 @@ function responsesFor(
   hasBody: boolean,
   success?: { meta: OpenApiResponseMeta; ref: JsonSchema },
 ): Record<string, JsonSchema> {
-  // A declared contract REPLACES the generic 200 rather than joining it: two
-  // success statuses would make the generated client type `RealBody | unknown`,
-  // which is the same as no type at all.
+  // Declared contract replaces generic 200 (not joins); two status types = union-to-unknown.
   const responses: Record<string, JsonSchema> = success
     ? {
         [String(success.meta.status)]: {
@@ -350,8 +316,7 @@ function responsesFor(
     responses["400"] = { $ref: "#/components/responses/BadRequest" };
   }
 
-  // An auth:false route that still authenticates by hand (the register route's
-  // pre-shared registration token) declares its 401 explicitly.
+  // Auth:false routes that hand-authenticate (pre-shared token) declare 401 explicitly.
   if (declared.has(401)) {
     responses["401"] = { $ref: "#/components/responses/Unauthorized" };
   }
@@ -411,10 +376,7 @@ function resolveBody(
   return jsonBody(FREEFORM_BODY);
 }
 
-/** Resolve a route's declared success body, register it as a named component, and
- *  record coverage. A name registered twice with DIFFERENT shapes is a hard error:
- *  the document would serve the second and generate a client type that lies about
- *  the first. */
+/** Register response as named component; duplicate with different shape is hard error. */
 function registerResponse(
   route: ServerRoute,
   key: string,
@@ -495,8 +457,7 @@ function buildOperation(
   return op;
 }
 
-/** A self-handled body publishes either its declared raw shape or a note that
- *  the handler, not JSON parsing, verifies it. */
+/** Self-handled body: handler verifies it, not JSON parsing; publish declared shape or note. */
 function applySelfHandledBody(op: Operation, route: ServerRoute): void {
   const raw = rawBodyOf(route);
 
@@ -513,8 +474,7 @@ function applySelfHandledBody(op: Operation, route: ServerRoute): void {
   };
 }
 
-/** Classify the write route's body — self-handled, bodyless, or Zod-derived —
- *  recording each in the coverage report. */
+/** Classify write route body: self-handled, bodyless, or Zod-derived; record coverage. */
 function applyRequestBody(
   op: Operation,
   route: ServerRoute,
@@ -607,8 +567,7 @@ export function generateOpenApi(
         "Per-route required scope is the `x-required-scope` extension (HTTP bearer has no " +
         "scope list); the rate-limit bucket is `x-rate-limit-bucket`.",
     },
-    // Always present (OpenAPI requires a non-empty servers list); defaults to the
-    // relative same-origin `/` when LORE_API_URL is unset.
+    // Defaults to `/` when LORE_API_URL is unset; OpenAPI requires non-empty servers list.
     servers: [{ url: opts.serverUrl ?? "/" }],
     // Only categories actually in use, in canonical sidebar order.
     tags: CATEGORY_ORDER.filter((c) => usedTags.has(c.name)),

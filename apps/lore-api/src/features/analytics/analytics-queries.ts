@@ -1,10 +1,6 @@
 import type { Pool } from "pg";
 
-/**
- * Org-wide pipeline analytics for one time window. The SQL moved here from the
- * `lore_get_analytics` MCP tool when that tool became a pure proxy (ADR-032).
- */
-
+// Org-wide pipeline analytics for one time window; SQL moved from lore_get_analytics MCP tool (ADR-032).
 export const ANALYTICS_PERIODS = ["today", "week", "month", "all"] as const;
 
 export type AnalyticsPeriod = (typeof ANALYTICS_PERIODS)[number];

@@ -1,20 +1,11 @@
 import type { components } from "@/lib/api/schema";
-/**
- * What a run has spent in tokens — the shapes and the arithmetic, and NOTHING ELSE.
- *
- * Deliberately free of IO, because `RunningCard` is a client component: importing a
- * value from a module that reaches `db` drags `pg` into the browser bundle and the
- * build dies on `Can't resolve 'fs'`. The read that fills these numbers lives in
- * `assembly-runs.ts` with the rest of the run queries.
- */
+/** Token counts: shapes and arithmetic only (IO-free for client bundle; values in assembly-runs.ts). */
 
 /** One turn's usage, already unwrapped from the stream-json envelope by SQL. */
 export type TurnUsageRow = components["schemas"]["AssemblyRunTokenUsage"];
 
 export interface RunTokens {
-  /** Prompt side, INCLUDING cache creation and cache reads — all three are billed,
-   *  and a "tokens so far" that hid the cached ones would understate a cached run by
-   *  an order of magnitude. */
+  /** Includes cache creation and reads (all billed). */
   input: number;
   output: number;
   total: number;

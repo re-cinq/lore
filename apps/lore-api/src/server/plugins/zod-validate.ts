@@ -1,13 +1,4 @@
-/**
- * zod ↔ hapi request validation (ADR-034). `zodValidate(schema)` adapts a zod
- * schema into hapi's `options.validate.{payload,query,params}` function form: it
- * parses the value, returns the typed/coerced result (which hapi assigns back to
- * `request.payload`/`.query`/`.params`), and throws on failure. A single
- * server-level `zodFailAction` (registered in `build-server.ts`) shapes every
- * validation failure into the routes' `{ error: <message> }` 400 body — the same
- * envelope `bearer-scope.ts` produces — so no route emits hapi's default
- * `{ statusCode, error, message }` shape.
- */
+/** zod ↔ hapi request validation (ADR-034). */
 
 import { apiError } from "../api-error.js";
 import type { Request, ResponseToolkit } from "@hapi/hapi";
@@ -25,11 +16,7 @@ export function formatZodError(error: ZodError): string {
   return path ? `${path}: ${issue.message}` : issue.message;
 }
 
-/**
- * A hapi validation function that also carries the zod schema it was built from,
- * so the OpenAPI generator (ADR-035) can recover the declarative contract from a
- * registered route without a parallel registry.
- */
+/** A hapi validation function carrying the zod schema (ADR-035). */
 export type ZodValidateFn<T> = ((value: unknown) => Promise<T>) & {
   zodSchema: ZodType<T>;
 };

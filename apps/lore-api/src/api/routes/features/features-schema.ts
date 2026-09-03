@@ -1,14 +1,4 @@
-/**
- * Response contracts for the feature-planning surface (ADR-035).
- *
- * zod lives HERE, not in libs/shared: shared carries no zod dependency on purpose
- * — `feature-planning/gap-result.ts` hand-rolls its validation so it stays light
- * enough to ride along in the Job pod bundle. Precedent for a schema module in
- * lore-api: `features/agents/agents-schema.ts`.
- *
- * Optional-everything on the gap shapes is intentional: rows stored before the
- * current contract must still deserialize.
- */
+/** Feature-planning response contracts (ADR-035); zod lives here to keep shared light. */
 
 import { z } from "zod";
 
@@ -44,25 +34,14 @@ export const FeatureSchema = z.object({
   updated_at: z.string(),
 });
 
-// The gap-analysis payload a planning round produces, and the author's reply to it.
-// Both are stored as jsonb and were typed `unknown` here at first, which generated
-// `unknown` for the client — the one field the planning UI spends all its time
-// rendering. Everything is optional because a row stored before the current
-// contract must still deserialize.
-//
-// The four LEGACY fields (`architecture`, `user_flows`, top-level `mockups` and
-// `questions`) are part of the contract on purpose: the web UI reads gap results
-// straight from Postgres on its planning pages, so there is no server hop that
-// could normalize them away, and dropping them from the schema would silently lose
-// data on rows written before `sections[]` existed.
+// Gap-analysis payload and author replies; keep legacy fields for schema backward-compatibility.
 
 export const GapMockupSchema = z.object({
   title: z.string().optional(),
   format: z.enum(["svg", "mermaid", "html"]).optional(),
   markup: z.string(),
   section: z.string().optional(),
-  /** Pixel height an `html` mockup needs — its frame is sandboxed with no
-   *  same-origin access, so it cannot measure itself. */
+  /** Pixel height for sandboxed html mockups (they cannot measure themselves). */
   height: z.number().optional(),
 });
 
@@ -156,24 +135,19 @@ export const FeatureCreatedSchema = z.object({
 
 export const OkSchema = z.object({ ok: z.literal(true) });
 
-/** A round that started, however it was dispatched: a fresh Station mints a
- *  `task_id`; a resumed run reports the run id and a null task. */
+/** Round start response: Station mints task_id, or resumed run reports run id + null task. */
 export const RoundStartedSchema = z.object({
   iteration: z.number().int(),
   task_id: z.string().nullable().optional(),
   assembly_run_id: z.string().optional(),
-  /** @deprecated the pre-rename spelling. Drop once no deployed READER still
-   *  needs it — web-ui prefers `assembly_run_id` as of #1256, so the condition is
-   *  "that web-ui is the deployed one". See `runIdBothSpellings`. */
+  /** @deprecated pre-rename spelling; drop when web-ui no longer needs it (see runIdBothSpellings). */
   assembly_line_id: z.string().optional(),
 });
 
 export const SpecFileStartedSchema = z.object({
   task_id: z.string().optional(),
   assembly_run_id: z.string().optional(),
-  /** @deprecated the pre-rename spelling. Drop once no deployed READER still
-   *  needs it — web-ui prefers `assembly_run_id` as of #1256, so the condition is
-   *  "that web-ui is the deployed one". See `runIdBothSpellings`. */
+  /** @deprecated pre-rename spelling; drop when web-ui no longer needs it (see runIdBothSpellings). */
   assembly_line_id: z.string().optional(),
 });
 
@@ -182,27 +156,11 @@ export const FeaturePollSchema = z.object({
   latest_iteration: FeatureIterationSchema.nullable(),
   last_ready_iteration: FeatureIterationSchema.nullable(),
   assembly_run_id: z.string().nullable(),
-  /** @deprecated the pre-rename spelling. Drop once no deployed READER still
-   *  needs it — web-ui prefers `assembly_run_id` as of #1256, so the condition is
-   *  "that web-ui is the deployed one". See `runIdBothSpellings`. */
+  /** @deprecated pre-rename spelling; drop when web-ui no longer needs it (see runIdBothSpellings). */
   assembly_line_id: z.string().nullable(),
 });
 
-/**
- * The run id under BOTH spellings — the expand half of the AssemblyRun rename
- * (specs/6-dark-factory FR6.44).
- *
- * lore-api and web-ui are separate images in one umbrella release, so their
- * rollouts do not land together. Emitting only the new key breaks the running UI
- * for that window; emitting only the old one leaves the rename unfinishable. So
- * the response carries both, and the deprecated key is dropped in a later release
- * once no deployed reader asks for it.
- *
- * It exists as ONE function rather than a spread at each of the three response
- * sites because a pair that is assembled by hand is a pair that eventually
- * disagrees — and a poll reporting one id while a dispatch reports another is a
- * run graph pointing at the wrong run.
- */
+/** Emits run ID under both spellings during AssemblyRun rename; handles staggered UI rollouts. */
 export function runIdBothSpellings<T extends string | null>(
   runId: T,
 ): { assembly_run_id: T; assembly_line_id: T } {
@@ -214,13 +172,7 @@ export const FeatureDecompositionSchema = z.object({
     z.object({
       description: z.string(),
       status: z.string(),
-      /**
-       * A spec-task's bundle, and the three keys the decomposition view groups
-       * by are NAMED. `context_bundle` is free-form JSONB across task types, so
-       * it stays open — but leaving it entirely open made a client's read of
-       * `story_issue` type as `{}`, which is a contract that documents a field
-       * without saying anything about it. Passthrough keeps every other key.
-       */
+      /** Spec-task bundle: named keys + passthrough for backward compatibility. */
       context_bundle: z
         .object({
           story_issue: z.number().nullable().optional(),

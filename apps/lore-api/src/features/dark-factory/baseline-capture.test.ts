@@ -17,9 +17,6 @@ describe("shouldCaptureBaseline", () => {
   });
 
   it("does not capture on a write that leaves dark mode already on", () => {
-    // A settings edit while enabled would snapshot a window that is already
-    // post-enablement, overwriting the real pre-enable baseline with a useless
-    // one — the comparison SC1 exists to make.
     expect(shouldCaptureBaseline({ enabled: true }, { enabled: true })).toBe(
       false,
     );
@@ -46,7 +43,6 @@ describe("captureBaselineForRepo", () => {
   const DAY = 86_400_000;
   const daysBefore = (n: number) => new Date(NOW.getTime() - n * DAY);
 
-  /** A task that opened a PR, so it counts toward issues_count. */
   const task = (repo: string, createdDaysAgo: number, ttmHours: number) => ({
     target_repo: repo,
     created_at: daysBefore(createdDaysAgo),
@@ -67,7 +63,6 @@ describe("captureBaselineForRepo", () => {
   });
 
   it("scales the issue count to a weekly rate over the window", async () => {
-    // 12 PRs across 30 days → 12 * 7 / 30 = 2.8 per week.
     const store = new InMemoryBaseline(
       Array.from({ length: 12 }, (_, i) => task("o/r", i + 1, 4)),
     );
@@ -97,8 +92,6 @@ describe("captureBaselineForRepo", () => {
   });
 
   it("flags the job-pod count as a static baseline, not a measurement", async () => {
-    // Until OTEL-side capture exists this is an architectural constant; the
-    // marker is what lets a later comparison tell it from real data.
     const store = new InMemoryBaseline([]);
 
     await captureBaselineForRepo("o/r", store, 30, NOW);

@@ -1,13 +1,4 @@
-/**
- * Pure level-of-detail aggregation for the D3 spec-graph.
- *
- * High-cardinality single-owner leaves (a TestChunk or File wired to exactly one
- * Statement/AcceptanceCriterion) flood the view at every zoom level. Zoomed out,
- * they carry no readable detail — so we collapse each into a per-parent count
- * badge ("3 tests") and hide the underlying node. Shared leaves (degree > 1) are
- * structural and stay visible. Value-in/value-out, no side effects; the render
- * shell decides when to apply it via `shouldAggregate`.
- */
+/** Level-of-detail aggregation for D3 spec-graph; collapses degree-1 leaves. */
 
 import { nodeDegrees, type DegreeLink } from "./graph-crowding";
 import type { SpecGraphNodeType } from "./spec-graph";
@@ -29,19 +20,14 @@ export interface AggregationResult {
   badges: LeafBadge[];
 }
 
-/**
- * Collapses every degree-1 node whose type is in `collapsibleTypes` onto its
- * single neighbour, grouped per (parent, type). Returns the ids to hide and the
- * badge counts to draw in their place.
- */
+/** Collapse degree-1 nodes onto single neighbour; return ids to hide and badge counts. */
 export function aggregateLeaves(
   nodes: AggNode[],
   links: DegreeLink[],
   collapsibleTypes: Set<SpecGraphNodeType>,
 ): AggregationResult {
   const degree = nodeDegrees(links);
-  // A degree-1 node appears in exactly one link, so its single opposite endpoint
-  // is its parent. (Hubs get overwritten here, but we never read theirs.)
+  // Degree-1 node's single opposite endpoint is its parent.
   const parentOf = new Map<string, string>();
 
   for (const { source, target } of links) {

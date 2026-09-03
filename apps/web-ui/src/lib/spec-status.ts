@@ -1,21 +1,4 @@
-// Lifecycle status types + the parsers the DETAIL pages still need locally
-// (web-ui cannot import lore-shared). List pages no longer parse anything: the
-// API now returns each doc's {status,label} with the list itself, via
-// `docStatusPill` in libs/shared/src/spec-status.ts — the canonical parser this
-// file mirrors.
-//   - parseSpecStatus  — spec.md `| Status | ... |` header row (spec detail)
-//   - statusInfoFromValue — a bare ADR frontmatter value (ADR detail)
-//
-// Intentional split, not full duplication: canonical also carries the
-// require-statement-links lint tiers and the status rewriters, which web-ui
-// never needs; this side adds the pill colors/order/filter UI helpers. The
-// parse core is held in lockstep by `spec-status.parity.test.ts` (buckets +
-// labels vs `docStatusPill`) and scripts/type-drift/spec-status.drift.ts
-// (the SpecStatus ↔ StatusBucket union, `npm run typecheck:drift`).
-//
-// DECISION (#1419): not a type mirror at all — this side mirrors PARSERS, and no
-// generated type replaces a function. The parity test is the right guard and it
-// stays.
+// Mirrors libs/shared/src/spec-status.ts parsers (parity guarded by spec-status.parity.test.ts + type-drift #1419).
 
 export type DocKind = "spec" | "adr";
 
@@ -53,8 +36,7 @@ const BUCKETS: Array<{ status: SpecStatus; re: RegExp }> = [
     status: "shipped",
     re: /^(shipped|implemented|complete|accepted|done|live)/,
   },
-  // Shipped-then-terminated — distinct from rejected (never accepted); both skip
-  // the require-statement-links rule. Mirrors libs/shared/src/spec-status.ts.
+  // Shipped-then-terminated (distinct from rejected); both skip require-statement-links.
   {
     status: "retired",
     re: /^(retired|superseded|removed|deprecated|obsolete)/,

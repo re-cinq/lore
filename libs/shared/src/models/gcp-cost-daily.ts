@@ -1,18 +1,7 @@
 import { z } from "zod";
 import type { ColumnMap } from "../lib/row.js";
 
-/**
- * `pipeline.gcp_cost_daily` — one day/service billing bucket, synced from the
- * Cloud Billing BigQuery export (the only machine-readable channel Google
- * publishes actual spend through).
- *
- * DDL: migration `0060_gcp_cost_daily.sql`. `(bucketDate, service)` is the
- * natural key and the upsert's ON CONFLICT target; `service` is the export's
- * `service.description` ("Kubernetes Engine", "Compute Engine", …). `costUsd`
- * is the gross list cost and `creditsUsd` the (negative) credit sum for the
- * same bucket — stored separately because the invoice line a person reconciles
- * against shows both, and net-only storage cannot be taken apart again.
- */
+/** One day/service billing bucket synced from Cloud Billing BigQuery export; (bucketDate, service) is the natural key. */
 
 export const GcpCostDailySchema = z.object({
   bucketDate: z.string(),
@@ -24,10 +13,7 @@ export const GcpCostDailySchema = z.object({
 
 export type GcpCostDaily = z.infer<typeof GcpCostDailySchema>;
 
-/**
- * What a writer supplies. `fetchedAt` is stamped server-side with `now()` on
- * every write, so a caller neither sets it nor can lie about it.
- */
+/** What a writer supplies; fetchedAt is stamped server-side so callers cannot set or lie about it. */
 export const GcpCostDailyUpsertSchema = GcpCostDailySchema.omit({
   fetchedAt: true,
 });

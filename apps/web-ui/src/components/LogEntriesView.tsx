@@ -60,10 +60,7 @@ export function toolProgressSummary(
 }
 
 /** Exported so a view that adds its own gutter (the run page's timestamped transcript) reuses this switch instead of copying it. */
-/** One transcript line. The switch is split three ways — the run's own
- *  bookkeeping, what the agent said and did, and how the run reports itself —
- *  because a reader looking for one of those should not scroll past the other
- *  two. Each group returns null for a kind it does not own. */
+/** One transcript line; split into three groups. */
 export function EntryLine({ entry }: { entry: LogEntry }) {
   return (
     sessionLine(entry) ??

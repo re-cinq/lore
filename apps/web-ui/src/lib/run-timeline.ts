@@ -1,8 +1,4 @@
-// Pure time-positioning helpers behind the run timeline. `now` is never read
-// here — a live run's moving right bound is passed in by the container, so these
-// stay deterministic and testable. The reducer's timeline is lifecycle-only
-// (init / result), so a tick's wall-clock gap to the `now` edge is what makes a
-// stalled node visible without a per-tool event stream.
+// Time-positioning helpers; `now` is passed by the container to keep these deterministic and testable.
 
 import type { AgentRunEventType } from "./run-stream-types";
 import type { TimelineEntry } from "./run-event-reducer";
@@ -36,11 +32,7 @@ export function timeToFraction(
   return fraction > 1 ? 1 : fraction;
 }
 
-/**
- * The `[start, end]` a run's ticks are drawn across. `now` is always the right
- * bound so a live run's rail grows rightward; the left bound is the run's start
- * when known, else the earliest tick, else `now` for a run with no ticks yet.
- */
+/** Computes [start, end] bounds; `now` is always right bound, left is run start or earliest tick. */
 export function timelineBounds(
   ticks: readonly TimelineEntry[],
   runStartedAt: string | null,

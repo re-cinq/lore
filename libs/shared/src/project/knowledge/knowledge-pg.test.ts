@@ -1,18 +1,11 @@
 import { describe, it, expect, vi } from "vitest";
 
-// No Vertex creds in tests → keyword-only retrieval path (deterministic, no net).
 vi.mock("../../embeddings/embedding-service.js", () => ({
   getQueryEmbedding: async () => null,
 }));
 
 import { PgKnowledge } from "./knowledge-pg.js";
 import type { PgPool } from "../../memory-store.js";
-
-/**
- * PgKnowledge graph + spec reads against a fake PgPool that records SQL/params
- * (the memory-store fake-pool style). Proves repo binding and team-schema
- * resolution without a live database.
- */
 
 function fakePool(
   capture: Array<{ text: string; params?: unknown[] }>,
@@ -53,7 +46,6 @@ describe("PgKnowledge", () => {
 
     const edges = await pg.queryLiveGraph("re-cinq/lore");
 
-    // Delegates to the shared queryLiveGraph (no-entity branch → [relationType||null, repo||null]).
     expect(capture[0].params).toEqual([null, "re-cinq/lore"]);
     expect(edges).toEqual([
       {

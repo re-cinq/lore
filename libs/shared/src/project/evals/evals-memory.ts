@@ -1,11 +1,6 @@
 import type { EvalRunsPort, EvalRun, EvalRunSample } from "./evals-port.js";
 
-/**
- * In-memory {@link EvalRunsPort}: keeps every recorded run for test assertions
- * and serves `recent` from them newest-first (insertion order is the run
- * order). The double for the eval-runner regression check and the autoresearch
- * baseline read, so they stay testable without a live `pipeline.eval_runs`.
- */
+/** In-memory EvalRunsPort: records and serves eval runs newest-first for testing. */
 export class InMemoryEvalRuns implements EvalRunsPort {
   readonly runs: EvalRun[] = [];
 

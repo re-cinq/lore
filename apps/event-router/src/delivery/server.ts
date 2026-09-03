@@ -1,12 +1,4 @@
-/**
- * The event-router's HTTP server (hapi): the one front door to
- * `pipeline.events`, the drain loop's consume endpoints, and the probe.
- *
- * `buildServer` does not listen, so tests drive it with `inject()`; `startServer`
- * is what boot calls. It registers NO signal handler — process lifecycle belongs
- * to one owner (index.ts), which needs the stop function rather than a competing
- * handler.
- */
+/** HTTP server (hapi): front door to pipeline.events + drain consume endpoints + health probe. */
 
 import Hapi from "@hapi/hapi";
 import { eventsRoute } from "./routes/events.js";
@@ -15,8 +7,7 @@ import { eventDeliveryRoutes } from "./routes/event-deliveries.js";
 import { healthRoute } from "./routes/health.js";
 import { pipeline, deliveries, clusterAgents } from "../kernel/queues.js";
 
-// GitHub caps webhook payloads at 25 MB. Bound it there rather than at hapi's
-// 1 MB default, which would reject the large push deliveries that work today.
+// GitHub allows 25 MB; hapi default 1 MB would reject large push deliveries.
 const MAX_BODY_BYTES = 25 * 1024 * 1024;
 
 export function buildServer(opts: { port?: number } = {}): Hapi.Server {
@@ -26,9 +17,7 @@ export function buildServer(opts: { port?: number } = {}): Hapi.Server {
     routes: { payload: { maxBytes: MAX_BODY_BYTES } },
   });
 
-  // A handler or auth throw otherwise becomes an anonymous 500 whose cause hapi
-  // never prints — the shape that made #1319 undiagnosable. This channel fires
-  // only for 500s carrying an error; deliberate non-500 refusals never reach it.
+  // Log handler/auth errors: throws become anonymous 500s (#1319), channel fires for 500 + error.
   server.events.on({ name: "request", channels: "error" }, (request, event) => {
     const err = event.error;
     const detail = err instanceof Error ? (err.stack ?? err.message) : `${err}`;
@@ -43,17 +32,14 @@ export function buildServer(opts: { port?: number } = {}): Hapi.Server {
       insert: (event) => pipeline().eventQueue.insert(event),
       webhookSecret: process.env.LORE_WEBHOOK_SECRET,
       bearerToken: process.env.LORE_INGEST_TOKEN,
-      // A THUNKED call, not a resolved repository: the pool does not exist when
-      // the routes are described, and the lookup only runs for a bearer that is
-      // not the ingest token — so the central cluster's reports never pay it.
+      // Thunk: pool doesn't exist at describe time; lookup only for non-ingest bearer.
       findByTokenHash: (hash) => clusterAgents().findByTokenHash(hash),
     }),
     ...eventQueueRoutes({
       queue: () => pipeline().eventQueue,
       bearerToken: process.env.LORE_INGEST_TOKEN,
     }),
-    // Lazy for the same reason the queue's thunk is: the pool does not exist
-    // when the routes are described.
+    // Lazy thunk: pool doesn't exist at describe time.
     ...eventDeliveryRoutes({
       deliveries: () => deliveries(),
       bearerToken: process.env.LORE_INGEST_TOKEN,

@@ -16,12 +16,6 @@ const get = (id: string, pool: ReturnType<typeof makePool>) =>
     headers: AUTH,
   });
 
-/**
- * GET /api/repos/:owner/:repo/events/:id/payload — the ingest station's
- * payload-by-reference fetch (specs/ingest-station FR3): a test-report body is
- * ~1 MB and cannot ride station_input argv, so the pod reads it back from the
- * pipeline.events row that scheduled it. Read scope; repo must match the row.
- */
 describe("GET /api/repos/:owner/:repo/events/:id/payload", () => {
   useRateLimitSafeClock();
   beforeEach(() => {

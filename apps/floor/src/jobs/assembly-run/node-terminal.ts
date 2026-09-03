@@ -62,8 +62,7 @@ export interface ReviewPorts {
   poster?: ReviewPoster;
   audit?: AuditPort;
   iteration?: number;
-  /** The model(s) that actually billed against this visit, disclosed on the
-   *  posted review body. Resolved by {@link finishNodeTerminal}. */
+  /** Model(s) that billed against this visit; resolved by finishNodeTerminal. */
   model?: string;
 }
 
@@ -178,9 +177,7 @@ export async function finishNodeTerminal(
 ): Promise<void> {
   const model = await resolveVisitModel(input, deps);
 
-  // Out of budget: approve-with-notice instead of a failed run — the retry
-  // budget cannot help (the account has to change first), and a red check on
-  // every PR until someone tops up blocks work the reviewer never judged.
+  // Out of budget: approve-with-notice (retry budget cannot help, only account topup).
   if (
     input.result.outcome === "failed" &&
     input.result.failureClass === "anthropic-credit" &&

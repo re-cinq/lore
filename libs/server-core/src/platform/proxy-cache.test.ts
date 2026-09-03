@@ -57,9 +57,6 @@ describe("buildKey", () => {
   });
 
   it("is delimiter-pinned to a stable golden hash", () => {
-    // If the \x00 field delimiter is ever dropped or mangled (e.g. an editor
-    // strips the escape), this hash changes and silently invalidates every
-    // cached key. Pin it.
     expect(
       buildKey("lore_search_memory", { query: "auth" }, "re-cinq/lore"),
     ).toBe("7bcca6e763dc41f1c1986cb9c7eb9dad032ed342d024a4b300c5e1845b858fd5");

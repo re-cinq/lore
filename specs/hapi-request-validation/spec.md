@@ -137,7 +137,7 @@ today. Validation errors surface only for authenticated requests.
   a typed, validated `request.payload`. No native-route handler calls `JSON.parse`,
   `rawBody`, or `parseJsonBodyCapped`. Those helpers are deleted when unused. A
   route whose payload override forces JSON parsing parses a JSON body even when the
-  client sends a non-JSON `Content-Type`. ([validated by `ingest-graph.test.ts:57`](apps/lore-api/src/api/routes/ingest/ingest-graph.test.ts#L57))
+  client sends a non-JSON `Content-Type`. ([validated by `ingest-graph.test.ts:57`](apps/lore-api/src/api/routes/ingest/ingest-graph.test.ts#L51))
 - **FR5** Auth, rate-limit, and body-cap behavior are unchanged: `401` (missing
   token) and `403` (under-scoped) still precede validation; `413` still fires at
   1 MB; the per-bucket `429` thresholds are untouched.
@@ -154,7 +154,7 @@ today. Validation errors surface only for authenticated requests.
   returns nothing outside the webhook routes (FR7) and tests.
 - **SC-2** Malformed JSON to a native route returns `400` (documented change from
   `500`); the affected tests (`memory.test.ts`, `task-post.test.ts`) assert `400`
-  and reference ADR-034. ([validated by `memory.test.ts:340`](apps/lore-api/src/api/routes/memory/memory.test.ts#L340), [validated by `ingest-graph.test.ts:74`](apps/lore-api/src/api/routes/ingest/ingest-graph.test.ts#L74))
+  and reference ADR-034. ([validated by `memory.test.ts:340`](apps/lore-api/src/api/routes/memory/memory.test.ts#L340), [validated by `ingest-graph.test.ts:74`](apps/lore-api/src/api/routes/ingest/ingest-graph.test.ts#L64))
 - **SC-3** For each converted route, a request missing or mis-typing a required
   field returns `400` `{ error: <message> }` with the field named — proven by a
   test migrated alongside the route.

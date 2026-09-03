@@ -513,8 +513,6 @@ describe("accepting the plan resumes the parked node", () => {
   };
 
   it("reports success to the author node instead of minting a finalize line", async () => {
-    // The accept is a station outcome like any other: the spec work follows on the
-    // SAME line. A second line here is what made the feature's life invisible.
     const pool = makePool();
 
     pool.query.mockResolvedValue({ rows: [{ id: "1" }] });
@@ -568,9 +566,6 @@ describe("accepting the plan resumes the parked node", () => {
   });
 
   it("refuses a feature whose planning predates the merged line rather than starting a run of its own", async () => {
-    // The accepted cost of retiring the legacy path: a feature planned before the
-    // merged line has no parked node and cannot be accepted. It STRANDS visibly
-    // instead of quietly minting a second line per press.
     useProject(fakeFeatures({ get: vi.fn().mockResolvedValue(specReady) }));
 
     const res = await req("POST", `${base}/f1/finalize`, {});
@@ -978,10 +973,6 @@ describe("accepting the plan delivers the accepted plan to the tail nodes", () =
   });
 
   it("carries the answers the author typed before accepting, not just the draft", async () => {
-    // The author fills the form and presses "Create spec PR" in one motion. Those
-    // answers were dropped on the floor: analyse-specs and write saw the draft
-    // alone, so the last thing the author said about the plan never reached the
-    // nodes that turn it into a spec.
     const event = await acceptOn(
       [
         {
@@ -1035,8 +1026,6 @@ describe("accepting the plan delivers the accepted plan to the tail nodes", () =
       round_feedback: null,
       resume_from_iteration: null,
     });
-    // This round produced no gap, so there is no draft to render — the brief
-    // degrades to the feature's own request rather than to nothing at all.
     expect(event.args?.description).toContain("Cluster Dispatch");
     expect(event.args?.description).not.toContain("<CurrentDraftSpec>");
   });

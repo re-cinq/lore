@@ -1,9 +1,4 @@
-/**
- * The LLM half of the spec judge — the model-backed steps that pair the pure
- * scoring/matching in `spec-judge.ts`. Kept in a separate module so `spec-judge.ts`
- * stays free of the LLM provider's transitive deps. Parameterized by a job context
- * so each caller keeps its own `jobName` for cost accounting.
- */
+/** LLM half of spec judge; separate module so spec-judge.ts stays dependency-free. */
 
 import { Llm } from "./llm/llm.js";
 import type { Assertion } from "./spec-judge.js";
@@ -50,12 +45,7 @@ const EXTRACT_ASSERTIONS_TOOL_SCHEMA = {
   required: ["assertions"],
 } as const;
 
-/**
- * Extract the concrete symbols (functions/classes/types/endpoints) a spec says
- * should exist — the assertion set spec-drift and spec-coverage-backfill both
- * feed into the pure matcher. Identical prompt/schema across callers; only the
- * `jobName` (for cost accounting) differs.
- */
+/** Extract symbols spec says should exist; used by spec-drift and spec-coverage-backfill. */
 export async function extractAssertions(
   specContent: string,
   filePath: string,

@@ -284,8 +284,6 @@ describe("describeNode on a parked wait node", () => {
   };
 
   it("says the round is waiting for you rather than in progress", () => {
-    // The row seeds `running`, so without the signal this panel told the author
-    // their round was still working while it was in fact waiting on them.
     const detail = describeNode({
       nodeId: "author",
       definition: planning,

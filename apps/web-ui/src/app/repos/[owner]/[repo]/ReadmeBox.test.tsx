@@ -6,10 +6,8 @@ import ReadmeBox from "./ReadmeBox";
 const rawBaseUrl = "https://raw.githubusercontent.com/re-cinq/lore/main/";
 const htmlUrl = "https://github.com/re-cinq/lore/blob/main/";
 
-// Three blank-line-separated blocks → blocks.length === 3 > 2 → collapsible.
 const threeBlocks =
   "# Heading\n\nFirst paragraph body.\n\nSecond paragraph body.";
-// Two blocks → blocks.length === 2, not > 2 → not collapsible.
 const twoBlocks = "# Heading\n\nOnly one paragraph.";
 
 afterEach(() => {
@@ -38,7 +36,6 @@ describe("ReadmeBox", () => {
       />,
     );
     expect(screen.getByText("Only one paragraph.")).toBeInTheDocument();
-    // blocks.length === 2 → collapsible false → no Read more / Read less button.
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
 
@@ -63,7 +60,6 @@ describe("ReadmeBox", () => {
       />,
     );
 
-    // Collapsed: only the first two blocks (heading + first paragraph) are visible.
     expect(screen.getByText("First paragraph body.")).toBeInTheDocument();
     expect(
       screen.queryByText("Second paragraph body."),
@@ -84,7 +80,6 @@ describe("ReadmeBox", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Read more" }));
 
-    // expanded → full markdown, third block now present, label flips.
     expect(screen.getByText("Second paragraph body.")).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Read less" }),
@@ -108,7 +103,6 @@ describe("ReadmeBox", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Read less" }));
 
-    // Back to collapsed: hidden block gone, Read more label restored.
     expect(
       screen.queryByText("Second paragraph body."),
     ).not.toBeInTheDocument();
@@ -257,7 +251,6 @@ describe("ReadmeBox", () => {
       <ReadmeBox markdown="" rawBaseUrl={rawBaseUrl} htmlUrl={htmlUrl} />,
     );
 
-    // splitBlocks('') → [] so collapsible is false and visible is the empty string.
     expect(container.querySelector("button")).toBeNull();
     expect(container.querySelector("h1")).toBeNull();
   });

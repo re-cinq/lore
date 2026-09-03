@@ -8,13 +8,7 @@ import type {
 const sameThread = (a: ConversationThread, b: ConversationThread): boolean =>
   a.kind === b.kind && a.value === b.value && a.nodeId === b.nodeId;
 
-/** Does this row belong to the named execution?
- *
- *  An `iteration`-less REF matches any execution on the line — the caller holds only
- *  a line. An `iteration`-less ROW predates migration 0038, when a line ran exactly
- *  one execution, so it can only be the FIRST: matching it against every iteration
- *  would hide round 1 from every later round of a merged line, which is the silent
- *  loss the column was added to end. */
+/** Does this row belong to the named execution? Handles iteration-less REF (any execution) and iteration-less ROW (migration 0038). */
 const isExecution = (
   row: { assemblyLineId: string | null; iteration: number | null },
   ref: ExecutionRef,

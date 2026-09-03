@@ -1,19 +1,10 @@
 import type { JobRunsPort, JobRunRecord } from "./job-runs-port.js";
 import type { JobRun } from "../../models/job-run.js";
 
-/**
- * A full in-memory `pipeline.job_runs` row for behavioral assertions.
- *
- * The MODEL, not a copy of it. The double restated all eight fields, which is
- * how a double comes to agree with a shape the table no longer has.
- */
+/** Full in-memory pipeline.job_runs row for behavioral assertions; THE MODEL, double tracks table shape. */
 export type JobRunRow = JobRun;
 
-/**
- * In-memory {@link JobRunsPort}: keeps every run row so the scheduler's
- * start/complete/fail/last-run flow stays testable without a live
- * `pipeline.job_runs`. Seed `rows` directly to drive `lastRun` assertions.
- */
+/** In-memory JobRunsPort: keeps every run row, testable without live pipeline.job_runs; seed rows directly for lastRun assertions. */
 export class InMemoryJobRuns implements JobRunsPort {
   readonly rows: JobRunRow[] = [];
   private nextId = 1;

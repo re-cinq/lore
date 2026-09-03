@@ -7,15 +7,11 @@ import {
 } from "./memory-store.js";
 
 describe("memoryStore", () => {
-  // Ordered: the unset-throw assertion must run before any setMemoryStore call,
-  // since the registry is a module-global singleton.
   it("throws when no store has been set", () => {
     expect(() => memoryStore()).toThrow();
   });
 
   it("returns the store registered via setMemoryStore", () => {
-    // Registry identity is the only contract under test here, so a
-    // backend-only stand-in stands in for a full MemoryStore.
     const registered = { backend: "postgres" } as unknown as MemoryStore;
 
     setMemoryStore(registered);

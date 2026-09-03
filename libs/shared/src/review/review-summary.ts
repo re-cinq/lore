@@ -19,9 +19,7 @@ export function buildReviewSummary(
   }
   blocks.push(tally(output));
 
-  // Which model judged the diff, on every review body: reviewer models are
-  // switched per repo (agent-definition rows), and a finding's weight reads
-  // differently depending on who wrote it.
+  // Reviewer model varies per repo (agent-definition rows), affects finding weight.
   if (opts.model) {
     blocks.push(`_Reviewed by \`${opts.model}\`_`);
   }
@@ -30,12 +28,7 @@ export function buildReviewSummary(
   return blocks.join("\n\n");
 }
 
-/**
- * The body posted when the review could not run because the LLM budget is
- * exhausted. The PR is APPROVED to stay unblocked — a spent account is an
- * operator problem, not the author's — but the approval says loudly that no
- * judgment happened, and names the reviewer that would have run.
- */
+/** Body when review skipped due to exhausted LLM budget (approves to unblock). */
 export function budgetSkipBody(model?: string): string {
   const blocks = [
     "### Lore review — Approved without review (no LLM budget)",

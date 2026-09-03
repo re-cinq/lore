@@ -100,8 +100,6 @@ describe("resolveRoundBasis", () => {
   });
 
   it("rejects rewinding to a round that produced nothing", () => {
-    // Continuing from a failed round means continuing from nothing, which would
-    // show the author a fresh start dressed as a rewind.
     expect(resolveRoundBasis(rounds, 3)).toEqual({
       ok: false,
       error: "round 3 produced no result to continue from",
@@ -122,8 +120,6 @@ describe("resolveRoundBasis", () => {
 
 describe("slugifyTitle", () => {
   it("never ends a 60-char feature slug in a dash when the cut lands on one", () => {
-    // The trailing-dash trim lived only in the Floor's 30-char copy, so this
-    // path could still hand a `specs/<slug>/` directory a name ending in `-`.
     const title = `${"a".repeat(59)} tail`;
 
     expect(slugifyFeatureTitle(title)).toBe("a".repeat(59));

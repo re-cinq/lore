@@ -32,7 +32,6 @@ describe("parseDistArtifact", () => {
   });
 });
 
-// The native /dist route (Phase 2), driven through buildServer.inject.
 describe("GET /dist/lore-code-trace", () => {
   useRateLimitSafeClock();
   let dir: string | undefined;

@@ -1,13 +1,6 @@
 import { errorMessage } from "@re-cinq/lore-shared";
-/**
- * `ensureFloorWebhook` — the one place that ensures a repo's GitHub webhook points
- * at the Floor ingress *with the HMAC secret*. Reads `LORE_WEBHOOK_URL` +
- * `LORE_WEBHOOK_SECRET` and the canonical event set, then delegates to the
- * idempotent `ensureRepoWebhook`. Best-effort by design: it never throws, it
- * returns a discriminated outcome so callers (onboarding, the ensure route) can
- * react without each re-deriving the env/policy — keeping them in lockstep so a
- * webhook can't be created unsigned again.
- */
+
+/** Ensures repo's GitHub webhook points to Floor ingress with HMAC secret (best-effort, never throws). */
 
 import { ensureRepoWebhook } from "./webhook-manage.js";
 import { REQUIRED_EVENTS } from "./webhook-status.js";

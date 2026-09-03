@@ -1,10 +1,6 @@
 import type { TestDescriptor, RunResult } from "../../test-report.js";
 
-/**
- * Test discovery/execution port. The adapter wraps the existing
- * spec-trace-tools helpers (runTestsList/runTestsRun/buildTestReport). Execution
- * is trust-gated by the facade before it ever reaches the port.
- */
+/** Test discovery/execution port; execution trust-gated by facade. */
 
 export interface TestRunReport {
   passed: number;

@@ -7,15 +7,6 @@ import * as dgraph from "dgraph-js-http";
 import { projectAdrFile } from "./project-adr-file.js";
 import { recomputeFile } from "./recompute-spec-file.js";
 
-/**
- * projectAdrFile + recomputeFile (spec-traceability-graph) — the ADR artifact
- * joins the lossless Block layer that specs already enjoy. projectAdrFile
- * projects one Block per source block keyed by file_path (no Spec node), and
- * recomputeFile reconstructs ANY ingested document from its Blocks by file_path.
- * Kernel invariant exercised here: an ADR round-trips through the real graph
- * byte-exactly. Tested against live Dgraph (no mocks); skips when unreachable.
- */
-
 const DGRAPH_HTTP = process.env.DGRAPH_HTTP ?? "http://localhost:8081";
 const APPLIER = join(
   findRepoRoot(),
@@ -77,8 +68,8 @@ describe.skipIf(!reachable)("projectAdrFile (live Dgraph)", () => {
           commitNow: true,
         });
       }
+      // eslint-disable-next-line no-empty
     } catch {
-      // best-effort cleanup must never mask the assertion
     } finally {
       await txn.discard().catch(() => {});
     }

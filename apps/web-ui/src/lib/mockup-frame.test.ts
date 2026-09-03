@@ -1,7 +1,4 @@
 // @vitest-environment jsdom
-//
-// jsdom on purpose: the sanitizer-config tests need DOMPurify's browser shape
-// (an instance, not the windowless factory the component code has to absorb).
 import { describe, it, expect } from "vitest";
 import DOMPurify from "dompurify";
 import {
@@ -32,8 +29,6 @@ describe("mockupFrameSrcdoc", () => {
   });
 
   it("borrows none of the dashboard's own theme tokens", () => {
-    // A mockup is a picture of the PLANNED repo. Injecting Lore's palette would dress
-    // a backend repo's plain HTML as something it is not.
     const doc = mockupFrameSrcdoc("<div>hi</div>");
 
     expect(doc).not.toContain("var(--accent)");
@@ -45,10 +40,6 @@ describe("mockupFrameSrcdoc", () => {
   });
 
   it("stays legible when the stylesheet only references tokens it never defines", () => {
-    // What actually happens: the agent lifts the repo's variable NAMES but the frame
-    // is isolated, so every var() is invalid at computed-value time — background goes
-    // transparent and color inherits to black. Over a dark dashboard that renders the
-    // mockup invisible. An explicit ground and text colour make that impossible.
     const doc = mockupFrameSrcdoc(
       "<div>hi</div>",
       ".card { color: var(--nope); }",
@@ -67,8 +58,6 @@ describe("mockupHeight", () => {
   });
 
   it("falls back to the default when no height was declared", () => {
-    // The frame is sandboxed without same-origin access, so it cannot measure
-    // itself — an undeclared height has to be guessed, never computed.
     expect(mockupHeight({ format: "html", markup: "<div/>" })).toBe(
       DEFAULT_MOCKUP_HEIGHT,
     );
@@ -88,10 +77,6 @@ describe("mockupHeight", () => {
 });
 
 describe("sanitizeMockupMarkup", () => {
-  // DOMPurify's default export is an INSTANCE in a browser and a FACTORY in Node,
-  // where there is no window to purify against. A "use client" component still
-  // renders on the server, so calling .sanitize during render crashed the whole
-  // feature page with "sanitize is not a function" the moment a plan had a mockup.
   const instance = {
     sanitize: (raw: string) => raw.replace(/<script>.*?<\/script>/g, ""),
   };
@@ -103,8 +88,6 @@ describe("sanitizeMockupMarkup", () => {
   });
 
   it("yields nothing rather than throwing where there is no window", () => {
-    // The factory shape: callable, but no `sanitize` on it. Returning empty leaves
-    // the frame blank for one server render; the client fills it after mount.
     const factory = (() => instance) as unknown as { sanitize?: unknown };
 
     expect(sanitizeMockupMarkup(factory, "<p>hi</p>", {})).toBe("");
@@ -113,10 +96,6 @@ describe("sanitizeMockupMarkup", () => {
 
 describe("a stylesheet that tries to close its own style block", () => {
   it("neutralises </style> so agent CSS cannot escape into markup", () => {
-    // The stylesheet is LLM-authored and goes into `<style>…</style>` verbatim. A
-    // literal `</style>` inside it ends the block early and everything after it is
-    // parsed as HTML — inside a sandboxed frame, but still not what the author of
-    // the plan asked for, and a way to smuggle markup past the mockup sanitizer.
     const doc = mockupFrameSrcdoc(
       "<p>x</p>",
       "a{}</style><img src=x onerror=1>",
@@ -144,13 +123,6 @@ describe("mermaidFrameHeight", () => {
 });
 
 describe("DOMPurify cannot pass mermaid's html labels — which is why mermaid output skips it", () => {
-  // The lesson of 2026-08-18, learned twice on feature be6ad6a5: DOMPurify's
-  // mXSS defense strips foreignObject INTERIORS under every configuration —
-  // the element can be allowed, its html children never survive. mermaid v11
-  // puts ER labels and flowchart edge labels exactly there, so purifying a
-  // mermaid-rendered svg structurally guarantees an unlabeled skeleton. This
-  // test DOCUMENTS the library behaviour the mermaid bypass rests on; if it
-  // ever fails, DOMPurify learned a new trick and the bypass can be revisited.
   it("strips the interior of a foreignObject even when the element is allowed", () => {
     const clean = DOMPurify.sanitize(
       '<svg viewBox="0 0 10 10"><foreignObject width="1" height="1">' +

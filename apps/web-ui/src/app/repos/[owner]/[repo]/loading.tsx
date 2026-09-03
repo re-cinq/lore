@@ -1,9 +1,7 @@
 import styles from "./loading.module.scss";
 import Skeleton from "@/components/Skeleton";
 
-// Fallback for the whole repo segment: tab subroutes (tasks, specs, settings,
-// events, ...) have no closer loading.tsx, so the label and shape stay
-// tab-neutral — cards and rows, no overview-specific text.
+// Fallback for repo segment; tab subroutes have no closer loading.tsx, so stay tab-neutral (no overview-specific text).
 export default function RepoLoading() {
   return (
     <div role="status" aria-label="Loading repository">

@@ -1,12 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { createHmac, timingSafeEqual } from "node:crypto";
 
-// ── Slack HMAC-SHA256 verification ──────────────────────────────────
-// The webhook handler verifies Slack requests using HMAC-SHA256 with
-// the signing secret. Bugs found:
-// - Slack manifest needed _metadata block (not a code bug but parser)
-// - YAML comments caused parse errors in Slack's manifest parser
-
 describe("Slack HMAC verification", () => {
   const signingSecret = "test-signing-secret-12345";
 
@@ -57,7 +51,6 @@ describe("Slack HMAC verification", () => {
     const signature =
       "v0=" + createHmac("sha256", signingSecret).update(sigBase).digest("hex");
 
-    // Tamper with the body
     expect(
       verifySlackSignature(
         body + "&extra=bad",
@@ -82,10 +75,6 @@ describe("Slack HMAC verification", () => {
     expect(isReplay).toBe(false);
   });
 });
-
-// ── Slack command parsing ───────────────────────────────────────────
-// /lore [task_type] description
-// If first word matches a known type, it's extracted. Otherwise defaults to "general".
 
 describe("Slack command parsing", () => {
   const knownTypes = [
@@ -146,13 +135,12 @@ describe("Slack command parsing", () => {
   it("does not match partial type names", () => {
     const { taskType } = parseCommand("implement something");
 
-    expect(taskType).toBe("general"); // "implement" != "implementation"
+    expect(taskType).toBe("general");
   });
 
   it("handles single word (no description after type)", () => {
     const { taskType, description } = parseCommand("implementation");
 
-    // Single word that matches a type — treated as description since no remaining words
     expect(taskType).toBe("general");
     expect(description).toBe("implementation");
   });

@@ -1,11 +1,4 @@
-/**
- * Pure classification of a repo's GitHub webhooks against the canonical Floor
- * ingress URL. The Floor's event bus needs the webhook pointing at
- * `<LORE_WEBHOOK_URL>`, active, subscribed to the trigger events, and with a
- * matching HMAC secret (a 4xx last-delivery is the signature-mismatch tell). This
- * decides which state a repo is in so the UI can show pass/warn/fail + offer a fix.
- * No IO — the route lists hooks + calls this.
- */
+/** Classifies repo's GitHub webhooks against canonical Floor ingress URL; no IO (route lists hooks + calls this). */
 
 export const REQUIRED_EVENTS = [
   "pull_request",
@@ -64,8 +57,7 @@ export function classifyWebhook(
     };
   }
 
-  // Identify the Lore hook: prefer an exact canonical match, else any hook whose
-  // URL is the Floor webhook path (so a stale lore-api host still resolves → wrong_url).
+  // Identify the Lore hook: prefer exact canonical match, else any hook at Floor webhook path.
   const lore =
     hooks.find((h) => h.config?.url === canonicalUrl) ??
     hooks.find((h) => (h.config?.url ?? "").endsWith("/api/webhook/github"));

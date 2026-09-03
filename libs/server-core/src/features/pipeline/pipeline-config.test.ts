@@ -108,7 +108,6 @@ describe("getTaskTypeConfig", () => {
 
       expect(cfg, `${type} should have config`).not.toBeNull();
 
-      // Deterministic graph-ingest tasks (zero-LLM) carry no prompt by design.
       if (cfg!.execution_mode === "graph-ingest") {
         continue;
       }
@@ -120,19 +119,15 @@ describe("getTaskTypeConfig", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// buildPrompt — template substitution
-// ---------------------------------------------------------------------------
-
 describe("buildPrompt", () => {
   beforeAll(() => {
     const yamlPath = join(
       import.meta.dirname,
-      "..", // pipeline → features
-      "..", // features → src
-      "..", // src → mcp-server
-      "..", // mcp-server → apps
-      "..", // apps → repo root
+      "..",
+      "..",
+      "..",
+      "..",
+      "..",
       "scripts",
       "task-types.yaml",
     );
@@ -152,7 +147,6 @@ describe("buildPrompt", () => {
     const result = buildPrompt("unknown-type", "Do something");
 
     expect(result).toContain("Do something");
-    // The fallback template is "Complete the following task: {description}"
     expect(result).toContain("Complete the following task:");
   });
 
@@ -160,14 +154,12 @@ describe("buildPrompt", () => {
     const result = buildPrompt("implementation", "Add caching layer");
 
     expect(result).toContain("Add caching layer");
-    // Implementation template mentions specs and rules
     expect(result).toContain("specification");
   });
 
   it("handles empty description", () => {
     const result = buildPrompt("general", "");
 
-    // Should not throw, just produce the template with empty description
     expect(result).not.toContain("{description}");
   });
 
@@ -179,19 +171,15 @@ describe("buildPrompt", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// getDefaultRepo
-// ---------------------------------------------------------------------------
-
 describe("getDefaultRepo", () => {
   beforeAll(() => {
     const yamlPath = join(
       import.meta.dirname,
-      "..", // pipeline → features
-      "..", // features → src
-      "..", // src → mcp-server
-      "..", // mcp-server → apps
-      "..", // apps → repo root
+      "..",
+      "..",
+      "..",
+      "..",
+      "..",
       "scripts",
       "task-types.yaml",
     );

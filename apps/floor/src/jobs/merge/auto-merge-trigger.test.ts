@@ -5,7 +5,6 @@ const rawSettingsMock = vi.fn();
 const resolvePrForTaskFromDbMock = vi.fn();
 
 vi.mock("../../kernel/queues.js", () => ({
-  // The logs route resolves the cluster agent from here.
   clusterAgent: () => ({}),
   taskStore: () => ({ getById: (...args: unknown[]) => getByIdMock(...args) }),
   settings: () => ({
@@ -32,8 +31,6 @@ vi.mock("./auto-merge.js", async (orig) => {
 const { tryAutoMergeForCompletedTask } =
   await import("./auto-merge-trigger.js");
 
-/** Seed the task record + repo settings the trigger reads, mirroring the old
- *  joined `{ target_repo, settings }` row shape per case. */
 function seedTask(targetRepo: string | null, settings: unknown): void {
   getByIdMock.mockResolvedValueOnce(
     targetRepo ? { target_repo: targetRepo } : null,
@@ -143,11 +140,6 @@ describe("tryAutoMergeForCompletedTask", () => {
   });
 
   it("propagates errors from evaluateAndMerge to the caller", async () => {
-    // The watcher's outer .catch() handles the error and logs it
-    // (loretask-watcher.ts), so the trigger doesn't need its own
-    // try/catch. This test locks in that contract — if anyone adds
-    // an internal try/catch, this fails and forces them to update
-    // the watcher's expectations too.
     seedTask("owner/repo", { dark_factory: { enabled: true } });
 
     resolvePrForTaskFromDbMock.mockResolvedValueOnce({

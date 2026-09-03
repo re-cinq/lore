@@ -1,23 +1,4 @@
-// Hand mirror of AgentRunTurnRow from
-// libs/shared/src/project/agent-run-turns/agent-run-turns-port.ts. web-ui is
-// excluded from the npm workspace and built in an isolated Docker context, so it
-// cannot import @re-cinq/lore-shared; scripts/type-drift/run-turn-types.drift.ts
-// makes drift from the canonical type a compile-time failure.
-//
-// The one deliberate divergence: `createdAt` is a Date on the port and a string
-// here, because this side only ever sees the JSON projection of the row. The
-// drift guard is therefore keys-only, never structural.
-//
-// `eventType` stays `string | null`, never a union: the port deliberately does
-// not narrow the raw stream-json kind, so a kind this client has never seen is
-// still rendered under its own name instead of dropped.
-//
-// DECISION (#1419): structural, not debt. The Floor serves this shape — the read
-// is GET /api/agent-turns/{assemblyRunId}, registered in delivery/http/server.ts
-// and reached through web-ui's own proxy route — and the Floor generates no
-// OpenAPI document: no generator, no zodResponse call, so there is nothing for a
-// generated type to come from. Revisit if the Floor gains a document, or if
-// #1347 moves this read to lore-api.
+// Mirrors AgentRunTurnRow with type-drift guard (createdAt: string from JSON; eventType unnarrowed; #1419).
 
 export interface AgentRunTurn {
   id: string;
@@ -47,12 +28,7 @@ function record(value: unknown): Record<string, unknown> {
     : {};
 }
 
-/**
- * Validate one decoded row from the turns proxy into the mirrored shape.
- * Returns null — never throws — for a non-object body or a missing identity
- * field (`id`, `createdAt`); everything else is coerced, matching the port's
- * every-correlation-field-is-nullable contract.
- */
+/** Validates and coerces a row; returns null for missing id/createdAt. */
 export function parseAgentRunTurn(value: unknown): AgentRunTurn | null {
   const body = record(value);
   const id = str(body.id);

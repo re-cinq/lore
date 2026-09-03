@@ -8,12 +8,6 @@ import {
   undeclaredWildcards,
 } from "./build-document.js";
 
-/**
- * Drift guard (ADR-035, fork 5). The document is generated from the live
- * `routeList`, so a new route that carries a body but declares no schema — and is
- * not a documented sidecar exception — fails here. The doc cannot silently rot.
- */
-
 const routes = routeList(() => null);
 const isApi = (r: ServerRoute) => r.path.startsWith("/api/");
 const { document, coverage } = generateOpenApi(routes);
@@ -72,9 +66,6 @@ describe("OpenAPI coverage drift guard", () => {
   });
 
   it("names every wildcard route as serving verbs or as refusing them", () => {
-    // The gap this closes: a wildcard that means to serve a real verb on a path
-    // concrete verbs ALREADY document adds no path key, so the assertion above
-    // stays green while the operation goes missing from the document.
     expect(undeclaredWildcards(routes)).toEqual([]);
 
     const probe: ServerRoute = {
@@ -90,9 +81,6 @@ describe("OpenAPI coverage drift guard", () => {
   });
 
   it("documents no operation for a wildcard route that only answers 405", () => {
-    // The 405 fallback shares its path with the concrete verbs above it. It is
-    // absent from WILDCARD_METHODS, so it contributes nothing — which is what
-    // keeps the split from re-adding the union it removed.
     expect(Object.keys(document.paths["/api/tokens"]).sort()).toEqual([
       "get",
       "post",
@@ -168,10 +156,6 @@ describe("Features responses are declaratively described", () => {
     expect(featureOps.length).toBeGreaterThan(0);
   });
 
-  // Scoped to the Features tag ON PURPOSE. The other ~40 routes are
-  // request-focused by design (info.description says so), so a document-wide
-  // assertion would red-light them for a contract they never claimed. Widen the
-  // tag list as each surface adopts zodResponse — never by weakening this.
   it("gives every Features operation a schema'd success body", () => {
     for (const { label, op } of featureOps) {
       const responses = (
@@ -212,8 +196,6 @@ describe("Features responses are declaratively described", () => {
   });
 });
 
-/** The one sanctioned non-JSON body shape: a parse:false relay route that
- *  declared options.app.rawBody (FR4b, specs/lore-api-openapi). */
 function hasRawNdjsonBody(body: unknown): boolean {
   const content = (body as { content?: Record<string, unknown> }).content;
 

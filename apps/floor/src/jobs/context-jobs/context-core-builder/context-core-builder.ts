@@ -2,18 +2,10 @@ import { join } from "node:path";
 import { chunks, contextCore, taskStore } from "../../../kernel/queues.js";
 import { runPromptfooEval } from "../lib/promptfoo.js";
 
-const IMPROVEMENT_THRESHOLD = 0.02; // 2% to promote
-const REGRESSION_THRESHOLD = 0.05; // 5% to reject
+const IMPROVEMENT_THRESHOLD = 0.02; // 2% to promote; 5% regression threshold to reject
+const REGRESSION_THRESHOLD = 0.05;
 
-/**
- * Context Core Builder
- *
- * Runs nightly at 4am UTC (after eval runner at 3am). For each namespace:
- * 1. Export promoted chunks from PostgreSQL
- * 2. Run PromptFoo eval against current context
- * 3. Compare to previous production score
- * 4. Promote if improvement >= 2%, reject if regression > 5%
- */
+/** Context Core Builder: nightly eval at 4am UTC; promote chunks if +2%, reject if -5%. */
 export async function contextCoreBuilderJob(): Promise<string> {
   // Get all namespaces (teams) that have chunks
   const namespaces = await chunks().distinctTeams();
@@ -71,9 +63,7 @@ async function evaluateNamespace(
   const configPath = join("evals", namespace, "promptfooconfig.yaml");
   const evalResult = await runPromptfooEval({ configPath });
 
-  // Distinguish a genuinely-absent config from a crash/timeout — the old catch
-  // logged every failure (including real regressions the eval surfaced) as
-  // "no eval config, skipping".
+  // Distinguish absent config from crash/timeout; don't log genuine regressions as "no config".
   if (!evalResult.ok && evalResult.reason === "config-missing") {
     console.log(
       `[job] context-core: no eval config for ${namespace}, skipping`,

@@ -1,8 +1,4 @@
-// The validate station: the exact same createValidateHandler the Floor used to
-// run in-process, composed for the pod — the initializer already cloned the
-// branch at $WORKSPACE_DIR/target, so validation runs against the real checkout
-// in this image's toolchain (no relay sidecar needed, superseding ADR-025's
-// relay for assembly-line validation).
+// Pod-based validate station (branch pre-cloned at $WORKSPACE_DIR/target, no relay; ADR-025).
 
 import * as path from "node:path";
 import { execFile as execFileCb } from "node:child_process";
@@ -16,8 +12,7 @@ import type { StationEnv } from "../lib/station.js";
 
 const execFile = promisify(execFileCb);
 
-/** Changed files vs the clone's default branch, to scope lint/typecheck; undefined
- *  (validate everything) when the diff can't be derived (fresh branch, no origin). */
+/** Changed files vs default branch to scope lint/typecheck; undefined if diff unavailable. */
 async function changedFiles(gitDir: string): Promise<string[] | undefined> {
   try {
     const { stdout } = await execFile("git", [

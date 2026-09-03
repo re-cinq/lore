@@ -23,12 +23,7 @@ function scopeNote(orgScope: boolean, inherited: boolean): string {
   return "This is a project agent for this repo, overriding the organisation default.";
 }
 
-/**
- * Full-page create/edit form for an agent, shared by /agents/new and
- * /agents/[name]/edit. On success the page's server action redirects back to
- * the list; on error it returns a message. Editing an org agent forks a
- * project agent (the action calls saveAgent with isUpdate, which upserts).
- */
+/** Agent create/edit form; org editing forks to project agent (upserts via saveAgent). */
 export default function AgentForm({
   repo,
   agent,
@@ -41,12 +36,9 @@ export default function AgentForm({
   agent: AgentDefinition | null;
   action: AgentFormAction;
   isNew: boolean;
-  /** The platform default runner image — shown as the image placeholder so the
-   *  inherited image is visible without prefilling it as a (gated) value. */
+  /** Default runner image for placeholder (shows inherited, not prefilled). */
   defaultImage?: string;
-  /** Org-default editing (the global /agents editor): the provenance note says
-   *  the save lands org-wide, and the image + approval inputs are hidden — the
-   *  API refuses an org image change (the two-key ceremony is repo-scoped). */
+  /** Org-default editing hides image+approval (API refuses org image change). */
   orgScope?: boolean;
 }) {
   const [state, formAction] = useActionState(action, {});

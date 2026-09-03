@@ -8,13 +8,11 @@ import { createHash } from "node:crypto";
 export type RateBucket = "webhook" | "task" | "embed" | "turns" | "default";
 
 const RATE_LIMITS: Record<RateBucket, number> = {
-  webhook: 30, // 30/min for webhooks
-  task: 60, // 60/min for task operations
-  // Own bucket, sized under Vertex's RPM quota: a changed-spec batch is hundreds of embed POSTs/sec (250 calls all 429'd on 2026-07-17 under `default`).
+  webhook: 30,
+  task: 60,
   embed: 1200,
-  // Own bucket, same reason as embed: a local run's transcript relay bursts dozens of ≤~700KB batches at run end.
   turns: 300,
-  default: 200, // 200/min for everything else
+  default: 200,
 };
 
 const windows = new Map<string, number[]>();

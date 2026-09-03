@@ -8,10 +8,7 @@ const STATUS_COLORS: Record<string, string> = {
   closed: "var(--border-hover)",
 };
 
-/**
- * Pure PR-status pill. Presentational (data down): the polling lives in
- * PRStatusBadgePanel, which threads the resolved status in as a prop.
- */
+/** Pure PR-status pill; polling lives in Panel via data-down prop. */
 export default function PRStatusBadge({ status }: { status: string | null }) {
   if (!status) {
     return null;

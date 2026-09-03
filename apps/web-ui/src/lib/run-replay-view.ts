@@ -1,11 +1,4 @@
-// The run graph's data AS OF a replay cursor (spec FR4.6b). The final/live view
-// reads verdicts and the taken path straight from the persisted walk rows; this
-// lens gates each row behind the replayed reducer state, so a verdict becomes
-// visible only once the cursor has applied that node-iteration's `result` event.
-// The verdict VALUE still comes only from the row — never from the event's
-// isError — which preserves the walk-rows-are-authoritative invariant (a review
-// pod that exits 0 with a failed verdict reads Failed the moment its result
-// event replays, and reads Running before it).
+// Run graph data as of a replay cursor (spec FR4.6b); verdicts gate on replayed state; walk rows stay authoritative (not event.isError).
 
 import type { AssemblyLineDefinition } from "./assembly-line-definition";
 import type { AssemblyRunNode } from "./assembly-runs";
@@ -13,11 +6,7 @@ import type { NodeRunState } from "./run-event-reducer";
 import type { RunData } from "./graph-view-model";
 import { takenEdgeKeys } from "./run-taken-edges";
 
-/**
- * The newest walk row per node — max iteration wins regardless of row order, so
- * the pick never depends on the query's ORDER BY. Shared by the final-state run
- * data, the detail card's row pick, and the replay lens below.
- */
+/** Newest walk row per node; max iteration wins regardless of ORDER BY; shared by final-state and replay lens. */
 export function latestRowByNode(
   rows: readonly AssemblyRunNode[],
 ): Map<string, AssemblyRunNode> {
@@ -38,9 +27,7 @@ function rowCompleted(
   state: NodeRunState | undefined,
   row: AssemblyRunNode,
 ): boolean {
-  // An idle node has completed nothing, whatever iteration a replayed
-  // non-lifecycle event stamped on it (the reducer raises `iteration` on every
-  // event but only leaves "idle" on an init) — so idle never releases a row.
+  // Idle nodes never complete rows; reducer stamps iteration but leaves status idle on non-lifecycle events.
   if (!state || state.status === "idle") {
     return false;
   }
@@ -55,12 +42,7 @@ function rowCompleted(
   );
 }
 
-/**
- * The walk rows whose completion the replayed state has reached: the node moved
- * past the row's iteration, or sits on it with a terminal status (its `result`
- * event applied). A node still running its row's iteration has not completed it,
- * so the row's outcome may not show yet.
- */
+/** Walk rows whose completion the replayed state has reached; node past row's iteration or sits on it with terminal status. */
 export function completedRowsAt(
   rows: readonly AssemblyRunNode[],
   nodeStates: Readonly<Record<string, NodeRunState>>,
@@ -68,11 +50,7 @@ export function completedRowsAt(
   return rows.filter((row) => rowCompleted(nodeStates[row.nodeId], row));
 }
 
-/**
- * RunData as of the replayed state: the taken path and the verdicts grow and
- * shrink with the cursor, a node the replay has not reached disappears from run
- * mode, and `result` stays null so no terminal badge claims an ending mid-replay.
- */
+/** RunData as of replayed state; path and verdicts grow/shrink with cursor; result stays null mid-replay (no terminal badge). */
 export function replayRunData(
   definition: AssemblyLineDefinition | null,
   rows: readonly AssemblyRunNode[],

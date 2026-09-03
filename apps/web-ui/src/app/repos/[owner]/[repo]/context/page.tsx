@@ -16,13 +16,11 @@ export default async function RepoContext({
   const { q, type } = await searchParams;
   const fullName = `${owner}/${repo}`;
 
-  // The chip set is data-driven — only content types actually present, and
-  // unaffected by the active filter/search so chips never disappear.
+  // Chip set is data-driven; unaffected by filter/search so chips never disappear
   const typeResult = await getChunkTypes(fullName);
   const types = typeResult.status === "ok" ? typeResult.data.types : [];
 
-  // The first page renders server-side; the rest pages in client-side via
-  // LoadMore against the context API route.
+  // First page server-side; rest pages client-side via LoadMore
   const page = await fetchRepoChunks(fullName, type, q, 0);
   const hasMore = page.hasMore;
   const chunks = (page.chunks as unknown as RepoContextChunk[]).map((c) => ({

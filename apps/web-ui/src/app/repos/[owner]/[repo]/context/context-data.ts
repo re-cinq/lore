@@ -1,11 +1,7 @@
 import { getChunks } from "@/lib/api/chunks";
 import { CONTEXT_PAGE_SIZE, type ContextChunkPage } from "./pagination";
 
-/**
- * A page of one repo's context chunks, shared by the server page (offset 0) and
- * the Load-more API route. lore-api returns one row past the page size, so
- * `hasMore` needs no separate COUNT.
- */
+/** Fetch one page of repo's context chunks; lore-api returns +1 row to compute hasMore without COUNT. */
 export async function fetchRepoChunks(
   repo: string,
   type: string | undefined,

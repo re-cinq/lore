@@ -14,9 +14,6 @@ vi.mock("@re-cinq/lore-server-core/platform/db.js", () => ({
 
 const originalEnv = { ...process.env };
 
-// The rate-limit ext (onPreAuth) governs native routes; the legacy dispatcher
-// still governs bridged routes. Each request is counted exactly once — the ext
-// skips the catch-all bridge and /healthz — so thresholds are preserved (SC-4).
 describe("rate-limit ext", () => {
   useRateLimitSafeClock();
   beforeEach(() => {

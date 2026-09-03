@@ -1,17 +1,6 @@
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { Octokit } from "octokit";
 
-/**
- * Two-key authorization for privileged dark-factory settings changes
- * (FR3.9, R9). The caller has already passed bearer-token + admin-scope
- * validation; this layer adds the CODEOWNERS-approval PR check.
- *
- * Ceremony: an open PR labeled `dark-factory-approval` whose label was
- * applied by a CODEOWNERS member of the affected repo's `CLAUDE.md`.
- * The PR itself is the audit ceremony; once the settings PUT succeeds
- * the PR can be merged or closed separately as a record.
- */
-
 export const APPROVAL_LABEL = "dark-factory-approval";
 
 export interface ApprovalEvidence {
@@ -61,15 +50,7 @@ export function parsePrRef(ref: string): {
   return { owner: m[1], repo: m[2], number: Number.parseInt(m[3], 10) };
 }
 
-/**
- * Verify the approval ceremony. Returns the recorded evidence on
- * success; throws TwoKeyError otherwise.
- *
- * `targetRepo` is the repo whose dark-factory settings are being
- * mutated; the approval PR must be against the same repo (or a
- * centrally-managed `lore-settings` repo where rules apply by path).
- * For v1 we require the same repo.
- */
+/** Verify the approval ceremony; returns evidence or throws TwoKeyError. Approval PR must match targetRepo (FR3.9). */
 export async function verifyApproval(opts: {
   octokit: Octokit;
   prRef: string;
@@ -129,8 +110,7 @@ export async function verifyApproval(opts: {
     );
   }
 
-  // Octokit types `events.data` as a discriminated union; `label` only
-  // exists on `labeled`/`unlabeled` variants. Narrow + cast.
+  // Octokit discriminated union: `label` exists only on `labeled`/`unlabeled` variants.
   const labelEvent = events.data.find((e) => {
     if (e.event !== "labeled") {
       return false;
@@ -151,13 +131,7 @@ export async function verifyApproval(opts: {
   const codeowners = await fetchCodeowners({ octokit, owner, repo });
 
   if (!isCodeowner(approver, codeowners)) {
-    // Distinguish "no @user matched" from "the file only lists team
-    // handles". Team-membership lookup against the GitHub team API is
-    // a follow-up (it requires a `read:org` token and per-team caching).
-    // For v1 we surface a distinct error code so operators can tell at a
-    // glance whether they need to update CODEOWNERS to include direct
-    // user handles for the approver, vs. the approver genuinely being
-    // out of scope.
+    // Team-membership lookup against GitHub team API is a follow-up; v1 requires direct @user handles in CODEOWNERS.
     enforceTrue(
       !(
         codeowners.length > 0 &&
@@ -182,11 +156,7 @@ export async function verifyApproval(opts: {
   };
 }
 
-/**
- * Fetch CODEOWNERS file content (tries .github/, root, docs/ in that
- * order, GitHub's canonical lookup order). Returns the parsed line
- * tuples — each tuple is [pattern, owners[]]. Empty array on missing.
- */
+/** Fetch CODEOWNERS file (.github/, root, docs/); returns [pattern, owners[]] or empty array. */
 async function fetchCodeowners(opts: {
   octokit: Octokit;
   owner: string;
@@ -247,12 +217,7 @@ function parseCodeowners(
   return out;
 }
 
-/**
- * Check whether `login` is a CODEOWNERS member, anywhere in the file.
- * For v1 we only check membership at all (the approver of a settings
- * change must be *some* CODEOWNER of the repo — not necessarily of a
- * specific path). Tightening to per-path CODEOWNERS is a follow-up.
- */
+/** Check if login is a CODEOWNERS member anywhere (v1: whole-repo check, not per-path). */
 export function isCodeowner(
   login: string,
   codeowners: Array<{ pattern: string; owners: string[] }>,

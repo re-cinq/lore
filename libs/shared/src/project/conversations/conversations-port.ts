@@ -1,17 +1,4 @@
-/**
- * pipeline.agent_conversations — the conversations a run can continue
- * (ai-agent-subsystem#188).
- *
- * A run's agent conversation is saved so a LATER run resumes it instead of being
- * re-briefed from scratch. Only the INDEX lives here; the archive bytes go through
- * the ArchivePort that already stores raw run streams, so nothing in Postgres grows
- * with transcript size.
- *
- * Threads are keyed by `(kind, value, nodeId)` and never by anything feature-shaped:
- * the assembly-line engine names a thread with `continues.key` = `line` / `task` /
- * `args.<name>` and knows nothing about features. Planning happens to key on
- * `args.feature_id`; another consumer could key on `args.customer_id` unchanged.
- */
+/** Conversation storage for run resumption, keyed by thread (line/task/args), not features. */
 
 /** How a thread's key was derived — mirrors `continues.key` in the definition. */
 export type ThreadKind = "line" | "task" | "args";
@@ -23,27 +10,13 @@ export interface ConversationThread {
   nodeId: string;
 }
 
-/**
- * One node execution — the identity a conversation actually belongs to.
- *
- * A line was enough while every round was its own line. On a line whose rounds are
- * REVISITS (the merged planning line, FR6.21) they all share the id, so anything
- * addressing a round by line alone either excludes its own siblings or resumes the
- * wrong one. `iteration` omitted means "any execution on that line" — the shape a
- * one-round-per-line consumer still has.
- */
+/** Node execution identity: line id + optional iteration for revisits (merged planning line, FR6.21). */
 export interface ExecutionRef {
   assemblyLineId: string;
   iteration?: number;
 }
 
-/**
- * A PROJECTION of `pipeline.agent_conversations`, not the model: the six fields
- * a reader of a stored transcript needs. `keyKind`/`keyValue`/`nodeId` are the
- * write-side key the row was reserved under, and `iteration` belongs to the
- * dispatch that reserved it — none of them is anything a reader of the object
- * asks for. A port that wants six columns should say six columns.
- */
+/** Projection of pipeline.agent_conversations — six fields for transcript readers, not the write-side key. */
 export interface ConversationRecord {
   id: string;
   conversationId: string;
@@ -71,17 +44,7 @@ export interface ConversationsPort {
     bytes: number,
   ): Promise<boolean>;
 
-  /**
-   * The SAVED conversation a new run continues: the most recent one on the thread,
-   * or — when `from` names one — that execution's specifically. Rows without
-   * an archive are skipped: a reserved id whose run never uploaded cannot be resumed,
-   * and offering it would send a pod after an object that does not exist.
-   *
-   * An explicit `from` that resolves to nothing returns null rather
-   * than falling back to the newest. That is the REWIND contract: the author asked
-   * for round 2, and quietly resuming round 4 instead would be indistinguishable
-   * from a rewind that worked.
-   */
+  /** Saved conversation most recent on thread, or rewind to specific execution; skips rows without archives. */
   latestFor(
     thread: ConversationThread,
     opts?: {

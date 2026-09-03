@@ -8,12 +8,7 @@ export interface SaveState {
 
 export const INITIAL_SAVE_STATE: SaveState = { saved: false, privileged: null };
 
-/**
- * Pure feedback banner for the settings save. General fields persist directly;
- * privileged (dark_factory / execution.image) fields route through the two-key
- * gated API, so their outcome — applied, blocked pending a CODEOWNERS PR, or an
- * error — is surfaced separately.
- */
+/** Feedback banner for settings save; general fields persist directly; privileged fields gate through two-key API. */
 export default function SaveResultBanner({ state }: { state: SaveState }) {
   if (!state.saved) {
     return null;

@@ -20,9 +20,6 @@ describe("dispatchTypeFromLabels", () => {
   });
 
   it("gives every seeded label a task type it can dispatch to", () => {
-    // The whole point of one table: a label a repo is given must be a label the
-    // webhook understands. Seeding one the reader has never heard of dispatches
-    // it as the repo's default type instead of the one it names.
     for (const label of DISPATCH_LABELS) {
       expect(dispatchTypeFromLabels([label.name])).toBe(label.taskType);
     }

@@ -245,7 +245,6 @@ describe("AuditView", () => {
 
     expect(prev).not.toHaveClass("disabled");
     expect(next).not.toHaveClass("disabled");
-    // offset 0 omits the offset param; filters preserved
     expect(prev).toHaveAttribute(
       "href",
       "/audit?agent=abcdef0123456789&op=search",

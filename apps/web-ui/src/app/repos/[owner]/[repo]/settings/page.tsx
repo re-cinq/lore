@@ -22,8 +22,7 @@ async function saveSettings(
   const fullName = formData.get("full_name") as string;
   const team = formData.get("team") as string;
 
-  // General (non-privileged) → direct DB, shallow-merged into settings JSONB.
-  // Dark-factory (privileged) lives on the Dark Factory tab; agents on the Agents tab.
+  // General → direct DB; dark-factory (privileged) on Dark Factory tab; agents on Agents tab.
   const updates = parseSettingsForm(formData);
   const selectedRepos = updates.cross_repo_repos as string[];
 

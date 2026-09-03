@@ -35,16 +35,12 @@ describe("parkedNode", () => {
   });
 
   it("ignores a row that already reported an outcome", () => {
-    // Reporting twice would either be dropped or, worse, advance a walk that has
-    // already moved on.
     expect(
       parkedNode("running", [node("author", 1, "success")], "author"),
     ).toBeNull();
   });
 
   it("ignores a waiting row for a different node", () => {
-    // The same line parks twice — once on the author, once on the spec PR merge —
-    // so a bare "is anything waiting" test would report the wrong one.
     expect(
       parkedNode("running", [node("author", 2, null)], "merged"),
     ).toBeNull();
@@ -61,8 +57,6 @@ describe("parkedNode", () => {
   });
 
   it("takes the newest waiting row when the node was revisited", () => {
-    // A revisit mints a new (nodeId, iteration) row; the open one is the current
-    // park, and an older open row would resume a walk that already passed it.
     expect(
       parkedNode(
         "running",
@@ -81,7 +75,6 @@ describe("parkedNode", () => {
   });
 
   it("treats a queued line as open", () => {
-    // A line can be parked before the walk has been driven once.
     expect(
       parkedNode("queued", [node("author", 1, null)], "author"),
     ).toMatchObject({ nodeId: "author" });
@@ -90,9 +83,6 @@ describe("parkedNode", () => {
 
 describe("parkedHumanNode", () => {
   it("locates the parked row by the graph node's TYPE, not its id", () => {
-    // The blueprint may name its wait node anything; the run's own graph carries
-    // the type, so a renamed node keeps resuming (the pr_merged join died of
-    // exactly this — FR6.32).
     expect(
       parkedHumanNode(
         "running",

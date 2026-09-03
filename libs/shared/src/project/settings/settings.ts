@@ -1,10 +1,7 @@
 import type { ResolvedDarkFactorySettings } from "../../dark-factory-settings.js";
 import type { SettingsPort, RepoRecord } from "./settings-port.js";
 
-/**
- * project.settings — resolved repo settings + repo config writes, repo bound.
- * All resolution lives in the existing resolveDarkFactorySettings behind the port.
- */
+/** Repo-bound settings; resolution delegated to SettingsPort. */
 export class Settings {
   constructor(
     private readonly repo: string,

@@ -40,9 +40,6 @@ describe("POST /api/webhook/ci-tests", () => {
 
     expect(res.statusCode).toBe(202);
     expect(res.result).toEqual({ ingested: 1 });
-    // `repo` is lifted out and everything else becomes the payload — the binary
-    // sends tests and results together, and dropping either half would leave the
-    // graph with descriptors nothing ran, or runs nothing described.
     expect(vi.mocked(insertEventList).mock.calls[0]).toEqual([
       [
         {
@@ -97,7 +94,7 @@ describe("POST /api/webhook/ci-tests", () => {
 
   it("returns 400 with the mapper message on a valid JSON body that fails validation", async () => {
     process.env.LORE_INGEST_TOKEN = "right-token";
-    const res = await authed(JSON.stringify({ repo: "re-cinq/lore" })); // missing commit
+    const res = await authed(JSON.stringify({ repo: "re-cinq/lore" }));
 
     expect(res.statusCode).toBe(400);
     expect(res.result).toMatchObject({ error: "missing commit" });

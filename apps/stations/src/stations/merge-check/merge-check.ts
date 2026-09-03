@@ -1,10 +1,4 @@
-// Moved from the Floor (ADR-024's service-endpoint station form). A once-a-minute
-// sweep over merged/closed PRs is a unit of work with one summary line, and it
-// needed none of what a pod gives an assembly-line node — but it does need 25
-// data calls, which is exactly why it belongs beside the data rather than behind
-// an HTTP seam.
-//
-// Only its imports changed.
+// Moved from the Floor (ADR-024): once-a-minute sweep over merged/closed PRs.
 
 import {
   pipeline,
@@ -28,13 +22,7 @@ import {
 import type { Project, StatusFlipResult } from "@re-cinq/lore-shared";
 import type { MergeableTask } from "@re-cinq/lore-shared/project/tasks/task-queue-port.js";
 
-/**
- * Fallback: when a feature-request task's PR merges and the webhook was missed,
- * read tasks.md from the repo and sync spec-tasks into the pipeline. Goes through
- * the same shared `syncTasksToDb` writer as the webhook path (jobs/github.ts) so
- * both upsert identically — the fallback used to hand-roll an insert-only loop,
- * which diverged (no update-on-existing, different created_by).
- */
+/** Fallback: sync spec-tasks when feature-request PR merges but webhook missed. */
 export async function syncSpecTasksFromMerge(task: {
   id: string;
   target_repo: string;
@@ -98,8 +86,7 @@ export async function mergeCheckJob(): Promise<string> {
 
   for (const repo of repos) {
     try {
-      // Extract owner/repo and PR number from URL
-      // e.g. https://github.com/org/repo/pull/42
+      // Extract owner/repo and PR number from URL: https://github.com/org/repo/pull/42
       const match = repo.onboarding_pr_url.match(
         /github\.com\/([^/]+)\/([^/]+)\/pull\/(\d+)/,
       );
@@ -123,10 +110,7 @@ export async function mergeCheckJob(): Promise<string> {
         continue;
       }
 
-      // Closed without merging — the usual outcome when the scaffolding came
-      // out wrong. The url no longer describes an onboarding in progress, and
-      // leaving it set would refuse every later submission for this repo as
-      // "pr-open" forever, since nothing else ever clears it (#968).
+      // Closed without merging: clear onboarding URL to allow resubmission (#968).
       if (await project.pulls.isClosed(number)) {
         await settings().clearOnboardingPrUrl(repo.id);
         console.log(
@@ -152,10 +136,7 @@ export async function mergeCheckJob(): Promise<string> {
       const project = await projectFor(task.target_repo);
 
       if (await project.pulls.isMerged(task.pr_number)) {
-        // The sweep NOTICES the merge; the line does the work. Nine steps
-        // behind five swallowing catches became nine recorded visits whose
-        // failures route forward — a throw in `promoteTrust` no longer skips
-        // `resume-planning` and strands a feature's planning line.
+        // The line does the work; nine steps expose failures that route forward.
         await startMergeLine(task, {
           findOpenBySubject: (repo, key) =>
             pipeline().assemblyRuns.findOpenBySubject(repo, key),
@@ -186,11 +167,7 @@ export async function mergeCheckJob(): Promise<string> {
   return `Checked ${repos.length} repos (${mergedCount} merged), ${tasks.length} tasks (${tasksMerged} merged, ${tasksClosed} rejected)`;
 }
 
-/**
- * spec-status-upkeep FR1 gate (pure). Returns the owning `featureId` when a
- * just-merged task completes its feature's group — a spec-task, in a group,
- * with `remainingInGroup === 0`, carrying a `feature_id` — else null.
- */
+/** Decide whether merged task completes its feature's task group (pure). */
 export function decideSpecStatusFlip(
   task: Pick<MergeableTask, "task_type" | "task_group_id" | "context_bundle">,
   remainingInGroup: number,
@@ -207,13 +184,7 @@ export function decideSpecStatusFlip(
   return featureId ? { featureId } : null;
 }
 
-/**
- * Keep the features table and the spec file in sync (FR1's invariant): a feature
- * is implemented only when its spec now claims `shipped` — freshly flipped, or
- * already claiming it. An `in-progress` outcome (test-link coverage short of
- * full), a missing / status-row-less / terminal spec, or one with no testable
- * statement to confirm the claim, is left for a human to reconcile.
- */
+/** Keep features table in sync with spec status (FR1). */
 export function decideFeatureImplemented(result: StatusFlipResult): boolean {
   return (
     result.status === "shipped" &&
@@ -221,16 +192,7 @@ export function decideFeatureImplemented(result: StatusFlipResult): boolean {
   );
 }
 
-/**
- * spec-status-upkeep FR1. When `task`'s merge completes its feature's task
- * group, resolve the owning feature and open a deterministic one-line PR setting
- * the spec's `| Status |` header to whatever its test-link coverage entitles it
- * to claim, then transition the feature to `implemented` only if that status is
- * `shipped`. A merged task group no longer implies completion on its own — a
- * spec whose statements are not all linked lands `In Progress`, and its feature
- * is left for a human to reconcile. No-op for non-spec-tasks, groupless tasks,
- * incomplete groups, or unresolvable features.
- */
+/** spec-status-upkeep FR1: flip spec status on group merge (ADR-016). */
 export async function maybeFlipSpecStatus(
   project: Project,
   task: MergeableTask,
@@ -271,8 +233,7 @@ export async function maybeFlipSpecStatus(
   );
 }
 
-/** A merged task: mark merged, close its Issue, capture the outcome episode + stats,
- *  boost contributing memory, promote trust, and kick spec-sync / decompose. */
+/** A merged task: mark merged, close Issue, boost memory, promote trust. */
 
 /** A PR closed without merging: mark failed and penalize contributing memory. */
 async function handleRejectedTask(task: MergeableTask): Promise<void> {
@@ -296,8 +257,7 @@ async function handleRejectedTask(task: MergeableTask): Promise<void> {
   await applyOutcomeFeedback(task.id, "penalize");
 }
 
-/** Boost or penalize a task's contributing facts/memories (PR-outcome feedback).
- *  Best-effort; single source for the previously duplicated boost/penalize blocks. */
+/** Boost or penalize task facts/memories by PR outcome. */
 export async function applyOutcomeFeedback(
   taskId: string,
   action: "boost" | "penalize",
@@ -331,9 +291,7 @@ export async function applyOutcomeFeedback(
   }
 }
 
-/** Progressive trust: bank one successful merge, promoting a level when the
- *  threshold is reached. The ladder itself is `nextTrust` — this only writes
- *  what it decides. Best-effort: a failure here must not fail a merge. */
+/** Bank one successful merge for progressive trust promotion. */
 export async function promoteTrust(targetRepo: string): Promise<void> {
   try {
     const repoSettings = await settings().rawSettings(targetRepo);

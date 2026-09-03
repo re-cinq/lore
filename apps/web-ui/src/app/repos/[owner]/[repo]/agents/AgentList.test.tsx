@@ -10,7 +10,6 @@ import type {
 } from "@/lib/agents-api";
 
 const base = "/repos/re-cinq/lore";
-/** The usage envelope: refs from the blueprint walk, verdicts from clusters. */
 const usageOf = (
   refs: Record<string, AgentUsageRef[]>,
   applied: Record<string, AgentApplyStatus[]> = {},

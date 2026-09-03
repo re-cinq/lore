@@ -5,11 +5,7 @@ import type {
   StoredAuditLogEntry,
 } from "./audit-port.js";
 
-/**
- * Postgres-backed {@link AuditPort}: a single INSERT into
- * `pipeline.audit_log`. Relocated from the agent's `repositories/audit-log`
- * so the runner reaches the audit trail through the Project facade.
- */
+/** Postgres-backed {@link AuditPort}: a single INSERT into `pipeline.audit_log`. Relocated from the agent's `repositories/audit-log` so the runner reaches the audit trail through the Project facade. */
 export class PgAudit implements AuditPort {
   constructor(private readonly pool: PgPool) {}
 

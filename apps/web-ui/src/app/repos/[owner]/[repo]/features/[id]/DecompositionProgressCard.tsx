@@ -3,13 +3,7 @@
 import { Alert } from "@/components/Alert";
 import { TimeAgo } from "@/components/TimeAgo";
 
-// The spec PR merged and the line resumed: the `decompose` agent is breaking the
-// spec into user stories and tasks, or the `issues` station is filing them.
-//
-// Naming WHICH is working matters — they fail for different reasons. A decompose
-// that cannot break down a thin spec is a question for the author; an issues
-// station that rejects a label the repo does not have sends the artifact back for
-// one correction.
+// decompose/issues agents fail differently; naming which is working matters for troubleshooting.
 const WORKING: Record<string, string> = {
   decompose: "Breaking the spec into user stories and tasks",
   issues: "Filing the Issues and spec-tasks on GitHub",

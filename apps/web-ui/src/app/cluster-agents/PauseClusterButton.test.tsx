@@ -14,7 +14,6 @@ describe("PauseClusterButton", () => {
   });
 
   it("offers Resume for a paused cluster and asks to un-pause it", () => {
-    // The switch is a toggle, not a one-way door.
     const toggle = vi.fn().mockResolvedValue(undefined);
 
     render(<PauseClusterButton paused toggle={toggle} />);

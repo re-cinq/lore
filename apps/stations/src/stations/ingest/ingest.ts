@@ -32,8 +32,8 @@ export interface IngestStationDeps {
   fetchPayload?: (eventId: string) => Promise<unknown>;
 }
 
-// Statement embedder proxied through the Lore API (FR4): run pods carry no GCP credentials, so Vertex rides POST /api/embed on the API's own access; the default for docs kinds when LORE_API_URL is set, injectable for tests.
-const EMBED_429_DELAYS_MS = [2000, 5000, 15000]; // Backoff before each 429 retry — a burst that outruns the API's embed bucket clears within the same sliding-window minute, so short waits win it back.
+// Vertex embeddings via the API (FR4) — pods have no GCP credentials.
+const EMBED_429_DELAYS_MS = [2000, 5000, 15000];
 
 export function apiEmbed(
   baseUrl: string,

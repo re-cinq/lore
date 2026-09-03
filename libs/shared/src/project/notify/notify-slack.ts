@@ -15,12 +15,7 @@ interface RepoNotifyRow {
   settings?: { dark_factory?: DarkFactorySettings; slack_channel_id?: string };
 }
 
-/**
- * NotifyPort over Slack. Reads the repo's notify channels + slack_channel_id
- * from lore.repos.settings, applies the relocated decideNotify, and posts to
- * Slack via fetch when the decision fires and a token + channel are present.
- * The decision is always returned; the send is best-effort.
- */
+/** NotifyPort over Slack; posts to Slack when decision fires and token + channel present. */
 export class NotifySlack implements NotifyPort {
   constructor(
     private readonly pool: PgPool,
@@ -44,8 +39,7 @@ export class NotifySlack implements NotifyPort {
     const decision = decideNotify(level, { channels });
 
     const token = this.env.LORE_SLACK_BOT_TOKEN;
-    // The override picks the destination; `decision` above already decided
-    // whether anything is posted at all.
+    // The override picks the destination; `decision` already decided whether to post.
     const channel = opts.channel ?? row?.settings?.slack_channel_id;
 
     if (decision.fire && token && channel) {

@@ -1,25 +1,12 @@
 import { zodResponse } from "../../../server/plugins/zod-response.js";
 import { z } from "zod";
-/**
- * `GET /api/repos/:o/:r/impact/base` — the commit whose line numbering the
- * repo's trace-graph ranges are expressed in.
- *
- * Separate from the POST because the client needs this BEFORE it can compute the
- * right diff: knowing the baseline is what lets it check, per file, whether its
- * diff's old side is in the same coordinate system as the graph. One ~50ms GET
- * in a job that already spends seconds on a full-history checkout.
- *
- * Fail-soft like its sibling: no Dgraph, or a query that errors, answers
- * `{ graphCommit: null }` rather than a 5xx, so the advisory check degrades to
- * "coordinates unverified" instead of failing the step.
- */
+/** The commit whose line numbering the graph's ranges are expressed in (needed for diff validation). */
 
 import type { ServerRoute } from "@hapi/hapi";
 import { createDgraphClient, readGraphBaseline } from "@re-cinq/lore-shared";
 import { bearerScope } from "../../../server/plugins/bearer-scope.js";
 
-// Shared, not cloned per response: hapi serialises it to JSON and never hands
-// the object to a caller who could mutate it.
+// Shared object (hapi serializes to JSON, never hands to caller).
 const UNSTAMPED = { graphCommit: null, graphCommitAt: null, source: "none" };
 
 /** The commit a repo's impact reports are measured against. */

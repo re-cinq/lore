@@ -4,11 +4,7 @@ import type { EventQueueRepository, EventRow } from "./event-queue-port.js";
 const MAX_ERROR_LEN = 2000;
 const at = (ms: number): string => new Date(ms).toISOString();
 
-/**
- * In-memory {@link EventQueueRepository}: the behavioral spec of the Pg adapter
- * over an array of rows. `now` is injectable so backoff/visibility windows are
- * deterministic in tests. Lets the loop + reaper be tested without a live DB.
- */
+/** In-memory EventQueueRepository: behavioral spec with injectable clock for deterministic tests. */
 export class InMemoryEventQueue implements EventQueueRepository {
   private seq = 0;
 

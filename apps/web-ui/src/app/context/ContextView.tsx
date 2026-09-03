@@ -16,12 +16,7 @@ export interface ContextViewProps {
   chunks: ContextChunk[];
 }
 
-/**
- * Presentational view for the global cross-repo context list. Pure render —
- * the container (`page.tsx`) runs the cross-schema queries (distinct types,
- * filtered + ranked chunks, capped at 50) and passes the resolved view-model
- * down. Each card carries its repo label and links to the global detail page.
- */
+/** Global cross-repo context list; pure render with repo labels and detail links. */
 export default function ContextView({
   type,
   q,

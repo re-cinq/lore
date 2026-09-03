@@ -17,13 +17,6 @@ import {
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { selectList, fromRow } from "@re-cinq/lore-shared/lib/row.js";
 import { REPO_COLUMNS, type Repo } from "@re-cinq/lore-shared/models/repo.js";
-/**
- * Repo onboarding module.
- *
- * Lists repos the GitHub App can access, compares against lore.repos,
- * and submits onboarding tasks to the Lore Agent pipeline so an agent can
- * inspect the repo and generate customized CLAUDE.md / onboarding PRs.
- */
 
 import { getOctokit } from "../../platform/github-client.js";
 import {
@@ -39,9 +32,7 @@ export interface InstallationRepo {
   name: string;
 }
 
-/**
- * Lists all repositories the GitHub App installation has access to.
- */
+/** Lists all repositories the GitHub App installation has access to. */
 export async function getInstallationRepos(): Promise<InstallationRepo[]> {
   const octokit = await getOctokit();
   const repos: InstallationRepo[] = [];
@@ -80,9 +71,7 @@ export interface RepoWithCounts extends Repo {
   activeAgents: number;
 }
 
-/**
- * Returns all repos from lore.repos.
- */
+/** Returns all repos from lore.repos. */
 export async function getOnboardedRepos(pool: Pool): Promise<Repo[]> {
   const { rows } = await pool.query<Record<string, unknown>>(
     `SELECT ${selectList(REPO_COLUMNS)}
@@ -93,9 +82,7 @@ export async function getOnboardedRepos(pool: Pool): Promise<Repo[]> {
   return rows.map((row) => fromRow<Repo>(REPO_COLUMNS, row));
 }
 
-/**
- * Returns a page of repos with pipeline task counts plus the unpaged total.
- */
+/** Returns a page of repos with pipeline task counts plus the unpaged total. */
 export async function getOnboardedReposWithCounts(
   pool: Pool,
   limit = 100,
@@ -129,9 +116,7 @@ export async function getOnboardedReposWithCounts(
   return { repos, total: countRows[0].total };
 }
 
-/**
- * Returns installation repos that are NOT yet in lore.repos.
- */
+/** Returns installation repos that are NOT yet in lore.repos. */
 export async function getAvailableRepos(
   pool: Pool,
 ): Promise<InstallationRepo[]> {
@@ -151,8 +136,7 @@ export interface OnboardResult {
   repo_id: string;
   task_id: string;
   status: string;
-  /** Outcome of pointing the repo's GitHub webhook at the Floor ingress (with
-   *  the HMAC secret). Best-effort — a skip never fails onboarding. */
+  /** Outcome of pointing the repo's GitHub webhook at the Floor ingress (with HMAC secret). */
   webhook: EnsureFloorWebhookResult;
 }
 
@@ -164,10 +148,7 @@ export interface OnboardBlockedResult {
   task_id: string | null;
 }
 
-/**
- * Reads the repo's onboarding state on `client`, which must already hold the
- * per-repo advisory lock so the read cannot go stale before the write.
- */
+/** Reads the repo's onboarding state on `client`, which must already hold the per-repo advisory lock. */
 async function readOnboardState(
   client: PoolClient,
   fullName: string,
@@ -187,18 +168,7 @@ async function readOnboardState(
 /** What the guarded transaction produced: the two ids, or the refusal. */
 type OnboardWrite = { repoId: string; taskId: string } | OnboardBlockedResult;
 
-/**
- * Runs the guard and, when it clears, both writes — the `lore.repos` upsert and
- * the onboard task — inside ONE transaction on ONE connection, holding the
- * per-repo advisory lock throughout.
- *
- * Both properties matter. Sharing the connection keeps a single onboard from
- * needing two pooled connections at once, which would deadlock the pool once
- * concurrent submissions reach its size (every waiter holds a connection while
- * blocked on the lock). Sharing the transaction keeps the failure truthful: a
- * task committed on its own connection could outlive a rolled-back repos row
- * and then block every retry as "in flight".
- */
+/** Runs both writes (repos upsert + task) on ONE connection + transaction, holding per-repo advisory lock to avoid deadlocks and ensure atomicity. */
 interface RepoIdentity {
   fullName: string;
   owner: string;
@@ -234,8 +204,7 @@ async function writeOnboard(
     };
   }
 
-  // Upsert first: the task's trust gate reads this row, and re-onboarding
-  // refreshes the timestamp.
+  // Upsert first so task's trust gate reads this row; re-onboarding refreshes timestamp.
   const { rows } = await client.query<{ id: string }>(
     `INSERT INTO lore.repos (owner, name, full_name)
        VALUES ($1, $2, $3)
@@ -273,20 +242,7 @@ function logWebhookOutcome(
   );
 }
 
-/**
- * Onboards a repo by inserting it into lore.repos and submitting an
- * "onboard" task to the Lore Agent pipeline. The agent will inspect the repo,
- * understand its tech stack, and generate a customized CLAUDE.md plus
- * supporting files — then open a single onboarding PR.
- *
- * Guarded: an already-onboarded repo, one with an onboarding PR still open, or
- * one with an onboard task in flight is refused rather than given a second task
- * (each task files its own Issue and races its own PR — see issue #968). Pass
- * `reonboard` for the deliberate repair path, which may run against an
- * onboarded repo but never against one still mid-onboarding. The read and both
- * writes share one transaction holding a per-repo advisory lock, so concurrent
- * submissions produce at most one task and a failure queues nothing.
- */
+/** Onboards a repo by inserting into lore.repos and submitting an onboard task; guarded against duplicates via per-repo advisory lock (#968). */
 export async function onboardRepo(
   pool: Pool,
   fullName: string,
@@ -316,9 +272,7 @@ export async function onboardRepo(
     return written;
   }
 
-  // Point the repo's GitHub webhook at the Floor ingress WITH the HMAC secret so
-  // events flow once the App is installed — without it, deliveries 401. Best-effort:
-  // a missing secret/host or a lacking App permission is reported, never fatal.
+  // Point the repo's GitHub webhook at the Floor ingress WITH the HMAC secret (best-effort).
   const webhook = await ensureFloorWebhook(fullName);
 
   logWebhookOutcome(webhook, fullName);
@@ -334,9 +288,9 @@ export async function onboardRepo(
 // ── Fetch repo context for onboarding agents ────────────────────────
 
 export interface RepoContext {
-  tree: string[]; // list of top-level file/dir names
-  files: Record<string, string>; // path -> content for key files
-  samples: Record<string, string>; // path -> first 200 lines of sampled source files
+  tree: string[];
+  files: Record<string, string>;
+  samples: Record<string, string>;
 }
 
 const KEY_FILES = [
@@ -357,18 +311,12 @@ const KEY_FILES = [
 
 const SAMPLE_DIRS = ["src", "lib", "cmd", "internal", "app", "pkg"];
 
-/**
- * Decodes base64-encoded file content returned by the GitHub API.
- */
+/** Decodes base64-encoded file content returned by the GitHub API. */
 function decodeContent(encoded: string): string {
   return Buffer.from(encoded, "base64").toString("utf-8");
 }
 
-/**
- * Fetches contextual information about a repo: top-level tree, key config
- * files, and a sample of source files from well-known directories.
- * Used by onboarding agents to understand a repo's tech stack.
- */
+/** Fetches repo context (tree, key files, source samples) for onboarding agents to understand tech stack. */
 export async function fetchRepoContext(fullName: string): Promise<RepoContext> {
   const [owner, repo] = fullName.split("/");
 
@@ -513,11 +461,7 @@ async function sampleSourceFiles(
 
 // ── Onboarding PR merge detection (T018) ────────────────────────────
 
-/**
- * Checks all repos with unmerged onboarding PRs. When a PR is found to
- * be merged, flips onboarding_pr_merged to true and sets last_ingested_at
- * so the nightly CronJob picks it up for initial ingestion (T019).
- */
+/** Checks all repos with unmerged onboarding PRs; marks merged PRs for nightly ingestion (T019). */
 export async function checkOnboardingPRs(pool: Pool): Promise<void> {
   const { rows } = await pool.query(
     `SELECT id, full_name, onboarding_pr_url FROM lore.repos

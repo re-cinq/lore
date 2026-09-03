@@ -193,7 +193,6 @@ describe("AssembledContextView — assembly trace", () => {
     expect(screen.getByText("context")).toBeInTheDocument();
     expect(screen.getByText("section")).toBeInTheDocument();
     expect(screen.getByText("document")).toBeInTheDocument();
-    // document body renders as markdown (the chunk's own heading, contained)
     expect(
       screen.getByRole("heading", { level: 2, name: "Decision" }),
     ).toBeInTheDocument();

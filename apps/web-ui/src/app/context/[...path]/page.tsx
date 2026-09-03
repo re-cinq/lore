@@ -26,8 +26,7 @@ export default async function GlobalContextFile({
     ? result.data.chunks
     : []) as unknown as ContextFileRow[];
 
-  // A file path is normally unique to one repo, but the global view spans every
-  // team schema — group by repo so each repo's chunks render independently.
+  // Group by repo: file path unique to one repo, but global view spans all schemas.
   const byRepo = new Map<string, ContextFileRow[]>();
 
   for (const row of rows) {

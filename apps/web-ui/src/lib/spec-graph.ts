@@ -1,8 +1,4 @@
-// Type shapes for the spec-traceability force-graph, consumed by SpecGraphD3 and
-// the /trace API client. The Dgraph queries + flatten logic now live in
-// @re-cinq/lore-shared (spec-trace/spec-graph.ts) and are served via the
-// mcp-server /trace/{graph,ring} endpoints — web-ui no longer queries Dgraph
-// directly. web-ui is not a workspace member, so these mirror the API JSON.
+// Mirrors API JSON shapes for spec-traceability force-graph (queries in @re-cinq/lore-shared, served via mcp /trace).
 
 export type SpecGraphNodeType =
   | "Feature"
@@ -23,8 +19,7 @@ export type SpecGraphNode = {
   line?: number;
   endLine?: number;
   detail?: string;
-  // Persistent feature lifecycle status + row id, when a Feature node is backed
-  // by a lore.features row (ADR-027). Drives status coloring + click-through.
+  // Feature lifecycle status (from lore.features row, ADR-027).
   status?: string;
   featureId?: string;
 };

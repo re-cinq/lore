@@ -24,11 +24,7 @@ export interface SeedRepo {
   onboarded_at?: Date | null;
 }
 
-/**
- * In-memory {@link SettingsPort}: the behavioral double over seeded `lore.repos`
- * rows, so jobs that read/write repo settings stay testable without a live DB.
- * Repo var/secret writes are captured in {@link vars}/{@link secrets}.
- */
+/** In-memory SettingsPort double; var/secret writes captured in {@link vars}/{@link secrets}. */
 export class InMemorySettings implements SettingsPort {
   readonly vars: Array<{ repo: string; name: string; value: string }> = [];
   readonly secrets: Array<{ repo: string; name: string; value: string }> = [];

@@ -1,12 +1,6 @@
 "use client";
 
-// Presentational ADR list, sourced from the spec-traceability graph via the
-// /trace API. Renders one SpecCard per summary (no coverage figure — ADRs have
-// none); each card links to the byte-exact ADR detail (reassembled from the
-// graph's Block layer). Lifecycle statuses are parsed from each ADR's
-// frontmatter (fetchDocStatusesFromGraph; statuses prop, keyed by file path)
-// and drive the filter chips. No Postgres reads — the graph is the source of
-// truth.
+// ADR list from graph /trace API; status filters from frontmatter (no Postgres).
 import { useState } from "react";
 import SpecCard from "../specs/SpecCard";
 import DocListControls from "@/components/DocListControls";

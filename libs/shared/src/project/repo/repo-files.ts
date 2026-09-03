@@ -1,11 +1,6 @@
 import type { CheckRunInput, GitHubPort } from "../lib/github-port.js";
 
-/**
- * project.repo — GitHub file access over the API, repo bound. READS need no
- * clone. The branch + single-file WRITES are also GitHub-API operations (no
- * clone) — that's the existing PR-build flow, preserved here. The clone-based
- * Workspace (Project.cache()) is the separate path for bulk local edits.
- */
+/** GitHub file access via API (no clone required); use Workspace for bulk edits. */
 export class RepoFiles {
   constructor(
     private readonly repo: string,
@@ -38,8 +33,7 @@ export class RepoFiles {
     return this.github.getDefaultBranch(this.repo);
   }
 
-  /** True/false when the backing adapter can answer, undefined when it cannot —
-   *  the caller must treat undefined as "don't touch the branch", never as "absent". */
+  /** True/false when adapter answers; undefined means "don't modify branch". */
   branchExists(branch: string): Promise<boolean> | undefined {
     return this.github.branchExists?.(this.repo, branch);
   }

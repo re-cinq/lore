@@ -1,7 +1,4 @@
-// Every decision the task page's coordinated refresh makes, as pure functions.
-// TaskRefreshProvider is the IO shell around this file — the same split as
-// run-stream-presenter on the assembly-runs page, whose stream vocabulary
-// (ConnectionState, isTerminalRunStatus) is reused rather than redefined.
+// Pure functions for coordinated refresh decisions.
 
 import {
   isTerminalRunStatus,
@@ -11,31 +8,20 @@ import {
 /** The one coordinated cadence that replaced the panels' 5s/10s/15s intervals. */
 export const COORDINATED_POLL_MS = 10_000;
 
-/**
- * The belt while the stream is live: PR reviews, CI checks, and GCS log flushes
- * change server-side without emitting an agent event, so the page still polls —
- * just slowly, because the stream carries the fast signal.
- */
+/** Heartbeat poll interval while stream is live. */
 export const STREAM_HEARTBEAT_POLL_MS = 30_000;
 
 /** Min gap between event-triggered refreshes; absorbs the catch-up replay burst. */
 export const EVENT_REFRESH_MIN_GAP_MS = 3_000;
 
-/**
- * The task-page projection of a pipeline.assembly_runs row. `created_at` is a
- * Date when the rows come off the server component's pg query (RSC serializes
- * Date as Date) and a string when they come off the JSON discovery route.
- */
+/** Task-page projection of a pipeline.assembly_runs row. */
 export interface LiveRunCandidate {
   id: string;
   status: string;
   created_at: string | Date;
 }
 
-/**
- * The run worth streaming: the newest non-terminal attempt, or null. Sorts
- * defensively — callers hand over whatever order their query returned.
- */
+/** Newest non-terminal attempt, or null. */
 export function pickLiveRun(runs: readonly LiveRunCandidate[]): string | null {
   const live = runs
     .filter((run) => !isTerminalRunStatus(run.status))
@@ -49,10 +35,7 @@ export function pickLiveRun(runs: readonly LiveRunCandidate[]): string | null {
 
 export type RefreshDriver = "stream" | "poll" | "idle";
 
-/**
- * What advances the page: nothing when no panel wants data; the SSE stream when
- * a live run exists and streaming is possible; a plain poll otherwise.
- */
+/** What advances the page: stream/poll/idle. */
 export function resolveRefreshDriver(input: {
   liveRunId: string | null;
   eventSourceAvailable: boolean;
@@ -74,11 +57,7 @@ export function resolveRefreshDriver(input: {
   return "stream";
 }
 
-/**
- * The single interval's cadence, or null for no interval at all. A stream that
- * is not yet live (connecting, reconnecting) still polls at the coordinated
- * cadence so a slow handshake never stalls the page.
- */
+/** Interval cadence, or null for no interval. */
 export function refreshIntervalMs(
   driver: RefreshDriver,
   connection: ConnectionState,
@@ -94,12 +73,7 @@ export function refreshIntervalMs(
   return COORDINATED_POLL_MS;
 }
 
-/**
- * How long an event-triggered refresh must wait: 0 means refresh now, a
- * positive delay means schedule a trailing refresh at the window boundary so
- * a burst's final events (typically the outcome writes) never wait for the
- * heartbeat. At most one refresh per EVENT_REFRESH_MIN_GAP_MS either way.
- */
+/** Event-triggered refresh delay: 0 means refresh now. */
 export function eventRefreshDelayMs(
   lastRefreshAtMs: number,
   nowMs: number,
@@ -107,12 +81,7 @@ export function eventRefreshDelayMs(
   return Math.max(0, EVENT_REFRESH_MIN_GAP_MS - (nowMs - lastRefreshAtMs));
 }
 
-/**
- * The higher of two numeric event ids — the stream cursor, compared as the
- * Floor compares it (numerically; the ids outgrow neither BigInt nor string,
- * but they do outgrow lexicographic order at every digit rollover). A
- * non-numeric candidate keeps the current cursor.
- */
+/** Higher of two numeric event ids, accounting for numeric comparison. */
 export function maxEventId(current: string, candidate: string): string {
   try {
     return BigInt(candidate) > BigInt(current) ? candidate : current;
@@ -129,14 +98,7 @@ const DISPATCHABLE_TASK_STATUSES: ReadonlySet<string> = new Set([
   "review",
 ]);
 
-/**
- * Whether the coordinator should check /api/tasks/:id/runs on this tick.
- * While a run is attached the check re-reads its recorded status, so a
- * finished run detaches (back to 10s polling) and a retry's fresh attempt can
- * take its place — a live stream never closes on its own, so without this the
- * attachment would be sticky for the tab's life. Unattached, the check runs
- * only while the task status can still mint a run. No active panel, no check.
- */
+/** Check /api/tasks/:id/runs on tick; run attached or task dispatchable. */
 export function runDiscoveryActive(input: {
   liveRunId: string | null;
   taskStatus: string;

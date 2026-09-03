@@ -1,15 +1,4 @@
-/**
- * Every station in the factory, and the contract they share.
- *
- * ONE registry, replacing the three that could not check each other: the pod
- * image's runner map, the service's URL map, and lore-api's maintenance map —
- * two of which had a byte-identical signature and no idea the other existed.
- *
- * A `Record<StationName, StationModule>`, not a Map: a name in the list with no
- * module is a COMPILE error, which is the whole point. The runner map it
- * replaces was `Record<string, …>`, so a missing entry reached a pod and died
- * there with `unknown station type`.
- */
+/** Registry of every station; missing entry = compile error, preventing "unknown station type" at pod runtime. */
 
 import type { StationModule } from "./lib/station.js";
 import { anthropicCostSync } from "./anthropic-cost-sync/manifest.js";

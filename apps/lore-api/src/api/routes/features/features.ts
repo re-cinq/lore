@@ -43,12 +43,7 @@ import {
   runIdBothSpellings,
 } from "./features-schema.js";
 
-/**
- * /api/repos/:owner/:repo/features[...] — the feature-planning surface. Writes
- * kick feature-planning / feature-finalize Stations; the pod posts each round's
- * GapResult back to .../iterations/:n/result. GET is `read`, POST and DELETE are
- * `write`. See specs/7-feature-planning/ and ADR-027.
- */
+/** Feature-planning surface: Stations write GapResult back per iteration (ADR-027). */
 
 const BASE = "/api/repos/{owner}/{repo}/features";
 
@@ -56,8 +51,7 @@ const repoOf = (p: Record<string, string>) => `${p.owner}/${p.repo}`;
 // hapi parses the payload natively (ADR-034); the 2 MB cap surfaces as a 413.
 const WRITE_PAYLOAD = { maxBytes: 2 * 1_048_576 } as const;
 
-/** ValidationError → 400, else → 500. A Boom passes through: it already carries
- *  the status its guard meant, and reshaping it would make every refusal a fault. */
+/** ValidationError → 400, else → 500; Boom passes through with its guard's status. */
 async function run(
   h: ResponseToolkit,
   fn: () => Promise<ResponseObject>,
@@ -77,9 +71,7 @@ async function run(
   }
 }
 
-/** Bind the shared planning sequence to this process's task queue.
- *  `repo` MUST be the `owner/repo` slug: it lands verbatim in `target_repo`,
- *  cloned as `github.com/<target_repo>.git`. */
+/** Binds planning sequence to task queue; repo lands verbatim in target_repo. */
 const createPlanningTask: StartPlanningDeps["createPlanningTask"] = async ({
   repo,
   description,
@@ -141,9 +133,7 @@ export function featuresRoutes(getPool: () => Pool | null): ServerRoute[] {
           );
           const repo = repoOf(request.params);
           const features = (await projectFor(repo)).features;
-          // The sequence and its one load-bearing ordering live in shared,
-          // under test. The route contributes what is HTTP: the payload it
-          // parsed and the 201 it answers with.
+          // Sequence logic in shared; route contributes HTTP payload parsing + 201 response.
           const started = await startFeaturePlanning(
             {
               repo,
@@ -187,8 +177,7 @@ export function featuresRoutes(getPool: () => Pool | null): ServerRoute[] {
         }),
     },
 
-    // GET .../features/:id/status — the wizard's 4s poll. NOT a `?view=` on GET
-    // :id, which carries every round's gap_result — too big to re-send that often.
+    // GET .../features/:id/status — the wizard's 4s poll; gap_result too big to re-send often.
     {
       method: "GET",
       path: `${BASE}/{id}/status`,
@@ -228,8 +217,7 @@ export function featuresRoutes(getPool: () => Pool | null): ServerRoute[] {
         run(h, async () => {
           const project = await projectFor(repoOf(request.params));
 
-          // An unknown id is NOT an empty tree — that is a feature not yet
-          // decomposed, and conflating them reports success for a typo.
+          // Unknown id is NOT empty tree; conflating them reports success for typos.
           enforceTrue(
             await project.features.get(request.params.id),
             apiError(404),
@@ -288,8 +276,7 @@ export function featuresRoutes(getPool: () => Pool | null): ServerRoute[] {
 
           enforceTrue(feature, apiError(404), "feature not found");
 
-          // One planning round per feature at a time (a stale page / double-click
-          // must not spawn a 2nd pod). An orphaned `running` past the window is dead.
+          // One planning round per feature; orphaned `running` past window is dead.
           const inFlight = roundInFlight(feature.iterations, Date.now());
 
           if (inFlight) {
@@ -302,16 +289,13 @@ export function featuresRoutes(getPool: () => Pool | null): ServerRoute[] {
           }
 
           const answers = parseSectionAnswers(body.user_answers);
-          // A rewind is the AUTHOR naming a round; a basis is resolved either way.
-          // Conflating them makes every round claim to be a rewind.
+          // Rewind is author-named; basis resolved either way; conflating them breaks rewind.
           const rewoundTo =
             typeof body.from_iteration === "number"
               ? body.from_iteration
               : undefined;
 
-          // The sequence — and its two load-bearing orderings — lives in shared,
-          // under test. The route contributes only what is HTTP: which error is
-          // a 400 and which a 409.
+          // Sequence logic in shared; route contributes only HTTP error status mapping.
           const round = await startRefinementRound(
             feature,
             { answers, rewoundTo },
@@ -366,15 +350,13 @@ export function featuresRoutes(getPool: () => Pool | null): ServerRoute[] {
             "iteration must be a non-negative integer",
           );
 
-          // feature.id is a global UUID: without this repo check a write-token
-          // holder could forge a result against another repo's feature.
+          // feature.id is global UUID; repo check prevents forging results.
           const features = (await projectFor(repoOf(request.params))).features;
           const feature = await features.get(id);
 
           enforceTrue(feature, apiError(404), "feature not found");
 
-          // Shared with the Floor's artifact-event handler, so a round reads the
-          // same however the pod delivered it.
+          // Shared with Floor's artifact-event handler; round reads same regardless of pod delivery.
           const applied = await applyGapResult(
             features,
             id,
@@ -390,13 +372,7 @@ export function featuresRoutes(getPool: () => Pool | null): ServerRoute[] {
         }),
     },
 
-    // POST .../features/:id/create-spec-file — accept the plan and let the SAME
-    // line walk on to the spec work. It was `/finalize`, which named neither what
-    // it does nor when: nothing is final here, the run simply moves to the next
-    // station and a human still reviews the spec PR that comes out. Served at both
-    // paths while the UI catches up (expand/contract, as #1423 and #1270 do) —
-    // lore-api and web-ui are separate workloads of the umbrella chart and are
-    // never atomically in step.
+    // POST .../features/:id/create-spec-file and /finalize; served both paths during UI rollout.
     ...[`${BASE}/{id}/create-spec-file`, `${BASE}/{id}/finalize`].map(
       (path): ServerRoute => ({
         method: "POST",
@@ -425,23 +401,15 @@ export function featuresRoutes(getPool: () => Pool | null): ServerRoute[] {
               apiError(409),
               `cannot finalize a feature in '${feature.status}' state`,
             );
-            // The author fills the form and accepts in one motion, so the accept
-            // carries answers exactly as a refine does. Dropping them left the last
-            // thing the author said about the plan out of the plan.
+            // Accept carries answers like refine; dropping them loses author feedback.
             const answers = parseSectionAnswers(body.user_answers);
-            // Accepting is the author station reporting `success`: the spec work runs
-            // on the SAME line, so what follows the accept is an edge, not a new run.
+            // Accepting reports success to author node; spec work runs on same line as edge.
             const { runId, parked } = await findParkedAuthorNode(
               project.assemblyRuns,
               id,
             );
 
-            // ONE guard, and it is structural. `canFinalize` reads feature.status,
-            // which does not move until a PR lands ~18min later, so it cannot tell a
-            // second press from a first; the parked node can — reporting an outcome
-            // to the author node is what un-parks it, so the second press finds
-            // nothing to report to. The run id rides the refusal because a duplicate
-            // press means "show me", not "you broke something".
+            // Structural guard: canFinalize + parked node detect double-click; run-id explains refusal.
             enforceTrue(
               parked,
               apiError(409, runIdBothSpellings(runId)),
@@ -451,16 +419,14 @@ export function featuresRoutes(getPool: () => Pool | null): ServerRoute[] {
             await reportToParkedNode(eventReporterFor(getPool()), parked, {
               outcome: "success",
               args: {
-                // Tail nodes read args.description as "the accepted plan"; without
-                // this the shallow merge leaves the last refine's brief there (#1470).
+                // Tail nodes read description; shallow merge would leave refine's brief (#1470).
                 description: composePlanningPrompt({
                   title: feature.title,
                   originalPrompt: feature.original_prompt,
                   priorGap: latestReadyGap(feature.iterations),
                   answers,
                 }),
-                // An omitted key SURVIVES the shallow merge, so both refine
-                // leftovers are nulled outright rather than left to steer.
+                // Omitted keys survive shallow merge; null them to clear refine leftovers.
                 round_feedback: null,
                 resume_from_iteration: null,
               },

@@ -4,9 +4,6 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { buildNodePrompt, buildPrompt, loadTaskTypes } from "./config.js";
 
-// One throwaway directory for every fixture this file writes, removed when it
-// finishes — a pid-named file in /tmp outlives the run and the next one reads
-// whatever the last one left.
 const FIXTURES = mkdtempSync(join(tmpdir(), "lore-task-types-"));
 const CONFIG = join(FIXTURES, "task-types.yaml");
 
@@ -77,9 +74,6 @@ describe("loadTaskTypes drift reporting", () => {
   const warnings: string[] = [];
   const realWarn = console.warn;
 
-  // `loadTaskTypes` writes module state every test in this file reads, so the
-  // restore is a declared hook rather than a `finally` inside one test — the
-  // next test to be added does not have to know it needs one.
   afterEach(() => {
     console.warn = realWarn;
     warnings.length = 0;
@@ -114,8 +108,6 @@ describe("loadTaskTypes drift reporting", () => {
   it("reads an entry with no body as empty rather than as null", () => {
     loadFixture("bodyless.yaml", "task_types:\n  general:\n");
 
-    // The diagnostic above is what a stale ConfigMap should produce. Keeping the
-    // null verbatim would instead throw a raw TypeError out of buildNodePrompt.
     expect(() => buildNodePrompt("general", "ship it")).toThrow(
       new Error(
         'task type "general" declares no prompt_template — the loaded task-types.yaml is older than this code',

@@ -4,11 +4,7 @@ import { useEffect, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import rehypeHighlight from "rehype-highlight";
 
-/**
- * Lazily fetches a TestChunk's source slice and renders it as a highlighted code
- * block. Language-agnostic: the text is wrapped in a bare ``` fence so
- * highlight.js auto-detects the language — works for any toolchain.
- */
+/** Fetches test source slice and renders as highlighted code; language auto-detected via fence. */
 export default function TestPreview({
   repo,
   path,

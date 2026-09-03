@@ -1,13 +1,6 @@
 "use client";
 
-// The task page's one refresh scheduler. The three data panels (timeline, logs,
-// PR status) used to each own a setInterval against their endpoint; this
-// provider replaces those with a single coordinated cadence, and — when the
-// task has a live assembly-line run — rides the existing run event stream as
-// an activity signal. Stream events only ever trigger refetches of the REST
-// endpoints; no event payload reaches panel state, so recorded outcomes stay
-// the only source badges render from. Every decision here is computed in
-// task-refresh-presenter; this file is the IO shell.
+// Single coordinated refresh cadence for all panels; IO shell for task-refresh-presenter logic.
 
 import {
   createContext,
@@ -41,23 +34,14 @@ interface TaskRefreshContextValue {
   live: boolean;
 }
 
-// The default is deliberately inert: a panel rendered without the provider
-// (isolation tests, storybook-style harnesses) keeps its mount fetch and
-// simply never auto-refreshes.
+// Default context is inert (for tests without the provider).
 const TaskRefreshContext = createContext<TaskRefreshContextValue>({
   register: () => () => {},
   setActive: () => {},
   live: false,
 });
 
-/**
- * Registers a panel's refresh callback with the page coordinator. The callback
- * is held in a ref so the latest closure always runs (fetchers whose
- * useCallback identity shifts with their own state — the log offset fetcher —
- * need no special handling). `active` mirrors the panel's own poll gate; an
- * inactive panel is skipped on ticks and, once every panel is inactive, the
- * coordinator stops scheduling entirely.
- */
+/** Registers a panel's refresh callback; keeps latest closure via ref. */
 export function useCoordinatedRefresh(
   refresh: Refresh,
   active: boolean,
@@ -101,10 +85,7 @@ export default function TaskRefreshProvider({
   const activeIdsRef = useRef(activeIds);
   const liveRunIdRef = useRef(liveRunId);
 
-  // Seeded at mount (an effect — Date.now during render is impure): the panels
-  // just fetched on their own mount effects, so the stream's catch-up replay
-  // burst must not trigger an immediate re-fetch wave. This effect runs before
-  // the stream effect can deliver any event.
+  // Seed timestamp before stream catch-up to avoid duplicate refresh wave.
   useEffect(() => {
     lastRefreshAtRef.current = Date.now();
   }, []);
@@ -178,9 +159,7 @@ export default function TaskRefreshProvider({
     anyPanelActive,
   });
 
-  // Immediate refresh past the throttle window; inside it, one trailing
-  // refresh at the boundary so a burst's final events (the outcome writes)
-  // never wait for the heartbeat.
+  // Coalesce event burst: immediate if past throttle, else trailing at boundary.
   const onEvent = useCallback(
     (event: RunStreamEvent) => {
       setAfterId((prev) => maxEventId(prev, event.id));
@@ -205,9 +184,7 @@ export default function TaskRefreshProvider({
     [refreshAll],
   );
 
-  // "offline" from the hook means it gave up for good; flipping
-  // streamUnavailable hands the page to the coordinated poll — the same
-  // degradation the assembly-runs panel uses.
+  // Offline fallback: switch to coordinated polling.
   const onConnectionChange = useCallback((next: ConnectionState) => {
     setConnection(next);
 
@@ -244,10 +221,7 @@ export default function TaskRefreshProvider({
     let inFlight = false;
     let cancelled = false;
 
-    // Re-read the recorded run rows: attach a fresh live run, detach when the
-    // attached one turned terminal (a live stream never closes on its own),
-    // and give a replacement run a clean stream chance even after a prior
-    // give-up latched streamUnavailable.
+    // Discovery re-reads recorded runs to attach fresh live run or detach terminal ones.
     async function discoverRun() {
       if (inFlight) {
         return;

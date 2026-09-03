@@ -6,10 +6,7 @@ import type {
   RegisterClusterAgentInput,
 } from "./cluster-agents-port.js";
 
-/**
- * The behavioral spec of {@link ClusterAgentsRepository}, backed by a Map.
- * The contract test runs against this and the Pg adapter alike.
- */
+/** The behavioral spec of {@link ClusterAgentsRepository}, backed by a Map. */
 export class InMemoryClusterAgents implements ClusterAgentsRepository {
   private readonly agents = new Map<string, ClusterAgent>();
 
@@ -34,8 +31,7 @@ export class InMemoryClusterAgents implements ClusterAgentsRepository {
   }
 
   async create(input: RegisterClusterAgentInput): Promise<ClusterAgent | null> {
-    // Synchronous check-and-set — an await here would reopen the very
-    // check-then-insert race the null return exists to close.
+    // Synchronous check-and-set to close the check-then-insert race.
     if ([...this.agents.values()].some((agent) => agent.name === input.name)) {
       return null;
     }
@@ -116,9 +112,7 @@ export class InMemoryClusterAgents implements ClusterAgentsRepository {
   async advanceCatalogCursor(id: string, cursor: string): Promise<void> {
     const existing = this.agents.get(id);
 
-    // Null → set even when the ack is "0": an agent acking an empty snapshot
-    // must land in tail mode, not loop on snapshots (mirrors Pg's
-    // GREATEST(COALESCE(catalog_cursor, 0), ack), which never yields NULL).
+    // Null→set even when acking empty snapshot: tail mode not loop, mirroring Pg GREATEST.
     if (
       existing &&
       (existing.catalogCursor === null ||

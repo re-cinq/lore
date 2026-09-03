@@ -70,7 +70,6 @@ describe("useFeaturePlanningPoll graph caching", () => {
       }),
     );
 
-    // First tick has nothing cached, so it asks for everything.
     await waitFor(() => expect(result.current.data.run).not.toBeNull());
     expect(String(fetchStub.mock.calls[0][0])).not.toContain("graph=");
 
@@ -104,7 +103,6 @@ describe("useFeaturePlanningPoll graph caching", () => {
       await result.current.refresh();
     });
 
-    // The omitted graph is restored, and the fields that DO change came through.
     expect(result.current.data.run?.definition).toMatchObject({
       name: "feature-planning",
     });

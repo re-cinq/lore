@@ -8,7 +8,6 @@ interface SavedCall {
   options: Record<string, unknown>;
 }
 
-/** Structural GCS fake — no vi.mock, just the StorageLike seam. */
 function fakeStorage(state: {
   saved: SavedCall[];
   contents?: Map<string, string>;

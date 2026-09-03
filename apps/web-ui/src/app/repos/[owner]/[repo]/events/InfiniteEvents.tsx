@@ -19,14 +19,7 @@ interface EventsPage {
   hasMore: boolean;
 }
 
-/**
- * Infinite-scroll pager for the full repo events list. The first page is
- * rendered server-side; this appends subsequent pages as a sentinel row scrolls
- * into view, so the initial load stays at one page. The observer re-binds on
- * every offset change, so a sentinel still in view after a fetch pulls the next
- * page automatically until the stream is exhausted. A failed fetch pauses
- * paging until the user retries — never an automatic refetch loop.
- */
+/** Infinite-scroll events pager: first page server-side, appends on sentinel scroll, pauses on failure. */
 export default function InfiniteEvents({
   owner,
   repo,

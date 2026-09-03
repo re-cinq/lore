@@ -4,13 +4,7 @@ import {
   agentStats,
 } from "@re-cinq/lore-server-core/features/memory/memory.js";
 
-/**
- * One agent's memory health + learning statistics, merged. Moved here from the
- * `lore_agent_stats` MCP tool when that tool became a pure proxy (ADR-032):
- * `agentHealth` / `agentStats` read the memory pool, the episode reads take the
- * request pool, and both live where the credentials are.
- */
-
+// Agent memory health + learning stats, merged; moved from MCP tool when it became pure proxy (ADR-032).
 export interface AgentStatsBundle {
   recent_episodes: { total_count: number; latest: unknown[] };
   [key: string]: unknown;

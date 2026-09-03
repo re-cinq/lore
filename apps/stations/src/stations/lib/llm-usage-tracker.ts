@@ -1,8 +1,4 @@
-// Wraps the process-wide Llm so a station's model calls are summed for the
-// terminal line's cost report without each station threading usage by hand —
-// the detect family's spec-coverage-backfill judge makes its calls deep inside
-// @re-cinq/lore-shared/detect where no NodeResult exists to carry them.
-// Installed around every runner by runStation (main.ts).
+// Wraps Llm to sum model calls for terminal cost report without manual threading.
 
 import type {
   LlmCompleteRequest,
@@ -43,11 +39,7 @@ export class UsageTrackingLlm implements LlmProvider {
     return result;
   }
 
-  /**
-   * Summed usage of every call that completed through this wrapper, undefined
-   * when none did. A multi-model run keeps the first call's model — the cost
-   * sink's LlmCallRow carries a single model column.
-   */
+  /** Summed usage of all completed calls (undefined if none). */
   totalUsage(): NodeLlmUsage | undefined {
     if (this.calls === 0) {
       return undefined;

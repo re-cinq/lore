@@ -4,18 +4,6 @@ import pg from "pg";
 import { buildServer } from "../server/build-server.js";
 import { restoreEnv } from "./restore-env.js";
 
-/**
- * The banner's read, against real rows.
- *
- * `min(failure_detail)` and `min(finished_at)` were independent aggregates —
- * `min` over text is lexicographic, so the quoted message was the
- * alphabetically smallest in the group while the date came from a different
- * row. The banner quotes a message and dates it, and a pairing bug is invisible
- * to a unit test of the pure function: it lives entirely in the SQL.
- *
- * The fixture is built so the two would disagree: the OLDEST failure carries a
- * detail that sorts LAST.
- */
 const TOKEN = "test-llm-status-token";
 const REPO = "test/llm-status-repo";
 
@@ -46,8 +34,6 @@ describe("the llm-status recent-failure query", () => {
 
     runIds = runs.rows.map((r) => r.id);
 
-    // The older row's detail sorts after the newer one's, so a lexicographic
-    // min() answers the wrong message for the reported `since`.
     await pool.query(
       `INSERT INTO pipeline.station_runs
          (assembly_run_id, node_id, iteration, outcome, failure_class, failure_detail, started_at, finished_at)

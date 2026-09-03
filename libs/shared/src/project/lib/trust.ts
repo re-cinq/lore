@@ -1,13 +1,5 @@
 import { enforceTrue } from "../../lib/enforce.js";
-/**
- * The execution trust boundary, in one place. Relocated verbatim from
- * mcp-server/src/spec-trace-tools.ts (executionRefusal) so the tests port AND
- * Workspace clone gate share one rule. mcp-server keeps a re-export for
- * back-compat during migration.
- *
- * The shared GKE server (LORE_DB_HOST set) must never execute repo commands or
- * clone repos — only a trusted sandbox (local dev / CI / claude-runner pod) may.
- */
+/** Execution trust boundary: shared GKE server cannot execute repo commands. */
 
 export function executionRefusal(env: NodeJS.ProcessEnv): string | null {
   return env.LORE_DB_HOST

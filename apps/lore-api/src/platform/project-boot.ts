@@ -6,14 +6,7 @@ import {
 import { getPool } from "@re-cinq/lore-server-core/platform/db.js";
 import { pipelineRepositories } from "./pipeline-boot.js";
 
-/**
- * Per-repo Project composition root for the Lore API. The memory backend defaults
- * to Postgres, but `project.trace` reads the spec-traceability graph — so when
- * `LORE_DGRAPH_HTTP` is configured we hand createProject a real Dgraph client.
- * When it is unset, the no-op satisfies the type and throws loudly if anything
- * unexpectedly reaches for Dgraph. createProject is async (adapters dynamically
- * imported, cached after the first call), so this is cheap to call per request.
- */
+/** No-op Dgraph when LORE_DGRAPH_HTTP is unset (trace reads the graph when configured). */
 const NO_OP_DGRAPH = {
   newTxn() {
     throw new Error("lore-api has no Dgraph client (LORE_DGRAPH_HTTP unset)");

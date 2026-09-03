@@ -29,8 +29,6 @@ describe("findRottenAnchors", () => {
   });
 
   it("flags an anchor landing on a comment line in a .ts file", () => {
-    // bowman-ui #9 shipped exactly this: the new validated-by anchor pointed
-    // at a comment inside the test instead of an assertion (#1747).
     expect(
       findRottenAnchors(
         [

@@ -1,19 +1,10 @@
-/**
- * Side-effecting route helpers: the graph-extraction LLM caller and the
- * post-ingest producers that drop events on the Floor event bus
- * (pipeline.events).
- */
+/** Route helpers: graph-extraction LLM caller and post-ingest event bus producers. */
 
 import type { Pool } from "pg";
 import { Llm } from "@re-cinq/lore-shared";
 import { eventProxyFor } from "./event-reporter.js";
 
-/**
- * Build a graph LLM call function for extractAndUpdateGraph, routed through the
- * shared `Llm` singleton (cost logging happens inside the provider via
- * `Llm.configure`). Returns undefined when no Anthropic key is set — preserving
- * the "skip graph extraction without credentials" gate.
- */
+/** Graph LLM caller via shared Llm singleton; undefined when Anthropic key is missing. */
 export function makeGraphLlmCall(
   _pool: Pool | null,
 ): ((prompt: string) => Promise<string>) | undefined {
@@ -29,13 +20,7 @@ export function makeGraphLlmCall(
 
 // ── Post-ingest producers (Floor event bus) ─────────────────────────
 
-/**
- * Project specs/adrs into the spec-trace graph: emit an `internal.ingest.spec_trace`
- * event. The Floor loop's handler runs dispatchSpecTrace, which reads the repo for
- * these doc kinds. (Test-report projection moved to the Floor ci-tests ingress, fed
- * by the lore-code-trace binary.) No dedupe key — projection is content-hash
- * idempotent, so a `force` re-ingest must not be collapsed away. No-op without a pool.
- */
+/** Projects specs/adrs to spec-trace graph; content-hash idempotent, no force collapse. */
 export async function triggerAgentSpecTrace(
   pool: Pool | null,
   repo: string,
@@ -45,9 +30,7 @@ export async function triggerAgentSpecTrace(
   if (!pool) {
     return;
   }
-  // Queued, not inserted. Both callers invoke this with `void` and it swallowed
-  // its own failure on top of that, so a router blip lost the projection with
-  // nothing left to notice — the ingest route's own status never reflected it.
+  // Queued: both callers use `void`, swallowing failures.
   await eventProxyFor(pool).emit({
     kind: "event",
     event: {
@@ -58,11 +41,7 @@ export async function triggerAgentSpecTrace(
   });
 }
 
-/**
- * Validate a repo's inline spec→test links after an ingest: emit an
- * `internal.ingest.spec_coverage_validate` event. The Floor loop's handler runs
- * validateSpecCoverageJob. No-op when there's no DB pool.
- */
+/** Validates inline spec→test links after ingest; no-op without pool. */
 export async function triggerAgentSpecCoverageValidate(
   pool: Pool | null,
   repo: string,

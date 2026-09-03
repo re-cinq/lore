@@ -150,10 +150,6 @@ describe("decidePlanningRecovery — startup grace", () => {
     });
 
   it("leaves a just-started round alone when no runtime is visible yet", () => {
-    // The Agent CR does not exist for the first seconds of a round: the task row is
-    // written, then the line, then the CR. A probe in that window means "not born
-    // yet", not "died" — round 10 was force-failed 32s in and only survived because
-    // the delivered result overrode the reaper.
     expect(
       decidePlanningRecovery({
         iterations: [running(32_000)],
@@ -176,8 +172,6 @@ describe("decidePlanningRecovery — startup grace", () => {
   });
 
   it("still force-fails a wedged round past the stale window even while active", () => {
-    // Staleness is independent of the probe: a container that never exits must not
-    // be protected by the grace window.
     expect(
       decidePlanningRecovery({
         iterations: [running(PLANNING_RECOVERY_STALE_MS + 1_000)],
@@ -209,9 +203,6 @@ describe("decidePlanningRecovery with an open assembly run (#1297)", () => {
     });
 
   it("never orphans a running round whose assembly run is open, whatever the probe said", () => {
-    // The run is the single liveness authority: its own reaper times it out and
-    // relaunches its CRs. A transiently empty CR listing must not execute a live
-    // round — on 2026-08-18 it did, a minute before the agent SUCCEEDED.
     expect(
       decidePlanningRecovery({
         iterations: [running(PLANNING_RECOVERY_STALE_MS + 1_000)],

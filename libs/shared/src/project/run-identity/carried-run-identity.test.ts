@@ -33,10 +33,6 @@ describe("parseCarriedRunIdentity", () => {
   });
 
   it("returns null when only part of the identity is present", () => {
-    // A partial identity is worse than none: it would attribute the row to a run
-    // while leaving which VISIT produced it to a guess, mixing a stamped id with
-    // an inferred node — so the whole tuple is required or the CR-name fallback
-    // stays in charge.
     expect(
       parseCarriedRunIdentity({ assembly_run: full.assembly_run }),
     ).toBeNull();

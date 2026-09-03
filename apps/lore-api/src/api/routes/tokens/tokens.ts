@@ -28,10 +28,7 @@ interface TokensPostBody {
   token_id?: string;
 }
 
-// Paging for the GET list. It rode the one "*" route before the split, so it
-// also validated the bodyless POST's (empty) query — harmlessly, since that
-// resolved to the defaults. Scoping it to the GET is deliberate: the POST reads
-// its payload and never a query string, so there is nothing there to validate.
+// GET query paging (POST never reads query, so no validation there).
 const TokensQuery = z.object({
   limit: clampedLimit.default(20),
   offset: offsetParam,
@@ -39,11 +36,7 @@ const TokensQuery = z.object({
 
 type TokensQuery = z.infer<typeof TokensQuery>;
 
-/**
- * The token surface never returns `token_hash` — the plaintext exists once, in
- * the create response, and the hash is not a caller's business. Derived from the
- * model so that omission is a deliberate `pick`, not a column someone forgot.
- */
+/** Token surface omits token_hash (exists once at creation only). */
 const TokenListSchema = z.object({
   tokens: z.array(
     wireSchema(
@@ -75,30 +68,7 @@ const TokenWriteSchema = z.union([
   }),
 ]);
 
-/**
- * GET lists, POST writes, and each declares its own shape.
- *
- * This was ONE `method: "*"` route, so the generator — which stamps a contract
- * per route and applies it to every verb that route serves — could only declare
- * the union of the two. A generated client then saw `list | acknowledgement` on
- * both verbs and had to narrow a thing it already knew.
- *
- * The wildcard route stays as a FALLBACK, and only for the 405: hapi answers an
- * unmatched verb on a matched path with 404, and "you may not DELETE this" is a
- * better answer than "there is nothing here". It declares no contract, so it
- * contributes no operation to the document.
- *
- * Per-method payload validation is now expressible (it was not, on one route
- * serving a bodyless GET) — deliberately NOT taken here: it would turn the POST
- * handler's residual checks into 400s at the edge, which is a behaviour change
- * and not what splitting the contract is for.
- *
- * Each route takes the handler for its own verb. Re-dispatching on
- * `request.method` under three routes that each serve one verb would leave two
- * arms dead on every request and the 405 arm unreachable from the two that
- * matter — the split is what makes the dispatch unnecessary. The wildcard's
- * 405 no longer waits on the pool: refusing a verb needs no database.
- */
+/** GET lists, POST writes (separate shapes); wildcard 405 fallback (validation skipped). */
 export function tokensRoute(getPool: () => Pool | null): ServerRoute[] {
   const listOptions = zodResponse(
     {
@@ -208,8 +178,7 @@ export function tokensRoute(getPool: () => Pool | null): ServerRoute[] {
         .response({ ...rows[0], token: rawToken, expires_at: expiresAt })
         .code(201);
     } catch (err) {
-      // A guard's refusal already carries its status; only an unexpected failure
-      // is this block's to shape.
+      // Guard refusals carry their status; shape only unexpected failures.
       rethrowBoom(err);
 
       return h.response({ error: errorMessage(err) }).code(500);

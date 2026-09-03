@@ -16,11 +16,6 @@ const base = (headers: Record<string, string>) =>
     headers,
   });
 
-/**
- * GET /api/repos/:o/:r/impact/base — which commit the graph's line ranges are
- * expressed in. The Action reads this BEFORE computing its diff, so it can line
- * the two coordinate systems up instead of overlapping them blind.
- */
 describe("GET /api/repos/:owner/:repo/impact/base", () => {
   useRateLimitSafeClock();
   beforeEach(() => {

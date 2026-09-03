@@ -2,11 +2,6 @@ import { describe, it, expect } from "vitest";
 import { KnowledgeView } from "./knowledge.js";
 import type { KnowledgePort } from "./knowledge-port.js";
 
-/**
- * project.knowledge binds the repo across the spec/ADR/graph reads. The fake
- * echoes the repo it was called with so we prove the binding.
- */
-
 function fakeKnowledge(): KnowledgePort {
   return {
     assembleContext: async (repo, query) => ({ text: `[${repo}] ${query}` }),

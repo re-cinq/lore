@@ -12,11 +12,7 @@ import type {
 } from "./task-store-port.js";
 import { Task } from "./task.js";
 
-/**
- * project.tasks — the record side, repo bound. pendingTasks/runningTasks/
- * executedTasks are async METHODS (they do I/O); only the sub-facade itself is
- * a sync property.
- */
+/** Repo-bound task list; query methods are async I/O. */
 export class TaskList {
   constructor(
     private readonly repo: string,

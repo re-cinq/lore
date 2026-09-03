@@ -54,7 +54,7 @@ describe("resolveVertexProject", () => {
 
 describe("getQueryEmbedding project resolution", () => {
   it("returns null (never builds a projects// URL) when no project can be resolved", async () => {
-    process.env.GOOGLE_ACCESS_TOKEN = "tok"; // token available…
+    process.env.GOOGLE_ACCESS_TOKEN = "tok";
     const fetchMock = vi.fn(async (url: string) => {
       enforceTrue(
         !url.includes("service-accounts/default/token"),
@@ -64,7 +64,7 @@ describe("getQueryEmbedding project resolution", () => {
 
       if (url.includes("/project/project-id")) {
         return { ok: false } as Response;
-      } // …but no project
+      }
 
       return {
         ok: true,
@@ -77,7 +77,6 @@ describe("getQueryEmbedding project resolution", () => {
     const result = await getQueryEmbedding("hello");
 
     expect(result).toBeNull();
-    // The malformed-URL bug: a predict call with an empty project must never fire.
     expect(
       fetchMock.mock.calls.some(([u]) =>
         String(u).includes("projects//locations"),

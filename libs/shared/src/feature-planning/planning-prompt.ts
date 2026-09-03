@@ -6,11 +6,7 @@ import {
   sectionsOf,
 } from "./gap-result.js";
 
-/**
- * The author's feedback for a planning round: per-section comment + direction
- * (keyed by section title), answers keyed by question id, and a free-form note.
- * Mirrors the web UI's SectionAnswers (the wizard's FeedbackState serialized).
- */
+/** Author feedback for planning round: per-section comment+direction, question answers, free-form note (mirrors UI FeedbackState). */
 export interface SectionAnswers {
   sections: Record<string, { comment?: string; direction?: SectionDirection }>;
   questions: Record<string, string>;
@@ -28,16 +24,7 @@ export interface PlanningPromptInput {
   answers: SectionAnswers | null;
 }
 
-/**
- * Builds the per-round planning prompt as XML-tagged context so the agent can
- * cleanly tell apart the request, what it generated last round, and what the
- * author wants changed. Pure.
- *
- * Round 1 (no prior result) is just <Title> + <UserPrompt>. Refinement rounds add a
- * <CurrentDraftSpec> that, per section, pairs the prior <Generated> output with that
- * section's answered <Questions> and the author's <UserComment direction=…>, and
- * surfaces the free-form note as <OtherUserComments>.
- */
+/** Build per-round planning prompt as XML-tagged context; Round 1 is Title+UserPrompt, refinement rounds add CurrentDraftSpec. */
 export function composePlanningPrompt(input: PlanningPromptInput): string {
   const blocks = [
     tag("Title", input.title),
@@ -64,20 +51,7 @@ export interface RoundFeedbackInput {
   answers: SectionAnswers | null;
 }
 
-/**
- * The turn for a round that CONTINUES the previous one's conversation.
- *
- * The agent already holds its own last draft, so restating it would re-brief the
- * model on what it just said. This carries only what is new: the author's reaction,
- * nested under the section it lands on, with each question's asked text quoted
- * beside its answer — an id alone would not survive the CLI compacting the turn
- * that asked it.
- *
- * Sections the author left alone are omitted entirely: silence is not feedback, and
- * listing every untouched section would grow this turn back into the full draft it
- * exists to avoid. Pairs with composePlanningPrompt(), the fallback for round one
- * and for any run that could not resume.
- */
+/** Turn for round CONTINUING previous conversation; only new feedback (omits untouched sections); pairs with composePlanningPrompt(). */
 export function composeRoundFeedback(input: RoundFeedbackInput): string {
   const touched = sectionsOf(input.priorGap)
     .map((section) => feedbackBlock(section, input.answers))

@@ -1,15 +1,9 @@
 import { z } from "zod";
 import type { AgentDefinitionInput } from "@re-cinq/lore-shared";
 
-/**
- * Request validation for the agents API. Maps the wire body onto the shared
- * AgentDefinitionInput (nulls for absent nullable fields). `image` is the only
- * two-key-gated field — imageFieldTouched flags when a write sets it.
- */
+// Agents API validation; image is two-key-gated (imageFieldTouched flag).
 
-// A Kubernetes resource quantity ("500m", "2", "4Gi", "1.5G", up to E/Ei) —
-// validated at the edge so a typo becomes a 400 here instead of an apply
-// rejection in the cluster-agent's sync loop.
+// Kubernetes resource quantity validated at edge to catch typos early.
 const QUANTITY = /^\d+(\.\d+)?(m|[kKMGTPE]i?)?$/;
 const PodResourcesSchema = z.object({
   requests: z.record(z.string().regex(QUANTITY)).optional(),
@@ -35,10 +29,7 @@ export const AgentInputSchema = z.object({
   pod_resources: PodResourcesSchema.nullish(),
 });
 
-/** A POST body: the row fields, plus `pod_resources` kept separate — the route
- *  merges it over the config the new row inherits (org → yaml). Writing
- *  `{pod_resources}` alone as the fork's config would orphan the skills/command
- *  it inherits, since config is whole-object across the resolution layers. */
+// POST body: row fields + pod_resources; route merges over inherited config (org → yaml).
 export type AgentCreate = AgentDefinitionInput & {
   pod_resources?: PodResources;
 };
@@ -51,8 +42,7 @@ const normalize = (p: z.infer<typeof AgentInputSchema>): AgentCreate => ({
   image: p.image ?? null,
   execution_mode: p.execution_mode,
   review_required: p.review_required,
-  // config is not settable via this route (skills/disallowed_tools come from
-  // the catalog seed) — pod_resources is the one key the Agents UI owns.
+  // config not settable (catalog seed); only pod_resources.
   config: null,
   ...(p.pod_resources ? { pod_resources: p.pod_resources } : {}),
 });
@@ -61,17 +51,13 @@ export function parseAgentInput(body: unknown): AgentCreate {
   return normalize(AgentInputSchema.parse(body));
 }
 
-/** A PUT body: the row fields actually present, plus `pod_resources` kept
- *  separate (null clears it) — the adapter merges it over the row's config
- *  inside the upsert, falling back to the inherited layer's config so a fork
- *  keeps the keys it inherits (config is whole-object across layers). */
+// PUT body: row fields + separate pod_resources; adapter merges over inherited layer config.
 export type AgentPatch = Partial<AgentDefinitionInput> & {
   pod_resources?: PodResources | null;
 };
 
 export function parseAgentPatch(body: unknown): AgentPatch {
-  // A patch reuses the full schema (name optional too) but only normalizes the
-  // fields actually present, so unset fields stay absent rather than nulled.
+  // Patch normalizes only present fields; unset fields stay absent (not nulled).
   const parsed = AgentInputSchema.partial().parse(body);
   const patch: AgentPatch = {};
 
@@ -110,13 +96,7 @@ export function parseAgentPatch(body: unknown): AgentPatch {
   return patch;
 }
 
-/**
- * The config a CREATE should write when the body carried pod_resources: the
- * inherited config's other keys survive (whole-object config means the written
- * layer owns ALL of it), pod_resources is replaced or — on null — removed, and
- * an empty result collapses to null so the row falls through to the org layer.
- * (Updates do the same merge in SQL — see mergedConfigSql in the pg adapter.)
- */
+// Merge pod_resources into config; empty result → null → fall through to org layer.
 export function configWithPodResources(
   existing: Record<string, unknown> | null,
   podResources: PodResources | null,

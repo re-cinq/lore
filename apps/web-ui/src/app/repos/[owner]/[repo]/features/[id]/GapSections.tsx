@@ -151,10 +151,7 @@ export default function GapSections({
   onCreateDraft: (title: string, prompt: string) => void;
 }) {
   const sections = sectionsOf(gap);
-  // A round can return a valid GapResult with no sections at all (sanitizeGapResult
-  // accepts it) — one produced exactly that beside an 8KB draft. Rendering the
-  // section list alone would show a blank page over a result that exists, so fall
-  // back to the draft, and say so plainly when there is neither.
+  // Fall back to draft when round produced no sections; say so plainly when there is neither.
   const draft = gap.draft_spec_markdown?.trim() ?? "";
 
   return (

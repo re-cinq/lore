@@ -1,15 +1,4 @@
-/**
- * The consume side of `pipeline.events`, over HTTP (ADR-044).
- *
- * The router owns the table; the Floor drains it. These are the six calls the
- * drain loop and its reaper make, and nothing more — no route here lets a caller
- * write an event, because producing and draining are different privileges even
- * when one process happens to do both.
- *
- * The atomicity does not live here. `claimBatch` is one `FOR UPDATE SKIP LOCKED`
- * statement server-side, so this only wraps it — two drainers calling at once
- * still get disjoint batches, exactly as two in-process callers did.
- */
+/** Consume side of pipeline.events (ADR-044): router owns table, Floor drains; no writes here (different privilege). */
 
 import type { ServerRoute } from "@hapi/hapi";
 import type { EventQueueRepository } from "@re-cinq/lore-shared/project/events/event-queue-port.js";
@@ -25,8 +14,7 @@ import { parseBody } from "@re-cinq/lore-shared/http/json-body.js";
 import { enforceBearer } from "@re-cinq/lore-shared/http/bearer.js";
 
 export interface EventQueueRoutesDeps {
-  /** A THUNK: routes are built before the pool exists, and resolving the queue
-   *  here would make `buildServer` demand a database just to describe itself. */
+  /** Thunk: routes built before pool, resolving would couple buildServer to DB. */
   queue: () => EventQueueRepository;
   bearerToken?: string;
 }
@@ -86,9 +74,7 @@ export function eventQueueRoutes(deps: EventQueueRoutesDeps): ServerRoute[] {
       },
     },
     {
-      // Separate from `fail` on purpose: whether an event has run out of
-      // attempts is the DRAINER's judgement, and folding both into one endpoint
-      // would move that decision here, where the retry budget is not known.
+      // Separate from fail: drainer judges budget, not the service.
       method: "POST",
       path: "/api/events/{id}/dead",
       options: { auth: false, payload: { parse: false } },

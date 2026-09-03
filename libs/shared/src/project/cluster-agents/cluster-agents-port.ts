@@ -1,13 +1,7 @@
 import { secretEquals } from "../../http/bearer.js";
 import type { ClusterAgent } from "../../models/cluster-agent.js";
 
-/**
- * The registry of execution clusters (FR1 of
- * specs/running-stations-in-any-k8s-cluster): who exists, what they can run,
- * and whether they are alive. Registration, identity rotation, liveness, and
- * the read side the registered-clusters page needs. Claiming station runs is
- * the station-run queue's business, not this port's — this is the roster.
- */
+/** The registry of execution clusters (FR1 specs/running-stations-in-any-k8s-cluster): who exists, what they can run, liveness. */
 
 export interface RegisterClusterAgentInput {
   name: string;
@@ -19,35 +13,18 @@ export interface RegisterClusterAgentInput {
 export interface ClusterAgentsRepository {
   findByName(name: string): Promise<ClusterAgent | null>;
   findById(id: string): Promise<ClusterAgent | null>;
-  /** The auth lookup for claim/heartbeat/report calls: hash → live identity. */
   findByTokenHash(tokenHash: string): Promise<ClusterAgent | null>;
-  /**
-   * Null when the name was taken between the caller's decision and the
-   * insert — the losing side of a concurrent first registration, which the
-   * register route reports as the same 409 as any other taken name.
-   */
+  /** Null when name taken between decision and insert (losing side of concurrent registration). */
   create(input: RegisterClusterAgentInput): Promise<ClusterAgent | null>;
-  /** Update a live identity's tags, cluster info and token hash in place. The
-   *  hash is normally the one it already carries — a re-registration by the
-   *  holder keeps its credential (a rotation there cuts off its own running
-   *  pods) — so this refreshes the row rather than issuing anything. */
+  /** Update tags, cluster info, token hash; re-registration keeps its credential. */
   refresh(id: string, input: RegisterClusterAgentInput): Promise<ClusterAgent>;
-  /** Bump `last_seen_at` and revive `offline` → `active`. */
   heartbeat(id: string, at: Date): Promise<void>;
-  /**
-   * The operator's stop switch: a paused agent is passed over when work is
-   * handed out, while staying alive and finishing what it already holds.
-   * Returns the updated row, or null when no such agent exists.
-   */
+  /** The operator's stop switch: paused agent passed over but stays alive, finishes existing work. */
   setPaused(id: string, paused: boolean): Promise<ClusterAgent | null>;
   /** Mark agents silent since `cutoff` offline; returns the newly offline. */
   markOffline(cutoff: Date): Promise<ClusterAgent[]>;
   list(): Promise<ClusterAgent[]>;
-  /**
-   * Advance this agent's `lore.catalog_events` high-water mark. Monotonic on
-   * the DB side (`GREATEST`) so a re-delivered older batch can never move the
-   * cursor backwards and replay the whole tail.
-   */
+  /** Advance `lore.catalog_events` high-water mark: monotonic (GREATEST) to prevent tail replay. */
   advanceCatalogCursor(id: string, cursor: string): Promise<void>;
 }
 
@@ -56,12 +33,7 @@ export type RegistrationDecision =
   | { kind: "refresh"; id: string; tokenHash: string }
   | { kind: "reject" };
 
-/**
- * The identity-takeover gate: a known name re-registers only by proving it
- * already holds the identity — the current per-agent token — because the
- * shared registration token alone must never let one cluster steal another's
- * name and, with it, the runs and audit history attributed to it.
- */
+/** Identity-takeover gate: re-register by proving current per-agent token, not the shared token. */
 export function decideRegistration(
   existing: ClusterAgent | null,
   presentedTokenHash: string | null,

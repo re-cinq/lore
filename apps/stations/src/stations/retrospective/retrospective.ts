@@ -1,9 +1,4 @@
-// The retrospective station: write the run's episode from the pod (POST
-// /api/episode, the existing write-scoped endpoint). Auto-merge and memory
-// curation deliberately stay Floor-side — merge authority never rides in a run
-// pod (ADR-031); the Floor triggers them after the retrospective node succeeds.
-// Best-effort: an episode-write failure logs but never fails the assembly line
-// (the node's job is to mark the run done, not to gate on telemetry).
+// Writes episode to Floor; auto-merge stays Floor-side (ADR-031); best-effort never fails.
 
 import { eventLine, type NodeResult } from "@re-cinq/lore-assembly-lines";
 import type { StationInput } from "@re-cinq/lore-shared/station-input.js";

@@ -8,8 +8,7 @@ export const repoFullName = z
 
 export const MAX_PAGE_LIMIT = 100;
 
-// Clamp-not-reject over-max (matches list-tasks' historical behavior); coerce
-// because query params arrive as strings. Callers pick the default page size.
+// Clamp-not-reject over-max (historical behavior); coerce string query params.
 export const clampedLimit = z.coerce
   .number()
   .int()

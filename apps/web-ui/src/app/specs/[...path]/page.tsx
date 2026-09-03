@@ -17,8 +17,7 @@ export default async function SpecDetailPage({
   const { path } = await params;
   const filePath = path.map(decodeURIComponent).join("/");
 
-  // Which repos hold this spec path in the graph, then render each as a framed
-  // document (markdown source + graph-sourced statement overlay).
+  // Query graph: repos holding this spec path, render each as framed document
   const repos = (await fetchAllSpecs())
     .filter((s) => s.filePath === filePath)
     .map((s) => s.repo);

@@ -1,20 +1,4 @@
-/**
- * The service-to-service credential check.
- *
- * Shared by every Lore service that accepts a bearer token, so the comparison,
- * the status codes and the wording are decided once.
- *
- * The comparison is TIMING-SAFE. `===` on a secret leaks its length and its
- * matching prefix through response timing, and a bearer token is exactly the
- * kind of secret that gets probed. The HMAC path next door in the event-router
- * already used `timingSafeEqual`; this had not, which made two checks on the
- * same request inconsistent about the same threat.
- *
- * Kept a plain function rather than a hapi auth strategy: the event-router's
- * `/api/events` must choose between this and a signature check INSIDE the
- * handler, and a strategy would have to pick before the handler can look at the
- * headers.
- */
+/** Service-to-service credential check: timing-safe comparison shared by all Lore services accepting bearer tokens. */
 
 import { timingSafeEqual } from "node:crypto";
 import { enforceTrue } from "../lib/enforce.js";
@@ -25,30 +9,11 @@ export function secretEquals(a: string, b: string): boolean {
   const bufA = Buffer.from(a);
   const bufB = Buffer.from(b);
 
-  // `timingSafeEqual` throws on length mismatch, so the lengths are compared
-  // first — that comparison is not itself constant-time, but the length of a
-  // bearer token is not the secret; its bytes are.
+  // timingSafeEqual throws on length mismatch; token length is not secret, only bytes.
   return bufA.length === bufB.length && timingSafeEqual(bufA, bufB);
 }
 
-/**
- * Refuse the request unless it carries the expected bearer token.
- *
- * `service` names the deployment whose env var is missing, so the refusal says
- * which knob to turn rather than that "a token" is unset.
- *
- * An unconfigured token is a 500, not a 503: 503 tells the caller to retry, and
- * no amount of retrying supplies a missing env var. The fix is a redeploy, and
- * the status should say so.
- */
-/**
- * The bearer credential from an Authorization header, or undefined.
- *
- * Anchored to the start and case-insensitive on the scheme (RFC 7235 §2.1
- * makes `bearer` and `BEARER` as valid as `Bearer`); a `.replace("Bearer ")`
- * would strip the marker anywhere in the string and silently accept a
- * malformed header.
- */
+/** Bearer credential from Authorization header or undefined; case-insensitive scheme, RFC 7235 §2.1. */
 export function extractBearer(header: unknown): string | undefined {
   const raw = Array.isArray(header) ? header[0] : header;
 
@@ -61,15 +26,12 @@ export function extractBearer(header: unknown): string | undefined {
   return match ? match[1] : undefined;
 }
 
+/** Refuse request without bearer token; unconfigured is 500 not 503 (retries won't fix deploy). */
 export function enforceBearer(
   headers: Record<string, unknown>,
   token: string | undefined,
   service = "this service",
-  // Which env var actually holds this door's token. Defaulted rather than
-  // required because every caller but one uses the ingest token — but naming
-  // the wrong var is worse than naming none: the whole job of the 500 is to
-  // say which knob to turn, and the Floor's telemetry sink turns a different
-  // one (LORE_AGENT_INTERNAL_TOKEN).
+  // Which env var holds this door's token; defaulted (most callers use LORE_INGEST_TOKEN except Floor telemetry sink).
   tokenEnvName = "LORE_INGEST_TOKEN",
 ): void {
   const auth = headers["authorization"];

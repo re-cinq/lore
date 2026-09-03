@@ -3,15 +3,7 @@
 import { redirect } from "next/navigation";
 import { createFeature } from "@/lib/api/features";
 
-// Mutations live here, not inside the page component. A page is a data-fetching
-// container; it should not also be where writes are defined and where transport
-// failures are turned into user-facing copy.
-//
-// Identity arrives as LEADING BOUND PARAMETERS — the page calls
-// `createFeatureAction.bind(null, fullName)`. Bound arguments are encrypted into
-// the client payload, so the repo still comes from the server and never from the
-// browser, and the View's prop signature does not change.
-
+// Mutations here (not in page); bound args encrypted into payload so repo comes from server.
 export interface CreateFeatureState {
   error?: string;
 }

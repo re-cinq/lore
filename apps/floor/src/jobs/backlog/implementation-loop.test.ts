@@ -70,9 +70,6 @@ describe("createImplementationLoopTickHandler", () => {
   });
 
   it("mints the description with the issue body under the title", async () => {
-    // The DoD node quotes the ticket's central claim (#1745); a description
-    // minted from the title alone gave it a one-line ticket to define done
-    // against, and bowman-ui #11 redefined exactly such a ticket.
     const d = deps({
       listIssues: async () => [
         {
@@ -166,8 +163,6 @@ describe("the ticket's branch", () => {
   });
 
   it("asks for a draft pull request, so twelve round-pushes get no review each", async () => {
-    // The line, not the Floor, declares this: decidePrDraft reads args.pr_draft
-    // so the Floor never learns which blueprints want a draft.
     const d = deps();
 
     await createImplementationLoopTickHandler(d.deps)({});
@@ -188,8 +183,6 @@ describe("the ticket's branch", () => {
   });
 
   it("seeds the ticket title so the draft PR is not titled after its branch", async () => {
-    // `lore: lore/implementation-loop/issue-1744` told a reader nothing; the
-    // ticket's own title is the only meaningful thing known when the draft opens.
     const d = deps();
 
     await createImplementationLoopTickHandler(d.deps)({});
@@ -240,8 +233,6 @@ describe("the ticket's branch", () => {
 
     await createImplementationLoopTickHandler(d.deps)({});
 
-    // selectNextIssue already skips a blocked ticket, so nothing is minted at all —
-    // the resume guard is the second lock on a door that is already shut.
     expect(d.minted).toEqual([]);
   });
 

@@ -2,14 +2,7 @@ import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { apiError } from "../../../server/api-error.js";
 import { z } from "zod";
 import { errorMessage } from "@re-cinq/lore-shared";
-/**
- * `GET /api/repos/:o/:r/webhook` — classify the repo's GitHub webhook against the
- * canonical Floor ingress URL (read scope). `POST .../webhook/ensure` — create or
- * repoint the hook with the right URL/events/secret, then return the new status
- * (write scope). `GET .../webhook/secret` — reveal the shared HMAC signing secret
- * (admin scope). All degrade to `unknown` when the App lacks the Webhooks
- * permission or `LORE_WEBHOOK_URL` is unset, so the UI never breaks.
- */
+// Webhook routes: GET/POST/secret for read/write/admin with graceful degradation.
 
 import type { ServerRoute } from "@hapi/hapi";
 import { listRepoWebhooks } from "../../../features/webhook/webhook-manage.js";
@@ -25,12 +18,7 @@ function canonicalUrl(): string {
 const repoOf = (request: { params: Record<string, string> }) =>
   `${request.params.owner}/${request.params.repo}`;
 
-/**
- * The repo's GitHub webhook, as this API sees it. Every read degrades to
- * `state: "unknown"` with a REASON rather than failing — the App may lack the
- * Webhooks permission, and a UI that cannot distinguish "no permission" from
- * "no hook" would tell someone to fix the wrong thing.
- */
+// Webhook status with graceful degradation: state "unknown" + REASON avoids no-permission confusion.
 const WebhookStatusSchema = z.object({
   state: z.string(),
   canonicalUrl: z.string(),
@@ -71,8 +59,7 @@ export function webhookStatusRoute(): ServerRoute {
           classifyWebhook(await listRepoWebhooks(repoOf(request)), url),
         );
       } catch (err) {
-        // 403 = the App lacks the Webhooks permission. Surface as unknown so the UI
-        // degrades gracefully (like the githubFiles 'no access' state).
+        // 403 = App lacks Webhooks permission; surface as unknown for graceful UI fallback.
         const reason =
           (err as { status?: number })?.status === 403
             ? "app_no_webhook_permission"
@@ -88,8 +75,7 @@ export function webhookSecretRoute(): ServerRoute {
   return {
     method: "GET",
     path: "/api/repos/{owner}/{repo}/webhook/secret",
-    // Admin: the secret is shared across all hooks, so it must not ride the
-    // read-scope status response.
+    // Admin-only: secret is shared across all hooks.
     options: zodResponse(bearerScope("admin"), WebhookSecretSchema, {
       name: "RepoWebhookSecret",
       description: "The HMAC secret a repo's webhook must sign with",
@@ -114,8 +100,7 @@ export function webhookEnsureRoute(): ServerRoute {
     }),
     handler: async (request, h) => {
       const repo = repoOf(request);
-      // Shared with onboarding: ensureFloorWebhook reads LORE_WEBHOOK_URL/SECRET +
-      // the canonical events and repoints/creates the hook with the HMAC secret.
+      // Shared with onboarding: ensureFloorWebhook reads LORE_WEBHOOK_URL/SECRET.
       const result = await ensureFloorWebhook(repo);
 
       if (!result.ok) {

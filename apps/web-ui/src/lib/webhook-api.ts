@@ -1,7 +1,4 @@
-// Thin server-side client for the mcp-server webhook status/ensure API — the
-// GitHub App + the HMAC secret live in mcp-server, so the web-ui only reads the
-// status and triggers a fix across the same LORE_API_URL + LORE_INGEST_TOKEN
-// boundary trace-api uses. IO glue — excluded from coverage like lib/db.ts.
+// HTTP client for mcp-server webhook status/ensure API (IO glue, excluded from coverage).
 
 export interface WebhookStatus {
   state:
@@ -50,10 +47,7 @@ export async function getWebhookStatus(
   return (await res.json()) as WebhookStatus;
 }
 
-/**
- * Reveal the HMAC signing secret so it can be set by hand alongside the URL
- * (admin-scoped on mcp-server). Fetched only when the webhook needs manual setup.
- */
+/** Reveals HMAC signing secret for manual webhook setup (admin-scoped). */
 export async function getWebhookSecret(repo: string): Promise<string | null> {
   const c = creds();
 

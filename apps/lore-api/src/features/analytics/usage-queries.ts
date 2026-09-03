@@ -1,12 +1,6 @@
 import type { Pool } from "pg";
 
-/**
- * Per-agent delegation footprint over three rolling windows. The SQL moved here
- * from the `lore_my_usage` MCP tool when that tool became a pure proxy — the
- * local adapter holds no pool, so the query has to run where the credentials
- * are (ADR-032).
- */
-
+// Per-agent delegation footprint over rolling windows; SQL moved from lore_my_usage MCP (ADR-032).
 const PERIODS = [
   { name: "today", filter: "t.created_at > current_date" },
   { name: "7_day", filter: "t.created_at > current_date - interval '7 days'" },
@@ -46,8 +40,7 @@ export async function agentUsage(
        LEFT JOIN pipeline.llm_calls lc ON lc.task_id = t.id
        WHERE (t.created_by = $1 OR t.created_by LIKE $2 OR t.agent_id = $1)
          AND ${period.filter}`,
-      // The LIKE matches on the agent id's first 8 chars so short-prefix
-      // `created_by` values still attribute to the same developer.
+      // LIKE matches agent id's first 8 chars for short-prefix created_by attribution.
       [agentId, `%${agentId.substring(0, 8)}%`],
     );
 

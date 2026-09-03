@@ -3,27 +3,14 @@ import type { ChunksPort } from "@re-cinq/lore-shared";
 export interface VerifyResult {
   touched: number;
   pruned: number;
-  /** Distinct file paths whose chunks were pruned — the caller's audit trail;
-   *  a hard DELETE leaves no other record of what vanished. */
+  /** Distinct file paths whose chunks were pruned (audit trail for hard DELETE). */
   prunedFiles: string[];
 }
 
-/** Files whose oldest chunk was stamped within this many days are skipped by
- * the re-stamp, so steady-state nights rewrite nothing instead of every
- * reindex-owned row (each rewrite copies the embedding vector into a new row
- * version). Must stay well below gap-detect's 90-day stale window so every
- * file is re-verified long before it would count as stale. */
+/** Files stamped within N days are skipped; must stay below gap-detect's 90-day stale window. */
 const TOUCH_MIN_AGE_DAYS = 30;
 
-/**
- * Post-reindex verification pass: re-stamps `ingested_at` on the repo's
- * reindex-owned chunks whose files still exist in the repo tree, and prunes
- * reindex-owned chunks of files that vanished. Restricted to
- * `metadata->>'ingested_by' = 'reindex-job'` rows, so API- and UI-ingested
- * chunks are never touched or deleted. Re-stamping is gated per file to those
- * unverified for {@link TOUCH_MIN_AGE_DAYS}+ days; pruning is not age-gated.
- * An empty tree is treated as a failed fetch — no touch, no prune.
- */
+/** Post-reindex verification: re-stamps `ingested_at` and prunes reindex-owned chunks of vanished files. */
 export async function verifyRepoChunks(
   port: ChunksPort,
   schema: string,

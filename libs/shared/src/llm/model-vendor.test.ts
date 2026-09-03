@@ -15,8 +15,6 @@ describe("modelVendor", () => {
   });
 
   it("reads the empty non-token model as anthropic, not as unknown", () => {
-    // Anthropic's cost report bills web search and code execution on a row
-    // with no model; it is the Anthropic account's spend either way.
     expect(modelVendor("")).toBe("anthropic");
   });
 
@@ -31,9 +29,6 @@ describe("modelVendor", () => {
   });
 
   it("matches every non-anthropic vendor with a LIKE pattern the spend SQL can use", () => {
-    // The SQL predicate and this classifier are one declaration; a vendor
-    // classified away from anthropic with no pattern would be excluded by the
-    // page and still charged to the balance.
     const nonAnthropic = [
       "gemini-3.1-pro-preview",
       "gpt-5",

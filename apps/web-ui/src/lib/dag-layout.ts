@@ -1,7 +1,4 @@
-// Deterministic layered layout for assembly-line definition graphs. Zero
-// dependencies by design: the graphs are at most a handful of nodes, so a
-// longest-path layering plus fixed-pitch placement beats pulling dagre or d3
-// into the bundle for the same result.
+// Deterministic layered layout for assembly-line definition graphs.
 
 import type {
   AssemblyLineDefinition,
@@ -36,11 +33,7 @@ export interface GraphLayout {
   edges: LayoutEdge[];
   width: number;
   height: number;
-  /**
-   * Tight bounds of everything drawn — node boxes and edge arcs. The view fits
-   * its viewBox to this so a one-node graph sits in a small frame instead of
-   * floating in a canvas sized for the whole layer grid.
-   */
+  /** Tight bounds of everything drawn. */
   contentBox: Box;
 }
 
@@ -66,11 +59,7 @@ const DEFAULTS: ResolvedOptions = {
   arcDrop: 56,
 };
 
-/**
- * Edges that would make the graph cyclic, found by a DFS from `entry` in
- * declaration order: an edge into a node still on the stack is a back edge, and
- * an edge onto its own source is a self-loop. Both are excluded from layering.
- */
+/** Cyclic edges found by DFS; back-edges and self-loops excluded. */
 function cyclicEdges(def: AssemblyLineDefinition): Set<DefinitionEdge> {
   const cyclic = new Set<DefinitionEdge>();
   const onStack = new Set<string>();
@@ -110,11 +99,7 @@ function cyclicEdges(def: AssemblyLineDefinition): Set<DefinitionEdge> {
   return cyclic;
 }
 
-/**
- * Layer index per node: the longest acyclic path from a source, so a node sits
- * one column right of its latest predecessor. Back-edges and self-loops are
- * ignored, which is what keeps a retry loop from pushing its target rightwards.
- */
+/** Layer index per node: longest acyclic path from source. */
 export function layerByLongestPath(
   def: AssemblyLineDefinition,
 ): Map<string, number> {
@@ -185,12 +170,7 @@ function edgeKind(edge: DefinitionEdge, layers: Map<string, number>): EdgeKind {
     : "back";
 }
 
-/**
- * Positions and SVG path data for one definition. Forward edges run between
- * facing ports, back edges arc under the whole row so they read as returns
- * rather than as another forward hop, and a self-loop arcs over its own node so
- * it is visible instead of collapsing to a zero-length line.
- */
+/** Positions, SVG path data for definition; forward/back/self-loop edges. */
 export function layoutAssemblyLine(
   def: AssemblyLineDefinition,
   options: LayoutOptions = {},
@@ -237,8 +217,7 @@ export function layoutAssemblyLine(
   };
 }
 
-/** Every coordinate pair in a path's `d` — the curve stays within the hull of
- *  these, so bounding by them bounds the arc. */
+/** Coordinate pairs in path d; bounding them bounds the arc. */
 function pointsOf(d: string): { x: number; y: number }[] {
   const nums = (d.match(/-?\d+(\.\d+)?/g) ?? []).map(Number);
   const points: { x: number; y: number }[] = [];

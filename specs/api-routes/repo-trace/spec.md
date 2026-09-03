@@ -52,7 +52,7 @@ graph stays the single source of truth and the UI never couples to storage.
 
 1. Dispatcher gates: rate-limit (`default`), then bearer auth —
    `getRequiredScope(url)` returns `read`. Missing token → 401; insufficient
-   scope → 403. ([validated by `trace.test.ts:37`](apps/lore-api/src/api/routes/trace/trace.test.ts#L37))
+   scope → 403. ([validated by `trace.test.ts:37`](apps/lore-api/src/api/routes/trace/trace.test.ts#L32))
 
 2. `(req.url).match(TRACE_RE)` — on no match (unknown kind, missing path
    segment), write `404 { error: "not found" }` and return.
@@ -100,11 +100,11 @@ The handler never touches `_pool` directly — all reads go through `project.tra
 
 ## Acceptance Criteria
 
-An unknown trace kind is rejected with 404 `{ error: "not found" }`. ([validated by `trace.test.ts:30`](apps/lore-api/src/api/routes/trace/trace.test.ts#L30))
+An unknown trace kind is rejected with 404 `{ error: "not found" }`. ([validated by `trace.test.ts:30`](apps/lore-api/src/api/routes/trace/trace.test.ts#L25))
 
-A matched trace kind passes the read-scope auth gate (no 401/403). ([validated by `trace.test.ts:43`](apps/lore-api/src/api/routes/trace/trace.test.ts#L43))
+A matched trace kind passes the read-scope auth gate (no 401/403). ([validated by `trace.test.ts:43`](apps/lore-api/src/api/routes/trace/trace.test.ts#L38))
 
-A `?path=` query longer than the length bound is rejected with 400. ([validated by `trace.test.ts:50`](apps/lore-api/src/api/routes/trace/trace.test.ts#L50))
+A `?path=` query longer than the length bound is rejected with 400. ([validated by `trace.test.ts:50`](apps/lore-api/src/api/routes/trace/trace.test.ts#L45))
 
 The `document`/`source`/`ring` `400 "path query param required"` gate is reached
 only after a successful `projectFor`, so it needs a live Project/Dgraph backend

@@ -25,8 +25,6 @@ const feature = (status: string) => ({ status }) as never;
 
 describe("featurePhaseOf — read from the line", () => {
   it("reads a human station's phase from its declared type, not from a node-id list", () => {
-    // The node id here is in NO map. Before the type existed, a station added to
-    // the blueprint reported no phase at all until someone edited the view.
     expect(
       featurePhaseOf({
         run: {
@@ -89,8 +87,6 @@ describe("featurePhaseOf — read from the line", () => {
   });
 
   it("times the phase from the working NODE, not from the round", () => {
-    // The bug spec-phase.ts's doc comment records: timing from the round read as
-    // 80+ minutes of a 15 minute budget while nothing was running at all.
     expect(
       featurePhaseOf({
         run: run("running", [
@@ -133,8 +129,6 @@ describe("featurePhaseOf — read from the line", () => {
   });
 
   it("falls back rather than guessing when a running line has no open node", () => {
-    // Between nodes: the walk is about to launch the next one. The line cannot say
-    // which phase that is, so the rows we do have decide.
     expect(
       featurePhaseOf({
         run: run("running", [node("analyze", "success")]),
@@ -146,8 +140,6 @@ describe("featurePhaseOf — read from the line", () => {
 });
 
 it("reports awaiting-merge while the spec PR is open", () => {
-  // The `merged` wait node: the branch is pushed, the PR is open, and the line
-  // is parked until a human merges it.
   expect(
     featurePhaseOf({
       run: run("running", [node("push", "success"), node("merged", null)]),
@@ -157,9 +149,6 @@ it("reports awaiting-merge while the spec PR is open", () => {
 });
 
 it("carries the NODE's attempt count, not the round's", () => {
-  // The decompose node can be sent back for a correction, which mints a second row
-  // for the same node. That retry count is the line's, and has nothing to do with
-  // how many planning ROUNDS the author ran before the PR existed.
   expect(
     featurePhaseOf({
       run: run("running", [
@@ -183,8 +172,6 @@ it("reports decomposing for both nodes of the decomposition tail", () => {
 });
 
 describe("featurePhaseOf — the legacy fallback", () => {
-  // A feature whose planning predates the merged line minted a task per round and
-  // resolves no line at all. It must keep working.
   it("reports planning while the round's task is still running", () => {
     expect(
       featurePhaseOf({
@@ -219,8 +206,6 @@ describe("featurePhaseOf — the legacy fallback", () => {
   });
 
   it("reports failed when the round settled without producing anything usable", () => {
-    // The round's task ended but the iteration is still 'running' with no result —
-    // a hard crash. Without this the wizard span forever.
     expect(
       featurePhaseOf({
         run: null,

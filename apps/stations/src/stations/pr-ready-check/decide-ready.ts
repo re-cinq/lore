@@ -10,31 +10,14 @@ export type PrReadyVerdict =
       kind: "wait";
       reason: "ci_pending" | "ci_not_started" | "address_in_flight";
     }
-  // `outcome` is what the walk routes on — `reason` reaches the run's args but
-  // steers nothing (selectEdge matches on outcome alone). So the two blocked
-  // reasons must resume with DIFFERENT outcomes or the line cannot tell a red
-  // build from an unanswered reviewer: ci_red goes to fix-ci, unresolved threads
-  // go to a human (specs/implementation-loop FR3).
+  // outcome routes the walk (selectEdge), reason populates run.args; blocked reasons must have DIFFERENT outcomes (specs/implementation-loop FR3)
   | {
       kind: "blocked";
       reason: "ci_red" | "unresolved_threads";
       outcome: "changes_requested" | "failed";
     };
 
-/**
- * Pure verdict for one parked await-pr node. Red CI blocks immediately — no
- * review round-trip fixes a build the agent already retried. Unresolved
- * threads block only once the PR-review choreography has had its chance,
- * defined as: no run of the review family is open for this PR.
- *
- * `none` is ambiguous and the two readings are opposites: a repo with no checks
- * configured (green — it cannot wedge its loop) versus a repo whose checks have
- * not registered for this head sha YET (not started — resuming would pass a
- * build nobody ran). `hasCiHistory` separates them, and it is a REPO fact rather
- * than a clock, which is what keeps this function pure and testable with no
- * fake timers. It is required, not optional-with-a-default: a defaulted flag
- * silently restores the racy reading at every call site that forgets it.
- */
+/** Verdict for await-pr: hasCiHistory distinguishes "no checks configured" (green) from "not started" (pending). */
 export function decidePrReady(input: {
   ci: CiConclusion;
   threads: readonly ReviewThread[];

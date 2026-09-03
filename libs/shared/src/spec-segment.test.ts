@@ -257,7 +257,6 @@ describe("classifyByHeuristic", () => {
     });
   });
 
-  // ── Content + section tightening: narrative prose that specifies no behaviour ──
   const stmt = (
     text: string,
     heading: string | null = "Functional Requirements",
@@ -324,23 +323,21 @@ describe("classifyByHeuristic", () => {
   });
 });
 
-// Appended as its own block at end-of-file so no inserted test shifts the line
-// anchors the spec-coverage corpus pins against the tests above.
 describe("segmentStatements start line", () => {
   it("stamps each statement with its 1-based source start line", () => {
     const out = segmentStatements(
       [
-        "# H1 Title", // line 1
-        "", // 2
-        "Intro statement.", // 3
-        "", // 4
-        "## Section", // 5
-        "", // 6
-        "First para sentence. Second para sentence.", // 7
-        "", // 8
-        "- First item.", // 9
-        "- Second item that", // 10
-        "  wraps.", // 11
+        "# H1 Title",
+        "",
+        "Intro statement.",
+        "",
+        "## Section",
+        "",
+        "First para sentence. Second para sentence.",
+        "",
+        "- First item.",
+        "- Second item that",
+        "  wraps.",
       ].join("\n"),
     );
 

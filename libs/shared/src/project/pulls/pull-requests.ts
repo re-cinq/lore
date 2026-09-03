@@ -15,10 +15,7 @@ import type {
   ReviewThread,
 } from "./pull-requests-port.js";
 
-/**
- * project.pulls — the canonical PR surface, repo bound. Workspace.openPr() is a
- * thin convenience that pushes the clone's branch then calls open() here.
- */
+/** Canonical PR surface, repo-bound; thin facade over PullRequestsPort. */
 export class PullRequests {
   constructor(
     private readonly repo: string,
@@ -128,8 +125,7 @@ export class PullRequests {
     return this.pulls.listReviewThreads(this.repo, number);
   }
 
-  /** Pass-through (the node id is globally unique) — kept on the facade so
-   *  callers stay on one surface. */
+  /** Pass-through for globally unique node id; kept on facade for caller convenience. */
   resolveReviewThread(threadId: string): Promise<void> {
     return this.pulls.resolveReviewThread(threadId);
   }

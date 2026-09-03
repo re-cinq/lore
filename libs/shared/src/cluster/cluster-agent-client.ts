@@ -55,8 +55,7 @@ export class ClusterAgentClient {
   }
 }
 
-/** The route rejects anything above 100; asking for exactly that many keeps the
- *  walk to the fewest round trips it can make. */
+/** Route rejects above 100; asking for 100 keeps walk to fewest round trips. */
 const PAGE_LIMIT = 100;
 
 /** {@link AgentLister} + {@link AgentStatusReader} over the agent — the READ half plus status-patch/delete. Deliberately NOT an {@link AgentApi}: dispatch is pull-only, so `POST /agents` is gone with its route. */

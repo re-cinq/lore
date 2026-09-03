@@ -1,19 +1,11 @@
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
-/**
- * PostgreSQL + pgvector search module.
- *
- * Uses Reciprocal Rank Fusion (RRF) to combine vector and keyword search.
- * Calls Vertex AI text-embedding-005 for query embeddings (no AlloyDB
- * embedding() function — we're running CNPG, not managed AlloyDB).
- * Degrades gracefully when PostgreSQL is unavailable.
- */
+/** PostgreSQL + pgvector search using Reciprocal Rank Fusion (RRF) for vector + keyword. */
 
 import type { Pool } from "pg";
 import { getQueryEmbedding } from "@re-cinq/lore-shared";
 import { chunkSchemaOrOrgShared } from "@re-cinq/lore-shared/project/chunks/chunk-schema.js";
 
-// Vertex AI query embeddings now live in the shared embedding-service singleton;
-// re-exported here for back-compat with this module's existing importers.
+// Re-exported from shared embedding-service singleton for back-compat.
 export { getQueryEmbedding };
 
 let pool: Pool | null = null;
@@ -115,9 +107,7 @@ export async function hybridSearch(
     return [];
   }
 
-  // An unknown or unprovisioned schema falls back to org_shared (the
-  // documented lore_search_context contract); provisioned team schemas are
-  // read directly instead of a hardcoded allow-list.
+  // Unknown schema falls back to org_shared; provisioned team schemas read directly.
   const resolvedSchema = await chunkSchemaOrOrgShared(getPool(), schema);
 
   // Get query embedding from Vertex AI

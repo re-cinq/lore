@@ -13,16 +13,7 @@ import { bearerScope } from "../../../server/plugins/bearer-scope.js";
 import { zodResponse } from "../../../server/plugins/zod-response.js";
 import { DB_UNAVAILABLE } from "../common-schemas.js";
 
-/**
- * GET /api/cluster-agents — the registered-clusters visibility surface (FR7 of
- * specs/running-stations-in-any-k8s-cluster): every registered agent with its
- * open-claim count, plus the recent `cluster_agent_offline` audit entries so a
- * flapping cluster is diagnosable without database access.
- *
- * Unlike its sibling register/claim/heartbeat routes this one serves the UI,
- * not the agents — so auth is the normal scoped-token strategy, not the
- * per-agent token.
- */
+/** Registered-clusters visibility: agents with open-claim counts and recent offline events (FR7). */
 
 const OFFLINE_EVENT_LIMIT = 20;
 

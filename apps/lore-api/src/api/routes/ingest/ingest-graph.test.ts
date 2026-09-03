@@ -21,12 +21,6 @@ const insertCalls = (pool: ReturnType<typeof makePool>) =>
     String(c[0]).includes("INSERT INTO pipeline.events"),
   );
 
-/**
- * POST /api/repos/:owner/:repo/ingest-graph — the REST/curl/CI (re-)projection
- * trigger. Only docs (specs/adrs) project here: each inserts an
- * internal.ingest.spec_trace event on the Floor event bus (the loop projects).
- * Test projection is CI-only → rejected.
- */
 describe("POST /api/repos/:owner/:repo/ingest-graph", () => {
   useRateLimitSafeClock();
   beforeEach(() => {
@@ -55,10 +49,6 @@ describe("POST /api/repos/:owner/:repo/ingest-graph", () => {
   });
 
   it("parses a JSON body sent with a non-JSON Content-Type", async () => {
-    // ADR-034: routes.payload.override forces JSON parsing regardless of the
-    // client's Content-Type. Without it hapi would form-parse this body, `kinds`
-    // would be undefined, and the request would default to specs+adrs and 200
-    // instead of the tests-kind 400 asserted here.
     const pool = makePool();
     const res = await buildServer(() => pool as any).inject({
       method: "POST",
@@ -72,8 +62,6 @@ describe("POST /api/repos/:owner/:repo/ingest-graph", () => {
   });
 
   it("returns 400 on an unparseable body", async () => {
-    // ADR-034: hapi parses the payload natively, so malformed JSON is a 400
-    // (hapi's default parse-error body) before the handler runs; no event inserted.
     const pool = makePool();
     const res = await buildServer(() => pool as any).inject({
       method: "POST",

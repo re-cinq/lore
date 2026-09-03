@@ -15,20 +15,14 @@ export default function FailureBlock({
 }: {
   iteration: number;
   failureReason: string | null | undefined;
-  /** What the author submitted for this round — persisted before the run started,
-   *  so a failure never loses it. Shown here because the wizard clears the form on
-   *  submit and this is otherwise the last place those words could be read. */
+  /** Author's round submission, persisted before run: shown here since wizard clears form on submit. */
   answers?: SectionAnswers | null;
   /** The round's assembly line, for the recorded reason + a link to the transcript. */
   run?: { id: string; reason: string | null } | null;
   pending: boolean;
   onRetry: () => void;
 }) {
-  // The task's failure_reason is the richest text: since #1455 the Floor composes
-  // it from the failed node's CLASSIFIED failure — the agent's own error plus what
-  // to do about it — instead of the routing statement that used to land here
-  // ("edge analyze->analyze exceeded iteration_max 1"). The line's reason names the
-  // node that failed. Either beats guessing.
+  // failure_reason is richest: Floor composes from node's CLASSIFIED failure since #1455, not routing statement.
   const diagnosis = failureReason || run?.reason;
   const submitted = submittedFeedback(answers);
 

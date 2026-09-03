@@ -96,27 +96,27 @@ JSON body:
 
 A null pool returns 503 before any parsing. ([validated by `returns 503 when pool is null`](apps/lore-api/src/api/routes/ingest/ingest.test.ts#L42))
 
-A body whose `files` is not an array returns 400. ([validated by `returns 400 when files is not an array`](apps/lore-api/src/api/routes/ingest/ingest.test.ts#L49))
+A body whose `files` is not an array returns 400. ([validated by `returns 400 when files is not an array`](apps/lore-api/src/api/routes/ingest/ingest.test.ts#L48))
 
-A body missing `repo` returns 400 with the verbatim required-fields error. ([validated by `returns 400 when repo is missing`](apps/lore-api/src/api/routes/ingest/ingest.test.ts#L68))
+A body missing `repo` returns 400 with the verbatim required-fields error. ([validated by `returns 400 when repo is missing`](apps/lore-api/src/api/routes/ingest/ingest.test.ts#L67))
 
-A batch with an ingested file returns 200 and fires the spec-coverage-validate trigger. ([validated by `returns 200 and inserts a spec-coverage-validate event when a file lands`](apps/lore-api/src/api/routes/ingest/ingest.test.ts#L55))
+A batch with an ingested file returns 200 and fires the spec-coverage-validate trigger. ([validated by `returns 200 and inserts a spec-coverage-validate event when a file lands`](apps/lore-api/src/api/routes/ingest/ingest.test.ts#L54))
 
-A `deleted` status counts as a landed file and fires the trigger. ([validated by `treats a deleted status as a landed file and inserts the event`](apps/lore-api/src/api/routes/ingest/ingest.test.ts#L74))
+A `deleted` status counts as a landed file and fires the trigger. ([validated by `treats a deleted status as a landed file and inserts the event`](apps/lore-api/src/api/routes/ingest/ingest.test.ts#L73))
 
-An all-skipped batch fires no trigger. ([validated by `does not insert an event when nothing landed`](apps/lore-api/src/api/routes/ingest/ingest.test.ts#L87))
+An all-skipped batch fires no trigger. ([validated by `does not insert an event when nothing landed`](apps/lore-api/src/api/routes/ingest/ingest.test.ts#L86))
 
-A result with no `results` array fires no trigger. ([validated by `does not fire the trigger when the result has no results array`](apps/lore-api/src/api/routes/ingest/ingest.test.ts#L97))
+A result with no `results` array fires no trigger. ([validated by `does not fire the trigger when the result has no results array`](apps/lore-api/src/api/routes/ingest/ingest.test.ts#L96))
 
-A throwing `ingestFiles` returns 500 with the error message. ([validated by `returns 500 when ingestFiles throws`](apps/lore-api/src/api/routes/ingest/ingest.test.ts#L108))
+A throwing `ingestFiles` returns 500 with the error message. ([validated by `returns 500 when ingestFiles throws`](apps/lore-api/src/api/routes/ingest/ingest.test.ts#L107))
 
 The post-200 spec-coverage-validate fan-out is resilient: it is a no-op when there is no pool and swallows insert errors so a flaky DB never breaks the already-written ingest response. ([validated by `spec-coverage-validate-trigger.test.ts:32`](apps/lore-api/src/api/routes/spec-coverage-validate-trigger.test.ts#L32), [validated by `spec-coverage-validate-trigger.test.ts:38`](apps/lore-api/src/api/routes/spec-coverage-validate-trigger.test.ts#L38))
 
 The route is registered as an exact `POST /api/ingest` match. ([implemented by](../../../apps/lore-api/src/server/build-server.ts#L100), [implemented by](../../../apps/lore-api/src/api/routes/ingest/ingest.ts#L21))
 
-A `files` entry may be a bare path string or a `{path, content}` object; the two are distinguished by type and the path is extracted from either form. ([validated by IngestFile distinguishes path strings from content objects](apps/lore-api/src/features/spec-trace/ingest.test.ts#L53), [`ingest.test.ts:62`](apps/lore-api/src/features/spec-trace/ingest.test.ts#L62))
+A `files` entry may be a bare path string or a `{path, content}` object; the two are distinguished by type and the path is extracted from either form. ([validated by IngestFile distinguishes path strings from content objects](apps/lore-api/src/features/spec-trace/ingest.test.ts#L48), [`ingest.test.ts:57`](apps/lore-api/src/features/spec-trace/ingest.test.ts#L57))
 
-When the supplied `commit` belongs to a different repo than the one being fetched, content resolution falls back to `HEAD`; a matching repo keeps the specific commit, and the fetch retries refs in order (specific commit, then `HEAD`) without duplicating `HEAD` when the commit is already `HEAD`. ([validated by commit SHA fallback uses HEAD when commit is from a different repo](apps/lore-api/src/features/spec-trace/ingest.test.ts#L81), [`ingest.test.ts:91`](apps/lore-api/src/features/spec-trace/ingest.test.ts#L91), [`ingest.test.ts:101`](apps/lore-api/src/features/spec-trace/ingest.test.ts#L101), [`ingest.test.ts:108`](apps/lore-api/src/features/spec-trace/ingest.test.ts#L108))
+When the supplied `commit` belongs to a different repo than the one being fetched, content resolution falls back to `HEAD`; a matching repo keeps the specific commit, and the fetch retries refs in order (specific commit, then `HEAD`) without duplicating `HEAD` when the commit is already `HEAD`. ([validated by commit SHA fallback uses HEAD when commit is from a different repo](apps/lore-api/src/features/spec-trace/ingest.test.ts#L70), [`ingest.test.ts:80`](apps/lore-api/src/features/spec-trace/ingest.test.ts#L80), [`ingest.test.ts:90`](apps/lore-api/src/features/spec-trace/ingest.test.ts#L90), [`ingest.test.ts:97`](apps/lore-api/src/features/spec-trace/ingest.test.ts#L97))
 
 ## Out of Scope
 

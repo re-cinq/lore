@@ -1,16 +1,7 @@
 import { z } from "zod";
 import type { ColumnMap } from "../lib/row.js";
 
-/**
- * `{team}.chunks` — one ingested content chunk. The table is created PER TEAM
- * schema (plus `org_shared`), so this model names no single schema: the caller
- * supplies it, which is what schema-per-team isolation means.
- *
- * DDL: `scripts/infra/setup-db.sh`. Two columns are excluded on purpose:
- * `embedding` is a pgvector `VECTOR(768)` no reader wants inline, and
- * `search_tsv` is a GENERATED column Postgres maintains — writing either from a
- * model would be wrong.
- */
+/** One ingested content chunk; per-team schema; embedding and search_tsv excluded on purpose. */
 
 export const ChunkSchema = z.object({
   id: z.string(),

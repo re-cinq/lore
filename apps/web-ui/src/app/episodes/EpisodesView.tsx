@@ -4,8 +4,7 @@ import { formatEnumLabel } from "@/lib/enum-label";
 import styles from "./EpisodesView.module.css";
 import type { components } from "@/lib/api/schema";
 
-/** One episode row — `content_preview` is a 300-char slice and `fact_count` an
- *  aggregate, both stated by the route rather than held by the table. */
+/** One episode row; content_preview and fact_count supplied by route, not table. */
 export type EpisodeRow =
   components["schemas"]["EpisodePage"]["episodes"][number];
 
@@ -24,10 +23,7 @@ export interface EpisodesViewProps {
   pageSize: number;
 }
 
-/**
- * Presentational view for the episode browser. Pure render — the container
- * (`page.tsx`) runs the queries and passes the resolved view-model down.
- */
+/** Episode browser view; pure render with pagination from container. */
 export default function EpisodesView({
   source,
   offset,

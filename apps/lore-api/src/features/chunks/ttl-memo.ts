@@ -1,8 +1,4 @@
-/**
- * Memoize a zero-arg async function for `ttlMs`. The in-flight promise is
- * cached, so concurrent callers share one invocation; a rejection clears the
- * cache so errors are retried on the next call.
- */
+// Memoize zero-arg async function for ttlMs; concurrent callers share one invocation.
 export function memoizeWithTtl<T>(
   fn: () => Promise<T>,
   ttlMs: number,

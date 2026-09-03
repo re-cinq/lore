@@ -10,16 +10,7 @@ import { zodResponse } from "../../../server/plugins/zod-response.js";
 import { DB_UNAVAILABLE } from "../common-schemas.js";
 import { restartClusterAgent } from "../../../features/agents/agent-crd-k8s.js";
 
-/**
- * POST /api/cluster-agents/{id}/restart — bounces the cluster-agent process so
- * Kubernetes re-pulls whatever `latest` now points at (pullPolicy: Always).
- *
- * Only the CENTRAL agent is reachable: lore-api dials one static
- * CLUSTER_AGENT_URL (its own cluster's in-cluster address, set by terraform),
- * and a satellite's cluster-agent has no path back in — dispatch is pull-only,
- * so lore-api holds no per-satellite address to call. Any other id is refused
- * before lore-api attempts a call that would just hang or connection-refuse.
- */
+/** Bounces the cluster-agent pod to re-pull latest image; only central agent is reachable. */
 
 const CENTRAL_CLUSTER_AGENT_NAME = "central";
 

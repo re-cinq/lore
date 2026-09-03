@@ -24,16 +24,16 @@ so its unit tests trace to a statement.
 
 ### Session summary formatting
 
-FR1. An empty session log produces an empty summary string, so a session that made no tool calls emits nothing. ([validated by `session-tracker.test.ts:67`](libs/server-core/src/platform/session-tracker.test.ts#L67))
+FR1. An empty session log produces an empty summary string, so a session that made no tool calls emits nothing. ([validated by `session-tracker.test.ts:67`](libs/server-core/src/platform/session-tracker.test.ts#L64))
 
-FR2. The summary reports the total tool-call count, the total error count, and a per-tool breakdown of how many times each tool was called. ([validated by `session-tracker.test.ts:73`](libs/server-core/src/platform/session-tracker.test.ts#L73))
+FR2. The summary reports the total tool-call count, the total error count, and a per-tool breakdown of how many times each tool was called. ([validated by `session-tracker.test.ts:73`](libs/server-core/src/platform/session-tracker.test.ts#L70))
 
-FR3. Each tool's per-tool line appends an error count suffix when that tool had at least one failed call, and the header carries the session-wide error total. ([validated by `session-tracker.test.ts:105`](libs/server-core/src/platform/session-tracker.test.ts#L105))
+FR3. Each tool's per-tool line appends an error count suffix when that tool had at least one failed call, and the header carries the session-wide error total. ([validated by `session-tracker.test.ts:105`](libs/server-core/src/platform/session-tracker.test.ts#L102))
 
-FR4. Tools in the breakdown are ordered by call count descending, so the most-used tool appears first. ([validated by `session-tracker.test.ts:130`](libs/server-core/src/platform/session-tracker.test.ts#L130))
+FR4. Tools in the breakdown are ordered by call count descending, so the most-used tool appears first. ([validated by `session-tracker.test.ts:130`](libs/server-core/src/platform/session-tracker.test.ts#L127))
 
-FR5. Each tool's per-tool line reports the average call duration in milliseconds across that tool's calls. ([validated by `session-tracker.test.ts:168`](libs/server-core/src/platform/session-tracker.test.ts#L168))
+FR5. Each tool's per-tool line reports the average call duration in milliseconds across that tool's calls. ([validated by `session-tracker.test.ts:168`](libs/server-core/src/platform/session-tracker.test.ts#L165))
 
 ### Ring buffer
 
-FR6. The tool-call log is a ring buffer capped at MAX_ENTRIES (500): once full, the oldest entry is evicted as each new call is recorded. ([validated by `session-tracker.test.ts:193`](libs/server-core/src/platform/session-tracker.test.ts#L193))
+FR6. The tool-call log is a ring buffer capped at MAX_ENTRIES (500): once full, the oldest entry is evicted as each new call is recorded. ([validated by `session-tracker.test.ts:193`](libs/server-core/src/platform/session-tracker.test.ts#L190))

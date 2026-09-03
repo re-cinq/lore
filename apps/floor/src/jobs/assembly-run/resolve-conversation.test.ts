@@ -69,8 +69,6 @@ describe("resolveConversation", () => {
   });
 
   it("forks rather than overwrites, so the continued run stays resumable", async () => {
-    // The pin is always NEW — that is what lets an author rewind to an earlier round
-    // after later ones have run.
     const store = new InMemoryConversations();
 
     await store.reserve({
@@ -104,8 +102,6 @@ describe("resolveConversation", () => {
   });
 
   it("never continues on a retry", async () => {
-    // A retry is a revisit whose own last attempt FAILED — not merely iteration > 1,
-    // which on a merged line is just the next round.
     const store = new InMemoryConversations();
 
     expect(
@@ -116,7 +112,6 @@ describe("resolveConversation", () => {
         deps(store),
       ),
     ).toBeUndefined();
-    // And reserves nothing, so a retry leaves no orphan id behind.
     expect(store.rows).toEqual([]);
   });
 
@@ -200,7 +195,6 @@ describe("resolveConversation rewind", () => {
   });
 
   it("starts fresh rather than resuming the newest when the chosen round has no state", async () => {
-    // Falling through to round 4 here would present as a rewind that worked.
     const store = new InMemoryConversations();
     const thread = {
       kind: "args" as const,
@@ -271,7 +265,6 @@ describe("a line whose rounds are revisits of one node", () => {
     nodeId: "analyze",
   };
 
-  /** Round N of the SAME line — the merged planning line's shape. */
   const savedRound = async (
     store: InMemoryConversations,
     iteration: number,
@@ -286,9 +279,6 @@ describe("a line whose rounds are revisits of one node", () => {
   };
 
   it("continues the previous round even though it ran on this same line", async () => {
-    // The regression: the exclusion used to be "not this line", which on a merged
-    // line is "not any of my own previous rounds". It failed quietly — no prior
-    // conversation just re-briefs the agent with the whole draft again.
     const store = new InMemoryConversations();
 
     await savedRound(store, 1);
@@ -323,8 +313,6 @@ describe("a line whose rounds are revisits of one node", () => {
   });
 
   it("rewinds to the round the author picked by its iteration", async () => {
-    // On the merged line a resumed round mints no task, so `resume_from_task`
-    // cannot name one. The round IS the iteration of this line.
     const store = new InMemoryConversations();
 
     await savedRound(store, 1);
@@ -349,9 +337,6 @@ describe("a line whose rounds are revisits of one node", () => {
   });
 
   it("starts fresh when the round the author picked saved nothing", async () => {
-    // The rewind contract: an explicit choice that resolves to nothing must not
-    // fall through to the newest round, or a broken rewind is indistinguishable
-    // from one that worked.
     const store = new InMemoryConversations();
 
     await savedRound(store, 1);
@@ -380,8 +365,6 @@ describe("a rewind target whose task ran more than one line", () => {
   };
 
   it("resumes line-4 when linesForTask answers newest-first ['line-4','line-2']", async () => {
-    // listForTask orders created_at DESC, so the NEWEST run is at index 0. Reading
-    // the last element resumed the first attempt the author had already discarded.
     const store = new InMemoryConversations();
     const thread = {
       kind: "args" as const,

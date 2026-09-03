@@ -1,10 +1,4 @@
-/**
- * Delete memories whose TTL has passed.
- *
- * One DELETE behind a port. It had its own CronJob pod built from the
- * coordinator's image before it left the Floor; it is a station now because that
- * is what a single data operation on a schedule is.
- */
+/** Delete memories whose TTL has passed. */
 
 import type { MemoryLifecyclePort } from "@re-cinq/lore-shared/project/memory/memory-lifecycle-port.js";
 

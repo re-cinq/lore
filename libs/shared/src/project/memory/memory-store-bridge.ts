@@ -5,11 +5,7 @@ import type {
   MemoryWriteResult,
 } from "./memory-port.js";
 
-/**
- * Bridges the existing MemoryStore seam onto the repo-scoped MemoryPort. No new
- * backend — the Project builds the store via selectMemoryStore(pg, dgraph) and
- * hands it here.
- */
+/** Bridge MemoryStore seam onto repo-scoped MemoryPort. */
 export class MemoryStoreBridge implements MemoryPort {
   constructor(private readonly store: MemoryStore) {}
 

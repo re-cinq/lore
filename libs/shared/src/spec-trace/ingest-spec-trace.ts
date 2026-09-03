@@ -1,9 +1,4 @@
-/**
- * spec-traceability-graph end-to-end wiring — the thin dispatcher behind the
- * agent's `/api/trigger/spec-trace` handler. Routes a posted payload to the
- * right ingest function by `kind`. The `"test-report"` and `"coverage"`
- * branches exist; an unrecognized `kind` is enforced (throws) naming the kind.
- */
+/** End-to-end spec-traceability-graph wiring; routes payload to ingest function by kind. */
 
 import type { CoveredChunk, DgraphClientPort } from "./deps.js";
 import { ingestTestReport, type TestReport } from "./ingest-test-report.js";
@@ -25,11 +20,7 @@ interface CoveragePayload {
   coverage?: { test: string; covered: CoveredChunk[] }[];
 }
 
-/**
- * Projects a bulk coverage payload into {@link ingestCoverageReport}'s record
- * shape. Bulk groups carry only `test`, so testFile = testName = group.test;
- * COVERS edges derive from each group's `covered` ranges. Pure — no Dgraph I/O.
- */
+/** Projects bulk coverage payload to ingestCoverageReport record shape; testFile = testName = group.test. */
 function coverageRecordsFromGroups(payload: CoveragePayload) {
   return (payload.coverage ?? []).map((group) => ({
     testFile: group.test,

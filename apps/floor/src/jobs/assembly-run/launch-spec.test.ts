@@ -16,9 +16,6 @@ const visit = (
 
 describe("incomingFailureOf", () => {
   it("names the failure that just routed here, from ANOTHER node", () => {
-    // The case the implementation loop could not converge on: `implement`
-    // succeeded, `validate` failed, and the retried `implement` was told
-    // nothing — because its OWN last outcome was "success".
     const visits = [
       visit("implement", "success"),
       visit("validate", "failed", "validation failed: lint,build"),
@@ -28,7 +25,6 @@ describe("incomingFailureOf", () => {
       nodeId: "validate",
       detail: "validation failed: lint,build",
     });
-    // The contrast that made this necessary:
     expect(priorOutcomeOf(visits, "implement")).toBe("success");
   });
 

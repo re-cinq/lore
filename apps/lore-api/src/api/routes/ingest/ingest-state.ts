@@ -8,15 +8,7 @@ import { bearerScope } from "../../../server/plugins/bearer-scope.js";
 import { DB_UNAVAILABLE } from "../common-schemas.js";
 import { INGEST_DELTA_KINDS } from "./ingest-kinds.js";
 
-/**
- * `GET /api/repos/{owner}/{repo}/ingest-state?kind=` — the CI half of the
- * incremental-ingest handshake (specs/ci-incremental-ingest FR1): the commit
- * Lore last ingested for this repo and kind, so the runner can
- * `git diff <commit>..HEAD` and send only the delta. A null commit is the
- * full-ingest signal — nothing recorded yet, or a cluster whose migration has
- * not landed, and both mean the same thing to the caller: diff against
- * nothing, send everything.
- */
+/** GET ingest-state (CI half of incremental-ingest handshake); null = full-ingest signal. */
 
 const IngestStateSchema = z.object({
   kind: z.string(),
@@ -57,8 +49,7 @@ export function ingestStateRoute(getPool: () => Pool | null): ServerRoute {
 
         commit = rows[0]?.commit_sha ?? null;
       } catch (err) {
-        // Pre-migration cluster → "never ingested", which correctly makes the
-        // caller run a full ingest rather than failing its CI job.
+        // Unmigrated cluster → full ingest (correct behavior).
         if (!(
           err instanceof Error &&
           "code" in err &&

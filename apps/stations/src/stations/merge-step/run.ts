@@ -1,10 +1,4 @@
-/**
- * Bind one merge step to the ports this process holds.
- *
- * The composition root for the merge line: the step functions take everything
- * they need, and this is where those become the real database, the real code
- * host and the real memory store.
- */
+/** Bind one merge step to the ports this process holds (composition root). */
 
 import type { NodeResult } from "@re-cinq/lore-assembly-lines";
 import type { StationInput } from "@re-cinq/lore-shared/station-input.js";
@@ -34,9 +28,7 @@ const hoursBetween = (from: string, to: string | null): number | null =>
       );
 
 function productionDeps(): MergeStepDeps {
-  // The steps take a narrow task; the helpers reused from the sweep want the
-  // whole row. Rather than widen the step contract to whatever those helpers
-  // happen to read, the row fetched for the step is kept here and handed to them.
+  // Cache the whole row to hand to helpers rather than widening the step contract.
   let row: Awaited<ReturnType<ReturnType<typeof taskStore>["getById"]>> = null;
 
   return {
@@ -63,8 +55,7 @@ function productionDeps(): MergeStepDeps {
     flipSpecStatus: async (task) => {
       await maybeFlipSpecStatus(await projectFor(task.target_repo), {
         ...(row as NonNullable<typeof row>),
-        // The sweep's row type spells absent fields `null`; the task store's
-        // spells them `undefined`. Normalised here rather than widening either.
+        // Normalise sweep null to task store undefined.
         target_branch: row?.target_branch ?? null,
         pr_url: row?.pr_url ?? null,
         task_group_id: row?.task_group_id ?? null,
@@ -152,10 +143,7 @@ export async function runMergeStepNode(
     };
   }
 
-  // No catch around the step itself: the LINE is the error handling now. Its
-  // `failed` edge routes forward, so a failing step is recorded and the ones
-  // after it still run — which is the whole reason this stopped being one
-  // function behind five try/catch blocks.
+  // No catch: the LINE is the error handling (failed edge routes forward).
   try {
     await runMergeStep(step, taskId, productionDeps());
 

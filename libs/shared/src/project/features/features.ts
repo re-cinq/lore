@@ -10,10 +10,6 @@ import type {
   CreateFeatureInput,
 } from "./features-port.js";
 
-/**
- * project.features — the repo-bound feature-planning surface. Stamps the bound
- * repo onto every call so callers only supply feature-level arguments.
- */
 export class Features {
   constructor(
     private readonly repo: string,

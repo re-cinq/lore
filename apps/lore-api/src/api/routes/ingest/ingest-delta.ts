@@ -20,33 +20,7 @@ import { bearerScope } from "../../../server/plugins/bearer-scope.js";
 import { DB_UNAVAILABLE } from "../common-schemas.js";
 import { INGEST_DELTA_KINDS } from "./ingest-kinds.js";
 
-/**
- * `POST /api/repos/{owner}/{repo}/ingest` — the incremental CI ingest sink
- * (specs/ci-incremental-ingest FR3). CI fetched the last-ingested commit
- * (`GET …/ingest-state`), diffed against it, and posts only the DELTA as
- * JSON: changed doc contents for `specs`/`adrs`, an incremental test report
- * for `test-report`, and the deleted paths for either. The projection happens
- * HERE, in-process against the graph store — no event, no pod, no clone: the
- * runner already had the working tree and this process already has the
- * dgraph egress and the Vertex embed path.
- *
- * State advances by COMPARE-AND-SET: the update lands only while the stored
- * commit still equals the posted `base_commit`, so two merges racing cannot
- * silently skip one delta — the loser gets a 409 naming the current commit
- * and re-diffs. The check runs before projection (cheap refusal) and the
- * advance after it (a failed projection must not move the pointer past work
- * that never landed); projection itself is idempotent xid upserts, so the
- * losing side of the rare mid-flight race redoes harmless work.
- *
- * `base_commit` is the OBSERVED state — exactly what `GET …/ingest-state`
- * returned — never merely "what I diffed from". A full ingest is the same
- * POST (sent in `{seq, total}` chunks when large; the state advances only
- * with the final chunk): with `base_commit: null` when no state was
- * recorded, and with the observed commit when the state exists but is
- * unreachable in the runner's history (force-pushed main). Posting null
- * against a recorded state would 409 on every retry — a deadlock, since
- * re-fetching returns the same unreachable commit forever.
- */
+/** POST incremental CI delta ingest; state advances by CAS (base_commit is observed state). */
 
 const SHA = /^[0-9a-f]{7,40}$/;
 
@@ -72,10 +46,7 @@ type IngestDeltaBody = z.infer<typeof IngestDeltaBody>;
 const IngestDeltaResultSchema = z.object({
   kind: z.string(),
   commit: z.string(),
-  /** `advanced` once the state pointer moved; `pending-chunks` while earlier
-   *  chunks of a multi-part ingest are still being posted; `unrecorded` when
-   *  the projection landed but the state table has not been migrated — the
-   *  next GET answers null and the flow degrades to full ingests. */
+  /** "advanced" (pointer moved), "pending-chunks" (multi-part), "unrecorded" (unmigrated). */
   state: z.enum(["advanced", "pending-chunks", "unrecorded"]),
   projected: z.number(),
   deleted: z.number(),
@@ -240,17 +211,7 @@ export function ingestDeltaRoute(
         body.total === undefined ||
         body.seq >= body.total;
 
-      // Refuse a stale base BEFORE projecting: two merges raced, this delta
-      // was diffed from a commit the state has moved past, and applying it
-      // could skip the other merge's changes forever. EVERY chunk checks, not
-      // just the final one — a delayed chunk from a superseded run would
-      // otherwise overwrite newer graph state with stale content that no CAS
-      // at the end can undo.
-      //
-      // Strict equality, null included: a null stored state under a non-null
-      // claimed base means the recorded state is gone (fresh or re-migrated
-      // cluster) and this delta may miss earlier changes — the refusal makes
-      // CI re-fetch, see null, and send a full ingest.
+      // Refuse stale base before projecting (race detection; CI must re-fetch and re-diff).
       const current = await storedCommit(pool, repo, body.kind);
 
       enforceTrue(
@@ -288,12 +249,7 @@ export function ingestDeltaRoute(
         });
       }
 
-      // The advance is a compare-and-set, not a blind write: it lands only
-      // while the stored commit still equals the base this delta diffed from.
-      // An unmigrated state table is not a failure of the INGEST — the graph
-      // already absorbed the delta — so it reports `unrecorded` rather than
-      // 500-ing CI: the next GET answers null and the flow degrades to a full
-      // ingest per push until the migration lands.
+      // CAS advance; unmigrated state not failure (graph already absorbed delta).
       let rows: Array<{ commit_sha: string }>;
 
       try {

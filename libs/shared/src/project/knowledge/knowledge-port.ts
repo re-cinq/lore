@@ -1,8 +1,4 @@
-/**
- * Knowledge port — specs/ADRs/graph reads. The adapter wraps the existing
- * assembleContext + queryLiveGraph (mcp-server) and the spec-traceability
- * queryTrace (stub today). No retrieval logic is reimplemented here.
- */
+/** Knowledge port for specs/ADRs/graph reads. */
 
 import type { LiveGraphResult } from "./live-graph.js";
 
@@ -15,10 +11,7 @@ export interface DocRef {
   title: string;
 }
 
-/**
- * The queryTrace stub response, single-sourced so the Pg adapter and the
- * in-memory double cannot drift — callers branch on this sentence.
- */
+/** Single-sourced queryTrace stub response. */
 export const TRACE_NOT_DEPLOYED_MESSAGE =
   "Trace queries are not yet available: the spec-traceability graph projection is not deployed in this build.";
 

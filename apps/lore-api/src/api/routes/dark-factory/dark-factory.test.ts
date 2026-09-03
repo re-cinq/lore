@@ -8,9 +8,6 @@ import {
   LEGACY_TOKEN,
 } from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
 
-// Partial mock: spread the real module (so DarkFactorySettingsSchema and the other
-// re-exports the OpenAPI generator lifts stay defined) and override only the parse
-// functions this suite drives.
 vi.mock(
   "../../../features/dark-factory/dark-factory-settings.js",
   async (importActual) => ({
@@ -40,7 +37,6 @@ vi.mock("../../../platform/github-client.js", () => ({
   getGitHubToken: vi.fn(),
 }));
 
-// GET resolves via the Project facade (projectFor → settings.resolveOrNull).
 const fakeSettings = { resolveOrNull: vi.fn() };
 
 vi.mock("../../../platform/project-boot.js", () => ({
@@ -61,7 +57,6 @@ import { getOctokit } from "../../../platform/github-client.js";
 const URL_BASE = "/api/repos/o/r/settings/dark-factory";
 const originalEnv = { ...process.env };
 
-/** Wire the txn client's query by SQL fragment. */
 function clientQueries(
   pool: ReturnType<typeof makePool>,
   over: Record<string, unknown> = {},
@@ -168,15 +163,12 @@ describe("routes — dark-factory settings", () => {
     }
 
     it("returns 400 on invalid JSON", async () => {
-      // ADR-034: hapi parses the payload, so malformed JSON is a 400 (hapi's
-      // native parse-error body) before the handler runs.
       const res = await put("{bad");
 
       expect(res.statusCode).toBe(400);
     });
 
     it("returns 413 when the body exceeds the 1MB limit", async () => {
-      // ADR-034: the body cap is hapi's native payload.maxBytes now → 413.
       const res = await put("x".repeat(1_048_577));
 
       expect(res.statusCode).toBe(413);

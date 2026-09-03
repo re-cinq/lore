@@ -1,17 +1,3 @@
-/**
- * What the HTTP adapter puts on the wire.
- *
- * The adapter has one job — turn a port call into the body the router's route
- * parses — and nothing else checks it: the contract suite runs the Postgres and
- * in-memory stores, neither of which goes near this class. A field the adapter
- * forgets to send typechecks on both sides and fails only in production, which
- * is how `excludeEventNames` was dropped from the claim body once already.
- *
- * So every body is asserted against the SCHEMA the router parses it with, not
- * against a copy of the shape: a field the schema would reject is as broken as
- * one the adapter never sent.
- */
-
 import { describe, it, expect } from "vitest";
 import { HttpEventDeliveries } from "./event-deliveries-http.js";
 import {

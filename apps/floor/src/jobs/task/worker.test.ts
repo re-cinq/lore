@@ -38,18 +38,12 @@ describe("slugify", () => {
   });
 
   it("does not leave a trailing hyphen when the 30-char cut lands on a dash", () => {
-    // 29 'a's, then a word boundary: the dash falls at index 29, inside the cut.
     const slug = slugify(`${"a".repeat(29)} tail`);
 
     expect(slug).toBe("a".repeat(29));
     expect(slug.endsWith("-")).toBe(false);
   });
 });
-
-// ── Task routing ───────────────────────────────────────────────────
-//
-// `routeTask` is imported, not re-implemented: a test that mirrors the decision
-// it claims to check passes happily after the real one changes.
 
 describe("task routing", () => {
   it("routes onboard tasks to handleOnboard", () => {
@@ -85,10 +79,7 @@ describe("task routing", () => {
   });
 });
 
-// ── buildPrompt (from config.ts) ────────────────────────────────────
-
 describe("buildPrompt", () => {
-  // Re-implement buildPrompt with a controllable map (same logic as config.ts)
   function buildPrompt(
     taskType: string,
     description: string,
@@ -140,13 +131,6 @@ describe("buildPrompt", () => {
   });
 });
 
-// ── Claim ordering / grace ──────────────────────────────────────────
-// pollOnce's claim semantics (immediate-first, 30s grace, status filter,
-// FIFO) now live in the shared TaskQueue and are covered for real by
-// libs/shared/src/project/tasks/task-queue.test.ts — no mirror here.
-
-// ── Stale task recovery ─────────────────────────────────────────────
-
 describe("recoverStaleTasks", () => {
   const NOW = Date.UTC(2026, 5, 30, 12, 0, 0);
   const OLD = new Date(NOW - 31 * 60_000).toISOString();
@@ -191,10 +175,6 @@ describe("recoverStaleTasks", () => {
       hasOpenLine: async () => false,
     });
 
-    // `implementation` used to be skipped here, citing the LoreTask CRD watcher
-    // that ADR-031 deleted. The open-line check below is what actually protects a
-    // line-backed task, so the type carve-out only stranded an implementation
-    // task whose line had already died — running forever, swept every tick.
     expect(recovered).toBe(4);
     expect(setStatus.mock.calls.map((c) => c[0])).toEqual([
       "task-1",
@@ -227,10 +207,6 @@ describe("recoverStaleTasks and a line that is legitimately idle", () => {
     );
 
   it("leaves a task alone while its assembly line is still open", async () => {
-    // A merged planning line parks on the author for as long as the person takes, and
-    // its owning task stays `running` for the feature's whole life. The sweep read
-    // that as a crashed task and re-dispatched it on EVERY Floor boot — a fresh
-    // planning agent, and a bill, per restart.
     const setStatus = vi.fn();
 
     const recovered = await recoverStaleTasks({
@@ -247,8 +223,6 @@ describe("recoverStaleTasks and a line that is legitimately idle", () => {
   });
 
   it("still recovers a stale task whose line has finished or never existed", async () => {
-    // The guard must not swallow the real case: a task with no live line behind it is
-    // exactly what crash recovery is for.
     const setStatus = vi.fn();
 
     const recovered = await recoverStaleTasks({
@@ -265,10 +239,6 @@ describe("recoverStaleTasks and a line that is legitimately idle", () => {
 
 describe("isFeatureLifecycleType", () => {
   it("covers planning and decompose", () => {
-    // One decision, two consumers: which task types run their own assembly line, and
-    // which must NOT open a per-task Issue. decompose was missing from both when its
-    // in-process handler was retired, so it would have run without a line and opened
-    // an Issue the decompose line then duplicated per story.
     expect(
       ["feature-planning", "feature-decompose"].map(isFeatureLifecycleType),
     ).toEqual([true, true]);

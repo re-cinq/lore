@@ -1,17 +1,4 @@
-/**
- * Who could actually take a station run, asked BEFORE the run is enqueued and
- * again when one dies unclaimed.
- *
- * The queue matches `required_tags <@ agent.tags` and knows nothing else; the
- * registry knows whether the matching cluster is alive and switched on. Neither
- * half alone can answer "why is this not running", which is how one paused
- * `central` — the only holder of seven of the eight node tags — spent two hours
- * and two full implementations per ticket while the reaper reported "no
- * registered cluster-agent claimed this run" about an agent that was registered,
- * heartbeating, and deliberately off (#1648, #1621, #1654).
- *
- * Pure: the caller reads the registry, this decides what the reading means.
- */
+/** Who could take a station run BEFORE enqueue and when one dies unclaimed. Pure: the caller reads the registry, this decides what it means. */
 
 import type { ClusterAgent } from "../../models/cluster-agent.js";
 import { tagsSatisfy } from "./required-tags.js";
@@ -23,33 +10,15 @@ export type CapacityVerdict =
   | { kind: "all-unavailable"; reason: string }
   /** The registry is populated and nobody offers these tags — a config fault. */
   | { kind: "none-registered"; reason: string }
-  /**
-   * Nobody has registered at all. Boot, or a registry outage — callers FAIL OPEN
-   * on this, matching the reaper's existing "registry empty → pre-claim-path
-   * behaviour" and the LLM gate's cold-on-boot bias. The queue-wait bound is the
-   * backstop for an open gate; refusing to dispatch here would wedge every run
-   * during the seconds before the central agent registers.
-   */
+  /** Nobody registered at all; callers FAIL OPEN (boot or registry outage). */
   | { kind: "registry-empty" };
 
-/**
- * Whether an agent may be handed new work at all.
- *
- * The operator's switch, and ONLY that: an `offline` agent is one the reaper
- * stopped hearing from, and a claim arriving from it is itself proof it is
- * alive (the heartbeat flips it back). Refusing those would turn a network blip
- * into a cluster that can never re-enter service.
- *
- * Shared because it was previously a bare `if (agent.paused)` inside the claim
- * route, where nothing else could reach it — so "a paused cluster parks the
- * queue" could not be exercised anywhere the walk could see.
- */
+/** Whether an agent may be handed new work: the operator's switch only, not offline status (reaper's view). */
 export function mayClaim(agent: Pick<ClusterAgent, "paused">): boolean {
   return !agent.paused;
 }
 
-/** Why one matching agent cannot take work right now. Paused wins: an operator
- *  turned it off, which is actionable, where offline is the reaper's own view. */
+/** Why one matching agent cannot take work: paused wins (operator action) over offline (reaper's view). */
 function unavailableBecause(agent: ClusterAgent): string {
   return agent.paused ? "paused" : "offline";
 }
@@ -72,9 +41,7 @@ export function capacityFor(
       reason: `no registered cluster-agent offers ${tags}`,
     };
   }
-  // Stricter than `mayClaim`: this predicts who WILL take the work, so an agent
-  // the reaper has stopped hearing from does not count, even though its own
-  // claim would still be honoured if it turned up.
+  // Predicts who WILL take the work: reaper's offline agents don't count even if claimed later.
   const available = providers.filter(
     (agent) => mayClaim(agent) && agent.status === "active",
   );
@@ -92,11 +59,7 @@ export function capacityFor(
   };
 }
 
-/**
- * The detail a queue-timeout records. One writer for both of the reaper's
- * queue-timeout arms, because the graph arm and the single-CR arm were two
- * copies of one sentence, and the sentence is the whole diagnosis.
- */
+/** The detail a queue-timeout records: one writer for both reaper arms. */
 export function unclaimedDetail(input: {
   requiredTags: string[];
   waitMinutes: number;
@@ -115,14 +78,11 @@ function becauseOf(verdict: CapacityVerdict): string {
     case "all-unavailable":
       return verdict.reason;
     case "capable": {
-      // The one shape a retry cannot be reasoned about from the registry: a
-      // cluster that could have taken it, was up, and did not. Naming it is what
-      // separates "you switched it off" from "it is stuck".
+      // A cluster that could have taken it, was up, and did not — distinguishes operator action from wedged.
       const names = verdict.agents.map((agent) => agent.name).join(", ");
       const count = verdict.agents.length;
       const noun = count === 1 ? "cluster-agent" : "cluster-agents";
       const verb = count === 1 ? "was" : "were";
-
       const they = count === 1 ? "it" : "they";
 
       return `${count} capable ${noun} (${names}) ${verb} active but did not claim it; ${they} may be wedged`;

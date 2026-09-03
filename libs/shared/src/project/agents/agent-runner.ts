@@ -8,14 +8,7 @@ import type { LlmPort } from "./llm-port.js";
 import type { StationBackend } from "./station-port.js";
 import { runClaudeCli } from "./claude-cli.js";
 
-/**
- * Agent execution across all three modes, routing to injected providers:
- *  - local   → spawn `claude --print` (relocated spawn core, no provider needed)
- *  - cluster → launch a Station via the injected StationBackend (K8s or Docker,
- *              chosen at the composition root by selectStationBackend; ADR-028)
- *  - direct  → call the injected LlmPort (Anthropic SDK lives in the runtime)
- * A mode whose provider is absent throws a clear error.
- */
+// Agent execution routing to injected providers: local (claude --print), cluster (Station via StationBackend), direct (LlmPort).
 export class AgentRunner implements AgentRunnerPort {
   constructor(
     private readonly env: NodeJS.ProcessEnv = process.env,
@@ -72,8 +65,7 @@ export class AgentRunner implements AgentRunnerPort {
         lineArgs: opts?.lineArgs,
       });
 
-      // Sync backends (docker) carry completion back so the caller can finalize
-      // the run inline; async backends (k8s) omit it (the watcher resolves it).
+      // Sync backends (docker) carry completion; async backends (k8s) omit it (watcher resolves).
       return {
         taskId,
         mode,

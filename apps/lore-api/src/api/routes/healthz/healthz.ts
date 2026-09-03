@@ -5,12 +5,7 @@ import { validateClientToken } from "../auth.js";
 
 const TASK_STATS_SQL = `SELECT count(*) FILTER (WHERE created_at > current_date)::int as today, count(*) FILTER (WHERE status = 'pending')::int as pending FROM pipeline.tasks`;
 
-/**
- * GET /healthz — liveness + readiness probe. 200 when the DB is reachable (or no
- * DB is configured), 503 otherwise; the Helm probes key on the status code. An
- * authenticated caller additionally gets database + task stats. Public (no auth):
- * the stats are gated by the handler's own bearer check, not the route.
- */
+/** GET /healthz — liveness + readiness probe; auth optional for stats. */
 export function healthzRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "GET",

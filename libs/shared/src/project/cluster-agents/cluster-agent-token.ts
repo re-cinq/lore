@@ -1,10 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
 
-/**
- * Per-agent bearer token minting. The plaintext exists once — in the register
- * response — and only its SHA-256 lands in `pipeline.cluster_agents`, the
- * same discipline `pipeline.api_tokens` follows.
- */
+/** Per-agent bearer token minting: plaintext in register response only, SHA-256 in DB. */
 
 export interface MintedAgentToken {
   token: string;

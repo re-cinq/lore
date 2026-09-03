@@ -22,13 +22,7 @@ export function buildConnectCommand(
   ].join("\n");
 }
 
-/**
- * Connect-a-cluster panel (#1572): renders the copy-paste install command
- * with the central URLs and registration token filled in, so registering a
- * cluster is "run this". Client component only for the two inputs and the
- * clipboard — the install info arrives as a prop from the page container.
- * The command embeds the registration token; the panel says so.
- */
+/** Cluster connect panel: renders copy-paste install command with token embedded (#1572). */
 export default function ConnectClusterPanel({
   install,
 }: ConnectClusterPanelProps) {

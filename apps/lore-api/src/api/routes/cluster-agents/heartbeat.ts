@@ -9,13 +9,7 @@ import { hashAgentToken } from "@re-cinq/lore-shared/project/cluster-agents/clus
 import { zodResponse } from "../../../server/plugins/zod-response.js";
 import { DB_UNAVAILABLE } from "../common-schemas.js";
 
-/**
- * POST /api/cluster-agents/{id}/heartbeat — liveness (FR4 of
- * specs/running-stations-in-any-k8s-cluster). Bumps `last_seen_at` and
- * revives an `offline` agent to `active`; the reaper's offline sweep reads
- * exactly this timestamp. Same auth as the claim: the per-agent bearer, valid
- * only for its own id.
- */
+/** Liveness heartbeat: bumps last_seen_at, revives offline agents to active. */
 
 const HeartbeatResponse = z.object({ status: z.literal("ok") });
 

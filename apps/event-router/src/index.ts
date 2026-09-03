@@ -1,9 +1,4 @@
-/**
- * The event-router process: open the pool and serve the front door. It produces
- * events and nothing else — no drain loop, no job handlers, no Agent CR dispatch
- * (ADR-044), and since 2026-08-25 no Kubernetes watch either: that moved to
- * cluster-agent, which is the process that may hold a cluster client.
- */
+/** Event-router process: pool + front door (ADR-044); Kubernetes watch moved to cluster-agent. */
 
 import { initPool, getPool } from "@re-cinq/lore-shared/db/pg-pool.js";
 import { startServer } from "./delivery/server.js";
@@ -15,8 +10,7 @@ async function main(): Promise<void> {
 
   const stopServer = await startServer(PORT);
 
-  // One owner for the lifecycle: the server registers no handler of its own, so
-  // a shutdown that stops serving but never exits cannot happen here.
+  // One lifecycle owner: server has no handler, so stopServer → pool.end() → exit(0).
   const shutdown = async (signal: string): Promise<void> => {
     console.log(`[event-router] ${signal} — shutting down`);
     await stopServer();

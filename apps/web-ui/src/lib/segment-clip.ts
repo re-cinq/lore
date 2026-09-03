@@ -1,11 +1,4 @@
-/**
- * Pure, deterministic segment-vs-disc clipping for the D3 spec-graph view.
- * `visibleSegments` returns the parts of a segment a→b that lie outside the
- * open "ring" discs, so the layout draws edges only where they are not hidden
- * behind a disc. Value-in/value-out, no side effects — the layout calls it per
- * edge per tick. Discs share their definition with ring-exclusion, the sibling
- * geometry module, so `Disc` has one source of truth.
- */
+/** Segment clipping for D3: parts outside ring discs; shared Disc definition with ring-exclusion. */
 
 import type { Disc } from "./ring-exclusion";
 
@@ -19,14 +12,7 @@ function pointAt(a: Point, b: Point, t: number): Point {
   return { x: a.x + t * (b.x - a.x), y: a.y + t * (b.y - a.y) };
 }
 
-/**
- * The `[enter, exit]` sub-interval of segment a→b (in parameter space, clamped
- * to [0, 1]) that lies strictly inside `disc`, or null when the segment never
- * crosses into the disc. Solves the parametric quadratic
- * `|a + t·(b−a) − center|² = r²`; the boundary is exclusive (a grazing
- * tangent — discriminant ≤ 0 — counts as outside). Multiply-before-divide and
- * root ordering are kept exact so endpoints land on precise coordinates.
- */
+/** Returns [enter, exit] parameter interval where segment is strictly inside disc, or null. */
 function insideInterval(
   a: Point,
   b: Point,
@@ -58,17 +44,7 @@ function insideInterval(
   return [enter, exit];
 }
 
-/**
- * The parts of segment a→b that lie outside every disc.
- *
- * - No discs → the whole segment.
- * - Both endpoints inside a disc → `[]`.
- * - One endpoint inside → the single boundary→outside piece.
- *
- * The hidden inside-intervals are merged into a disjoint union and the visible
- * pieces are its complement within [0, 1], so a segment crossing several discs
- * yields one piece per gap between them.
- */
+/** Parts of segment outside all discs: complement of merged inside-intervals within [0, 1]. */
 export function visibleSegments(
   a: Point,
   b: Point,

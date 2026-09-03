@@ -1,13 +1,4 @@
-/**
- * Per-request telemetry for the lore-api HTTP server — the "middleware" that
- * means no handler hand-rolls its own span or metric. One span per request via
- * the onRequest → onPreResponse lifecycle (covers *every* request, including
- * auth-rejected 401/403 and unmatched 404 ones), plus the `traceHttp` metrics
- * (request counter + latency histogram) the old `node:http` server recorded for
- * every request — so migrating off the bridge keeps the existing HTTP dashboards
- * intact and adds distributed-trace spans on top. All calls are no-ops until an
- * OTel SDK is registered (otel-init), which index.ts does before boot.
- */
+/** Per-request telemetry for lore-api HTTP server via OTel spans and metrics. */
 
 import Boom from "@hapi/boom";
 import type { Server } from "@hapi/hapi";
@@ -41,8 +32,7 @@ export function registerRequestTracing(server: Server): void {
       ? res.output.statusCode
       : res.statusCode;
 
-    // The request/latency metrics the old server recorded via traceHttp, for
-    // every request. `request.info.received` is the epoch-ms request start.
+    // Metrics the old server recorded for every request via traceHttp.
     traceHttp(
       request.method.toUpperCase(),
       request.path,

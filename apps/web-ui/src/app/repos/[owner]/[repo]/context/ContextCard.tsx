@@ -7,9 +7,7 @@ import { TimeAgo } from "@/components/TimeAgo";
 import styles from "./ContextCard.module.css";
 import type { components } from "@/lib/api/schema";
 
-/** The five chunk fields the card renders. The field TYPES come from the
- *  contract, which is where `file_path` and `content_type` turn out to be
- *  nullable — the column permits it and a hand-written `string` did not. */
+/** The five chunk fields the card renders; file_path and content_type are nullable in the contract. */
 export type ContextCardChunk = Pick<
   components["schemas"]["ChunkList"]["chunks"][number],
   "id" | "file_path" | "content_type" | "content" | "ingested_at"
@@ -26,19 +24,14 @@ export interface ContextCardProps {
   repoLabel?: string;
 }
 
-/**
- * One row in a context list: type badge, file path (linked to the detail
- * route), the derived metadata header, ingest date, and a clamped rich
- * preview of the chunk via `ChunkBody`. Pure render.
- */
+/** One row in context list: type badge, path, metadata, date, clamped preview. */
 export default function ContextCard({
   chunk,
   detailHref,
   repo,
   repoLabel,
 }: ContextCardProps) {
-  // Both columns permit NULL, which the hand-written type denied. An untyped or
-  // pathless chunk is a real row, not a crash.
+  // Both columns permit NULL; untyped/pathless chunks are real rows, not crashes
   const contentType = contentTypeOf(chunk.content_type);
   const header = chunkHeader(contentType, chunk.metadata ?? null);
 

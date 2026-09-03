@@ -1,11 +1,7 @@
 import type { PipelineTask, TaskStatus, TaskType } from "../../types.js";
 import type { TaskStorePort } from "./task-store-port.js";
 
-/**
- * A single pipeline task. Wraps the row and re-reads it on each transition so
- * callers always see fresh status. The status/type unions come from the
- * existing shared types — no new vocabulary.
- */
+/** Pipeline task wrapper; re-reads row on each transition for fresh status. */
 export class Task {
   constructor(
     private row: PipelineTask,
@@ -28,9 +24,7 @@ export class Task {
     return this.row.pr_url;
   }
 
-  /** Why the task failed, when it did. The planning poll surfaces this so a hard
-   *  crash that left the round's iteration at `running` still shows a failure and a
-   *  retry rather than an endless spinner. */
+  /** Failure reason; planning poll shows this even when iteration stuck at running. */
   get failureReason(): string | null {
     return this.row.failure_reason ?? null;
   }

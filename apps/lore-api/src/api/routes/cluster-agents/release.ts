@@ -13,22 +13,7 @@ import { zodResponse } from "../../../server/plugins/zod-response.js";
 import { zodValidate } from "../../../server/plugins/zod-validate.js";
 import { DB_UNAVAILABLE } from "../common-schemas.js";
 
-/**
- * POST /api/cluster-agents/{id}/release — the claimant could not launch what it
- * claimed, and hands the visit back.
- *
- * The claim CASes the row to `claimed` before the cluster-agent has a pod, so a
- * launch that throws — a recipe the catalog does not hold, a mint refused, a
- * Secret write that lost its race — leaves a claimed row with nothing behind it.
- * Without this call the row waits: centrally for the reaper to notice a missing
- * CR, on a satellite (whose CRs the centre cannot see) for the whole node
- * budget. Reporting it is the difference between one wasted claim and an hour.
- *
- * It requeues rather than fails, because the cause is usually about the CLUSTER
- * that claimed — a satellite without a GitHub credential, an apiserver refusing
- * — and another cluster may well launch it. A row that keeps coming back is the
- * reaper's queue-wait bound to end, not this route's.
- */
+/** Release a failed claim: requeues it for another cluster to try instead of letting it linger. */
 
 const ReleaseBody = z.object({
   node_row_id: z.string().min(1),

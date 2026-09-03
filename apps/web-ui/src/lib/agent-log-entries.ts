@@ -312,8 +312,7 @@ function claudeStreamEntries(
   value: Record<string, unknown>,
   originalLine: string,
 ): LogEntry[] | null {
-  // Order is load-bearing: a hook line IS a `system` line, so it must be
-  // recognised before the catch-all that renders any named subtype.
+  // Order is load-bearing: hook before catch-all.
   return (
     sessionEntries(value) ??
     hookOrProgressEntries(value) ??

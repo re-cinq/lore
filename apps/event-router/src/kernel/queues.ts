@@ -1,13 +1,4 @@
-// The router's binding of the org-wide `pipeline.*` repositories.
-//
-// Lazy for the same reason the Floor's is: `getPool()` throws until `initPool()`
-// has run at boot, so construction waits for first use. Never call this at
-// module scope.
-//
-// The router only ever uses `eventQueue` today. It takes the whole bundle
-// anyway because that is the one way these adapters are constructed
-// (ADR-024) — a second, narrower construction here would be a second place for
-// the pool wiring to drift.
+// Router's binding of org-wide pipeline.* repositories; lazy singletons (ADR-024).
 
 import { createPipelineRepositories } from "@re-cinq/lore-shared/project/pipeline/pipeline-repositories-pg.js";
 import type { PipelineRepositories } from "@re-cinq/lore-shared";
@@ -22,14 +13,12 @@ export const pipeline = (): PipelineRepositories =>
 
 let deliveriesSingleton: PgEventDeliveries | undefined;
 
-/** The delivery side of the bus, lazy for the same reason as the pipeline
- *  bundle: `getPool()` throws until `initPool()` has run. */
+/** Delivery side of bus; lazy singleton (getPool throws until initPool runs). */
 export const deliveries = (): PgEventDeliveries =>
   (deliveriesSingleton ??= new PgEventDeliveries(getPool()));
 
 let clusterAgentsSingleton: PgClusterAgents | undefined;
 
-/** The cluster-agent registry — the reporting front door's per-agent token
- *  lookup (FR5). Lazy for the same reason as the others. */
+/** Cluster-agent registry: per-agent token lookup for reporting (FR5); lazy singleton. */
 export const clusterAgents = (): PgClusterAgents =>
   (clusterAgentsSingleton ??= new PgClusterAgents(getPool()));

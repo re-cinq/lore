@@ -1,16 +1,4 @@
-/**
- * statement-pairing — works out which new statement replaced which old one.
- *
- * Statements have no stable identity across an edit: the graph holds the text
- * it last projected, the head file holds the text as it stands now, and nothing
- * links the two. That is why the delta reports "changed" without distinguishing
- * edited from deleted.
- *
- * For rendering, though, the distinction is the whole value — quoting only the
- * text the file no longer contains tells a reviewer nothing about what it
- * became. Pairing by similarity recovers enough to show a real before/after,
- * and declines to guess when nothing is close enough.
- */
+/** Match which new statement replaced which old one; pure, no stable statement identity across edits. */
 
 /** Words, lowercased, punctuation stripped — the unit similarity is measured in. */
 function tokens(text: string): Set<string> {
@@ -23,12 +11,7 @@ function tokens(text: string): Set<string> {
   );
 }
 
-/**
- * Jaccard overlap of the two token sets. Deliberately crude: an edit that keeps
- * most of a sentence scores high, an unrelated sentence scores near zero, and
- * nothing in between needs to be precise because the result is only used to
- * decide whether a diff is worth showing.
- */
+/** Jaccard overlap of token sets; deliberately crude for diff rendering only. */
 function similarity(a: string, b: string): number {
   const ta = tokens(a);
   const tb = tokens(b);
@@ -47,18 +30,10 @@ function similarity(a: string, b: string): number {
   return shared / (ta.size + tb.size - shared);
 }
 
-/**
- * Below this, two statements are treated as unrelated and the old one is
- * reported as deleted rather than rewritten. Set where a one-clause edit still
- * pairs but a different sentence in the same section does not.
- */
+/** Threshold below which statements are unrelated; set where single-clause edits pair but different sentences do not. */
 const MIN_SIMILARITY = 0.45;
 
-/**
- * Maps each removed statement to its most likely replacement, or null when
- * nothing is close enough. Greedy by descending similarity, and each addition
- * is consumed once — two statements cannot both claim the same replacement.
- */
+/** Pair removed statements to replacements by similarity; each addition claimed once. */
 export function pairRewrites(
   removed: string[],
   added: string[],

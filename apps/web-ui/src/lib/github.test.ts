@@ -18,9 +18,6 @@ const rest = {
 
 vi.mock("octokit", () => ({
   Octokit: vi.fn(function () {
-    // `hook` is part of the real client, and the retry policy (#1017) installs a
-    // request hook at construction — a fake without it models a client that does
-    // not exist.
     return { rest, hook: { before: () => {} } };
   }),
 }));
@@ -240,7 +237,7 @@ describe("openIngestWorkflowPR", () => {
 
   it("creates a branch, commits the file, and opens a PR against the default branch", async () => {
     happyPath();
-    rest.repos.getContent.mockRejectedValue(httpError(404)); // file not yet on the branch
+    rest.repos.getContent.mockRejectedValue(httpError(404));
 
     const out = await openIngestWorkflowPR(
       "re-cinq/app",

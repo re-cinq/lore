@@ -1,23 +1,4 @@
-// The run-visualization projection of the Agent NDJSON sink (#876), sitting next
-// to the cost mapper (agent-events.ts) and running over the same body. The cost
-// mapper keeps one row per run; this one keeps the per-tool-call stream the Floor
-// used to discard, as pipeline.agent_run_events rows.
-//
-// Deliberately NOT gated on `ev.usage`. That gate is correct for cost — a line
-// with no LLM usage has no cost — and wrong here: a station's terminal line is
-// `{"type":"result","is_error":false,"result":"LORE_NODE_RESULT: {...}"}` with no
-// usage at all, and stations already POST their full NDJSON to this sink
-// (buildStationDefinition sets the same OUTPUT_SINKS the LLM recipes use). Not
-// gating is what makes station nodes — otherwise a blind spot, since their pod
-// logs vanish at GC — visible for free.
-//
-// Correlation is NOT done here. PgAgentRunEvents.insertBatch resolves
-// assemblyLineId / nodeId / iteration from agentCrName in the same statement, and
-// AgentRunEventInsert has no correlation fields to fill.
-//
-// The row is a projection, not an archive: payloads are truncated to bound JSONB
-// growth, and untruncated payloads stay the agent_run_turns transcript's job
-// (specs/turn-level-transcript-store; capped per batch, overflow counted).
+// Run-visualization of Agent NDJSON (#876): NOT gated on ev.usage; correlation in PgAgentRunEvents.insertBatch; truncated payloads, full in agent_run_turns.
 
 import { unwrapAttribution } from "@re-cinq/lore-assembly-lines";
 import { parseCarriedRunIdentity } from "@re-cinq/lore-shared/project/run-identity/carried-run-identity.js";
@@ -33,8 +14,7 @@ const TOOL_INPUT_VALUE_MAX_BYTES = 1024;
 const TOOL_INPUT_TOTAL_MAX_BYTES = 4096;
 const BASH_COMMAND_SUMMARY_CHARS = 120;
 
-/** Tool input keys that name a file. Bash `command` strings are deliberately not
- *  mined for paths — too noisy to be worth the false positives. */
+/** Tool input keys naming files (exclude bash commands: too noisy). */
 const FILE_PATH_KEYS = ["file_path", "path", "notebook_path"] as const;
 
 const str = (value: unknown): string | null =>
@@ -44,11 +24,7 @@ const num = (value: unknown): number => (typeof value === "number" ? value : 0);
 
 const cap = (text: string): string => text.slice(0, SUMMARY_MAX_CHARS);
 
-/**
- * Byte-cap `text`, appending a visible marker carrying the original size.
- * Bytes, not characters: the cap exists to bound JSONB storage, and the marker
- * is what keeps a truncation from reading as a short-but-complete value.
- */
+/** Byte-cap text with marker showing original size (not chars; prevents false completeness). */
 export function truncateForStorage(text: string, maxBytes: number): string {
   const bytes = Buffer.from(text, "utf8");
 
@@ -71,8 +47,7 @@ export function filePathsFromToolInput(input: unknown): string[] {
   return [...new Set(paths)];
 }
 
-/** Per-value and whole-input byte caps. Keys past the total budget are dropped
- *  and their count recorded, so the loss is visible in the stored payload. */
+/** Per-value and whole-input byte caps; dropped keys' count recorded. */
 function truncateToolInput(input: unknown): Record<string, unknown> {
   if (!isRecord(input)) {
     return {};
@@ -91,10 +66,7 @@ function truncateToolInput(input: unknown): Record<string, unknown> {
       kept.__truncated__ = `${entries.length - index} input keys omitted`;
       break;
     }
-    // A structured value keeps its shape only while it fits; once trimmed, the
-    // trimmed STRING is what gets stored. Storing `value` here regardless would
-    // leave every object and array input — the largest ones — entirely
-    // unbounded, and `used` accounting for a size that was never written.
+    // Store trimmed value as string once truncated; accounting matches written size.
     kept[key] =
       typeof value === "string" || trimmed !== encoded ? trimmed : value;
     used += size;
@@ -202,8 +174,7 @@ function initRow(ev: Record<string, unknown>): Partial<AgentRunEventInsert> {
   };
 }
 
-/** A hook's terminal line, or null for one still running. Started and progress
- *  lines carry nothing the response does not restate. */
+/** A hook's terminal line or null if still running. */
 function hookRow(
   ev: Record<string, unknown>,
 ): Partial<AgentRunEventInsert> | null {
@@ -252,10 +223,7 @@ function contentBlocks(ev: Record<string, unknown>): unknown[] {
   return Array.isArray(content) ? content : [];
 }
 
-/** The rows one stream-json line projects to, before task attribution. Any line
- *  kind not listed here is dropped silently — that is the forward-compat
- *  contract: a newer subsystem emitting a kind this Floor has never seen must
- *  not break ingestion. */
+/** Stream-json line to rows (before task attribution); unknown kinds dropped (forward-compat contract). */
 function rowsFromEvent(ev: unknown): Partial<AgentRunEventInsert>[] {
   if (!isRecord(ev)) {
     return [];
@@ -277,10 +245,7 @@ function rowsFromEvent(ev: unknown): Partial<AgentRunEventInsert>[] {
       .filter((row): row is Partial<AgentRunEventInsert> => row !== null);
   }
 
-  // The station contract's progress lines (eventLine in agent-output.ts).
-  // Stations emit no claude stream, so without these their transcript would
-  // hold nothing but the terminal result. Projected as "message" rows — the
-  // existing prose kind — rather than a seventh event type.
+  // Station progress lines (agent-output.ts): no claude stream, so progress fills transcript; "message" event type.
   if (ev.type === "log") {
     const message = str(ev.message);
 
@@ -296,8 +261,7 @@ export function rowsFromEnvelope(envelope: unknown): AgentRunEventInsert[] {
   const { source, event } = unwrapAttribution(envelope);
   const taskId = str(source?.task);
 
-  // task_id is NOT NULL in migration 0031, so a line the subsystem did not
-  // attribute to a task cannot be persisted at all.
+  // task_id NOT NULL (migration 0031): must attribute every line to a task.
   if (!taskId) {
     return [];
   }
@@ -314,13 +278,5 @@ export function rowsFromEnvelope(envelope: unknown): AgentRunEventInsert[] {
   }));
 }
 
-/** Upper bound on run-visualization rows one `/api/agent-events` POST may
- *  project. Row payloads are already byte-capped; this bounds their COUNT so a
- *  pathological run (tens of MB of stream-json in one body) cannot materialize
- *  an unbounded row set and OOM the single (replicaCount: 1) Floor replica.
- *  Beyond the cap, projection stops. The agent_run_turns transcript
- *  (specs/turn-level-transcript-store) keeps the stream up to its own equal
- *  per-batch cap, with overflow counted (turn_dropped_cap) rather than silent.
- *  Enforced by parseAgentSink (agent-events.ts), the single-pass line scanner
- *  that projects this file's rowsFromEnvelope over the sink body. */
+/** Upper bound on run-visualization rows (pathological runs OOM replica): enforced by parseAgentSink line scanner. */
 export const MAX_RUN_EVENTS_PER_BATCH = 10_000;

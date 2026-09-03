@@ -49,14 +49,11 @@ export default function PlanningWizard({
   ) => Promise<void>;
   onFinalize: (userAnswers: SectionAnswers) => Promise<void>;
   onCreateDraft: (title: string, prompt: string) => void;
-  /** What to show once the lifecycle stops moving. The parent owns it — it needs the
-   *  decomposition rows, which the poll does not carry — but the WIZARD decides when,
-   *  because only the line knows whether an open PR is still being waited on. */
+  /** Parent owns it for decomposition rows; wizard decides when based on line state. */
   settledView: ReactNode;
 }) {
   const router = useRouter();
-  // Seeded from the server render so the first paint is not empty; the hook's mount
-  // fetch replaces it with the fields only the poll carries (task, run, live output).
+  // Seeded from server render; hook's mount fetch replaces with poll-only fields (task, run, live output).
   const { data: poll, refresh: fetchLatest } = useFeaturePlanningPoll({
     owner,
     repo,
@@ -72,18 +69,15 @@ export default function PlanningWizard({
     },
   });
   const [feedback, setFeedback] = useState<FeedbackState>(emptyFeedback());
-  /** Which round the next one continues from; undefined = the latest. */
+  /** Undefined = continue from latest. */
   const [continueFrom, setContinueFrom] = useState<number | undefined>();
   const [pending, startTransition] = useTransition();
   const [finalizing, setFinalizing] = useState(false);
-  /** Iteration whose completion already triggered a server refresh. */
+  /** Iteration whose completion already triggered server refresh. */
   const refreshedFor = useRef<number | null>(null);
 
   const latest = poll.latestIteration;
-  // One value instead of five booleans rebuilt from the round's task. The LINE says
-  // which node is working; the round's own rows only decide for a legacy feature
-  // that resolves no line. `latestReady` still gates the server refresh + which
-  // analysis to show, which is a question about the DATA rather than about the phase.
+  // One value instead of five booleans; line says which node works; round's rows only for legacy features with no line.
   const phase = featurePhaseOf({
     run: poll.run,
     feature: poll.feature,
@@ -93,11 +87,7 @@ export default function PlanningWizard({
   const latestReady = latest?.status === "ready" && !!latest.gap_result;
   const failed = phase.kind === "failed";
 
-  // The poll updates THIS component, but the draft spec renders from the server's
-  // copy of the feature (FeatureDetailView reads feature.draft_spec_md). Without a
-  // refresh, a round that just landed leaves the page showing pre-round data until
-  // the reader thinks to reload. Once per iteration — refresh() re-renders the
-  // parent, which would otherwise re-trigger this on every poll.
+  // Poll updates this component; refresh() re-renders parent once per iteration when latest round lands.
   useEffect(() => {
     if (!latestReady || refreshedFor.current === latest?.iteration) {
       return;
@@ -107,8 +97,7 @@ export default function PlanningWizard({
     router.refresh();
   }, [latestReady, latest?.iteration, router]);
 
-  // From the server-rendered feature, refreshed by router.refresh() when a round
-  // lands — the poll payload carries only the latest iteration, not the history.
+  // Server-rendered feature refreshed when round lands; poll carries only latest iteration, not history.
   const rounds = rewindOptions(feature.iterations);
   const rewinding = isRewind(rounds, continueFrom);
 
@@ -120,9 +109,7 @@ export default function PlanningWizard({
       await fetchLatest();
     });
 
-  // The author fills the form and accepts in one motion, so the accept carries the
-  // same answers a refine would. Sending nothing dropped the last thing they said
-  // about the plan before it became a spec.
+  // Accept carries the same answers as refine to avoid dropping last form input.
   const submitCreateSpecFile = () =>
     startTransition(async () => {
       setFinalizing(true);
@@ -131,11 +118,7 @@ export default function PlanningWizard({
       await fetchLatest();
     });
 
-  // After finalize, the feature-finalize task runs async (no intermediate status). The
-  // poll is already running, so this only watches its payload: once the feature leaves
-  // the planning phase (→ pr-open), refresh the server component so the parent swaps
-  // the wizard for the FinalizedView. A second interval here would just re-ask the
-  // same route on its own schedule.
+  // Refresh server component when feature leaves planning phase (poll already running); no second interval needed.
   useEffect(() => {
     if (finalizing && !isPlanningActive(poll.feature.status)) {
       router.refresh();
@@ -144,37 +127,23 @@ export default function PlanningWizard({
 
   const iteration = latest?.iteration ?? poll.feature.current_iteration;
 
-  // The spec phase gets the SAME card as a planning round: it runs on the same line,
-  // and the author has no decision to make while it does. Showing the decision row
-  // with everything disabled — a greyed "Refine again" beside a primary relabelled
-  // "Creating the spec PR…" — offered two dead controls and hid the run graph, which
-  // only ever rendered here.
-  // `finalizing` only bridges the gap until the first poll shows the line moving, and
-  // never survives it finishing: a line that ends without producing a PR must give the
-  // controls back rather than leave a progress card running forever.
-  // The lifecycle stopped moving: hand back to the parent's finished view. Gated on
-  // the FEATURE as well as the line, because a legacy feature mints one line per
-  // round — that line reports `done` the moment its round lands, while the author
-  // still has a decision to make.
+  // Spec phase shares same card; `finalizing` bridges gap until line moves; finish without PR gives controls back.
   if (phase.kind === "done" && !isPlanningActive(poll.feature.status)) {
     return <>{settledView}</>;
   }
 
-  // The spec PR is open and the line is parked on `merged` — waiting on a PERSON,
-  // not on the machine. Before the merged line this state was invisible.
+  // Spec PR open, line parked on `merged`, waiting on a PERSON, not the machine.
   if (phase.kind === "awaiting-merge") {
     return <SpecPrCard feature={poll.feature} />;
   }
 
-  // The merge resumed the line: decompose is breaking the spec down, or the
-  // issues station is filing what it produced.
+  // Merge resumed the line: decompose breaks spec down or issues station files results.
   if (phase.kind === "decomposing") {
     return (
       <DecompositionProgressCard
         nodeId={phase.nodeId}
         since={phase.since}
-        // The decompose NODE's attempt — a correction round on the line, which is
-        // not the number of planning rounds the author ran before the PR existed.
+        // Decompose node's attempt (correction round), not count of pre-PR planning rounds.
         iteration={phase.nodeIteration}
       />
     );
@@ -189,14 +158,12 @@ export default function PlanningWizard({
     return (
       <RunningCard
         iteration={iteration}
-        // The working NODE's start, not the round's — a spec node that began 20
-        // minutes after the round must not read as 20 minutes over budget.
+        // Working node's start, not round's; spec node that began after round must not read as over budget.
         since={
           "since" in phase ? (phase.since ?? latest?.created_at) : undefined
         }
         timeoutMinutes={timeoutMinutes}
-        // Which node is working, so the card counts against THAT node's kill
-        // deadline rather than the planning round's unenforced budget.
+        // Card counts against working node's deadline, not round's unenforced budget.
         nodeId={"nodeId" in phase ? phase.nodeId : undefined}
         liveOutput={poll.liveOutput}
         run={poll.run}
@@ -205,8 +172,7 @@ export default function PlanningWizard({
     );
   }
 
-  // The analysis to show: the latest round's result, else the most recent round that
-  // produced one (so a failed refine doesn't hide your prior analysis).
+  // Latest round's result, else most recent round that produced one (failed refine doesn't hide prior analysis).
   const gap = latestReady
     ? latest?.gap_result
     : (poll.lastReady?.gap_result ?? null);
@@ -222,7 +188,7 @@ export default function PlanningWizard({
     />
   );
 
-  // No analysis ever produced: pure failure (if the latest failed) or an empty state.
+  // Pure failure (if latest failed) or empty state if no analysis was produced.
   if (!gap) {
     return failed ? (
       failureBlock
@@ -236,8 +202,7 @@ export default function PlanningWizard({
     );
   }
 
-  // We have an analysis to work with. If the latest round failed, show the failure
-  // banner above the preserved sections so the user can fix + retry without losing it.
+  // Show failure banner above preserved sections so user can fix + retry without losing analysis.
   return (
     <div>
       {failed && <div className={styles.failureSlot}>{failureBlock}</div>}

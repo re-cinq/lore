@@ -6,21 +6,6 @@ import { restoreEnv } from "./restore-env.js";
 import { setMemoryPool } from "@re-cinq/lore-server-core/features/memory/memory.js";
 import { MemoryOperationSchema } from "../api/routes/memory/memory.js";
 
-/**
- * `POST /api/memory` declares its five answers as a union, and `zodResponse` is
- * documentation-only — nothing validates a response at runtime. So the union can
- * be wrong SILENTLY, which the open document it replaced could not be.
- *
- * This is the pool half of the guard: it drives the five actions through the
- * REAL server against a migrated Postgres and parses every answer through the
- * published schema. The file-fallback half lives in
- * `src/api/routes/memory/memory-contract.test.ts` — one endpoint, two backends,
- * and a contract only one of them satisfies is still a lie half the time.
- *
- * Embeddings are not reachable from CI, and `getQueryEmbedding` answers null
- * rather than throwing, so writes land unembedded and search degrades to its
- * keyword leg. Both still answer the shapes under test.
- */
 const TOKEN = "test-memory-contract-token";
 const AGENT = "integration-test-memory";
 const KEY = "contract-note";
@@ -53,9 +38,6 @@ describe("POST /api/memory answers what it declares", () => {
       password: process.env.LORE_DB_PASSWORD || "test",
     });
     await pool.query("SELECT 1");
-    // What lore-api's boot does: the memory module reaches for its own pool, and
-    // `isMemoryDbAvailable()` is what routes the handler to Postgres instead of
-    // the file fallback.
     setMemoryPool(pool);
     server = buildServer(() => pool);
   });

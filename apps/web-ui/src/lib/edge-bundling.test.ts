@@ -67,7 +67,6 @@ describe("ancestorChain", () => {
 });
 
 describe("bundleControlIds", () => {
-  // feat ⊃ {specA ⊃ stmtA, specB ⊃ stmtB}
   const parent = new Map([
     ["specA", "feat"],
     ["specB", "feat"],

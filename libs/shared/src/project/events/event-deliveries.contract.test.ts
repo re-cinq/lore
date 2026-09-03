@@ -1,11 +1,4 @@
 import { enforceTrue } from "../../lib/enforce.js";
-// The EventDeliveriesPort contract, run against EVERY implementation.
-//
-// Same shape as the AssemblyRunsPort contract and for the same reason: the
-// in-memory double is the behavioural spec, so it and the adapter must be held
-// to ONE set of expectations rather than to a behaviour suite on one side and an
-// SQL-text suite on the other. The Postgres half needs a migrated database and
-// SKIPS loudly when there is none.
 
 import { describe, it, expect, afterAll } from "vitest";
 import { randomUUID } from "node:crypto";
@@ -230,7 +223,6 @@ function contract(name: string, make: () => EventDeliveriesPort): void {
       const [s, kept, removed] = [sub(), evt(), evt()];
 
       await port.subscribe(s, [{ eventName: kept }, { eventName: removed }]);
-      // The next boot ships without the second handler.
       await port.subscribe(s, [{ eventName: kept }]);
       await port.insert({ eventName: kept, source: "internal" });
       await port.insert({ eventName: removed, source: "internal" });
@@ -256,17 +248,10 @@ function contract(name: string, make: () => EventDeliveriesPort): void {
       const port = make();
       const [s, eventName] = [sub(), evt()];
 
-      // The deploy-window shape: the producer is live and publishing while the
-      // consumer has not registered yet. Fan-out reads the subscription set at
-      // insert, so this event gets no delivery at all.
       await port.insert({ eventName, source: "internal" });
       await port.subscribe(s, [{ eventName }]);
 
       expect(await port.claim(s, 10)).toHaveLength(0);
-      // At least this one: the count is global (every subscriber, every event in
-      // the window), so asserting an exact number would couple this case to
-      // whatever else the suite left behind. The claim below is the real
-      // assertion — that THIS subscriber can now receive what it missed.
       expect(await port.reconcileDeliveries(60)).toBeGreaterThanOrEqual(1);
       expect((await port.claim(s, 10)).map((d) => d.event_name)).toEqual([
         eventName,
@@ -340,9 +325,6 @@ function contract(name: string, make: () => EventDeliveriesPort): void {
       const port = make();
       const eventName = evt();
 
-      // Nothing subscribes, so the event gets no deliveries at all — the shape
-      // that used to accumulate forever, since collection was gated on having
-      // pruned a delivery in the same sweep.
       await port.insert({ eventName, source: "internal" });
       await port.pruneHandled(0);
 
@@ -360,7 +342,6 @@ function contract(name: string, make: () => EventDeliveriesPort): void {
       expect(
         (await port.claim(s, 10, [busy])).map((d) => d.event_name),
       ).toEqual([free]);
-      // Held back, not consumed: it is still there for the next drain.
       expect((await port.claim(s, 10)).map((d) => d.event_name)).toEqual([
         busy,
       ]);

@@ -7,17 +7,7 @@ export interface RestartClusterButtonProps {
   restart: () => Promise<void>;
 }
 
-/**
- * Bounces the central cluster-agent so it re-pulls `latest` on restart
- * (pullPolicy: Always). Only rendered for the central row — lore-api dials one
- * static in-cluster address and has no path into a satellite.
- *
- * Client only for `useTransition`; the write itself is the bound server action
- * the page hands down, so the browser never names which cluster it restarts.
- *
- * A restart kills whatever the process is mid-way through, unlike Pause, so a
- * stray click needs a second one to confirm before it fires.
- */
+/** Central cluster restart (pulls latest); needs confirmation (kills mid-process). */
 export default function RestartClusterButton({
   restart,
 }: RestartClusterButtonProps) {

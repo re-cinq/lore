@@ -44,11 +44,6 @@ describe("classifyFile", () => {
   });
 });
 
-// ── IngestFile type handling ────────────────────────────────────────
-// BUG FIX: ingestFiles previously only accepted string[] (file paths).
-// When called from /api/ingest with {path, content} objects, the function
-// treated them as strings, producing "[object Object]" as the file path.
-
 describe("IngestFile type handling", () => {
   it("distinguishes path strings from content objects", () => {
     const pathFile = "CLAUDE.md";
@@ -70,12 +65,6 @@ describe("IngestFile type handling", () => {
     expect(getPath(contentFile)).toBe("README.md");
   });
 });
-
-// ── Commit SHA fallback logic ───────────────────────────────────────
-// BUG FIX: when the local MCP sent a commit SHA from repo A to fetch files
-// from repo B, GitHub returned 404 (commit doesn't exist in that repo).
-// The server treated this as "file deleted" and removed existing chunks.
-// Fix: retry with "HEAD" when the commit doesn't exist in the target repo.
 
 describe("commit SHA fallback", () => {
   it("should use HEAD when commit is from a different repo", () => {

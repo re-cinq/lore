@@ -8,9 +8,7 @@ import AgentList from "./AgentList";
 import styles from "./agents.module.css";
 import type { components } from "@/lib/api/schema";
 
-/** The whole activity row, deliberately — this page renders every column the
- *  contract publishes, so there is nothing for a `Pick` to narrow. The global
- *  /agents page reads six of them and says so. */
+/** Whole activity row; page renders every contract column (global /agents reads six). */
 type RepoAgentQueryRow =
   components["schemas"]["AgentActivity"]["agents"][number];
 
@@ -27,8 +25,7 @@ export default async function RepoAgents({
     fetchAgentUsage(),
   ]);
 
-  // Union task agents (pipeline tasks targeting this repo) with local MCP agents
-  // (memories tagged with this repo) so a developer's own agent shows up here too.
+  // Union task agents + local MCP agents (tagged with repo) so developer's agent shows up.
   const result = await getAgentActivity(fullName);
   const rows = (result.status === "ok"
     ? result.data.agents

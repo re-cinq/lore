@@ -1,23 +1,4 @@
-/**
- * impact-statement-delta — the doc-side coupling direction: what a PR did to a
- * spec's own statements, and what claims to validate the ones it disturbed.
- *
- * The line-based lookups root on a changed production file, so a PR that edits
- * `specs/**\/spec.md` couples to nothing at all — which is why a spec rewrite
- * reported "No spec impact detected" (#1072, #1076, #1081) while changing the
- * very statements the graph is built from.
- *
- * `Statement` carries no line position, so this diffs by CONTENT IDENTITY:
- * `Statement.text_hash` against the hashes of the head file's own segments. That
- * makes it immune to line drift and independent of any graph baseline — it works
- * on a repo that has never been stamped.
- *
- * Deliberate conflation: a statement whose hash is gone from the file is
- * reported as `changed`, not split into "modified" vs "deleted". Without stable
- * per-statement identity across an edit the two are indistinguishable, and the
- * consequence is the same either way — whatever validated the old text is now
- * pointed at something that moved.
- */
+/** Doc-side coupling direction; diffs by content identity (text_hash) independent of line position or baseline. */
 
 import { createHash } from "node:crypto";
 import { segmentStatements } from "../spec-segment.js";
@@ -40,11 +21,7 @@ export interface GraphStatementRef {
 export interface StatementDelta {
   /** Known to the graph, its text no longer present in the file: edited or deleted. */
   changed: GraphStatementRef[];
-  /**
-   * Present in the file, unknown to the graph: newly written, or the new text of
-   * something rewritten. Carried as text, not a count, so a rewrite can be
-   * paired back to what it replaced and rendered as a real diff.
-   */
+  /** Present in the file, unknown to the graph; carried as text to enable diffing. */
   addedTexts: string[];
 }
 
@@ -53,13 +30,7 @@ function sha256(text: string): string {
   return createHash("sha256").update(text).digest("hex");
 }
 
-/**
- * Diffs a spec's head content against the statements the graph holds for it.
- *
- * Mirrors the projector's own filter: acceptance-criteria segments become
- * `AcceptanceCriterion` nodes, not `Statement` nodes, so counting them here
- * would invent additions that never existed.
- */
+/** Diffs spec's head content against graph statements; filters ACs like the projector. */
 export function diffStatements(
   content: string,
   graphStatements: GraphStatementRef[],
@@ -145,18 +116,7 @@ export async function readSpecStatements(
   );
 }
 
-/**
- * Statements this PR disturbed in a changed spec, as impact findings.
- *
- * Only a changed statement that something already claims to VALIDATE becomes a
- * finding. The other two populations are counted, not listed, because listing
- * them buries the set a reviewer can act on:
- *
- * - a changed statement with no validating test was never covered, so editing it
- *   breaks no coverage — replaying the #1076 spec rewrite emitted 104 findings,
- *   almost all of them this, which is as unreadable as the noise it replaced;
- * - a brand-new statement has no links yet by definition.
- */
+/** Disturbed statements from a changed spec, as impact findings; only changed+validated statements are listed. */
 export async function specFileImpact(
   dgraph: DgraphClientPort,
   repo: string,
@@ -170,8 +130,7 @@ export async function specFileImpact(
   const known = await readSpecStatements(dgraph, repo, specPath);
   const delta = diffStatements(content, known);
   const validated = delta.changed.filter((stmt) => stmt.tests.length);
-  // Recover "this became that" so the comment can show a before/after instead
-  // of quoting text the file no longer contains.
+  // Recover rewrites to show before/after instead of non-existent text.
   const rewrites = pairRewrites(
     validated.map((stmt) => stmt.text),
     delta.addedTexts,
