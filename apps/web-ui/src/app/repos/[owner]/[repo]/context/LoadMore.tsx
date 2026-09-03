@@ -64,7 +64,7 @@ export default function LoadMore({
       }
       const page = (await res.json()) as ContextPage;
 
-      setChunks((prev) => [...prev, ...data.chunks]);
+      setChunks((prev) => [...prev, ...page.chunks]);
       setOffset((prev) => prev + CONTEXT_PAGE_SIZE);
       setMore(page.hasMore);
     } finally {

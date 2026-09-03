@@ -70,7 +70,7 @@ export default function InfiniteEvents({
         }
         const page = (await res.json()) as EventsPage;
 
-        setEvents((prev) => [...prev, ...data.events]);
+        setEvents((prev) => [...prev, ...page.events]);
         setOffset((prev) => prev + EVENTS_PAGE_SIZE);
         setMore(page.hasMore);
       } catch {
