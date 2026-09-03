@@ -37,6 +37,10 @@ const EdgeCondition = z.enum([
   "changes_requested",
   "failed",
   "always",
+  // A trivial or mechanical ticket (rename, deletion, doc update) has no
+  // behaviour to test first. `dod` emits this to skip the red bar and route
+  // directly to open-pr, same as `success`.
+  "no_new_test",
 ]);
 
 // A field added to NodeSchema or AssemblyLineSchema changes definitionHash by
