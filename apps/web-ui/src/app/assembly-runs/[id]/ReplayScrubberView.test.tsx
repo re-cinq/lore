@@ -7,7 +7,7 @@ function renderScrubber(
   over: Partial<Parameters<typeof ReplayScrubberView>[0]> = {},
 ) {
   const onCursorChange = vi.fn();
-  const utils = render(
+  const rendered = render(
     <ReplayScrubberView
       eventCount={10}
       cursor={5}
@@ -18,7 +18,7 @@ function renderScrubber(
     />,
   );
 
-  return { onCursorChange, slider: screen.getByRole("slider"), ...utils };
+  return { onCursorChange, slider: screen.getByRole("slider"), ...rendered };
 }
 
 describe("ReplayScrubberView", () => {

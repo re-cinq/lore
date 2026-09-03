@@ -20,7 +20,7 @@ const ticket = (over: Partial<LoopTicket> = {}): LoopTicket => ({
 
 function renderView(loop: Partial<ImplementationLoop> = {}) {
   const toggle = vi.fn(async () => {});
-  const utils = render(
+  const rendered = render(
     <ImplementationLoopView
       loop={{
         enabled: false,
@@ -34,7 +34,7 @@ function renderView(loop: Partial<ImplementationLoop> = {}) {
     />,
   );
 
-  return { ...utils, toggle };
+  return { ...rendered, toggle };
 }
 
 describe("ImplementationLoopView", () => {

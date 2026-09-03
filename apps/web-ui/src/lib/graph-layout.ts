@@ -34,13 +34,13 @@ export function connectedComponents(
   links: LayoutLink[],
 ): string[][] {
   const parent = new Map<string, string>();
-  const find = (x: string): string => {
-    let root = x;
+  const find = (node: string): string => {
+    let root = node;
 
     while ((parent.get(root) ?? root) !== root) {
       root = parent.get(root) ?? root;
     }
-    let cur = x;
+    let cur = node;
 
     while (cur !== root) {
       const next = parent.get(cur) ?? cur;
@@ -430,7 +430,7 @@ export function countCrossings(
       a: pos.get(e.source),
       b: pos.get(e.target),
     }))
-    .filter((x): x is CrossingSegment => !!x.a && !!x.b);
+    .filter((seg): seg is CrossingSegment => !!seg.a && !!seg.b);
   let crossings = 0;
 
   segs.forEach((first, i) => {

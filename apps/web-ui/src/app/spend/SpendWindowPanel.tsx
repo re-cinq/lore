@@ -31,7 +31,7 @@ export default function SpendWindowPanel({
   ) => Promise<RecordTopUpState>;
 }) {
   const [interval, setInterval] = useState(() => presetInterval("7d"));
-  const [data, setData] = useState<SpendWindow | null>(null);
+  const [spend, setSpend] = useState<SpendWindow | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   // The one fetch this component owns, re-run per selected interval. Every
@@ -57,7 +57,7 @@ export default function SpendWindowPanel({
 
           return;
         }
-        setData(body);
+        setSpend(body);
         setError(null);
       } catch (err) {
         if (!cancelled) {
@@ -110,7 +110,9 @@ export default function SpendWindowPanel({
 
       {error !== null && <p className="meta">{error}</p>}
 
-      {data !== null && <SpendView spend={data} recordAction={recordAction} />}
+      {spend !== null && (
+        <SpendView spend={spend} recordAction={recordAction} />
+      )}
     </section>
   );
 }

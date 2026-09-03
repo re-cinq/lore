@@ -57,7 +57,7 @@ export default function PlanningWizard({
   const router = useRouter();
   // Seeded from the server render so the first paint is not empty; the hook's mount
   // fetch replaces it with the fields only the poll carries (task, run, live output).
-  const { data, refresh: fetchLatest } = useFeaturePlanningPoll({
+  const { data: poll, refresh: fetchLatest } = useFeaturePlanningPoll({
     owner,
     repo,
     featureId: feature.id,
@@ -79,23 +79,23 @@ export default function PlanningWizard({
   /** Iteration whose completion already triggered a server refresh. */
   const refreshedFor = useRef<number | null>(null);
 
-  const latest = data.latestIteration;
+  const latest = poll.latestIteration;
   // One value instead of five booleans rebuilt from the round's task. The LINE says
   // which node is working; the round's own rows only decide for a legacy feature
   // that resolves no line. `latestReady` still gates the server refresh + which
   // analysis to show, which is a question about the DATA rather than about the phase.
   const phase = featurePhaseOf({
-    run: data.run,
-    feature: data.feature,
+    run: poll.run,
+    feature: poll.feature,
     latestIteration: latest,
-    task: data.task,
+    task: poll.task,
   });
   const latestReady = latest?.status === "ready" && !!latest.gap_result;
   const failed = phase.kind === "failed";
 
   // The poll updates THIS component, but the draft spec renders from the server's
   // copy of the feature (FeatureDetailView reads feature.draft_spec_md). Without a
-  // refresh, a round that just landed leaves the page showing pre-round data until
+  // refresh, a round that just landed leaves the page showing pre-round poll until
   // the reader thinks to reload. Once per iteration — refresh() re-renders the
   // parent, which would otherwise re-trigger this on every poll.
   useEffect(() => {
@@ -137,12 +137,12 @@ export default function PlanningWizard({
   // the wizard for the FinalizedView. A second interval here would just re-ask the
   // same route on its own schedule.
   useEffect(() => {
-    if (finalizing && !isPlanningActive(data.feature.status)) {
+    if (finalizing && !isPlanningActive(poll.feature.status)) {
       router.refresh();
     }
-  }, [finalizing, data.feature.status, router]);
+  }, [finalizing, poll.feature.status, router]);
 
-  const iteration = latest?.iteration ?? data.feature.current_iteration;
+  const iteration = latest?.iteration ?? poll.feature.current_iteration;
 
   // The spec phase gets the SAME card as a planning round: it runs on the same line,
   // and the author has no decision to make while it does. Showing the decision row
@@ -156,14 +156,14 @@ export default function PlanningWizard({
   // the FEATURE as well as the line, because a legacy feature mints one line per
   // round — that line reports `done` the moment its round lands, while the author
   // still has a decision to make.
-  if (phase.kind === "done" && !isPlanningActive(data.feature.status)) {
+  if (phase.kind === "done" && !isPlanningActive(poll.feature.status)) {
     return <>{settledView}</>;
   }
 
   // The spec PR is open and the line is parked on `merged` — waiting on a PERSON,
   // not on the machine. Before the merged line this state was invisible.
   if (phase.kind === "awaiting-merge") {
-    return <SpecPrCard feature={data.feature} />;
+    return <SpecPrCard feature={poll.feature} />;
   }
 
   // The merge resumed the line: decompose is breaking the spec down, or the
@@ -183,7 +183,7 @@ export default function PlanningWizard({
   const working = phase.kind === "planning" || phase.kind === "writing-spec";
   const showSpec =
     phase.kind === "writing-spec" ||
-    (finalizing && (data.run?.status ?? "running") === "running");
+    (finalizing && (poll.run?.status ?? "running") === "running");
 
   if (working || showSpec) {
     return (
@@ -198,8 +198,8 @@ export default function PlanningWizard({
         // Which node is working, so the card counts against THAT node's kill
         // deadline rather than the planning round's unenforced budget.
         nodeId={"nodeId" in phase ? phase.nodeId : undefined}
-        liveOutput={data.liveOutput}
-        run={data.run}
+        liveOutput={poll.liveOutput}
+        run={poll.run}
         phase={showSpec ? "spec" : "round"}
       />
     );
@@ -209,14 +209,14 @@ export default function PlanningWizard({
   // produced one (so a failed refine doesn't hide your prior analysis).
   const gap = latestReady
     ? latest?.gap_result
-    : (data.lastReady?.gap_result ?? null);
+    : (poll.lastReady?.gap_result ?? null);
 
   const failureBlock = (
     <FailureBlock
       iteration={iteration}
-      failureReason={data.task?.failure_reason}
+      failureReason={poll.task?.failure_reason}
       answers={latest?.user_answers}
-      run={data.run}
+      run={poll.run}
       pending={pending}
       onRetry={submitRefine}
     />

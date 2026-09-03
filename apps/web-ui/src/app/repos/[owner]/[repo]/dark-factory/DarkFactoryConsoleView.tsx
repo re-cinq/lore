@@ -108,18 +108,18 @@ export default function DarkFactoryConsoleView({
             </tr>
           </thead>
           <tbody>
-            {workItems.map((item) => (
-              <tr key={item.id}>
-                <td>{item.type}</td>
-                <td>{item.status}</td>
+            {workItems.map((workItem) => (
+              <tr key={workItem.id}>
+                <td>{workItem.type}</td>
+                <td>{workItem.status}</td>
                 <td>
-                  {item.prUrl ? (
-                    <a href={item.prUrl}>PR</a>
+                  {workItem.prUrl ? (
+                    <a href={workItem.prUrl}>PR</a>
                   ) : (
                     <span className="meta">—</span>
                   )}
                 </td>
-                <td className="meta">{item.createdAt}</td>
+                <td className="meta">{workItem.createdAt}</td>
               </tr>
             ))}
           </tbody>

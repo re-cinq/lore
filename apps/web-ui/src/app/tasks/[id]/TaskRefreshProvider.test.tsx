@@ -32,8 +32,10 @@ class FakeEventSource {
     this.closed = true;
   }
 
-  emit(name: string, data: unknown) {
-    this.listeners.get(name)?.({ data: JSON.stringify(data) } as MessageEvent);
+  emit(name: string, payload: unknown) {
+    this.listeners.get(name)?.({
+      data: JSON.stringify(payload),
+    } as MessageEvent);
   }
 }
 

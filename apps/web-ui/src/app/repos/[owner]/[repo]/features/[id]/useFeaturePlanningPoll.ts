@@ -47,7 +47,7 @@ export function useFeaturePlanningPoll({
   data: FeaturePollPayload;
   refresh: () => Promise<FeaturePollPayload | null>;
 } {
-  const [data, setData] = useState<FeaturePollPayload>(initial);
+  const [payload, setPayload] = useState<FeaturePollPayload>(initial);
 
   // The run whose graph is in hand, read through a ref so `refresh` keeps a stable
   // identity: it is the polling effect's only dependency, and re-creating it each
@@ -57,8 +57,8 @@ export function useFeaturePlanningPoll({
   const held = useRef<FeatureRunPayload | null>(null);
 
   useEffect(() => {
-    held.current = data.run ?? null;
-  }, [data.run]);
+    held.current = payload.run ?? null;
+  }, [payload.run]);
 
   const refresh = useCallback(async (): Promise<FeaturePollPayload | null> => {
     const cached = held.current;
@@ -80,7 +80,7 @@ export function useFeaturePlanningPoll({
 
     // Merged through the functional update so the graph is folded into whatever
     // the CURRENT payload holds, not into a snapshot this closure captured.
-    setData((previous) =>
+    setPayload((previous) =>
       fresh.run
         ? { ...fresh, run: mergeRunGraph(previous.run ?? null, fresh.run) }
         : fresh,
@@ -98,5 +98,5 @@ export function useFeaturePlanningPoll({
     return () => clearInterval(timer);
   }, [refresh]);
 
-  return { data, refresh };
+  return { data: payload, refresh };
 }
