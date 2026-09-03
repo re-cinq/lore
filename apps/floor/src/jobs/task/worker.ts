@@ -121,6 +121,96 @@ async function pollOnce(): Promise<void> {
 
 // ── Task processing ───────────────────────────────────────────────────
 
+/** Which handler a task type goes to. Exported because the routing IS the decision worth testing — a test that re-implements it can drift from the thing it claims to check. */
+export type TaskHandler =
+  "handleOnboard" | "handleFeatureRequest" | "handleClaudeCodeTask";
+
+export function routeTask(taskType: string): TaskHandler {
+  if (taskType === "onboard") {
+    return "handleOnboard";
+  }
+
+  return taskType === "feature-request"
+    ? "handleFeatureRequest"
+    : "handleClaudeCodeTask";
+}
+
+interface DispatchInput {
+  task: PipelineTask;
+  targetRepo: string;
+  branchName: string;
+  model: string | undefined;
+  issueNumber: number | null;
+  project: Awaited<ReturnType<typeof projectFor>>;
+  repoSettings: Record<string, unknown>;
+  repoOverrides: Record<string, unknown> | undefined;
+  agentDef: Awaited<ReturnType<Project["agentDefs"]["resolve"]>> | null;
+  darkFactoryEnabled: boolean;
+  isFeaturePlanningType: boolean;
+}
+
+async function dispatchByTaskType(
+  handler: TaskHandler,
+  input: DispatchInput,
+): Promise<void> {
+  const { task, targetRepo, branchName, model, issueNumber } = input;
+
+  if (handler === "handleOnboard") {
+    return handleOnboard({ task, targetRepo, branchName, model, issueNumber });
+  }
+
+  if (handler === "handleFeatureRequest") {
+    return handleFeatureRequest({
+      task,
+      targetRepo,
+      branchName,
+      model,
+      issueNumber,
+    });
+  }
+
+  return dispatchAgentCr(input);
+}
+
+/**
+ * Every other task type dispatches an Agent CR. A dark-mode repo with an
+ * assembly line for the type runs the Floor-side graph instead — one Agent CR
+ * per node — and feature-planning/finalize always do, regardless of the repo's
+ * dark-factory setting (ADR-028).
+ */
+async function dispatchAgentCr(input: DispatchInput): Promise<void> {
+  const { task, targetRepo, project, repoSettings } = input;
+  const assemblyLine =
+    input.isFeaturePlanningType || input.darkFactoryEnabled
+      ? task.task_type
+      : undefined;
+  // The real default branch, not "main": hardcoding it 422'd on repos still on
+  // master/develop. The pod uses it for `git diff origin/<base>` to answer
+  // "did anything actually change?".
+  const baseBranch = await lookupDarkFactoryBaseBranch(
+    project,
+    targetRepo,
+    assemblyLine,
+  );
+
+  await handleClaudeCodeTask({
+    task,
+    targetRepo,
+    branchName: input.branchName,
+    model: input.model,
+    repoOverrides: input.repoOverrides,
+    ...(assemblyLine ? { darkFactory: { assemblyLine, baseBranch } } : {}),
+    // BYO execution container (ADR-025): resolved from the settings hierarchy
+    // (default → per-repo → per-task-type). Unset means the platform default,
+    // which equals the controller's, so unconfigured repos see no change.
+    image: resolveExecutionImage(
+      repoSettings as Parameters<typeof resolveExecutionImage>[0],
+      task.task_type,
+    ),
+    agentDef: input.agentDef,
+  });
+}
+
 async function processTask(task: PipelineTask): Promise<void> {
   const agentId = `lore-agent-${task.id.substring(0, 8)}`;
   const targetRepo = task.target_repo || "re-cinq/lore";
@@ -216,71 +306,19 @@ async function processTask(task: PipelineTask): Promise<void> {
     // Forwarded to the Agent CR dispatch: dark-mode repos run the Floor-side graph, one Agent CR per node.
     const darkFactoryEnabled = repoSettings?.dark_factory?.enabled === true;
 
-    const taskType = task.task_type;
-
-    if (taskType === "onboard") {
-      await handleOnboard({ task, targetRepo, branchName, model, issueNumber });
-    }
-
-    if (taskType === "feature-request") {
-      await handleFeatureRequest({
-        task,
-        targetRepo,
-        branchName,
-        model,
-        issueNumber,
-      });
-    }
-
-    if (taskType !== "onboard" && taskType !== "feature-request") {
-      // All other task types dispatch an Agent CR (agent-cr / ai-agent-subsystem).
-      // For dark-mode repos with an assembly line defined for the task type, pass the
-      // assembly line name through so AgentCrStationBackend runs the Floor-side graph
-      // (one Agent CR per node) instead of a single Agent.
-      //
-      // feature-planning/finalize always run their assembly line in the Station
-      // (ADR-028); other types need the repo's dark-factory mode enabled.
-      const darkFactoryAssemblyLine =
-        isFeaturePlanningType || darkFactoryEnabled
-          ? task.task_type
-          : undefined;
-
-      // Look up the actual default branch when forwarding to a
-      // dark-factory pod. Hardcoding "main" 422'd on repos still on
-      // master/develop. The pod uses this for `git diff origin/<base>`
-      // to detect "did anything actually change?"
-      const darkFactoryBaseBranch = await lookupDarkFactoryBaseBranch(
-        project,
-        targetRepo,
-        darkFactoryAssemblyLine,
-      );
-      // BYO execution container (ADR-025): resolve the image from the
-      // settings hierarchy (default → per-repo → per-task-type). Unset →
-      // the platform default, which equals the controller's default, so
-      // unconfigured repos see no change.
-      const executionImage = resolveExecutionImage(
-        repoSettings as Parameters<typeof resolveExecutionImage>[0],
-        task.task_type,
-      );
-
-      await handleClaudeCodeTask({
-        task,
-        targetRepo,
-        branchName,
-        model,
-        repoOverrides,
-        ...(darkFactoryAssemblyLine
-          ? {
-              darkFactory: {
-                assemblyLine: darkFactoryAssemblyLine,
-                baseBranch: darkFactoryBaseBranch,
-              },
-            }
-          : {}),
-        image: executionImage,
-        agentDef,
-      });
-    }
+    await dispatchByTaskType(routeTask(task.task_type), {
+      task,
+      targetRepo,
+      branchName,
+      model,
+      issueNumber,
+      project,
+      repoSettings,
+      repoOverrides,
+      agentDef,
+      darkFactoryEnabled,
+      isFeaturePlanningType,
+    });
   } catch (err) {
     const failureReason: string = errorMessage(err);
     const meta =

@@ -144,6 +144,92 @@ export const MemoryOperationSchema = z.union([
   }),
 ]);
 
+/** A write embeds its value and a search its query; every other action needs none. */
+async function embeddingFor(body: MemoryBody): Promise<number[] | null> {
+  if (body.action === "write") {
+    return getQueryEmbedding(body.value);
+  }
+
+  return body.action === "search" ? getQueryEmbedding(body.query) : null;
+}
+
+async function writeAction(
+  pool: Pool | null,
+  body: Extract<MemoryBody, { action: "write" }>,
+  embedding: number[] | null,
+): Promise<object> {
+  const written = isMemoryDbAvailable()
+    ? await writeMemory({
+        key: body.key,
+        value: body.value,
+        agentId: body.agent_id,
+        ttl: body.ttl,
+        embedding: embedding || undefined,
+        repo: body.repo,
+      })
+    : writeMemoryFile(body.key, body.value, body.agent_id, body.ttl);
+
+  // Fire-and-forget: the caller is waiting on the write, not on the facts.
+  if (body.extract_facts && isMemoryDbAvailable()) {
+    void extractFactsForMemory(pool!, {
+      key: body.key,
+      value: body.value,
+      agentId: resolveAgentId(body.agent_id),
+      repo: body.repo,
+    });
+  }
+
+  return written;
+}
+
+async function readAction(
+  body: Extract<MemoryBody, { action: "read" }>,
+): Promise<object> {
+  const version = requestedVersion(body.version);
+
+  return (
+    isMemoryDbAvailable()
+      ? await readMemory(body.key, body.agent_id, version)
+      : readMemoryFile(body.key, body.agent_id, version)
+  ) as object;
+}
+
+/** `all` asks for the whole history; anything else names one version; absent means the latest. */
+function requestedVersion(
+  version: string | number | undefined,
+): "all" | number | undefined {
+  if (version === "all") {
+    return "all";
+  }
+
+  return version ? Number(version) : undefined;
+}
+
+async function searchAction(
+  pool: Pool | null,
+  body: Extract<MemoryBody, { action: "search" }>,
+): Promise<object> {
+  return isMemoryDbAvailable()
+    ? searchMemories(pool!, body.query, {
+        agentId: body.agent_id,
+        poolName: body.pool_name,
+        limit: body.limit || 10,
+        includeInvalidated: body.include_invalidated,
+        graphAugment: body.graph_augment,
+      })
+    : searchMemoryFile(body.query, body.agent_id, body.limit || 10);
+}
+
+async function listAction(
+  body: Extract<MemoryBody, { action: "list" }>,
+): Promise<object> {
+  const result = isMemoryDbAvailable()
+    ? await listMemories(body.agent_id, body.limit, body.offset)
+    : listMemoriesFile(body.agent_id, body.limit, body.offset);
+
+  return { ...result, limit: body.limit, offset: body.offset };
+}
+
 export function memoryRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "POST",
@@ -165,91 +251,30 @@ export function memoryRoute(getPool: () => Pool | null): ServerRoute {
       const body = request.payload as MemoryBody;
 
       try {
-        let embedInput: string | undefined;
+        // Only the two actions that carry text to match on pay for an embedding.
+        const embedding = await embeddingFor(body);
 
         if (body.action === "write") {
-          embedInput = body.value;
+          return h.response(await writeAction(pool, body, embedding));
+        }
+
+        if (body.action === "read") {
+          return h.response(await readAction(body));
         }
 
         if (body.action === "search") {
-          embedInput = body.query;
+          return h.response(await searchAction(pool, body));
         }
-        const embedding = embedInput
-          ? await getQueryEmbedding(embedInput)
-          : null;
 
-        switch (body.action) {
-          case "write": {
-            const written = isMemoryDbAvailable()
-              ? await writeMemory({
-                  key: body.key,
-                  value: body.value,
-                  agentId: body.agent_id,
-                  ttl: body.ttl,
-                  embedding: embedding || undefined,
-                  repo: body.repo,
-                })
-              : writeMemoryFile(body.key, body.value, body.agent_id, body.ttl);
-
-            // Fire-and-forget: the caller is waiting on the write, not on the facts.
-            if (body.extract_facts && isMemoryDbAvailable()) {
-              void extractFactsForMemory(pool!, {
-                key: body.key,
-                value: body.value,
-                agentId: resolveAgentId(body.agent_id),
-                repo: body.repo,
-              });
-            }
-
-            return h.response(written);
-          }
-          case "read": {
-            let v: "all" | number | undefined;
-
-            if (body.version === "all") {
-              v = "all";
-            }
-
-            if (body.version && body.version !== "all") {
-              v = Number(body.version);
-            }
-
-            return h.response(
-              (isMemoryDbAvailable()
-                ? await readMemory(body.key, body.agent_id, v)
-                : readMemoryFile(body.key, body.agent_id, v)) as object,
-            );
-          }
-          case "search":
-            return h.response(
-              isMemoryDbAvailable()
-                ? await searchMemories(pool!, body.query, {
-                    agentId: body.agent_id,
-                    poolName: body.pool_name,
-                    limit: body.limit || 10,
-                    includeInvalidated: body.include_invalidated,
-                    graphAugment: body.graph_augment,
-                  })
-                : searchMemoryFile(body.query, body.agent_id, body.limit || 10),
-            );
-          case "delete":
-            return h.response(
-              isMemoryDbAvailable()
-                ? await deleteMemory(body.key, body.agent_id)
-                : deleteMemoryFile(body.key, body.agent_id),
-            );
-          case "list": {
-            const result = isMemoryDbAvailable()
-              ? await listMemories(body.agent_id, body.limit, body.offset)
-              : listMemoriesFile(body.agent_id, body.limit, body.offset);
-
-            return h.response({
-              ...result,
-              limit: body.limit,
-              offset: body.offset,
-            });
-          }
+        if (body.action === "delete") {
+          return h.response(
+            isMemoryDbAvailable()
+              ? await deleteMemory(body.key, body.agent_id)
+              : deleteMemoryFile(body.key, body.agent_id),
+          );
         }
+
+        return h.response(await listAction(body));
       } catch (err) {
         return h.response({ error: errorMessage(err) }).code(500);
       }

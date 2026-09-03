@@ -244,6 +244,196 @@ function onboardAttentionSection(
   return lines.join("\n").replace(/\n+$/, "");
 }
 
+/** What the repo already has, which decides what is worth generating. */
+interface OnboardSurvey {
+  existingFiles: Set<string>;
+  hasAdrs: boolean;
+}
+
+/** The files this onboarding will generate: the standard set the repo lacks, the test-interface scaffold when it declares no manifest, and a starter ADR set when it has no adrs/ or docs/ yet. */
+async function planOnboardFiles(
+  targetRepo: string,
+  { existingFiles, hasAdrs }: OnboardSurvey,
+): Promise<{ path: string; prompt: string }[]> {
+  const toGenerate: { path: string; prompt: string }[] = [];
+
+  for (const f of ONBOARD_FILES) {
+    const present =
+      existingFiles.has(f.path) || existingFiles.has(f.path.split("/").pop()!);
+
+    if (present) {
+      console.log(`[floor] Onboard: skipping ${f.path} (already exists)`);
+      continue;
+    }
+    toGenerate.push({ path: f.path, prompt: f.prompt });
+  }
+  toGenerate.push(...(await testInterfaceScaffold(targetRepo, existingFiles)));
+
+  if (hasAdrs) {
+    console.log(
+      `[floor] Onboard: skipping ADRs (adrs/ or docs/ already exists)`,
+    );
+
+    return toGenerate;
+  }
+  toGenerate.push(...starterAdrs());
+
+  return toGenerate;
+}
+
+/**
+ * Test-interface check (project-test-interface AC12): a repo that declares NO
+ * manifest — neither `.lore/test-commands.yml` nor
+ * `lore.repos.settings.test_commands` — gets the suggested manifest plus a
+ * per-toolchain lore-tests.yml scaffolded into the onboarding PR. A repo that
+ * already declares one scaffolds nothing, so re-onboarding is idempotent.
+ * Declining (not merging the scaffold) leaves the repo in documented fallback
+ * mode with no error: the scaffold is a suggestion, never enforced.
+ */
+async function testInterfaceScaffold(
+  targetRepo: string,
+  existingFiles: Set<string>,
+): Promise<{ path: string; prompt: string }[]> {
+  const check = decideTestInterfaceCheck({
+    manifestFileDeclared: existingFiles.has(".lore/test-commands.yml"),
+    settingsTestCommands: await readSettingsTestCommands(targetRepo),
+  });
+
+  if (check.status === "configured") {
+    console.log(
+      "[floor] Onboard: test interface already configured — scaffolding nothing",
+    );
+
+    return [];
+  }
+
+  return check.files
+    .filter((scaffoldPath) => !existingFiles.has(scaffoldPath))
+    .map((scaffoldPath) => ({
+      path: scaffoldPath,
+      prompt:
+        scaffoldPath === ".github/workflows/lore-tests.yml"
+          ? LORE_TESTS_INSTRUCTION
+          : TEST_COMMAND_MANIFEST_SCAFFOLD_PROMPT,
+    }));
+}
+
+/** Unreadable settings are not a reason to fail onboarding; the check just falls back to "not declared". */
+async function readSettingsTestCommands(targetRepo: string): Promise<unknown> {
+  try {
+    const repoSettings = await settings().rawSettings(targetRepo);
+
+    return (repoSettings as { test_commands?: unknown } | null)?.test_commands;
+  } catch (err) {
+    console.warn(
+      `[floor] Onboard: could not read repo settings for test-interface check: ${errorMessage(err)}`,
+    );
+
+    return undefined;
+  }
+}
+
+/** The starter ADR set, numbered from 1, for a repo with no decision record yet. */
+function starterAdrs(): { path: string; prompt: string }[] {
+  const today = new Date().toISOString().split("T")[0];
+
+  return ADR_TOPICS.map((adr, index) => {
+    const adrNum = index + 1;
+
+    return {
+      path: `adrs/ADR-${String(adrNum).padStart(3, "0")}-${adr.slug}.md`,
+      prompt:
+        adr.prompt +
+        ` Use MADR format with YAML frontmatter (adr_number: ${adrNum}, title, status: accepted, date: ${today}, domains: [...]).`,
+    };
+  });
+}
+
+/** Point the repo's workflows back at this Floor, BEFORE the PR opens so a failure here is still reportable in the PR body. An unset Floor value is never written as an empty variable — that would leave lore-ingest.yml failing on a blank URL while looking configured. */
+async function configureIngestCallback(
+  project: Awaited<ReturnType<typeof projectFor>>,
+): Promise<string[]> {
+  const failures: string[] = [];
+
+  await setIngestVariable(project, failures);
+  await setIngestSecret(project, failures);
+
+  return failures;
+}
+
+async function setIngestVariable(
+  project: Awaited<ReturnType<typeof projectFor>>,
+  failures: string[],
+): Promise<void> {
+  const url = process.env.LORE_INGEST_URL || "";
+
+  if (!url) {
+    failures.push(
+      "`LORE_INGEST_URL` is not configured on the Floor — set the repo variable manually or fix the Floor deployment, or ingest calls will never reach Lore",
+    );
+
+    return;
+  }
+  await project.settings
+    .setRepoVariable("LORE_INGEST_URL", url)
+    .catch((err: unknown) =>
+      failures.push(
+        `the \`LORE_INGEST_URL\` repo variable could not be set: ${errorMessage(err)}`,
+      ),
+    );
+}
+
+async function setIngestSecret(
+  project: Awaited<ReturnType<typeof projectFor>>,
+  failures: string[],
+): Promise<void> {
+  const token = process.env.LORE_INGEST_TOKEN;
+
+  if (!token) {
+    failures.push(
+      "`LORE_INGEST_TOKEN` is not configured on the Floor — set the repo secret manually, or every ingest call will be rejected with 401",
+    );
+
+    return;
+  }
+  await project.settings
+    .setRepoSecret("LORE_INGEST_TOKEN", token)
+    .catch((err: unknown) =>
+      failures.push(
+        `the \`LORE_INGEST_TOKEN\` repo secret could not be set: ${errorMessage(err)}`,
+      ),
+    );
+}
+
+/** Where a committed file is recorded: the list the PR body reports, and the failures it reports alongside them. */
+interface OnboardLedger {
+  kind: string;
+  committed: string[];
+  failures: StepFailure[];
+}
+
+/** Commit one onboarding file, recording it either way. A failure here is reported in the PR body rather than failing the task — a repo that got most of its files is still onboarded. */
+async function commitOnboardFile(
+  project: Awaited<ReturnType<typeof projectFor>>,
+  branchName: string,
+  file: { path: string; content: string },
+  ledger: OnboardLedger,
+): Promise<void> {
+  try {
+    await project.repo.commitFile(
+      branchName,
+      file.path,
+      file.content,
+      `lore: add ${file.path}`,
+    );
+    ledger.committed.push(file.path);
+    console.log(`[floor] Onboard: committed ${file.path} (${ledger.kind})`);
+  } catch (err) {
+    console.error(`[floor] Onboard: failed ${file.path}: ${errorMessage(err)}`);
+    ledger.failures.push({ step: file.path, error: errorMessage(err) });
+  }
+}
+
 export async function handleOnboard({
   task,
   targetRepo,
@@ -272,88 +462,10 @@ export async function handleOnboard({
   const hasAdrs =
     context.tree.includes("adrs") || context.tree.includes("docs");
 
-  // 3. Build list of files to generate
-  const toGenerate: { path: string; prompt: string }[] = [];
-
-  for (const f of ONBOARD_FILES) {
-    if (
-      existingFiles.has(f.path) ||
-      existingFiles.has(f.path.split("/").pop()!)
-    ) {
-      console.log(`[floor] Onboard: skipping ${f.path} (already exists)`);
-      continue;
-    }
-    toGenerate.push({ path: f.path, prompt: f.prompt });
-  }
-
-  // Test-interface check (project-test-interface AC12): when the repo declares
-  // NO test-command manifest (neither a .lore/test-commands.yml file nor
-  // lore.repos.settings.test_commands), scaffold the suggested manifest +
-  // per-toolchain lore-tests.yml in the onboarding PR. A repo that already
-  // declares one is reported "configured" and scaffolds nothing (idempotent).
-  // Declining (not merging the scaffold) leaves the repo in documented fallback
-  // mode with no error — the scaffold is a suggestion, never enforced.
-  let settingsTestCommands: unknown;
-
-  try {
-    const repoSettings = await settings().rawSettings(targetRepo);
-
-    settingsTestCommands = (repoSettings as { test_commands?: unknown } | null)
-      ?.test_commands;
-  } catch (err) {
-    console.warn(
-      `[floor] Onboard: could not read repo settings for test-interface check: ${errorMessage(err)}`,
-    );
-  }
-  const interfaceCheck = decideTestInterfaceCheck({
-    manifestFileDeclared: existingFiles.has(".lore/test-commands.yml"),
-    settingsTestCommands,
+  const toGenerate = await planOnboardFiles(targetRepo, {
+    existingFiles,
+    hasAdrs,
   });
-
-  if (interfaceCheck.status === "configured") {
-    console.log(
-      "[floor] Onboard: test interface already configured — scaffolding nothing",
-    );
-  }
-
-  if (interfaceCheck.status !== "configured") {
-    const missingScaffolds = interfaceCheck.files.filter(
-      (scaffoldPath) => !existingFiles.has(scaffoldPath),
-    );
-
-    toGenerate.push(
-      ...missingScaffolds.map((scaffoldPath) => ({
-        path: scaffoldPath,
-        prompt:
-          scaffoldPath === ".github/workflows/lore-tests.yml"
-            ? LORE_TESTS_INSTRUCTION
-            : TEST_COMMAND_MANIFEST_SCAFFOLD_PROMPT,
-      })),
-    );
-  }
-
-  // ADRs: generate if no adrs/ directory exists
-  if (!hasAdrs) {
-    let adrNum = 1;
-
-    for (const adr of ADR_TOPICS) {
-      const padded = String(adrNum).padStart(3, "0");
-
-      toGenerate.push({
-        path: `adrs/ADR-${padded}-${adr.slug}.md`,
-        prompt:
-          adr.prompt +
-          ` Use MADR format with YAML frontmatter (adr_number: ${adrNum}, title, status: accepted, date: ${new Date().toISOString().split("T")[0]}, domains: [...]).`,
-      });
-      adrNum++;
-    }
-  }
-
-  if (hasAdrs) {
-    console.log(
-      `[floor] Onboard: skipping ADRs (adrs/ or docs/ already exists)`,
-    );
-  }
 
   enforceTrue(
     toGenerate.length !== 0,
@@ -369,75 +481,37 @@ export async function handleOnboard({
   const committed: string[] = [];
   const failures: StepFailure[] = [];
 
-  // Always (re)install the ingest workflow. commitFile upserts, and the
-  // coarse static-file skip below would wrongly skip it on any repo that
-  // already has a .github directory — which is most of them.
-  try {
-    await project.repo.commitFile(
-      branchName,
-      LORE_INGEST_WORKFLOW_PATH,
-      LORE_INGEST_WORKFLOW_CONTENT,
-      `lore: add ${LORE_INGEST_WORKFLOW_PATH}`,
-    );
-    committed.push(LORE_INGEST_WORKFLOW_PATH);
-    console.log(
-      `[floor] Onboard: committed ${LORE_INGEST_WORKFLOW_PATH} (workflow)`,
-    );
-  } catch (err) {
-    console.error(
-      `[floor] Onboard: failed ${LORE_INGEST_WORKFLOW_PATH}: ${errorMessage(err)}`,
-    );
-    failures.push({
-      step: LORE_INGEST_WORKFLOW_PATH,
-      error: errorMessage(err),
-    });
-  }
-
-  // Always (re)install the advisory spec-impact workflow alongside ingest. It is
-  // neutral/fail-soft (no-ops until the backend graph is available), so it is
-  // safe to ship to every onboarded repo.
-  try {
-    await project.repo.commitFile(
-      branchName,
-      TRACE_IMPACT_WORKFLOW_PATH,
-      TRACE_IMPACT_WORKFLOW_CONTENT,
-      `lore: add ${TRACE_IMPACT_WORKFLOW_PATH}`,
-    );
-    committed.push(TRACE_IMPACT_WORKFLOW_PATH);
-    console.log(
-      `[floor] Onboard: committed ${TRACE_IMPACT_WORKFLOW_PATH} (workflow)`,
-    );
-  } catch (err) {
-    console.error(
-      `[floor] Onboard: failed ${TRACE_IMPACT_WORKFLOW_PATH}: ${errorMessage(err)}`,
-    );
-    failures.push({
-      step: TRACE_IMPACT_WORKFLOW_PATH,
-      error: errorMessage(err),
+  // Always (re)install both workflows. commitFile upserts, and the coarse
+  // static-file skip below would wrongly skip them on any repo that already has
+  // a .github directory — which is most of them. The spec-impact one is
+  // fail-soft (it no-ops until the backend graph is available), so it is safe
+  // to ship to every onboarded repo.
+  for (const workflow of [
+    { path: LORE_INGEST_WORKFLOW_PATH, content: LORE_INGEST_WORKFLOW_CONTENT },
+    {
+      path: TRACE_IMPACT_WORKFLOW_PATH,
+      content: TRACE_IMPACT_WORKFLOW_CONTENT,
+    },
+  ]) {
+    await commitOnboardFile(project, branchName, workflow, {
+      kind: "workflow",
+      committed,
+      failures,
     });
   }
 
   // 5. Commit static files first
   for (const sf of ONBOARD_STATIC_FILES) {
-    if (
-      !existingFiles.has(sf.path) &&
-      !existingFiles.has(sf.path.split("/")[0])
-    ) {
-      try {
-        await project.repo.commitFile(
-          branchName,
-          sf.path,
-          sf.content,
-          `lore: add ${sf.path}`,
-        );
-        committed.push(sf.path);
-        console.log(`[floor] Onboard: committed ${sf.path} (static)`);
-      } catch (err) {
-        console.error(
-          `[floor] Onboard: failed ${sf.path}: ${errorMessage(err)}`,
-        );
-        failures.push({ step: sf.path, error: errorMessage(err) });
-      }
+    const alreadyThere =
+      existingFiles.has(sf.path) || existingFiles.has(sf.path.split("/")[0]);
+
+    if (!alreadyThere) {
+      await commitOnboardFile(
+        project,
+        branchName,
+        { path: sf.path, content: sf.content },
+        { kind: "static", committed, failures },
+      );
     }
   }
 
@@ -496,42 +570,7 @@ export async function handleOnboard({
   // PR, so a failure here can still be reported in the PR body. An unset Floor
   // value is never written as an empty variable — that would make lore-ingest.yml
   // fail with a blank URL while looking configured.
-  const ingestUrl = process.env.LORE_INGEST_URL || "";
-  const ingestToken = process.env.LORE_INGEST_TOKEN;
-  const configFailures: string[] = [];
-
-  if (ingestUrl) {
-    try {
-      await project.settings.setRepoVariable("LORE_INGEST_URL", ingestUrl);
-    } catch (err) {
-      configFailures.push(
-        `the \`LORE_INGEST_URL\` repo variable could not be set: ${errorMessage(err)}`,
-      );
-    }
-  }
-
-  if (!ingestUrl) {
-    configFailures.push(
-      "`LORE_INGEST_URL` is not configured on the Floor — set the repo variable manually or fix the Floor deployment, or ingest calls will never reach Lore",
-    );
-  }
-
-  if (ingestToken) {
-    try {
-      await project.settings.setRepoSecret("LORE_INGEST_TOKEN", ingestToken);
-    } catch (err) {
-      configFailures.push(
-        `the \`LORE_INGEST_TOKEN\` repo secret could not be set: ${errorMessage(err)}`,
-      );
-    }
-  }
-
-  if (!ingestToken) {
-    configFailures.push(
-      "`LORE_INGEST_TOKEN` is not configured on the Floor — set the repo secret manually, or every ingest call will be rejected with 401",
-    );
-  }
-
+  const configFailures = await configureIngestCallback(project);
   const ingestConfigured = configFailures.length === 0;
 
   if (ingestConfigured) {

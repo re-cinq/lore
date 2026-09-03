@@ -3,20 +3,13 @@
 export function parseSettingsForm(formData: FormData) {
   const selectedRepos = formData.getAll("cross_repo_repos") as string[];
   const updates: Record<string, unknown> = {
-    task_types: ((formData.get("task_types") as string) || "")
-      .split(",")
-      .map((s) => s.trim())
-      .filter(Boolean),
+    task_types: commaList(formData, "task_types"),
     auto_review: formData.get("auto_review") === "yes",
     cross_repo: selectedRepos.length > 0,
     cross_repo_repos: selectedRepos,
-    slack_channel_id:
-      ((formData.get("slack_channel_id") as string) || "").trim() || undefined,
-    dispatch_label:
-      ((formData.get("dispatch_label") as string) || "").trim() || undefined,
-    dispatch_default_type:
-      ((formData.get("dispatch_default_type") as string) || "").trim() ||
-      undefined,
+    slack_channel_id: optionalText(formData, "slack_channel_id"),
+    dispatch_label: optionalText(formData, "dispatch_label"),
+    dispatch_default_type: optionalText(formData, "dispatch_default_type"),
   };
 
   const trustLevel = formData.get("trust_level") as string;
@@ -25,9 +18,29 @@ export function parseSettingsForm(formData: FormData) {
     updates.trust = { level: trustLevel, auto_promote_threshold: 3 };
   }
 
-  for (const k of Object.keys(updates)) {
-    if (updates[k] === undefined) {
-      delete updates[k];
+  return withoutUndefined(updates);
+}
+
+/** A comma-separated field as its non-empty, trimmed parts. */
+function commaList(formData: FormData, name: string): string[] {
+  return ((formData.get(name) as string) || "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+/** A text field, or undefined when blank — the caller drops undefined rather than writing an empty string. */
+function optionalText(formData: FormData, name: string): string | undefined {
+  return ((formData.get(name) as string) || "").trim() || undefined;
+}
+
+/** Drop the keys that came back undefined, so a blank field leaves the stored value alone. */
+function withoutUndefined(
+  updates: Record<string, unknown>,
+): Record<string, unknown> {
+  for (const key of Object.keys(updates)) {
+    if (updates[key] === undefined) {
+      delete updates[key];
     }
   }
 
@@ -80,53 +93,100 @@ const text = (fd: FormData, name: string): string =>
 const sameArray = (a: string[] = [], b: string[] = []): boolean =>
   a.length === b.length && a.every((value, i) => value === b[i]);
 
-export function parsePrivilegedChanges(
+/** Attach a nested block only when something inside it changed — an empty block would read as "clear these settings". */
+function attachIfAny(
+  into: Record<string, unknown>,
+  key: string,
+  changes: Record<string, unknown>,
+): void {
+  if (Object.keys(changes).length > 0) {
+    into[key] = changes;
+  }
+}
+
+/** Record a text field only when it was filled in AND differs from what is stored — an empty box means "leave it alone", not "clear it". */
+function recordText(
+  into: Record<string, unknown>,
+  key: string,
+  value: string,
+  stored: string | undefined,
+): void {
+  if (value && value !== (stored ?? "")) {
+    into[key] = value;
+  }
+}
+
+/** Record a field the form always submits (a checkbox or a multi-select) only when it was present AND differs. Presence is the guard: an absent field is a form that never rendered the control, not a cleared value. */
+function recordPresent<T>(
+  into: Record<string, unknown>,
+  key: string,
+  present: boolean,
+  value: T,
+  stored: T,
+): void {
+  if (present && value !== stored) {
+    into[key] = value;
+  }
+}
+
+function darkFactoryChanges(
   formData: FormData,
-  current: CurrentSettings,
-  knownTaskTypes: string[],
-): PrivilegedPatch {
-  const patch: PrivilegedPatch = {};
-  const df = current.dark_factory ?? {};
-  const am = df.auto_merge ?? {};
+  df: NonNullable<CurrentSettings["dark_factory"]>,
+): Record<string, unknown> {
+  const changes: Record<string, unknown> = {};
 
-  const dfChanges: Record<string, unknown> = {};
-
-  const enabled = yesNo(formData, "df_enabled");
-
-  if (formData.has("df_enabled") && enabled !== (df.enabled ?? false)) {
-    dfChanges.enabled = enabled;
-  }
-
-  const createIssue = text(formData, "df_create_issue");
-
-  if (createIssue && createIssue !== df.create_issue) {
-    dfChanges.create_issue = createIssue;
-  }
-
-  const review = text(formData, "df_review");
-
-  if (review && review !== df.review) {
-    dfChanges.review = review;
-  }
+  recordPresent(
+    changes,
+    "enabled",
+    formData.has("df_enabled"),
+    yesNo(formData, "df_enabled"),
+    df.enabled ?? false,
+  );
+  recordText(
+    changes,
+    "create_issue",
+    text(formData, "df_create_issue"),
+    df.create_issue,
+  );
+  recordText(changes, "review", text(formData, "df_review"), df.review);
 
   const notify = formData.getAll("df_notify") as string[];
 
   if (formData.has("df_notify") && !sameArray(notify, df.notify ?? [])) {
-    dfChanges.notify = notify;
+    changes.notify = notify;
   }
 
-  const execChanges: Record<string, unknown> = {};
-  const image = text(formData, "df_execution_image");
+  attachIfAny(
+    changes,
+    "execution",
+    executionChanges(formData, df.execution?.image),
+  );
 
-  if (image && image !== (df.execution?.image ?? "")) {
-    execChanges.image = image;
-  }
+  return changes;
+}
 
-  if (Object.keys(execChanges).length > 0) {
-    dfChanges.execution = execChanges;
-  }
+/** The BYO-container override, which is one field today and a block tomorrow. */
+function executionChanges(
+  formData: FormData,
+  storedImage: string | undefined,
+): Record<string, unknown> {
+  const execution: Record<string, unknown> = {};
 
-  const amChanges: Record<string, unknown> = {};
+  recordText(
+    execution,
+    "image",
+    text(formData, "df_execution_image"),
+    storedImage,
+  );
+
+  return execution;
+}
+
+function autoMergeChanges(
+  formData: FormData,
+  am: NonNullable<NonNullable<CurrentSettings["dark_factory"]>["auto_merge"]>,
+): Record<string, unknown> {
+  const changes: Record<string, unknown> = {};
 
   const paths = text(formData, "df_am_paths")
     .split(/[\n,]/)
@@ -134,79 +194,117 @@ export function parsePrivilegedChanges(
     .filter(Boolean);
 
   if (formData.has("df_am_paths") && !sameArray(paths, am.paths ?? [])) {
-    amChanges.paths = paths;
+    changes.paths = paths;
   }
-  const minTrust = text(formData, "df_am_min_trust");
+  recordText(
+    changes,
+    "min_trust",
+    text(formData, "df_am_min_trust"),
+    am.min_trust,
+  );
+  recordPresent(
+    changes,
+    "require_green_ci",
+    formData.has("df_am_green_ci"),
+    yesNo(formData, "df_am_green_ci"),
+    am.require_green_ci ?? true,
+  );
+  recordPresent(
+    changes,
+    "require_bot_approval",
+    formData.has("df_am_bot_approval"),
+    yesNo(formData, "df_am_bot_approval"),
+    am.require_bot_approval ?? true,
+  );
 
-  if (minTrust && minTrust !== am.min_trust) {
-    amChanges.min_trust = minTrust;
+  return changes;
+}
+
+/** One task type's overrides; empty when the form changed nothing for it. */
+function taskOverrideRow(
+  formData: FormData,
+  type: string,
+  prev: NonNullable<CurrentSettings["task_overrides"]>[string],
+): Record<string, unknown> {
+  const row: Record<string, unknown> = {};
+
+  recordText(row, "model", text(formData, `to_${type}_model`), prev.model);
+
+  const timeoutRaw = text(formData, `to_${type}_timeout`);
+  const timeout = timeoutRaw ? Number(timeoutRaw) : undefined;
+
+  if (timeout !== undefined && timeout !== prev.timeout_minutes) {
+    row.timeout_minutes = timeout;
   }
+  recordText(
+    row,
+    "system_prompt_suffix",
+    text(formData, `to_${type}_suffix`),
+    prev.system_prompt_suffix,
+  );
 
-  const greenCi = yesNo(formData, "df_am_green_ci");
+  attachIfAny(
+    row,
+    "execution",
+    executionImage(text(formData, `to_${type}_image`), prev.execution?.image),
+  );
 
-  if (
-    formData.has("df_am_green_ci") &&
-    greenCi !== (am.require_green_ci ?? true)
-  ) {
-    amChanges.require_green_ci = greenCi;
-  }
-  const botApproval = yesNo(formData, "df_am_bot_approval");
+  return row;
+}
 
-  if (
-    formData.has("df_am_bot_approval") &&
-    botApproval !== (am.require_bot_approval ?? true)
-  ) {
-    amChanges.require_bot_approval = botApproval;
-  }
+/** The one-field execution block for a task-type override. */
+function executionImage(
+  image: string,
+  stored: string | undefined,
+): Record<string, unknown> {
+  const execution: Record<string, unknown> = {};
 
-  if (Object.keys(amChanges).length > 0) {
-    dfChanges.auto_merge = amChanges;
-  }
+  recordText(execution, "image", image, stored);
 
-  if (Object.keys(dfChanges).length > 0) {
-    patch.dark_factory = dfChanges;
-  }
+  return execution;
+}
 
-  // Per-task-type overrides — one row per known task type.
-  const toChanges: Record<string, Record<string, unknown>> = {};
+export function parsePrivilegedChanges(
+  formData: FormData,
+  current: CurrentSettings,
+  knownTaskTypes: string[],
+): PrivilegedPatch {
+  const patch: PrivilegedPatch = {};
+  const df = current.dark_factory ?? {};
+  const dfChanges = darkFactoryChanges(formData, df);
 
-  for (const type of knownTaskTypes) {
-    const prev = current.task_overrides?.[type] ?? {};
-    const row: Record<string, unknown> = {};
-
-    const model = text(formData, `to_${type}_model`);
-
-    if (model && model !== (prev.model ?? "")) {
-      row.model = model;
-    }
-
-    const timeoutRaw = text(formData, `to_${type}_timeout`);
-    const timeout = timeoutRaw ? Number(timeoutRaw) : undefined;
-
-    if (timeout !== undefined && timeout !== prev.timeout_minutes) {
-      row.timeout_minutes = timeout;
-    }
-
-    const suffix = text(formData, `to_${type}_suffix`);
-
-    if (suffix && suffix !== (prev.system_prompt_suffix ?? "")) {
-      row.system_prompt_suffix = suffix;
-    }
-
-    const toImage = text(formData, `to_${type}_image`);
-
-    if (toImage && toImage !== (prev.execution?.image ?? "")) {
-      row.execution = { image: toImage };
-    }
-
-    if (Object.keys(row).length > 0) {
-      toChanges[type] = row;
-    }
-  }
-
-  if (Object.keys(toChanges).length > 0) {
-    patch.task_overrides = toChanges;
-  }
+  attachIfAny(
+    dfChanges,
+    "auto_merge",
+    autoMergeChanges(formData, df.auto_merge ?? {}),
+  );
+  attachIfAny(patch as Record<string, unknown>, "dark_factory", dfChanges);
+  attachIfAny(
+    patch as Record<string, unknown>,
+    "task_overrides",
+    taskOverrideChanges(formData, current, knownTaskTypes),
+  );
 
   return patch;
+}
+
+/** One row per known task type; a type the form left untouched contributes nothing. */
+function taskOverrideChanges(
+  formData: FormData,
+  current: CurrentSettings,
+  knownTaskTypes: string[],
+): Record<string, Record<string, unknown>> {
+  const changes: Record<string, Record<string, unknown>> = {};
+
+  for (const type of knownTaskTypes) {
+    const row = taskOverrideRow(
+      formData,
+      type,
+      current.task_overrides?.[type] ?? {},
+    );
+
+    attachIfAny(changes, type, row);
+  }
+
+  return changes;
 }

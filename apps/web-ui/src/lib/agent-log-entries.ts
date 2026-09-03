@@ -276,11 +276,22 @@ function unwrapEnvelope(value: unknown): unknown {
   return current;
 }
 
+/** The stream carries two CLI dialects. Claude Code nests content under `message.content`; gemini-cli emits flat events. A shape belongs to exactly one of them, so each dialect answers for its own and `null` means "not mine". */
 function classify(value: unknown, originalLine: string): LogEntry[] {
   if (!isRecord(value)) {
     return [{ kind: "raw", text: originalLine }];
   }
 
+  return (
+    lifecycleEntries(value) ??
+    claudeStreamEntries(value, originalLine) ??
+    geminiStreamEntries(value) ??
+    stationEntries(value, originalLine) ?? [{ kind: "raw", text: originalLine }]
+  );
+}
+
+/** The Floor's own wrapper events, emitted around either dialect. */
+function lifecycleEntries(value: Record<string, unknown>): LogEntry[] | null {
   if (value.kind === "lifecycle" && typeof value.status === "string") {
     return [
       {
@@ -294,7 +305,30 @@ function classify(value: unknown, originalLine: string): LogEntry[] {
     ];
   }
 
-  if (value.type === "system" && value.subtype === "init") {
+  return null;
+}
+
+function claudeStreamEntries(
+  value: Record<string, unknown>,
+  originalLine: string,
+): LogEntry[] | null {
+  // Order is load-bearing: a hook line IS a `system` line, so it must be
+  // recognised before the catch-all that renders any named subtype.
+  return (
+    sessionEntries(value) ??
+    hookOrProgressEntries(value) ??
+    namedSystemEntries(value) ??
+    claudeMessageEntries(value, originalLine)
+  );
+}
+
+/** The session header and the thinking-token meter — the two `system` subtypes with a shape of their own. */
+function sessionEntries(value: Record<string, unknown>): LogEntry[] | null {
+  if (value.type !== "system") {
+    return null;
+  }
+
+  if (value.subtype === "init") {
     return [
       {
         kind: "session-init",
@@ -307,40 +341,52 @@ function classify(value: unknown, originalLine: string): LogEntry[] {
     ];
   }
 
-  if (
-    value.type === "system" &&
-    value.subtype === "thinking_tokens" &&
+  return value.subtype === "thinking_tokens" &&
     typeof value.estimated_tokens === "number"
-  ) {
-    return [{ kind: "thinking-tokens", tokens: value.estimated_tokens }];
-  }
+    ? [{ kind: "thinking-tokens", tokens: value.estimated_tokens }]
+    : null;
+}
 
+/** Any other `system` line: naming the subtype beats dumping raw bytes at the reader, and the whole event stays one click away. */
+function namedSystemEntries(value: Record<string, unknown>): LogEntry[] | null {
+  return value.type === "system" && typeof value.subtype === "string"
+    ? [
+        {
+          kind: "system",
+          subtype: value.subtype,
+          detailsJson: JSON.stringify(value, null, 2),
+        },
+      ]
+    : null;
+}
+
+function hookOrProgressEntries(
+  value: Record<string, unknown>,
+): LogEntry[] | null {
   if (isHookLine(value)) {
     return [hookEntry(value, value.subtype, value.hook_id)];
   }
 
-  if (isToolProgressLine(value)) {
-    return [toolProgressEntry(value)];
+  return isToolProgressLine(value) ? [toolProgressEntry(value)] : null;
+}
+
+/** An assistant or user turn, whose content blocks carry the text and tool calls. */
+function claudeMessageEntries(
+  value: Record<string, unknown>,
+  originalLine: string,
+): LogEntry[] | null {
+  if (value.type !== "assistant" && value.type !== "user") {
+    return null;
   }
+  const entries = messageEntries(value);
 
-  // Naming the subtype beats dumping raw bytes at the reader; the whole event stays one click away.
-  if (value.type === "system" && typeof value.subtype === "string") {
-    return [
-      {
-        kind: "system",
-        subtype: value.subtype,
-        detailsJson: JSON.stringify(value, null, 2),
-      },
-    ];
-  }
+  return entries.length > 0 ? entries : [{ kind: "raw", text: originalLine }];
+}
 
-  if (value.type === "assistant" || value.type === "user") {
-    const entries = messageEntries(value);
-
-    return entries.length > 0 ? entries : [{ kind: "raw", text: originalLine }];
-  }
-
-  // gemini-cli stream-json dialect: flat events instead of message.content blocks (init/message/tool_use/tool_result/error/result-by-status).
+/** gemini-cli's flat dialect: one event per thing, instead of message.content blocks. */
+function geminiStreamEntries(
+  value: Record<string, unknown>,
+): LogEntry[] | null {
   if (value.type === "init" && typeof value.model === "string") {
     return [
       {
@@ -355,6 +401,10 @@ function classify(value: unknown, originalLine: string): LogEntry[] {
     return plainMessageEntries(value.role, value.content, value.delta === true);
   }
 
+  return geminiToolEntries(value) ?? geminiOutcomeEntries(value);
+}
+
+function geminiToolEntries(value: Record<string, unknown>): LogEntry[] | null {
   if (value.type === "tool_use" && typeof value.tool_name === "string") {
     return [
       {
@@ -380,6 +430,13 @@ function classify(value: unknown, originalLine: string): LogEntry[] {
     ];
   }
 
+  return null;
+}
+
+/** How a gemini run ends: an error mid-flight, or the terminal result line. */
+function geminiOutcomeEntries(
+  value: Record<string, unknown>,
+): LogEntry[] | null {
   if (value.type === "error" && typeof value.message === "string") {
     return [
       {
@@ -390,28 +447,36 @@ function classify(value: unknown, originalLine: string): LogEntry[] {
     ];
   }
 
-  if (value.type === "result") {
-    return [
-      {
-        kind: "result",
-        text:
-          typeof value.result === "string"
-            ? value.result
-            : errorMessage(value.error),
-        isError: value.is_error === true || value.status === "error",
-        ...(typeof value.duration_ms === "number"
-          ? { durationMs: value.duration_ms }
-          : {}),
-        ...(typeof value.total_cost_usd === "number"
-          ? { costUsd: value.total_cost_usd }
-          : {}),
-        ...(typeof value.num_turns === "number"
-          ? { numTurns: value.num_turns }
-          : {}),
-      },
-    ];
+  if (value.type !== "result") {
+    return null;
   }
 
+  return [
+    {
+      kind: "result",
+      text:
+        typeof value.result === "string"
+          ? value.result
+          : errorMessage(value.error),
+      isError: value.is_error === true || value.status === "error",
+      ...(typeof value.duration_ms === "number"
+        ? { durationMs: value.duration_ms }
+        : {}),
+      ...(typeof value.total_cost_usd === "number"
+        ? { costUsd: value.total_cost_usd }
+        : {}),
+      ...(typeof value.num_turns === "number"
+        ? { numTurns: value.num_turns }
+        : {}),
+    },
+  ];
+}
+
+/** Lines the station emits around the agent: declared artifacts, its own log, and the vendor's rate-limit meter. */
+function stationEntries(
+  value: Record<string, unknown>,
+  originalLine: string,
+): LogEntry[] | null {
   // Declared-artifact delivery — an event name is required, or the floor projection can't route it, so the bytes stay raw.
   if (value.kind === "file" && typeof value.event === "string") {
     return [
@@ -429,26 +494,30 @@ function classify(value: unknown, originalLine: string): LogEntry[] {
     return [{ kind: "station-log", text: value.message }];
   }
 
-  if (value.type === "rate_limit_event") {
-    const rateLimit = isRecord(value.rate_limit_info)
-      ? value.rate_limit_info
-      : {};
-    const windows = rateLimitWindows(rateLimit);
+  return value.type === "rate_limit_event"
+    ? rateLimitEntries(value, originalLine)
+    : null;
+}
 
-    // No readable window keeps its bytes rather than rendering a confidently empty sentence.
-    return windows.length > 0
-      ? [
-          {
-            kind: "rate-limit",
-            status:
-              typeof rateLimit.status === "string" ? rateLimit.status : "",
-            windows,
-          },
-        ]
-      : [{ kind: "raw", text: originalLine }];
-  }
+function rateLimitEntries(
+  value: Record<string, unknown>,
+  originalLine: string,
+): LogEntry[] {
+  const rateLimit = isRecord(value.rate_limit_info)
+    ? value.rate_limit_info
+    : {};
+  const windows = rateLimitWindows(rateLimit);
 
-  return [{ kind: "raw", text: originalLine }];
+  // No readable window keeps its bytes rather than rendering a confidently empty sentence.
+  return windows.length > 0
+    ? [
+        {
+          kind: "rate-limit",
+          status: typeof rateLimit.status === "string" ? rateLimit.status : "",
+          windows,
+        },
+      ]
+    : [{ kind: "raw", text: originalLine }];
 }
 
 /** Keyed on the type rather than `heartbeat`, so real-progress lines (not just keepalives) still render. */

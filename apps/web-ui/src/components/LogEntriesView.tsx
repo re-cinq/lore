@@ -60,140 +60,201 @@ export function toolProgressSummary(
 }
 
 /** Exported so a view that adds its own gutter (the run page's timestamped transcript) reuses this switch instead of copying it. */
+/** One transcript line. The switch is split three ways — the run's own
+ *  bookkeeping, what the agent said and did, and how the run reports itself —
+ *  because a reader looking for one of those should not scroll past the other
+ *  two. Each group returns null for a kind it does not own. */
 export function EntryLine({ entry }: { entry: LogEntry }) {
-  switch (entry.kind) {
-    case "lifecycle":
-      return (
-        <div className={styles.dim}>
-          · {entry.phase ?? "agent"} {entry.status}
-          {entry.exitCode !== undefined ? ` (exit ${entry.exitCode})` : ""}
-        </div>
-      );
-    case "session-init":
-      return (
-        <details className={styles.dim}>
-          <summary className={styles.summary}>
-            session started — {entry.model}
-            {entry.version ? ` (Claude Code ${entry.version})` : ""}
-          </summary>
-          <pre className={styles.detailsPre}>{entry.detailsJson}</pre>
-        </details>
-      );
-    case "thinking-tokens":
-      return (
-        <div className={styles.thinking}>
-          thinking… {formatTokens(entry.tokens)} tokens
-        </div>
-      );
-    case "thinking":
-      return <div className={styles.thinking}>{entry.text}</div>;
-    case "assistant-text":
-      return <div className={styles.text}>{entry.text}</div>;
-    case "tool-use":
-      return <div className={styles.tool}>{entry.summary}</div>;
-    case "tool-result": {
-      const errorClass = entry.isError ? ` ${styles.error}` : "";
+  return (
+    sessionLine(entry) ??
+    agentLine(entry) ??
+    reportLine(entry) ??
+    rawLine(entry)
+  );
+}
 
-      if (
-        entry.text.length <= INLINE_RESULT_MAX &&
-        !entry.text.includes("\n")
-      ) {
-        return <div className={styles.dim + errorClass}>← {entry.text}</div>;
-      }
-
-      return (
-        <details className={styles.dim + errorClass}>
-          <summary className={styles.summary}>
-            ← {clip(entry.text, INLINE_RESULT_MAX)}
-          </summary>
-          <pre className={styles.detailsPre}>{entry.text}</pre>
-        </details>
-      );
-    }
-    case "user-text":
-      return (
-        <details className={styles.dim}>
-          <summary className={styles.summary}>
-            user: {clip(entry.text, INLINE_RESULT_MAX)}
-          </summary>
-          <pre className={styles.detailsPre}>{entry.text}</pre>
-        </details>
-      );
-    case "result":
-      return (
-        <div className={styles.resultFooter}>
-          <div className={entry.isError ? styles.error : styles.text}>
-            {resultSummary(entry)}
-          </div>
-          {entry.text && (
-            <details className={styles.dim}>
-              <summary className={styles.summary}>result</summary>
-              <pre className={styles.detailsPre}>{entry.text}</pre>
-            </details>
-          )}
-        </div>
-      );
-    case "rate-limit":
-      return <div className={styles.rateLimit}>{rateLimitSummary(entry)}</div>;
-    case "agent-error":
-      return (
-        <div className={entry.severity === "error" ? styles.error : styles.dim}>
-          ✗ {entry.severity}: {entry.message}
-        </div>
-      );
-    case "hook": {
-      const errorClass =
-        entry.outcome !== undefined && !hookPassed(entry)
-          ? ` ${styles.error}`
-          : "";
-
-      if (!entry.output) {
-        return (
-          <div className={styles.dim + errorClass}>{hookSummary(entry)}</div>
-        );
-      }
-
-      return (
-        <details className={styles.dim + errorClass}>
-          <summary className={styles.summary}>{hookSummary(entry)}</summary>
-          <pre className={styles.detailsPre}>{entry.output}</pre>
-        </details>
-      );
-    }
-    case "tool-progress":
-      return <div className={styles.dim}>{toolProgressSummary(entry)}</div>;
-    case "system":
-      return (
-        <details className={styles.dim}>
-          <summary className={styles.summary}>
-            · system: {entry.subtype}
-          </summary>
-          <pre className={styles.detailsPre}>{entry.detailsJson}</pre>
-        </details>
-      );
-    case "station-log":
-      return <div className={styles.dim}>· {entry.text}</div>;
-    case "file": {
-      if (entry.reason !== undefined) {
-        return (
-          <div className={styles.error}>
-            ✗ {entry.event} not produced: {entry.reason}
-          </div>
-        );
-      }
-
-      return (
-        <details className={styles.dim}>
-          <summary className={styles.summary}>
-            ⇢ {entry.event} — {entry.path}
-          </summary>
-          <pre className={styles.detailsPre}>{entry.content}</pre>
-        </details>
-      );
-    }
-    case "raw":
-      return <div className={styles.rawLine}>{entry.text}</div>;
+/** The run's own bookkeeping: start, stop, and the thinking meter. */
+function sessionLine(entry: LogEntry) {
+  if (entry.kind === "lifecycle") {
+    return (
+      <div className={styles.dim}>
+        · {entry.phase ?? "agent"} {entry.status}
+        {entry.exitCode !== undefined ? ` (exit ${entry.exitCode})` : ""}
+      </div>
+    );
   }
+
+  if (entry.kind === "session-init") {
+    return (
+      <details className={styles.dim}>
+        <summary className={styles.summary}>
+          session started — {entry.model}
+          {entry.version ? ` (Claude Code ${entry.version})` : ""}
+        </summary>
+        <pre className={styles.detailsPre}>{entry.detailsJson}</pre>
+      </details>
+    );
+  }
+
+  return entry.kind === "thinking-tokens" ? (
+    <div className={styles.thinking}>
+      thinking… {formatTokens(entry.tokens)} tokens
+    </div>
+  ) : null;
+}
+
+/** What the agent said and did: its thinking, its text, its tool calls. */
+function agentLine(entry: LogEntry) {
+  if (entry.kind === "thinking") {
+    return <div className={styles.thinking}>{entry.text}</div>;
+  }
+
+  if (entry.kind === "assistant-text") {
+    return <div className={styles.text}>{entry.text}</div>;
+  }
+
+  if (entry.kind === "tool-use") {
+    return <div className={styles.tool}>{entry.summary}</div>;
+  }
+
+  if (entry.kind === "tool-progress") {
+    return <div className={styles.dim}>{toolProgressSummary(entry)}</div>;
+  }
+
+  return toolResultLine(entry) ?? userTextLine(entry);
+}
+
+/** A short single-line result reads inline; anything longer folds away. */
+function toolResultLine(entry: LogEntry) {
+  if (entry.kind !== "tool-result") {
+    return null;
+  }
+  const errorClass = entry.isError ? ` ${styles.error}` : "";
+
+  if (entry.text.length <= INLINE_RESULT_MAX && !entry.text.includes("\n")) {
+    return <div className={styles.dim + errorClass}>← {entry.text}</div>;
+  }
+
+  return (
+    <details className={styles.dim + errorClass}>
+      <summary className={styles.summary}>
+        ← {clip(entry.text, INLINE_RESULT_MAX)}
+      </summary>
+      <pre className={styles.detailsPre}>{entry.text}</pre>
+    </details>
+  );
+}
+
+function userTextLine(entry: LogEntry) {
+  return entry.kind === "user-text" ? (
+    <details className={styles.dim}>
+      <summary className={styles.summary}>
+        user: {clip(entry.text, INLINE_RESULT_MAX)}
+      </summary>
+      <pre className={styles.detailsPre}>{entry.text}</pre>
+    </details>
+  ) : null;
+}
+
+/** How the run reports itself: its verdict, its limits, its failures, its artifacts. */
+function reportLine(entry: LogEntry) {
+  if (entry.kind === "result") {
+    return (
+      <div className={styles.resultFooter}>
+        <div className={entry.isError ? styles.error : styles.text}>
+          {resultSummary(entry)}
+        </div>
+        {entry.text && (
+          <details className={styles.dim}>
+            <summary className={styles.summary}>result</summary>
+            <pre className={styles.detailsPre}>{entry.text}</pre>
+          </details>
+        )}
+      </div>
+    );
+  }
+
+  if (entry.kind === "rate-limit") {
+    return <div className={styles.rateLimit}>{rateLimitSummary(entry)}</div>;
+  }
+
+  if (entry.kind === "agent-error") {
+    return (
+      <div className={entry.severity === "error" ? styles.error : styles.dim}>
+        ✗ {entry.severity}: {entry.message}
+      </div>
+    );
+  }
+
+  return hookLine(entry) ?? stationLine(entry);
+}
+
+/** A hook that failed carries its output; one that passed is a single line. */
+function hookLine(entry: LogEntry) {
+  if (entry.kind !== "hook") {
+    return null;
+  }
+  const errorClass =
+    entry.outcome !== undefined && !hookPassed(entry) ? ` ${styles.error}` : "";
+
+  if (!entry.output) {
+    return <div className={styles.dim + errorClass}>{hookSummary(entry)}</div>;
+  }
+
+  return (
+    <details className={styles.dim + errorClass}>
+      <summary className={styles.summary}>{hookSummary(entry)}</summary>
+      <pre className={styles.detailsPre}>{entry.output}</pre>
+    </details>
+  );
+}
+
+/** What the station said around the agent: its own log, a system event, a declared artifact. */
+function stationLine(entry: LogEntry) {
+  if (entry.kind === "system") {
+    return (
+      <details className={styles.dim}>
+        <summary className={styles.summary}>· system: {entry.subtype}</summary>
+        <pre className={styles.detailsPre}>{entry.detailsJson}</pre>
+      </details>
+    );
+  }
+
+  if (entry.kind === "station-log") {
+    return <div className={styles.dim}>· {entry.text}</div>;
+  }
+
+  return fileLine(entry);
+}
+
+/** A declared artifact that never arrived is a failure, not a fold-away. */
+function fileLine(entry: LogEntry) {
+  if (entry.kind !== "file") {
+    return null;
+  }
+
+  if (entry.reason !== undefined) {
+    return (
+      <div className={styles.error}>
+        ✗ {entry.event} not produced: {entry.reason}
+      </div>
+    );
+  }
+
+  return (
+    <details className={styles.dim}>
+      <summary className={styles.summary}>
+        ⇢ {entry.event} — {entry.path}
+      </summary>
+      <pre className={styles.detailsPre}>{entry.content}</pre>
+    </details>
+  );
+}
+
+function rawLine(entry: LogEntry) {
+  return entry.kind === "raw" ? (
+    <div className={styles.rawLine}>{entry.text}</div>
+  ) : null;
 }
 
 export default function LogEntriesView({ entries }: { entries: LogEntry[] }) {
