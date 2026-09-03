@@ -36,7 +36,7 @@ async function withRetry<T>(
 
 // ── Response parsing ────────────────────────────────────────────────
 
-function parseFacts(raw: string): string[] {
+export function parseFacts(raw: string): string[] {
   // Try JSON parse first
   try {
     // The LLM may wrap the array in markdown code fences

@@ -45,14 +45,22 @@ export function getSessionStartTime(): string {
   return sessionStartTime;
 }
 
-/** Formats session log as human-readable summary (pure formatting, no LLM). */
+/** Formats this process's live session log; the pure formatter below is the testable half. */
 export function formatSessionSummary(): string {
-  if (sessionLog.length === 0) {
+  return formatSessionSummaryFromLog(sessionLog, sessionStartTime);
+}
+
+/** Formats any session log as a human-readable summary (pure formatting, no LLM). */
+export function formatSessionSummaryFromLog(
+  log: ToolCallEntry[],
+  startTime: string,
+): string {
+  if (log.length === 0) {
     return "";
   }
 
   const now = new Date();
-  const start = new Date(sessionStartTime);
+  const start = new Date(startTime);
   const durationMin = Math.round((now.getTime() - start.getTime()) / 60000);
 
   // Count calls per tool
@@ -61,7 +69,7 @@ export function formatSessionSummary(): string {
     { calls: number; errors: number; totalMs: number }
   > = {};
 
-  for (const entry of sessionLog) {
+  for (const entry of log) {
     if (!toolCounts[entry.tool]) {
       toolCounts[entry.tool] = { calls: 0, errors: 0, totalMs: 0 };
     }
@@ -73,8 +81,8 @@ export function formatSessionSummary(): string {
     }
   }
 
-  const totalCalls = sessionLog.length;
-  const totalErrors = sessionLog.filter((e) => !e.success).length;
+  const totalCalls = log.length;
+  const totalErrors = log.filter((e) => !e.success).length;
 
   const lines: string[] = [
     `Session: ${durationMin}min, ${totalCalls} tool calls, ${totalErrors} errors`,

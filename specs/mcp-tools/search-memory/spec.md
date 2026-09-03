@@ -114,7 +114,7 @@ A single MCP text content block. Pretty-printed JSON array of
 5. Cross-repo candidates are ranked by a case-insensitive transfer score that
    starts at 0.5, adds 0.15 per portable keyword and subtracts 0.15 per local
    keyword, clamped to `[0, 1]` — so portable-rich text scores above the 0.5
-   passthrough threshold and local/mixed text is filtered out. ([validated by `transfer-score.test.ts:74`](apps/mcp-server/src/features/context/transfer-score.test.ts#L74), [validated by `transfer-score.test.ts:96`](apps/mcp-server/src/features/context/transfer-score.test.ts#L96), [validated by `transfer-score.test.ts:104`](apps/mcp-server/src/features/context/transfer-score.test.ts#L104))
+   passthrough threshold and local/mixed text is filtered out. ([validated by `transfer-score.test.ts:74`](apps/mcp-server/src/features/context/transfer-score.test.ts#L35), [validated by `transfer-score.test.ts:96`](apps/mcp-server/src/features/context/transfer-score.test.ts#L57), [validated by `transfer-score.test.ts:104`](apps/mcp-server/src/features/context/transfer-score.test.ts#L65))
 
 ## Out of Scope
 

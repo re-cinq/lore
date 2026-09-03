@@ -68,7 +68,7 @@ available for historical queries.
    contradictory.
 
 **Acceptance Criteria:**
-- Both facts remain valid (no invalidation). ([validated by `facts.test.ts:129`](libs/server-core/src/features/memory/facts.test.ts#L128))
+- Both facts remain valid (no invalidation). ([validated by `facts.test.ts:129`](libs/server-core/src/features/memory/facts.test.ts#L104))
 - Contradiction detection uses a similarity threshold high enough
   to avoid false positives on related-but-different facts.
 - Threshold is configurable (default 0.92 cosine similarity).
@@ -106,7 +106,7 @@ available for historical queries.
   new fact and search existing valid facts for high-similarity
   matches (cosine similarity >= threshold).
 - FR-2.2: For each match above threshold, set `valid_to = now()`
-  and `invalidated_by = new_fact_id` on the old fact. ([validated by `facts.test.ts:96`](libs/server-core/src/features/memory/facts.test.ts#L95))
+  and `invalidated_by = new_fact_id` on the old fact. ([validated by `facts.test.ts:96`](libs/server-core/src/features/memory/facts.test.ts#L71))
 - FR-2.3: Threshold configurable via `LORE_FACT_SIMILARITY_THRESHOLD`
   env var (default: 0.92).
 - FR-2.4: Contradiction detection runs inline during fact

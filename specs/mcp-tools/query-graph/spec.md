@@ -94,15 +94,15 @@ A single MCP text content block. One of: pretty-printed JSON array of
 
 ## Acceptance Criteria
 
-1. Entities and typed edges parse from the extractor's JSON output. ([validated by `graph.test.ts:47`](libs/server-core/src/features/memory/graph.test.ts#L47))
+1. Entities and typed edges parse from the extractor's JSON output. ([validated by `graph.test.ts:47`](libs/server-core/src/features/memory/graph.test.ts#L5))
 
 2. Entity names are normalized to lowercase so a query matches regardless of
-   source casing. ([validated by `graph.test.ts:69`](libs/server-core/src/features/memory/graph.test.ts#L69))
+   source casing. ([validated by `graph.test.ts:69`](libs/server-core/src/features/memory/graph.test.ts#L27))
 
 3. A new edge with the same source+relation but a different target invalidates
-   the prior edge. ([validated by `graph.test.ts:133`](libs/server-core/src/features/memory/graph.test.ts#L133))
+   the prior edge. ([validated by `graph.test.ts:133`](libs/server-core/src/features/memory/graph.test.ts#L91))
 
-4. An already-present exact edge is not re-inserted. ([validated by `graph.test.ts:192`](libs/server-core/src/features/memory/graph.test.ts#L192))
+4. An already-present exact edge is not re-inserted. ([validated by `graph.test.ts:192`](libs/server-core/src/features/memory/graph.test.ts#L150))
 
 5. The live read query itself (`queryLiveGraph` SQL) has no unit seam.
    *(untested: requires live `memory.entities`/`memory.edges` rows; the

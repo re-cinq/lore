@@ -98,13 +98,13 @@ ingested."}`; the proxied body; the `unreachableError` message; the
 
 ## Acceptance Criteria
 
-1. Extracted facts parse from a JSON array of fact strings. ([validated by `parses a JSON array of strings`](libs/server-core/src/features/memory/facts.test.ts#L29))
+1. Extracted facts parse from a JSON array of fact strings. ([validated by `parses a JSON array of strings`](libs/server-core/src/features/memory/facts.test.ts#L5))
 
-2. Fact extraction caps at 10 facts per episode. ([validated by `limits to 10 facts`](libs/server-core/src/features/memory/facts.test.ts#L56))
+2. Fact extraction caps at 10 facts per episode. ([validated by `limits to 10 facts`](libs/server-core/src/features/memory/facts.test.ts#L32))
 
-3. A new fact that closely matches an existing one invalidates the old fact. ([validated by `invalidates high-similarity facts`](libs/server-core/src/features/memory/facts.test.ts#L95))
+3. A new fact that closely matches an existing one invalidates the old fact. ([validated by `invalidates high-similarity facts`](libs/server-core/src/features/memory/facts.test.ts#L71))
 
-4. No invalidation happens when no similar fact exists. ([validated by `does nothing when no similar facts exist`](libs/server-core/src/features/memory/facts.test.ts#L128))
+4. No invalidation happens when no similar fact exists. ([validated by `does nothing when no similar facts exist`](libs/server-core/src/features/memory/facts.test.ts#L104))
 
 ## Out of Scope
 

@@ -100,7 +100,7 @@ function authenticateSlack(
     : h.response("Invalid signature").type("text/plain").code(401);
 }
 
-interface SlashCommand {
+export interface SlashCommand {
   priority: string;
   taskType: string;
   description: string;
@@ -108,7 +108,7 @@ interface SlashCommand {
 }
 
 /** `/lore [!] [task_type] <description>`, or `/lore retry <task_id>`. A leading `!` asks for immediate priority; a first word that names a known type claims it, otherwise the whole text is the description. */
-function parseSlashCommand(commandText: string): SlashCommand {
+export function parseSlashCommand(commandText: string): SlashCommand {
   let words = commandText.split(/\s+/);
   let priority = "normal";
 

@@ -77,17 +77,19 @@ export default tseslint.config(
       // it, or keep it as a genuine projection), not a codemod. See #1418
       // and #1421 for the surveys.
       "lore/no-row-types-outside-models": "warn",
-      // warn, not error: a repo-wide sweep at the time of writing flagged 22
-      // suites — a mix of real copies and tests that legitimately import
-      // nothing (architecture boundaries, migrations, CSS tokens). That list is
-      // a triage queue, and turning it red would block unrelated work.
-      "lore/test-imports-its-subject": "warn",
+      // error since 2026-09-04. The 22-suite queue split exactly as the first
+      // draft of this note guessed: 16 suites whose subject is an artifact
+      // rather than a module (boundaries, migrations, CSS tokens) now pass
+      // honestly, because reading the file IS loading the subject; the other 6
+      // were real copies and now import the thing they test. One had drifted —
+      // a Slack HMAC helper whose parameter order was reversed.
+      "lore/test-imports-its-subject": "error",
       // error from day one: the rollout sweep fixed all 195 pre-existing sites
       // (guard clauses, two-ifs splits, wrapped-tail flips) in the same branch
       // that introduced the rule, so there is no triage queue to stay yellow for.
       "lore/prefer-early-return": "error",
       "lore/default-export-matches-filename": "error",
-      "lore/no-inline-styles": "warn",
+      "lore/no-inline-styles": "error",
       "lore/require-fetch-timeout": "error",
       // error from day one, mirroring the `prefer-early-return` rollout: the
       // introduction sweep fixed every pre-existing site (204 nested ifs, 109
@@ -105,9 +107,9 @@ export default tseslint.config(
       // all five: error when the queue hits zero. Queue sizes at introduction
       // (2026-09-03, after the nesting sweep): max-comment-lines 5644,
       // max-lines-per-function 1334, complexity 582, no-vague-names 291,
-      // max-params 81. max-comment-lines reached zero on 2026-09-04 and is
-      // promoted.
-      "max-params": ["warn", { max: 4 }],
+      // max-params 81. max-comment-lines and max-params reached zero on
+      // 2026-09-04 and are promoted; three queues remain.
+      "max-params": ["error", { max: 4 }],
       "lore/max-comment-lines": ["error", { max: 1 }],
       "lore/no-vague-names": "warn",
       "max-lines-per-function": [
