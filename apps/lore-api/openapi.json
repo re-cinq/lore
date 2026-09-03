@@ -3055,6 +3055,193 @@
         }
       }
     },
+    "/api/repos/{owner}/{repo}/ingest-state": {
+      "get": {
+        "operationId": "get_api_repos_owner_repo_ingest-state",
+        "summary": "GET /api/repos/{owner}/{repo}/ingest-state",
+        "tags": ["Ingestion"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "The last commit ingested for a repo and kind",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IngestState"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "read",
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/api/repos/{owner}/{repo}/ingest": {
+      "post": {
+        "operationId": "post_api_repos_owner_repo_ingest",
+        "summary": "POST /api/repos/{owner}/{repo}/ingest",
+        "tags": ["Ingestion"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit-bucket": "default",
+        "responses": {
+          "200": {
+            "description": "What one incremental ingest delta changed in the graph",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IngestDeltaResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-required-scope": "write",
+        "parameters": [
+          {
+            "name": "owner",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "repo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string"
+                  },
+                  "commit": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{7,40}$"
+                  },
+                  "base_commit": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{7,40}$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "seq": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "total": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "files": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "path": {
+                          "type": "string"
+                        },
+                        "content": {
+                          "type": "string"
+                        }
+                      },
+                      "required": ["path", "content"],
+                      "additionalProperties": false
+                    }
+                  },
+                  "deleted": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "report": {}
+                },
+                "required": ["kind", "commit", "base_commit"],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/repos/{owner}/{repo}/events/{id}/payload": {
       "get": {
         "operationId": "get_api_repos_owner_repo_events_id_payload",
@@ -10025,6 +10212,56 @@
           }
         },
         "required": ["triggered"],
+        "additionalProperties": false
+      },
+      "IngestState": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string"
+          },
+          "commit": {
+            "type": ["string", "null"]
+          }
+        },
+        "required": ["kind", "commit"],
+        "additionalProperties": false
+      },
+      "IngestDeltaResult": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string"
+          },
+          "commit": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string",
+            "enum": ["advanced", "pending-chunks", "unrecorded"]
+          },
+          "projected": {
+            "type": "number"
+          },
+          "deleted": {
+            "type": "number"
+          },
+          "test_chunks": {
+            "type": "number"
+          },
+          "pruned_test_files": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "kind",
+          "commit",
+          "state",
+          "projected",
+          "deleted",
+          "test_chunks",
+          "pruned_test_files"
+        ],
         "additionalProperties": false
       },
       "EventPayload": {

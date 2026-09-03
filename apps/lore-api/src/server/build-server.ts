@@ -60,6 +60,8 @@ import { episodeRoute } from "../api/routes/memory/episode.js";
 import { sessionSummaryRoute } from "../api/routes/memory/session-summary.js";
 import { ingestRoute } from "../api/routes/ingest/ingest.js";
 import { ingestGraphRoute } from "../api/routes/ingest/ingest-graph.js";
+import { ingestStateRoute } from "../api/routes/ingest/ingest-state.js";
+import { ingestDeltaRoute } from "../api/routes/ingest/ingest-delta.js";
 import { eventPayloadRoute } from "../api/routes/ingest/event-payload.js";
 import { embedRoute } from "../api/routes/ingest/embed.js";
 import { onboardRoute } from "../api/routes/repos/onboard.js";
@@ -157,6 +159,8 @@ export function routeList(getPool: () => Pool | null): ServerRoute[] {
     sessionSummaryRoute(getPool),
     ingestRoute(getPool),
     ingestGraphRoute(getPool),
+    ingestStateRoute(getPool),
+    ingestDeltaRoute(getPool),
     eventPayloadRoute(getPool),
     embedRoute(),
     onboardRoute(getPool),
