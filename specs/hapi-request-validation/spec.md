@@ -154,12 +154,12 @@ today. Validation errors surface only for authenticated requests.
   returns nothing outside the webhook routes (FR7) and tests.
 - **SC-2** Malformed JSON to a native route returns `400` (documented change from
   `500`); the affected tests (`memory.test.ts`, `task-post.test.ts`) assert `400`
-  and reference ADR-034. ([validated by `memory.test.ts:338`](apps/lore-api/src/api/routes/memory/memory.test.ts#L338), [validated by `ingest-graph.test.ts:74`](apps/lore-api/src/api/routes/ingest/ingest-graph.test.ts#L74))
+  and reference ADR-034. ([validated by `memory.test.ts:340`](apps/lore-api/src/api/routes/memory/memory.test.ts#L340), [validated by `ingest-graph.test.ts:74`](apps/lore-api/src/api/routes/ingest/ingest-graph.test.ts#L74))
 - **SC-3** For each converted route, a request missing or mis-typing a required
   field returns `400` `{ error: <message> }` with the field named — proven by a
   test migrated alongside the route.
 - **SC-4** Auth + rate-limit outcomes unchanged: under-scoped → `403`, missing →
-  `401`, both before validation; `rate-limit.test.ts` still green. ([validated by `memory.test.ts:351`](apps/lore-api/src/api/routes/memory/memory.test.ts#L351))
+  `401`, both before validation; `rate-limit.test.ts` still green. ([validated by `memory.test.ts:353`](apps/lore-api/src/api/routes/memory/memory.test.ts#L353))
 - **SC-5** `apps/lore-api` typechecks (`tsc --noEmit`) and the full vitest suite
   is green. Each route group is an independently-revertable commit.
 
