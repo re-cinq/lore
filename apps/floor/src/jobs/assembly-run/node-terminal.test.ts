@@ -3,6 +3,7 @@ import { stationNodeOutcome } from "@re-cinq/lore-assembly-lines";
 import {
   normalizeAgentStatus,
   postReplyFromNode,
+  postBudgetSkipReview,
   postReviewFromNode,
   reviewNodeResultOverride,
   type ReplyPoster,
@@ -1125,5 +1126,78 @@ describe("a review node whose failure the caller already diagnosed", () => {
     expect(
       reviewNodeResultOverride("no_findings", undefined, timedOut),
     ).toEqual(timedOut);
+  });
+});
+
+describe("postBudgetSkipReview", () => {
+  it("approves with a no-budget notice naming the reviewer that would have run", async () => {
+    const p = ports();
+
+    const outcome = await postBudgetSkipReview(row(), reviewNode, {
+      ...p,
+      iteration: 1,
+      model: "gemini-3.1-pro-preview",
+    });
+
+    expect(outcome).toBe("posted");
+    expect(p.reviews[0]?.input.event).toBe("APPROVE");
+    expect(p.reviews[0]?.input.body).toContain(
+      "Approved without review (no LLM budget)",
+    );
+    expect(p.reviews[0]?.input.body).toContain("`gemini-3.1-pro-preview`");
+    expect(p.reviews[0]?.input.body).toContain(
+      "<!-- lore-review-run: line-1/review/1 -->",
+    );
+    expect(p.entries).toMatchObject([
+      {
+        event_type: "review_budget_skip",
+        repo: "re-cinq/lore",
+        payload: {
+          pr_number: 841,
+          assembly_run_id: "line-1",
+          model: "gemini-3.1-pro-preview",
+        },
+      },
+    ]);
+  });
+
+  it("reports not_applicable for a non-review node and for a row without a PR", async () => {
+    const p = ports();
+
+    expect(await postBudgetSkipReview(row(), plainNode, p)).toBe(
+      "not_applicable",
+    );
+    expect(await postBudgetSkipReview(row({}), reviewNode, p)).toBe(
+      "not_applicable",
+    );
+    expect(p.reviews).toHaveLength(0);
+    expect(p.entries).toHaveLength(0);
+  });
+
+  it("dedupes on the per-visit marker so a redelivered terminal event posts nothing", async () => {
+    const p = ports();
+    const marker = "<!-- lore-review-run: line-1/review/1 -->";
+    const poster: ReviewPoster = {
+      ...p.poster,
+      listReviews: async () => [
+        {
+          id: 1,
+          state: "APPROVED",
+          body: `### Lore review — Approved without review (no LLM budget)\n\n${marker}`,
+          user: "lore-agent[bot]",
+          submitted_at: "2026-09-03T00:00:00Z",
+        },
+      ],
+      listIssueComments: async () => [],
+    };
+
+    expect(
+      await postBudgetSkipReview(row(), reviewNode, {
+        ...p,
+        poster,
+        iteration: 1,
+      }),
+    ).toBe("already_posted");
+    expect(p.reviews).toHaveLength(0);
   });
 });

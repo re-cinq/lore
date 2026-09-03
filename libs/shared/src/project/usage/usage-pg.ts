@@ -85,4 +85,14 @@ export class PgUsage implements UsagePort {
       total: totalRows[0]?.total ?? 0,
     };
   }
+
+  async modelsUsed(stationRunId: string): Promise<string[]> {
+    const { rows } = await this.pool.query<{ model: string }>(
+      `SELECT DISTINCT model FROM pipeline.llm_calls
+        WHERE station_run_id = $1 AND model <> '' ORDER BY model`,
+      [stationRunId],
+    );
+
+    return rows.map((row) => row.model);
+  }
 }

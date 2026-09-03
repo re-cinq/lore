@@ -22,10 +22,13 @@ import type { AssemblyRunRecord } from "@re-cinq/lore-shared/project/assembly-ru
 import { finishNodeAndAdvance, type AdvanceDeps } from "./advance.js";
 import {
   maybePostReview,
+  reviewAlreadyPosted,
   reviewRunMarker,
   type ReviewPoster,
 } from "../review/post-review.js";
 import { parseReviewReply } from "@re-cinq/lore-shared/review/review-reply.js";
+import { budgetSkipBody } from "@re-cinq/lore-shared/review/review-summary.js";
+import { usage } from "../../kernel/queues.js";
 import { commentablePositions } from "@re-cinq/lore-shared/review/diff-hunks.js";
 import { publishPrCheck } from "./pr-check.js";
 import { projectFor } from "../../composition/project-boot.js";
@@ -94,6 +97,9 @@ export interface ReviewPorts {
   poster?: ReviewPoster;
   audit?: AuditPort;
   iteration?: number;
+  /** The model(s) that actually billed against this visit, disclosed on the
+   *  posted review body. Resolved by {@link finishNodeTerminal}. */
+  model?: string;
 }
 
 /** How the review post went — the walk converts the outage shape into an honest
@@ -173,13 +179,122 @@ export function reviewNodeResultOverride(
   return result;
 }
 
+/**
+ * The model(s) that actually billed against this visit — read back from
+ * `llm_calls`, because the dispatch spec snapshots the yaml default while the
+ * agent-definition row overrides it at run time, and the disclosure must name
+ * the reviewer that really judged the diff. Falls back to the node's declared
+ * model when nothing billed (a visit that died before its first call).
+ */
+async function resolveVisitModel(
+  input: NodeTerminalInput,
+  deps: AdvanceDeps,
+  modelsUsed?: (stationRunId: string) => Promise<string[]>,
+): Promise<string | undefined> {
+  try {
+    const visits = await deps.assemblyRuns.listStationRuns(input.row.id);
+    const visit = visits.find(
+      (v) =>
+        v.nodeId === input.nodeId &&
+        (input.iteration === undefined || v.iteration === input.iteration),
+    );
+    const models = visit?.stationRunId
+      ? await (modelsUsed ?? ((id) => usage().modelsUsed(id)))(
+          visit.stationRunId,
+        )
+      : [];
+
+    return models.length > 0 ? models.join(", ") : input.node.model;
+  } catch {
+    return input.node.model;
+  }
+}
+
+/**
+ * A review visit that failed because the LLM budget is exhausted must not
+ * block the PR: an empty account is an operator problem, not the author's.
+ * Post an APPROVE that says loudly no review happened (deduped by the same
+ * per-visit marker as a real review), audit it, and record the visit as
+ * success so the line completes instead of failing on a spent wallet.
+ */
+export async function postBudgetSkipReview(
+  row: AssemblyRunRecord,
+  node: RunGraphNode,
+  ports: ReviewPorts = {},
+): Promise<"posted" | "already_posted" | "not_applicable"> {
+  const prNumber = Number(row.args.pr_number) || 0;
+
+  if (!REVIEW_PROMPT_REFS.has(node.prompt_ref ?? "") || !prNumber) {
+    return "not_applicable";
+  }
+  const pulls = ports.poster ?? (await projectFor(row.repo)).pulls;
+  const marker =
+    ports.iteration === undefined
+      ? undefined
+      : reviewRunMarker(row.id, node.id, ports.iteration);
+  const body = budgetSkipBody(ports.model);
+
+  if (marker && (await reviewAlreadyPosted(pulls, prNumber, marker))) {
+    return "already_posted";
+  }
+  await pulls.createReview(prNumber, {
+    event: "APPROVE",
+    body: marker ? `${body}
+
+${marker}` : body,
+    comments: [],
+  });
+  await writeAuditLog(
+    {
+      event_type: "review_budget_skip",
+      repo: row.repo,
+      payload: {
+        pr_number: prNumber,
+        assembly_run_id: row.id,
+        model: ports.model ?? null,
+      },
+    },
+    ports.audit,
+  );
+
+  return "posted";
+}
+
 /** Post the review, record the outcome + advance, then publish the PR check. */
 export async function finishNodeTerminal(
   input: NodeTerminalInput,
   deps: AdvanceDeps,
 ): Promise<void> {
+  const model = await resolveVisitModel(input, deps);
+
+  // Out of budget: approve-with-notice instead of a failed run — the retry
+  // budget cannot help (the account has to change first), and a red check on
+  // every PR until someone tops up blocks work the reviewer never judged.
+  if (
+    input.result.outcome === "failed" &&
+    input.result.failureClass === "anthropic-credit" &&
+    (await postBudgetSkipReview(input.row, input.node, {
+      iteration: input.iteration,
+      model,
+    })) !== "not_applicable"
+  ) {
+    await finishNodeAndAdvance(
+      {
+        assemblyLineId: input.row.id,
+        nodeId: input.nodeId,
+        iteration: input.iteration,
+        result: { outcome: "success" },
+      },
+      deps,
+    );
+    await publishCheck(input.row.id, deps);
+
+    return;
+  }
+
   const post = await postReviewFromNode(input.row, input.node, input.output, {
     iteration: input.iteration,
+    model,
   });
 
   await postReplyFromNode(input.row, input.node, input.output, {
@@ -239,6 +354,7 @@ export async function postReviewFromNode(
       output ?? "",
       positions,
       marker,
+      ports.model,
     );
 
     if (!posted) {

@@ -128,8 +128,9 @@ function renderOutOfDiff(finding: ReviewFinding): string {
 export function composeBody(
   output: ReviewOutput,
   overflow: ReviewFinding[],
+  model?: string,
 ): string {
-  const summary = buildReviewSummary(output);
+  const summary = buildReviewSummary(output, { model });
 
   if (overflow.length === 0) {
     return summary;
@@ -150,8 +151,8 @@ const FALLBACK_NOTE =
 
 /** The whole review as one top-level comment — the never-drop fallback for when
  *  the inline post is rejected (e.g. an out-of-hunk line 422). */
-function fallbackComment(output: ReviewOutput): string {
-  const summary = `${FALLBACK_NOTE}\n\n${buildReviewSummary(output)}`;
+function fallbackComment(output: ReviewOutput, model?: string): string {
+  const summary = `${FALLBACK_NOTE}\n\n${buildReviewSummary(output, { model })}`;
 
   if (output.findings.length === 0) {
     return summary;
@@ -176,13 +177,14 @@ export async function postReview(
   output: ReviewOutput,
   positions: CommentablePositions,
   marker?: string,
+  model?: string,
 ): Promise<ReviewPostDelivery> {
   const { inline, overflow } = partitionByHunks(output.findings, positions);
 
   try {
     await pulls.createReview(prNumber, {
       event: reviewEvent(output),
-      body: withMarker(composeBody(output, overflow), marker),
+      body: withMarker(composeBody(output, overflow, model), marker),
       comments: inline.map(toReviewComment),
     });
 
@@ -195,7 +197,10 @@ export async function postReview(
     console.warn(
       `[code-review] inline review rejected (${error}); posting as a top-level comment`,
     );
-    await pulls.comment(prNumber, withMarker(fallbackComment(output), marker));
+    await pulls.comment(
+      prNumber,
+      withMarker(fallbackComment(output, model), marker),
+    );
 
     return { mode: "fallback", error };
   }
@@ -224,6 +229,7 @@ export async function maybePostReview(
   agentOutput: string,
   positions: CommentablePositions,
   marker?: string,
+  model?: string,
 ): Promise<ReviewPostDelivery | null> {
   const output =
     parseReviewFindings(agentOutput) ?? approvedWithoutFindings(agentOutput);
@@ -236,7 +242,7 @@ export async function maybePostReview(
     return { mode: "deduped", marker };
   }
 
-  return postReview(pulls, prNumber, output, positions, marker);
+  return postReview(pulls, prNumber, output, positions, marker, model);
 }
 
 /**
