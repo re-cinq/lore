@@ -89,6 +89,30 @@ export default tseslint.config(
       "lore/default-export-matches-filename": "error",
       "lore/no-inline-styles": "warn",
       "lore/require-fetch-timeout": "error",
+      // error from day one, mirroring the `prefer-early-return` rollout: the
+      // introduction sweep fixed every pre-existing site (204 nested ifs, 109
+      // nested loops, 41 nested ternaries) in the same branch, so there is no
+      // triage queue to stay yellow for. `max-nested-callbacks` was already at
+      // zero when it arrived.
+      "lore/no-nested-if": "error",
+      "lore/no-nested-loop": "error",
+      "no-nested-ternary": "error",
+      "max-nested-callbacks": ["error", { max: 3 }],
+      // The craftsmanship triage queues. Each is a warn because every site is
+      // a decision (compress or delete prose; extract, split, rename; regroup
+      // a signature into a typed options interface), not a codemod, and
+      // turning them red would block unrelated work. Promotion condition for
+      // all five: error when the queue hits zero. Queue sizes at introduction
+      // (2026-09-03): max-comment-lines 5630, max-lines-per-function 1301,
+      // complexity 592, no-vague-names 295, max-params 76.
+      "max-params": ["warn", { max: 4 }],
+      "lore/max-comment-lines": ["warn", { max: 1 }],
+      "lore/no-vague-names": "warn",
+      "max-lines-per-function": [
+        "warn",
+        { max: 20, skipBlankLines: true, skipComments: true },
+      ],
+      complexity: ["warn", 6],
     },
   },
 
@@ -212,6 +236,14 @@ export default tseslint.config(
       "@typescript-eslint/no-floating-promises": "off",
       "@typescript-eslint/no-misused-promises": "off",
       "@typescript-eslint/await-thenable": "off",
+      // Zero comments in tests: the test NAME carries the meaning. Warn while
+      // the existing prose is triaged; promote to error at queue zero.
+      "lore/max-comment-lines": ["warn", { max: 0 }],
+      // A describe callback is one function holding every test, so per-function
+      // line/callback budgets are meaningless here. Per-it bodies stay covered
+      // by complexity and the nesting rules.
+      "max-lines-per-function": "off",
+      "max-nested-callbacks": "off",
     },
   },
 

@@ -18,6 +18,10 @@ import requireIntroParagraph from "./rules/require-intro-paragraph.mjs";
 import requireStatusMatchesCoverage from "./rules/require-status-matches-coverage.mjs";
 import testImportsItsSubject from "./rules/test-imports-its-subject.mjs";
 import preferEarlyReturn from "./rules/prefer-early-return.mjs";
+import noNestedIf from "./rules/no-nested-if.mjs";
+import noNestedLoop from "./rules/no-nested-loop.mjs";
+import maxCommentLines from "./rules/max-comment-lines.mjs";
+import noVagueNames from "./rules/no-vague-names.mjs";
 
 /**
  * eslint-plugin-lore — repo-local ESLint rules codifying Lore house conventions.
@@ -29,6 +33,10 @@ export default {
     "default-export-matches-filename": defaultExportMatchesFilename,
     "test-imports-its-subject": testImportsItsSubject,
     "prefer-early-return": preferEarlyReturn,
+    "no-nested-if": noNestedIf,
+    "no-nested-loop": noNestedLoop,
+    "max-comment-lines": maxCommentLines,
+    "no-vague-names": noVagueNames,
     "no-inline-styles": noInlineStyles,
     "require-fetch-timeout": requireFetchTimeout,
     "prefer-enforce-true": preferEnforceTrue,
