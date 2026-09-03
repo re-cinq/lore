@@ -535,7 +535,7 @@ ai-agent-subsystem per ADR-031). ([validated by `code-review.test.ts:91`](apps/f
   ingress maps qualifying `pull_request`, `pull_request_review`, and PR
   `issue_comment` events to the code-review choreography, which starts or
   replies on a code-review assembly line; bot-authored events are skipped as a
-  loop guard. ([validated by `code-review.test.ts:91`](apps/floor/src/jobs/review/code-review.test.ts#L100), [`code-review.test.ts:242`](apps/floor/src/jobs/review/code-review.test.ts#L251))
+  loop guard. ([validated by `code-review.test.ts:91`](apps/floor/src/jobs/review/code-review.test.ts#L100), [`code-review.test.ts:242`](apps/floor/src/jobs/review/code-review.test.ts#L246))
 - FR-13.7: **Safety-net cron** fires at `7 7-17 * * 1-5` (UTC,
   Mon-Fri) to catch dropped webhook deliveries. Cron-triggered runs
   are gated by `isBusinessHours()` (default: Europe/Berlin, 09:00-18:00
