@@ -27,8 +27,7 @@ afterEach(() => {
 const init = () => fetchMock.mock.calls[0][1];
 
 describe("apiFetch", () => {
-  it("prefers the admin token for lore-api", async () => {
-    // The UI performs privileged writes the ingest token cannot.
+  it("prefers the admin token for lore-api, since the UI performs privileged writes the ingest token cannot", async () => {
     await apiFetch("lore-api", "/api/x");
     expect(init().headers.authorization).toBe("Bearer admin");
   });

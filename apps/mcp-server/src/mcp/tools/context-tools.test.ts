@@ -13,12 +13,6 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { store } from "@re-cinq/lore-server-core/platform/proxy-cache.js";
 
-// The handler captures `CONTEXT_PATH` from the environment at module load,
-// and with no pg pool configured `isDbAvailable()` is false, so lore_search_context
-// takes the file-based fallback over real .md files on disk. We point
-// CONTEXT_PATH at a real temp tree and drive the actual registered handler —
-// no logic is mocked.
-
 type ToolHandler = (args: Record<string, unknown>) => Promise<{
   content: { type: string; text: string }[];
 }>;
@@ -58,7 +52,7 @@ afterAll(() => {
   delete process.env.CONTEXT_PATH;
 });
 
-describe("lore_search_context file-based fallback", () => {
+describe("lore_search_context file-based fallback over real .md files on a temp CONTEXT_PATH tree (no mocking)", () => {
   it("returns the matching paragraph with its source path", async () => {
     const result = await searchContext({
       query: "Friday afternoons",
@@ -126,7 +120,7 @@ describe("lore_search_context file-based fallback", () => {
   });
 });
 
-describe("lore_assemble_context proxy path (read-through cache)", () => {
+describe("lore_assemble_context proxy path (read-through cache, enabled here since global setup disables it)", () => {
   let cacheDir: string;
   const policy = {
     tool: "lore_assemble_context",
@@ -140,7 +134,7 @@ describe("lore_assemble_context proxy path (read-through cache)", () => {
     process.env.LORE_CACHE_DIR = cacheDir;
     process.env.LORE_API_URL = "https://lore.example";
     process.env.LORE_INGEST_TOKEN = "test-token";
-    delete process.env.LORE_CACHE_ENABLED; // enable the cache (global setup disables it)
+    delete process.env.LORE_CACHE_ENABLED;
     delete process.env.LORE_DB_HOST;
   });
 

@@ -2,8 +2,6 @@ import { describe, it, expect } from "vitest";
 import { loadTemplates, assembleContext } from "./context-assembly.js";
 import { join } from "node:path";
 
-// ── Token estimation ────────────────────────────────────────────────
-
 function estimateTokens(text: string): number {
   return Math.ceil(text.length / 4);
 }
@@ -26,7 +24,7 @@ function truncateToTokens(text: string, maxTokens: number): string {
 
 describe("token estimation", () => {
   it("estimates ~4 chars per token", () => {
-    expect(estimateTokens("hello world")).toBe(3); // 11 chars / 4 = 2.75 -> 3
+    expect(estimateTokens("hello world")).toBe(3);
     expect(estimateTokens("")).toBe(0);
     expect(estimateTokens("a".repeat(400))).toBe(100);
   });
@@ -44,15 +42,13 @@ describe("truncateToTokens", () => {
     const paragraph2 = "Second paragraph. ".repeat(20);
     const text = `${paragraph1}\n\n${paragraph2}`;
 
-    const result = truncateToTokens(text, 100); // ~400 chars
+    const result = truncateToTokens(text, 100);
 
     expect(result).toContain("First paragraph");
     expect(result).toContain("...(truncated)");
     expect(result.length).toBeLessThan(text.length);
   });
 });
-
-// ── Template loading ────────────────────────────────────────────────
 
 describe("loadTemplates", () => {
   it("loads templates from the templates directory", () => {
@@ -64,12 +60,9 @@ describe("loadTemplates", () => {
       "templates",
     );
 
-    // This should not throw
     loadTemplates(templateDir);
   });
 });
-
-// ── assembleContext with mock pool ──────────────────────────────────
 
 describe("assembleContext", () => {
   it("returns empty text when no sources return data", async () => {
@@ -123,7 +116,7 @@ describe("assembleContext", () => {
   });
 
   it("respects token budget", async () => {
-    const longContent = "x".repeat(100000); // Way over any budget
+    const longContent = "x".repeat(100000);
     const mockPool = {
       query: async (sql: string) => {
         if (sql.includes("org_shared.chunks")) {
@@ -143,7 +136,6 @@ describe("assembleContext", () => {
     );
     const totalChars = result.text.length;
 
-    // With 2000 token budget (~8000 chars), result should be under that
     expect(totalChars).toBeLessThan(10000);
     expect(result.sections.some((s) => s.truncated)).toBe(true);
   });
@@ -180,11 +172,9 @@ describe("assembleContext — traceable XML output", () => {
     );
 
     expect(result.text).toContain('<context query="dark factory"');
-    // Scores are normalized so the top (here, only) result is 1.00.
     expect(result.text).toContain(
       '<document source="adrs/ADR-016.md" type="adr" relevance="1.00"',
     );
-    // The chunk's own `##` heading lives inside the tag, not colliding with the skeleton.
     expect(result.text).toContain("## Decision");
   });
 

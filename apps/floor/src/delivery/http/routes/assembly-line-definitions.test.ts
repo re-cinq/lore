@@ -89,9 +89,6 @@ describe("GET /api/assembly-line-definitions/{name}", () => {
   });
 
   it("delegates every request to the loader — caching is the loader's job", async () => {
-    // loadBuiltinAssemblyLines memoizes its own promise (the one cache; see
-    // builtin-assembly-lines.test.ts), so the route holding a second one would
-    // only hide the first going stale.
     process.env.LORE_INGEST_TOKEN = "ingest-secret";
     const load = vi.fn(loadBuiltinAssemblyLines);
     const server = definitionsServer(load);

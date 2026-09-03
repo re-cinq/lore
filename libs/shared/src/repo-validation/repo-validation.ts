@@ -1,13 +1,4 @@
-/**
- * Repo Validation — polyglot tooling detection and deterministic validation.
- *
- * Detects what lint/typecheck/test tools a repo has (from package.json,
- * go.mod, pyproject.toml, Cargo.toml) and runs them as mandatory pipeline
- * stages. Inspired by Stripe Minions' "deterministic interleaving".
- *
- * Both the local runner (monitorTask) and GKE runner (entrypoint.sh via CLI)
- * call into this module after the agent completes, before commit/push.
- */
+/** Repo Validation — polyglot tooling detection + deterministic validation (Stripe Minions-inspired); called by both the local runner and GKE runner after the agent completes, before commit/push. */
 
 import { execSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
@@ -19,16 +10,7 @@ export interface ValidationStep {
   name: string;
   command: string;
   timeoutMs: number;
-  /**
-   * The command to run when the step is scoped to changed files, with
-   * `{files}` standing for the quoted file list. Derived at detection time
-   * from the repo's own script, because scoping cannot be done to the npm
-   * command: `npm run lint --silent` carries no "." to replace — the "." lives
-   * inside package.json — so a lint SCRIPT was never scoped at all, and on a
-   * monorepo `eslint .` then hit the budget (run b6ed264c, 2026-08-30:
-   * `spawnSync /bin/sh ETIMEDOUT`). Absent for a linter this module does not
-   * know how to rewrite; the step then runs unscoped.
-   */
+  /** Command scoped to changed files (`{files}` placeholder); derived from the repo's own lint script since `npm run lint --silent` has no "." to replace (run b6ed264c, 2026-08-30 hit the budget unscoped). */
   scopedCommand?: string;
 }
 
@@ -60,11 +42,7 @@ function readJsonFile(filePath: string): Record<string, unknown> | null {
   }
 }
 
-/**
- * Whether the manifest declares a workspaces monorepo, in either spelling: npm's
- * array of globs, or the `{ packages: [...] }` object Yarn uses and that plenty
- * of npm-installed repos still carry.
- */
+/** Whether the manifest declares a workspaces monorepo — npm's array of globs, or Yarn's `{ packages: [...] }` object. */
 // Vitest and Jest support --run/--bail for fast failure
 function fastFailTestCommand(testScript: string): string {
   if (testScript.includes("vitest")) {
@@ -78,23 +56,7 @@ function fastFailTestCommand(testScript: string): string {
   return "npm run test --silent";
 }
 
-// A WORKSPACES repo must COMPILE before it lints: a sibling's `dist/` is
-// what the others import, and an install does not produce it. Run
-// b219a4f1 (2026-08-30) died on exactly that — `npm ci` succeeded and
-// eslint then failed with `cannot import
-// @re-cinq/lore-shared/spec-status.js`, because this repo's own ESLint
-// plugin imports a workspace package's compiled output. Both implement
-// nodes succeeded and both validate nodes failed identically, so the retry
-// bought a second 40-minute implementation against a fault no
-// implementation could fix.
-//
-// The build it ALREADY has is moved, never duplicated — a second step
-// running the same command would compile the repo twice on every fresh
-// clone — and it carries a cold-clone budget, since compiling every
-// workspace from nothing is not the 60-second job a warm rebuild is.
-//
-// Gated on `workspaces`: a single-package repo's lint reads source, so
-// compiling first buys nothing and costs every validate the time.
+// A WORKSPACES repo must COMPILE before it lints — a sibling's `dist/` is what others import and install doesn't produce it (run b219a4f1, 2026-08-30, died on exactly that). Gated on `workspaces`: a single-package repo's lint reads source.
 function promoteWorkspaceBuildFirst(
   quick: ValidationStep[],
   pkg: Record<string, unknown>,
@@ -106,9 +68,7 @@ function promoteWorkspaceBuildFirst(
   if (buildAt < 0) {
     return;
   }
-  // Read before removing: destructuring the splice result would spread
-  // `undefined` if the index guard above ever stopped holding, and a step
-  // with no command reads as a check that passed.
+  // Read before removing: a splice-result destructure would spread `undefined` if the index guard ever stopped holding.
   const build = quick[buildAt];
 
   quick.splice(buildAt, 1);
@@ -129,25 +89,13 @@ function declaresWorkspaces(pkg: Record<string, unknown>): boolean {
   return Array.isArray((workspaces as { packages?: unknown }).packages);
 }
 
-/**
- * The scoped form of a repo's lint script, or null when this module does not
- * know how to scope it. Only eslint is understood: its "." argument is the
- * tree, so replacing that one token with the changed files keeps every other
- * flag the script carries (`--max-warnings 0`, a config path) intact. Run via
- * `npx` so the script's binary resolves from node_modules/.bin exactly as
- * `npm run` would resolve it.
- */
+/** The scoped form of a repo's lint script, or null if unscopeable. Only eslint is understood: its "." tree-root token is replaced, keeping other flags intact; run via `npx`. */
 function scopedLintCommand(script: string): string | null {
-  // The script must START with the eslint binary. A script prefixed with an
-  // environment assignment (`NODE_OPTIONS=... eslint .`) or chained through
-  // another tool is deliberately left unscoped: rewriting it would mean
-  // re-implementing the shell, and unscoped is the safe default.
+  // Must START with the eslint binary — a script prefixed with an env assignment or chained through another tool is left unscoped (safe default).
   if (!/^eslint(\s|$)/.test(script.trim())) {
     return null;
   }
-  // Exactly the bare "." token — the tree root — and only the first one.
-  // `.ts` in `--ext .ts` and `./extra` are not that token and stay; a script
-  // with no bare "." has nothing to scope.
+  // Exactly the bare "." tree-root token, first occurrence only — `.ts` in `--ext .ts` and `./extra` are not that token.
   const scoped = script.trim().replace(/(^|\s)\.(?=\s|$)/, "$1{files}");
 
   return scoped === script.trim() ? null : `npx ${scoped}`;
@@ -176,10 +124,7 @@ function detectNode(repoRoot: string): RepoTooling | null {
   const quick: ValidationStep[] = [];
   const full: ValidationStep[] = [];
 
-  // Lint
-  // 120s, not 30: scoping is best-effort (a diff that cannot be derived runs
-  // the whole tree), and unscoped `eslint .` on a monorepo measures ~37s at
-  // 200% CPU on a warm laptop — minutes in a one-CPU pod with a cold cache.
+  // Lint: 120s not 30 — scoping is best-effort and unscoped `eslint .` on a monorepo measures ~37s warm, minutes cold in a one-CPU pod.
   const lintScript = scripts.lint;
 
   if (lintScript) {
@@ -234,9 +179,7 @@ function detectNode(repoRoot: string): RepoTooling | null {
     });
   }
 
-  // A validate station clones fresh, so node_modules is absent and every
-  // check above dies in ~1s on missing binaries — install first, but only
-  // when there is something to check afterwards.
+  // A validate station clones fresh (no node_modules) — install first, but only when there's something to check afterwards.
   if (
     (quick.length > 0 || full.length > 0) &&
     !existsSync(join(repoRoot, "node_modules"))
@@ -367,10 +310,7 @@ function detectRust(repoRoot: string): RepoTooling | null {
   };
 }
 
-/**
- * Detects what validation tooling is available in a repo by scanning
- * for config files (package.json, go.mod, pyproject.toml, Cargo.toml).
- */
+/** Detects available validation tooling by scanning for config files (package.json, go.mod, pyproject.toml, Cargo.toml). */
 export function detectTooling(repoRoot: string): RepoTooling {
   // Try detectors in order of likelihood (Node is most common in Lore repos)
   const result =
@@ -396,11 +336,7 @@ function truncateOutput(output: string): string {
   );
 }
 
-/**
- * How a single validation command is executed. Default runs it locally
- * (`localValidationExec`); the BYO sidecar (ADR-025) injects an exec that runs
- * the command in the repo's toolchain container over the relay.
- */
+/** How a validation command is executed — default runs locally; the BYO sidecar (ADR-025) injects an exec that runs it in the repo's toolchain container over the relay. */
 export type ValidationExec = (
   command: string,
   opts: { cwd: string; timeoutMs?: number },
@@ -429,11 +365,7 @@ export const localValidationExec: ValidationExec = async (
   }
 };
 
-/**
- * Runs validation steps sequentially. Returns as soon as all steps have run
- * (does NOT bail on first failure — collects all errors). Each command runs
- * through `exec` (local by default; relay-backed for BYO).
- */
+/** Runs validation steps sequentially; does NOT bail on first failure — collects all errors. */
 // undefined = skip: the step's file filter matched none of the changed files
 function resolveStepCommand(
   step: ValidationStep,
@@ -520,21 +452,13 @@ function filterFilesByStep(stepName: string, files: string[]): string[] {
   return files.filter((f) => exts.some((ext) => f.endsWith(ext)));
 }
 
-/**
- * For lint-style tools, scope the command to specific files instead of
- * scanning the entire repo. This avoids false positives from pre-existing
- * lint errors the agent didn't introduce.
- */
+/** Scope a lint-style command to specific files instead of the whole repo, avoiding false positives from pre-existing lint errors. */
 function scopeCommandToFiles(
   stepName: string,
   command: string,
   files: string[],
 ): string {
-  // Only scope lint/eslint and ruff — typecheck/build/test need full project
-  // Only the BARE tool invocations this module itself writes (`npx eslint
-  // --quiet .`, ruff). A `lint` step is never here: its command is always
-  // `npm run lint --silent`, which carries no "." to replace — that step is
-  // scoped through its derived `scopedCommand` or not at all.
+  // Only the bare tool invocations this module writes (eslint/ruff); a `lint` step's `npm run lint --silent` has no "." and is scoped via `scopedCommand` instead.
   if (stepName === "eslint" || stepName === "ruff") {
     return command.replace(/\s+\.$/, ` ${quoteFiles(files)}`);
   }
@@ -545,10 +469,7 @@ function scopeCommandToFiles(
 const quoteFiles = (files: string[]): string =>
   files.map((f) => `"${f}"`).join(" ");
 
-/**
- * Formats validation results into a human-readable summary for error
- * messages and retry prompts.
- */
+/** Formats validation results into a human-readable summary for error messages and retry prompts. */
 export function formatValidationOutput(result: ValidationResult): string {
   const lines: string[] = [];
 

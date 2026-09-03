@@ -1,15 +1,4 @@
-// Hand mirror of the assembly-line definition types from
-// libs/assembly-lines/src/loader.ts (AssemblyLineNode / AssemblyLineEdge /
-// AssemblyLine, all inferred from their zod schemas). web-ui cannot import
-// libs/, so scripts/type-drift/assembly-line-definition.drift.ts asserts this
-// mirror carries every canonical key and both closed unions verbatim.
-//
-// The node `type` and edge `on` unions are mirrored as unions rather than
-// `string`: run-node-status and the DAG renderer depend on exhaustiveness.
-//
-// DECISION (#1419): structural, not debt. Same reason as run-stream-types — the
-// Floor serves /api/assembly-line-definitions and generates no OpenAPI document.
-
+// Hand mirror of libs/assembly-lines/src/loader.ts's definition types — web-ui can't import libs/, so scripts/type-drift/assembly-line-definition.drift.ts guards it. Structural, not debt (#1419): the Floor serves no OpenAPI document here.
 export type DefinitionNodeType =
   | "agent"
   | "validate"
@@ -22,8 +11,7 @@ export type DefinitionNodeType =
   | "merge_step"
   // One step of the escalation line, parameterised the same way.
   | "escalation_step"
-  // Stations whose worker is a PERSON. The type names the form contract; `route`
-  // names the page it lives on (FR6.40).
+  // Stations whose worker is a PERSON — the type names the form contract, `route` the page it lives on (FR6.40).
   | "feature_review"
   | "pr_review";
 
@@ -42,10 +30,7 @@ export interface DefinitionNode {
   description?: string;
   /** Which previous run this node continues, and what keys the thread. */
   continues?: { node: string; key: string };
-  /** Where a human station's worker acts. Relative — a page this app serves;
-   *  absolute — one it does not own, such as a GitHub PR. `{args.x}` placeholders
-   *  are resolved by the API against the run's args, so what reaches a view is
-   *  either a followable link or null. */
+  /** Where a human station's worker acts — relative (this app) or absolute (e.g. a GitHub PR); `{args.x}` placeholders resolve API-side to a link or null. */
   route?: string;
   /** Capability tags a claiming cluster-agent must carry. */
   required_tags?: string[];

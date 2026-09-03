@@ -88,8 +88,6 @@ describe("handleClaim", () => {
   });
 
   it("returns 204 while paused, leaving the run for another cluster", async () => {
-    // Pausing must not need new client behaviour: 204 is what the claim loop
-    // already treats as "nothing for me", so it just keeps idling.
     const { agents, agent } = await registeredAgent();
     const { runs } = await armedQueuedRun();
 
@@ -99,7 +97,6 @@ describe("handleClaim", () => {
       code: 204,
     });
 
-    // And the run is untouched — un-pausing picks it straight back up.
     await agents.setPaused(agent.id, false);
 
     expect(await handleClaim({ agents, runs }, TOKEN, agent.id)).toMatchObject({

@@ -1,21 +1,11 @@
-// The shape every Lore API call answers with, and the two ways to consume it.
-//
-// Deliberately SEPARATE from client.ts: the planning poll runs in the BROWSER and
-// needs this union and this 4xx→message mapping, but must not drag
-// `process.env.LORE_ADMIN_TOKEN` access into the client bundle. Nothing here
-// touches process.env or knows a service exists.
-
+// Separate from client.ts on purpose: the planning poll runs in the BROWSER and needs this union without dragging `process.env.LORE_ADMIN_TOKEN` into the client bundle.
 export type ApiResult<T = unknown> =
   | { status: "ok"; data: T }
   | { status: "unconfigured" }
-  /** `code` is the UPSTREAM HTTP status, absent when the call never reached a
-   *  server. A proxy route needs it to answer 404 for a missing task and 409 for
-   *  a refused transition — matching on the message text instead would couple
-   *  every proxy to lore-api's exact wording. */
+  /** `code` is the UPSTREAM HTTP status (absent if never reached) — lets a proxy answer 404/409 without coupling to lore-api's exact wording. */
   | { status: "error"; message: string; code?: number; body?: unknown };
 
-/** Response → result. An unparseable body is an empty object, not a throw: a 502
- *  from a proxy is HTML, and the status code is the news either way. */
+/** Response → result; an unparseable body is an empty object, not a throw — a 502 from a proxy is HTML either way. */
 export async function toApiResult<T>(res: Response): Promise<ApiResult<T>> {
   const data = await res.json().catch(() => ({}));
 
@@ -24,9 +14,7 @@ export async function toApiResult<T>(res: Response): Promise<ApiResult<T>> {
       status: "error",
       message: (data as { error?: string }).error ?? `HTTP ${res.status}`,
       code: res.status,
-      // The whole parsed body, because a refusal often says more than its
-      // message: the onboard guard names which block fired and which task holds
-      // the repo, and a caller that kept only `error` could not act on either.
+      // Whole parsed body — a refusal often says more than its message (e.g. onboard guard names the blocking task).
       body: data,
     };
   }
@@ -34,19 +22,7 @@ export async function toApiResult<T>(res: Response): Promise<ApiResult<T>> {
   return { status: "ok", data: data as T };
 }
 
-/**
- * Unwrap a result, throwing when it did not succeed.
- *
- * `toApiResult` reports failure in its RETURN VALUE — it catches transport errors
- * too — so a server action that ignores the return swallows every 4xx/5xx, an
- * unconfigured API URL and a refused connection alike. That action resolves
- * normally: the browser is told 200, nothing was written, and the failure is
- * indistinguishable from a no-op refresh. Next surfaces a THROWN action error to
- * the client, so enforcing here is what puts the real message on screen.
- *
- * Local rather than `enforceTrue` from @re-cinq/lore-shared, which web-ui cannot
- * import — it is not an npm workspace member.
- */
+/** Throws when the result did not succeed — an ignored `ApiResult` return would swallow every 4xx/5xx as a silent no-op refresh. Local, not `enforceTrue` from @re-cinq/lore-shared: web-ui isn't an npm workspace member. */
 export function enforceOk<T>(action: string, result: ApiResult<T>): T {
   if (result.status === "ok") {
     return result.data;

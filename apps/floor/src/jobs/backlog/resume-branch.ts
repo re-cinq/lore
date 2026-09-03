@@ -1,14 +1,4 @@
-// Whether a backlog tick continues the branch a previous attempt left behind, or
-// starts the ticket over (specs/implementation-loop FR11).
-//
-// A run that dies leaves its commits on the ticket's branch. Nothing read them: a
-// fresh run has no station_runs rows, so the replay launches the entry node and the
-// work is done again. Continuing is the default now — but only for a branch nobody
-// has ruled on.
-//
-// Pure, because every input is a fact somebody else already read (does the branch
-// exist, what does the issue carry, did the last run settle) and the decision is
-// the part worth testing on its own.
+// Whether a backlog tick continues the branch a previous attempt left behind, or starts the ticket over (specs/implementation-loop FR11) — continuing is now the default, but only for a branch nobody has ruled on; pure, since every input is a fact someone else already read.
 
 import { LORE_BLOCKED_LABEL } from "@re-cinq/lore-shared";
 
@@ -25,14 +15,12 @@ export type BranchResume =
 const FRESH: BranchResume = { resume: false };
 
 export function decideBranchResume(input: BranchResumeInput): BranchResume {
-  // Deleting the branch IS the restart protocol — the repo owner's only lever, and
-  // the reason nothing here needs a force flag or a comment to explain itself.
+  // Deleting the branch IS the restart protocol — the repo owner's only lever.
   if (input.branchExists !== true) {
     return FRESH;
   }
 
-  // A block is a human's verdict on the WORK, not on the branch. Resuming past it
-  // would re-run a ticket somebody deliberately stopped, and silently.
+  // A block is a human's verdict on the WORK, not the branch — resuming past it would silently re-run a ticket somebody deliberately stopped.
   if (input.issueLabels.includes(LORE_BLOCKED_LABEL)) {
     return FRESH;
   }

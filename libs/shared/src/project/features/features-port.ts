@@ -1,23 +1,8 @@
 import type { GapResult } from "../../feature-planning/gap-result.js";
 
-/**
- * Feature-planning lifecycle port. Backed by `lore.features` +
- * `lore.feature_iterations` (the `lore` schema, owned by the migration runner).
- * This is the persistence side of the smart feature page: drafts, per-round
- * iterations, and the uncommitted working spec. See specs/7-feature-planning/
- * and ADR-027. SQL lives in the pg adapter.
- */
+// Feature-planning lifecycle port over lore.features + lore.feature_iterations; persistence side of the smart feature page (specs/7-feature-planning, ADR-027). SQL lives in the pg adapter.
 
-/** The lifecycle states a feature can actually reach.
- *
- *  `split` was declared here and rendered as a badge but never written by any code
- *  path. It could not be: `/split` creates a CHILD and leaves the parent untouched,
- *  and the author may create one child per proposed sub-feature — so there is no
- *  moment the machine can call the parent "split" without guessing. Reviving it
- *  means an explicit author action ("this feature is now its children"), which is
- *  product surface, not a status default. The DB CHECK constraint still permits the
- *  value; it is a harmless superset, and `statusBadge` falls back for anything it
- *  does not know. */
+/** Lifecycle states a feature can actually reach. `split` is DB-permitted but never written — reviving it needs an explicit author action, not a status default (see specs/7-feature-planning). */
 export type FeatureStatus =
   | "draft"
   | "planning"
@@ -57,8 +42,7 @@ export interface FeatureIteration {
   status: IterationStatus;
   user_answers: unknown | null;
   gap_result: GapResult | null;
-  /** The round this one continued from — set when the author rewound to an earlier
-   *  round instead of the latest. Null for a normal next round. */
+  /** The round this one continued from, if the author rewound to an earlier round; null for a normal next round. */
   parent_iteration: number | null;
   created_at: string;
   updated_at: string;
@@ -85,11 +69,7 @@ export interface FeaturePatch {
   issue_url?: string;
 }
 
-/**
- * Columns a {@link FeaturePatch} may set, in a fixed order for stable params.
- * Shared by the Pg adapter (dynamic SQL) and the in-memory double so both apply
- * exactly the same patch surface.
- */
+/** Columns a {@link FeaturePatch} may set, fixed order for stable params; shared by the Pg adapter and the in-memory double. */
 export const PATCH_COLUMNS: (keyof FeaturePatch)[] = [
   "draft_spec_md",
   "spec_path",
@@ -106,13 +86,7 @@ export interface FeaturesPort {
   get(repo: string, id: string): Promise<FeatureWithIterations | null>;
   /** Features for a repo, newest-updated first, optionally filtered by status. */
   list(repo: string, status?: FeatureStatus): Promise<Feature[]>;
-  /**
-   * Open a new planning round: bump the feature counter, set status `planning`,
-   * and insert a `running` iteration at the minted `current_iteration`. Returns
-   * the row so the caller spawns the pod with the iteration the DB actually
-   * minted (not a pre-read guess) — {@link attachIterationTask} links the task
-   * once it exists.
-   */
+  /** Opens a new planning round (bumps counter, status `planning`, inserts `running` iteration); returns the row so the caller spawns the pod with the DB-minted iteration, not a pre-read guess. */
   appendIteration(
     repo: string,
     id: string,
@@ -151,17 +125,12 @@ export interface FeaturesPort {
   delete(repo: string, id: string): Promise<boolean>;
 }
 
-/** Whether a feature may be finalized — only from a settled planning state. A draft
- *  with no analysis, or an already-shipped feature, must not kick a finalize task. */
+/** Whether a feature may be finalized (only from a settled planning state — never a bare draft or an already-shipped feature). */
 export function canFinalize(status: FeatureStatus): boolean {
   return status === "awaiting-input" || status === "spec-ready";
 }
 
-/**
- * The most recent ready round's gap result, or null. Iterations arrive oldest-first,
- * so this scans from the end — the round-to-round context carry and the split source
- * are always the LATEST analysis, not the first one produced.
- */
+/** Most recent ready round's gap result, or null; scans from the end since iterations arrive oldest-first and callers want the latest analysis. */
 export function latestReadyGap(
   iterations: FeatureIteration[],
 ): GapResult | null {
@@ -176,17 +145,10 @@ export function latestReadyGap(
   return null;
 }
 
-/** How long a `running` iteration may block a new round before it's presumed
- *  orphaned (its pod died) and a fresh round is allowed to supersede it. Covers the
- *  round timeout (≤15 min) plus container/finalize overhead. */
+/** How long a `running` iteration blocks a new round before it's presumed orphaned; covers the round timeout (≤15 min) plus container/finalize overhead. */
 export const ROUND_IN_FLIGHT_MS = 20 * 60_000;
 
-/**
- * The in-flight planning round for a feature — a `running` iteration started within
- * {@link ROUND_IN_FLIGHT_MS} — or null. Used to reject a concurrent/duplicate round
- * for the same feature (a stale page or double-click must not spawn a second pod). A
- * `running` iteration older than the window is treated as orphaned and does NOT block.
- */
+/** The in-flight planning round (a `running` iteration within {@link ROUND_IN_FLIGHT_MS}) or null; rejects a concurrent/duplicate round from a stale page or double-click. */
 export function roundInFlight(
   iterations: FeatureIteration[],
   nowMs: number,
@@ -200,22 +162,13 @@ export function roundInFlight(
   );
 }
 
-/** How long a `running` iteration may linger before the reaper force-fails it
- *  even when the runtime probe still reports it active (a wedged container that
- *  never exits). Generously past the round timeout so a legitimately-slow round
- *  is never killed; the primary orphan signal is the dead container/pod probe. */
+/** How long a `running` iteration may linger before the reaper force-fails it even if the probe still reports it active (a wedged container); generous past the round timeout. */
 export const PLANNING_RECOVERY_STALE_MS = 30 * 60_000;
 
-/** How long after a round starts the runtime probe is not yet trusted to mean
- *  "dead". A round is a task row, then an assembly line, then an Agent CR, then a
- *  pod — the CR does not exist for the first seconds, so a probe in that window says
- *  "not born yet", not "died". Round 10 was force-failed 32s in and survived only
- *  because the delivered result overrode the reaper (2026-08-10). Generous enough to
- *  cover a controller restart or image pull, far short of the round timeout. */
+/** Startup grace before the runtime probe is trusted to mean "dead" (a round becomes a task row, then a line, then a CR, then a pod) — round 10 was force-failed 32s in and only survived because the result overrode the reaper (2026-08-10). */
 export const PLANNING_STARTUP_GRACE_MS = 2 * 60_000;
 
-/** The `running`-status half of {@link decidePlanningRecovery}: orphan a round
- *  whose runtime died past the startup grace or that outlived the window. */
+/** The `running`-status half of {@link decidePlanningRecovery}: orphans a round whose runtime died past startup grace or outlived the window. */
 function runningRecovery(
   latest: { created_at: string; iteration: number },
   probe: {
@@ -230,9 +183,7 @@ function runningRecovery(
   }
   const ageMs = probe.nowMs - Date.parse(latest.created_at);
   const stale = ageMs > probe.windowMs;
-  // Inside the grace window an absent runtime means the CR has not been created
-  // yet, so the probe cannot be read as "died". Staleness still orphans: a wedged
-  // container that never exits must not be protected by the grace period.
+  // Inside the grace window an absent runtime means "not created yet", not "died"; staleness still orphans so a wedged container isn't protected by the grace period.
   const startingUp = ageMs < PLANNING_STARTUP_GRACE_MS;
 
   return (!probe.isActive && !startingUp) || stale
@@ -246,31 +197,14 @@ export type PlanningRecovery =
   | { kind: "orphan"; iteration: number }
   | { kind: "transition"; iteration: number };
 
-/**
- * Decide how to reconcile a mid-planning feature whose latest round looks stuck.
- * Pure — the reaper resolves `isActive` (the runtime probe of the latest running
- * iteration's task) and persists the outcome.
- *
- * - latest `running` + (runtime gone past the startup grace OR older than
- *   `windowMs`) → `orphan`: the
- *   round's container/pod died (e.g. a restart) but the row was never closed, so
- *   the wizard "analyzes" forever. Mark it failed + revert the feature.
- * - latest `ready` with a result while the feature is still `planning` → the
- *   status transition was missed (non-atomic write); re-apply it (`transition`).
- * - otherwise `none`. `isActive` is consulted only for the running case.
- */
+/** Pure: reconciles a mid-planning feature whose latest round looks stuck. Running+dead-runtime -> orphan (mark failed, revert feature); ready+still-planning -> transition (re-apply a missed status write); else none. */
 export function decidePlanningRecovery(args: {
   iterations: FeatureIteration[];
   featureStatus: FeatureStatus;
   isActive: boolean;
   nowMs: number;
   windowMs?: number;
-  /** True when the round's task has an OPEN assembly run. The run is then the
-   *  single liveness authority — the assembly-run reaper owns its timeouts and
-   *  relaunches — so the running case never orphans here. Without this, a k8s
-   *  probe that transiently listed zero CRs executed a live round (#1297,
-   *  2026-08-18: the analyze agent had already SUCCEEDED when the reaper
-   *  failed its iteration). */
+  /** True when the round's task has an OPEN assembly run — then the run reaper owns liveness and this never orphans (fixes #1297, 2026-08-18: a transient k8s probe failed an already-succeeded round). */
   runOpen?: boolean;
 }): PlanningRecovery {
   const {
@@ -306,19 +240,7 @@ export function decidePlanningRecovery(args: {
   return { kind: "none" };
 }
 
-/**
- * Slug a title into a directory-safe identifier, capped at `max`.
- *
- * The trailing-dash trim runs AFTER the slice, because the cut itself can land
- * on a `-` — a slug, and any branch name built from it, must never end in a
- * dash. That trim previously existed only in the Floor's own 30-char copy of
- * this function, so this one could still produce `foo-bar-` at its cut.
- *
- * `max` and `fallback` are parameters rather than two functions because the two
- * callers differ only in those: a feature directory is capped at 60 and names
- * an unslugabble title `feature`, a task branch is capped at 30 and lets an
- * empty title stay empty for its caller to handle.
- */
+/** Slugs a title into a directory-safe id capped at `max`; trailing-dash trim runs AFTER the slice since the cut can land on a `-`. `max`/`fallback` are params (not two functions) since the two callers differ only there. */
 export function slugifyTitle(
   title: string,
   max: number,
@@ -339,10 +261,7 @@ export function slugifyFeatureTitle(title: string): string {
   return slugifyTitle(title, 60, "feature");
 }
 
-/** The round a new round builds on: the one the author rewound to, or the latest
- *  ready one. A rewind target that is not a READY round is rejected rather than
- *  silently ignored — continuing from a failed round means continuing from nothing,
- *  and the author would see a fresh start dressed as a rewind. */
+/** The round a new round builds on (rewind target or latest ready); a non-ready rewind target is rejected rather than silently ignored, so a fresh start is never dressed as a rewind. */
 export type RoundBasis =
   { ok: true; basis: FeatureIteration | null } | { ok: false; error: string };
 

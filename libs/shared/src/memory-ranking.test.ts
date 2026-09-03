@@ -189,12 +189,7 @@ describe("scoreImportance", () => {
   });
 });
 
-/**
- * These cases existed only against a pasted COPY of scoreImportance in the
- * Floor's memory-lifecycle test, so nothing here was ever proven about the real
- * function (#1374). Moved to run against it.
- */
-describe("scoreImportance — cases recovered from a duplicate", () => {
+describe("scoreImportance — cases recovered from a pasted-copy duplicate that proved nothing about the real function (#1374)", () => {
   const base = {
     key: "a-plain-key",
     value:

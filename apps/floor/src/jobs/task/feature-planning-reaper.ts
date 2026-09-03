@@ -1,23 +1,4 @@
-/**
- * Feature-planning reaper.
- *
- * A planning round is a single LLM→JSON call run in a Station (a docker
- * container locally, a LoreTask CR on the cluster). Two ways it gets stuck and
- * the wizard "analyzes" forever:
- *
- *   1. Orphaned round — the container/pod died (a `npm start` restart, a crash,
- *      an OOM) before the iteration row was closed, so it sits `running` with no
- *      runtime behind it. We detect this by probing the runtime itself
- *      ({@link StationBackend.isActive}) — a `running` iteration whose container
- *      is gone is orphaned immediately, no need to wait out a timeout — with a
- *      generous age window as a fallback for a wedged-but-listed container.
- *   2. Missed transition — a round produced a `ready` result but the feature
- *      never left `planning` (a non-atomic write between setIterationResult and
- *      transitionStatus). The result exists; the status just needs re-applying.
- *
- * Runs every minute. Pure decision in {@link decidePlanningRecovery}; this file
- * is the I/O: find candidates, probe the runtime, persist the fix.
- */
+/** Feature-planning reaper (every minute): recovers an orphaned planning round (container died before the iteration row closed, detected via {@link StationBackend.isActive}) and a missed status transition (a `ready` result whose non-atomic write left the feature stuck in `planning`). Pure decision in {@link decidePlanningRecovery}; this file is the I/O. */
 
 import { query } from "../../kernel/db.js";
 import { pipeline } from "../../kernel/queues.js";
@@ -43,11 +24,7 @@ interface Candidate {
 }
 
 export async function featurePlanningReaperJob(): Promise<string> {
-  // The failed arm is bounded to a day: a genuinely failed old round stays
-  // failed; only a recent one can still be an artifact-recovery candidate.
-  // The arm matches features by ANY qualifying failed iteration, but the loop
-  // below only ever inspects the LATEST one — an older failed round behind a
-  // newer iteration is settled history, and lostArtifactRound rejects it.
+  // The failed arm is bounded to a day: only a recent failed round can still be an artifact-recovery candidate; lostArtifactRound rejects any older one the loop inspects.
   const rows = await query<Candidate>(
     `SELECT DISTINCT f.id, f.repo
        FROM lore.features f
@@ -77,11 +54,7 @@ export async function featurePlanningReaperJob(): Promise<string> {
       }
 
       const latest = feature.iterations[feature.iterations.length - 1];
-      // The round runs on an assembly run now, and the run is the liveness
-      // authority: the assembly-run reaper owns its timeouts and relaunches, so
-      // an OPEN run means alive regardless of what a k8s CR listing says — a
-      // transient empty list executed a live round on 2026-08-18 (#1297). The
-      // direct probe survives only for legacy rounds with no run row.
+      // The assembly run, not the CR listing, is the liveness authority — a transient empty k8s list killed a live round on 2026-08-18 (#1297); direct probe survives only for legacy rounds with no run row.
       const latestRun = latest?.task_id
         ? (await pipeline().assemblyRuns.listForTask(latest.task_id))[0]
         : undefined;
@@ -89,13 +62,7 @@ export async function featurePlanningReaperJob(): Promise<string> {
         latestRun !== undefined &&
         ["queued", "running"].includes(latestRun.status);
 
-      // A round whose agent already SUCCEEDED but whose result delivery was
-      // lost (#1298) is healed from the transcript, never orphaned: the
-      // artifact is re-applied through the same applyGapResult the pod's own
-      // delivery uses. Whether that applies — and whose transcript to read —
-      // is decideArtifactRecovery's call (#1302): the blanket "running on an
-      // open run" exemption this replaces hid the parked-on-author shape,
-      // where the work is done and the round still reads `running`.
+      // A round whose agent succeeded but whose result delivery was lost (#1298) heals from the transcript, never orphaned; decideArtifactRecovery's call (#1302) replaced the blanket "open run" exemption that hid this parked-on-author shape.
       const lostRound = lostArtifactRound(latest, latestRun, feature.status);
       const recoveredFromTranscript =
         lostRound !== null &&
@@ -162,8 +129,7 @@ export async function featurePlanningReaperJob(): Promise<string> {
   return `Recovered ${orphaned} orphaned round(s), fixed ${transitioned} missed transition(s), replayed ${recovered} lost artifact(s) across ${rows.length} feature(s)`;
 }
 
-/** Run decideArtifactRecovery for a lost round and, when it says recover,
- *  re-apply the artifact from the run transcript. */
+/** Run decideArtifactRecovery for a lost round and, when it says recover, re-apply the artifact from the run transcript. */
 async function recoverLostRound(
   project: Project,
   featureId: string,
@@ -189,8 +155,7 @@ async function recoverLostRound(
   );
 }
 
-/** isActive probes the agent-cr backend this repo's round ran on — the legacy
- *  path for rounds that predate assembly-run execution. */
+/** isActive probes the agent-cr backend this repo's round ran on — the legacy path for rounds that predate assembly-run execution. */
 async function roundStillActive(
   latest: FeatureWithIterations["iterations"][number] | undefined,
   latestRunExists: boolean,
@@ -207,10 +172,7 @@ async function roundStillActive(
   return stationBackend().isActive(latest.task_id);
 }
 
-/** The round + run pair eligible for artifact recovery (#1298): a recent round
- *  with no result whose task ran on an assembly run, while the feature is still
- *  mid-planning. Null otherwise — including for a round that already carries a
- *  result, which needs no archaeology. */
+/** The round + run pair eligible for artifact recovery (#1298): a recent round with no result whose task ran on an assembly run, while the feature is still mid-planning; null otherwise. */
 function lostArtifactRound(
   latest: FeatureWithIterations["iterations"][number] | undefined,
   latestRun: { id: string } | undefined,
@@ -229,24 +191,11 @@ function lostArtifactRound(
     : null;
 }
 
-/** How many transcript turns one recovery scan will page through before giving
- *  up — a planning round runs a few hundred turns; this is a runaway bound, not
- *  a tuning knob. */
+/** How many transcript turns one recovery scan will page through before giving up — a runaway bound, not a tuning knob. */
 const RECOVERY_TURN_PAGE = 200;
 const RECOVERY_TURN_PAGES_MAX = 25;
 
-/**
- * Re-apply a lost round result from the run transcript (#1298): the terminal
- * `Write` of the watch artifact (`result.json`) holds the full GapResult, and
- * `applyGapResult` is already built for late delivery. Returns false when the
- * run never produced one — a genuinely failed analysis has no artifact and
- * stays failed.
- *
- * `agentCrName` scopes the scan to THIS round's pod (#1302): on a multi-round
- * run the transcript also holds every PREVIOUS round's `result.json`, and an
- * unscoped scan would replay one of those as the current round's result. Null
- * (a work row that never recorded its CR) scans unscoped — the legacy behavior.
- */
+/** Re-apply a lost round result from the run transcript (#1298): the terminal `Write` of `result.json` holds the full GapResult; returns false when none was produced. `agentCrName` scopes the scan to THIS round's pod (#1302) — unscoped (null) would replay a previous round's result on a multi-round run. */
 async function recoverArtifact(
   project: Project,
   featureId: string,
@@ -293,12 +242,7 @@ async function recoverArtifact(
   return applied.outcome === "ready";
 }
 
-/**
- * Mark the orphaned round failed, then restore the feature to the state of its
- * last round that actually produced a result (so a prior good analysis isn't
- * lost) — or back to `draft` if none ever did. Skips a feature already past the
- * planning phase so a stale orphan can't drag a finalized feature backwards.
- */
+/** Mark the orphaned round failed, then restore the feature to its last result-bearing round (or `draft` if none). Skips a feature already past planning so a stale orphan can't drag it backwards. */
 async function recoverOrphan(
   project: Project,
   feature: FeatureWithIterations,
@@ -315,8 +259,7 @@ async function recoverOrphan(
     return;
   }
 
-  // The orphan is `running`, so latestReadyGap naturally skips it and returns the
-  // last round that produced a result — restore that; else fall back to `draft`.
+  // The orphan is `running`, so latestReadyGap naturally skips it and returns the last result-bearing round to restore, else falls back to `draft`.
   const lastGood = latestReadyGap(feature.iterations);
 
   if (lastGood) {

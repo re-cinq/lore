@@ -1,10 +1,4 @@
-// Pure scrub control for a finished run: a range slider plus a position read-out
-// that names the moment (event N / M and the last applied event's time). No
-// fetch, no EventSource, no timers — it only reports the cursor the reader asks
-// for; the Panel owns the history array and folds it (lore/no-io-in-view). The
-// range input's keyboard is reimplemented on onKeyDown because jsdom gives a
-// native range no arrow/Home/End behaviour, and the value is controlled by prop.
-
+// Pure scrub control (lore/no-io-in-view) — Panel owns the history array; keyboard is reimplemented on onKeyDown since jsdom's range has no arrow/Home/End behavior.
 import type { KeyboardEvent } from "react";
 import styles from "./ReplayScrubberView.module.css";
 

@@ -1,9 +1,4 @@
-/**
- * Read-only HTTP client for the Lore trace API. Mirrors the bearer-auth + retry
- * shape of the MCP server's proxyGetApi (mcp-server/src/mcp/tools/deps.ts):
- * 15s timeout, retry on 408/429/5xx. The extension is the first standalone
- * consumer of this surface.
- */
+// Mirrors mcp-server's proxyGetApi bearer-auth+retry shape (15s timeout, retry on 408/429/5xx).
 
 import type { SpecGraph, TraceDocument } from "@re-cinq/lore-shared";
 

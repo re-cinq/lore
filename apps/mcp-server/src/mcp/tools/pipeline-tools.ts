@@ -49,12 +49,7 @@ function undetectedRepoError(): ToolText {
   return toolText("Could not detect repo. Specify repo parameter.");
 }
 
-/**
- * Run a proxied call and render its body, mapping every failure to tool text.
- * These tools hold no pool (ADR-032), so the API is the only source: a config
- * gap, a denial, and an outage each get their own message rather than a
- * misleading "requires PostgreSQL".
- */
+// Runs a proxied call and maps every failure (no pool per ADR-032: config gap, denial, outage) to its own tool text rather than a misleading "requires PostgreSQL".
 async function proxiedText(
   call: () => Promise<ProxyResult>,
   {
@@ -85,9 +80,7 @@ async function proxiedText(
       return deniedError(toolName, proxied.detail);
     }
 
-    // A non-retriable status means the server answered and refused (e.g. a 409
-    // "Cannot cancel task in merged state"). Reporting that as "unreachable
-    // after 4 attempts" would blame the network for the server's verdict.
+    // A non-retriable status means the server answered and refused (e.g. 409); reporting "unreachable" would wrongly blame the network for the server's verdict.
     if (proxied.status) {
       return toolText(`The Lore API refused ${op}: ${proxied.detail}`);
     }
@@ -225,9 +218,7 @@ export function registerPipelineTools(server: McpServer) {
       context,
     }) => {
       try {
-        // Onboarding is guarded against duplicates inside lore_onboard_repo's
-        // transaction (#968); creating one here would route around that guard.
-        // Refused before the local/remote split so neither path can slip past.
+        // Refused before the local/remote split: onboarding's duplicate guard lives inside lore_onboard_repo's own transaction (#968).
         if (task_type === "onboard") {
           return {
             content: [
@@ -430,9 +421,7 @@ export function registerPipelineTools(server: McpServer) {
           return deniedError("lore_get_pr_status", proxied.detail);
         }
 
-        // A read with no local fallback: surface the server's reason (e.g. a 424
-        // "GitHub not configured" config gap, or a real timeout) plainly rather
-        // than the write-oriented "unreachable / refusing local fallback" copy.
+        // A read with no local fallback: surface the server's reason plainly rather than the write-oriented "unreachable" copy.
         return {
           content: [
             {
@@ -753,9 +742,7 @@ export function registerPipelineTools(server: McpServer) {
     },
     async ({ task_id, offset, cursor }) => {
       try {
-        // Logs live server-side (turn store, GCS fallback); proxy the read. The API resolves the
-        // task's repo from task_id — the local adapter holds no DB to look it up,
-        // so calling getTask() here would throw "Pipeline database not configured".
+        // Logs live server-side; the API resolves the task's repo from task_id since the local adapter holds no DB to look it up.
         const apiUrl = process.env.LORE_API_URL;
         const apiToken = process.env.LORE_INGEST_TOKEN;
 

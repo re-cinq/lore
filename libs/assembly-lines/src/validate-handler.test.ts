@@ -72,10 +72,7 @@ describe("createValidateHandler — local", () => {
     expect(r.extras?.["Lore-Validation-Failed"]).toContain("lint");
   });
 
-  it("carries the failing command's own output, not just its name", async () => {
-    // Reporting only WHICH check died is not enough to act on: the agent sent
-    // back to fix the code could not see the errors, so it repeated itself
-    // until the iteration cap. The compiler already said what was wrong.
+  it("carries the failing command's own output, not just its name (WHICH check died alone left the agent unable to see the errors, repeating itself until the iteration cap)", async () => {
     const dir = await tmpRepo(NODE_PKG("echo TS1005-oh-no && false"));
     const r = await createValidateHandler()(node, ctx(dir));
 

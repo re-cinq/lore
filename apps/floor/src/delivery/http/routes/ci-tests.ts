@@ -1,10 +1,4 @@
-/**
- * POST /api/webhook/ci-tests — the Layer-1 test-report ingest producer. The
- * lore-code-trace binary bearer-authenticates (LORE_INGEST_TOKEN via the
- * ingest-token strategy); the pure `mapCiTests` turns the body into a test-report
- * event and we INSERT it; the loop dispatches. `payload.parse = false` so the body
- * is parsed as JSON regardless of Content-Type, matching the old handler.
- */
+/** POST /api/webhook/ci-tests — Layer-1 test-report ingest producer: lore-code-trace bearer-authenticates, `mapCiTests` maps the body to an event we INSERT, the loop dispatches. */
 
 import { enforceOk } from "@re-cinq/lore-shared/lib/enforce.js";
 import { apiError } from "../api-error.js";
@@ -25,8 +19,7 @@ export const ciTestsRoute: ServerRoute = {
       parseJsonBody<CiTestsBody>(rawBody(request), "ci-tests"),
     );
 
-    // A validation failure is a client error — a 400 surfaces the
-    // mapper's 400 + message instead of a generic 500.
+    // A validation failure is a client error — 400 surfaces the mapper's message instead of a generic 500.
     enforceOk(mapped, apiError(400));
 
     await insertEventList(mapped.events, "ci-tests");

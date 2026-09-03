@@ -8,31 +8,11 @@ import {
 
 const ADMIN_BASE = "https://api.anthropic.com/v1/organizations";
 const ANTHROPIC_VERSION = "2023-06-01";
-// The usage and cost reports cap 1d buckets at 31 — a documented hard maximum,
-// not a default. 31 buckets covers any calendar month, so month-to-date is
-// always fully spanned.
+// The usage/cost reports cap 1d buckets at 31 — a documented hard maximum, not a default; 31 buckets always fully spans a calendar month.
 const SYNC_WINDOW_DAYS = 31;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-/**
- * The reporting window: today's UTC midnight minus 30 days, and deliberately
- * no `ending_at`.
- *
- * - **Span.** The old `now - 31d` start spanned 31 whole days *plus* the
- *   current one — 32 candidate daily buckets against the API's documented
- *   hard maximum of 31 (`limit` docs), leaving which bucket survives to the
- *   server's truncation choice. Starting at today − 30d leaves exactly 31
- *   candidates, so `limit: 31` can never truncate anything.
- * - **No `ending_at`.** The API reference defines it as "time buckets that
- *   *end before* this timestamp" — strictly before. Today's bucket ends AT
- *   tomorrow's midnight, so an `ending_at` of tomorrow-midnight excludes the
- *   current day by construction (verified against the live API: the same
- *   window with that bound came back one bucket short). Omitting it leaves
- *   today's bucket eligible whenever the API emits it.
- * - **UTC midnight alignment**, because the API snaps buckets to UTC days and
- *   an unaligned `starting_at` would not match what `bucket_date` means
- *   downstream in `pipeline.anthropic_cost_daily`.
- */
+// Reporting window: today's UTC midnight minus 30 days, no `ending_at` (its strictly-before semantics would exclude today's bucket) — leaves exactly 31 candidates so `limit: 31` never truncates; aligned to UTC midnight to match `bucket_date` downstream.
 export function reportWindow(now: Date): { starting_at: string } {
   const today = Date.UTC(
     now.getUTCFullYear(),
@@ -108,10 +88,7 @@ async function fetchAllBuckets(
   return buckets;
 }
 
-/**
- * The 31-day cost+usage pull behind the daily sync. Extracted from the job
- * body so the window/bucket/merge mechanics are testable without a database.
- */
+// The 31-day cost+usage pull behind the daily sync, extracted so window/bucket/merge mechanics are testable without a database.
 export async function fetchAnthropicCostRows(
   adminKey: string,
 ): Promise<AnthropicCostDailyRow[]> {

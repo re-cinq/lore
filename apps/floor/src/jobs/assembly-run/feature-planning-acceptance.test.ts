@@ -1,11 +1,3 @@
-// Acceptance: the REAL feature-planning blueprint walked end to end through the
-// real start/node/resume handlers — the cluster replaced by scripted CR statuses,
-// the author by resume events. Complements planning-author-loop.test.ts, which
-// replays the graph pure: this suite covers the choreography around it (event
-// handlers, artifact delivery, the resume args channel, service-node publish),
-// where the lifecycle defects (#1162–#1186) and the args-merge defect (#1462)
-// actually lived.
-
 import { describe, it, expect } from "vitest";
 import {
   createLineHarness,
@@ -47,7 +39,7 @@ async function acceptedThroughSpecPlan(
   return id;
 }
 
-describe("feature-planning acceptance: the analyze round and the author station", () => {
+describe("feature-planning acceptance (real start/node/resume handlers, scripted CR statuses; covers the lifecycle defects #1162-#1186 and args-merge defect #1462): the analyze round and the author station", () => {
   it("launches the analyze CR on start and parks on the author when it succeeds", async () => {
     const h = createLineHarness();
     const id = await parkedOnAuthor(h);

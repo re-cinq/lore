@@ -437,13 +437,7 @@ describe("onClose", () => {
     });
   });
 
-  // Closing a PR used to finish EVERY open line carrying that number. Since the
-  // push node began stamping the spec PR on the feature-planning line, that meant a
-  // MERGED spec PR closed the very line parked on `merged` waiting for it — killing
-  // the feature one step before decomposition, on the same event meant to advance
-  // it. Observed on line 7505be4d: merged node resumed to success, line finished
-  // `pr_closed`, decompose never launched.
-  it("leaves a feature-planning line parked on the same PR alone", async () => {
+  it("leaves a feature-planning line parked on the same PR alone, not finished pr_closed like every other open line used to (line 7505be4d killed a feature this way)", async () => {
     const { port, handlers } = harness(openPr());
     const facade = new AssemblyRuns(REPO, port);
     const planning = await facade.start("feature-planning", {
@@ -489,10 +483,7 @@ describe("onTrigger re-check routing", () => {
 });
 
 describe("a PR closed while its review line is still running", () => {
-  it("reclaims the closed line's token key so agent-secrets does not grow a key per PR", async () => {
-    // Closing here bypasses finishLine, and the node's own terminal event returns
-    // early once the row is no longer running — so nothing else will ever free it.
-    // Every leaked key stayed in `agent-secrets` until it hit the 1MiB ceiling.
+  it("reclaims the closed line's token key so agent-secrets does not grow a key per PR — closing bypasses finishLine, so nothing else would ever free it (leaked keys once hit the 1MiB ceiling)", async () => {
     const h = harness(openPr({ state: "closed" }));
     const runId = await h.port.start({
       blueprintName: "code-review",
@@ -515,11 +506,7 @@ describe("a PR closed while its review line is still running", () => {
 });
 
 describe("a forced review while one is already in flight", () => {
-  it("posts the how-to comment once across two `@lore review` triggers", async () => {
-    // `start` on a subject is start-or-JOIN: the second trigger gets the FIRST
-    // run's id back. Announcing it again posted a second "Lore is reviewing this
-    // PR" naming the very same run — once per @lore review and once per press of
-    // the UI button, for as long as the review took.
+  it("posts the how-to comment once across two `@lore review` triggers, since start-or-JOIN returns the FIRST run's id both times", async () => {
     const h = harness(openPr());
 
     await h.handlers.onComment({

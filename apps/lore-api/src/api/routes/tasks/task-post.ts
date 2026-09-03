@@ -16,11 +16,7 @@ import { bearerScope } from "../../../server/plugins/bearer-scope.js";
 import { zodValidate } from "../../../server/plugins/zod-validate.js";
 import { DB_UNAVAILABLE } from "../common-schemas.js";
 
-// POST /api/task multiplexes five shapes (retry / cancel / set-priority /
-// status-update / create) with irregular dispatch — status-update has no
-// `action`, create is the fallback — so a discriminated union would contort
-// (ADR-034 FR6). The schema guards the object shape; the branch selection and
-// its conditional 400s (blank description, invalid status) stay in the handler.
+// POST /api/task multiplexes 5 shapes with irregular dispatch (status-update has no `action`, create is the fallback), so a discriminated union would contort (ADR-034 FR6) — branch selection stays in the handler.
 const TaskBody = z.object({
   action: z.string().optional(),
   task_id: z.string().optional(),
@@ -29,8 +25,7 @@ const TaskBody = z.object({
   pr_url: z.string().optional(),
   error: z.string().optional(),
   description: z.string().optional(),
-  /** Who queued it. The web UI names the signed-in author; an unnamed caller is
-   *  the remote MCP adapter, which is the historical default. */
+  /** Who queued it; an unnamed caller is the remote MCP adapter (the historical default). */
   created_by: z.string().optional(),
   /** The human's words, carried into the revision task's context bundle. */
   feedback: z.string().optional(),
@@ -42,11 +37,7 @@ const TaskBody = z.object({
 
 type TaskBody = z.infer<typeof TaskBody>;
 
-/**
- * Run a refusable state transition (cancel, run-now). Both shared seams throw
- * "Task not found" for an unknown id and a state message otherwise, which are a
- * 404 and a 409 — one mapping, so the two branches cannot drift apart.
- */
+// Refusable state transition (cancel, run-now): both shared seams throw "Task not found" (404) or a state message (409) — one mapping so the branches can't drift.
 async function refusable<T extends object>(
   h: ResponseToolkit,
   transition: () => Promise<T>,
@@ -105,11 +96,7 @@ async function updateTaskStatus(
   return { ok: true, task_id: taskId, status };
 }
 
-/**
- * One POST multiplexes create, cancel, retry, run-now, revise and set-priority,
- * so the contract is the union of what those answer — the created task, or the
- * transition's own acknowledgement.
- */
+// One POST multiplexes create/cancel/retry/run-now/revise/set-priority; the contract is the union of what those answer.
 const TaskWriteSchema = z.record(z.unknown());
 
 export function taskPostRoute(getPool: () => Pool | null): ServerRoute {
@@ -144,28 +131,21 @@ export function taskPostRoute(getPool: () => Pool | null): ServerRoute {
           return h.response(await retryTask(parsed.task_id));
         }
 
-        // Cancel action — the shared canceller, so an unknown id or a terminal
-        // state is refused instead of silently no-op'ing, and the transition
-        // lands in pipeline.task_events like every other status change.
+        // Cancel action — shared canceller refuses an unknown id or terminal state instead of silently no-op'ing.
         if (parsed.action === "cancel" && parsed.task_id) {
           const taskId = parsed.task_id;
 
           return refusable(h, () => cancelPipelineTask(pool, taskId));
         }
 
-        // Run-now action — the escalation the task page's button performs.
-        // Refuses a task past `pending` rather than no-op'ing, and records the
-        // transition, which the bare `set-priority` action below does not.
+        // Run-now action — refuses a task past `pending` rather than no-op'ing, and records the transition (unlike plain set-priority below).
         if (parsed.action === "run-now" && parsed.task_id) {
           const taskId = parsed.task_id;
 
           return refusable(h, () => escalatePipelineTask(pool, taskId));
         }
 
-        // Revise action — the task page's feedback loop: queue a follow-up on
-        // the same branch, record the request on the parent, and park the
-        // parent at revision-requested. One seam, so a parent can never be left
-        // pointing at a revision the timeline cannot explain.
+        // Revise action — one seam queues the follow-up, records the request, and parks the parent, so it's never left pointing at an unexplained revision.
         if (parsed.action === "revise" && parsed.task_id) {
           const taskId = parsed.task_id;
           const feedback = parsed.feedback ?? "";
@@ -218,17 +198,14 @@ export function taskPostRoute(getPool: () => Pool | null): ServerRoute {
           created_by,
         } = parsed;
 
-        // `typeof` first so the assertion narrows `description` itself — an
-        // optional-chained CALL is not a reference TS can carry a narrowing on.
+        // `typeof` first so the assertion narrows `description` itself — an optional-chained CALL isn't a reference TS can narrow on.
         enforceTrue(
           typeof description === "string" && description.trim() !== "",
           apiError(400),
           "description is required",
         );
 
-        // Onboarding is guarded (duplicate onboard tasks each file their own
-        // Issue and race their own PR — #968), and the guard lives in the
-        // /api/onboard transaction. Refuse here rather than route around it.
+        // Onboarding's duplicate-guard lives in the /api/onboard transaction (dupes race their own Issue+PR — #968); refuse here rather than route around it.
         enforceTrue(
           task_type !== "onboard",
           apiError(400),
@@ -250,8 +227,7 @@ export function taskPostRoute(getPool: () => Pool | null): ServerRoute {
 
         return h.response(result);
       } catch (err) {
-        // A guard's refusal already carries its status; only an unexpected failure
-        // is this block's to shape.
+        // A guard's refusal already carries its status; only an unexpected failure is this block's to shape.
         rethrowBoom(err);
 
         console.error("[api/task] error:", errorMessage(err));

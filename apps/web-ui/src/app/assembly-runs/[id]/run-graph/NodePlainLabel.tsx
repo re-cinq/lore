@@ -1,6 +1,4 @@
-// A node with nothing to report: just its name, centered — plus "Terminal" when
-// the step is where the walk ends.
-
+// A node with nothing to report: just its name, centered — plus "Terminal" when the step is where the walk ends.
 import styles from "./run-graph.module.css";
 
 export interface NodePlainLabelProps {

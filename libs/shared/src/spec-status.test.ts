@@ -316,8 +316,6 @@ const adrDoc = (statusValue: string) =>
 const specDoc = (statusCell: string) =>
   `# Feature\n\n| Field | Value |\n|---|---|\n| Status | ${statusCell} |\n`;
 
-// docStatusPill backs the /specs and /adrs list pills. Unlike parseDocStatus it
-// preserves the doc's own casing, so it asserts labels as well as buckets.
 describe("docStatusPill", () => {
   it("buckets frontmatter accepted as shipped with label Accepted", () => {
     expect(docStatusPill(adrDoc("accepted"), "adr")).toEqual({

@@ -7,7 +7,6 @@ import {
 import { InMemoryAudit } from "@re-cinq/lore-shared/project/audit/audit-memory.js";
 
 const NOW = new Date("2026-06-03T10:00:00Z");
-// Anything expiring before 09:55 (NOW − 5min grace) is reaped.
 const STALE = new Date("2026-06-03T09:50:00Z");
 const RECENT = new Date("2026-06-03T09:58:00Z");
 

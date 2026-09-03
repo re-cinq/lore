@@ -1,11 +1,4 @@
-/**
- * Pure policy auditor for the Dgraph deployment (memory-dgraph-migration AC9):
- * given parsed K8s/Helm manifest docs, returns a list of security-invariant
- * violations (ACL enabled, scoped lore-memory-app runtime user, guardian
- * credential only in the pre-install bootstrap Job, ESO + Workload Identity,
- * no hardcoded credential in any chart). Empty array = compliant. Pure: the
- * YAML/file reading happens at the edge (an integration test), not here.
- */
+/** Pure policy auditor for the Dgraph deployment (memory-dgraph-migration AC9): given parsed K8s/Helm manifest docs, returns security-invariant violations (empty array = compliant); YAML/file reading happens at the edge, not here. */
 const CRED_NAME = /password|secret|token|cred|acl/i;
 const GUARDIAN = /guardian|groot|superuser/i;
 

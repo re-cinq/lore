@@ -56,7 +56,6 @@ describe("CopyButton", () => {
     render(<CopyButton text="hello" />);
 
     fireEvent.click(screen.getByRole("button"));
-    // Flush the awaited writeText microtask so setCopied(true) + setTimeout register.
     await act(async () => {
       await Promise.resolve();
     });

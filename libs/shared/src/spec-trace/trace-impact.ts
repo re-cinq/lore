@@ -1,12 +1,4 @@
-/**
- * trace-impact — the deterministic, zero-LLM impact query for a PR diff.
- *
- * Given a repo's changed file+line ranges, walks the spec-traceability graph to
- * the coupled spec Statements (via CodeChunk overlap → `~Statement.implemented_by`
- * and Coverage-facet overlap → TestChunk → `~Statement.validated_by`), and flags
- * statements whose only coverage the diff deletes (orphans). Pure git/DQL/interval
- * arithmetic — no LLM, so it is reproducible and safe to run on every PR.
- */
+/** trace-impact — deterministic, zero-LLM PR-diff impact: walks the spec-traceability graph (CodeChunk/Coverage overlap → Statement) and flags orphaned-coverage statements. */
 
 import type { DgraphClientPort } from "./deps.js";
 import { withTxn } from "./dgraph-upsert.js";
@@ -30,24 +22,14 @@ export type {
   ChangeKind,
 } from "./impact-statement.js";
 
-/** One changed file in a diff: `ranges` are the new/modified intervals (for coupling),
- * `deleted` are old-side intervals removed by the diff (for orphan detection). */
+/** One changed file: `ranges` are new-side intervals (coupling), `deleted` are old-side intervals removed (orphan detection). */
 export interface ChangedRange {
   path: string;
   ranges: [number, number][];
   deleted?: [number, number][];
-  /**
-   * Old-side intervals of EVERY hunk, in the diff base's line numbering. This is
-   * the coordinate system the graph's ranges live in; `ranges` is head-side and
-   * exists only to anchor annotations. Absent from protocol-1 clients.
-   */
+  /** Old-side intervals of every hunk, in graph coordinates; absent from protocol-1 clients. */
   baseRanges?: [number, number][];
-  /**
-   * True when this file is byte-identical at the graph's baseline commit and at
-   * the diff base — which makes `baseRanges` exactly graph coordinates. False
-   * means the file genuinely moved since the graph last saw it, and no
-   * arithmetic can honestly line the two up.
-   */
+  /** True only when the file is byte-identical at the graph baseline and the diff base, so `baseRanges` lines up with graph coordinates. */
   aligned?: boolean;
 }
 
@@ -63,10 +45,7 @@ export interface OrphanStatement {
   wasCoveredBy: string;
 }
 
-/**
- * The head content of a changed spec/ADR. Sent by the client because it already
- * has the checkout — no GitHub round-trip, and it works on fork PRs.
- */
+/** The head content of a changed spec/ADR, sent by the client (no GitHub round-trip, works on fork PRs). */
 export interface ChangedDoc {
   path: string;
   content: string;
@@ -75,12 +54,7 @@ export interface ChangedDoc {
 export interface ImpactOptions {
   /** Head content of changed spec/ADR files, for the statement-identity diff. */
   docs?: ChangedDoc[];
-  /**
-   * Wire-format the client speaks. 1 (or absent) means it computed its diff
-   * against the base-branch tip rather than the merge base, so its file list
-   * includes everything merged to the base since the branch point — findings
-   * from it are not trustworthy and are suppressed rather than published.
-   */
+  /** Wire-format the client speaks; protocol 1 (or absent) diffed against the base-branch tip, not the merge base, so its findings are suppressed rather than published. */
   protocol?: number;
 }
 
@@ -98,11 +72,7 @@ export interface ImpactReport {
   graphCommit?: string;
   /** ISO-8601 timestamp of that stamp. */
   graphCommitAt?: string;
-  /**
-   * What the check actually looked at. A bare "no impact" over files the graph
-   * has no data for is what taught people to ignore this check; these numbers
-   * let the comment say so instead of implying a clean bill of health.
-   */
+  /** What the check actually looked at, so the comment can say so instead of implying a clean bill of health. */
   examined?: {
     files: number;
     withGraphData: number;
@@ -134,21 +104,14 @@ const COMMENT_HEADER = "## 🔍 Lore Spec Impact";
 /** Rows shown before the rest is folded away — a wall of them reads as noise. */
 const MAX_ROWS = 10;
 
-/**
- * The honest negative. A bare "No spec impact detected" over files the graph has
- * no data for reads as a clean bill of health and is what taught people to skim
- * past this check; say what was actually examined instead.
- */
+/** Say what was actually examined — a bare "No spec impact detected" over ungraphed files reads as a clean bill of health and taught people to skim past this check. */
 function describeExamined(report: ImpactReport): string {
   const seen = report.examined;
 
   if (!seen) {
     return "No spec impact detected for this PR.";
   }
-  // Docs are examined at statement level, so they are neither "had graph data"
-  // (the line-based lookups usually find nothing in a .md) nor blind. Counting
-  // them as blind told the reader the check could not speak for exactly the
-  // files it read most closely. Clamped: a doc could also carry line data.
+  // Docs are examined at statement level (neither "had graph data" nor blind); clamped since a doc could also carry line data.
   const blind = Math.max(0, seen.files - seen.withGraphData - seen.docs);
   const parts = [
     `Examined **${seen.files} changed file(s)**: ${seen.withGraphData} had graph data (no coupling found), ${blind} had none — no ingested test run covers them, so this check cannot speak for them.`,
@@ -157,10 +120,7 @@ function describeExamined(report: ImpactReport): string {
   const notes = docNotes(seen);
 
   if (seen.docs) {
-    // Only claim nothing moved when nothing did. The counted-not-listed
-    // populations are the common case for a spec PR, and asserting "no
-    // projected statement changed" beside "114 changed statement(s)" is exactly
-    // the kind of contradiction that teaches people to stop reading.
+    // Only claim nothing moved when nothing did — asserting it beside a nonzero changed-statement count is the contradiction that teaches people to stop reading.
     parts.push(
       notes.length
         ? `Also read **${seen.docs} changed spec/ADR** at statement level.`
@@ -173,10 +133,7 @@ function describeExamined(report: ImpactReport): string {
   return parts.join(" ");
 }
 
-/**
- * The doc-side populations that are counted rather than listed. Reported even
- * when nothing else is, so a bounded output never reads as an empty one.
- */
+/** Doc-side populations counted rather than listed, reported even when nothing else is so a bounded output never reads as empty. */
 function docNotes(seen: NonNullable<ImpactReport["examined"]>): string[] {
   const notes: string[] = [];
 
@@ -195,12 +152,7 @@ function docNotes(seen: NonNullable<ImpactReport["examined"]>): string[] {
   return notes;
 }
 
-/**
- * The provenance line. `graph @ unknown` was printed on every comment ever
- * posted, because nothing set the field — an admission of ignorance dressed up
- * as a reading. Say which commit the graph's ranges belong to, or say plainly
- * that the repo has never been stamped.
- */
+/** The provenance line: says which commit the graph's ranges belong to, or plainly that the repo has never been stamped (was silently `graph @ unknown` before). */
 function describeBaseline(report: ImpactReport): string {
   const unaligned = (report.skipped ?? []).filter(
     (s) => s.reason === "unaligned",
@@ -222,18 +174,12 @@ function describeBaseline(report: ImpactReport): string {
 const testCellFor = (s: ImpactStatement) =>
   s.tests[0] ? `${s.tests[0].file}:${s.tests[0].line}` : "—";
 
-/**
- * Collapses findings that would render identically. #1077 showed the same
- * test/file pair four times; a reader cannot tell repetition from emphasis, and
- * the headline count has to agree with what is shown.
- */
+/** Collapses findings that would render identically — #1077 showed the same test/file pair four times. */
 function dedupeRows(statements: ImpactStatement[]): ImpactStatement[] {
   const seen = new Set<string>();
 
   return statements.filter((s) => {
-    // JSON rather than a delimiter: statement prose routinely contains pipes
-    // (markdown tables), and any single-character separator can be forged by the
-    // content it separates. This has no separator to collide with.
+    // JSON, not a delimiter: statement prose routinely contains pipes (markdown tables) that could forge a single-char separator.
     const key = JSON.stringify([
       s.specPath,
       s.statementText,
@@ -261,37 +207,22 @@ function statementLabel(s: ImpactStatement): string {
   return summary.length > 60 ? `${summary.slice(0, 59)}…` : summary;
 }
 
-/**
- * A statement rendered as a block rather than a table row.
- *
- * Tables forced paragraph-length prose, a link list and four columns into one
- * line each, which is why the output was unreadable at any width. A block can
- * carry the one thing that actually matters — whether the validating tests moved
- * too — on its own line, and for a rewritten statement can show the real
- * before/after, which the graph and the head file between them already know.
- */
-/** The rewrite section of a statement block: a windowed diff for a real text
- *  change, a links-only note when only the parentheticals moved, a plain quote
- *  when there is no rewrite but a section label carried the text elsewhere. */
+/** A statement rendered as a block, not a table row — tables forced paragraph-length prose into unreadable columns. */
+/** The rewrite section: a windowed diff for a real text change, a links-only note when only parentheticals moved, else a plain quote. */
 function rewriteLines(
   before: string,
   after: string | null,
   section: string | undefined,
 ): string[] {
   if (after && after !== before) {
-    // Windowed on the divergence: a spec statement is often a paragraph, and
-    // truncating both sides at the same length renders two identical-looking
-    // lines that prove a change happened without showing it.
+    // Windowed on the divergence: truncating both sides at the same length would render two identical-looking lines.
     const win = windowRewrite(before, after);
 
     return ["", "```diff", `- ${win.before}`, `+ ${win.after}`, "```"];
   }
 
   if (after) {
-    // The texts are identical once the inline ([validated by …]) parentheticals
-    // are stripped, so only the coverage annotation moved. Saying so beats
-    // rendering a diff of two identical lines — and it is genuinely different
-    // news: the contract did not change, its bookkeeping did.
+    // Texts are identical once ([validated by …]) parentheticals are stripped — only the coverage annotation moved.
     return [
       "",
       "only its test links changed — the statement text itself is unchanged",
@@ -300,8 +231,7 @@ function rewriteLines(
   }
 
   if (section) {
-    // Without a section the label already carried this text; repeating it as a
-    // quote printed the same sentence twice.
+    // Without a section the label already carried this text; repeating it would print the same sentence twice.
     return ["", `> ${before}`];
   }
 
@@ -377,11 +307,7 @@ function specSections(statements: ImpactStatement[]): string[] {
   return lines;
 }
 
-/**
- * Renders the sticky PR summary comment for an ImpactReport. The Action posts
- * this verbatim (find-by-marker, update-in-place) — all formatting lives here so
- * it is unit-tested, not buried in workflow YAML. Advisory tone, no blocking.
- */
+/** Renders the sticky PR summary comment (find-by-marker, update-in-place); formatting lives here so it is unit-tested, not buried in workflow YAML. */
 export function buildImpactComment(report: ImpactReport): string {
   if (report.status === "unavailable") {
     return `${COMMENT_HEADER}\n\nGraph not available for this repo yet — skipping impact analysis. No action needed.\n\n${IMPACT_COMMENT_MARKER}\n`;
@@ -391,8 +317,7 @@ export function buildImpactComment(report: ImpactReport): string {
     return `${COMMENT_HEADER}\n\nThis repo's \`.github/workflows/lore-trace-impact.yml\` is version 1, which computed its diff against the base-branch tip instead of the merge base — so it reported every commit merged to the base since the branch point as a change of this PR. Findings from it were unreliable and are suppressed. Update the workflow to re-enable this check.\n\n${IMPACT_COMMENT_MARKER}\n`;
   }
 
-  // A statement with no resolvable spec is a broken graph edge, not a finding —
-  // rendering it produced the blank table rows in #1077.
+  // A statement with no resolvable spec is a broken graph edge, not a finding — rendering it produced the blank table rows in #1077.
   const findings = dedupeRows(
     report.statements.filter(
       (s) => s.specTitle || s.specPath || s.statementText,
@@ -405,9 +330,7 @@ export function buildImpactComment(report: ImpactReport): string {
     (s) => s.evidence === "test-link" || s.evidence === "file-link",
   );
 
-  // The empty result carries the same footer as a populated one. Without it a
-  // run that skipped every file for want of a baseline is indistinguishable
-  // from a run that looked properly and found nothing.
+  // Same footer as a populated result — otherwise a run that skipped every file for want of a baseline looks identical to a clean "found nothing" run.
   if (!findings.length && !report.orphaned.length) {
     return [
       COMMENT_HEADER,
@@ -474,13 +397,7 @@ export function buildImpactComment(report: ImpactReport): string {
   return lines.join("\n");
 }
 
-/**
- * Renders an ImpactReport into Checks API annotations: a `warning` on the
- * changed range for each coupled statement, a `notice` on the deleted range for
- * each orphaned statement. The diff (`changed`) supplies the line anchors —
- * coupled statements anchor to their file's first changed range, orphans to the
- * deleted range parsed from `wasCoveredBy`.
- */
+/** Renders Checks API annotations: `warning` on each coupled statement's changed range, `notice` on each orphan's deleted range (parsed from `wasCoveredBy`). */
 export function buildImpactAnnotations(
   report: ImpactReport,
   changed: ChangedRange[],
@@ -564,11 +481,7 @@ async function implementedByImpact(
   for (const chunk of chunks) {
     const start = chunk["CodeChunk.start_line"] ?? 0;
     const end = chunk["CodeChunk.end_line"] ?? 0;
-    // `end_line` has no producer: projectLinkedChunks writes only what the
-    // author's `[label](src/x.ts#L12)` anchor carried. Demanding it made this
-    // route compare [start, 0] and match nothing, ever. A `#L` anchor is a
-    // navigation aid, not a maintained interval — so an unbounded chunk couples
-    // the whole file, which is the claim the link actually makes.
+    // `end_line` has no producer (only `#L12` anchors are written), so an unbounded chunk couples the whole file rather than matching nothing.
     const spanKnown = start > 0 && end >= start;
 
     if (
@@ -588,9 +501,7 @@ async function implementedByImpact(
   return out;
 }
 
-// No @cascade: it would propagate to the nested stmts block and drop statements
-// that lack an optional Section. Instead non-covering Coverage nodes are skipped
-// in code (their filtered `file` block comes back empty → no facet → no overlap).
+// No @cascade: it would drop statements lacking an optional Section; non-covering Coverage nodes are skipped in code instead.
 const COVERAGE_QUERY = `query q($repo: string, $fp: string) {
   covs(func: eq(Coverage.repo, $repo)) {
     file: Coverage.covers @facets(ranges) @filter(eq(File.path, $fp)) { File.path }
@@ -679,8 +590,7 @@ const ORPHAN_QUERY = `query q($repo: string, $fp: string) {
   }
 }`;
 
-/** A statement is orphaned when EVERY range that covers it is killed by the diff's
- * deletions — i.e. lives in `file` and overlaps a deleted interval. */
+/** A statement is orphaned when EVERY range covering it is killed by the diff's deletions. */
 async function orphanImpact(
   dgraph: DgraphClientPort,
   repo: string,
@@ -751,10 +661,7 @@ export async function computeImpact(
     };
   }
 
-  // A protocol-1 client diffed against the base-branch tip, so its file list
-  // carries everything merged to the base since the branch point. Publishing
-  // findings from that input is how this check lost its readers; suppress and
-  // say why instead.
+  // A protocol-1 client diffed against the base-branch tip, so its file list carries everything merged to base since branch point; suppress rather than publish.
   if ((options.protocol ?? 1) < 2) {
     return {
       status: "ok",
@@ -772,10 +679,7 @@ export async function computeImpact(
   let withGraphData = 0;
 
   for (const file of changed) {
-    // The graph's ranges belong to the baseline commit; `baseRanges` is the
-    // diff's old side. They are the same coordinate system only when the file is
-    // byte-identical at both commits, which is what `aligned` records. Without
-    // that, line arithmetic is comparing two different numberings.
+    // `baseRanges` (diff old-side) matches graph coordinates only when the file is byte-identical at both commits — what `aligned` records.
     const aligned = file.aligned === true && Boolean(baseline.commit);
     const lookupRanges = file.baseRanges ?? file.ranges;
     const found = [
@@ -783,8 +687,7 @@ export async function computeImpact(
       ...(await testFileImpact(dgraph, repo, file.path, lookupRanges, {
         fileLevel: !aligned,
       })),
-      // Coverage facets and orphan footprints are line-precise with no
-      // file-level fallback, so an unaligned file cannot use them at all.
+      // Coverage facets and orphan footprints are line-precise with no file-level fallback, so an unaligned file cannot use them.
       ...(aligned
         ? await validatedByImpact(dgraph, repo, file.path, lookupRanges)
         : []),
@@ -809,8 +712,7 @@ export async function computeImpact(
     }
   }
 
-  // Doc-side: a changed spec couples through statement identity, not lines, so
-  // this runs whatever the diff's coordinates look like.
+  // Doc-side: a changed spec couples through statement identity, not lines, so this runs regardless of the diff's coordinates.
   const docs = options.docs ?? [];
   let newStatements = 0;
   let changedWithoutTests = 0;
@@ -822,8 +724,7 @@ export async function computeImpact(
     changedWithoutTests += impact.changedWithoutTests;
     raw.push(...impact.statements);
   }
-  // The signal a reviewer acts on: did this PR touch the tests that hold the
-  // statement up, or only the thing they were holding?
+  // The signal a reviewer acts on: did this PR touch the tests that hold the statement up, or only the thing they were holding?
   const changedPaths = new Set(changed.map((file) => file.path));
   const statements = mergeStatements(raw).map((stmt) => ({
     ...stmt,

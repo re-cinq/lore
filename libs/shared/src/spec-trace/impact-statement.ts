@@ -1,24 +1,10 @@
-/**
- * impact-statement — the shape every impact lookup returns, and the rules for
- * merging the same statement reached by more than one route.
- *
- * Each lookup couples a PR diff to spec Statements through a different edge, and
- * the routes differ in how much they prove. `evidence` records which one found
- * it so a reader can weigh a coverage-backed finding against a hand-typed link,
- * instead of meeting them as one undifferentiated list.
- */
+/** The shape every impact lookup returns, plus rules for merging the same statement reached by more than one route; `evidence` records which route found it. */
 
 /** How a statement was reached, strongest first — see {@link EVIDENCE_RANK}. */
 export type Evidence =
   "statement-edit" | "coverage" | "test-link" | "file-link";
 
-/**
- * Merge precedence. `statement-edit` outranks everything because the diff
- * changed the statement's own text — that is observed, not inferred. `coverage`
- * next: a test run actually executed those lines. `test-link` is an author's
- * link confirmed to point at a real test span; `file-link` is the same claim
- * with no line span left to check.
- */
+/** Merge precedence, strongest first: statement-edit (observed diff) > coverage (executed lines) > test-link (confirmed span) > file-link (unchecked). */
 const EVIDENCE_RANK: Record<Evidence, number> = {
   "statement-edit": 3,
   coverage: 2,
@@ -26,12 +12,7 @@ const EVIDENCE_RANK: Record<Evidence, number> = {
   "file-link": 0,
 };
 
-/**
- * What the diff did to a statement's own text. Only set by the doc-side lookup.
- * "changed" covers edited AND deleted deliberately: without stable identity
- * across an edit the two are indistinguishable, and naming it "modified" would
- * claim a precision the diff cannot support.
- */
+/** What the diff did to a statement's own text (doc-side lookup only); "changed" deliberately covers both edited and deleted, since the diff can't tell them apart. */
 export type ChangeKind = "added" | "changed";
 
 /** A spec statement coupled to the diff, with the tests that cover it (selectors). */
@@ -45,17 +26,9 @@ export interface ImpactStatement {
   changedFile: string;
   evidence: Evidence;
   changeKind?: ChangeKind;
-  /**
-   * For a rewritten statement, the text that replaced it — the "after" side of
-   * the diff. Absent when the statement was deleted outright, or when nothing in
-   * the head file was close enough to be its replacement.
-   */
+  /** For a rewritten statement, the "after" text that replaced it; absent when deleted outright or nothing close enough was found. */
   rewrittenAs?: string;
-  /**
-   * Whether this PR also touches at least one of the tests that validate the
-   * statement. The single most useful bit in a finding: a statement whose code
-   * or text moved while its tests did not is the drift worth looking at.
-   */
+  /** Whether this PR also touches a test validating the statement — the drift signal: statement moved, its tests didn't. */
   testsTouched?: boolean;
 }
 
@@ -67,8 +40,7 @@ interface GraphSpecRef {
 export interface GraphStatement {
   "Statement.xid"?: string;
   "Statement.text"?: string;
-  // Statement.spec / Statement.section are single-cardinality `uid` edges, so
-  // Dgraph returns them as objects, not arrays.
+  // Statement.spec / Statement.section are single-cardinality `uid` edges, so Dgraph returns objects, not arrays.
   spec?: GraphSpecRef;
   section?: { "Section.heading"?: string };
 }
@@ -102,11 +74,7 @@ export function toImpactStatement(
   };
 }
 
-/**
- * Unions statements from every coupling path by xid, merging their test
- * selectors and keeping the strongest evidence. A statement found by two routes
- * is one finding, reported at the confidence of its best route.
- */
+/** Unions statements from every coupling path by xid, merging test selectors and keeping the strongest evidence — one finding per statement. */
 export function mergeStatements(
   raw: Array<ImpactStatement & { xid: string }>,
 ): ImpactStatement[] {

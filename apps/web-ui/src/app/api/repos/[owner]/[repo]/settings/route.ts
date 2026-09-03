@@ -32,9 +32,7 @@ export async function POST(
     const fullName = `${owner}/${repo}`;
     const body = await request.json();
 
-    // lore-api owns the write, including the privileged-field refusal and the
-    // team_changed event. A 403 here means the caller tried to reach a
-    // dark-factory field that needs the CODEOWNER approval PR.
+    // lore-api owns the write incl. the privileged-field refusal; a 403 means the caller hit a dark-factory field needing the CODEOWNER approval PR.
     const written = await putRepoSettings(fullName, {
       ...(body.team !== undefined ? { team: body.team || null } : {}),
       ...(body.settings !== undefined ? { settings: body.settings } : {}),

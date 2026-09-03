@@ -33,8 +33,7 @@ export interface SeedAssemblyLineNode {
   iteration: number;
   agentCrName: string | null;
   input: StationRunInput | null;
-  /** Optional so pre-flip test seeds stay valid; readers default to the
-   *  push-era meaning (`running`, no claim, no tags). */
+  /** Optional (pre-flip test seeds); readers default to push-era meaning (running, no claim, no tags). */
   status?: "queued" | "claimed" | "running";
   clusterAgentId?: string | null;
   requiredTags?: string[];
@@ -59,12 +58,7 @@ function toOpenSummary(row: AssemblyRunRecord): OpenRunSummary {
   };
 }
 
-/** A fork inherits branch, taskId and subject from its source and its args unless
- *  the caller overrides them; a plain start is passed through untouched.
- *
- *  The subject rides along because a fork re-runs the SAME work: it must hold the
- *  guard its source held, and a query for that subject must find it. Forking is
- *  only legal from a terminal run, so the key is always free by then. */
+/** Fork inherits branch/taskId/subject (+args unless overridden) from source — the subject rides along because a fork re-runs the same work and must hold its source's guard (legal only from a terminal run). */
 function inheritFromSource(
   input: AssemblyRunStartInput,
   source: AssemblyRunRecord | null,
@@ -82,11 +76,7 @@ function inheritFromSource(
   };
 }
 
-/**
- * In-memory {@link AssemblyRunsPort}: the behavioral spec of the Pg adapter,
- * computed over seeded rows. `clock` is injectable so ordering-dependent reads
- * are deterministic in tests.
- */
+/** In-memory AssemblyRunsPort — the behavioral spec of the Pg adapter; clock is injectable for deterministic ordering in tests. */
 export class InMemoryAssemblyRuns implements AssemblyRunsPort {
   rows: AssemblyRunRecord[] = [];
   nodes: SeedAssemblyLineNode[] = [];
@@ -96,11 +86,7 @@ export class InMemoryAssemblyRuns implements AssemblyRunsPort {
   constructor(public clock: () => Date = () => new Date()) {}
 
   async start(input: AssemblyRunStartInput): Promise<string> {
-    // Start-or-JOIN. A subject already in flight yields its run rather than a
-    // second one, so a caller that raced (or a user who clicked twice) ends up
-    // holding the id of the work already happening. The Pg adapter reaches the
-    // same answer from a unique-violation; here the check IS the enforcement,
-    // which is sound because the double is single-threaded.
+    // Start-or-JOIN: a subject already in flight yields its run rather than a second one; the check IS the enforcement here since the double is single-threaded (Pg reaches the same answer via unique-violation).
     const open = input.subjectKey
       ? await this.findOpenBySubject(input.repo, input.subjectKey)
       : null;
@@ -111,9 +97,7 @@ export class InMemoryAssemblyRuns implements AssemblyRunsPort {
 
     const resumeFrom = input.resumeFrom;
     const source = resumeFrom ? await this.getById(resumeFrom.lineId) : null;
-    // Validate the fork BEFORE minting anything, so a rejected resume leaves no
-    // half-created line behind (the Pg adapter gets the same property from its
-    // read-then-one-CTE shape).
+    // Validate the fork before minting anything, so a rejected resume leaves no half-created line (mirrors the Pg one-CTE shape).
     const inherited = resumeFrom
       ? resolveResumePrefix(
           input,
@@ -125,12 +109,9 @@ export class InMemoryAssemblyRuns implements AssemblyRunsPort {
     const row = this.newRow(id, inheritFromSource(input, source));
 
     row.inheritedNodeCount = inherited.length;
-    // A fork carries its source's hash; a plain start carries none until the
-    // Floor stamps it — `input.blueprintHash` is a resume INPUT, and the Pg
-    // plain-start CTE likewise never writes it.
+    // Fork carries source's hash; plain start carries none until the Floor stamps it (Pg plain-start CTE likewise never writes it).
     row.blueprintHash = source?.blueprintHash ?? null;
-    // A fork replays its source's rows, so it MUST walk the same graph — the
-    // hash guard already proved the current blueprint still matches it.
+    // Fork replays source's rows, so it must walk the same graph (hash guard already proved the blueprint still matches).
     row.graph = source?.graph ?? null;
     this.rows.push(row);
 
@@ -138,18 +119,12 @@ export class InMemoryAssemblyRuns implements AssemblyRunsPort {
       this.nodes.push({
         ...node,
         id: String(this.nodes.length + 1),
-        // A copied row is a row of THIS run, so it gets its own identity — two
-        // runs sharing a station_run_id would merge their telemetry.
+        // Copied row is of THIS run, so it gets its own identity — sharing a station_run_id would merge telemetry.
         stationRunId: randomUUID(),
         assemblyRunId: id,
-        // Copied rows never carry the source's CR name: the run-viz and cost
-        // correlation joins resolve agent_cr_name -> newest node row, and an
-        // echoed name would steal the source's late-arriving rows.
+        // Copied rows never carry the source's CR name — run-viz/cost joins resolve by newest node row, so an echoed name would steal late-arriving source rows.
         agentCrName: null,
-        // Nor its VERDICT. `getNextTransition` replays the copied prefix and fails
-        // the run on a permanent failure it meets on a revisit edge, so an
-        // inherited `anthropic-credit` visit would kill the fork on its first
-        // advance — the operation someone performs after topping the account up.
+        // Nor its verdict — getNextTransition replays the copied prefix and would fail the fork on an inherited permanent-failure visit on first advance.
         failureClass: null,
         failureDetail: null,
       });
@@ -191,9 +166,7 @@ export class InMemoryAssemblyRuns implements AssemblyRunsPort {
   ): Promise<void> {
     const row = this.mustFind(id);
 
-    // Write-once, guarded on the HASH for both fields (mirrors the Pg WHERE):
-    // the pair describes one blueprint, so stamping them independently could
-    // leave a row whose graph and hash came from different loads.
+    // Write-once, guarded on hash for both fields (mirrors Pg WHERE) — stamping independently could mismatch graph vs hash.
     if (row.blueprintHash !== null) {
       return;
     }
@@ -273,8 +246,7 @@ export class InMemoryAssemblyRuns implements AssemblyRunsPort {
         n.iteration === input.iteration,
     );
 
-    // A converged duplicate returns the EXISTING station run id: the id names the
-    // visit, and minting a fresh one per call would give the same pod two names.
+    // Converged duplicate returns the existing station run id — minting a fresh one would give the same pod two names.
     if (existing) {
       return {
         nodeRowId: existing.id,
@@ -296,9 +268,7 @@ export class InMemoryAssemblyRuns implements AssemblyRunsPort {
   ): Promise<void> {
     const node = this.nodes.find((n) => n.id === nodeRowId);
 
-    // `queued` as well as open, matching the adapter's WHERE: a claimed row was
-    // already handed its spec, and re-arming it would leave the row describing
-    // something other than the pod that is actually being built.
+    // "queued" as well as open (mirrors Pg WHERE) — a claimed row already has its spec; re-arming it would describe a different pod than the one being built.
     if (node && node.outcome === null && node.status === "queued") {
       this.dispatchSpecs.set(nodeRowId, dispatchSpec);
     }
@@ -343,9 +313,7 @@ export class InMemoryAssemblyRuns implements AssemblyRunsPort {
     node.status = "queued";
     node.clusterAgentId = null;
     node.claimedAt = null;
-    // The queue clock restarts with the visit — see the Pg adapter's note: the
-    // reaper bounds a `queued` visit by `startedAt`, so keeping the original
-    // enqueue would fail a just-requeued visit as never-claimed.
+    // Queue clock restarts with the visit (mirrors Pg) — the reaper bounds a queued visit by startedAt, so keeping the original enqueue would fail it as never-claimed.
     node.startedAt = this.clock();
 
     return true;
@@ -382,10 +350,7 @@ export class InMemoryAssemblyRuns implements AssemblyRunsPort {
   }
 
   async listStationRuns(assemblyRunId: string): Promise<StationRunRecord[]> {
-    // Numeric-string ids (this double mints "1","2",…; Pg's BIGINT identity is
-    // likewise numeric) — compare with numeric collation so the double stays
-    // honest as the behavioral spec (a plain Number() diff would NaN on any
-    // non-numeric id and silently no-op the sort).
+    // Numeric-string ids (mints "1","2",… like Pg's BIGINT) — compare with numeric collation; plain Number() would NaN on a non-numeric id and no-op the sort.
     return this.nodes
       .filter((n) => n.assemblyRunId === assemblyRunId)
       .sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true }))
@@ -431,10 +396,7 @@ export class InMemoryAssemblyRuns implements AssemblyRunsPort {
                   node.outcome === null,
               )),
         )
-        // Newest first, id as the tiebreak. The tiebreak buys STABILITY, not
-        // insertion order — run ids are random uuids, so two runs created in the
-        // same millisecond come back in a fixed but arbitrary order here and in
-        // Postgres alike. Callers that need chronology must not create ties.
+        // Newest first, id tiebreak for stability (not chronology) — same-millisecond runs come back in a fixed but arbitrary order, as in Postgres.
         .sort(
           (a, b) =>
             b.createdAt.getTime() - a.createdAt.getTime() ||
@@ -445,9 +407,7 @@ export class InMemoryAssemblyRuns implements AssemblyRunsPort {
   }
 
   async listSummaries(query: AssemblyRunQuery): Promise<AssemblyRunSummary[]> {
-    // Same selection, graph dropped — the double must answer the narrower shape
-    // the way Postgres does, or a route tested against it would carry a clone the
-    // deployed read never ships.
+    // Same selection, graph dropped — the double must answer the narrower shape like Postgres, or tests would see a clone the deployed read never ships.
     return (await this.list(query)).map(
       ({ graph: _graph, ...summary }) => summary,
     );

@@ -1,9 +1,4 @@
-/**
- * The backlog label taxonomy (implementation-loop FR1). Applying a priority
- * label IS the opt-in — there is no second dispatch label. `lore:blocked` is
- * the loop's parking brake: the driver applies it when a ticket ends blocked,
- * and a human removing it re-queues the issue.
- */
+/** The backlog label taxonomy (implementation-loop FR1) — applying a priority label IS the opt-in, no second dispatch label. */
 
 export const PRIORITY_LABELS = [
   "priority:high",

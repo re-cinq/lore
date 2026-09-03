@@ -5,27 +5,18 @@ import { GITHUB_EVENT_NAMES } from "@re-cinq/lore-shared/project/events/github-m
 import { AGENT_EVENT_NAMES } from "@re-cinq/lore-shared/project/events/k8s-map.js";
 import { cronTickEventNames } from "../listeners/cron-emitters.js";
 
-/**
- * Floor's own producers (the layer-1 listeners + cron emitters). mcp-server also
- * emits `internal.ingest.spec_coverage_validate`, which the registry covers but no
- * Floor listener produces — so this list is what Floor can put on the bus, and the
- * invariant is: every name here resolves to a handler, or the loop dead-letters it.
- */
 function producibleEventNames(): string[] {
   return [
     ...GITHUB_EVENT_NAMES,
     ...AGENT_EVENT_NAMES,
-    "internal.ingest.spec_trace", // ci-ingest-map + ci-tests-map
-    // Read from the constant, not spelled out: this list drifted from the writer
-    // the moment the writer flipped, which is exactly the failure it exists to
-    // catch and cannot catch if it hardcodes the answer.
+    "internal.ingest.spec_trace",
     RUN_START_EVENT,
     ...cronTickEventNames(),
   ];
 }
 
 describe("buildRegistry", () => {
-  it("registers a handler for every event name a Floor producer can emit", () => {
+  it("registers a handler for every event name a Floor producer can emit, reading RUN_START_EVENT from the constant so a writer flip can't drift undetected", () => {
     const registry = buildRegistry();
     const missing = producibleEventNames().filter(
       (name) => !registry.has(name),
@@ -40,10 +31,7 @@ describe("buildRegistry", () => {
     }
   });
 
-  it("no longer answers to the pre-flip run-event spellings (shim deleted)", () => {
-    // The legacy entries lived exactly one retention window past the writer
-    // flip (#1255, deployed 2026-08-17): the events table is pruned after
-    // handling, so no unhandled row still carries the old names (#1272).
+  it("no longer answers to the pre-flip run-event spellings (shim deleted one retention window past the #1255 writer flip, #1272)", () => {
     const registry = buildRegistry();
 
     expect(registry.get("assembly_line.start")).toBeUndefined();
@@ -52,10 +40,7 @@ describe("buildRegistry", () => {
     expect(registry.get("assembly_run.resume")).toBeTypeOf("function");
   });
 
-  it("routes the post-ingest validate event through the detect tick (one substrate, FR5)", () => {
-    // The same production handler serves the weekly cron and the post-ingest
-    // trigger: params.repo narrows it to the one repo, and the validate core
-    // runs in the detect station pod either way — never inline in the Floor.
+  it("routes the post-ingest validate event through the detect tick (one substrate, FR5) — same handler serves the weekly cron and the trigger, running in the detect station pod either way", () => {
     expect(buildRegistry().get("internal.ingest.spec_coverage_validate")).toBe(
       buildRegistry().get("cron.spec_coverage_validate.tick"),
     );

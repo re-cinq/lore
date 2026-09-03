@@ -23,10 +23,7 @@ import {
   type FeatureTaskRow,
 } from "./task-store-port.js";
 
-/**
- * Seed row for {@link InMemoryTaskStore}. A loose superset of the
- * `pipeline.tasks` columns the store reads — tests set only what they exercise.
- */
+/** Seed row for InMemoryTaskStore — a loose superset of the pipeline.tasks columns the store reads; tests set only what they exercise. */
 export interface SeedStoreTask {
   id: string;
   description?: string;
@@ -56,11 +53,7 @@ export interface StoredTaskEvent {
 /** Per-repo `lore.repos.settings` seed for the create trust gate. */
 export type SeedRepoSettings = Record<string, { trust?: { level?: string } }>;
 
-/**
- * Translate a SQL LIKE pattern to a RegExp — including the quirk that the Pg
- * adapter does NOT escape `%`/`_` in the caller's prefix, so those act as
- * wildcards there too.
- */
+/** Translates a SQL LIKE pattern to a RegExp, including the quirk that the Pg adapter doesn't escape %/_ in the caller's prefix — they act as wildcards there too. */
 function likeToRegExp(pattern: string): RegExp {
   const source = pattern
     .replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
@@ -70,14 +63,7 @@ function likeToRegExp(pattern: string): RegExp {
   return new RegExp(`^${source}$`);
 }
 
-/**
- * In-memory {@link TaskStorePort}: the behavioral spec of the Pg adapter — the
- * four inline queries plus the delegated pipeline-tasks.ts CRUD (create/retry/
- * status/event mechanics), computed over seeded rows. JSONB values are stored
- * in their parsed form (node-pg returns jsonb parsed, so through the Pg adapter
- * callers only ever see the parsed value). `now` is injectable so created_at
- * ordering is deterministic in tests.
- */
+/** In-memory TaskStorePort — behavioral spec of the Pg adapter (four inline queries + delegated pipeline-tasks.ts CRUD) over seeded rows; JSONB stored parsed (matching node-pg). now is injectable for deterministic ordering. */
 export class InMemoryTaskStore implements TaskStorePort {
   readonly events: StoredTaskEvent[] = [];
   private readonly repoSettings: SeedRepoSettings;
@@ -118,8 +104,7 @@ export class InMemoryTaskStore implements TaskStorePort {
       "Description too long (max 10000 chars)",
     );
 
-    // The gate only fires for a seeded repo row — mirrors the Pg read of
-    // lore.repos, where an absent row (or a read error) skips the check.
+    // Gate only fires for a seeded repo row — mirrors the Pg read of lore.repos, where an absent row (or read error) skips the check.
     if (repo && this.repoSettings[repo]) {
       enforceTrustAllowsTaskType(
         this.repoSettings[repo].trust?.level,
@@ -195,8 +180,7 @@ export class InMemoryTaskStore implements TaskStorePort {
     const matching = this.tasks
       .filter((t) => !status || t.status === status)
       .sort((a, b) => (b.created_at ?? "").localeCompare(a.created_at ?? ""));
-    // listTasks selects the 10-column TaskListRow subset, not SELECT * —
-    // fields outside it (context_bundle, priority, …) are absent in Pg too.
+    // listTasks selects the 10-column TaskListRow subset, not SELECT * — fields outside it (context_bundle, priority, …) are absent in Pg too.
     const rows = matching.slice(0, limit).map((t) => ({
       id: t.id,
       description: t.description ?? "",

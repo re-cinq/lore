@@ -13,20 +13,7 @@ import type { ServerRoute } from "@hapi/hapi";
 import { bearerScope } from "../../../server/plugins/bearer-scope.js";
 import { DB_UNAVAILABLE } from "../common-schemas.js";
 
-/**
- * `GET /api/analytics-overview` — the analytics screen's six reads. Same
- * shape-per-screen rule as the spend window: they render together and have one
- * caller. (The old month-to-date `GET /api/spend` lived here too until the
- * spend page went interval-only — its aggregates moved into
- * `/api/analytics/spend-window`.)
- *
- * Five are SQL aggregates and are stated here, beside the queries that shape
- * them. The sixth is not: `job_runs` selects a `pipeline.job_runs` ROW, so it
- * derives from that table's model — the one place in this response where a
- * column rename should reach the contract.
- *
- * `task_summary` is null only when the tasks table is empty.
- */
+// The analytics screen's six reads, one caller (old month-to-date /api/spend moved into /api/analytics/spend-window); job_runs alone derives from the pipeline.job_runs model, not an inline aggregate.
 const AnalyticsOverviewSchema = z.object({
   task_summary: z
     .object({
@@ -122,8 +109,7 @@ export function analyticsOverviewRoute(
         GROUP BY 1
         ORDER BY 1 DESC`,
       );
-      // Latency lives in the memory audit metadata, not in llm_calls: these are
-      // TOOL call timings, which only the audit trail records.
+      // Latency lives in memory audit metadata, not llm_calls: these are TOOL call timings, which only the audit trail records.
       const { rows: latencyStats } = await pool.query(
         `SELECT
           operation as tool,

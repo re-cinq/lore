@@ -1,12 +1,3 @@
-// The kubernetes.agent.* handler settles a run from what the event REPORTED,
-// never by reading the cluster back.
-//
-// It used to re-GET the CR through the central cluster-agent, which made the
-// handler silently cluster-bound: a run executed anywhere else answered
-// `found:false` and its task sat `running` until a sweep took it. The event
-// already carries the full status (mapAgentToEvent puts it there for this
-// reason), so there is nothing left to fetch.
-
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { agentFailed, agentSucceeded } from "./kubernetes.js";
 import { processAgentTerminal } from "./watcher/agent-watcher.js";
@@ -27,7 +18,7 @@ beforeEach(() => {
 });
 
 describe("kubernetes.agent handler", () => {
-  it("settles the run from the event's own report, with no cluster read", async () => {
+  it("settles the run from the event's own reported status, never a re-GET of the CR (a run executed off-cluster would otherwise answer found:false and sit running)", async () => {
     await agentSucceeded(succeeded);
 
     expect(processAgentTerminal).toHaveBeenCalledWith({

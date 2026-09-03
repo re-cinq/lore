@@ -1,15 +1,7 @@
-// The catalog read-modify-write pair that the deps object composes.
-//
-// It lived inline in the composition root, which is excluded from coverage
-// as an IO shell — and carried a defect nobody could see: the catalog apply
-// wrote its pair in the order its own sibling's comment argued against.
-// Decision logic in an IO shell is decision logic nobody tests, so it is out
-// here now.
 import { describe, it, expect } from "vitest";
 import type { AgentDefinition, Station } from "@re-cinq/agent-contracts";
 import { applyCatalogPair, type CatalogWriter } from "./paired-writes.js";
 
-/** A catalog recording the order it was written in. */
 function catalogWriter() {
   const order: string[] = [];
   const writer: CatalogWriter = {

@@ -1,28 +1,12 @@
-/**
- * impact-render — presentation helpers for the sticky impact comment.
- *
- * Kept apart from the graph walk because they are pure string work with their
- * own failure modes: a statement is stored verbatim, so it arrives carrying the
- * author's inline `([validated by …](path#Lnn))` links, arbitrary newlines, and
- * any pipe character that happens to be in the prose — all of which have to be
- * neutralised before it can sit in a markdown table cell.
- */
+/** impact-render: pure string helpers normalizing verbatim statement text (inline links, newlines, pipes) for the sticky-impact markdown table. */
 
 /** Longest statement text a table cell shows before it is cut. */
 const MAX_STATEMENT_CHARS = 120;
 
-/**
- * A trailing parenthetical containing a markdown link — the v3 inline coverage
- * annotation. Matched with one level of nesting allowed, because a link target
- * may itself contain parentheses.
- */
+/** Trailing markdown-link parenthetical (v3 inline coverage annotation); one level of paren nesting allowed for link targets. */
 const TRAILING_LINK_GROUP = /\s*\((?:[^()]|\([^()]*\))*\)\s*$/;
 
-/**
- * One statement, safe and readable in a markdown table cell: coverage links
- * dropped (they belong in the Covering-test column, not glued to the prose),
- * whitespace collapsed, pipes escaped, length bounded.
- */
+/** Statement text made safe for a markdown table cell: coverage links stripped, whitespace collapsed, pipes escaped, length bounded. */
 export function summarizeStatement(text: string): string {
   let stripped = text;
 
@@ -36,9 +20,7 @@ export function summarizeStatement(text: string): string {
     stripped = stripped.slice(0, match.index).trimEnd();
   }
   const flat = stripped
-    // Leading blockquote / list markers: the renderer supplies its own quoting,
-    // and a statement that already starts with ">" produced "> >". The marker
-    // must be followed by whitespace, or "**bold" loses a star to the strip.
+    // Strip leading blockquote/list markers only when followed by whitespace (renderer adds its own quoting; otherwise "**bold" loses a star).
     .replace(/^[>\s]*(?:[-*+]\s+|\d+\.\s+)?/, "")
     .replace(/\s+/g, " ")
     .trim()
@@ -49,14 +31,7 @@ export function summarizeStatement(text: string): string {
     : flat;
 }
 
-/**
- * Slices a rewritten pair down to the neighbourhood of what actually changed.
- *
- * Truncating both sides at a fixed length hides the edit whenever it falls past
- * the cut — a spec statement is often a paragraph, and the first 120 characters
- * of before and after are usually identical. Anchoring on the first divergence
- * is what makes the diff show the change rather than merely prove one happened.
- */
+/** Slices a before/after pair to the neighbourhood of the first divergence, not a fixed prefix — a long shared prefix would otherwise hide the actual edit. */
 export function windowRewrite(
   before: string,
   after: string,

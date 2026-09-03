@@ -1,10 +1,4 @@
-/**
- * Layer-1 cron listener. The in-process scheduler no longer runs jobs — each tick
- * just INSERTs a `cron.<name>.tick` event (idempotent per minute slot) and the
- * loop dispatches the real handler. Carve-out (ADR-019, amended): heavy batch
- * jobs stay as Kubernetes CronJobs; the detection family ticks live here and
- * fan out per-repo assembly-line runs.
- */
+/** Layer-1 cron listener: each tick just INSERTs an idempotent `cron.<name>.tick` event for the loop to dispatch, not run jobs directly — heavy batch jobs stay as Kubernetes CronJobs (ADR-019 carve-out). */
 
 import { registerJob } from "../main-loop/scheduling/scheduler.js";
 import { insertEvent } from "../main-loop/store.js";

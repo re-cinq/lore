@@ -32,10 +32,7 @@ describe("parsePodLogAppended", () => {
     ]);
   });
 
-  it("returns nothing for an event missing the identity a chunk is keyed by", () => {
-    // Skip-not-fail, the posture every ingest path here takes: a handler that
-    // throws sends the delivery round the retry ladder to a dead letter, and a
-    // malformed event will be just as malformed on the fifth attempt.
+  it("returns nothing (skip-not-fail) for an event missing the identity a chunk is keyed by, rather than throwing it to a dead letter", () => {
     expect({
       noPod: parsePodLogAppended({ ...params, podName: undefined }),
       noJob: parsePodLogAppended({ ...params, jobName: "" }),

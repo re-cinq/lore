@@ -3,17 +3,6 @@ import { randomUUID } from "node:crypto";
 import * as dgraph from "dgraph-js-http";
 import { DgraphMemoryStore } from "./dgraph-memory-store.js";
 
-/**
- * DgraphMemoryStore (memory-dgraph-migration) — the sibling of
- * PostgresMemoryStore, tested against the REAL local Dgraph container (no
- * mocks). Container-gated: skips when Dgraph isn't reachable so `npm test`
- * passes without a container. Bring one up with `npm run services:up`.
- *
- * Kernel facet only: writeMemory of a brand-new key, then readMemory of that
- * key, returns the stored value at version 1. No version-increment, delete,
- * ttl, or list here.
- */
-
 const DGRAPH_HTTP = process.env.DGRAPH_HTTP ?? "http://localhost:8081";
 
 async function dgraphReachable(): Promise<boolean> {
@@ -51,7 +40,7 @@ describe.skipIf(!reachable)("DgraphMemoryStore (live Dgraph)", () => {
         });
       }
     } catch {
-      // best-effort cleanup must never mask the assertion
+      return;
     } finally {
       await txn.discard().catch(() => {});
     }
@@ -76,7 +65,7 @@ describe.skipIf(!reachable)("DgraphMemoryStore (live Dgraph)", () => {
         });
       }
     } catch {
-      // best-effort cleanup must never mask the assertion
+      return;
     } finally {
       await txn.discard().catch(() => {});
     }
@@ -144,7 +133,7 @@ describe.skipIf(!reachable)("DgraphMemoryStore (live Dgraph)", () => {
         });
       }
     } catch {
-      // best-effort cleanup must never mask the assertion
+      return;
     } finally {
       await txn.discard().catch(() => {});
     }
@@ -416,7 +405,7 @@ describe.skipIf(!reachable)("DgraphMemoryStore (live Dgraph)", () => {
         });
       }
     } catch {
-      // best-effort cleanup must never mask the assertion
+      return;
     } finally {
       await txn.discard().catch(() => {});
     }
@@ -503,7 +492,7 @@ describe.skipIf(!reachable)("DgraphMemoryStore (live Dgraph)", () => {
         });
       }
     } catch {
-      // best-effort cleanup must never mask the assertion
+      return;
     } finally {
       await txn.discard().catch(() => {});
     }
@@ -659,7 +648,7 @@ describe.skipIf(!reachable)("DgraphMemoryStore (live Dgraph)", () => {
 
     try {
       await store.upsertEdge({ source: a, target: b, relationType: "uses" });
-      await store.upsertEdge({ source: a, target: c, relationType: "uses" }); // invalidates a--uses-->b
+      await store.upsertEdge({ source: a, target: c, relationType: "uses" });
 
       const targets = (await store.queryGraph(a, 1)).map(
         (hop) => hop.related_entity,

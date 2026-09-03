@@ -1,22 +1,4 @@
-/**
- * Pure judge helpers shared by the spec-test linker and the
- * spec-coverage prepare/persist endpoints.
- *
- * The linker (agent-side, batches LLM judgments) and the BYO-compute
- * prepare/persist endpoints (mcp-server-side, surfaces the same shape
- * to a developer's Claude session) both need:
- *   - candidate pre-filtering (assertion overlap / directory affinity /
- *     embedding proximity, capped, truncation-flagged)
- *   - best-match-per-test dedup (argmax over score, threshold τ)
- *   - stale-row identification for re-run pruning
- *   - content hashing for the freshness gate
- *
- * Lives in shared so both sides import the same source of truth — the
- * `(ordinal, text)` segmentation contract from spec-segment.ts MUST
- * stay deterministic across server-side prep and client-side judging,
- * and so must the candidate selection contract.
- */
-
+// Pure judge helpers shared by the spec-test linker and the spec-coverage prepare/persist endpoints, so both sides use the same candidate-selection and segmentation contract.
 import { createHash } from "node:crypto";
 import { isTestFile, normalizeTestName } from "./test-paths.js";
 
@@ -95,8 +77,7 @@ const KIND_RANK: Record<MatchKind, number> = {
 
 // ── Pure helpers ─────────────────────────────────────────────────────
 
-/** `specs/local-task-runner/spec.md` → `local-task-runner`. Falls back to the
- * spec file's parent directory. */
+/** `specs/local-task-runner/spec.md` → `local-task-runner`; falls back to the spec's parent directory. */
 export function specFeatureSlug(specPath: string): string | null {
   const parts = specPath.split("/").filter(Boolean);
   const specsIdx = parts.indexOf("specs");
@@ -119,8 +100,7 @@ function significantTokens(value: string): string[] {
     .filter((token) => token.length >= 4);
 }
 
-/** A test shares a feature directory with the spec when it overlaps at least
- * half of the spec slug's significant tokens. */
+/** A test shares a feature directory with the spec when it overlaps at least half the spec slug's significant tokens. */
 export function hasDirectoryAffinity(
   specPath: string,
   testPath: string,
@@ -186,8 +166,7 @@ export function matchedAssertion(
   return null;
 }
 
-/** Builds the normalized `describe › it` name from a chunk's AST metadata, or
- * null when the chunk names no test symbol. */
+/** Normalized `describe › it` name from a chunk's AST metadata, or null when it names no test symbol. */
 export function deriveTestName(
   metadata: Record<string, unknown> | null,
 ): string | null {
@@ -254,13 +233,7 @@ function matchKindFor(
   return null;
 }
 
-/**
- * Pre-filters test chunks into judge candidates by three signals — assertion
- * overlap (strongest), directory affinity, embedding proximity. De-duplicates
- * by (test_file, test_name) keeping the strongest signal, then caps at
- * `maxCandidates` keeping the highest-ranked. Returns a `truncated` flag so the
- * caller can log dropped candidates (never silently under-report coverage).
- */
+// Pre-filters test chunks by three signals (assertion/directory/embedding), dedupes by (test_file, test_name) keeping the strongest, caps at maxCandidates, and flags `truncated` so the caller can log drops instead of silently under-reporting coverage.
 export function selectCandidates(
   spec: SpecInput,
   assertions: Assertion[],
@@ -329,12 +302,7 @@ export function staleStatementOrdinals(
   return existingOrdinals.filter((o) => !keep.has(o));
 }
 
-/**
- * Best-match-per-test reducer. For each (test_file, test_name), keep the row
- * with the highest `match_score`; drop everything below `threshold`. A
- * statement may be the best match for several tests; a test is only ever the
- * best match for one statement.
- */
+// Best-match-per-test reducer: keeps the highest `match_score` per (test_file, test_name), drops rows below `threshold` — a statement may win several tests, but a test only ever keeps one.
 export function argmaxByTest(
   judgments: Judgment[],
   threshold = JUDGE_SCORE_THRESHOLD,

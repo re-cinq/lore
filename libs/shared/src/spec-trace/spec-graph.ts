@@ -1,11 +1,4 @@
-/**
- * spec-traceability-graph — force-graph + spec-ring projections for the UI,
- * read from Dgraph (source of truth) through the Project facade. Pure flatten
- * functions (graph result → {nodes,links} / two-ring structure) are unit-tested;
- * the fetch* wrappers run the DQL over the injected DgraphClientPort. Relocated
- * from web-ui/src/lib/spec-graph.ts so web-ui stops querying Dgraph directly.
- */
-
+// spec-traceability-graph — force-graph + spec-ring projections read from Dgraph via the Project facade; relocated from web-ui/src/lib/spec-graph.ts.
 import type { DgraphClientPort } from "./deps.js";
 import { withTxn } from "./dgraph-upsert.js";
 
@@ -28,15 +21,13 @@ export interface SpecGraphNode {
   line?: number;
   endLine?: number;
   detail?: string;
-  /** Persistent feature lifecycle status, when a Feature node is backed by a
-   *  lore.features row (ADR-027). Drives node coloring in the D3 graph. */
+  /** Feature lifecycle status when backed by a lore.features row (ADR-027); drives D3 node coloring. */
   status?: string;
   /** lore.features row id, when this Feature node is backed by one. */
   featureId?: string;
 }
 
-/** Minimal persistent-feature shape the graph merge needs (mirrors the
- *  features port row; kept local so spec-graph stays dependency-free). */
+/** Mirrors the features port row; kept local so spec-graph stays dependency-free. */
 export interface PersistentFeatureNode {
   id: string;
   title: string;
@@ -44,13 +35,7 @@ export interface PersistentFeatureNode {
   status: string;
 }
 
-/**
- * Make the persistent Feature node the source of truth in the spec graph
- * (ADR-027). For each `lore.features` row: if a computed Feature node shares its
- * `path`, enrich that node with the row's status/id/title (persistent wins);
- * otherwise inject a standalone Feature node so a draft with no spec yet is still
- * visible. Pure — returns a new SpecGraph.
- */
+// Persistent Feature rows win (ADR-027): enrich a matching computed node, or inject a standalone node for a draft with no spec yet. Pure.
 export function mergePersistentFeatures(
   graph: SpecGraph,
   features: PersistentFeatureNode[],
@@ -110,8 +95,7 @@ export interface SpecGraph {
   links: SpecGraphLink[];
 }
 
-// The validated_by / implemented_by / decided_by selections are identical whether the
-// owner is a Statement or an AcceptanceCriterion, so the link-array shapes are shared.
+// Shared shape: validated_by/implemented_by/decided_by selections are identical for a Statement or an AcceptanceCriterion.
 interface OwnerLinks {
   vb?: Array<{
     uid: string;
@@ -119,8 +103,7 @@ interface OwnerLinks {
     "TestChunk.test_name"?: string;
     "TestChunk.start_line"?: number;
     "TestChunk.end_line"?: number;
-    // TestChunk.coverage is single-cardinality (object); Coverage.covers is a set of
-    // File targets, each carrying the covered intervals as a `ranges` edge facet.
+    // TestChunk.coverage is single-cardinality; Coverage.covers is a set of File targets with intervals on the `ranges` facet.
     cov?: {
       covers?: Array<{
         uid: string;
@@ -171,11 +154,7 @@ export function adrLabel(path: string): string {
   return m ? `${m[1]} (${m[2]})` : base;
 }
 
-/**
- * Emits the validated_by / implemented_by / decided_by edges (plus the covers fan-out)
- * for one owner — a Statement or an AcceptanceCriterion. The owner node + its in_spec
- * link are emitted by the caller; this only walks the shared target arrays.
- */
+// Emits validated_by/implemented_by/decided_by edges (plus covers fan-out) for one owner; caller emits the owner node + its in_spec link.
 function emitOwnerLinks(
   ownerUid: string,
   owner: OwnerLinks,
@@ -222,8 +201,7 @@ function emitOwnerLinks(
   }
 }
 
-// The File this test exercises, reached via its Coverage (HAS_COVERAGE → COVERS).
-// One File node per path (deduped); the covered intervals are the `ranges` facet.
+// The File this test exercises, reached via Coverage (HAS_COVERAGE → COVERS); one node per path (deduped).
 function emitCoveredFileNodes(
   testChunk: NonNullable<OwnerLinks["vb"]>[number],
   nodes: Map<string, SpecGraphNode>,
@@ -259,8 +237,7 @@ export function flattenSpecGraph(data: GraphResult): SpecGraph {
       path: specPath,
     });
 
-    // The feature folder that owns this spec — one node per folder (deduped by uid),
-    // every md file of the folder hung under it via `in_feature`.
+    // One node per feature folder (deduped by uid); every md file hangs under it via `in_feature`.
     if (spec.feature) {
       const fp = spec.feature["Feature.path"] ?? spec.feature.uid;
 

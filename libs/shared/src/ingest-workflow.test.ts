@@ -97,12 +97,6 @@ describe("LORE_INGEST_WORKFLOW_CONTENT", () => {
   });
 });
 
-// The hardened run blocks are executed for real: extract the actual bytes
-// from the template, stub curl on PATH, and run under `bash -e` (GitHub's
-// default step shell is `bash -e {0}` — no pipefail). Ported from
-// re-cinq/bowman-ui's tests/lore-ingest-workflow.test.ts, the suite that
-// caught the template's `|| echo ::warning` masking a permanent 401 as
-// transient for the repo's entire history.
 const extractRunBlock = (stepName: string): string => {
   const lines = LORE_INGEST_WORKFLOW_CONTENT.split("\n");
   const stepIndex = lines.findIndex(

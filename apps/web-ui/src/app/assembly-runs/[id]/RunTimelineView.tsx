@@ -1,9 +1,4 @@
-// Pure run timeline: lifecycle ticks in, a positioned tick strip out. No fetch,
-// no EventSource, no timers, no Date.now — the Panel owns the moving `now` bound
-// and passes it down (lore/no-io-in-view). Each tick sits at its wall-clock
-// fraction of [start, now], so a node whose last tick lags far behind the now
-// edge reads as stalled without a per-tool event stream.
-
+// Pure run timeline (lore/no-io-in-view) — Panel owns the moving `now` bound; each tick sits at its wall-clock fraction of [start, now].
 import CollapsibleCard from "@/components/CollapsibleCard";
 import type { TimelineEntry } from "@/lib/run-event-reducer";
 import { eventTone, timeToFraction, timelineBounds } from "@/lib/run-timeline";

@@ -16,13 +16,7 @@ import { bearerScope } from "../../../server/plugins/bearer-scope.js";
 import { zodResponse } from "../../../server/plugins/zod-response.js";
 import { checkApproval } from "../two-key.js";
 
-/**
- * Per-repo agent definitions API. GET resolves/lists (the RUNNER fetches the
- * resolved def here); POST/PUT/DELETE mutate the repo's project rows through
- * project.agentDefs — no SQL in the route. The `image` field is two-key gated
- * like dark_factory.execution.image (ADR-025). Scope: read for GET, admin for
- * writes (enforced per-route via bearerScope).
- */
+// Per-repo agent definitions API; `image` is two-key gated like dark_factory.execution.image (ADR-025).
 
 const BASE = "/api/repos/{owner}/{repo}/agent-definitions";
 const repoOf = (params: Record<string, string>) =>
@@ -91,8 +85,7 @@ export function agentsGetRoute(getPool: () => Pool | null): ServerRoute {
 
         return h.response({ agents: await project.agentDefs.list() });
       } catch (err) {
-        // A guard's refusal already carries its status; only an unexpected failure
-        // is this block's to shape.
+        // A guard's refusal already carries its status; only an unexpected failure is this block's to shape.
         rethrowBoom(err);
 
         console.error("[agents] route failed:", err);
@@ -151,9 +144,7 @@ export function agentsPostRoute(getPool: () => Pool | null): ServerRoute {
         const { pod_resources, ...fields } = create;
 
         if (pod_resources) {
-          // config is whole-object across the resolution layers, so the new
-          // row must carry the config it inherits (org → yaml) around the
-          // block or it would orphan the skills/command the layer below sets.
+          // config is whole-object across resolution layers — must carry the inherited (org → yaml) config or orphan its skills/command.
           const inherited = await project.agentDefs.resolve(fields.name);
 
           fields.config = configWithPodResources(
@@ -226,9 +217,7 @@ export function agentsPutRoute(getPool: () => Pool | null): ServerRoute {
           : { tier: "admin" };
 
         const { pod_resources, ...fields } = patch;
-        // The merge itself happens inside the upsert (atomic under the row
-        // lock); the resolved config is only the fallback for a row that has
-        // none of its own, so a fresh fork keeps the org/yaml keys it inherits.
+        // Merge happens inside the upsert (atomic under the row lock); resolved config is only the fallback so a fresh fork keeps inherited org/yaml keys.
         const podResources =
           pod_resources === undefined
             ? undefined

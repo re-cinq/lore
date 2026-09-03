@@ -1,23 +1,4 @@
-/**
- * spec-traceability-graph — the test-run ↔ statement binder (ADR-023).
- *
- * Pure inverter from a repo's spec markdown + its parsed {@link TestDescriptor}s
- * to the same descriptors with a `spec` anchor (`specPath#ordinal`) stamped on
- * each one whose test FILE + line span the project links from a statement. It
- * reuses {@link linksForStatements} to read every statement's inline
- * `([validated by](test.ts#Lline))` links, indexes them by `(path, line)`, and
- * binds a descriptor when its `[startLine, endLine]` span contains a link's line.
- *
- * The producer (`list-tests.mjs`) applies this after segmentation so anchored
- * descriptors reach `/test-report`, where `ingestTestReport`'s existing anchor
- * path turns them into `Statement.validated_by` + `violated` edges — making the
- * inline links a live pass/fail signal on every run. Zero LLM, zero graph I/O.
- *
- * A descriptor whose span resolves to a single statement is stamped with that
- * one anchor (a string); a span resolving to several distinct statements is
- * stamped with all of them (a `string[]`), so one test validating several
- * statements links them all (`parseSpecAnchors` reads either shape downstream).
- */
+/** spec-traceability-graph test-run ↔ statement binder (ADR-023): pure inverter stamping each {@link TestDescriptor} whose span contains an inline `([validated by](test.ts#Lline))` link with a `spec` anchor, so `list-tests.mjs` output feeds live pass/fail into `Statement.validated_by`/`violated`. Zero LLM, zero graph I/O. */
 
 import {
   linksForStatements,

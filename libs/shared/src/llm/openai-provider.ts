@@ -1,13 +1,5 @@
 import { enforceTrue } from "../lib/enforce.js";
-/**
- * OpenAI (and OpenAI-compatible, e.g. Codex) chat-completions provider. Moved
- * from the facts.ts vendor switch and generalized: the request's systemPrompt +
- * prompt drive the messages instead of a hardcoded extraction prompt. The fetch
- * boundary is injectable for tests.
- *
- * Tool/structured output uses JSON-mode with a parse fallback — Anthropic remains
- * the forced-tool path for tool-heavy callers.
- */
+/** OpenAI (and compatible, e.g. Codex) chat-completions provider, generalized from the old facts.ts vendor switch; tool/structured output uses JSON-mode with a parse fallback (Anthropic remains the forced-tool path). */
 
 import type {
   LlmCompleteRequest,

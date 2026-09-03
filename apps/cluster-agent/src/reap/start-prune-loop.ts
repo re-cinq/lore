@@ -1,12 +1,4 @@
-/**
- * The prune loop's composition root: the live cluster adapter, the schedule,
- * and a latch the drain closes.
- *
- * Separate from `startClaimLoop` on purpose — this loop needs no registration
- * and no identity. It is cluster-local housekeeping, so coupling it to the
- * registrant would make a cluster that cannot register also stop tidying up,
- * which is exactly when its backlog grows fastest.
- */
+// The prune loop's composition root — separate from `startClaimLoop` on purpose, since coupling housekeeping to the registrant would stop tidying exactly when a cluster cannot register and its backlog grows fastest.
 
 import { stopLatch } from "../claim/claim-loop.js";
 import { KubePruner } from "../kernel/kube-pruner.js";
@@ -34,9 +26,7 @@ export function startPruneLoop(env: NodeJS.ProcessEnv): PruneLoopHandle {
     intervalMs: pruneIntervalMs(env),
     running: latch.running,
   }).catch((err) => {
-    // Unreachable by design (pruneOnce never throws), but a defect here must
-    // surface as a log rather than an unhandled rejection killing a process
-    // whose real job is claiming work.
+    // Unreachable by design (pruneOnce never throws), but a defect here must surface as a log, not an unhandled rejection.
     console.error("[cluster-agent] prune loop crashed:", err);
   });
 

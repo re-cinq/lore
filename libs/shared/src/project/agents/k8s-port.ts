@@ -1,11 +1,4 @@
-/**
- * Kubernetes port for the agents `cluster` mode — creates a LoreTask CR. The
- * runtime injects a client wrapping @kubernetes/client-node; shared never
- * imports it. The spec is the union of the three CR bodies in agent
- * (worker.ts / spec-task-executor.ts / loretask-watcher.ts) so one impl
- * replaces all three: base task-id/task-type labels are always set; extraLabels
- * merge in (dark-factory, spec-slug); prNumber + darkFactory are optional.
- */
+// Kubernetes port for the agents `cluster` mode (creates a LoreTask CR); runtime injects a @kubernetes/client-node client, shared never imports it. Spec unions the three CR bodies in agent (worker/spec-task-executor/loretask-watcher) so one impl replaces all three.
 
 export interface LoreTaskSpec {
   taskId: string;
@@ -22,32 +15,21 @@ export interface LoreTaskSpec {
   darkFactory?: { workflowName: string; baseBranch: string };
   /** BYO execution container (ADR-025); omitted → CR/controller default. */
   image?: string;
-  /** Explicit Station to run on (station nodes: `def-<type>` or the node's
-   *  station_ref); omitted → the task type's catalog Station. */
+  /** Explicit Station to run on (station nodes: def-<type> or the node's station_ref); omitted → the task type's catalog Station. */
   stationRef?: string;
-  /** Extra per-run parameters merged into the CR spec (e.g. `station_input`). */
+  /** Extra per-run parameters merged into the CR spec (e.g. station_input). */
   parameters?: Record<string, string>;
-  /** Seed values for the assembly run's `args`, from the task's context bundle.
-   *  Spread BENEATH the run's own keys, so a seeded bag can never displace the
-   *  description every agent prompt renders. Used to hand a resumed branch the PR
-   *  it already has (implementation-loop FR11). */
+  /** Seed values for the run's args, spread beneath the run's own keys so a seeded bag never displaces the rendered description (implementation-loop FR11). */
   lineArgs?: Record<string, unknown>;
-  /** false skips per-task token/clone provisioning: API-reading station nodes
-   *  (detect/gate/retrospective/triage) need no repo, and their line branch is
-   *  a synthetic lease key no `git checkout` could resolve. Default true. */
+  /** False skips per-task token/clone provisioning — API-reading station nodes need no repo and their line branch resolves no checkout. Default true. */
   clone?: boolean;
-  /** The feature a planning/finalize run belongs to, threaded into the line's args
-   *  so a definition can key a conversation thread on `args.feature_id`. */
+  /** The feature a planning/finalize run belongs to, threaded into the line's args so a definition can key a conversation thread on args.feature_id. */
   featureId?: string;
-  /** The round's feedback-only turn, used INSTEAD of `description` when this run
-   *  resumes a conversation — the agent already holds the draft being refined. */
+  /** The round's feedback-only turn, used instead of description when this run resumes a conversation the agent already holds the draft for. */
   roundFeedback?: string;
-  /** The task whose run this one continues (rewind). Its assembly line reserved
-   *  the conversation to resume; absent means "continue the newest". */
+  /** The task whose run this one continues (rewind); absent means "continue the newest". */
   resumeFromTask?: string;
-  /** A previous run this one continues, and the id it saves its own state as
-   *  (ai-agent-subsystem#188). Resolved at dispatch from the node's `continues`
-   *  declaration; absent when the node declares none or this is a retry. */
+  /** A previous run this one continues (ai-agent-subsystem#188), resolved at dispatch from the node's `continues` declaration; absent when none or a retry. */
   conversation?: {
     source: string;
     id: string;

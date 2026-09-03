@@ -67,11 +67,6 @@ describe("TelemetrySink", () => {
   });
 
   it("posts with no authorization header before this cluster has registered, so the 401 drives a re-registration", async () => {
-    // A satellite has no token until registration completes. Sending
-    // unauthenticated is deliberate and self-healing: the Floor refuses it, the
-    // proxy's ladder reads that refusal as a rotation, re-registers, and the
-    // retry carries the freshly minted credential. Refusing to send here would
-    // drop the batch with nothing left to trigger the recovery.
     const { fetchFn, calls } = fakeFetch(401);
 
     await expect(

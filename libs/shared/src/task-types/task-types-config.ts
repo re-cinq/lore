@@ -1,23 +1,4 @@
-/**
- * The one declaration of `scripts/task-types.yaml`.
- *
- * Four readers used to describe this file, each partially and none the same:
- * the Floor's runtime dispatch config, server-core's pipeline config, the
- * `AgentDefsYaml` fallback, and the agent catalog generator. They disagreed on
- * whether `target_repo` could be null, on whether `model` existed at all, and on
- * which fields were required — so the file itself, not a consumer's assumption,
- * settles the split here.
- *
- * Required is what the committed file actually carries on EVERY entry. The four
- * fields below are 16/16 on task types and `command`/`timeout_minutes` are 8/8 on
- * stations; everything else genuinely varies.
- *
- * Parsing is TOLERANT by design. This file also ships as a ConfigMap, and a
- * cluster running a stale copy has been the cause of a silent outage before
- * (#866). A schema that threw would turn that into a crash loop; one that reports
- * `drift` lets the caller log the mismatch and keep serving the entries it can
- * read.
- */
+/** The one declaration of `scripts/task-types.yaml`, replacing 4 disagreeing readers. Parsing is TOLERANT by design (also ships as a ConfigMap that can lag the code, #866) — it reports `drift` instead of throwing. */
 
 import { parse } from "yaml";
 import { z } from "zod";
@@ -27,36 +8,23 @@ export const TaskTypeConfigSchema = z.object({
   timeout_minutes: z.number(),
   review_required: z.boolean(),
   model: z.string(),
-  /** Explicitly `null` on the 11 entries that declare it — the task targets the
-   *  repo it was raised against. Nullable, never merely optional: an explicit
-   *  null and an absent key mean the same thing here, and typing it `?: string`
-   *  (as server-core did) makes the file's own spelling unrepresentable. */
+  /** Explicitly `null` on entries that declare it — the task targets its raised-against repo. Nullable, never merely optional (a bare `?: string` can't represent the file's own spelling). */
   target_repo: z.string().nullable().optional(),
   /** "claude-code" (default, LLM), "graph-ingest" or "station" (deterministic). */
   execution_mode: z.string().optional(),
-  /** Default true: the agent starts in the cloned repo. False omits workingDir for
-   *  read-only recipes that must not build in a checkout they only read (#1160). */
+  /** Default true (agent starts in the cloned repo); false omits workingDir for read-only recipes (#1160). */
   repo_workdir: z.boolean().optional(),
   /** Extra tool denies appended after the base pipeline-tool deny (#1160). */
   disallowed_tools: z.array(z.string()).optional(),
-  /** A file this run is expected to produce, raised as a named `kind:"file"`
-   *  event once the agent exits (ai-agent-subsystem#188). */
+  /** A file this run is expected to produce, raised as a `kind:"file"` event once the agent exits (ai-agent-subsystem#188). */
   watch: z.object({ event: z.string(), path: z.string() }).optional(),
-  /** Extra agent skills this recipe needs, fetched by the init from the
-   *  gateway's /skills registry. APPENDED to `lore-context`, never replacing it:
-   *  every recipe keeps its Lore context skill, and a recipe naming a skill the
-   *  registry does not serve gets nothing for it rather than losing the rest. */
+  /** Extra agent skills fetched from the gateway's /skills registry, APPENDED to `lore-context` (never replacing it). */
   skills: z.array(z.string()).optional(),
 });
 
 export type TaskTypeConfig = z.infer<typeof TaskTypeConfigSchema>;
 
-/** What a READER may actually be handed, as opposed to what a complete entry
- *  declares. The parse keeps entries it could not fully validate, and the
- *  container reads this file from a ConfigMap that can lag the code — so the
- *  type says "any of these may be missing" and the caller enforces the ones it
- *  genuinely needs. Every consumer already defaulted these; this makes that
- *  visible instead of relying on a type that promised more than it delivered. */
+/** What a READER may actually be handed vs. what a complete entry declares — the parse keeps entries it couldn't fully validate, so any field may be missing. */
 export type TaskTypeRecipe = Partial<TaskTypeConfig>;
 
 /** A builtin station recipe (a non-LLM node run by the exec vendor). */
@@ -66,17 +34,9 @@ export const StationConfigSchema = z.object({
   timeout_minutes: z.number(),
   /** Plain env for the station pod (e.g. def-ingest's LORE_DGRAPH_HTTP). */
   env: z.record(z.string()).optional(),
-  /** Pod-template labels a NetworkPolicy selects. MUST ride the template, not the
-   *  Station name — the per-task triple renames the Station to `pt-<id>`. */
+  /** Pod-template labels a NetworkPolicy selects — must ride the template, since the per-task triple renames the Station to `pt-<id>`. */
   pod_labels: z.record(z.string()).optional(),
-  /**
-   * This station calls a model, so its pod needs the LLM credential.
-   *
-   * Off by default: most stations are deterministic and a credential they never
-   * use is surface for nothing. But a station that DOES call one and is not
-   * given it fails in the worst way — comment-triage swallowed the failure into
-   * `ignore` and reported success, silently dropping every human PR comment.
-   */
+  /** This station calls a model and needs the LLM credential; off by default since a missing credential once made comment-triage silently swallow every PR comment. */
   needs_model: z.boolean().optional(),
 });
 
@@ -88,9 +48,7 @@ export type StationRecipe = Partial<StationConfig>;
 export interface TaskTypesFile {
   taskTypes: Record<string, TaskTypeRecipe>;
   stations: Record<string, StationRecipe>;
-  /** One `<section>.<name>: <field> — <why>` line per entry that did not match.
-   *  Empty on the committed file; non-empty means the reader is older or newer
-   *  than the YAML it was handed. */
+  /** One `<section>.<name>: <field> — <why>` line per entry that did not match; non-empty means the reader is older/newer than the YAML it was handed. */
   drift: string[];
 }
 
@@ -106,9 +64,7 @@ function pushEntryDrift(
   issues: Array<{ path: PropertyKey[]; message: string }>,
 ): void {
   for (const issue of issues) {
-    // `issue.path` is empty when the ENTRY itself is wrong (`general:` with
-    // no body parses as null), and "task_types.general:  — Expected object"
-    // names no field at all. The entry is the field in that case.
+    // `issue.path` is empty when the ENTRY itself is wrong (e.g. `general:` with no body parses as null).
     const field = issue.path.length > 0 ? issue.path.join(".") : "<entry>";
 
     drift.push(`${entryLabel}: ${field} — ${issue.message}`);
@@ -131,15 +87,7 @@ function readSection<T>(
     if (!result.success) {
       pushEntryDrift(drift, `${section}.${name}`, result.error.issues);
     }
-    // The entry is kept either way: a reader that drops what it cannot fully
-    // validate is the stale-ConfigMap outage, not the fix for it.
-    //
-    // "What it can read" stops at an object, though. A `general:` with no body
-    // is null, and keeping it verbatim hands a consumer `null` typed as a
-    // recipe — `buildNodePrompt` guards `!== undefined`, which null passes, and
-    // then throws a raw TypeError instead of the diagnostic this parse just
-    // wrote. An unreadable entry becomes an EMPTY one, so every consumer's
-    // existing per-field default carries it.
+    // Kept either way (dropping it is the stale-ConfigMap outage); an unreadable entry becomes EMPTY, not null, so consumer defaults still apply.
     out[name] = (result.success ? result.data : readable(value)) as T;
   }
 
@@ -171,15 +119,7 @@ export function parseTaskTypesFile(text: string): TaskTypesFile {
   };
 }
 
-/**
- * Report a mismatch between the file a process read and the schema its code
- * carries.
- *
- * Every reader calls this. The YAML also ships as a ConfigMap that can lag any
- * of the three images independently, so a reader that takes `taskTypes` and
- * drops `drift` carries the #866 risk with no warning — which is the whole
- * failure this parse exists to make visible.
- */
+/** Reports a mismatch between the file a process read and the schema its code carries — every reader must call this or silently reintroduce the #866 ConfigMap-lag risk. */
 export function warnOnDrift(tag: string, path: string, drift: string[]): void {
   if (drift.length > 0) {
     console.warn(

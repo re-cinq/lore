@@ -1,8 +1,3 @@
-// Readers-first compat for the assembly_run.* params key (#1270): every handler
-// accepts `params.assemblyRunId` BEFORE any writer emits it, so the writer flip
-// can ship once this accept half is deployed; rows queued by the old image keep
-// working through the `assemblyLineId` fallback. A separate file on purpose —
-// appending to the anchored handler suites would shift their spec #Lnn anchors.
 import { describe, it, expect } from "vitest";
 import { InMemoryAssemblyRuns } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-memory.js";
 import {
@@ -31,7 +26,7 @@ edges:
     on: always
 `);
 
-describe("assembly_run.* params accept assemblyRunId with assemblyLineId fallback", () => {
+describe("assembly_run.* params accept assemblyRunId with assemblyLineId fallback, readers-first before the writer flip ships (#1270)", () => {
   it("start handler resolves the run from params.assemblyRunId, new key winning", async () => {
     const port = new InMemoryAssemblyRuns();
     const id = await port.start({

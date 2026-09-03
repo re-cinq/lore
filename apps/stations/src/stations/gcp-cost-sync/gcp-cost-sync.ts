@@ -9,14 +9,11 @@ import {
 const BIGQUERY_BASE = "https://bigquery.googleapis.com/bigquery/v2";
 const METADATA_TOKEN_URL =
   "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token";
-// Same trailing window as the Anthropic sync, for the same reason: Google
-// restates late-arriving usage days after the fact, and a re-pulled window
-// self-heals through the upsert.
+// Same trailing window as the Anthropic sync, for the same reason: Google restates late-arriving usage days after the fact, and a re-pulled window self-heals through the upsert.
 const SYNC_WINDOW_DAYS = 31;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-/** Today's UTC midnight minus 30 days — 31 whole candidate days, aligned to
- *  what `bucket_date` means downstream. */
+// Today's UTC midnight minus 30 days — 31 whole candidate days, aligned to what `bucket_date` means downstream.
 export function billingWindowStart(now: Date): string {
   const today = Date.UTC(
     now.getUTCFullYear(),
@@ -27,11 +24,7 @@ export function billingWindowStart(now: Date): string {
   return new Date(today - (SYNC_WINDOW_DAYS - 1) * DAY_MS).toISOString();
 }
 
-/**
- * Workload Identity's token, straight from the GKE metadata server — the pod
- * carries no key file, and the metadata server is what the bound GCP service
- * account answers through. Nothing to configure and nothing to rotate.
- */
+// Workload Identity's token, straight from the GKE metadata server — the pod carries no key file, and the metadata server is what the bound GCP service account answers through; nothing to configure or rotate.
 async function fetchAccessToken(): Promise<string> {
   const res = await fetch(METADATA_TOKEN_URL, {
     signal: AbortSignal.timeout(10_000),
@@ -79,14 +72,7 @@ async function bigQueryCall<T>(
   return (await res.json()) as T;
 }
 
-/**
- * The daily pull: find the export table in the configured dataset, roll it up
- * per day/service over the trailing window, upsert.
- *
- * Skips (never fails) on every state only a person can change: the env not
- * configured, or the console-side export not yet producing a table. `/spend`
- * degrades to the estimate either way.
- */
+// The daily pull: finds the export table, rolls it up per day/service over the trailing window, upserts. Skips (never fails) on states only a person can change (env not configured, or console-side export not yet producing a table) — /spend degrades to the estimate either way.
 export async function gcpCostSyncJob(
   costs: GcpCostPort,
   env: NodeJS.ProcessEnv = process.env,

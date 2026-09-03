@@ -1,6 +1,4 @@
-// Floor-side assembly-line node specs (ADR-031 D4). Each node dispatches its OWN
-// Agent CR — this module is the pure spec-building core the event-driven walk
-// (advance.ts) uses: names, identity labels, and the agent/station dispatch specs.
+// Floor-side assembly-line node specs (ADR-031 D4): pure spec-building core the event-driven walk (advance.ts) uses.
 
 import type { RunGraphNode } from "@re-cinq/lore-shared/project/assembly-runs/run-graph.js";
 import type { LoreTaskSpec } from "@re-cinq/lore-shared";
@@ -18,9 +16,7 @@ import {
 
 export interface FloorAssemblyRunTask {
   taskId: string;
-  /** The backing pipeline.tasks row id — null for task-less lines (code-review).
-   *  Feeds the lease + audit + `Lore-Task:` trailer; a synthetic id there violates
-   *  task_leases_task_fk. Token keying + CR labels use `taskId` instead. */
+  /** Backing pipeline.tasks row id, null for task-less lines (code-review) — a synthetic id would violate task_leases_task_fk. */
   pipelineTaskId: string | null;
   /** Per-attempt id (pipeline.assembly_runs) — CR names key on this, not the task. */
   assemblyLineId: string;
@@ -28,18 +24,11 @@ export interface FloorAssemblyRunTask {
   description: string;
   targetRepo: string;
   branch: string;
-  /** The line's args — string/number entries are threaded into a station's params
-   *  (e.g. the comment-triage station reads comment_body / in_reply_to_id / pr_number). */
+  /** String/number entries thread into a station's params (e.g. comment-triage's comment_body/in_reply_to_id/pr_number). */
   args?: Record<string, unknown>;
 }
 
-/** Distinct Agent CR name per (attempt, node, ITERATION): two runs of one task never
- *  collide on a CR, and a REVISITED node (iteration>1) runs a fresh pod rather than
- *  409-reusing the prior iteration's terminal CR. Iteration 1 keeps the bare
- *  `<id12>-<nodeId>` form; revisits append `-<iteration>`. The 12-hex (48-bit)
- *  prefix is also the telemetry correlation key (#907): two DIFFERENT lines only
- *  collide on a CR name when their uuids share all 12 leading hex chars.
- *  The CR spec still carries the taskId — the watcher/reaper probe by task-id label. */
+/** Distinct Agent CR name per (attempt, node, iteration) so revisits get a fresh pod, not a 409-reuse; the 12-hex prefix also doubles as the telemetry correlation key (#907). */
 export function nodeAgentName(
   assemblyLineId: string,
   nodeId: string,
@@ -50,9 +39,7 @@ export function nodeAgentName(
   return iteration > 1 ? `${base}-${iteration}` : base;
 }
 
-/** The CR labels are a contract with the event-router, which reads them back off
- *  a terminal CR — so they live in shared, not here where only the writer is.
- *  Re-exported because this module's callers have always imported them from it. */
+/** These labels are a contract with the event-router (which reads them off a terminal CR), so they live in shared; re-exported for this module's existing callers. */
 export {
   ASSEMBLY_RUN_ID_LABEL,
   LEGACY_ASSEMBLY_LINE_ID_LABEL,
@@ -71,36 +58,26 @@ function nodeLabels(
     [ASSEMBLY_RUN_ID_LABEL]: task.assemblyLineId,
     [NODE_ID_LABEL]: node.id,
     [NODE_ITERATION_LABEL]: String(iteration),
-    // Part of the spec builders so every dispatch path carries it — the reaper's
-    // relaunch built the same spec without it, and the label's first consumer
-    // would have silently lost every relaunched pod.
+    // In the spec builder so every dispatch path carries it — the reaper's relaunch once built this spec without it.
     ...(stationRunId ? { [STATION_RUN_ID_LABEL]: stationRunId } : {}),
   };
 }
 
-/** The git ref a node's pod checks out: `args.ref` when the line's branch is
- *  only a lease key (ingest lines lease `ingest/<kind>/<ref>`), else the branch. */
+/** The git ref a node's pod checks out: `args.ref` when the branch is only a lease key (ingest lines), else the branch. */
 function cloneRef(task: FloorAssemblyRunTask): string {
   const ref = task.args?.ref;
 
   return typeof ref === "string" && ref.length > 0 ? ref : task.branch;
 }
 
-/**
- * The knob/args map a station node's pod receives as `station_input.params`.
- *
- * Extracted so the visit's recorded input can name the SAME map the pod was
- * handed — a second copy of this rule would let the two drift, and the record
- * would then describe a dispatch that never happened.
- */
+/** The knob/args map a station node's pod receives as `station_input.params`, extracted so the recorded input names the SAME map the pod was handed. */
 export function stationNodeParams(
   node: RunGraphNode,
   task: FloorAssemblyRunTask,
 ): Record<string, string> {
   const params: Record<string, string> = {};
 
-  // Line args (string/number) ride into params so a station reads its input without
-  // a DB round-trip — e.g. the comment-triage station's comment_body/in_reply_to_id.
+  // Line args (string/number) ride into params so a station reads its input without a DB round-trip.
   for (const [key, value] of Object.entries(task.args ?? {})) {
     if (typeof value === "string" || typeof value === "number") {
       params[key] = String(value);
@@ -118,23 +95,12 @@ export function stationNodeParams(
   return params;
 }
 
-/** Write-time caps for the recorded input. Generous enough to hold a real round
- *  brief and a real prompt whole; bounded so one visit cannot dominate the table.
- *  A capped value carries `truncateForStorage`'s marker, which is the same marker
- *  the transcript's truncated badge already keys on. */
+/** Write-time caps for the recorded input, generous enough to hold a real prompt whole but bounded so one visit can't dominate the table. */
 const INPUT_DESCRIPTION_MAX_BYTES = 4_096;
 const INPUT_PROMPT_MAX_BYTES = 16_384;
 const INPUT_PARAM_MAX_BYTES = 1_024;
 
-/**
- * What this visit is being dispatched WITH, bounded for storage.
- *
- * Recorded because the Agent CR — the only place the prompt and description ever
- * existed — is pruned after the run, so "what was this node given" became
- * unanswerable exactly when someone needed to ask. `context` is deliberately
- * absent: it is assembled later, in the launch backend, and is an order of
- * magnitude larger than everything here put together.
- */
+/** What this visit was dispatched with, bounded for storage — recorded because the Agent CR is pruned after the run. `context` is deliberately absent (assembled later, far larger). */
 export function stationRunInputFor(
   node: RunGraphNode,
   task: FloorAssemblyRunTask,
@@ -162,12 +128,7 @@ export function stationRunInputFor(
   };
 }
 
-/**
- * The same write-time caps, for a visit that has no graph node to describe it:
- * a single-CR task (runbook / onboard / review) is one agent visit whose whole
- * definition is its dispatch spec. Shared with {@link stationRunInputFor} so the
- * two kinds of visit are bounded by one pair of numbers rather than two.
- */
+/** The same write-time caps for a visit with no graph node (single-CR tasks like runbook/onboard/review), shared with {@link stationRunInputFor}. */
 export function boundedStationRunInput(input: {
   description: string;
   prompt: string | null;
@@ -190,8 +151,7 @@ export function boundedStationRunInput(input: {
   };
 }
 
-/** Pure: the Agent dispatch spec for one agent-node. Prompt is resolved per node; model
- *  from the node (else inherited); repo/branch/description from the task. */
+/** Pure: the Agent dispatch spec for one agent-node — prompt resolved per node, model from the node else inherited. */
 export function nodeAgentSpec(
   node: RunGraphNode,
   task: FloorAssemblyRunTask,
@@ -207,12 +167,7 @@ export function nodeAgentSpec(
     targetRepo: task.targetRepo,
     branch: cloneRef(task),
     ...(node.model ? { model: node.model } : {}),
-    // An agent node's recipe/Station can differ from the line's taskType-derived
-    // default — code-review-reply's node runs on code-review-refine. Without
-    // this, the CR resolves a Station named after the LINE, which only existed
-    // as a stale pre-#840-rename object until a catalog deploy pruned it.
-    // The clone resolved it already, so an INHERITED station is left unset here
-    // and the subsystem applies the same task-type default it always did.
+    // A node's Station can differ from the line's taskType default (e.g. code-review-reply runs on code-review-refine); an inherited one is left unset so the subsystem applies its default.
     ...(node.station && !node.station_inherited
       ? { stationRef: node.station }
       : {}),
@@ -221,13 +176,10 @@ export function nodeAgentSpec(
   };
 }
 
-/** Station types whose pod works on the repo checkout — only these get the
- *  per-task token + clone triple. The rest read via the API, and their line
- *  branch can be a synthetic lease key no `git checkout` could resolve. */
+/** Station types whose pod works on the repo checkout, so only these get the per-task token + clone triple; others read via the API. */
 const CLONING_STATION_TYPES = new Set(["ingest", "validate"]);
 
-/** Node knobs a station receives as its `params` (everything execution-relevant
- *  the YAML can say about the node, minus the routing fields). */
+/** Node knobs a station receives as its `params` (execution-relevant YAML fields minus routing fields). */
 const STATION_PARAM_FIELDS = [
   "job_ref",
   "condition_ref",
@@ -235,10 +187,7 @@ const STATION_PARAM_FIELDS = [
   "model",
 ] as const;
 
-/** Pure: the Agent dispatch spec for one STATION node (validate/detect/…). The
- *  recipe's prompt template is literally `{station_input}`, so the whole node
- *  input rides one JSON parameter; the Station defaults to `def-<type>` unless
- *  the node names a custom one via `station_ref`. */
+/** Pure: the Agent dispatch spec for one STATION node — the whole node input rides one JSON parameter (`{station_input}`); Station defaults to `def-<type>`. */
 export function nodeStationSpec(
   node: RunGraphNode,
   task: FloorAssemblyRunTask,
@@ -259,12 +208,7 @@ export function nodeStationSpec(
     stationRef: node.station ?? builtinStationName(node.type),
     clone: CLONING_STATION_TYPES.has(node.type),
     parameters: {
-      // Written through the shared writer, not an object literal: the shape is a
-      // contract with the pod image built from `apps/stations` (Dockerfile.pod),
-      // and it used to be spelled out independently on each side. A sweep once
-      // renamed this side's `assembly_line_id` and left the pod's parser alone,
-      // which would have failed every station run. Now a key that exists on only
-      // one side does not compile.
+      // Via the shared writer, not an object literal: the shape is a contract with the pod image (apps/stations); a stray key on one side used to fail every run.
       station_input: serializeStationInput({
         assembly_run_id: task.assemblyLineId,
         node_id: node.id,

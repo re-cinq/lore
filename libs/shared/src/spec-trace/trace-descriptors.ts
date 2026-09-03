@@ -1,12 +1,4 @@
-/**
- * spec-traceability-graph — pure transforms between `vitest list --json` output
- * and the project-test-interface's TestDescriptor shape. Extracted from the
- * `scripts/trace/*.mjs` glue so the per-`it` logic is unit-testable without
- * spawning vitest. `vitest list --json` emits one entry per `it()` as
- * `{ name: "<describe> > <it>", file: "<abs path>" }`; we keep that per-`it`
- * granularity (the describe chain becomes `suite[]`) instead of collapsing to one
- * descriptor per file.
- */
+/** Pure transforms between `vitest list --json` output and the project-test-interface's TestDescriptor shape, extracted from `scripts/trace/*.mjs` so per-`it` logic is unit-testable without spawning vitest; keeps per-`it` granularity (describe chain becomes `suite[]`). */
 
 import type { TestDescriptor } from "../test-report.js";
 
@@ -24,12 +16,7 @@ function repoRelative(absolutePath: string, pkg: string): string {
   return at === -1 ? absolutePath : absolutePath.slice(at + 1);
 }
 
-/**
- * Maps `vitest list` entries to per-`it` descriptors. The ` > `-joined name is
- * split into `suite` (the describe ancestors) + the leaf `it`; `id` is
- * `${file}::${name}` (unique per `it`, file recoverable). Entries outside
- * `${pkg}/src/` (e.g. stale `dist/` copies) are dropped.
- */
+/** Maps `vitest list` entries to per-`it` descriptors: ` > `-joined name splits into `suite` + leaf `it`, `id` is `${file}::${name}`; entries outside `${pkg}/src/` (e.g. stale `dist/`) are dropped. */
 export function descriptorsFromVitestList(
   entries: VitestListEntry[],
   options: { pkg: string },
@@ -57,11 +44,7 @@ export function descriptorsFromVitestList(
   return descriptors;
 }
 
-/**
- * Groups descriptor ids by their `file`, in first-appearance order, so the
- * orchestrators run `run` ONCE per file (coverage is file-level) and fan the
- * result back to every descriptor sharing that file.
- */
+/** Groups descriptor ids by `file`, first-appearance order, so orchestrators run `run` once per file (coverage is file-level) and fan the result back to every descriptor sharing it. */
 export function groupRunsByFile(
   descriptors: TestDescriptor[],
 ): Map<string, string[]> {

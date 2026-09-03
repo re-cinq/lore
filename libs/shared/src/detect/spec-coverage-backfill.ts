@@ -1,20 +1,4 @@
-/**
- * Spec → Test Coverage Backfill Cron (v3 of spec-test-coverage).
- *
- * Reuses the v2 judge pipeline (segment → classify → candidate
- * selection → LLM judge) but emits its output as **edits to spec.md**
- * via a PR per spec, instead of as rows in spec_test_links /
- * spec_statements / spec_coverage_runs (all dropped in v3). The
- * author reviews the suggestion PR and either merges (the inline
- * `([validated by ...](path#Lline))` parenthetical becomes the
- * source of truth) or rejects.
- *
- * Runs weekly Mon 11:00 UTC. The pure parts
- * (`pickStatementsForBackfill`, `proposeLinkInsertions`) are unit-
- * tested below; the orchestration calls `project.pulls.open` once
- * per spec with non-zero suggestions.
- */
-
+// Spec → Test Coverage Backfill Cron (v3): reuses the v2 judge pipeline but emits edits to spec.md via a PR per spec, not spec_test_links rows (dropped in v3). Runs weekly Mon 11:00 UTC.
 import {
   dropIngestExcluded,
   parseTestLinksInStatement,
@@ -43,16 +27,7 @@ import { isAssertionSource } from "./spec-drift-rules.js";
 
 // ── Pure helper: which statements need backfill? ───────────────────
 
-/**
- * Returns the (ordinal, text) tuples for statements that:
- *   - are classified `testable`, AND
- *   - carry no inline test link in their trailing parenthetical.
- *
- * These are the statements the cron should run the judge against.
- * Untestable statements (narrative sections) are excluded by
- * definition; already-linked statements are excluded so the cron
- * never overwrites author-curated links.
- */
+// Statements classified `testable` with no inline test link yet — excludes narrative sections and already-linked statements so the cron never overwrites author-curated links.
 export function pickStatementsForBackfill(
   statements: Statement[],
   classifications: Map<number, Classification>,
@@ -79,14 +54,11 @@ export function pickStatementsForBackfill(
 
 export interface Suggestion {
   statement_ordinal: number;
-  /** The exact statement text we expect to find verbatim in the
-   * content. If not found, the suggestion is skipped. */
+  /** Exact statement text expected verbatim in the content; skipped if not found. */
   statement_text: string;
   test_file: string;
   test_line: number | null;
-  /** Markdown label to use inside the inserted `[label](href)` token.
-   * The caller picks something readable like
-   * "validated by `runner.test.ts:88`". */
+  /** Markdown label for the inserted `[label](href)` token, e.g. "validated by `runner.test.ts:88`". */
   label: string;
 }
 
@@ -108,16 +80,7 @@ function renderLink(s: Suggestion): string {
   return `[${s.label}](${s.test_file}${anchor})`;
 }
 
-/**
- * For each statement_ordinal, locate the matching statement_text in
- * the content and append a trailing `(...)` parenthetical containing
- * one or more `[label](path#Lline)` markdown links. Statements that
- * already carry any test link are skipped with `already-linked`;
- * statements whose text can't be located are skipped with `not-found`.
- *
- * Multiple suggestions for the same statement collapse into one
- * parenthetical, comma-separated.
- */
+// For each statement_ordinal, locates the matching text and appends a `(...)` parenthetical of `[label](path#Lline)` links (comma-separated when multiple); skips already-linked or not-found statements.
 export function proposeLinkInsertions(
   content: string,
   suggestions: Suggestion[],
@@ -139,8 +102,7 @@ export function proposeLinkInsertions(
   let applied = 0;
   let newContent = content;
 
-  // Process ordinals deepest (latest) first so prior insertions don't
-  // shift the indices of later matches.
+  // Process ordinals deepest (latest) first so prior insertions don't shift later match indices.
   const ordered = [...byOrdinal.entries()]
     .map(([ord, list]) => ({
       ord,
@@ -569,8 +531,7 @@ export interface BackfillOptions {
   repoFilter: string;
   /** Limit to a single spec path within the repo. */
   specPathFilter?: string;
-  /** Data facade — projectFor(repo) on the Floor, createStationProject(env) in
-   *  a pod. Defaults to projectFor(repo). */
+  /** Data facade — projectFor(repo) on the Floor, createStationProject(env) in a pod. */
   project: Project;
 }
 
@@ -580,8 +541,7 @@ export async function specCoverageBackfillJob(
   const repo = opts.repoFilter;
   const project = opts.project;
 
-  // Skip chunks today's ingest policy refuses (fixtures, graveyard): stale
-  // pre-exclusion debris must not receive suggested links (issue #1018).
+  // Skip chunks today's ingest policy refuses — stale pre-exclusion debris must not receive suggested links (#1018).
   const specRows = dropIngestExcluded(
     await project.chunks.specChunksForBackfill(),
   );

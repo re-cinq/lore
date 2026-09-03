@@ -1,25 +1,10 @@
-// First-class assembly line runs (pipeline.assembly_runs, migration 0025) — the
-// per-attempt execution records that are THE "assembly line" in the UI. The old
-// task-chain grouping (the retired lib/assembly-lines.ts) is gone; the list, the
-// per-repo tab, and the run detail page all read through here. PR link / creator /
-// cost live on pipeline.tasks, joined via task_id. Task-less runs (code-review,
-// comment-triage — the webhook-driven family) fall back to args.pr_number for the
-// PR link, args.actor (the triggering commenter/reviewer/PR author) for the
-// creator, and their llm_calls rows carry the assembly-line id in
-// assembly_run_id (migration 0032) for cost. The cost lateral prefers that
-// column and falls back to task_id for rows predating it.
-
+// First-class assembly line runs (pipeline.assembly_runs, migration 0025) — the per-attempt records the list/tab/detail pages read through. PR/creator/cost join pipeline.tasks via task_id; task-less runs (code-review family) fall back to args.pr_number/args.actor and the assembly_run_id cost lateral (migration 0032).
 import type { RunGraph } from "./run-graph";
 import { apiFetch } from "./api/client";
 import { sumTurnUsage, type RunTokens, type TurnUsageRow } from "./run-tokens";
 import type { components } from "./api/schema";
 
-/**
- * Raw run row, as lore-api serves it. NOT restated here: it is an alias over the
- * OpenAPI document generated from that route's own contract (ADR-035), so the
- * shape has one declaration and `scripts/check-openapi-drift.sh` fails CI when
- * the generated artifact goes stale.
- */
+/** Raw run row — aliases the OpenAPI document generated from lore-api's route contract (ADR-035); check-openapi-drift.sh guards staleness. */
 export type AssemblyRunRow = Omit<
   components["schemas"]["AssemblyRunDetail"],
   "graph"
@@ -50,8 +35,7 @@ export interface AssemblyRun {
 export type AssemblyRunNodeRow =
   components["schemas"]["StationRunList"]["nodes"][number];
 
-/** What a visit was GIVEN, as the run page reads it. Mirrors the lore-api
- *  response shape (web-ui declares its own row types — it imports no server code). */
+/** What a visit was GIVEN, as the run page reads it — mirrors lore-api's response shape (web-ui imports no server code). */
 export interface StationRunInput {
   description: string;
   prompt: string | null;
@@ -65,15 +49,11 @@ export interface AssemblyRunNode {
   iteration: number;
   outcome: string | null;
   agentCrName: string | null;
-  /** Null for a visit dispatched before the input was recorded. Optional for the
-   *  same reason `startedAt` is: test doubles need not set it, the mapper always
-   *  does. */
+  /** Null for a visit dispatched before input was recorded; optional so test doubles need not set it (the mapper always does). */
   input?: StationRunInput | null;
   commitSha: string | null;
   durationSeconds: number | null;
-  /** When the node began — surfaced so a running node shows how long it has been
-   *  going instead of a bare "—". Optional so test doubles need not set it; the
-   *  DB mapper always does (the column is NOT NULL). */
+  /** When the node began, so a running node shows elapsed time instead of "—"; optional for test doubles, the DB mapper always sets it. */
   startedAt?: string;
 }
 
@@ -91,8 +71,7 @@ function durationSeconds(
 }
 
 export function toAssemblyRun(row: AssemblyRunRow): AssemblyRun {
-  // PR link precedence: the backing task's PR, else a code-review run's
-  // args.pr_number reconstructed against the repo.
+  // PR link precedence: the backing task's PR, else a code-review run's args.pr_number reconstructed against the repo.
   const prNumber = row.task_pr_number ?? row.args_pr_number;
   const prUrl =
     row.pr_url ??
@@ -133,9 +112,7 @@ export function toAssemblyRunNode(row: AssemblyRunNodeRow): AssemblyRunNode {
   };
 }
 
-/** Rows come from lore-api, which owns the SQL (the join onto tasks and the cost
- *  lateral moved there verbatim). Every read answers empty rather than throwing:
- *  a run view is additive, and a pre-0025 database must not take a page down. */
+/** lore-api owns the SQL; every read answers empty rather than throwing — a run view is additive, a pre-0025 database must not take a page down. */
 async function readRuns(query: string): Promise<AssemblyRun[]> {
   const result = await apiFetch<{ runs: AssemblyRunRow[] }>(
     "lore-api",
@@ -184,9 +161,7 @@ export async function fetchAssemblyRun(
   return result.status === "ok" ? toAssemblyRun(result.data) : null;
 }
 
-/** The newest run for a task, or null. A task-centric page (the feature planning
- *  wizard) knows only its task id — the run it should visualize is the latest
- *  attempt, since a retry mints a fresh row against the same task. */
+/** Newest run for a task, or null — a task-centric page (feature planning wizard) knows only its task id, and a retry mints a fresh row against the same task. */
 export async function fetchLatestRunForTask(
   taskId: string,
 ): Promise<AssemblyRun | null> {
@@ -207,22 +182,7 @@ export async function fetchAssemblyRunNodes(
   return result.status === "ok" ? result.data.nodes.map(toAssemblyRunNode) : [];
 }
 
-/**
- * A line's usage so far, or null when it has reported none yet (and on any error:
- * the wizard's poll must keep reporting the round's status even when usage is
- * unavailable — a pre-0037 database included).
- *
- * `pipeline.agent_run_turns`, NOT `pipeline.llm_calls`: the cost table is
- * authoritative and carries dollars, but a row lands only when an agent run ENDS,
- * which for a planning round is the moment the card showing the number disappears.
- * Turns arrive while the pod streams, so they are the only source that can answer
- * "so far" while something is still running. `lore_ui` is granted SELECT on the
- * table by migration 0037.
- *
- * The usage object rides inside the untruncated envelope, so the extraction is
- * SQL-side: summing four scalars beats shipping every turn of a long run to Node
- * every four seconds.
- */
+/** A line's usage so far, or null on no-usage-yet/any error (a pre-0037 DB included) — reads `pipeline.agent_run_turns`, not `llm_calls`, since turns arrive mid-stream while a cost row lands only when the run ends; summed SQL-side (migration 0037 grants `lore_ui` SELECT). */
 export async function fetchRunTokens(
   assemblyLineId: string | null | undefined,
 ): Promise<RunTokens | null> {

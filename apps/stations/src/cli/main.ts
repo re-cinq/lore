@@ -1,17 +1,6 @@
 #!/usr/bin/env node
 /// <reference types="node" />
-// lore-station <type> '<station_input json>' — one assembly-line node per pod.
-// The subsystem's exec vendor spawns this argv from the station recipe's
-// tool_config.command with the rendered station_input appended. Exit 0 with the
-// LORE_NODE_RESULT terminal line for any node outcome (success AND failed);
-// exit 1 with is_error for infrastructure failures.
-//
-// A SHIM. The stations themselves live one folder each under ../stations,
-// shared with the pooled service in this same package — this process only turns
-// argv into a call and a result into the terminal line. The local runner map it used
-// to keep was a `Record<string, …>` parallel to the NodeType enum with nothing
-// checking one against the other, so a type with no runner arrived here and died
-// at runtime; resolution now goes through the registry, which cannot drift.
+// lore-station <type> '<station_input json>' — one assembly-line node per pod; a thin shim over ../stations (shared with the pooled service) that resolves by type through the registry (not a hand-kept Record) so an unmapped type can't reach runtime undetected.
 
 import { Llm } from "@re-cinq/lore-shared/llm/llm.js";
 import { parseStationInput } from "@re-cinq/lore-shared/station-input.js";
@@ -42,16 +31,7 @@ export async function runStation(
     };
   }
 
-  // Every model call the runner makes — however deep — is summed for the
-  // terminal line's cost report; an explicit NodeResult.usage wins, and an
-  // infrastructure failure still reports the spend made before it.
-  //
-  // Exception: a process with a configured UsagePort (Llm.usageConfigured)
-  // already writes one pipeline.llm_calls row per call — the other cost
-  // transport. Reporting usage on the terminal line too (tracker sum OR the
-  // runner's explicit NodeResult.usage, which derives from the same calls)
-  // would count the same spend twice at the cost sink, so the line carries
-  // none of it.
+  // Sums every model call the runner makes for the terminal line, unless a UsagePort is already logging per-call cost (Llm.usageConfigured) — reporting both would double-count spend.
   const tracker = Llm.usageConfigured
     ? null
     : new UsageTrackingLlm(Llm.instance);

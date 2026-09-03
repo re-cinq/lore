@@ -1,12 +1,7 @@
 import { z } from "zod";
 import type { ColumnMap } from "../lib/row.js";
 
-/**
- * `memory.shared_pools` — a named pool several agents write memories into.
- *
- * DDL: `scripts/infra/setup-memory-schema.sh`. `name` is unique; a memory joins
- * a pool through `memory.memories.pool_id`.
- */
+/** `memory.shared_pools` — a named pool several agents write memories into; `name` is unique, and a memory joins a pool through `memory.memories.pool_id`. */
 
 export const SharedPoolSchema = z.object({
   id: z.string(),

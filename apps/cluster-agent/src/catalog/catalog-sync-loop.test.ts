@@ -129,9 +129,6 @@ describe("catalogSyncOnce", () => {
   });
 
   it("a boot resync asks the server for the full snapshot with snapshot=1", async () => {
-    // Applied-state is a function of row content AND this binary's rendering:
-    // a restarted agent must re-render everything, because an apply a dying
-    // pod lost — or one rendered by older logic — is otherwise never repaired.
     const urls: string[] = [];
     const fetchFn = (async (url: string) => {
       urls.push(String(url));
@@ -531,8 +528,6 @@ describe("runCatalogSyncLoop", () => {
     });
 
     expect(acks).toEqual([undefined, undefined, "4"]);
-    // The boot resync holds through the failed tick and releases only once a
-    // sync actually LANDS — an unauthorized first poll must not eat it.
     expect(snapshots).toEqual([true, true, false]);
     expect(reRegistered).toEqual(1);
     expect(firstSyncs).toEqual(1);
@@ -540,7 +535,6 @@ describe("runCatalogSyncLoop", () => {
 });
 
 describe("status reporting", () => {
-  /** A fetch that answers the events GET from `body` and records any POST. */
   function withStatusCapture(body: unknown) {
     const posts: Array<{ url: string; payload: unknown }> = [];
     const fetchFn = (async (url: string, init?: RequestInit) => {
@@ -585,8 +579,6 @@ describe("status reporting", () => {
       "/api/cluster-agents/agent-1/catalog-status",
     );
     expect(posts[0].payload).toMatchObject({
-      // Batch order, not a sorted one: the report mirrors what the loop did,
-      // in the order it did it.
       reports: [
         {
           name: "implementation",

@@ -1,12 +1,4 @@
-/**
- * Pure CI-ingest → event mapping (layer 1). A repo's CI posts a doc-projection
- * request (`{repo, kinds, commit, force}`) after a push to main; this maps it to
- * one `internal.ingest.spec_trace` event per kind — the same event mcp-server used
- * to emit, so the registry + job stay put. specs/adrs are read from the repo by the
- * handler, so only those project here; tests are CI-only via /test-report+/coverage.
- * No dedupe key — projection is content-hash idempotent and a `force` re-ingest must
- * not be collapsed away. No IO; the listener does bearer auth + insert.
- */
+/** Pure CI-ingest → event mapping (layer 1); no dedupe key since projection is content-hash idempotent and a `force` re-ingest must not be collapsed away. */
 
 import type { EventInput } from "../main-loop/types.js";
 

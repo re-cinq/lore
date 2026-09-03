@@ -1,10 +1,4 @@
-/**
- * Detection job cores — the deterministic per-repo detectors run by the `detect`
- * assembly-line node. Facade-driven (every read/write goes through an injected
- * Project), so they run identically Floor-side (projectFor, Postgres) and in a
- * station pod (createStationProject, HTTP). Relocated here from apps/floor so the
- * lore-station image can import them without pulling the whole Floor.
- */
+/** Detection job cores — deterministic per-repo detectors run by the `detect` assembly-line node; facade-driven so they run identically Floor-side and in a station pod, relocated here so lore-station can import them without the whole Floor. */
 
 export { specDriftJob, type SpecDriftOptions } from "./spec-drift.js";
 export { gapDetectJob, type GapDetectOptions } from "./gap-detect.js";

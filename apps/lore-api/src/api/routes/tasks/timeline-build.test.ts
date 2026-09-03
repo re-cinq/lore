@@ -31,7 +31,6 @@ describe("buildTimeline", () => {
       `first\n\n${formatTrailers({ stage: "plan", iteration: 0, taskId: "t-1" })}`,
       "2026-01-01T00:01:00.000Z",
     );
-    // GitHub returns most-recent-first.
     const result = buildTimeline([second, first], new Date(T0));
 
     expect(result.map((c) => c.stage)).toEqual(["plan", "implement"]);
@@ -51,8 +50,8 @@ describe("buildTimeline", () => {
     );
     const result = buildTimeline([second, first], new Date(T0));
 
-    expect(result[0].duration_ms).toBe(60_000); // 00:01 - 00:00
-    expect(result[1].duration_ms).toBe(60_000); // 00:02 - 00:01
+    expect(result[0].duration_ms).toBe(60_000);
+    expect(result[1].duration_ms).toBe(60_000);
   });
 
   it("defaults outcome to success and surfaces Lore-Outcome extras", () => {

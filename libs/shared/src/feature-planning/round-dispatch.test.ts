@@ -1,10 +1,3 @@
-// Where a planning round goes: back to the line that is waiting for it, or —
-// for a feature created before the merged line existed — down the old path that
-// mints a line per round.
-//
-// The migration seam. Features already in flight when this shipped have no parked
-// node to report to, and a wizard that assumed one would strand them mid-plan.
-
 import { describe, it, expect } from "vitest";
 import { decideRoundDispatch, type ParkedNode } from "./round-dispatch.js";
 import type { RunGraph } from "../project/assembly-runs/run-graph.js";
@@ -16,7 +9,6 @@ const node = (over: Partial<ParkedNode> = {}): ParkedNode => ({
   ...over,
 });
 
-/** A run stamped before clones existed — the id-based fallback path. */
 const GRAPHLESS = null;
 
 const graphWithAuthor = (authorNodeId: string): RunGraph => ({
@@ -49,9 +41,7 @@ describe("decideRoundDispatch", () => {
     });
   });
 
-  it("resumes a RENAMED author node by its feature_review type from the run's graph", () => {
-    // The join that must survive a blueprint rename — a hardcoded id is how the
-    // pr_merged signal silently died (FR6.32).
+  it("resumes a RENAMED author node by its feature_review type from the run's graph, not a hardcoded id (FR6.32)", () => {
     expect(
       decideRoundDispatch(
         "running",
@@ -61,9 +51,7 @@ describe("decideRoundDispatch", () => {
     ).toEqual({ kind: "resume", nodeId: "await-author-verdict", iteration: 1 });
   });
 
-  it("resumes the parked node of a later round, not the first", () => {
-    // Round 2's author row carries iteration 2; reporting against iteration 1
-    // would complete a node that already has an outcome and leave the walk stuck.
+  it("resumes iteration 2's parked author row, not iteration 1's already-outcomed one", () => {
     expect(
       decideRoundDispatch(
         "running",
@@ -77,14 +65,12 @@ describe("decideRoundDispatch", () => {
   });
 
   it("falls back to a fresh line when the feature has none", () => {
-    // A feature whose planning predates the merged line.
     expect(decideRoundDispatch(null, [], GRAPHLESS)).toEqual({
       kind: "legacy",
     });
   });
 
-  it("falls back to a fresh line when the line has already finished", () => {
-    // The old shape: one line per round, each finished the moment its round landed.
+  it("falls back to a fresh line when the line has already finished (the old one-line-per-round shape)", () => {
     expect(
       decideRoundDispatch(
         "finished",
@@ -94,10 +80,7 @@ describe("decideRoundDispatch", () => {
     ).toEqual({ kind: "legacy" });
   });
 
-  it("falls back when the line is running but nothing is parked", () => {
-    // A round is still in flight. The endpoint's own in-flight guard rejects this
-    // first; if it ever does not, minting a line is safer than reporting an outcome
-    // for a node that is still working.
+  it("falls back when the line is running but nothing is parked, safer than reporting an outcome for a node still working", () => {
     expect(
       decideRoundDispatch(
         "running",

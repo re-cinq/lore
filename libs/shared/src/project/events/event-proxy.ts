@@ -1,28 +1,4 @@
-/**
- * The hub every producer reports through: one bounded queue, one retry ladder,
- * one credential rotation.
- *
- * TWO PATHS, deliberately:
- *
- * - `insert` is synchronous and THROWS, so it is a drop-in `EventReporter`.
- *   Three Floor ingress routes and two lore-api routes answer 202 only after the
- *   insert lands and turn a throw into a 500 so the sender redelivers; queueing
- *   underneath them would convert at-least-once GitHub/CI delivery into
- *   best-effort, and the queue is lost on every rollout.
- * - `emit` queues, and blocks the producer when the queue is full. It is for
- *   producers with nobody to return a status to — a Kubernetes watch callback, a
- *   sweep that today writes `.catch(() => {})` — where the choice was previously
- *   between an inline retry ladder and silent loss.
- *
- * Delivery is SERIAL: the router takes one event per POST and has no batch
- * endpoint, so a parallel drain would only race the ordering away.
- *
- * The queue lives in memory and dies with the process. That is survivable only
- * because everything on it is deduped and re-derivable — terminal Agent events
- * carry a dedupe key and the Floor's reconcile cron re-emits what is missed. It
- * is not a durable outbox, and `stop` must be awaited on shutdown or the
- * backlog goes with the pod.
- */
+// Hub every producer reports through (bounded queue, retry ladder, credential rotation). insert() is sync+throws (drop-in EventReporter, preserves at-least-once ingress semantics); emit() queues+blocks when full (for producers with no one to report to). Delivery is serial (no batch endpoint); queue is in-memory and not durable — everything on it is deduped/re-derivable, and stop() must be awaited on shutdown or the backlog is lost.
 
 import { enforceTrue } from "../../lib/enforce.js";
 import type { EventInsert } from "../../events.js";
@@ -36,11 +12,7 @@ export interface EventProxyDeps {
   /** How many messages may wait before producers block. */
   capacity: number;
   retry: { attempts: number; delayMs: number };
-  /**
-   * Rotate the credential when a sink refuses it. A satellite passes its
-   * single-flight re-registration; a central process has nothing to rotate and
-   * leaves this unset.
-   */
+  /** Rotate the credential when a sink refuses it (satellite passes its re-registration; central leaves unset). */
   onUnauthorized?: () => Promise<unknown>;
   sleep?: (ms: number) => Promise<void>;
   now?: () => number;
@@ -78,16 +50,12 @@ export class EventProxy implements EventReporter {
     this.log = deps.log ?? console.error;
   }
 
-  /** Messages waiting to be delivered. A steady non-zero value means the sink
-   *  is not keeping up with the inputs. */
+  /** Messages waiting to be delivered; a steady non-zero value means the sink isn't keeping up. */
   get depth(): number {
     return this.queue.size;
   }
 
-  /**
-   * Report an event and wait for it to land. Throws what the sink throws — the
-   * contract the 500-returning ingress routes are built on.
-   */
+  /** Reports an event and waits for it to land; throws what the sink throws (the contract 500-returning ingress routes rely on). */
   insert(event: EventInsert): Promise<void> {
     return this.deps.sinks.event.deliver({ kind: "event", event });
   }
@@ -102,10 +70,7 @@ export class EventProxy implements EventReporter {
     this.inputs.push(input);
   }
 
-  /** Begin draining, then start every registered input.
-   *
-   *  The drain starts FIRST on purpose: an input whose `start` emits more than
-   *  the capacity would otherwise block forever on a queue nobody is reading. */
+  /** Begins draining, then starts every registered input — drain starts first, or an input emitting past capacity blocks forever on nobody reading. */
   async start(): Promise<void> {
     if (this.running) {
       return;
@@ -118,13 +83,7 @@ export class EventProxy implements EventReporter {
     }
   }
 
-  /**
-   * Stop the inputs and drain what is left, giving up after `timeoutMs`.
-   *
-   * Returns the number of messages it could not deliver, so the caller's
-   * shutdown log can name what the rollout dropped instead of implying a clean
-   * exit.
-   */
+  /** Stops inputs, drains what's left (giving up after timeoutMs); returns undelivered count so shutdown logs can name what the rollout dropped. */
   async stop(timeoutMs: number): Promise<number> {
     this.running = false;
     this.signal();
@@ -167,16 +126,14 @@ export class EventProxy implements EventReporter {
         await this.deliver(message);
         continue;
       }
-      // Set synchronously after the empty shift, in the same tick — nothing can
-      // queue an item between the two and be missed.
+      // Set synchronously after the empty shift, same tick — nothing can queue between the two and be missed.
       await new Promise<void>((resolve) => {
         this.wake = resolve;
       });
     }
   }
 
-  /** One message, through the whole ladder. Never throws: the queued path has
-   *  nobody to return a failure to. */
+  /** One message through the whole ladder; never throws — the queued path has nobody to return a failure to. */
   private async deliver(message: ProxyMessage): Promise<void> {
     const { attempts, delayMs } = this.deps.retry;
 
@@ -209,8 +166,7 @@ export class EventProxy implements EventReporter {
     }
   }
 
-  /** Race `work` against a real timer, so a wedged sink cannot hold a rollout
-   *  open. Deliberately not the injected `sleep`, which tests make instant. */
+  /** Races work against a real timer (not the injected sleep, which tests make instant) so a wedged sink can't hold a rollout open. */
   private untilDeadline(
     work: Promise<unknown>,
     timeoutMs: number,
@@ -226,18 +182,7 @@ export class EventProxy implements EventReporter {
   }
 }
 
-/**
- * View a proxy as an `EventReporter` whose `insert` QUEUES.
- *
- * For the ports that are typed on `EventReporter` and cannot take a proxy —
- * `reportToParkedNode` is the one that matters — where the caller has nobody to
- * return a failure to. `pr-ready-check` catches per run and then resolves, so
- * its delivery is marked done whether or not the report landed: a blip lost the
- * resume outright, and the parked node waited for the reaper.
- *
- * A function rather than a class: it forwards one call and a class that only
- * forwards is rejected by `lore/no-forwarding-class`, correctly.
- */
+/** Views a proxy as an EventReporter whose insert queues, for ports typed on EventReporter with no one to report failure to (reportToParkedNode); a function since a forwarding-only class is rejected by lore/no-forwarding-class. */
 export function queuedReporter(proxy: EventProxy): EventReporter {
   return { insert: (event) => proxy.emit({ kind: "event", event }) };
 }

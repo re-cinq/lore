@@ -1,14 +1,4 @@
-// The spec ONE node dispatch runs with — first launch and reaper relaunch alike.
-//
-// There were two builders. The walk's (advance.ts) resolved the node's conversation
-// and composed the round content; the reaper's rebuilt the spec field by field from
-// the raw task description and forgot both. Every launch re-provisions the per-task
-// recipe clone, so a relaunch did not merely dispatch a thinner pod — it REPLACED a
-// live pod's recipe with one that had no conversation, silently ending continuity
-// (#1466). That is FR-15.13's disease exactly, and its third victim: the station-run
-// id label was lost the same way, from the same second builder.
-//
-// So there is one builder. A field added here reaches both doors, or neither.
+// The spec ONE node dispatch runs with — first launch and reaper relaunch alike; a second builder here previously dropped conversation continuity and the station-run id label on relaunch (#1466, FR-15.13), so a field added here must reach both doors or neither.
 
 import type { LoreTaskSpec } from "@re-cinq/lore-shared";
 import type { RunGraphNode } from "@re-cinq/lore-shared/project/assembly-runs/run-graph.js";
@@ -19,8 +9,7 @@ import {
 } from "./floor-assembly-run.js";
 import { resolveRoundContent } from "./round-content.js";
 
-/** Resolve a node's `continues` declaration into the conversation this run resumes
- *  and saves as. Optional seam — a composition without it never continues. */
+/** Resolve a node's `continues` declaration into the conversation this run resumes and saves as. Optional seam — a composition without it never continues. */
 export type ResolveConversationFn = (
   node: RunGraphNode,
   task: FloorAssemblyRunTask,
@@ -38,16 +27,11 @@ export interface NodeLaunchInput {
   task: FloorAssemblyRunTask;
   iteration: number;
   stationRunId: string | undefined;
-  /** How a RETRY is told from a next round — the outcome of this node's most recent
-   *  RECORDED visit. Callers derive it with {@link priorOutcomeOf}. */
+  /** How a RETRY is told from a next round — the outcome of this node's most recent RECORDED visit. Derive with {@link priorOutcomeOf}. */
   priorOutcome: string | null;
-  /** The failure that routed INTO this dispatch, whichever node produced it.
-   *  Derive with {@link incomingFailureOf}. Null when nothing failed before it. */
+  /** The failure that routed INTO this dispatch, whichever node produced it. Derive with {@link incomingFailureOf}; null when nothing failed before it. */
   incomingFailure?: IncomingFailure | null;
-  /** This node's OWN earlier failed attempts — in-run loop iterations plus, on a
-   *  forked run, the source runs' visits (a fork copies rows with their details
-   *  nulled, so those live only on the source). Derive the in-run half with
-   *  {@link priorFailuresOf}; the fork chain is the caller's read. */
+  /** This node's OWN earlier failed attempts, in-run plus (on a forked run) the source runs' visits. Derive the in-run half with {@link priorFailuresOf}; the fork chain is the caller's read. */
   priorFailures?: PriorFailure[];
 }
 
@@ -57,17 +41,7 @@ export interface IncomingFailure {
   detail: string;
 }
 
-/**
- * The failure that routed into the next dispatch: the most recently RECORDED
- * visit, but only when it failed.
- *
- * Not `priorOutcomeOf`, which answers for ONE node and so tells `implement`
- * about its own last visit — "success", every time, while the thing that
- * actually failed was `validate` next door. That is why the loop could not
- * converge: the retried agent was handed the identical prompt and never told
- * what broke. The most recent visit is the one that just routed here, so its
- * failure is the one this dispatch exists to fix.
- */
+/** The failure that routed into the next dispatch: the most recently RECORDED visit, but only when it failed — unlike `priorOutcomeOf`, which answers for ONE node and would tell `implement` "success" while `validate` next door actually failed, starving the retry of what broke. */
 export function incomingFailureOf(
   visits: ReadonlyArray<{
     nodeId: string;
@@ -89,19 +63,14 @@ export function incomingFailureOf(
 const isFailure = (outcome: string | null): boolean =>
   outcome !== null && outcome !== "success" && outcome !== "changes_requested";
 
-/** One earlier failed attempt of the node being launched, as its retry prompt
- *  carries it. */
+/** One earlier failed attempt of the node being launched, as its retry prompt carries it. */
 export interface PriorFailure {
   nodeId: string;
   iteration: number;
   detail: string;
 }
 
-/**
- * Every recorded FAILED visit of `nodeId` that carries a detail, oldest first —
- * the launched node's own history, so a retry can be told what each earlier
- * attempt broke on instead of only the failure that just routed here.
- */
+/** Every recorded FAILED visit of `nodeId` that carries a detail, oldest first — the launched node's own history, so a retry hears every earlier attempt, not only the one that just routed here. */
 export function priorFailuresOf(
   visits: ReadonlyArray<{
     nodeId: string;
@@ -122,18 +91,10 @@ export function priorFailuresOf(
     }));
 }
 
-/** How much of a preceding failure the next prompt carries. The detail is
- *  already bounded upstream; this is the backstop against a pathological one
- *  crowding out the instructions it is appended to. */
+/** How much of a preceding failure the next prompt carries — the backstop against a pathological detail crowding out the instructions it is appended to. */
 const MAX_FEEDBACK_CHARS = 2500;
 
-/**
- * Append what just failed to the prompt the next node runs on.
- *
- * Kept separate from the prompt TEMPLATE deliberately: every agent recipe would
- * otherwise need its own copy of this, and a recipe that forgot would silently
- * go back to guessing.
- */
+/** Append what just failed to the prompt the next node runs on. Kept separate from the prompt TEMPLATE so every agent recipe shares it rather than needing its own copy. */
 export function withIncomingFailure(
   prompt: string,
   failure: IncomingFailure | null,
@@ -160,16 +121,10 @@ ${detail}
 `;
 }
 
-/** The retry prompt carries at most this many earlier attempts — the most
- *  recent ones, which are the closest to what the retry is about to face. */
+/** The retry prompt carries at most this many earlier attempts — the most recent, closest to what the retry is about to face. */
 const MAX_PRIOR_FAILURES = 3;
 
-/**
- * Append the launched node's own earlier failed attempts to its prompt, so the
- * agent avoids repeating them. Complements {@link withIncomingFailure}: that
- * one says what just routed here (whichever node it was), this one says what
- * THIS node broke on before. Empty in, prompt out untouched.
- */
+/** Append the launched node's own earlier failed attempts to its prompt so the agent avoids repeating them. Complements {@link withIncomingFailure} (what just routed here); empty in, prompt out untouched. */
 export function withPriorFailures(
   prompt: string,
   failures: readonly PriorFailure[],
@@ -201,20 +156,12 @@ ${entries}
 `;
 }
 
-/**
- * The outcome of a node's most recent RECORDED visit, or null if it never ran.
- *
- * An open row (no outcome yet) is the CURRENT visit, not a prior one — the walk asks
- * this before minting its row and so never sees one, but the reaper asks it holding
- * the open row, and reading that as the prior outcome would tell every relaunch its
- * last attempt had not failed.
- */
+/** The outcome of a node's most recent RECORDED visit, or null if it never ran. An open row (no outcome yet) is the CURRENT visit, not a prior one — the reaper asks this holding the open row, and reading it as prior would tell every relaunch its last attempt had not failed. */
 export function priorOutcomeOf(
   visits: ReadonlyArray<{ nodeId: string; outcome: string | null }>,
   nodeId: string,
 ): string | null {
-  // The predicate NARROWS: "recorded" is exactly "has an outcome", and saying so in
-  // the type is what stops a later reader reintroducing the open row this excludes.
+  // The predicate NARROWS: "recorded" is exactly "has an outcome" — the type stops a later reader reintroducing the open row this excludes.
   const own = visits.filter(
     (v): v is { nodeId: string; outcome: string } =>
       v.nodeId === nodeId && v.outcome !== null,
@@ -223,34 +170,14 @@ export function priorOutcomeOf(
   return own.length ? own[own.length - 1].outcome : null;
 }
 
-/**
- * Build one node dispatch's spec.
- *
- * Order matters: the conversation is resolved BEFORE the prompt, because whether
- * this run resumes one decides how much round content the prompt must carry
- * (FR-15.11) — a resumed round sends only the author's new feedback, a fresh one the
- * whole composition.
- */
-/** What one dispatch resolved before anything was written: the conversation this
- *  visit continues, the round content it works from, and the prompt its pod
- *  renders (null for a station, which runs a deterministic command). */
+/** What one dispatch resolved before anything was written: the conversation this visit continues, the round content it works from, and the prompt its pod renders (null for a station, which runs a deterministic command). */
 export interface NodeDispatch {
   conversation: LoreTaskSpec["conversation"] | undefined;
   content: string;
   prompt: string | null;
 }
 
-/**
- * Resolve what a visit is dispatched WITH, before its row is written.
- *
- * Separate from the spec build because the station-run row is minted between the
- * two — it records this exact input, and it mints the id the spec's labels carry.
- * Both halves stay in one module so a field added to one is visible to the other.
- *
- * The conversation is resolved FIRST: whether this run resumes one decides how
- * much round content the prompt must carry (FR-15.11) — a resumed round sends
- * only the author's new feedback, a fresh one the whole composition.
- */
+/** Resolve what a visit is dispatched WITH, before its row is written — separate from the spec build because the station-run row is minted between the two (same module so a field added to one is visible to the other); the conversation resolves FIRST since it decides how much round content the prompt carries (FR-15.11). */
 export async function resolveNodeDispatch(
   input: Omit<NodeLaunchInput, "stationRunId">,
   deps: NodeLaunchDeps,
@@ -264,8 +191,7 @@ export async function resolveNodeDispatch(
   const content = resolveRoundContent(task, conversation);
 
   const incomingFailure = input.incomingFailure ?? null;
-  // The incoming failure already gets its own block — repeating it as a prior
-  // attempt would show the agent the same output twice.
+  // The incoming failure already gets its own block — repeating it as a prior attempt would show the agent the same output twice.
   const priorFailures = (input.priorFailures ?? []).filter(
     (f) =>
       !(

@@ -1,15 +1,6 @@
 import type { PgPool } from "../../memory-store.js";
 
-/**
- * Chunk-schema resolution, single-sourced for every repo-scoped chunk reader.
- * Reindex writes a repo's chunks to its team schema when that schema is
- * provisioned, else to `org_shared` — readers must resolve the same way or
- * they return empty/stale results for team-schema repos (#967, #975).
- *
- * Schema names are string-interpolated into table names by callers, so only
- * regex-gated names ever leave this module; everything else resolves to
- * `org_shared`.
- */
+// Chunk-schema resolution, single-sourced for every repo-scoped reader — must mirror reindex's write target (team schema or org_shared) or team-schema repos read empty/stale (#967, #975). Only regex-gated names ever leave this module (string-interpolated into table names).
 
 export const ORG_SHARED_SCHEMA = "org_shared";
 
@@ -36,10 +27,7 @@ function cacheFor(pool: PgPool): Map<string, CacheEntry> {
   return created;
 }
 
-/** `candidate` when it is a regex-safe name naming a schema that actually
- *  holds a `chunks` table, else `org_shared`. Schema existence alone is not
- *  enough — `public`, `lore`, or `pipeline` exist without a `chunks` table,
- *  and resolving them would make every reader throw instead of falling back. */
+/** candidate when it's a regex-safe name for a schema that actually holds a chunks table, else org_shared — schema existence alone isn't enough (public/lore/pipeline exist but have no chunks table). */
 export async function chunkSchemaOrOrgShared(
   pool: PgPool,
   candidate: string | null | undefined,
@@ -71,12 +59,7 @@ async function lookupSchemaForRepo(
   return chunkSchemaOrOrgShared(pool, rows[0]?.team as string | undefined);
 }
 
-/**
- * The schema reindex wrote this repo's chunks to: its team schema when one is
- * provisioned, else `org_shared` (mirrors the reindex job's resolveSchema).
- * Memoized per pool for 60s — context assembly resolves the same repo from
- * several sources in parallel; failed lookups are never cached.
- */
+/** The schema reindex wrote this repo's chunks to (team schema or org_shared, mirroring resolveSchema); memoized per pool for 60s since context assembly resolves the same repo from several sources in parallel. Failed lookups are never cached. */
 export function resolveChunkSchemaForRepo(
   pool: PgPool,
   repo: string,
@@ -95,8 +78,7 @@ export function resolveChunkSchemaForRepo(
   return promise;
 }
 
-/** Every provisioned schema holding a `chunks` table (regex-gated), always
- *  including `org_shared` — the enumeration cross-repo readers UNION over. */
+/** Every provisioned schema holding a chunks table (regex-gated), always including org_shared — the enumeration cross-repo readers UNION over. */
 export async function listChunkSchemas(pool: PgPool): Promise<string[]> {
   const { rows } = await pool.query(
     `SELECT table_schema FROM information_schema.tables WHERE table_name = 'chunks'`,

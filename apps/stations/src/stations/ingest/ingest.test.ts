@@ -6,14 +6,6 @@ import { runIngestStation, apiEmbed } from "./ingest.js";
 import type { StationInput } from "@re-cinq/lore-shared/station-input.js";
 import type { DgraphClientPort, DgraphTxn } from "@re-cinq/lore-shared";
 
-/**
- * The ingest station (specs/ingest-station FR1): one pod runs one
- * internal.ingest.* payload against the LOCAL CLONE at $WORKSPACE_DIR/target
- * (the init container's checkout — no GitHub App creds in the pod, D7) and
- * writes dgraph via LORE_DGRAPH_HTTP (the FR4 scoped-egress env). Fake dgraph
- * port + a temp-dir fixture clone — no containers.
- */
-
 function input(params: Record<string, unknown>): StationInput {
   return {
     assembly_run_id: "a1b2c3d4e5f6a7b8",

@@ -41,9 +41,7 @@ describe("AssemblyLineStationBackend", () => {
     expect(await backend.isActive()).toBe(true);
   });
 
-  it("threads the feature id into the line's args so a thread key can name it", async () => {
-    // `continues.key: args.feature_id` resolves against these args — the engine
-    // never learns what a feature is, it just carries what the caller put here.
+  it("threads the feature id into the line's args, which is all `continues.key: args.feature_id` resolves against", async () => {
     const port = new InMemoryAssemblyRuns();
     const backend = new AssemblyLineStationBackend(port);
 
@@ -64,7 +62,6 @@ describe("AssemblyLineStationBackend", () => {
 
     expect(port.rows[0].args).toMatchObject({
       round_feedback: '<RoundFeedback round="4"/>',
-      // The round the conversation is resumed FROM, which rewind names explicitly.
       resume_from_task: "task-round-1",
     });
   });
@@ -89,9 +86,7 @@ describe("AssemblyLineStationBackend", () => {
     });
   });
 
-  it("lineArgs never clobbers the description the run was started with", async () => {
-    // The seed is a bag from a context bundle; the description is the round's own
-    // brief and is what fills {description} in every agent prompt.
+  it("lineArgs never clobbers the description that fills {description} in every agent prompt", async () => {
     const port = new InMemoryAssemblyRuns();
     const backend = new AssemblyLineStationBackend(port);
 
@@ -149,8 +144,6 @@ describe("AssemblyLineStationBackend", () => {
     const first = await backend.launch({ ...spec("t-1"), featureId: "f-9" });
     const second = await backend.launch({ ...spec("t-2"), featureId: "f-9" });
 
-    // One run, and the loser is TOLD it lost — a joined task owns no CR, so a
-    // caller that read this as a launch would leave it running forever.
     expect(port.rows).toHaveLength(1);
     expect(second).toEqual({
       ref: first.ref,

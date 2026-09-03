@@ -1,6 +1,3 @@
-// The client's own paging. `listByLabel` is the one method that hides a loop
-// from its caller, so the loop is what these assert: a selector matching more
-// than one page must come back whole, not truncated to the first.
 import { describe, it, expect, vi } from "vitest";
 import { HttpAgentApi } from "./cluster-agent-client.js";
 import type { Agent as AgentCr } from "@re-cinq/agent-contracts";
@@ -9,7 +6,6 @@ function cr(name: string): AgentCr {
   return { metadata: { name } } as AgentCr;
 }
 
-/** A transport answering as `GET /agents` would, one scripted page per call. */
 function pagingTransport(
   pages: { items: AgentCr[]; continueToken?: string }[],
 ) {

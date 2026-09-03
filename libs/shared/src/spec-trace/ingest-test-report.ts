@@ -1,22 +1,4 @@
-/**
- * spec-traceability-graph — Phase 6 (T260): consume the project-test-interface
- * POSTed test-report payload into the graph.
- *
- * Each TestDescriptor becomes one TestChunk keyed by `${repo}|${id}`, carrying
- * repo / test_name / file_path / start_line / end_line. Spec anchors are
- * aggregated PER REPORT, PER STATEMENT: every descriptor pointing at the same
- * `path#ordinal` is grouped, and the Statement is upserted exactly once with a
- * VALIDATED_BY edge to each validating TestChunk. `Statement.violated` is set to
- * whether ANY validating test in this report failed (a failing test wins over a
- * passing sibling), so a passing re-ingest clears a prior `true`, and a reason is
- * written only on failure. When the descriptor carries a
- * `suite` chain, that chain is
- * projected (outermost→innermost) as a parent-linked spine of TestSuite nodes and
- * the TestChunk gains a `TestChunk.suite` edge to the innermost suite. Each run
- * result is joined to its descriptor by id and the covered ranges are handed to
- * {@link ingestCoverageReport}, which writes the Coverage and COVERS facets; their
- * real counts flow back into the returned result.
- */
+/** spec-traceability-graph Phase 6 (T260): consumes a project-test-interface test-report payload into TestChunk/TestSuite/Statement nodes, aggregating anchors per-statement (`Statement.violated` reflects any failing validator this report), and hands covered ranges to {@link ingestCoverageReport}. */
 
 import type {
   CoveredChunk,
@@ -41,14 +23,7 @@ interface CoverageRecord {
   covered: CoveredChunk[];
 }
 
-/**
- * Joins run results to their descriptors and projects covered ranges into
- * {@link ingestCoverageReport}'s record shape — ONE record per FILE (coverage is
- * file-level). Many per-`it` descriptors share a file's identical coverage; we
- * merge their ranges and key the record by the file (`testName = file`) so its
- * Coverage node attaches HAS_COVERAGE to the file-scoped TestChunk. Results with
- * no matching descriptor are dropped.
- */
+/** Joins run results to their descriptors and merges covered ranges into one record per FILE (coverage is file-level), so its Coverage node attaches to the file-scoped TestChunk. */
 function recordCoveredRanges(
   ranges: Map<string, CoveredChunk>,
   covered: CoveredChunk[],
@@ -106,26 +81,14 @@ interface StatementGroup {
   failingTestNames: string[];
 }
 
-/**
- * A descriptor paired with the uids of (1) its own per-`it` TestChunk and (2) the
- * file-scoped TestChunk (`${repo}|${file}`) that owns coverage. `validated_by`
- * targets the file-scoped uid so it re-converges with `TestChunk.coverage`; the
- * per-`it` uid carries the descriptor's name/suite/line metadata.
- */
+/** A descriptor paired with its own per-`it` TestChunk uid and the file-scoped TestChunk uid that owns coverage (`validated_by` targets the latter). */
 interface DescriptorChunk {
   descriptor: TestDescriptor;
   testChunkUid: string;
   fileChunkUid: string;
 }
 
-/**
- * Pure data-shaping: folds the report's spec-anchored descriptors into one
- * {@link StatementGroup} per Statement xid (`${repo}|${specPath}|${ordinal}`).
- * Descriptors without a parseable spec anchor are skipped. Each group collects
- * every validating TestChunk uid and the names of the validating tests that
- * failed in this report (a failing test wins over a passing sibling). No Dgraph
- * I/O — the TestChunk uids are passed in already created.
- */
+/** Pure data-shaping: folds spec-anchored descriptors into one {@link StatementGroup} per Statement xid, collecting validating TestChunk uids + failing test names. No Dgraph I/O. */
 function groupStatementsByAnchor(
   repo: string,
   entries: DescriptorChunk[],
@@ -134,8 +97,7 @@ function groupStatementsByAnchor(
   const groups = new Map<string, StatementGroup>();
 
   for (const { descriptor, fileChunkUid } of entries) {
-    // A descriptor may carry several anchors (one test validating several
-    // statements) — contribute its TestChunk to every anchored statement.
+    // A descriptor may carry several anchors — contribute its TestChunk to every anchored statement.
     addDescriptorToAnchoredGroups(groups, repo, {
       descriptor,
       fileChunkUid,
@@ -168,16 +130,7 @@ function addDescriptorToAnchoredGroups(
   }
 }
 
-/**
- * Writes one aggregated Statement upsert per group: a `Statement.validated_by`
- * edge to every validating TestChunk and `Statement.violated` set to whether ANY
- * validating test in this report failed. `Statement.violation_reason` is written
- * only on failure (naming the failing test(s)); on recovery it is CLEARED by a
- * separate `deleteNquads` mutation that removes the predicate entirely
- * (`<uid> <Statement.violation_reason> * .`). We do NOT clear it by writing
- * `violation_reason: ""` because Dgraph corrupts an empty-string scalar (`""`)
- * into `"[]"`; deleting the predicate is the only clean way.
- */
+/** Writes one aggregated Statement upsert per group; `violation_reason` is cleared by deleting the predicate on recovery, never by writing `""` (Dgraph corrupts an empty scalar into `"[]"`). */
 async function writeStatementGroup(
   dgraph: DgraphClientPort,
   group: StatementGroup,
@@ -206,14 +159,7 @@ interface SentenceGroup extends SentenceMatch {
   failingTestNames: string[];
 }
 
-/**
- * Resolves every anchorless descriptor whose name parses as a
- * `<spec> | <sentence> | <label>` triple to the Statement/AcceptanceCriterion
- * nodes it sentence-matches, and aggregates the validating TestChunks (+ failing
- * test names) per resolved node. Mirrors {@link groupStatementsByAnchor} but
- * keys by the already-existing node uid (the resolver hit live nodes). Descriptors
- * that carry a spec anchor are left to the anchor path.
- */
+/** Resolves anchorless descriptors that sentence-match a Statement/AcceptanceCriterion, aggregating validating TestChunks per resolved node. Mirrors {@link groupStatementsByAnchor}, keyed by the resolver's live node uid. */
 async function groupStatementsBySentence(
   dgraph: DgraphClientPort,
   repo: string,
@@ -226,8 +172,7 @@ async function groupStatementsBySentence(
     if (parseSpecAnchors(descriptor.spec).length > 0) {
       continue;
     }
-    // Structural (describe-nesting) link is primary; fall back to a hand-written
-    // `<spec> | <sentence> | <label>` name for backward compatibility.
+    // Structural (describe-nesting) link is primary; falls back to a hand-written name for backward compatibility.
     const link =
       sentenceLinkFromSuite(descriptor) ?? parseSentenceLink(descriptor.name);
 
@@ -271,12 +216,7 @@ function addDescriptorToSentenceGroups(
   }
 }
 
-/**
- * Writes a sentence-resolved group onto its existing node by uid: a
- * `<nodeType>.validated_by` edge to every validating TestChunk, `<nodeType>.violated`
- * for any failing validator, and `<nodeType>.violation_reason` (cleared via
- * {@link deletePredicate} on recovery — never written as `""`, see the anchor writer).
- */
+/** Writes a sentence-resolved group onto its existing node by uid, same violated/violation_reason handling as {@link writeStatementGroup}. */
 async function writeSentenceGroup(
   dgraph: DgraphClientPort,
   group: SentenceGroup,
@@ -312,12 +252,7 @@ async function writeSentenceGroup(
   return failed;
 }
 
-/**
- * Projects the descriptor's suite chain (outermost→innermost) as a parent-linked
- * spine of TestSuite nodes, each keyed by `${repo}|${file}|${chain.join(">")}`,
- * and returns the innermost suite's uid for the TestChunk to point at. A
- * descriptor with no suite writes nothing and returns undefined.
- */
+/** Projects the descriptor's suite chain as a parent-linked spine of TestSuite nodes, returning the innermost uid; undefined when the descriptor has no suite. */
 async function projectSuiteChain(
   dgraph: DgraphClientPort,
   repo: string,
@@ -386,8 +321,7 @@ export async function ingestTestReport(
           : {}),
       },
     );
-    // The file-scoped TestChunk that owns coverage — `validated_by` targets this
-    // so the chain reconverges. Same xid coverage + the spec projector key on.
+    // The file-scoped TestChunk that owns coverage — `validated_by` targets this so the chain reconverges.
     let fileChunkUid = fileChunkUidByFile.get(descriptor.file);
 
     if (fileChunkUid === undefined) {
@@ -398,8 +332,7 @@ export async function ingestTestReport(
         {
           "TestChunk.repo": repo,
           "TestChunk.file_path": descriptor.file,
-          // test_name = file so the file-level coverage record (keyed by file, file)
-          // attaches HAS_COVERAGE to THIS node — the same one validated_by targets.
+          // test_name = file so the file-level coverage record attaches HAS_COVERAGE to this same node.
           "TestChunk.test_name": descriptor.file,
         },
       );
@@ -409,9 +342,7 @@ export async function ingestTestReport(
     entries.push({ descriptor, testChunkUid, fileChunkUid });
   }
 
-  // Attach every TestChunk + (leaf) TestSuite to the Repo root so the test layer
-  // is reachable from the graph's entry point (parent suites hang off the leaf via
-  // ~TestSuite.parent). Set-union dedups across re-ingests.
+  // Attach every TestChunk + leaf TestSuite to the Repo root so the test layer is reachable; set-union dedups across re-ingests.
   await upsertByXid(dgraph, "Repo", repo, {
     ...(repoTestChunkUids.size
       ? { "Repo.test_chunks": [...repoTestChunkUids].map((uid) => ({ uid })) }

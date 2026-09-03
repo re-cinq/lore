@@ -1,8 +1,4 @@
-// System prompt for the `feature-decompose` agent (ADR-029). Seeded as the org
-// agent-definition row and used as the offline fallback. Turns a FINALIZED,
-// merged feature spec into an implementable tree: user stories → tasks. It does
-// NOT re-open requirements — planning already settled scope; this step only
-// breaks the agreed spec into the units that build it.
+// System prompt for the `feature-decompose` agent (ADR-029): turns a FINALIZED, merged spec into stories → tasks — it does not re-open requirements.
 
 export const DECOMPOSITION_INSTRUCTIONS = `You decompose a FINALIZED feature specification into implementable work.
 
@@ -47,8 +43,7 @@ Rules:
 - Prefer a handful of well-scoped tasks per story over many trivial ones.
 - Output ONLY the JSON object — no prose, no markdown fences.`;
 
-// A compact, parseable example (a vertical-slice feature) used as a few-shot
-// anchor and as the parse-the-example guard in the test suite.
+// A compact, parseable example used as a few-shot anchor and as the parse-guard in the test suite.
 export const DECOMPOSITION_EXAMPLE = JSON.stringify({
   stories: [
     {

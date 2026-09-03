@@ -8,10 +8,7 @@ import type {
   FeatureWithIterations,
 } from "@/lib/feature-types";
 
-// The feature-planning operations, typed at one place instead of at each call
-// site. Replaces src/lib/feature-api.ts, whose private `send()` hand-rolled the
-// base URL, the token choice and the error mapping that now live in client.ts.
-
+// Feature-planning operations typed at one place; replaces feature-api.ts, whose private send() hand-rolled what now lives in client.ts.
 const base = (repo: string) => `/api/repos/${repo}/features`;
 
 export function createFeature(
@@ -25,8 +22,7 @@ export function createFeature(
   });
 }
 
-/** Start a round. `fromIteration` REWINDS: the new round continues that round's
- *  draft and conversation instead of the latest, and records it as its parent. */
+/** Start a round; `fromIteration` REWINDS — the new round continues that round's draft/conversation instead of the latest, recording it as parent. */
 export function refineFeature(
   repo: string,
   id: string,
@@ -49,9 +45,7 @@ export function refineFeature(
   });
 }
 
-/** Accept the plan. `userAnswers` carries whatever the author typed into the form
- *  before pressing accept — they fill it in and accept in one motion, and those
- *  answers belong in the plan the tail nodes turn into a spec. */
+/** Accept the plan — `userAnswers` is whatever the author typed before pressing accept, folded into the plan the tail nodes turn into a spec. */
 export function createSpecFile(
   repo: string,
   id: string,
@@ -82,21 +76,14 @@ export function deleteFeature(
   return apiFetch("lore-api", `${base(repo)}/${id}`, { method: "DELETE" });
 }
 
-// ── reads ────────────────────────────────────────────────────────────
-//
-// The feature pages used to SELECT `lore.features` / `lore.feature_iterations`
-// themselves, duplicating reads lore-api already served — including one pair
-// (`FeatureDetailPage` and `feature-poll`) running the same two queries
-// side by side.
-
+// ── reads ── feature pages used to SELECT lore.features/feature_iterations directly, duplicating reads lore-api already served.
 export function listFeatures(
   repo: string,
 ): Promise<ApiResult<{ features: FeatureRow[] }>> {
   return apiFetch("lore-api", base(repo));
 }
 
-/** A feature and every round it has been through. 404 for an id this repo does
- *  not hold — which is NOT the same as a feature with no rounds. */
+/** A feature and every round; 404 for an id this repo does not hold — NOT the same as a feature with no rounds. */
 export function getFeature(
   repo: string,
   id: string,
@@ -104,9 +91,7 @@ export function getFeature(
   return apiFetch("lore-api", `${base(repo)}/${id}`);
 }
 
-/** The wizard's 4s poll: the row, its latest round, the most recent round that
- *  produced a result, and the line the run graph hangs on. Deliberately not the
- *  full feature — that carries every round's mockups and repo stylesheet. */
+/** The wizard's 4s poll — deliberately not the full feature, which carries every round's mockups and repo stylesheet. */
 export function getFeatureStatus(
   repo: string,
   id: string,

@@ -1,7 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
 
-// ── parseGraphExtraction (copied from graph.ts for unit testing) ────
-
 interface ExtractedGraphEntity {
   name: string;
   type: string;
@@ -131,8 +129,6 @@ describe("parseGraphExtraction", () => {
   });
 });
 
-// ── Edge invalidation logic ────────────────────────────────────────
-
 describe("edge temporal invalidation", () => {
   it("invalidates contradictory edges (same source+relation, different target)", async () => {
     const invalidated: string[] = [];
@@ -141,7 +137,6 @@ describe("edge temporal invalidation", () => {
     const mockPool = {
       query: vi.fn(async (sql: string, params: any[]) => {
         if (sql.includes("SELECT id FROM memory.edges")) {
-          // No existing exact edge
           return { rows: [] };
         }
 
@@ -161,7 +156,6 @@ describe("edge temporal invalidation", () => {
       }),
     };
 
-    // Simulate upsertEdge
     async function upsertEdge(
       pool: any,
       sourceId: string,
@@ -190,7 +184,7 @@ describe("edge temporal invalidation", () => {
 
     await upsertEdge(mockPool, "auth-service", "hono", "uses");
 
-    expect(mockPool.query).toHaveBeenCalledTimes(3); // check + invalidate + insert
+    expect(mockPool.query).toHaveBeenCalledTimes(3);
     expect(inserted).toHaveLength(1);
     expect(inserted[0]).toEqual(["auth-service", "hono", "uses"]);
   });
@@ -220,11 +214,10 @@ describe("edge temporal invalidation", () => {
       if (existing.length > 0) {
         return;
       }
-      // Should not reach here
       throw new Error("Should not insert");
     }
 
     await upsertEdge(mockPool, "auth-service", "hono", "uses");
-    expect(mockPool.query).toHaveBeenCalledTimes(1); // only the check
+    expect(mockPool.query).toHaveBeenCalledTimes(1);
   });
 });

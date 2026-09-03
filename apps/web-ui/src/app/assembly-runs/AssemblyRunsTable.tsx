@@ -15,12 +15,7 @@ import styles from "./AssemblyRunsTable.module.css";
 const EM_DASH = "—";
 const TABLE_COLUMNS = 9;
 
-/**
- * A `lease_held` skip: the run started, found another run already holding its
- * repo+branch, and finished immediately having done no work. These are pure
- * coordination artifacts (a burst on one branch spawns many), so they are
- * folded away by default rather than drowning the real runs.
- */
+// A `lease_held` skip found the repo+branch already held and did no work — a pure coordination artifact, folded away by default.
 const isCoordinationSkip = (run: AssemblyRun): boolean =>
   run.status === "finished" && run.outcome === "lease_held";
 
@@ -28,14 +23,7 @@ export interface AssemblyRunsTableProps {
   runs: AssemblyRun[];
 }
 
-/**
- * The one assembly-line table — per-attempt runs from pipeline.assembly_runs.
- * Data down, no actions up beyond a local toggle that reveals the hidden
- * coordination skips. Shared by the global list and the per-repo tab. PR link /
- * creator / cost come from the run's backing task; task-less runs (the
- * webhook-driven family) fall back to args.pr_number / args.actor / the
- * line-keyed llm_calls rows. Em-dash when a run has neither.
- */
+// The one assembly-line table, shared by the global list and per-repo tab. PR/creator/cost come from the backing task; task-less runs fall back to args.pr_number/args.actor/llm_calls, else em-dash.
 export default function AssemblyRunsTable({ runs }: AssemblyRunsTableProps) {
   const [showSkips, setShowSkips] = useState(false);
 

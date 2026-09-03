@@ -1,12 +1,4 @@
-/**
- * What this service answers to at `POST /api/stations/{name}`.
- *
- * Built FROM the shared registry rather than hand-listed: a station declares an
- * `http` trigger and appears here, so the URL surface and the station's own
- * manifest cannot disagree. The hand-written map this replaces was one of the
- * three that could not check each other.
- *
- */
+// What this service answers to at `POST /api/stations/{name}` — built FROM the shared registry (a station declaring an `http` trigger appears here) rather than hand-listed, so the URL surface can't disagree with the manifest.
 
 import {
   STATIONS,
@@ -34,11 +26,7 @@ const hasHttpTrigger = (mod: {
 
 let memo: ReadonlyMap<string, Station> | undefined;
 
-/**
- * Memoized: the route resolves the registry on every request (twice, on a 404),
- * and the map is a constant derived from the manifests. It stayed a constant
- * before this was built from them, and should stay one now.
- */
+// Memoized: the route resolves the registry on every request (twice on a 404), and the map is a constant derived from the manifests.
 export function serviceStations(
   host: StationHost,
 ): ReadonlyMap<string, Station> {

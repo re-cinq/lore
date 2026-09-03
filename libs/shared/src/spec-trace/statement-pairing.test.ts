@@ -1,15 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { pairRewrites } from "./statement-pairing.js";
 
-/**
- * statement-pairing — recovering "this became that" from two unordered sets.
- *
- * The graph knows a statement's old text; the head file knows the new one. It
- * does not know which new statement replaced which old one, because statements
- * have no stable identity across an edit (that is why the delta conflates
- * edited and deleted). Pairing by similarity is what lets the comment show a
- * real before/after instead of quoting text the file no longer contains.
- */
 describe("pairRewrites", () => {
   it("pairs a lightly edited statement with its replacement", () => {
     expect(

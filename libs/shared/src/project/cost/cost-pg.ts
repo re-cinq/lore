@@ -6,12 +6,7 @@ import type {
   GcpCostDailyRow,
 } from "./cost-port.js";
 
-/**
- * Postgres-backed {@link CostPort}: a single upsert into
- * `pipeline.anthropic_cost_daily`. Lifted byte-for-byte from the floor
- * cost-sync job's `upsertRow` so the runner reaches the billing table through
- * the Project facade.
- */
+/** Postgres-backed {@link CostPort}: a single upsert into `pipeline.anthropic_cost_daily`, lifted byte-for-byte from the floor cost-sync job's `upsertRow`. */
 export class PgCost implements CostPort {
   constructor(private readonly pool: PgPool) {}
 
@@ -41,11 +36,7 @@ export class PgCost implements CostPort {
   }
 }
 
-/**
- * Postgres-backed {@link GcpCostPort}: a single upsert into
- * `pipeline.gcp_cost_daily`, the same replace-on-resync shape as the
- * Anthropic table so a restated export bucket overwrites cleanly.
- */
+/** Postgres-backed {@link GcpCostPort}: a single upsert into `pipeline.gcp_cost_daily`, same replace-on-resync shape as the Anthropic table. */
 export class PgGcpCost implements GcpCostPort {
   constructor(private readonly pool: PgPool) {}
 

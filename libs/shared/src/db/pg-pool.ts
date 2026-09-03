@@ -1,15 +1,4 @@
-/**
- * The Postgres pool every Lore service that holds one builds the same way.
- *
- * Three byte-identical copies existed (floor, event-router, stations) — same
- * env vars, same defaults, same `max`, same idle-client error handler. A copy
- * per service is a place for one of them to drift onto a different database and
- * be discovered by the symptom rather than the diff.
- *
- * `initPool` is separate from `getPool` on purpose: `getPool` throws until boot
- * has run, which is what lets every repository singleton in a service be lazy
- * and still fail loudly if something reaches for data before the pool exists.
- */
+/** Shared Postgres pool builder (dedupes 3 byte-identical copies across floor/event-router/stations); `getPool` throws until `initPool` has run, so repository singletons can stay lazy and still fail loudly. */
 
 import pg from "pg";
 import { enforceTrue } from "../lib/enforce.js";
@@ -26,8 +15,7 @@ export function initPool(env: NodeJS.ProcessEnv = process.env): pg.Pool {
     max: 5,
   });
 
-  // An idle client that errors would otherwise take the process down with an
-  // unhandled 'error' event.
+  // Without this handler an idle client error takes the process down (unhandled 'error' event).
   pool.on("error", (err) => {
     console.error("[db] pg pool error (idle client):", err);
   });

@@ -1,17 +1,4 @@
-/**
- * Start the escalation line for a task that needs a human.
- *
- * Keyed by the TASK, because more than one thing can notice the same failure —
- * the agent watcher, a failed line's terminal step, and (if it is ever wired in)
- * the stale sweep. Two of them racing must produce one Issue, not two at the
- * same person.
- *
- * Capped for the reason the merge line is capped, learned the hard way in
- * production: a task that stays in its failed state is noticed again on every
- * sweep, and an uncapped start would open a fresh line — and eventually a fresh
- * Issue — every time. Past the cap the failure is already recorded on three
- * runs and telling the human a fourth time helps nobody.
- */
+/** Start the escalation line for a task needing a human: keyed by task id so racing noticers (agent watcher, terminal step, sweep) file one Issue not two, and capped at `MAX_ESCALATION_ATTEMPTS` so a stuck-failed task isn't reported forever. */
 
 export interface EscalationTask {
   id: string;
@@ -69,8 +56,7 @@ export async function startEscalationLine(
     blueprintName: "escalation",
     taskId: task.id,
     repo: task.repo,
-    // The line touches no working tree; the branch is carried so the Issue can
-    // link it, and doubles as the overlap-guard key.
+    // No working tree involved; branch doubles as the Issue link + overlap-guard key.
     branch: subjectKey,
     subjectKey,
     args: {

@@ -1,12 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { dispatchSpecTrace } from "./spec-trace-dispatch.js";
 
-/**
- * dispatchSpecTrace routes a spec-trace trigger by kind onto the ingest
- * assembly line (FR6: the Floor never projects inline — every dgraph write
- * happens in an ingest-station pod). The repo is only ever read to self-chunk
- * a force-without-glob pass into per-directory child events.
- */
 function fakeProjectFor() {
   const reposAskedFor: string[] = [];
   const projectFor = async (repo: string) => {
@@ -49,8 +43,6 @@ describe("dispatchSpecTrace", () => {
       { projectFor, startLine },
     );
 
-    // subjectKey is the guard — per kind, so the specs and adrs lines of one push
-    // never read as duplicates of each other; the clone ref rides args.ref.
     expect(started).toEqual([
       {
         blueprintName: "ingest",

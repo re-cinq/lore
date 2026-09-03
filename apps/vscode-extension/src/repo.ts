@@ -1,10 +1,4 @@
-/**
- * Resolve the coordinates the extension needs from the developer's machine —
- * the same places install.sh / the MCP server read them, so no extra setup:
- *   - owner/repo from `git remote get-url origin` (mirrors mcp-server's
- *     repo-detect regex)
- *   - API url + token from `git config --global lore.{api-url,ingest-token}`
- */
+// Reads owner/repo from git remote origin and API url/token from git config lore.{api-url,ingest-token}, same as install.sh.
 
 import { execFileSync } from "node:child_process";
 

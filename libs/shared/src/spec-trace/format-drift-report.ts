@@ -1,8 +1,4 @@
-/**
- * spec-traceability-graph Phase 7 (T273) — formats graph-sourced drift findings
- * (statements the traceability graph marks violated/drifted) into a `spec-drift`
- * issue body. Sibling of `formatBrokenLinksReport`; empty findings → "" (no issue).
- */
+/** spec-traceability-graph Phase 7 (T273) — formats graph-sourced drift findings into a `spec-drift` issue body; sibling of `formatBrokenLinksReport`, empty findings → "" (no issue). */
 export interface DriftedStatement {
   specPath: string;
   ordinal: number;

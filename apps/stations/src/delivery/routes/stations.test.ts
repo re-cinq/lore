@@ -8,9 +8,6 @@ const auth = { authorization: `Bearer ${TOKEN}` };
 let registry: StationRegistry;
 let app: Hapi.Server;
 
-/** ONE server per test, as in production: the in-flight latch lives on the
- *  route, so a fresh server per request would be a fresh latch and the
- *  concurrency guard could never be observed. */
 function run(name: string): Promise<Hapi.ServerInjectResponse> {
   return app.inject({
     method: "POST",

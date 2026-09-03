@@ -1,13 +1,4 @@
-/**
- * Secret redaction — canonical implementation.
- *
- * Strips API keys, JWTs, private keys, connection strings, bearer
- * tokens, GitHub tokens, and base64 blobs from text before storage
- * in logs or org-wide memory.
- *
- * Used by: index.ts (sanitizeContent), local-runner.ts (redactLogs).
- * Agent equivalent: agent/src/lib/redact.ts (kept in sync).
- */
+/** Secret redaction — canonical implementation; strips API keys/JWTs/private keys/connection strings/tokens/base64 blobs before storage in logs or org-wide memory. Kept in sync with agent/src/lib/redact.ts. */
 
 const PATTERNS: Array<{ name: string; re: RegExp }> = [
   {

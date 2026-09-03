@@ -126,8 +126,7 @@ Use this when you want chunk-level evidence or the exact wording of a convention
       limit: z.number().default(8).describe("Maximum passages to return."),
     },
     async ({ query, team, limit }) => {
-      // Auto-detect repo from git remote when no team is specified.
-      // Scopes DB search to the detected repo's context namespace.
+      // Auto-detects repo from git remote when no team is specified, to scope DB search to its context namespace.
       const detectedRepo = !team ? detectCurrentRepo() : null;
 
       if (detectedRepo) {
@@ -165,8 +164,7 @@ Use this when you want chunk-level evidence or the exact wording of a convention
         limit,
       );
 
-      // Trace the retrieval for observability + gap detection
-      const topScore = results.length > 0 ? 1.0 : 0.0; // Phase 0: binary score. Phase 1: RRF score.
+      const topScore = results.length > 0 ? 1.0 : 0.0; // Phase 0: binary score, Phase 1 will be RRF.
 
       traceRetrieval({
         query,
@@ -235,7 +233,7 @@ Instead: use lore_search_context for raw passages/exact wording from ingested do
     async ({ query, template, max_tokens, repo, agent_id, cross_repo }) => {
       return trackLatency("lore_assemble_context", async () => {
         try {
-          // Local stdio mode: proxy to GKE through the read-through cache.
+          // Local stdio mode proxies to GKE through the read-through cache.
           const apiUrl = process.env.LORE_API_URL;
           const apiToken = process.env.LORE_INGEST_TOKEN;
 
@@ -250,10 +248,7 @@ Instead: use lore_search_context for raw passages/exact wording from ingested do
             };
           }
           const resolvedRepo = repo || detectCurrentRepo() || "";
-          // Forward the knobs the backend honors. cross_repo=false is the
-          // no-op default (the server resolves the settings fallback), so it
-          // is only sent when true. The same extras seed the cache key so a
-          // 16000-token request is never served an 8000-token cached body.
+          // Only sent when non-default so these extras also seed the cache key, keeping a 16000-token request from being served an 8000-token cached body.
           const extras: Record<string, string> = {};
 
           if (max_tokens) {
@@ -288,9 +283,7 @@ Instead: use lore_search_context for raw passages/exact wording from ingested do
               }
               const data = JSON.parse(r.body) as { text?: string };
 
-              // A reachable backend that returns empty context is a real
-              // (empty) result, not an outage — return it as-is rather than
-              // forcing a stale, mislabeled "backend unreachable" serve.
+              // A reachable backend returning empty context is a real result, not an outage — return as-is rather than serving a stale, mislabeled fallback.
               return { ok: true as const, body: data.text ?? "" };
             },
           );

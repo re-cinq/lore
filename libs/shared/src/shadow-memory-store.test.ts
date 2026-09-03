@@ -2,8 +2,6 @@ import { describe, it, expect } from "vitest";
 import { ShadowMemoryStore } from "./shadow-memory-store.js";
 import type { MemoryStore, WriteResult } from "./memory-store.js";
 
-// Real in-memory Fake (no mocks): readMemory returns the value it was
-// constructed with; every other method is unused in this kernel test.
 class FakeStore implements MemoryStore {
   readonly backend = "postgres" as const;
 
@@ -26,8 +24,6 @@ class FakeStore implements MemoryStore {
   }
 }
 
-// Real store whose readMemory genuinely throws (no mock): used to prove a
-// shadow failure can't break the served read.
 class ThrowingStore implements MemoryStore {
   readonly backend = "postgres" as const;
 

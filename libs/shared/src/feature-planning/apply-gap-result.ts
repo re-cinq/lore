@@ -1,10 +1,4 @@
-// Persisting one planning round's GapResult.
-//
-// Two callers reach this: the features API route (the pod POSTing its own result)
-// and the Floor's handler for the subsystem's `kind:"file"` artifact event. They
-// must agree exactly — a round that reads `ready` on one path and `failed` on the
-// other would show the author a different feature depending on how the pod happened
-// to deliver, so the parse/sanitize/transition sequence lives here once.
+// Persisting one planning round's GapResult — shared by the features API route and the Floor's artifact-event handler so both agree exactly on ready/failed.
 
 import {
   parseGapResult,
@@ -13,8 +7,7 @@ import {
   isPlanningPhase,
 } from "./gap-result.js";
 
-/** The slice of `project.features` this needs — narrow so a caller can be tested
- *  against the in-memory double without a whole Project. */
+/** The slice of `project.features` this needs — narrow so a caller can be tested against the in-memory double without a whole Project. */
 export interface GapResultFeatures {
   get(id: string): Promise<{ status: string } | null>;
   setIterationResult(
@@ -33,14 +26,7 @@ export interface GapResultFeatures {
 export type ApplyGapResult =
   { outcome: "ready" } | { outcome: "failed"; error: string };
 
-/**
- * Record a round's result. A payload that does not validate marks the round failed
- * and reports why rather than throwing — the caller decides whether that is a 400,
- * a retry, or a log line.
- *
- * The feature only advances while it is still mid-planning: a slow or duplicate
- * delivery must not drag a finalized feature back into the wizard.
- */
+/** Records a round's result; an invalid payload marks it failed and reports why rather than throwing. Advances the feature only while still mid-planning, so a slow/duplicate delivery can't drag a finalized feature back into the wizard. */
 export async function applyGapResult(
   features: GapResultFeatures,
   featureId: string,

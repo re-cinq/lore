@@ -1,18 +1,4 @@
-/**
- * The pull-based claim loop (FR3 of specs/running-stations-in-any-k8s-cluster):
- * poll `POST /api/cluster-agents/{id}/claim`, and on a hit launch the returned
- * spec as an Agent CR in THIS cluster. Pull, not push, because a minikube or a
- * customer cluster is unreachable for inbound calls — the GitLab Runner model.
- *
- * An idle agent backs off (doubling to a 60s ceiling, resetting on the first
- * hit) so a fleet of quiet satellites costs the API a bounded trickle. A 401/403
- * means the token was rotated elsewhere; the loop re-registers under its
- * persisted identity and keeps going. A launch failure is logged and the loop
- * continues — the reaper's queue-wait and timeout bounds own recovery.
- *
- * Every side effect is injected (fetch, launch, sleep, re-register) so each
- * tick and the schedule test without a cluster or a network.
- */
+// Pull-based claim loop (FR3, specs/running-stations-in-any-k8s-cluster): polls claim, launches an Agent CR on a hit, backs off while idle, re-registers on 401/403.
 
 import { errorMessage, type LoreTaskSpec } from "@re-cinq/lore-shared";
 import {
@@ -34,45 +20,28 @@ export function claimIntervalMs(env: NodeJS.ProcessEnv): number {
   );
 }
 
-/** The claim response body (200). `spec` is the complete dispatch spec the
- *  Floor's launch seam enqueued; nothing here needs a synced catalog. */
+/** The claim response body (200). `spec` is the complete dispatch spec the Floor's launch seam enqueued. */
 export interface ClaimResponse {
   station_run_id: string;
-  /** String-encoded bigint (the agent_run_events discipline) — a JS number
-   *  would silently lose precision past 2^53. */
+  /** String-encoded bigint — a JS number would silently lose precision past 2^53. */
   node_row_id: string;
   assembly_run_id: string;
   node_id: string;
   iteration: number;
-  /** Null for a row enqueued without a CR name armed yet — the spec's own
-   *  name is the fallback identity then. */
+  /** Null for a row enqueued without a CR name armed yet — the spec's own name is the fallback then. */
   agent_cr_name: string | null;
   spec: LoreTaskSpec;
 }
 
 export type ClaimOutcome =
   | { kind: "claimed"; stationRunId: string; crName: string }
-  /** The CR was already there — a requeued visit converging on the name its
-   *  previous attempt used. Reported apart from a fresh launch because no new
-   *  pod exists: the terminal event of the CR still standing dedupes against the
-   *  one that attempt already produced, so this row would sit claimed behind a
-   *  finished CR. */
+  /** The CR was already there — a requeued visit converging on a prior attempt's name; no new pod launched. */
   | { kind: "already-running"; stationRunId: string; crName: string }
   | { kind: "empty" }
   | { kind: "unauthorized" }
   | { kind: "error"; message: string };
 
-/** The idle back-off schedule: only a 204 grows the delay — the FIRST idle
- *  tick keeps the base interval, consecutive ones double it to the cap. Errors
- *  keep polling at the base — they are not idleness. `idleTicks` counts the
- *  consecutive empties BEFORE this one.
- *
- *  A CLAIM does not sleep at all. The queue just proved it has work, and a fan-
- *  out enqueues many visits at once: at the base interval a cluster launched one
- *  pod every 15 seconds, so ten queued nodes took two and a half minutes and
- *  forty took ten — while the reaper's queue-wait bound counted from enqueue.
- *  The next poll either finds more work or answers 204, which is where the
- *  back-off begins. */
+// Idle back-off: only a 204 grows the delay (doubling to the cap); errors poll again at base. A claim never sleeps — the queue just proved it has work.
 export function nextClaimDelay(
   baseMs: number,
   idleTicks: number,
@@ -100,25 +69,13 @@ export interface ClaimTickDeps {
 export interface ReleaseDeps {
   apiUrl: string;
   identity: () => ClusterAgentIdentity;
-  /** The station-run ROW, which is what the queue requeues (the row-id-as-
-   *  visit-order contract) — not the station_run_id. */
+  /** The station-run ROW the queue requeues by (row-id-as-visit-order) — not the station_run_id. */
   nodeRowId: string;
   reason: string;
   fetchFn?: typeof fetch;
 }
 
-/**
- * Hand back a visit this cluster claimed and could not launch.
- *
- * The claim CASes the row to `claimed` before any pod exists, so a launch that
- * throws leaves a claimed row with nothing behind it. Left unsaid, that row
- * waits — centrally until the reaper notices the missing CR, on a satellite
- * (whose CRs the centre cannot see) for the whole node budget. One extra call
- * is the difference between a wasted claim and a wasted hour.
- *
- * Never throws: it runs inside the tick's failure path, where a second failure
- * must not become the loop's.
- */
+// Hand back a visit this cluster claimed and could not launch — left unsaid, it waits out the whole node budget on a satellite. Never throws (runs in the tick's failure path).
 export async function releaseClaim(deps: ReleaseDeps): Promise<void> {
   const fetchFn = deps.fetchFn ?? fetch;
   const { id, token } = deps.identity();
@@ -152,8 +109,7 @@ export async function releaseClaim(deps: ReleaseDeps): Promise<void> {
   }
 }
 
-/** One poll: claim, and launch what was claimed. Never throws — every failure
- *  shape is an outcome the loop can act on. */
+/** One poll: claim, and launch what was claimed. Never throws — every failure shape is an outcome. */
 export async function claimOnce(deps: ClaimTickDeps): Promise<ClaimOutcome> {
   const fetchFn = deps.fetchFn ?? fetch;
   const { id, token } = deps.identity();
@@ -190,21 +146,14 @@ export async function claimOnce(deps: ClaimTickDeps): Promise<ClaimOutcome> {
   try {
     claim = (await res.json()) as ClaimResponse;
   } catch (err) {
-    // A 200 carrying a proxy error page would otherwise reject out of the loop
-    // and kill the poller for good — the one throw the outcome union missed.
+    // A 200 carrying a proxy error page would otherwise kill the poller for good — the one throw the outcome union missed.
     return {
       kind: "error",
       message: `claim response parse failed: ${errorMessage(err)}`,
     };
   }
 
-  // The ROW's name wins. The watch's terminal report, the reconcile pass and the
-  // fork replay all correlate by what the Floor recorded there; the spec carries
-  // a second copy of the same fact, and a copy is exactly the thing that can go
-  // stale — a re-dispatch converging on an existing row keeps the spec it was
-  // armed with. Launching under the spec's spelling when the two differ produces
-  // a CR no row names, whose terminal event matches nothing: the node waits out
-  // its timeout and reads as a run nobody ever launched.
+  // The ROW's name wins — the watch, reconcile, and fork replay all correlate by it; launching under the spec's spelling instead orphans the CR from its row.
   const rowName = claim.agent_cr_name;
   const specName = claim.spec.name;
 
@@ -248,15 +197,7 @@ export async function claimOnce(deps: ClaimTickDeps): Promise<ClaimOutcome> {
   }
 }
 
-/**
- * The kill switch a shutdown throws.
- *
- * Without one the claim loop keeps ticking through the drain: a claim lands, the
- * API records the visit as claimed by this agent, and `process.exit` cuts the
- * launch — mint, Secret write, catalog clone, CR create — somewhere in the
- * middle. That is a claimed row with no CR (or a half-written per-task pair) on
- * every rollout, and the queue is busiest exactly when rollouts hurt.
- */
+// The kill switch a shutdown throws — without it a claim can land and `process.exit` cuts the launch mid-CR-create on every rollout.
 export function stopLatch(): { running: () => boolean; stop: () => void } {
   let alive = true;
 
@@ -270,8 +211,7 @@ export function stopLatch(): { running: () => boolean; stop: () => void } {
 
 export interface ClaimLoopDeps {
   claim: () => Promise<ClaimOutcome>;
-  /** Re-registers with the persisted current_token after a 401/403. A null
-   *  result (API down, identity lost) is fine — the next tick tries again. */
+  /** Re-registers with the persisted current_token after a 401/403; a null result is fine — the next tick tries again. */
   reRegister: () => Promise<ClusterAgentIdentity | null>;
   sleep: (ms: number) => Promise<void>;
   baseDelayMs: number;

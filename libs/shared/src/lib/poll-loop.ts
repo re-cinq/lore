@@ -1,15 +1,4 @@
-/**
- * The unbounded polling loop: tick forever, react to each outcome, sleep a delay
- * the outcome chose. Sibling to `withBackoff` in ./backoff.js, which retries a
- * THROWING operation a BOUNDED number of times — a shape that cannot express a
- * poller which never gives up and reports failure as data rather than exceptions.
- *
- * Extracted from the three hand-rolled loops in apps/cluster-agent/src/claim/
- * (claim, heartbeat, registration), which shared one skeleton: an injected sleep,
- * an injected `running()` kill switch, an outcome union instead of throws, and a
- * pure `next*Delay` beside them. Every side effect stays injected, so a loop and
- * its schedule test without a cluster, a network or a timer.
- */
+/** The unbounded polling loop: tick forever, react, sleep a chosen delay; sibling to `withBackoff` (bounded retries on a throw), extracted from three hand-rolled loops in apps/cluster-agent/src/claim/ (claim/heartbeat/registration) that shared one skeleton. */
 
 /** min(baseMs * 2^attempts, maxMs). A negative attempt count floors at the base. */
 export function backoffDelay(
@@ -24,11 +13,7 @@ export interface PollLoopDeps<Outcome> {
   tick: () => Promise<Outcome>;
   /** Awaited before the sleep, so a re-registration completes before the next tick. */
   onOutcome?: (outcome: Outcome) => void | Promise<void>;
-  /**
-   * The delay to sleep after this outcome. `idleTicks` counts the consecutive
-   * idle outcomes BEFORE this one, so the FIRST idle still gets the base delay
-   * and only consecutive ones grow it.
-   */
+  /** The delay to sleep after this outcome; `idleTicks` counts consecutive idle outcomes BEFORE this one, so only the second-and-later idle grows the delay. */
   delayFor: (outcome: Outcome, idleTicks: number) => number;
   /** Omitted = nothing is idle, so `idleTicks` stays 0 and the delay is flat. */
   isIdle?: (outcome: Outcome) => boolean;
@@ -57,12 +42,7 @@ export async function runPollLoop<Outcome>(
 }
 
 export interface PollUntilDeps<T> {
-  /**
-   * Null — and only null — means "not yet"; it is the sentinel, so `T` must not
-   * include it. Every other value the tick yields ends the wait, `undefined`
-   * included: a caller whose `T` admits `undefined` would resolve on its own
-   * "no result", which the type forbids rather than a runtime check catching.
-   */
+  /** Null (and only null) means "not yet" — the sentinel, so `T` must not include it; every other value, `undefined` included, ends the wait. */
   tick: () => Promise<T | null>;
   baseDelayMs: number;
   maxDelayMs: number;

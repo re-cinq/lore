@@ -37,8 +37,6 @@ describe("CollapsibleCard", () => {
   });
 
   it("keeps the content in the DOM while closed, so find-in-page and screen readers still reach it", () => {
-    // A closed <details> hides its content without unmounting it. Rendering the
-    // children conditionally would have been the easy version and would break both.
     render(
       <CollapsibleCard title="Draft spec">
         <p>the whole spec</p>

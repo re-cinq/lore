@@ -1,13 +1,4 @@
-// The acceptance harness: one real walk, no cluster.
-//
-// Wires the REAL start/node/resume handlers over the REAL builtin blueprints and
-// the in-memory assembly-runs port, replacing exactly two things — the cluster
-// (an enqueue recorder plus scripted CR statuses) and the human (a resume event).
-// Everything between them is production code: the transition replay, the outcome
-// parsing, the artifact delivery, the args channel. This is the composition
-// layer the per-handler suites cannot see — the tier where the shallow
-// args-merge (#1462) and the dead planning join (#1162) lived while every unit
-// test stayed green.
+// One real walk, no cluster: real start/node/resume handlers over real blueprints and the in-memory port, mocking only the cluster and the human — the composition layer where #1462's args-merge and #1162's dead planning join hid while unit tests stayed green.
 
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { InMemoryAssemblyRuns } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-memory.js";
@@ -38,15 +29,10 @@ export interface PublishedServiceNode {
   dedupeKey?: string;
 }
 
-/** The central cluster's name in the harness registry. Its ID is whatever
- *  registration minted — resolved through the registry exactly as production
- *  does (`clusterAgents().findByName(...)`), because a second, hardcoded
- *  identity for the same cluster makes `agentCrVisible` judge central's own CRs
- *  unreadable, which is what a real claim through this harness first exposed. */
+/** Resolved through the registry like production, never hardcoded — a second identity for the same cluster made `agentCrVisible` judge central's own CRs unreadable. */
 export const CENTRAL_CLUSTER_AGENT_NAME = "central";
 
-/** The tag set cluster-agent-helm gives the central cluster — every node type,
- *  including the central-only ones a satellite never receives. */
+/** The tag set cluster-agent-helm gives the central cluster — every node type, including the central-only ones a satellite never receives. */
 export const CENTRAL_TAGS = [
   "node:agent",
   "node:validate",
@@ -63,17 +49,11 @@ export const SATELLITE_TAGS = ["node:agent"];
 export interface CompleteAgentNodeInput {
   /** Full scripted CR output (NDJSON envelope or plain text). Wins over `outcome`. */
   output?: string;
-  /** The cluster-agent that claimed this node, defaulting to the central one.
-   *  Name a SATELLITE to walk a node this Floor cannot interrogate. */
+  /** The cluster-agent that claimed this node, defaulting to central; name a SATELLITE to walk a node this Floor cannot interrogate. */
   claimedBy?: string;
-  /** Script the CR read as unreadable — the terminal event arrives and
-   *  `readAgentStatus` answers null, which is what a satellite's CR does. */
+  /** Script the CR read as unreadable, what `readAgentStatus` answers for a satellite's CR. */
   statusUnreadable?: boolean;
-  /** Report the status ON the terminal event itself (specs/running-stations-in-any-k8s-cluster
-   *  FR4's follow-up) — what a cluster-agent that has adopted the fix sends.
-   *  Combine with `statusUnreadable` to prove the reported status alone
-   *  resolves a node this Floor could never read back, the exact case that
-   *  stranded PR #1599's review. */
+  /** Report the status on the terminal event itself (specs/running-stations-in-any-k8s-cluster FR4); combine with `statusUnreadable` to reproduce the case that stranded PR #1599's review. */
   reportStatus?: boolean;
   /** Shorthand: emit a result envelope carrying `LORE_NODE_RESULT: {outcome}`. */
   outcome?: "success" | "changes_requested" | "failed";
@@ -116,17 +96,12 @@ export function createLineHarness(
   overrides: Partial<Pick<AdvanceDeps, "onRunClosed" | "stampPr">> = {},
 ) {
   const runs = new InMemoryAssemblyRuns();
-  // The registry the claim reads. Two clusters by default, exactly as the fleet
-  // is shaped: a central one carrying every tag and a satellite carrying only
-  // `node:agent` — which is why one paused central starves a line rather than
-  // failing over.
+  // The registry the claim reads: central (every tag) + satellite (`node:agent` only), so a paused central starves a line rather than failing over.
   const agents = new InMemoryClusterAgents();
   const agentIds = new Map<string, string>();
   const enqueued: LoreTaskSpec[] = [];
   const published: PublishedServiceNode[] = [];
   const statusByAgent = new Map<string, AgentNodeStatus>();
-  // The walk arms the queued row through the port; recording the specs here is
-  // the harness's window on "what would a claiming cluster-agent be handed".
   const armDispatch = runs.enqueueStationRunDispatch.bind(runs);
 
   runs.enqueueStationRunDispatch = async (nodeRowId, dispatchSpec) => {
@@ -134,8 +109,7 @@ export function createLineHarness(
     await armDispatch(nodeRowId, dispatchSpec);
   };
 
-  /** Resolved through the registry, exactly as production does. Named once
-   *  because the walk treats it as optional and the reaper requires it. */
+  /** Resolved through the registry like production; named once since the walk treats it as optional but the reaper requires it. */
   const centralClusterAgentId = async (): Promise<string | null> => {
     await ensureFleet();
 
@@ -168,8 +142,7 @@ export function createLineHarness(
     finishNodeAndAdvance: (input) => finishNodeAndAdvance(input, deps),
   });
 
-  /** Register the default fleet once, lazily: central with every tag, a
-   *  satellite with `node:agent` alone. */
+  /** Register the default fleet once, lazily: central with every tag, a satellite with `node:agent` alone. */
   async function ensureFleet(): Promise<void> {
     if (agentIds.size > 0) {
       return;
@@ -186,9 +159,7 @@ export function createLineHarness(
         clusterInfo: null,
       });
 
-      // A null create means the name was taken. Storing "" would hand every
-      // later lookup an id that matches nothing — the claim would silently find
-      // no work and the harness would report a walk that never happened.
+      // A null create means the name was taken; storing "" would silently make every later claim find no work.
       enforceTrue(
         created,
         Error,
@@ -198,12 +169,7 @@ export function createLineHarness(
     }
   }
 
-  /**
-   * One cluster-agent polling for work — the REAL gate the route applies
-   * (`mayClaim`) over the REAL queue scan (`claimNextStationRun`), rather than
-   * a row mutated into place. Null is the 204 an agent backs off on, whether it
-   * is paused or simply carries none of the node's tags.
-   */
+  /** One cluster-agent polling for work through the real `mayClaim` gate + `claimNextStationRun` scan; null is the 204 an agent backs off on. */
   async function claimAs(name: string) {
     await ensureFleet();
     const agent = await agents.findByName(name);
@@ -237,12 +203,7 @@ export function createLineHarness(
     }
   }
 
-  /**
-   * The REAL reaper sweep, with the clock moved forward instead of slept
-   * through. This is what turns a queued row nobody claimed into a terminal
-   * failure, and it reads the same registry the claim does — so the reason it
-   * writes names the cluster this harness actually paused.
-   */
+  /** The real reaper sweep with the clock moved forward instead of slept through, turning an unclaimed queued row into a terminal failure. */
   async function reap(input: { minutesLater?: number } = {}): Promise<string> {
     await ensureFleet();
     const shifted = new Date(Date.now() + (input.minutesLater ?? 0) * 60_000);
@@ -289,11 +250,7 @@ export function createLineHarness(
         `LORE_NODE_RESULT: {"outcome":"${input.outcome ?? "success"}"}`,
       );
 
-    // A CR only exists because a cluster-agent CLAIMED the row and launched it,
-    // so the row a terminal event arrives for is never still `queued`. Written
-    // straight onto the row rather than through `claimNextStationRun`: the claim
-    // scan takes the next queued row of any node, and a walk parks one node at a
-    // time only by luck.
+    // Written straight onto the row rather than through `claimNextStationRun`, since that scan claims the next queued row of any node, not necessarily this one.
     const claimed = runs.nodes.find(
       (n) =>
         n.assemblyRunId === assemblyRunId &&

@@ -188,12 +188,7 @@ describe("FullTranscriptPanel", () => {
   });
 
   it("reopening while the first walk is in flight never starts a second one", async () => {
-    const fetchMock = vi.fn(
-      () =>
-        new Promise<Response>(() => {
-          // Deliberately never resolves — the walk stays in flight.
-        }),
-    );
+    const fetchMock = vi.fn(() => new Promise<Response>(() => {}));
 
     vi.stubGlobal("fetch", fetchMock);
     const { container } = render(
@@ -271,14 +266,10 @@ describe("FullTranscriptPanel", () => {
   });
 });
 
-// Opt-in hasMore variant: the shared turnsResponse deliberately omits the flag
-// so every pre-#1310 test keeps exercising the short-page fallback.
 function turnsPageResponse(turns: unknown[], hasMore: boolean) {
   return new Response(JSON.stringify({ turns, hasMore }), { status: 200 });
 }
 
-// A drifted walk crosses up to MAX_WALK_PAGES pages; openPanel's 12 hops
-// flush only a few.
 async function openPanelLong(container: HTMLElement) {
   toggle(container, true);
 
@@ -291,8 +282,6 @@ async function openPanelLong(container: HTMLElement) {
 
 describe("FullTranscriptPanel with the Floor's hasMore flag", () => {
   it("keeps walking across a short page while the Floor reports more", async () => {
-    // A drifted Floor clamp: pages far below TURNS_PAGE_LIMIT that still
-    // report more rows must continue the walk instead of silently truncating.
     const fetchMock = stubFetch(
       turnsPageResponse(
         [wireTurn("1", "implement"), wireTurn("2", "implement")],

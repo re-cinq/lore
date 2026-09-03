@@ -1,16 +1,4 @@
-/**
- * `pipeline.pod_log_chunks` — the durable half of a run pod's stdout.
- *
- * Live pod logs are read straight from the Kubernetes API and vanish with the
- * pod; the Cloud Logging fallback behind them names the central project. Both
- * are central-only, so a run claimed by a satellite has no log path at all,
- * live or archived. These chunks are the third source and the only one that
- * works for a cluster reporting inward.
- *
- * Deliberately NOT the same store as `agent_run_events`. That is the projected
- * stream-json transcript of an AGENT; this is raw container stdout, which every
- * node type produces including the station pods that run no model at all.
- */
+/** `pipeline.pod_log_chunks` — the durable half of a run pod's stdout; the only log source that works for a satellite-claimed run. Deliberately NOT the same store as `agent_run_events` (that's the AGENT's projected transcript; this is raw container stdout from every node type). */
 
 import type { PodLogChunk } from "../../models/pod-log-chunk.js";
 
@@ -25,11 +13,7 @@ export interface PodLogChunkInsert {
 }
 
 export interface PodLogsRepository {
-  /**
-   * Append a batch. Idempotent on `(podName, seq)`: the producer retries
-   * through the event proxy, so a redelivered batch must collapse rather than
-   * duplicate a span of log.
-   */
+  /** Append a batch, idempotent on `(podName, seq)` — a redelivered batch (producer retries through the event proxy) must collapse rather than duplicate. */
   appendBatch(chunks: PodLogChunkInsert[]): Promise<void>;
 
   /** Every chunk for a Job, in the order its pod emitted them. */

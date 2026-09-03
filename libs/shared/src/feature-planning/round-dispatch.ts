@@ -1,9 +1,4 @@
-// Where a planning round goes.
-//
-// A feature's planning is one assembly line whose rounds are revisits (FR6.21), so
-// the wizard reports the author's verdict to the node the line is PARKED on rather
-// than minting a line per round. Features whose planning started before that line
-// existed have no parked node, and must keep the old path or they strand mid-plan.
+// Planning rounds are revisits of one parked node (FR6.21); pre-existing features with no parked node keep the legacy path.
 
 import {
   parkedHumanNode,
@@ -16,25 +11,13 @@ export type { ParkedNode };
 export type RoundDispatch =
   { kind: "resume"; nodeId: string; iteration: number } | { kind: "legacy" };
 
-/** The author's park is a `feature_review` station — located by TYPE from the
- *  run's own graph, so renaming the node in feature-planning.yaml cannot silently
- *  kill the resume (the fate of the pr_merged join, FR6.32). */
+// Located by TYPE, not id, so renaming the node in feature-planning.yaml can't silently kill the resume (FR6.32).
 const AUTHOR_STATION_TYPE = "feature_review";
 
-/** The pre-clone fallback only: the node id the planning line parked on before
- *  runs carried their graph. */
+// Pre-clone fallback only: the node id the planning line parked on before runs carried their graph.
 const AUTHOR_NODE = "author";
 
-/**
- * Resume the parked author node when the feature's line is open and waiting;
- * otherwise mint a line the old way.
- *
- * What counts as parked belongs to the assembly line, not to feature planning —
- * the same rule decides whether a merged spec PR can be reported — so it lives in
- * `parkedHumanNode`. What is feature-planning-specific is the FALLBACK: a feature
- * whose planning predates the merged line has no parked node and must keep the
- * old path or it strands mid-plan.
- */
+// Resumes the parked author node when open; else mints a line the legacy way (parked-ness itself is `parkedHumanNode`'s call, shared with spec-PR reporting).
 export function decideRoundDispatch(
   status: string | null,
   nodes: readonly ParkedNode[],

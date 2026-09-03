@@ -1,15 +1,4 @@
-/**
- * spec-traceability-graph — lossless source reconstruction FROM the graph.
- *
- * The read-only inverse of the Block projection: pull a document's Block nodes,
- * sort them by ordinal (Dgraph does not guarantee result order), and rejoin with
- * `reassembleBlocks`. For any projected document this returns the verbatim
- * original source; a never-projected file (no Block nodes) returns `null`, while
- * a genuinely empty document (one `blank` block) returns `""`. `recomputeFile` is
- * the single authoritative reconstruction path, keyed by `Block.file_path` — it
- * serves specs and ADRs alike, since every projected document's Block layer
- * carries `file_path`.
- */
+/** Lossless source reconstruction FROM the graph: the read-only inverse of the Block projection — pulls Block nodes, sorts by ordinal (Dgraph doesn't guarantee order), rejoins via reassembleBlocks; `recomputeFile` is the single authoritative path, keyed by `Block.file_path`, serving specs and ADRs alike. */
 
 import type { DgraphClientPort, Block } from "./deps.js";
 import { reassembleBlocks } from "./deps.js";
@@ -23,13 +12,7 @@ type BlockRow = {
   "Block.level"?: number;
 };
 
-/**
- * Pure inverse of the row read: maps Block rows to `Block[]`, sorts by ordinal
- * (Dgraph does not guarantee result order), and rejoins with `reassembleBlocks`.
- * Returns `null` for zero rows (a never-projected file), distinguishing it from a
- * genuinely empty document (one `blank` block → `""`). Holds no I/O so the
- * not-found / ordering / reassemble decision is unit-testable without Dgraph.
- */
+/** Pure inverse of the row read: maps rows to `Block[]`, sorts by ordinal, rejoins with `reassembleBlocks`; `null` for zero rows (never-projected) vs. `""` for a genuinely empty document. Holds no I/O, so it's unit-testable without Dgraph. */
 export function sourceFromBlockRows(rows: BlockRow[]): string | null {
   if (rows.length === 0) {
     return null;
@@ -49,13 +32,7 @@ export function sourceFromBlockRows(rows: BlockRow[]): string | null {
   return reassembleBlocks(sortedBlocks);
 }
 
-/**
- * Source reconstruction by `Block.file_path` — works for any ingested
- * document (specs, ADRs) whose Block layer is keyed by file_path, with no
- * dependence on a Spec parent. Reads the file's Block rows, then hands them to
- * {@link sourceFromBlockRows}: `null` for a never-projected file (no rows), `""`
- * for a genuinely empty document, else the verbatim reassembled source.
- */
+/** Source reconstruction by `Block.file_path` — works for any ingested document (specs, ADRs) with no dependence on a Spec parent; reads the file's Block rows and hands them to {@link sourceFromBlockRows}. */
 export async function recomputeFile(
   repo: string,
   filePath: string,

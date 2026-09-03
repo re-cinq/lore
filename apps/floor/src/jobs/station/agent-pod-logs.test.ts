@@ -12,7 +12,6 @@ import {
   type AgentPodInfo,
 } from "./agent-pod-logs.js";
 
-/** In-memory PodLogArchive — the durable-store double keyed by Job name. */
 class FakePodLogArchive implements PodLogArchive {
   seenTail?: number;
 
@@ -28,7 +27,6 @@ class FakePodLogArchive implements PodLogArchive {
   }
 }
 
-/** In-memory PodLogSource — the behavioral double (no mocks; real data). */
 class FakePodLogSource implements PodLogSource {
   constructor(
     private readonly agents: Record<string, AgentPodInfo | null>,

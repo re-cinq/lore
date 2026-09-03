@@ -1,22 +1,4 @@
-// Read access to assembly lines over HTTP.
-//
-// Until now nothing outside the web UI could see a line: the UI reads
-// `pipeline.assembly_runs` straight from Postgres, and no service exposed it. So
-// "which node is this line on, which Station is that, which recipe does it run" was
-// answerable only by something holding a database connection.
-//
-// These live on the FLOOR, not lore-api, and the boundary is the reason: the Station
-// resolution needs the assembly-line definitions, which are baked into the Floor's
-// image and deliberately absent from lore-api's lean one. Putting them there made the
-// lore-api container fail to build — the dependency resolved through workspace
-// hoisting locally and did not exist in Docker.
-//
-// The Station is the field worth serving. It carries the RECIPE — the prompt template
-// and the `output.watch` that decides what artifact a run can produce — and an agent
-// node that declares no `station_ref` INHERITS the one named after its line's task
-// type. That inheritance silently ran the planning prompt for every node on the merged
-// planning line; `stationInherited` puts it in the response rather than leaving it to
-// be reconstructed from YAML.
+// Read access to assembly lines over HTTP. Lives on the FLOOR, not lore-api, because Station resolution needs the assembly-line definitions baked into the Floor's image (they fail to build in lore-api's lean container).
 
 import { apiError } from "../api-error.js";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
@@ -43,11 +25,7 @@ interface NodeRow {
   finishedAt: Date | null;
 }
 
-/** A node row joined to what the run's OWN graph says about that node (FR6.38 —
- *  station and route were resolved once, at clone time; re-deriving them from the
- *  current YAML is how an edited blueprint rewrote a run's history). Graph facts
- *  are null when the run predates clones AND its blueprint is gone — the rows are
- *  the record of what actually ran, so they still serve. */
+/** A node row joined to the run's OWN graph (FR6.38 — station/route resolved once at clone time, else re-deriving from current YAML rewrites history). Graph facts are null for pre-clone runs whose blueprint is gone. */
 function describeNode(
   row: NodeRow,
   node: RunGraphNode | undefined,
@@ -63,11 +41,7 @@ function describeNode(
     finishedAt: row.finishedAt,
     type: node?.type ?? null,
     promptRef: node?.prompt_ref ?? null,
-    // The page a HUMAN station's worker acts on, resolved against THIS run's args
-    // (FR6.40) — `pr_url` does not exist until the push node opened the PR, so a
-    // route resolved any earlier would name a page that is not there yet. Null
-    // when the run does not carry every placeholder: a half-built href sends the
-    // reader somewhere that does not exist, which is worse than no link.
+    // Resolved against THIS run's args (FR6.40); null when a placeholder is missing rather than serving a half-built href.
     route: resolveRoute(node?.route, args),
     station: node?.station ?? null,
     stationInherited: node?.station_inherited ?? false,
@@ -89,8 +63,7 @@ export function assemblyRunReadRoute(
       enforceTrue(line !== null, apiError(404), "assembly line not found");
       const [rows, graph] = await Promise.all([
         pipeline().assemblyRuns.listStationRuns(line.id),
-        // The run's own clone; a blueprint loaded by name only for rows stamped
-        // before clones existed (same rule as the walk and the reaper).
+        // The run's own clone; loaded by name only for rows stamped before clones existed (same rule as the walk and reaper).
         resolveRunGraph(line, load),
       ]);
 
@@ -109,19 +82,14 @@ export function assemblyRunReadRoute(
   };
 }
 
-/** Legacy path for the run read — this route reads a RUN, so it moved to
- *  `/api/assembly-runs/{id}`; the old spelling stays because the deployed web-ui
- *  still calls it and ships as its own image. DELETE once no deployed client
- *  calls it (same rule as lore-api's withLegacyAlias). */
+/** Legacy alias for `/api/assembly-runs/{id}`; kept for the deployed web-ui, DELETE once no client calls it (lore-api's withLegacyAlias rule). */
 export function legacyAssemblyLineReadRoute(
   load: () => Promise<Map<string, AssemblyLine>> = loadBuiltinAssemblyLines,
 ): ServerRoute {
   return { ...assemblyRunReadRoute(load), path: "/api/assembly-lines/{id}" };
 }
 
-/** GET /api/assembly-line-definitions — the catalog: every line and, per node, the
- *  Station it will run on. Reading this is how you learn a node's recipe without
- *  opening YAML or asking Kubernetes. */
+/** GET /api/assembly-line-definitions — the catalog: every line and, per node, the Station it will run on. */
 export function assemblyLineCatalogRoute(
   load: () => Promise<Map<string, AssemblyLine>> = loadBuiltinAssemblyLines,
 ): ServerRoute {

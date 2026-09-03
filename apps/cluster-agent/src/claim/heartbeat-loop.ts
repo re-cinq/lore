@@ -3,13 +3,7 @@ import { runPollLoop } from "@re-cinq/lore-shared/lib/poll-loop.js";
 import type { ClusterAgentIdentity } from "./identity-store.js";
 import { secondsEnvMs } from "./intervals.js";
 
-/**
- * The liveness half of FR4 (specs/running-stations-in-any-k8s-cluster): a
- * 30-second POST bumping `last_seen_at`, so the reaper's offline sweep can
- * tell a dead cluster from a quiet one. A failed beat is logged and skipped —
- * the next one is 30 seconds away, and the 5-minute offline threshold absorbs
- * ten misses before anything is requeued.
- */
+// Liveness half of FR4 (specs/running-stations-in-any-k8s-cluster): 30s POST bumping last_seen_at; the 5-minute offline threshold absorbs missed beats.
 
 const DEFAULT_HEARTBEAT_S = 30;
 const HEARTBEAT_TIMEOUT_MS = 30_000;

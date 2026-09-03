@@ -25,12 +25,7 @@ import type {
   ReviewThread,
 } from "../pulls/pull-requests-port.js";
 
-/**
- * One GitHub adapter satisfying BOTH GitHubPort and PullRequestsPort. Auth is
- * the App-or-token resolution relocated from mcp-server/src/github-client.ts;
- * the REST calls are relocated from agent/src/github.ts. octokit is imported
- * lazily so the module stays loadable where octokit is absent.
- */
+/** One GitHub adapter satisfying BOTH GitHubPort and PullRequestsPort (auth relocated from mcp-server/github-client.ts, REST from agent/github.ts); octokit is imported lazily so the module loads where it's absent. */
 export class PlatformGitHub implements GitHubPort, PullRequestsPort {
   readonly name = "github";
   private client?: Promise<Octokit>;
@@ -129,10 +124,7 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
     const ok = await this.octo();
     const [owner, name] = split(repo);
     const branch = ref ?? (await this.defaultBranch(repo));
-    // getTree is not a paginated endpoint (it returns the full recursive tree, truncated
-    // only past ~100k entries) — leave it as a single call. A truncated tree
-    // must throw, not return: the reindex verification pass prunes chunks of
-    // files absent from this list, so a partial list reads as mass deletion.
+    // getTree is unpaginated (truncated past ~100k entries); a truncated tree must throw, not return — a partial list reads as mass deletion to the reindex prune pass.
     const { data } = await ok.rest.git.getTree({
       owner,
       repo: name,
@@ -745,9 +737,7 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
       }
 
       page.nodes.forEach((n) => {
-        // The accepted cap (a 100+-comment thread is out of scope) — but say so
-        // when it actually bites, or a failed databaseId join reads as "no
-        // thread" instead of "comment past the cap".
+        // 100+-comment threads are out of scope; warn so a failed databaseId join reads as "past the cap", not "no thread".
         if (n.comments.pageInfo?.hasNextPage) {
           console.warn(
             `[github] review thread ${n.id} on ${repo}#${number} has >100 comments — late comments will not join by databaseId`,
@@ -803,10 +793,7 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
     const ok = await this.octo();
     const [owner, name] = split(repo);
 
-    // Read first, for two reasons: the mutation needs the PR's NODE id (which
-    // `PullRef` does not carry), and GitHub errors it on a PR that is already
-    // ready. A re-delivered webhook or a reaper re-drive must not fail a run for
-    // work that is already done, so "already ready" is success, not an error.
+    // Read first: mutation needs the PR's NODE id (PullRef lacks it) and GitHub errors on an already-ready PR — treat "already ready" as success, not an error.
     const current = (await ok.graphql(
       `query ($owner: String!, $name: String!, $number: Int!) {
         repository(owner: $owner, name: $name) {
@@ -935,8 +922,7 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
     return data.files?.length ?? 0;
   }
 
-  /** All check runs for a ref, paginated once — the source for both ciConclusion
-   *  and the raw listChecks the auto-merge gate reads. */
+  /** All check runs for a ref, paginated once — source for both ciConclusion and the raw listChecks the auto-merge gate reads. */
   private async checkRuns(repo: string, ref: string): Promise<CheckRun[]> {
     const ok = await this.octo();
     const [owner, name] = split(repo);
@@ -1034,10 +1020,7 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
       owner,
       repo: repoName,
     });
-    // Indirected through a variable so tsc does not demand a declaration file for
-    // an untyped package. The cost is that every static dependency checker is blind
-    // to this import, so the declaration is pinned by runtime-deps.test.ts — it is a
-    // production dependency of libs/shared, not the Floor's and not a devDependency.
+    // Indirected through a variable so tsc doesn't demand a declaration file; runtime-deps.test.ts pins it as a production dep of libs/shared instead.
     const spec = "libsodium-wrappers";
     const sodium = ((await import(spec)) as { default: Sodium }).default;
 
@@ -1066,12 +1049,7 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
 
   // ── auth ────────────────────────────────────────────────────────────
 
-  /**
-   * The GitHub App installation token, for the git-auth helper's clone/push
-   * credential. Not on GitHubPort — its consumers (GithubTokenMinter, the git-auth
-   * call sites) depend on the structural `{ getInstallationToken(): Promise<string> }`,
-   * which keeps the Project facade token-free.
-   */
+  /** GitHub App installation token for the git-auth helper's clone/push credential; not on GitHubPort — consumers depend on the structural shape, keeping the Project facade token-free. */
   async getInstallationToken(): Promise<string> {
     const ok = await this.octo();
     const auth = (await ok.auth({ type: "installation" })) as { token: string };

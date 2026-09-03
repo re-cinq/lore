@@ -55,12 +55,7 @@ const TRUST_ORDER: Record<string, number> = {
   full: 4,
 };
 
-/**
- * Pure decision function. Given a fully resolved policy and the PR's
- * observable state, returns the outcome and the rule trace. Lives in
- * its own function so the engine's network calls can be unit-tested
- * separately from the policy logic.
- */
+// Pure decision function: given a fully resolved policy and the PR's observable state, returns the outcome and rule trace, separated so the engine's network calls stay unit-testable apart from the policy logic.
 export function evaluateAutoMerge(
   inputs: AutoMergePolicyInputs,
 ): AutoMergeDecision {
@@ -84,9 +79,7 @@ export function evaluateAutoMerge(
     return { outcome: "deferred:dark_mode_off", rule: baseRule };
   }
 
-  // A zero-file PR would technically pass the path-allowlist check
-  // (vacuous truth) but GitHub's merge call would then 422 on an empty
-  // diff. Surface the real reason in the audit log instead.
+  // A zero-file PR would technically pass the path-allowlist check (vacuous truth) but GitHub's merge call would then 422 on an empty diff — surface the real reason in the audit log instead.
   if (inputs.changedPaths.length === 0) {
     return { outcome: "deferred:no_changes", rule: baseRule };
   }
@@ -130,13 +123,7 @@ export interface AutoMergeJobInputs {
   policy: AutoMergePolicyInputs;
 }
 
-/**
- * End-to-end auto-merge job: evaluates the policy, writes an
- * `auto_merge_decision` audit log entry, performs the merge call when
- * the outcome is `merged`. GitHub API failures during the merge call
- * degrade to `deferred:api_failure` (per research R3) — the audit
- * entry still writes, the PR stays open for a human.
- */
+// End-to-end auto-merge job: evaluates the policy, writes an `auto_merge_decision` audit entry, and merges when the outcome is `merged`; a GitHub API failure during merge degrades to `deferred:api_failure` (R3) — the audit still writes, the PR stays open for a human.
 export async function evaluateAndMerge(
   inputs: AutoMergeJobInputs,
 ): Promise<AutoMergeDecision> {
@@ -197,11 +184,7 @@ export async function evaluateAndMerge(
   );
 }
 
-/**
- * Try to merge a PR with backoff (per research R3): 3 attempts, 1s then 4s tail.
- * Throws on final failure so the caller records `deferred:api_failure` and the PR
- * sits open for a human merge.
- */
+// Try to merge a PR with backoff (R3): 3 attempts, 1s then 4s tail — throws on final failure so the caller records `deferred:api_failure` and the PR sits open for a human merge.
 async function mergeWithBackoff(opts: {
   repo: string;
   prNumber: number;

@@ -1,18 +1,4 @@
-/**
- * spec-status-upkeep (FR1) — open a one-line PR reconciling a spec's `| Status |`
- * header row with its test-link coverage. Deterministic, no LLM: reads the spec
- * off the repo's default branch, rewrites the single status cell, and opens a
- * `lore-managed` + `spec-status-upkeep` PR for human review. Mirrors the
- * PR-opening plumbing of the spec-coverage-backfill cron (createBranch →
- * commitFile → pulls.open).
- *
- * The target status is derived, never assumed: whatever `spec-status-coverage`
- * says the spec's links entitle it to claim (no links → Draft, some → In Progress,
- * all → Shipped). This is the same function the `lore/require-status-matches-coverage`
- * ESLint rule enforces, so an FR1 PR always lands green — a merged task group no
- * longer implies `Implemented` on its own.
- */
-
+// spec-status-upkeep (FR1) — opens a one-line PR reconciling a spec's `| Status |` row with its test-link coverage (Draft/In Progress/Shipped), the same rule `lore/require-status-matches-coverage` enforces in CI.
 import { randomUUID } from "node:crypto";
 import {
   parseDocStatus,
@@ -42,25 +28,14 @@ export interface StatusFlipResult {
   prUrl: string | null;
   /** True when no PR was opened. */
   skipped: boolean;
-  /**
-   * Why nothing was opened: the spec is absent on the default branch
-   * (`missing`), it has no `| Status |` header row to read (`no-status-row`), its
-   * status is terminal and must not be reopened (`terminal` — rejected/retired),
-   * it has no testable statement to derive a status from (`no-coverage-tier`), or
-   * its status already matches its coverage (`already-current`).
-   */
+  /** Why nothing was opened: missing spec, no `| Status |` row, terminal status, no testable statement, or already-current. */
   reason?:
     | "missing"
     | "already-current"
     | "no-status-row"
     | "no-coverage-tier"
     | "terminal";
-  /**
-   * The bucket the spec claims after this call — the newly written one, or the
-   * existing one when skipped. Absent only when no status could be read at all.
-   * Callers gate completion state on this rather than on `skipped`: FR1 now
-   * legitimately writes `in-progress`, which is not completion.
-   */
+  /** The bucket the spec claims after this call. Callers gate completion on this, not `skipped` — FR1 can legitimately write `in-progress`. */
   status?: StatusBucket;
 }
 
@@ -93,13 +68,7 @@ function buildFlipPrBody(
   ].join("\n");
 }
 
-/**
- * Reconcile `specPath`'s status header with its test-link coverage via a PR.
- * Returns `{ skipped: true }` without opening one when the spec is absent, has no
- * status row, is terminal (rejected/retired), has no testable statement to derive
- * a status from, or already claims the status its coverage supports. Throws on
- * GitHub API errors so the caller can withhold any dependent state change.
- */
+// Reconciles specPath's status header with its coverage via a PR; skips (no PR) when absent/no-status-row/terminal/no-coverage/already-current. Throws on GitHub API errors so the caller can withhold dependent state changes.
 export async function openSpecStatusFlipPr(
   project: Project,
   specPath: string,
@@ -118,8 +87,7 @@ export async function openSpecStatusFlipPr(
     return { prUrl: null, skipped: true, reason: "no-status-row" };
   }
 
-  // A rejected/retired spec is terminal — the same docs the linter skips. Never
-  // reopen one off a coverage reading.
+  // A rejected/retired spec is terminal (same docs the linter skips) — never reopen one off a coverage reading.
   if (statusTier(current) === "skip") {
     return { prUrl: null, skipped: true, reason: "terminal", status: current };
   }
@@ -135,8 +103,7 @@ export async function openSpecStatusFlipPr(
     };
   }
 
-  // Comparing buckets (not labels) keeps this idempotent across the corpus's
-  // synonyms — an `Implemented` spec at full coverage is already `shipped`.
+  // Comparing buckets, not labels, keeps this idempotent across synonyms — an `Implemented` spec at full coverage is already `shipped`.
   if (target === current) {
     return {
       prUrl: null,
@@ -146,9 +113,7 @@ export async function openSpecStatusFlipPr(
     };
   }
   const newLabel = statusLabel(target, "spec");
-  // `allowTerminal` is safe here: the terminal statuses are already returned
-  // above, and a Shipped→In Progress demotion is exactly this call's job when a
-  // statement loses its link.
+  // `allowTerminal` is safe: terminal statuses already returned above, and a Shipped→In Progress demotion is exactly this call's job.
   const newContent = rewriteSpecStatusRow(content, newLabel, {
     allowTerminal: true,
   });

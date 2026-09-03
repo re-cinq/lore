@@ -173,12 +173,7 @@ describe("POST /api/task-turns/{taskId}", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// Re-ingest dedup (#1389): every forwarded line carries a deterministic
-// turn_key so the Floor's turn store can skip retried lines idempotently.
-// ---------------------------------------------------------------------------
-
-describe("POST /api/task-turns turn_key stamping", () => {
+describe("POST /api/task-turns turn_key stamping — re-ingest dedup (#1389)", () => {
   useRateLimitSafeClock();
   beforeEach(() => {
     process.env.LORE_INGEST_TOKEN = LEGACY_TOKEN;

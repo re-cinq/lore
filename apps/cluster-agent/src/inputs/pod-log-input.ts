@@ -1,21 +1,4 @@
-/**
- * `PodLogInput` — follow this cluster's running pods and emit their stdout.
- *
- * The CONNECTION half, like the Agent-CR watch next door: discovery on a timer,
- * one long-lived log stream per pod, an AbortController per stream. Every
- * decision it makes — how much to batch, which agents to follow, what the event
- * looks like — lives in `pod-log-batching.ts` and is tested without a cluster.
- *
- * WHY this exists: pod logs are read live from ONE cluster's Kubernetes API,
- * with a Cloud Logging fallback naming ONE project. A run claimed by a satellite
- * is invisible to both. Emitting the log as it happens is the only way a cluster
- * that reports inward can be read from the centre.
- *
- * OFF BY DEFAULT (`LORE_POD_LOG_STREAMING=1`). This is the piece that puts log
- * volume on `pipeline.events`, a dispatch queue built for handler fan-out rather
- * than bulk data. The limits below are the mitigation, a pilot repo is the
- * validation, and the flag is what makes both possible.
- */
+// `PodLogInput` — follows this cluster's running pods and emits their stdout (CONNECTION half; decisions live in pod-log-batching.ts). A satellite's run is invisible to both live-cluster reads and the Cloud Logging fallback otherwise. OFF BY DEFAULT (LORE_POD_LOG_STREAMING=1).
 
 import { Writable } from "node:stream";
 import { Log, type CoreV1Api, type KubeConfig } from "@kubernetes/client-node";
@@ -45,12 +28,10 @@ import {
   kubeConfig,
 } from "../kernel/kube-clients.js";
 
-/** Deliberately small: this bounds what one chunk costs the bus, not what the
- *  pod may write. A single line past the byte cap still flushes on its own. */
+/** Deliberately small — bounds what one chunk costs the bus, not what the pod may write. */
 const LIMITS: BatchLimits = { maxLines: 200, maxBytes: 64 * 1024 };
 const DISCOVERY_INTERVAL_MS = 15_000;
-/** Flush a partial batch after this long, so a quiet pod's last lines are not
- *  stranded until it produces enough to fill a chunk. */
+/** Flush a partial batch after this long, so a quiet pod's last lines are not stranded. */
 const IDLE_FLUSH_MS = 10_000;
 
 export function podLogStreamingEnabled(env: NodeJS.ProcessEnv): boolean {
@@ -67,11 +48,7 @@ export class PodLogInput implements EventInput {
   readonly name = "pod-logs";
   private running = false;
   private discovery: NodeJS.Timeout | null = null;
-  /** One discovery pass at a time. A pass that outlives the interval — a big
-   *  namespace, a slow apiserver — would otherwise overlap its successor, and
-   *  both would see the same agent as unfollowed and open a stream on it. Each
-   *  stream numbers its own chunks, and dedupe is per `(pod, seq)`, so those
-   *  duplicates do NOT collapse: every line lands twice. */
+  /** One discovery pass at a time — an overlapping pass would see the same agent as unfollowed and double-stream it (dedupe per (pod, seq) cannot collapse that). */
   private discovering = false;
   private readonly followers = new Map<string, Follower>();
 
@@ -102,9 +79,7 @@ export class PodLogInput implements EventInput {
     return Promise.resolve();
   }
 
-  /** One discovery pass: open a stream for every running agent not already
-   *  followed. Failures are logged, never thrown — a pod that cannot be opened
-   *  must not stop the ones that can. */
+  /** One discovery pass: open a stream for every running agent not already followed. Failures are logged, never thrown. */
   private async discover(emit: Emit): Promise<void> {
     if (this.discovering) {
       return;
@@ -116,12 +91,7 @@ export class PodLogInput implements EventInput {
       const namespace = agentsNamespace();
       const core = coreApi();
 
-      // Page by page, holding NOTHING between them. Every Agent CR carries its
-      // run's whole transcript in `status.output`, so accumulating the namespace
-      // into one array — which is what this did — is hundreds of megabytes
-      // against a 256Mi limit. It OOM-killed a satellite's cluster-agent every
-      // seven seconds for twenty-one hours, taking down the Agent-CR watch with
-      // it and stranding every finished run in that cluster.
+      // Page by page, holding NOTHING between them — accumulating the namespace into one array OOM-killed a satellite's cluster-agent for 21h and stranded its Agent-CR watch.
       await forEachAgentPage(customObjectsApi(), namespace, async (page) => {
         for (const agent of followTargets(
           page as FollowableAgent[],
@@ -152,13 +122,10 @@ export class PodLogInput implements EventInput {
       namespace,
       labelSelector: podSelectorForJob(agent.jobName),
     });
-    // The CONTAINER is resolved here too, not defaulted: an empty container name
-    // makes the log request a 400, which is how the first pilot run spent
-    // fifteen minutes retrying and streaming nothing.
+    // The CONTAINER is resolved here too, not defaulted — an empty container name 400s the log request.
     const chosen = pickPodToFollow(pods.items ?? []);
 
-    // Re-checked against the LIVE map rather than the page this was filtered
-    // from: a pod list was awaited since then, and `stop()` may have run too.
+    // Re-checked against the LIVE map, not the filtered page — a pod list was awaited since then, and stop() may have run too.
     if (!chosen || !this.running || this.followers.has(agent.agentCrName)) {
       return;
     }
@@ -186,8 +153,7 @@ export class PodLogInput implements EventInput {
     const send = async (lines: string | null): Promise<void> => {
       if (lines !== null) {
         seq++;
-        // Awaited: a full queue must slow the READER of this stream rather than
-        // accumulate unsent chunks here, which is the whole point of the bound.
+        // Awaited so a full queue slows the READER of this stream rather than accumulating unsent chunks here.
         await emit({ kind: "event", event: podLogEvent(target, seq, lines) });
       }
     };
@@ -197,8 +163,7 @@ export class PodLogInput implements EventInput {
         const text = carry + chunk.toString("utf8");
         const parts = text.split("\n");
 
-        // The last part is whatever arrived without a newline — hold it until
-        // the rest of the line does, or a chunk boundary would split a line.
+        // The last part is whatever arrived without a newline — hold it until the rest of the line does.
         carry = parts.pop() ?? "";
 
         void (async () => {
@@ -211,10 +176,7 @@ export class PodLogInput implements EventInput {
             }
             done();
           } catch (err) {
-            // `done` MUST run on every path. A write callback that never
-            // resolves stalls the Writable for good, so a single failed emit
-            // would wedge this pod's stream with no error and no end — the
-            // stream would simply stop, indistinguishable from a quiet pod.
+            // `done` MUST run on every path — a write callback that never resolves stalls the Writable for good, indistinguishable from a quiet pod.
             done(err instanceof Error ? err : new Error(String(err)));
           }
         })();
@@ -225,8 +187,7 @@ export class PodLogInput implements EventInput {
       const step = drain(batch);
 
       batch = step.batch;
-      // Caught here as it is on the final flush: an idle flush that rejects is
-      // an unhandled rejection, and this process installs no handler for one.
+      // Caught here as on the final flush — an idle flush that rejects is an unhandled rejection this process installs no handler for.
       void send(step.flushed).catch((err) =>
         console.error(
           `[cluster-agent] idle pod-log flush failed for ${target.podName}:`,
@@ -237,11 +198,7 @@ export class PodLogInput implements EventInput {
 
     const abort = new AbortController();
 
-    // A pod that finishes is the ordinary case, not an edge one: the stream
-    // ends, and without this the idle timer keeps draining a dead batch forever
-    // and the follower entry never leaves the map. The final drain matters as
-    // much as the cleanup — a pod whose last lines did not fill a chunk would
-    // otherwise lose them, which is exactly the output of a crashed run.
+    // A pod finishing is the ordinary case — without this the idle timer keeps draining a dead batch forever and the follower entry never leaves the map.
     const finish = (why: string) => {
       const step = drainAtEnd(batch, carry);
 
@@ -268,11 +225,7 @@ export class PodLogInput implements EventInput {
     void new Log(kc)
       .log(namespace, target.podName, containerName, sink, { follow: true })
       .then((controller) => {
-        // The stream's own controller, so `stop` aborts the live request rather
-        // than only the intent to make it. A stop that landed while the request
-        // was still opening is honoured here — the listener below would never
-        // fire for an abort that already happened, leaving the stream running
-        // with nothing left to close it.
+        // Honors a stop that landed while the request was still opening — the listener below would never fire for an abort that already happened.
         if (abort.signal.aborted) {
           controller.abort();
 

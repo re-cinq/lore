@@ -1,10 +1,4 @@
-/**
- * One place to run `promptfoo eval` and read its pass rate. The eval-runner and
- * context-core-builder jobs each hand-rolled the same execFileAsync invocation +
- * dual-path stats parse; this single-sources them and distinguishes a missing
- * config from an execution failure (context-core-builder used to log every crash
- * as "no eval config, skipping").
- */
+/** One place to run `promptfoo eval` and read its pass rate, single-sourcing what eval-runner and context-core-builder used to hand-roll separately, and distinguishing a missing config from an execution failure. */
 
 import { execFile } from "node:child_process";
 import { access } from "node:fs/promises";
@@ -27,8 +21,7 @@ export type PromptfooEvalResult =
   | { ok: false; reason: "exec-failed"; error: unknown }
   | { ok: false; reason: "no-stats" };
 
-/** Pure parse of `promptfoo eval --output json` stdout — stats live at the root
- *  or under `results`, depending on the promptfoo version. null when neither. */
+/** Pure parse of `promptfoo eval --output json` stdout — stats live at the root or under `results` depending on the promptfoo version; null when neither. */
 export function parsePromptfooStats(stdout: string): PromptfooStats | null {
   let output: {
     stats?: { passRate?: number; passes?: number; total?: number };
@@ -71,8 +64,7 @@ export async function runPromptfooEval(opts: {
   extraArgs?: string[];
   timeoutMs?: number;
 }): Promise<PromptfooEvalResult> {
-  // Check the config exists BEFORE exec so a genuinely missing config is a
-  // distinct, non-alarming outcome — separate from a crash/timeout.
+  // Check the config exists BEFORE exec so a missing config is a distinct, non-alarming outcome separate from a crash/timeout.
   const configExists = await access(opts.configPath).then(
     () => true,
     () => false,

@@ -14,16 +14,7 @@ import {
   imageFieldTouched,
 } from "../../../features/agents/agents-schema.js";
 
-/**
- * PUT /api/agent-definitions/{name} — the global /agents editor's write: upsert
- * the ORG-DEFAULT row (`project_id IS NULL`) every repo without an override
- * inherits. The catalog event the upsert appends is what fans the change out to
- * every cluster-agent's sync loop, so no direct CRD apply happens here.
- *
- * `image` is refused outright: the two-key image ceremony is CODEOWNERS-scoped
- * to a repo's CLAUDE.md, and no repo is in hand on the org surface — an org
- * image change goes through the per-repo route and its approval PR.
- */
+// Upserts the ORG-DEFAULT row (project_id IS NULL); `image` is refused here since the two-key ceremony is CODEOWNERS-scoped per repo.
 
 const OrgAgentWrittenSchema = z.object({
   ok: z.literal(true),
@@ -69,12 +60,7 @@ export function orgAgentDefinitionUpdateRoute(
         );
 
         const { pod_resources, ...fields } = patch;
-        // The merge happens inside the upsert, over the org row's own config
-        // (atomic under the row lock — no read-then-write to lose a concurrent
-        // edit to). The yaml layer is only the fallback for an org row that
-        // has no config of its own, so it keeps the seed's skills around the
-        // block instead of orphaning them. A body that never mentions
-        // pod_resources leaves the row's config exactly as it was.
+        // Merge happens inside the upsert (atomic under the row lock); yaml is only the fallback for a configless org row, so it never orphans the seed's skills.
         const podResources =
           pod_resources === undefined
             ? undefined
@@ -103,8 +89,7 @@ export function orgAgentDefinitionUpdateRoute(
 
         return h.response({ ok: true, agent });
       } catch (err) {
-        // A guard's refusal (the org image gate) already carries its status;
-        // only an unexpected failure is this block's to shape.
+        // A guard's refusal (the org image gate) already carries its status; only an unexpected failure is this block's to shape.
         rethrowBoom(err);
 
         console.error("[agents] org update failed:", err);

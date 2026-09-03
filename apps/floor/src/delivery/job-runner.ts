@@ -1,12 +1,4 @@
-/**
- * Generic batch-job entrypoint for the K8s CronJob pods produced by the
- * scheduled-job-runtime-split feature (ADR-019).
- *
- * Invoked as `node dist/job-runner.js <jobName>` inside a CronJob pod.
- * Each pod runs exactly one batch job, captures its stdout/stderr to GCS,
- * records the run in pipeline.job_runs (parity with the in-process
- * scheduler), and exits 0 / non-zero based on outcome.
- */
+/** Generic batch-job entrypoint for K8s CronJob pods (ADR-019): `node dist/job-runner.js <jobName>` runs one job, captures stdout/stderr to GCS, records the run in pipeline.job_runs, exits 0/non-zero on outcome. */
 
 import { initPool } from "../kernel/db.js";
 import { usage } from "../kernel/queues.js";
@@ -27,8 +19,7 @@ import {
 
 type JobHandler = () => Promise<string>;
 
-// The detection family (gap_detection / spec_drift / spec_coverage_*) left this
-// table: their cron ticks fan out per-repo assembly-line runs (ADR-019 amendment).
+// The detection family left this table: their cron ticks fan out per-repo assembly-line runs instead (ADR-019 amendment).
 export const dispatch: Record<string, JobHandler> = {
   context_reindex: reindexJob,
   eval_runner: evalRunnerJob,
@@ -106,8 +97,7 @@ export async function runJobByName(jobName: string): Promise<number> {
 
   initPool();
   Llm.configure({ usage: usage() });
-  // Jobs reach GitHub/repo via the project facade (projectFor → createProject),
-  // which builds its GitHub adapter from env on demand — no startup wiring needed.
+  // Jobs reach GitHub/repo via the project facade, which builds its adapter from env on demand — no startup wiring needed.
 
   const runId = await startJobRun(jobName);
   const buffer: string[] = [];

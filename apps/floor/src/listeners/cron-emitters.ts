@@ -1,16 +1,4 @@
-/**
- * The cron emitters, single-sourced. Each entry is a scheduled tick that INSERTs a
- * `cron.<name>.tick` event; the loop dispatches the matching registry handler. This
- * is the one place the emitter set is declared — `index.ts` registers each on start,
- * and the registry cross-check test derives the tick names from it, so a new emitter
- * without a handler fails the build (the class of bug that let
- * `cron.agent_watcher_reconcile.tick` dead-letter unnoticed).
- *
- * Carve-out (ADR-019, amended): heavy batch jobs (reindex/eval/memory …) stay as
- * Kubernetes CronJobs. The detection family (spec_drift/gap_detection/
- * spec_coverage_*) moved here — their ticks fan out per-repo assembly-line runs
- * rather than running the sweep inline.
- */
+/** The cron emitters, single-sourced — the registry cross-check test derives tick names from here, so a new emitter without a handler fails the build (ADR-019). */
 
 export interface CronEmitter {
   name: string;

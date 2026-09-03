@@ -4,12 +4,6 @@ import { join } from "node:path";
 import { parseAssemblyLine } from "./loader.js";
 import { getNextTransition, type NodeVisit } from "./transition.js";
 
-/**
- * The implementation loop's per-ticket line (specs/implementation-loop FR3).
- * One run = one ticket; the TICKET loop is the Floor driver, not a back-edge.
- * Acceptance tests bound the work up front, one red-green-refactor round runs
- * per visit behind a draft PR, and red CI is repaired rather than escalated.
- */
 const line = parseAssemblyLine(
   readFileSync(
     join(import.meta.dirname, "assembly-lines/implementation-loop.yaml"),
@@ -41,9 +35,7 @@ describe("the implementation-loop line", () => {
     expect(successorsOf("retrospective", "always")).toEqual(["done"]);
   });
 
-  it("gives every agent node an explicit station_ref, since none is named for this line", () => {
-    // An agent node's Station otherwise inherits the LINE's task type, and no
-    // Station named implementation-loop exists — the first live run died on it.
+  it("gives every agent node an explicit station_ref, since none is named for this line (an agent node's Station otherwise inherits the LINE's task type, and no Station named implementation-loop exists — the first live run died on it)", () => {
     const agents = line.nodes.filter((n) => n.type === "agent");
 
     expect(agents.map((n) => n.id)).toEqual([
@@ -56,9 +48,7 @@ describe("the implementation-loop line", () => {
     expect(agents.every((n) => n.station_ref)).toBe(true);
   });
 
-  it("opens the pull request through push-only, the one recipe the Floor stamps a PR for", () => {
-    // decidePrStamp gates on promptRef === "push-only"; await-pr's route reads
-    // args.pr_url, which only that stamp writes.
+  it("opens the pull request through push-only, the one recipe the Floor stamps a PR for (decidePrStamp gates on promptRef === push-only; await-pr's route reads args.pr_url, which only that stamp writes)", () => {
     expect(line.nodes.find((n) => n.id === "open-pr")).toMatchObject({
       prompt_ref: "push-only",
     });
@@ -74,9 +64,7 @@ describe("the implementation-loop line", () => {
     });
   });
 
-  it("gives tdd-round exactly one self-edge, because two would share one budget", () => {
-    // iteration_max counters key on `${from}->${to}`, not on the outcome, so a
-    // second self-edge would be judged against a budget it never spent.
+  it("gives tdd-round exactly one self-edge, because two would share one budget (iteration_max counters key on `${from}->${to}`, not the outcome)", () => {
     expect(
       line.edges.filter((e) => e.from === "tdd-round" && e.to === "tdd-round"),
     ).toHaveLength(1);
@@ -88,9 +76,7 @@ describe("the implementation-loop line", () => {
     expect(successorsOf("fix-ci", "success")).toEqual(["await-pr"]);
   });
 
-  it("bounds the CI ping-pong even though a human station exempts the cycle", () => {
-    // The loader demands no iteration_max on a cycle touching a human station;
-    // the runtime enforces any declared one, and a permanently red PR needs it.
+  it("bounds the CI ping-pong even though a human station exempts the cycle (the loader demands no iteration_max on a human-touching cycle, but the runtime enforces one if declared)", () => {
     expect(edge("await-pr", "fix-ci")).toMatchObject({ iteration_max: 3 });
   });
 
@@ -106,10 +92,7 @@ describe("the implementation-loop line", () => {
     });
   });
 
-  it("carries no validate node — lint is what CI runs, and fix-ci repairs it", () => {
-    // An in-pod pre-check buys latency at the cost of a `node:validate` claim,
-    // the resource whose absence starved five tickets on 2026-08-28. Red CI is
-    // no longer terminal, so the pre-check is not worth the claim.
+  it("carries no validate node — lint is what CI runs, and fix-ci repairs it (an in-pod pre-check costs a node:validate claim, the resource whose absence starved five tickets on 2026-08-28, and red CI is no longer terminal)", () => {
     expect(line.nodes.map((n) => n.type)).not.toContain("validate");
   });
 

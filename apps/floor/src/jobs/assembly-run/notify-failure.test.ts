@@ -94,11 +94,7 @@ describe("failureNotice", () => {
     expect(notice.prComment).not.toContain("@lore review");
   });
 
-  it("carries the re-run hint on every line of the review family", () => {
-    // It used to be gated on `code-review` alone, so a failed recheck, reply or
-    // triage told the human nothing — and a recheck publishes under the
-    // `lore/code-review` check name, so its red check bore the review's own name
-    // and still said nothing about how to re-run it.
+  it("carries the re-run hint on every line of the review family, not just code-review alone (a recheck's red check bore the review's name and said nothing about re-running)", () => {
     for (const blueprintName of [
       "code-review",
       "code-review-recheck",

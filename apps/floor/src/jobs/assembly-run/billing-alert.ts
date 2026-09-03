@@ -1,36 +1,16 @@
-// A billing-classed CR failure (the Anthropic account out of credits) takes
-// down EVERY LLM node at once — review, refine, triage, implementation — so it
-// deserves one operator-facing Slack alert, not a PR comment per drowned run.
-// The node-event handler is the only layer that still sees the agent's terminal
-// text (finishLine downstream carries only a routing reason), so the detection
-// lives here.
+// A billing-classed CR failure takes down every LLM node at once, so it deserves one operator Slack alert (not a PR comment per run); the node-event handler is the only layer that still sees the agent's terminal text.
 
 import { classifyError } from "@re-cinq/lore-shared/error-classify.js";
 import type { NotifyLevel } from "@re-cinq/lore-shared/project/notify/notify-port.js";
 
 /** The terminal status slice the alert reads. */
 export interface BillingAlertStatus {
-  /** The agent's own last words, lifted from the raw stream by
-   *  `normalizeAgentStatus`. */
+  /** The agent's own last words, lifted from the raw stream by `normalizeAgentStatus`. */
   errorText?: string;
   failureReason?: string;
 }
 
-/**
- * Pure: the operator alert for a billing-classed CR failure, else null.
- *
- * The billing text rides the agent's terminal result line (`Credit balance is
- * too low`); the CR's own `failureReason` is only the Job-level
- * `BackoffLimitExceeded`, so read the lifted error text first and fall back to
- * the reason. It reads `errorText` rather than unwrapping `output` itself
- * because `normalizeAgentStatus` is the ONE owner of that lift — this module
- * doing its own unwrap on already-unwrapped text is precisely how the alert
- * silently never fired (#1455).
- *
- * The classification comes from the shared `classifyError`, not a local matcher.
- * Two matchers disagreeing about what "out of credits" means is what the second
- * one cost us.
- */
+/** Pure: the operator alert for a billing-classed CR failure, else null. Reads `errorText` (never unwraps `output` itself, since `normalizeAgentStatus` is the ONE owner of that lift — a second unwrap is how the alert silently never fired, #1455) and classifies via the shared `classifyError`, not a local matcher. */
 export function billingAlertMessage(
   repo: string,
   nodeType: string,
@@ -50,11 +30,7 @@ export function billingAlertMessage(
   );
 }
 
-/**
- * Global time-window gate. Billing is account-wide, so a single outage would
- * otherwise fire an alert for every failed run in the batch; this sends at most
- * one per window across all repos. Injectable clock for tests.
- */
+/** Global time-window gate: billing is account-wide, so this sends at most one alert per window across all repos instead of one per failed run. Injectable clock for tests. */
 export class BillingAlertThrottle {
   private lastSentMs = Number.NEGATIVE_INFINITY;
 
@@ -81,12 +57,7 @@ export interface BillingAlertPorts {
   throttle: BillingAlertThrottle;
 }
 
-/**
- * Fire the throttled billing alert if this terminal status is a billing failure.
- * Best-effort by contract — a notify throw is logged, never propagated, so it
- * cannot fail the node-event handler or re-drive the event. Returns whether an
- * alert was actually sent.
- */
+/** Fire the throttled billing alert if this status is a billing failure; best-effort — a notify throw is logged, never propagated, so it cannot fail or re-drive the node-event handler. Returns whether an alert was actually sent. */
 export async function maybeAlertBilling(
   repo: string,
   nodeType: string,

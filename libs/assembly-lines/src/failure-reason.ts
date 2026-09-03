@@ -1,10 +1,4 @@
-// How a classified node failure reads to the person who has to act on it, and
-// whether the walk should bother retrying it (#1455).
-//
-// Both questions have exactly one answer, in one place, because both are asked
-// from two sides of the fence: the pure transition replay decides the retry, the
-// Floor composes the line's terminal reason, and a version of either that drifted
-// would put a different story in the run row than in the task the author reads.
+// How a classified node failure reads to the person acting on it, and whether the walk should retry it (#1455) — one answer in one place, since the transition replay and the Floor's terminal-reason composer must never drift apart.
 
 import {
   failureHint,
@@ -12,22 +6,14 @@ import {
   isPermanentFailure,
 } from "@re-cinq/lore-shared/error-classify.js";
 
-/** A failed visit, as both the replay and the Floor hold one. */
+// A failed visit, as both the replay and the Floor hold one.
 export interface NodeFailure {
   nodeId: string;
   failureClass?: string | null;
   failureDetail?: string | null;
 }
 
-/**
- * The line's terminal reason for a failed node: what died, what it said, and what
- * to do about it.
- *
- * This replaces the routing statement that used to reach authors — "edge
- * analyze->analyze exceeded iteration_max 1" is true of the WALK and silent about
- * the CAUSE. An unclassified failure degrades to the old wording rather than
- * inventing one.
- */
+// The line's terminal reason for a failed node (what died, what it said, what to do): replaces "edge analyze->analyze exceeded iteration_max 1", true of the WALK but silent about the CAUSE; an unclassified failure degrades to the old wording.
 export function nodeFailureReason(failure: NodeFailure): string {
   const named = `node "${failure.nodeId}" failed`;
 
@@ -39,12 +25,7 @@ export function nodeFailureReason(failure: NodeFailure): string {
   return `${named}: ${failure.failureDetail}${hint ? ` — ${hint}` : ""}`;
 }
 
-/**
- * True when running the node again cannot possibly help: the balance, the
- * credential, or the permission has to change first. The walk spends no
- * `iteration_max` budget on these — the retry buys a second identical failure,
- * several minutes later, and a less honest report than the first one.
- */
+// True when a retry cannot possibly help (balance/credential/permission must change first) — the walk spends no iteration_max budget on these.
 export function isPermanentNodeFailure(failure: NodeFailure): boolean {
   const category = failure.failureClass;
 
@@ -55,7 +36,7 @@ export function isPermanentNodeFailure(failure: NodeFailure): boolean {
   return isPermanentFailure(category);
 }
 
-/** The remediation line for a class, or "" for an absent or unrecognised one. */
+// The remediation line for a class, or "" for an absent or unrecognised one.
 function hintFor(category: string | null | undefined): string {
   if (!category || !isFailureCategory(category)) {
     return "";

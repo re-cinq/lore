@@ -1,9 +1,4 @@
-// The Kubernetes half of pod-log reading, moved out of the Floor.
-//
-// `podLog` takes the tail at the source and returns a bounded string, which is
-// what lets this sit behind a request/response API at all. The Floor keeps the
-// orchestration around it (which pod is latest, what "no pod yet" means) —
-// that part is pure and needs no cluster.
+// The Kubernetes half of pod-log reading, moved out of the Floor. `podLog` takes the tail at the source and returns a bounded string; the pure orchestration around it stays on the Floor.
 
 import type { Agent as AgentCr } from "@re-cinq/agent-contracts";
 import {
@@ -76,8 +71,7 @@ export class KubePodLogs implements PodLogSource {
           pod.status?.phase === "Running" || pod.status?.phase === "Pending",
       )
       .map((pod) => {
-        // The AGENT container's requests are the cost driver; init containers
-        // finish before the bill starts and sidecars this stack does not run.
+        // The AGENT container's requests are the cost driver — init containers finish before the bill starts and this stack runs no sidecars.
         const agent =
           pod.spec?.containers?.find((c) => c.name === "agent") ??
           pod.spec?.containers?.[0];

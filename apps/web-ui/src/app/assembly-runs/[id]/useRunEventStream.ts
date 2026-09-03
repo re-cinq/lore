@@ -1,9 +1,6 @@
 "use client";
 
-// IO shell: the EventSource lifecycle and nothing else. Every decision it acts
-// on (the URL, the backoff, whether to connect at all) is computed in
-// run-stream-presenter, which is where the tests for those live.
-
+// IO shell: the EventSource lifecycle and nothing else — every decision (URL, backoff, whether to connect) is computed and tested in run-stream-presenter.
 import { useEffect, useRef } from "react";
 import {
   parseRunStreamEvent,
@@ -20,14 +17,7 @@ export interface RunEventStreamOptions {
   onConnectionChange: (state: ConnectionState) => void;
 }
 
-/**
- * Subscribes to the SSE proxy while `enabled`. The browser reconnects on its own
- * and resends Last-Event-ID; the manual backoff here only covers the case where
- * the socket fails repeatedly and we want to stop hammering the proxy.
- *
- * Callbacks are held in refs so a caller passing inline closures — which is
- * every caller — does not tear the socket down and rebuild it on each render.
- */
+// Subscribes to the SSE proxy while `enabled`; manual backoff covers repeated failures. Callbacks live in refs so inline-closure callers don't rebuild the socket every render.
 export function useRunEventStream({
   runId,
   afterId,
@@ -37,13 +27,10 @@ export function useRunEventStream({
 }: RunEventStreamOptions): void {
   const onEventRef = useRef(onEvent);
   const onConnectionChangeRef = useRef(onConnectionChange);
-  // afterId changes on EVERY live event, so it must stay OUT of the socket
-  // effect's deps: otherwise each event tore the EventSource down and rebuilt
-  // it, which replayed, delivered events, and changed afterId again.
+  // afterId changes on EVERY live event, so it must stay OUT of the socket effect's deps or each event would tear down and rebuild the EventSource.
   const afterIdRef = useRef(afterId);
 
-  // Declared before the socket effect so it has already run when that effect
-  // fires. Refs may not be written during render (react-hooks/refs).
+  // Declared before the socket effect so it has already run when that effect fires (refs may not be written during render).
   useEffect(() => {
     onEventRef.current = onEvent;
     onConnectionChangeRef.current = onConnectionChange;
@@ -95,9 +82,7 @@ export function useRunEventStream({
 
         const action = reconnectAction(attempt);
 
-        // Terminal for this session: no timer is scheduled, so a stream-only
-        // outage stops here instead of hammering the proxy forever. The caller
-        // reacts to "offline" by dropping to history-only mode.
+        // Terminal for this session — no timer scheduled; the caller reacts to "offline" by dropping to history-only mode.
         if (action.kind === "give-up") {
           onConnectionChangeRef.current("offline");
 

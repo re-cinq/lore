@@ -77,7 +77,6 @@ describe("RunGraphView run mode", () => {
 
     expect(edge?.getAttribute("data-tone")).toBe("neutral");
     expect(container.querySelectorAll("text").length).toBeGreaterThan(0);
-    // no edge label text: the only texts are node ids and status labels
     expect(container.textContent).not.toContain("success");
     expect(container.textContent).not.toContain("changes_requested");
   });
@@ -153,7 +152,6 @@ describe("RunGraphView definition mode", () => {
     const { container } = renderGraph(codeReviewDefinition, null, "definition");
 
     expect(container.textContent).not.toContain("review->done");
-    // the connector carries no verdict label; outcomes live in the node instead
     const edge = container.querySelector('[data-edge="review->done"]');
 
     expect(edge?.getAttribute("data-tone")).toBe("neutral");

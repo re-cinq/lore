@@ -7,13 +7,9 @@ import type { StationRun, StationRunInput } from "../../models/station-run.js";
 
 export type { AssemblyRunStatus };
 
-/**
- * The filter `list` accepts. Every field is optional and ANDed; an empty query
- * is "every run, newest first, up to the limit".
- */
+/** AND-filter for list(); empty query = every run, newest first, up to limit. */
 export interface AssemblyRunQuery {
-  /** Canonical `owner/repo`. A repo ID is resolved to this by the caller — the
-   *  run stores the name, as every repo-scoped port here does. */
+  /** Canonical `owner/repo`; caller resolves a repo ID to this name. */
   repo?: string;
   /** One blueprint, or several (the PR-lifecycle choreography asks by family). */
   blueprintName?: string | readonly string[];
@@ -21,12 +17,9 @@ export interface AssemblyRunQuery {
   taskId?: string;
   /** Matches `args->>'pr_number'`. */
   prNumber?: number;
-  /** Runs holding an OPEN station-run claimed by this cluster-agent — the
-   *  drill-down behind the registered-clusters page's running-claims count. */
+  /** Runs with an OPEN station-run claimed by this cluster-agent (running-claims drill-down). */
   clusterAgentId?: string;
-  /** Every run for one subject, whatever its blueprint — "what has worked on
-   *  this feature", which nothing could ask for while the only key was a task id
-   *  and a blueprint name. */
+  /** Every run for one subject regardless of blueprint ("what worked on this feature"). */
   subjectKey?: string;
   createdAfter?: Date;
   /** Defaults to 50. */
@@ -36,13 +29,9 @@ export interface AssemblyRunQuery {
 /** Fork parentage: the terminal line to inherit from, and the last node to inherit. */
 export interface AssemblyRunResumeFrom {
   lineId: string;
-  /** Rows through THIS node's latest completed row are copied; the walk resumes
-   *  at its successor. */
+  /** Rows through this node's latest completed row are copied; walk resumes at its successor. */
   nodeId: string;
-  /** Copy through exactly this visit of `nodeId` instead of its latest completed
-   *  row — the loop-exact form: on a line with back-edges the node's latest row
-   *  can postdate the retry target, and only the (nodeId, iteration) pair names
-   *  the prefix that replays to the wanted launch. */
+  /** Copy through exactly this visit instead of latest — back-edges can make latest postdate the retry target. */
   iteration?: number;
 }
 
@@ -52,34 +41,11 @@ export interface AssemblyRunStartInput {
   branch?: string;
   taskId?: string;
   args?: Record<string, unknown>;
-  /**
-   * What this run is working ON — `feature:<uuid>`, `detect:<blueprint>:<repo>`,
-   * `ingest:<kind>:<ref>[:<chunk>]`. At most one OPEN run may hold a given
-   * (repo, subjectKey), so `start` is start-or-JOIN: a second caller for a
-   * subject already in flight gets the id of the run already working it rather
-   * than a second run.
-   *
-   * The SUBJECT, never the action. `feature:<id>` is what lets one query find
-   * that feature's planning run and its finalize run; `feature:<id>:finalize`
-   * would guard repeat finalizes while still allowing two lines to work one
-   * feature at once, which is the thing that actually went wrong.
-   *
-   * Optional, and opt-in by design: a run with no key is unconstrained. Lines
-   * that are MEANT to overlap — comment-triage and code-review-reply carry
-   * distinct human comments on one branch — simply pass nothing, which replaces
-   * the old opt-out-by-blueprint-name list.
-   */
+  /** Subject this run works on (e.g. feature:<uuid>); start() is start-or-JOIN — at most one OPEN run per (repo, subjectKey). Optional; omit to allow intentional overlap (comment-triage, code-review-reply). */
   subjectKey?: string;
-  /** Content hash of the definition the caller loaded. Required with
-   *  {@link resumeFrom} — it is the drift guard's left-hand side. */
+  /** Content hash of the loaded definition; required with {@link resumeFrom} (drift-guard check). */
   blueprintHash?: string;
-  /**
-   * Fork-and-rerun (specs/fork-rerun-from-node): seed the new line with the
-   * source's node rows through `nodeId`, so the ordinary replay-derived walk
-   * resumes at the successor instead of re-running the green prefix. `branch`
-   * and `taskId` are inherited and must not be passed; `args` are inherited
-   * unless overridden.
-   */
+  /** Fork-and-rerun (specs/fork-rerun-from-node): seeds new line from source's rows through nodeId; branch/taskId inherited (must not be passed), args inherited unless overridden. */
   resumeFrom?: AssemblyRunResumeFrom;
 }
 
@@ -87,33 +53,19 @@ export interface StationRunStartInput {
   assemblyRunId: string;
   nodeId: string;
   iteration: number;
-  /**
-   * The CR this visit dispatched, or NULL when it will never have one.
-   *
-   * Null is not "unknown": it says the node runs in the pooled service and was
-   * published on the bus. The reaper reads exactly that — a missing CR on a POD
-   * visit is the crash-between-row-and-launch case and gets relaunched, while
-   * relaunching a service visit would run a pod alongside the delivery still
-   * queued for it.
-   */
+  /** CR this visit dispatched, or null when it never will (pooled-service node) — reaper only relaunches missing-CR POD visits, never service visits. */
   agentCrName?: string | null;
-  /** What this visit is being dispatched WITH — recorded once, by the first
-   *  writer: a converged duplicate (the relaunch door re-dispatching the same
-   *  visit) keeps what the row already says rather than rewriting history. */
+  /** Dispatch input, recorded once by the first writer; a re-dispatched duplicate keeps the existing value. */
   input?: StationRunInput;
-  /** Pull-based dispatch (specs/running-stations-in-any-k8s-cluster FR3):
-   *  `queued` parks the row for a cluster-agent's claim; the default `running`
-   *  is the push path's meaning and the pre-flip rows' backfill. */
+  /** Pull dispatch (FR3): "queued" parks for cluster-agent claim; default "running" is push-path/backfill meaning. */
   status?: "queued" | "running";
   /** Capability tags a claimant must carry (`required_tags <@ tags`). */
   requiredTags?: string[];
-  /** The complete machine dispatch contract (LoreTaskSpec) a claimant runs
-   *  with. Stored whole — unlike `input`, which is the bounded human record. */
+  /** Complete dispatch contract (LoreTaskSpec) stored whole, unlike the bounded `input` record. */
   dispatchSpec?: unknown;
 }
 
-/** What a successful claim hands the cluster-agent: the visit's identity and
- *  the complete dispatch contract it was enqueued with. */
+/** What a successful claim hands the cluster-agent: visit identity + its dispatch contract. */
 export interface ClaimedStationRun {
   nodeRowId: string;
   stationRunId: string;
@@ -124,22 +76,13 @@ export interface ClaimedStationRun {
   dispatchSpec: unknown;
 }
 
-/**
- * WHY a visit failed, recorded alongside its outcome. Optional because only a
- * `failed` outcome has one — and because the alternative, a fifth positional
- * argument, would have every existing two-argument caller reading as if it were
- * declining to classify.
- */
+/** Why a visit failed; optional (only "failed" outcomes have one) — avoids a 5th positional arg on every 2-arg caller. */
 export interface StationRunFailure {
   failureClass?: string;
   failureDetail?: string;
 }
 
-/**
- * One `pipeline.station_runs` row. The shape is the `StationRun` model — see
- * `libs/shared/src/models/station-run.ts` for the columns it binds and why a
- * visit carries two ids.
- */
+/** One pipeline.station_runs row; shape = StationRun model (see models/station-run.ts). */
 export type StationRunRecord = StationRun;
 
 /** The overlap guard's row: everything it compares, nothing it does not. */
@@ -152,97 +95,36 @@ export interface OpenRunSummary {
   createdAt: Date;
 }
 
-/**
- * One `pipeline.assembly_runs` row. The shape is the `AssemblyRun` model — see
- * `libs/shared/src/models/assembly-run.ts` for the columns it binds, the
- * blueprint-clone `graph`, and why `repo` is the `owner/repo` string.
- */
+/** One pipeline.assembly_runs row; shape = AssemblyRun model (see models/assembly-run.ts). */
 export type AssemblyRunRecord = AssemblyRun;
 
-/**
- * A run WITHOUT its blueprint clone.
- *
- * The browse list renders tables that never draw the graph, so reading up to
- * `limit` clones per page is transfer paid for nothing. Stated as a narrower
- * TYPE rather than as a `graph: null` on the full record: a null that means "not
- * read" is indistinguishable from a null that means "this run predates clones",
- * and the second is a real state a reader has to handle.
- */
+/** Run without its blueprint clone (avoids paying transfer for graphs the browse list never draws); a distinct type rather than graph:null, which would collide with "predates clones". */
 export type AssemblyRunSummary = Omit<AssemblyRunRecord, "graph">;
 
-/**
- * One line closed by {@link AssemblyRunsPort.finishOpenByPr}, in the shape its
- * caller needs to reclaim what the line held: `taskId ?? id` is the key the
- * per-run GitHub token and AgentDefinition/Station triple are filed under.
- */
+/** One line closed by {@link AssemblyRunsPort.finishOpenByPr}; taskId ?? id keys the per-run token/definition reclaim. */
 export interface ClosedRunRef {
   id: string;
   taskId: string | null;
 }
 
-/**
- * `pipeline.assembly_runs` + `pipeline.station_runs` — first-class
- * identity for one assembly line execution (per attempt, unlike the task id
- * which is stable across retries) plus the per-node trace.
- */
+/** pipeline.assembly_runs + pipeline.station_runs: per-attempt identity for one execution (unlike the retry-stable task id) plus per-node trace. */
 export interface AssemblyRunsPort {
-  /**
-   * Mint a fresh assemblyLineId, persist the row (status `queued`), and insert
-   * the `assembly_line.start` event in the same atomic statement so the Floor
-   * event loop picks the assembly line up. Returns the assemblyLineId.
-   */
+  /** Mints assemblyLineId, persists row (status queued) + assembly_line.start event atomically; returns the id. */
   start(input: AssemblyRunStartInput): Promise<string>;
   markRunning(id: string): Promise<void>;
-  /**
-   * Record WHICH blueprint this run executes — its content hash and the cloned
-   * graph — once.
-   *
-   * Stamped here rather than passed to {@link start} because this is the only
-   * moment that holds both the row id and a RESOLVED blueprint: `start` is called
-   * by lore-api and by choreographies that deliberately do not ship the
-   * definitions, so a graph parameter there could only ever be null.
-   *
-   * Never overwrites an already-stamped value. The pair names the graph this
-   * run's station rows were produced by, so a redelivered start that loaded a
-   * since-edited blueprint must not rewrite what the rows actually came from.
-   *
-   * Unknown id: the Pg UPDATE simply matches no row, while the in-memory double
-   * throws — the same deliberate asymmetry `markRunning` carries, so a caller
-   * bug surfaces in tests instead of vanishing in production.
-   */
+  /** Records the run's blueprint hash+graph once (never overwrites); not passed to start() since callers there never hold a resolved blueprint. Unknown id: Pg no-ops, in-memory double throws (surfaces caller bugs in tests). */
   stampBlueprint(id: string, hash: string, graph?: RunGraph): Promise<void>;
-  /** `outcome: "error"` closes the row as `failed`; anything else as `finished`.
-   *  First writer decides — returns true only for the call that closed the row,
-   *  so racing finishers (node event vs reaper) can gate once-only side effects
-   *  (failure notification) on the win. */
+  /** outcome "error" -> failed row, else finished; first writer wins (true), so racers can gate once-only side effects on it. */
   finish(id: string, outcome: string, reason?: string): Promise<boolean>;
   getById(id: string): Promise<AssemblyRunRecord | null>;
-  /**
-   * Merge a patch into the line's `args` — how one node's output reaches the next,
-   * and how a node's objection reaches the node that fed it.
-   *
-   * ADDITIVE by key: a key the patch does not mention is untouched, so a later merge
-   * can never make an earlier node's input vanish from under the replay. A key the
-   * patch DOES mention is replaced, because an upstream node re-running after an
-   * objection must supersede the output that was rejected. A line that does not
-   * exist is a no-op, not an error: the artifact sink is fire-and-forget.
-   */
+  /** Additive merge into the line's args (unmentioned keys untouched, mentioned keys replaced); unknown line id is a no-op, not an error. */
   mergeArgs(id: string, patch: Record<string, unknown>): Promise<void>;
-  /**
-   * The ONE filtered read. Every finder below is a one-line caller of it, so the
-   * SQL exists once — before this, "every code-review run on this repo" had no
-   * answer at all, because the port only offered lookups by task, by PR, and by
-   * openness. Newest first, id as the tiebreak so the order is total.
-   */
+  /** The one filtered read; every finder below wraps it so the SQL exists once. Newest first, id tiebreak. */
   list(query: AssemblyRunQuery): Promise<AssemblyRunRecord[]>;
-  /** {@link list}, selecting the same runs in the same order but without the
-   *  blueprint clone — for readers that list runs rather than draw them. */
+  /** {@link list} without the blueprint clone, for readers that list rather than draw runs. */
   listSummaries(query: AssemblyRunQuery): Promise<AssemblyRunSummary[]>;
   listForTask(taskId: string): Promise<AssemblyRunRecord[]>;
-  /**
-   * Event-driven transition primitives: the walk state is derived from node rows,
-   * so duplicate/concurrent advancers must converge structurally.
-   */
+  // Event-driven transition primitives: walk state derives from node rows, so concurrent advancers must converge structurally.
   /** Insert-or-noop on the UNIQUE (assembly_run_id, node_id, iteration) key. */
   ensureStationRun(
     input: StationRunStartInput,
@@ -256,17 +138,8 @@ export interface AssemblyRunsPort {
   ): Promise<boolean>;
   /** The line's node rows in visit order (row id). */
   listStationRuns(assemblyRunId: string): Promise<StationRunRecord[]>;
-  /**
-   * The claim (FR3): atomically take the oldest `queued` open visit whose
-   * `required_tags` the claimant's tags satisfy — one statement, so concurrent
-   * claimants are safe — or null when nothing matches.
-   */
-  /**
-   * Arm a queued visit with its complete dispatch contract. Written after
-   * `ensureStationRun` because the contract carries the minted stationRunId;
-   * the claim takes only armed rows, so a crash between the two leaves a row
-   * the queue-wait bound settles rather than a claim with nothing to run.
-   */
+  // The claim (FR3): atomically takes the oldest queued visit whose required_tags the claimant satisfies, one statement; null when nothing matches.
+  /** Arms a queued visit with its dispatch contract; written after ensureStationRun since claim only takes armed rows. */
   enqueueStationRunDispatch(
     nodeRowId: string,
     dispatchSpec: unknown,
@@ -275,80 +148,30 @@ export interface AssemblyRunsPort {
     clusterAgentId: string;
     tags: string[];
   }): Promise<ClaimedStationRun | null>;
-  /**
-   * Reset a claimed-but-lost visit back to `queued` on the SAME row (the
-   * row-id-as-visit-order contract), clearing the claim; false when the visit
-   * already reached an outcome.
-   */
+  /** Resets a claimed-but-lost visit to queued on the same row; false if it already reached an outcome. */
   requeueStationRun(nodeRowId: string): Promise<boolean>;
-  /** Open claims per cluster-agent id — the registered-clusters page's
-   *  "currently executing" column (FR7). */
+  /** Open claims per cluster-agent id (registered-clusters page's "currently executing" column, FR7). */
   countOpenClaimsByAgent(): Promise<Record<string, number>>;
   /** Open (`queued`/`running`) lines, oldest first — the reaper's work list. */
   listOpen(): Promise<AssemblyRunRecord[]>;
-  /**
-   * The overlap guard's read: open runs on one repo+branch, oldest first, as
-   * graph-less summaries. `listOpen` hauls every open run's graph clone org-wide;
-   * the guard compares five scalars, and its cost must not grow with runs on
-   * OTHER branches.
-   */
+  /** Overlap-guard read: open runs on one repo+branch as graph-less summaries; cost must not grow with other branches (unlike listOpen). */
   findOpenOnBranch(repo: string, branch: string): Promise<OpenRunSummary[]>;
-  /**
-   * The open run working this subject, or null.
-   *
-   * At most one can exist — the store enforces it — so this returns a single row
-   * rather than a list, unlike {@link findOpenOnBranch}, whose branch key never
-   * carried that guarantee. Callers answer "already in flight" with the id they
-   * get back, which is what lets a rejected duplicate request still name the run
-   * the caller should be watching.
-   */
+  /** The open run on this subject, or null; at most one can exist (store-enforced), unlike {@link findOpenOnBranch}. */
   findOpenBySubject(
     repo: string,
     subjectKey: string,
   ): Promise<OpenRunSummary | null>;
-  /**
-   * How many runs — open or settled — have ever worked this subject.
-   *
-   * {@link findOpenBySubject} answers "is one in flight", which is the wrong
-   * question for a caller that re-starts on a timer: a line that fails at its
-   * first node settles, so the open lookup is empty again a minute later and
-   * the caller starts another. Counting every attempt is what lets such a
-   * caller stop.
-   */
+  /** Total runs ever on this subject (open or settled) — lets a timer-restarting caller stop, unlike {@link findOpenBySubject}'s in-flight-only answer. */
   countBySubject(repo: string, subjectKey: string): Promise<number>;
-  /**
-   * Open (`queued`/`running`) assembly lines whose `args.pr_number` matches — the
-   * PR-scoped lookup the code-review choreography uses. NOT only code-review lines:
-   * a feature-planning line carries the spec PR it pushed, which is how a merge
-   * finds the line parked on `merged`.
-   */
+  /** Open lines whose args.pr_number matches; not code-review-only — a feature-planning line's spec PR resolves this way too. */
   findOpenByPr(repo: string, prNumber: number): Promise<AssemblyRunRecord[]>;
-  /**
-   * Close open lines for the repo+PR with `outcome`; returns a ref per line
-   * actually closed.
-   *
-   * The REFS, not a count, because closing a line here bypasses `finishLine` —
-   * so this is the only moment that knows which lines lost their reclaim. A
-   * caller must be able to hand each one's key to `cleanupToken`, or a PR closed
-   * mid-review leaks its per-run GitHub token and catalog triple forever (the
-   * node's own terminal event returns early on the now-finished row).
-   *
-   * `definitions` NARROWS it to those definition names, and the PR-lifecycle
-   * choreography must pass its own family. The unfiltered form used to be safe
-   * because only code-review lines carried `pr_number` in args — an invariant that
-   * ended when the push node began stamping the spec PR on the FEATURE-PLANNING
-   * line. Merging a spec PR then closed the very line that was parked waiting for
-   * that merge, one step before decomposition.
-   */
+  /** Closes open lines for repo+PR, returning refs (not a count) so callers can cleanupToken each — else a mid-review close leaks tokens. `definitions` narrows it; PR-lifecycle must pass its own family since feature-planning lines also carry pr_number. */
   finishOpenByPr(
     repo: string,
     prNumber: number,
     outcome: string,
     definitions?: readonly string[],
   ): Promise<ClosedRunRef[]>;
-  /**
-   * True when any `code-review` line (any status) has ever run for the repo+PR —
-   * the first-review-only guard so pushes after the first review don't re-review.
-   */
+  /** True if any code-review line ever ran for repo+PR — guards against re-reviewing after the first push. */
   hasReviewedPr(repo: string, prNumber: number): Promise<boolean>;
 }

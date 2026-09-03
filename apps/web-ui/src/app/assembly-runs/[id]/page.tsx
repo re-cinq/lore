@@ -17,13 +17,7 @@ import LlmCallsTable from "@/app/tasks/[id]/LlmCallsTable";
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-/**
- * Resolver for `/assembly-runs/[id]`. The id disambiguates itself: a
- * `pipeline.assembly_runs` run renders the run detail; otherwise a
- * `pipeline.tasks` row redirects to the task detail at `/tasks/[id]` (so every
- * legacy task-UUID link — UUID linkification, repo overview, GitHub comments —
- * keeps working). A non-UUID or unknown id renders "Not found".
- */
+// Resolver for `/assembly-runs/[id]`: a run renders detail; a task id redirects to `/tasks/[id]` (legacy links keep working); unknown → "Not found".
 export default async function AssemblyLineResolverPage({
   params,
 }: {
@@ -36,7 +30,7 @@ export default async function AssemblyLineResolverPage({
   }
 
   const run = await fetchAssemblyRun(id);
-  // The id may be a TASK id rather than a run id — the old links pointed here.
+  // The id may be a TASK id rather than a run id — old links pointed here.
   const taskResult = run ? null : await getTask(id);
 
   if (!run && taskResult?.status === "ok") {
@@ -55,9 +49,7 @@ export default async function AssemblyLineResolverPage({
       ])
     : [[], []];
   const { definition } = definitionForRun(run.blueprintName, nodes, run.graph);
-  // Resolved defs carry project_id, the repo-override discriminator the node
-  // inspector's "Edit agent" link routes on. listAgents degrades to [] when
-  // the API is unreachable, which simply renders no links.
+  // Resolved defs carry project_id, the discriminator "Edit agent" routes on; listAgents degrades to [] (no links) when the API is unreachable.
   const editHrefs = agentEditHrefs(
     definition,
     await listAgents(run.repo),

@@ -1,13 +1,4 @@
-/**
- * Compile-time drift guard for the test-link ref mirror.
- *
- * apps/web-ui cannot import @re-cinq/lore-shared (npm-workspace exclusion +
- * isolated Docker build context), so the shape of a parsed
- * `[label](path#Lline)` coverage link is hand-mirrored as `TestLinkRef` in
- * apps/web-ui/src/lib/trace-types.ts (canonical: `SpecLinkRef` in the shared
- * spec-link parser). This file makes `npm run typecheck:drift` go red the
- * moment either side gains or retypes a field the other lacks.
- */
+// Drift guard: web-ui can't import @re-cinq/lore-shared, so SpecLinkRef is hand-mirrored as TestLinkRef in web-ui/src/lib/trace-types.ts.
 
 import type { SpecLinkRef } from "../../libs/shared/src/spec-link-parser.js";
 

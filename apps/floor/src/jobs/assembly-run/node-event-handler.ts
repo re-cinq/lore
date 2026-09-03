@@ -1,16 +1,4 @@
-// Layer-3 handler for `kubernetes.agent_node.{succeeded,failed}` (spec 6-dark-factory
-// FR6): one node CR went terminal → parse its outcome (LORE_NODE_RESULT /
-// REVIEW_RESULT / phase precedence, reused from the station contract) → record it
-// (CAS) → advance the line. The CR may already be pruned (terminal +1h) — the
-// event's phase is the fallback, matching the poll path's no-output default.
-//
-// Since specs/running-stations-in-any-k8s-cluster FR4's follow-up, the event
-// itself may already carry the CR's status (`params.status`, reported by
-// cluster-agent at the source — see `project/events/k8s-map.ts`). When it
-// does, that IS the answer: no central-only read, no visibility gate, because
-// there is nothing left to interrogate a cluster for. Only an event from an
-// older, not-yet-redeployed cluster-agent (no `status` in its params) falls
-// through to the pre-existing central read + reaper handoff.
+// Layer-3 handler for `kubernetes.agent_node.{succeeded,failed}` (FR6): parse outcome, record (CAS), advance the line. Since FR4's follow-up the event may already carry the CR's status (`params.status`, from cluster-agent); only an older cluster-agent's event falls through to the central read + reaper handoff.
 
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import {
@@ -40,34 +28,19 @@ import type { NodeResult } from "@re-cinq/lore-assembly-lines";
 import { isRecord } from "@re-cinq/lore-shared/lib/is-record.js";
 
 export interface NodeEventDeps extends AdvanceDeps {
-  /** Read the CR's status by name; null when it no longer exists (pruned) — or
-   *  when it lives in a cluster this Floor cannot reach, which is a different
-   *  fact wearing the same null. {@link agentCrVisible} tells them apart. */
+  /** Null means pruned OR unreachable-cluster — two different facts wearing the same null; {@link agentCrVisible} tells them apart. */
   readAgentStatus: (name: string) => Promise<AgentNodeStatus | null>;
-  /**
-   * How much a run's branch differs from the repo's default branch — what a
-   * DELIVERING node (one whose job is to change the branch) is held to. Zero
-   * turns its reported success into a failure. Optional seam: a composition
-   * without it trusts the node's own word, which is the pre-2026-08-30
-   * behaviour.
-   */
+  /** How much a DELIVERING node's branch differs from default; zero turns reported success into a failure. Optional seam — absent trusts the node's own word (pre-2026-08-30 behaviour). */
   deliveredChangeCount?: (repo: string, branch: string) => Promise<number>;
-  /** The central cluster's registered agent id. Resolved per call — the id is
-   *  minted at registration, so a static env var cannot know it. Omitted or
-   *  null leaves only legacy `running` rows visible, which is exactly the
-   *  pre-claim-path behaviour. */
+  /** The central cluster's registered agent id, resolved per call (minted at registration). Omitted/null leaves only legacy `running` rows visible (pre-claim-path behaviour). */
   centralClusterAgentId?: () => Promise<string | null>;
-  /** Fire the throttled operator alert when a CR failed because the Anthropic
-   *  account ran dry (best-effort; optional so tests/partial deps omit it). */
+  /** Throttled operator alert when a CR failed because the Anthropic account ran dry; best-effort, optional. */
   alertBilling?: (
     repo: string,
     nodeType: string,
     status: AgentNodeStatus,
   ) => Promise<void>;
-  /** Fire the throttled operator alert when a CR failed because an
-   *  AgentDefinition's skills_source was unreachable — every Claude-agent node
-   *  the affected cluster claims fails identically until it is fixed
-   *  (best-effort; optional so tests/partial deps omit it). */
+  /** Throttled operator alert when an AgentDefinition's skills_source was unreachable, stranding every Claude-agent node the affected cluster claims; best-effort, optional. */
   alertAgentConfig?: (
     repo: string,
     nodeType: string,
@@ -75,12 +48,7 @@ export interface NodeEventDeps extends AdvanceDeps {
   ) => Promise<void>;
 }
 
-/**
- * The event's own reported `AgentNodeStatus` (specs/running-stations-in-any-k8s-cluster
- * FR4's follow-up), or null when the reporter did not send one — an older
- * cluster-agent, still on the read-back path. Narrowed defensively: `params`
- * is untyped JSONB off the wire, not a value this process minted.
- */
+/** The event's own reported status (FR4's follow-up), or null when an older cluster-agent sent none; narrowed defensively since `params` is untyped JSONB off the wire. */
 export function reportedStatus(status: unknown): AgentNodeStatus | null {
   if (!isRecord(status)) {
     return null;
@@ -126,18 +94,7 @@ export function createNodeEventHandler(deps: NodeEventDeps): EventHandler {
 
     const reported = reportedStatus(params.status);
 
-    // Only when the event carries no status of its own (an older cluster-agent
-    // that has not been redeployed yet) does this Floor need to interrogate a
-    // cluster at all. A CR it cannot interrogate answers null, and the
-    // fallback below would read that null as "the agent produced nothing" —
-    // the opposite of what it means. A review node degraded that way tells
-    // the PR its review "never got far enough to judge the diff" while the
-    // agent's own output ended in REVIEW_RESULT:APPROVED (2026-08-27, every
-    // review on this repo, for as long as the central cluster stayed paused).
-    //
-    // So: hand the row to the reaper, which is already cluster-aware — it waits
-    // the node's budget, requeues if the claimant dies, and times out honestly
-    // if it does not. Nothing is fabricated from an output nobody read.
+    // Only an older cluster-agent's event (no status) needs a cluster interrogated; an unreachable CR would otherwise read as "agent produced nothing" (2026-08-27 regression). Hand off to the cluster-aware reaper instead of fabricating an outcome.
     const leftToReaper =
       reported === null &&
       (await claimUnreadableFromThisFloor(
@@ -148,28 +105,16 @@ export function createNodeEventHandler(deps: NodeEventDeps): EventHandler {
     if (leftToReaper) {
       return;
     }
-    // Unwrap the NDJSON envelope once, here: every text parser below (the outcome
-    // precedence and the review findings alike) must read the agent text, not the
-    // stream that carries it.
+    // Unwrap the NDJSON envelope once: every text parser below must read the agent text, not the stream carrying it.
     const rawStatus = reported ??
       (await deps.readAgentStatus(agentName)) ?? {
         phase: String(params.phase ?? ""),
       };
     const status = normalizeAgentStatus(rawStatus);
-    // Delivery rides the advancing event, and lands BEFORE the walk moves: the
-    // sink these artifacts normally arrive on is a separate HTTP post racing this
-    // one, so nothing ordered the merge before the next node's dispatch, and the
-    // next station could read an arg its predecessor had already produced and
-    // simply not find it. Merging the same content twice is a no-op, so the sink
-    // stays the fast path.
+    // Merged BEFORE the walk moves — the artifact sink is a separate racing HTTP post, so without this the next station could miss an arg its predecessor already produced (a re-merge is a no-op).
     const result = await deliverTerminalArtifacts(row, node, rawStatus, deps);
 
-    // An account-out-of-credits failure downs every LLM node at once; surface it
-    // once to operators (the seam throttles + classifies) before the per-line
-    // failure notice, which only ever carries a routing reason. A missing-settings
-    // failure (an unreachable skills_source) is the same shape of outage on a
-    // different axis — every Claude-agent node on the affected CLUSTER, not the
-    // account — so it gets the same treatment.
+    // An account-out-of-credits failure downs every LLM node at once; a missing skills_source strands every Claude-agent node on the CLUSTER — both surfaced once to operators before the per-line failure notice.
     if (result.outcome === "failed" && deps.alertBilling) {
       await deps.alertBilling(row.repo, node.type, status);
     }
@@ -186,10 +131,7 @@ export function createNodeEventHandler(deps: NodeEventDeps): EventHandler {
   };
 }
 
-/** True when the terminal CR was claimed by a cluster this Floor cannot read —
- *  the node stays open for the cluster-aware reaper, which waits the node's
- *  budget, requeues if the claimant dies, and times out honestly if it does
- *  not. Nothing is fabricated from an output nobody read. */
+/** True when the terminal CR was claimed by a cluster this Floor cannot read — the node stays open for the cluster-aware reaper rather than fabricating an outcome. */
 async function claimUnreadableFromThisFloor(
   params: {
     assemblyLineId: string;
@@ -222,18 +164,7 @@ async function claimUnreadableFromThisFloor(
   return true;
 }
 
-/**
- * Merge the artifacts a terminal node declared, then decide its outcome.
- *
- * Shared by BOTH terminal doors — the node event and the reaper's resolve — because
- * a dropped event means the reaper is the only one who will ever see this output,
- * and an artifact delivered on one door but not the other is a difference nobody
- * could predict from the run.
- *
- * A declared artifact the agent never produced FAILS the node: advancing hands the
- * next station an empty bag, which it reads as "my predecessor decided nothing"
- * rather than as the delivery failure it is.
- */
+/** Merges declared artifacts then decides outcome; shared by both terminal doors (node event + reaper resolve) since a dropped event means only one will ever see this output. A declared-but-unproduced artifact FAILS the node — else the next station reads an empty bag as "predecessor decided nothing." */
 export async function deliverTerminalArtifacts(
   row: AssemblyRunRecord,
   node: { type: string; prompt_ref?: string | null },
@@ -256,12 +187,7 @@ export async function deliverTerminalArtifacts(
     return undelivered(`declared artifact not produced: ${missing.join(", ")}`);
   }
 
-  // A node whose job was to CHANGE THE BRANCH and left it empty is not a
-  // success, whatever it printed. Decided here, right after the node, rather
-  // than two nodes later at push: the next node is another pod with a fresh
-  // clone, so validate would diff an empty branch and lint the whole tree for
-  // nothing (18 of 18 implementation-loop branches, 2026-08-30). Retryable —
-  // an agent that forgot to push is exactly what the self-retry edge is for.
+  // A DELIVERING node that left the branch empty is not a success, whatever it printed — caught here rather than at push, since the next pod's fresh-clone validate would otherwise lint the whole tree for nothing (18/18 impl-loop branches, 2026-08-30). Retryable via the self-retry edge.
   return (await emptyDeliveryFailure(row, node, deps)) ?? result;
 }
 
@@ -295,12 +221,7 @@ const undelivered = (detail: string): NodeResult => ({
   extras: { "Lore-Validation-Summary": detail },
 });
 
-/**
- * Stop dispatching agent nodes when THIS failure says the account, not the run,
- * is down. The gate decides which classes qualify; every other failure passes
- * through untouched. Logged only on the transition, because the whole point is
- * that an account outage produces one event and not one per drowned run.
- */
+/** Stops dispatching agent nodes when this failure says the account (not the run) is down; logged only on the transition, so an outage produces one event, not one per drowned run. */
 function tripGateOnAccountOutage(
   result: NodeResult,
   deps: NodeEventDeps,
@@ -316,19 +237,13 @@ function tripGateOnAccountOutage(
   }
 }
 
-/** When a comment-triage node goes terminal, read its classified action and start
- *  the routed follow-up line. Best-effort — a routing failure never fails the walk. */
+/** Reads a terminal comment-triage node's classified action and starts the routed follow-up line; best-effort, never fails the walk. */
 async function routeCommentTriage(
   row: AssemblyRunRecord,
   node: RunGraphNode,
   result: NodeResult,
 ): Promise<void> {
-  // Keyed on the node's TYPE, which is what `comment-triage` actually IS —
-  // `NodeType` has carried that variant since the loader learned about it. The
-  // old test compared the definition NAME and the node ID as strings, so
-  // renaming the node in comment-triage.yaml, or reusing a triage node on
-  // another definition, left `extras.action` unread: the walk finished green
-  // and the human's comment was silently never routed.
+  // Keyed on the node's TYPE, not definition name/node id (the old comparison silently left comment-triage nodes unrouted on rename or reuse).
   if (node.type !== "comment-triage") {
     return;
   }
@@ -363,10 +278,7 @@ function contextFromRow(row: AssemblyRunRecord): CommentContext {
     comment_body: String(a.comment_body ?? ""),
     in_reply_to_id:
       typeof a.in_reply_to_id === "number" ? a.in_reply_to_id : null,
-    // The commenter rides along: the triage line stored who wrote the comment,
-    // and the line triage ROUTES TO is the one a person will look at in the run
-    // list. Dropping it here left "By" blank on exactly the runs a human asked
-    // for, while the keyword fast path — same destination — kept it.
+    // Dropping this left "By" blank on runs a human asked for; the keyword fast path (same destination) kept it.
     actor: typeof a.actor === "string" ? a.actor : undefined,
   };
 }
@@ -374,9 +286,7 @@ function contextFromRow(row: AssemblyRunRecord): CommentContext {
 /** Re-exported for the start handler / reaper compositions. */
 export { advanceLine };
 
-/** Production deps, resolved lazily so importing the registry never forces the DB
- *  pool or the K8s client. Shared by the node-event handler, the start handler's
- *  advance, and the reaper tick. */
+/** Resolved lazily so importing the registry never forces the DB pool or K8s client; shared by the node-event handler, the start handler's advance, and the reaper tick. */
 export async function productionNodeEventDeps(): Promise<NodeEventDeps> {
   const [
     {
@@ -409,16 +319,11 @@ export async function productionNodeEventDeps(): Promise<NodeEventDeps> {
   return {
     assemblyRuns: pipeline().assemblyRuns,
     definitions: loadBuiltinAssemblyLines,
-    // Wired HERE so it reaches every door: the CR event, the reaper's resolve,
-    // and a station reporting over `assembly_run.resume`. It used to be called
-    // by the CR handler alone, so a triage node the REAPER resolved never
-    // started its follow-up, silently.
+    // Wired HERE so it reaches every door (CR event, reaper resolve, `assembly_run.resume`) — it used to be CR-handler-only, so a REAPER-resolved triage node silently never routed.
     onNodeFinished: routeCommentTriage,
-    // The enqueue-time half of FR2: `resolveRequiredTags` reads the repo's
-    // `station_default_tags` from this raw settings object.
+    // Enqueue-time half of FR2: `resolveRequiredTags` reads `station_default_tags` from this raw settings object.
     repoSettings: (repo) => settings().rawSettings(repo),
-    // Per-repo override CRDs live under project-qualified names; the dispatch
-    // must spell its stationRef the way the catalog sync applied it.
+    // Per-repo override CRDs live under project-qualified names; dispatch must spell its stationRef as the catalog sync applied it.
     qualifyStationRef: async (baseRef, repo) => {
       const [{ qualifiedStationRef }, { getPool }] = await Promise.all([
         import("@re-cinq/lore-shared/project/agents/agent-defs-pg.js"),
@@ -427,8 +332,7 @@ export async function productionNodeEventDeps(): Promise<NodeEventDeps> {
 
       return qualifiedStationRef(getPool(), baseRef, repo);
     },
-    // Strict: a node's prompt_ref names the recipe it runs, so an unknown one
-    // fails the node instead of silently running `general` (#1329).
+    // Strict: an unknown prompt_ref fails the node instead of silently running `general` (#1329).
     resolvePrompt: buildNodePrompt,
     cleanupToken: cleanupPerTaskToken,
     jobRuns: pipeline().jobRuns,
@@ -438,13 +342,10 @@ export async function productionNodeEventDeps(): Promise<NodeEventDeps> {
 
       await loopRunClosed(run, outcome, reason);
     },
-    // Publish a service-form node for the pooled stations service to claim,
-    // rather than giving a DB write or an HTTP POST a pod of its own.
+    // Publishes a service-form node for the pooled stations service to claim, instead of a pod per DB write/HTTP POST.
     publishNode: (event) =>
       eventReporter().insert({ ...event, source: "internal" }),
-    // What the retrospective station was for and never did: every blueprint names
-    // it as the EXIT, and the walk finishes at the exit rather than dispatching
-    // it, so no run has ever written one.
+    // What the retrospective station was for and never did (every blueprint names it as EXIT, so the walk never dispatches it).
     recordRunEpisode: async (run, outcome, reason) => {
       const { writeEpisode } = await import("@re-cinq/lore-shared");
 
@@ -468,12 +369,10 @@ export async function productionNodeEventDeps(): Promise<NodeEventDeps> {
         iteration,
         {
           conversations: conversations(),
-          // The URL the POD must reach, which is the same sink host it already posts
-          // telemetry to — not the Floor's own view of itself.
+          // The URL the POD must reach — the same sink host it already posts telemetry to, not the Floor's own view of itself.
           registryUrl: `${process.env.LORE_FLOOR_POD_URL ?? ""}/api/agent-conversations`,
           headersSecret: "agent-events-auth",
-          // Rewind: `args.resume_from_task` names the round the author chose, and the
-          // conversation it reserved is keyed by the assembly line that ran it.
+          // `args.resume_from_task` names the round the author chose; its reserved conversation is keyed by the assembly line that ran it.
           linesForTask: async (taskId) =>
             (await pipeline().assemblyRuns.listForTask(taskId)).map(
               (line) => line.id,
@@ -497,18 +396,13 @@ export async function productionNodeEventDeps(): Promise<NodeEventDeps> {
     },
     markPrReady: async (row, result) => {
       const project = await projectFor(row.repo);
-      // Narrowed rather than cast: decideMarkReady already required a numeric
-      // pr_number before this fires, and a cast would outlive that guarantee.
+      // Narrowed rather than cast: decideMarkReady already required a numeric pr_number before this fires.
       const number = row.args.pr_number;
 
       if (typeof number !== "number") {
         return;
       }
-      // The description the pr-ready node produced (a declared artifact merged
-      // into args before the walk advanced) plus the footer the draft carried —
-      // rewriting with the prose alone destroyed the Closes/Lore-Task footer.
-      // The node's extras carry the coverage verdict that picks Closes vs Refs.
-      // Null means the node wrote no prose, and the PR keeps its old body.
+      // readyPrBody rebuilds the Closes/Lore-Task footer (rewriting with prose alone destroyed it); null means no prose was produced, so the PR keeps its old body.
       const body = readyPrBody(row, result.extras);
 
       if (body !== null) {
@@ -517,8 +411,7 @@ export async function productionNodeEventDeps(): Promise<NodeEventDeps> {
       await project.pulls.markReady(number);
     },
     readAgentStatus: (name) => cluster.getStatus(name),
-    // The same compare the watcher uses for a single-CR task, applied to a
-    // node: an implement that pushed nothing is not done.
+    // Same compare the watcher uses for a single-CR task: an implement that pushed nothing is not done.
     deliveredChangeCount: async (repo, branch) => {
       const project = await projectFor(repo);
 
@@ -545,12 +438,10 @@ export async function productionNodeEventDeps(): Promise<NodeEventDeps> {
   };
 }
 
-/** Module singleton: the billing outage is account-wide, so the alert throttle
- *  must survive across per-event deps (one alert/hour across all repos). */
+/** Module singleton: the billing outage is account-wide, so the throttle must survive across per-event deps (one alert/hour across all repos). */
 const billingAlertThrottle = new BillingAlertThrottle();
 
-/** Module singleton, same reasoning: a misconfigured skills_source strands
- *  every Claude-agent node a cluster claims, not just one repo's run. */
+/** Module singleton, same reasoning — a misconfigured skills_source strands every node a cluster claims, not just one repo. */
 const agentConfigAlertThrottle = new BillingAlertThrottle();
 
 /** Composed production handler for the registry (both node-terminal events). */

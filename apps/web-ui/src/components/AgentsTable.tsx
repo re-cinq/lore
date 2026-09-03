@@ -8,8 +8,7 @@ import type { AgentKind } from "@/lib/agent-classify";
 import styles from "./AgentsTable.module.css";
 
 export interface AgentRow {
-  /** Nullable, as the contract says: the activity read groups rows that carry no
-   *  agent. It used to be typed `string`, which linked to `/agents/null`. */
+  /** Nullable — ungrouped rows carry no agent; was `string`, which linked to `/agents/null`. */
   agent_id: string | null;
   kind: AgentKind;
   task_count: number;
@@ -36,14 +35,7 @@ const KIND_LABEL: Record<AgentKind, string> = {
   task: "Task",
 };
 
-/**
- * Shared sessions/agents table for the global `/agents` page and the per-repo
- * Agents tab. Each row is a `session` — a developer's local MCP agent (stable
- * `~/.lore/agent-id`, accumulates memories) shown by default, or an ephemeral
- * per-task-run agent kept behind the audit toggle. Pure presentation — the
- * container runs the query and tags each row with its `kind` via `classifyAgent`.
- * `embedded` drops the built-in heading so a parent section owns the chrome.
- */
+/** Shared sessions/agents table for `/agents` and the per-repo Agents tab; pure presentation, the container tags each row's `kind` via `classifyAgent`. */
 export default function AgentsTable({
   agents,
   intro,

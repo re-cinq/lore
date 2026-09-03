@@ -6,18 +6,7 @@ import { fetchAssemblyRun } from "@/lib/assembly-runs";
 import { userCanAccessRepo } from "@/lib/user-repo-access";
 import { proxyUpstreamStatus, serverError } from "@/lib/api-error";
 
-/**
- * GET /api/assembly-runs/[id]/events — session-authed history proxy for one
- * run's agent events, forwarding to the Floor's /api/agent-events/{id}. Keeps
- * the event history out of the RSC payload: the page ships the graph, the
- * client pages the events.
- *
- * The auth ladder is cloned from the node-logs route in the same order:
- * session (401) → run lookup (404) → repo access (403). An authenticated caller
- * CAN tell the two apart — 404 means the run does not exist, 403 means it does
- * but the repo is not theirs. The order is for consistency with the node-logs
- * route, not to collapse the codes.
- */
+// Session-authed history proxy to the Floor's /api/agent-events/{id}; auth ladder matches the node-logs route (401 → 404 → 403).
 export async function GET(
   req: Request,
   { params }: { params: Promise<{ id: string }> },

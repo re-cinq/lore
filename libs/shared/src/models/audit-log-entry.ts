@@ -1,12 +1,7 @@
 import { z } from "zod";
 import type { ColumnMap } from "../lib/row.js";
 
-/**
- * `pipeline.audit_log` — the dark-factory decision trail (ADR-016).
- *
- * DDL: migration `0014_dark_factory_audit_log.sql`. Distinct from
- * `memory.audit_log`, which is memory-scoped and carries no task/repo.
- */
+/** `pipeline.audit_log` — the dark-factory decision trail (ADR-016); distinct from `memory.audit_log`, which is memory-scoped and carries no task/repo. */
 
 export const AuditLogEntrySchema = z.object({
   id: z.string(),

@@ -22,9 +22,6 @@ const orgRow = {
   config: { skills: ["lore-context"] },
 };
 
-/** Echoes the upsert's bound row back, capturing every call for SQL/param
- *  assertions. The pod_resources merge happens in SQL, so the echo just
- *  reflects the bound block (params 8..10: touched, inherited, block). */
 function fakePool(capture: Array<{ text: string; params?: unknown[] }>): Pool {
   return {
     query: async (text: string, params?: unknown[]) => {

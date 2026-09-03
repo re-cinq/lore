@@ -26,8 +26,7 @@ const KEY_FILES = [
 
 const SAMPLE_DIRS = ["src", "lib", "cmd", "internal", "app", "pkg"];
 
-/** Read up to the 3-sample cap from one directory's entries (first 200 lines
- *  each); per-file read failures are logged and skipped. */
+/** Reads up to the 3-sample cap from one directory's entries (first 200 lines each); per-file read failures are logged and skipped. */
 async function sampleDirEntries(
   project: Awaited<ReturnType<typeof projectFor>>,
   fullName: string,
@@ -57,10 +56,7 @@ async function sampleDirEntries(
   }
 }
 
-/**
- * Fetches contextual information about a repo: top-level tree, key config
- * files, and a sample of source files from well-known directories.
- */
+/** Fetches contextual information about a repo: top-level tree, key config files, and a sample of source files from well-known directories. */
 export async function fetchRepoContext(fullName: string): Promise<RepoContext> {
   const [owner, repo] = fullName.split("/");
 

@@ -6,7 +6,6 @@ import {
   type KubeConfigLoader,
 } from "./kube-config.js";
 
-/** A real KubeConfigLoader that records how it was loaded instead of touching a cluster. */
 class RecordingLoader implements KubeConfigLoader {
   loaded: string | null = null;
 

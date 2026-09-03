@@ -1,7 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { awaitSoleInstance, guardLockConnection } from "./single-instance.js";
 
-/** Records what happened, so the tests assert the sequence rather than a mock. */
 function harness(acquireOn: number) {
   const log: string[] = [];
   let attempts = 0;
@@ -40,9 +39,7 @@ describe("awaitSoleInstance", () => {
     });
   });
 
-  it("waits for the holder to go, then proceeds", async () => {
-    // A rolling update: the outgoing pod still holds the lock for a few seconds.
-    // Exiting here would crash-loop the new pod against its own predecessor.
+  it("waits for a rolling update's outgoing pod to release the lock, then proceeds, rather than crash-looping against its predecessor", async () => {
     const h = harness(3);
 
     await awaitSoleInstance(h.deps, { intervalMs: 500 });
@@ -51,9 +48,7 @@ describe("awaitSoleInstance", () => {
     expect(h.waits).toEqual([500, 500]);
   });
 
-  it("says once that it is waiting, not once per tick", async () => {
-    // This message is the whole point of the guard — it must be findable in a log,
-    // and it must not bury the rest of startup during a slow handover.
+  it("says once that it is waiting, not once per tick, so a slow handover doesn't bury startup logs", async () => {
     const h = harness(4);
 
     await awaitSoleInstance(h.deps, { intervalMs: 10 });
@@ -71,12 +66,7 @@ describe("awaitSoleInstance", () => {
 });
 
 describe("the lock connection dying", () => {
-  // The lock lives on a client checked out of the pool and never released. The
-  // pool's own error handler covers IDLE clients only, so when Postgres restarted
-  // (57P01 admin_shutdown) this client emitted an unhandled 'error' and took the
-  // whole Floor down — seven times, until systemd's start limit gave up and left it
-  // dead. A database blip must not be a permanent outage.
-  it("reports the lost lock and exits, rather than dying on an unhandled event", async () => {
+  it("reports the lost lock and exits on a Postgres restart (57P01 admin_shutdown), rather than an unhandled error crash-looping the Floor past systemd's start limit", async () => {
     const log: string[] = [];
     const exits: number[] = [];
     let onError: ((err: Error) => void) | undefined;

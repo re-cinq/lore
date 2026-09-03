@@ -1,13 +1,8 @@
-/**
- * Shared helpers for the registerXTools(server) modules: the API proxy surface
- * plus the latency tracker. The adapter holds no DB pool at all (ADR-032) — it
- * proxies every data operation to lore-api.
- */
+// Shared helpers for the registerXTools(server) modules: the API proxy surface plus the latency tracker; the adapter holds no DB pool (ADR-032).
 import { trackToolCall } from "@re-cinq/lore-server-core/platform/session-tracker.js";
 import { traceTool } from "@re-cinq/lore-server-core/platform/otel.js";
 
-// The API proxy client lives in server-core (shared infra). Re-exported here so
-// the tool modules keep importing it from `./deps.js` unchanged.
+// The API proxy client lives in server-core; re-exported so tool modules keep importing it from `./deps.js` unchanged.
 export {
   proxyToApi,
   proxyMemory,

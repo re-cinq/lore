@@ -7,14 +7,6 @@ import * as dgraph from "dgraph-js-http";
 import { projectSpecFile } from "./project-spec-file.js";
 import { resolveSentenceLink } from "./resolve-sentence-link.js";
 
-/**
- * resolveSentenceLink (spec-traceability-graph) — resolves a `<spec> | <sentence>`
- * test name against the live graph: the `<spec>` segment substring-matches a
- * Spec.title, the `<sentence>` substring-matches a Statement/AcceptanceCriterion
- * under that spec (shallow: lowercase, whitespace-free, link-parens stripped).
- * Tested against live Dgraph (no mocks); container-gated.
- */
-
 const DGRAPH_HTTP = process.env.DGRAPH_HTTP ?? "http://localhost:8081";
 const APPLIER = join(
   findRepoRoot(),
@@ -90,7 +82,7 @@ describe.skipIf(!reachable)("resolveSentenceLink (live Dgraph)", () => {
         });
       }
     } catch {
-      // best-effort
+      void 0;
     } finally {
       await txn.discard().catch(() => {});
     }

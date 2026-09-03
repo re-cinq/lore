@@ -1,23 +1,4 @@
-/**
- * Canonical source of truth for the `lore-trace-impact.yml` GitHub Actions
- * workflow that every onboarded repo installs. On each pull_request it sends the
- * diff (changed file + line ranges) plus the head text of any changed spec/ADR
- * to the Lore `/impact` endpoint, and renders the returned annotations + sticky
- * summary comment — the deterministic, advisory pre-merge spec-impact check.
- * The agent's onboard handler commits {@link TRACE_IMPACT_WORKFLOW_CONTENT};
- * drift is surfaced via {@link traceImpactWorkflowStatus} (mirrors lore-ingest.yml).
- *
- * This constant is the ORIGINAL; `.github/workflows/lore-trace-impact.yml` in
- * this repo is its dogfood installation, held byte-identical by
- * `trace-impact-workflow.parity.test.ts`. The two silently diverged at v1 (the
- * installed copy grew the comment-before-check ordering and a different vars
- * name) while both still claimed version 1, so the drift detector reported
- * "aligned" for a workflow that was not.
- *
- * Bump {@link TRACE_IMPACT_WORKFLOW_VERSION} (and the first-line marker) on any
- * change. The check is ALWAYS advisory (neutral conclusion) and fails soft when
- * the backend reports the graph is unavailable — it never red-Xes a PR.
- */
+/** Canonical source of the `lore-trace-impact.yml` workflow every onboarded repo installs (deterministic, advisory pre-merge spec-impact check via the Lore `/impact` endpoint); this repo's own copy is held byte-identical by `trace-impact-workflow.parity.test.ts` — bump {@link TRACE_IMPACT_WORKFLOW_VERSION} on any change. */
 
 export const TRACE_IMPACT_WORKFLOW_PATH =
   ".github/workflows/lore-trace-impact.yml";

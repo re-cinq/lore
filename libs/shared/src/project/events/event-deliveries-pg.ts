@@ -10,14 +10,7 @@ import type {
 /** Errors are truncated before storage to keep the row bounded. */
 const MAX_ERROR_LEN = 2000;
 
-/**
- * Postgres-backed {@link EventDeliveriesPort}.
- *
- * `insert` delegates to the shared {@link insertEvent}, which composes the
- * fan-out clause into its own statement — so the adapter has exactly one
- * definition of what inserting an event means, and this class never writes the
- * fan-out a second time.
- */
+/** Postgres-backed EventDeliveriesPort; insert delegates to the shared insertEvent so the fan-out clause is defined exactly once. */
 export class PgEventDeliveries implements EventDeliveriesPort {
   constructor(private readonly pool: PgPool) {}
 
@@ -25,15 +18,12 @@ export class PgEventDeliveries implements EventDeliveriesPort {
     subscriber: string,
     subscriptions: EventSubscription[],
   ): Promise<void> {
-    // An empty set is treated as "nothing to say", not "unsubscribe from
-    // everything": a boot that computed its handlers wrongly would otherwise
-    // silently take the subscriber off the bus.
+    // Empty set means "nothing to say", not "unsubscribe from everything" — else a boot that computed handlers wrongly would silently take the subscriber off the bus.
     if (subscriptions.length === 0) {
       return;
     }
 
-    // One statement via UNNEST rather than a loop: registration happens at boot,
-    // before draining, so a partially-applied set would silently under-deliver.
+    // One statement via UNNEST (not a loop): registration happens at boot before draining, so a partial apply would silently under-deliver.
     await this.pool.query(
       `INSERT INTO pipeline.event_subscriptions
               (subscriber, event_name, visibility_timeout_seconds)
@@ -48,10 +38,7 @@ export class PgEventDeliveries implements EventDeliveriesPort {
       ],
     );
 
-    // A boot registration declares the subscriber's WHOLE set, so a name absent
-    // from it is a handler that was removed. Left behind, it keeps drawing
-    // deliveries no one can run, each retried to the ladder and dead-lettered.
-    // Scoped to this subscriber: the others' rows are none of its business.
+    // Boot registration declares the subscriber's whole set — a name absent is a removed handler; left behind it keeps drawing deliveries nobody runs. Scoped to this subscriber only.
     await this.pool.query(
       `DELETE FROM pipeline.event_subscriptions
         WHERE subscriber = $1
@@ -69,10 +56,7 @@ export class PgEventDeliveries implements EventDeliveriesPort {
     limit: number,
     excludeEventNames: string[] = [],
   ): Promise<EventDeliveryRow[]> {
-    // Same shape as the queue's claim — one statement, FOR UPDATE SKIP LOCKED —
-    // so two replicas of one subscriber still receive disjoint batches. The join
-    // carries the payload, because a handler with a delivery and no event has
-    // nothing to act on.
+    // Same shape as the queue's claim (FOR UPDATE SKIP LOCKED) so replicas get disjoint batches; join carries the payload since a delivery with no event has nothing to act on.
     const { rows } = await this.pool.query<EventDeliveryRow>(
       `UPDATE pipeline.event_deliveries d
           SET status = 'processing', attempts = d.attempts + 1, claimed_at = now()
@@ -130,8 +114,7 @@ export class PgEventDeliveries implements EventDeliveriesPort {
   }
 
   async reapStuck(): Promise<number> {
-    // Each row against ITS OWN budget. A single global ceiling presumed every
-    // handler dead at 600s and re-queued longer ones while they still ran.
+    // Each row against its own budget — a single global ceiling presumed every handler dead at 600s and re-queued longer ones still running.
     const { rows } = await this.pool.query(
       `UPDATE pipeline.event_deliveries
           SET status = 'failed', next_attempt_at = now()
@@ -144,9 +127,7 @@ export class PgEventDeliveries implements EventDeliveriesPort {
   }
 
   async reconcileDeliveries(withinMinutes: number): Promise<number> {
-    // The same INSERT…SELECT fan-out composes, widened from one event to a
-    // window of them. ON CONFLICT is what makes a boot-time repair free to run
-    // when there was nothing to repair.
+    // Same INSERT…SELECT fan-out, widened to a window of events; ON CONFLICT makes a boot-time repair free when there's nothing to repair.
     const { rows } = await this.pool.query<{ id: string }>(
       `INSERT INTO pipeline.event_deliveries
               (event_id, subscriber, event_name, visibility_timeout_seconds)
@@ -163,13 +144,7 @@ export class PgEventDeliveries implements EventDeliveriesPort {
   }
 
   async pruneHandled(olderThanDays: number): Promise<number> {
-    // Two statements, deliberately, where one CTE used to be. Composed, the
-    // event DELETE read the pre-delete snapshot — so the deliveries collected
-    // in the same statement still looked present and their event survived to
-    // the next sweep — and it was gated on `EXISTS (SELECT 1 FROM gone)`, which
-    // meant a quiet sweep that pruned no delivery collected no event at all
-    // and pipeline.events grew without bound. Prune is janitorial; it does not
-    // need one transaction, and at worst an event waits for the next run.
+    // Two statements deliberately (not one CTE): a composed event DELETE read the pre-delete snapshot, so a quiet sweep (no deliveries pruned) collected no events and pipeline.events grew unbounded. Prune is janitorial — no transaction needed.
     const { rows: deliveries } = await this.pool.query<{ id: string }>(
       `DELETE FROM pipeline.event_deliveries
         WHERE status IN ('done', 'dead')
@@ -188,8 +163,7 @@ export class PgEventDeliveries implements EventDeliveriesPort {
       [olderThanDays],
     );
 
-    // The DELIVERIES pruned, per the port: the event collection is bookkeeping
-    // behind it, and counting both would make the number mean two things.
+    // Deliveries pruned, per the port — event collection is bookkeeping behind it; counting both would conflate two different numbers.
     return deliveries.length;
   }
 

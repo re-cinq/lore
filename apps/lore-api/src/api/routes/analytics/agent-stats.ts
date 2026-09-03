@@ -11,8 +11,7 @@ import { zodValidate } from "../../../server/plugins/zod-validate.js";
 import { DB_UNAVAILABLE } from "../common-schemas.js";
 import { agentStatsBundle } from "../../../features/analytics/agent-stats-queries.js";
 
-// Required for the same reason as /api/usage: agent identity is the caller's,
-// resolving it server-side would report the pod's.
+// Same reason as /api/usage: agent identity is the caller's — resolving it server-side would report the pod's.
 const AgentStatsQuery = z.object({ agent_id: z.string().min(1).max(200) });
 
 type AgentStatsQuery = z.infer<typeof AgentStatsQuery>;

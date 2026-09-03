@@ -19,7 +19,6 @@ const taskSummary: TaskSummary = {
 };
 
 const latencyStats: LatencyStats[] = [
-  // p95 over 200ms → the ">200ms" delete badge
   {
     tool: "search_memory",
     call_count: 5000,
@@ -27,7 +26,6 @@ const latencyStats: LatencyStats[] = [
     p95_ms: 350.9,
     p99_ms: 800.2,
   },
-  // p95 at/under 200ms → the "OK" write badge
   {
     tool: "assemble_context",
     call_count: 99,
@@ -68,7 +66,6 @@ const dailyUsage: DailyUsage[] = [
 ];
 
 const jobRuns: JobRun[] = [
-  // completed under a minute → "Ns", has log_path → "view" link, has result_summary
   {
     id: "job-secs",
     job_name: "auto-merge",
@@ -79,7 +76,6 @@ const jobRuns: JobRun[] = [
     error: null,
     log_path: "gs://logs/job-secs",
   },
-  // completed over a minute → "Nm", has error (overrides result), no log_path → em-dash
   {
     id: "job-mins",
     job_name: "lease-reaper",
@@ -90,7 +86,6 @@ const jobRuns: JobRun[] = [
     error: "boom",
     log_path: null,
   },
-  // not completed → duration em-dash, no result_summary → em-dash
   {
     id: "job-running",
     job_name: "baseline",

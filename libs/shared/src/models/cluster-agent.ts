@@ -1,20 +1,7 @@
 import { z } from "zod";
 import type { ColumnMap } from "../lib/row.js";
 
-/**
- * `pipeline.cluster_agents` — one registered execution cluster (the GitLab
- * Runner model for AI stations, specs/running-stations-in-any-k8s-cluster).
- *
- * DDL: `NNNN_cluster_agent_registry.sql` migration. The table stores a
- * SHA-256 `tokenHash`, never the token: the plaintext exists once, in the
- * register response. `status` is reaper-owned liveness (`active`/`offline`),
- * derived from `lastSeenAt`, never set by the agent itself.
- *
- * `paused` is the OPERATOR's switch and deliberately not part of `status`: a
- * paused agent is alive, heartbeating and finishing what it holds — it is only
- * passed over when new work is handed out. An offline one is gone, and its
- * claims are requeued. Same page, opposite meanings.
- */
+/** `pipeline.cluster_agents` — one registered execution cluster (the GitLab-Runner model for AI stations, specs/running-stations-in-any-k8s-cluster); stores SHA-256 `tokenHash` only, `status` is reaper-owned liveness, and `paused` is the operator's separate switch (paused = alive but skipped for new work; offline = gone, claims requeued). */
 
 export const ClusterAgentStatusSchema = z.enum(["active", "offline"]);
 
@@ -30,12 +17,7 @@ export const ClusterAgentSchema = z.object({
   status: ClusterAgentStatusSchema,
   paused: z.boolean(),
   clusterInfo: z.record(z.string(), z.unknown()).nullable(),
-  /**
-   * High-water mark over `lore.catalog_events` — the last event id this
-   * cluster's sync loop has been handed. String-encoded bigint (the
-   * agent_run_events precedent). NULL = never resynced: the catalog-events
-   * endpoint answers with a full snapshot instead of a tail.
-   */
+  /** High-water mark over `lore.catalog_events` (string-encoded bigint); NULL means never resynced, so the catalog-events endpoint sends a full snapshot instead of a tail. */
   catalogCursor: z.string().nullable(),
 });
 

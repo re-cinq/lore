@@ -24,8 +24,6 @@ function fakeWriter(onSet?: () => never) {
 
 describe("agentEventsAuthHeader", () => {
   it("is the whole header line, since the subsystem sends the value verbatim", () => {
-    // A bare token renders no Authorization header at all and the Floor 401s
-    // every event — telemetry silently dropped.
     expect(agentEventsAuthHeader(IDENTITY)).toBe(
       "Authorization: Bearer lca_secret",
     );

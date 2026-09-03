@@ -1,9 +1,3 @@
-// The keys are a WIRE FORMAT between a writer and a reader in different images:
-// the Floor stamps one when it starts a run, lore-api asks for the same string when
-// it answers "is something already working this?". A mismatch is not a type error —
-// it is a query that quietly finds nothing, which reads exactly like "nothing is in
-// flight". So the spellings are pinned here, literally.
-
 import { describe, it, expect } from "vitest";
 import {
   detectSubject,
@@ -35,9 +29,7 @@ describe("subject keys", () => {
     expect(ingestSubject("specs", "abc123")).toBe("ingest:specs:abc123");
   });
 
-  it("ingestSubject carries the chunk, so sibling chunks are not duplicates", () => {
-    // Dropping the chunk made chunk 2 of 40 read as a duplicate of chunk 1 and
-    // silently dropped all but ~1 test-report chunk per push (2026-07-31).
+  it("ingestSubject carries the chunk, so sibling chunks are not duplicates (regression 2026-07-31)", () => {
     expect(ingestSubject("test-report", "abc123", "4711")).not.toBe(
       ingestSubject("test-report", "abc123", "4712"),
     );
@@ -68,10 +60,7 @@ describe("implementationLoopBranch", () => {
     );
   });
 
-  it("is the same branch across two picks of one issue", () => {
-    // The loop mints a NEW task per pick, so a task-derived name gave a re-picked
-    // ticket a different branch every time and the work already pushed was
-    // unreachable. The issue is the ticket's identity; the task is one attempt at it.
+  it("is the same branch across two picks of one issue, since the issue not the task is identity", () => {
     expect(implementationLoopBranch(1406)).toBe(implementationLoopBranch(1406));
   });
 });

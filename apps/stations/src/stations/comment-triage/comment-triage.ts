@@ -1,8 +1,4 @@
-// The comment-triage station: a cheap Haiku classification of one human PR
-// comment. The chosen action rides in LORE_NODE_RESULT extras.action; the Floor's
-// node-terminal handler reads it and starts the review / address / answer
-// follow-up (or nothing, on ignore). The comment context arrives as station
-// params (threaded from the triage line's args by nodeStationSpec).
+// The comment-triage station: a cheap Haiku classification of one PR comment; the chosen action rides in LORE_NODE_RESULT extras.action, read by the Floor's node-terminal handler to start the review/address/answer follow-up (or nothing on ignore). Comment context arrives as station params (threaded from the triage line's args by nodeStationSpec).
 
 import { classifyComment } from "@re-cinq/lore-shared/review/comment-triage.js";
 import type { NodeResult } from "@re-cinq/lore-assembly-lines";
@@ -21,9 +17,7 @@ export async function runCommentTriageStation(
       prNumber: Number(p.pr_number) || 0,
     });
   } catch (err) {
-    // A comment that could not be classified is a FAILED node, not an ignorable
-    // comment. Reporting success with action `ignore` — which is what a swallowed
-    // failure used to do — drops the comment and tells the walk it was handled.
+    // A comment that could not be classified is a FAILED node, not an ignorable one — reporting success with action `ignore` (what a swallowed failure used to do) drops the comment while telling the walk it was handled.
     return {
       outcome: "failed",
       failureClass: "unknown",

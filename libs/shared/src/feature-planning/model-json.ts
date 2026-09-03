@@ -1,8 +1,4 @@
-/**
- * Decode the raw text a planning model returns into JSON. Models often wrap the
- * payload in a ```json … ``` fence and otherwise emit plain JSON; a malformed
- * payload should fail loud with the offending snippet, not a bare SyntaxError.
- */
+/** Decode the raw text a planning model returns into JSON (often ```json fenced); a malformed payload fails loud with the offending snippet, not a bare SyntaxError. */
 
 const SNIPPET_MAX = 200;
 

@@ -1,12 +1,4 @@
-/**
- * Shadow decorator over the MemoryStore seam.
- *
- * Serves every operation from the `primary` store. On reads it also
- * queries the `shadow` store out-of-band, comparing the two results and
- * emitting a divergence metric when they differ — a shadow failure can
- * never break the served read. Used to validate a new backend against
- * the live one before cutover.
- */
+/** Shadow decorator over the MemoryStore seam: serves every op from `primary`, and on reads also queries `shadow` out-of-band to emit a divergence metric — a shadow failure never breaks the served read — for validating a new backend before cutover. */
 
 import type { MemoryRecord, MemoryStore, WriteResult } from "./memory-store.js";
 

@@ -1,13 +1,4 @@
-/**
- * A single review comment in the Conventional Comments format
- * (https://conventionalcomments.org) — a scannable, no-emoji label the reader
- * can follow down the left margin, an optional decoration, a one-line subject,
- * optional discussion, and an optional GitHub ` ```suggestion ` block that a
- * human can apply in one click.
- *
- * The review agent emits structured {@link ReviewFinding}s; the deterministic
- * poster renders each one through this class so every Lore review reads the same.
- */
+/** A single review comment in the Conventional Comments format (conventionalcomments.org); the review agent emits {@link ReviewFinding}s, the deterministic poster renders each through this class so every Lore review reads the same. */
 
 export type ConventionalLabel =
   "issue" | "suggestion" | "nit" | "question" | "praise" | "thought" | "chore";

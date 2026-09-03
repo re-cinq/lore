@@ -8,8 +8,6 @@ import {
   FakeLlm,
 } from "@re-cinq/lore-shared";
 
-// handleOnboard now drives the repo/pulls/settings facades via projectFor(repo)
-// instead of the platform() singleton — the fake Project's facades are the spies.
 const fakeRepo = {
   createBranch: vi.fn(),
   commitFile: vi.fn(),
@@ -50,8 +48,6 @@ vi.mock("../../kernel/db.js", () => ({
   query: (...a: unknown[]) => query(...a),
   getPool: () => ({ query: async () => ({ rows: [] }) }),
 }));
-// Spread the real barrel: episode-writer moved into it, and replacing the whole
-// module would take every other export down with it.
 vi.mock("@re-cinq/lore-shared", async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
   writeEpisode: (...a: unknown[]) => writeEpisode(...a),
@@ -92,8 +88,6 @@ beforeEach(() => {
   process.env.LORE_INGEST_URL = "https://lore.example.test";
   process.env.LORE_INGEST_TOKEN = "test-ingest-token";
 
-  // A repo that already has a .github/ directory — the case the old coarse
-  // skip guard wrongly excluded the workflow from.
   fetchRepoContext.mockResolvedValue({ tree: [".github"], files: {} });
   Llm.setInstance(new FakeLlm({ text: "SKIP" }));
   query.mockResolvedValue({ rows: [] });

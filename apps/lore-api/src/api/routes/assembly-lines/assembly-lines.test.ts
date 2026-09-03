@@ -13,8 +13,6 @@ import { assemblyLineRoutes } from "./assembly-lines.js";
 
 const originalEnv = { ...process.env };
 
-/** Postgres "relation does not exist" — a pre-0025 database has no assembly-line
- *  tables at all, and every one of these reads answers empty rather than 500. */
 const undefinedTable = () =>
   Object.assign(new Error("relation does not exist"), { code: "42P01" });
 
@@ -51,15 +49,6 @@ describe("assembly-line reads", () => {
     });
   }
 
-  /**
-   * The routes over a REAL port, the way `run-read.test.ts` serves its own.
-   *
-   * WHICH runs a read answers with is the port's decision now, so asserting it
-   * against the in-memory implementation exercises the same filter, order and
-   * limit the Postgres one is held to by the port's contract test — rather than
-   * asserting the shape of a SQL string, which stayed green through a renamed
-   * column once already.
-   */
   async function servePort(runs: InMemoryAssemblyRuns, pool = makePool()) {
     const server = Hapi.server();
 
@@ -68,8 +57,6 @@ describe("assembly-line reads", () => {
     }));
     server.auth.strategy("bearer-scope", "stub");
     server.auth.default("bearer-scope");
-    // Only `pipeline.tasks` and `pipeline.llm_calls` are read through the pool
-    // now; an empty answer leaves every enriched field null.
     pool.query.mockResolvedValue({ rows: [] });
     server.route(assemblyLineRoutes(() => pool as never, runs));
 
@@ -77,9 +64,6 @@ describe("assembly-line reads", () => {
   }
 
   describe("both path spellings are served", () => {
-    // web-ui ships as a separate image in the same umbrella release, so for the
-    // length of a rollout one side is always older than the other. Whichever way
-    // round that falls, the call has to land.
     it.each([
       ["/api/assembly-runs", "/api/assembly-lines"],
       ["/api/assembly-runs/run-1", "/api/assembly-lines/run-1"],
@@ -232,7 +216,6 @@ describe("assembly-line reads", () => {
         description: "review it",
         prompt: "you are a reviewer",
       });
-      // A pre-column visit must still validate against the response schema.
       expect(nodes[1].input).toBeNull();
       expect(res.statusCode).toBe(200);
     });
@@ -283,9 +266,7 @@ describe("assembly-line reads", () => {
       ).toMatchObject({ name: "code-review" });
     });
 
-    it("the cost lateral reads llm_calls.assembly_line_id — the column that exists", async () => {
-      // The telemetry tables deliberately kept the pre-rename column (0040);
-      // querying the new spelling here 42703s every run read after deploy.
+    it("the cost lateral reads llm_calls.assembly_line_id — the column that exists (0040 kept the pre-rename spelling)", async () => {
       const runs = new InMemoryAssemblyRuns();
 
       await runs.start({ blueprintName: "code-review", repo: "re-cinq/lore" });
@@ -299,8 +280,6 @@ describe("assembly-line reads", () => {
     });
 
     it("maps the enrichment row onto the run it belongs to", async () => {
-      // Every other test in this file answers the pool with no rows, which
-      // leaves the enriched half of a run row null whatever the mapping does.
       const runs = new InMemoryAssemblyRuns();
       const id = await runs.start({
         blueprintName: "code-review",
@@ -309,7 +288,6 @@ describe("assembly-line reads", () => {
         args: { pr_number: 42 },
       });
       const pool = makePool();
-      // After servePort, which installs the empty-answer default.
       const server = await servePort(runs, pool);
 
       pool.query.mockResolvedValue({
@@ -363,10 +341,8 @@ describe("assembly-line reads", () => {
       ["a numeric string", "42", 42],
       ["a number", 7, 7],
     ])(
-      "answers args_pr_number null for %s",
+      "answers args_pr_number null for %s, not the finite-0 a bare Number() coercion would serve as PR #0",
       async (_case, prNumber, expected) => {
-        // `Number(null)` and `Number("")` are both a finite 0, so a bare
-        // coercion served PR #0 — a link to a pull request that does not exist.
         const runs = new InMemoryAssemblyRuns();
 
         await runs.start({
@@ -511,7 +487,7 @@ describe("assembly-line reads", () => {
   });
 
   describe("GET /api/assembly-lines/{id}/token-usage", () => {
-    it("sums the usage scalars across the run's turns", async () => {
+    it("sums the usage scalars across the run's turns, reading the pre-rename assembly_line_id column (0040)", async () => {
       const pool = makePool();
       const usage = {
         input_tokens: 10,
@@ -524,8 +500,6 @@ describe("assembly-line reads", () => {
       const res = await get("/api/assembly-lines/run-1/token-usage", pool);
 
       expect(res.result).toEqual({ usage });
-      // agent_run_turns deliberately kept the pre-rename column (0040) —
-      // the new spelling here 42703s the endpoint after deploy.
       expect(pool.query.mock.calls[0][0]).toContain(
         "WHERE assembly_line_id = $1",
       );

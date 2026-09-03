@@ -63,9 +63,6 @@ describe("decideCiGate", () => {
 });
 
 describe("decideTokenReclaim", () => {
-  // The tell is the ROUTING (task type has a builtin assembly line), not row
-  // existence — single-CR tasks get assembly_lines rows too now, so a row no
-  // longer distinguishes multi-node lines.
   it("reclaims a single-agent task's token on a terminal phase", () => {
     expect(
       decideTokenReclaim({ phase: "Succeeded", isAssemblyLineTask: false }),
@@ -101,9 +98,7 @@ describe("runOutcomeFromTaskStatus", () => {
   it("maps completed to completed", () => {
     expect(runOutcomeFromTaskStatus("completed")).toBe("completed");
   });
-  it("maps an un-advanced task on a Failed CR to failed, not completed", () => {
-    // Failed phase + no failureReason → handleFailure never ran → task still
-    // running; the row must not close as completed.
+  it("maps an un-advanced task on a Failed CR with no failureReason (handleFailure never ran) to failed, not completed", () => {
     expect(runOutcomeFromTaskStatus("running", "Failed")).toBe("failed");
     expect(runOutcomeFromTaskStatus("queued", "Failed")).toBe("failed");
   });
@@ -115,11 +110,7 @@ describe("runOutcomeFromTaskStatus", () => {
 describe("decideFeatureLink", () => {
   const bundle = { feature_id: "f1", slug: "spec-standard" };
 
-  it("links the PR for the merged line, whose task type is feature-planning", async () => {
-    // The whole feature — rounds, spec analysis, write, push — runs under ONE
-    // feature-planning task now (FR6.26). Keying the link on `feature-finalize` meant
-    // the push opened a spec PR and nothing flipped the feature to pr-open, so the
-    // wizard sat on "Creating the spec PR…" forever while the work had actually run.
+  it("links the PR for the merged line (task type feature-planning, not feature-finalize, per FR6.26)", async () => {
     expect(decideFeatureLink("feature-planning", bundle)).toEqual({
       featureId: "f1",
       slug: "spec-standard",
@@ -134,9 +125,7 @@ describe("decideFeatureLink", () => {
     expect(decideFeatureLink("feature-planning", { slug: "x" })).toBeNull();
   });
 
-  it("tolerates a missing slug, which the merged line's task does not carry", () => {
-    // The finalize endpoint used to put the slug on its own task. The merged line's
-    // task predates the spec, so the path is simply omitted rather than invented.
+  it("tolerates a missing slug, which the merged line's task predates and does not carry", () => {
     expect(decideFeatureLink("feature-planning", { feature_id: "f1" })).toEqual(
       {
         featureId: "f1",
@@ -146,8 +135,6 @@ describe("decideFeatureLink", () => {
   });
 });
 
-// Imported here, not at the top: three spec files anchor #Lxx links into the
-// it() lines above, so nothing may shift them (#1294).
 import { taskPageUrl } from "./agent-watcher-logic.js";
 
 describe("taskPageUrl", () => {
@@ -218,11 +205,7 @@ describe("stampPrOnOpenRuns", () => {
 });
 
 describe("a review output that names both verdict markers", () => {
-  it("reads CHANGES_REQUESTED when the agent quoted APPROVED first", () => {
-    // The single-CR watcher and every assembly-line review node must agree. The
-    // contract's parseReviewVerdict tests CHANGES_REQUESTED first, so an agent that
-    // echoes its instruction line before printing the real verdict is not read as
-    // an approval on one path and a rejection on the other.
+  it("reads CHANGES_REQUESTED when the agent quotes APPROVED first, since parseReviewVerdict checks CHANGES_REQUESTED before APPROVED", () => {
     const output = [
       "I was told to print REVIEW_RESULT:APPROVED or REVIEW_RESULT:CHANGES_REQUESTED.",
       "REVIEW_RESULT:CHANGES_REQUESTED: the base branch is wrong",
@@ -262,9 +245,7 @@ describe("agentTerminalReport", () => {
     expect(agentTerminalReport({ taskId: "t-1", phase: "Running" })).toBeNull();
   });
 
-  it("tolerates an event carrying no status block at all", () => {
-    // The mapper always sends one, but a hand-inserted or replayed event need
-    // not — and a run must still settle rather than throwing in the handler.
+  it("tolerates a hand-inserted or replayed event carrying no status block, settling rather than throwing", () => {
     expect(agentTerminalReport({ taskId: "t-1", phase: "Succeeded" })).toEqual({
       taskId: "t-1",
       agentName: null,
@@ -286,10 +267,7 @@ describe("agentTerminalReport", () => {
 });
 
 describe("stationOutcomeForRunOutcome", () => {
-  it("translates the run outcome into the station vocabulary", () => {
-    // NOT the run vocabulary (pr_created / completed / error): a station row's
-    // outcome is a StageOutcome, and writing a run outcome into it would invent a
-    // value no transition rule knows.
+  it("translates the run outcome (pr_created/completed/error) into the station's StageOutcome vocabulary", () => {
     expect(stationOutcomeForRunOutcome("pr_created")).toBe("success");
     expect(stationOutcomeForRunOutcome("completed")).toBe("success");
     expect(stationOutcomeForRunOutcome("failed")).toBe("failed");
@@ -314,9 +292,7 @@ describe("dispatchFacts", () => {
     });
   });
 
-  it("tolerates a run row with no branch and no description recorded", () => {
-    // A run started by a choreography rather than a task carries neither; the
-    // handlers want strings, and `null` reaching a PR body is a crash.
+  it("tolerates a run row with no branch and no description recorded, since a null reaching a PR body is a crash", () => {
     expect(
       dispatchFacts(
         { blueprintName: "runbook", repo: "o/r", branch: null, args: {} },
@@ -330,8 +306,7 @@ describe("dispatchFacts", () => {
     });
   });
 
-  it("falls back to the task row when no run row exists", () => {
-    // A CR dispatched before run rows covered single-CR tasks still has to settle.
+  it("falls back to the task row when no run row exists, so a CR dispatched before run rows covered single-CR tasks still settles", () => {
     expect(
       dispatchFacts(null, {
         task_type: "onboard",
@@ -360,9 +335,7 @@ describe("dispatchFacts", () => {
     ).toBe("existing/branch");
   });
 
-  it("yields an empty branch when the task names none either way", () => {
-    // target_branch is only written once a PR exists, so a task that failed
-    // before one has neither it nor a context_bundle branch.
+  it("yields an empty branch when the task names none either way, since target_branch is only written once a PR exists", () => {
     expect(
       dispatchFacts(null, {
         task_type: "onboard",

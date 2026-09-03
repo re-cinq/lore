@@ -1,16 +1,4 @@
-/**
- * The dark-factory settings types + resolver.
- *
- * This module is DEPENDENCY-FREE on purpose. `apps/web-ui` reaches it by
- * relative file path (it cannot import `@re-cinq/lore-shared`), so anything
- * imported here has to exist in web-ui's own lockfile — and web-ui has no zod.
- * That is why the shapes are plain interfaces here rather than inferred from the
- * schema in `models/dark-factory-settings.ts`.
- *
- * The two cannot drift: the model imports these types and asserts, at compile
- * time, that its schema infers exactly them. The dependency runs one way —
- * model → this file — so the zero-dep boundary holds.
- */
+/** DEPENDENCY-FREE by design: web-ui imports this by relative path (no zod in its lockfile); models/dark-factory-settings.ts asserts at compile time that its schema infers exactly these types. */
 
 export type TrustLevel = "docs" | "tests" | "implementation" | "full";
 export type ReviewMode = "trust_based" | "always" | "never";
@@ -24,10 +12,7 @@ export interface DarkFactoryAutoMerge {
   require_bot_approval?: boolean;
 }
 
-/**
- * Per-repo execution knobs. `image` is the container image a task's Station
- * runs in (ADR-025).
- */
+/** Per-repo execution knobs; `image` is the container image a task's Station runs in (ADR-025). */
 export interface DarkFactoryExecution {
   image?: string;
 }
@@ -62,15 +47,7 @@ export const DEFAULT_AUTO_MERGE_PATHS = [
   ".claude/**",
 ];
 
-/**
- * Apply defaults to a (possibly partial) parsed settings document.
- * Defaults differ between dark-mode-on (`enabled: true`) and the
- * conservative opt-out posture.
- *
- * Empty `notify` list in dark mode is correct: `decideNotify` always
- * fires `escalation` regardless, so listing it explicitly was redundant
- * noise.
- */
+/** Applies defaults to a partial settings doc (dark-mode-on vs. conservative opt-out); an empty notify list in dark mode is correct since decideNotify always fires escalation regardless. */
 export function resolveDarkFactorySettings(
   partial: DarkFactorySettings | null | undefined,
 ): ResolvedDarkFactorySettings {
@@ -122,11 +99,7 @@ export interface ExecutionImageSettings {
   > | null;
 }
 
-/**
- * Resolve which container image a task's Station runs in, newest-wins:
- * per-task-type override → per-repo `dark_factory.execution.image` →
- * the platform default (ADR-025).
- */
+/** Resolves a task's Station image, newest-wins: per-task-type override → per-repo dark_factory.execution.image → platform default (ADR-025). */
 export function resolveExecutionImage(
   settings: ExecutionImageSettings | null | undefined,
   taskType: string,

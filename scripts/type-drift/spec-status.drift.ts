@@ -1,15 +1,4 @@
-/**
- * Compile-time drift guard for the doc-status mirror.
- *
- * apps/web-ui cannot import @re-cinq/lore-shared (npm-workspace exclusion +
- * isolated Docker build context), so the status buckets behind the spec/ADR
- * pill are hand-mirrored in apps/web-ui/src/lib/spec-status.ts (as
- * `SpecStatus`; canonical is `StatusBucket` feeding the require-statement-links
- * lint tier). This file makes `npm run typecheck:drift` go red the moment
- * either union gains a member the other lacks. Parse behaviour (the BUCKETS
- * regexes + pill labels) is value-level and is held in lockstep by
- * apps/web-ui/src/lib/spec-status.parity.test.ts instead.
- */
+// Drift guard: web-ui can't import @re-cinq/lore-shared, so StatusBucket is hand-mirrored as SpecStatus; parse behavior stays in sync via spec-status.parity.test.ts.
 
 import type { StatusBucket as CanonBucket } from "../../libs/shared/src/spec-status.js";
 

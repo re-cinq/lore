@@ -1,13 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { formatSpecDriftReport } from "./format-drift-report.js";
 
-/**
- * formatSpecDriftReport (spec-traceability-graph, Phase 7 / T273) — pure
- * markdown formatter that turns graph-sourced drift findings into a
- * `spec-drift` issue body, mirroring formatBrokenLinksReport. No Dgraph,
- * no DB, no GitHub — findings in, string out.
- */
-describe("formatSpecDriftReport", () => {
+describe("formatSpecDriftReport — pure markdown formatter, findings in / string out (spec-traceability-graph Phase 7 / T273)", () => {
   it("returns an empty string for no drift findings", () => {
     expect(formatSpecDriftReport([])).toBe("");
   });

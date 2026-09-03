@@ -1,19 +1,4 @@
-/**
- * File-backed fallback for memory operations (T007).
- *
- * When PostgreSQL is unavailable, all memory tools fall back to this module.
- * Same function signatures as memory.ts but uses JSON files in ~/.lore/memory/.
- *
- * Directory structure:
- *   ~/.lore/memory/
- *     <agent-id>/
- *       memories.json    – { [key]: MemoryRecord }
- *       versions.json    – { [key]: VersionRecord[] }
- *     shared/
- *       <pool-name>/
- *         memories.json
- *     audit.jsonl        – append-only, one JSON per line
- */
+// File-backed fallback for memory operations (T007): same signatures as memory.ts but JSON files under ~/.lore/memory/ (<agent-id>/{memories,versions}.json, shared/<pool>/memories.json, audit.jsonl append-only).
 
 import {
   readFileSync,
@@ -77,14 +62,7 @@ export interface MemoryEntry {
   expires_at: string | null;
 }
 
-/**
- * What a LISTING answers — the pool path's projection, field for field.
- *
- * A listing enumerates keys; it deliberately carries no `value` (the pool path's
- * SELECT does not read one either, since a page of full values is a page of
- * whole documents). `repo` and `has_facts` are stated as the null and false this
- * store can honestly answer: it scopes by agent, and it holds no facts.
- */
+// What a LISTING answers — the pool path's projection, field for field: no `value` (a page of full values is a page of whole documents), `repo`/`has_facts` stated as the null/false this store can honestly answer.
 export interface MemoryListEntry {
   key: string;
   agent_id: string;
@@ -102,10 +80,7 @@ export interface SearchResult {
   score: number;
   agent_id: string;
   created_at: string;
-  /** Always "memory": this store holds nothing else. The pool path answers
-   *  facts, episodes and graph hits too, and the endpoint declares one shape
-   *  for both — so the field is stated rather than left for the caller to
-   *  guess at from which backend answered. */
+  // Always "memory": this store holds nothing else, but the endpoint declares one shape for both backends (the pool path also answers facts/episodes/graph hits).
   source: "memory";
 }
 

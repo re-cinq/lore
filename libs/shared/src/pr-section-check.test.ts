@@ -5,8 +5,6 @@ import {
   stripCommentsAndWhitespace,
 } from "./pr-section-check.js";
 
-// The real PR template ships each section as a lone HTML comment placeholder,
-// exactly the shape the workflow must catch as "empty".
 const TEMPLATE_BODY = `## Why
 
 <!-- What problem does this solve? What outcome does it enable? Be specific about the motivation — link to the spec, issue, or incident if one exists. -->

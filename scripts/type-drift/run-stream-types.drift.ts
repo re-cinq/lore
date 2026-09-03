@@ -1,21 +1,4 @@
-/**
- * Compile-time drift guard for the agent-run-event mirror.
- *
- * apps/web-ui CANNOT import @re-cinq/lore-shared — it is excluded from the npm
- * workspace and built in an isolated Docker context — so the canonical
- * AgentRunEventRow is hand-mirrored in apps/web-ui/src/lib/run-stream-types.ts.
- *
- * This file makes that mirror's drift a hard failure: `npm run typecheck:drift`
- * (tsc --noEmit) goes red the moment the canonical row gains a key, or the event
- * type union gains a member, that the mirror lacks. It is type-only (everything
- * erases) and is NEVER bundled into the web app.
- *
- * The guard is KEYS-ONLY, deliberately. The two types cannot be structurally
- * equal: `createdAt` is a `Date` on the port and a `string` on the mirror,
- * because the mirror only ever sees the JSON projection of the row. A
- * structural-equality guard would be red on arrival for a difference that is
- * correct.
- */
+// Drift guard: web-ui can't import @re-cinq/lore-shared, so AgentRunEventRow is hand-mirrored; keys-only since createdAt is Date on the port but string (JSON) on the mirror.
 
 import type {
   AgentRunEventRow as CanonRow,
@@ -27,8 +10,7 @@ import type {
   AgentRunEventType as MirrorEventType,
 } from "../../apps/web-ui/src/lib/run-stream-types.js";
 
-// Every canonical key must exist on the mirror (extra keys on the mirror are
-// fine). Resolves to `true` on success, else to an error object that `= true` rejects.
+// Every canonical key must exist on the mirror; resolves to true on success, else an error object that "= true" rejects.
 type KeysCovered<Canon, Mirror> = keyof Canon extends keyof Mirror
   ? true
   : { MIRROR_MISSING_KEYS: Exclude<keyof Canon, keyof Mirror> };

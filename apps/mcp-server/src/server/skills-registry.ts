@@ -6,17 +6,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 /** A skill dir name: no path separators, no leading dot, no traversal. */
 const SKILL_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 
-/**
- * The skills registry the ai-agent-subsystem init fetches from. Unauthenticated —
- * skills are org conventions (SKILL.md prompts) + session settings, not secrets:
- *
- *   GET /skills/settings.json   → the org session settings/hooks (served verbatim)
- *   GET /skills/<name>.tar.gz   → a gzip tarball of the skill directory `<name>`
- *
- * Returns true when it owns the request (any `/skills/` path), false otherwise so the
- * caller can fall through to the MCP handler. Skill content is baked into this gateway
- * image — Lore content in a Lore service; the subsystem never bakes it.
- */
+// The skills registry the ai-agent-subsystem init fetches from; unauthenticated since skills are org conventions, not secrets. Returns true when it owns a `/skills/` path, else false so the caller falls through to MCP.
 export async function handleSkillsRequest(
   req: IncomingMessage,
   res: ServerResponse,

@@ -12,10 +12,7 @@ interface NavGroup {
   links: { href: string; label: string }[];
 }
 
-// Repo-centric nav (spec 4-ux-repo-onboarding, FR-3.8): everything about a repo
-// lives in its own tabs under /repos/[owner]/[repo]; only genuinely cross-repo
-// views stay at the top level. Repos (home), the cross-repo Assembly Runs and
-// Agents lists, plus global Search / Audit / Pools, plus the cross-repo Insights.
+// Repo-centric nav (spec 4-ux-repo-onboarding FR-3.8) — only genuinely cross-repo views live at top level.
 const groups: NavGroup[] = [
   {
     links: [

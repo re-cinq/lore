@@ -14,15 +14,7 @@ interface EvalResult {
   failed: number;
 }
 
-/**
- * Nightly Eval Runner
- *
- * Runs at 3am UTC (after reindex at 2am). For each team's PromptFoo config:
- * 1. Execute `promptfoo eval`
- * 2. Parse JSON output for pass rate
- * 3. Store results in pipeline.eval_runs
- * 4. If pass rate drops >5% from previous run, create pipeline task
- */
+/** Nightly Eval Runner (3am UTC, after reindex): runs each team's PromptFoo config, stores results, and files a task when pass rate drops >5%. */
 export async function evalRunnerJob(): Promise<string> {
   if (!(await isPromptfooAvailable())) {
     console.log("[job] eval-runner: promptfoo not available, skipping");

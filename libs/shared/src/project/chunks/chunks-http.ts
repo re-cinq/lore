@@ -9,14 +9,7 @@ import type {
   CodeChunkFull,
 } from "./chunks-port.js";
 
-/**
- * ChunksPort over the Lore HTTP API — the station-pod adapter. A pod can't reach
- * Postgres (ADR-031 D7), so it fetches the repo's chunk reads from
- * `GET /api/repos/:o/:r/chunks/:kind` over its scoped token + allowed egress. The
- * server resolves the team schema (else org_shared) exactly as PgChunks does.
- * Read-only: the write surface (insert/delete/embedding) throws — reindex runs
- * Floor-side, never in a station.
- */
+/** ChunksPort over the Lore HTTP API — the station-pod adapter (a pod can't reach Postgres, ADR-031 D7). Read-only: the write surface throws — reindex runs Floor-side, never in a station. */
 
 const WRITE_ONLY_FLOOR =
   "chunk writes are Floor-only — a station reads chunks over HTTP, never mutates";

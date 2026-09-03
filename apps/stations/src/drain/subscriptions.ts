@@ -1,20 +1,11 @@
-/**
- * What this service asks the bus to deliver it.
- *
- * DERIVED from the manifests plus the published-node event, so a station that
- * declares an event trigger is subscribed by that declaration alone — the
- * subscription set and the registry cannot drift into disagreeing.
- */
+// Subscriptions are derived from the manifests plus the published-node event, so a station declaring an event trigger is subscribed by that declaration alone — no drift between subscription set and registry.
 
 import type { EventSubscription } from "@re-cinq/lore-shared/project/events/event-deliveries-port.js";
 import { STATIONS } from "../stations/registry.js";
 import { eventTriggerNames, nodeTriggers } from "../stations/lib/station.js";
 import { SERVICE_NODE_EVENT } from "@re-cinq/lore-shared/project/events/service-node-event.js";
 
-/**
- * One subscriber per ROLE, not per replica: two stations pods are the same
- * consumer and must share a backlog, exactly as two Floors do.
- */
+// One subscriber per ROLE not per replica — two stations pods share one backlog, same as two Floors.
 export const STATIONS_SUBSCRIBER = "stations";
 
 /** Fallback budget for a node whose station declares none. */

@@ -30,7 +30,6 @@ describe("GithubTokenMinter", () => {
 });
 
 describe("KubeSecretKeyWriter", () => {
-  // Verbatim from production, 2026-08-25 — the 409 lives only in the message.
   const proseConflict = new Error(
     'HTTP-Code: 409\nMessage: Unknown API Status Code!\nBody: "{\\"reason\\":\\"Conflict\\",\\"code\\":409}"',
   );
@@ -77,8 +76,6 @@ describe("KubeSecretKeyWriter", () => {
         GH_TOKEN_t1: Buffer.from("ghs_x").toString("base64"),
       },
     ]);
-    // The retry re-READ first: it sends the winner's resourceVersion, not the
-    // one it lost with. Replaying the stale version would lose the race forever.
     expect(versions).toEqual(["1", "2"]);
   });
 
@@ -180,9 +177,6 @@ describe("KubeTokenProvisioner.provision", () => {
     await expect(provisioner.provision(SPEC)).rejects.toThrow(
       /apiserver refused the Station/,
     );
-    // The AgentDefinition landed before the Station threw — cleanup() takes
-    // both back, not just the Secret key, or a recipe is left pointing at a
-    // token that no longer exists.
     expect([...keys.keys()]).toEqual([]);
     expect(deleted.sort()).toEqual(["def:pt-task-77", "station:pt-task-77"]);
   });
@@ -204,8 +198,6 @@ describe("KubeTokenProvisioner.provision", () => {
       /apiserver refused the AgentDefinition/,
     );
     expect([...keys.keys()]).toEqual([]);
-    // Nothing landed in the catalog, so cleanup's deletes are no-ops against a
-    // missing object — best-effort, not proof anything existed to remove.
     expect(deleted.sort()).toEqual(["def:pt-task-77", "station:pt-task-77"]);
   });
 
@@ -262,10 +254,6 @@ describe("KubeTokenProvisioner.provision write order", () => {
       branch: "lore/task-77",
     } as unknown as LoreTaskSpec);
 
-    // Station first: an AgentDefinition landing before its Station would be
-    // visible pointing at a Station that does not exist yet — the exact
-    // window applyCatalogPair's own doc comment says to avoid, and this is
-    // the SAME recipe pair, applied through a different call site.
     expect(applied).toEqual(["station:pt-task-77", "def:pt-task-77"]);
   });
 });

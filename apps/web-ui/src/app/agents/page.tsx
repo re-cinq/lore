@@ -18,8 +18,7 @@ type AgentQueryRow = Pick<
 >;
 
 export default async function AgentsPage() {
-  // Union task agents (pipeline.tasks) with memory agents (memory.memories) so
-  // local MCP agents — which only ever write memories — are discoverable too.
+  // Union task agents (pipeline.tasks) with memory agents (memory.memories) so local-only MCP agents stay discoverable.
   const [result, definitions, usage] = await Promise.all([
     getAgentActivity(),
     listOrgAgents(),

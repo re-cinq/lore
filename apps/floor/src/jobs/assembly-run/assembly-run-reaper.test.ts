@@ -41,7 +41,6 @@ edges:
 
 const MIN = 60_000;
 
-/** A registered cluster, as the sweep reads one out of the registry. */
 const clusterAgent = (
   name: string,
   tags: string[],
@@ -126,9 +125,7 @@ describe("decideNodeRecovery", () => {
     ).toEqual({ kind: "requeue" });
   });
 
-  it("requeues a legacy running row whose CR is missing past the startup grace", () => {
-    // Pre-flip push rows: their dispatch_spec is null so no claim will take
-    // them; the queue-wait bound then settles them — acceptable deprecation.
+  it("requeues a legacy running row whose CR is missing past the startup grace (pre-flip push rows have no dispatch_spec, so the queue-wait bound settles them)", () => {
     expect(decide({ node: node(3) })).toEqual({ kind: "requeue" });
   });
 
@@ -157,8 +154,6 @@ describe("decideNodeRecovery", () => {
   });
 
   it("measures a claimed row's budget from claimed_at, not enqueue time", () => {
-    // 60 minutes queued waiting for a capable cluster, 5 minutes executing:
-    // the wait is not charged against the 15-minute budget.
     expect(
       decide({
         node: node(60, {
@@ -193,9 +188,7 @@ describe("decideNodeRecovery", () => {
     ).toEqual({ kind: "queue-timeout" });
   });
 
-  it("waits on an in-budget satellite claim instead of reading its invisible CR", () => {
-    // A satellite's CR read would answer null and requeue live work — the
-    // double-launch this arm exists to prevent.
+  it("waits on an in-budget satellite claim instead of reading its invisible CR, which would answer null and double-launch live work", () => {
     expect(
       decide({
         node: node(3, {
@@ -221,11 +214,7 @@ describe("decideNodeRecovery", () => {
     ).toEqual({ kind: "timeout" });
   });
 
-  it("never times out a node whose worker is a human", async () => {
-    // The one test that proves a feature can wait a week. Every other node has a
-    // budget because a pod that stops reporting is stuck; a node parked on a person
-    // is not stuck, and "how long may someone take to answer" has no defensible
-    // number — so the budget does not apply rather than being made very large.
+  it("never times out a node whose worker is a human, since a person parked on a review is not a stuck pod", async () => {
     expect(
       decide({
         node: node(60 * 24 * 7, { agentCrName: null }),
@@ -234,9 +223,7 @@ describe("decideNodeRecovery", () => {
     ).toEqual({ kind: "wait" });
   });
 
-  it("still times out an agent node with no CR", async () => {
-    // The exemption is keyed on the node TYPE, not on the absence of a CR — a
-    // dispatched node that never produced one is exactly the stuck case.
+  it("still times out an agent node with no CR, since the human exemption is keyed on node type, not CR absence", async () => {
     expect(
       decide({
         node: node(60 * 24 * 7, { agentCrName: null }),
@@ -245,17 +232,13 @@ describe("decideNodeRecovery", () => {
     ).toEqual({ kind: "timeout" });
   });
 
-  it("waits on a just-born CR that reports Pending", () => {
-    // The read boundary answers Pending for a CR the controller has not stamped;
-    // only a 404 is absence, and only absence may requeue.
+  it("waits on a just-born CR that reports Pending, since only a 404 counts as absence", () => {
     expect(decide({ node: node(5), status: { phase: "Pending" } })).toEqual({
       kind: "wait",
     });
   });
 
-  it("waits out the startup grace before requeueing a missing CR", () => {
-    // A tick can land in the real window between the claim and the CR create.
-    // Requeueing there races an in-flight provision (mirror of FR-10.4's grace).
+  it("waits out the startup grace before requeueing a missing CR, since requeueing there races an in-flight provision (mirror of FR-10.4's grace)", () => {
     expect(decide({ node: node(1) })).toEqual({ kind: "wait" });
   });
 
@@ -291,15 +274,12 @@ function harness() {
   const billingAlerts: Array<{ repo: string; nodeType: string }> = [];
   const crReads: string[] = [];
   const central = { clusterAgentId: null as string | null };
-  // The registry the sweep consults to say WHY nobody claimed a row. Empty by
-  // default, which is the "nobody has ever registered" reading.
   const registry = { agents: [] as ClusterAgent[] };
   const offline = new Set<string>();
   const audits: Array<{
     event_type: string;
     payload: Record<string, unknown>;
   }> = [];
-  // What the walk arms a queued row with — the sweep never launches directly.
   const armDispatch = port.enqueueStationRunDispatch.bind(port);
 
   port.enqueueStationRunDispatch = async (nodeRowId, dispatchSpec) => {
@@ -421,7 +401,7 @@ describe("assemblyLineReaperJob", () => {
     });
   });
 
-  it("fails a timed-out node as agent-timeout and routes the failed edge", async () => {
+  it("fails a timed-out node as agent-timeout (infra, not a work failure) and routes the failed edge", async () => {
     const h = harness();
     const id = await h.port.start({
       blueprintName: "code-review",
@@ -446,12 +426,9 @@ describe("assemblyLineReaperJob", () => {
 
     expect(h.port.nodes[0]).toMatchObject({
       outcome: "failed",
-      // A pod that stopped reporting died; that is infrastructure, not the work
-      // failing, and the row has to say so or the run is a blank "failed" again.
       failureClass: "infra",
     });
     expect(h.port.nodes[0]?.failureDetail).toContain("timed out");
-    // review --failed--> done: the line completes rather than wedging.
     expect(await h.port.getById(id)).toMatchObject({ status: "finished" });
   });
 
@@ -488,7 +465,6 @@ describe("assemblyLineReaperJob", () => {
 
     await assemblyLineReaperJob(h.deps);
 
-    // advanceLine replays: no visits → enqueue the entry node's dispatch.
     expect(h.enqueued).toHaveLength(1);
     expect(h.port.nodes[0]).toMatchObject({ nodeId: "review" });
   });
@@ -517,7 +493,6 @@ describe("assemblyLineReaperJob", () => {
     });
 
     await h.port.markRunning(singleCr);
-    // The task finished but the watcher crashed before closing the run row.
     h.taskStatusById["task-1"] = "pr-created";
     await assemblyLineReaperJob(h.deps);
 
@@ -528,10 +503,7 @@ describe("assemblyLineReaperJob", () => {
     expect(h.enqueued).toEqual([]);
   });
 
-  it("closes the single-CR run's open station row, not just the run", async () => {
-    // The visit is a real queued row a cluster claimed now, so a run closed with
-    // its station left open reads as a finished run still executing a station —
-    // and keeps the sweep interested in work nobody is doing.
+  it("closes the single-CR run's open station row, not just the run, so a finished run never reads as still executing a station", async () => {
     const h = harness();
     const singleCr = await h.port.start({
       blueprintName: "runbook",
@@ -555,9 +527,7 @@ describe("assemblyLineReaperJob", () => {
     ]);
   });
 
-  it("fails a single-CR run nobody claimed, naming the tags that went unmatched", async () => {
-    // Without this the row sits queued forever: no graph means no node budget,
-    // and the watcher only ever hears about a pod that actually ran.
+  it("fails a single-CR run nobody claimed, naming the tags that went unmatched, since a single-CR row has no graph and thus no node budget", async () => {
     const h = harness();
     const singleCr = await h.port.start({
       blueprintName: "runbook",
@@ -632,7 +602,6 @@ describe("assemblyLineReaperJob", () => {
 });
 
 describe("the sweep's claim-lifecycle arms", () => {
-  /** A queued, armed row aged `ageMinutes` past enqueue. */
   const queuedRow = async (
     h: ReturnType<typeof harness>,
     id: string,
@@ -667,7 +636,7 @@ describe("the sweep's claim-lifecycle arms", () => {
     return id;
   };
 
-  it("fails a row queued past the wait bound, naming its unmatched required_tags", async () => {
+  it("fails a row queued past the wait bound as unclaimed, not infra, since no pod was ever created", async () => {
     const h = harness();
     const id = await runningRow(h);
 
@@ -676,21 +645,15 @@ describe("the sweep's claim-lifecycle arms", () => {
 
     expect(h.port.nodes[0]).toMatchObject({
       outcome: "failed",
-      // NOT `infra`: no pod died, because no pod was ever created. The class is
-      // what stops the walk spending a retry budget on it.
       failureClass: "unclaimed",
       failureDetail:
         "no cluster-agent claimed this run (required_tags: [gpu]) within 30m — no cluster-agent has ever registered",
     });
-    // review --failed--> done: the line settles rather than wedging.
     expect(await h.port.getById(id)).toMatchObject({ status: "finished" });
     expect(summary).toContain("queue-timed-out 1");
   });
 
-  it("names the paused cluster that could have claimed it, rather than blaming an absent one", async () => {
-    // #1648/#1654: `central` was registered, heartbeating and carrying the tag —
-    // it was switched off. "no registered cluster-agent" sent an operator
-    // hunting a missing agent for an hour.
+  it("names the paused cluster that could have claimed it, rather than blaming an absent one (#1648/#1654)", async () => {
     const h = harness();
     const id = await runningRow(h);
 
@@ -721,11 +684,7 @@ describe("the sweep's claim-lifecycle arms", () => {
     );
   });
 
-  it("reads the registry AFTER the offline sweep, so a just-dead cluster reads offline, not wedged", async () => {
-    // The offline sweep MUTATES the registry (`markOffline` flips active →
-    // offline) and the queue-timeout message is read from it. Reading first
-    // reports the agent that just died as "capable ... it may be wedged" — the
-    // one sentence whose whole job is to say which of those it was.
+  it("reads the registry AFTER the offline sweep mutates it, so a just-dead cluster reads offline, not wedged", async () => {
     const h = harness();
     const id = await runningRow(h);
 
@@ -796,15 +755,13 @@ describe("the sweep's claim-lifecycle arms", () => {
     });
   });
 
-  it("requeues the same row when the central claim produced no CR past the grace", async () => {
+  it("requeues the same row when the central claim produced no CR past the grace (claimed_at is the clock the grace runs from in this arm)", async () => {
     const h = harness();
 
     h.central.clusterAgentId = "central-1";
     const id = await runningRow(h);
 
     await queuedRow(h, id, 10);
-    // The claim is aged past the startup grace too: claimed_at is the clock
-    // the grace runs from... startedAt in this arm. The CR read answers null.
     h.port.clock = () => new Date(Date.now() - 5 * MIN);
     await h.port.claimNextStationRun({
       clusterAgentId: "central-1",
@@ -813,8 +770,6 @@ describe("the sweep's claim-lifecycle arms", () => {
     h.port.clock = () => new Date();
     const summary = await assemblyLineReaperJob(h.deps);
 
-    // Same row, reset — no second row, no second builder: the armed dispatch
-    // spec rides the row for the next claimant.
     expect(h.port.nodes).toHaveLength(1);
     expect(h.port.nodes[0]).toMatchObject({
       status: "queued",
@@ -836,7 +791,6 @@ describe("the sweep's claim-lifecycle arms", () => {
     const id = await runningRow(h);
 
     await queuedRow(h, id, 60);
-    // Claimed 20 minutes ago against review's 15-minute budget.
     h.port.clock = () => new Date(Date.now() - 20 * MIN);
     await h.port.claimNextStationRun({ clusterAgentId: "sat-1", tags: [] });
     h.port.clock = () => new Date();
@@ -851,10 +805,7 @@ describe("the sweep's claim-lifecycle arms", () => {
 });
 
 describe("the reaper's resolve door delivers artifacts too", () => {
-  it("merges a declared artifact when the terminal event was dropped, exactly as the event door does", async () => {
-    // A dropped event makes THIS the only door that will ever read the output. An
-    // artifact delivered on one door and not the other is a difference nobody
-    // could predict from the run.
+  it("merges a declared artifact when the terminal event was dropped, exactly as the event door does, since a dropped event makes this the only door that reads the output", async () => {
     const h = harness();
     const id = await h.port.start({
       blueprintName: "code-review",
@@ -895,7 +846,6 @@ describe("the reaper's resolve door delivers artifacts too", () => {
 
 describe("a node whose station runs in the pooled service", () => {
   const MINUTE = 60_000;
-  /** A service dispatch writes no CR name: there is no pod to name. */
   const serviceNode = (ageMinutes: number): StationRunRecord => ({
     id: "1",
     stationRunId: "station-run-1",
@@ -916,11 +866,7 @@ describe("a node whose station runs in the pooled service", () => {
     finishedAt: null,
   });
 
-  it("waits rather than relaunching it as a pod, since no pod was ever meant to exist", () => {
-    // Relaunching creates an Agent CR for a node the stations service is still
-    // holding: `def-merge-step` is seeded nowhere so it errors every tick, and
-    // for a type that IS seeded both the pod and the queued delivery would run —
-    // duplicate Issues, duplicate episodes.
+  it("waits rather than relaunching it as a pod, since no pod was ever meant to exist and relaunching would double-deliver (def-merge-step isn't even seeded)", () => {
     expect(
       decideNodeRecovery({
         node: serviceNode(3),
@@ -1074,7 +1020,6 @@ describe("the offline sweep (FR4)", () => {
       },
     });
     expect(typeof audits[0].payload.elapsed_since_claim_ms).toBe("number");
-    // The sweep asks with the 5-minute threshold: ten missed 30s heartbeats.
     expect(Date.now() - cutoffs[0].getTime()).toBeGreaterThanOrEqual(5 * MIN);
     expect(Date.now() - cutoffs[0].getTime()).toBeLessThan(6 * MIN);
   });
@@ -1132,10 +1077,7 @@ edges:
     on: always
 `);
 
-  it("names the validate station's 15-minute budget, not the global 60, when the YAML is silent", async () => {
-    // The decision applied the manifest budget while the message quoted the
-    // global default, so a node reaped at ~17 minutes reported a 60-minute
-    // timeout and the run page contradicted the clock the operator could see.
+  it("names the validate station's 15-minute budget, not the global 60, when the YAML is silent (message used to quote the global default and contradict the visible clock)", async () => {
     const h = harness();
     const deps = {
       ...h.deps,
@@ -1166,9 +1108,7 @@ edges:
     );
   });
 
-  it("raises the agent-config alert on a failed node the resolve door recovers", async () => {
-    // The event door raises billing AND config; this one raised only billing, so
-    // an unreachable skills_source was silent whenever its event was dropped.
+  it("raises the agent-config alert on a failed node the resolve door recovers, matching the event door which raises both billing and config", async () => {
     const h = harness();
     const configAlerts: Array<{ repo: string; nodeType: string }> = [];
     const deps = {
@@ -1204,12 +1144,7 @@ edges:
 });
 
 describe("a claimed single-CR visit the sweep must NOT own", () => {
-  it("leaves a claimed single-CR visit alone past its budget, because the watcher settles it", async () => {
-    // decideNodeRecovery answers `timeout` for a claimed, CR-invisible row once
-    // the default 60m budget passes. The single-CR arm deliberately acts on two
-    // kinds only, so this row is left for the terminal event the watcher hears —
-    // acting on it here would race that event and could fail a run that had in
-    // fact just succeeded.
+  it("leaves a claimed single-CR visit alone past its budget, because the watcher settles it and acting here would race the terminal event", async () => {
     const h = harness();
     const singleCr = await h.port.start({
       blueprintName: "runbook",
@@ -1233,7 +1168,6 @@ describe("a claimed single-CR visit the sweep must NOT own", () => {
     });
     const node = h.port.nodes.find((n) => n.id === nodeRowId)!;
 
-    // Well past the 60m default budget, on the claim clock.
     node.claimedAt = new Date(Date.now() - 24 * 60 * 60_000);
     h.taskStatusById["task-1"] = "running";
     await assemblyLineReaperJob(h.deps);
@@ -1247,11 +1181,7 @@ describe("a claimed single-CR visit the sweep must NOT own", () => {
 });
 
 describe("the implementation line's unclaimed validate node", () => {
-  // The 2026-08-29 incident end to end, on the REAL blueprint: implement
-  // succeeded on the satellite, validate needed a tag only the paused `central`
-  // offered, and the walk answered by re-running the agent node for another 25
-  // minutes before reporting the exhausted edge budget as the cause.
-  it("fails the run once and never re-dispatches implement", async () => {
+  it("fails the run once and never re-dispatches implement (2026-08-29 incident: validate needed a tag only paused central offered)", async () => {
     const h = harness();
     const builtins = await loadBuiltinAssemblyLines();
 
@@ -1263,8 +1193,6 @@ describe("the implementation line's unclaimed validate node", () => {
       clusterAgent("satellite", ["node:agent"]),
     ];
     const id = await h.port.start({
-      // `implementation`, not `implementation-loop`: the loop dropped its
-      // validate node, so the incident's shape lives on this line now.
       blueprintName: "implementation",
       repo: "re-cinq/lore",
       branch: "lore/impl/1650",
@@ -1273,8 +1201,6 @@ describe("the implementation line's unclaimed validate node", () => {
 
     await h.port.markRunning(id);
 
-    // Walk to the node before validate: a round ran and passed, and the walk
-    // then parks validate on the queue.
     for (const nodeId of ["implement"]) {
       const row = await h.port.ensureStationRun({
         assemblyRunId: id,
@@ -1297,8 +1223,6 @@ describe("the implementation line's unclaimed validate node", () => {
       now: () => new Date(Date.now() + 45 * MIN),
     });
 
-    // A permanent failure settles as `error` (the walk refused the retry),
-    // where an exhausted budget would have settled `iteration_max`.
     expect(await h.port.getById(id)).toMatchObject({
       status: "failed",
       outcome: "error",

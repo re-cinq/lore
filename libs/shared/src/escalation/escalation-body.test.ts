@@ -1,13 +1,3 @@
-/**
- * The diagnostic a human reads.
- *
- * Moved with `renderEscalationBody` out of the Floor's escalation job when the
- * SEQUENCE around it became `escalation.yaml` — these cases are unchanged, and
- * they are what specs/6-dark-factory FR3.8 rests on. The tests for the sequence
- * itself did not move: the line's edges now carry it, and `escalation-line.test.ts`
- * asserts those.
- */
-
 import { describe, it, expect } from "vitest";
 import { renderEscalationBody } from "./escalation-body.js";
 

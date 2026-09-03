@@ -35,16 +35,6 @@ async function dgraphReachable(): Promise<boolean> {
 
 const reachable = await dgraphReachable();
 
-/**
- * trace-impact — the deterministic, zero-LLM impact query that walks the
- * spec-traceability graph from a PR's changed file+line ranges to the coupled
- * spec Statements.
- *
- * KERNEL facet: `parseRanges` is the pure inverse of ingest-coverage's
- * `serializeRanges` — it reads the `Coverage.covers|ranges` facet string
- * ("5-10,20-25") back into `[start, end]` intervals so they can be overlapped
- * against a diff. No Dgraph; pure and unit-testable.
- */
 describe("parseRanges", () => {
   it("parses comma-separated start-end intervals into number pairs", () => {
     expect(parseRanges("5-10,20-25")).toEqual([
@@ -237,7 +227,7 @@ describe.skipIf(!reachable)("computeImpact coupling (live Dgraph)", () => {
         });
       }
     } catch {
-      /* best-effort cleanup */
+      return;
     } finally {
       await txn.discard().catch(() => {});
     }
@@ -487,12 +477,6 @@ describe.skipIf(!reachable)("computeImpact coupling (live Dgraph)", () => {
   });
 });
 
-/**
- * Regression for the false-negative class this check was ignored for: a PR that
- * changes only spec prose. #1076 changed exactly one file — specs/6-dark-factory/spec.md
- * — and the check reported "No spec impact detected", because every lookup rooted
- * on a changed production file.
- */
 describe.skipIf(!reachable)("spec-only PR (live Dgraph)", () => {
   const dgraphClient = new dgraph.DgraphClient(
     new dgraph.DgraphClientStub(DGRAPH_HTTP),
@@ -530,13 +514,13 @@ describe.skipIf(!reachable)("spec-only PR (live Dgraph)", () => {
         });
       }
     } catch {
-      /* best-effort cleanup */
+      return;
     } finally {
       await txn.discard().catch(() => {});
     }
   });
 
-  it("couples a spec-only diff to the statement whose text it edited", async () => {
+  it("couples a spec-only diff with no changed code to the statement whose text it edited, per #1076", async () => {
     const repo = `spec-only/${randomUUID()}`;
 
     createdRepo = repo;
@@ -583,7 +567,6 @@ describe.skipIf(!reachable)("spec-only PR (live Dgraph)", () => {
       await txn.discard().catch(() => {});
     }
 
-    // The PR touches no code at all — only the spec's prose, exactly as #1076 did.
     const report = await computeImpact(
       dgraphClient,
       repo,
@@ -613,13 +596,7 @@ describe.skipIf(!reachable)("spec-only PR (live Dgraph)", () => {
   });
 });
 
-/**
- * The presentation half of the trust problem. #1077 rendered five findings as a
- * table carrying paragraph-length statement text with fourteen inline links in
- * one cell, four duplicate rows, and two rows whose Spec and Statement columns
- * were empty.
- */
-describe("buildImpactComment presentation", () => {
+describe("buildImpactComment presentation (regression #1077 — dup rows, empty spec/statement columns)", () => {
   const coupled = (over: Partial<ImpactStatement>): ImpactStatement => ({
     specPath: "specs/widget/spec.md",
     specTitle: "Widget Spec",
@@ -687,7 +664,6 @@ describe("buildImpactComment presentation", () => {
 
     expect(comment).toContain("Examined **23 changed file(s)**");
     expect(comment).toContain("3 had graph data");
-    // 23 files - 3 with graph data - 2 read at statement level.
     expect(comment).toContain("18 had none");
     expect(comment).toContain("**4 new statement(s)**");
     expect(comment).toContain("**114 changed statement(s)** had no validating");
@@ -801,15 +777,8 @@ describe("protocol gating", () => {
   });
 });
 
-/**
- * CodeChunks are minted from the `#L` anchors spec authors type into inline code
- * links, and `CodeChunk.end_line` has never had a producer. Requiring it made
- * the implemented_by route compare [start, 0] and match nothing at all — the
- * only statement→production-code edge in the graph, silently dark since it was
- * written.
- */
 describe.skipIf(!reachable)(
-  "implemented_by without end_line (live Dgraph)",
+  "implemented_by without end_line couples file-wide, since CodeChunk.end_line has no producer (live Dgraph)",
   () => {
     const dgraphClient = new dgraph.DgraphClient(
       new dgraph.DgraphClientStub(DGRAPH_HTTP),
@@ -847,7 +816,7 @@ describe.skipIf(!reachable)(
           });
         }
       } catch {
-        /* best-effort cleanup */
+        return;
       } finally {
         await txn.discard().catch(() => {});
       }
@@ -873,8 +842,6 @@ describe.skipIf(!reachable)(
                 "Statement.repo": repo,
                 "Statement.text": "The widget MUST render on mount.",
                 "Statement.spec": { uid: "_:spec" },
-                // Exactly what projectLinkedChunks writes for [label](src/widget.ts#L1):
-                // a start line and nothing else.
                 "Statement.implemented_by": {
                   uid: "_:cc",
                   "dgraph.type": "CodeChunk",

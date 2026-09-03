@@ -1,10 +1,4 @@
 // @vitest-environment node
-//
-// The paths and body field names ARE the contract with lore-api. These calls
-// replace SQL the web UI used to run against pipeline.tasks itself, so a rename
-// on either side is now a 404 rather than a compile error — which is exactly
-// what these assertions are here to catch.
-
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 vi.mock("server-only", () => ({}));

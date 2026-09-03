@@ -10,15 +10,7 @@ import type {
   CodeChunkFull,
 } from "./chunks-port.js";
 
-/**
- * One stored chunk row in {@link InMemoryChunks}.
- *
- * NOT the `Chunk` model, deliberately. It carries `schema` — which team schema
- * the row lives in, a thing the double must track because it has no schemas —
- * and the formatted `embedding` string set after insert, which the model omits
- * because a 768-float vector is not something a reader of a chunk wants. It also
- * drops `author`, which nothing in the double's behaviour turns on.
- */
+/** One stored chunk row in InMemoryChunks — not the Chunk model: carries schema (the double must track it, having no schemas) and the formatted embedding string; drops author (unused by the double). */
 export interface ChunkRow {
   id: string;
   schema: string;
@@ -47,8 +39,7 @@ function chunkIndexOf(row: ChunkRow): number | null {
   return (row.metadata.chunk_index as number | undefined) ?? null;
 }
 
-/** Mirrors the Pg adapter's spec-read ordering: `file_path, chunk_index NULLS
- * LAST, ingested_at`. */
+/** Mirrors the Pg adapter's spec-read ordering: file_path, chunk_index NULLS LAST, ingested_at. */
 function specDocumentOrder(a: ChunkRow, b: ChunkRow): number {
   const pathDelta = a.filePath.localeCompare(b.filePath);
 
@@ -65,12 +56,7 @@ function specDocumentOrder(a: ChunkRow, b: ChunkRow): number {
   return new Date(a.ingestedAt).getTime() - new Date(b.ingestedAt).getTime();
 }
 
-/**
- * In-memory {@link ChunksPort}: the behavioral spec of the Pg adapter over an
- * array of rows keyed by (schema, repo, file_path, id). Lets the reindex /
- * context-core jobs be tested without a live `{schema}.chunks` table. The
- * schema-name guard mirrors the Pg adapter so a bad schema is rejected here too.
- */
+/** In-memory ChunksPort — behavioral spec of the Pg adapter over rows keyed by (schema, repo, file_path, id); lets reindex/context-core jobs test without a live {schema}.chunks table. */
 export class InMemoryChunks implements ChunksPort {
   private seq = 0;
 
@@ -211,8 +197,7 @@ export class InMemoryChunks implements ChunksPort {
     ).length;
   }
 
-  // The double stores a repo's chunks in one schema, so "resolved schema" reads
-  // are just repo-scoped reads across whatever schema the fixture used.
+  // Double stores a repo's chunks in one schema, so "resolved schema" reads are just repo-scoped reads across whatever schema the fixture used.
   private forRepo(repo: string): ChunkRow[] {
     return this.rows.filter((row) => row.repo === repo);
   }
@@ -382,9 +367,7 @@ export class InMemoryChunks implements ChunksPort {
       Error,
       "relocateLegacyChunks target must not be org_shared",
     );
-    // Snapshot the target BEFORE moving anything — the Pg statement's dedupe
-    // probes all see the pre-statement target state, so a multi-chunk file
-    // moves wholesale rather than deduping against its own first chunk.
+    // Snapshot target before moving anything — Pg's dedupe probes all see pre-statement state, so a multi-chunk file moves wholesale rather than deduping against its own first chunk.
     const target = this.rows.filter(
       (row) => row.schema === schema && row.repo === repo,
     );

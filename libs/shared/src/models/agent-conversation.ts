@@ -1,17 +1,7 @@
 import { z } from "zod";
 import type { ColumnMap } from "../lib/row.js";
 
-/**
- * `pipeline.agent_conversations` — the CLI conversation a node resumes from,
- * so an agent keeps its context across a run's nodes.
- *
- * DDL: migration `0036_agent_conversations.sql`, plus `iteration` (0038).
- * `objectKey` is null while a run is in flight: the row is written at dispatch
- * so the id is reserved before the pod has anything to upload.
- *
- * `assemblyLineId` is provenance with deliberately NO foreign key — losing a
- * conversation because its run row was pruned would cost continuity for nothing.
- */
+/** `pipeline.agent_conversations` — the CLI conversation a node resumes from, so an agent keeps context across a run's nodes; `objectKey` is null in flight (row written at dispatch), and `assemblyLineId` deliberately has no FK so a pruned run row never costs continuity. */
 
 export const AgentConversationSchema = z.object({
   id: z.string(),

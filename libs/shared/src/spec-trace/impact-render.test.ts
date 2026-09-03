@@ -1,16 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { summarizeStatement, windowRewrite } from "./impact-render.js";
 
-/**
- * impact-render — turning a graph Statement into one readable table cell.
- *
- * Statement text is stored verbatim, INCLUDING the inline
- * `([validated by …](path#Lnn))` parenthetical the spec author wrote. Rendered
- * raw into a markdown table that produced cells carrying paragraph-length prose
- * followed by fourteen links (#1077), which is unreadable and, in a table, also
- * breaks on any pipe the statement happens to contain.
- */
-describe("summarizeStatement", () => {
+describe("summarizeStatement — strips the inline validated-by parenthetical, regression #1077 (paragraph prose + 14 links unreadable raw)", () => {
   it("strips the trailing validated-by parenthetical", () => {
     expect(
       summarizeStatement(

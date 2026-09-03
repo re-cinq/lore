@@ -5,13 +5,7 @@ import { authOptions } from "@/lib/auth-options";
 import { userCanAccessRepo } from "@/lib/user-repo-access";
 import { serverError } from "@/lib/api-error";
 
-/**
- * POST /api/review/trigger — the "Trigger review" button's backend. Authorizes
- * the user against the target repo, then proxies to the Floor's
- * /api/review/start (the UI has no cluster/DB write path for assembly lines).
- * Body is the button's form fields (repo, pr_number). Redirects back to the
- * referring page on success.
- */
+// "Trigger review" backend: authorizes against the target repo, then proxies to the Floor's /api/review/start (UI has no cluster/DB write path for assembly lines).
 export async function POST(req: Request) {
   try {
     const session = (await getServerSession(authOptions)) as {

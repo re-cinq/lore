@@ -1,11 +1,5 @@
 import { describe, it, expect } from "vitest";
 
-// redactLogs in local-runner.ts and redactSecrets in agent/src/lib/redact.ts
-// are not importable here (redactLogs is private, redact.ts lives outside this
-// package). Re-implement the patterns inline so we can test the exact regexes
-// that ship in production. This mirrors the pattern used in facts.test.ts and
-// graph.test.ts.
-
 const PATTERNS: Array<{ name: string; re: RegExp }> = [
   {
     name: "api-key",
@@ -36,8 +30,6 @@ function redactSecrets(text: string): string {
 
   return result;
 }
-
-// ---------------------------------------------------------------------------
 
 describe("redactSecrets", () => {
   it("redacts GitHub personal access tokens (ghp_)", () => {

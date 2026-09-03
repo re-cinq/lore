@@ -1,12 +1,7 @@
 import { z } from "zod";
 import type { ColumnMap } from "../lib/row.js";
 
-/**
- * `pipeline.log_access` — who read a task's logs, and from where.
- *
- * DDL: `scripts/infra/setup-pipeline-schema.sh`. Append-only by design: the
- * table exists to answer "who saw this", so it has no update path.
- */
+/** `pipeline.log_access` — who read a task's logs, and from where; append-only by design (exists to answer "who saw this"). */
 
 export const LogAccessSchema = z.object({
   id: z.string(),

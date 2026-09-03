@@ -58,9 +58,7 @@ describe("runStatusVisual", () => {
     });
   });
 
-  it("maps a finished-but-failed run to a danger tone (not green)", () => {
-    // The pg adapter maps only outcome 'error' to status 'failed', so a single-CR
-    // task closed 'failed' and a code-review line closed 'pr_closed' arrive here.
+  it("maps a finished-but-failed run to a danger tone (not green), since the pg adapter maps only outcome 'error' to status 'failed'", () => {
     expect(runStatusVisual("finished", "failed")).toEqual({
       label: "Failed",
       tone: "danger",

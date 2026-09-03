@@ -1,10 +1,4 @@
-/**
- * POST /api/webhook/ci-ingest — the Layer-1 doc-projection producer. A repo's CI
- * bearer-authenticates (LORE_INGEST_TOKEN via the ingest-token strategy); the
- * pure `mapCiIngest` turns the body into events and we INSERT them; the loop
- * dispatches. `payload.parse = false` so the body is parsed as JSON regardless of
- * the request's Content-Type, matching the old hand-rolled handler.
- */
+/** POST /api/webhook/ci-ingest — Layer-1 doc-projection producer: CI bearer-authenticates, `mapCiIngest` turns the body into events we INSERT, the loop dispatches. `payload.parse: false` so the body parses as JSON regardless of Content-Type. */
 
 import { enforceOk } from "@re-cinq/lore-shared/lib/enforce.js";
 import { apiError } from "../api-error.js";
@@ -25,12 +19,10 @@ export const ciIngestRoute: ServerRoute = {
       parseJsonBody<CiIngestBody>(rawBody(request), "ci-ingest"),
     );
 
-    // A validation failure is a client error — a 400 surfaces the
-    // mapper's 400 + message instead of a generic 500.
+    // A validation failure is a client error — 400 surfaces the mapper's message instead of a generic 500.
     enforceOk(mapped, apiError(400));
 
-    // Each insert is idempotent only via dedupe_key, which doc projection omits on
-    // purpose (force must re-run); the loop does the work — return 202 fast.
+    // Idempotent only via dedupe_key, which doc projection omits on purpose (force must re-run) — return 202 fast, the loop does the work.
     await insertEventList(mapped.events, "ci-ingest");
 
     return h

@@ -115,8 +115,6 @@ describe("injectRepoToken", () => {
     ]);
   });
   it("wires resources.conversation onto the per-task clone when the run continues one", () => {
-    // Per-RUN, so it cannot live on the shared catalog recipe — same reason as the
-    // repo token.
     const continued = injectRepoToken(
       catalogDef,
       {
@@ -159,9 +157,6 @@ describe("injectRepoToken", () => {
     });
   });
   it("throws when the catalog recipe has no prompt", () => {
-    // The contracts type makes prompt required, but the cluster can still hand back
-    // a catalog row without one — that is the case the guard exists for, so the
-    // fixture has to sidestep the compiler to reach it.
     const promptless = {
       kind: "AgentDefinition",
       metadata: { name: "impl" },

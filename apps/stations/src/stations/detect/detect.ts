@@ -1,10 +1,5 @@
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
-// The detect station: run one deterministic detection job (spec_drift /
-// gap_detection / spec_coverage_validate / spec_coverage_backfill) against one
-// repo, entirely over HTTP. The detector cores live in @re-cinq/lore-shared/
-// detect (facade-driven); the pod composes createStationProject(repo) so every
-// read/write goes through the Lore API — no Postgres, Dgraph, or GitHub App in
-// the pod (ADR-031 D6/D7). The node's `job_ref` selects the detector.
+// The detect station: runs one deterministic detection job (spec_drift / gap_detection / spec_coverage_validate / spec_coverage_backfill) against one repo, entirely over HTTP via createStationProject(repo) — no Postgres, Dgraph, or GitHub App in the pod (ADR-031 D6/D7); job_ref selects the detector.
 
 import {
   specDriftJob,
@@ -19,8 +14,7 @@ import type { StationEnv } from "../lib/station.js";
 
 const DETECT_SUMMARY_MAX = 200;
 
-/** `specPath` narrows a detector to ONE specification. Only the backfill honours
- *  it today; the others are already short enough to run whole-repo. */
+// `specPath` narrows a detector to ONE specification — only the backfill honours it today, since the others are already short enough to run whole-repo.
 type Detector = (
   repo: string,
   project: Project,
@@ -32,9 +26,7 @@ const detectors: Record<string, Detector> = {
   gap_detection: (repo, project) => gapDetectJob({ repoFilter: repo, project }),
   spec_coverage_validate: (repo, project) =>
     validateSpecCoverageJob({ repoFilter: repo, project }),
-  // The long one: an LLM judge over every candidate statement, at a 30-minute
-  // budget. `specPathFilter` was declared and never set by anything, which is
-  // the seam that lets one node do one specification.
+  // The long one: an LLM judge over every candidate statement at a 30-minute budget; `specPathFilter` was declared and never set by anything, which is the seam that lets one node do one specification.
   spec_coverage_backfill: (repo, project, specPath) =>
     specCoverageBackfillJob({
       repoFilter: repo,

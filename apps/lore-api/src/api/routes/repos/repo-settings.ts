@@ -13,18 +13,7 @@ import {
   twoKeyFieldsTouched,
 } from "../../../features/dark-factory/dark-factory-settings.js";
 
-/**
- * `PUT /api/repos/{owner}/{repo}/settings` — the general (non-privileged) repo
- * settings write, moved out of web-ui's Next route (ADR-032).
- *
- * THE REFUSAL IS THE POINT. This merges a caller-supplied patch into
- * `lore.repos.settings`, and that JSONB also holds the dark-factory block —
- * whose privileged fields (`enabled`, `auto_merge.paths`, turning a `require_*`
- * gate off, the execution image) are guarded by a CODEOWNER-approval ceremony on
- * `PUT /settings/dark-factory`. A blanket merge here would be a way around that
- * ceremony, so a patch touching any of those fields is refused outright and
- * nothing is written — not the team, not the rest of the patch.
- */
+// THE REFUSAL IS THE POINT: a patch touching privileged dark-factory fields is refused outright (nothing written) to keep the CODEOWNER-approval ceremony on PUT /settings/dark-factory from being bypassed by this blanket merge.
 
 /** Never throws: an invalid block is a client error, not a 500. */
 function safeParseDarkFactory(
@@ -82,9 +71,7 @@ export function repoSettingsRoute(getPool: () => Pool | null): ServerRoute {
         ?.dark_factory;
 
       if (darkFactory) {
-        // Parse to DETECT, not to validate — but an unparseable block cannot be
-        // screened for privileged fields at all, so it is refused rather than
-        // merged unexamined.
+        // Parse to DETECT, not validate — an unparseable block can't be screened, so it's refused rather than merged unexamined.
         const parsed = safeParseDarkFactory(darkFactory);
 
         enforceTrue(parsed.ok, apiError(400), "invalid dark_factory settings");
@@ -120,14 +107,10 @@ export function repoSettingsRoute(getPool: () => Pool | null): ServerRoute {
         values,
       );
 
-      // A changed team re-points the repo's chunk-schema resolution, stranding
-      // any legacy org_shared rows. Signal the Floor so it relocates them now;
-      // the nightly reindex is the safety net, so a failed insert degrades to
-      // that rather than failing a write that already happened.
+      // A changed team strands legacy org_shared chunk rows — signal the Floor to relocate them now (nightly reindex is the safety net).
       if (body.team !== undefined && (body.team || null) !== existing.team) {
         try {
-          // Through the shared writer, not a hand-rolled INSERT: that is what
-          // fans the event out to its subscribers (libs/shared/.../fan-out.ts).
+          // Shared writer, not a hand-rolled INSERT — it fans the event out to its subscribers.
           await insertEvent(pool, {
             eventName: "internal.repo.team_changed",
             source: "internal",

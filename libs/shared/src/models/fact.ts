@@ -1,17 +1,7 @@
 import { z } from "zod";
 import type { ColumnMap } from "../lib/row.js";
 
-/**
- * `memory.facts` — one extracted fact with temporal validity.
- *
- * DDL: `scripts/infra/setup-memory-schema.sh` plus migration `0013`. A fact is
- * live while `validTo` is null; a contradiction sets it and points
- * `invalidatedBy` at the fact that replaced it, which is why search can answer
- * historical questions instead of losing the disagreement.
- *
- * A row carries `memoryId` OR `episodeId` — enforced by `facts_source_check`,
- * not by this schema, since a CHECK across two columns is the database's job.
- */
+/** `memory.facts` — one extracted fact with temporal validity: live while `validTo` is null, a contradiction sets it and points `invalidatedBy` at the replacement; a row carries `memoryId` OR `episodeId`, enforced by the DB's `facts_source_check` not this schema. */
 
 export const FactConfidenceSchema = z.enum([
   "verified",

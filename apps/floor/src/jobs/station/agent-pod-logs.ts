@@ -1,12 +1,4 @@
-// Live per-node pod logs, read on-demand from the cluster (never persisted).
-// An assembly-line node's Agent CR (`<id12>-<nodeId>`) carries `status.jobName`;
-// that Job's pod is `job-name=<jobName>`, and its stdout is the agent's live
-// output (tool calls, messages, result). Logs vanish when the pod is
-// garbage-collected — callers surface `available:false` rather than an error.
-
-// The Kubernetes half moved to the cluster agent; what stays is the pure
-// orchestration — which pod is the latest, and what "no pod yet" means — plus
-// the GCP archive fallback, which was never Kubernetes.
+// Live per-node pod logs read on-demand from the cluster (never persisted); vanish on pod GC, so callers see `available:false`, not an error.
 export type {
   AgentPodInfo,
   PodSummary,
@@ -23,13 +15,11 @@ export interface AgentLogsResult {
   phase: string | null;
   podName: string | null;
   reason?: AgentLogsReason;
-  /** true when the logs came from the durable archive (Cloud Logging), not a
-   *  live pod — the pod was already garbage-collected. */
+  /** true when logs came from the durable archive (Cloud Logging), not a live pod. */
   archived?: boolean;
 }
 
-/** The durable-log seam: a finished node's stdout, read back from a store that
- *  outlives the pod (Cloud Logging). Consulted only once the live pod is gone. */
+/** The durable-log seam: a finished node's stdout, read back once the live pod is gone. */
 export interface PodLogArchive {
   /** Retained stdout for a Job's pod, or null when nothing is retained. */
   logsForJob(
@@ -52,11 +42,7 @@ export function pickLatestPod(pods: readonly PodSummary[]): PodSummary | null {
   )[0];
 }
 
-/** Resolve an assembly-line node's Agent CR to its pod and read the pod's logs.
- *  Every dead-end (no CR / no job yet / pod GC'd) is a normal `available:false`
- *  result, not a throw — the pod-log lifetime is intentionally short. A pod can
- *  also be GC'd in the TOCTOU window between listing and reading, surfacing as a
- *  404; that too collapses to `no-pod`. Genuine faults (RBAC, 5xx) still throw. */
+/** Resolve an Agent CR to its pod and read logs; every dead-end (no CR/job/pod, or a TOCTOU 404) collapses to `available:false`, not a throw — genuine faults (RBAC, 5xx) still throw. */
 export async function readAgentLogs(
   source: PodLogSource,
   agentName: string,
@@ -96,8 +82,7 @@ export async function readAgentLogs(
   }
 }
 
-/** The pod is gone. Serve the durable archive if it has anything retained,
- *  otherwise report `no-pod` as before. */
+/** The pod is gone; serve the durable archive if it has anything, else report `no-pod`. */
 async function archivedOrNoPod(
   jobName: string,
   phase: string | null,
@@ -135,8 +120,7 @@ const DEFAULT_ARCHIVE_LINES = 5000;
 const LOGGING_ENTRIES_URL = "https://logging.googleapis.com/v2/entries:list";
 const LOGGING_READ_SCOPE = "https://www.googleapis.com/auth/logging.read";
 
-/** The stdout line for one entry: raw payload, else the structured message,
- *  else the structured payload as JSON. */
+/** The stdout line for one entry: raw payload, else structured message, else structured payload as JSON. */
 export function entryText(entry: LogEntry): string {
   if (typeof entry.textPayload === "string") {
     return entry.textPayload;
@@ -158,8 +142,7 @@ export function podLogFilter(namespace: string, jobName: string): string {
   ].join(" ");
 }
 
-/** Entries arrive newest-first (orderBy timestamp desc) — reverse to
- *  chronological order and join. null when the archive holds nothing. */
+/** Entries arrive newest-first (orderBy timestamp desc) — reverse to chronological order and join. */
 export function assembleArchivedLog(entries: LogEntry[]): string | null {
   if (entries.length === 0) {
     return null;
@@ -168,10 +151,7 @@ export function assembleArchivedLog(entries: LogEntry[]): string | null {
   return entries.map(entryText).reverse().join("\n");
 }
 
-/** PodLogArchive backed by GCP Cloud Logging (the `_Default` log bucket, where
- *  GKE ships every pod's stdout and retains it long after the pod is GC-ed).
- *  Auth via Workload Identity (ADC); any failure degrades to null so the
- *  agent-logs endpoint never 500s on a logging hiccup. */
+/** PodLogArchive backed by GCP Cloud Logging (`_Default` bucket); auth via Workload Identity, any failure degrades to null so the endpoint never 500s. */
 export class CloudLoggingPodLogs implements PodLogArchive {
   constructor(private readonly namespace = agentsNamespace()) {}
 

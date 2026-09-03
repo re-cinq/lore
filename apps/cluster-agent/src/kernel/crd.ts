@@ -1,12 +1,4 @@
-/**
- * The custom resources this cluster acts on, named once.
- *
- * `GROUP` and `VERSION` come from `@re-cinq/agent-contracts`, which is the
- * subsystem's own declaration of them — so an API-version bump arrives with the
- * package rather than waiting to be found by grep in six files. Getting that
- * wrong does not fail to compile: the claim would create CRs at one version
- * while the watch listed another, and every node would wait for the reaper.
- */
+// The custom resources this cluster acts on, named once — GROUP/VERSION come from @re-cinq/agent-contracts so an API-version bump arrives with the package, not a six-file grep.
 
 import { GROUP, VERSION } from "@re-cinq/agent-contracts";
 

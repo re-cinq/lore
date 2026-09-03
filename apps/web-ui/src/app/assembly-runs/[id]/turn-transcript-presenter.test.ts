@@ -293,9 +293,6 @@ describe("clockTime", () => {
 });
 
 describe("conversationEntries — hook turns", () => {
-  // The reported bug: pod agent-job-595d2b0b-ccb-implement-cczl8 emitted eight
-  // hook turns, four of them the same cumulative npm log at growing length, and
-  // every one of them rendered as its own raw JSON blob.
   const hookTurn = (id: string, line: string, at: string) =>
     turnWithEnvelope(id, JSON.parse(line), at);
 
@@ -336,8 +333,6 @@ describe("conversationEntries — hook turns", () => {
 });
 
 describe("conversationEntries — tool progress turns", () => {
-  // The reported bug: pod agent-job-f89164e0-31a-review-zhs6b emitted nineteen
-  // heartbeat turns for one Skill call, each rendering as its own raw JSON blob.
   const beat = (id: string, line: string, at: string) =>
     turnWithEnvelope(id, JSON.parse(line), at);
 
@@ -362,9 +357,6 @@ describe("conversationEntries — tool progress turns", () => {
 });
 
 describe("conversationEntries — gemini delta turns", () => {
-  // The reported bug: gemini runs (pod agent-job-6cb4b352-f9e-review-p52r7,
-  // 2026-09-02) render every event as raw JSON. Assistant prose arrives only
-  // as delta chunks, so the merged utterance keeps the FIRST chunk's clock.
   const geminiTurn = (id: string, line: string, at: string) =>
     turnWithEnvelope(id, JSON.parse(line), at);
 

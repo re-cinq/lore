@@ -1,10 +1,4 @@
-/**
- * The cluster agent's HTTP server (hapi): this cluster's Kubernetes surface,
- * and the probe.
- *
- * `buildServer` does not listen, so tests drive it with `inject()`, and it
- * builds no Kubernetes client — `clusterDeps` is resolved lazily on first use.
- */
+// The cluster agent's HTTP server (hapi): this cluster's Kubernetes surface, and the probe. `buildServer` does not listen (tests use `inject()`) and builds no Kubernetes client until first use.
 
 import Hapi from "@hapi/hapi";
 import { agentEventsRoutes } from "./routes/agent-events.js";
@@ -15,9 +9,7 @@ import type { AgentEventsDeps } from "./routes/agent-events.js";
 
 export interface ServerOpts {
   port?: number;
-  /** Wires the agent-telemetry relay. Absent, the route is not mounted at all:
-   *  a cluster with nowhere to forward telemetry should 404 rather than accept
-   *  a batch and drop it. */
+  /** Wires the agent-telemetry relay; absent, the route is not mounted — a cluster with nowhere to forward telemetry should 404 rather than drop the batch. */
   agentEvents?: AgentEventsDeps;
 }
 

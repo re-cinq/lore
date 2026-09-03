@@ -33,9 +33,7 @@ export function taskByPrRoute(getPool: () => Pool | null): ServerRoute {
       const owner = request.params.owner;
       const repoName = request.params.repo;
 
-      // The legacy matcher constrained the PR segment to `[0-9]+`; hapi's `{number}`
-      // does not, so reject a non-numeric segment here rather than let a `NaN`
-      // reach the DB/GitHub lookup (which would surface as a confusing 404/500).
+      // hapi's `{number}` doesn't constrain to digits like the legacy matcher did — reject non-numeric here, not a confusing NaN downstream.
       enforceTrue(
         /^[0-9]+$/.test(request.params.number),
         apiError(400),
@@ -60,8 +58,7 @@ export function taskByPrRoute(getPool: () => Pool | null): ServerRoute {
         console.error("[by-pr] DB lookup failed:", err);
       }
 
-      // Fall back to GitHub API: fetch PR body + final commit and parse
-      // for Lore-Task: trailer.
+      // Fall back to GitHub API: fetch PR body + final commit and parse for the Lore-Task: trailer.
       try {
         const octokit = await getOctokit();
         const pr = await octokit.rest.pulls.get({

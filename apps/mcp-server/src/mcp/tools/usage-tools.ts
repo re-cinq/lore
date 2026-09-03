@@ -9,11 +9,7 @@ import {
   type ProxyResult,
 } from "./deps.js";
 
-/**
- * Usage + analytics read straight from pipeline.tasks / pipeline.llm_calls, which
- * only the remote API can reach — the local adapter holds no pool (ADR-032). Both
- * tools proxy and pretty-print; the SQL lives in lore-api's analytics feature.
- */
+// Usage + analytics read from pipeline.tasks/pipeline.llm_calls, reachable only by the remote API (no local pool, ADR-032); both tools just proxy and pretty-print.
 
 /** Pretty-print a proxied JSON body, or map the failure to tool text. */
 function renderProxied(
@@ -39,8 +35,7 @@ function renderProxied(
     return deniedError(toolName, proxied.detail);
   }
 
-  // A read with no local fallback: surface the server's reason plainly rather
-  // than the write-oriented "refusing local-file fallback" copy.
+  // A read with no local fallback: surface the server's reason plainly rather than the write-oriented "refusing local-file fallback" copy.
   return {
     content: [
       {

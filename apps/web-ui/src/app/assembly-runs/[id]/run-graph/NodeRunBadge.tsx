@@ -1,6 +1,4 @@
-// Run mode inside a node box: a status glyph, the step's name, and the verdict
-// spelled out underneath it.
-
+// Run mode inside a node box: a status glyph, the step's name, and the verdict spelled out underneath it.
 import type { NodeStatusVisual } from "@/lib/run-node-status";
 import StatusIcon from "./StatusIcon";
 import { fitNodeLabel } from "./run-graph-geometry";
@@ -15,9 +13,7 @@ export interface NodeRunBadgeProps {
   centerY: number;
 }
 
-/** The text as it will be drawn, plus a hover title ONLY when drawing it cost
- *  characters — a tooltip repeating text already on screen is noise, and it
- *  would also make the same string findable twice in the accessibility tree. */
+// Hover title ONLY when drawing cost characters — a tooltip repeating on-screen text is noise and doubles it in the a11y tree.
 function fitted(text: string) {
   const shown = fitNodeLabel(text);
 

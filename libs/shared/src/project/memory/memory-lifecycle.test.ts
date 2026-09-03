@@ -7,8 +7,6 @@ import {
 } from "./memory-lifecycle-memory.js";
 import type { PgPool } from "../../memory-store.js";
 
-// ── Pg fake pool ─────────────────────────────────────────────────────
-
 function fakePool(responses: Array<{ rows: unknown[] }> = []): {
   pool: PgPool;
   calls: Array<{ text: string; params?: unknown[] }>;
@@ -60,8 +58,6 @@ function factRow(over: Partial<FactRow>): FactRow {
     ...over,
   };
 }
-
-// ── PgMemoryLifecycle (SQL + params) ─────────────────────────────────
 
 describe("PgMemoryLifecycle memory.memories", () => {
   it("counts memories by agent over the cap", async () => {
@@ -305,8 +301,6 @@ describe("PgMemoryLifecycle memory.audit_log + episodes", () => {
   });
 });
 
-// ── InMemoryMemoryLifecycle (behavioral spec) ────────────────────────
-
 describe("InMemoryMemoryLifecycle memories", () => {
   it("counts only live memories per agent over the cap", async () => {
     const dbl = new InMemoryMemoryLifecycle({
@@ -545,11 +539,7 @@ describe("InMemoryMemoryLifecycle outcome feedback + audit + episodes", () => {
   });
 });
 
-describe("deleteOldestInvalidatedFacts is scoped to one agent", () => {
-  // The decay job loops over agents whose invalidated-fact count is over cap and
-  // calls this once per agent. While the delete was global it ran N table-wide
-  // deletes: all of one agent's quota could be taken from another agent, and an
-  // agent UNDER the cap could lose facts it should have kept (#1376).
+describe("deleteOldestInvalidatedFacts is scoped to one agent (regression: a global delete let one agent's quota consume another's facts, #1376)", () => {
   const twoAgents = () => [
     factRow({ id: "keep-1", agent_id: "under-cap", valid_to: ago(300) }),
     factRow({ id: "keep-2", agent_id: "under-cap", valid_to: ago(290) }),
@@ -598,13 +588,7 @@ describe("deleteOldestInvalidatedFacts is scoped to one agent", () => {
     expect(calls[0]).toEqual(["over-cap", 50]);
   });
 
-  // `memory.facts` has NO agent_id column — a fact reaches its agent only
-  // through the memory or episode it was extracted from, which is how the
-  // over-cap COUNT above already groups them. Scoping the delete with a bare
-  // `WHERE agent_id = $1` reads correctly and throws 42703 against the real
-  // schema; the fake pool here returns rows for any SQL, so nothing but this
-  // assertion stands between that and the daily decay job.
-  it("scopes to the agent through the source memory and episode", async () => {
+  it("scopes to the agent via the source memory/episode join, since memory.facts has no agent_id column (a bare WHERE agent_id=$1 would throw 42703)", async () => {
     let sql = "";
     const pool = {
       query: async (text: string) => {

@@ -1,12 +1,4 @@
-/**
- * ingest-graph-task — the deterministic, zero-LLM core that turns a repo's
- * specs / ADRs / tests into the spec-traceability graph. The agent worker
- * (cluster) and the local MCP runner both just CALL `runIngestGraph`; only the
- * injected runtime differs (content source + dgraph client + the LORE_DB_HOST
- * trust context). Idempotent by construction: `projectSpecFile`/`projectAdrFile`
- * return `{ projected: false }` when the file's `content_hash` is unchanged, so a
- * no-change re-run is a pure no-op (tallied as `skipped`).
- */
+/** ingest-graph-task — deterministic, zero-LLM core turning specs/ADRs/tests into the spec-traceability graph; idempotent via content_hash (unchanged files tally as `skipped`). */
 
 import { parse as parseYaml } from "yaml";
 import type { DgraphClientPort } from "./deps.js";
@@ -24,11 +16,7 @@ import {
 /** Per-repo override of which files become specs/adrs; sibling of `.lore/test-commands.yml`. */
 const INGEST_MANIFEST_PATH = ".lore/ingest.yml";
 
-/**
- * Reads `.lore/ingest.yml` off the content source and returns the kind's glob
- * patterns, or undefined when the file is absent/unreadable or the kind isn't
- * declared (→ caller falls back to the built-in prefix defaults).
- */
+/** Reads `.lore/ingest.yml` and returns the kind's glob patterns, or undefined when absent/unreadable/undeclared (caller falls back to built-in prefix defaults). */
 async function loadKindPatterns(
   ports: IngestGraphPorts,
   kind: IngestKind,
@@ -51,8 +39,7 @@ export interface IngestGraphParams {
   repo: string;
   ref?: string;
   glob?: string;
-  /** Bypass each file's content-hash freshness gate — re-project unchanged
-   *  files (e.g. to re-apply a parser/segmenter change). */
+  /** Bypass each file's content-hash freshness gate — re-project unchanged files (e.g. after a parser/segmenter change). */
   force?: boolean;
 }
 
@@ -62,9 +49,7 @@ export interface IngestGraphSummary {
   skipped: number;
   failed: number;
   failedFiles: string[];
-  /** Whole-file subtrees deleted for disappeared files; absent when the prune
-   *  didn't run (no prune seam, empty selection, an all-failed run, a failed
-   *  doc-list read, or the suspicious-tree refusal — which `force` bypasses). */
+  /** Whole-file subtrees deleted for disappeared files; absent when the prune didn't run (no seam, empty selection, all-failed run, failed doc-list read, or suspicious-tree refusal). */
   pruned?: number;
   status: "completed" | "skipped" | "failed";
   message: string;
@@ -76,8 +61,7 @@ export interface IngestGraphPorts {
   listTree(ref?: string): Promise<string[]>;
   readFile(path: string, ref?: string): Promise<string>;
   buildTestReport?: () => Promise<unknown>;
-  /** Statement embedder passed to each kind's project; omitted = the
-   *  projector's default (Vertex via GCP ADC — absent in station pods). */
+  /** Statement embedder passed to each kind's project; omitted = the projector's default (Vertex via GCP ADC, absent in station pods). */
   embed?: (text: string) => Promise<number[] | null>;
 }
 
@@ -93,8 +77,7 @@ export interface IngestKindDef {
     force?: boolean,
   ): Promise<{ projected: boolean }>;
   runsOn: "runner+local" | "local-only";
-  /** Whole-file pruning: how to list this kind's graph docs + delete one
-   *  subtree. Absent = the kind's disappeared files are never pruned. */
+  /** Whole-file pruning: how to list this kind's graph docs + delete one subtree. Absent = disappeared files are never pruned. */
   prune?: {
     listDocPaths(dgraph: DgraphClientPort, repo: string): Promise<string[]>;
     deleteSubtree(
@@ -105,13 +88,7 @@ export interface IngestKindDef {
   };
 }
 
-/**
- * The seed kind registry. specs/adrs are markdown file-projectable; tests is
- * special (runs the test interface, not a per-file projection — handled in
- * runIngestGraph). CodeChunks are NOT projected here — they're coverage-defined
- * (minted by ingestCoverageReport per covered range), so there is no AST/code
- * ingest kind.
- */
+/** The seed kind registry — specs/adrs are markdown file-projectable; tests is special-cased in runIngestGraph; CodeChunks are coverage-defined (minted by ingestCoverageReport), not an ingest kind. */
 export const INGEST_KINDS: Record<string, IngestKindDef> = {
   specs: {
     prefixes: ["specs/", ".specify/"],
@@ -133,14 +110,7 @@ export const INGEST_KINDS: Record<string, IngestKindDef> = {
   },
 };
 
-/**
- * Per-directory chunk globs for a kind's files: `specs/<dir>/` per top-level
- * directory, the bare prefix for files sitting directly under it. A forced
- * full-repo projection re-embeds every statement and outlives the event bus's
- * stuck-row visibility timeout as ONE event; split by these globs, each chunk
- * finishes in seconds (globs are `filterFiles` substring filters — the
- * trailing slash keeps sibling dirs with a common prefix distinct).
- */
+/** Per-directory chunk globs for a kind's files, so a forced full-repo re-embed (which outlives the event bus's stuck-row timeout as one event) can be split into per-glob chunks that finish in seconds. */
 export function chunkGlobsForKind(
   kind: string,
   tree: string[],
@@ -171,13 +141,7 @@ export function chunkGlobsForKind(
   return [...globs].sort();
 }
 
-/**
- * Files of `kind` in the tree (optionally narrowed by the `glob` substring).
- * When `patterns` is given (from `.lore/ingest.yml`), it REPLACES the kind's
- * built-in prefix defaults — paths are matched by those globs (which also carry
- * their own extension, so the `.md` default no longer applies). Otherwise the
- * default is markdown under one of the kind's prefixes.
- */
+/** Files of `kind` in the tree, optionally narrowed by `glob`; `patterns` (from `.lore/ingest.yml`) REPLACES the built-in prefix/`.md` defaults when given. */
 export function selectIngestFiles(
   tree: string[],
   kind: IngestKind,
@@ -307,10 +271,7 @@ export async function runIngestGraph(
     registry,
     patterns,
   );
-  // SEQUENTIAL on purpose: every file's projection upserts the shared Repo node,
-  // so running them through one unbounded Promise.all causes Dgraph transaction
-  // conflicts at scale (a 100+-spec repo failed most files on the first pass).
-  // Per-file failures are isolated so one bad file never aborts the batch.
+  // SEQUENTIAL on purpose: every file's projection upserts the shared Repo node, so an unbounded Promise.all causes Dgraph transaction conflicts at scale (a 100+-spec repo failed most files on the first pass).
   let projected = 0;
   let skipped = 0;
   const failedFiles: string[] = [];
@@ -333,9 +294,7 @@ export async function runIngestGraph(
       }
       skipped += 1;
     } catch (err) {
-      // Per-file isolation must NOT mean a silent failure: log the actual reason
-      // (file + kind + repo) so a failed projection is debuggable from pod /
-      // runner logs. failedFiles keeps the names for the structured count.
+      // Per-file isolation must NOT mean a silent failure — log the reason so a failed projection is debuggable from pod/runner logs.
       const reason =
         err instanceof Error ? (err.stack ?? err.message) : String(err);
 
@@ -364,28 +323,7 @@ export async function runIngestGraph(
   );
 }
 
-/**
- * Deletes the subtrees of graph docs whose files left the tree. Runs even when
- * every current file hash-skipped — a moved file's OLD path never re-projects,
- * so freshness gives no signal. Skips (returns undefined) without a prune seam,
- * on an empty selection, on a suspicious one (more than 2 candidates covering
- * over half the in-scope docs — never mass-delete on a bad or partial tree
- * read; `params.force` bypasses this refusal for a legitimate bulk deletion,
- * never the empty-selection skip), when every attempted file failed (a
- * systemically broken run must not delete anything),
- * or when the doc-list read itself throws (a dgraph read error is "didn't run",
- * NOT a clean "nothing to delete" — the two must stay distinguishable in the
- * summary). A per-candidate delete failure never fails the ingest: it is
- * isolated and logged like a per-file projection failure.
- *
- * INVARIANT: the graph is repo-keyed (branch-agnostic), but the tree-vs-graph
- * diff is taken at THIS run's `params.ref`. Ingest therefore MUST run at the
- * repo's default-branch HEAD — a force/manual run at a feature-branch commit
- * missing a spec that still exists on the default branch would delete that
- * still-valid subtree from the shared graph (self-heals on the next
- * default-branch ingest). The CI ingress (`lore-ingest.yml`) enforces this by
- * firing on `branches: [main]` only.
- */
+/** Deletes subtrees of graph docs whose files left the tree; skips on no prune seam/empty/suspicious selection/all-failed run/doc-list read error. INVARIANT: must run at the repo's default-branch HEAD (graph is branch-agnostic) — `lore-ingest.yml` enforces `branches: [main]`. */
 async function pruneDisappearedDocs(
   params: IngestGraphParams,
   ports: IngestGraphPorts,
@@ -449,8 +387,7 @@ async function pruneDisappearedDocs(
       `[ingest-graph] ${params.kind} ${params.repo} :: prune listing failed: ${reason}`,
     );
 
-    // The list read failed, so the prune never ran — report "didn't run"
-    // (undefined), not a misleading "pruned 0" that reads as a clean reconcile.
+    // The list read failed, so the prune never ran — report "didn't run" (undefined), not a misleading "pruned 0".
     return undefined;
   }
 

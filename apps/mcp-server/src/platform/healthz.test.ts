@@ -4,8 +4,6 @@ import {
   setPool,
 } from "@re-cinq/lore-server-core/platform/db.js";
 
-// ── Unit tests for getHealthStatus ─────────────────────────────────────────
-
 describe("getHealthStatus", () => {
   afterEach(() => {
     setPool(null as any);
@@ -49,8 +47,6 @@ describe("getHealthStatus", () => {
     expect(result.reason).toBeDefined();
   });
 });
-
-// ── HTTP /healthz handler logic ─────────────────────────────────────────────
 
 describe("/healthz endpoint", () => {
   afterEach(() => {

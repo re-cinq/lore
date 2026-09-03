@@ -48,9 +48,7 @@ describe("POST /api/spend/credits", () => {
     return pool;
   }
 
-  it("returns 401 without a bearer token", async () => {
-    // A write endpoint that moves the number everyone reads off the dashboard
-    // gets its scope pinned here, not assumed from the registration list.
+  it("returns 401 without a bearer token — scope pinned here, not inherited from registration", async () => {
     const res = await buildServer(() => makePool() as never).inject({
       method: "POST",
       url: "/api/spend/credits",
@@ -71,11 +69,7 @@ describe("POST /api/spend/credits", () => {
     expect(res.result).toMatchObject({ amount_usd: 100, kind: "topup" });
   });
 
-  it("anchors a dateless entry to the START of today, not to now", async () => {
-    // The trap this pins: stamping `now()` would exclude everything spent
-    // between the money landing and someone typing it in — spend that came
-    // straight out of the new balance — and report MORE remaining than there
-    // is. Midnight can only ever over-count, which is the safe direction.
+  it("anchors a dateless entry to the START of today, not to now (over-counts, the safe direction)", async () => {
     const pool = poolRecording();
 
     await post({ amount_usd: 100 }, pool);
@@ -89,10 +83,6 @@ describe("POST /api/spend/credits", () => {
   });
 
   it("passes an explicit effective_date through for a late-recorded top-up", async () => {
-    // Money that landed on the 14th and was recorded on the 21st. For a
-    // top-up the date is documentation only — the remaining arithmetic reads
-    // the opening entry's moment and nothing else — but it must still be
-    // stored as given rather than as the day it was typed in.
     const pool = poolRecording();
 
     await post({ amount_usd: 250, effective_date: "2026-08-14" }, pool);
@@ -108,8 +98,6 @@ describe("POST /api/spend/credits", () => {
   });
 
   it("composes a date and time into one moment when the time is known", async () => {
-    // Topped up at 20:00 on the 14th, typed in the next day: the pair is
-    // composed in Postgres so the entry lands on the evening it happened.
     const pool = poolRecording();
 
     await post(
@@ -143,9 +131,7 @@ describe("POST /api/spend/credits", () => {
     ).toBe(400);
   });
 
-  it("records a negative amount as a correction", async () => {
-    // The append-only escape hatch: a mistyped entry is compensated, never
-    // updated, so the ledger keeps both the error and its correction.
+  it("records a negative amount as a correction, never an update (append-only)", async () => {
     const pool = poolRecording();
 
     await post({ amount_usd: -20, kind: "correction", note: "typo" }, pool);
@@ -178,9 +164,7 @@ describe("POST /api/spend/credits", () => {
     expect(res.statusCode).toBe(400);
   });
 
-  it("returns 503 when the credit-ledger table has not been migrated yet", async () => {
-    // Unrecordable, not malformed — a 400 here would send the operator hunting
-    // through their own payload for a fault that lives in the deploy.
+  it("returns 503 (unrecordable), not 400, when the credit-ledger table has not been migrated yet", async () => {
     const pool = makePool();
 
     pool.query.mockRejectedValue(undefinedTable());
@@ -189,13 +173,8 @@ describe("POST /api/spend/credits", () => {
   });
 
   it.each(["2026-02-30", "2026-13-01", "2026-04-31", "2025-02-29"])(
-    "returns 400 for the impossible date %s",
+    "returns 400, not a Postgres-22008-rethrown 500, for the impossible date %s",
     async (effectiveDate) => {
-      // Shape is not validity: each of these matches the YYYY-MM-DD regex and
-      // each makes Postgres raise 22008 (date/time field value out of range).
-      // 22008 is not the 42P01 the handler catches, so before this was pinned
-      // an impossible date rethrew as a 500 — the caller reported their own
-      // typo accurately and was told the server was broken.
       const pool = makePool();
 
       const res = await post(
@@ -209,7 +188,6 @@ describe("POST /api/spend/credits", () => {
   );
 
   it("still accepts a real leap day", async () => {
-    // The guard must reject impossible dates without rejecting unusual ones.
     const pool = poolRecording();
 
     const res = await post(

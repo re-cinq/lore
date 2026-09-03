@@ -1,17 +1,4 @@
-/**
- * The cluster's Kubernetes surface, as HTTP.
- *
- * Every route is a DOMAIN operation, not a Kubernetes verb. Two of the
- * underlying interactions are read-modify-write pairs — the Secret key
- * (5× 409 retry) and the catalog apply (create → 409 → get-rv →
- * replace) — and exposing `get` and `replace` separately would invite a caller
- * to split a pair across the network and lose the update. No `resourceVersion`
- * ever crosses the wire.
- *
- * The list is ONE apiserver page per call, with the caller driving `continue`.
- * A one-shot list is not a convenience here: 180 accumulated CRs at ~1.4MB of
- * status each blew Node's heap and crash-looped the Floor on 2026-07-24.
- */
+// The cluster's Kubernetes surface, as HTTP — every route is a DOMAIN operation (never raw get/replace, no resourceVersion crosses the wire); list is ONE apiserver page per call since 180 CRs blew Node's heap on 2026-07-24.
 
 import type { ServerRoute } from "@hapi/hapi";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
@@ -28,12 +15,9 @@ import type {
 import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import { enforceBearer } from "@re-cinq/lore-shared/http/bearer.js";
 
-/** The apiserver's own page ceiling for this service. A caller asking for more
- *  is refused rather than quietly served a smaller page — a silent clamp is how
- *  a caller comes to believe it read everything. */
+/** Page ceiling — a caller asking for more is refused rather than quietly served a smaller page (a silent clamp reads as "read everything"). */
 const MAX_PAGE = 100;
-/** Log tail ceiling. Clamped HERE because the Floor's clamp no longer protects
- *  this process's heap. */
+/** Log tail ceiling, clamped HERE — the Floor's clamp no longer protects this process's heap. */
 const MAX_TAIL = 10_000;
 
 export interface ClusterDeps {
@@ -50,9 +34,7 @@ export interface ClusterDeps {
     agentInfo(name: string): Promise<AgentPodInfo | null>;
     podsForJob(jobName: string): Promise<PodSummary[]>;
     podLog(podName: string, tailLines?: number): Promise<string>;
-    /** Every non-terminal run pod in the agents namespace, with the agent
-     *  container's resource requests — the live half of the compute-cost
-     *  estimate on the spend page. */
+    /** Every non-terminal run pod with the agent container's resource requests — the live half of the spend page's compute-cost estimate. */
     listRunning(): Promise<RunningPodInfo[]>;
   };
   tokens: {
@@ -71,22 +53,17 @@ export interface ClusterRoutesDeps {
   /** A thunk: the Kubernetes clients are built lazily, after boot. */
   deps: () => ClusterDeps;
   bearerToken?: string;
-  /** Defaults to `process.exit(0)`. Injectable so a test can observe the call
-   *  without actually killing the test process. */
+  /** Defaults to `process.exit(0)`. Injectable so a test can observe the call without killing the test process. */
   restart?: () => void;
 }
 
-// `metadata.name` is required, not merely hoped for: the apply reads it to
-// fetch the live object, so a body without one becomes a TypeError deep in a
 export function clusterRoutes(opts: ClusterRoutesDeps): ServerRoute[] {
   const guard = (headers: Record<string, unknown>): void =>
     enforceBearer(headers, opts.bearerToken);
 
   return [
     {
-      // 200 with `found:false` rather than 404: "no such CR" is an ordinary
-      // answer to this question, and a 404 would be indistinguishable from the
-      // route itself being absent.
+      // 200 with `found:false` rather than 404 — "no such CR" is an ordinary answer, and a 404 would be indistinguishable from the route being absent.
       method: "GET",
       path: "/api/cluster/agents/{name}",
       options: { auth: false },
@@ -199,9 +176,7 @@ export function clusterRoutes(opts: ClusterRoutesDeps): ServerRoute[] {
       },
     },
     {
-      // The mint side is NOT a route: every launch is a claim, so the only
-      // caller is this process's own claim loop, in-process. What crosses the
-      // network is the reclaim, which the Floor drives when a task settles.
+      // The mint side is NOT a route — every launch is an in-process claim; what crosses the network is the reclaim, which the Floor drives when a task settles.
       method: "DELETE",
       path: "/api/cluster/per-task-tokens/{taskId}",
       options: { auth: false },

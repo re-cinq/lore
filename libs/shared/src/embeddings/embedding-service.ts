@@ -1,11 +1,4 @@
-/**
- * Vertex AI text-embedding-005 embeddings (queries and documents) — a stateless,
- * repo-agnostic shared service (env-configured module singleton, not a Project
- * port). Calls the Vertex predict endpoint over plain fetch (no AlloyDB
- * embedding() function — we run CNPG, not managed AlloyDB) and degrades to null
- * when no credential or project is available, so callers fall back to
- * keyword-only search.
- */
+// Vertex AI text-embedding-005 via plain fetch (we run CNPG, not managed AlloyDB, so no embedding() function); degrades to null when no credential/project is available so callers fall back to keyword-only search.
 
 const VERTEX_REGION = process.env.GCP_REGION || "europe-west1";
 const VERTEX_MODEL = "text-embedding-005";
@@ -14,11 +7,7 @@ export function buildVertexUrl(project: string, region: string): string {
   return `https://${region}-aiplatform.googleapis.com/v1/projects/${project}/locations/${region}/publishers/google/models/${VERTEX_MODEL}:predict`;
 }
 
-// The agent/CronJob env sets no project var, so the project must be resolved at
-// call time: env first, then the GKE metadata server (Workload Identity). Reading
-// it once at module load (as before) left it "" in those pods, producing a
-// malformed `projects//locations` URL + a confusing 400 instead of degrading to
-// null. Cached for the process lifetime.
+// Resolved at call time (env, then GKE metadata server) — resolving once at module load left it "" in agent/CronJob pods, producing a malformed URL instead of degrading to null.
 let cachedProject: string | null = null;
 
 export async function resolveVertexProject(): Promise<string> {

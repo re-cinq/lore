@@ -13,29 +13,13 @@ import {
 const MAX_DRIFT_TASKS_PER_REPO_RUN = 3;
 
 export interface SpecDriftOptions {
-  /** The repo this run covers. The fan-out (jobs/detect) enumerates active
-   *  repos and starts one assembly-line run per repo. */
+  /** The repo this run covers, one assembly-line run per repo via the jobs/detect fan-out. */
   repoFilter: string;
-  /** The data facade to read/write through. Floor-side this is projectFor(repo)
-   *  (Postgres); in a station pod it is createStationProject(env) (HTTP, no DB).
-   *  Defaults to projectFor(repo) so existing Floor callers are unchanged. */
+  /** The data facade to read/write through — Postgres Floor-side, HTTP (no DB) in a station pod. */
   project: Project;
 }
 
-/**
- * Spec Drift Detection Job — one repo per run.
- *
- * Runs as the `detect` node of the `spec-drift` assembly line, fanned out
- * weekly per active repo by the `cron.spec_drift.tick` handler (the activity
- * pre-filter lives in that fan-out). For each spec of the repo:
- * 1. Graph-primary: when the spec is projected into the spec-trace graph, drift
- *    is decided from its per-statement violated/drifted flags (deterministic,
- *    statement-level — no symbol guessing). Authoritative when present.
- * 2. Heuristic fallback (spec not projected / no graph): LLM-extract testable
- *    assertions, match top-level symbol kinds against AST `symbol_name` chunks,
- *    flag drift past the divergence threshold AND the absolute miss floor.
- * 3. File a gap-fill task per drifted spec (stable-key dedup, per-run cap).
- */
+/** Spec Drift Detection Job (one repo per run, weekly via `cron.spec_drift.tick`): graph-primary drift detection per spec, falling back to LLM-assertion/symbol-membership heuristics, then files a gap-fill task per drifted spec (stable-key dedup, per-run cap). */
 export async function specDriftJob(opts: SpecDriftOptions): Promise<string> {
   const repo = opts.repoFilter;
   const project = opts.project;
@@ -61,14 +45,11 @@ export async function specDriftJob(opts: SpecDriftOptions): Promise<string> {
   let filed = 0;
   let deferred = 0;
 
-  // Graph-primary detection is authoritative where the spec-trace graph is
-  // populated; without it (LORE_DGRAPH_HTTP unset) every spec uses the heuristic.
-  // Probe the env directly rather than build-and-discard a Dgraph client.
+  // Graph-primary detection is authoritative when populated; without LORE_DGRAPH_HTTP every spec falls back to the heuristic.
   const graphEnabled = !!process.env.LORE_DGRAPH_HTTP;
 
   for (const spec of specs) {
-    // Skip prose artifacts (research/plan/tasks/quickstart) — they name
-    // concepts, not code symbols, so they always read as 100% drifted.
+    // Skip prose artifacts (research/plan/tasks/quickstart) — they always read as 100% drifted.
     if (!isAssertionSource(spec.filePath)) {
       filteredDocs++;
       console.log(
@@ -80,9 +61,7 @@ export async function specDriftJob(opts: SpecDriftOptions): Promise<string> {
     try {
       totalChecked++;
 
-      // File a drift task and fold the outcome into the run counters. The cap
-      // is enforced inside createDriftTask after dedup, so a deduped spec
-      // never burns the per-run budget or reads as deferred.
+      // Cap is enforced inside createDriftTask after dedup, so a deduped spec never burns the per-run budget.
       const fileDrift = async (copy: DriftTaskCopy): Promise<void> => {
         const outcome = await createDriftTask(
           project,
@@ -105,9 +84,7 @@ export async function specDriftJob(opts: SpecDriftOptions): Promise<string> {
         }
       };
 
-      // Graph-primary: when the spec is projected into the trace graph, its
-      // per-statement violated/drifted flags are the authoritative signal —
-      // deterministic and free of the symbol-membership false positives.
+      // Graph-primary: when projected, per-statement violated/drifted flags are authoritative (deterministic, no symbol-membership false positives).
       const graph = graphEnabled
         ? await detectGraphDrift(project, spec.filePath)
         : null;
@@ -116,8 +93,7 @@ export async function specDriftJob(opts: SpecDriftOptions): Promise<string> {
         continue; // graph is authoritative for this spec
       }
 
-      // Heuristic fallback (spec not projected / no graph): de-noised symbol
-      // membership — only top-level symbol kinds, with an absolute miss floor.
+      // Heuristic fallback: de-noised symbol membership — top-level kinds only, with an absolute miss floor.
       const assertions = await extractAssertions(spec.content, spec.filePath, {
         jobName: "spec_drift",
       });
@@ -163,8 +139,7 @@ interface DriftTaskCopy {
 
 type FileOutcome = "filed" | "skipped" | "deferred";
 
-/** Act on a graph-primary drift verdict (log, file when drifted); true when
- * the graph was authoritative for this spec so the heuristic must be skipped. */
+/** Act on a graph-primary drift verdict; true when the graph was authoritative so the heuristic must be skipped. */
 async function applyGraphDrift(
   graph: Awaited<ReturnType<typeof detectGraphDrift>> | null,
   repo: string,
@@ -197,11 +172,7 @@ async function detectGraphDrift(project: Project, specPath: string) {
   }
 }
 
-/**
- * Open issue numbers for the repo that aren't dead `lore-failed`, fetched once
- * per repo so the dedup check doesn't re-list every issue per spec. Null when
- * the platform read fails — callers fall back to the DB dedup only.
- */
+/** Open issue numbers for the repo that aren't dead `lore-failed`, fetched once per repo; null on read failure (callers fall back to DB dedup). */
 async function fetchActiveIssues(
   project: Project,
 ): Promise<Set<number> | null> {
@@ -218,11 +189,7 @@ async function fetchActiveIssues(
   }
 }
 
-/**
- * Issue copy + context bundle for a graph-detected drift (statement-level). The
- * drifted statements (with their links) ride in the bundle; the issue body is
- * rendered from them by issue-body.ts after the LLM copy pass.
- */
+/** Issue copy + context bundle for a graph-detected drift; drifted statements ride in the bundle and issue-body.ts renders the body from them. */
 function graphTaskCopy(
   specPath: string,
   statements: DriftedStatement[],
@@ -270,9 +237,7 @@ async function createDriftTask(
   atCap: boolean,
   activeIssues: Set<number> | null,
 ): Promise<FileOutcome> {
-  // Dedup on the stable spec_path key (not the LLM-reworded title): skip when a
-  // task is still in flight for this spec, or a resolved/failed one is within
-  // its cooldown.
+  // Dedup on the stable spec_path key (not the LLM-reworded title): skip when in flight or within cooldown.
   const existing = await project.tasks.driftTasksForSpec("gap-fill", specPath);
 
   if (shouldSkipDrift(existing, new Date())) {
@@ -296,8 +261,7 @@ async function createDriftTask(
     return "skipped";
   }
 
-  // Cap is the last gate, after dedup: only specs that would genuinely be filed
-  // count against the per-run budget, so a deduped spec never burns it.
+  // Cap is the last gate, after dedup: only specs that would genuinely be filed count against the per-run budget.
   if (atCap) {
     console.log(
       `[job] spec-drift: deferring ${repo}:${specPath} — ${MAX_DRIFT_TASKS_PER_REPO_RUN}/run cap reached`,

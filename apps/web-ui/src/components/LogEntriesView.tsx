@@ -27,17 +27,14 @@ function resultSummary(entry: Extract<LogEntry, { kind: "result" }>): string {
   return parts.join("");
 }
 
-/** How a hook's line reads: its verdict once it has one, else that it is still
- *  going. Formatted here rather than in JSX so it is testable without a DOM. */
-/** Whether a finished hook passed. The exit code decides when the runner sends
- *  one; without it the outcome is all there is to go on, and treating that
- *  absence as a non-zero exit would mark every such hook failed. */
+/** The exit code decides when present; without it, a non-zero exit is never assumed, or every still-running hook would read failed. */
 function hookPassed(entry: Extract<LogEntry, { kind: "hook" }>): boolean {
   return entry.exitCode === undefined
     ? entry.outcome === "success"
     : entry.exitCode === 0;
 }
 
+/** Formatted here rather than in JSX so it is testable without a DOM. */
 export function hookSummary(
   entry: Extract<LogEntry, { kind: "hook" }>,
 ): string {
@@ -50,8 +47,7 @@ export function hookSummary(
   return `· hook ${entry.hookName} ${status}`;
 }
 
-/** How a still-running tool call reads. The elapsed seconds are the total for
- *  the call, so the folded run's newest beat is the whole clock. */
+/** Elapsed seconds are the total for the call, so the folded run's newest beat is the whole clock. */
 export function toolProgressSummary(
   entry: Extract<LogEntry, { kind: "tool-progress" }>,
 ): string {
@@ -63,8 +59,7 @@ export function toolProgressSummary(
   return `· ${entry.toolName} still running…${clock}`;
 }
 
-/** One entry's line. Exported so a view that adds its own gutter (the run
- *  page's timestamped transcript) reuses this switch instead of copying it. */
+/** Exported so a view that adds its own gutter (the run page's timestamped transcript) reuses this switch instead of copying it. */
 export function EntryLine({ entry }: { entry: LogEntry }) {
   switch (entry.kind) {
     case "lifecycle":

@@ -1,13 +1,4 @@
-/**
- * How a followed pod's stdout becomes bus events: the decision half, pure.
- *
- * This is the piece that decides how much log volume reaches `pipeline.events`,
- * which is a dispatch queue built for handler fan-out and dedupe rather than for
- * bulk data. Every limit here exists to keep that honest — batch by lines, cap
- * by bytes, one event per chunk with a dedupe key — and it is all testable
- * without a cluster, because getting it wrong is an operational problem rather
- * than a crash.
- */
+// Pure decision half of how a followed pod's stdout becomes bus events — batches by lines/bytes, one event per chunk with a dedupe key, to keep log volume honest on pipeline.events (a fan-out queue, not bulk data).
 
 import type { EventInsert } from "@re-cinq/lore-shared";
 
@@ -45,14 +36,7 @@ function render(batch: PendingBatch): string {
   return batch.lines.map((line) => `${line}\n`).join("");
 }
 
-/**
- * Take one line, and say whether that completes a chunk.
- *
- * The line is always ADDED before the limits are checked, so a single line
- * longer than `maxBytes` flushes on its own rather than wedging a batch that
- * can never satisfy its own limit. The cap bounds this process's memory; it
- * cannot bound what the pod chose to write.
- */
+/** Take one line, say whether that completes a chunk. The line is always ADDED before limits are checked, so an oversized line flushes on its own rather than wedging the batch. */
 export function addLine(
   batch: PendingBatch,
   line: string,
@@ -70,8 +54,7 @@ export function addLine(
   return { batch: grown, flushed: null };
 }
 
-/** Flush whatever is held — the idle timer and end-of-stream both land here, so
- *  a pod that goes quiet mid-batch does not strand its last lines. */
+/** Flush whatever is held — the idle timer and end-of-stream both land here, so a quiet pod does not strand its last lines. */
 export function drain(batch: PendingBatch): BatchStep {
   if (batch.lines.length === 0) {
     return { batch, flushed: null };
@@ -80,16 +63,7 @@ export function drain(batch: PendingBatch): BatchStep {
   return { batch: emptyBatch(), flushed: render(batch) };
 }
 
-/**
- * The last flush of a stream that has ended: whatever the batch holds, plus the
- * fragment held back for want of a newline.
- *
- * `carry` exists because a chunk boundary can split a line, so the tail of every
- * write waits for the rest of its line. When the stream ENDS that rest never
- * comes — and a pod that dies mid-write ends exactly there, so the line lost was
- * the one worth reading. The ordinary `drain` cannot do this: mid-stream the
- * fragment really is incomplete.
- */
+/** The last flush of an ended stream: the batch plus the fragment held back for want of a newline — a pod dying mid-write loses exactly that fragment otherwise. */
 export function drainAtEnd(batch: PendingBatch, carry: string): BatchStep {
   if (!carry) {
     return drain(batch);
@@ -101,14 +75,7 @@ export function drainAtEnd(batch: PendingBatch, carry: string): BatchStep {
   });
 }
 
-/**
- * One chunk as its event.
- *
- * Keyed on the POD and the sequence, never the job: both pods of a retried node
- * start at seq 1, and a job-keyed dedupe would silently drop the retry's first
- * chunk as a duplicate of the original's — the same trap the stored table's
- * unique index avoids.
- */
+/** One chunk as its event, keyed on POD and sequence (never the job) — both pods of a retried node start at seq 1, so job-keyed dedupe would drop the retry's first chunk. */
 export function podLogEvent(
   target: PodLogTarget,
   seq: number,
@@ -130,19 +97,7 @@ export interface FollowableAgent {
 
 const TERMINAL_PHASES = new Set(["Succeeded", "Failed"]);
 
-/**
- * The same choice as {@link followableAgents}, reduced to what a stream needs.
- *
- * Discovery must never hold a page of Agent CRs — each carries its run's whole
- * transcript in `status.output`, and 130 accumulated CRs at over a megabyte each
- * is more than the pod's whole memory limit. Accumulating them across pages
- * OOM-killed a satellite's cluster-agent every seven seconds for twenty-one
- * hours, which stopped its Agent-CR watch, which stranded every finished run in
- * that cluster with nobody to report it.
- *
- * Returning names rather than objects is what makes that structural: the caller
- * cannot retain a CR it was never handed.
- */
+/** Same choice as {@link followableAgents}, reduced to names — discovery must never hold a page of Agent CRs (130 accumulated ones OOM-killed a satellite cluster-agent for 21h). */
 export function followTargets(
   agents: readonly FollowableAgent[],
   following: ReadonlySet<string>,
@@ -152,17 +107,7 @@ export function followTargets(
   );
 }
 
-/**
- * Which agents this tick should open a log stream for.
- *
- * Skips the terminal ones (their output is already in the stored chunks, and
- * the pod is on its way out), the ones with no Job yet (nothing to open a
- * stream against), and — the one that matters — the ones already being
- * followed. Discovery re-runs on a timer over the same running agents, so
- * without that last check every tick opens another stream on the same pod and
- * emits each line once per stream. Dedupe is per `(pod, seq)` and each stream
- * assigns its own seqs, so those duplicates would NOT collapse.
- */
+/** Which agents this tick should open a log stream for — skips terminal ones, ones with no Job yet, and already-followed ones (else each stream reassigns seqs and dedupe cannot collapse the duplicates). */
 export function followableAgents(
   agents: readonly FollowableAgent[],
   following: ReadonlySet<string>,
@@ -185,9 +130,7 @@ export function followableAgents(
 
 /** The slice of a Pod this decision reads. */
 export interface FollowablePod {
-  /** `creationTimestamp` is a Date on the real `V1Pod` and a string on the
-   *  wire. Both are accepted because both turn up: the client's model mapper
-   *  parses it, and a hand-built fixture usually does not. */
+  /** `creationTimestamp` is a Date on the real `V1Pod`, a string on the wire — both accepted since both turn up. */
   metadata?: { name?: string; creationTimestamp?: string | Date };
   spec?: { containers?: Array<{ name?: string }> };
 }
@@ -199,19 +142,7 @@ function createdAt(pod: FollowablePod): string {
   return raw instanceof Date ? raw.toISOString() : (raw ?? "");
 }
 
-/**
- * Which pod to stream, and WHICH CONTAINER of it.
- *
- * The container is not optional. `Log.log(ns, pod, "", …)` sends an empty
- * `?container=` and the apiserver answers `400 Error occurred in log request` —
- * found the hard way on the first pilot run, where every discovery tick opened
- * a stream and got a 400 back. An agent pod has two containers (`init` and
- * `agent`), so there is no implicit choice for the API to make.
- *
- * The FIRST container is the workload; anything after it is a sidecar. Reading
- * it off the pod rather than hardcoding "agent" keeps this correct for a
- * station pod, a custom image, or whatever the subsystem names it next.
- */
+/** Which pod to stream, and WHICH CONTAINER — the container is not optional (`Log.log(ns, pod, "", …)` 400s); the FIRST container is the workload, anything after it a sidecar. */
 export function pickPodToFollow(
   pods: readonly FollowablePod[],
 ): { podName: string; containerName: string } | null {

@@ -21,9 +21,7 @@ describe("resolveRoundContent", () => {
     ).toBe("<RoundFeedback/>");
   });
 
-  it("sends the full composition when the run starts a fresh conversation", () => {
-    // An empty id is exactly "nothing to resume" — the agent holds no draft, so a
-    // feedback-only turn would ask it to refine something it has never seen.
+  it("sends the full composition when the run starts a fresh conversation, since an empty id has no draft to refine", () => {
     expect(
       resolveRoundContent(
         {

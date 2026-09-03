@@ -471,8 +471,7 @@ export {
   type OnboardRepoRow,
   type OnboardTaskRow,
 } from "./onboard-guard.js";
-// Branch-lease backends (Slice 3) — the agent supervisor imports these until
-// it moves to the runner package and switches to project.leases (Slice 4).
+// Branch-lease backends (Slice 3) — used by the agent supervisor until it moves to project.leases (Slice 4).
 export {
   DbLeaseBackend,
   FileLeaseBackend,
@@ -484,8 +483,7 @@ export {
   buildReviewFixDescription,
   formatReviewFeedback,
 } from "./review-feedback.js";
-// Deterministic repo validation (lint/typecheck), relocated from mcp-server so
-// the runner kernel can drive it in a BYO toolchain sidecar (ADR-025).
+// Deterministic repo validation (lint/typecheck), relocated from mcp-server for the BYO toolchain sidecar (ADR-025).
 export {
   detectTooling,
   runValidation,

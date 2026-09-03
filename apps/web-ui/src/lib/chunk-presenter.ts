@@ -21,9 +21,7 @@ function lineRangeLabel(metadata: ChunkMeta): string {
   return "";
 }
 
-/** Derive the one-line header shown above a chunk: for code, the symbol and
- * line range (`function foo · L10–42`); for prose, the section title. Empty
- * when there's nothing to show. */
+/** One-line chunk header: code gets symbol + line range (`function foo · L10–42`), prose gets the section title, else empty. */
 export function chunkHeader(
   contentType: string,
   metadata?: ChunkMeta | null,

@@ -6,7 +6,6 @@ const HOUR = 3_600_000;
 const NOW = new Date("2026-08-30T12:00:00Z");
 const old = new Date(NOW.getTime() - 96 * HOUR).toISOString();
 
-/** The two CustomObjectsApi calls the pruner makes, recorded. */
 function fakeApi() {
   const deleted: Array<{ plural: string; name: string }> = [];
   const api = {
@@ -38,12 +37,6 @@ function fakeApi() {
 
 describe("KubePruner driven by the real sweep", () => {
   it("deletes through the live adapter without losing `this`", async () => {
-    // The sweep passes the port's methods to a helper. Handing over
-    // `cluster.deleteAgent` UNBOUND drops the receiver, so the first call
-    // inside KubePruner (`this.remove(...)`) throws — and `pruneOnce` swallows
-    // every throw into an outcome, so the loop would log "could not delete" for
-    // every object, forever, while the cache it exists to bound kept growing.
-    // The in-memory doubles cannot catch this: their methods are closures.
     const { api, deleted } = fakeApi();
     const outcome = await pruneOnce({
       cluster: new KubePruner(() => api as never),
@@ -66,8 +59,6 @@ describe("KubePruner driven by the real sweep", () => {
   });
 
   it("reads an object the apiserver reports without a creation stamp as brand new", async () => {
-    // Defaulting the other way would delete whatever the parse failed to
-    // understand.
     const api = {
       listNamespacedCustomObject: async ({ plural }: { plural: string }) => ({
         items:

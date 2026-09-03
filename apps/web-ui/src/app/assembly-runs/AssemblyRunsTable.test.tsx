@@ -4,7 +4,6 @@ import { render, screen, within, fireEvent } from "@testing-library/react";
 import AssemblyRunsTable from "./AssemblyRunsTable";
 import type { AssemblyRun } from "@/lib/assembly-runs";
 
-// PRStatusBadgePanel fetches on mount; stub it so the badge case doesn't hit network.
 beforeEach(() => {
   vi.stubGlobal(
     "fetch",
@@ -78,7 +77,6 @@ describe("AssemblyRunsTable", () => {
 
     const row = screen.getByRole("row", { name: /implementation/ });
 
-    // creator, cost, PR, duration all render as em dashes.
     expect(within(row).getAllByText("—").length).toBeGreaterThanOrEqual(4);
   });
 
@@ -198,7 +196,6 @@ describe("AssemblyRunsTable", () => {
       "href",
       "https://github.com/re-cinq/lore/pull/7",
     );
-    // No backing task → PRStatusBadgePanel is not rendered, so no fetch fires.
     expect(fetch).not.toHaveBeenCalled();
   });
 

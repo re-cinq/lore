@@ -1,8 +1,4 @@
-/**
- * GET /healthz — liveness + readiness probe. Returns 200 with task/job status
- * when the DB is reachable, 503 otherwise. The Helm probes key on the status
- * code only; the body is informational.
- */
+/** GET /healthz — liveness + readiness probe; Helm probes key on the status code only, the body is informational. */
 
 import type { ServerRoute } from "@hapi/hapi";
 import type { ProcessedCounts } from "@re-cinq/lore-shared/project/usage/usage-port.js";

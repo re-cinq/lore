@@ -1,12 +1,7 @@
 import "server-only";
 import { apiFetch } from "./client";
 
-// Whether the factory's model access is down right now (#1455).
-//
-// A person on a feature page whose round just failed should learn that the
-// platform is out of credit, not read a per-run failure and reach for Retry —
-// which is what happened for two hours on 2026-08-20.
-
+// Whether the factory's model access is down right now (#1455) — a failed round should surface "out of credit", not send a person to hit Retry (happened for 2h on 2026-08-20).
 export interface PlatformLlmStatus {
   degraded: boolean;
   failure_class: string | null;
@@ -23,13 +18,7 @@ const HEALTHY: PlatformLlmStatus = {
   affected_runs: 0,
 };
 
-/**
- * The platform's LLM health, or "healthy" if the read failed for any reason.
- *
- * Fail-quiet on purpose: this is a banner above someone else's work. A status
- * endpoint that is unreachable must not put an outage notice on a page — being
- * unable to confirm an outage is not evidence of one.
- */
+/** Fail-quiet on purpose (banner above someone else's work): an unreachable status endpoint reports "healthy" rather than an outage it can't confirm. */
 export async function getPlatformLlmStatus(): Promise<PlatformLlmStatus> {
   const result = await apiFetch<PlatformLlmStatus>(
     "lore-api",

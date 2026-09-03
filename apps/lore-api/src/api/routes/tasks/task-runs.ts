@@ -36,19 +36,10 @@ const TaskRunListSchema = z.object({ runs: z.array(TaskRunSchema) });
 
 export type TaskRunRow = z.infer<typeof TaskRunSchema>;
 
-/** Postgres "relation does not exist" — a database that predates migration
- *  0025 has no assembly_lines table, and a task there simply has no runs. */
+/** Postgres "relation does not exist" — a pre-0025 database has no assembly_lines table; a task there simply has no runs. */
 const UNDEFINED_TABLE = "42P01";
 
-/**
- * `GET /api/tasks/{id}/runs` — the task's per-attempt assembly-line runs, newest
- * first. The task page's refresh coordinator polls this to discover a run that
- * starts after the page rendered, so it can attach the live event stream to it.
- *
- * The 404 comes first deliberately: an unknown task and a task with no runs both
- * used to answer `{runs: []}`, which reads as "nothing started yet" for an id
- * that never existed.
- */
+// The 404 comes first deliberately: an unknown task and a task with no runs both used to answer `{runs: []}`, misreading a never-existed id as "nothing started yet".
 export function taskRunsRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "GET",
@@ -72,8 +63,7 @@ export function taskRunsRoute(getPool: () => Pool | null): ServerRoute {
 
         enforceTrue(rows.length !== 0, apiError(404), "Task not found");
       } catch (err) {
-        // A guard's refusal already carries its status; only an unexpected failure
-        // is this block's to shape.
+        // A guard's refusal already carries its status; only an unexpected failure is this block's to shape.
         rethrowBoom(err);
 
         return h.response({ error: errorMessage(err) }).code(500);

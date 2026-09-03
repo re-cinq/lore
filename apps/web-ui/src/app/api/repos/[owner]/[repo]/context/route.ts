@@ -6,9 +6,7 @@ import { fetchRepoChunks } from "@/app/repos/[owner]/[repo]/context/context-data
 import { serverError } from "@/lib/api-error";
 import type { RepoContextChunk } from "@/app/repos/[owner]/[repo]/context/RepoContextView";
 
-// Load-more endpoint for the per-repo context list. The first page is rendered
-// server-side by page.tsx; this serves subsequent pages to the LoadMore client
-// component. Session is enforced upstream by withAuth (middleware.ts).
+// Load-more endpoint for the per-repo context list; session enforced upstream by withAuth (middleware.ts).
 export async function GET(
   req: Request,
   { params }: { params: Promise<{ owner: string; repo: string }> },

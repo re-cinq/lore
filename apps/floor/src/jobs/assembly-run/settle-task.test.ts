@@ -6,7 +6,6 @@ import { decideTaskSettlement, settleTaskForLine } from "./settle-task.js";
 
 const REPO = "re-cinq/lore";
 
-/** A running planning task backed by a line, with the round it belongs to. */
 function planningTask(id: string, iteration: number, featureId: string) {
   return {
     id,
@@ -18,7 +17,6 @@ function planningTask(id: string, iteration: number, featureId: string) {
   };
 }
 
-/** A feature whose latest round is still `running`, as the wizard sees it. */
 async function featureWithRunningRound(): Promise<{
   features: Features;
   featureId: string;
@@ -130,8 +128,6 @@ describe("settleTaskForLine", () => {
     const feature = await features.get(featureId);
 
     expect(feature?.iterations[0]).toMatchObject({ status: "failed" });
-    // A green line over a round that produced nothing is the exact shape that made
-    // this undebuggable: the wizard fell back to its canned ANTHROPIC_API_KEY guess.
     expect(await tasks.getById("t1")).toMatchObject({
       status: "failed",
       failure_reason:

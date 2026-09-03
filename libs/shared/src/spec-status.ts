@@ -1,19 +1,4 @@
-/**
- * Doc lifecycle-status parsing for the spec/ADR corpus, shared by the
- * `require-statement-links` ESLint rule to pick the enforcement tier.
- *
- * Every spec and ADR is normalized into the same buckets — the linter treats
- * specs and ADRs consistently:
- *   - `rejected` (never accepted) and `retired` (shipped, then superseded/
- *     removed) → the rule does not run (skip)
- *   - every other status (`shipped` / `draft` / `in-progress` / unknown) → warn
- *
- * Two source shapes feed the same buckets:
- *   - spec.md — a `| Status | <value> |` markdown table row (bucketed like the
- *     web-ui status pill in apps/web-ui/src/lib/spec-status.ts).
- *   - ADR .md — YAML frontmatter `status: <value>`; `accepted` folds into
- *     `shipped`, `proposed` into `in-progress`, `retired` stays `retired`.
- */
+/** Doc lifecycle-status parsing for specs/ADRs (shared by the `require-statement-links` ESLint rule): `rejected`/`retired` skip the rule, everything else warns; specs read a `| Status |` table row, ADRs read YAML frontmatter `status:`. */
 
 export type DocKind = "spec" | "adr";
 export type StatusBucket =
@@ -32,16 +17,12 @@ const BUCKETS: Array<{ status: StatusBucket; re: RegExp }> = [
     re: /^(in progress|in review|planning|wip|proposed)/,
   },
   {
-    // `accepted` (with implemented/complete/…) folds into shipped, mirroring the
-    // web-ui status pill (apps/web-ui/src/lib/spec-status.ts). The rule is
-    // warn-only, so an "Accepted, pre-implementation" spec is nudged, not blocked.
+    // `accepted` folds into shipped, mirroring the web-ui status pill (apps/web-ui/src/lib/spec-status.ts).
     status: "shipped",
     re: /^(shipped|implemented|complete|accepted|done|live)/,
   },
   {
-    // Shipped, then retired — superseded / removed / deprecated / obsolete. A
-    // distinct terminal state from `rejected` (never accepted); both skip the
-    // rule, but this one preserves the "was live" history.
+    // Shipped, then retired — a distinct terminal state from `rejected` (never accepted); both skip the rule.
     status: "retired",
     re: /^(retired|superseded|removed|deprecated|obsolete)/,
   },
@@ -121,12 +102,7 @@ function pillLabel(raw: string): string {
   return (label || raw).slice(0, MAX_LABEL);
 }
 
-/**
- * Status + display label for the /specs and /adrs list pills. Separate from
- * `parseDocStatus` (bucket only, lowercased) because the pill shows the doc's
- * own casing. Computed API-side so the global viewers get statuses in their
- * one list call instead of one source fetch per document.
- */
+/** Status + display label for the /specs and /adrs list pills; separate from `parseDocStatus` since the pill preserves the doc's own casing. */
 export function docStatusPill(
   content: string,
   kind: DocKind,
@@ -171,24 +147,11 @@ function replaceStatusCell(rawCell: string, label: string): string {
 }
 
 export interface RewriteStatusOptions {
-  /**
-   * Rewrite even when the current value buckets to a terminal state
-   * (`shipped` / `retired`). Off by default so the spec-status-upkeep flip stays
-   * idempotent and promotion-only; the corpus-wide status reconciliation opts in
-   * because a demotion is exactly a terminal-state rewrite.
-   */
+  /** Rewrite even over a terminal state (`shipped`/`retired`); off by default so spec-status-upkeep stays idempotent/promotion-only, on for the corpus-wide reconciliation's demotions. */
   allowTerminal?: boolean;
 }
 
-/**
- * Deterministically flip a spec's `| Status | <value> |` header row to `label`.
- * Returns the rewritten markdown, or `null` when there is nothing to do — no
- * status row exists, or (unless `allowTerminal` is set) the current value already
- * buckets to a terminal state: `shipped` (implemented/complete/accepted/…) or
- * `retired` (superseded/removed). That makes the flip idempotent and stops it
- * re-marking a retired spec. Only the status value cell changes; every other line
- * is left byte-for-byte intact.
- */
+/** Deterministically flips a spec's `| Status | <value> |` row to `label`; returns null when no status row exists or (unless `allowTerminal`) the value is already terminal (idempotent). */
 export function rewriteSpecStatusRow(
   content: string,
   label: string,
@@ -226,17 +189,7 @@ export function rewriteSpecStatusRow(
   return null;
 }
 
-/**
- * The ADR counterpart of `rewriteSpecStatusRow`: flip the YAML frontmatter
- * `status:` value to `label`. Returns the rewritten markdown, or `null` when the
- * ADR has no frontmatter block or no `status:` key inside it. Only that one line
- * changes; a `status:`-looking line in the ADR body is left alone, mirroring
- * `adrFrontmatterStatusValue`'s read.
- *
- * Unlike the spec rewriter there is no terminal-state bail: the only caller is
- * the corpus status reconciliation, which decides what to skip from the doc's
- * coverage tier before calling.
- */
+/** ADR counterpart of `rewriteSpecStatusRow`: flips the YAML frontmatter `status:` value; null if no frontmatter/status key. No terminal-state bail — the caller (corpus reconciliation) decides what to skip. */
 export function rewriteAdrStatusRow(
   content: string,
   label: string,
@@ -248,8 +201,7 @@ export function rewriteAdrStatusRow(
   }
   const sep = content.includes("\r\n") ? "\r\n" : "\n";
   const lines = content.split(/\r?\n/);
-  // The frontmatter block is delimited by the `---` on line 1 and the next
-  // `---`; only lines strictly inside it are eligible.
+  // Frontmatter is delimited by the `---` on line 1 and the next `---`; only lines strictly inside it are eligible.
   const closing = lines.indexOf("---", 1);
 
   for (let i = 1; i < closing; i++) {

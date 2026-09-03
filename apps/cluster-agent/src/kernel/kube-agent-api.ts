@@ -1,7 +1,4 @@
-// Live AgentApi over @kubernetes/client-node (lazily imported, as in k8s-loretask.ts).
-// The thin IO seam behind the AgentApi port — the mapping/decision logic it backs
-// lives in agent-backend.ts and is covered there. Creates/lists `Agent` CRs in the
-// ai-agents namespace (agents.re-cinq.com); a 409 maps to created:false.
+// Live AgentApi over @kubernetes/client-node — the thin IO seam behind the AgentApi port (mapping/decision logic lives in agent-backend.ts); creates/lists Agent CRs, a 409 maps to created:false.
 
 import type { Agent as AgentCr } from "@re-cinq/agent-contracts";
 import { agentsNamespace } from "@re-cinq/lore-shared";

@@ -26,7 +26,6 @@ async function seededPort(
   return { port, assemblyLineId };
 }
 
-/** Minimal loaded definition — just enough shape for routing decisions. */
 function definition(name: string, nodeTypes: string[]): AssemblyLine {
   const nodes = nodeTypes.map((type, i) => ({
     id: `n${i}`,
@@ -88,9 +87,7 @@ function params(
 }
 
 describe("createStartEventHandler", () => {
-  it("a fork's start reopens the settled task behind it before the walk launches", async () => {
-    // The source's terminal walk settled the task (usually failed); the fork
-    // resumes that work, so the task-keyed surfaces must see it open again.
+  it("a fork's start reopens the settled task its source failed, before the walk launches", async () => {
     const { port, assemblyLineId } = await seededPort("implementation");
     const reopened: string[] = [];
     const { deps, calls } = makeDeps(port, {
@@ -161,13 +158,10 @@ describe("createStartEventHandler", () => {
       createStartEventHandler(deps)(params(assemblyLineId, "implementation")),
     ).rejects.toThrow("kube API unavailable");
 
-    // The row stays running — the retried event re-runs markRunning + advance.
     expect(port.rows[0]).toMatchObject({ status: "running" });
   });
 
-  it("routes a detect-shaped definition through the same event-driven walk", async () => {
-    // Detection lines migrated onto the standard machinery: their detect node is
-    // a station CR like any other; job_runs bookkeeping rides args.job_run_id.
+  it("routes a detect-shaped definition (detect node as a station CR, job_runs via args.job_run_id) through the same event-driven walk", async () => {
     const { port, assemblyLineId } = await seededPort("spec-drift", null);
     const { deps, calls } = makeDeps(port);
 
@@ -200,7 +194,7 @@ describe("createStartEventHandler", () => {
     expect(calls.advanced).toEqual([]);
   });
 
-  it("notifies the failure when a task-less start names an unknown definition", async () => {
+  it("notifies the failure once when a task-less start names an unknown definition, not again on a redelivered event", async () => {
     const { port, assemblyLineId } = await seededPort(
       "no-such-definition",
       null,
@@ -215,7 +209,6 @@ describe("createStartEventHandler", () => {
     await createStartEventHandler(deps)(
       params(assemblyLineId, "no-such-definition", null),
     );
-    // A redelivered event must not notify again — the row is already terminal.
     await createStartEventHandler(deps)(
       params(assemblyLineId, "no-such-definition", null),
     );
@@ -223,10 +216,7 @@ describe("createStartEventHandler", () => {
     expect(notified).toEqual([{ id: assemblyLineId, outcome: "error" }]);
   });
 
-  it("marks a task-backed single-CR row running without walking (watcher owns its lifecycle)", async () => {
-    // Total coverage: single-CR task types (onboard, review, runbook-without-yaml)
-    // get an assembly_lines row but no builtin definition. The row is a run record,
-    // not a walk — the agent-watcher finishes it when the task's one CR is terminal.
+  it("marks a task-backed single-CR row (onboard/review/runbook-without-yaml: run record, no builtin definition) running without walking, watcher owns its lifecycle", async () => {
     const { port, assemblyLineId } = await seededPort("onboard");
     const { deps, calls } = makeDeps(port);
 
@@ -246,10 +236,7 @@ describe("createStartEventHandler", () => {
   });
 });
 
-// ── Definition hashing (specs/fork-rerun-from-node FR4): the start handler is
-//    the one place that holds both the row id and the resolved definition, so it
-//    is where the graph a run executed gets recorded.
-describe("createStartEventHandler definition hashing", () => {
+describe("createStartEventHandler definition hashing (specs/fork-rerun-from-node FR4 — the one place holding both the row id and resolved definition, so where the graph a run executed gets recorded)", () => {
   it("stamps the resolved definition's content hash on the row", async () => {
     const { port, assemblyLineId } = await seededPort("implementation");
     const { deps } = makeDeps(port);
@@ -265,9 +252,7 @@ describe("createStartEventHandler definition hashing", () => {
     });
   });
 
-  it("stamps the CLONE of the resolved blueprint, stations already resolved", async () => {
-    // The run must stop depending on a file that can change under it, so the
-    // graph it will walk is recorded here, once, beside the hash.
+  it("stamps the CLONE of the resolved blueprint, stations already resolved, so the run stops depending on a file that can change under it", async () => {
     const { port, assemblyLineId } = await seededPort("implementation");
     const { deps } = makeDeps(port);
 

@@ -1,21 +1,4 @@
-// The factory's stop button for an account-wide LLM outage (#1455).
-//
-// On 2026-08-20 the Anthropic account ran dry and the Floor kept dispatching into
-// it for two hours: twelve pods, twelve `npm ci` bootstraps, twelve user-visible
-// failures somebody then had to retry by hand. Every one of them was decided
-// before the pod started — the account had no credit, so the run had no chance.
-//
-// A blocked run is PARKED, never failed: `advanceLine` returns before it mints a
-// station-run row, so the run stays `running` with no open node and the reaper's
-// existing "running, no open node -> advanceLine" arm re-drives it every 60s at
-// no cost. Nothing is finished, so no failure notice fires and no author is told
-// their work died. When the gate clears, the walk simply carries on.
-//
-// State is in-memory, which is sound for the same reason the SSE bus and the
-// billing-alert throttle are: floor-helm pins `replicaCount: 1`. It is also cold
-// on boot, so a rollout mid-outage re-opens the gate and the next failure re-trips
-// it — one wasted pod per rollout, against a durable flag that would need a write
-// path the Floor's read-only settings binding does not have.
+// The factory's stop button for an account-wide LLM outage (#1455) — a blocked run is PARKED (not failed) via the reaper's existing re-drive, and state is in-memory since floor-helm pins `replicaCount: 1`.
 
 /** Failure classes that mean the ACCOUNT is down, not this run. */
 const ACCOUNT_WIDE = new Set<string>(["anthropic-credit"]);

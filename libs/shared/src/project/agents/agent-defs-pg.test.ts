@@ -7,13 +7,6 @@ import {
 import type { AgentDefsPort } from "./agent-defs-port.js";
 import type { PgPool } from "../../memory-store.js";
 
-/**
- * PgAgentDefs reads/writes lore.agent_definitions through a fake PgPool (the house DB-
- * boundary stub) — proving SQL/binding + the project→org→yaml merge without a
- * live database. The yaml base supplies the bottom layer (prompt) so seeded org
- * rows can leave it null.
- */
-
 type Row = Record<string, unknown>;
 
 const yamlBase: AgentDefsPort = {
@@ -57,7 +50,6 @@ function fakePool(
   };
 }
 
-// A seeded org row carries the scalar knobs but leaves prompt NULL (inherits yaml).
 const orgRow: Row = {
   name: "general",
   model: "claude-sonnet-4-6",
@@ -79,8 +71,8 @@ describe("PgAgentDefs", () => {
 
     expect(await store.resolve("re-cinq/lore", "general")).toMatchObject({
       name: "general",
-      model: "claude-sonnet-4-6", // from the seeded org row
-      prompt: "YAML: {description}", // inherited from the yaml base
+      model: "claude-sonnet-4-6",
+      prompt: "YAML: {description}",
       project_id: null,
     });
   });
@@ -97,9 +89,9 @@ describe("PgAgentDefs", () => {
     );
 
     expect(await store.resolve("re-cinq/re-plan", "general")).toMatchObject({
-      model: "claude-haiku-4-5-20251001", // project wins
-      timeout_minutes: 30, // inherited from org
-      prompt: "YAML: {description}", // inherited from yaml
+      model: "claude-haiku-4-5-20251001",
+      timeout_minutes: 30,
+      prompt: "YAML: {description}",
       project_id: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
     });
   });
@@ -126,8 +118,6 @@ describe("PgAgentDefs", () => {
   });
 
   it("qualifies selected columns so the lore.repos JOIN is not ambiguous", async () => {
-    // lore.repos also has a `name` column — an unqualified SELECT throws
-    // "column reference name is ambiguous" against a real database.
     const capture: Array<{ text: string; params?: unknown[] }> = [];
     const store = new PgAgentDefs(
       fakePool(() => [orgRow], capture),
@@ -346,7 +336,6 @@ describe("PgAgentDefs.update with a pod_resources write", () => {
 });
 
 describe("qualifiedStationRef", () => {
-  /** Captures the SQL so the guard's shape can be asserted without a database. */
   function capturingPool(rows: Row[]) {
     const capture: Array<{ text: string; params?: unknown[] }> = [];
 
@@ -372,9 +361,6 @@ describe("qualifiedStationRef", () => {
   });
 
   it("excludes an override every cluster refused, so dispatch cannot point at a CR that will never exist", async () => {
-    // The guard lives in SQL: the row is filtered out, so the same empty result
-    // as "no override" comes back — and the caller falls back to the org
-    // default rather than failing with Station or AgentDefinition not found.
     const { pool, capture } = capturingPool([]);
 
     await qualifiedStationRef(pool, "code-review", "re-cinq/lore");

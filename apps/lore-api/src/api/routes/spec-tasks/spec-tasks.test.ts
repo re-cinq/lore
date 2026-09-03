@@ -7,12 +7,6 @@ import {
   LEGACY_TOKEN,
 } from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
 
-/**
- * The spec-task DAG endpoints are thin bindings over the shared queue mechanics
- * (PgTaskQueue, tested against its own in-memory double), so the queue module is
- * stubbed here and these tests cover the HTTP contract: params in, JSON out,
- * status codes.
- */
 vi.mock(
   "@re-cinq/lore-server-core/features/pipeline/tasks.js",
   async (orig) => ({

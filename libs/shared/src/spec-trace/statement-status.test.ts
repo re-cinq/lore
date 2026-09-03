@@ -7,14 +7,6 @@ import * as dgraph from "dgraph-js-http";
 import { deriveStatementStatus } from "./statement-status.js";
 import { upsertTraceLink } from "./trace-link.js";
 
-/**
- * deriveStatementStatus (spec-traceability-graph, Phase 4 / T242) — derives a
- * Statement's STATUS from its TraceLink evidence tiers, against the REAL local
- * Dgraph cluster (no mocks). Container-gated: skips when Dgraph isn't reachable.
- *
- * KERNEL facet: a Statement with NO TraceLinks derives to "untested".
- */
-
 const DGRAPH_HTTP = process.env.DGRAPH_HTTP ?? "http://localhost:8081";
 const APPLIER = join(
   findRepoRoot(),
@@ -67,7 +59,7 @@ describe.skipIf(!reachable)("deriveStatementStatus (live Dgraph)", () => {
         });
       }
     } catch {
-      // best-effort cleanup must never mask the assertion
+      void 0;
     } finally {
       await txn.discard().catch(() => {});
     }
@@ -96,7 +88,7 @@ describe.skipIf(!reachable)("deriveStatementStatus (live Dgraph)", () => {
         });
       }
     } catch {
-      // best-effort cleanup must never mask the assertion
+      void 0;
     } finally {
       await txn.discard().catch(() => {});
     }

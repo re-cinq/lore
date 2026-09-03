@@ -2,19 +2,11 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import { FakeLlm, Llm } from "@re-cinq/lore-shared";
 import type { PgPool } from "@re-cinq/lore-shared";
 
-// The embedding call is the one seam that must be faked: the real
-// getQueryEmbedding reaches for GCP credentials and returns null off-cluster,
-// which would skip the whole contradiction path (it only runs on a non-null
-// embedding). A fixed vector keeps every case deterministic.
 vi.mock("../../platform/db.js", () => ({
   getQueryEmbedding: vi.fn(async () => [0.1, 0.2, 0.3]),
 }));
 
 import { extractFacts, extractFactsFromEpisode } from "./facts.js";
-
-// A scripted pool returns rows by matching the SQL text and records every
-// (sql, params) it saw, so each test asserts on the exact statements and binds
-// the real extraction path issues — no live Postgres.
 
 interface QueryCall {
   sql: string;

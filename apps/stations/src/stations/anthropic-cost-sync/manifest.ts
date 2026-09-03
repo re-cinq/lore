@@ -1,12 +1,6 @@
 import type { SweepStationModule } from "../lib/station.js";
 
-/**
- * Import the Anthropic daily cost report.
- *
- * A single data operation on a schedule, so it runs beside the data rather than
- * in a pod of its own. The host supplies the port; this package is shared with a
- * pod that has none.
- */
+// Imports the Anthropic daily cost report — a single scheduled data op that runs beside the data rather than in its own pod; the host supplies the port since this package is shared with a pod that has none.
 export const anthropicCostSync: SweepStationModule = {
   manifest: {
     name: "anthropic-cost-sync",

@@ -4,25 +4,13 @@ import { selectList } from "./lib/row.js";
 import { PIPELINE_TASK_COLUMNS } from "./models/pipeline-task.js";
 import { TASK_EVENT_COLUMNS } from "./models/task-event.js";
 
-/**
- * Pipeline-task CRUD over the pipeline.tasks / pipeline.task_events tables.
- * Relocated from mcp-server/src/pipeline.ts so the SQL lives once — mcp's
- * pipeline.ts re-exports these (and the agent's inline task-status SQL can adopt
- * them too). Pool-based (not the repo-bound facade) because these are
- * task-id-keyed, cross-repo operations. Behavior is byte-for-byte the original.
- */
+/** Pipeline-task CRUD over pipeline.tasks/pipeline.task_events; relocated from mcp-server/src/pipeline.ts so the SQL lives once, pool-based since these are cross-repo. */
 
-/** Trust level → allowed task types. The createTask gate reads
- *  lore.repos.settings.trust.level. Relocated from mcp's pipeline.ts. */
-// Feature planning produces only analysis and a spec-doc PR (no code), so it is
-// allowed from the docs tier up (ADR-027 / specs/7-feature-planning). One line now
-// spans a feature's whole life, so there is no separate finalize task type to list.
+/** Trust level → allowed task types (createTask gate reads lore.repos.settings.trust.level). */
+// Feature planning is allowed from the docs tier up (ADR-027 / specs/7-feature-planning) — analysis + a spec-doc PR only, no code.
 const FEATURE_PLANNING = ["feature-planning"];
 
-// Onboarding is allowed at every tier: it produces a docs-only scaffolding PR
-// and is gated against duplicates by its own dedicated guard (onboard-guard.ts).
-// Restricting it to `full` only 500s the reonboard repair path on repos the
-// trust ladder has auto-promoted below that.
+// Onboarding is allowed at every tier (docs-only PR, deduped by onboard-guard.ts) — restricting to `full` 500s reonboard on auto-demoted repos.
 export const TRUST_LEVELS: Record<string, string[]> = {
   docs: ["gap-fill", "runbook", "onboard", ...FEATURE_PLANNING],
   tests: ["gap-fill", "runbook", "onboard", "review", ...FEATURE_PLANNING],
@@ -50,11 +38,7 @@ export const TRUST_LEVELS: Record<string, string[]> = {
   ],
 };
 
-/**
- * Throws when the repo's trust level does not allow the task type; a missing or
- * unknown level passes (backward compatibility). Exported so the in-memory task
- * store applies the exact same gate as {@link createTask}.
- */
+/** Throws when trust level forbids the task type; a missing/unknown level passes (back-compat). Exported so the in-memory task store applies the same gate as {@link createTask}. */
 export function enforceTrustAllowsTaskType(
   trustLevel: string | undefined,
   taskType: string,
@@ -125,8 +109,7 @@ export interface TaskListRow {
   updated_at: string;
 }
 
-/** Throw when the repo's trust level forbids the task type; any other failure
- * (missing row, read error) is non-fatal. */
+/** Throw when trust level forbids the task type; any other failure (missing row, read error) is non-fatal. */
 async function enforceRepoTrustForTaskType(
   pool: PgPool,
   repo: string,
@@ -261,9 +244,7 @@ export async function getTask(
   pool: PgPool,
   taskId: string,
 ): Promise<(PipelineTaskRow & { events: Record<string, unknown>[] }) | null> {
-  // The MODEL's columns, not `SELECT *`: the read is published as a contract,
-  // and a wildcard cannot state what it returns. A column the table loses now
-  // fails here instead of quietly vanishing from the body.
+  // The MODEL's columns, not `SELECT *` — the read is a published contract, so a dropped column fails here instead of vanishing silently.
   const { rows: tasks } = await pool.query<PipelineTaskRow>(
     `SELECT ${selectList(PIPELINE_TASK_COLUMNS)} FROM pipeline.tasks WHERE id = $1`,
     [taskId],
@@ -306,12 +287,7 @@ export async function listTasks(
   return { tasks: rows, total: countRows[0].total as number };
 }
 
-/**
- * Columns setTaskStatus may write alongside `status` (allowlisted to prevent SQL
- * injection via dynamic keys). Superset of what the agent's setStatus needed.
- * Exported so the in-memory task store filters `extra` identically — note this
- * gate SKIPS unknown keys silently (unlike setColumns, which throws).
- */
+/** Columns setTaskStatus may write alongside `status` (allowlisted against SQL injection via dynamic keys); silently skips unknown keys, unlike setColumns which throws. */
 export const ALLOWED_TASK_COLUMNS = new Set([
   "pr_url",
   "pr_number",
@@ -328,11 +304,7 @@ export const ALLOWED_TASK_COLUMNS = new Set([
   "priority",
 ]);
 
-/**
- * Update a task's status (+ updated_at) and any allowlisted extra columns.
- * Does NOT record an event — callers that need the audit event call recordEvent
- * (or use updateTaskStatus, which composes both). This is the agent's setStatus.
- */
+/** Updates status + updated_at + allowlisted extra columns; does NOT record an event (use updateTaskStatus for that, or call recordEvent yourself). */
 export async function setTaskStatus(
   pool: PgPool,
   taskId: string,
@@ -358,12 +330,7 @@ export async function setTaskStatus(
   );
 }
 
-/**
- * Compare-and-set status flip: only updates when the row is still in
- * `expectedStatus`, returning true iff this caller won the race. The guard
- * (`AND status = …`) is what the inline Floor writes carried to avoid
- * double-processing; `setTaskStatus` (no guard) cannot replace those.
- */
+/** Compare-and-set status flip — updates only when the row is still `expectedStatus`, returning true iff this caller won the race (guards against double-processing). */
 export async function setTaskStatusIf(
   pool: PgPool,
   taskId: string,
@@ -444,9 +411,7 @@ export async function cancelTask(
 
   enforceTrue(task, Error, "Task not found");
   enforceTrue(
-    // `completed` belongs here: a finished task has nothing left to cancel. Its
-    // absence made the same click answer 400 in the web UI (which guards with
-    // its own isCancellable) and 200 through this seam.
+    // `completed` belongs here: its absence made the same click answer 400 in the web UI and 200 through this seam.
     !["completed", "merged", "failed", "cancelled"].includes(task.status),
     Error,
     `Cannot cancel task in ${task.status} state`,
@@ -456,16 +421,7 @@ export async function cancelTask(
   return { task_id: taskId, status: "cancelled" };
 }
 
-/**
- * Run-now: jump a queued task to the front of the worker's poll order.
- *
- * The sibling of `cancelTask`, and deliberately so — an unknown id or a task
- * already past `pending` is REFUSED rather than silently no-op'ing, because a
- * caller that reads "ok" while nothing moved cannot tell the difference. The
- * escalation lands in `pipeline.task_events` like every other transition, with
- * the priority it left behind, so the audit trail explains why a task ran out
- * of order.
- */
+/** Run-now: jumps a queued task to the front of the poll order; refuses (rather than no-op) an unknown id or a task already past `pending`, and logs the escalation to pipeline.task_events. */
 export async function escalateTask(
   pool: PgPool,
   taskId: string,
@@ -490,16 +446,7 @@ export async function escalateTask(
   return { task_id: taskId, priority: "immediate" };
 }
 
-/**
- * Queue a revision of a task from human feedback: a follow-up task on the SAME
- * branch and PR, at immediate priority because a person is waiting on the loop,
- * plus the request recorded on the parent and the parent moved to
- * `revision-requested`.
- *
- * One seam rather than three writes at the call site: the event names the
- * revision it spawned, so a parent whose event is missing leaves an orphan the
- * timeline cannot explain.
- */
+/** Queues a revision of a task from human feedback: a follow-up task on the SAME branch/PR at immediate priority, with the parent moved to `revision-requested`. */
 export async function reviseTask(
   pool: PgPool,
   taskId: string,

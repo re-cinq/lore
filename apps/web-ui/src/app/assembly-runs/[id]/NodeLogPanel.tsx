@@ -21,9 +21,7 @@ export interface NodeLogPanelProps {
   label: string;
 }
 
-/** One collapsible live-log panel for one node attempt (its Agent CR's pod).
- *  Logs are read on-demand from the cluster and vanish when the pod is cleaned
- *  up; older runs fall back to retained logs from Cloud Logging. */
+// One collapsible live-log panel for one node's pod, read on-demand; older runs fall back to retained Cloud Logging.
 export default function NodeLogPanel({
   assemblyLineId,
   agentCrName,

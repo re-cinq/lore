@@ -1,14 +1,3 @@
-// Every `prompt_ref` a shipped assembly line names must exist as a task type in
-// scripts/task-types.yaml — the file the Floor resolves node prompts from.
-//
-// This is a drift guard for a failure that produced no error for weeks: the
-// resolver fell back to `general` for an unknown ref, so `push-only` (named by
-// five lines) and `address-feedback` (named by the implementation line) both ran
-// the generic "complete the following task" prompt. The push nodes committed
-// without pushing and reported success; no line opened a PR (re-cinq/lore#1329).
-// The resolver now throws, which turns the same drift into a failed node — and
-// this test turns it into a failed build, before it reaches a cluster.
-
 import { describe, it, expect } from "vitest";
 import { readFile } from "node:fs/promises";
 import { parse } from "yaml";
@@ -24,14 +13,6 @@ async function declaredTaskTypes(): Promise<Set<string>> {
   return new Set(Object.keys(parsed.task_types ?? {}));
 }
 
-/**
- * What every agent node resolves its prompt by, keyed to the lines that use it.
- *
- * `prompt_ref ?? type` mirrors the Floor's own rule (`advance.ts`), so a node
- * that names no ref is checked through the same fallback it will actually take
- * at dispatch — the guard has to match the resolver or it guards a different
- * program.
- */
 async function referencedPrompts(): Promise<Map<string, string[]>> {
   const refs = new Map<string, string[]>();
   const agentNodeRefs = [...(await loadBuiltinAssemblyLines())].flatMap(

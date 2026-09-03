@@ -1,15 +1,7 @@
-/** How much of an issue body a ticket description carries. Issue bodies are
- *  unbounded (a generated link report ran ~40KB) and the description is
- *  rendered into every loop pod's prompt, so the tail past the cap is cut and
- *  marked — the pod can still read the rest through the issue URL in its
- *  context bundle. */
+// How much of an issue body a ticket description carries — issue bodies are unbounded (~40KB seen) and rendered into every loop pod's prompt, so the tail past the cap is cut and marked; the pod can still read the rest via the issue URL.
 const BODY_CAP = 16_000;
 
-/** The ticket text an implementation-loop pod defines done against: the issue
- *  title AND body. Minting `picked.title` alone gave the DoD node a one-line
- *  ticket, and a DoD written from a title is how bowman-ui #11 redefined its
- *  issue into a different problem (#1745 — the scope-fidelity contract asks
- *  the agent to quote the ticket's central claim, which it must be given). */
+// The ticket text an implementation-loop pod defines done against: title AND body — `picked.title` alone gave the DoD node a one-line ticket, which is how bowman-ui #11 redefined its issue into a different problem (#1745).
 export function implementationTicketDescription(issue: {
   title: string;
   body?: string;

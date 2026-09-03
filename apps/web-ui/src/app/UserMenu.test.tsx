@@ -2,9 +2,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, cleanup } from "@testing-library/react";
 
-// next-auth's useSession is the only data source: drive it through a mutable
-// fn so each test picks the session shape (null / no-user / image / name /
-// email-fallback) without re-mocking the module. signOut is a spy we assert on.
 type MockUser = {
   name?: string | null;
   email?: string | null;

@@ -1,11 +1,4 @@
-/**
- * Pure CI-tests → event mapping (layer 1). The lore-code-trace binary posts a
- * test report (`{repo, commit, branch, tests, results}`) after running a repo's
- * suite in CI; this maps it to one `internal.ingest.spec_trace` event of kind
- * `test-report` — the same event the mcp /test-report route emitted, so the
- * registry + specTrace job stay put. No dedupe key — re-posting a commit must
- * re-ingest (content-hash idempotent). No IO; the listener does bearer auth + insert.
- */
+// Pure CI-tests → event mapping (layer 1): maps the lore-code-trace binary's posted test report to one `internal.ingest.spec_trace` event of kind `test-report` (same event the old mcp /test-report route emitted); no dedupe key since re-posting a commit must re-ingest (content-hash idempotent).
 
 import type { EventInput } from "../main-loop/types.js";
 

@@ -3,14 +3,6 @@ import { randomUUID } from "node:crypto";
 import { Pool } from "pg";
 import { PostgresMemoryStore } from "./postgres-memory-store.js";
 
-/**
- * PostgresMemoryStore (memory-dgraph-migration AC1) — each method lifts the
- * current SQL from mcp-server/src/memory.ts verbatim, tested against the REAL
- * local Postgres (no mocks). Container-gated: skips when Postgres isn't
- * reachable so `npm test` passes without a container. Bring one up with
- * `npm run db:up`.
- */
-
 const PG_CONFIG = {
   host: "localhost",
   port: 5432,
@@ -198,10 +190,6 @@ describe.skipIf(!reachable)(
     });
   },
 );
-
-// Scripted doubles below (no container gate): the transactional-write and
-// ttl-parameterization contracts, asserted on the exact SQL/params the store
-// issues.
 
 interface RecordedCall {
   sql: string;

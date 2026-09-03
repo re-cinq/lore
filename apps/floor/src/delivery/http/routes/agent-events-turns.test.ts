@@ -1,8 +1,3 @@
-// The turn-store tee on POST /api/agent-events (specs/turn-level-transcript-store
-// FR3). A separate file from agent-events.test.ts because that one carries #L
-// anchors from specs/assembly-line-run-viz and its module mock would have to be
-// widened in place, shifting every anchor below it.
-
 import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
 import { buildServer } from "../server.js";
 
@@ -12,7 +7,6 @@ const insertTurns = vi.fn();
 const write = vi.fn();
 
 vi.mock("../../../kernel/queues.js", () => ({
-  // The logs route resolves the cluster agent from here.
   clusterAgent: () => ({}),
   usage: () => ({ logLlmCall }),
   pipeline: () => ({
@@ -113,8 +107,6 @@ describe("POST /api/agent-events dropped-turn signal", () => {
   });
 
   it("warns with a count when redaction drops turns, and still records cost", async () => {
-    // Re-spying an already-spied method hands back the SAME mock, calls and
-    // all, so clear rather than trust a fresh spy.
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
 
     warn.mockClear();
@@ -131,8 +123,6 @@ describe("POST /api/agent-events dropped-turn signal", () => {
   });
 
   it("warns about nothing when every line survives redaction", async () => {
-    // Re-spying an already-spied method hands back the SAME mock, calls and
-    // all, so clear rather than trust a fresh spy.
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
 
     warn.mockClear();

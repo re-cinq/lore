@@ -1,13 +1,4 @@
-/**
- * The cluster-agent's registered identity — the `{id, token}` pair
- * `POST /api/cluster-agents/register` returns exactly once. Losing it means the
- * name is unrecoverable (re-registering a known name without `current_token` is
- * a 409 by design), so it is persisted outside the process.
- *
- * File-backed for now: the standalone satellite chart (FR6) mounts a Kubernetes
- * Secret at this path so pod restarts do not re-register; until the chart
- * lands, the default path under $HOME serves local runs.
- */
+// The cluster-agent's registered {id, token} identity, returned exactly once by register — persisted outside the process since losing it 409s (FR6, standalone satellite chart mounts a Secret; $HOME path serves local runs meanwhile).
 
 import { promises as fs } from "node:fs";
 import os from "node:os";
@@ -25,9 +16,7 @@ export interface IdentityStore {
   save(identity: ClusterAgentIdentity): Promise<void>;
 }
 
-/** Where the identity persists — decided at boot, before anything async, so a
- *  half-configured Secret store refuses to start instead of idling behind a
- *  green /healthz with a claim loop that never began. */
+/** Where the identity persists — decided at boot so a half-configured Secret store refuses to start instead of idling behind a green /healthz. */
 export type IdentityStoreConfig =
   | { kind: "file"; path: string }
   | { kind: "secret"; name: string; namespace: string; key: string };
@@ -63,13 +52,7 @@ export function identityFilePath(env: NodeJS.ProcessEnv): string {
   );
 }
 
-/**
- * Read a stored identity, or null when it is not one.
- *
- * Shared by both stores: the shape they persist is the same shape, and a second
- * copy of this check is a second place for it to drift — the two warnings had
- * already worded themselves differently.
- */
+/** Read a stored identity, or null when it is not one. Shared by both stores so the parse check never drifts between them. */
 export function parseIdentity(raw: string): ClusterAgentIdentity | null {
   const parsed = JSON.parse(raw) as Partial<ClusterAgentIdentity>;
 
@@ -95,8 +78,7 @@ export class FileIdentityStore implements IdentityStore {
     try {
       return parseIdentity(raw);
     } catch (err) {
-      // A corrupt file is a fresh start, not a crash: registration will mint a
-      // new identity for a new name, or 409 loudly if the name is taken.
+      // A corrupt file is a fresh start, not a crash — registration mints a new identity or 409s loudly if the name is taken.
       console.warn(
         `[cluster-agent] identity file ${this.filePath} is unreadable (${errorMessage(err)}) — treating as unregistered`,
       );

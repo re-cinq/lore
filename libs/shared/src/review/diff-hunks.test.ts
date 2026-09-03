@@ -25,7 +25,6 @@ describe("commentablePositions", () => {
   it("marks added and context lines commentable on the right (new) side", () => {
     const pos = commentablePositions(diff);
 
-    // context line 10, added lines 11 and 12, context line 13
     expect(
       [...(pos.right.get("src/a.ts") ?? [])].sort((a, b) => a - b),
     ).toEqual([10, 11, 12, 13]);
@@ -37,7 +36,6 @@ describe("commentablePositions", () => {
   it("marks removed and context lines commentable on the left (old) side", () => {
     const pos = commentablePositions(diff);
 
-    // context 10, removed 11, context 12 (old numbering)
     expect([...(pos.left.get("src/a.ts") ?? [])].sort((a, b) => a - b)).toEqual(
       [10, 11, 12],
     );

@@ -1,6 +1,4 @@
-/** $/token for one model, shared shape between vendor pricing tables
- *  (`anthropic-provider.ts`, `gemini-provider.ts`) — each vendor still owns
- *  its own rates, only the shape is common. */
+/** $/token for one model — shape shared between vendor pricing tables, each vendor still owns its own rates. */
 export interface ModelPricing {
   inputPerToken: number;
   outputPerToken: number;

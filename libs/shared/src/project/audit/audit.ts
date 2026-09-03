@@ -1,9 +1,6 @@
 import type { AuditPort, AuditLogEntry } from "./audit-port.js";
 
-/**
- * project.audit — the repo-bound audit surface. Stamps the bound repo onto
- * every entry so callers only supply the event, task, and payload.
- */
+/** project.audit — repo-bound audit surface; stamps the bound repo onto every entry so callers only supply event, task, payload. */
 export class Audit {
   constructor(
     private readonly repo: string,

@@ -68,11 +68,7 @@ describe("classifyComment", () => {
     });
   });
 
-  it("propagates a model failure instead of reporting the comment as ignorable", async () => {
-    // It used to answer `ignore` for ANY failure — no model credential, no
-    // binary, rate limit, exhausted account — and the station then reported
-    // success. Every human PR comment was dropped and nothing said so. "ignore"
-    // has to mean the model said ignore.
+  it("propagates a model failure instead of reporting the comment as ignorable — it used to silently drop every human comment on any failure", async () => {
     Llm.setInstance({
       vendor: "throwing",
       complete: () => Promise.reject(new Error("down")),

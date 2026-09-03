@@ -9,24 +9,12 @@ import { PgCatalogStatus } from "@re-cinq/lore-shared/project/agents/catalog-sta
 import { bearerScope } from "../../../server/plugins/bearer-scope.js";
 import { zodResponse } from "../../../server/plugins/zod-response.js";
 
-/**
- * GET /api/agent-definitions/usage — where each catalog entry is actually
- * dispatched from: every blueprint node that resolves to it, inherited or
- * explicit. The catalog is the roster and the blueprints are one consumer, so
- * a definition with no reference here is either a blueprint-less task type
- * (runbook, onboard — dispatched as a single Agent CR by name) or genuinely
- * dormant; which of the two is the CALLER's call, since it knows the
- * definition's execution_mode. Built from the builtin blueprints baked into
- * this image — no database, no per-repo variance (custom per-repo lines are a
- * later concern, and per-repo overrides inherit their base name's usage).
- */
+// Where each catalog entry dispatches from; a definition with no reference here is either blueprint-less (runbook/onboard) or dormant — the caller decides which.
 
 const UsageRefSchema = z.object({
   blueprint: z.string(),
   node_id: z.string(),
-  /** True when the station name came from the node's type or its line rather
-   *  than an explicit station_ref — the reference that silently changes when a
-   *  node is reused on another line. */
+  // True when the station name came from the node's type/line, not an explicit station_ref — can silently change if the node is reused.
   inherited: z.boolean(),
 });
 
@@ -45,9 +33,7 @@ const UsageResponse = z.object({
       used_by: z.array(UsageRefSchema),
     }),
   ),
-  /** What each cluster actually did with each definition. Empty without a
-   *  database, or before any cluster has reported — an absence of verdicts is
-   *  not a claim that everything applied. */
+  // What each cluster did with each definition; empty (no db, or nothing reported yet) is not a claim everything applied.
   applied: z.array(ApplyStatusSchema),
 });
 
@@ -87,8 +73,7 @@ export function agentDefinitionUsageRoute(
     }),
     handler: async (_request, h) => {
       const pool = getPool();
-      // No database is not a claim that nothing applied — it is the absence of
-      // an answer, and the caller renders it as unknown.
+      // No database is not a claim that nothing applied — it is an absence the caller renders as unknown.
       const applied = pool
         ? (await new PgCatalogStatus(pool).list()).map((s) => ({
             name: s.name,

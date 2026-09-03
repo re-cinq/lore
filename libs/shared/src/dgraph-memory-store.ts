@@ -1,10 +1,4 @@
-/**
- * Dgraph implementation of the MemoryStore seam.
- *
- * Sibling of PostgresMemoryStore. Depends only on the DgraphClientPort the
- * seam owns — this module never imports the driver. Grows method-by-method
- * as later cycles triangulate version increment, delete, ttl, and list.
- */
+/** Dgraph implementation of the MemoryStore seam, sibling of PostgresMemoryStore; depends only on the injected DgraphClientPort, never imports the driver. */
 
 import { createHash, randomUUID } from "node:crypto";
 import type {
@@ -26,24 +20,12 @@ const FACT_SIMILARITY_THRESHOLD = 0.92;
 
 // ── Vector literal ───────────────────────────────────────────────────
 
-/**
- * Dgraph (via dgraph-js-http) demands a float vector as a STRING literal in
- * bracket form, e.g. "[0.1,0.2,0.3]". A raw JSON number array is rejected:
- * "Input for predicate ... of type vector is not vector. Did you forget to
- * add quotes before []?". This format is load-bearing domain knowledge, so it
- * lives in exactly one place — used by every write path and the search $vec.
- */
+/** Dgraph demands a float vector as a bracketed STRING literal (e.g. "[0.1,0.2,0.3]") — a raw JSON array is rejected; lives here once, used by every write path and $vec. */
 function toVectorLiteral(embedding: number[]): string {
   return `[${embedding.join(",")}]`;
 }
 
-/**
- * The optional embedding predicate, spread into a mutation's setJson. Returns
- * `{}` when there is no embedding so every write path stays free of the inline
- * ternary-spread. One definition of "how an embedding joins a mutation" — the
- * vector-literal rule lives here regardless of node type. The predicate defaults
- * to `Memory.embedding`; persistFact passes `Fact.embedding`.
- */
+/** The optional embedding predicate, spread into a mutation's setJson (`{}` when absent); predicate defaults to `Memory.embedding`, persistFact passes `Fact.embedding`. */
 function embeddingField(
   embedding?: number[],
   predicate = "Memory.embedding",
@@ -53,12 +35,7 @@ function embeddingField(
 
 // ── Latest-live-Memory query ─────────────────────────────────────────
 
-/**
- * The single definition of "the latest live Memory node for an (agent, key)".
- * Both writeMemory's existence check and readMemory root on this filter, so
- * the live-row predicate (is_deleted = false, highest version) lives in one
- * place. The TTL filter (expires_at) lives here too — an expired node is not live.
- */
+/** The single definition of "the latest live Memory node for an (agent, key)" — not-deleted, not-expired, highest version — shared by writeMemory and readMemory. */
 const LIVE_FILTER = `eq(Memory.is_deleted, false)
         AND (NOT has(Memory.expires_at) OR gt(Memory.expires_at, $now))`;
 
@@ -81,12 +58,7 @@ interface MemoryRow {
   version: number;
 }
 
-/**
- * Strip the `Memory.` predicate prefix off every key in a Dgraph row so call
- * sites destructure plain field names instead of repeating `"Memory.<field>"`
- * literals. `uid` carries no prefix and passes through untouched. The single
- * authoritative place the `Memory.` predicate naming is peeled back.
- */
+/** Strips the `Memory.` predicate prefix off every key in a Dgraph row so call sites destructure plain field names; `uid` passes through untouched. */
 function stripMemoryPrefix(
   row: Record<string, unknown>,
 ): Record<string, unknown> {
@@ -114,13 +86,7 @@ function toMemoryRow(row: Record<string, unknown>): MemoryRow {
   };
 }
 
-/**
- * Read the assigned uid of a blank node back out of a mutation result. The
- * structural cast over the driver's response shape lives here alone, so the
- * port boundary (this module never imports dgraph-js-http) is crossed in one
- * place instead of being re-typed at every create path. `label` is the blank
- * node name without the `_:` prefix (e.g. `"ent"` for `_:ent`).
- */
+/** Reads the assigned uid of a blank node back out of a mutation result; `label` is the blank node name without its `_:` prefix. */
 function newUid(mutateResult: unknown, label: string): string | undefined {
   return (mutateResult as { data?: { uids?: Record<string, string> } }).data
     ?.uids?.[label];
@@ -138,14 +104,7 @@ export interface GraphHop {
   valid_from?: string;
 }
 
-/**
- * Walk a `@recurse` tree depth-first and flatten it into per-hop `GraphHop`s.
- * At each Entity node, every active `Entity.out_rels` GraphRel becomes one
- * outgoing hop at the current graph-hop depth (1-based), then we descend into
- * that rel's target Entity at depth+1 until `maxDepth` hops. `GraphRel.target`
- * arrives as an object under `@recurse` (and the non-recurse path too); the
- * array form is normalized defensively.
- */
+/** Walks a `@recurse` tree depth-first, flattening it into per-hop `GraphHop`s until `maxDepth`; `GraphRel.target` arrives as an object under `@recurse` and is normalized defensively. */
 function flattenHops(
   entity: Record<string, unknown>,
   maxDepth: number,
@@ -317,12 +276,7 @@ export class DgraphMemoryStore implements MemoryStore {
     });
   }
 
-  /**
-   * Postgres-parity contradiction detection for facts. Over-fetches the agent's
-   * active facts by vector ANN, recomputes cosine in TS (Dgraph DQL cosine is
-   * awkward), and for every prior fact at/above threshold marks it inactive and
-   * records a FactConflict edge from old → new.
-   */
+  /** Postgres-parity contradiction detection: over-fetches active facts by vector ANN, recomputes cosine in TS, and marks every prior fact at/above threshold inactive with a FactConflict edge. */
   private async invalidateContradictions(
     agentId: string,
     embedding: number[],
@@ -600,13 +554,7 @@ export class DgraphMemoryStore implements MemoryStore {
     );
   }
 
-  /**
-   * Postgres-parity contradiction detection for graph edges: the source's
-   * active edges of this relation that point at a different target. Mirrors
-   * `source = $1 AND relation_type = $2 AND target != $3 AND valid_to IS NULL`.
-   * An edge already pointing at `targetUid` is the exact-duplicate case and is
-   * left untouched.
-   */
+  /** Postgres-parity contradiction detection for graph edges: the source's active edges of this relation pointing at a different target (an exact-duplicate target is left untouched). */
   private async findContradictedRels(
     sourceUid: string,
     relationType: string,
@@ -646,11 +594,7 @@ export class DgraphMemoryStore implements MemoryStore {
       return [];
     }
 
-    // `@recurse(depth: N)` counts PREDICATE levels, and one graph hop spans
-    // three (Entity → out_rels → target). Resolving the relation_type AND the
-    // target's name at hop H needs 2*H+1 levels; `depth` graph hops → 2*depth+1.
-    // `depth` is a validated integer, so inlining it carries no injection risk
-    // (dgraph-js-http won't interpolate a var inside a directive arg anyway).
+    // `@recurse(depth: N)` counts PREDICATE levels (3 per graph hop), so `depth` graph hops needs 2*depth+1 levels; `depth` is a validated integer, safe to inline.
     const levels = depth * 2 + 1;
 
     return this.withTxn(async (txn) => {

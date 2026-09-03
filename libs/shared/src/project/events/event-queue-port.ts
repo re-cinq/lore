@@ -4,11 +4,7 @@ import type { EventInsert } from "../../events.js";
 
 export type { EventInsert };
 
-/**
- * A claimed `pipeline.events` row (layer 2 of the Floor event bus). `id` is the
- * bigint serialized as a string by pg; `repo` is denormalized from `params.repo`
- * (NULL for org-wide cron/k8s events).
- */
+/** A claimed `pipeline.events` row (layer 2 of the Floor event bus); `repo` is denormalized from `params.repo` (NULL for org-wide cron/k8s events). */
 export interface EventRow {
   id: string;
   event_name: string;
@@ -25,32 +21,14 @@ export interface EventRow {
   handled_at: string | null;
 }
 
-/**
- * The `pipeline.events` queue mechanics: producers insert (idempotent on
- * `dedupe_key`); the loop atomically claims a batch and transitions each row
- * done/failed/dead; the reaper recovers crash-stuck rows and prunes terminal
- * ones. Single-sourced here so the event-bus SQL has one home; the Floor loop,
- * registry, and scheduler keep their orchestration.
- */
-/**
- * The producer half, alone.
- *
- * A producer needs to report and nothing else, and after ADR-044 it may not even
- * hold a pool — the Pg adapter and the HTTP reporter both satisfy this, so a
- * producer's dependency says "somewhere to report", not "the queue".
- */
+/** The `pipeline.events` queue mechanics: insert (idempotent on `dedupe_key`), claim/transition, reap/prune. Single-sourced here; the Floor loop/registry/scheduler keep their orchestration. */
+/** The producer half, alone — after ADR-044 a producer may not even hold a pool, so its dependency says "somewhere to report", not "the queue". */
 export type EventReporter = Pick<EventQueueRepository, "insert">;
 
 export interface EventQueueRepository {
   /** Insert one event, collapsing a redelivery when `dedupeKey` is set. */
   insert(input: EventInsert): Promise<void>;
-  /**
-   * Atomically claim up to `limit` runnable rows (pending/failed past
-   * backoff). `excludeEventNames` skips busy serial families at claim time so
-   * their waiting rows stay `pending` — parking them in `processing` behind an
-   * in-process queue would get them reaped as presumed-dead and re-run
-   * concurrently anyway.
-   */
+  /** Atomically claim up to `limit` runnable rows; `excludeEventNames` skips busy serial families so their waiting rows stay `pending` rather than get reaped and re-run concurrently. */
   claimBatch(limit: number, excludeEventNames?: string[]): Promise<EventRow[]>;
   markDone(id: string): Promise<void>;
   markFailed(id: string, error: string, backoffSeconds: number): Promise<void>;
@@ -61,13 +39,7 @@ export interface EventQueueRepository {
   pruneHandled(olderThanDays: number): Promise<number>;
 }
 
-/**
- * `EventRow` is the `Event` MODEL in the stored spelling — every key it declares
- * is a column of `pipeline.events`, asserted at compile time. The two are not
- * one type because the queue reads timestamps as the strings pg hands back for
- * this table, while the model states them as `Date`; the KEYS are what can rot,
- * and those are held together here.
- */
+/** `EventRow` is the `Event` MODEL in the stored spelling; every key it declares is asserted at compile time to be a column of `pipeline.events`. */
 type _EventRowKeysAreColumns = Assert<
   KeysAreColumns<EventRow, Event, typeof EVENT_COLUMNS>
 >;

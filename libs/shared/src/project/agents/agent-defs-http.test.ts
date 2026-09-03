@@ -4,11 +4,6 @@ import { createServer, type Server } from "node:http";
 import { AgentDefsHttp } from "./agent-defs-http.js";
 import type { AgentDefinition } from "./agent-defs-port.js";
 
-/**
- * AgentDefsHttp fetches the agent-definitions API — driven against a REAL local HTTP server
- * (no fetch mock). resolve returns the parsed def, 404 → null, and writes throw.
- */
-
 const general: AgentDefinition = {
   name: "general",
   model: "claude-haiku-4-5-20251001",

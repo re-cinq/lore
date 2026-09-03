@@ -1,14 +1,8 @@
-/**
- * Rules that decide what spec-drift acts on. Kept pure and separate from the
- * job so the doc-type filter, drift signal, dedup window, and failure
- * classification are unit-testable.
- */
-
+// Rules that decide what spec-drift acts on; kept pure and separate from the job so they're unit-testable.
 import type { TraceDocument } from "../index.js";
 import { OPEN_TASK_STATES } from "../project/tasks/task-store-port.js";
 
-/** Speckit artifacts that are prose, not named-symbol sources — scanning them
- * for "missing code symbols" yields permanent 100% false drift. */
+/** Speckit prose artifacts — scanning them for missing code symbols yields permanent 100% false drift. */
 const NON_ASSERTION_BASENAMES = new Set([
   "research",
   "plan",
@@ -27,16 +21,10 @@ export function isAssertionSource(filePath: string): boolean {
 /** Days a resolved (merged/completed/cancelled) spec keeps suppressing re-filing. */
 export const DRIFT_REFILE_COOLDOWN_DAYS = 14;
 
-/**
- * Days a *failed* drift task keeps suppressing re-filing. Short on purpose: a
- * failure is not a resolution, so genuine drift must resurface — but not the
- * same day. (A `failed` task that suppressed forever is what buried the #571
- * batch after its infra outage.)
- */
+// Short cooldown on purpose: a failure isn't a resolution, so drift must resurface — a forever-suppressing `failed` task buried the #571 batch after its infra outage.
 export const DRIFT_FAILED_REFILE_COOLDOWN_DAYS = 2;
 
-/** Task states where a drift loop is still in flight — always suppress a new task.
- * Single-sourced with gap-detect via the shared OPEN_TASK_STATES. */
+/** Task states where a drift loop is still in flight; single-sourced with gap-detect. */
 const OPEN_STATES = new Set<string>(OPEN_TASK_STATES);
 
 interface ExistingDriftTask {
@@ -44,11 +32,7 @@ interface ExistingDriftTask {
   created_at: string | Date;
 }
 
-/**
- * Skip creating a drift task when one is already in flight for the spec, or when
- * a resolved/failed one is still within its cooldown — stops the weekly duplicate
- * PRs without letting a failed task suppress real drift forever.
- */
+// Skips a drift task when one is already in flight or a resolved/failed one is within its cooldown — stops weekly duplicate PRs without suppressing real drift forever.
 export function shouldSkipDrift(
   existing: ExistingDriftTask[],
   now: Date,
@@ -84,12 +68,7 @@ export interface GraphDriftDecision {
   statements: DriftedStatement[];
 }
 
-/**
- * Decide drift from the spec-trace graph: a statement drifts when a binding test
- * fails (`violated`) or the projection flagged it (`drifted`). Deterministic and
- * statement-level — no LLM, no symbol guessing. Pure markdown link-rot is owned
- * by the link-rot validate pass, so it does not surface here.
- */
+// A statement drifts when a binding test fails (`violated`) or the projection flagged it (`drifted`); deterministic, no LLM. Link-rot is owned by the validate pass, not here.
 export function decideGraphDrift(doc: TraceDocument): GraphDriftDecision {
   const headingByUid = new Map(
     (doc.sections ?? []).map((s) => [s.uid, s.heading]),
@@ -144,12 +123,7 @@ export interface HeuristicDriftDecision {
   scored: number;
 }
 
-/**
- * Symbol-membership drift, de-noised: only score assertions whose kind maps to a
- * top-level symbol (endpoints/fields/methods are non-authoritative and produced
- * the healthz false positive), and require both a divergence ratio over the
- * threshold and an absolute floor of missing symbols.
- */
+// Scores only top-level-symbol kinds (endpoints/fields/methods produced the healthz false positive); requires both a divergence ratio over threshold and an absolute floor of missing symbols.
 export function decideHeuristicDrift(
   assertions: DriftAssertion[],
   knownSymbols: Set<string>,

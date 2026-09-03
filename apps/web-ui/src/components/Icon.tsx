@@ -8,8 +8,7 @@ import { useTheme } from "@/lib/theme/ThemeProvider";
 import styles from "./Icon.module.scss";
 import { ICONS, type IconName } from "./icon-map";
 
-// Register both collections once, at module load, so icons render inline with
-// no network fetch (required under Next's `output: standalone`).
+// Registered once at module load so icons render inline with no network fetch (required under Next's `output: standalone`).
 addCollection(lucideIcons as IconifyJSON);
 addCollection(pixelIcons as IconifyJSON);
 
@@ -17,12 +16,7 @@ interface IconProps {
   name: IconName;
   size?: number;
   className?: string;
-  /**
-   * Opt-in for icons sitting inside running text (not a flex container): an
-   * inline SVG sits on the text baseline and reads as "floating" next to the
-   * text, so -0.125em optically centers it. Opt-in rather than a default so a
-   * caller's own alignment (className or flex) is never silently overridden.
-   */
+  /** Opt-in (not default) baseline offset for icons inside running text, so a caller's own alignment is never silently overridden. */
   inline?: boolean;
   "aria-label"?: string;
 }

@@ -1,15 +1,4 @@
-// Where a producer reports its events.
-//
-// The same three-way shape `agentDefs` uses (`PgAgentDefs` / `AgentDefsHttp` /
-// `AgentDefsYaml`, selected on the environment in `project-factory`): the
-// event-router owns `pipeline.events` (ADR-044), so a producer that can see the
-// router reports over HTTP, and one that cannot falls back to the pool it
-// already holds.
-//
-// The fallback is for LOCAL DEVELOPMENT, where `npm start` brings up a Floor and
-// a Postgres but no router. It is NOT a silent degradation in a cluster: a
-// deployment that means to route and has lost `EVENT_ROUTER_URL` would write
-// directly and look healthy, so the choice is logged once at construction.
+// Where a producer reports its events: HTTP to the event-router (ADR-044) when reachable, else the local pool — logged once so a lost EVENT_ROUTER_URL in a cluster isn't a silent degradation.
 
 import { internalToken } from "../../http/internal-token.js";
 import { HttpEventReporter } from "./event-reporter-http.js";
@@ -25,25 +14,9 @@ import type {
 } from "./event-queue-port.js";
 
 export interface SelectReporterDeps {
-  /**
-   * The pool-backed reporter to fall back to — normally `pipeline().eventQueue`.
-   *
-   * A THUNK, not a value: resolving it usually means resolving a pool, and a
-   * process that reports to the router has no reason to hold one. Passing the
-   * value eagerly is what made lore-api demand a database in tests that had
-   * deliberately injected their own.
-   */
+  /** Pool-backed reporter to fall back to; a THUNK because eager resolution forced lore-api to demand a database even in tests with their own injected one. */
   local: () => EventReporter;
-  /**
-   * The bearer to present, when it is not the bus-wide one.
-   *
-   * A THUNK is resolved per call, which is the only correct shape for a
-   * credential that rotates: a satellite holds no `LORE_INGEST_TOKEN` (FR5 of
-   * specs/running-stations-in-any-k8s-cluster) and reports with its per-agent
-   * token, which is re-minted whenever another instance of it registers. A
-   * captured value 401s every report from the rotation onward — which is how
-   * run 595d2b0b lost its terminal event.
-   */
+  /** Bearer to present when not the bus-wide token; a THUNK because a rotating per-agent credential captured as a value 401s every report after rotation (lost run 595d2b0b's terminal event). */
   token?: string | (() => string | undefined);
   /** Injected so the HTTP branch is reachable from a test without a network. */
   fetchImpl?: typeof fetch;
@@ -51,10 +24,7 @@ export interface SelectReporterDeps {
   log?: (message: string) => void;
 }
 
-/**
- * Resolve the reporter for this process. Call once, at a composition root, and
- * memoize there — the log line is meant to appear once per boot, not per event.
- */
+/** Resolve the reporter for this process; call once at a composition root and memoize — the log line is meant to appear once per boot. */
 export function selectEventReporter(deps: SelectReporterDeps): EventReporter {
   const env = deps.env ?? process.env;
   const log = deps.log ?? console.log;
@@ -76,34 +46,20 @@ export function selectEventReporter(deps: SelectReporterDeps): EventReporter {
   );
 }
 
-/** Room for a router blip at the observed peak rate, not a durability budget —
- *  the queue is in memory and dies with the process. */
+/** Room for a router blip at the observed peak rate, not a durability budget — the queue is in memory and dies with the process. */
 const DEFAULT_CAPACITY = 256;
 const DEFAULT_RETRY = { attempts: 5, delayMs: 500 };
 
 export interface SelectProxyDeps extends SelectReporterDeps {
   capacity?: number;
   retry?: { attempts: number; delayMs: number };
-  /** Rotate the credential when a sink refuses it — a satellite's single-flight
-   *  re-registration. A process with a static token leaves this unset. */
+  /** Rotate the credential when a sink refuses it — a satellite's single-flight re-registration; a static-token process leaves this unset. */
   onUnauthorized?: () => Promise<unknown>;
   /** Only a process that forwards agent telemetry configures this. */
   telemetry?: Sink;
 }
 
-/**
- * Resolve the {@link EventProxy} this process reports through — the queued
- * `emit` path and the synchronous `insert` path over the same transport.
- *
- * Always a proxy, in both modes, so a caller holds one type. What the mode
- * changes is underneath it: in local mode the event sink is the pool-backed
- * reporter and there is a single delivery attempt, because a failed Postgres
- * insert in this process is not a wire blip and retrying it buys nothing.
- * `insert` is a straight passthrough either way, which is what the 202/500
- * ingress routes depend on.
- *
- * Call once, at a composition root, and memoize there.
- */
+/** Resolve the {@link EventProxy} (queued emit + synchronous insert) this process reports through; always a proxy so a caller holds one type — local mode retries once since a failed Postgres insert is not a wire blip. Call once at a composition root and memoize. */
 export function selectEventProxy(deps: SelectProxyDeps): EventProxy {
   const env = deps.env ?? process.env;
   const routed = Boolean(env.EVENT_ROUTER_URL);
@@ -127,13 +83,7 @@ export interface SelectQueueDeps {
   log?: (message: string) => void;
 }
 
-/**
- * Resolve the whole queue for a DRAINER, the same way {@link selectEventReporter}
- * resolves the producer half.
- *
- * Separate from the reporter because the privileges differ: a producer gets
- * `insert` and nothing else, and only the process that drains asks for this.
- */
+/** Resolve the whole queue for a DRAINER, same way as {@link selectEventReporter} — separate because a producer gets `insert` only, and just the draining process asks for this. */
 export function selectEventQueue(deps: SelectQueueDeps): EventQueueRepository {
   const env = deps.env ?? process.env;
   const log = deps.log ?? console.log;
@@ -158,14 +108,7 @@ export interface SelectDeliveriesDeps {
   log?: (message: string) => void;
 }
 
-/**
- * Resolve the DELIVERY side for a subscriber, the same three ways as above.
- *
- * Separate from the queue for the same reason the queue is separate from the
- * reporter: a subscriber consumes its own copies of events, which is a different
- * privilege from draining the shared queue, and only a process that subscribes
- * asks for this.
- */
+/** Resolve the DELIVERY side for a subscriber, same three ways as above — separate because consuming a subscriber's own copies is a different privilege from draining the shared queue. */
 export function selectEventDeliveries(
   deps: SelectDeliveriesDeps,
 ): EventDeliveriesPort {

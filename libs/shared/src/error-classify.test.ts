@@ -88,10 +88,7 @@ describe("classifyError", () => {
     ).toMatchObject({ category: "agent-settings-missing" });
   });
 
-  it("classifies the missing-settings message ahead of the generic infra fallback", () => {
-    // The CR this shows up on also carries failureReason: BackoffLimitExceeded
-    // (claude exits 1, the Job retries, every attempt fails identically) — the
-    // specific category must win so the fix isn't misread as "retry it".
+  it("classifies the missing-settings message ahead of the generic infra fallback, since the same CR also carries a BackoffLimitExceeded failureReason", () => {
     expect(
       classifyError(
         "Error: Settings file not found: /agent/.claude/settings.json",
@@ -127,10 +124,7 @@ describe("the infra matcher and the agent's own timeouts", () => {
     expect(classifyError(message)).toMatchObject({ category: "infra" });
   });
 
-  it("leaves the agent's own request timeout unclassified, not infra", () => {
-    // The infra hint says "the pod died rather than the work failing". For an
-    // Anthropic request timeout that sentence is false, and it is the one line
-    // an operator reads to find out what happened.
+  it("leaves the agent's own request timeout unclassified, not infra, since the infra hint wrongly implies the pod died", () => {
     expect(classifyError("Request timed out")).toMatchObject({
       category: "unknown",
     });
@@ -142,10 +136,7 @@ describe("isFailureCategory", () => {
     expect(isFailureCategory("anthropic-credit")).toBe(true);
   });
 
-  it("rejects a name inherited from Object.prototype", () => {
-    // `in` walks the prototype chain: with it, both of these answered true and
-    // failureHint returned a function, which the terminal reason would have
-    // interpolated as source text.
+  it("rejects a name inherited from Object.prototype, which a naive `in` check would have accepted", () => {
     expect(isFailureCategory("toString")).toBe(false);
     expect(isFailureCategory("constructor")).toBe(false);
   });
@@ -169,11 +160,7 @@ describe("isPermanentFailure", () => {
     expect(isPermanentFailure("unknown")).toEqual(false);
   });
 
-  it("returns true for unclaimed — nothing ran, so a retry buys a second wait", () => {
-    // The queue-timeout class. It is not `infra`: no pod died, because no pod
-    // ever existed. Treating it as retryable is what re-ran a 25-minute
-    // implement node against a paused cluster and then reported the exhausted
-    // edge budget as the cause.
+  it("returns true for unclaimed, the queue-timeout class where no pod ever existed to die, so retrying just buys a second wait", () => {
     expect(isPermanentFailure("unclaimed")).toEqual(true);
   });
 

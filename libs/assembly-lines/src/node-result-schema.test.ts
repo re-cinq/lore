@@ -2,12 +2,6 @@ import { describe, it, expect } from "vitest";
 import { NodeResultSchema } from "./node-result-schema.js";
 import { FAILURE_CATEGORIES } from "@re-cinq/lore-shared/error-classify.js";
 
-/**
- * The NodeResult crosses a process boundary now: a station reporting a node's
- * outcome over `assembly_run.resume` sends it as JSON, so the receiving end must
- * validate it rather than cast. The same argument that gave StationInput a
- * schema applies the moment the shape stops being an in-process interface.
- */
 describe("NodeResultSchema", () => {
   it("accepts an outcome on its own, which is all a human station reports", () => {
     expect(NodeResultSchema.parse({ outcome: "success" })).toEqual({
@@ -105,11 +99,7 @@ describe("produced args", () => {
   });
 });
 
-describe("the schema mirrors every failure class the platform can produce", () => {
-  // A HAND-COPIED enum drifts the moment a class is added, and the failure is
-  // silent: zod DROPS what it does not declare, so a station reporting the new
-  // class would have its diagnosis erased on the way across. Deriving the enum
-  // from the shared list is what makes this test true by construction.
+describe("the schema mirrors every failure class the platform can produce (a hand-copied enum drifts silently; zod drops undeclared values, deriving from the shared list makes this true by construction)", () => {
   it.each(FAILURE_CATEGORIES)("accepts %s", (category) => {
     expect(
       NodeResultSchema.parse({ outcome: "failed", failureClass: category }),

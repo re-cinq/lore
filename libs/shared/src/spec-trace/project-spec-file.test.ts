@@ -17,20 +17,6 @@ import { projectSpecFile } from "./project-spec-file.js";
 import { projectAdrFile } from "./project-adr-file.js";
 import { recomputeFile } from "./recompute-spec-file.js";
 
-/**
- * projectSpecFile (spec-traceability-graph, Phase 1 projection unit) — writes
- * Repo + Spec + Statement nodes into the REAL local Dgraph cluster, keyed by
- * deterministic xids (`${repo}|${filePath}`, `${repo}|${filePath}|${ordinal}`),
- * with the Spec attached to a Repo root via Repo.specs and each Statement linked
- * back via Statement.spec. Tested against live Dgraph (no mocks). Container-gated:
- * skips when Dgraph isn't reachable so `npm test` passes without a container.
- *
- * Exercised here: Spec content_hash, Statement projection (incl. classifier
- * kind/testability/category), validated_by TestChunk links, implemented_by
- * CodeChunk links, Section grouping, and AcceptanceCriterion projection off the
- * Spec. Idempotent re-projection pruning is a LATER facet.
- */
-
 const DGRAPH_HTTP = process.env.DGRAPH_HTTP ?? "http://localhost:8081";
 const APPLIER = join(
   findRepoRoot(),
@@ -111,7 +97,7 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
         });
       }
     } catch {
-      // best-effort cleanup must never mask the assertion
+      void 0;
     } finally {
       await txn.discard().catch(() => {});
     }
@@ -283,15 +269,13 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
     expect(sortedByOrdinal).toMatchObject(expectedStatements);
   });
 
-  it("stores Statement and AcceptanceCriterion embeddings from the injected embedder", async () => {
+  it("stores Statement and AcceptanceCriterion embeddings from the injected embedder, at the 768-dim Vertex text-embedding-005 size", async () => {
     const repo = `test-proj/${randomUUID()}`;
 
     createdRepo = repo;
     const filePath = "specs/example/spec.md";
     const content =
       "## Overview\n\nThe widget must emit a click.\n\n## Acceptance Criteria\n\n- The click is debounced.\n";
-    // 768-dim to match the shared Statement.embedding/AcceptanceCriterion.embedding
-    // HNSW index (the real Vertex text-embedding-005 dimension); values are exact in float32.
     const vector = new Array(768).fill(0);
 
     vector[0] = 0.5;
@@ -342,7 +326,6 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
 
     expect(segments).toHaveLength(1);
     const [link] = parseTestLinksInStatement(segments[0].text);
-    // TestChunks are file-scoped (reconcile with the runner's `${repo}|${file}` node).
     const expectedXid = `${repo}|${link.path}`;
 
     await projectSpecFile(repo, filePath, content, dgraphClient);
@@ -377,9 +360,6 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
 
     createdRepo = repo;
     const filePath = "specs/example/spec.md";
-    // Two statements validated by the SAME test file at different lines: the runner
-    // ingests one file-granular TestChunk (xid `${repo}|${file}`), so the spec links
-    // must resolve to that single node, not mint a per-line sibling.
     const content =
       "## Overview\n\n- First ([validated by](src/x.test.ts#L42))\n- Second ([validated by](src/x.test.ts#L99))\n";
 
@@ -963,8 +943,6 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
 
     await projectSpecFile(repo, filePath, withLink, dgraphClient);
 
-    // Simulate the runner's HAS_COVERAGE edge onto the file-scoped TestChunk the
-    // spec link reconciled with, then drop the spec link.
     const testChunkUid = await readGraph(
       `query q($xid: string) { tc(func: eq(TestChunk.xid, $xid)) { uid } }`,
       { $xid: `${repo}|src/covered.test.ts` },
@@ -1043,7 +1021,6 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
     const repo = `test-proj/${randomUUID()}`;
 
     createdRepo = repo;
-    // Project the ADR first so it can be resolved by number.
     await projectAdrFile(
       repo,
       "adrs/ADR-016-dark-factory.md",

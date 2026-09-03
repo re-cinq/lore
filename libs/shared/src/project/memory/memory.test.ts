@@ -6,12 +6,6 @@ import type {
   MemoryWriteResult,
 } from "./memory-port.js";
 
-/**
- * project.memory binds the repo and delegates to the MemoryPort (which the
- * adapter bridges onto the existing MemoryStore seam). The fake is a tiny
- * in-memory store: real reads/writes, no mock library.
- */
-
 function fakeMemory(): MemoryPort {
   const rows = new Map<string, MemoryRecord>();
   const keyOf = (repo: string, agentId: string, key: string) =>

@@ -13,9 +13,6 @@ import {
   NodeTracerProvider,
 } from "@opentelemetry/sdk-trace-node";
 
-// The only unconditional IO inside evaluateAndMerge. Stub it so the span path
-// runs without a DB. A deferred-outcome policy keeps the GitHub merge branch
-// (the only other IO) unreached.
 vi.mock("../lib/audit.js", () => ({ writeAuditLog: vi.fn(async () => {}) }));
 
 import { evaluateAndMerge, type AutoMergeJobInputs } from "./auto-merge.js";
@@ -29,9 +26,7 @@ beforeAll(() => provider.register());
 afterAll(async () => provider.shutdown());
 beforeEach(() => exporter.reset());
 
-// darkFactoryEnabled:false → deferred:dark_mode_off (the first guard), so no
-// merge call fires; the rule attributes are still computed from the inputs.
-function jobInputs(): AutoMergeJobInputs {
+function jobInputsDeferredDarkModeOff(): AutoMergeJobInputs {
   return {
     taskId: "task-123",
     repo: "re-cinq/lore",
@@ -56,7 +51,7 @@ function jobInputs(): AutoMergeJobInputs {
 
 describe("lore.auto_merge.decision OTEL span", () => {
   it("emits exactly one span named lore.auto_merge.decision per decision", async () => {
-    await evaluateAndMerge(jobInputs());
+    await evaluateAndMerge(jobInputsDeferredDarkModeOff());
 
     const decisionSpans = exporter
       .getFinishedSpans()
@@ -66,7 +61,7 @@ describe("lore.auto_merge.decision OTEL span", () => {
   });
 
   it("carries the decision rule trace as span attributes", async () => {
-    await evaluateAndMerge(jobInputs());
+    await evaluateAndMerge(jobInputsDeferredDarkModeOff());
 
     const span = exporter
       .getFinishedSpans()

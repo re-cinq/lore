@@ -1,21 +1,3 @@
-// The single-CR round trip, cluster-free: enqueue → claim → CR → terminal event
-// → the report the Floor settles from.
-//
-// Every step below is the PRODUCTION function the real process calls, wired in
-// the real order across four boundaries that no unit test spans:
-//
-//   Floor          AgentCrStationBackend.launch      writes the queued visit
-//   lore-api       claimNextStationRun               hands it to a cluster
-//   cluster-agent  specToAgent                       builds the CR there
-//   cluster-agent  mapAgentToEvent                   reports it terminal
-//   Floor          agentTerminalReport               settles the run
-//
-// This is the tier that matters for this change, because every one of those
-// hand-offs is a place where both ends can be correct alone and wrong together —
-// the shape the 2026-08-24 token outage and the 595d2b0b lost report both took.
-// A single-CR task used to skip the middle three entirely (the Floor pushed the
-// CR itself), so nothing exercised them for this half of the fleet.
-
 import { describe, it, expect } from "vitest";
 import { InMemoryAssemblyRuns } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-memory.js";
 import { specToAgent } from "@re-cinq/lore-shared/cluster/agent-backend.js";
@@ -32,7 +14,6 @@ import { agentTerminalReport } from "../watcher/agent-watcher-logic.js";
 
 const TASK_ID = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
 
-/** The central cluster's tag list, as cluster-agent-helm advertises it. */
 const CENTRAL_TAGS = [
   "node:agent",
   "node:validate",
@@ -68,9 +49,6 @@ function harness(settings: Record<string, unknown> | null = null) {
   return { runs, backend };
 }
 
-/** Everything a claiming cluster-agent does with what it took: build the CR,
- *  run it, and report the terminal phase inward. Its own adapters are the only
- *  thing missing — this is the decision path, which is what can disagree. */
 function runInClaimingCluster(
   claimedSpec: LoreTaskSpec,
   status: { phase: string; output?: string; failureReason?: string },
@@ -83,7 +61,7 @@ function runInClaimingCluster(
   };
 }
 
-describe("a single-CR task's dispatch, end to end without a cluster", () => {
+describe("a single-CR task's dispatch, end to end without a cluster (Floor launch → lore-api claim → cluster-agent CR → terminal event → Floor report — the boundaries behind the 2026-08-24 token outage and the 595d2b0b lost report)", () => {
   it("reaches the Floor's terminal report carrying the task it started from", async () => {
     const { runs, backend } = harness();
 
@@ -116,14 +94,7 @@ describe("a single-CR task's dispatch, end to end without a cluster", () => {
     });
   });
 
-  it("routes to kubernetes.agent.*, while a node CR of the same task routes to agent_node.*", async () => {
-    // This is the invariant that LICENSES the watcher's deleted guard. It used
-    // to return early on an assembly-run label because a node CR reaching the
-    // PR path would open a PR per node; that check is gone, on the grounds that
-    // the mapper already separates the two families. So the separation is
-    // asserted here, on both sides, through the one function that decides it —
-    // otherwise the guard's removal rests on a reading of the code rather than
-    // on anything that fails when it stops being true.
+  it("routes to kubernetes.agent.*, while a node CR of the same task routes to agent_node.* — the invariant licensing the watcher's deleted assembly-run-label guard (else a node CR would open a PR per node)", async () => {
     const { runs, backend } = harness();
 
     await backend.launch(spec("runbook"));
@@ -139,7 +110,6 @@ describe("a single-CR task's dispatch, end to end without a cluster", () => {
     expect(event?.eventName).toBe("kubernetes.agent.succeeded");
     expect(event?.dedupeKey).toContain(TASK_ID);
 
-    // The other side: the same task type, dispatched as an assembly-line node.
     const nodeCr = specToAgent({
       ...spec("runbook"),
       extraLabels: {
@@ -156,11 +126,7 @@ describe("a single-CR task's dispatch, end to end without a cluster", () => {
     expect(nodeEvent?.eventName).toBe("kubernetes.agent_node.succeeded");
   });
 
-  it("names the CR the same value in the row, the spec, the CR and the event", async () => {
-    // Four copies of one identity. They are written by three different processes
-    // and only ever compared implicitly — two spellings would not fail to
-    // compile, they would just never correlate, which reads as a run nobody
-    // launched.
+  it("names the CR the same value in the row, the spec, the CR and the event — four copies compared only implicitly, so a spelling drift would never correlate rather than fail to compile", async () => {
     const { runs, backend } = harness();
 
     const launched = await backend.launch(spec("runbook"));
@@ -206,10 +172,7 @@ describe("a single-CR task's dispatch, end to end without a cluster", () => {
 });
 
 describe("which cluster may take a single-CR task", () => {
-  it("is claimable by a satellite carrying only node:agent", async () => {
-    // The whole point of the change: a runbook is an agent run like any other,
-    // so a cluster that can run agents can run it. Under the push path it could
-    // only ever have executed centrally.
+  it("is claimable by a satellite carrying only node:agent, unlike the old push path which could only ever execute centrally", async () => {
     const { runs, backend } = harness();
 
     await backend.launch(spec("runbook"));

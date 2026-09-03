@@ -1,24 +1,11 @@
 import type { PipelineTask } from "@re-cinq/lore-shared";
-/**
- * Cluster task handler.
- *
- * Handle complex tasks (implementation, refactoring) by dispatching an Agent CR
- * to the ai-agent-subsystem (agent-cr) via the Project agents port.
- */
 
 import { projectFor } from "../../composition/project-boot.js";
 import { buildPrompt, getTaskTypeConfig } from "../../kernel/config.js";
 import { agentPrompt } from "../../kernel/agent-invocation.js";
 import { ensureTaskBranch } from "./ensure-task-branch.js";
 
-// ── Cluster task handler ────────────────────────────────────────────
-
-/**
- * Handle complex tasks (implementation, refactoring) by dispatching an Agent CR
- * to the ai-agent-subsystem. The agent-cr backend runs the Agent (or the
- * Floor-side assembly line graph) and the agent-watcher job creates the PR when it
- * completes.
- */
+/** Handle complex tasks (implementation, refactoring) by dispatching an Agent CR to the ai-agent-subsystem via the Project agents port; the agent-watcher job creates the PR when it completes. */
 export async function handleClaudeCodeTask(
   task: PipelineTask,
   targetRepo: string,
@@ -31,9 +18,7 @@ export async function handleClaudeCodeTask(
   image?: string,
   agentDef?: { prompt?: string | null; timeout_minutes?: number | null } | null,
 ): Promise<void> {
-  // Prompt + timeout from the resolved agent definition (project.agentDefs), with
-  // the yaml loader as the fallback. The runner can also re-fetch the prompt
-  // from the agent-definitions API via AgentDefsHttp once in the pod.
+  // Prompt + timeout from the resolved agent definition (project.agentDefs), falling back to the yaml loader; the pod can also re-fetch via AgentDefsHttp.
   const fullPrompt = agentPrompt(
     agentDef?.prompt,
     task.description,
@@ -45,27 +30,19 @@ export async function handleClaudeCodeTask(
     getTaskTypeConfig(task.task_type)?.timeout_minutes;
   const timeoutMinutes = configuredTimeoutMinutes || 30;
 
-  // Dark-factory mode: the label marks the CR `lore.re-cinq.com/dark-factory=true`
-  // and the spec.darkFactory block tells the agent-cr backend to run the
-  // Floor-side assembly line graph for this task type.
   const project = await projectFor(targetRepo);
 
-  // The CR's recipe pins `ref: branchName` and the pod's init checks it out, so the
-  // branch has to exist before dispatch — otherwise the run dies in its init
-  // container instead of ever reaching the agent.
+  // The CR's recipe pins `ref: branchName`, so it must exist before dispatch or the run dies in its init container.
   await ensureTaskBranch(project.repo, branchName);
 
   const featureId = task.context_bundle?.feature_id;
   const roundFeedback = task.context_bundle?.round_feedback;
   const resumeFromTask = task.context_bundle?.resume_from_task;
-  // Seeds the run's args so a resumed branch arrives knowing its PR. An object,
-  // not a string — unlike the three above it is a bag, not one value.
   const lineArgs = task.context_bundle?.line_args;
   const result = await project.agents.run(task.id, {
     mode: "cluster",
     taskType: task.task_type,
-    // Threaded into the line's args so `continues.key: args.feature_id` resolves —
-    // the assembly-line engine never learns what a feature is.
+    // Threaded so `continues.key: args.feature_id` resolves — the assembly-line engine never learns what a feature is.
     ...(typeof featureId === "string" ? { featureId } : {}),
     ...(typeof roundFeedback === "string" ? { roundFeedback } : {}),
     ...(typeof resumeFromTask === "string" ? { resumeFromTask } : {}),
@@ -90,9 +67,7 @@ export async function handleClaudeCodeTask(
       : {}),
   });
 
-  // A synchronous Station backend would carry the run's completion back, so
-  // finalize inline. The agent-cr backend is async (K8s) and omits completion;
-  // the agent-watcher resolves it later. See ADR-028.
+  // A synchronous Station backend carries completion back for inline finalize; the async agent-cr (K8s) backend omits it — the agent-watcher resolves it later (ADR-028).
   if (result.completion) {
     const { finalizeStationRun } = await import("./finalize-station-run.js");
 
@@ -107,17 +82,9 @@ export async function handleClaudeCodeTask(
     return;
   }
 
-  // A joined dispatch started nothing: another run already held this subject and
-  // is doing the work. The task is therefore DONE in the only sense it can be —
-  // leaving it `running` would strand it until the stale sweep, which is what a
-  // duplicate click used to look like before the subject guard existed.
+  // A joined dispatch started nothing — another run already held this subject — so the task is DONE; leaving it `running` would strand it until the stale sweep (pre-subject-guard duplicate-click symptom).
   if (result.joinedRun) {
-    // `completed` with NO failure_reason. The task's work IS being done — by the run
-    // it joined — so this is not a failure, and the task page renders any
-    // failure_reason under a "Failure:" heading in failure styling. Writing the
-    // explanation there would show a red failure on a task that succeeded. The why
-    // is durable in the run row and in this log line; the task has nothing of its
-    // own to report.
+    // `completed` with NO failure_reason: the task page renders failure_reason in failure styling, which would misreport a succeeded task.
     await project.tasks.setStatus(task.id, "completed");
     console.log(
       `[floor] task ${task.id} joined run ${result.joinedRun}; nothing dispatched`,

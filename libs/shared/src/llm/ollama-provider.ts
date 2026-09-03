@@ -1,7 +1,4 @@
-/**
- * Ollama (local) provider. Moved from the facts.ts vendor switch and generalized
- * to systemPrompt + prompt. Tool/structured output uses a JSON-prompt fallback.
- */
+/** Ollama (local) provider, generalized from the old facts.ts vendor switch to systemPrompt + prompt; tool/structured output uses a JSON-prompt fallback. */
 
 import type {
   LlmCompleteRequest,

@@ -1,8 +1,6 @@
 "use client";
 
-// Search + sort controls shared by every doc card list (specs, ADRs, the
-// global browsers). Pure controlled inputs — filtering/sorting itself lives in
-// lib/doc-filter; the sort select renders only for lists that opt in.
+// Pure controlled inputs; filtering/sorting itself lives in lib/doc-filter, and the sort select renders only for lists that opt in.
 import styles from "./DocListControls.module.scss";
 import type { DocSortOrder } from "@/lib/doc-filter";
 

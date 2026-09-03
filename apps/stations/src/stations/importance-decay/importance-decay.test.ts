@@ -8,14 +8,10 @@ import { importanceDecay, MAX_MEMORIES_PER_AGENT } from "./importance-decay.js";
 const DAY_MS = 86_400_000;
 const daysAgo = (n: number) => new Date(Date.now() - n * DAY_MS).toISOString();
 
-/** `count` memories for one agent, all old enough to be decay candidates. */
 function agedMemories(agentId: string, count: number): MemoryLifecycleRow[] {
   return Array.from({ length: count }, (_, i) => ({
     id: `m${i}`,
     agent_id: agentId,
-    // m0 is deliberately the most valuable row the scorer can see: a `gotcha`
-    // key, long content, and heavy retrieval. Everything else is a short
-    // session summary, which the scorer penalises twice over.
     key: i === 0 ? "gotcha/keep-me" : `session-summary/${i}`,
     value: i === 0 ? "x".repeat(600) : "short",
     version: 1,
@@ -90,7 +86,6 @@ describe("importanceDecay", () => {
 });
 
 describe("importanceDecay — facts", () => {
-  /** An invalidated fact old enough to be past the decay age gate. */
   const invalidated = (id: string, agentId: string) => ({
     id,
     agent_id: agentId,

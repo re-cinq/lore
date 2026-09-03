@@ -1,7 +1,4 @@
-// One connector between two steps. Its tone carries the branch's meaning — a
-// plain executed hop is neutral gray and unlabelled — and in a run the hop the
-// walk took is drawn bold while the road not (yet) travelled fades back.
-
+// One connector between two steps; its tone carries the branch's meaning — the walk's taken hop draws bold, the road not travelled fades back.
 import type { LayoutEdge } from "@/lib/dag-layout";
 import type { ConnectorTone } from "@/lib/graph-view-model";
 import { ARROW_MARKER_URL } from "./ArrowMarkerDefs";

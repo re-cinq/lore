@@ -9,14 +9,6 @@ import {
 
 const originalEnv = { ...process.env };
 
-/**
- * The privileged-field refusal is the point of these cases. `lore.settings`-style
- * blanket merging into `lore.repos.settings` would let a caller flip
- * `dark_factory.enabled` — or widen `auto_merge.paths`, or turn a `require_*`
- * gate off — and skip the CODEOWNER-approval ceremony that
- * `PUT /settings/dark-factory` enforces. This route refuses those fields and
- * names the endpoint that owns them.
- */
 describe("PUT /api/repos/{owner}/{repo}/settings", () => {
   useRateLimitSafeClock();
   beforeEach(() => {

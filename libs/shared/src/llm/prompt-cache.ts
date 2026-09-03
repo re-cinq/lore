@@ -1,52 +1,15 @@
-/**
- * Prompt-caching helpers (Anthropic-specific; internal to the Anthropic
- * provider). Inspired by patterns observed in the public Claude Code source
- * mirror (tanbiralam/claude-code) — specifically the getCacheControl +
- * should1hCacheTTL split and the cache-break diagnostic state tracker.
- *
- * Scope (what we implement):
- *   - Cache-control markers on both system prompt AND tool definitions
- *   - Optional 1-hour TTL, gated per job name via env
- *   - djb2 prefix hashing + in-memory break classifier so the log
- *     line tells us WHY a cache miss happened (first call, prompt
- *     changed, TTL expired, unknown)
- *
- * Out of scope (keeping it simple for now):
- *   - Per-tool hashing (we only have 1 tool per request)
- *   - Bedrock/Anthropic 3P provider splits
- *   - Disk-persisted cache state (single-process is fine)
- *   - Cache-control on message blocks (all our calls are single-turn)
- */
+/** Prompt-caching helpers (Anthropic-specific): cache-control markers on system+tools, optional 1h TTL gated per job, and a djb2-hash break classifier explaining WHY a cache miss happened. */
 
 import type Anthropic from "@anthropic-ai/sdk";
 
-/**
- * Local extension of the Anthropic SDK's CacheControlEphemeral.
- *
- * The 1-hour cache TTL feature shipped in the Anthropic API but
- * @anthropic-ai/sdk ≤ 0.39 types don't expose it. The API accepts
- * `ttl: '1h'` on the cache_control block regardless. Using this
- * type everywhere we emit cache_control keeps the API-level truth
- * visible in the source while satisfying tsc on the pinned SDK.
- * Remove this alias and use Anthropic.CacheControlEphemeral once
- * the SDK pin is bumped past the types refresh.
- */
+/** Local extension of CacheControlEphemeral: @anthropic-ai/sdk ≤ 0.39 types don't expose the API's 1h TTL; remove once the SDK pin is bumped past the types refresh. */
 export type CacheControl = Anthropic.CacheControlEphemeral & {
   ttl?: "5m" | "1h";
 };
 
 // ── 1-hour TTL eligibility ─────────────────────────────────────────
 
-// Jobs whose calls have a stable system prompt AND tend to cluster
-// within an hour benefit from the extended 1h cache TTL. A 1h write
-// costs ~2x the normal input price, so only mark jobs that will
-// amortize it across >1 hit per hour on average.
-//
-// Override via LORE_CACHE_1H_JOBS env:
-//   - "" / unset: use DEFAULT_1H_JOBS below
-//   - "none":     no job gets 1h TTL
-//   - "*":        every job gets 1h TTL (wildcard)
-//   - "a,b,c":    comma-separated allowlist
+// Jobs with a stable system prompt clustering within an hour benefit from the 1h TTL (~2x write cost, amortized across >1 hit/hour). Override via LORE_CACHE_1H_JOBS: ""/unset=default, "none"=off, "*"=all, "a,b,c"=allowlist.
 const DEFAULT_1H_JOBS = new Set([
   "auto-curation",
   "review_reactor",
@@ -80,9 +43,7 @@ function resolveEligibility(): { allEligible: boolean; jobs: Set<string> } {
   };
 }
 
-// Latch eligibility once at module load. Matches Claude Code's
-// should1hCacheTTL session-stable pattern — prevents mid-process env
-// changes from toggling TTL, which would bust the server-side cache.
+// Latch eligibility once at module load — prevents mid-process env changes from toggling TTL, which would bust the server-side cache.
 const ELIGIBILITY = resolveEligibility();
 
 export function shouldUse1hTTL(jobName?: string): boolean {
@@ -99,10 +60,7 @@ export function shouldUse1hTTL(jobName?: string): boolean {
 
 // ── Cache-control factory ──────────────────────────────────────────
 
-/**
- * Return the cache_control object for a given job. Callers attach
- * it to the last block of each cacheable prefix (system, tools).
- */
+/** Returns the cache_control object for a job; callers attach it to the last block of each cacheable prefix (system, tools). */
 export function getCacheControl(jobName?: string): CacheControl {
   if (shouldUse1hTTL(jobName)) {
     return { type: "ephemeral", ttl: "1h" };
@@ -135,11 +93,7 @@ export interface PrefixHash {
   tools: string;
 }
 
-/**
- * Hash the cacheable prefix (system + tool schemas) so later calls
- * can detect whether their "cache miss" is due to a prompt change
- * or a TTL expiry.
- */
+/** Hashes the cacheable prefix (system + tool schemas) so later calls can detect whether a "cache miss" is a prompt change or a TTL expiry. */
 export function computeCachePrefixHash(
   systemPrompt: string | undefined,
   tools?: ToolShape[],
@@ -169,7 +123,7 @@ interface CacheState {
   lastCallAt: number;
 }
 
-// Long-lived process; in-memory is enough. Restarts reset tracking.
+// Long-lived process; in-memory is enough — restarts reset tracking.
 const cacheStateByJob = new Map<string, CacheState>();
 
 export type CacheStatus =
@@ -187,11 +141,7 @@ export interface CacheBreakAnalysis {
   ageMinutes?: number;
 }
 
-/**
- * Classify a cache miss and update the tracker. Call AFTER the LLM
- * call returns so we can see cache_read_tokens. Pure enough to unit
- * test — reads/writes module-level state keyed by jobName.
- */
+/** Classifies a cache miss; call AFTER the LLM call returns so cache_read_tokens is visible. Reads/writes module-level state keyed by jobName. */
 function classifyCacheBreak(
   prev: CacheState | undefined,
   newHash: PrefixHash,

@@ -49,7 +49,6 @@ function fakeProject(files: Record<string, string | null>): {
 
 const LINK = "([validated by](payments.test.ts#L10))";
 
-/** A spec with two testable statements, `linked` of them carrying a test link. */
 const specWith = (status: string, linked: 0 | 1 | 2) =>
   [
     "# Spec",

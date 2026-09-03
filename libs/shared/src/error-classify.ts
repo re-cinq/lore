@@ -1,12 +1,4 @@
-/**
- * Every class the platform can put on a failed node — the ONE list.
- *
- * Exported as a runtime array, not just a type, because the shape crosses a
- * process boundary: `NodeResultSchema` validates a station's reported result and
- * zod DROPS what its enum does not declare. A hand-copied mirror of this list
- * therefore erases a class it has not heard of, silently, exactly when a new
- * class is carrying the diagnosis.
- */
+// Runtime array (not just a type): NodeResultSchema's zod enum drops any class not listed here.
 export const FAILURE_CATEGORIES = [
   "anthropic-credit",
   "anthropic-rate-limit",
@@ -52,10 +44,7 @@ const HINTS: Record<FailureCategory, string> = {
 };
 
 function categorize(message: string, step?: string): FailureCategory {
-  // Two phrasings, one class. The Anthropic API says "Your credit balance is too
-  // low to access the Anthropic API"; the agent's own terminal line says
-  // "Credit balance is too low"; older copy said "insufficient credit". A second
-  // matcher that recognised only some of them is what this replaces.
+  // Matches all known phrasings of the credit error (API, agent terminal line, older copy).
   if (/credit balance is too low|insufficient credits?/i.test(message)) {
     return "anthropic-credit";
   }
@@ -64,10 +53,7 @@ function categorize(message: string, step?: string): FailureCategory {
     return "anthropic-rate-limit";
   }
 
-  // GitHub's other phrasing for the same gap: the 422 from a workflow-file
-  // write ("refusing to allow a GitHub App to create or update workflow
-  // `.github/workflows/x.yml` without `workflows` permission") names the
-  // workflow file in the message itself, so no step context is needed.
+  // GitHub's 422 on a workflow-file write; the message names the file, so no step context is needed.
   if (/refusing to allow .* workflow/i.test(message)) {
     return "github-workflows-permission";
   }
@@ -86,26 +72,12 @@ function categorize(message: string, step?: string): FailureCategory {
     return "auth";
   }
 
-  // The init reported success but never wrote the settings file Claude Code
-  // requires — a misconfigured or unreachable skills_source, not a transient
-  // pod death. Checked ahead of the infra matcher below: the CR this shows up
-  // on also carries failureReason: BackoffLimitExceeded, and reading THAT
-  // first would misclassify a permanent config problem as "re-run it".
+  // Checked ahead of the infra matcher: this CR also carries BackoffLimitExceeded, which would misclassify it as retryable.
   if (/settings file not found/i.test(message)) {
     return "agent-settings-missing";
   }
 
-  // The POD died, not the work. These are the Kubernetes-level reasons a Job
-  // reports when the agent never got to say anything itself, so they are checked
-  // last — a pod that died for a credential reason has already matched above, and
-  // its Job would otherwise be reclassified as generic infrastructure.
-  //
-  // Anchored to the KUBERNETES phrasings. A bare /timed out/ also matches the
-  // agent's own "Request timed out" from the Anthropic API, and the infra hint
-  // then tells the operator "the pod died rather than the work failing" — which
-  // would be false. The retry budget treats `infra` and `unknown` alike, so the
-  // cost of the loose match was never behaviour; it was a confidently wrong
-  // sentence in the one place someone reads to find out what happened.
+  // Checked last (credential-caused pod deaths already matched above); anchored to Kubernetes phrasings so a bare "timed out" from the Anthropic API isn't misreported as a pod death.
   if (
     /backofflimitexceeded|deadlineexceeded|oomkilled|evicted|job .* timed out|timed out waiting/i.test(
       message,
@@ -139,21 +111,7 @@ const CATEGORY_LABELS: Record<FailureCategory, string> = {
   unknown: "Unknown error",
 };
 
-/**
- * Categories no retry can clear: the credential, the permission, or the balance
- * has to change first. Spending an assembly line's `iteration_max` budget on one
- * of these buys a second identical failure and a slower, less honest report.
- *
- * `anthropic-rate-limit` is deliberately absent — a later attempt genuinely can
- * succeed. So are `infra` and `unknown`: a crashed pod is the case the retry
- * budget exists for.
- *
- * `unclaimed` IS permanent, and is the one member here that is not about a
- * credential: no pod ever started, so re-running the PREVIOUS node cannot change
- * whether a cluster exists to take the next one. Retrying it re-ran a 25-minute
- * implement node against a paused `central`, waited another 30 minutes, and then
- * blamed the edge budget (#1648).
- */
+// Categories no retry can clear (credential/permission/balance); `unclaimed` included since re-running the previous node can't summon a cluster (#1648). `anthropic-rate-limit`/`infra`/`unknown` deliberately excluded — retry can succeed there.
 const PERMANENT: ReadonlySet<FailureCategory> = new Set<FailureCategory>([
   "anthropic-credit",
   "unclaimed",
@@ -163,18 +121,11 @@ const PERMANENT: ReadonlySet<FailureCategory> = new Set<FailureCategory>([
   "agent-settings-missing",
 ]);
 
-/** The remediation text for a category, for callers that already know the class
- *  and would otherwise re-run the regex over text they have thrown away. */
 export function failureHint(category: FailureCategory): string {
   return HINTS[category];
 }
 
-/** True for a string that names a category this module knows.
- *
- *  `hasOwn`, not `in`: `in` walks the prototype chain, so "toString" and
- *  "constructor" would both pass and `failureHint` would answer a FUNCTION.
- *  `failure_class` is a plain TEXT column read straight back into a visit, so
- *  this predicate is the only thing between that column and `HINTS[...]`. */
+// `hasOwn`, not `in`: `in` walks the prototype chain, so "toString"/"constructor" would falsely pass.
 export function isFailureCategory(value: string): value is FailureCategory {
   return Object.hasOwn(HINTS, value);
 }
@@ -219,10 +170,7 @@ export class TaskFailure extends Error {
   }
 }
 
-/**
- * Best-effort human message for an unknown caught value. Use in `catch (e)`
- * blocks (where `e` is `unknown`) instead of typing the binding `any`.
- */
+// Use in `catch (e)` blocks (where `e` is `unknown`) instead of typing the binding `any`.
 export function errorMessage(e: unknown): string {
   return e instanceof Error ? e.message : String(e);
 }

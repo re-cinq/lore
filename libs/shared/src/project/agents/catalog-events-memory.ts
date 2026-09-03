@@ -4,11 +4,7 @@ import type {
   CatalogEventsRepository,
 } from "./catalog-events-port.js";
 
-/**
- * The behavioral spec of {@link CatalogEventsRepository}, backed by arrays.
- * `append`/`setEntries` are the test seams standing in for the CTE appends
- * PgAgentDefs makes and the `lore.agent_definitions` rows the snapshot reads.
- */
+/** Behavioral spec of {@link CatalogEventsRepository}, backed by arrays; `append`/`setEntries` stand in for PgAgentDefs' CTE appends and the agent_definitions rows the snapshot reads. */
 export class InMemoryCatalogEvents implements CatalogEventsRepository {
   private readonly events: CatalogEvent[] = [];
   private entries: CatalogEntry[] = [];

@@ -16,19 +16,12 @@ const NodeType = z.enum([
   "detect",
   "comment-triage",
   "ingest",
-  // Files the GitHub Issues + spec-tasks a decomposition calls for. A station, not
-  // an agent: the judgement (which stories, which labels) already happened upstream,
-  // and this only writes what the artifact says.
+  // Files the GitHub Issues + spec-tasks a decomposition calls for — a station, not an agent, since the judgement already happened upstream.
   "issues",
-  // One step of the merge line. Parameterised by `job_ref` rather than split into
-  // nine node types, the way `detect` is: they share a shape and differ only in
-  // which piece of post-merge work they do.
+  // One step of the merge line, parameterised by `job_ref` (like `detect`) rather than split into nine node types.
   "merge_step",
   "escalation_step",
-  // Stations whose worker is OUTSIDE the pod system — a PERSON. They dispatch
-  // nothing and park the run until the page named by `route` reports an outcome,
-  // over HTTP, on the same station contract a pod reports over stdout. The TYPE
-  // names the form contract; `route` names where that form lives (FR6.40).
+  // Stations worked by a PERSON: dispatch nothing, park the run until `route` reports an outcome over HTTP on the same contract a pod reports over stdout (FR6.40).
   ...HUMAN_STATION_TYPES,
 ]);
 
@@ -39,16 +32,9 @@ const EdgeCondition = z.enum([
   "always",
 ]);
 
-// A field added to NodeSchema or AssemblyLineSchema changes definitionHash by
-// default (definition-hash.ts hashes everything not in its IGNORED_KEYS
-// denylist), which makes stored fork hashes refuse to resume across the change.
-// That over-refusal is deliberate; add prose-only fields to IGNORED_KEYS.
+// A field added to NodeSchema/AssemblyLineSchema changes definitionHash by default (denylist in IGNORED_KEYS), refusing stored fork hashes across the change — deliberate; add prose-only fields to IGNORED_KEYS.
 const NodeSchema = z.strictObject({
-  // Node ids are embedded in the Agent CR NAME (`<id12>-<nodeId>`, DNS-1123) and
-  // in a CR LABEL VALUE, so they must be DNS-label-safe: lowercase alnum + hyphen,
-  // no leading/trailing hyphen, no underscore, and short enough to fit both. A
-  // looser id (`retry_`, trailing `-`) would pass the loader and die at CR-create
-  // with an opaque admission error — fail fast here instead.
+  // Node ids ride the Agent CR NAME (`<id12>-<nodeId>`, DNS-1123) and a CR LABEL VALUE, so must be DNS-label-safe (lowercase alnum+hyphen, no leading/trailing hyphen/underscore) — fail fast here rather than at CR-create's opaque admission error.
   id: z
     .string()
     .regex(/^[a-z]([a-z0-9-]*[a-z0-9])?$/)
@@ -58,24 +44,15 @@ const NodeSchema = z.strictObject({
   model: z.string().optional(),
   condition_ref: z.string().optional(),
   job_ref: z.string().optional(),
-  /** Required for a HUMAN station: the page its worker acts on. Relative — a page
-   *  this platform serves; absolute — one it does not own, such as a GitHub PR.
-   *  `{args.x}` placeholders resolve against the run's args at READ time, since a
-   *  value like `pr_url` does not exist until a node has produced it. */
+  // Required for a HUMAN station: the page its worker acts on (relative = served by this platform, absolute = external e.g. a GitHub PR); {args.x} placeholders resolve against the run's args at READ time since e.g. pr_url doesn't exist until produced.
   route: z.string().optional(),
-  /** Custom station (agent-definitions name) overriding the default `def-<type>`. */
+  // Custom station (agent-definitions name) overriding the default `def-<type>`.
   station_ref: z.string().optional(),
-  /** Per-node run timeout; falls back to the referenced Station's deadline. */
+  // Per-node run timeout; falls back to the referenced Station's deadline.
   timeout_minutes: z.number().int().positive().optional(),
-  /** Capability tags a claiming cluster-agent must carry (`required_tags <@
-   *  tags`, specs/running-stations-in-any-k8s-cluster FR2). Absent inherits the
-   *  repo's `settings.station_default_tags` at ENQUEUE time — never baked into
-   *  the parsed definition, so an unset field stays out of definitionHash. */
+  // Capability tags a claiming cluster-agent must carry (specs/running-stations-in-any-k8s-cluster FR2); absent inherits repo settings at ENQUEUE time, never baked into definitionHash.
   required_tags: z.array(z.string()).optional(),
-  /** Continue a previous run instead of starting a fresh conversation.
-   *  `node` names the work continued (validated against this definition below);
-   *  `key` identifies WHICH thread, so two features running the same definition
-   *  concurrently never continue each other. */
+  // Continue a previous run instead of a fresh conversation: `node` names the continued work, `key` identifies WHICH thread so concurrent runs of the same definition never cross.
   continues: z
     .object({
       node: z.string(),
@@ -83,13 +60,7 @@ const NodeSchema = z.strictObject({
     })
     .optional(),
   description: z.string().optional(),
-  // STRICT: a mistyped key used to be discarded in silence, so `timeoutMinutes:`
-  // (the field is `timeout_minutes`) meant a node with no timeout, and
-  // `prompt-ref:` a node with no prompt — the author's instruction dropped on the
-  // floor with nothing to read it back. A YAML typo is now a load failure, named
-  // and sourced.
-  //
-  // Strictness itself adds no field, so it does not move definitionHash.
+  // STRICT: a mistyped key (`timeoutMinutes:`, `prompt-ref:`) used to be silently discarded; now a named, sourced load failure. Strictness adds no field, so it doesn't move definitionHash.
 });
 
 const EdgeSchema = z.strictObject({
@@ -97,9 +68,7 @@ const EdgeSchema = z.strictObject({
   to: z.string(),
   on: EdgeCondition,
   iteration_max: z.number().int().positive().optional(),
-  // STRICT for the same reason, and one worse case: a dropped `iterationMax`
-  // leaves a back-edge unbounded, which is exactly what the cycle check exists to
-  // refuse.
+  // STRICT for the same reason, one worse case: a dropped `iterationMax` leaves a back-edge unbounded — exactly what the cycle check exists to refuse.
 });
 
 const AssemblyLineSchema = z.strictObject({
@@ -112,13 +81,7 @@ const AssemblyLineSchema = z.strictObject({
   edges: z.array(EdgeSchema),
 });
 
-/**
- * Every node type a blueprint may name.
- *
- * Exported so the station registry can be bound to it: the runner map and this
- * enum were parallel lists with no compile-time link, so a type added here with
- * no runner reached a pod and died there with `unknown station type`.
- */
+// Every node type a blueprint may name; exported so the station registry binds to it (previously parallel lists with no compile-time link let a type reach a pod and die with `unknown station type`).
 export const NODE_TYPES = NodeType.options;
 export type NodeTypeValue = z.infer<typeof NodeType>;
 
@@ -127,15 +90,7 @@ export type AssemblyLineEdge = z.infer<typeof EdgeSchema>;
 export type AssemblyLine = z.infer<typeof AssemblyLineSchema>;
 export type EdgeConditionValue = z.infer<typeof EdgeCondition>;
 
-// The outcomes each node type can produce at runtime (`stationNodeOutcome`,
-// specs/6-dark-factory/contracts/station-contract.md): every type yields
-// `failed` on an infrastructure failure (CR phase Failed, station timeout) and
-// `success` as the fallback; only agent output carries the LORE_NODE_RESULT /
-// REVIEW_RESULT verdict lines that yield `changes_requested` — with ONE exception:
-// `issues` is the first station that judges its input rather than merely acting on
-// it (a label the repo does not have, a story with no tasks), so it can send the
-// decomposition back. Listing it here is what forces every definition using the node
-// to route that outcome, since selectEdge does not fall through.
+// Outcomes each node type can produce at runtime (`stationNodeOutcome`, specs/6-dark-factory/contracts/station-contract.md): all yield `failed`/`success`; only agent output yields `changes_requested` via LORE_NODE_RESULT/REVIEW_RESULT, except `issues`, which judges its input and can also send the decomposition back — listing it here forces every definition to route that outcome (selectEdge does not fall through).
 const PRODUCIBLE_OUTCOMES: Record<
   z.infer<typeof NodeType>,
   readonly EdgeConditionValue[]
@@ -154,8 +109,7 @@ const PRODUCIBLE_OUTCOMES: Record<
   pr_review: ["success", "changes_requested", "failed"],
 };
 
-/** Producible outcomes of `node` with no matching edge, under `selectEdge`
- *  semantics: an `always` edge covers every outcome. Empty for the exit node. */
+// Producible outcomes of `node` with no matching edge under `selectEdge` semantics (an `always` edge covers every outcome); empty for the exit node.
 export function uncoveredOutcomes(
   wf: AssemblyLine,
   node: AssemblyLineNode,
@@ -186,14 +140,7 @@ export class AssemblyLineLoadError extends Error {
   }
 }
 
-/**
- * Parse and fully validate an assembly line definition. Throws
- * {@link AssemblyLineLoadError} on malformed YAML, schema violation,
- * dangling node references, unreachable nodes, terminal-only-on-exit
- * violations, producible outcomes with no matching edge, or back-edges
- * without `iteration_max`.
- */
-/** Node types whose handler is named by `job_ref`, not by the type alone. */
+// Parses and fully validates an assembly line definition; throws AssemblyLineLoadError on malformed YAML, schema violation, dangling/unreachable nodes, non-exit terminal nodes, uncovered outcomes, or unbounded back-edges.
 const PARAMETERISED_NODE_TYPES = new Set([
   "detect",
   "merge_step",
@@ -240,10 +187,7 @@ export async function loadAssemblyLineFile(
   return parseAssemblyLine(yamlSrc, filepath);
 }
 
-/**
- * Load every `*.yaml` / `*.yml` file under `dir`. Returns a map keyed
- * by `assembly line.name`. Fail-fast on any invalid file or duplicate name.
- */
+// Loads every `*.yaml`/`*.yml` file under `dir` into a map keyed by assembly-line name; fail-fast on any invalid file or duplicate name.
 export async function loadAssemblyLineDir(
   dir: string,
 ): Promise<Map<string, AssemblyLine>> {
@@ -340,9 +284,7 @@ function validateAssemblyLine(wf: AssemblyLine, source: string): void {
     );
   }
 
-  // Both node types are PARAMETERISED by `job_ref` — one type, many handlers —
-  // so without it there is nothing to dispatch. Reject at load rather than at
-  // the pod, where the line is already half-walked.
+  // Parameterised node types need `job_ref` to have anything to dispatch; reject at load rather than at the pod, where the line is already half-walked.
   for (const n of wf.nodes) {
     enforceTrue(
       !PARAMETERISED_NODE_TYPES.has(n.type) || n.job_ref,
@@ -351,9 +293,7 @@ function validateAssemblyLine(wf: AssemblyLine, source: string): void {
     );
   }
 
-  // A human station with no route leaves its worker with nowhere to go: the run
-  // parks on it and nothing can tell anyone whose move it is. Reject at load,
-  // exactly as a detect node with no job_ref is rejected.
+  // A human station with no route leaves its worker with nowhere to go — reject at load, like a detect node with no job_ref.
   for (const n of wf.nodes) {
     enforceTrue(
       !isHumanStation(n.type) || n.route,
@@ -363,8 +303,7 @@ function validateAssemblyLine(wf: AssemblyLine, source: string): void {
 
     const invalid = n.route ? invalidRoutePlaceholders(n.route) : [];
 
-    // A placeholder reaching outside `args` could only be filled by the engine
-    // knowing what a feature is — the one thing it must never learn.
+    // A placeholder reaching outside `args` could only be filled by the engine knowing what a feature is — the one thing it must never learn.
     enforceTrue(
       invalid.length === 0,
       Error,
@@ -372,10 +311,7 @@ function validateAssemblyLine(wf: AssemblyLine, source: string): void {
     );
   }
 
-  // A `continues` reference must name a real node and a resolvable thread key.
-  // Both fail at LOAD because the runtime failure is invisible: an unresolvable
-  // reference would silently start a fresh conversation, which looks exactly like a
-  // continued one that happened to remember nothing.
+  // A `continues` reference must name a real node and a resolvable thread key — fail at LOAD, since an unresolvable reference would otherwise silently start a fresh conversation indistinguishable from one that remembers nothing.
   for (const n of wf.nodes) {
     if (!n.continues) {
       continue;
@@ -394,9 +330,7 @@ function validateAssemblyLine(wf: AssemblyLine, source: string): void {
     );
   }
 
-  // Every outcome a node can produce must route somewhere — an uncovered
-  // outcome would otherwise crash the walk at runtime (`getNextTransition`'s
-  // no-edge failure) instead of failing here at load.
+  // Every outcome a node can produce must route somewhere, or it crashes the walk at runtime (getNextTransition's no-edge failure) instead of failing here at load.
   for (const n of wf.nodes) {
     const missing = uncoveredOutcomes(wf, n);
 
@@ -413,10 +347,7 @@ function validateAssemblyLine(wf: AssemblyLine, source: string): void {
   detectCycles(wf, source);
 }
 
-/** The thread a `continues` reference belongs to: this run (`line`), this task across
- *  attempts (`task`), or whatever value the run carries under `args.<name>`. The
- *  args form keeps the engine domain-free — Lore keys planning threads by
- *  `args.feature_id` exactly as detect lines already carry `args.job_run_id`. */
+// The thread a `continues` reference belongs to: this run (`line`), this task across attempts (`task`), or `args.<name>` — the args form keeps the engine domain-free (e.g. planning threads key on args.feature_id).
 export function isThreadKey(key: string): boolean {
   return (
     key === "line" || key === "task" || /^args\.[a-z][a-z0-9_]*$/.test(key)
@@ -445,13 +376,7 @@ function detectCycles(wf: AssemblyLine, source: string): void {
     color.set(n.id, WHITE);
   }
 
-  // The rule exists so two AGENTS cannot argue indefinitely. A back-edge with a
-  // `wait` node at EITHER end is exempt: leaving one, the human has just
-  // decided; entering one, the human decides before anything else runs. Either
-  // way a person gates every pass, so the runaway this guards against cannot
-  // happen. Keyed strictly on the endpoints' types — a cycle between two agents
-  // is still bounded, so this cannot become a way to write an unbounded agent
-  // loop.
+  // Exists so two AGENTS cannot argue indefinitely; a back-edge with a human station at EITHER end is exempt since a person gates every pass — a cycle between two agents is still bounded.
   const assertBackEdgeBounded = (e: AssemblyLineEdge): void => {
     const humanGated =
       isHumanStation(typeOf.get(e.from)) || isHumanStation(typeOf.get(e.to));
@@ -464,11 +389,7 @@ function detectCycles(wf: AssemblyLine, source: string): void {
     }
   };
 
-  // Iterative DFS with explicit stack. Each frame holds the node id
-  // and an index into its outgoing edge list — when we exhaust edges,
-  // we pop and color the node BLACK. Symmetric with the BFS used for
-  // reachability above, and won't blow the stack on deeply-nested
-  // hand-authored YAML.
+  // Iterative DFS with an explicit stack (symmetric with the BFS above) so deeply-nested hand-authored YAML can't blow the call stack.
   const walkDfsFrom = (startId: string): void => {
     const stack: Array<{ id: string; edgeIndex: number }> = [
       { id: startId, edgeIndex: 0 },

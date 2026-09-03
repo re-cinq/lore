@@ -1,8 +1,4 @@
-/**
- * Contracts for the implementation-loop repo surface (implementation-loop
- * FR10). The named `ImplementationLoop` component is what web-ui aliases from
- * the generated schema.d.ts — name it deliberately, keep it stable.
- */
+// Contracts for the implementation-loop repo surface (FR10); the named ImplementationLoop component is what web-ui aliases from generated schema.d.ts — keep it stable.
 
 import { z } from "zod";
 

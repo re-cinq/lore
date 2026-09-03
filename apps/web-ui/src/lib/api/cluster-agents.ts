@@ -3,11 +3,7 @@ import { apiFetch } from "./client";
 import type { ApiResult } from "./result";
 import type { components } from "./schema";
 
-// The registered-clusters read (FR7 of specs/running-stations-in-any-k8s-cluster):
-// every registered cluster-agent with its open-claim count, plus the recent
-// `cluster_agent_offline` audit entries. Shapes are aliases over the generated
-// OpenAPI document, same as every other module in this layer.
-
+// Registered-clusters read (FR7 of specs/running-stations-in-any-k8s-cluster): every cluster-agent with its open-claim count plus recent offline events; shapes alias the generated OpenAPI document.
 export type ClusterAgentList = components["schemas"]["ClusterAgentList"];
 
 export type ClusterAgentRow = ClusterAgentList["agents"][number];
@@ -21,9 +17,7 @@ export function getClusterAgents(): Promise<ApiResult<ClusterAgentList>> {
 
 export type ClusterAgentPause = components["schemas"]["ClusterAgentPause"];
 
-/** Take a cluster out of the rotation, or put it back. A paused agent keeps
- *  heartbeating and finishes what it holds — it is only passed over when new
- *  work is handed out. */
+/** Takes a cluster out of rotation (or back in) — a paused agent keeps heartbeating and finishes what it holds, only passed over for new work. */
 export function setClusterAgentPaused(
   id: string,
   paused: boolean,
@@ -36,8 +30,7 @@ export function setClusterAgentPaused(
 
 export type ClusterAgentRestart = components["schemas"]["ClusterAgentRestart"];
 
-/** Bounces the cluster-agent process so it re-pulls `latest` on restart.
- *  Only the central cluster is reachable — lore-api refuses any other id. */
+/** Bounces the cluster-agent process to re-pull `latest`; only the central cluster is reachable, lore-api refuses any other id. */
 export function restartClusterAgent(
   id: string,
 ): Promise<ApiResult<ClusterAgentRestart>> {
@@ -49,9 +42,7 @@ export function restartClusterAgent(
 export type ClusterInstallInfo =
   components["schemas"]["ClusterAgentInstallInfo"];
 
-/** What the Connect-a-cluster panel renders (#1572): the central URLs and the
- *  registration token, or why the hand-out is unavailable. Admin-scoped —
- *  the token rides in the response. */
+/** Connect-a-cluster panel data (#1572): central URLs + registration token, or why unavailable. Admin-scoped — the token rides in the response. */
 export function getClusterInstallInfo(): Promise<
   ApiResult<ClusterInstallInfo>
 > {

@@ -1,13 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { resolveAgentConfig, type AgentDefinition } from "./agent-defs-port.js";
 
-/**
- * resolveAgentConfig field-merges the three precedence layers — a project row
- * overrides org, which overrides the task-types.yaml default — per nullable
- * field. NULL on a layer means "inherit the next layer down". Real values
- * throughout; no doubles.
- */
-
 const yamlGeneral: AgentDefinition = {
   name: "general",
   model: "claude-sonnet-4-6",
@@ -59,9 +52,9 @@ describe("resolveAgentConfig", () => {
 
     expect(resolved).toMatchObject({
       name: "general",
-      model: "claude-haiku-4-5-20251001", // project wins
-      timeout_minutes: 30, // project null → org(30, inherited from yaml-equal)
-      prompt: "Task: {description}", // project null → inherited
+      model: "claude-haiku-4-5-20251001",
+      timeout_minutes: 30,
+      prompt: "Task: {description}",
       project_id: "11111111-1111-1111-1111-111111111111",
     });
   });

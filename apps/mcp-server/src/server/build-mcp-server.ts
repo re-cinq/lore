@@ -9,11 +9,7 @@ import { registerLocalRunnerTools } from "../mcp/tools/local-runner-tools.local.
 import { registerSpecTraceLocalTools } from "../mcp/tools/spec-trace-tools.local.js";
 import { registerUpdateTools } from "../mcp/tools/update-tools.js";
 
-/**
- * Conventions that hold for every lore_ tool. Stated once here instead of
- * repeated in each tool description, which keeps the always-loaded tool
- * schema small. Per-tool descriptions cover only what to select and when.
- */
+// Conventions that hold for every lore_ tool, stated once here instead of in each tool description to keep the always-loaded tool schema small.
 const SERVER_INSTRUCTIONS = `Lore serves shared org context (conventions, ADRs, memories, facts, knowledge graph) plus a task pipeline to Claude Code. Tool names share the lore_ prefix as a namespace.
 
 These hold for every lore_ tool, so individual descriptions omit them:
@@ -25,23 +21,12 @@ Start a task with lore_assemble_context (one ordered bundle), then lore_search_m
 
 export type ServerMode = "full" | "agent";
 
-/**
- * `agent` mode is for the shared HTTP gateway that serves headless agent pods:
- * it omits tools that only make sense on a developer's machine or that let an
- * agent spawn more work. Everything read/context/memory/search stays.
- */
+// `agent` mode (the shared HTTP gateway for headless agent pods) omits tools that only make sense on a developer's machine or let an agent spawn more work.
 function resolveServerMode(): ServerMode {
   return process.env.LORE_MCP_SERVER_MODE === "agent" ? "agent" : "full";
 }
 
-/**
- * Build the McpServer and register every feature's tools.
- *
- * `serverMode` defaults to LORE_MCP_SERVER_MODE. In `agent` mode the pipeline
- * tools (lore_create_pipeline_task — the recursion vector), the local-runner
- * tools (laptop-only worktree spawning), the local spec-trace runners and
- * lore_update (laptop-only self-rebuild) are NOT registered.
- */
+// Builds the McpServer; in `agent` mode the pipeline tools (lore_create_pipeline_task, the recursion vector), local-runner tools, local spec-trace runners, and lore_update are NOT registered.
 export function buildMcpServer(
   opts: { serverMode?: ServerMode } = {},
 ): McpServer {
@@ -61,8 +46,7 @@ export function buildMcpServer(
     registerPipelineTools(server);
     registerLocalRunnerTools(server);
     registerSpecTraceLocalTools(server);
-    // lore_update rebuilds ~/.re-cinq/lore — a laptop-only checkout that the
-    // gateway's agent pods do not have.
+    // lore_update rebuilds ~/.re-cinq/lore, a laptop-only checkout the gateway's agent pods do not have.
     registerUpdateTools(server);
   }
 

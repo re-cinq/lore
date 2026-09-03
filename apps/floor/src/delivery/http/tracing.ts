@@ -1,12 +1,4 @@
-/**
- * Request tracing for the Floor HTTP server — the "middleware" that means no
- * handler hand-rolls its own span. One span per request via the
- * onRequest → onPreResponse lifecycle, so it covers *every* request, including
- * auth-rejected (401) and unmatched (404) ones. Records method/route/status and,
- * on a Boom error response, the exception. Handlers can annotate the span via
- * `request.app.span`. All calls are no-ops until an OTel SDK is registered
- * (otel-init).
- */
+/** Request tracing for the Floor HTTP server: one span per request via onRequest → onPreResponse, covering every request including 401/404 ones; no-op until an OTel SDK is registered (otel-init). */
 
 import Boom from "@hapi/boom";
 import type { Server } from "@hapi/hapi";

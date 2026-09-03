@@ -29,8 +29,7 @@ describe("parseAgentSink", () => {
     expect(sink.runEvents).toHaveLength(MAX_RUN_EVENTS_PER_BATCH);
   });
 
-  it("skips viz projection entirely when run-event projection is off", () => {
-    // Trailing newline exercises the no-remainder path of the line scanner.
+  it("skips viz projection entirely when run-event projection is off, exercising the no-remainder path via a trailing newline", () => {
     const body =
       [
         line(assistant([{ type: "text", text: "hi" }])),

@@ -1,16 +1,4 @@
-/**
- * Run an assembly-line node that was published for this service to claim.
- *
- * The Floor decides WHEN a node runs and publishes it; this runs it and reports
- * the outcome back over `assembly_run.resume` — the same channel a person
- * reports through from the wizard, so the walk converges whether the worker was
- * a pod, a person, or this process.
- *
- * A station that throws is reported as a FAILED node, not left to the bus's
- * retry: the visit row is the unit of work and the walk's own edges decide
- * whether a failure is retried, so retrying here as well would run the node
- * up to five more times behind the walk's back.
- */
+// Runs an assembly-line node published for this service to claim; reports the outcome back over `assembly_run.resume` (same channel a person uses) so the walk converges regardless of worker. A throw is reported as a FAILED node rather than retried by the bus — the walk's own edges own retry, so retrying here too would run the node up to 5x behind its back.
 
 import { z } from "zod";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
@@ -22,16 +10,7 @@ import {
 import type { NodeResult } from "@re-cinq/lore-assembly-lines";
 import type { StationInput } from "@re-cinq/lore-shared/station-input.js";
 
-/**
- * The published node's shape, parsed rather than asserted.
- *
- * These params crossed a process boundary: the Floor wrote them, Postgres
- * stored them as jsonb, the router handed them back. A cast through `unknown`
- * makes the compiler agree to whatever arrives, so a field the publisher stops
- * sending reaches a station as `undefined` and fails somewhere further in,
- * wearing the station's name rather than the publisher's. Parsing at the door
- * names the field instead.
- */
+// The published node's shape, parsed not asserted: params crossed a process boundary (Floor → Postgres jsonb → router), so a cast through `unknown` would let a dropped field surface as `undefined` deep inside a station wearing the wrong name; parsing at the door names it instead.
 export const PublishedNode = z.object({
   stationRunId: z.string().min(1),
   assemblyLineId: z.string().min(1),
@@ -39,11 +18,7 @@ export const PublishedNode = z.object({
   iteration: z.number().int().nonnegative(),
   nodeType: z.string().min(1),
   repo: z.string(),
-  // Nullable because a run may legitimately have no branch — every detect-family
-  // run in production does. Rejecting it here would dead-letter the delivery
-  // after five silent retries; a station that actually needs a branch fails on
-  // its own terms instead, which is a recorded node outcome rather than a
-  // vanished one.
+  // Nullable because a legitimate run (every detect-family run) has no branch; rejecting it here would dead-letter after 5 silent retries, so a station that needs one fails on its own terms as a recorded outcome instead.
   branch: z.string().nullable().default(null),
   taskId: z.string().nullable().default(null),
   // A node may legitimately take none.
@@ -84,8 +59,7 @@ const failed = (detail: string): NodeResult => ({
 export async function runPublishedNode(
   event: PublishedNode,
   report: ReportNode,
-  // The RUNNER, not the module: this needs nothing else from the manifest, and a
-  // narrower seam is one a test can satisfy with the function under test.
+  // The RUNNER, not the module: needs nothing else from the manifest, and a narrower seam is one a test can satisfy with the function under test.
   run: NodeStationRun | undefined = nodeStationFor(event.nodeType)?.run,
 ): Promise<void> {
   const input: StationInput = {
@@ -111,10 +85,7 @@ export async function runPublishedNode(
       iteration: event.iteration,
     },
     result.outcome,
-    // Produced args ride the resume's args channel (FR6.17) and are merged into
-    // the line before the walk advances — the pooled-service equivalent of a
-    // pod's sink artifacts. Extras deliberately do not: they are routing and
-    // telemetry, not the next node's brief.
+    // Produced args ride the resume's args channel (FR6.17), merged into the line before the walk advances — the pooled-service equivalent of a pod's sink artifacts; extras (routing/telemetry) deliberately do not.
     result.args ?? {},
     result,
   );

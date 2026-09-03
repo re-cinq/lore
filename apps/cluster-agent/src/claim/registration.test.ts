@@ -64,8 +64,6 @@ describe("registrationConfig", () => {
   });
 
   it("names every missing variable at once, not just the first", () => {
-    // An operator fixing one variable per crash-loop is an operator restarting
-    // the pod three times to learn three names it could have said at once.
     expect(() => registrationConfig({})).toThrow(
       /LORE_API_URL, LORE_CLUSTER_AGENT_REGISTRATION_TOKEN, LORE_CLUSTER_AGENT_NAME/,
     );
@@ -197,8 +195,6 @@ describe("registerOnce", () => {
   });
 
   it("republishes on rotation, so the pods' copy never outlives its token", async () => {
-    // The rotated token is what the Floor's sink will accept; leaving the old
-    // one in the Secret would 401 every event after a rotation.
     const { fetchFn } = fakeFetch([
       jsonResponse(200, { id: "id-7", token: "tok-rotated" }),
     ]);
@@ -337,11 +333,7 @@ describe("registerOnce never throws", () => {
     expect(calls).toEqual([]);
   });
 
-  it("keeps the persisted identity when only the telemetry publish fails", async () => {
-    // The store is written BEFORE the credential is published, so this attempt
-    // answers null while the identity is already saved. That is the recovery
-    // path, not a leak: the next attempt presents it as `current_token`, the
-    // server recognises the holder, and the publish is retried.
+  it("keeps the persisted identity when only the telemetry publish fails, so the next attempt retries publish via current_token", async () => {
     const { fetchFn } = fakeFetch([
       jsonResponse(200, { id: "id-1", token: "tok-1" }),
     ]);

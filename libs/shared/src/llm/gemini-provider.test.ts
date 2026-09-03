@@ -1,7 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { GeminiProvider, computeGeminiCost } from "./gemini-provider.js";
 
-/** The fetch boundary is injected (a real fn returning a real Response) — no vi.mock. */
 describe("GeminiProvider", () => {
   it("posts systemInstruction+contents to generateContent and extracts the text", async () => {
     let captured: { url: string; body: any } | null = null;

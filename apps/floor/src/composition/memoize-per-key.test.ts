@@ -30,9 +30,7 @@ describe("memoizePerKey", () => {
     expect(built).toEqual(["o/a", "o/b"]);
   });
 
-  it("shares one in-flight build between callers that race for the same key", async () => {
-    // The case this exists for: several handlers ask for the same repo inside one
-    // event, and each build is an installation-token round-trip.
+  it("shares one in-flight build between callers that race for the same key, as several handlers do for one repo's installation-token round-trip inside one event", async () => {
     let builds = 0;
     const get = memoizePerKey(async (repo: string) => {
       builds++;

@@ -1,21 +1,4 @@
-/**
- * The cluster-agent's registrant shell: register with the Lore API, then run the
- * claim loop, launching claimed specs as Agent CRs in this cluster through the
- * same local adapters the read routes use — no HTTP loopback.
- *
- * EVERY cluster-agent runs this, the central one included. Dispatch is pull-only
- * (FR3): the Floor parks each pod node `queued` and a registered agent's claim is
- * what turns it into a pod. An agent that did not register would therefore serve
- * its read routes perfectly while the queue it exists to drain went nowhere — so
- * the registration triple is required at boot (registrationConfig throws) rather
- * than switching a mode.
- *
- * Like the k8s watch, this file is the CONNECTION; every decision it wires
- * (registration, backoff, claim ticks) lives in the injectable modules beside it
- * and tests without a cluster. Registration FAILURE still never crashes the
- * process — the read routes and the watch keep serving while boot retries on the
- * 30s→5m schedule.
- */
+// Registrant shell: registers, then runs the claim loop launching Agent CRs. EVERY cluster-agent runs this (dispatch is pull-only, FR3); registration failure never crashes the process, it retries on the 30s→5m schedule.
 
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { selectStationBackend } from "@re-cinq/lore-shared";
@@ -65,9 +48,7 @@ import type { RegistrationConfig } from "./registration.js";
 const sleep = (ms: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, ms));
 
-/** How long the claim loop's start waits on the first catalog sync before
- *  proceeding without it — long enough for a snapshot to land, short enough
- *  that a wedged API cannot keep a whole cluster from ever claiming. */
+/** How long the claim loop's start waits on the first catalog sync — long enough for a snapshot, short enough a wedged API can't block claiming forever. */
 const FIRST_SYNC_TIMEOUT_MS = 120_000;
 
 async function runRegistrant(opts: {
@@ -75,12 +56,9 @@ async function runRegistrant(opts: {
   config: RegistrationConfig;
   store: IdentityStore;
   backend: AgentCrBackend;
-  /** Publishes each newly-minted per-agent token to the run pods' Secret, so
-   *  their telemetry sink can authenticate as this cluster. */
+  /** Publishes each newly-minted per-agent token to the run pods' Secret, so their telemetry sink can authenticate as this cluster. */
   publishTelemetryCredential: (id: ClusterAgentIdentity) => Promise<void>;
-  /** Hands the single-flight re-registration to the composition root, so the
-   *  Agent-CR reporter can rotate the credential on a 401 the same way the
-   *  claim and heartbeat loops do. */
+  /** Hands the single-flight re-registration to the composition root, so the Agent-CR reporter can rotate on 401 like the other loops. */
   onReRegister: (reRegister: () => Promise<unknown>) => void;
   /** Stops both loops; a shutdown flips it before the queue drains. */
   running: () => boolean;
@@ -105,9 +83,7 @@ async function runRegistrant(opts: {
     `[cluster-agent] registered as ${config.name} (${identity.id}), tags [${config.tags.join(", ")}] — claim loop starting`,
   );
 
-  // Single-flight: the heartbeat and claim loops can 401 in the same window,
-  // and two registrations racing each other is two round trips and two writes
-  // to answer one question. Both callers await the same in-flight attempt.
+  // Single-flight: the heartbeat and claim loops can 401 in the same window, so both callers await the same in-flight re-registration attempt.
   let reRegistration: Promise<ClusterAgentIdentity | null> | null = null;
   const reRegister = (): Promise<ClusterAgentIdentity | null> =>
     (reRegistration ??= registerOnce({
@@ -128,13 +104,7 @@ async function runRegistrant(opts: {
 
   onReRegister(reRegister);
 
-  // The catalog sync rides beside the claim loop too, and GATES its start:
-  // an Agent CR's stationRef must resolve in this cluster, and a fresh
-  // agent's first sync is the full-catalog snapshot that guarantees it — the
-  // replacement for the Helm catalog-seed hook's deploy-ordering guarantee.
-  // Bounded: an API outage that stalls the first sync would stall claims for
-  // the same reason, so after the timeout the claim loop starts anyway (a
-  // claim whose stationRef is missing fails visibly and is handed back).
+  // The catalog sync rides beside the claim loop and GATES its start — the first full-catalog snapshot must resolve an Agent CR's stationRef, bounded by FIRST_SYNC_TIMEOUT_MS so a wedged API cannot block claims forever.
   const kubeCatalog = new KubeCatalogApi();
   const catalog: CatalogTarget = {
     applyPair: (pair) => clusterDeps().catalog.applyPair(pair),
@@ -168,8 +138,7 @@ async function runRegistrant(opts: {
     console.error("[cluster-agent] catalog sync loop crashed:", err);
   });
 
-  // The heartbeat rides beside the claim loop, not inside it: an agent busy
-  // executing a long claim must still look alive.
+  // The heartbeat rides beside the claim loop, not inside it — an agent busy executing a long claim must still look alive.
   void runHeartbeatLoop({
     beat: () =>
       heartbeatOnce({ apiUrl: config.apiUrl, identity: () => identity }),
@@ -205,29 +174,18 @@ async function runRegistrant(opts: {
 }
 
 export interface StartClaimLoopOpts {
-  /** Called with the identity after EVERY successful registration, including
-   *  a rotation. The composition root uses it to keep the event reporter's
-   *  credential current — an agent with no bus-wide token reports with this
-   *  one instead. */
+  /** Called with the identity after EVERY successful registration (including rotation) so the event reporter's credential stays current. */
   onIdentity?: (identity: ClusterAgentIdentity) => void;
 }
 
 export interface ClaimLoopHandle {
-  /** Stop claiming. A claim that lands during a drain is a visit recorded as
-   *  claimed by an agent that is about to exit mid-launch, so the shutdown
-   *  flips this before it waits for anything else. */
+  /** Stop claiming — a shutdown flips this before waiting for anything else, since a claim landing mid-drain would be recorded but never launched. */
   stop: () => void;
-  /** Rotates the per-agent token through the single-flight re-registration.
-   *  Resolves null until this agent has registered once — a 401 before that is
-   *  not a rotation, and the caller's plain retry is all there is to do. */
+  /** Rotates the per-agent token via single-flight re-registration; resolves null until this agent has registered once. */
   reRegister: () => Promise<unknown>;
 }
 
-/**
- * Start registration + the claim loop. Throws when the registration triple is
- * unset, and enforces that there is a cluster to launch into: both are
- * misconfigurations of the one mode this process has, not modes of their own.
- */
+/** Start registration + the claim loop. Throws when the registration triple is unset or there is no cluster to launch into — both are misconfigurations, not modes. */
 export function startClaimLoop(
   env: NodeJS.ProcessEnv,
   opts: StartClaimLoopOpts = {},
@@ -239,10 +197,7 @@ export function startClaimLoop(
     reRegister: () => reRegister?.() ?? Promise.resolve(null),
   };
 
-  // A cluster-agent IS its cluster's Kubernetes client. Without one it can
-  // neither launch a claim nor watch what it launched, so this is a refusal to
-  // boot rather than a quieter agent. In-cluster the selector resolves `k8s`
-  // from KUBERNETES_SERVICE_HOST on its own; only a local run has to say so.
+  // A cluster-agent IS its cluster's Kubernetes client — without one it can neither launch nor watch, so this refuses to boot rather than run quieter.
   enforceTrue(
     selectStationBackend(env) === "k8s",
     Error,
@@ -250,14 +205,9 @@ export function startClaimLoop(
   );
   const config = registrationConfig(env);
 
-  // A full cluster missing its per-cluster render values must refuse to boot,
-  // not render bare recipes: two unset env vars produced pods that died at
-  // boot cluster-wide on 2026-09-01. Same decided-synchronously reasoning as
-  // the registration triple above.
+  // A full cluster missing its per-cluster render values must refuse to boot — two unset env vars produced pods that died at boot cluster-wide on 2026-09-01.
   enforceCatalogProfile(env);
-  // Decided here, synchronously, for the same reason the triple above is: a
-  // Secret store missing its namespace used to land in the catch below — one
-  // log line, pod Ready, nothing ever registered.
+  // Decided synchronously — a Secret store missing its namespace used to land silently in the catch below: one log line, pod Ready, nothing ever registered.
   const storeConfig = identityStoreConfig(env);
 
   const backend = new AgentCrBackend(
@@ -265,8 +215,7 @@ export function startClaimLoop(
     kubeTokenProvisioner(),
   );
 
-  // The same Secret writer the per-task GitHub provisioner uses — a merge into
-  // `agent-secrets`, not a replace, because both write to it.
+  // The same Secret writer the per-task GitHub provisioner uses — a merge into `agent-secrets`, not a replace, since both write to it.
   const secrets = new KubeSecretKeyWriter();
 
   void buildIdentityStore(storeConfig)
@@ -287,8 +236,7 @@ export function startClaimLoop(
       }),
     )
     .catch((err) => {
-      // Unreachable by design (register + claim never throw), but a defect here
-      // must surface as a log, not an unhandled rejection killing the process.
+      // Unreachable by design (register + claim never throw), but a defect here must surface as a log, not an unhandled rejection.
       console.error(
         "[cluster-agent] claim loop crashed — this agent will not register or claim until restarted:",
         err,
@@ -298,10 +246,7 @@ export function startClaimLoop(
   return handle;
 }
 
-/** In a cluster the identity persists through the Kubernetes Secret API — the
- *  chart mounts the container read-only, so a file write would EROFS on the
- *  very first save and strand the minted identity (registered on the server,
- *  persisted nowhere → 409 restart loop). File store only for local runs. */
+/** In a cluster the identity persists through the Kubernetes Secret API — the chart mounts the container read-only, so a file write would EROFS and strand the identity. File store only for local runs. */
 async function buildIdentityStore(
   config: IdentityStoreConfig,
 ): Promise<IdentityStore> {

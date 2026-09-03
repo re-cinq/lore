@@ -3,12 +3,6 @@ import { PgTaskStore } from "./task-store-pg.js";
 import { OPEN_TASK_STATES } from "./task-store-port.js";
 import type { PgPool } from "../../memory-store.js";
 
-/**
- * PgTaskStore against a fake PgPool that records the SQL + params (the
- * memory-store fake-pool style). Proves the status grouping and repo binding
- * reach the right query without a live database.
- */
-
 function fakePool(
   capture: Array<{ text: string; params?: unknown[] }>,
   rows: unknown[] = [],

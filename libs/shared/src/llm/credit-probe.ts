@@ -1,11 +1,4 @@
-/**
- * Cheap Anthropic pre-flight for schedulers that dispatch many billed jobs at
- * once (e.g. the spec-task executor): before fanning out, ask whether the account
- * is out of credits so we skip the batch instead of failing every task. This is a
- * billing concern, not a completion — deliberately NOT on `LlmProvider` (which
- * models text/tool calls and logs to `pipeline.llm_calls`). Keeping it here, out
- * of the job, single-sources the model choice + the billing-error heuristic.
- */
+/** Cheap Anthropic pre-flight for job fan-out schedulers (e.g. spec-task executor): skips the whole batch when the account is out of credits, instead of failing every task; deliberately not on `LlmProvider` since this is a billing concern, not a completion. */
 
 /** Cheapest model — a credit probe should cost as little as possible. */
 const CREDIT_PROBE_MODEL = "claude-haiku-4-5-20251001";
@@ -13,12 +6,7 @@ const CREDIT_PROBE_MODEL = "claude-haiku-4-5-20251001";
 /** Matches the account-level billing errors Anthropic returns on 402/403/429. */
 const BILLING_ERROR = /credit|balance|billing/i;
 
-/**
- * True only when a minimal Anthropic request comes back with a billing/credit
- * error. A no-op (`false`) when `ANTHROPIC_API_KEY` is unset, and `false` on any
- * network error or non-billing status — proceed and let the real calls surface
- * whatever the actual problem is. `fetchImpl`/`env` are injectable for tests.
- */
+/** True only on a billing/credit error from a minimal Anthropic request; `false` when unset, on network errors, or non-billing status (let the real calls surface the actual problem). */
 export async function anthropicCreditsExhausted(
   env: NodeJS.ProcessEnv = process.env,
   fetchImpl: typeof fetch = fetch,

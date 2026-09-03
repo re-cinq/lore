@@ -99,10 +99,7 @@ describe("parseTrailers", () => {
     expect(parseTrailers(formatTrailers(original))).toEqual(original);
   });
 
-  it("still reads the pre-rename Lore-Assembly-Line key", () => {
-    // git history cannot be rewritten: every commit Lore authored before the
-    // rename carries this spelling, so the reader keeps it FOREVER — unlike the
-    // event-name and CR-label shims, which have a deletion condition.
+  it("still reads the pre-rename Lore-Assembly-Line key forever — old commits can't be rewritten", () => {
     expect(
       parseTrailers(
         [

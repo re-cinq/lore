@@ -1,13 +1,4 @@
-/**
- * Which (path, line) positions a PR review may attach an inline comment to.
- * GitHub's review API rejects the WHOLE atomic review with a 422 if any one
- * inline comment targets a line that is not inside a diff hunk — so the poster
- * must know, before it posts, exactly which lines are commentable.
- *
- * A unified diff makes a line commentable when it appears inside a hunk:
- * added (`+`) and context (` `) lines carry a RIGHT-side (new file) line number;
- * removed (`-`) and context lines carry a LEFT-side (old file) line number.
- */
+/** Which (path, line) positions a PR review may attach an inline comment to: GitHub 422s the WHOLE review if any comment targets a line outside a diff hunk, so the poster must know in advance which lines qualify (right = new-file line on `+`/context, left = old-file line on `-`/context). */
 
 export interface CommentablePositions {
   right: Map<string, Set<number>>;

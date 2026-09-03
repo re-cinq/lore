@@ -1,8 +1,4 @@
-// Context assembly is single-sourced in @re-cinq/lore-shared
-// (project/knowledge/context-assembly) so the Project facade owns the canonical
-// retrieval engine; re-exported here for back-compat with this module's existing
-// importers (index, routes/context). The YAML templates ship with server-core
-// (libs/server-core/templates); loadDefaultTemplates() loads them at boot.
+// Context assembly is single-sourced in @re-cinq/lore-shared (project/knowledge/context-assembly); re-exported here for back-compat with this module's existing importers (index, routes/context).
 import { join } from "node:path";
 import { loadTemplates } from "@re-cinq/lore-shared/project/knowledge/context-assembly.js";
 
@@ -16,11 +12,7 @@ export {
   type AssembledResult,
 } from "@re-cinq/lore-shared/project/knowledge/context-assembly.js";
 
-// Load the YAML context-assembly templates that ship with server-core
-// (libs/server-core/templates). Both the local adapter and the remote API call
-// this at boot instead of computing an app-relative path. Resolves identically
-// from src/ and dist/ (three levels up from features/context lands at the
-// package root).
+// Loads the YAML templates shipped with server-core (libs/server-core/templates); both the local adapter and remote API call this at boot rather than computing an app-relative path (resolves identically from src/ and dist/).
 export function loadDefaultTemplates(): void {
   loadTemplates(join(import.meta.dirname, "..", "..", "..", "templates"));
 }

@@ -28,15 +28,7 @@ const TaskLogsQuery = z.object({
 
 type TaskLogsQuery = z.infer<typeof TaskLogsQuery>;
 
-// Both verbs require the "write" scope, matching the canonical route spec
-// (specs/api-routes/task-logs/spec.md) and the original method-agnostic
-// "/api/task-logs"→"write" scope map. The legacy prefix matcher resolved
-// "/api/task-logs".startsWith("/api/task") first, silently shadowing that entry
-// with "task"; per-route declaration removes the collision.
-/**
- * A slice of a task's transcript. `next_offset` and `cursor` are how a poller
- * resumes: the cursor rides the turn store, the offset the legacy bucket read.
- */
+// Both verbs need "write" scope per-route (specs/api-routes/task-logs/spec.md); `next_offset`/`cursor` are how a poller resumes (cursor rides the turn store, offset the legacy bucket read).
 const TaskLogSliceSchema = z.object({
   logs: z.string(),
   next_offset: z.number(),
@@ -104,14 +96,7 @@ interface TurnResume {
 
 const PG_BIGINT_MAX = 9223372036854775807n;
 
-/**
- * Parse a `<taskId>:<rowId>:<chars>` resume cursor. Only a cursor minted for
- * this task whose char count does not exceed the requested offset is trusted;
- * at offset 0 the caller wants the full transcript, so any cursor is ignored.
- * Row ids are string-encoded bigints and stay strings end to end; an id past
- * the PG bigint range would 500 inside `id > $2::bigint`, so it is rejected
- * here and falls back to the full re-scan like every other untrusted cursor.
- */
+// Parses `<taskId>:<rowId>:<chars>`; trusted only for this task with chars<=offset (offset 0 always ignores it), and an id past PG bigint range is rejected to avoid a 500 in `id > $2::bigint`.
 function parseTurnCursor(
   raw: string | undefined,
   taskId: string,
@@ -139,35 +124,7 @@ function parseTurnCursor(
   return { afterId, consumed };
 }
 
-/**
- * Flatten a task's turns (one `JSON.stringify(envelope)` NDJSON line each) and
- * return the UTF-16 code-unit slice `[offset, offset + LOG_SLICE_MAX)`. The
- * prefix before `offset` is length-counted and dropped, never accumulated, so
- * peak memory is one slice plus one page regardless of how deep the caller has
- * paged.
- *
- * `resume` seeks straight to the last row boundary a previous response minted
- * as its `cursor` instead of re-paging the whole prefix (#1307). When the
- * resumed offset sits past the boundary (`offset > chars`) it must land
- * strictly inside the first row after `rowId` — anything else means the cursor
- * is stale or forged, and the read restarts as a full authoritative scan from
- * row id 0; the restart recurses at most once, since it passes `resume: null`,
- * which disarms the validation. At the boundary itself (`offset == chars`) the
- * pair is trusted as-is: server-minted cursors are self-consistent with real
- * rows, and verifying the boundary would take the very prefix scan this resume
- * avoids. The accepted consequence is that a caller can forge
- * `<taskId>:<rowId>:<offset>` at the boundary and skip rows — reads are
- * bearer-scoped and the damage is confined to the forger's own response.
- * The returned `cursor` names the last fully consumed row and the flattened
- * char count through its end; when a request consumes no full row it echoes
- * the resume point, so an idle tail-follow poll stays O(new rows).
- *
- * Offsets are stable across polls because rows are append-only and jsonb key
- * order is deterministic — except when concurrent ingest POSTs commit out of
- * id order, which can splice a late row into an already-read prefix. A re-poll
- * from an earlier offset self-heals: any rewind below the boundary rejects the
- * cursor (`chars > offset`) and re-scans from row id 0 on its own.
- */
+// Flattens turns to the UTF-16 slice [offset, offset+LOG_SLICE_MAX); `resume` seeks straight to the previous cursor's row boundary instead of re-paging the whole prefix (#1307) — a stale/forged offset past the boundary falls back to a full rescan from row id 0, while an at-boundary cursor is trusted as-is (bearer-scoped, so a forged skip only affects the forger's own read); a rewind below the boundary self-heals the same way.
 async function readTurnSlice(
   turns: AgentRunTurnsRepository,
   taskId: string,
@@ -227,11 +184,7 @@ interface TurnScanState {
   mustValidateResume: boolean;
 }
 
-/**
- * Folds one page of turns into the scan state. Returns "restart" when the
- * resume cursor proves stale (rescan from row id 0), "sliced" when the slice
- * budget is exhausted mid-page, and null to keep paging.
- */
+// Folds one page into the scan state: "restart" when the resume cursor proves stale, "sliced" when the slice budget is exhausted mid-page, else null.
 function consumeTurnPage(
   state: TurnScanState,
   page: Awaited<ReturnType<AgentRunTurnsRepository["listByTask"]>>,
@@ -280,12 +233,7 @@ interface TurnStoreRead {
   turnSlice: TurnSlice;
 }
 
-/**
- * Reads the task's status and its turn-store slice. A task row that no longer
- * exists will never transition again, so it counts as settled — otherwise
- * turns for a deleted task (the store keeps them: no FKs, by design) poll
- * forever with complete: false.
- */
+// A task row that no longer exists counts as settled — else turns for a deleted task (kept, no FKs by design) poll forever with complete:false.
 async function readFromTurnStore(
   pool: Pool,
   taskId: string,
@@ -334,9 +282,7 @@ export function taskLogsGetRoute(getPool: () => Pool | null): ServerRoute {
         const pool = getPool();
         let finished = false;
 
-        // Cluster runs stream to pipeline.agent_run_turns (the bucket object is
-        // only ever written by the mcp local runner), so the turn store is read
-        // first and GCS is the local-runner fallback.
+        // Cluster runs stream to pipeline.agent_run_turns; the bucket is only ever written by the mcp local runner, so the turn store is read first.
         const stored = pool
           ? await readFromTurnStore(pool, taskId, offset, query.cursor)
           : null;
@@ -371,17 +317,14 @@ export function taskLogsGetRoute(getPool: () => Pool | null): ServerRoute {
         const [content] = await file.download();
         const full = content.toString("utf-8");
 
-        // The local runner re-POSTs the full buffer while still running, so a
-        // bucket hit does not mean the run ended; without a pool there is no
-        // status to consult and the legacy always-complete read stands.
+        // The local runner re-POSTs the full buffer while running, so a bucket hit doesn't mean the run ended; no pool means no status to check.
         return h.response({
           logs: full.substring(offset),
           next_offset: full.length,
           complete: pool ? finished : true,
         });
       } catch (err) {
-        // A guard's refusal already carries its status; only an unexpected failure
-        // is this block's to shape.
+        // A guard's refusal already carries its status; only an unexpected failure is this block's to shape.
         rethrowBoom(err);
 
         return h.response({ error: errorMessage(err) }).code(500);

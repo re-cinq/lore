@@ -1,23 +1,4 @@
-/**
- * The Agent-CR watch as an `EventInput`: a WATCH stream on the Kubernetes API
- * that reports `kubernetes.agent{,_node}.{succeeded,failed}` on terminal phase
- * transitions.
- *
- * Kubernetes pushes object changes down one long-lived connection this process
- * opens — nothing calls in. That is the whole reason this lives beside a
- * satellite cluster's API server rather than beside the database (ADR-044): the
- * API is only reachable from inside its own cluster.
- *
- * This file is the CONNECTION — reconnect, backoff, catch-up. What to do with a
- * CR once it arrives lives in `agent-reporting.ts`, which is testable without a
- * cluster; only the shell here is not. The retry ladder that used to sit
- * between them now lives in the shared `EventProxy` this registers with.
- *
- * The reconcile + prune safety net is deliberately NOT here — it stays on the
- * Floor. A backstop in the same process as the watch it backs up dies with it,
- * and its "is this run still open" question reads business state this service
- * has no other reason to know.
- */
+// The Agent-CR watch as an `EventInput`: a long-lived WATCH stream reporting kubernetes.agent{,_node}.{succeeded,failed} on terminal phase (ADR-044, CONNECTION only — mapping lives in agent-reporting.ts). The reconcile+prune safety net deliberately stays on the Floor, not here.
 
 import { Watch } from "@kubernetes/client-node";
 import type { Agent as AgentCr } from "@re-cinq/agent-contracts";
@@ -39,9 +20,7 @@ import {
 export type { WatchDeps };
 
 const MAX_BACKOFF_MS = 30_000;
-/** A chain this long means the proxy has been unable to drain for a while. The
- *  watch cannot refuse a callback, so the depth is the only place the pressure
- *  is visible before the pod's memory is. */
+/** A chain this long means the proxy has been unable to drain for a while — the depth is the only visible pressure before the pod's memory is. */
 const CHAIN_WARN_DEPTH = 100;
 
 function watchPath(): string {
@@ -52,25 +31,12 @@ export class AgentWatchInput implements EventInput {
   readonly name = "agent-watch";
   private running = false;
   private backoffMs = 1000;
-  /**
-   * Observed CRs are reported through one promise chain, not fired in parallel.
-   *
-   * `Watch`'s callback is synchronous and cannot be awaited, so the chain is
-   * what turns the proxy's blocking `emit` into real backpressure: while the
-   * queue is full the chain stops advancing instead of every CR racing for a
-   * slot and arriving out of order. The chain itself is the one unbounded part
-   * — a router down long enough grows it — which is why its depth is logged,
-   * and why every event it carries has a dedupe key: dropping the pod and
-   * re-listing on reconnect is a safe recovery, not a lossy one.
-   */
+  /** Observed CRs are reported through one promise chain, not parallel — `Watch`'s sync callback turns the proxy's blocking `emit` into real backpressure. */
   private chain: Promise<void> = Promise.resolve();
   private depth = 0;
 
   start(emit: Emit): void {
-    // No backend gate here: startClaimLoop refuses to boot unless the backend is
-    // k8s, and it runs before this input is registered. A branch that cannot be
-    // reached reads as a supported watch-off mode, which is exactly what #1651
-    // removed.
+    // No backend gate here — startClaimLoop already refuses to boot unless the backend is k8s, and runs before this input registers.
     this.running = true;
     console.log("[cluster-agent] k8s Agent-CR watch started");
     void this.watchForever({ emit });
@@ -118,8 +84,7 @@ export class AgentWatchInput implements EventInput {
     const kc = kubeConfig();
     const k8sApi = customObjectsApi();
     const namespace = agentsNamespace();
-    // Seed resourceVersion + catch up on terminal CRs missed while down —
-    // paginated for the same reason the reconcile pass is.
+    // Seed resourceVersion + catch up on terminal CRs missed while down — paginated for the same reason the reconcile pass is.
     const resourceVersion = await forEachAgentPage(
       k8sApi,
       namespace,

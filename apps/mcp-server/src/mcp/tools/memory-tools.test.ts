@@ -8,10 +8,6 @@ import {
   vi,
 } from "vitest";
 
-// No pg pool is configured, so isMemoryDbAvailable() is false and lore_query_graph
-// takes the remote-proxy branch. We register the real handler and stub global
-// fetch to assert the HTTP request it makes to /api/graph.
-
 type ToolHandler = (
   args: Record<string, unknown>,
 ) => Promise<{ content: { type: string; text: string }[] }>;

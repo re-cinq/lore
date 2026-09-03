@@ -30,9 +30,7 @@ export class PgCatalogStatus implements CatalogStatusRepository {
       return;
     }
 
-    // One statement for the whole batch: a sync tick reports every entry it
-    // touched, and a row-per-round-trip would put the apiserver's work back on
-    // the API. UNNEST keeps it a single parameterised call regardless of size.
+    // One statement for the whole batch — UNNEST keeps it a single parameterised call regardless of size.
     await this.pool.query(
       `INSERT INTO lore.catalog_apply_status
          (cluster_agent_id, name, project_id, state, reason)

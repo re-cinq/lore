@@ -49,17 +49,12 @@ describe("decidePrune — which Agent CRs go", () => {
   });
 
   it("keeps a terminal CR inside the window, which is the forensic record", () => {
-    // The window is what let run 129235d4 be diagnosed two days later: pod logs
-    // were gone and telemetry 404'd, and `.status.output` was the whole answer.
     expect(prune({ agents: [agent("recent", 12, "Failed")] }).agents).toEqual(
       [],
     );
   });
 
   it("never deletes a CR that has not gone terminal, however old", () => {
-    // A phase the controller has not stamped is a run still in flight — or one
-    // the controller has not reached yet, which is exactly the state a
-    // crashlooping controller leaves behind.
     expect(
       prune({ agents: [agent("running", 500, "Running")] }).agents,
     ).toEqual([]);
@@ -93,8 +88,6 @@ describe("decidePrune — which per-task clones go", () => {
   });
 
   it("keeps a clone a surviving CR still references", () => {
-    // #1613's residual damage in reverse: a run whose recipe went missing died
-    // in one second. A retry of a live task must still find what it runs on.
     const result = prune({
       agents: [
         agent("old", 96, "Succeeded", "pt-shared"),
@@ -124,8 +117,6 @@ describe("decidePrune — which per-task clones go", () => {
   });
 
   it("keeps a young orphan clone, so a task mid-dispatch does not lose its recipe", () => {
-    // The clone is written BEFORE the CR that references it. Deleting on
-    // "nothing references it" alone would race that window.
     const result = prune({
       stations: [recipe("pt-just-made", 1)],
       definitions: [recipe("pt-just-made", 1)],

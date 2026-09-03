@@ -9,8 +9,7 @@ export interface AssemblyRunViewProps {
   run: AssemblyRun;
 }
 
-/** Run header — the line-level facts of the attempt. Per-node state lives in the
- *  visualization panel below (graph + node inspector). Pure render. */
+// Run header — line-level facts only; per-node state lives in the visualization panel below.
 export default function AssemblyRunView({ run }: AssemblyRunViewProps) {
   const visual = runStatusVisual(run.status, run.outcome);
 

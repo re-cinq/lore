@@ -1,8 +1,4 @@
-// Per-task token provisioning IO (ADR-031 D6, #697). Orchestrates the mint → PATCH →
-// materialise-triple flow using three injected ports, each wrapping one external system
-// (Octokit, the Kubernetes Secret, the Kubernetes custom objects). The pure transforms
-// it composes live in per-task-token.ts; this file is the IO shell (not in the coverage
-// allowlist). All Kubernetes calls use the object-param client (like k8s-loretask.ts).
+// Per-task token provisioning IO (ADR-031 D6, #697) — orchestrates mint→PATCH→materialise-triple via three injected ports; pure transforms live in per-task-token.ts, this is the IO shell.
 
 import type { AgentDefinition, Station } from "@re-cinq/agent-contracts";
 import {
@@ -66,9 +62,7 @@ export class KubeTokenProvisioner implements TokenProvisioner, TokenCleanup {
 
   async provision(spec: LoreTaskSpec): Promise<string | undefined> {
     const lookup = catalogLookupName(spec);
-    // Both reads, one wait: neither depends on the other, and this sits on the
-    // path between "claim returned" and "CR exists" — the window in which the
-    // row is claimed with no pod behind it.
+    // Both reads, one wait — neither depends on the other, and this sits between "claim returned" and "CR exists".
     const [catalogDef, catalogStation] = await Promise.all([
       this.catalog.getAgentDefinition(lookup),
       this.catalog.getStation(lookup),
@@ -89,9 +83,7 @@ export class KubeTokenProvisioner implements TokenProvisioner, TokenCleanup {
     const name = perTaskName(spec.taskId);
 
     try {
-      // Station first, same invariant as applyCatalogPair: the AgentDefinition
-      // is what a dispatch looks up, so writing it last means it is never
-      // visible pointing at a Station that does not exist yet.
+      // Station first, same invariant as applyCatalogPair — writing the AgentDefinition last means it is never visible pointing at a missing Station.
       await this.catalog.applyStation(
         perTaskStation(catalogStation, name, name, spec.taskId),
       );
@@ -99,14 +91,7 @@ export class KubeTokenProvisioner implements TokenProvisioner, TokenCleanup {
         injectRepoToken(catalogDef, spec, key, name),
       );
     } catch (err) {
-      // Everything provisioned so far outlives the launch that failed unless it
-      // is taken back here — not only the Secret key. The Station can have
-      // already landed when applyAgentDefinition throws. Reclaims the same
-      // triple `cleanup(taskId)` does, but — unlike cleanup, whose
-      // Promise.allSettled discards its results because a terminal task's
-      // cleanup has no one left to tell — warns per failure: a token stuck
-      // here is a live credential nobody is using, and a row in the
-      // accumulation that once took `agent-secrets` past 1MiB.
+      // Reclaims the same triple `cleanup(taskId)` does, but warns per failure — unlike cleanup's silent allSettled, a stuck token here is a live credential nobody uses.
       const reclaim: Array<[string, Promise<void>]> = [
         [key, this.secrets.deleteKey(this.secretName, key)],
         [name, this.catalog.deleteStation(name)],
@@ -138,9 +123,7 @@ export class KubeTokenProvisioner implements TokenProvisioner, TokenCleanup {
   }
 }
 
-/** The org App installation token (apps/floor/src/adapters/github.ts). Per-repo
- *  least-privilege scoping is a follow-up — the repo arg is accepted now so the port
- *  is stable when scoping lands. */
+/** The org App installation token; per-repo least-privilege scoping is a follow-up — the repo arg is accepted now so the port is stable when it lands. */
 export class GithubTokenMinter implements TokenMinter {
   constructor(
     private readonly gh: { getInstallationToken(): Promise<string> },
@@ -148,9 +131,7 @@ export class GithubTokenMinter implements TokenMinter {
   async mint(repo: string): Promise<string> {
     const token = await this.gh.getInstallationToken();
 
-    // An empty token writes a present-but-useless Secret key, so the pod starts and
-    // then dies in its init container on `git clone` with GitHub's deliberately
-    // uninformative "Repository not found". Fail here, where the cause is legible.
+    // An empty token writes a present-but-useless Secret key, so the pod dies in its init container on `git clone` with an uninformative "Repository not found". Fail here instead, where the cause is legible.
     enforceTrue(
       token.length > 0,
       Error,
@@ -161,14 +142,7 @@ export class GithubTokenMinter implements TokenMinter {
   }
 }
 
-/**
- * The two Secret calls the writer makes; a test fakes exactly this.
- *
- * `metadata` is part of the shape on purpose. The replace below sends the object
- * it just read straight back, and the apiserver decides the optimistic-
- * concurrency race on the `resourceVersion` inside it — so a fake that cannot
- * carry one cannot express the very collision this writer's retry exists for.
- */
+/** The two Secret calls the writer makes; `metadata` is part of the shape on purpose — the apiserver decides the optimistic-concurrency race on the `resourceVersion` inside it. */
 export interface SecretMutation {
   metadata?: { resourceVersion?: string };
   data?: Record<string, string>;
@@ -188,10 +162,7 @@ export interface SecretClient {
 export type SecretClientFactory = () => SecretClient;
 
 export class KubeSecretKeyWriter implements SecretKeyWriter {
-  /** Injectable so the conflict ladder below — the one that stayed dark
-   *  through the 2026-08-25 race because its classifier lived in a private
-   *  copy — can be driven without a cluster. Defaults to the shared client,
-   *  which structurally satisfies SecretClient. */
+  /** Injectable so the conflict ladder (dark through the 2026-08-25 race, its classifier once in a private copy) can be driven without a cluster. */
   constructor(
     private readonly namespace = agentsNamespace(),
     private readonly core: SecretClientFactory = coreApi,
@@ -209,8 +180,7 @@ export class KubeSecretKeyWriter implements SecretKeyWriter {
     });
   }
 
-  // Read-modify-replace under optimistic concurrency: a concurrent provision bumps the
-  // resourceVersion, replace 409s, and we retry the read so no key is lost.
+  // Read-modify-replace under optimistic concurrency: a concurrent provision bumps resourceVersion, replace 409s, and we retry the read so no key is lost.
   private async mutate(
     secret: string,
     change: (data: Record<string, string>) => void,

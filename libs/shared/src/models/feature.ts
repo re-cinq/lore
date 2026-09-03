@@ -1,14 +1,7 @@
 import { z } from "zod";
 import type { ColumnMap } from "../lib/row.js";
 
-/**
- * `lore.features` — one planned feature and its lifecycle.
- *
- * DDL: migration `0017_feature_planning.sql`. `path` ("specs/<slug>") is the
- * join key into the traceability graph; `(repo, slug)` is unique. The status set
- * is enforced by `features_status_check` in the database, so the enum here and
- * the CHECK must move together.
- */
+/** `lore.features` — one planned feature and its lifecycle; `path` ("specs/<slug>") joins the traceability graph, `(repo, slug)` is unique, and the status enum here must move together with the DB's `features_status_check`. */
 
 export const FeatureStatusSchema = z.enum([
   "draft",

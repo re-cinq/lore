@@ -1,9 +1,4 @@
-/**
- * Resolves the active {@link LlmProvider} from the environment. Precedence:
- * `LORE_LLM_PROVIDER` (the general switch) over `LORE_FACT_LLM` (the legacy
- * memory-only one), defaulting to Anthropic. Model is taken from the
- * vendor-appropriate env var.
- */
+/** Resolves the active {@link LlmProvider} from env: `LORE_LLM_PROVIDER` over legacy `LORE_FACT_LLM`, defaulting to Anthropic; model from the vendor-appropriate env var. */
 
 import type { LlmProvider } from "./llm-provider.js";
 import type { UsagePort } from "../project/usage/usage-port.js";
@@ -41,9 +36,7 @@ export function selectProvider(
     case "claude":
     case "anthropic":
     default:
-      // No API key → fall back to the `claude` CLI (subscription, zero API
-      // spend), preserving the old facts.ts / graph-extraction behavior across
-      // every model call.
+      // No API key → fall back to the `claude` CLI (subscription, zero API spend).
       if (!env.ANTHROPIC_API_KEY) {
         return new CliProvider();
       }

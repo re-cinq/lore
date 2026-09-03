@@ -1,11 +1,4 @@
-// The issues station: file the GitHub Issues and spec-tasks a decomposition calls
-// for. Deterministic — the judgement (which stories, which labels) already happened
-// in the decompose node upstream, and this only writes what the artifact says.
-//
-// It is also the first thing to read that artifact as DATA rather than prose, which
-// makes it the place unusability actually surfaces. Rather than dropping a bad label
-// or failing the line, it sends the decomposition back: `changes_requested` re-runs
-// decompose against the objection (specs/6-dark-factory FR6.18).
+// The issues station: files the GitHub Issues and spec-tasks a decomposition calls for. Deterministic — the judgement (which stories, which labels) already happened upstream in decompose, and this only writes what the artifact says. It's also the first thing to read that artifact as DATA rather than prose, so a bad label sends the decomposition back (`changes_requested` re-runs decompose against the objection, specs/6-dark-factory FR6.18) rather than being dropped or failing the line.
 
 import { createStationProject } from "@re-cinq/lore-shared/project/index.js";
 import {
@@ -22,14 +15,7 @@ export interface IssuesStationDeps {
   project?: ReturnType<typeof createStationProject>;
 }
 
-/**
- * File one Issue per story and one spec-task per task.
- *
- * The decomposition rides in on `params.feature_decomposition` — the artifact the
- * decompose node produced, merged into the line's args by the Floor. A run that
- * reaches here without it is a wiring failure, not a bad decomposition, so it fails
- * rather than asking the agent to fix something it did nothing wrong about.
- */
+// Files one Issue per story and one spec-task per task. The decomposition rides in on `params.feature_decomposition` — the artifact decompose produced, merged into the line's args by the Floor; a run reaching here without it is a wiring failure, not a bad decomposition, so it fails rather than asking the agent to fix something it did nothing wrong about.
 export async function runIssuesStation(
   input: StationInput,
   deps: IssuesStationDeps = {},
@@ -98,16 +84,7 @@ function storyBody(story: {
   return `${story.summary}\n\n## Acceptance criteria\n\n${criteria}\n`;
 }
 
-/** One spec-task, carrying the story Issue it implements so the work is traceable
- *  back to the user-facing slice it belongs to.
- *
- *  The bundle is written key by key rather than spread from the artifact. Spreading
- *  published the agent's own vocabulary: `id` where every OTHER producer and reader
- *  of a spec-task says `spec_task_id` (the tasks.md sync, `lore_list_pipeline_tasks`,
- *  the decomposition view), and no `feature_id` at all — so the UI's
- *  `context_bundle->>'feature_id'` filter matched zero rows, always, and a decomposed
- *  feature rendered an empty tree. ADR-029's promise was that both producers share
- *  the row shape; this is what makes that true. */
+// One spec-task, carrying the story Issue it implements so the work is traceable back to its user-facing slice. Written key by key rather than spread from the artifact: spreading published the agent's own vocabulary (`id`, no `feature_id`) instead of what every other producer/reader agrees on (`spec_task_id`) — the UI's `context_bundle->>'feature_id'` filter matched zero rows as a result. ADR-029's promise is that both producers share the row shape; this is what makes that true.
 function taskInput(
   planned: PlannedTask,
   input: StationInput,
@@ -120,8 +97,7 @@ function taskInput(
     taskType: "spec-task",
     targetRepo: input.repo,
     createdBy: "issues-station",
-    // The line IS the decomposition attempt, so its id groups the tasks it produced —
-    // stable across a re-drive of the same run, distinct for a genuine re-run.
+    // The line IS the decomposition attempt, so its id groups the tasks it produced — stable across a re-drive of the same run, distinct for a genuine re-run.
     taskGroupId: input.assembly_run_id,
     contextBundle: {
       spec_task_id: planned.task.id,
@@ -132,8 +108,7 @@ function taskInput(
       ...(planned.task.labels ? { labels: planned.task.labels } : {}),
       story_issue: filed[planned.storyIndex],
       assembly_line_id: input.assembly_run_id,
-      // Absent rather than null when the line carries no feature: the UI filter is a
-      // JSON text match, and a literal "null" would match nothing while looking set.
+      // Absent rather than null when the line carries no feature: the UI filter is a JSON text match, and a literal "null" would match nothing while looking set.
       ...(featureId ? { feature_id: featureId } : {}),
     },
   };

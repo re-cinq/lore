@@ -1,10 +1,4 @@
-/**
- * `Llm` — the process-wide singleton holding the active {@link LlmProvider}.
- * Callers use `Llm.instance.complete(...)`; boot and tests swap the provider via
- * `setInstance`. The lazy default is resolved from the environment
- * ({@link selectProvider}) on first access. `configure` wires the {@link UsagePort}
- * used by the Anthropic provider's `pipeline.llm_calls` cost logging.
- */
+// `Llm` — the process-wide singleton holding the active {@link LlmProvider}; `configure` wires the {@link UsagePort} used by the Anthropic provider's `pipeline.llm_calls` cost logging.
 
 import type { LlmProvider } from "./llm-provider.js";
 import type { UsagePort } from "../project/usage/usage-port.js";
@@ -35,10 +29,7 @@ export class Llm {
     current = null;
   }
 
-  /** True when a UsagePort was configured — the per-call cost transport is
-   *  active in this process. The station runner checks this before installing
-   *  its terminal-line usage tracker, so the same call is never cost-counted
-   *  by both transports. */
+  /** True when a UsagePort was configured — checked by the station runner before installing its own tracker, so a call is never cost-counted by both transports. */
   static get usageConfigured(): boolean {
     return usage !== undefined;
   }

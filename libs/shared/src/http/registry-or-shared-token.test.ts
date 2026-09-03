@@ -22,7 +22,6 @@ const agent = (tokenHash: string): ClusterAgent => ({
   catalogCursor: null,
 });
 
-/** A registry that records whether it was consulted at all. */
 function registry(known: string | null) {
   const lookups: string[] = [];
 
@@ -58,7 +57,6 @@ describe("enforceRegistryOrSharedToken", () => {
       "floor",
     );
 
-    // The central cluster's own calls must cost no SELECT.
     expect(reg.lookups).toEqual([]);
   });
 
@@ -98,8 +96,6 @@ describe("enforceRegistryOrSharedToken", () => {
   });
 
   it("names the door's own env var in the unconfigured refusal, not the ingest token", async () => {
-    // The 500's entire job is to say which knob to turn; the Floor's telemetry
-    // sink reads a different one than every other bearer door.
     try {
       await enforceRegistryOrSharedToken(
         bearer("x"),
@@ -115,10 +111,7 @@ describe("enforceRegistryOrSharedToken", () => {
     }
   });
 
-  it("refuses 500 naming the service when the shared token is unconfigured", async () => {
-    // Unconfigured is an operator fix (redeploy), not a caller auth failure —
-    // and a registered agent must still get in, so the registry is consulted
-    // before the 500 fires.
+  it("refuses 500 as an operator-fix response naming the service when the shared token is unconfigured, after the registry still admits a registered agent", async () => {
     const { token, tokenHash } = mintAgentToken();
 
     await enforceRegistryOrSharedToken(

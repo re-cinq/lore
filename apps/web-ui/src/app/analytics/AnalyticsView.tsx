@@ -8,10 +8,7 @@ export interface TaskSummary {
   active: number;
 }
 
-// Aliases over the /api/analytics-overview contract. Five of these are SQL
-// aggregates the route states directly; `JobRun` is a `pipeline.job_runs` row,
-// so its fields reach here from that table's model.
-
+// Aliases over the /api/analytics-overview contract; JobRun's fields come from the pipeline.job_runs model.
 type Overview = components["schemas"]["AnalyticsOverview"];
 
 export type LatencyStats = Overview["latency_stats"][number];
@@ -44,11 +41,7 @@ function formatDuration(started: string, completed: string | null): string {
   return `${minutes}m`;
 }
 
-/**
- * Presentational view for the analytics dashboard. Pure render — the
- * container (`page.tsx`) runs all the SQL and passes resolved row arrays;
- * this component only renders the stat cards and tables.
- */
+// Pure render — page.tsx runs all the SQL and passes resolved row arrays.
 export default function AnalyticsView({
   taskSummary,
   latencyStats,

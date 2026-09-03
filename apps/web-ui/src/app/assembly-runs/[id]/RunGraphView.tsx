@@ -1,15 +1,6 @@
 "use client";
 
-// Renders a VisibleGraph — the mode-selected nodes and connectors from
-// graph-view-model. It never derives what executed; it lays the model out and
-// hands each part to the piece that draws it (./run-graph/*), so this file only
-// answers "what is on the canvas, and where".
-//
-// Color lives inside nodes (verdict/result badges) and on branch connectors that
-// route to different steps; a plain executed hop is a neutral gray connector with
-// no label. Every node also carries its status as text, so meaning never rests on
-// color alone.
-
+// Renders a VisibleGraph — lays out the mode-selected nodes/connectors from graph-view-model and hands drawing to ./run-graph/*; every node also carries its status as text, so meaning never rests on color alone.
 import type { AssemblyLineDefinition } from "@/lib/assembly-line-definition";
 import { layoutAssemblyLine } from "@/lib/dag-layout";
 import type { VisibleGraph } from "@/lib/graph-view-model";
@@ -30,13 +21,11 @@ export interface RunGraphViewProps {
   /** Source definition — supplies layout entry/exit and the graph name. */
   definition: AssemblyLineDefinition | null;
   onSelectNode?: (nodeId: string) => void;
-  /** Section heading. `null` renders none, for a caller that titles the section
-   *  itself — a second "Graph" inside a card called "How planning works" reads as
-   *  two competing titles. */
+  // Section heading; `null` renders none, for a caller that titles the section itself.
   heading?: string | null;
 }
 
-/** The mode-selected workflow graph. Pure render of a VisibleGraph. */
+// The mode-selected workflow graph. Pure render of a VisibleGraph.
 export default function RunGraphView({
   graph,
   definition,

@@ -8,14 +8,6 @@ import {
 } from "./agent-crd.js";
 import type { ResolvedAgentDefinition } from "../../models/agent-definition.js";
 
-/**
- * The row → CRD-pair mapping that replaced both the Helm catalog seed and
- * lore-api's push mirror: per-cluster values ride options (each unset one OMITS
- * the block it feeds), recipe extras ride the row's config, and per-repo
- * overrides render under a project-qualified name so two repos' overrides of
- * the same task type can no longer replace each other in a shared cluster.
- */
-
 const row = (
   over: Partial<ResolvedAgentDefinition> = {},
 ): ResolvedAgentDefinition => ({
@@ -155,7 +147,6 @@ describe("agentDefToCrds LLM recipes", () => {
       row({ config: { repo_workdir: false } }),
       ALL_OPTS,
     );
-    // StationSpec.template is `unknown` in the contracts package.
     const template = station.spec?.template as {
       spec: { containers: Array<{ workingDir?: string }> };
     };
@@ -199,11 +190,7 @@ describe("agentDefToCrds LLM recipes", () => {
     });
   });
 
-  it("a memory-only pod_resources override keeps the cpu and ephemeral-storage defaults", () => {
-    // Whole-object replacement is what evicted every tdd-round pod at 1Gi of
-    // disk: a memory-only override dropped the ephemeral-storage defaults and
-    // Autopilot backfilled a bare 1Gi. Overrides merge per key ONTO the
-    // defaults — you say what you mean to change, nothing else moves.
+  it("a memory-only pod_resources override keeps cpu/ephemeral-storage defaults (regression: whole-object replacement evicted every tdd-round pod at Autopilot's backfilled 1Gi)", () => {
     const { station } = agentDefToCrds(
       row({
         config: {

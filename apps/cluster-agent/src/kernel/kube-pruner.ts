@@ -1,10 +1,4 @@
-// Live PruneCluster over @kubernetes/client-node — the thin IO seam behind the
-// prune loop. Every decision it feeds lives in `decidePrune`, which tests
-// without a cluster; this file only lists and deletes.
-//
-// The three kinds are listed with the same client the claim path already uses
-// (one KubeConfig per process, #1668) and are exactly the three the chart's RBAC
-// grants `delete` on.
+// Live PruneCluster over @kubernetes/client-node — the thin IO seam behind the prune loop; decisions live in `decidePrune`. Lists/deletes the three kinds the chart's RBAC grants `delete` on.
 
 import { agentsNamespace } from "@re-cinq/lore-shared";
 import {
@@ -86,11 +80,7 @@ const toRecipe = (item: CustomObjectItem): PrunableRecipe => ({
   createdAt: createdAt(item),
 });
 
-/**
- * An object the apiserver somehow reports without a creation stamp reads as
- * brand new, so the age gate keeps it. Defaulting the other way would delete
- * whatever the parse failed to understand.
- */
+/** An object reported without a creation stamp reads as brand new, so the age gate keeps it rather than deleting whatever the parse failed to understand. */
 function createdAt(item: CustomObjectItem): Date {
   const stamp = item.metadata?.creationTimestamp;
   const parsed = stamp ? new Date(stamp) : null;

@@ -1,9 +1,4 @@
-/**
- * A real, canned-response provider for tests. Install via
- * `Llm.setInstance(new FakeLlm({ text, data }))` to exercise an LLM-dependent
- * path without a network call or a `vi.mock`. Records the requests it received
- * for assertions.
- */
+/** A real, canned-response provider for tests: `Llm.setInstance(new FakeLlm({ text, data }))` exercises an LLM-dependent path without a network call or `vi.mock`, and records requests for assertions. */
 
 import type {
   LlmCompleteRequest,

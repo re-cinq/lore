@@ -17,12 +17,12 @@ describe("resolveDarkFactorySettings (agent-side resolver)", () => {
     expect(r.enabled).toBe(false);
   });
 
-  it("applies dark-mode defaults when enabled:true", () => {
+  it("applies dark-mode defaults when enabled:true, with an empty notify list since escalations always fire via decideNotify", () => {
     const r = resolveDarkFactorySettings({ enabled: true });
 
     expect(r.create_issue).toBe("on_gate");
     expect(r.review).toBe("trust_based");
-    expect(r.notify).toEqual([]); // empty list — escalations always fire via decideNotify
+    expect(r.notify).toEqual([]);
     expect(r.auto_merge.paths).toContain("CLAUDE.md");
     expect(r.auto_merge.min_trust).toBe("docs");
     expect(r.auto_merge.require_green_ci).toBe(true);
@@ -38,15 +38,11 @@ describe("resolveDarkFactorySettings (agent-side resolver)", () => {
 
     expect(r.create_issue).toBe("always");
     expect(r.auto_merge.paths).toEqual(["only-this/**"]);
-    // Other auto_merge sub-fields fall back to defaults
     expect(r.auto_merge.min_trust).toBe("docs");
     expect(r.auto_merge.require_green_ci).toBe(true);
   });
 
-  it("matches the mcp-server resolver shape (parity)", () => {
-    // The agent and mcp-server resolvers must agree, since the agent
-    // computes the policy used by the auto-merge engine that the
-    // mcp-server route stored.
+  it("matches the mcp-server resolver shape (parity), since the agent computes the policy for the auto-merge engine the mcp-server route stored", () => {
     const r = resolveDarkFactorySettings({ enabled: true });
 
     expect(Object.keys(r).sort()).toEqual([

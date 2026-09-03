@@ -1,7 +1,4 @@
-// Pure transforms from a parsed DecompositionResult into the artifacts the
-// coordinator persists (ADR-029): one spec-task row per task and the GitHub
-// Issue body per story. No I/O — the handler creates the Issue, then feeds its
-// number back here to stamp the rows.
+// Pure transforms from a DecompositionResult into spec-task rows + Issue bodies (ADR-029); no I/O.
 
 import type { UserStory } from "./decomposition-result.js";
 
@@ -27,8 +24,7 @@ export interface SpecTaskContext {
   storyIssue?: number;
 }
 
-/** Build the spec-task rows for one story's tasks, linked to the story Issue
- *  (when created) and the owning feature. */
+/** Build the spec-task rows for one story's tasks, linked to the story Issue (when created) and the owning feature. */
 export function specTaskRows(
   story: UserStory,
   ctx: SpecTaskContext,

@@ -2,10 +2,6 @@ import { describe, it, expect } from "vitest";
 import type { PgPool } from "@re-cinq/lore-shared";
 import { extractAndUpdateGraph } from "./graph.js";
 
-// ── Scripted pool double ─────────────────────────────────────────────
-// Routes each query by SQL text so the edge-existence SELECT can answer
-// differently per scenario, and records every call for assertion.
-
 interface QueryCall {
   text: string;
   params?: unknown[];
@@ -47,8 +43,6 @@ describe("extractAndUpdateGraph edge invalidation", () => {
         return { rows: [{ id: entityId(params?.[0]) }] };
       }
 
-      // A prior edge exists for this source+relation but a DIFFERENT target,
-      // so the exact-match existence check finds nothing.
       if (text.includes("SELECT id FROM memory.edges")) {
         return { rows: [] };
       }
@@ -97,7 +91,6 @@ describe("extractAndUpdateGraph edge invalidation", () => {
         return { rows: [{ id: entityId(params?.[0]) }] };
       }
 
-      // The exact source+target+relation edge is already valid.
       if (text.includes("SELECT id FROM memory.edges")) {
         return { rows: [{ id: "existing-edge" }] };
       }

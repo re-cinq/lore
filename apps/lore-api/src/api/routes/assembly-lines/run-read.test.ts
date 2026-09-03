@@ -64,7 +64,6 @@ describe("GET /api/assembly-runs/{id}", () => {
       nodeId: "review",
       type: "agent",
       promptRef: "code-review",
-      // No station_ref on the node, so it inherits the one named after the line.
       station: "code-review",
       stationInherited: true,
     });
@@ -132,7 +131,6 @@ describe("GET /api/assembly-runs/{id}", () => {
       } as unknown as AssemblyLine,
     ]);
 
-    // A half-built href sends the reader somewhere that does not exist.
     expect(body.nodes[0].route).toBeNull();
   });
 
@@ -160,8 +158,6 @@ describe("GET /api/assembly-runs/{id}", () => {
   });
 });
 
-/** Inject, assert the run was found, and parse — so a 404 fails here rather than
- *  flowing on as an unexpected body shape. */
 async function injectOk(
   runs: InMemoryAssemblyRuns,
   id: string,

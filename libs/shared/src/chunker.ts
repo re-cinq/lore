@@ -1,11 +1,4 @@
-/**
- * AST-based code chunking using web-tree-sitter.
- *
- * Splits file content into meaningful chunks:
- * - Code files: parsed via tree-sitter, each top-level declaration becomes a chunk
- * - Doc/spec/ADR files: split on ## heading boundaries
- * - Fallback: sliding-window (400 lines, 50-line overlap)
- */
+/** AST-based code chunking via web-tree-sitter: code files split per top-level declaration, docs/spec/ADR on `##` headings, else a sliding window (400 lines, 50-line overlap). */
 
 import Parser from "web-tree-sitter";
 import { readFile } from "node:fs/promises";
@@ -26,10 +19,7 @@ export interface Chunk {
   };
 }
 
-/** Bumped whenever chunking output changes shape for existing content, so the
- * nightly reindex can spot files chunked by an older chunker and re-ingest
- * them. v2: top-level expression statements (describe blocks) become chunks
- * and every code chunk carries start_line/end_line. */
+/** Bumped whenever chunking output shape changes, so the nightly reindex can spot and re-ingest files chunked by an older chunker. */
 export const CHUNKER_VERSION = 2;
 
 // ── Lazy parser + grammar cache ──────────────────────────────────────
@@ -50,8 +40,7 @@ const EXT_TO_GRAMMAR: Record<string, string> = {
   ".go": "tree-sitter-go.wasm",
 };
 
-/** Node types that represent top-level declarations, per grammar.
- * TS/TSX share one set, as do JS/JSX — defined once and aliased. */
+/** Node types that represent top-level declarations, per grammar (TS/TSX share one set, as do JS/JSX). */
 const TS_DECLARATIONS = new Set([
   "function_declaration",
   "class_declaration",
@@ -61,8 +50,7 @@ const TS_DECLARATIONS = new Set([
   "export_statement",
   "lexical_declaration",
   "variable_declaration",
-  // Top-level calls like describe(...) — without this, vitest test bodies
-  // are dropped from ingestion entirely (issue #995).
+  // Top-level calls like describe(...) — vitest test bodies were dropped from ingestion without this (#995).
   "expression_statement",
 ]);
 const JS_DECLARATIONS = new Set([
@@ -92,9 +80,7 @@ const DECLARATION_TYPES: Record<string, Set<string>> = {
   ]),
 };
 
-/** A single chunk spanning the whole file — the shared fallback when a
- * chunker finds no internal boundaries (no declarations, no headings,
- * a short file, or an AST parse failure). */
+/** A single chunk spanning the whole file — the shared fallback when a chunker finds no internal boundaries. */
 function wholeFileChunk(
   content: string,
   extra?: Partial<Chunk["metadata"]>,
@@ -102,8 +88,7 @@ function wholeFileChunk(
   return [{ content, metadata: { chunk_index: 0, ...extra } }];
 }
 
-/** Line count of the file's real content — a trailing newline terminates the
- * last line rather than opening a phantom empty one. */
+/** Line count of the file's real content — a trailing newline terminates the last line rather than opening a phantom empty one. */
 function lineCount(content: string): number {
   return content.replace(/\n$/, "").split("\n").length;
 }
@@ -194,8 +179,7 @@ function inferSymbolType(nodeType: string): string {
   return "export";
 }
 
-/** Base identifier of a possibly chained or curried callee — `describe` in
- * `describe.each([...])('title', …)`. */
+/** Base identifier of a possibly chained or curried callee — `describe` in `describe.each([...])('title', …)`. */
 function rootCalleeName(callee: Parser.SyntaxNode | null): string | undefined {
   let node = callee;
 
@@ -220,10 +204,7 @@ function rootCalleeName(callee: Parser.SyntaxNode | null): string | undefined {
   return undefined;
 }
 
-/** Test-runner macros whose first string argument names the block — the one
- * call family whose title is a meaningful symbol name. Skipped/focused
- * variants (`xdescribe`, `fit`, …) are distinct identifiers; chained forms
- * (`describe.skip`, `test.only`, `describe.each`) already unwrap to the root. */
+/** Test-runner macros whose first string argument names the block — the one call family whose title is a meaningful symbol name. */
 const TEST_CALL_ROOTS = new Set([
   "describe",
   "it",
@@ -237,11 +218,7 @@ const TEST_CALL_ROOTS = new Set([
   "ftest",
 ]);
 
-/** Name a test-macro call after its first string argument
- * (`describe("PgTaskQueue", …)` → `PgTaskQueue`), with template-literal
- * interpolations stripped; any other call after its callee path when that is
- * a plain identifier or member chain (`console.log(…)` → `console.log`),
- * undefined otherwise (IIFEs). */
+/** Name a test-macro call after its first string argument, or any other call after its plain-identifier/member-chain callee path; undefined otherwise (IIFEs). */
 function testCallTitle(call: Parser.SyntaxNode): string | undefined {
   const args = call.childForFieldName("arguments");
   const firstString = args?.namedChildren.find(
@@ -277,9 +254,7 @@ interface SymbolInfo {
   type?: string;
 }
 
-/** Symbol metadata for a top-level node. A statement wrapping a call gets
- * `type: "call"` + the call-derived name; other expression statements carry
- * no symbol fields (so they never enter the codeSymbols surface). */
+/** Symbol metadata for a top-level node: a statement wrapping a call gets `type: "call"`; other expression statements carry no symbol fields. */
 function symbolInfo(node: Parser.SyntaxNode): SymbolInfo {
   if (node.type !== "expression_statement") {
     const rawType = inferSymbolType(node.type);
@@ -346,8 +321,7 @@ function refineSymbolType(node: Parser.SyntaxNode, initial: string): string {
 
 // ── AST-based chunking ──────────────────────────────────────────────
 
-/** First line of the comment/docstring block leading a declaration, with
- * leading blank lines trimmed; the declaration's own start row when none. */
+/** First line of the comment/docstring block leading a declaration, trimmed of leading blanks; the declaration's own start row when none. */
 function leadingCommentStart(
   lines: string[],
   declStartRow: number,
@@ -446,8 +420,8 @@ function chunkCodeAST(
       metadata: {
         symbol_name: symbol.name,
         symbol_type: symbol.type,
-        start_line: startLine + 1, // 1-based
-        end_line: decl.endRow + 1, // 1-based
+        start_line: startLine + 1,
+        end_line: decl.endRow + 1,
         chunk_index: chunkIndex++,
       },
     });
@@ -525,8 +499,8 @@ function chunkSlidingWindow(content: string): Chunk[] {
       content: lines.slice(start, end).join("\n"),
       metadata: {
         chunk_index: chunkIndex++,
-        start_line: start + 1, // 1-based
-        end_line: end, // 1-based
+        start_line: start + 1,
+        end_line: end,
       },
     });
 
@@ -541,14 +515,7 @@ function chunkSlidingWindow(content: string): Chunk[] {
 
 // ── Content hashing ─────────────────────────────────────────────────
 
-/**
- * Stamp each chunk with the sha256 of its own content.
- *
- * Applied at the single `chunkFile` chokepoint so every chunking path
- * (AST, markdown, sliding-window) yields hashed chunks without each
- * emit site repeating the hash logic. The hash is over `chunk.content`
- * only, so it is stable across re-ingest of identical content.
- */
+/** Stamps each chunk with the sha256 of its own content, applied at the single `chunkFile` chokepoint so every chunking path yields hashed chunks. */
 function stampContentHash(chunks: Chunk[]): Chunk[] {
   for (const chunk of chunks) {
     chunk.metadata.content_hash = createHash("sha256")
@@ -569,10 +536,7 @@ export async function chunkFile(
   return stampContentHash(await chunkFileRaw(content, filePath, contentType));
 }
 
-/** Build the JSONB `metadata` payload persisted with a chunk at ingest.
- * Spreads the chunk's own metadata (carrying `content_hash`) and stamps the
- * ingest provenance, so both ingest paths persist the same shape. `commit`
- * is included only when supplied. */
+/** Builds the JSONB `metadata` payload persisted with a chunk at ingest, so both ingest paths persist the same shape. `commit` is included only when supplied. */
 export function buildIngestedChunkMetadata(
   chunk: Chunk,
   opts: { filePath: string; ingestedBy: string; commit?: string },

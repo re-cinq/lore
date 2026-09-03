@@ -1,25 +1,9 @@
-// Content hash of a loaded assembly line definition — the drift guard behind
-// `resumeFrom` (specs/fork-rerun-from-node FR4). Forking copies node rows out of
-// a prior execution and replays them against the CURRENT graph, which is only
-// sound while the graph is the one that produced them.
-//
-// Hashed over the PARSED definition, not the YAML bytes: a comment or a reflow
-// must not read as drift and block every fork of every prior run. Object keys
-// are sorted so a differently-ordered parse of the same definition agrees.
-//
-// Array order DOES participate, and deliberately: `selectEdge` falls back to
-// `candidates[0]`, so when two `always` edges leave one node their order decides
-// which one wins. Reordering edges can change the walk, so it has to read as drift.
-//
-// `description` is excluded as documentation. The exclusion is a denylist rather
-// than an allowlist of semantic fields on purpose: a field added to the loader
-// schema later is then hashed by default, so the guard over-refuses rather than
-// silently forking across a change it never learned about.
+// Content hash of a loaded assembly line — drift guard behind `resumeFrom` (specs/fork-rerun-from-node FR4), hashed over the PARSED definition with sorted keys (array order DOES participate, since selectEdge's candidates[0] fallback means edge order can change the walk) and `description` denylisted so a new loader field hashes — and over-refuses — by default.
 
 import { createHash } from "node:crypto";
 import type { AssemblyLine } from "./loader.js";
 
-/** Prose, at any depth — reworded documentation is not a definition change. */
+// Prose, at any depth — reworded documentation is not a definition change.
 const IGNORED_KEYS = new Set(["description"]);
 
 export function definitionHash(definition: AssemblyLine): string {

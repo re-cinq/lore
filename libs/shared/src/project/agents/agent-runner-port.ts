@@ -1,9 +1,4 @@
-/**
- * Agent execution/delegation port — the EXECUTION side (distinct from the
- * TaskStorePort record side). run() routes to local (background Claude Code),
- * cluster (LoreTask CR / claude --print), or the direct Anthropic API. The
- * routing lives in the adapter; the facade gates and delegates.
- */
+// Agent execution/delegation port (execution side, distinct from TaskStorePort's record side); run() routes to local/cluster/direct, routing lives in the adapter, the facade gates and delegates.
 
 export type AgentMode = "local" | "cluster" | "direct";
 
@@ -11,11 +6,9 @@ export interface AgentRunResult {
   taskId: string;
   mode: AgentMode;
   started: boolean;
-  /** Set when the dispatch joined a run already working this subject rather than
-   *  starting one. The task owns no run of its own and the caller must settle it. */
+  /** Set when dispatch joined a run already working this subject; the task owns no run of its own, the caller must settle it. */
   joinedRun?: string;
-  /** Set when a synchronous Station backend (docker) waited on the run; the
-   *  caller finalizes it inline. Omitted for async backends (k8s). */
+  /** Set when a synchronous Station backend (docker) waited on the run, for inline finalize; omitted for async backends (k8s). */
   completion?: import("./station-port.js").StationCompletion;
 }
 
@@ -35,11 +28,9 @@ export interface AgentRunOpts {
   darkFactory?: { workflowName: string; baseBranch: string };
   /** BYO execution container (ADR-025); omitted → controller default. */
   image?: string;
-  /** The feature a planning run belongs to, threaded into the line's args so a
-   *  definition can key a conversation thread on `args.feature_id`. */
+  /** Feature a planning run belongs to, threaded into the line's args so a definition can key a conversation thread on args.feature_id. */
   featureId?: string;
-  /** The round's feedback-only turn, used instead of `description` when the run
-   *  resumes a conversation. */
+  /** Round's feedback-only turn, used instead of description when the run resumes a conversation. */
   roundFeedback?: string;
   /** The task whose run this one continues (rewind). */
   resumeFromTask?: string;

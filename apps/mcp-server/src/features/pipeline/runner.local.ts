@@ -1,15 +1,6 @@
 import type { PgPool } from "@re-cinq/lore-shared";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
-/**
- * Local Task Runner — manages local task execution via git worktrees
- * and background Claude Code processes.
- *
- * Spawns headless Claude Code in isolated worktrees so tasks run on the
- * developer's machine using their subscription (zero API cost).
- *
- * Phase 1: explicit execution via spawnLocalTask
- * Phase 2: task notifier (startNotifier / stopNotifier) + interactive claim
- */
+// Local task runner: spawns headless Claude Code in isolated git worktrees using the developer's subscription (zero API cost).
 import { spawn, execSync } from "node:child_process";
 import * as fs from "node:fs";
 import * as path from "node:path";
@@ -21,20 +12,12 @@ import {
 } from "@re-cinq/lore-shared";
 import { redactSecrets } from "@re-cinq/lore-shared";
 
-// ---------------------------------------------------------------------------
-// Paths
-// ---------------------------------------------------------------------------
-
 const LORE_DIR = path.join(os.homedir(), ".lore");
 const WORKTREES_DIR = path.join(LORE_DIR, "worktrees");
 const LOGS_DIR = path.join(LORE_DIR, "task-logs");
 const TASKS_FILE = path.join(LORE_DIR, "local-tasks.json");
 const PENDING_FILE = path.join(LORE_DIR, "pending-tasks.json");
 const CONFIG_FILE = path.join(LORE_DIR, "local-runner.json");
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
 
 export interface LocalRunnerConfig {
   enabled: boolean;
@@ -93,10 +76,6 @@ export interface PendingTask {
   issue_number?: number;
 }
 
-// ---------------------------------------------------------------------------
-// Directory & file helpers
-// ---------------------------------------------------------------------------
-
 function ensureDirs(): void {
   for (const dir of [WORKTREES_DIR, LOGS_DIR]) {
     fs.mkdirSync(dir, { recursive: true });
@@ -114,10 +93,6 @@ function readTasks(): LocalTask[] {
 function writeTasks(tasks: LocalTask[]): void {
   fs.writeFileSync(TASKS_FILE, JSON.stringify(tasks, null, 2));
 }
-
-// ---------------------------------------------------------------------------
-// Slug / repo helpers (exported for MCP tools)
-// ---------------------------------------------------------------------------
 
 function slugify(text: string): string {
   return text
@@ -154,12 +129,7 @@ export function detectRepo(): string | null {
   }
 }
 
-/**
- * Guards against opening PRs on the wrong repo. If the developer's cwd
- * resolves to a different GitHub owner/repo than the task's target_repo,
- * throw — don't silently create a worktree and push to the wrong remote.
- * Called from spawnLocalTask. Exported for unit tests.
- */
+// Guards against opening a PR on the wrong repo when cwd doesn't match task.target_repo — throw rather than silently push to the wrong remote.
 export function validateRepoMatch(
   taskRepo: string,
   cwdRepo: string | null,
@@ -172,12 +142,8 @@ export function validateRepoMatch(
   );
 }
 
-// ---------------------------------------------------------------------------
-// API helpers (best-effort updates to GKE pipeline)
-// ---------------------------------------------------------------------------
-
+// API helpers: best-effort updates to the GKE pipeline.
 function getApiUrl(): string {
-  // Prefer env var, fall back to git config
   if (process.env.LORE_API_URL) {
     return process.env.LORE_API_URL;
   }
@@ -240,10 +206,6 @@ async function updateTaskViaAPI(
   }
 }
 
-// ---------------------------------------------------------------------------
-// Process helpers
-// ---------------------------------------------------------------------------
-
 /** Waits for a process to exit by polling kill(pid, 0). */
 async function waitForExit(pid: number): Promise<void> {
   return new Promise((resolve) => {
@@ -271,14 +233,7 @@ function isProcessAlive(pid: number): boolean {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Monitor — runs in background after task spawn
-// ---------------------------------------------------------------------------
-
-/**
- * Spawns a Claude Code fix retry for a failed validation, waits for it, and
- * re-validates. Returns null when the fix child never got a pid.
- */
+// Spawns a Claude Code fix retry for a failed validation and re-validates; returns null when the fix child never got a pid.
 async function attemptValidationFix(
   task: LocalTask,
   quickChecks: ReturnType<typeof detectTooling>["quickChecks"],
@@ -338,11 +293,7 @@ async function attemptValidationFix(
   return runValidation(task.worktreePath, quickChecks, changedFiles);
 }
 
-/**
- * Deterministic validation (Minions-inspired): lint/typecheck as mandatory
- * pipeline stages before commit, with one fix retry. "failed" means the task
- * was marked needs-human-help and its artifacts persisted.
- */
+// Deterministic validation (Minions-inspired): lint/typecheck before commit with one fix retry; "failed" means the task was marked needs-human-help and its artifacts persisted.
 async function validateBeforeCommit(
   task: LocalTask,
   tasks: LocalTask[],
@@ -399,15 +350,9 @@ async function validateBeforeCommit(
   await updateTaskViaAPI(task.taskId, "needs-human-help", {
     failure_reason: retryOutput.substring(0, 2000),
   });
-  // Status is written BEFORE the artifact round-trips: writeTasks
-  // rewrites the whole file from this monitor's snapshot, so
-  // holding it across slow network calls widens the lost-update
-  // window against a concurrently finishing task.
+  // Write status before the artifact round-trips — holding it across slow network calls widens the lost-update window against a concurrently finishing task.
   writeTasks(tasks);
-  // This early return used to skip the log upload entirely — the
-  // needs-human-help runs are exactly the ones whose transcript a
-  // human needs. Worktree cleanup stays skipped on purpose (kept
-  // for debugging).
+  // needs-human-help runs still upload the transcript (a human needs it); worktree cleanup stays skipped on purpose for debugging.
   await persistRunArtifacts(task);
 
   return "failed";
@@ -425,10 +370,7 @@ async function commitAndOpenPr(
     timeout: 30000,
   });
 
-  // After staging, check if there's anything worth committing.
-  // `git status --porcelain` above can include files that become
-  // ignored or stripped on add — verify the index actually has
-  // changes before we commit/push/open a PR (issue #250).
+  // Verify the index actually has changes before commit/push/PR — `git status --porcelain` can include files stripped on add (#250).
   const stagedFiles = execSync("git diff --cached --name-only", {
     cwd: task.worktreePath,
     encoding: "utf-8",
@@ -582,8 +524,7 @@ async function monitorTask(task: LocalTask): Promise<void> {
     console.error(`[lore] local-runner: task ${task.taskId} failed: ${errMsg}`);
   }
 
-  // Same ordering rule as the early-return path: persist the status snapshot
-  // before the slow artifact round-trips.
+  // Same ordering rule as the early-return path: persist the status snapshot before the slow artifact round-trips.
   writeTasks(tasks);
   await persistRunArtifacts(task);
 }
@@ -591,27 +532,14 @@ async function monitorTask(task: LocalTask): Promise<void> {
 // Use shared redaction (alias for backward compatibility)
 const redactLogs = redactSecrets;
 
-// ---------------------------------------------------------------------------
-// Turn ingest — relay the run's stream-json transcript to the Floor's turn
-// store via lore-api POST /api/task-turns/{taskId} (issue #1295), so local
-// runs are readable like cluster runs. Redaction happens here, per line,
-// before anything leaves the machine.
-// ---------------------------------------------------------------------------
+// Turn ingest: relays the run's stream-json transcript to the Floor's turn store via lore-api POST /api/task-turns/{taskId}, redacted per line before anything leaves the machine (#1295).
 
-/** Sibling file capturing stderr, kept out of the NDJSON transcript so a
- *  stderr write can never land mid-JSON-line. */
+// Sibling file capturing stderr, kept out of the NDJSON transcript so a stderr write can never land mid-JSON-line.
 function errFileFor(logFile: string): string {
   return `${logFile}.err`;
 }
 
-/**
- * The relayable transcript of a raw log: per-line redaction (matching the
- * Floor's own per-line rule — a whole-text pass could span JSON boundaries and
- * erase every line in between), keeping only lines that parse as JSON after
- * redaction. Non-JSON lines (validation markers, stray text) are not turns and
- * are skipped silently; a line whose JSON breaks under redaction was a turn
- * and is counted in `dropped`.
- */
+// Redacts per line (matching the Floor's rule — a whole-text pass could span JSON boundaries and erase lines in between); a line whose JSON breaks under redaction is counted in `dropped`.
 export function buildTurnLines(
   rawLog: string,
   redact: (text: string) => string = redactLogs,
@@ -648,12 +576,7 @@ function parsesAsJson(line: string): boolean {
   }
 }
 
-/**
- * Greedy batches under both relay caps: bytes (Buffer.byteLength of the joined
- * NDJSON — lore-api's body limit is 1MB, so the caller passes ~700KB headroom
- * and pre-filters oversized lines via dropOversizedTurnLines before this call)
- * and line count.
- */
+// Greedy batches under both relay caps (bytes and line count) — lore-api's body limit is 1MB, so the caller passes ~700KB headroom.
 export function batchTurnLines(
   lines: string[],
   maxBytes: number,
@@ -688,11 +611,7 @@ export function batchTurnLines(
 const TURN_BATCH_MAX_BYTES = 700 * 1024;
 const TURN_BATCH_MAX_LINES = 2000;
 
-/**
- * A line whose own bytes exceed the batch cap can never relay — lore-api's
- * body limit would 413 the whole request. Dropping it loudly here keeps one
- * pathological line from costing the batches behind it.
- */
+// A line whose own bytes exceed the batch cap can never relay (lore-api would 413 the whole request), so it's dropped loudly here instead of costing the batches behind it.
 export function dropOversizedTurnLines(
   lines: string[],
   maxBytes: number,
@@ -704,8 +623,7 @@ export function dropOversizedTurnLines(
   return { kept, oversized: lines.length - kept.length };
 }
 
-// Exported for tests (the x-turn-offset accounting); production callers stay
-// inside this module via persistRunArtifacts.
+// Exported for tests (the x-turn-offset accounting); production callers stay inside this module via persistRunArtifacts.
 export async function ingestTurns(
   task: LocalTask,
   rawLogs: string,
@@ -736,14 +654,9 @@ export async function ingestTurns(
     );
   }
 
-  // A failed batch is counted and skipped, never allowed to abandon the
-  // batches behind it — the terminal result line rides last, so aborting
-  // here would cost the cost row and the whole transcript tail.
+  // A failed batch is counted and skipped, never aborting — the terminal result line rides last, so stopping early would cost the whole transcript tail.
   let failed = 0;
-  // Each batch declares where in the full transcript it starts, so the relay
-  // can key every line by position (#1389) and a re-POST of an already-sent
-  // buffer dedups instead of duplicating. Advanced on failure too: a batch
-  // consumes its positions whether or not it relayed.
+  // Each batch declares its cumulative start offset so the relay can key lines by position and dedup a re-POST (#1389); advanced on failure too.
   let offset = 0;
 
   for (const batch of batchTurnLines(
@@ -788,13 +701,7 @@ export async function ingestTurns(
   }
 }
 
-/**
- * Best-effort persistence of the run's artifacts: the redacted log to GCS (the
- * legacy viewer path, retirement tracked in #1295's follow-ups) and the
- * redacted stream-json transcript to the Floor's turn store via lore-api.
- * Called on EVERY monitorTask exit path, including the needs-human-help early
- * return — the runs whose transcript matters most are the failed ones.
- */
+// Best-effort persistence of the run's artifacts (redacted log to GCS + redacted transcript to the Floor's turn store); called on EVERY monitorTask exit path, including needs-human-help, since failed runs matter most.
 async function persistRunArtifacts(task: LocalTask): Promise<void> {
   let rawLogs = "";
 
@@ -804,8 +711,7 @@ async function persistRunArtifacts(task: LocalTask): Promise<void> {
     const stderr = fs.existsSync(errFile)
       ? fs.readFileSync(errFile, "utf-8").trim()
       : "";
-    // stderr is appended as a trailing block, no longer interleaved with
-    // stdout — chronology across the two streams is lost in the GCS copy.
+    // stderr is appended as a trailing block, not interleaved with stdout — chronology across the two streams is lost in the GCS copy.
     const combined = stderr
       ? `${rawLogs}\n--- STDERR ---\n${stderr}\n`
       : rawLogs;
@@ -845,18 +751,7 @@ async function persistRunArtifacts(task: LocalTask): Promise<void> {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Public API
-// ---------------------------------------------------------------------------
-
-/**
- * The Lore workflow preamble every locally-run task opens with.
- *
- * It used to have two shapes: one for a run whose context had been pre-fetched
- * and one for a run whose fetch failed. Nothing is pre-fetched any more, so the
- * second shape is the only shape — the agent assembles its own context through
- * the MCP server, which is step 1.
- */
+// The Lore workflow preamble every locally-run task opens with — nothing is pre-fetched, so the agent assembles its own context through the MCP server as step 1.
 export function withLoreWorkflowPreamble(prompt: string): string {
   return [
     "IMPORTANT: You have the Lore MCP server. Follow this workflow:",
@@ -871,13 +766,7 @@ export function withLoreWorkflowPreamble(prompt: string): string {
   ].join("\n");
 }
 
-/**
- * Spawns a local task in a git worktree with a background Claude Code process.
- * Returns immediately — the task runs asynchronously.
- *
- * The agent starts cold and assembles its own context through the Lore MCP
- * server — the preamble's step 1. Nothing is pre-fetched here.
- */
+// Spawns a local task in a git worktree with a background Claude Code process and returns immediately; the agent starts cold and assembles its own context via the MCP server.
 export async function spawnLocalTask(opts: {
   taskId: string;
   prompt: string;
@@ -897,8 +786,7 @@ export async function spawnLocalTask(opts: {
     "Not in a git repository — cannot create worktree",
   );
 
-  // Refuse to run if the developer's cwd is a checkout of a different
-  // repo than the task's target_repo — avoids pushing to the wrong remote.
+  // Refuse to run if the developer's cwd is a checkout of a different repo than the task's target_repo.
   validateRepoMatch(repo, detectRepo());
 
   const config = readConfig();
@@ -924,9 +812,7 @@ export async function spawnLocalTask(opts: {
 
   const fullPrompt = withLoreWorkflowPreamble(prompt);
 
-  // stdout gets the stream-json transcript (the turn-ingest source, #1295);
-  // stderr goes to a sibling file so its writes can never corrupt an NDJSON
-  // line mid-write.
+  // stdout gets the stream-json transcript (the turn-ingest source, #1295); stderr goes to a sibling file so it can never corrupt an NDJSON line mid-write.
   const logFd = fs.openSync(logFile, "w");
   const errFd = fs.openSync(errFileFor(logFile), "w");
 
@@ -982,17 +868,11 @@ export async function spawnLocalTask(opts: {
     status: "running",
   };
 
-  // Task metadata goes into ~/.lore/local-tasks.json only — never inside
-  // the worktree. Writing it there previously caused noise PRs whose only
-  // diff was the metadata file (see issue #250).
-
-  // Add to the task registry
+  // Task metadata goes into ~/.lore/local-tasks.json only, never inside the worktree — writing it there previously caused noise PRs (#250).
   const tasks = readTasks();
 
   tasks.push(taskMeta);
   writeTasks(tasks);
-
-  // Start background monitoring (fire and forget)
   monitorTask(taskMeta).catch((err) => {
     console.error(`[lore] local-runner: monitor error for ${taskId}: ${err}`);
   });
@@ -1000,10 +880,7 @@ export async function spawnLocalTask(opts: {
   return taskMeta;
 }
 
-/**
- * Returns all local tasks, updating status of running tasks by checking
- * whether their PID is still alive.
- */
+/** Returns all local tasks, updating status of running tasks by checking whether their PID is still alive. */
 export function listLocalTasks(): LocalTask[] {
   const tasks = readTasks();
   let changed = false;
@@ -1023,10 +900,6 @@ export function listLocalTasks(): LocalTask[] {
   return tasks;
 }
 
-/**
- * Cancels a running local task by killing its process and cleaning up
- * the worktree.
- */
 export function cancelLocalTask(taskId: string): {
   cancelled: boolean;
   error?: string;
@@ -1073,25 +946,10 @@ export function cancelLocalTask(taskId: string): {
   return { cancelled: true };
 }
 
-// ---------------------------------------------------------------------------
-// Stale Task Cleanup — Phase 3.1
-// Detects running tasks whose PID has died. If the task is older than 30
-// minutes it's considered stale (e.g. machine slept) and re-queued for GKE.
-// Otherwise it's marked as failed (process crashed).
-// ---------------------------------------------------------------------------
+// Stale Task Cleanup (Phase 3.1): a running task whose PID has died is re-queued to GKE as "pending" if older than 30 min (machine likely slept), else marked failed; the orphaned worktree is always cleaned up best effort.
 
 const STALE_THRESHOLD_MS = 30 * 60 * 1000; // 30 minutes
 
-/**
- * Scans the local task registry for tasks with status "running" whose
- * process is no longer alive.
- *
- * - If the task ran for more than 30 minutes: re-queue to GKE as "pending"
- *   so the cluster agent picks it up, then mark local status "failed".
- * - If less than 30 minutes: mark as "failed" (process crashed).
- *
- * In both cases the orphaned git worktree is cleaned up (best effort).
- */
 /** Removes an orphaned worktree by resolving its main repo from the .git file. */
 function removeOrphanedWorktree(worktreePath: string): void {
   if (!fs.existsSync(worktreePath)) {
@@ -1181,18 +1039,11 @@ export async function cleanupStaleTasks(): Promise<void> {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Task Notifier — polls for pending tasks and writes to ~/.lore/pending-tasks.json
-// Phase 2.2: surfaces notifications, does NOT claim anything.
-// ---------------------------------------------------------------------------
+// Task Notifier (Phase 2.2): polls for pending tasks and writes to ~/.lore/pending-tasks.json; surfaces notifications, does NOT claim anything.
 
 let notifierInterval: ReturnType<typeof setInterval> | null = null;
 
-/**
- * Fetches pending pipeline tasks matching the given repos and task types.
- * Prefers a direct DB query when a pool is available; falls back to the
- * Lore API otherwise.
- */
+// Fetches pending pipeline tasks matching the given repos/task types; prefers a direct DB query when a pool is available, else falls back to the Lore API.
 export async function fetchPendingTasks(
   repos: string[],
   taskTypes: string[],
@@ -1287,14 +1138,7 @@ export async function fetchPendingTasks(
   }
 }
 
-/**
- * Starts the background task notifier. Polls every 30 s for pending
- * pipeline tasks matching the given repos/taskTypes and writes them to
- * `~/.lore/pending-tasks.json`. Does NOT claim or modify any task —
- * this is a read-only notification mechanism.
- *
- * The statusline reads pending-tasks.json to show "N new task(s)".
- */
+// Starts the background task notifier: polls every 30s, writes matches to ~/.lore/pending-tasks.json (read-only, never claims), which the statusline reads to show "N new task(s)".
 export function startNotifier(
   repos: string[],
   taskTypes: string[],
@@ -1349,10 +1193,6 @@ export function isNotifierRunning(): boolean {
   return notifierInterval !== null;
 }
 
-/**
- * Returns the current list of pending tasks from the cached JSON file.
- * Returns an empty array if the file doesn't exist or is unreadable.
- */
 export function listPendingTasks(): PendingTask[] {
   try {
     return JSON.parse(fs.readFileSync(PENDING_FILE, "utf-8"));
@@ -1361,11 +1201,7 @@ export function listPendingTasks(): PendingTask[] {
   }
 }
 
-/**
- * Removes a task from the local pending-tasks.json so the notification
- * disappears. The task remains pending on the server — GKE will pick it
- * up after its 30 s grace period unless claimed first.
- */
+// Removes a task from local pending-tasks.json so the notification disappears; it remains pending server-side, and GKE picks it up after its 30s grace period unless claimed first.
 export function skipTask(taskId: string): void {
   const tasks = listPendingTasks();
   const filtered = tasks.filter((t) => t.id !== taskId);

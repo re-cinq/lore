@@ -7,19 +7,6 @@ import * as dgraph from "dgraph-js-http";
 import { driftCheckFile } from "./drift-check-file.js";
 import type { DriftedStatement } from "./format-drift-report.js";
 
-/**
- * driftCheckFile (spec-traceability-graph, Phase 4 / T240) — when an
- * implementation chunk's content changed (content_hash differs) while its test
- * is unchanged, the connected Statement flips drifted=true with a code-content
- * drift_reason. Runs against the REAL local Dgraph cluster (no mocks).
- * Container-gated: skips when Dgraph isn't reachable.
- *
- * KERNEL facet: a Statement linked Statement.implemented_by -> CodeChunk whose
- * stored content_hash differs from the new chunk's hash flips drifted=true with
- * drift_reason "code-content-changed (render)", and the CodeChunk's stored hash
- * is updated to the new value.
- */
-
 const DGRAPH_HTTP = process.env.DGRAPH_HTTP ?? "http://localhost:8081";
 const APPLIER = join(
   findRepoRoot(),
@@ -28,11 +15,6 @@ const APPLIER = join(
   "setup-spec-trace-schema.sh",
 );
 
-// Embedding predicates carry a single global HNSW index per predicate across the
-// shared Dgraph container, so every test must use the same dimension (768 — the
-// real Vertex text-embedding-005 size) or inserts collide with sibling suites
-// ("can not compute dot product on vectors of different lengths"). Zero-padding
-// leaves dot products and norms — hence cosine severity — unchanged.
 const pad768 = (head: number[]): number[] =>
   Object.assign(new Array(768).fill(0), head);
 
@@ -108,7 +90,7 @@ describe.skipIf(!reachable)("driftCheckFile (live Dgraph)", () => {
         });
       }
     } catch {
-      // best-effort cleanup must never mask the assertion
+      void 0;
     } finally {
       await txn.discard().catch(() => {});
     }
@@ -134,7 +116,7 @@ describe.skipIf(!reachable)("driftCheckFile (live Dgraph)", () => {
         });
       }
     } catch {
-      // best-effort cleanup must never mask the assertion
+      void 0;
     } finally {
       await txn.discard().catch(() => {});
     }
@@ -160,7 +142,7 @@ describe.skipIf(!reachable)("driftCheckFile (live Dgraph)", () => {
         });
       }
     } catch {
-      // best-effort cleanup must never mask the assertion
+      void 0;
     } finally {
       await txn.discard().catch(() => {});
     }

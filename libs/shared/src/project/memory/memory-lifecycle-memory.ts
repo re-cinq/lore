@@ -32,14 +32,7 @@ export interface MemoryLifecycleRow {
   expires_at: string | null;
 }
 
-/**
- * A `memory.facts` row the double tracks.
- *
- * `agent_id` and `repo` are NOT columns of that table — a fact reaches its
- * agent through the memory or episode it came from. They are flattened here so
- * a seed can state ownership in one line, and the Pg adapter must reproduce
- * them by joining, never by selecting a column of that name.
- */
+/** A memory.facts row the double tracks; agent_id/repo are NOT real columns (a fact reaches its agent through its memory/episode) — flattened here for seeding, the Pg adapter must reproduce them by joining. */
 export interface FactRow {
   id: string;
   agent_id: string;
@@ -76,12 +69,7 @@ function newerThanDays(iso: string, days: number): boolean {
   return Date.now() - new Date(iso).getTime() < days * DAY_MS;
 }
 
-/**
- * In-memory {@link MemoryLifecyclePort}: models memories/facts/episodes/audit
- * rows in arrays so every method is behaviorally assertable — counts,
- * soft-deletes, half_life arithmetic, dedup-on-insert. Seed rows via the
- * constructor; the public arrays are inspected directly in tests.
- */
+/** In-memory MemoryLifecyclePort — models memories/facts/episodes/audit rows in arrays so every method is behaviorally assertable; seed via the constructor, inspect the public arrays directly in tests. */
 export class InMemoryMemoryLifecycle implements MemoryLifecyclePort {
   readonly memories: MemoryLifecycleRow[];
   readonly facts: FactRow[];
@@ -379,22 +367,13 @@ export class InMemoryMemoryLifecycle implements MemoryLifecyclePort {
   }
 }
 
-// ── The double's rows ARE the tables' rows ───────────────────────────
-//
-// Type-only, so it costs nothing at runtime and fails `tsc` the moment a shape
-// here names something the table does not have. A double whose rows drifted from
-// the columns is how a `42703` passes its own tests: the in-memory half agrees
-// with the shape, the SQL half disagrees with the database, and both are green.
+// The double's rows ARE the tables' rows — type-only assertion so tsc fails the moment a shape here drifts from the table (else a 42703 passes both the in-memory and SQL halves green).
 
 type _MemoryRowKeysAreColumns = Assert<
   KeysAreColumns<MemoryLifecycleRow, MemoryEntry, typeof MEMORY_ENTRY_COLUMNS>
 >;
 
-// `agent_id` and `repo` are the documented exceptions: a fact reaches its agent
-// through the memory or episode it came from, so the Pg adapter must produce
-// them by JOINING and never by selecting a column of that name. Listing them
-// here makes the exception a thing someone wrote down rather than a paragraph
-// someone has to believe — and adding a third silently is now a build failure.
+// agent_id/repo are the documented exceptions (produced by joining, not a real column) — listing them here makes a silently-added third exception a build failure.
 type _FactRowKeysAreColumns = Assert<
   KeysAreColumns<Omit<FactRow, "agent_id" | "repo">, Fact, typeof FACT_COLUMNS>
 >;

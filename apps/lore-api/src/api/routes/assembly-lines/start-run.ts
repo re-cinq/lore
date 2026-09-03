@@ -15,40 +15,21 @@ import { zodValidate } from "../../../server/plugins/zod-validate.js";
 import { zodResponse } from "../../../server/plugins/zod-response.js";
 import { repoFullName } from "../common-schemas.js";
 
-/**
- * POST /api/assembly-runs — start one run of a blueprint.
- *
- * The seam a courier CronJob posts to (#1357): the schedule lives in Kubernetes,
- * the work lives in an assembly line, and the pod between them carries a message
- * and no business logic. Before this, `assemblyRuns.start()` was reachable only
- * in-process from the Floor, so anything that wanted to start a line had to BE
- * the Floor — which is how four batch jobs ended up living in the coordinator.
- *
- * The write is `start()`'s existing atomic CTE: the `pipeline.assembly_runs` row
- * and its `assembly_run.start` event land together, and the Floor's event loop
- * claims the event and walks the line exactly as it does for every other run.
- * Nothing here knows what the line does.
- */
+// POST /api/assembly-runs — the seam a courier CronJob posts to (#1357), since assemblyRuns.start() was previously reachable only in-process from the Floor; uses start()'s existing atomic CTE, so nothing here knows what the line does.
 
 const StartBody = z
   .object({
-    /** Blueprint name, e.g. `memory-consolidation`. `blueprintName` on the wire
-     *  would leak an internal spelling into a hand-written CronJob body. */
+    // Blueprint name; `blueprintName` on the wire would leak an internal spelling into a hand-written CronJob body.
     definition: z.string().min(1).max(200),
     repo: repoFullName,
     branch: z.string().min(1).max(300).optional(),
     args: z.record(z.unknown()).optional(),
-    /** Fork-and-rerun (specs/fork-rerun-from-node): copy the source run's rows
-     *  through `node_id`'s latest completed visit and let the walk resume at its
-     *  successor. `run_id`/`node_id` on the wire for the same reason `definition`
-     *  is not `blueprintName`. */
+    // Fork-and-rerun (specs/fork-rerun-from-node): copy the source run's rows through node_id's latest completed visit and resume at its successor.
     resume_from: z
       .object({
         run_id: z.string().min(1).max(200),
         node_id: z.string().min(1).max(200),
-        /** Fork from exactly this visit of `node_id` (loop-exact: on a line with
-         *  back-edges the node's LATEST row can postdate the retry target).
-         *  Omitted, the latest completed visit is the cutoff. */
+        // Fork from exactly this visit of node_id (loop-exact — a back-edge line's LATEST row can postdate the retry target); omitted defaults to the latest completed visit.
         iteration: z.number().int().min(1).optional(),
       })
       .optional(),
@@ -61,9 +42,7 @@ const StartBody = z
     },
   );
 
-/** Declared so the generator emits 201 + `{ id }`. Without a contract it infers
- *  a bodyless 200, and web-ui's generated client types then describe a response
- *  the server never sends. */
+// Declared so the generator emits 201 + { id }; without it, generated client types describe a response the server never sends.
 const StartResponse = z.object({ id: z.string() });
 
 type StartRun = (input: AssemblyRunStartInput) => Promise<string>;
@@ -105,9 +84,7 @@ export function startRunRoute(
         return h.response({ id: await start(input) }).code(201);
       }
 
-      // The fork's drift guard needs the CURRENT definition's hash as its
-      // left-hand side, and this route is where the definition loads —
-      // `libs/shared` cannot derive it (the dependency runs the other way).
+      // The fork's drift guard needs the CURRENT definition's hash as its left-hand side; libs/shared can't derive it (the dependency runs the other way).
       const definition = (await loadDefinitions()).get(body.definition);
 
       enforceTrue(
@@ -133,9 +110,7 @@ export function startRunRoute(
       } catch (err) {
         rethrowBoom(err);
 
-        // Only the port's typed REFUSALS (drift, non-terminal source, missing
-        // visit — all pre-write) become a 409 the caller must hear; anything
-        // else stays the internal failure it is.
+        // Only the port's typed REFUSALS (drift, non-terminal source, missing visit — all pre-write) become a 409; anything else stays the internal failure it is.
         if (err instanceof ResumeRefusedError) {
           throw apiError(409)(err.message);
         }

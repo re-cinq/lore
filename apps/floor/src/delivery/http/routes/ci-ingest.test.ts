@@ -26,7 +26,7 @@ const authed = (payload: string) =>
   });
 
 describe("POST /api/webhook/ci-ingest", () => {
-  it("returns 202 and queues one spec_trace event per requested kind", async () => {
+  it("returns 202 and queues one spec_trace event per requested kind, asserting the actual insert since CI never retries a 2xx", async () => {
     process.env.LORE_INGEST_TOKEN = "right-token";
     const res = await authed(
       JSON.stringify({
@@ -39,9 +39,6 @@ describe("POST /api/webhook/ci-ingest", () => {
 
     expect(res.statusCode).toBe(202);
     expect(res.result).toEqual({ triggered: ["specs", "adrs"] });
-    // The 202 says "captured", so what was captured is the assertion that matters:
-    // a 202 over an empty insert would tell CI the projection was queued when it
-    // was not, and CI never retries a 2xx.
     expect(vi.mocked(insertEventList).mock.calls[0]).toEqual([
       [
         {

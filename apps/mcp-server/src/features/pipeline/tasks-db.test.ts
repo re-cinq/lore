@@ -26,8 +26,8 @@ describe("syncTasksToDb", () => {
     const pool = makePool();
 
     pool.query
-      .mockResolvedValueOnce({ rows: [] }) // existence check: none
-      .mockResolvedValueOnce({ rows: [] }); // insert
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] });
 
     const result = await syncTasksToDb(pool, "re-cinq/lore", "auth", [
       parsed({ specTaskId: "T001" }),
@@ -44,8 +44,8 @@ describe("syncTasksToDb", () => {
     const pool = makePool();
 
     pool.query
-      .mockResolvedValueOnce({ rows: [{ id: "uuid-1", status: "pending" }] }) // exists
-      .mockResolvedValueOnce({ rows: [] }); // update
+      .mockResolvedValueOnce({ rows: [{ id: "uuid-1", status: "pending" }] })
+      .mockResolvedValueOnce({ rows: [] });
 
     const result = await syncTasksToDb(pool, "re-cinq/lore", "auth", [
       parsed({ specTaskId: "T001" }),
@@ -56,7 +56,7 @@ describe("syncTasksToDb", () => {
     expect(pool.query.mock.calls[1][1]).toContain("uuid-1");
   });
 
-  it("persists completed tasks with status completed", async () => {
+  it("persists status as the 3rd positional insert param when a task completes", async () => {
     const pool = makePool();
 
     pool.query
@@ -67,7 +67,6 @@ describe("syncTasksToDb", () => {
       parsed({ specTaskId: "T002", completed: true }),
     ]);
 
-    // status param is the 3rd positional value in the no-group insert
     expect(pool.query.mock.calls[1][1][2]).toBe("completed");
   });
 
@@ -96,10 +95,10 @@ describe("syncTasksToDb", () => {
     const pool = makePool();
 
     pool.query
-      .mockResolvedValueOnce({ rows: [{ id: "uuid-1", status: "pending" }] }) // T001 exists
-      .mockResolvedValueOnce({ rows: [] }) // T001 update
-      .mockResolvedValueOnce({ rows: [] }) // T002 not found
-      .mockResolvedValueOnce({ rows: [] }); // T002 insert
+      .mockResolvedValueOnce({ rows: [{ id: "uuid-1", status: "pending" }] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] });
 
     const result = await syncTasksToDb(pool, "re-cinq/lore", "auth", [
       parsed({ specTaskId: "T001" }),
@@ -110,11 +109,7 @@ describe("syncTasksToDb", () => {
   });
 });
 
-// getReadyTasks / claimTask / completeTask delegate to the shared PgTaskQueue;
-// the queue SQL is covered in libs/shared/.../task-queue.test.ts. These assert
-// the delegation + the mcp-specific audit events.
-
-describe("getReadyTasks", () => {
+describe("getReadyTasks delegates to the shared PgTaskQueue (SQL covered in libs/shared task-queue.test.ts)", () => {
   it("returns the repo-scoped ready set the shared queue produces", async () => {
     const pool = makePool();
     const rows = [
@@ -149,8 +144,8 @@ describe("claimTask", () => {
     const pool = makePool();
 
     pool.query
-      .mockResolvedValueOnce({ rows: [{ id: "uuid-1" }] }) // claim CAS wins
-      .mockResolvedValueOnce({ rows: [] }); // recordEvent INSERT
+      .mockResolvedValueOnce({ rows: [{ id: "uuid-1" }] })
+      .mockResolvedValueOnce({ rows: [] });
 
     const claimed = await claimTask(pool, "uuid-1", "agent-7");
 
@@ -164,7 +159,7 @@ describe("claimTask", () => {
   it("returns false and records no event when the row is already claimed", async () => {
     const pool = makePool();
 
-    pool.query.mockResolvedValueOnce({ rows: [] }); // claim CAS loses
+    pool.query.mockResolvedValueOnce({ rows: [] });
 
     const claimed = await claimTask(pool, "uuid-1", "agent-7");
 
@@ -176,8 +171,8 @@ describe("claimTask", () => {
     const pool = makePool();
 
     pool.query
-      .mockResolvedValueOnce({ rows: [{ id: "uuid-1" }] }) // claim wins
-      .mockRejectedValueOnce(new Error("task_events missing")); // event fails
+      .mockResolvedValueOnce({ rows: [{ id: "uuid-1" }] })
+      .mockRejectedValueOnce(new Error("task_events missing"));
 
     expect(await claimTask(pool, "uuid-1", "agent-7")).toBe(true);
   });
@@ -223,9 +218,9 @@ describe("completeTask", () => {
             target_repo: "re-cinq/lore",
           },
         ],
-      }) // load
-      .mockResolvedValueOnce({ rows: [] }) // UPDATE completed
-      .mockResolvedValueOnce({ rows: [] }); // recordEvent INSERT
+      })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] });
 
     const result = await completeTask(pool, "uuid-1");
 
@@ -246,8 +241,8 @@ describe("completeTask", () => {
             target_repo: "re-cinq/lore",
           },
         ],
-      }) // load
-      .mockResolvedValueOnce({ rows: [] }) // UPDATE
+      })
+      .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({
         rows: [
           {
@@ -269,8 +264,8 @@ describe("completeTask", () => {
             },
           },
         ],
-      }) // findReadySpecTasks
-      .mockResolvedValueOnce({ rows: [] }); // recordEvent INSERT
+      })
+      .mockResolvedValueOnce({ rows: [] });
 
     const result = await completeTask(pool, "uuid-1");
 

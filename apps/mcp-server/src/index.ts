@@ -5,13 +5,7 @@ import { dumpSessionLog } from "@re-cinq/lore-server-core/platform/session-track
 import { loadTaskTypes } from "@re-cinq/lore-server-core/features/pipeline/pipeline-config.js";
 import { loadDefaultTemplates } from "@re-cinq/lore-server-core/features/context/context-assembly.js";
 
-// The local MCP adapter speaks the MCP protocol over stdio and proxies every
-// data operation to the remote Lore API (LORE_API_URL). It holds no DB pool and
-// initializes no OpenTelemetry SDK — those heavy remote concerns live in
-// @re-cinq/lore-api, so every tool has exactly one path: the proxy.
-//
-// With LORE_MCP_HTTP=1 it instead serves MCP over Streamable HTTP as a shared
-// gateway for headless agent pods (server/http-transport.ts).
+// Speaks MCP over stdio and proxies every data operation to LORE_API_URL (no DB pool, no OTel SDK); LORE_MCP_HTTP=1 serves it over Streamable HTTP instead, as a shared gateway for agent pods.
 
 async function main() {
   loadTaskTypes();

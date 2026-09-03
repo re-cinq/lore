@@ -1,6 +1,4 @@
-// The detail card for the selected graph node: the plain-language "why" plus the
-// supporting facts and links. Pure render over the presenter's output.
-
+// Detail card for the selected graph node: plain-language "why" plus supporting facts and links. Pure render over the presenter's output.
 import type { AssemblyLineDefinition } from "@/lib/assembly-line-definition";
 import type { AssemblyRunNode } from "@/lib/assembly-runs";
 import type { NodeRunState } from "@/lib/run-event-reducer";

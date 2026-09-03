@@ -25,17 +25,11 @@ export interface StoredLlmCall {
 export interface SeedUsageNode {
   agentCrName: string;
   assemblyLineId: string;
-  /** The visit's own id. Optional because a node seeded before station-run
-   *  identity has none; the adapter's lateral selects it either way. */
+  /** The visit's own id; optional because a node seeded before station-run identity has none. */
   stationRunId?: string | null;
 }
 
-/**
- * In-memory {@link UsagePort}: the behavioral spec of the Pg adapter. Seed the
- * ids the correlation join can hit (tasks, assembly lines, nodes); every
- * logLlmCall stores a row — uncorrelated rows are kept, not rejected (#945).
- * `now` is injectable so the today/total split is deterministic in tests.
- */
+/** In-memory {@link UsagePort}: the behavioral spec of the Pg adapter; uncorrelated rows are kept, not rejected (#945). */
 export class InMemoryUsage implements UsagePort {
   readonly rows: StoredLlmCall[] = [];
   private readonly taskIds = new Set<string>();
@@ -54,22 +48,16 @@ export class InMemoryUsage implements UsagePort {
     this.assemblyLineIds.add(id);
   }
 
-  /**
-   * Seed an `assembly_line_nodes` row. Registration order is insertion order —
-   * the LAST matching registration wins, mirroring `ORDER BY n.id DESC LIMIT 1`.
-   */
+  /** Seed an `assembly_line_nodes` row; the LAST matching registration wins, mirroring `ORDER BY n.id DESC LIMIT 1`. */
   registerNode(node: SeedUsageNode): void {
     this.nodes.push(node);
   }
 
   async logLlmCall(record: LlmCallRecord): Promise<LlmCallResult> {
-    // Not modeled: Pg casts the given id with `::uuid`, so a NON-uuid string
-    // errors there rather than storing uncorrelated. Seed valid uuids.
+    // Not modeled: Pg casts the given id with `::uuid`, erroring on a non-uuid string rather than storing uncorrelated — seed valid uuids.
     const given = record.taskId ?? null;
     const taskId = given !== null && this.taskIds.has(given) ? given : null;
-    // The lateral join is independent of the task join; a NULL CR matches no
-    // node. COALESCE(node.assembly_line_id, al.id) — and al joins only when the
-    // given id is not a task (`t.id IS NULL`).
+    // The lateral join is independent of the task join; a NULL CR matches no node.
     const node =
       record.agentCrName == null
         ? undefined
@@ -80,8 +68,7 @@ export class InMemoryUsage implements UsagePort {
       taskId === null && given !== null && this.assemblyLineIds.has(given)
         ? given
         : null;
-    // Stated beats both guesses, and beats them WHOLE: a carried identity brings
-    // its own station run, never the lateral's.
+    // Stated beats both guesses, and beats them WHOLE: a carried identity brings its own station run, never the lateral's.
     const assemblyLineId =
       record.carried?.assemblyRunId ?? node?.assemblyLineId ?? lineFromGiven;
     const stationRunId = record.carried

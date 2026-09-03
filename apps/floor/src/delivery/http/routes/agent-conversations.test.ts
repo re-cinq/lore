@@ -7,7 +7,6 @@ const store = new InMemoryConversations();
 let archive: InMemoryArchive | null = new InMemoryArchive();
 
 vi.mock("../../../kernel/queues.js", () => ({
-  // The logs route resolves the cluster agent from here.
   clusterAgent: () => ({}),
   usage: () => ({ logLlmCall: vi.fn() }),
   agentRunEvents: () => ({ insertBatch: vi.fn() }),
@@ -23,8 +22,6 @@ const ORIG = process.env.LORE_AGENT_INTERNAL_TOKEN;
 const auth = { authorization: "Bearer test-internal" };
 const server = () => buildServer({ getJobStatus: () => ({}) });
 
-// A gzip archive, not text: the whole point is that a transcript survives the round
-// trip byte-for-byte.
 const GZIP = Buffer.from([0x1f, 0x8b, 0x08, 0x00, 0x01, 0x02, 0x03]);
 
 beforeEach(() => {
@@ -62,9 +59,7 @@ describe("POST /api/agent-conversations/{id}", () => {
     );
   });
 
-  it("still accepts an archive for an id nobody reserved", async () => {
-    // The run produced real work; refusing it would lose the transcript over a
-    // bookkeeping mismatch.
+  it("still accepts an archive for an id nobody reserved, rather than losing real work to a bookkeeping mismatch", async () => {
     const res = await server().inject({
       method: "POST",
       url: "/api/agent-conversations/stray",
@@ -76,9 +71,7 @@ describe("POST /api/agent-conversations/{id}", () => {
     expect(JSON.parse(res.payload).indexed).toBe(false);
   });
 
-  it("accepts the save as a no-op when no bucket is configured", async () => {
-    // A laptop without object storage: the run still succeeded, and the only cost
-    // is that the next one starts fresh.
+  it("accepts the save as a no-op when no bucket is configured, so only the next run starts fresh", async () => {
     archive = null;
 
     const res = await server().inject({

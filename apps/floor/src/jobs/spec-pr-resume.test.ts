@@ -1,13 +1,3 @@
-// The merged spec PR must wake the line that pushed it.
-//
-// `resumeDecomposition` existed and was correct, but nothing could call it for a
-// spec PR: its only caller was `handleMergedTask`, reached only for tasks the
-// mergeable sweep returns (`status IN ('pr-created','review') AND pr_number IS NOT
-// NULL`). A feature-planning task is `running` with a null pr_number — the push node
-// stamps the LINE's args, which is what `findOpenByPr` reads, and nothing copies it
-// onto the task. So a merged spec PR decomposed on NO deployment: not by webhook,
-// and not by the cron that is meant to be the webhook's safety net.
-
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const findOpenByPr = vi.fn();
@@ -16,13 +6,11 @@ const query = vi.fn();
 const reported = vi.fn();
 
 vi.mock("../kernel/queues.js", () => ({
-  // The logs route resolves the cluster agent from here.
   clusterAgent: () => ({}),
   pipeline: () => ({
     assemblyRuns: { findOpenByPr, listStationRuns },
     taskQueue: {},
   }),
-  // The resume is REPORTED now, not written to the pool (ADR-044).
   eventReporter: () => ({ insert: reported }),
   settings: () => ({}),
   taskStore: () => ({}),
@@ -93,9 +81,7 @@ describe("specPrResumeLine", () => {
     expect(query).not.toHaveBeenCalled();
   });
 
-  it("passes over a line that is not waiting for this PR at all", async () => {
-    // A code-review line shares the PR. It never waited on `merged`, so advancing
-    // it would push it through a step it never asked for.
+  it("passes over a code-review line sharing the PR that never waited on `merged`", async () => {
     listStationRuns.mockResolvedValue([
       { nodeId: "review", iteration: 1, outcome: null },
     ]);

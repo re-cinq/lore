@@ -1,13 +1,7 @@
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { hasConnect } from "@re-cinq/lore-shared";
 import type { PgPool } from "@re-cinq/lore-shared";
-/**
- * PostgreSQL-backed memory CRUD module.
- *
- * Provides write / read / delete / list operations against the
- * memory.memories, memory.memory_versions, and memory.audit_log tables.
- * Uses the same pool-injection pattern as db.ts.
- */
+// PostgreSQL-backed memory CRUD: write/read/delete/list against memory.memories, memory.memory_versions, and memory.audit_log, using the same pool-injection pattern as db.ts.
 
 import { resolveAgentId } from "../../platform/agent-id.js";
 
@@ -135,11 +129,7 @@ export async function writeMemory(
 ): Promise<WriteResult> {
   const agent = resolveAgentId(agentId);
 
-  // The memories row and its version row must land together: prod ran for
-  // months with memory.memory_versions missing, and the sequential writes
-  // left version-less memories behind on every call (#1154). hasConnect
-  // (see @re-cinq/lore-shared memory-store.ts) feature-detects connect();
-  // a pool without it keeps the plain sequential path.
+  // The memories row and its version row must land together — prod ran for months with sequential writes leaving version-less memories behind (#1154); hasConnect feature-detects connect(), a pool without it keeps the plain sequential path.
   const db = pool!;
   const client = hasConnect(db) ? await db.connect() : null;
   let memoryId: string;
@@ -163,8 +153,7 @@ export async function writeMemory(
       await client.query("COMMIT");
     }
   } catch (err) {
-    // Best-effort: the connection may already be dead, and that failure must
-    // not mask the original error.
+    // Best-effort: the connection may already be dead, and that failure must not mask the original error.
     await client?.query("ROLLBACK").catch(() => undefined);
     throw err;
   } finally {
@@ -215,10 +204,7 @@ export async function readMemory(
     typeof version === "number" ||
     (typeof version === "string" && !isNaN(Number(version)))
   ) {
-    // Specific version
-    // `m.key` is selected so one-version read answers the same shape as a
-    // latest read — the endpoint declares one contract for `action: "read"`,
-    // and a row without the key it was asked for does not satisfy it.
+    // `m.key` is selected so one-version read answers the same shape as a latest read — the endpoint declares one contract for `action: "read"`.
     const { rows } = await pool!.query(
       `SELECT m.key, mv.version, mv.value, mv.created_at
        FROM memory.memory_versions mv
@@ -346,9 +332,7 @@ export async function sharedWrite(
   const agent = resolveAgentId(agentId);
   const embeddingParam = embedding ? `[${embedding.join(",")}]` : null;
 
-  // Same atomicity contract as writeMemory (#1154): the pool lookup/create,
-  // the memories insert, and the version insert land in one transaction when
-  // the pool provides connect(); a query-only pool stays sequential.
+  // Same atomicity contract as writeMemory (#1154): pool lookup/create, memories insert, and version insert land in one transaction when the pool provides connect(); a query-only pool stays sequential.
   const db = pool!;
   const client = hasConnect(db) ? await db.connect() : null;
   const tx = client ?? db;
@@ -388,8 +372,7 @@ export async function sharedWrite(
       await client.query("COMMIT");
     }
   } catch (err) {
-    // Best-effort: the connection may already be dead, and that failure must
-    // not mask the original error.
+    // Best-effort: the connection may already be dead, and that failure must not mask the original error.
     await client?.query("ROLLBACK").catch(() => undefined);
     throw err;
   } finally {

@@ -1,10 +1,4 @@
-/**
- * Pure composition of a Lore-managed GitHub issue body: the LLM copy, an
- * optional graph-drift detail block + static remediation guidance for drift
- * tasks, and the provenance footer with a clickable Lore-Task link. Kept pure so
- * it's testable without touching GitHub, and appended *after* the LLM copy pass
- * (which compresses the body and strips trailers).
- */
+/** Pure composition of a Lore-managed GitHub issue body; appended *after* the LLM copy pass, which compresses the body and strips trailers. */
 
 import {
   isDriftTask,
@@ -54,11 +48,7 @@ function renderStatement(s: DriftStatementView): string {
   return `- [${s.reason ?? "drifted"}]${where} ${s.text ?? ""}${links}`.trimEnd();
 }
 
-/**
- * The structured drift detail for the issue body: graph-detected statements
- * (with their validated-by links) when present, else the heuristic's missing
- * top-level symbols. Empty when neither rode in the bundle.
- */
+/** Graph-detected statements when present, else the heuristic's missing top-level symbols; empty when neither rode in the bundle. */
 function driftDetailBlock(task: IssueComposeTask): string {
   const statements = task.context_bundle?.drifted_statements;
 

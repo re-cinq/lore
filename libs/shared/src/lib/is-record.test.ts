@@ -7,9 +7,6 @@ describe("isRecord", () => {
   });
 
   it("rejects an array, which typeof calls an object", () => {
-    // The difference between the two private copies this replaces: the looser
-    // one admitted `[]`, and every `value.someKey` on it then read undefined
-    // instead of the input being rejected.
     expect(isRecord([])).toBe(false);
     expect(isRecord([{ type: "result" }])).toBe(false);
   });

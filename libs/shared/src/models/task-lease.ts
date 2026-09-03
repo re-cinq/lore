@@ -1,15 +1,7 @@
 import { z } from "zod";
 import type { ColumnMap } from "../lib/row.js";
 
-/**
- * `pipeline.task_leases` — the per-branch lease that keeps two workers off one
- * branch (FR1.6).
- *
- * DDL: `scripts/infra/setup-dark-factory-schema.sh`; `task_id` was made
- * nullable by migration `0026` so a detection run with no task can hold one.
- * The BRANCH is the primary key, not the task — that is what makes the lease a
- * claim on the working surface rather than on the work item.
- */
+/** `pipeline.task_leases` — the per-branch lease keeping two workers off one branch (FR1.6); BRANCH is the primary key, not the task, making it a claim on the working surface. */
 
 export const TaskLeaseSchema = z.object({
   branchName: z.string(),

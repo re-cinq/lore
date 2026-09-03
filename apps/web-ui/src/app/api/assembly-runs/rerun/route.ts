@@ -5,15 +5,7 @@ import { authOptions } from "@/lib/auth-options";
 import { userCanAccessRepo } from "@/lib/user-repo-access";
 import { serverError } from "@/lib/api-error";
 
-/**
- * POST /api/assembly-runs/rerun — the "Retry from this node" button's backend
- * (specs/fork-rerun-from-node). Reads the source run from lore-api to learn its
- * repo and blueprint (the client is trusted with ids, never with authz facts),
- * authorizes the user against that repo, then starts the fork via lore-api's
- * POST /api/assembly-runs with `resume_from` and returns the new run's id —
- * the button navigates. Body is the button's form fields (run_id, node_id,
- * iteration).
- */
+// "Retry from this node" backend (specs/fork-rerun-from-node): resolves the source run's repo/blueprint server-side (client is trusted with ids, never authz facts), authorizes, then forks via POST /api/assembly-runs resume_from.
 export async function POST(req: Request) {
   try {
     const session = (await getServerSession(authOptions)) as {
@@ -98,9 +90,7 @@ export async function POST(req: Request) {
     });
 
     if (!upstream.ok) {
-      // The fork's refusals (definition drift, non-terminal source, missing
-      // visit) come back as 4xx with the reason in `error` — hand that reason
-      // to the button verbatim; only a reasonless answer degrades to a 502.
+      // Fork refusals come back as 4xx with a reason in `error`, passed through verbatim; only a reasonless answer degrades to 502.
       const detail = (await upstream.json().catch(() => null)) as {
         error?: string;
       } | null;
@@ -113,9 +103,7 @@ export async function POST(req: Request) {
 
     const { id } = (await upstream.json()) as { id: string };
 
-    // JSON, not a redirect: the caller is the retry button's fetch, and it
-    // navigates to the new run itself — a 303 would make fetch swallow the
-    // run page as an opaque followed response.
+    // JSON, not a redirect — the button's fetch navigates itself; a 303 would make fetch swallow the run page as an opaque response.
     return NextResponse.json({ id });
   } catch (err) {
     return serverError("assembly-run-rerun", err);

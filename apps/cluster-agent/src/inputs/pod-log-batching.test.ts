@@ -13,7 +13,6 @@ import {
 
 const limits: BatchLimits = { maxLines: 3, maxBytes: 64 };
 
-/** Feed lines in, collecting whatever the batcher decided to flush. */
 function feed(lines: string[], over: Partial<BatchLimits> = {}) {
   let batch = emptyBatch();
   const flushed: string[] = [];
@@ -60,8 +59,6 @@ describe("addLine", () => {
   });
 
   it("flushes a single line that alone exceeds the byte cap, rather than wedging", () => {
-    // A batch that can never satisfy its own limit would hold that line
-    // forever. The cap bounds memory; it cannot bound what the pod wrote.
     const { flushed, batch } = feed(["z".repeat(200)]);
 
     expect({
@@ -105,8 +102,6 @@ describe("podLogEvent", () => {
   });
 
   it("dedupes on the POD, not the job, so a retried node's chunks do not collapse", () => {
-    // Both pods of a retried node start at seq 1. A job-keyed dedupe would drop
-    // the retry's first chunk as a duplicate of the original's.
     const target = { agentCrName: "cr", jobName: "job-1", podName: "pod-2" };
 
     expect(podLogEvent(target, 1, "x\n").dedupeKey).toBe("k8s:podlog:pod-2:1");
@@ -141,9 +136,6 @@ describe("followableAgents", () => {
   });
 
   it("skips a CR carrying no metadata or status yet, rather than following an empty name", () => {
-    // A CR observed between creation and the controller filling its status has
-    // neither. Reading through it would put "" in the follower map, which then
-    // matches every other nameless CR and follows none of them.
     expect(
       followableAgents(
         [{}, { metadata: {} }, { metadata: { name: "a-1" }, status: {} }],
@@ -153,10 +145,6 @@ describe("followableAgents", () => {
   });
 
   it("skips one already being followed, so a discovery tick does not double every stream", () => {
-    // Discovery re-runs on a timer over the same running agents. Without this
-    // each tick opens another stream on the same pod, and every line is emitted
-    // once per stream — dedupe is per (pod, seq), and two streams assign their
-    // own seqs, so the duplicates would NOT collapse.
     expect(
       followableAgents([cr("a-1", "Running", "job-1")], new Set(["a-1"])),
     ).toEqual([]);
@@ -170,9 +158,6 @@ describe("pickPodToFollow", () => {
   });
 
   it("names the container to stream, because an empty one is a 400 from the API", () => {
-    // Found live: `Log.log(ns, pod, "", ...)` sends `?container=` and the
-    // apiserver answers 400 "Error occurred in log request". An agent pod has
-    // two containers (`init`, `agent`), so the choice cannot be left implicit.
     expect(
       pickPodToFollow([
         pod("agent-job-x-1", "2026-08-29T00:00:00Z", ["agent"]),
@@ -197,9 +182,6 @@ describe("pickPodToFollow", () => {
   });
 
   it("orders by a Date timestamp too, which is what the real client hands back", () => {
-    // V1Pod.metadata.creationTimestamp is a Date, not the string a fixture
-    // naturally writes. Comparing Dates as strings would sort them by
-    // "[object Date]" — every pod equal, newest by accident.
     expect(
       pickPodToFollow([
         {
@@ -221,9 +203,6 @@ describe("pickPodToFollow", () => {
   });
 
   it("sorts a pod carrying no timestamp last, rather than letting it win by accident", () => {
-    // A pod observed between creation and the apiserver stamping it has none.
-    // Treating that as the empty string sorts it oldest, so a pod with a real
-    // timestamp is preferred — the opposite would follow the least-known pod.
     expect(
       pickPodToFollow([
         {

@@ -15,7 +15,6 @@ const get = (pool: unknown, url = "/api/analytics") =>
     headers: AUTH,
   });
 
-/** Analytics fans out three concurrent queries; makePool resolves them in order. */
 function analyticsPool() {
   const pool = makePool();
 

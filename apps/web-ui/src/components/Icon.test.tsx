@@ -4,9 +4,6 @@ import { render, screen } from "@testing-library/react";
 import type { ThemeFamily } from "@/lib/theme/types";
 import styles from "./Icon.module.scss";
 
-// Drive the `family` branch directly: the real ThemeProvider seeds family from
-// the DOM/inline-script, which is irrelevant here. We only care that Icon maps
-// `ICONS[family][name]` correctly and threads size/className/aria through.
 const family = vi.fn<() => ThemeFamily>(() => "elegant");
 
 vi.mock("@/lib/theme/ThemeProvider", () => ({
@@ -37,7 +34,6 @@ describe("Icon icon-family mapping", () => {
       const expected = ICONS.elegant[name];
 
       expect(expected.startsWith("lucide:")).toBe(true);
-      // Every elegant glyph resolves to an inline lucide <svg> (no <span> fallback).
       expect(svgOf(name, "elegant").getAttribute("class")).toContain(
         "iconify--lucide",
       );
@@ -123,7 +119,6 @@ describe("Icon aria handling", () => {
     const labelled = screen.getByLabelText("Close menu");
 
     expect(labelled.tagName.toLowerCase()).toBe("svg");
-    // Branch: aria present -> the component passes aria-hidden={undefined}.
     expect(labelled).toHaveAttribute("aria-label", "Close menu");
   });
 

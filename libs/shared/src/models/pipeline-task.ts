@@ -1,22 +1,7 @@
 import { z } from "zod";
 import type { ColumnMap } from "../lib/row.js";
 
-/**
- * `pipeline.tasks` — one unit of pipeline work.
- *
- * DDL: `scripts/infra/setup-pipeline-schema.sh`, plus the idempotent ALTERs that
- * added `log_url`, `claimed_by`, `claimed_at`, `priority`, `task_group_id`,
- * `actor`, `context_refs`, `dark_factory_overrides` (FR3.6), `issue_number`
- * and `issue_url`. Those ten ALTERs live in baseline scripts, which run ONCE at
- * provisioning — migration `0043_tasks_late_columns.sql` is what puts them on a
- * database bootstrapped before they were appended. Read `selectList` over this
- * map on such a database and Postgres answers `42703`, which is how the Floor
- * crash-looped through 2026-08-20.
- *
- * A task's id is stable ACROSS retries — the per-attempt identity is the
- * AssemblyRun's (ADR-024). `targetRepo` is the canonical `owner/repo` string,
- * as every repo-scoped column in this schema is.
- */
+/** `pipeline.tasks` — one unit of pipeline work; late-added columns need migration `0043_tasks_late_columns.sql` on a database bootstrapped before them, else `selectList` here 42703s (Floor crash-loop, 2026-08-20). Task id is stable across retries — per-attempt identity is the AssemblyRun's (ADR-024). */
 
 export const TaskStatusSchema = z.enum([
   "pending",

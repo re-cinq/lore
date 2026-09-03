@@ -2,13 +2,7 @@
 
 import Link, { useLinkStatus } from "next/link";
 
-/**
- * Label for a nav link with a pending state. While the link's navigation is in
- * flight (server component still fetching), it shows a spinner and a `pending`
- * class so the clicked item highlights immediately instead of looking dead for
- * the seconds the page takes to load. Presentational + pure on `pending` so it
- * is unit-testable without the Link runtime.
- */
+/** Pure on `pending` (not the Link runtime) so it highlights immediately during navigation instead of looking dead, and is unit-testable standalone. */
 export function NavLabel({
   label,
   pending,

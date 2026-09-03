@@ -3,16 +3,7 @@ import { apiFetch } from "./client";
 import type { ApiResult } from "./result";
 import type { components } from "./schema";
 
-// The activity reads — memory audit, the event bus, job runs, and a repo's
-// dashboard counts. Each was a direct SELECT in a page body before lore-api
-// grew the endpoints (ADR-032).
-
-// None of these row shapes is restated here. Each is an alias over the OpenAPI
-// document lore-api generates from its route contracts (ADR-035), and those
-// contracts are themselves derived from the shared models plus their column
-// maps — so a column, its contract and this type have ONE declaration between
-// them, and check-openapi-drift.sh fails CI when the generated artifact is stale.
-
+// Activity reads (memory audit, event bus, job runs, dashboard counts) — were direct SELECTs before lore-api grew these endpoints (ADR-032). Row types alias the OpenAPI schema; check-openapi-drift.sh guards staleness.
 export type MemoryAuditEntry =
   components["schemas"]["MemoryAuditPage"]["entries"][number];
 
@@ -67,9 +58,7 @@ export function getJobRun(id: string): Promise<ApiResult<JobRunRow>> {
   return apiFetch("lore-api", `/api/job-runs/${encodeURIComponent(id)}`);
 }
 
-/** The repo dashboard's 7-day counters. A figure the database could not answer
- *  is null, not zero — an unmigrated cluster must not read as "nothing
- *  happened". */
+/** Repo dashboard's 7-day counters — an unanswerable figure is null, not zero, so an unmigrated cluster doesn't read as "nothing happened". */
 export function getRepoActivityCounts(repo: string): Promise<
   ApiResult<{
     tasks: number | null;
@@ -80,17 +69,11 @@ export function getRepoActivityCounts(repo: string): Promise<
   return apiFetch("lore-api", `/api/repos/${repo}/activity-counts`);
 }
 
-/**
- * Record money added to the Anthropic account. The one write on this screen,
- * and the only way the remaining figure ever moves upward — Anthropic's Admin
- * API reports usage and cost but exposes no credit balance, so a top-up is
- * invisible until someone says it happened.
- */
+/** Records money added to the Anthropic account — the only way the balance moves up, since the Admin API reports usage/cost but no credit balance. */
 export function recordCreditEntry(entry: {
   amount_usd: number;
   effective_date?: string;
-  /** Omitted anchors the entry to the start of its day, which counts the whole
-   *  day against the balance — the safe direction when the clock is unknown. */
+  /** Omitted anchors the entry to the start of its day — the safe direction when the clock is unknown. */
   effective_time?: string;
   kind?: "opening" | "topup" | "correction";
   note?: string;
@@ -116,8 +99,7 @@ export function getAnalyticsOverview(): Promise<
   return apiFetch("lore-api", "/api/analytics-overview");
 }
 
-/** How many distinct developers have run a local session against this repo, and
- *  when the last one was. Null when the repo has none. */
+/** Distinct developers who've run a local session against this repo, and when the last one was; null when none. */
 export function getRepoSessions(
   repo: string,
 ): Promise<ApiResult<{ devs: number; last: string | null }>> {

@@ -1,12 +1,8 @@
-// A small circular status glyph — check / dash / cross / pause / dot — drawn at
-// any radius. Every state a node or an outcome can be in reads from its shape,
-// so meaning never rests on color alone.
-
+// A small circular status glyph (check/dash/cross/pause/dot) at any radius — every state reads from its shape, so meaning never rests on color alone.
 import { iconFillClass, type GraphTone } from "./run-graph-tone-classes";
 import styles from "./run-graph.module.css";
 
-/** The stroked mark inside the disc, as a function of the disc's centre and its
- *  scale (1 at the base radius of 8). `running` and `idle` carry no mark. */
+// The stroked mark inside the disc as a function of its centre and scale (1 at base radius 8); `running`/`idle` carry no mark.
 const GLYPH_PATH: Partial<
   Record<GraphTone, (cx: number, cy: number, s: number) => string>
 > = {

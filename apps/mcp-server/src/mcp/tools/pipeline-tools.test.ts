@@ -12,8 +12,6 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { z, type ZodTypeAny } from "zod";
 
-// runner.local.js captures LORE_DIR from os.homedir() at module load, so HOME
-// must point at a temp dir before its first (lazy) import inside the handlers.
 const fakeHome = mkdtempSync(join(tmpdir(), "lore-pipeline-home-"));
 
 process.env.HOME = fakeHome;
@@ -220,12 +218,7 @@ describe("lore_create_pipeline_task onboard refusal", () => {
   });
 });
 
-/**
- * The pipeline tools that used to require a local pg pool now proxy to lore-api
- * (ADR-032). Real proxy helpers run here; only global fetch is stubbed, so each
- * test also pins the endpoint and payload the tool sends.
- */
-describe("pipeline tools that proxy to lore-api", () => {
+describe("pipeline tools that proxy to lore-api (ADR-032) with real proxy helpers and only fetch stubbed", () => {
   const jsonOk = (body: unknown) =>
     fetchMock.mockResolvedValue({ ok: true, json: async () => body });
   const callOf = (index = 0) => {

@@ -1,17 +1,4 @@
-/**
- * Start one refinement round on a feature's planning line.
- *
- * The sequence, not the HTTP around it. Two orderings here are load-bearing and
- * were only a comment in a route handler before:
- *
- *  - the parked node is resolved BEFORE the round row is appended, because a
- *    refusal that had already appended one leaves a round nothing will ever run;
- *  - the round is appended BEFORE it is reported, so the report names a round
- *    that exists.
- *
- * This lifecycle has produced five silent-channel defects, which is reason
- * enough for its ordering to be asserted rather than described.
- */
+/** Start one refinement round: parked node resolved BEFORE the round is appended (a refusal must not leave an orphan round), and appended BEFORE it's reported (so the report names a round that exists). */
 
 import { enforceTrue, type ErrorType } from "../../lib/enforce.js";
 import {
@@ -30,20 +17,14 @@ export interface RefinementFeature {
 }
 
 export interface RefinementInput {
-  /** Null when the author submitted no sections — passed through as-is, since
-   *  the prompt composer distinguishes it from an empty answer set. */
+  /** Null when the author submitted no sections; passed through as-is since the prompt composer distinguishes it from an empty answer set. */
   answers: SectionAnswers | null;
   /** The round the AUTHOR named, when this is a rewind rather than a next step. */
   rewoundTo?: number;
 }
 
 export interface RefinementRoundDeps {
-  /**
-   * The errors the CALLER wants thrown. The sequence knows a basis is invalid
-   * and knows the line is not parked; only the caller knows those are a 400 and
-   * a 409. Injecting them is what lets an HTTP route delegate the ordering here
-   * instead of re-implementing it to keep its status codes.
-   */
+  /** The errors the CALLER wants thrown — the sequence knows the fault, only the caller knows its status code (400/409), so an HTTP route can delegate ordering here. */
   invalidBasis: ErrorType;
   notParked(runId: string | null): ErrorType;
   parkedNode(featureId: string): Promise<ParkedAuthorNode>;
@@ -103,9 +84,7 @@ export async function startRefinementRound(
       answers: input.answers,
     }),
     iteration: row.iteration,
-    // Sent on EVERY round (null when there was no rewind): the resume MERGES
-    // into the line's args, so an omitted key would leave an earlier rewind
-    // still steering.
+    // Sent on EVERY round (null when no rewind): the resume MERGES into the line's args, so an omitted key would leave an earlier rewind still steering.
     resume_from_iteration:
       input.rewoundTo === undefined ? null : (basis.basis?.iteration ?? null),
   });

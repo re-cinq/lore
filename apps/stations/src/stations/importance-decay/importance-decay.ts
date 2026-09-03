@@ -1,17 +1,7 @@
 import { scoreImportance } from "@re-cinq/lore-shared";
 import type { MemoryLifecyclePort } from "@re-cinq/lore-shared/project/memory/memory-lifecycle-port.js";
 
-/**
- * Importance decay — evict low-value memories past a per-agent cap, drop old
- * invalidated facts, and age unretrieved facts to `stale`.
- *
- * Moved from the Floor (#1350). It is scoring plus database writes: none of the
- * Floor's three exclusive powers (ADR-024) are involved, and it ran in a CronJob
- * pod built from the coordinator's image only because that image was what the
- * alarm launched. Behaviour is unchanged from `memory-lifecycle.ts` — the port
- * is injected rather than reached through a Floor singleton, which is also what
- * makes it testable against the in-memory double.
- */
+// Importance decay — evicts low-value memories past a per-agent cap, drops old invalidated facts, and ages unretrieved facts to stale. Moved from the Floor (#1350): pure scoring plus database writes, none of the Floor's three exclusive powers (ADR-024); behaviour unchanged from `memory-lifecycle.ts`, just with the port injected instead of a Floor singleton.
 
 export const MAX_MEMORIES_PER_AGENT = 500;
 const MAX_FACTS_PER_AGENT = 2000;
@@ -23,8 +13,7 @@ export async function importanceDecay(
   const agents = await memory.countMemoriesByAgentOverCap(
     MAX_MEMORIES_PER_AGENT,
   );
-  // One clock for the whole batch: read per iteration, two agents scored
-  // milliseconds apart could rank the same memory differently in one run.
+  // One clock for the whole batch: read per iteration, two agents scored milliseconds apart could rank the same memory differently in one run.
   const now = Date.now();
 
   let totalEvicted = 0;
@@ -36,8 +25,7 @@ export async function importanceDecay(
       continue;
     }
 
-    // Twice the excess, so scoring has room to choose rather than just taking
-    // the oldest.
+    // Twice the excess, so scoring has room to choose rather than just taking the oldest.
     const candidates = await memory.findDecayCandidates(
       agent_id,
       excess * 2,
@@ -90,8 +78,7 @@ export async function importanceDecay(
   try {
     staleTransitioned = await memory.transitionStaleFacts();
   } catch {
-    // Non-fatal, exactly as on the Floor: ageing facts to `stale` is a nicety,
-    // and failing the whole run over it would leave the eviction unreported.
+    // Non-fatal, exactly as on the Floor: ageing facts to `stale` is a nicety, and failing the whole run over it would leave the eviction unreported.
   }
 
   return `Evicted ${totalEvicted} memories, ${factsEvicted} old facts, ${staleTransitioned} stale transitions`;

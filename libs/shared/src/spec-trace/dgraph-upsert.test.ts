@@ -13,13 +13,6 @@ import {
 import { enforceTrue } from "../lib/enforce.js";
 import type { DgraphClientPort, DgraphTxn } from "../memory-store.js";
 
-/**
- * replaceEdgeWithFacets (spec-traceability-graph) — sets a `[uid]` edge to a set
- * of targets, each carrying a scalar facet (`predicate|key`). Used to put the
- * covered line intervals on the `Coverage --covers--> File` edge. Tested against
- * live Dgraph (no mocks); container-gated.
- */
-
 const DGRAPH_HTTP = process.env.DGRAPH_HTTP ?? "http://localhost:8081";
 const APPLIER = join(
   findRepoRoot(),
@@ -94,7 +87,7 @@ describe.skipIf(!reachable)("replaceEdgeWithFacets (live Dgraph)", () => {
         });
       }
     } catch {
-      // best-effort
+      void 0;
     } finally {
       await txn.discard().catch(() => {});
     }
@@ -143,14 +136,6 @@ describe.skipIf(!reachable)("replaceEdgeWithFacets (live Dgraph)", () => {
   });
 });
 
-/**
- * Retry-on-abort (spec-traceability-graph #36 context): dgraph normalizes
- * aborts AND write-write conflicts into one Error whose message is the only
- * discriminator ("Transaction has been aborted. Please retry"). withTxn
- * retries those on a FRESH transaction per attempt (an aborted txn is
- * finished) and rethrows anything else immediately. Fake 3-method port — no
- * container needed.
- */
 describe("withTxn retry-on-abort (fake port)", () => {
   const ABORT = "Transaction has been aborted. Please retry";
 

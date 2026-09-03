@@ -21,19 +21,14 @@ export async function GET(
   }
 
   try {
-    // Auth is the same session gate every repo tab uses (enforced by
-    // middleware + the org check at sign-in). We deliberately do NOT add a
-    // per-repo GitHub access check here: the DB-backed Overview/Context/Specs
-    // tabs show any onboarded repo's context to any authenticated org member,
-    // and this preview is the same org-wide context — just assembled.
+    // Same session gate as every repo tab; deliberately no per-repo GitHub check — this preview is the same org-wide context those tabs already show.
     const session = await getServerSession(authOptions);
 
     if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Proxy to the same MCP endpoint the task runners hydrate from, so the
-    // preview is byte-for-byte what a dev session receives on turn 1.
+    // Proxy to the same MCP endpoint the task runners hydrate from — preview is byte-for-byte what a dev session receives on turn 1.
     const apiUrl = process.env.LORE_API_URL;
     const apiToken = process.env.LORE_INGEST_TOKEN;
 

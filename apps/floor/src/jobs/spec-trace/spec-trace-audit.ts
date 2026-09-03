@@ -1,10 +1,4 @@
-/**
- * Pure formatters that surface a spec-trace ingest's real graph effect (ADR-023
- * observability follow-up). The agent's `/api/trigger/spec-trace` handler used
- * to discard `ingestSpecTrace`'s result; these turn the returned
- * {@link SpecTraceOutcome} into a one-line log and a `spec_trace_ingest` audit
- * row, so a run's true `validated_by`/`violated`/coverage counts are observable.
- */
+/** Pure formatters surfacing a spec-trace ingest's real graph effect (ADR-023 observability follow-up): turns the once-discarded SpecTraceOutcome into a one-line log + `spec_trace_ingest` audit row. */
 
 import type {
   SpecTraceOutcome,

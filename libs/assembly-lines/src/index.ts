@@ -1,11 +1,4 @@
-// @re-cinq/lore-assembly-lines — the assembly-line definition + transition kernel.
-//
-// The declarative definitions (loader + builtin YAMLs), the pure transition
-// replay the event-driven walk routes on (spec 6-dark-factory FR6.9), and the
-// station contract's outcome parsing. The in-process walk (executor, supervisor,
-// node handlers, poll loops) retired with the event-driven cutover — the Floor
-// advances lines on `kubernetes.agent_node.*` events; station pods run the work.
-// Depends only on @re-cinq/lore-shared; no DB, Octokit, or K8s client.
+// @re-cinq/lore-assembly-lines — the definition + transition kernel: declarative loader/YAMLs, the pure transition replay the event-driven walk routes on (spec 6-dark-factory FR6.9), and the station contract's outcome parsing. The in-process walk retired with the event-driven cutover. Depends only on @re-cinq/lore-shared; no DB, Octokit, or K8s client.
 
 export {
   type StageOutcome,
@@ -65,21 +58,10 @@ export {
   invalidRoutePlaceholders,
   type HumanStationType,
 } from "./human-station.js";
-// The graph type itself is `RunGraph` from `@re-cinq/lore-shared` (the persisted
-// wire format lives with the port that stores it) — import it from there.
+// The graph type itself is `RunGraph` from `@re-cinq/lore-shared` — import it from there (the persisted wire format lives with the port that stores it).
 export { snapshotGraph } from "./snapshot-graph.js";
 
-// The BYO toolchain relay is NOT exported. It is ADR-025 phase 2 — built, with a
-// real round-trip test, and deliberately not wired: phase 3 is what makes the
-// kernel run `detectTooling`'s commands in the repo's sidecar. Exporting it from
-// the public barrel advertised a capability no production code sets up, so a
-// reader could reasonably conclude BYO validation works today. It stays in the
-// package (`./relay/`), reachable by the handler that will use it, and becomes
-// public when phase 3 wires it.
-//
-// For Floor assembly lines the station pod already superseded this path: the
-// lore-station image IS the toolchain container (ADR-025's amendment). The relay
-// remains for the in-pod agent runs it was built for.
+// The BYO toolchain relay is NOT exported (ADR-025 phase 2, built but deliberately not wired until phase 3 runs detectTooling in the repo's sidecar) — reachable at `./relay/`, goes public when phase 3 wires it; Floor lines already use the lore-station image instead (ADR-025 amendment).
 
 export {
   createValidateHandler,

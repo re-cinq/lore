@@ -8,7 +8,6 @@ const completeJobRun =
 const failJobRun = vi.fn<(runId: string, error: string) => Promise<void>>();
 
 vi.mock("../../kernel/queues.js", () => ({
-  // The logs route resolves the cluster agent from here.
   clusterAgent: () => ({}),
   pipeline: () => ({
     jobRuns: { lastRun: (jobName: string) => lastRun(jobName) },

@@ -1,14 +1,4 @@
-/**
- * Maps an assembly-line row (plus its node walk rows) to a GitHub check run, so
- * any PR-linked line's live state shows in the PR's checks section (with a
- * details link to the Lore UI).
- * Generic: keyed off `args.pr_number` + `args.head_sha`, so a `code-review`,
- * `comment-triage`, or any future PR-linked line all publish a check for free.
- *
- * The `in_progress` check is also what blocks merge while a review runs — once a
- * repo makes `lore/code-review` a required status check, `neutral`/`success`
- * satisfy it so the block lifts only when the review completes.
- */
+/** Maps an assembly-line row + node walk rows to a GitHub check run (generic, keyed off `args.pr_number`+`args.head_sha`), which also blocks merge while `in_progress` if the repo makes it a required status check. */
 
 import type {
   StationRunRecord,
@@ -27,9 +17,7 @@ export interface CheckPublisher {
   upsertCheckRun(input: CheckRunInput): Promise<void>;
 }
 
-/** The fast per-push re-check publishes under the deep review's check name so a repo
- *  that made `lore/code-review` a required branch-protection check sees it refreshed on
- *  every push, not stranded (unrefreshed) under a separate `lore/code-review-recheck`. */
+/** The fast per-push re-check publishes under the deep review's check name so a required `lore/code-review` branch-protection check is refreshed on every push, not stranded under a separate name. */
 const CHECK_NAME_ALIAS: Record<string, string> = {
   "code-review-recheck": "code-review",
 };
@@ -78,9 +66,7 @@ function terminal(
   conclusion: NonNullable<CheckRunInput["conclusion"]>;
   summary: string;
 } {
-  // `outcome: "failed"` closes the row as `finished` (only "error" flips the
-  // status), so key on the outcome, not the status: any non-benign outcome
-  // (failed, error, iteration_max, ...) publishes a red check.
+  // Key on outcome, not status: `outcome: "failed"` still closes the row as `finished`, so any non-benign outcome publishes a red check.
   if (isFailureOutcome(line.outcome ?? "")) {
     const why = line.reason ? ` — ${line.reason}` : "";
     const rerunHint = isReviewDefinition(line.blueprintName)
@@ -97,11 +83,7 @@ function terminal(
     return { conclusion: "cancelled", summary: "PR closed." };
   }
 
-  // The code-review walk routes `changes_requested` → done, so the LINE closes
-  // with outcome "completed" and only the review node's walk row keeps the
-  // verdict — read it from the node rows (latest iteration per node wins,
-  // mirroring the web-ui run graph), or the check reads "Approved." over a
-  // changes-requested review.
+  // The code-review walk routes `changes_requested` → done, so the LINE outcome reads "completed" — read the verdict from the node rows instead (latest iteration wins), or the check misreads "Approved.".
   if (
     line.outcome === "changes_requested" ||
     latestNodeOutcomes(nodes).includes("changes_requested")
@@ -148,9 +130,7 @@ export async function publishPrCheck(
   } catch (err) {
     const message = (err as Error).message;
 
-    // Non-fatal by design, but never silent: "Resource not accessible by
-    // integration" here means the App is missing `checks`, and the merge gate is
-    // simply absent — which reads identically to a clean review.
+    // Non-fatal but never silent: "Resource not accessible by integration" means the App is missing `checks`, so the merge gate is absent, not clean.
     console.error("[pr-check] publish failed:", message);
     await writeAuditLog({
       event_type: "pr_check_publish_failed",

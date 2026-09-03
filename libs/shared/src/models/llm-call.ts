@@ -1,18 +1,7 @@
 import { z } from "zod";
 import type { ColumnMap } from "../lib/row.js";
 
-/**
- * `pipeline.llm_calls` — one LLM invocation's token + cost accounting.
- *
- * DDL: `scripts/infra/setup-agent-schema.sh`, plus `status`/`error`
- * (migration 0010), `assembly_line_id` (0032) and `station_run_id` (0040).
- *
- * `assemblyLineId` keeps the PRE-RENAME spelling on purpose. 0040 renamed the
- * tables this model's neighbours own, but a pointer column on a same-named
- * table has no compat view to hide behind, and telemetry ingest is a
- * skip-not-fail batch insert whose whole batch dies on one unknown column
- * (0040:130-137). `stationRunId` is the go-forward correlation key.
- */
+/** `pipeline.llm_calls` — one LLM invocation's token + cost accounting; `assemblyLineId` deliberately keeps its pre-rename spelling since a pointer column has no compat view under 0040 (0040:130-137) — `stationRunId` is the go-forward correlation key. */
 
 export const LlmCallStatusSchema = z.enum(["success", "failed"]);
 

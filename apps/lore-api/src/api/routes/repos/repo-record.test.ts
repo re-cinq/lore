@@ -1,6 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
-// The route reads the row through the Project facade (projectFor → settings.record).
 const fakeSettings = { record: vi.fn() };
 
 vi.mock("../../../platform/project-boot.js", () => ({
@@ -18,7 +17,6 @@ import {
 
 const originalEnv = { ...process.env };
 
-/** What the port answers with: the `Repo` model, in the model's own casing. */
 const RECORD = {
   id: "r1",
   owner: "re-cinq",
@@ -33,7 +31,6 @@ const RECORD = {
   outcomeStats: null,
 };
 
-/** What the ROUTE publishes: the same record keyed by its columns. */
 const ROW = {
   id: "r1",
   owner: "re-cinq",

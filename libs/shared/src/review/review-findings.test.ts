@@ -47,11 +47,7 @@ describe("parseReviewFindings", () => {
     expect(parseReviewFindings(block("{ not json"))).toBeNull();
   });
 
-  it("recovers a finding whose narrative field carries an unescaped quote", () => {
-    // #1401, reproduced verbatim: the model free-writes a "discussion" string
-    // and quotes a symbol inside it without escaping — a well-formed
-    // REVIEW_FINDINGS block with one broken string value. JSON.parse alone
-    // dies on the embedded `"` and the whole review is lost.
+  it("recovers a finding whose narrative field carries an unescaped quote, reproducing #1401 where JSON.parse alone lost the whole review", () => {
     const raw =
       '{"verdict":"changes_requested","findings":[{"path":"a.ts","line":1,"label":"issue","subject":"null deref","discussion":"the "foo" case is unguarded"}]}';
 
@@ -69,10 +65,7 @@ describe("parseReviewFindings", () => {
     );
   });
 
-  it("recovers a finding whose suggestion carries a literal tab, same as newlines", () => {
-    // A tabbed-indented code snippet in `suggestion` is a raw control
-    // character, which JSON forbids unescaped in a string exactly like a raw
-    // newline — the same class of bug, not a hypothetical.
+  it("recovers a finding whose suggestion carries a literal tab, the same forbidden-control-character class as a raw newline", () => {
     const raw =
       '{"verdict":"changes_requested","findings":[{"path":"a.ts","line":1,"label":"issue","subject":"s","suggestion":"if (x) {\treturn x;\t}"}]}';
 
@@ -119,11 +112,6 @@ describe("parseReviewFindings", () => {
 });
 
 describe("an optional field written as null", () => {
-  // Models write `"suggestion": null` for a finding that has no suggestion, which
-  // is the same statement as omitting the key. Read as a VALUE, it fails the type
-  // check, `every` fails, and the whole block is discarded — so a review that
-  // found ten things posts none of them and its node fails. That happened six
-  // times on one PR on 2026-08-25 before anyone could see the findings.
   const block = (finding: string) =>
     [
       "```REVIEW_FINDINGS",
@@ -133,7 +121,7 @@ describe("an optional field written as null", () => {
 
   const base = '"path":"a.ts","line":1,"subject":"s","label":"issue"';
 
-  it("accepts null where the field is optional, since null and absent say the same thing", () => {
+  it("accepts null where the field is optional (models write null for an absent suggestion; discarding the block on that lost 10 findings 6 times on one PR on 2026-08-25)", () => {
     const parsed = parseReviewFindings(block(`{${base},"suggestion":null}`));
 
     expect(parsed?.findings).toHaveLength(1);
@@ -153,9 +141,6 @@ describe("an optional field written as null", () => {
 });
 
 describe("the other findings schema this repo defines", () => {
-  // Captured verbatim from the review of PR #1703 (run 5328bfa8, 2026-09-01):
-  // valid JSON in a well-formed block, every finding rejected by the shape
-  // check, so a real changes_requested review reached nobody.
   const REPORT_FINDINGS_SHAPE = `\`\`\`REVIEW_FINDINGS
 {
   "verdict": "changes_requested",
@@ -174,7 +159,7 @@ describe("the other findings schema this repo defines", () => {
 }
 \`\`\``;
 
-  it("reads file as path, short_summary as subject, and keeps the finding", () => {
+  it("reads file as path, short_summary as subject, and keeps the finding, verbatim from PR #1703's run 5328bfa8 (2026-09-01) where the shape check rejected every finding", () => {
     expect(parseReviewFindings(REPORT_FINDINGS_SHAPE)).toMatchObject({
       verdict: "changes_requested",
       findings: [

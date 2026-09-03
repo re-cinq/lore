@@ -1,12 +1,9 @@
 import type { AgentDefinition } from "./agents-mirror";
 import type { AgentSaveResult } from "./agents-api";
 
-// Pure FormData → agent payload parsing shared by the new/edit page server
-// actions, plus the save-result → form-state mapping. Kept here (not in the
-// coverage-excluded page.tsx) so the branchy bits are unit-tested.
+// Pure FormData→agent payload parsing shared by the new/edit server actions; kept here (not page.tsx) so the branchy bits are unit-tested.
 
-/** K8s resource quantities keyed cpu/memory/ephemeral-storage, as the API's
- *  `pod_resources` field expects them. */
+/** K8s resource quantities keyed cpu/memory/ephemeral-storage, as the API's `pod_resources` field expects them. */
 export interface PodResources {
   requests?: Record<string, string>;
   limits?: Record<string, string>;
@@ -78,9 +75,7 @@ export function parseAgentForm(fd: FormData): ParsedAgentForm {
       image: ((fd.get("image") as string) || "").trim() || null,
       execution_mode: (fd.get("execution_mode") as string) || "claude-code",
       review_required: fd.get("review_required") === "1",
-      // Null inherits the org default's config (skills/disallowed_tools/etc);
-      // the form has no field for it — pod_resources rides its own wire field
-      // and the API merges it over the resolved config.
+      // Null inherits the org default's config (skills/disallowed_tools/etc) — the form has no field for it.
       config: null,
       pod_resources: parsePodResources(fd),
     },

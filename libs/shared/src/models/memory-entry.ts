@@ -1,20 +1,7 @@
 import { z } from "zod";
 import type { ColumnMap } from "../lib/row.js";
 
-/**
- * `memory.memories` — one agent memory entry, versioned per `(agentId, key)`.
- *
- * DDL: `scripts/infra/setup-memory-schema.sh`, plus the decay columns from
- * migration `0013_memory_hippo_columns.sql` and `repo`.
- *
- * Named `MemoryEntry`, not `Memory`: the schema, the module and the concept are
- * all called "memory" already, and two of the four previous declarations of this
- * row were both called `MemoryRecord` while disagreeing about what it held —
- * one `{key, value, version}`, the other `Record<string, unknown>`.
- *
- * `embedding` is a pgvector `VECTOR(768)` column and is deliberately NOT part of
- * the model: no reader wants 768 floats, and every SELECT here names its columns.
- */
+/** `memory.memories` — one agent memory entry, versioned per `(agentId, key)`; named `MemoryEntry` not `Memory` since two prior `MemoryRecord` declarations disagreed on shape. `embedding` (pgvector `VECTOR(768)`) deliberately not part of the model — every SELECT here names its columns. */
 
 export const MemoryEntrySchema = z.object({
   id: z.string(),

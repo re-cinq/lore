@@ -3,20 +3,12 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
-/**
- * Lint-as-test for the public barrel: every non-test module under `src/`
- * must be re-exported from `index.ts`. Catches the recurring "added a
- * module, forgot the barrel line" friction at test time instead of at the
- * importing package's build. (Excludes `.d.ts` so the compiled `dist/` glob
- * run — which has no `.ts` sources — passes vacuously.)
- */
 const srcDir = dirname(fileURLToPath(import.meta.url));
 
 describe("public barrel (index.ts)", () => {
-  it("re-exports every non-test module in src/", () => {
+  it("re-exports every non-test, non-declaration module in src/, vacuously passing when run against the .ts-less compiled dist/", () => {
     const indexPath = join(srcDir, "index.ts");
 
-    // The compiled dist/ glob run has no .ts sources — nothing to lint there.
     if (!existsSync(indexPath)) {
       return;
     }

@@ -1,11 +1,4 @@
-/**
- * line-range — the closed-interval arithmetic every impact lookup shares.
- *
- * Line ranges reach the graph from two directions (coverage facets, chunk
- * spans) and leave it compared against a third (a diff's hunks). One
- * implementation of "do these overlap" keeps those comparisons from drifting
- * apart.
- */
+/** line-range — the closed-interval arithmetic every impact lookup shares, so coverage facets, chunk spans, and diff hunks compare via one "do these overlap" implementation. */
 
 /** Two closed integer intervals overlap iff neither ends before the other begins. */
 export function intervalsOverlap(

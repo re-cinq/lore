@@ -2,12 +2,7 @@ import type { PipelineTask } from "@re-cinq/lore-shared";
 import { taskPageUrl } from "../watcher/agent-watcher-logic.js";
 import { errorMessage } from "@re-cinq/lore-shared";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
-/**
- * Core task processing worker.
- *
- * Polls pipeline.tasks for pending work, dispatches to the LLM,
- * and creates branches + PRs with the results.
- */
+/** Core task processing worker: polls pipeline.tasks, dispatches to the LLM, creates branches + PRs. */
 
 import { generateArtifactCopy } from "../lib/artifact-copy.js";
 import { projectFor } from "../../composition/project-boot.js";
@@ -27,25 +22,19 @@ import { handleFeatureRequest } from "./handle-feature-request.js";
 import { handleClaudeCodeTask } from "./handle-claude-code-task.js";
 import { handleOnboard } from "./handle-onboard.js";
 
-// Re-export the task handlers so existing import sites (e.g. the onboard
-// test importing `handleOnboard` from `./worker.js`) keep working after the
-// split.
+// Re-export so existing import sites (e.g. the onboard test) keep working after the split.
 export { handleFeatureRequest } from "./handle-feature-request.js";
 export { handleClaudeCodeTask } from "./handle-claude-code-task.js";
 export { handleOnboard } from "./handle-onboard.js";
 
-/** The feature lifecycle task types. They share two behaviours: each runs its own
- *  assembly line regardless of dark-factory, and none opens a per-TASK Issue — the
- *  decompose line files Issues itself, one per user story. Changing this set changes
- *  both, which is why it is one named decision rather than two inline predicates. */
+/** Feature lifecycle types: each runs its own assembly line regardless of dark-factory and opens no per-task Issue (decompose files its own per story). */
 export function isFeatureLifecycleType(taskType: string): boolean {
   return taskType === "feature-planning" || taskType === "feature-decompose";
 }
 
 // ── Crash recovery ────────────────────────────────────────────────────
 
-/** Dependencies of {@link recoverStaleTasks}; side-effects are injectable so the
- *  recovery policy is testable against the shared InMemory queue with no DB. */
+/** Dependencies of {@link recoverStaleTasks}, injectable so the policy is testable against the InMemory queue with no DB. */
 export interface RecoverStaleDeps {
   queue: Pick<TaskQueueRepository, "findRecoverable">;
   setStatus: typeof setStatus;
@@ -54,17 +43,7 @@ export interface RecoverStaleDeps {
   hasOpenLine: (taskId: string) => Promise<boolean>;
 }
 
-/**
- * Reset tasks that have been stuck in running/queued for over 30 minutes
- * back to pending so they can be retried.
- *
- * "Stuck" is inferred from age, which stopped being sufficient once a line could
- * legitimately stay open for days: a merged planning line parks on its author for as
- * long as the person takes, and the task that owns it stays `running` that whole
- * time. Without the open-line check the sweep read that as a crash and re-dispatched
- * it on EVERY Floor boot — a fresh planning agent, and a bill, per restart. The line
- * is the authority on whether work is still in flight; the clock is only a hint.
- */
+/** Resets tasks stuck in running/queued 30+ min back to pending; the open-line check (not just age) prevents re-dispatching a task parked on a human for days on every boot. */
 export async function recoverStaleTasks(
   deps: RecoverStaleDeps = {
     queue: pipeline().taskQueue,
@@ -81,8 +60,7 @@ export async function recoverStaleTasks(
   let recovered = 0;
 
   for (const row of stale) {
-    // Not stale — its line is still walking (or parked on a person, which is the
-    // same thing to everyone but the clock).
+    // Not stale — its line is still walking (or parked on a person).
     if (await deps.hasOpenLine(row.id)) {
       continue;
     }
@@ -101,10 +79,7 @@ export async function recoverStaleTasks(
 
 // ── Worker loop ───────────────────────────────────────────────────────
 
-/**
- * Start the polling worker. Polls every 10 seconds and processes one
- * task at a time (a single-flight guard skips ticks while one is running).
- */
+/** Polls every 10 seconds and processes one task at a time (a single-flight guard skips ticks while one is running). */
 export async function startWorker(): Promise<void> {
   console.log("[floor] Worker started");
   setInterval(() => void pollOnce(), 10_000);
@@ -114,14 +89,7 @@ export async function startWorker(): Promise<void> {
 /** True while a task is processing in this pod — the single-flight latch. */
 let processing = false;
 
-/**
- * Claim-and-process at most one task, skipping the tick entirely if a task is
- * already in flight. `processTask` runs a multi-minute in-process LLM loop for
- * onboard/feature/dark-factory tasks, so without this the 10s `setInterval` would
- * stack unbounded concurrent claims — contradicting the "one task at a time"
- * contract. The latch is set before the claim so two overlapping ticks can't both
- * claim. Injectable claim/process keep it unit-testable without a DB.
- */
+/** Claim-and-process at most one task, skipping the tick if one is in flight — without this the 10s `setInterval` would stack unbounded concurrent claims. */
 export async function pollWithGuard<T>(deps: {
   claim: () => Promise<T | null>;
   process: (task: T) => Promise<void>;
@@ -144,9 +112,7 @@ export async function pollWithGuard<T>(deps: {
 }
 
 async function pollOnce(): Promise<void> {
-  // Pick up the next runnable task: immediate first, otherwise the oldest task
-  // past the 30-second grace that lets a local runner claim it first. The claim
-  // SQL lives in the shared TaskQueue.
+  // Immediate task first, else oldest task past the 30s grace that lets a local runner claim it first.
   await pollWithGuard({
     claim: () => pipeline().taskQueue.claimNextPending(),
     process: processTask,
@@ -160,20 +126,8 @@ async function processTask(task: PipelineTask): Promise<void> {
   const targetRepo = task.target_repo || "re-cinq/lore";
   const project = await projectFor(targetRepo);
 
-  // The feature lifecycle runs through the Station (Docker locally, K8s on the
-  // cluster; ADR-028), forced below regardless of dark-factory. Only finalize keeps
-  // an in-process arm, behind the explicit LORE_STATION_BACKEND=inprocess hatch for a
-  // dev without Docker/creds — planning and decompose lost theirs when their prompts
-  // became the recipe the pod runs, because a second execution path meant a second
-  // prompt that silently drifted.
-  //
-  // It also gates Issue creation: these types must not open a per-TASK Issue. The
-  // decompose line files its own, one per user story, from the labels the agent chose.
+  // Feature lifecycle runs through the Station (ADR-028), forced below regardless of dark-factory; also gates Issue creation (decompose files its own).
   const isFeaturePlanningType = isFeatureLifecycleType(task.task_type);
-
-  // No in-process arm for any feature type: the prompt is the recipe the pod runs
-  // (scripts/task-types.yaml), and a second execution path meant a second prompt
-  // that silently drifted — the agent was asked for a GapResult it was never shown.
 
   const issueNumber = await ensureIssue(
     task,
@@ -259,8 +213,7 @@ async function processTask(task: PipelineTask): Promise<void> {
     const resolvedModel = agentDef?.model || repoOverrides?.model;
     const model = resolvedModel || getTaskTypeConfig(task.task_type)?.model;
 
-    // Read downstream to forward the repo's assembly line name to the Agent CR
-    // dispatch (dark-mode repos run the Floor-side graph, one Agent CR per node).
+    // Forwarded to the Agent CR dispatch: dark-mode repos run the Floor-side graph, one Agent CR per node.
     const darkFactoryEnabled = repoSettings?.dark_factory?.enabled === true;
 
     const taskType = task.task_type;

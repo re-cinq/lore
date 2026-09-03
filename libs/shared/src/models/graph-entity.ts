@@ -1,14 +1,7 @@
 import { z } from "zod";
 import type { ColumnMap } from "../lib/row.js";
 
-/**
- * `memory.entities` — a node of the live knowledge graph (a service, team,
- * technology), updated incrementally on every episode write.
- *
- * DDL: `scripts/infra/setup-memory-schema.sh`. `(name, entityType, repo)` is
- * unique, which is what makes the graph converge instead of accumulating
- * near-duplicate nodes.
- */
+/** `memory.entities` — a live knowledge-graph node, updated incrementally on every episode write; unique on `(name, entityType, repo)` so the graph converges rather than accumulating near-duplicates. */
 
 export const GraphEntitySchema = z.object({
   id: z.string(),

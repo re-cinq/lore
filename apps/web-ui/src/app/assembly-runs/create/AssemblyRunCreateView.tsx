@@ -3,18 +3,11 @@ import { TaskTypeSelect } from "@/components/TaskTypeSelect";
 import styles from "./AssemblyRunCreateView.module.css";
 
 export interface AssemblyRunCreateViewProps {
-  /** Onboarded repos for the target-repo dropdown. */
   onboardedRepos: { full_name: string }[];
-  /** Server action wired to the Create-Task form ("actions up"). */
   createTaskAction: (formData: FormData) => void | Promise<void>;
 }
 
-/**
- * Presentational view for the create-task form. Pure render — the
- * onboarded-repo list is resolved by the container (`page.tsx`) and passed
- * down; the only mutation (Create Task) is handed in as `createTaskAction`
- * and fired back up via the form, keeping this component free of data access.
- */
+// Pure render — page.tsx resolves the repo list; the only mutation (Create Task) is passed in as createTaskAction and fired via the form.
 export default function AssemblyRunCreateView({
   onboardedRepos,
   createTaskAction,

@@ -1,33 +1,9 @@
 import { z } from "zod";
 import type { ColumnMap } from "../lib/row.js";
 
-/**
- * `pipeline.station_runs` — ONE visit to a Station within an AssemblyRun,
- * i.e. `(run, node, iteration)` (ADR-024).
- *
- * DDL: migration `0025_assembly_lines.sql` (as `assembly_line_nodes`), the
- * attempt-uniqueness index in `0029`, renamed and given `station_run_id` by
- * `0040_assembly_runs.sql`.
- *
- * Two ids on purpose. `id` is the physical row id and ALSO the visit order the
- * replay depends on; `stationRunId` is the visit's public identity, which
- * telemetry and cost rows key on instead of string-matching an Agent CR name
- * (FR6.39).
- */
+/** `pipeline.station_runs` — one visit `(run, node, iteration)` to a Station; `id` is physical/replay order, `stationRunId` is the public identity telemetry/cost key on (FR6.39). */
 
-/**
- * What a visit was GIVEN, captured at dispatch.
- *
- * The prompt and description a pod runs on lived only on its Agent CR, which is
- * pruned after the run — so an hour later "what was this node actually asked to
- * do" meant kubectl against an object that no longer existed, and a node fed the
- * wrong input (a stale plan, a rejected draft) looked identical to one fed the
- * right input and reasoning badly.
- *
- * Bounded at write time. The assembled `{context}` is deliberately NOT here: it
- * is ~34 KB per visit, it is assembled after this row is minted, and it is
- * reproducible from the context system.
- */
+/** What a visit was GIVEN at dispatch — captured because the Agent CR (the only other place it lived) is pruned after the run; excludes the assembled `{context}` (reproducible, ~34KB). */
 export const StationRunInputSchema = z.object({
   /** The round content the node worked from — `resolveRoundContent(task, conversation)`. */
   description: z.string(),
@@ -42,13 +18,7 @@ export const StationRunInputSchema = z.object({
 
 export type StationRunInput = z.infer<typeof StationRunInputSchema>;
 
-/**
- * Pre-terminal lifecycle under pull-based dispatch
- * (specs/running-stations-in-any-k8s-cluster): `queued` — written by the
- * launch seam, unclaimed; `claimed` — a cluster-agent took it; `running` — the
- * default and the backfill for rows that predate the flip. Meaningful only
- * while `outcome IS NULL`; terminality stays a non-null outcome.
- */
+/** Pre-terminal lifecycle under pull-based dispatch: queued -> claimed -> running (default/backfill); meaningful only while `outcome IS NULL`. */
 export const StationRunStatusSchema = z.enum(["queued", "claimed", "running"]);
 
 export type StationRunStatus = z.infer<typeof StationRunStatusSchema>;
@@ -60,23 +30,18 @@ export const StationRunSchema = z.object({
   nodeId: z.string(),
   iteration: z.number(),
   status: StationRunStatusSchema,
-  /** The registered cluster-agent holding the claim; null while queued (and on
-   *  pre-flip rows). */
+  /** The registered cluster-agent holding the claim; null while queued (and on pre-flip rows). */
   clusterAgentId: z.string().nullable(),
   /** Capability tags a claimant must carry (`required_tags <@ tags`). */
   requiredTags: z.array(z.string()),
-  /** The execution clock: node timeouts measure from here, never from
-   *  `startedAt` (which is row creation — under pull dispatch, enqueue time). */
+  /** The execution clock: node timeouts measure from here, never from `startedAt` (row creation / enqueue time). */
   claimedAt: z.date().nullable(),
   outcome: z.string().nullable(),
-  /** WHY a `failed` visit failed: the shared `FailureCategory` the Floor
-   *  classified, and the agent's own error text that produced it. Null on every
-   *  non-failure, and on failures that predate migration 0042. */
+  /** WHY a `failed` visit failed: the shared `FailureCategory`; null on non-failures and on failures predating migration 0042. */
   failureClass: z.string().nullable(),
   failureDetail: z.string().nullable(),
   agentCrName: z.string().nullable(),
-  /** What this visit was dispatched WITH. Null for visits recorded before
-   *  migration 0046 — "not captured", never "no input". */
+  /** What this visit was dispatched WITH; null pre-migration-0046 means "not captured", never "no input". */
   input: StationRunInputSchema.nullable(),
   commitSha: z.string().nullable(),
   startedAt: z.date(),

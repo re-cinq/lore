@@ -16,41 +16,11 @@ import {
   spendInterval,
 } from "../../../features/analytics/compute-cost.js";
 
-/**
- * GET /api/analytics/spend-window?from&to — the whole spend screen in one
- * call, every aggregate scoped to the selected interval (the page has no other
- * scope — the old month-to-date `/api/spend` sections merged into this view):
- *
- * - metered LLM spend from `pipeline.llm_calls` (realtime — the agent-events
- *   sink writes cost rows within seconds of each model call), with its
- *   by-model / by-kind / daily / by-repo / by-task-type / by-cluster
- *   breakdowns;
- * - Anthropic's authoritative BILLED cost from `pipeline.anthropic_cost_daily`
- *   (written once a day by the cost-sync cron; absent without an admin key),
- *   plus the Lore-computed remainder for interval days the sync has not
- *   billed yet;
- * - the recorded credit balance — the ONE figure that is not interval-scoped.
- *   A balance added in June is still money in August, so clipping its window
- *   to the interval would silently forgive every dollar spent outside it;
- * - the Kubernetes compute ESTIMATE, both halves of it: historical
- *   station-run pod-hours in the interval × an assumed pod profile
- *   (`station_runs` records when each pod ran, not how big it was, so the
- *   response names the profile and rates it assumed), and the running pods
- *   right now, each priced from its ACTUAL resource requests, read through
- *   the central cluster-agent. A satellite's pods are not in this view, and
- *   an unreachable cluster-agent degrades to an empty live list rather than
- *   failing the page.
- *
- * The interval bounds the METERED and BILLED reads; the live list is by
- * nature "now".
- */
+// The whole spend screen in one interval-scoped call (absorbed the old month-to-date /api/spend): metered llm_calls, billed anthropic_cost_daily, the NON-interval-scoped credit balance, and a central-cluster-only compute estimate (live pods degrade to [] if unreachable).
 
 const UNDEFINED_TABLE = "42P01";
 
-/** Reads of a table that may not exist yet degrade to empty rather than 500:
- *  `anthropic_cost_daily` arrives with a migration and its rows with a cron,
- *  and `credit_ledger` arrives with a migration and its rows with a person. A
- *  cluster missing any of them must still render the halves it does have. */
+// A table that may not exist yet (anthropic_cost_daily, credit_ledger — migration-gated) degrades to empty rows rather than 500.
 async function optionalTableRows<T extends QueryResultRow>(
   pool: Pool,
   sql: string,
@@ -69,30 +39,13 @@ async function optionalTableRows<T extends QueryResultRow>(
   }
 }
 
-/**
- * `remaining = recorded balance - everything spent since the anchor`, where
- * spend is the same two sources the rest of this page reports side by side,
- * summed here because a remaining balance has to commit to one number.
- *
- * The two halves meet at `billed_through` and must not overlap: billed covers
- * up to and including it, Lore-computed starts strictly after. An off-by-one
- * either double-counts a day or drops one, and both yield a plausible-looking
- * balance that is wrong.
- */
+// remaining = ledger - (billed + computed); the two halves meet at billed_through (billed through-and-including it, computed strictly after) — an off-by-one double-counts or drops a day.
 async function remainingBudget(
   pool: Pool,
   anchoredAt: string,
   ledgerTotalUsd: number,
 ) {
-  // Whole days, because Anthropic's cost report is day-bucketed and cannot be
-  // split: an anchor at 14:30 on an already-billed day still charges that
-  // whole day. Unavoidable, and it does not touch the case that matters —
-  // the report never emits the day in progress, so an entry recorded today is
-  // never in here at all.
-  //
-  // MAX(bucket_date) over the WHOLE table, not the interval: the anchor can
-  // predate it, and a window whose sync has not run yet would otherwise
-  // report no billed day at all and shove every dollar onto the computed side.
+  // Whole days (Anthropic's report is day-bucketed, unsplittable); MAX(bucket_date) over the WHOLE table (not the interval), since the anchor can predate it.
   const [billed] = await optionalTableRows<{
     billed_usd: number;
     billed_through: string | null;
@@ -106,24 +59,7 @@ async function remainingBudget(
      FROM pipeline.anthropic_cost_daily`,
     [anchoredAt],
   );
-  // Here is the precision. `created_at >= $1::timestamptz` compares MOMENTS,
-  // not days, so a midday top-up on a healthy balance is not charged the
-  // morning's spend — the money was added at 14:30 and the spend before then
-  // came out of the balance it replaced. Day-granularity got this wrong by up
-  // to a full day, and always in the direction of understating what is left.
-  //
-  // The bound rides in as a parameter rather than a subquery, for the reason
-  // the unbilled read already gives: `anthropic_cost_daily` is absent on
-  // clusters with no admin key, and a subquery against it would take the
-  // Lore-computed half down with it.
-  // Only spend that DREW these credits belongs in the balance. A call claimed
-  // by a registered satellite cluster ran on that cluster's own credential (a
-  // colleague's subscription), so its cost never touched this account — it is
-  // in `llm_calls` because Lore prices every call it sees, but it is not in the
-  // billed report and must not be in the balance either, or the card goes
-  // negative on money the account never spent. The LEFT JOIN keeps calls with
-  // no station run (direct API tasks) and home/central runs (null claim); it
-  // drops only satellite-attributed ones.
+  // `created_at >= $1::timestamptz` compares MOMENTS not days (day-granularity always understated what's left); bound is a param, not a subquery, so an absent anthropic_cost_daily can't take this half down too; LEFT JOIN excludes satellite-cluster calls (ran on a colleague's own credential, priced in llm_calls but never billed to this account) while keeping direct-API and home/central runs.
   const [computed] = await optionalTableRows<{ cost_usd: number }>(
     pool,
     `SELECT COALESCE(SUM(lc.cost_usd), 0)::float8 AS cost_usd
@@ -155,43 +91,15 @@ const LiveSchema = z.object({
   station_run_id: z.string().nullable(),
 });
 
-/**
- * What is LEFT, which no API can tell us. Anthropic's Admin API exposes usage
- * and cost reports and no credit balance, so the balance is whatever a person
- * has recorded in `pipeline.credit_ledger` — and `remaining` is that total
- * minus everything spent since the earliest entry.
- *
- * Null, not zero, when the ledger is empty or its table has not been migrated
- * yet: the same distinction `billed.available` draws. Nobody having told us
- * the balance is a different fact from the balance being nothing, and only
- * one of them should render as a number.
- */
+// What is LEFT (no API exposes a balance, so it's whatever a person recorded in credit_ledger); null (not zero) when unmigrated/empty, same distinction billed.available draws.
 const BudgetSchema = z
   .object({
     ledger_total_usd: z.number(),
-    /**
-     * Billed spend from the anchor through `billed_through`, plus Lore-computed
-     * spend for every day strictly after it — the same two-source arithmetic
-     * the rest of this page reports side by side, summed here because a
-     * remaining balance has to commit to one number.
-     */
+    // Billed spend through billed_through plus Lore-computed spend strictly after it, summed to one number.
     spent_since_usd: z.number(),
-    /** Deliberately allowed to go negative: an overrun is the state most worth
-     *  seeing, and clamping it at zero would hide precisely that day. */
+    // Deliberately allowed to go negative: clamping at zero would hide the overrun that matters most.
     remaining_usd: z.number(),
-    /**
-     * The earliest `effective_at` in the ledger, as an ISO-8601 UTC instant —
-     * the MOMENT the arithmetic starts, shown so a stale anchor is visible
-     * rather than merely wrong.
-     *
-     * A moment and not a day, because a top-up recorded at 14:30 onto a
-     * healthy balance must not be charged that morning's spend: the money
-     * before it came out of the balance this one replaced. Precision reaches
-     * only as far as the sources allow — `llm_calls` timestamps every call,
-     * while Anthropic's billed days cannot be split — but the report never
-     * emits the day in progress, so an entry recorded today always lands in
-     * the half that can be sliced exactly.
-     */
+    // The earliest ledger effective_at, as an ISO-8601 UTC instant (not a day) so a stale anchor is visible and a midday top-up isn't charged the prior morning's spend.
     anchored_at: z.string(),
   })
   .nullable();
@@ -241,20 +149,7 @@ const SpendWindowSchema = z.object({
         cost_usd: z.number(),
       }),
     ),
-    /**
-     * Computed spend attributed to the execution cluster that ran each call —
-     * the one figure on this page that separates a satellite cluster's burn
-     * from the home cluster's. A call reaches its cluster through the station
-     * run it belongs to (`llm_calls.station_run_id` →
-     * `station_runs.cluster_agent_id`), so a direct-API call with no station
-     * run carries no cluster.
-     *
-     * `cluster` is NULL for that no-cluster bucket rather than a sentinel
-     * string: a real cluster can be named anything (there IS one registered
-     * `central`), so a label like `(central / regular)` collides with it. Null
-     * is the honest "no cluster-agent claim", and the view owns the label and
-     * the grouping.
-     */
+    // Spend by execution cluster (via llm_calls.station_run_id -> station_runs.cluster_agent_id); cluster is NULL (not a sentinel string) for no-cluster calls since a real cluster IS named "central".
     by_cluster: z.array(
       z.object({
         cluster: z.string().nullable(),
@@ -263,27 +158,14 @@ const SpendWindowSchema = z.object({
       }),
     ),
   }),
-  /**
-   * Anthropic's own billing, interval-scoped, reported beside the computed
-   * figures rather than reconciled with them — only one of the two is
-   * authoritative. `available` is false when no admin key has ever synced,
-   * and the rows are empty rather than absent, so a caller reads the same
-   * shape either way.
-   */
+  // Anthropic's own billing, interval-scoped, reported beside (never reconciled with) the computed figures; available=false when no admin key has ever synced, rows empty either way.
   billed: z.object({
     available: z.boolean(),
     total_usd: z.number(),
     input_tokens: z.number(),
     output_tokens: z.number(),
     as_of: z.string().nullable(),
-    /**
-     * The last day Anthropic has actually billed — `MAX(bucket_date)` over the
-     * WHOLE table, NOT "yesterday" and not the interval's edge. The cost
-     * report omits the in-progress day, so a current sync does end at
-     * yesterday; a late or failed one ends earlier, and only this stamp
-     * distinguishes the two. `as_of` records when the sync ran, which is a
-     * different question and cannot answer this one.
-     */
+    // Last day Anthropic has actually billed — MAX(bucket_date) over the WHOLE table, not "yesterday"; distinguishes a late/failed sync from a current one (as_of answers a different question).
     billed_through: z.string().nullable(),
     by_model: z.array(
       z.object({
@@ -294,27 +176,17 @@ const SpendWindowSchema = z.object({
       }),
     ),
     daily: z.array(z.object({ bucket_date: z.string(), cost_usd: z.number() })),
-    /** Lore-computed spend for the interval days past `billed_through`, and
-     *  how many days that is — what brings the billed figure current without
-     *  folding a computed number into an authoritative one. */
+    // Lore-computed spend (and day count) past billed_through — brings the billed figure current without folding a computed number into an authoritative one.
     unbilled_usd: z.number(),
     unbilled_days: z.number(),
   }),
   budget: BudgetSchema,
-  /**
-   * Google's own billing, interval-scoped, from `pipeline.gcp_cost_daily`
-   * (written daily by the gcp-cost-sync station reading the Cloud Billing
-   * BigQuery export). The authoritative counterpart to the compute ESTIMATE
-   * below — reported beside it, never reconciled with it, for the same
-   * reason the Anthropic billed figures sit beside the metered ones. Costs
-   * are net of credits: the invoice total, not the list price.
-   */
+  // Google's own billing (gcp_cost_daily, via gcp-cost-sync + Cloud Billing export); authoritative counterpart to the compute ESTIMATE below, reported beside it, net of credits.
   gcp: z.object({
     available: z.boolean(),
     total_usd: z.number(),
     as_of: z.string().nullable(),
-    /** The last day the export has actually closed — `MAX(bucket_date)` over
-     *  the whole table, since Google's export lags a day or more. */
+    // Last day the export has actually closed — MAX(bucket_date) over the whole table, since Google's export lags a day or more.
     billed_through: z.string().nullable(),
     by_service: z.array(
       z.object({ service: z.string(), cost_usd: z.number() }),
@@ -436,8 +308,7 @@ export function spendWindowRoute(
           GROUP BY model ORDER BY cost_usd DESC`,
         [fromTs, toTs],
       );
-      // The only view that separates code-review lines (task-less) from tasks
-      // from the memory/curation jobs.
+      // The only view that separates code-review lines (task-less) from tasks from the memory/curation jobs.
       const { rows: byKind } = await pool.query(
         `SELECT
            CASE
@@ -471,12 +342,7 @@ export function spendWindowRoute(
           GROUP BY t.task_type ORDER BY cost_usd DESC`,
         [fromTs, toTs],
       );
-      // Which cluster ran the call, via the station run it belongs to. Outer
-      // joins on purpose: a call with no station run (a direct-API task) has no
-      // cluster_agent_id, and an inner join would silently drop it instead of
-      // gathering it under the null (no-cluster) bucket.
-      // `optionalTableRows` because station_runs / cluster_agents arrive with
-      // migrations — a deployment predating them renders empty, not a 500.
+      // LEFT JOINs on purpose: a direct-API call has no cluster_agent_id and must land in the null bucket, not be dropped by an inner join; optionalTableRows since station_runs/cluster_agents are migration-gated.
       const byCluster = await optionalTableRows<{
         cluster: string | null;
         calls: number;
@@ -494,10 +360,7 @@ export function spendWindowRoute(
         [fromTs, toTs],
       );
 
-      // Billed totals are FILTERed to the interval while the two stamps read
-      // the whole table: `billed_through` bounds the unbilled arithmetic and
-      // `as_of` says whether the sync has ever run — clipping either to the
-      // interval would misreport both on any window that predates the sync.
+      // Totals are FILTERed to the interval but the two stamps read the whole table — clipping billed_through/as_of to the interval would misreport them on a window predating the sync.
       const billedTotalRows = await optionalTableRows<{
         billed_usd: number;
         input_tokens: number;
@@ -540,18 +403,11 @@ export function spendWindowRoute(
         [interval.from, interval.to],
       );
 
-      // `as_of`, not a row count: an empty window reads as zero cost either
-      // way, but only the stamp distinguishes "the sync has run and we owe
-      // nothing" from "nothing has ever synced", and the view hides the billed
-      // sections for the second rather than showing a confident zero.
+      // `as_of`, not a row count, distinguishes "synced and owes nothing" from "never synced" — the view hides billed sections for the latter rather than showing a confident zero.
       const billedTotal = billedTotalRows[0];
       const billedAvailable = !!billedTotal?.as_of;
 
-      // Every interval day Anthropic has not billed yet. The bound is passed
-      // as a parameter rather than joined in: `anthropic_cost_daily` is absent
-      // on clusters with no admin key, and a subquery against it would take
-      // the Lore-computed side down with it — the one half that never depended
-      // on the sync.
+      // Every interval day Anthropic has not billed yet; bound passed as a param (not joined in) so an absent anthropic_cost_daily can't take this sync-independent half down too.
       const { rows: unbilledRows } = await pool.query<{
         cost_usd: number;
         days: number;
@@ -564,12 +420,7 @@ export function spendWindowRoute(
         [fromTs, toTs, billedTotal?.billed_through ?? null],
       );
 
-      // GCP billed figures under the same rules as the Anthropic ones: totals
-      // FILTERed to the interval, the two stamps over the whole table, and
-      // `optionalTableRows` because both the migration and the console-side
-      // billing export arrive on their own schedules. Cost is stored gross
-      // with credits beside it; everything reported here is their sum — the
-      // net the invoice actually charges.
+      // Same rules as the Anthropic reads (interval-filtered totals, whole-table stamps, optionalTableRows for the migration+export lag); cost is gross+credits, summed to the invoice's net.
       const gcpTotalRows = await optionalTableRows<{
         billed_usd: number;
         as_of: string | null;
@@ -604,13 +455,7 @@ export function spendWindowRoute(
       );
       const gcpTotal = gcpTotalRows[0];
 
-      // Pod-hours: rows whose run overlaps the interval, clipped to it. Only
-      // rows that named an Agent CR were pods; service-node rows cost nothing.
-      // A row with no finished_at is NOT treated as still running: stale rows
-      // whose pod died unrecorded would each bill the whole window (177
-      // comment-triage pods once claimed 8,606 pod-hours this way). No pod
-      // outlives the reaper by more than the 2h ceiling, so an open row is
-      // capped at started_at + 2h.
+      // Rows whose run overlaps the interval, clipped to it; only Agent-CR rows are pods. An open finished_at is capped at started_at+2h (the reaper's ceiling) — uncapped, 177 comment-triage pods once billed 8,606 pod-hours from unrecorded deaths.
       const { rows: podHours } = await pool.query(
         `SELECT ar.blueprint_name AS blueprint,
                 count(*)::int AS pods,
@@ -633,29 +478,13 @@ export function spendWindowRoute(
         [fromTs, toTs],
       );
 
-      // Read last, so the statement ordering every other read already depends
-      // on stays exactly as it was. An empty ledger yields one row whose
-      // `anchored_at` is null — no anchor, no arithmetic, no budget.
+      // Read last, so no other read's statement ordering shifts; an empty ledger yields anchored_at null (no anchor, no arithmetic, no budget).
       const [ledger] = await optionalTableRows<{
         ledger_total_usd: number;
         anchored_at: string | null;
       }>(
         pool,
-        // Corrections are excluded from the anchor but NOT from the total.
-        // A correction adjusts an amount; it does not start a balance. Left in
-        // the MIN, one backdated typo fix drags the anchor back to its date
-        // and counts every dollar spent in between against the balance —
-        // silently, and the resulting figure looks entirely plausible.
-        // Rendered to an explicit ISO-8601 UTC string rather than handed back
-        // as a pg Date: this crosses a wire and then an RSC boundary, and a
-        // Date does not survive that intact.
-        // The anchor is the OPENING entry, not merely the earliest one. Only
-        // an opening declares "the balance was this much, then" — top-ups and
-        // corrections adjust the total and say nothing about when counting
-        // starts. Anchoring on MIN over everything let a backdated top-up drag
-        // the window weeks earlier and charge old spend against a new balance,
-        // silently and plausibly. Falls back to the earliest non-correction so
-        // a ledger of pure top-ups still anchors somewhere.
+        // Anchor = the OPENING entry (not MIN over everything — a backdated top-up must not drag the window back), falling back to earliest non-correction; corrections are excluded from the anchor but not the total; rendered as an explicit ISO-8601 UTC string since a pg Date doesn't survive the wire+RSC boundary.
         `SELECT COALESCE(SUM(amount_usd), 0)::float8 AS ledger_total_usd,
            to_char(
              COALESCE(
@@ -685,8 +514,7 @@ export function spendWindowRoute(
       }));
 
       const nowMs = deps.now().getTime();
-      // Belt to the default deps' braces: a live-read failure yields an empty
-      // list — the metered numbers must render regardless of the cluster.
+      // A live-read failure yields an empty list — the metered numbers must render regardless of the cluster.
       const livePods = await deps.livePods().catch(() => []);
       const live = livePods.map((pod) => {
         const usdPerHour = podHourlyUsd(pod.requests, rates);
@@ -742,8 +570,7 @@ export function spendWindowRoute(
           },
           budget,
           gcp: {
-            // The same `as_of` rule the Anthropic half uses: only the stamp
-            // distinguishes "synced and spent nothing" from "never synced".
+            // Same as_of rule as the Anthropic half: distinguishes "synced and spent nothing" from "never synced".
             available: !!gcpTotal?.as_of,
             total_usd: gcpTotal?.billed_usd ?? 0,
             as_of: gcpTotal?.as_of ?? null,

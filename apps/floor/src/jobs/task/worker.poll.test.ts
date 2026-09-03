@@ -43,8 +43,8 @@ describe("pollWithGuard (single-flight)", () => {
       },
     };
 
-    const first = pollWithGuard(deps); // latches processing=true, claims, then awaits the gate
-    const second = pollWithGuard(deps); // processing already true → returns without claiming
+    const first = pollWithGuard(deps);
+    const second = pollWithGuard(deps);
 
     await second;
     expect(claims).toBe(1);

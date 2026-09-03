@@ -7,7 +7,6 @@ const getById = vi.fn();
 const listStationRuns = vi.fn();
 
 vi.mock("../../../kernel/queues.js", () => ({
-  // The logs route resolves the cluster agent from here.
   clusterAgent: () => ({}),
   pipeline: () => ({ assemblyRuns: { getById, listStationRuns } }),
 }));
@@ -83,11 +82,7 @@ describe("GET /api/assembly-runs/{id}", () => {
     });
   });
 
-  it("says which STATION each node runs on, and whether it inherited it", async () => {
-    // The fact that existed nowhere outside the Floor's dispatch. An agent node with
-    // no `station_ref` runs the recipe named after the LINE — which is how every node
-    // on the merged planning line ran the planning prompt and reported success. One
-    // GET would have shown it.
+  it("says which STATION each node runs on, and whether it inherited it, a fact that previously existed nowhere outside the Floor's dispatch", async () => {
     getById.mockResolvedValue(line());
     listStationRuns.mockResolvedValue([node("analyze", "success")]);
 
@@ -115,14 +110,11 @@ describe("GET /api/assembly-runs/{id}", () => {
     ).toMatchObject({
       type: "feature_review",
       station: null,
-      // Resolved against the RUN's args, so the reader gets a link they can follow.
       route: "/repos/re-cinq/lore/features/feat-1",
     });
   });
 
-  it("describes nodes from the run's OWN graph even when the blueprint is gone", async () => {
-    // The clone is the record (FR6.38): a rename or delete of the YAML must not
-    // make a run's history undrawable, and an EDIT must not rewrite it.
+  it("describes nodes from the run's OWN graph even when the blueprint is gone, since the clone is the record (FR6.38)", async () => {
     getById.mockResolvedValue(
       line({
         blueprintName: "renamed-away",
@@ -187,7 +179,6 @@ describe("GET /api/assembly-runs/{id}", () => {
     );
     listStationRuns.mockResolvedValue([node("analyze", "success")]);
 
-    // The CURRENT blueprint says something else — an edit after the run started.
     const res = await get("/api/assembly-runs/line-1");
 
     expect(
@@ -204,10 +195,7 @@ describe("GET /api/assembly-runs/{id}", () => {
     expect((await get("/api/assembly-runs/nope")).statusCode).toBe(404);
   });
 
-  it("still returns the rows when the definition is unknown", async () => {
-    // A line whose definition was renamed or removed must remain inspectable — the
-    // node rows are the record of what actually ran, and refusing to serve them would
-    // hide exactly the run someone is trying to debug.
+  it("still returns the rows when the definition is unknown, since the node rows are the record of what actually ran", async () => {
     getById.mockResolvedValue(line({ blueprintName: "gone" }));
     listStationRuns.mockResolvedValue([node("analyze", "success")]);
 

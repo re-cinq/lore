@@ -1,15 +1,7 @@
 import { z } from "zod";
 import type { ColumnMap } from "../lib/row.js";
 
-/**
- * `memory.audit_log` — the memory subsystem's own operation trail.
- *
- * DDL: `scripts/infra/setup-memory-schema.sh`. Distinct from
- * `pipeline.audit_log`, which records dark-factory DECISIONS and carries
- * task/repo instead of agent/memory-key — see `audit-log-entry.ts`. The two
- * share a table name in different schemas, which is exactly why each model
- * names its schema.
- */
+/** `memory.audit_log` — the memory subsystem's own operation trail; distinct from `pipeline.audit_log` (dark-factory decisions, task/repo-keyed — see `audit-log-entry.ts`), same table name in a different schema. */
 
 export const MemoryAuditEntrySchema = z.object({
   id: z.string(),

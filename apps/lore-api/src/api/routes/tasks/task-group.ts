@@ -9,11 +9,7 @@ import { bearerScope } from "../../../server/plugins/bearer-scope.js";
 import { zodValidate } from "../../../server/plugins/zod-validate.js";
 import { DB_UNAVAILABLE } from "../common-schemas.js";
 
-/**
- * One multi-repo feature's task rollup, for `lore_list_task_group`. An unknown
- * group is an empty group, not a 404: `task_group_id` is a free-form correlation
- * key, so "no rows" is indistinguishable from "never used".
- */
+// One multi-repo feature's task rollup; an unknown group answers empty, not 404 — `task_group_id` is free-form, so "no rows" ≡ "never used".
 
 const TERMINAL_SUCCESS = ["merged", "completed"];
 

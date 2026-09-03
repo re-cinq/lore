@@ -1,16 +1,4 @@
-// The agent-cr execution path (ADR-031 #688): within the cutover's `agent-cr` backend,
-// route a task to the Floor-side AssemblyLine when an assembly line is defined for its task
-// type (implementation / general / gap-fill / …), else run it as a SINGLE Agent (one CR
-// does the whole task — onboard / review / runbook have no assembly line).
-//
-// Both halves now reach a cluster the same way: they ENQUEUE. The line's walk parks
-// each node `queued` for a cluster-agent to claim (specs/running-stations-in-any-k8s-cluster
-// FR3); this file does the same for the one visit a single-CR task makes. Nothing
-// here pushes a CR — the last inbound dispatch route is gone, and a task type
-// without a YAML file is no longer a task type dispatched by a different mechanism.
-//
-// What stays different is the LIFECYCLE, not the transport: no graph means no walk,
-// so the agent-watcher still resolves a single CR's completion and closes its rows.
+// The agent-cr execution path (ADR-031 #688): routes a task to the Floor-side AssemblyLine when one is defined for its task type, else runs it as a SINGLE Agent CR (onboard/review/runbook); both halves ENQUEUE for a cluster-agent to claim (specs/running-stations-in-any-k8s-cluster FR3) — nothing here pushes a CR anymore. Only the LIFECYCLE differs: no graph means no walk, so the agent-watcher still resolves a single CR's completion.
 
 import type {
   LoreTaskSpec,
@@ -34,13 +22,7 @@ export function shouldUseAssemblyLine(
   return assemblyLineNames.has(taskType);
 }
 
-/**
- * The node id a single-CR task's one visit is recorded under.
- *
- * It names what the visit IS rather than borrowing the task type, because the
- * row's `blueprintName` already carries that — and because the claim matches on
- * `required_tags`, which this id is the type half of.
- */
+// The node id a single-CR task's one visit is recorded under; names what the visit IS rather than the task type (blueprintName already carries that), since the claim matches on required_tags, which this id is the type half of.
 const SINGLE_CR_NODE_ID = "agent";
 
 /** Run rows a single-CR re-dispatch may converge on rather than opening a second. */
@@ -65,11 +47,7 @@ export class AgentCrStationBackend implements StationBackend {
       return this.assemblyLine.launch(spec);
     }
 
-    // Total coverage: single-CR tasks get a per-attempt run row too, so
-    // pipeline.assembly_runs is the complete execution history. The start
-    // handler marks it running; the agent-watcher finishes it at CR terminal.
-    // A crash-recovery re-dispatch reuses the run it already opened, else that
-    // re-dispatch mints a phantom second row for one execution.
+    // Total coverage: single-CR tasks get a per-attempt run row too, so pipeline.assembly_runs is the complete execution history — a crash-recovery re-dispatch reuses the run it already opened, else it mints a phantom second row for one execution.
     const open = (await this.assemblyRuns.listForTask(spec.taskId)).find(
       (row) => OPEN_STATUSES.includes(row.status),
     );
@@ -83,16 +61,9 @@ export class AgentCrStationBackend implements StationBackend {
         args: { description: spec.description },
       }));
 
-    // The name the row records and the name the spec carries are the same value
-    // on purpose: the claiming cluster creates the CR under the spec's name, and
-    // both the watch's terminal report and the reconcile pass find it again by
-    // the row's. Two spellings would not fail to compile — they would just never
-    // correlate, which reads as a run nobody ever launched.
+    // The name the row records and the name the spec carries are the same value on purpose — a spelling drift wouldn't fail to compile, it would just never correlate, reading as a run nobody ever launched.
     const name = agentCrName(spec.taskId);
-    // One call, not an insert plus an arm: `ensureStationRun` already carries the
-    // dispatch spec, and its unique key is what makes a re-dispatch converge —
-    // a converged row keeps the spec it was armed with rather than having a
-    // second one written over the pod already being built from the first.
+    // One call, not an insert plus an arm: ensureStationRun's unique key is what makes a re-dispatch converge, keeping the spec it was armed with rather than overwriting a pod already being built from the first.
     const { created } = await this.assemblyRuns.ensureStationRun({
       assemblyRunId,
       nodeId: SINGLE_CR_NODE_ID,
@@ -116,8 +87,7 @@ export class AgentCrStationBackend implements StationBackend {
     return { ref: name, launched: created };
   }
 
-  /** Probe the cluster's CRs by task-id label, which finds a single Agent and an
-   *  assembly line's per-node Agents alike — so the reaper sees either path. */
+  // Probe the cluster's CRs by task-id label, which finds a single Agent and an assembly line's per-node Agents alike — so the reaper sees either path.
   isActive(taskId: string): Promise<boolean> {
     return isTaskAgentActive(this.agents, taskId);
   }

@@ -1,11 +1,4 @@
-/**
- * True when a Kubernetes API error means "the object already exists" (HTTP 409
- * / reason AlreadyExists). The `@kubernetes/client-node` ApiException surfaces
- * the status inconsistently — sometimes `code`, sometimes `statusCode`, sometimes
- * only inside a stringified body ("HTTP-Code: 409 ... Unknown API Status Code!").
- * Reconcile races re-create the same Job, so this case is benign and must not be
- * reported as a task failure.
- */
+/** True for a Kubernetes "already exists" (HTTP 409) error — checked loosely since ApiException surfaces the status as `code`, `statusCode`, or only inside a stringified body; benign, must not fail the task. */
 export function isAlreadyExistsError(err: unknown): boolean {
   if (!err || typeof err !== "object") {
     return false;

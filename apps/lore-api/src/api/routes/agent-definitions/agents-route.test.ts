@@ -8,10 +8,6 @@ import {
   LEGACY_TOKEN,
 } from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
 
-// The agent-definitions routes delegate to project.agentDefs and reuse the
-// dark-factory two-key ceremony for the `image` field. parseAgentInput /
-// imageFieldTouched are the REAL schema (not mocked) — bodies must be valid.
-
 vi.mock("../../../features/dark-factory/dark-factory-authz.js", () => {
   class TwoKeyError extends Error {
     constructor(
@@ -78,7 +74,7 @@ describe("routes — agents", () => {
     headers: Record<string, string> = {},
     pool = makePool(),
   ) {
-    pool.query.mockResolvedValue({}); // audit insert (real pg returns a Promise)
+    pool.query.mockResolvedValue({});
     const payload = body === undefined ? undefined : JSON.stringify(body);
 
     return buildServer(() => pool as any)

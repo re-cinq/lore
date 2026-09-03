@@ -1,13 +1,4 @@
-// Recovering a planning round's GapResult from the run transcript.
-//
-// The pod delivers its result twice-removed from the round row: a `kind:"file"`
-// artifact event (or its own POST) reaches `applyGapResult`, which closes the
-// iteration. Both deliveries ride infrastructure that can drop them — 2026-08-18
-// (#1298) a controller churn window ate the artifact event AND got the round
-// reaped, leaving the author a blank wizard while the finished result sat in
-// `pipeline.agent_run_turns`. The transcript is durable (#1148), so the reaper
-// can re-derive the payload from the agent's terminal Write instead of asking a
-// human to re-run the round.
+// Recovering a planning round's GapResult from the run transcript: both the artifact event and the pod's POST can be dropped (#1298 controller-churn ate one and reaped the round), so the durable transcript (#1148) re-derives the payload from the agent's terminal Write.
 
 interface TurnEnvelope {
   event?: {
@@ -22,15 +13,7 @@ interface ToolUseBlock {
   input?: { file_path?: unknown; content?: unknown };
 }
 
-/**
- * The last artifact the agent wrote at `artifactSuffix`, parsed — or null when
- * the transcript holds none (an agent that genuinely failed never wrote one).
- *
- * Scans newest-first: a self-correcting agent may write the file more than once
- * and the final version is the one the watch would have shipped. A Write whose
- * content is not valid JSON is skipped rather than fatal — an earlier good write
- * may still satisfy the recovery.
- */
+/** The last artifact written at `artifactSuffix`, parsed, or null when none exists; scans newest-first (a self-correcting agent may rewrite it) and skips a non-JSON Write rather than failing. */
 export function gapResultFromTurns(
   envelopes: readonly unknown[],
   artifactSuffix: string,
@@ -59,9 +42,7 @@ export function gapResultFromTurns(
   return null;
 }
 
-/** The last parseable Write to `artifactSuffix` among one message's blocks —
- * scanned newest-first, since one message can carry several Writes and the
- * LAST one is the version the watch would have shipped. */
+/** The last parseable Write to `artifactSuffix` among one message's blocks, scanned newest-first since the LAST Write is the version the watch would have shipped. */
 function lastArtifactWrite(
   blocks: ToolUseBlock[],
   artifactSuffix: string,

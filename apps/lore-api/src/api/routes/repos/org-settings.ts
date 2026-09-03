@@ -8,15 +8,7 @@ import { bearerScope } from "../../../server/plugins/bearer-scope.js";
 import { zodValidate } from "../../../server/plugins/zod-validate.js";
 import { DB_UNAVAILABLE } from "../common-schemas.js";
 
-/**
- * Org-wide `lore.settings` and one repo's session count, moved out of web-ui
- * (ADR-032).
- *
- * The write is an ALLOWLIST, not a passthrough: `lore.settings` holds the ingest
- * token and the approval config, so a route that upserted any key a caller named
- * would let one invent settings the platform then reads. Three keys exist; three
- * keys are writable.
- */
+// Org-wide `lore.settings` (ADR-032); the write is an ALLOWLIST, not a passthrough — an open upsert would let a caller invent settings the platform then reads.
 
 const WRITABLE_KEYS = new Set(["api_url", "ingest_token", "approval_config"]);
 
@@ -95,8 +87,7 @@ export function orgSettingsRoutes(getPool: () => Pool | null): ServerRoute[] {
         }
 
         for (const { key, value } of entries) {
-          // A blank value is "leave it alone", not "erase it": the settings form
-          // posts every field every time, and an untouched secret arrives empty.
+          // A blank value is "leave it alone", not "erase it" — the form posts every field every time.
           if (!value.trim()) {
             continue;
           }

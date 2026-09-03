@@ -1,5 +1,4 @@
-// The toned outcome pill: string data in, themed pill out. One tone→color map
-// for every card header and attempt row instead of a copy per view.
+// One tone→color map for every card header and attempt row instead of a copy per view.
 import styles from "./StatusPill.module.scss";
 
 export type StatusTone = "ok" | "warn" | "err" | "running" | "waiting" | "idle";

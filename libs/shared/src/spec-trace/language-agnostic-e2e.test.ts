@@ -8,19 +8,6 @@ import { projectSpecFile } from "./project-spec-file.js";
 import { ingestCoverageReport } from "./ingest-coverage.js";
 import { driftCheckFile } from "./drift-check-file.js";
 
-/**
- * Language-agnostic e2e (spec-traceability-graph, AC #8 / T283) — the whole
- * build/drift path works for a language with NO tree-sitter grammar (Ruby `.rb`):
- * nodes degrade to file+line granularity (no `symbol_name`), `TestChunk.test_name`
- * falls back to the inline-link LABEL, and coverage `COVERS` + drift still
- * function. Runs against the REAL local Dgraph (no mocks); skips when unreachable.
- *
- * The fixture seeds the ingested code-chunk's `end_line`/`content_hash` onto the
- * link-projected CodeChunk — that enrichment is what `project-test-interface`
- * supplies for a real chunk; here we add it directly so the graph-layer chain
- * (project → coverage → drift) is exercised end to end.
- */
-
 const DGRAPH_HTTP = process.env.DGRAPH_HTTP ?? "http://localhost:8081";
 const APPLIER = join(
   findRepoRoot(),
@@ -101,7 +88,7 @@ describe.skipIf(!reachable)(
           });
         }
       } catch {
-        // best-effort cleanup must never mask the assertion
+        void 0;
       } finally {
         await txn.discard().catch(() => {});
       }
@@ -145,15 +132,12 @@ describe.skipIf(!reachable)(
       const statementXid = `${repo}|${specPath}|0`;
       const testChunkXid = `${repo}|spec/widget_spec.rb`;
       const codeChunkXid = `${repo}|src/widget.rb|10`;
-      // One Overview statement linking a no-grammar (.rb) RSpec test + Ruby impl.
       const content =
         "## Overview\n\n" +
         "- The widget emits a click. ([validated by](spec/widget_spec.rb#L5), [impl](src/widget.rb#L10))\n";
 
-      // 1. Project the spec → Statement + TestChunk (test_name from label) + CodeChunk (file+line, no symbol).
       await projectSpecFile(repo, specPath, content, dgraphClient);
 
-      // AC#8 claim: test_name falls back to the markdown link label (no AST symbol).
       const projected = (await readGraph(
         `query q($sx: string){
         stmt(func: eq(Statement.xid, $sx)){
@@ -177,15 +161,11 @@ describe.skipIf(!reachable)(
         },
       ]);
 
-      // Enrich the link-projected CodeChunk with the ingested chunk's end_line + content_hash
-      // (what project-test-interface supplies for a real chunk). No symbol_name — no grammar.
       await enrichCodeChunk(codeChunkXid, {
         "CodeChunk.end_line": 20,
         "CodeChunk.content_hash": "OLDHASH",
       });
 
-      // 2. Ingest coverage → Coverage + a coverage-DEFINED CodeChunk minted from the
-      // covered range (file+line, no AST/symbol — language-agnostic by construction).
       await ingestCoverageReport(
         dgraphClient,
         { repo, tool: "lcov", commit: "c1" },
@@ -198,8 +178,6 @@ describe.skipIf(!reachable)(
         ],
       );
 
-      // AC#8 claim: coverage-based COVERS works on file alone — the covered file is a
-      // File node `${repo}|src/widget.rb`, its intervals on the `ranges` edge facet.
       const coverage = (await readGraph(
         `query q($xid: string){ cov(func: eq(Coverage.xid, $xid)){ Coverage.covers @facets(ranges) { File.xid } } }`,
         { $xid: `${repo}|spec/widget_spec.rb|validated by` },
@@ -212,7 +190,6 @@ describe.skipIf(!reachable)(
         },
       ]);
 
-      // 3. The implementation changes (content_hash differs); its test did not.
       await driftCheckFile(
         repo,
         "src/widget.rb",
@@ -227,7 +204,6 @@ describe.skipIf(!reachable)(
         dgraphClient,
       );
 
-      // AC#8 claim: drift still functions with file+line nodes and no symbol_name.
       const drifted = (await readGraph(
         `query q($sx: string){ stmt(func: eq(Statement.xid, $sx)){ Statement.drifted Statement.drift_reason } }`,
         { $sx: statementXid },

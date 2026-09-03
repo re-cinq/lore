@@ -40,14 +40,7 @@ import type { FeaturesPort } from "../features/features-port.js";
 import type { ChunksPort } from "../chunks/chunks-port.js";
 import type { PipelineRepositories } from "../pipeline/pipeline-repositories.js";
 
-/**
- * The unified internal API. Built by createProject from a repo fullName
- * ("owner/repo") and the two database connections; it holds the ports the
- * factory initialized (adapters are dynamically imported there so this module —
- * and the package barrel — never statically pulls a heavy dep like octokit).
- * A sub-facade for an un-wired port throws a clear error. Writes never live
- * here — they live on the Workspace returned by cache().
- */
+/** The unified internal API, built by createProject; a sub-facade for an un-wired port throws a clear error. Writes never live here — they live on the Workspace returned by cache(). */
 export class Project {
   constructor(
     readonly fullName: string,
@@ -143,13 +136,7 @@ export class Project {
     return this.port<UsagePort>("usage");
   }
 
-  /**
-   * The org-wide `pipeline.*` repositories (task queue, event queue, assembly
-   * runs, job runs, audit, leases, agent-run events + turns).
-   *
-   * Raw, like `leases` and `usage`: nothing here is scoped by `fullName`, so a
-   * repo-scoped wrapper would only imply a filter that does not exist.
-   */
+  /** The org-wide `pipeline.*` repositories. Raw, like `leases` and `usage`: nothing here is scoped by `fullName`. */
   get pipeline(): PipelineRepositories {
     return this.port<PipelineRepositories>("pipeline");
   }
@@ -159,8 +146,7 @@ export class Project {
     return new Features(this.fullName, this.port<FeaturesPort>("features"));
   }
 
-  /** Clone the repo to a cache dir and return a Workspace for writes. Refuses on
-   *  the shared server — writes require a trusted sandbox. */
+  /** Clone the repo to a cache dir and return a Workspace for writes; refuses on the shared server — writes require a trusted sandbox. */
   async cache(path: string): Promise<Workspace> {
     assertCanClone(this.env);
     const git = this.port<GitPort>("git");

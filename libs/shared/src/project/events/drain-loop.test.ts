@@ -115,19 +115,12 @@ describe("handleOne", () => {
       metaSeen = meta;
     };
 
-    // The two differ since the Floor claims its own delivery: `id` addresses the
-    // delivery (ack/fail/dead take it) and `event_id` the event. A handler that
-    // cites the event — the ingest station fetches a large payload as
-    // `payload_event_id` — given the delivery id would read the wrong row.
     await handleOne(row({ id: "4711", event_id: "100" }), deps(capture, rec));
     expect(metaSeen).toEqual({ eventId: "100" });
   });
 });
 
-describe("drainOnce serial families", () => {
-  // FR6 (specs/ingest-station): production SERIAL_FAMILIES is EMPTY — no
-  // in-process dgraph writer remains. The mechanism stays as a general tool,
-  // so these tests inject a family through the deps seam.
+describe("drainOnce serial families (FR6, specs/ingest-station: production SERIAL_FAMILIES is empty; tests inject one via the deps seam)", () => {
   const specTraceRow = (id: string) =>
     row({ id, event_name: "internal.ingest.spec_trace", params: { id } });
 
@@ -178,7 +171,6 @@ describe("drainOnce serial families", () => {
     });
 
     await new Promise((resolve) => setTimeout(resolve, 5));
-    // st2 finished while st1 is still blocked — no family serialization.
     expect(order).toContain("end:st2");
     expect(order).not.toContain("end:st1");
     release();
@@ -275,8 +267,6 @@ describe("drainOnce serial families", () => {
     await drainOnce({ ...d, serialDeadlineMs: 5 });
     await drainOnce({ ...d, serialDeadlineMs: 5 });
 
-    // the second drain's claim no longer excludes the family — the deadline
-    // released the slot (the hung row itself is the reaper's to re-queue)
     expect(excludesSeen).toEqual([[], []]);
     expect(rec.done).toEqual([]);
   });

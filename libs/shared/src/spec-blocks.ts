@@ -1,47 +1,10 @@
-/**
- * Lossless source-reconstruction layer for the spec-traceability graph.
- *
- * THE CORE INVARIANT — for ANY string `content`:
- *
- *     reassembleBlocks(segmentBlocks(content)) === content
- *
- * Every cycle that extends `segmentBlocks` MUST preserve this. The partition
- * is over `content.split("\n")`: every input line lands in exactly one block,
- * and `reassembleBlocks` rejoins block texts with `"\n"`, so the join is the
- * exact inverse of the split. (Note: the split is on `"\n"` — NOT `\r?\n` — so
- * a `\r` rides along inside its line's block and round-trips verbatim.)
- *
- * This is the SOURCE layer: paragraphs are kept WHOLE (multiple lines joined
- * by their original `"\n"`), never sentence-split. That whole-paragraph rule
- * is what makes reconstruction lossless. The lossy, testable-overlay layer
- * that DOES sentence-split (and drops headings/fences/tables) lives in the
- * sibling `spec-segment.ts` and serves a different purpose (statement
- * ordinals for spec→test links).
- *
- * The per-line dispatch in the walk classifies every source line into one of
- * six kinds: blank, heading (`kind: "heading"` + `level`), fenced code (a
- * ```` ```…``` ```` run is ONE multi-line `code` block — consumed until its
- * closing fence, never line-split), table rows, list items (each bullet is its
- * own `list-item` block), and prose paragraphs. All six ship today.
- *
- * NOTE on the sibling: `spec-segment.ts` carries its OWN line classifiers
- * (`isHeading` / `isListItem` / `isTableRow`) that look similar but encode
- * deliberately different rules — e.g. it treats ordered-list markers (`1.`) as
- * list items, whereas this lossless layer matches bullets only. The two are
- * NOT interchangeable, so they are intentionally kept separate rather than
- * promoted to a shared classifier (see backlog: ordered-list markers).
- */
+/** Lossless source-reconstruction layer for the spec graph: the invariant `reassembleBlocks(segmentBlocks(content)) === content` MUST hold for any `content`; paragraphs are kept whole (unlike sibling `spec-segment.ts`, which sentence-splits for a different purpose and is NOT interchangeable with this one). */
 
-/** Structural classification of a source block. All six kinds — `blank`,
- * `paragraph`, `heading`, `code`, `table`, and `list-item` — are emitted
- * today. */
+/** Structural classification of a source block; all six kinds are emitted today. */
 export type BlockKind =
   "heading" | "paragraph" | "list-item" | "code" | "table" | "blank";
 
-/** One contiguous run of source lines. `text` holds the verbatim source for
- * this block (paragraphs join their lines with `"\n"`); `ordinal` is the
- * block's index in emission order; `level` carries heading depth where the
- * `kind` defines one. */
+/** One contiguous run of source lines: `text` is the verbatim source, `ordinal` the emission-order index, `level` the heading depth where applicable. */
 export interface Block {
   ordinal: number;
   kind: BlockKind;
@@ -49,20 +12,7 @@ export interface Block {
   level?: number;
 }
 
-/**
- * Partition `content` into ordered blocks losslessly (see module header for
- * the round-trip invariant). Per source line the walk dispatches, in order:
- * an open fence accumulates every line into ONE `code` block until its closing
- * ```` ``` ```` (or EOF); a ```` ``` ```` line opens a fence; a blank line
- * becomes its own verbatim `blank` block; an ATX `#`..`######` line becomes a
- * `heading` block carrying its `level`; a bullet (`-`/`*`/`+`) line becomes its
- * own `list-item` block; a ```` | ````-leading line accumulates into a `table`
- * run; anything else accumulates into a `paragraph` run.
- * Accumulating kinds share ONE pending run (see `flushPending` / `accumulate`):
- * switching kind or hitting any boundary (blank, heading, list-item,
- * fence-open, EOF)
- * flushes the open run exactly once.
- */
+/** Partitions `content` into ordered blocks losslessly (see module header for the round-trip invariant), dispatching each line to fence/blank/heading/list-item/table/paragraph. */
 export function segmentBlocks(content: string): Block[] {
   const lines = content.split("\n");
   const blocks: Block[] = [];

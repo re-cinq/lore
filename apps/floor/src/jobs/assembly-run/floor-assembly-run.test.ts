@@ -19,8 +19,6 @@ const task: FloorAssemblyRunTask = {
   branch: "lore/impl-abcdef12",
 };
 
-/** A clone node. `station` / `station_inherited` are what `snapshotGraph` resolves;
- *  defaulted here so a test about names, labels or outcomes need not restate them. */
 function cloneNode(
   over: Partial<RunGraphNode> & { id: string; type: string },
 ): RunGraphNode {
@@ -61,9 +59,7 @@ describe("nodeAgentSpec", () => {
     ).not.toHaveProperty("model");
   });
 
-  it("suffixes the CR name + labels with the iteration for a revisited node", () => {
-    // Iteration 1 keeps the bare name (back-compat); a revisit (iteration>1) gets a
-    // distinct name + label so it runs a fresh pod, not a 409-reuse of the prior CR.
+  it("suffixes the CR name + labels with the iteration for a revisited node, so a fresh pod runs instead of a 409-reuse of the prior CR", () => {
     expect(nodeAgentName(task.assemblyLineId, "review", 2)).toBe(
       "a1b2c3d4e5f6-review-2",
     );
@@ -78,9 +74,7 @@ describe("nodeAgentSpec", () => {
     expect(spec.extraLabels?.["lore.re-cinq.com/node-iteration"]).toBe("2");
   });
 
-  it("labels the CR with the full assembly-run id, node id and iteration (event-driven transitions)", () => {
-    // The CR name only carries a 12-char prefix; the labels carry the full uuid so
-    // the k8s watch can map a terminal node CR back to its (line, node, iteration).
+  it("labels the CR with the full assembly-run id, node id and iteration, since the CR name carries only a 12-char prefix, so the k8s watch can map a terminal node CR back", () => {
     expect(
       nodeAgentSpec(cloneNode({ id: "implement", type: "agent" }), task, "p")
         .extraLabels,
@@ -122,14 +116,12 @@ describe("nodeAgentSpec station_ref", () => {
 });
 
 describe("nodeStationSpec (station pod contract)", () => {
-  it("builds the station_input payload the pod parses, defaulting stationRef to def-<type>", () => {
+  it("builds the station_input payload the pod parses, defaulting stationRef to def-<type>, as the sole JSON parameter every lore-station pod parses", () => {
     const spec = nodeStationSpec(
       cloneNode({ id: "validate", type: "validate" }),
       task,
     );
 
-    // The recipe's prompt template is literally {station_input} — the whole node
-    // input rides this one JSON parameter that every lore-station pod parses.
     expect(spec.stationRef).toBe("def-validate");
     expect(JSON.parse(spec.parameters!.station_input)).toEqual({
       assembly_run_id: "a1b2c3d4e5f6a7b8",

@@ -1,11 +1,4 @@
-// The pure rules of a `resumeFrom` start (specs/fork-rerun-from-node FR1–FR4).
-//
-// Both adapters route through this so the InMemory double stays the behavioural
-// spec of the Pg one: same rejections, same messages, same inherited prefix. It
-// is deliberately IO-free — the adapter reads the source line and its node rows,
-// this decides whether the fork is legal and how much of the history it carries,
-// and only then does the adapter write. Every property checked here is immutable
-// on a terminal line, so validating before the write opens no race.
+// Pure rules of a resumeFrom start (specs/fork-rerun-from-node FR1-FR4); both adapters route through this, IO-free, so the InMemory double stays the behavioural spec of the Pg one (same rejections, messages, inherited prefix).
 
 import { enforceTrue } from "../../lib/enforce.js";
 import type {
@@ -14,23 +7,13 @@ import type {
   AssemblyRunStartInput,
 } from "./assembly-runs-port.js";
 
-/**
- * A fork the validation REFUSED — drift, a non-terminal source, a missing
- * visit. Its own type because the API edge answers a refusal with a 409
- * carrying the message, and anything else must stay the 500 it is: matching on
- * message prose would make a DB outage read as "the fork was refused".
- */
+/** A fork the validation refused (drift, non-terminal source, missing visit); its own type so the API edge can 409 it rather than matching on message prose (which would make a DB outage read as a refusal). */
 export class ResumeRefusedError extends Error {
-  // Explicit, or a stack trace reads "Error: resume-from …" and the refusal
-  // is indistinguishable from breakage in a log line.
+  // Explicit name, or a stack trace reads "Error: resume-from …" and the refusal is indistinguishable from breakage in a log line.
   override name = "ResumeRefusedError";
 }
 
-/** Index (in visit order) of the latest COMPLETED row for `nodeId` — or, with
- *  `iteration`, of exactly that completed visit. -1 when no such row exists.
- *  Naming the iteration is what makes a loop retry exact: the latest row of a
- *  node that ran again after the retry target would keep more history than the
- *  target's own prefix. */
+/** Index of the latest completed row for nodeId (or, with iteration, of exactly that visit); -1 if none. Naming iteration makes a loop retry exact — else a node that re-ran after the retry target would keep too much history. */
 export function resumeCutoffIndex(
   nodes: StationRunRecord[],
   nodeId: string,
@@ -50,20 +33,13 @@ export function resumeCutoffIndex(
   return -1;
 }
 
-/** The validated fork: the source row (proven present and terminal) and the node
- *  rows the fork inherits. */
+/** The validated fork: the source row (proven present and terminal) and the node rows the fork inherits. */
 export interface ResumePrefix {
   source: AssemblyRunRecord;
   prefix: StationRunRecord[];
 }
 
-/**
- * Validate a `resumeFrom` start against its source line and return the node rows
- * the fork inherits — the source's visit history through the chosen node's latest
- * completed row, inclusive, so earlier iterations of that node ride along.
- *
- * Throws before the caller writes anything.
- */
+/** Validates a resumeFrom start against its source line and returns the inherited node rows (history through the chosen node's latest completed row, inclusive); throws before the caller writes anything. */
 export function resolveResumePrefix(
   input: AssemblyRunStartInput,
   source: AssemblyRunRecord | null,

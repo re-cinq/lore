@@ -180,11 +180,6 @@ describe("InMemoryJobRuns double", () => {
 
 describe("a job_run settled twice by racing finishers", () => {
   it("keeps the winner's completed verdict when a loser then fails it", async () => {
-    // finishLine settles the job_run BEFORE closing the run row, deliberately, so
-    // a crash between the two cannot orphan it open — which means a losing racer
-    // reaches the settle too. Unconditional, the loser's verdict overwrote the
-    // winner's, and a detect line the event door completed was recorded failed by
-    // the reaper tick that lost.
     const jobRuns = new InMemoryJobRuns();
     const id = await jobRuns.start("gap_detection");
 

@@ -1,8 +1,4 @@
-// Resolving a node's `continues` declaration to an actual conversation.
-//
-// The YAML says WHAT to continue (`node`) and WHICH THREAD it belongs to (`key`);
-// this turns that into the thread a lookup can use, and decides whether this
-// particular run may continue at all.
+// Resolves a node's `continues` declaration (YAML's `node` + `key`) to the actual conversation thread and whether this run may continue it.
 
 import type { ConversationThread } from "@re-cinq/lore-shared/project/conversations/conversations-port.js";
 
@@ -16,15 +12,7 @@ export interface ThreadContext {
 export type ThreadResolution =
   { ok: true; thread: ConversationThread } | { ok: false; error: string };
 
-/**
- * Turn `continues.key` into the thread to look up.
- *
- * `args.<name>` is what keeps the engine domain-free — it never learns what a
- * feature is, it just reads the value the run carries. A named arg the run does NOT
- * carry is an ERROR, not an empty thread: falling back to "no conversation" would
- * silently start fresh forever, which is indistinguishable from continuity that
- * simply remembered nothing.
- */
+/** Turns `continues.key` into the thread to look up; a named arg the run does NOT carry is an ERROR, not an empty thread, since silently starting fresh is indistinguishable from remembering nothing. */
 export function resolveThread(
   key: string,
   nodeId: string,
@@ -59,21 +47,7 @@ export function resolveThread(
   return { ok: true, thread: { kind: "args", value, nodeId } };
 }
 
-/**
- * Whether this execution may continue a previous run, given the outcome of this
- * node's own most recent visit (null when the walk has never run it).
- *
- * A RETRY never continues: it exists because the last attempt failed, and inheriting
- * that attempt's context would make the rerun path-dependent. Retries must be
- * reproducible.
- *
- * The test is WHY the node is being revisited, not how many times. `iteration <= 1`
- * meant the same thing only while a failure back-edge was the sole way to revisit a
- * node — on a line whose rounds are revisits (FR6.21) every round after the first is
- * iteration >= 2, and the old rule refused them all, silently: no prior conversation
- * simply re-briefs the agent from scratch, so the run still succeeds and nothing
- * anywhere reports that continuity was dropped.
- */
+/** Whether this execution may continue a previous run's conversation, given this node's most recent outcome — a RETRY never continues (must be reproducible); tests WHY it's revisited, not iteration count, since rounds (FR6.21) are revisits too. */
 export function mayContinue(priorOutcome: string | null): boolean {
   return !(priorOutcome ?? "").includes("failed");
 }

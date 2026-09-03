@@ -4,11 +4,6 @@ import { fileURLToPath } from "node:url";
 import { readFileSync, existsSync, readdirSync } from "node:fs";
 import path from "node:path";
 
-// Drift detector for the deploy security posture. It asserts against the RAW
-// text of the real infra manifests (Helm templates carry Go `{{ }}`, so YAML
-// parsing them is not an option) — every property below is pinned by
-// string/regex so an infra change that weakens the posture turns this suite red.
-
 function findRepoRoot(startUrl: string): string {
   let dir = path.dirname(fileURLToPath(startUrl));
 

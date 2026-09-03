@@ -1,14 +1,4 @@
-/**
- * Heavy OpenTelemetry SDK bootstrap for the Floor — the only consumer of
- * `@opentelemetry/sdk-node` and the Cloud exporters. Without this the manual
- * spans (the HTTP request-tracing extension, `auto_merge.decision`,
- * `lease.expired`) are no-ops: `@opentelemetry/api` needs a registered
- * TracerProvider to record anything.
- *
- * Import this module FIRST in the entrypoint — before any other imports.
- * Mirrors apps/lore-api's otel-init; the Cloud exporter imports fail soft
- * (caught) in environments without Cloud credentials (local dev).
- */
+/** Import this module FIRST in the entrypoint, before any other imports — @opentelemetry/api needs this registered TracerProvider or manual spans are no-ops. */
 
 import { NodeSDK } from "@opentelemetry/sdk-node";
 
@@ -39,8 +29,7 @@ export async function initOtel(): Promise<void> {
 }
 
 export async function shutdownOtel(): Promise<void> {
-  // A failed export flush (e.g. no GCP project ID in an unauthed env) must never
-  // crash the process — telemetry is best-effort.
+  // Telemetry is best-effort — a failed export flush must never crash the process.
   if (sdk) {
     await sdk
       .shutdown()

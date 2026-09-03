@@ -13,10 +13,7 @@ describe("CONTEXT_BOOTSTRAP", () => {
   });
 
   it("carries no {placeholder} the subsystem would ship to the model verbatim", () => {
-    // This string is a PARAMETER VALUE, not a template: the subsystem substitutes
-    // recipe placeholders once, from spec.parameters, and never re-scans what it
-    // substituted in. A `{repo}` written here would reach the model as those seven
-    // characters — the same way an empty `context` parameter used to ship `{context}`.
+    // A literal placeholder here would ship to the model verbatim: substitution runs once and never re-scans its own output.
     expect(CONTEXT_BOOTSTRAP).not.toMatch(/\{[A-Za-z0-9_.-]+\}/);
   });
 });

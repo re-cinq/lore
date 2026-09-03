@@ -59,8 +59,6 @@ describe("GET /api/repos", () => {
       .mockResolvedValueOnce({ rows: [{ total: 1 }] });
     const res = await get("", pool);
 
-    // The body is the `Repo` model keyed by its COLUMNS plus the two computed
-    // counts — mapped through REPO_COLUMNS, not the raw driver row.
     expect(res.result).toEqual({
       repos: [
         {

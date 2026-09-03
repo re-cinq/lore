@@ -26,12 +26,7 @@ import {
   DB_UNAVAILABLE,
 } from "../common-schemas.js";
 
-/**
- * The activity reads behind the audit, gaps, events and job-run views, moved out
- * of web-ui (ADR-032). Three tables, one file: they are the same shape of read —
- * a filtered, paged look at what the platform did — and splitting them by table
- * would put three near-identical handlers in three files.
- */
+// Activity reads behind the audit/gaps/events/job-run views, moved out of web-ui (ADR-032); one file since all three are the same shape of paged read.
 
 const UNDEFINED_TABLE = "42P01";
 
@@ -41,8 +36,7 @@ const missingTable = (err: unknown) =>
 const MemoryAuditQuery = z.object({
   agent: z.string().max(200).optional(),
   operation: z.string().max(40).optional(),
-  /** The gap view's lens: searches that returned nothing are the signal it
-   *  exists to show, and filtering them in Node would page over the wrong set. */
+  // The gap view's lens: filter server-side, or paging in Node would page over the wrong set.
   zero_results: z.coerce.boolean().optional(),
   limit: clampedLimit.default(50),
   offset: offsetParam,
@@ -58,8 +52,7 @@ const EventsQuery = z.object({
 
 type EventsQuery = z.infer<typeof EventsQuery>;
 
-/** A dashboard count that must never take its page down: an absent table or a
- *  failed count reports null, and the panel renders without that figure. */
+// A dashboard count that must never take its page down: an absent table or failed count reports null.
 async function countOrNull(
   pool: Pool,
   sql: string,
@@ -74,12 +67,7 @@ async function countOrNull(
   }
 }
 
-/**
- * The bodies these reads answer with. Each is DERIVED from its model plus that
- * model's column map, so the published contract and the table state the same
- * fields: `wireSchema` renames the model's fields to the columns that store
- * them, which is what the deployed clients read.
- */
+// Each response body is DERIVED from its model + column map via wireSchema, so the contract and the table state the same fields.
 const EVENT_BROWSE_FIELDS = [
   "id",
   "eventName",
@@ -113,12 +101,7 @@ const EventListSchema = z.object({
   ),
 });
 
-/**
- * Seven-day counters for a repo's activity cards. Each is NULL rather than zero
- * when its table is absent, so the card can say "unknown" instead of claiming
- * nothing happened — a database that predates a migration has no rows to count,
- * which is not the same as a quiet week.
- */
+// Seven-day activity counters; each is NULL (not zero) when its table is absent, so "unknown" is distinguishable from "a quiet week".
 const ActivityCountsSchema = z.object({
   tasks: z.number().nullable(),
   auto_merged: z.number().nullable(),
