@@ -122,8 +122,9 @@ interface NodeEvent {
 }
 
 function readNodeEvent(params: Record<string, unknown>): NodeEvent {
+  // A JSON null is as absent as a missing key: stringifying it would produce the literal "null" and pass the emptiness check below.
   const text = (value: unknown): string =>
-    value === undefined ? "" : String(value);
+    value === undefined || value === null ? "" : String(value);
   const event = {
     assemblyLineId: text(params.assemblyRunId) || text(params.assemblyLineId),
     nodeId: text(params.nodeId),
