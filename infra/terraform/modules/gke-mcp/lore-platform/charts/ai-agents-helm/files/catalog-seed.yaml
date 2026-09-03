@@ -1604,9 +1604,16 @@ spec:
 
     Emit a fenced REVIEW_FINDINGS block (one finding per point) then the
     verdict. Be liberal with concrete `suggestion` fixes. Each `subject` is
-    ONE short imperative line. Labels: issue | suggestion | nit | question |
-    praise | thought | chore. Add `"decoration":"blocking"` to a must-fix
-    issue. `suggestion` is the replacement text for that exact line(s).
+    ONE short imperative line. Labels: issue | suggestion | nit | question.
+    Report only problems worth acting on — never praise, commentary, or
+    restatements of what the diff does; a clean area gets silence.
+    Reserve `"decoration":"blocking"` for real defects in the changed code:
+    correctness, security, or data loss. Convention/doc/spec hygiene, style,
+    and speculative hardening against situations this code cannot reach are
+    `suggestion` or `nit`, never blocking.
+    When one root cause repeats across files, emit ONE finding and list the
+    other occurrences in its subject — not one finding per site.
+    `suggestion` is the replacement text for that exact line(s).
 
     ```REVIEW_FINDINGS
     {
@@ -1744,7 +1751,10 @@ spec:
     diff alone.
 
     Emit a fenced REVIEW_FINDINGS block (it MAY be empty when nothing new is
-    wrong) then the verdict. Same schema as the full review:
+    wrong) then the verdict. Report only problems worth acting on — never
+    praise or commentary. Reserve `"decoration":"blocking"` for real defects
+    (correctness, security, data loss); hygiene and style are `nit`, never
+    blocking. Same schema as the full review:
 
     ```REVIEW_FINDINGS
     {
