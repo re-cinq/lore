@@ -169,14 +169,14 @@ export class KubeSecretKeyWriter implements SecretKeyWriter {
   ) {}
 
   setKey(secret: string, key: string, value: string): Promise<void> {
-    return this.mutate(secret, (data) => {
-      data[key] = Buffer.from(value, "utf8").toString("base64");
+    return this.mutate(secret, (entries) => {
+      entries[key] = Buffer.from(value, "utf8").toString("base64");
     });
   }
 
   deleteKey(secret: string, key: string): Promise<void> {
-    return this.mutate(secret, (data) => {
-      delete data[key];
+    return this.mutate(secret, (entries) => {
+      delete entries[key];
     });
   }
 

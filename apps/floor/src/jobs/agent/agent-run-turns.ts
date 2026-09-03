@@ -9,7 +9,8 @@ import { isRecord } from "@re-cinq/lore-shared/lib/is-record.js";
 /** Upper bound on turns one `/api/agent-events` POST may collect; since envelopes are untruncated, count is the only bound, and overflow beyond it is lost, counted as `turn_dropped_cap` (the GCS raw-stream archive that used to catch it retired in #1149). */
 export const MAX_RUN_TURNS_PER_BATCH = 10_000;
 
-const str = (x: unknown): string | null => (typeof x === "string" ? x : null);
+const str = (value: unknown): string | null =>
+  typeof value === "string" ? value : null;
 
 /** Redact the raw line and refuse it if redaction broke its JSON (a replacement can span a JSON boundary), since one dropped line beats the whole batch's `::jsonb` cast failing. */
 function redactedLine(

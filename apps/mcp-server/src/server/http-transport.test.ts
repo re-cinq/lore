@@ -3,8 +3,8 @@ import { Readable } from "node:stream";
 import type { IncomingMessage } from "node:http";
 import { readJsonBody } from "./http-transport.js";
 
-const bodyReq = (data: string | Buffer): IncomingMessage =>
-  Readable.from([Buffer.from(data)]) as unknown as IncomingMessage;
+const bodyReq = (body: string | Buffer): IncomingMessage =>
+  Readable.from([Buffer.from(body)]) as unknown as IncomingMessage;
 
 describe("readJsonBody", () => {
   it("parses a JSON object body", async () => {

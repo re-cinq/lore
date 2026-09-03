@@ -91,9 +91,9 @@ function readJson<T>(filePath: string, fallback: T): T {
 }
 
 // 0600: cached read bodies can contain org memory/context; keep them owner-only.
-function writeJson(filePath: string, data: unknown): void {
+function writeJson(filePath: string, value: unknown): void {
   ensureDir(dirname(filePath));
-  writeFileSync(filePath, JSON.stringify(data, null, 2) + "\n", {
+  writeFileSync(filePath, JSON.stringify(value, null, 2) + "\n", {
     encoding: "utf-8",
     mode: 0o600,
   });
