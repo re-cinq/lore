@@ -113,7 +113,7 @@ allowed"`, the `"lore_"` token prefix, the `created_by` literal `"admin"`.
   `500`).
 - Auth coupling: the same `pipeline.api_tokens.token_hash` column is what
   `validateClientToken` matches on for *every* `/api/*` route, and a successful
-  validation bumps `last_used` (see [auth scope override test `auth.test.ts:58`](apps/lore-api/src/api/routes/auth.test.ts#L58)).
+  validation bumps `last_used` (see [auth scope override test `auth.test.ts:56`](apps/lore-api/src/api/routes/auth.test.ts#L56)).
 - Env: `LORE_INGEST_TOKEN` (legacy full-access token also satisfies the admin gate).
 
 ## Acceptance Criteria
@@ -142,7 +142,7 @@ Any non-GET/POST verb (including an absent method) returns `405 { error: "method
 not allowed" }`. ([validated by `tokens.test.ts:137`](apps/lore-api/src/api/routes/tokens/tokens.test.ts#L142))
 
 The route requires `admin` scope; the dispatcher 403s a read-scoped token before
-the handler runs. ([validated by `auth.test.ts:110`](apps/lore-api/src/api/routes/auth.test.ts#L110) and `returns 403 when
+the handler runs. ([validated by `auth.test.ts:108`](apps/lore-api/src/api/routes/auth.test.ts#L108) and `returns 403 when
 the DB token lacks the admin scope an admin route
 needs`](../../../apps/mcp-server/src/api/routes/dispatch.test.ts#L145))
 

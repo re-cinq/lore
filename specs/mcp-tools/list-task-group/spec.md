@@ -62,11 +62,11 @@ pretty-printed rows array, or `"Error: {message}"`. **Never throws.**
 
 ## Acceptance Criteria
 
-The rollup line precedes the pretty-printed task array. ([validated by `lore_list_task_group renders the rollup line above the task JSON`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L301))
+The rollup line precedes the pretty-printed task array. ([validated by `lore_list_task_group renders the rollup line above the task JSON`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L294))
 
-A group id with no tasks returns a `No tasks found` message rather than an empty rollup. ([validated by `lore_list_task_group reports an empty group`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L319))
+A group id with no tasks returns a `No tasks found` message rather than an empty rollup. ([validated by `lore_list_task_group reports an empty group`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L312))
 
-An unconfigured API yields the not-configured message rather than a PostgreSQL message. ([validated by `every proxied pipeline tool reports a missing API configuration`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L440))
+An unconfigured API yields the not-configured message rather than a PostgreSQL message. ([validated by `every proxied pipeline tool reports a missing API configuration`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L433))
 
 ## Out of Scope
 

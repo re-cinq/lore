@@ -59,7 +59,7 @@ day-old data.
    Anthropic caller.** The cost report changes once a day, so a single sync
    after the day settles is sufficient. The per-page live read, its Floor
    route (`GET /api/anthropic-cost/live`), and the web-ui mirror rollups
-   (`aggregateMonthToDate` and friends) are removed. ([validated by `anthropic-cost-sync.test.ts:31`](apps/stations/src/stations/anthropic-cost-sync/anthropic-cost-sync.test.ts#L31), [`anthropic-cost-sync.test.ts:37`](apps/stations/src/stations/anthropic-cost-sync/anthropic-cost-sync.test.ts#L37), [`anthropic-cost-sync.test.ts:43`](apps/stations/src/stations/anthropic-cost-sync/anthropic-cost-sync.test.ts#L43))
+   (`aggregateMonthToDate` and friends) are removed. ([validated by `anthropic-cost-sync.test.ts:29`](apps/stations/src/stations/anthropic-cost-sync/anthropic-cost-sync.test.ts#L29), [`anthropic-cost-sync.test.ts:35`](apps/stations/src/stations/anthropic-cost-sync/anthropic-cost-sync.test.ts#L35), [`anthropic-cost-sync.test.ts:41`](apps/stations/src/stations/anthropic-cost-sync/anthropic-cost-sync.test.ts#L41))
 2. **`/spend` reads the database only.** Billed figures come from
    `pipeline.anthropic_cost_daily`; everything current-day comes from
    `pipeline.llm_calls`, which is the only source that can cover today at
@@ -168,7 +168,7 @@ same export the sync reads.
   the Anthropic `billed` block: interval-scoped net-of-credits totals,
   whole-table `as_of`/`billed_through` stamps, `available` decided by the
   stamp (a synced zero is not "never synced"), and `optionalTableRows`
-  degradation when the table has not been migrated. ([validated by [`spend-window.test.ts:207`](apps/lore-api/src/api/routes/analytics/spend-window.test.ts#L207), [`spend-window.test.ts:223`](apps/lore-api/src/api/routes/analytics/spend-window.test.ts#L223), [`spend-window.test.ts:236`](apps/lore-api/src/api/routes/analytics/spend-window.test.ts#L236))
+  degradation when the table has not been migrated. ([validated by [`spend-window.test.ts:202`](apps/lore-api/src/api/routes/analytics/spend-window.test.ts#L202), [`spend-window.test.ts:218`](apps/lore-api/src/api/routes/analytics/spend-window.test.ts#L218), [`spend-window.test.ts:231`](apps/lore-api/src/api/routes/analytics/spend-window.test.ts#L231))
 - The view renders a "Google Cloud (billed)" card (net total plus the day the
   export has closed through) and by-service/daily tables only when available,
   hiding them entirely until the export has synced; the estimate card stays

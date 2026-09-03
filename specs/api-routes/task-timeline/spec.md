@@ -138,11 +138,11 @@ A failing lease query leaves the lease null. ([validated by `timeline.test.ts:25
 
 `buildTimeline` reverses newest-first order into chronological stages. ([validated by `timeline-build.test.ts:23`](apps/lore-api/src/api/routes/tasks/timeline-build.test.ts#L23))
 
-`buildTimeline` computes per-stage duration from the previous commit time. ([validated by `timeline-build.test.ts:41`](apps/lore-api/src/api/routes/tasks/timeline-build.test.ts#L41))
+`buildTimeline` computes per-stage duration from the previous commit time. ([validated by `timeline-build.test.ts:40`](apps/lore-api/src/api/routes/tasks/timeline-build.test.ts#L40))
 
-`buildTimeline` defaults outcome to success and surfaces `Lore-Outcome`. ([validated by `timeline-build.test.ts:58`](apps/lore-api/src/api/routes/tasks/timeline-build.test.ts#L58))
+`buildTimeline` defaults outcome to success and surfaces `Lore-Outcome`. ([validated by `timeline-build.test.ts:57`](apps/lore-api/src/api/routes/tasks/timeline-build.test.ts#L57))
 
-`buildTimeline` filters non-trailer commits while keeping trailered ones. ([validated by `timeline-build.test.ts:75`](apps/lore-api/src/api/routes/tasks/timeline-build.test.ts#L75))
+`buildTimeline` filters non-trailer commits while keeping trailered ones. ([validated by `timeline-build.test.ts:74`](apps/lore-api/src/api/routes/tasks/timeline-build.test.ts#L74))
 
 ## Out of Scope
 

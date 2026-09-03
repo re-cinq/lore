@@ -77,7 +77,7 @@ or `"Error: {message}"`. **Never throws.**
 ## Acceptance Criteria
 
 The registered tool description is byte-identical to this spec's verbatim description block, so the two cannot drift apart silently.
-([validated by `matches the spec's verbatim description block`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L466))
+([validated by `matches the spec's verbatim description block`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L459))
 
 The content after `offset` is returned with the new `next_offset` and a
 `complete` flag derived from task status.

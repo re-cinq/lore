@@ -143,7 +143,7 @@ today. Validation errors surface only for authenticated requests.
   1 MB; the per-bucket `429` thresholds are untouched.
 - **FR6** Polymorphic routes (`/api/memory`, `POST /api/task`) validate via a zod
   discriminated union on their dispatch field, or — where a union would contort —
-  a documented permissive schema plus residual handler branching. ([validated by `memory.test.ts:143`](apps/lore-api/src/api/routes/memory/memory.test.ts#L143))
+  a documented permissive schema plus residual handler branching. ([validated by `memory.test.ts:139`](apps/lore-api/src/api/routes/memory/memory.test.ts#L139))
 - **FR7** Webhook ingress routes (`/api/webhook/slack`, `/api/webhook/incident`)
   are **out of scope**: they keep `parse: false` and their own HMAC / URL-encoded
   body handling. This feature touches JSON API routes only.
@@ -154,12 +154,12 @@ today. Validation errors surface only for authenticated requests.
   returns nothing outside the webhook routes (FR7) and tests.
 - **SC-2** Malformed JSON to a native route returns `400` (documented change from
   `500`); the affected tests (`memory.test.ts`, `task-post.test.ts`) assert `400`
-  and reference ADR-034. ([validated by `memory.test.ts:342`](apps/lore-api/src/api/routes/memory/memory.test.ts#L342), [validated by `ingest-graph.test.ts:74`](apps/lore-api/src/api/routes/ingest/ingest-graph.test.ts#L74))
+  and reference ADR-034. ([validated by `memory.test.ts:338`](apps/lore-api/src/api/routes/memory/memory.test.ts#L338), [validated by `ingest-graph.test.ts:74`](apps/lore-api/src/api/routes/ingest/ingest-graph.test.ts#L74))
 - **SC-3** For each converted route, a request missing or mis-typing a required
   field returns `400` `{ error: <message> }` with the field named — proven by a
   test migrated alongside the route.
 - **SC-4** Auth + rate-limit outcomes unchanged: under-scoped → `403`, missing →
-  `401`, both before validation; `rate-limit.test.ts` still green. ([validated by `memory.test.ts:357`](apps/lore-api/src/api/routes/memory/memory.test.ts#L357))
+  `401`, both before validation; `rate-limit.test.ts` still green. ([validated by `memory.test.ts:351`](apps/lore-api/src/api/routes/memory/memory.test.ts#L351))
 - **SC-5** `apps/lore-api` typechecks (`tsc --noEmit`) and the full vitest suite
   is green. Each route group is an independently-revertable commit.
 

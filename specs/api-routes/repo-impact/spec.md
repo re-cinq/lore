@@ -154,11 +154,11 @@ The body accepts a `docs[]` array carrying the head text of changed spec/ADR fil
 
 `GET …/impact/base` serves the graph baseline and answers `{ graphCommit: null, source: "none" }` rather than erroring when Dgraph is unconfigured, so a missing baseline degrades the check instead of failing it; a request without a token is rejected. ([validated by `impact-base-route:35`](apps/lore-api/src/api/routes/impact/impact-base-route.test.ts#L35), [validated by `impact-base-route:42`](apps/lore-api/src/api/routes/impact/impact-base-route.test.ts#L42))
 
-A client that does not declare `protocol: 2` has its findings suppressed and is told why, because a diff taken against the base-branch tip carries every commit merged to the base since the branch point. ([validated by `trace-impact:716`](libs/shared/src/spec-trace/trace-impact.test.ts#L716), [validated by `trace-impact:729`](libs/shared/src/spec-trace/trace-impact.test.ts#L729))
+A client that does not declare `protocol: 2` has its findings suppressed and is told why, because a diff taken against the base-branch tip carries every commit merged to the base since the branch point. ([validated by `trace-impact:716`](libs/shared/src/spec-trace/trace-impact.test.ts#L692), [validated by `trace-impact:729`](libs/shared/src/spec-trace/trace-impact.test.ts#L705))
 
 The `status:"ok"` branch (coupled statements + orphans + non-empty annotations
 from a live graph walk) is exercised against a live Dgraph, which PR Checks now
-provides. ([validated by `trace-impact:254`](libs/shared/src/spec-trace/trace-impact.test.ts#L254), [validated by `trace-impact:325`](libs/shared/src/spec-trace/trace-impact.test.ts#L325), [validated by `trace-impact:404`](libs/shared/src/spec-trace/trace-impact.test.ts#L404), [validated by `trace-impact:539`](libs/shared/src/spec-trace/trace-impact.test.ts#L539))
+provides. ([validated by `trace-impact:254`](libs/shared/src/spec-trace/trace-impact.test.ts#L244), [validated by `trace-impact:325`](libs/shared/src/spec-trace/trace-impact.test.ts#L315), [validated by `trace-impact:404`](libs/shared/src/spec-trace/trace-impact.test.ts#L394), [validated by `trace-impact:539`](libs/shared/src/spec-trace/trace-impact.test.ts#L523))
 
 A 400 for a URL that does not resolve to `owner/repo` cannot be reached through
 the dispatcher (the route regex already requires two path segments before

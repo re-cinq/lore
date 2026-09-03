@@ -74,18 +74,18 @@ A single MCP text content block: the `## Ready tasks` markdown list, the
 ## Acceptance Criteria
 
 The dependency query returns the rows it produces, filtered to pending
-spec-tasks with satisfied dependencies. ([validated by `returns the rows the dependency query produces`](apps/mcp-server/src/features/pipeline/tasks-db.test.ts#L118))
+spec-tasks with satisfied dependencies. ([validated by `returns the rows the dependency query produces`](apps/mcp-server/src/features/pipeline/tasks-db.test.ts#L113))
 
-When nothing qualifies the handler returns an empty list. ([validated by `returns an empty list when no tasks are ready`](apps/mcp-server/src/features/pipeline/tasks-db.test.ts#L139))
+When nothing qualifies the handler returns an empty list. ([validated by `returns an empty list when no tasks are ready`](apps/mcp-server/src/features/pipeline/tasks-db.test.ts#L134))
 
 Each ready task renders as one `- **{spec_task_id}** ({id}): {description}`
-bullet under a `## Ready tasks` heading. ([validated by `lore_ready_tasks renders one bullet per ready task`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L363))
+bullet under a `## Ready tasks` heading. ([validated by `lore_ready_tasks renders one bullet per ready task`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L356))
 
 An empty ready set renders the "No ready tasks" message rather than an empty
-list. ([validated by `lore_ready_tasks reports an empty ready set`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L384))
+list. ([validated by `lore_ready_tasks reports an empty ready set`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L377))
 
 An unconfigured API yields the not-configured message rather than a PostgreSQL
-message. ([validated by `every proxied pipeline tool reports a missing API configuration`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L440))
+message. ([validated by `every proxied pipeline tool reports a missing API configuration`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L433))
 
 ## Out of Scope
 

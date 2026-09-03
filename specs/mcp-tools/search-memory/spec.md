@@ -101,10 +101,10 @@ A single MCP text content block. Pretty-printed JSON array of
 
 ## Acceptance Criteria
 
-1. A `pool` argument is resolved to a pool id by name before any search runs. ([validated by `memory-search.test.ts:38`](libs/server-core/src/features/memory/memory-search.test.ts#L38))
+1. A `pool` argument is resolved to a pool id by name before any search runs. ([validated by `memory-search.test.ts:32`](libs/server-core/src/features/memory/memory-search.test.ts#L32))
 
 2. When the named pool does not exist, search short-circuits to an empty
-   result. ([validated by `memory-search.test.ts:25`](libs/server-core/src/features/memory/memory-search.test.ts#L25))
+   result. ([validated by `memory-search.test.ts:19`](libs/server-core/src/features/memory/memory-search.test.ts#L19))
 
 3. RRF rank fusion carries each candidate's confidence onto the fused result. ([validated by `memory-ranking.test.ts:11`](libs/shared/src/memory-ranking.test.ts#L11))
 
@@ -114,7 +114,7 @@ A single MCP text content block. Pretty-printed JSON array of
 5. Cross-repo candidates are ranked by a case-insensitive transfer score that
    starts at 0.5, adds 0.15 per portable keyword and subtracts 0.15 per local
    keyword, clamped to `[0, 1]` — so portable-rich text scores above the 0.5
-   passthrough threshold and local/mixed text is filtered out. ([validated by `transfer-score.test.ts:78`](apps/mcp-server/src/features/context/transfer-score.test.ts#L78), [validated by `transfer-score.test.ts:103`](apps/mcp-server/src/features/context/transfer-score.test.ts#L103), [validated by `transfer-score.test.ts:112`](apps/mcp-server/src/features/context/transfer-score.test.ts#L112))
+   passthrough threshold and local/mixed text is filtered out. ([validated by `transfer-score.test.ts:74`](apps/mcp-server/src/features/context/transfer-score.test.ts#L74), [validated by `transfer-score.test.ts:96`](apps/mcp-server/src/features/context/transfer-score.test.ts#L96), [validated by `transfer-score.test.ts:104`](apps/mcp-server/src/features/context/transfer-score.test.ts#L104))
 
 ## Out of Scope
 

@@ -86,20 +86,20 @@ A task that already exists is updated in place and not counted as created. ([val
 
 A ticked checkbox is persisted with status `completed`. ([validated by `tasks-db.test.ts:59`](apps/mcp-server/src/features/pipeline/tasks-db.test.ts#L59))
 
-A supplied task-group id is threaded into the grouped insert statement. ([validated by `tasks-db.test.ts:74`](apps/mcp-server/src/features/pipeline/tasks-db.test.ts#L74))
+A supplied task-group id is threaded into the grouped insert statement. ([validated by `tasks-db.test.ts:73`](apps/mcp-server/src/features/pipeline/tasks-db.test.ts#L73))
 
-Across a mixed batch only the previously-unseen tasks count toward `created`. ([validated by `tasks-db.test.ts:95`](apps/mcp-server/src/features/pipeline/tasks-db.test.ts#L95))
+Across a mixed batch only the previously-unseen tasks count toward `created`. ([validated by `tasks-db.test.ts:94`](apps/mcp-server/src/features/pipeline/tasks-db.test.ts#L94))
 
 The markdown is parsed into structured tasks with id, description, completion, parallel and dependency markers. ([validated by `tasks.test.ts:5`](libs/server-core/src/features/pipeline/tasks.test.ts#L5))
 
 The raw markdown, repo, and slug are posted to `/api/spec-tasks/sync` and the
-counts are rendered as the synced/created summary. ([validated by `lore_sync_tasks posts the raw markdown and summarizes the counts`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L327))
+counts are rendered as the synced/created summary. ([validated by `lore_sync_tasks posts the raw markdown and summarizes the counts`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L320))
 
 Markdown that parses to no tasks renders the no-tasks message instead of a
-zero-count summary. ([validated by `lore_sync_tasks reports markdown with no tasks`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L349))
+zero-count summary. ([validated by `lore_sync_tasks reports markdown with no tasks`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L342))
 
 An unconfigured API yields the not-configured message rather than a PostgreSQL
-message. ([validated by `every proxied pipeline tool reports a missing API configuration`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L440))
+message. ([validated by `every proxied pipeline tool reports a missing API configuration`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L433))
 
 ## Out of Scope
 

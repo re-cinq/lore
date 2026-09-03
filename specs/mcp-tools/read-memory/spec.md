@@ -82,11 +82,11 @@ proxied body, the `unreachableError` message, or
 
 ## Acceptance Criteria
 
-1. A plain read returns the latest non-deleted version for the key. ([validated by `returns the latest non-deleted version for a key`](libs/server-core/src/features/memory/memory.test.ts#L110))
+1. A plain read returns the latest non-deleted version for the key. ([validated by `returns the latest non-deleted version for a key`](libs/server-core/src/features/memory/memory.test.ts#L104))
 
-2. `version: "all"` returns every version newest-first. ([validated by `returns all versions newest-first when version is "all"`](libs/server-core/src/features/memory/memory.test.ts#L137))
+2. `version: "all"` returns every version newest-first. ([validated by `returns all versions newest-first when version is "all"`](libs/server-core/src/features/memory/memory.test.ts#L131))
 
-3. A missing key returns null. ([validated by `returns null when the key does not exist`](libs/server-core/src/features/memory/memory.test.ts#L158))
+3. A missing key returns null. ([validated by `returns null when the key does not exist`](libs/server-core/src/features/memory/memory.test.ts#L152))
 
 4. The tool-level "not found" / proxy / file-fallback framing has no unit seam.
    *(untested: the handler null→message mapping and the proxy/file branches need

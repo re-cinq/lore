@@ -24,18 +24,18 @@ of files, and nothing followed the OS light/dark preference.
 
 A token-driven theming system with **three theme families**, each with
 **light + dark variants and OS auto-switching**, its own font, and its own
-icon set ([token parity per family](apps/web-ui/src/app/theme-tokens.test.ts#L70), [icon set per family](apps/web-ui/src/components/Icon.test.tsx#L59)). The current dark-only look is
+icon set ([token parity per family](apps/web-ui/src/app/theme-tokens.test.ts#L70), [icon set per family](apps/web-ui/src/components/Icon.test.tsx#L55)). The current dark-only look is
 replaced ([now light + dark per family](apps/web-ui/src/app/theme-tokens.test.ts#L70)).
 
 - **Elegant** — Figma-like. `Inter` font, rounded corners, soft shadows, and a
   subtle frosted-glass feel (translucent + `backdrop-filter` blur) on elevated
   surfaces. Palette modeled on apple.com/mac (light `#f5f5f7`/`#1d1d1f`/`#0071e3`,
-  dark `#000`/`#f5f5f7`/`#2997ff`). Icons: **Lucide**. ([validated by `Icon.test.tsx:33`](apps/web-ui/src/components/Icon.test.tsx#L34))
+  dark `#000`/`#f5f5f7`/`#2997ff`). Icons: **Lucide**. ([validated by `Icon.test.tsx:31`](apps/web-ui/src/components/Icon.test.tsx#L31))
 - **Retro** — Tokyo Night terminal (redesigned post-ship; originally an amber
   CRT). `GohuFont` bitmap body text + `IBM Plex Mono` headings/code, sharp
   corners, soft blue-grey text (`#c0caf5`) on `#1a1b26`, blue accent
   (`#7aa2f7`), accent-glow shadows; the light scheme is Tokyo Night Day.
-  Icons: **Pixelarticons**. ([validated by `Icon.test.tsx:58`](apps/web-ui/src/components/Icon.test.tsx#L59), [validated by `renders the pixelarticons glyph for the retro family`](apps/web-ui/src/components/Icon.test.tsx#L47))
+  Icons: **Pixelarticons**. ([validated by `Icon.test.tsx:55`](apps/web-ui/src/components/Icon.test.tsx#L55), [validated by `renders the pixelarticons glyph for the retro family`](apps/web-ui/src/components/Icon.test.tsx#L43))
 
 ### Architecture
 
@@ -89,7 +89,7 @@ danger/info` + `-bg`, `--shadow*`, `--glass-bg/border`, `--color-scheme`).
 **New — `web-ui/src/components/`** — `icon-map.ts` (semantic `IconName` →
 per-family Iconify name, offline via `@iconify-json/*`), `Icon.tsx`,
 `ThemeSwitcher.tsx` (+ module CSS): a Family text toggle and a Light/Auto/Dark
-square icon-only toggle, accessible radio groups ([both toggles](apps/web-ui/src/components/ThemeSwitcher.test.tsx#L38), [accessible radios](apps/web-ui/src/components/ThemeSwitcher.test.tsx#L60)). Mounted on `/settings` only.
+square icon-only toggle, accessible radio groups ([both toggles](apps/web-ui/src/components/ThemeSwitcher.test.tsx#L31), [accessible radios](apps/web-ui/src/components/ThemeSwitcher.test.tsx#L53)). Mounted on `/settings` only.
 
 **Edited** — `layout.tsx` (fonts on `<html>`, inline script, provider, import
 `theme.css` before `globals.css`); `globals.css` fully tokenized (color, radius,
@@ -101,7 +101,7 @@ swapped to tokens.
 
 The `ThemeSwitcher` maps each appearance option to its icon (sun / monitor / moon),
 marks the active family label and the active appearance label as selected, and
-calls `setFamily` / `setScheme` when one of the inactive radios is chosen. ([validated by `ThemeSwitcher.test.tsx:51`](apps/web-ui/src/components/ThemeSwitcher.test.tsx#L52), [`ThemeSwitcher.test.tsx:74`](apps/web-ui/src/components/ThemeSwitcher.test.tsx#L75), [`ThemeSwitcher.test.tsx:88`](apps/web-ui/src/components/ThemeSwitcher.test.tsx#L89), [`ThemeSwitcher.test.tsx:103`](apps/web-ui/src/components/ThemeSwitcher.test.tsx#L104), [`ThemeSwitcher.test.tsx:116`](apps/web-ui/src/components/ThemeSwitcher.test.tsx#L117), [`ThemeSwitcher.test.tsx:125`](apps/web-ui/src/components/ThemeSwitcher.test.tsx#L126), [`ThemeSwitcher.test.tsx:136`](apps/web-ui/src/components/ThemeSwitcher.test.tsx#L137))
+calls `setFamily` / `setScheme` when one of the inactive radios is chosen. ([validated by `ThemeSwitcher.test.tsx:45`](apps/web-ui/src/components/ThemeSwitcher.test.tsx#L45), [`ThemeSwitcher.test.tsx:67`](apps/web-ui/src/components/ThemeSwitcher.test.tsx#L67), [`ThemeSwitcher.test.tsx:80`](apps/web-ui/src/components/ThemeSwitcher.test.tsx#L80), [`ThemeSwitcher.test.tsx:95`](apps/web-ui/src/components/ThemeSwitcher.test.tsx#L95), [`ThemeSwitcher.test.tsx:106`](apps/web-ui/src/components/ThemeSwitcher.test.tsx#L106), [`ThemeSwitcher.test.tsx:115`](apps/web-ui/src/components/ThemeSwitcher.test.tsx#L115), [`ThemeSwitcher.test.tsx:126`](apps/web-ui/src/components/ThemeSwitcher.test.tsx#L126))
 
 The shared `Alert` atom (`web-ui/src/components/Alert.tsx`) is the one way a
 page shows a passive informational note — a bootstrap-style alert box drawn from
@@ -115,13 +115,13 @@ The `CollapsibleCard` atom (`specs/7-feature-planning` documents its folding
 behaviour) is also the card chrome other views extract into — the run page's
 node detail renders through it rather than its own bespoke card.
 
-- Its header args are string data, never markup: plain-text `labels` render as muted tags beside the title. ([validated by](apps/web-ui/src/components/CollapsibleCard.test.tsx#L61))
-- Empty `labels` entries are dropped inside the card, so callers pass optional values unfiltered. ([validated by](apps/web-ui/src/components/CollapsibleCard.test.tsx#L73))
-- A `status` of `{ label, tone }` renders as the shared toned pill in the header. ([validated by](apps/web-ui/src/components/CollapsibleCard.test.tsx#L84))
-- An `actions` node renders at the summary row's far end, so a card-scoped control (the run page's retry button) lives in the header beside the status pill; the action must preventDefault on click, or activating it also toggles the fold. ([validated by](apps/web-ui/src/components/CollapsibleCard.test.tsx#L97))
-- `onToggle` reports the fold state on every toggle, so lazy panels (pod logs, the full transcript) fetch on first open through the shared card instead of a bespoke `<details>`. ([validated by](apps/web-ui/src/components/CollapsibleCard.test.tsx#L112))
-- A card given `emptyState` and no content renders the note as plain body text, so every empty card says it the same way. ([validated by](apps/web-ui/src/components/CollapsibleCard.test.tsx#L131))
-- When content is present the `emptyState` note stays hidden. ([validated by](apps/web-ui/src/components/CollapsibleCard.test.tsx#L139))
+- Its header args are string data, never markup: plain-text `labels` render as muted tags beside the title. ([validated by](apps/web-ui/src/components/CollapsibleCard.test.tsx#L59))
+- Empty `labels` entries are dropped inside the card, so callers pass optional values unfiltered. ([validated by](apps/web-ui/src/components/CollapsibleCard.test.tsx#L71))
+- A `status` of `{ label, tone }` renders as the shared toned pill in the header. ([validated by](apps/web-ui/src/components/CollapsibleCard.test.tsx#L82))
+- An `actions` node renders at the summary row's far end, so a card-scoped control (the run page's retry button) lives in the header beside the status pill; the action must preventDefault on click, or activating it also toggles the fold. ([validated by](apps/web-ui/src/components/CollapsibleCard.test.tsx#L95))
+- `onToggle` reports the fold state on every toggle, so lazy panels (pod logs, the full transcript) fetch on first open through the shared card instead of a bespoke `<details>`. ([validated by](apps/web-ui/src/components/CollapsibleCard.test.tsx#L110))
+- A card given `emptyState` and no content renders the note as plain body text, so every empty card says it the same way. ([validated by](apps/web-ui/src/components/CollapsibleCard.test.tsx#L129))
+- When content is present the `emptyState` note stays hidden. ([validated by](apps/web-ui/src/components/CollapsibleCard.test.tsx#L137))
 
 The `StatusPill` atom (`web-ui/src/components/StatusPill.tsx`) is the one
 tone→color map for outcome pills — six tones drawn from the status tokens,
@@ -134,7 +134,7 @@ The `Icon` component defaults its width and height to 16 when no size is given
 alongside the iconify base classes (and none when omitted), exposes an
 `aria-label` when one is passed (marking the glyph aria-hidden and label-less
 otherwise), and applies the -0.125em baseline alignment only when `inline` is
-set. ([validated by `Icon.test.tsx:69`](apps/web-ui/src/components/Icon.test.tsx#L82), [`Icon.test.tsx:76`](apps/web-ui/src/components/Icon.test.tsx#L89), [`Icon.test.tsx:87`](apps/web-ui/src/components/Icon.test.tsx#L100), [`Icon.test.tsx:96`](apps/web-ui/src/components/Icon.test.tsx#L109), [`Icon.test.tsx:107`](apps/web-ui/src/components/Icon.test.tsx#L120), [`Icon.test.tsx:117`](apps/web-ui/src/components/Icon.test.tsx#L130), [`Icon.test.tsx:127`](apps/web-ui/src/components/Icon.test.tsx#L140), [`Icon.test.tsx:135`](apps/web-ui/src/components/Icon.test.tsx#L148))
+set. ([validated by `Icon.test.tsx:78`](apps/web-ui/src/components/Icon.test.tsx#L78), [`Icon.test.tsx:85`](apps/web-ui/src/components/Icon.test.tsx#L85), [`Icon.test.tsx:96`](apps/web-ui/src/components/Icon.test.tsx#L96), [`Icon.test.tsx:105`](apps/web-ui/src/components/Icon.test.tsx#L105), [`Icon.test.tsx:116`](apps/web-ui/src/components/Icon.test.tsx#L116), [`Icon.test.tsx:125`](apps/web-ui/src/components/Icon.test.tsx#L125), [`Icon.test.tsx:135`](apps/web-ui/src/components/Icon.test.tsx#L135), [`Icon.test.tsx:143`](apps/web-ui/src/components/Icon.test.tsx#L143))
 
 ### Type Scale
 
@@ -194,4 +194,4 @@ xs 12 / base 16 / xl 25 ([retro pins body sizes to 14px](apps/web-ui/src/app/the
   token-only rule, scoped under `[data-theme-family='chicago']` and imported
   after `globals.css` so it stays inert for the other families. Icons reuse the
   Pixelarticons set, whose blocky glyphs read as period-correct chrome next to
-  the beveled controls. ([validated by `Icon.test.tsx:67`](apps/web-ui/src/components/Icon.test.tsx#L68))
+  the beveled controls. ([validated by `Icon.test.tsx:64`](apps/web-ui/src/components/Icon.test.tsx#L64))

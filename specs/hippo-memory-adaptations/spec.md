@@ -174,7 +174,7 @@ repo B
 - FR-3.4: Decay job transitions facts to `stale` when
   `last_retrieved_at < now() - 30 days` (or `last_retrieved_at IS
   NULL AND created_at < now() - 30 days`); already-`verified` facts
-  are left untouched. ([validated by `memory-lifecycle.test.ts:192`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L192), [`memory-lifecycle.test.ts:430`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L430))
+  are left untouched. ([validated by `memory-lifecycle.test.ts:188`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L188), [`memory-lifecycle.test.ts:424`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L424))
 - FR-3.5: On retrieval, if confidence is `stale`, update to
   `observed`.
 - FR-3.6: Include confidence tier in search results and context
@@ -192,13 +192,13 @@ repo B
 ### FR-5: Transfer Scoring
 
 - FR-5.1: Add `computeTransferScore(factText: string): number`
-  function in `memory-search.ts`. ([validated by `transfer-score.test.ts:45`](apps/mcp-server/src/features/context/transfer-score.test.ts#L45))
+  function in `memory-search.ts`. ([validated by `transfer-score.test.ts:44`](apps/mcp-server/src/features/context/transfer-score.test.ts#L44))
 - FR-5.2: Portable keywords boost score: `error`, `pattern`,
-  `gotcha`, `rule`, `convention`, `best-practice`, `anti-pattern`. ([validated by `transfer-score.test.ts:51`](apps/mcp-server/src/features/context/transfer-score.test.ts#L51))
+  `gotcha`, `rule`, `convention`, `best-practice`, `anti-pattern`. ([validated by `transfer-score.test.ts:50`](apps/mcp-server/src/features/context/transfer-score.test.ts#L50))
 - FR-5.3: Local keywords reduce score: `config`, `deploy`, `url`,
-  `auth`, `secret`, `env`, `port`, `hostname`, `endpoint`. ([validated by `transfer-score.test.ts:60`](apps/mcp-server/src/features/context/transfer-score.test.ts#L60))
+  `auth`, `secret`, `env`, `port`, `hostname`, `endpoint`. ([validated by `transfer-score.test.ts:58`](apps/mcp-server/src/features/context/transfer-score.test.ts#L58))
 - FR-5.4: Base score 0.5, each portable keyword +0.15, each local
-  keyword -0.15, clamped to [0, 1]. ([validated by `transfer-score.test.ts:87`](apps/mcp-server/src/features/context/transfer-score.test.ts#L87))
+  keyword -0.15, clamped to [0, 1]. ([validated by `transfer-score.test.ts:82`](apps/mcp-server/src/features/context/transfer-score.test.ts#L82))
 - FR-5.5: Cross-repo queries in `context-assembly.ts` filter to
   `transfer_score >= 0.5`.
 
@@ -210,20 +210,20 @@ repo B
 - FR-6.3: In `merge-check`, on PR merge: update contributing
   facts/memories with `half_life_days += 5` (capped at 365, using the
   table defaults 30/60 for a null `half_life_days`); an empty id list
-  is a no-op. ([validated by `memory-lifecycle.test.ts:218`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L218), [`memory-lifecycle.test.ts:478`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L478), [`memory-lifecycle.test.ts:246`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L246))
+  is a no-op. ([validated by `memory-lifecycle.test.ts:214`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L214), [`memory-lifecycle.test.ts:472`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L472), [`memory-lifecycle.test.ts:242`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L242))
 - FR-6.4: In `merge-check`, on PR rejection: update contributing
   facts/memories with `half_life_days = MAX(7, half_life_days - 3)`
-  (using the table defaults 30/60 for a null `half_life_days`). ([validated by `memory-lifecycle.test.ts:233`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L233), [`memory-lifecycle.test.ts:494`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L494))
+  (using the table defaults 30/60 for a null `half_life_days`). ([validated by `memory-lifecycle.test.ts:229`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L229), [`memory-lifecycle.test.ts:488`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L488))
 - FR-6.5: Audit log outcome feedback events, with the metadata
-  serialized on the row. ([validated by `memory-lifecycle.test.ts:256`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L256), [`memory-lifecycle.test.ts:506`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L506))
+  serialized on the row. ([validated by `memory-lifecycle.test.ts:252`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L252), [`memory-lifecycle.test.ts:500`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L500))
 
 ### FR-7: Updated Importance Scoring
 
 - FR-7.1: Replace raw `created_at` recency with
   `effective_age = days_since(COALESCE(last_retrieved_at, created_at))`. ([validated by `memory-ranking.test.ts:168`](libs/shared/src/memory-ranking.test.ts#L168))
-- FR-7.2: Apply half-life decay: `strength = 0.5^(effective_age / half_life_days)`, mapping strength to a 0–10 score and honoring a custom `half_life_days`. ([validated by `memory-ranking.test.ts:143`](libs/shared/src/memory-ranking.test.ts#L143), [`memory-ranking.test.ts:113`](libs/shared/src/memory-ranking.test.ts#L113), [`memory-ranking.test.ts:211`](libs/shared/src/memory-ranking.test.ts#L211))
+- FR-7.2: Apply half-life decay: `strength = 0.5^(effective_age / half_life_days)`, mapping strength to a 0–10 score and honoring a custom `half_life_days`. ([validated by `memory-ranking.test.ts:143`](libs/shared/src/memory-ranking.test.ts#L143), [`memory-ranking.test.ts:113`](libs/shared/src/memory-ranking.test.ts#L113), [`memory-ranking.test.ts:206`](libs/shared/src/memory-ranking.test.ts#L206))
 - FR-7.3: Incorporate `retrieval_count` as a minor boost: `+1` if
-  `retrieval_count >= 5`, `+2` if `>= 20`. ([validated by `memory-ranking.test.ts:217`](libs/shared/src/memory-ranking.test.ts#L217))
+  `retrieval_count >= 5`, `+2` if `>= 20`. ([validated by `memory-ranking.test.ts:212`](libs/shared/src/memory-ranking.test.ts#L212))
 - FR-7.4: Stale-confidence facts get `-1` penalty. ([validated by `memory-ranking.test.ts:162`](libs/shared/src/memory-ranking.test.ts#L162))
 
 ## Non-Functional Requirements

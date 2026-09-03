@@ -27,7 +27,7 @@ The readiness probe reports database connectivity: `getHealthStatus()` returns
 `connected:false` with a reason when the query throws; the `/healthz` handler
 returns 200/`ok` when the DB is connected or no DB is configured, and 503/`error`
 only when a configured DB is unreachable — the Floor's own `/healthz` returning
-the `{status:"error", reason:"database connection failed"}` body in that case. ([validated by `healthz.test.ts:14`](apps/mcp-server/src/platform/healthz.test.ts#L14), [`healthz.test.ts:22`](apps/mcp-server/src/platform/healthz.test.ts#L22), [`healthz.test.ts:40`](apps/mcp-server/src/platform/healthz.test.ts#L40), [`healthz.test.ts:61`](apps/mcp-server/src/platform/healthz.test.ts#L61), [`healthz.test.ts:74`](apps/mcp-server/src/platform/healthz.test.ts#L74), [`healthz.test.ts:97`](apps/mcp-server/src/platform/healthz.test.ts#L97), [`health.test.ts:5`](apps/floor/src/delivery/http/routes/health.test.ts#L5))
+the `{status:"error", reason:"database connection failed"}` body in that case. ([validated by `healthz.test.ts:12`](apps/mcp-server/src/platform/healthz.test.ts#L12), [`healthz.test.ts:20`](apps/mcp-server/src/platform/healthz.test.ts#L20), [`healthz.test.ts:38`](apps/mcp-server/src/platform/healthz.test.ts#L38), [`healthz.test.ts:57`](apps/mcp-server/src/platform/healthz.test.ts#L57), [`healthz.test.ts:70`](apps/mcp-server/src/platform/healthz.test.ts#L70), [`healthz.test.ts:93`](apps/mcp-server/src/platform/healthz.test.ts#L93), [`health.test.ts:5`](apps/floor/src/delivery/http/routes/health.test.ts#L5))
 
 ### Database pool resilience
 
@@ -37,7 +37,7 @@ pool) attaches an `error` listener at construction, so an idle-client failure
 prefix instead of surfacing as an uncaught exception that kills the process; the
 Floor pool is the test-validated exemplar, and the lore-api and web-ui pools
 attach the identical inline handler at their own construction
-sites. ([validated by `db.test.ts:16`](apps/floor/src/kernel/db.test.ts#L16))
+sites. ([validated by `db.test.ts:13`](apps/floor/src/kernel/db.test.ts#L13))
 
 ### GitHub client
 
@@ -102,4 +102,4 @@ end strictly *before* that bound, so an `ending_at` at tomorrow's midnight
 would exclude the current day's bucket — leaving exactly 31 candidate daily
 buckets, the documented `1d` maximum, so the limit can never truncate one, the
 first of the month is still covered on the 31st, and a window crossing a month
-boundary loses no bucket. ([validated by `anthropic-cost-sync.test.ts:31`](apps/stations/src/stations/anthropic-cost-sync/anthropic-cost-sync.test.ts#L31), [`anthropic-cost-sync.test.ts:37`](apps/stations/src/stations/anthropic-cost-sync/anthropic-cost-sync.test.ts#L37), [`anthropic-cost-sync.test.ts:43`](apps/stations/src/stations/anthropic-cost-sync/anthropic-cost-sync.test.ts#L43), [`anthropic-cost-sync.test.ts:49`](apps/stations/src/stations/anthropic-cost-sync/anthropic-cost-sync.test.ts#L49), [`anthropic-cost-sync.test.ts:56`](apps/stations/src/stations/anthropic-cost-sync/anthropic-cost-sync.test.ts#L56), [`anthropic-cost-sync.test.ts:62`](apps/stations/src/stations/anthropic-cost-sync/anthropic-cost-sync.test.ts#L62))
+boundary loses no bucket. ([validated by `anthropic-cost-sync.test.ts:29`](apps/stations/src/stations/anthropic-cost-sync/anthropic-cost-sync.test.ts#L29), [`anthropic-cost-sync.test.ts:35`](apps/stations/src/stations/anthropic-cost-sync/anthropic-cost-sync.test.ts#L35), [`anthropic-cost-sync.test.ts:41`](apps/stations/src/stations/anthropic-cost-sync/anthropic-cost-sync.test.ts#L41), [`anthropic-cost-sync.test.ts:47`](apps/stations/src/stations/anthropic-cost-sync/anthropic-cost-sync.test.ts#L47), [`anthropic-cost-sync.test.ts:54`](apps/stations/src/stations/anthropic-cost-sync/anthropic-cost-sync.test.ts#L54), [`anthropic-cost-sync.test.ts:60`](apps/stations/src/stations/anthropic-cost-sync/anthropic-cost-sync.test.ts#L60))

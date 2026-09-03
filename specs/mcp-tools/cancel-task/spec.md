@@ -76,23 +76,23 @@ A single MCP text content block — one of: the missing-DB message, the compact
 ## Acceptance Criteria
 
 A running task transitions to `cancelled` and the call returns that status.
-([validated by `returns cancelled status when the task is running`](apps/mcp-server/src/features/pipeline/pipeline-crud.test.ts#L74))
+([validated by `returns cancelled status when the task is running`](apps/mcp-server/src/features/pipeline/pipeline-crud.test.ts#L66))
 
 A task id with no matching row is rejected with `Task not found`.
-([validated by `throws task not found when no row matches`](apps/mcp-server/src/features/pipeline/pipeline-crud.test.ts#L89))
+([validated by `throws task not found when no row matches`](apps/mcp-server/src/features/pipeline/pipeline-crud.test.ts#L81))
 
 A task already in a terminal state (e.g. merged) is rejected with a
 `Cannot cancel task in <state> state` error.
-([validated by `throws cannot cancel when the task is already merged`](apps/mcp-server/src/features/pipeline/pipeline-crud.test.ts#L100))
+([validated by `throws cannot cancel when the task is already merged`](apps/mcp-server/src/features/pipeline/pipeline-crud.test.ts#L92))
 
 The cancel action is posted to `/api/task` and the API's result is returned
-verbatim. ([validated by `lore_cancel_task posts the cancel action and returns the API result`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L256))
+verbatim. ([validated by `lore_cancel_task posts the cancel action and returns the API result`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L249))
 
 A server-side refusal (a merged task) reaches the caller with the server's own
-reason. ([validated by `lore_cancel_task reports the server's refusal for a merged task`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L271))
+reason. ([validated by `lore_cancel_task reports the server's refusal for a merged task`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L264))
 
 An unconfigured API yields the not-configured message rather than a PostgreSQL
-message. ([validated by `every proxied pipeline tool reports a missing API configuration`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L440))
+message. ([validated by `every proxied pipeline tool reports a missing API configuration`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L433))
 
 ## Out of Scope
 
