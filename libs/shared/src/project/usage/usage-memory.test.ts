@@ -127,3 +127,31 @@ describe("InMemoryUsage.processedCounts", () => {
     expect(await usage.processedCounts()).toEqual({ today: 1, total: 2 });
   });
 });
+
+describe("modelsUsed", () => {
+  it("returns the distinct sorted models billed against one station run", async () => {
+    const usage = new InMemoryUsage();
+
+    usage.registerNode({
+      agentCrName: "cr-1",
+      assemblyLineId: "line-1",
+      stationRunId: "sr-1",
+    });
+    await usage.logLlmCall({ ...CALL, agentCrName: "cr-1" });
+    await usage.logLlmCall({
+      ...CALL,
+      agentCrName: "cr-1",
+      model: "gemini-3.1-pro-preview",
+    });
+    await usage.logLlmCall({ ...CALL, agentCrName: "cr-1" });
+
+    expect(await usage.modelsUsed("sr-1")).toEqual([
+      "claude-sonnet-5",
+      "gemini-3.1-pro-preview",
+    ]);
+  });
+
+  it("returns no models for a station run nothing billed against", async () => {
+    expect(await new InMemoryUsage().modelsUsed("sr-none")).toEqual([]);
+  });
+});

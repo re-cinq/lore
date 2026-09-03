@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { buildReviewSummary, REVIEW_HELP } from "./review-summary.js";
+import {
+  budgetSkipBody,
+  buildReviewSummary,
+  REVIEW_HELP,
+} from "./review-summary.js";
 import type { ReviewOutput } from "./review-findings.js";
 
 describe("buildReviewSummary", () => {
@@ -44,5 +48,38 @@ describe("buildReviewSummary", () => {
     expect(buildReviewSummary(output)).toBe(
       `### Lore review — Changes suggested\n\none null-deref risk\n\nMust fix (0) · Consider (0) · Nits (0)\n\n${REVIEW_HELP}`,
     );
+  });
+});
+
+describe("buildReviewSummary model disclosure", () => {
+  it("names the reviewing model in the body when given one", () => {
+    const summary = buildReviewSummary(
+      { verdict: "approved", findings: [], summary: "No issues found." },
+      { model: "gemini-3.1-pro-preview" },
+    );
+
+    expect(summary).toContain("_Reviewed by `gemini-3.1-pro-preview`_");
+  });
+
+  it("omits the reviewer line when no model is known", () => {
+    expect(
+      buildReviewSummary({ verdict: "approved", findings: [], summary: "" }),
+    ).not.toContain("Reviewed by");
+  });
+});
+
+describe("budgetSkipBody", () => {
+  it("approves loudly without judgment and names the reviewer that would have run", () => {
+    const body = budgetSkipBody("gemini-3.1-pro-preview");
+
+    expect(body).toContain("Approved without review (no LLM budget)");
+    expect(body).toContain("no judgment of the diff has happened");
+    expect(body).toContain(
+      "_Reviewer that would have run: `gemini-3.1-pro-preview`_",
+    );
+  });
+
+  it("renders without a reviewer line when the model is unknown", () => {
+    expect(budgetSkipBody()).not.toContain("Reviewer that would have run");
   });
 });

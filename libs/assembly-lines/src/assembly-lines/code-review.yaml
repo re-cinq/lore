@@ -22,6 +22,12 @@ edges:
   - from: review
     to: done
     on: changes_requested
+  # A failed review visit gets ONE retry — the common failure is a findings
+  # block that did not parse (PR #1714 merged five minutes after exactly that),
+  # and a fresh pass usually publishes fine. A second identical failure fails
+  # the RUN (iteration_max), so the check stays honestly red instead of the
+  # line completing as if a review had happened.
   - from: review
-    to: done
+    to: review
     on: failed
+    iteration_max: 1

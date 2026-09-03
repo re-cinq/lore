@@ -23,6 +23,8 @@ edges:
   - from: recheck
     to: done
     on: changes_requested
+  # Same retry-once-then-fail shape as the code-review line's review node.
   - from: recheck
-    to: done
+    to: recheck
     on: failed
+    iteration_max: 1
