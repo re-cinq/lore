@@ -99,6 +99,15 @@ const BASE_ROWS: unknown[][] = [
   ],
   [{ bucket_date: "2026-09-01", cost_usd: 400.1 }],
   [{ cost_usd: 1.95, days: 1 }],
+  [
+    {
+      billed_usd: 210.4,
+      as_of: "2026-09-02T08:00:00.000Z",
+      billed_through: "2026-09-01",
+    },
+  ],
+  [{ service: "Kubernetes Engine", cost_usd: 180.2 }],
+  [{ bucket_date: "2026-09-01", cost_usd: 30.5 }],
   [{ blueprint: "implementation-loop", pods: 9, hours: 6.5 }],
   [{ ledger_total_usd: 500, anchored_at: "2026-08-01T00:00:00Z" }],
   [{ billed_usd: 300, billed_through: "2026-09-01" }],
@@ -180,6 +189,67 @@ describe("GET /api/analytics/spend-window", () => {
       bucket_date: "2026-09-01",
       cost_usd: 400.1,
     });
+    expect(body.gcp).toMatchObject({
+      available: true,
+      total_usd: 210.4,
+      billed_through: "2026-09-01",
+    });
+    expect(body.gcp.by_service[0]).toEqual({
+      service: "Kubernetes Engine",
+      cost_usd: 180.2,
+    });
+    expect(body.gcp.daily[0]).toEqual({
+      bucket_date: "2026-09-01",
+      cost_usd: 30.5,
+    });
+  });
+
+  it("sums the GCP figures net of credits, since the invoice charges the net", async () => {
+    const issued: Issued[] = [];
+
+    await get(await serverWith(BASE_ROWS, {}, issued));
+
+    const gcpReads = issued.filter(({ sql }) =>
+      sql.includes("pipeline.gcp_cost_daily"),
+    );
+
+    expect(gcpReads).toHaveLength(3);
+
+    for (const { sql } of gcpReads) {
+      expect(sql).toContain("cost_usd + credits_usd");
+    }
+  });
+
+  it("reports the GCP half unavailable when the billing sync has never run", async () => {
+    const rows = [...BASE_ROWS];
+
+    rows[12] = [{ billed_usd: 0, as_of: null, billed_through: null }];
+    const body = JSON.parse((await get(await serverWith(rows))).payload);
+
+    expect(body.gcp).toMatchObject({
+      available: false,
+      as_of: null,
+      billed_through: null,
+    });
+  });
+
+  it("degrades to unavailable GCP figures when gcp_cost_daily is absent", async () => {
+    // The table arrives with migration 0060; a cluster without it must still
+    // render the metered figures and the estimate.
+    const server = await serverWith(BASE_ROWS, {}, [], (sql) =>
+      sql.includes("pipeline.gcp_cost_daily"),
+    );
+    const res = await get(server);
+    const body = JSON.parse(res.payload);
+
+    expect(res.statusCode).toBe(200);
+    expect(body.gcp).toMatchObject({
+      available: false,
+      total_usd: 0,
+      by_service: [],
+      daily: [],
+    });
+    expect(body.llm.total_usd).toBe(82.5);
   });
 
   it("scopes every metered and billed read to the interval, except the ledger and the budget", async () => {
@@ -354,7 +424,7 @@ describe("GET /api/analytics/spend-window", () => {
     // has told us the number yet".
     const rows = [...BASE_ROWS];
 
-    rows[13] = [];
+    rows[16] = [];
     const body = JSON.parse((await get(await serverWith(rows))).payload);
 
     expect(body.budget).toBe(null);

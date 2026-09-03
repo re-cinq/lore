@@ -12353,6 +12353,64 @@
               }
             ]
           },
+          "gcp": {
+            "type": "object",
+            "properties": {
+              "available": {
+                "type": "boolean"
+              },
+              "total_usd": {
+                "type": "number"
+              },
+              "as_of": {
+                "type": ["string", "null"]
+              },
+              "billed_through": {
+                "type": ["string", "null"]
+              },
+              "by_service": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "service": {
+                      "type": "string"
+                    },
+                    "cost_usd": {
+                      "type": "number"
+                    }
+                  },
+                  "required": ["service", "cost_usd"],
+                  "additionalProperties": false
+                }
+              },
+              "daily": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "bucket_date": {
+                      "type": "string"
+                    },
+                    "cost_usd": {
+                      "type": "number"
+                    }
+                  },
+                  "required": ["bucket_date", "cost_usd"],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "available",
+              "total_usd",
+              "as_of",
+              "billed_through",
+              "by_service",
+              "daily"
+            ],
+            "additionalProperties": false
+          },
           "compute": {
             "type": "object",
             "properties": {
@@ -12457,7 +12515,7 @@
             "additionalProperties": false
           }
         },
-        "required": ["interval", "llm", "billed", "budget", "compute"],
+        "required": ["interval", "llm", "billed", "budget", "gcp", "compute"],
         "additionalProperties": false
       },
       "CreditEntryRecorded": {

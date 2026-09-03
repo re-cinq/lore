@@ -72,6 +72,14 @@ const loreOnly: SpendWindow = {
     unbilled_days: 0,
   },
   budget: null,
+  gcp: {
+    available: false,
+    total_usd: 0,
+    as_of: null,
+    billed_through: null,
+    by_service: [],
+    daily: [],
+  },
   compute: {
     rates: { cpu_hour_usd: 0.022, mem_gib_hour_usd: 0.003 },
     assumed_profile: { cpu: "1", memory: "4Gi" },
@@ -116,6 +124,22 @@ const withAdminKey: SpendWindow = {
     daily: [{ bucket_date: "2026-09-01", cost_usd: 400.1 }],
     unbilled_usd: 0,
     unbilled_days: 0,
+  },
+};
+
+// Same data plus a synced billing export (the optional GCP sections light up).
+const withGcpBilling: SpendWindow = {
+  ...loreOnly,
+  gcp: {
+    available: true,
+    total_usd: 210.4,
+    as_of: "2026-09-02T08:00:00.000Z",
+    billed_through: "2026-09-01",
+    by_service: [
+      { service: "Kubernetes Engine", cost_usd: 180.2 },
+      { service: "Networking", cost_usd: 12.6 },
+    ],
+    daily: [{ bucket_date: "2026-09-01", cost_usd: 30.5 }],
   },
 };
 
@@ -215,6 +239,52 @@ describe("SpendView", () => {
           ),
       ),
     ).toBeInTheDocument();
+  });
+
+  it("renders the Google Cloud billed card with the net total and its closed-through day", () => {
+    render(<SpendView spend={withGcpBilling} />);
+    expect(screen.getByText("Google Cloud (billed)")).toBeInTheDocument();
+    expect(screen.getByText(usd(210.4))).toBeInTheDocument();
+    expect(
+      screen.getByText(`billed through ${day("2026-09-01")} — net of credits`),
+    ).toBeInTheDocument();
+  });
+
+  it("renders the GCP by-service and daily billed tables from the export", () => {
+    render(<SpendView spend={withGcpBilling} />);
+    const byService = tableByHeading("GCP Billed by Service");
+
+    expect(
+      within(byService).getByText("Kubernetes Engine"),
+    ).toBeInTheDocument();
+    expect(within(byService).getByText(usd(180.2))).toBeInTheDocument();
+    expect(within(byService).getByText("Networking")).toBeInTheDocument();
+
+    const daily = tableByHeading("GCP Daily Billed");
+
+    expect(within(daily).getByText(day("2026-09-01"))).toBeInTheDocument();
+    expect(within(daily).getByText(usd(30.5))).toBeInTheDocument();
+    // The estimate's disclaimer now points at the invoice it defers to.
+    expect(
+      screen.getByText(
+        (_, element) =>
+          element?.tagName === "P" &&
+          /the Google Cloud \(billed\) figures above are that invoice\./.test(
+            element.textContent ?? "",
+          ),
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("hides the GCP card and sections until the billing export has synced", () => {
+    render(<SpendView spend={loreOnly} />);
+    expect(screen.queryByText("Google Cloud (billed)")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "GCP Billed by Service" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "GCP Daily Billed" }),
+    ).not.toBeInTheDocument();
   });
 
   it("says so when no run pods are live", () => {

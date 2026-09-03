@@ -40,7 +40,10 @@ import type {
 import type { NodeResult } from "@re-cinq/lore-assembly-lines";
 import type { StationInput } from "@re-cinq/lore-shared/station-input.js";
 import type { MemoryLifecyclePort } from "@re-cinq/lore-shared/project/memory/memory-lifecycle-port.js";
-import type { CostPort } from "@re-cinq/lore-shared/project/cost/cost-port.js";
+import type {
+  CostPort,
+  GcpCostPort,
+} from "@re-cinq/lore-shared/project/cost/cost-port.js";
 
 /** Where a node station's work physically runs. */
 export type StationRuntime =
@@ -161,6 +164,8 @@ export interface StationHost {
   memoryLifecycle(): MemoryLifecyclePort;
   /** pipeline.anthropic_cost_daily, for the cost import. */
   cost(): CostPort;
+  /** pipeline.gcp_cost_daily, for the GCP billing import. */
+  gcpCost(): GcpCostPort;
 }
 
 /** What a sweep may do to one repo. */
