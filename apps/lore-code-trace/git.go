@@ -56,7 +56,10 @@ func commitReachable(dir, sha string) bool {
 
 // changedSince lists paths changed and deleted between base and HEAD.
 func changedSince(dir, base string) (changed, deleted []string, err error) {
-	out, err := gitOutput(dir, "diff", "--name-status", base+"..HEAD")
+	// core.quotePath=false: emit non-ASCII paths verbatim instead of C-quoted, so
+	// they match the descriptors' File fields (parseNameStatus unquotes whatever
+	// git insists on quoting anyway, i.e. control characters).
+	out, err := gitOutput(dir, "-c", "core.quotePath=false", "diff", "--name-status", base+"..HEAD")
 	if err != nil {
 		return nil, nil, err
 	}

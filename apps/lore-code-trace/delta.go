@@ -1,6 +1,9 @@
 package main
 
-import "strings"
+import (
+	"strconv"
+	"strings"
+)
 
 // The pure half of the incremental handshake (specs/ci-incremental-ingest FR5):
 // read a diff, decide which tests the graph must re-absorb. No IO, so the
@@ -19,12 +22,12 @@ func parseNameStatus(out string) (changed, deleted []string) {
 		}
 		switch status := fields[0]; {
 		case status == "D":
-			deleted = append(deleted, fields[1])
+			deleted = append(deleted, unquotePath(fields[1]))
 		case strings.HasPrefix(status, "R") && len(fields) >= 3:
-			deleted = append(deleted, fields[1])
-			changed = append(changed, fields[2])
+			deleted = append(deleted, unquotePath(fields[1]))
+			changed = append(changed, unquotePath(fields[2]))
 		default:
-			changed = append(changed, fields[1])
+			changed = append(changed, unquotePath(fields[1]))
 		}
 	}
 	return changed, deleted
@@ -85,4 +88,20 @@ func affected(
 		}
 	}
 	return false
+}
+
+// unquotePath undoes git's C-style quoting of a path with non-ASCII or control
+// characters ("caf\303\251.test.ts"). The diff is run with core.quotePath=false
+// so this rarely fires, but git still quotes control characters regardless —
+// and a path left quoted never matches a descriptor's File, so its test would
+// silently drop out of the delta. A path that fails to unquote is kept as-is
+// rather than dropped.
+func unquotePath(p string) string {
+	if len(p) < 2 || p[0] != '"' {
+		return p
+	}
+	if u, err := strconv.Unquote(p); err == nil {
+		return u
+	}
+	return p
 }

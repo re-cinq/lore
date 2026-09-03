@@ -92,3 +92,19 @@ func TestSelectDeltaUnionsBothReasonsWithoutDuplicating(t *testing.T) {
 		t.Fatalf("tests = %v, want %v", ids(got.Tests), want)
 	}
 }
+
+func TestParseNameStatusUnquotesCStylePaths(t *testing.T) {
+	// git quotes a path with non-ASCII or control characters in C style
+	// ("caf\303\251.test.ts"); left quoted it never matches a descriptor's File
+	// and the test silently drops out of the delta — coverage loss with no
+	// signal. Renames quote each path independently.
+	out := "M\t\"src/caf\\303\\251.test.ts\"\nR090\t\"src/ol\\td.ts\"\tsrc/new.ts\nD\t\"src/g\\303\\266ne.ts\"\n"
+	changed, deleted := parseNameStatus(out)
+
+	if want := []string{"src/café.test.ts", "src/new.ts"}; !reflect.DeepEqual(changed, want) {
+		t.Fatalf("changed = %q, want %q", changed, want)
+	}
+	if want := []string{"src/ol\td.ts", "src/göne.ts"}; !reflect.DeepEqual(deleted, want) {
+		t.Fatalf("deleted = %q, want %q", deleted, want)
+	}
+}
