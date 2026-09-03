@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { budgetSkipBody, buildReviewSummary, REVIEW_HELP } from "./review-summary.js";
+import {
+  budgetSkipBody,
+  buildReviewSummary,
+  REVIEW_HELP,
+} from "./review-summary.js";
 import type { ReviewOutput } from "./review-findings.js";
 
 describe("buildReviewSummary", () => {

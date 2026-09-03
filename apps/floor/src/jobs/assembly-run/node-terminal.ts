@@ -239,9 +239,11 @@ export async function postBudgetSkipReview(
   }
   await pulls.createReview(prNumber, {
     event: "APPROVE",
-    body: marker ? `${body}
+    body: marker
+      ? `${body}
 
-${marker}` : body,
+${marker}`
+      : body,
     comments: [],
   });
   await writeAuditLog(
