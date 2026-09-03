@@ -5,6 +5,7 @@ import {
   implementationLoopBranch,
 } from "@re-cinq/lore-shared/project/assembly-runs/subject-keys.js";
 import { decideBranchResume } from "./resume-branch.js";
+import { implementationTicketDescription } from "./ticket-description.js";
 import type { EventHandler } from "../../main-loop/types.js";
 import { implementationLoopEnabled } from "./implementation-loop-enabled.js";
 
@@ -134,7 +135,7 @@ async function tickRepo(repo: string, deps: LoopTickDeps): Promise<void> {
   });
 
   const task = await deps.createTask({
-    description: picked.title,
+    description: implementationTicketDescription(picked),
     taskType: "implementation-loop",
     targetRepo: repo,
     createdBy: "implementation-loop",

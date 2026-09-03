@@ -78,6 +78,7 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
           .filter(Boolean),
         url: i.html_url,
         createdAt: i.created_at,
+        ...(i.body ? { body: i.body } : {}),
       }));
   }
 

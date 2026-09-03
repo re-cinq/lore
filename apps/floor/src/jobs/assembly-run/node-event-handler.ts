@@ -360,7 +360,7 @@ export async function productionNodeEventDeps(): Promise<NodeEventDeps> {
     { cleanupPerTaskToken },
     { settleTaskForLine },
     { resolveConversation },
-    { stampLinePr },
+    { readyPrBody, stampLinePr },
   ] = await Promise.all([
     import("../../kernel/queues.js"),
     import("@re-cinq/lore-assembly-lines"),
@@ -462,7 +462,7 @@ export async function productionNodeEventDeps(): Promise<NodeEventDeps> {
         features: project.features,
       });
     },
-    markPrReady: async (row) => {
+    markPrReady: async (row, result) => {
       const project = await projectFor(row.repo);
       // Narrowed rather than cast: decideMarkReady already required a numeric
       // pr_number before this fires, and a cast would outlive that guarantee.
@@ -471,13 +471,14 @@ export async function productionNodeEventDeps(): Promise<NodeEventDeps> {
       if (typeof number !== "number") {
         return;
       }
-      // The description the pr-ready node produced, delivered as a declared
-      // artifact and merged into args before the walk advanced. Absent means
-      // the node did not write one, and a PR keeps its old body rather than
-      // getting an empty one.
-      const body = row.args.pr_description;
+      // The description the pr-ready node produced (a declared artifact merged
+      // into args before the walk advanced) plus the footer the draft carried —
+      // rewriting with the prose alone destroyed the Closes/Lore-Task footer.
+      // The node's extras carry the coverage verdict that picks Closes vs Refs.
+      // Null means the node wrote no prose, and the PR keeps its old body.
+      const body = readyPrBody(row, result.extras);
 
-      if (typeof body === "string" && body.trim().length > 0) {
+      if (body !== null) {
         await project.pulls.update(number, { body });
       }
       await project.pulls.markReady(number);

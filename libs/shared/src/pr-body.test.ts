@@ -23,4 +23,22 @@ describe("prFooter (T047)", () => {
       "\n\nLore-Task: uuid-1",
     );
   });
+
+  it("emits Refs #N + Lore-Task on partial coverage", () => {
+    expect(
+      prFooter({ issueNumber: 42, taskId: "uuid-1", coverage: "partial" }),
+    ).toBe("\n\nRefs #42\nLore-Task: uuid-1");
+  });
+
+  it("emits Closes #N on explicit full coverage", () => {
+    expect(
+      prFooter({ issueNumber: 42, taskId: "uuid-1", coverage: "full" }),
+    ).toBe("\n\nCloses #42\nLore-Task: uuid-1");
+  });
+
+  it("emits Lore-Task only on partial coverage without an issue", () => {
+    expect(prFooter({ taskId: "uuid-1", coverage: "partial" })).toBe(
+      "\n\nLore-Task: uuid-1",
+    );
+  });
 });

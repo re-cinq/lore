@@ -189,8 +189,13 @@ export interface AdvanceDeps {
    *  Optional seam, same as notifyFailure. */
   stampPr?: (assemblyRun: AssemblyRunRecord) => Promise<void>;
   /** Update the run's PR from its description artifact and take it out of
-   *  draft. Floor-side because the pod has no `gh` and no GitHub token. */
-  markPrReady?: (assemblyRun: AssemblyRunRecord) => Promise<void>;
+   *  draft. Floor-side because the pod has no `gh` and no GitHub token. Handed
+   *  the finishing node's result too: extras are never persisted, and the
+   *  `Lore-Issue-Coverage` verdict deciding Closes-vs-Refs lives there. */
+  markPrReady?: (
+    assemblyRun: AssemblyRunRecord,
+    result: NodeResult,
+  ) => Promise<void>;
 }
 
 /** A walk that reached exit still failed as a whole when a node failed on the way
@@ -759,7 +764,7 @@ async function maybeMarkPrReady(
       return;
     }
 
-    await deps.markPrReady(assemblyRun);
+    await deps.markPrReady(assemblyRun, result);
     // Recorded so a fix-ci round-trip back to the wait does not rewrite the PR
     // body a second time. Written AFTER the flip: a crash between the two costs
     // one redundant idempotent flip, where writing first would cost the flip.

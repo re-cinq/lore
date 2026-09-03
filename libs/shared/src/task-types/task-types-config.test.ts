@@ -170,6 +170,28 @@ describe("the implementation-tdd recipe", () => {
     }
   });
 
+  it("holds the DoD to the ticket's own claim — scope fidelity, not reinterpretation", () => {
+    // Bowman-ui #11: issue #7 reported 248 misplaced links, the DoD pinned a
+    // different problem (blank/comment-line rot), and the PR would have closed
+    // the report on a tangent (#1745).
+    const parsed = parseTaskTypesFile(COMMITTED);
+    const dod = parsed.taskTypes["acceptance-dod"]?.prompt_template ?? "";
+
+    expect(dod).toContain("SCOPE FIDELITY");
+    expect(dod).toContain("central claim");
+    expect(dod).toContain("fail BECAUSE of that claim");
+    expect(dod).toContain("redefined the ticket");
+  });
+
+  it("has pr-ready report issue coverage, and leaves the footer to the Floor", () => {
+    const parsed = parseTaskTypesFile(COMMITTED);
+    const ready = parsed.taskTypes["pr-ready"]?.prompt_template ?? "";
+
+    expect(ready).toContain('"Lore-Issue-Coverage"');
+    expect(ready).toContain("Refs");
+    expect(ready).not.toContain("Closes #");
+  });
+
   it("demands red before green, inline validated-by links, and the status flip, leaving implementation untouched", () => {
     const parsed = parseTaskTypesFile(COMMITTED);
     const tdd = parsed.taskTypes["implementation-tdd"]?.prompt_template ?? "";

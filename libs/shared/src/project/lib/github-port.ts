@@ -18,6 +18,11 @@ export interface IssueRef {
   /** ISO timestamp — the backlog picker's tie-break. Optional: only the
    *  octokit adapter populates it. */
   createdAt?: string;
+  /** The issue body — what the backlog picker mints into the ticket
+   *  description, so a loop pod defines done against the reported problem
+   *  rather than a one-line title (#1745). Optional: only the octokit
+   *  adapter populates it, and GitHub returns null for a bodyless issue. */
+  body?: string;
 }
 
 export interface IssueFilter {

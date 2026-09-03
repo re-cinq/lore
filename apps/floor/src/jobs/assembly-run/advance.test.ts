@@ -1279,6 +1279,61 @@ describe("a push node that delivered nothing", () => {
   });
 });
 
+describe("the ready flip hands the node's result to the markPrReady seam", () => {
+  it("passes the finishing node's extras through, so the flip can read the coverage verdict", async () => {
+    // The pr-ready node's `Lore-Issue-Coverage` extra decides Closes-vs-Refs at
+    // body-rewrite time (#1745). Extras are never persisted, so the only way
+    // they reach the flip is through this call — a seam that drops them makes
+    // every coverage verdict read as full.
+    const port = new InMemoryAssemblyRuns();
+    const id = await port.start({
+      blueprintName: "push-then-wait",
+      repo: "re-cinq/lore",
+      branch: "lore/implementation-loop/issue-7",
+      args: { description: "Fix the links", pr_number: 11 },
+    });
+
+    await port.stampBlueprint(
+      id,
+      "hash-push-then-wait",
+      snapshotGraph(pushThenWait, "push-then-wait"),
+    );
+    await port.markRunning(id);
+    await port.ensureStationRun({
+      assemblyRunId: id,
+      nodeId: "push",
+      iteration: 1,
+    });
+    const { deps } = makeDeps(port);
+    const flipped: Array<{ runId: string; extras?: Record<string, string> }> =
+      [];
+
+    await finishNodeAndAdvance(
+      {
+        assemblyLineId: id,
+        nodeId: "push",
+        result: {
+          outcome: "success",
+          extras: { "Lore-Issue-Coverage": "partial" },
+        },
+      },
+      {
+        ...deps,
+        markPrReady: async (run, result) => {
+          flipped.push({ runId: run.id, extras: result.extras });
+        },
+      },
+    );
+
+    expect(flipped).toEqual([
+      { runId: id, extras: { "Lore-Issue-Coverage": "partial" } },
+    ]);
+    expect((await port.getById(id))?.args).toMatchObject({
+      pr_ready_flipped: true,
+    });
+  });
+});
+
 describe("the visit's row records what it was dispatched with", () => {
   it("dispatching a node persists its input on the station-run row it mints", async () => {
     // The Agent CR was the only place the prompt and description ever existed, and
