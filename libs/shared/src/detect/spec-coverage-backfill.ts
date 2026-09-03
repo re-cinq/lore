@@ -254,7 +254,7 @@ ${candidate.content.substring(0, 4000)}
     jobName: "spec_coverage_backfill",
   });
 
-  const suggestion = result.data;
+  const suggestion = result.parsed;
   const matches = suggestion.matches === true;
   const rationale = (suggestion.rationale || "").trim();
   const safeRationale =
@@ -397,7 +397,7 @@ ${formatted}`,
       jobName: "spec_coverage_backfill",
     });
 
-    for (const c of llm.data.classifications || []) {
+    for (const c of llm.parsed.classifications || []) {
       if (typeof c.ordinal !== "number") {
         continue;
       }

@@ -351,7 +351,7 @@ export class AnthropicProvider implements LlmProvider {
       );
 
       return {
-        data,
+        parsed: data,
         inputTokens,
         outputTokens,
         cacheCreationTokens,

@@ -26,7 +26,7 @@ describe("FakeLlm", () => {
       toolSchema: {},
     });
 
-    expect(result.data).toEqual({ matches: true });
+    expect(result.parsed).toEqual({ matches: true });
   });
 
   it("records the requests it received", async () => {

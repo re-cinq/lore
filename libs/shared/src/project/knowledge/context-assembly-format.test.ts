@@ -75,7 +75,7 @@ describe("serializeContext", () => {
           source: "adrs",
           priority: 1,
           truncated: false,
-          items: [
+          documents: [
             source({
               source_path: "adrs/ADR-016.md",
               content_type: "adr",

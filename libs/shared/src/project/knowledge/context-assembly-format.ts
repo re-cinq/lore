@@ -22,7 +22,7 @@ export interface SerializedSection {
   header: string;
   source: string;
   priority: number;
-  items: SourceItem[];
+  documents: SourceItem[];
   truncated: boolean;
 }
 
@@ -100,8 +100,8 @@ export function serializeDocument(
 }
 
 export function serializeSection(section: SerializedSection): string {
-  const lastIndex = section.items.length - 1;
-  const inner = section.items
+  const lastIndex = section.documents.length - 1;
+  const inner = section.documents
     .map((it, i) =>
       serializeDocument(it, {
         truncated: section.truncated && i === lastIndex,

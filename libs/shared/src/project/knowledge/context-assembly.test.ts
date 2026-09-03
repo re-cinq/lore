@@ -75,7 +75,7 @@ describe("formatCouplingItems", () => {
 describe("fetchCouplingSource", () => {
   it("returns disabled when no graph client is wired", async () => {
     expect(await fetchCouplingSource(null, "re-cinq/lore")).toEqual({
-      items: [],
+      sources: [],
       status: "disabled",
     });
   });
@@ -111,7 +111,7 @@ describe("fetchCouplingSource", () => {
     const res = await fetchCouplingSource(port as never, "re-cinq/lore");
 
     expect(res.status).toBe("ok");
-    expect(res.items[0].text).toContain("must do X");
+    expect(res.sources[0].text).toContain("must do X");
   });
 });
 
@@ -169,11 +169,7 @@ describe("fitItemsToBudget per-document cap", () => {
   it("caps a single oversized document so smaller documents still fit", () => {
     const items = [item(1000, "big.md"), item(100, "a.md"), item(100, "b.md")];
 
-    const { items: kept, truncated } = fitItemsToBudget(
-      items as never,
-      1000,
-      400,
-    );
+    const { kept, truncated } = fitItemsToBudget(items as never, 1000, 400);
 
     expect(
       (kept as Array<{ source_path: string }>).map((i) => i.source_path),
@@ -185,7 +181,7 @@ describe("fitItemsToBudget per-document cap", () => {
   it("without a cap, one big document fills the budget and crowds out the rest", () => {
     const items = [item(1000, "big.md"), item(100, "a.md")];
 
-    const { items: kept } = fitItemsToBudget(items as never, 1000);
+    const { kept } = fitItemsToBudget(items as never, 1000);
 
     expect(
       (kept as Array<{ source_path: string }>).map((i) => i.source_path),
@@ -320,7 +316,10 @@ describe("hybridChunkItems", () => {
     expect(calls[2].text).toContain("repo = ANY($1)");
     expect(calls[2].params).toEqual([["octo/linked"], "q"]);
     expect(res.status).toBe("ok");
-    expect(res.items[0]).toMatchObject({ repo: "octo/linked", text: portable });
+    expect(res.sources[0]).toMatchObject({
+      repo: "octo/linked",
+      text: portable,
+    });
   });
 
   it("cross_repo without linked repos searches other repos across all schemas", async () => {
@@ -334,7 +333,7 @@ describe("hybridChunkItems", () => {
 
     expect(calls[2].text).toContain("repo != $1");
     expect(calls[2].params).toEqual(["re-cinq/lore", "q"]);
-    expect(res).toEqual({ items: [], status: "empty" });
+    expect(res).toEqual({ sources: [], status: "empty" });
   });
 
   it("normalizes scores so the top result is 1.0 and the rest are fractions", async () => {
