@@ -184,6 +184,11 @@ task_types:
         the ticket's acceptance tests against it. A refactor without a green bar
         underneath it is not a refactor. The `legacy-characterize` skill is the
         contract for this.
+      - `no-new-test` — the ticket is clear but mechanical: a rename, a
+        deletion, a documentation update. Writing tests first would exercise the
+        compiler rather than a behaviour. Return `no_new_test` and write no
+        tests; the line routes it to `open-pr` on the same path as `success`,
+        and `tdd-round` implements directly without a red bar.
 
       Record the triage in `.lore/dod.md`, committed with the tests. Write it
       for the next pod, which has your branch and none of your reasoning:
@@ -245,6 +250,8 @@ task_types:
         LORE_NODE_RESULT: {"outcome":"changes_requested","extras":{"Lore-Dod-Blocked":"<one line: what is missing>"}}
         This parks the ticket for a human. It is the right answer for a bad
         ticket and the wrong answer for a hard one.
+      - The ticket is clear but trivial or mechanical — no behaviour to test:
+        LORE_NODE_RESULT: {"outcome":"no_new_test"}
 
       Ticket: {description}
     target_repo: null
