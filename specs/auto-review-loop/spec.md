@@ -546,7 +546,7 @@ The code-review assembly line is the sole reviewer (ADR-012 amendment): a **deep
 
 ### `libs/shared/src/review/review-summary.test.ts`
 
-- renders the Approved header and a zero tally for no findings. ([validated by](libs/shared/src/review/review-summary.test.ts#L6))
-- counts blocking issues as must-fix, nits, and the rest as consider. ([validated by](libs/shared/src/review/review-summary.test.ts#L14))
-- includes the agent summary line under the header when present. ([validated by](libs/shared/src/review/review-summary.test.ts#L37))
+- renders the Approved header and a zero tally for no findings. ([validated by](libs/shared/src/review/review-summary.test.ts#L10))
+- counts blocking issues as must-fix, nits, and the rest as consider. ([validated by](libs/shared/src/review/review-summary.test.ts#L18))
+- includes the agent summary line under the header when present. ([validated by](libs/shared/src/review/review-summary.test.ts#L41))
 
