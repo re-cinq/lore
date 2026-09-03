@@ -219,6 +219,30 @@ describe("the implementation-tdd recipe", () => {
     expect(ready).not.toContain("Closes #");
   });
 
+  it("keeps .lore/pr-body.md out of the commit — Lore reads it from the workspace", () => {
+    // Every delivered bowman-ui loop PR (#8/#9) permanently added
+    // .lore/pr-body.md to the target repo. The commit was pure prompt-induced
+    // litter: the declared artifact watch reads the file from the pod's
+    // workspace, never from the branch (#1746).
+    const parsed = parseTaskTypesFile(COMMITTED);
+    const ready = parsed.taskTypes["pr-ready"]?.prompt_template ?? "";
+
+    expect(ready).toContain("do NOT commit `.lore/pr-body.md`");
+    expect(ready).toContain("from your workspace");
+    expect(ready).not.toContain("and all of it is pushed");
+  });
+
+  it("has pr-ready rewrite stale spec prose and point anchors at assertions", () => {
+    // Bowman-ui #9: the spec kept describing the deleted test in the present
+    // tense with a correction appended, and the fresh anchor landed on a
+    // comment line (#1747).
+    const parsed = parseTaskTypesFile(COMMITTED);
+    const ready = parsed.taskTypes["pr-ready"]?.prompt_template ?? "";
+
+    expect(ready).toContain("rewrite the sentence");
+    expect(ready).toContain("never a comment or blank line");
+  });
+
   it("demands red before green, inline validated-by links, and the status flip, leaving implementation untouched", () => {
     const parsed = parseTaskTypesFile(COMMITTED);
     const tdd = parsed.taskTypes["implementation-tdd"]?.prompt_template ?? "";

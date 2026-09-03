@@ -1012,7 +1012,9 @@ spec:
     `.lore/dod.md`'s strategy, say so and say why — that is the single most
     useful sentence in the description. Do not write closing-keyword lines
     (`Closes`/`Refs #N`) or `Lore-Task:` trailers — Lore appends that footer
-    itself when it updates the pull request.
+    itself when it updates the pull request. And do NOT commit `.lore/pr-body.md`:
+    Lore reads it from your workspace, not from the branch, and a committed
+    copy becomes permanent litter in the repository under review.
 
     THEN JUDGE COVERAGE. Re-read the ticket (title and body) against the
     branch: does this PR resolve everything the ticket reports, or only part
@@ -1029,6 +1031,13 @@ spec:
       `([validated by name](path#Lnn))` link on the statements this branch
       touched. Rounds insert tests and shift the lines below them; a stale
       #Lnn is a broken claim.
+    - An anchor must land on the line of the assertion or `it()` it
+      validates — never a comment or blank line. Open each target line and
+      read it; Lore re-checks this mechanically when the PR leaves draft and
+      posts every anchor landing nowhere as a PR comment.
+    - When this branch REPLACED or removed a test, rewrite the sentence in
+      the spec that describes it — a correction appended after a now-false
+      description leaves the false description standing.
     - If this branch completes what a `specs/<name>/spec.md` describes, its
       `| Status |` header row must already say so. Fix it here if a round
       missed it.
@@ -1055,8 +1064,9 @@ spec:
       code review.
 
     Print exactly one of these as the last line of your final message:
-    - Every acceptance test is green, `.lore/pr-body.md` is written,
-      `.lore/dod.md` is removed, and all of it is pushed. Set
+    - Every acceptance test is green, `.lore/pr-body.md` is written in the
+      workspace (uncommitted), and the `.lore/dod.md` removal plus any link
+      fixes are committed and pushed. Set
       `"Lore-Issue-Coverage"` to `"full"` when the branch resolves everything
       the ticket reports, `"partial"` when it resolves only part:
       LORE_NODE_RESULT: {"outcome":"success","extras":{"Lore-Pr-Ready":"green","Lore-Issue-Coverage":"full"}}

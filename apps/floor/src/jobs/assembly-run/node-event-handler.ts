@@ -26,6 +26,7 @@ import { finishNodeTerminal, normalizeAgentStatus } from "./node-terminal.js";
 import { isDeliveringRecipe } from "@re-cinq/lore-shared/task-types/delivering-recipes.js";
 import { agentCrVisible } from "./cr-visibility.js";
 import { notifyLineFailure } from "./notify-failure.js";
+import { rottenAnchorReport } from "./spec-anchor-check.js";
 import { BillingAlertThrottle, maybeAlertBilling } from "./billing-alert.js";
 import { maybeAlertAgentConfig } from "./agent-config-alert.js";
 import { llmDispatchGate } from "./llm-dispatch-gate.js";
@@ -482,6 +483,28 @@ export async function productionNodeEventDeps(): Promise<NodeEventDeps> {
         await project.pulls.update(number, { body });
       }
       await project.pulls.markReady(number);
+
+      // Deterministic paperwork check (#1747): anchors in this branch's
+      // changed markdown must land on citable lines. Best-effort — a rotten
+      // link is a comment for the reviewer, never a failed flip.
+      try {
+        if (row.branch) {
+          const report = await rottenAnchorReport({
+            prNumber: number,
+            branch: row.branch,
+            pulls: project.pulls,
+            repo: project.repo,
+          });
+
+          if (report) {
+            await project.issues.comment(number, report);
+          }
+        }
+      } catch (err) {
+        console.warn(
+          `[spec-anchor-check] PR #${number}: ${(err as Error).message}`,
+        );
+      }
     },
     readAgentStatus: (name) => cluster.getStatus(name),
     // The same compare the watcher uses for a single-CR task, applied to a
