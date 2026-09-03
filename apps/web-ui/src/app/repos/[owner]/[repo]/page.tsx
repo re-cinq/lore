@@ -22,6 +22,101 @@ export default async function RepoOverview({
   const { owner, repo: repoName } = await params;
   const fullName = `${owner}/${repoName}`;
 
+  const page = await loadRepoOverview(fullName);
+
+  return (
+    <RepoOverviewView
+      owner={owner}
+      repo={repoName}
+      readme={page.readme}
+      enrollmentChecks={page.enrollmentChecks}
+      darkFactoryEnabled={page.darkFactoryEnabled}
+      trustLevel={page.trustLevel}
+      darkTasksWeek={page.darkTasksWeek}
+      autoMergedWeek={page.autoMergedWeek}
+      escalationsWeek={page.escalationsWeek}
+      recentTasks={page.recentTasks}
+      latestEvents={page.latestEvents}
+      reonboardAction={reonboard.bind(null, fullName)}
+      setupWebhookAction={setupWebhook.bind(null, fullName)}
+    />
+  );
+}
+
+/** pg returns TIMESTAMPTZ columns as Date objects — normalize to ISO strings. */
+function iso(value: unknown): string | null {
+  return value ? new Date(value as string | Date).toISOString() : null;
+}
+
+/** Everything the overview renders, fetched fail-soft. A failed call costs its own panel, never the page. */
+async function loadRepoOverview(fullName: string) {
+  const panels = await fetchOverviewPanels(fullName);
+  const { repoInfo, activityCounts } = panels;
+  const [chunkSummary, webhook] = await Promise.all([
+    getRepoChunkSummary(fullName).then((r) =>
+      r.status === "ok" ? r.data : { count: 0, convention_files: [] },
+    ),
+    withWebhookSecret(fullName, panels.webhook),
+  ]);
+  // The record carries settings as opaque JSONB; this page reads two keys of it.
+  const settings = (repoInfo?.settings ?? {}) as {
+    dark_factory?: { enabled?: boolean };
+    trust?: { level?: string };
+  };
+
+  return {
+    readme: panels.readme,
+    enrollmentChecks: computeEnrollmentChecks({
+      ...enrollmentFromRepo(repoInfo),
+      chunkCount: chunkSummary.count,
+      hasConventions: chunkSummary.convention_files.length > 0,
+      githubFiles: panels.githubFiles,
+      webhook,
+      localMcp: {
+        developerCount: panels.localMcpRow?.devs ?? 0,
+        lastActivity: iso(panels.localMcpRow?.last),
+      },
+    }),
+    darkFactoryEnabled: settings.dark_factory?.enabled === true,
+    trustLevel: settings.trust?.level ?? "unset",
+    // Dark Factory dashboard counts (T052) — a figure that failed to load reads as zero, not as a gap.
+    darkTasksWeek: activityCounts.tasks ?? 0,
+    autoMergedWeek: activityCounts.auto_merged ?? 0,
+    escalationsWeek: activityCounts.escalations ?? 0,
+    recentTasks: panels.recentTasks as unknown as RecentTask[],
+    latestEvents: panels.latestEvents,
+  };
+}
+
+/** The enrollment ladder's view of the repo record: when it was onboarded, whether that PR merged, and when it was last ingested. */
+function enrollmentFromRepo(
+  repoInfo: Awaited<ReturnType<typeof fetchOverviewPanels>>["repoInfo"],
+) {
+  return {
+    onboarded: !!repoInfo,
+    onboardedAt: iso(repoInfo?.onboarded_at),
+    onboardingPrMerged: repoInfo?.onboarding_pr_merged === true,
+    onboardingPrUrl: repoInfo?.onboarding_pr_url ?? null,
+    lastIngestedAt: iso(repoInfo?.last_ingested_at),
+    team: repoInfo?.team ?? null,
+  };
+}
+
+/** The secret is admin-scoped and fetched only for a hook that still needs setting up by hand — it is pasted into GitHub, never sent to a client. */
+async function withWebhookSecret(
+  fullName: string,
+  webhook: Awaited<ReturnType<typeof getWebhookStatus>> | null,
+) {
+  if (webhook === null || webhook.state === "configured") {
+    return webhook;
+  }
+  const secret = await getWebhookSecret(fullName).catch(() => null);
+
+  return { ...webhook, secret: secret ?? undefined };
+}
+
+/** The eight panel reads, all fail-soft and all in one batch: page latency is the slowest call, not their sum (#1030). */
+async function fetchOverviewPanels(fullName: string) {
   // Mutually independent fetches in one batch; page latency = slowest call (#1030); per-call .catch keeps fail-soft.
   const [
     readme,
@@ -61,69 +156,14 @@ export default async function RepoOverview({
     ),
   ]);
 
-  // Webhook secret fetched (admin-scoped) only when hook needs setup by hand (pasted into GitHub, never to client).
-  const webhookNeedsSetup = webhook !== null && webhook.state !== "configured";
-  const [chunkSummary, webhookSecret] = await Promise.all([
-    getRepoChunkSummary(fullName).then((r) =>
-      r.status === "ok" ? r.data : { count: 0, convention_files: [] },
-    ),
-    webhookNeedsSetup
-      ? getWebhookSecret(fullName).catch(() => null)
-      : Promise.resolve(null),
-  ]);
-
-  // pg returns TIMESTAMPTZ columns as Date objects — normalize to ISO strings.
-  const iso = (d: unknown): string | null =>
-    d ? new Date(d as string | Date).toISOString() : null;
-
-  const localMcp = {
-    developerCount: localMcpRow?.devs ?? 0,
-    lastActivity: iso(localMcpRow?.last),
-  };
-  const webhookWithSecret = webhookNeedsSetup
-    ? { ...webhook, secret: webhookSecret ?? undefined }
-    : webhook;
-
-  const enrollmentChecks = computeEnrollmentChecks({
-    onboarded: !!repoInfo,
-    onboardedAt: iso(repoInfo?.onboarded_at),
-    onboardingPrMerged: repoInfo?.onboarding_pr_merged === true,
-    onboardingPrUrl: repoInfo?.onboarding_pr_url ?? null,
-    lastIngestedAt: iso(repoInfo?.last_ingested_at),
-    chunkCount: chunkSummary.count,
-    hasConventions: chunkSummary.convention_files.length > 0,
-    team: repoInfo?.team ?? null,
+  return {
+    readme,
+    repoInfo,
+    recentTasks,
+    latestEvents,
+    localMcpRow,
     githubFiles,
-    webhook: webhookWithSecret,
-    localMcp,
-  });
-
-  // The record carries settings as opaque JSONB; this page reads two keys of it.
-  const repoSettings = (repoInfo?.settings ?? {}) as {
-    dark_factory?: { enabled?: boolean };
-    trust?: { level?: string };
+    webhook,
+    activityCounts,
   };
-  const darkFactoryEnabled = repoSettings.dark_factory?.enabled === true;
-  const trustLevel = repoSettings.trust?.level ?? "unset";
-  const darkTasksWeek = activityCounts.tasks ?? 0;
-  const autoMergedWeek = activityCounts.auto_merged ?? 0;
-  const escalationsWeek = activityCounts.escalations ?? 0;
-
-  return (
-    <RepoOverviewView
-      owner={owner}
-      repo={repoName}
-      readme={readme}
-      enrollmentChecks={enrollmentChecks}
-      darkFactoryEnabled={darkFactoryEnabled}
-      trustLevel={trustLevel}
-      darkTasksWeek={darkTasksWeek}
-      autoMergedWeek={autoMergedWeek}
-      escalationsWeek={escalationsWeek}
-      recentTasks={recentTasks as unknown as RecentTask[]}
-      latestEvents={latestEvents}
-      reonboardAction={reonboard.bind(null, fullName)}
-      setupWebhookAction={setupWebhook.bind(null, fullName)}
-    />
-  );
 }
