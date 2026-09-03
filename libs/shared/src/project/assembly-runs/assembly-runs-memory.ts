@@ -188,6 +188,21 @@ export class InMemoryAssemblyRuns implements AssemblyRunsPort {
     row.reason = reason ?? null;
     row.finishedAt = this.clock();
 
+    // A visit still open under a finishing run is stranded: the reaper sweeps
+    // only OPEN runs, so nothing would ever close it, and the spend page bills
+    // an unfinished visit at its cap. A visit that DID report keeps its own
+    // outcome.
+    for (const node of this.nodes) {
+      if (node.assemblyRunId === id && node.finishedAt === null) {
+        node.finishedAt = this.clock();
+        node.outcome = node.outcome ?? "failed";
+        node.failureClass = node.failureClass ?? "unknown";
+        node.failureDetail =
+          node.failureDetail ??
+          "the run finished while this visit was still open — the visit never reported an outcome";
+      }
+    }
+
     return true;
   }
 

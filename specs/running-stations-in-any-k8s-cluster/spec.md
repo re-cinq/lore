@@ -100,7 +100,7 @@ rather than smuggled through existing columns:
   `cluster_agent_id` and `claimed_at`. No second row is inserted, so the
   row-id-as-visit-order contract the fork replay depends on
   (`assembly-runs-pg.ts`) sees exactly one row per node visit, claimed or
-  not. ([validated by `assembly-run-reaper.test.ts:758`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L758), [`assembly-run-reaper.test.ts:128`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L128), [`assembly-run-reaper.test.ts:116`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L116), [`assembly-runs.contract.test.ts:906`](libs/shared/src/project/assembly-runs/assembly-runs.contract.test.ts#L906))
+  not. ([validated by `assembly-run-reaper.test.ts:758`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L758), [`assembly-run-reaper.test.ts:128`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L128), [`assembly-run-reaper.test.ts:116`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L116), [`assembly-runs.contract.test.ts:942`](libs/shared/src/project/assembly-runs/assembly-runs.contract.test.ts#L942))
 
 ## FR1 — Cluster-agent registry and identity
 
@@ -203,12 +203,12 @@ one dispatch mechanism, not a special case plus a remote case.
   never become `queued` and are therefore never claimable. Arming is
   queued-only: a row another cluster has already claimed was handed its spec
   with the claim, so re-arming it would leave the row describing something
-  other than the pod being built from it. ([validated by arming a claimed row is a no-op, so a re-dispatch cannot rewrite what a pod is being built from](libs/shared/src/project/assembly-runs/assembly-runs.contract.test.ts#L976), [`advance.test.ts:1599`](apps/floor/src/jobs/assembly-run/advance.test.ts#L1599), [`advance.test.ts:1684`](apps/floor/src/jobs/assembly-run/advance.test.ts#L1684), [`advance.test.ts:1697`](apps/floor/src/jobs/assembly-run/advance.test.ts#L1697), [`advance.test.ts:1724`](apps/floor/src/jobs/assembly-run/advance.test.ts#L1724))
+  other than the pod being built from it. ([validated by arming a claimed row is a no-op, so a re-dispatch cannot rewrite what a pod is being built from](libs/shared/src/project/assembly-runs/assembly-runs.contract.test.ts#L1012), [`advance.test.ts:1599`](apps/floor/src/jobs/assembly-run/advance.test.ts#L1599), [`advance.test.ts:1684`](apps/floor/src/jobs/assembly-run/advance.test.ts#L1684), [`advance.test.ts:1697`](apps/floor/src/jobs/assembly-run/advance.test.ts#L1697), [`advance.test.ts:1724`](apps/floor/src/jobs/assembly-run/advance.test.ts#L1724))
 - A cluster-agent polls `POST /api/cluster-agents/{id}/claim` on a
   configurable interval (default 15 s); the claim is a single
   `SELECT … FOR UPDATE SKIP LOCKED` CTE that sets `status = 'claimed'`,
   `cluster_agent_id`, and `claimed_at` in one statement, so concurrent
-  claimants are safe. ([validated by `claim.test.ts:107`](apps/lore-api/src/api/routes/cluster-agents/claim.test.ts#L107), [`assembly-runs.contract.test.ts:814`](libs/shared/src/project/assembly-runs/assembly-runs.contract.test.ts#L814), [`assembly-runs.contract.test.ts:874`](libs/shared/src/project/assembly-runs/assembly-runs.contract.test.ts#L874))
+  claimants are safe. ([validated by `claim.test.ts:107`](apps/lore-api/src/api/routes/cluster-agents/claim.test.ts#L107), [`assembly-runs.contract.test.ts:850`](libs/shared/src/project/assembly-runs/assembly-runs.contract.test.ts#L850), [`assembly-runs.contract.test.ts:910`](libs/shared/src/project/assembly-runs/assembly-runs.contract.test.ts#L910))
 - The central cluster runs the same claim loop: cluster-agent-helm registers
   it as `central` — the name the Floor reaper resolves CR visibility by —
   with the full tag set, including the central-only tags satellites never
@@ -367,7 +367,7 @@ pull, so recovery splits by who holds the claim:
   lost one, and requeueing it would double-execute its side effects.
 - A returning agent re-registers under its persisted identity and resumes
   claiming; its stale claims have already been requeued, and dedupe keys make
-  any late duplicate report safe. ([validated by `heartbeat-loop.test.ts:100`](apps/cluster-agent/src/claim/heartbeat-loop.test.ts#L112), [`heartbeat-loop.test.ts:62`](apps/cluster-agent/src/claim/heartbeat-loop.test.ts#L74), [`assembly-runs.contract.test.ts:1041`](libs/shared/src/project/assembly-runs/assembly-runs.contract.test.ts#L1041))
+  any late duplicate report safe. ([validated by `heartbeat-loop.test.ts:100`](apps/cluster-agent/src/claim/heartbeat-loop.test.ts#L112), [`heartbeat-loop.test.ts:62`](apps/cluster-agent/src/claim/heartbeat-loop.test.ts#L74), [`assembly-runs.contract.test.ts:1077`](libs/shared/src/project/assembly-runs/assembly-runs.contract.test.ts#L1077))
 
 - **A cluster forgets what it finished with** *(added 2026-08-30)*. Every run
   leaves an Agent CR plus the per-task `pt-*` AgentDefinition and Station it ran
@@ -578,11 +578,11 @@ they are alive.
 
 - `GET /api/cluster-agents` lists registered agents with `name`, `tags`,
   `status`, `last_seen_at`, and the count of runs each is currently
-  executing. ([validated by `list.test.ts:51`](apps/lore-api/src/api/routes/cluster-agents/list.test.ts#L51), [`list.test.ts:41`](apps/lore-api/src/api/routes/cluster-agents/list.test.ts#L41), [`list.test.ts:88`](apps/lore-api/src/api/routes/cluster-agents/list.test.ts#L88), [`assembly-runs.contract.test.ts:1010`](libs/shared/src/project/assembly-runs/assembly-runs.contract.test.ts#L1010))
+  executing. ([validated by `list.test.ts:51`](apps/lore-api/src/api/routes/cluster-agents/list.test.ts#L51), [`list.test.ts:41`](apps/lore-api/src/api/routes/cluster-agents/list.test.ts#L41), [`list.test.ts:88`](apps/lore-api/src/api/routes/cluster-agents/list.test.ts#L88), [`assembly-runs.contract.test.ts:1046`](libs/shared/src/project/assembly-runs/assembly-runs.contract.test.ts#L1046))
 - A web-ui page renders that list, marking offline agents and linking the
   running-claims count to the assembly-runs list filtered to that agent
   (`/assembly-runs?cluster_agent_id=…`, backed by the port's
-  `clusterAgentId` open-claim filter). ([validated by `assembly-runs.contract.test.ts:945`](libs/shared/src/project/assembly-runs/assembly-runs.contract.test.ts#L945), [validated by `ClusterAgentsView.test.tsx:65`](apps/web-ui/src/app/cluster-agents/ClusterAgentsView.test.tsx#L65), [`ClusterAgentsView.test.tsx:93`](apps/web-ui/src/app/cluster-agents/ClusterAgentsView.test.tsx#L93), [`ClusterAgentsView.test.tsx:111`](apps/web-ui/src/app/cluster-agents/ClusterAgentsView.test.tsx#L111), [`cluster-agents.test.ts:29`](apps/web-ui/src/lib/api/cluster-agents.test.ts#L29))
+  `clusterAgentId` open-claim filter). ([validated by `assembly-runs.contract.test.ts:945`](libs/shared/src/project/assembly-runs/assembly-runs.contract.test.ts#L981), [validated by `ClusterAgentsView.test.tsx:65`](apps/web-ui/src/app/cluster-agents/ClusterAgentsView.test.tsx#L65), [`ClusterAgentsView.test.tsx:93`](apps/web-ui/src/app/cluster-agents/ClusterAgentsView.test.tsx#L93), [`ClusterAgentsView.test.tsx:111`](apps/web-ui/src/app/cluster-agents/ClusterAgentsView.test.tsx#L111), [`cluster-agents.test.ts:29`](apps/web-ui/src/lib/api/cluster-agents.test.ts#L29))
 - The app hands out the connect-a-cluster values it already holds (#1572):
   admin-scoped `GET /api/cluster-agents/install-info` answers the central
   URLs and the registration token (or names exactly what is unconfigured),
@@ -678,7 +678,7 @@ DEFAULT '{}'`, `claimed_at timestamptz`, and `dispatch_spec jsonb` (the
 complete machine contract a claimant runs with, written at enqueue — only
 armed rows are claimable), plus a partial index on `(status) WHERE outcome
 IS NULL` to back the claim scan. A queued visit with no armed dispatch
-contract is never handed to a claimant. ([validated by `assembly-runs.contract.test.ts:855`](libs/shared/src/project/assembly-runs/assembly-runs.contract.test.ts#L855))
+contract is never handed to a claimant. ([validated by `assembly-runs.contract.test.ts:855`](libs/shared/src/project/assembly-runs/assembly-runs.contract.test.ts#L891))
 
 ## Rollout: from push to pull without a flag-day
 
