@@ -124,6 +124,85 @@ function parseTurnCursor(
   return { afterId, consumed };
 }
 
+interface TurnScanStart {
+  state: TurnScanState;
+  afterId: string;
+  sawTurns: boolean;
+}
+
+// Seeds the scan state from a validated resume cursor, or from scratch.
+function initTurnScanState(
+  resume: TurnResume | null,
+  offset: number,
+): TurnScanStart {
+  return {
+    state: {
+      consumed: resume?.consumed ?? 0,
+      boundaryId: resume?.afterId ?? "0",
+      boundaryChars: resume?.consumed ?? 0,
+      slice: "",
+      mustValidateResume: resume !== null && offset > resume.consumed,
+    },
+    afterId: resume?.afterId ?? "0",
+    sawTurns: resume !== null,
+  };
+}
+
+function turnSliceResult(
+  taskId: string,
+  state: TurnScanState,
+  hasMore: boolean,
+  sawTurns: boolean,
+): TurnSlice {
+  return {
+    slice: state.slice,
+    hasMore,
+    sawTurns,
+    cursor: `${taskId}:${state.boundaryId}:${state.boundaryChars}`,
+  };
+}
+
+type TurnScanStep =
+  | { kind: "restart" }
+  | { kind: "done"; result: TurnSlice }
+  | { kind: "continue"; afterId: string };
+
+interface TurnScanPageContext {
+  taskId: string;
+  offset: number;
+  sawTurns: boolean;
+}
+
+// Folds one fetched page into the scan, deciding whether the walk restarts, finishes, or continues.
+function stepTurnScan(
+  state: TurnScanState,
+  page: Awaited<ReturnType<AgentRunTurnsRepository["listByTask"]>>,
+  context: TurnScanPageContext,
+): TurnScanStep {
+  if (state.mustValidateResume && page.length === 0) {
+    return { kind: "restart" };
+  }
+  const outcome = consumeTurnPage(state, page, context.offset);
+
+  if (outcome === "restart") {
+    return { kind: "restart" };
+  }
+
+  if (outcome === "sliced" || page.length < TURNS_PAGE_SIZE) {
+    return {
+      kind: "done",
+      result: turnSliceResult(
+        context.taskId,
+        state,
+        outcome === "sliced",
+        context.sawTurns,
+      ),
+    };
+  }
+
+  return { kind: "continue", afterId: page.at(-1)?.id ?? state.boundaryId };
+}
+
 // Flattens turns to the UTF-16 slice [offset, offset+LOG_SLICE_MAX); `resume` seeks straight to the previous cursor's row boundary instead of re-paging the whole prefix (#1307) — a stale/forged offset past the boundary falls back to a full rescan from row id 0, while an at-boundary cursor is trusted as-is (bearer-scoped, so a forged skip only affects the forger's own read); a rewind below the boundary self-heals the same way.
 async function readTurnSlice(
   turns: AgentRunTurnsRepository,
@@ -131,48 +210,29 @@ async function readTurnSlice(
   offset: number,
   resume: TurnResume | null,
 ): Promise<TurnSlice> {
-  const state: TurnScanState = {
-    consumed: resume?.consumed ?? 0,
-    boundaryId: resume?.afterId ?? "0",
-    boundaryChars: resume?.consumed ?? 0,
-    slice: "",
-    mustValidateResume: resume !== null && offset > resume.consumed,
-  };
-  let afterId = resume?.afterId ?? "0";
-  let sawTurns = resume !== null;
+  const {
+    state,
+    afterId: startId,
+    sawTurns: startSawTurns,
+  } = initTurnScanState(resume, offset);
+  let afterId = startId;
+  let sawTurns = startSawTurns;
 
   for (;;) {
     const page = await turns.listByTask(taskId, afterId, TURNS_PAGE_SIZE);
 
     sawTurns = sawTurns || page.length > 0;
 
-    if (state.mustValidateResume && page.length === 0) {
-      return readTurnSlice(turns, taskId, offset, null);
-    }
-    const outcome = consumeTurnPage(state, page, offset);
+    const step = stepTurnScan(state, page, { taskId, offset, sawTurns });
 
-    if (outcome === "restart") {
+    if (step.kind === "restart") {
       return readTurnSlice(turns, taskId, offset, null);
     }
 
-    if (outcome === "sliced") {
-      return {
-        slice: state.slice,
-        hasMore: true,
-        sawTurns,
-        cursor: `${taskId}:${state.boundaryId}:${state.boundaryChars}`,
-      };
+    if (step.kind === "done") {
+      return step.result;
     }
-
-    if (page.length < TURNS_PAGE_SIZE) {
-      return {
-        slice: state.slice,
-        hasMore: false,
-        sawTurns,
-        cursor: `${taskId}:${state.boundaryId}:${state.boundaryChars}`,
-      };
-    }
-    afterId = page.at(-1)?.id ?? afterId;
+    afterId = step.afterId;
   }
 }
 

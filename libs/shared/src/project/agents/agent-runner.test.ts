@@ -131,6 +131,22 @@ describe("AgentRunner", () => {
     expect(prompts).toEqual(["hello"]);
   });
 
+  it.skipIf(process.platform === "win32")(
+    "runs local mode with a generated prompt when called with no options at all",
+    async () => {
+      const runner = new AgentRunner({
+        ...process.env,
+        LORE_AGENT_CLI: "true",
+      });
+
+      expect(await runner.run("re-cinq/lore", "task-5")).toEqual({
+        taskId: "task-5",
+        mode: "local",
+        started: true,
+      });
+    },
+  );
+
   it("throws when cluster mode has no StationBackend provider", async () => {
     const runner = new AgentRunner(process.env, {});
 

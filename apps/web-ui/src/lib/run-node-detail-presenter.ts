@@ -94,6 +94,96 @@ interface NodeStanding {
   duration: string;
 }
 
+interface RowFacts {
+  outcome: string | null;
+  durationSeconds: number | null;
+  iteration: number | null;
+  agentCrName: string | null;
+  commitSha: string | null;
+  startedAt: string | null;
+}
+
+const EMPTY_ROW_FACTS: RowFacts = {
+  outcome: null,
+  durationSeconds: null,
+  iteration: null,
+  agentCrName: null,
+  commitSha: null,
+  startedAt: null,
+};
+
+function rowFacts(row: AssemblyRunNode | undefined): RowFacts {
+  return row
+    ? {
+        outcome: row.outcome,
+        durationSeconds: row.durationSeconds,
+        iteration: row.iteration,
+        agentCrName: row.agentCrName,
+        commitSha: row.commitSha,
+        startedAt: row.startedAt ?? null,
+      }
+    : EMPTY_ROW_FACTS;
+}
+
+interface StateFacts {
+  eventCount: number;
+  droppedCount: number;
+  iteration: number | null;
+}
+
+const EMPTY_STATE_FACTS: StateFacts = {
+  eventCount: 0,
+  droppedCount: 0,
+  iteration: null,
+};
+
+function stateFacts(state: NodeRunState | undefined): StateFacts {
+  return state
+    ? {
+        eventCount: state.transcript.length,
+        droppedCount: state.droppedCount,
+        iteration: state.iteration,
+      }
+    : EMPTY_STATE_FACTS;
+}
+
+function resolveIteration(row: RowFacts, state: StateFacts): number {
+  return row.iteration ?? state.iteration ?? 0;
+}
+
+function resolveVisual(
+  row: AssemblyRunNode | undefined,
+  state: NodeRunState | undefined,
+  nodeType: string | undefined,
+) {
+  return nodeRunVisual(row?.outcome ?? null, state?.status ?? "idle", nodeType);
+}
+
+function resolveStatusLabel(
+  visual: { tone: NodeStatusTone; label: string },
+  terminal: boolean,
+): string {
+  return visual.tone === "idle" && terminal ? "Terminal" : visual.label;
+}
+
+function resolveOutcomeLabel(running: boolean, outcome: string | null): string {
+  return running ? "in progress" : (outcome ?? "—");
+}
+
+function resolveDurationLabel(
+  running: boolean,
+  durationSeconds: number | null,
+): string {
+  return running ? "running" : formatDuration(durationSeconds);
+}
+
+function resolveFailures(
+  tone: NodeStatusTone,
+  state: NodeRunState | undefined,
+): FailedStep[] {
+  return tone === "err" ? erroredSteps(state) : [];
+}
+
 function whyText(
   input: NodeDetailInput,
   type: string | undefined,
@@ -135,39 +225,33 @@ function whyText(
 }
 
 export function describeNode(input: NodeDetailInput): NodeDetail {
-  // Single lookup; every fact below reads this node, not its own find; verdict row is authoritative.
   const node = input.definition?.nodes.find((n) => n.id === input.nodeId);
-  const visual = nodeRunVisual(
-    input.row?.outcome ?? null,
-    input.state?.status ?? "idle",
-    node?.type,
-  );
+  const nodeType = node?.type;
+  const visual = resolveVisual(input.row, input.state, nodeType);
   const terminal = isTerminal(input.definition, input.nodeId);
-  const durationSeconds = input.row?.durationSeconds ?? null;
+  const row = rowFacts(input.row);
+  const state = stateFacts(input.state);
   const running = visual.tone === "running";
-  const statusLabel =
-    visual.tone === "idle" && terminal ? "Terminal" : visual.label;
 
   return {
     tone: visual.tone,
-    statusLabel,
-    why: whyText(input, node?.type, {
+    statusLabel: resolveStatusLabel(visual, terminal),
+    why: whyText(input, nodeType, {
       tone: visual.tone,
       terminal,
-      duration: formatDuration(durationSeconds),
+      duration: formatDuration(row.durationSeconds),
     }),
-    // Only failed nodes list errored steps; succeeded nodes may carry retried tool calls (not the reason for success).
-    failures: visual.tone === "err" ? erroredSteps(input.state) : [],
+    failures: resolveFailures(visual.tone, input.state),
     files: uniqueFiles(input.state),
-    eventCount: input.state?.transcript.length ?? 0,
-    droppedCount: input.state?.droppedCount ?? 0,
-    nodeType: node?.type ?? null,
-    outcomeLabel: running ? "in progress" : (input.row?.outcome ?? "—"),
-    durationLabel: running ? "running" : formatDuration(durationSeconds),
-    iteration: input.row?.iteration ?? input.state?.iteration ?? 0,
-    agentCrName: input.row?.agentCrName ?? null,
-    commitSha: input.row?.commitSha ?? null,
-    durationSeconds,
-    startedAt: input.row?.startedAt ?? null,
+    eventCount: state.eventCount,
+    droppedCount: state.droppedCount,
+    nodeType: nodeType ?? null,
+    outcomeLabel: resolveOutcomeLabel(running, row.outcome),
+    durationLabel: resolveDurationLabel(running, row.durationSeconds),
+    iteration: resolveIteration(row, state),
+    agentCrName: row.agentCrName,
+    commitSha: row.commitSha,
+    durationSeconds: row.durationSeconds,
+    startedAt: row.startedAt,
   };
 }

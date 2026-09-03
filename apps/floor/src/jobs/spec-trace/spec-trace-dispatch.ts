@@ -61,80 +61,87 @@ function routedResult(
   };
 }
 
-export async function dispatchSpecTrace(
+/** Payload kinds (test-report/coverage): the pod fetches the body back by reference (FR3/FR6), never inline. */
+async function dispatchPayloadKind(
   repo: string,
   kind: string,
   payload: unknown,
   deps: SpecTraceDispatchDeps,
 ): Promise<{ logLine: string; audit: AuditLogEntry }> {
-  if (!REPO_READ_KINDS.has(kind)) {
-    enforceTrue(
-      PAYLOAD_KINDS.has(kind),
-      Error,
-      `unknown spec-trace kind "${kind}"`,
-    );
-
-    // FR3/FR6: the station fetches the body back by reference (a test report is ~1 MB; station_input is an argv element), so the event id is mandatory.
-    enforceTrue(
-      deps.startLine !== undefined,
-      Error,
-      `spec-trace ${kind} for ${repo} requires the startLine dep — the inline projector was retired (specs/ingest-station FR6)`,
-    );
-    enforceTrue(
-      typeof deps.eventId === "string" && deps.eventId.length > 0,
-      Error,
-      `spec-trace payload kind "${kind}" for ${repo} requires the scheduling eventId — the pod fetches the body by reference (FR3)`,
-    );
-    const p = (payload ?? {}) as RepoReadPayload;
-    const ref = p.commit || p.branch || "main";
-    // Lease key carries the scheduling event's id — each POSTed chunk is DISTINCT data (specs/ingest-station), so chunks never share a lease.
-    const lineId = await deps.startLine!({
-      blueprintName: "ingest",
-      repo,
-      branch: ingestLineBranch(kind, ref, deps.eventId),
-      subjectKey: ingestSubject(kind, ref, deps.eventId),
-      args: { kind, ref, payload_event_id: deps.eventId },
-    });
-
-    return routedResult(
-      repo,
-      kind,
-      `routed to ingest line ${lineId.slice(0, 8)} (payload by reference, event ${deps.eventId})`,
-    );
-  }
-
+  enforceTrue(
+    PAYLOAD_KINDS.has(kind),
+    Error,
+    `unknown spec-trace kind "${kind}"`,
+  );
+  enforceTrue(
+    deps.startLine !== undefined,
+    Error,
+    `spec-trace ${kind} for ${repo} requires the startLine dep — the inline projector was retired (specs/ingest-station FR6)`,
+  );
+  enforceTrue(
+    typeof deps.eventId === "string" && deps.eventId.length > 0,
+    Error,
+    `spec-trace payload kind "${kind}" for ${repo} requires the scheduling eventId — the pod fetches the body by reference (FR3)`,
+  );
   const p = (payload ?? {}) as RepoReadPayload;
+  const ref = p.commit || p.branch || "main";
+  // Lease key carries the scheduling event's id — each POSTed chunk is DISTINCT data (specs/ingest-station), so chunks never share a lease.
+  const lineId = await deps.startLine!({
+    blueprintName: "ingest",
+    repo,
+    branch: ingestLineBranch(kind, ref, deps.eventId),
+    subjectKey: ingestSubject(kind, ref, deps.eventId),
+    args: { kind, ref, payload_event_id: deps.eventId },
+  });
 
-  if (!(p.force && !p.glob)) {
-    // FR2/FR6: docs projection runs ONLY in an ingest-station pod, one line per payload, clone pinned via args.ref.
-    enforceTrue(
-      deps.startLine !== undefined,
-      Error,
-      `spec-trace ${kind} for ${repo} requires the startLine dep — the inline projector was retired (specs/ingest-station FR6)`,
-    );
-    const ref = p.commit || p.branch || "main";
-    const lineId = await deps.startLine!({
-      blueprintName: "ingest",
-      repo,
-      // The pod clones at args.ref; the branch only has to be distinct per kind.
-      branch: ingestLineBranch(kind, ref, p.glob),
-      subjectKey: ingestSubject(kind, ref, p.glob),
-      args: {
-        kind,
-        ref,
-        ...(p.glob ? { glob: p.glob } : {}),
-        ...(p.force ? { force: "true" } : {}),
-      },
-    });
+  return routedResult(
+    repo,
+    kind,
+    `routed to ingest line ${lineId.slice(0, 8)} (payload by reference, event ${deps.eventId})`,
+  );
+}
 
-    return routedResult(
-      repo,
+/** Repo-read kinds (specs/adrs), normal path: one ingest-station line per payload, clone pinned via args.ref (FR2/FR6). */
+async function dispatchRepoReadKind(
+  repo: string,
+  kind: string,
+  p: RepoReadPayload,
+  deps: SpecTraceDispatchDeps,
+): Promise<{ logLine: string; audit: AuditLogEntry }> {
+  enforceTrue(
+    deps.startLine !== undefined,
+    Error,
+    `spec-trace ${kind} for ${repo} requires the startLine dep — the inline projector was retired (specs/ingest-station FR6)`,
+  );
+  const ref = p.commit || p.branch || "main";
+  const lineId = await deps.startLine!({
+    blueprintName: "ingest",
+    repo,
+    // The pod clones at args.ref; the branch only has to be distinct per kind.
+    branch: ingestLineBranch(kind, ref, p.glob),
+    subjectKey: ingestSubject(kind, ref, p.glob),
+    args: {
       kind,
-      `routed to ingest line ${lineId.slice(0, 8)} at ${ref.slice(0, 12)}`,
-    );
-  }
+      ref,
+      ...(p.glob ? { glob: p.glob } : {}),
+      ...(p.force ? { force: "true" } : {}),
+    },
+  });
 
-  // A force pass with no glob re-projects EVERY file — one pod would blow the station deadline, so self-chunk one child event per top-level directory.
+  return routedResult(
+    repo,
+    kind,
+    `routed to ingest line ${lineId.slice(0, 8)} at ${ref.slice(0, 12)}`,
+  );
+}
+
+/** A force pass with no glob re-projects EVERY file — one pod would blow the station deadline, so self-chunk one child event per top-level directory. */
+async function dispatchForceChunk(
+  repo: string,
+  kind: string,
+  p: RepoReadPayload,
+  deps: SpecTraceDispatchDeps,
+): Promise<{ logLine: string; audit: AuditLogEntry }> {
   enforceTrue(
     deps.insertEvent !== undefined,
     Error,
@@ -170,4 +177,21 @@ export async function dispatchSpecTrace(
       message: `${kind}: ${message}`,
     }),
   };
+}
+
+export async function dispatchSpecTrace(
+  repo: string,
+  kind: string,
+  payload: unknown,
+  deps: SpecTraceDispatchDeps,
+): Promise<{ logLine: string; audit: AuditLogEntry }> {
+  if (!REPO_READ_KINDS.has(kind)) {
+    return dispatchPayloadKind(repo, kind, payload, deps);
+  }
+
+  const p = (payload ?? {}) as RepoReadPayload;
+
+  return p.force && !p.glob
+    ? dispatchForceChunk(repo, kind, p, deps)
+    : dispatchRepoReadKind(repo, kind, p, deps);
 }

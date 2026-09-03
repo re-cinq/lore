@@ -23,18 +23,19 @@ export class AgentRunner implements AgentRunnerPort {
     taskId: string,
     opts?: AgentRunOpts,
   ): Promise<AgentRunResult> {
-    const mode = opts?.mode ?? "local";
-    const prompt = opts?.prompt ?? `Work on Lore task ${taskId} for ${repo}.`;
+    const runOpts = opts ?? {};
+    const mode = runOpts.mode ?? "local";
+    const prompt = runOpts.prompt ?? `Work on Lore task ${taskId} for ${repo}.`;
 
     if (mode === "local") {
-      return await this.runLocal(taskId, prompt, opts);
+      return await this.runLocal(taskId, prompt, runOpts);
     }
 
     if (mode === "cluster") {
-      return await this.runOnCluster(repo, taskId, prompt, opts);
+      return await this.runOnCluster(repo, taskId, prompt, runOpts);
     }
 
-    return await this.runDirect(taskId, prompt, opts);
+    return await this.runDirect(taskId, prompt, runOpts);
   }
 
   /** `claude --print` in a working directory; the exit code is the whole verdict. */
@@ -58,7 +59,7 @@ export class AgentRunner implements AgentRunnerPort {
     repo: string,
     taskId: string,
     prompt: string,
-    opts?: AgentRunOpts,
+    runOpts: AgentRunOpts,
   ): Promise<AgentRunResult> {
     const station = this.providers.station;
 
@@ -69,22 +70,22 @@ export class AgentRunner implements AgentRunnerPort {
     );
     const res = await station.launch({
       taskId,
-      taskType: opts?.taskType ?? "general",
-      description: opts?.description ?? "",
+      taskType: runOpts.taskType ?? "general",
+      description: runOpts.description ?? "",
       prompt,
       targetRepo: repo,
-      branch: opts?.branch ?? `lore/task-${taskId}`,
-      model: opts?.model,
-      timeoutMinutes: opts?.timeoutMinutes,
-      prNumber: opts?.prNumber,
-      name: opts?.name,
-      extraLabels: opts?.extraLabels,
-      darkFactory: opts?.darkFactory,
-      image: opts?.image,
-      featureId: opts?.featureId,
-      roundFeedback: opts?.roundFeedback,
-      resumeFromTask: opts?.resumeFromTask,
-      lineArgs: opts?.lineArgs,
+      branch: runOpts.branch ?? `lore/task-${taskId}`,
+      model: runOpts.model,
+      timeoutMinutes: runOpts.timeoutMinutes,
+      prNumber: runOpts.prNumber,
+      name: runOpts.name,
+      extraLabels: runOpts.extraLabels,
+      darkFactory: runOpts.darkFactory,
+      image: runOpts.image,
+      featureId: runOpts.featureId,
+      roundFeedback: runOpts.roundFeedback,
+      resumeFromTask: runOpts.resumeFromTask,
+      lineArgs: runOpts.lineArgs,
     });
 
     // Sync backends (docker) carry completion; async backends (k8s) omit it (watcher resolves).

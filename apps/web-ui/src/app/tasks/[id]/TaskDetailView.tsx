@@ -48,6 +48,208 @@ export interface TaskDetailViewProps {
   submitFeedback: (formData: FormData) => void | Promise<void>;
 }
 
+function PriorityBadge({ priority }: { priority: string }) {
+  return (
+    <span className={priority === "immediate" ? "badge badge-red" : "meta"}>
+      {priority || "normal"}
+    </span>
+  );
+}
+
+function AgentRow({ agentId }: { agentId: string | null }) {
+  if (!agentId) {
+    return null;
+  }
+
+  return (
+    <p>
+      <strong>Agent:</strong> {agentId}
+    </p>
+  );
+}
+
+function PrLinkRow({ prUrl }: { prUrl: string | null }) {
+  if (!prUrl) {
+    return null;
+  }
+
+  return (
+    <p>
+      <strong>PR:</strong>{" "}
+      <a href={prUrl} target="_blank">
+        {prUrl}
+      </a>
+    </p>
+  );
+}
+
+function PrStatusSection({
+  taskId,
+  prUrl,
+  prNumber,
+}: {
+  taskId: string;
+  prUrl: string | null;
+  prNumber: number | null;
+}) {
+  if (!prUrl || !prNumber) {
+    return null;
+  }
+
+  return <PRStatusPanel taskId={taskId} prUrl={prUrl} />;
+}
+
+function FailureRow({
+  failureReason,
+  repo,
+}: {
+  failureReason: string | null;
+  repo: string;
+}) {
+  if (!failureReason) {
+    return null;
+  }
+
+  return (
+    <p>
+      <strong>Failure:</strong>{" "}
+      <span className={styles.failureText}>
+        <Linkified text={failureReason} repo={repo} />
+      </span>
+    </p>
+  );
+}
+
+function ReviewIterationsRow({ reviewIteration }: { reviewIteration: number }) {
+  if (reviewIteration <= 0) {
+    return null;
+  }
+
+  return (
+    <p>
+      <strong>Review iterations:</strong> {reviewIteration}
+    </p>
+  );
+}
+
+function RunNowAction({
+  taskId,
+  status,
+  priority,
+}: {
+  taskId: string;
+  status: string;
+  priority: string;
+}) {
+  if (status !== "pending" || (priority || "normal") !== "normal") {
+    return null;
+  }
+
+  return (
+    <form action={`/api/tasks/${taskId}/run-now`} method="POST">
+      <button type="submit" className={styles.runNowBtn}>
+        Run Now
+      </button>
+    </form>
+  );
+}
+
+function CancelAction({ taskId, status }: { taskId: string; status: string }) {
+  if (!isCancellable(status)) {
+    return null;
+  }
+
+  return <CancelTaskButton taskId={taskId} />;
+}
+
+function TaskFailurePanel({
+  status,
+  failedEvent,
+  repo,
+}: {
+  status: string;
+  failedEvent: TaskDetailEvent | undefined;
+  repo: string;
+}) {
+  if (status !== "failed" || !failedEvent?.metadata) {
+    return null;
+  }
+
+  return <FailurePanel metadata={failedEvent.metadata} repo={repo} />;
+}
+
+const TERMINAL_TASK_STATUSES = ["merged", "cancelled"];
+
+/** Visible when the task has a PR and isn't in a terminal state. */
+function FeedbackSection({
+  taskId,
+  prUrl,
+  status,
+  submitFeedback,
+}: {
+  taskId: string;
+  prUrl: string | null;
+  status: string;
+  submitFeedback: (formData: FormData) => void | Promise<void>;
+}) {
+  if (!prUrl || TERMINAL_TASK_STATUSES.includes(status)) {
+    return null;
+  }
+
+  return (
+    <div className={`spec-card ${styles.feedbackCard}`}>
+      <h3 className={styles.feedbackHeading}>Give Feedback</h3>
+      <p className={`meta ${styles.feedbackLede}`}>
+        Tell the agent what to change. A revision task will be created on the
+        same branch.
+      </p>
+      <form action={submitFeedback}>
+        <input type="hidden" name="task_id" value={taskId} />
+        <textarea
+          name="feedback"
+          rows={3}
+          required
+          placeholder="e.g. Don't use a custom CLI — use the existing MCP tools instead. The approach should be..."
+          className={styles.feedbackTextarea}
+        />
+        <button type="submit" className={styles.feedbackBtn}>
+          Request Revision
+        </button>
+      </form>
+    </div>
+  );
+}
+
+function RunsSection({ runs }: { runs: TaskRunRow[] }) {
+  if (runs.length === 0) {
+    return null;
+  }
+
+  return (
+    <section>
+      <h2>Runs</h2>
+      <p className="meta">
+        Each execution attempt of this task (a retry mints a new run). Open one
+        for its timeline, transcript, and pod logs.
+      </p>
+      <ul>
+        {runs.map((run) => (
+          <li key={run.id}>
+            <Link href={`/assembly-runs/${run.id}`}>
+              #{run.id.substring(0, 8)}
+            </Link>{" "}
+            —{" "}
+            <span className={`op-badge op-${run.status}`}>
+              {formatEnumLabel(run.outcome ?? run.status)}
+            </span>{" "}
+            · started <TimeAgo date={run.created_at} inline />
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 export default function TaskDetailView({
   task,
   failedEvent,
@@ -71,13 +273,7 @@ export default function TaskDetailView({
           </p>
           <p>
             <strong>Priority:</strong>{" "}
-            <span
-              className={
-                task.priority === "immediate" ? "badge badge-red" : "meta"
-              }
-            >
-              {task.priority || "normal"}
-            </span>
+            <PriorityBadge priority={task.priority} />
           </p>
           <p>
             <strong>Repo:</strong> {task.target_repo}
@@ -86,35 +282,18 @@ export default function TaskDetailView({
             <strong>Description:</strong>{" "}
             <Linkified text={task.description} repo={task.target_repo} />
           </p>
-          {task.agent_id && (
-            <p>
-              <strong>Agent:</strong> {task.agent_id}
-            </p>
-          )}
-          {task.pr_url && (
-            <p>
-              <strong>PR:</strong>{" "}
-              <a href={task.pr_url} target="_blank">
-                {task.pr_url}
-              </a>
-            </p>
-          )}
-          {task.pr_url && task.pr_number && (
-            <PRStatusPanel taskId={task.id} prUrl={task.pr_url} />
-          )}
-          {task.failure_reason && (
-            <p>
-              <strong>Failure:</strong>{" "}
-              <span className={styles.failureText}>
-                <Linkified text={task.failure_reason} repo={task.target_repo} />
-              </span>
-            </p>
-          )}
-          {task.review_iteration > 0 && (
-            <p>
-              <strong>Review iterations:</strong> {task.review_iteration}
-            </p>
-          )}
+          <AgentRow agentId={task.agent_id} />
+          <PrLinkRow prUrl={task.pr_url} />
+          <PrStatusSection
+            taskId={task.id}
+            prUrl={task.pr_url}
+            prNumber={task.pr_number}
+          />
+          <FailureRow
+            failureReason={task.failure_reason}
+            repo={task.target_repo}
+          />
+          <ReviewIterationsRow reviewIteration={task.review_iteration} />
           <p>
             <strong>Created by:</strong> {task.created_by}
           </p>
@@ -123,74 +302,29 @@ export default function TaskDetailView({
             <TimeAgo date={task.updated_at} inline />
           </p>
           <div className={styles.actions}>
-            {task.status === "pending" &&
-              (task.priority || "normal") === "normal" && (
-                <form action={`/api/tasks/${task.id}/run-now`} method="POST">
-                  <button type="submit" className={styles.runNowBtn}>
-                    Run Now
-                  </button>
-                </form>
-              )}
-            {isCancellable(task.status) && (
-              <CancelTaskButton taskId={task.id} />
-            )}
+            <RunNowAction
+              taskId={task.id}
+              status={task.status}
+              priority={task.priority}
+            />
+            <CancelAction taskId={task.id} status={task.status} />
           </div>
         </div>
 
-        {task.status === "failed" && failedEvent?.metadata && (
-          <FailurePanel
-            metadata={failedEvent.metadata}
-            repo={task.target_repo}
-          />
-        )}
+        <TaskFailurePanel
+          status={task.status}
+          failedEvent={failedEvent}
+          repo={task.target_repo}
+        />
 
-        {/* Feedback form — visible when task has a PR and isn't in a terminal state */}
-        {task.pr_url && !["merged", "cancelled"].includes(task.status) && (
-          <div className={`spec-card ${styles.feedbackCard}`}>
-            <h3 className={styles.feedbackHeading}>Give Feedback</h3>
-            <p className={`meta ${styles.feedbackLede}`}>
-              Tell the agent what to change. A revision task will be created on
-              the same branch.
-            </p>
-            <form action={submitFeedback}>
-              <input type="hidden" name="task_id" value={task.id} />
-              <textarea
-                name="feedback"
-                rows={3}
-                required
-                placeholder="e.g. Don't use a custom CLI — use the existing MCP tools instead. The approach should be..."
-                className={styles.feedbackTextarea}
-              />
-              <button type="submit" className={styles.feedbackBtn}>
-                Request Revision
-              </button>
-            </form>
-          </div>
-        )}
+        <FeedbackSection
+          taskId={task.id}
+          prUrl={task.pr_url}
+          status={task.status}
+          submitFeedback={submitFeedback}
+        />
 
-        {runs.length > 0 && (
-          <section>
-            <h2>Runs</h2>
-            <p className="meta">
-              Each execution attempt of this task (a retry mints a new run).
-              Open one for its timeline, transcript, and pod logs.
-            </p>
-            <ul>
-              {runs.map((run) => (
-                <li key={run.id}>
-                  <Link href={`/assembly-runs/${run.id}`}>
-                    #{run.id.substring(0, 8)}
-                  </Link>{" "}
-                  —{" "}
-                  <span className={`op-badge op-${run.status}`}>
-                    {formatEnumLabel(run.outcome ?? run.status)}
-                  </span>{" "}
-                  · started <TimeAgo date={run.created_at} inline />
-                </li>
-              ))}
-            </ul>
-          </section>
-        )}
+        <RunsSection runs={runs} />
       </div>
     </TaskRefreshProvider>
   );

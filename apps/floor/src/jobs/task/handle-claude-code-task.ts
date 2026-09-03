@@ -41,7 +41,85 @@ export async function handleClaudeCodeTask(
   await settleDispatch(result, input, project);
 }
 
-/** Everything the Agent CR is dispatched with. The conditional spreads are how an unset field stays absent rather than becoming an explicit undefined the CR would carry. */
+/** A `string`-typed `context_bundle` field, spread onto the CR opts only when present — an unset field stays absent rather than becoming an explicit undefined the CR would carry. */
+function optionalStringField<
+  K extends "featureId" | "roundFeedback" | "resumeFromTask",
+>(key: K, value: unknown): Partial<Pick<AgentRunOpts, K>> {
+  return typeof value === "string"
+    ? ({ [key]: value } as Pick<AgentRunOpts, K>)
+    : {};
+}
+
+/** Seed values for the assembly run's `args` — only a plain object counts (not an array, not a primitive). */
+function optionalLineArgs(lineArgs: unknown): Pick<AgentRunOpts, "lineArgs"> {
+  if (lineArgs && typeof lineArgs === "object" && !Array.isArray(lineArgs)) {
+    return { lineArgs: lineArgs as Record<string, unknown> };
+  }
+
+  return {};
+}
+
+function optionalImage(image?: string): Pick<AgentRunOpts, "image"> {
+  return image ? { image } : {};
+}
+
+/** `workflowName` is the CR-spec wire field (read by the pod via LORE_DARK_FACTORY_WORKFLOW) — renaming it needs both sides. */
+function optionalDarkFactory(
+  darkFactory?: DarkFactoryDispatch,
+): Pick<AgentRunOpts, "extraLabels" | "darkFactory"> {
+  if (!darkFactory) {
+    return {};
+  }
+
+  return {
+    extraLabels: { "lore.re-cinq.com/dark-factory": "true" },
+    darkFactory: {
+      workflowName: darkFactory.assemblyLine,
+      baseBranch: darkFactory.baseBranch ?? "main",
+    },
+  };
+}
+
+/** Agent-definition timeout wins, then the repo override, then the task-type default, then a flat fallback. */
+function resolveTimeoutMinutes(
+  agentDef: ClaudeCodeTaskInput["agentDef"],
+  repoOverrides: ClaudeCodeTaskInput["repoOverrides"],
+  taskType: string,
+): number {
+  const candidates: (number | null | undefined)[] = [
+    agentDef?.timeout_minutes,
+    repoOverrides?.timeout_minutes as number | undefined,
+    getTaskTypeConfig(taskType)?.timeout_minutes,
+  ];
+
+  return candidates.find((value) => Boolean(value)) ?? 30;
+}
+
+/** The four `context_bundle` fields `agentRunSpec` threads onto the CR opts. */
+interface ContextBundleFields {
+  featureId: unknown;
+  roundFeedback: unknown;
+  resumeFromTask: unknown;
+  lineArgs: unknown;
+}
+
+function contextBundleFields(task: PipelineTask): ContextBundleFields {
+  return {
+    featureId: task.context_bundle?.feature_id,
+    roundFeedback: task.context_bundle?.round_feedback,
+    resumeFromTask: task.context_bundle?.resume_from_task,
+    lineArgs: task.context_bundle?.line_args,
+  };
+}
+
+/** The agent definition's prompt override, resolved once so callers never optional-chain into it themselves. */
+function promptOverride(
+  agentDef: ClaudeCodeTaskInput["agentDef"],
+): string | null | undefined {
+  return agentDef?.prompt;
+}
+
+/** Everything the Agent CR is dispatched with. */
 function agentRunSpec(input: ClaudeCodeTaskInput): AgentRunOpts {
   const {
     task,
@@ -52,47 +130,33 @@ function agentRunSpec(input: ClaudeCodeTaskInput): AgentRunOpts {
     image,
     agentDef,
   } = input;
-  // Prompt + timeout from the resolved agent definition (project.agentDefs), falling back to the yaml loader; the pod can also re-fetch via AgentDefsHttp.
   const fullPrompt = agentPrompt(
-    agentDef?.prompt,
+    promptOverride(agentDef),
     task.description,
     buildPrompt(task.task_type, task.description),
   );
-  const configuredTimeoutMinutes =
-    agentDef?.timeout_minutes ||
-    (repoOverrides?.timeout_minutes as number | undefined) ||
-    getTaskTypeConfig(task.task_type)?.timeout_minutes;
-  const featureId = task.context_bundle?.feature_id;
-  const roundFeedback = task.context_bundle?.round_feedback;
-  const resumeFromTask = task.context_bundle?.resume_from_task;
-  const lineArgs = task.context_bundle?.line_args;
+  const { featureId, roundFeedback, resumeFromTask, lineArgs } =
+    contextBundleFields(task);
 
   return {
     mode: "cluster",
     taskType: task.task_type,
     // Threaded so `continues.key: args.feature_id` resolves — the assembly-line engine never learns what a feature is.
-    ...(typeof featureId === "string" ? { featureId } : {}),
-    ...(typeof roundFeedback === "string" ? { roundFeedback } : {}),
-    ...(typeof resumeFromTask === "string" ? { resumeFromTask } : {}),
-    ...(lineArgs && typeof lineArgs === "object" && !Array.isArray(lineArgs)
-      ? { lineArgs: lineArgs as Record<string, unknown> }
-      : {}),
+    ...optionalStringField("featureId", featureId),
+    ...optionalStringField("roundFeedback", roundFeedback),
+    ...optionalStringField("resumeFromTask", resumeFromTask),
+    ...optionalLineArgs(lineArgs),
     description: task.description,
     prompt: fullPrompt,
     branch: branchName,
     model: model || "claude-sonnet-4-6",
-    timeoutMinutes: configuredTimeoutMinutes || 30,
-    ...(image ? { image } : {}),
-    ...(darkFactory
-      ? {
-          extraLabels: { "lore.re-cinq.com/dark-factory": "true" },
-          // `workflowName` is the CR-spec wire field (read by the pod via LORE_DARK_FACTORY_WORKFLOW) — renaming it needs both sides.
-          darkFactory: {
-            workflowName: darkFactory.assemblyLine,
-            baseBranch: darkFactory.baseBranch ?? "main",
-          },
-        }
-      : {}),
+    timeoutMinutes: resolveTimeoutMinutes(
+      agentDef,
+      repoOverrides,
+      task.task_type,
+    ),
+    ...optionalImage(image),
+    ...optionalDarkFactory(darkFactory),
   };
 }
 

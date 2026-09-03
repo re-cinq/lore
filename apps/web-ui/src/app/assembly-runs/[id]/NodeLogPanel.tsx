@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { parseAgentLog } from "@/lib/agent-log-entries";
+import type { ReactNode } from "react";
+import { parseAgentLog, type LogEntry } from "@/lib/agent-log-entries";
 import CollapsibleCard from "@/components/CollapsibleCard";
 import LogEntriesView from "@/components/LogEntriesView";
 import LogFormatToggle from "@/components/LogFormatToggle";
@@ -19,6 +20,69 @@ export interface NodeLogPanelProps {
   assemblyLineId: string;
   agentCrName: string;
   label: string;
+}
+
+function logContent(
+  resp: NodeLogsResponse | null,
+  showRaw: boolean,
+  entries: LogEntry[],
+): ReactNode {
+  if (!resp?.logs) {
+    return "(no output yet)";
+  }
+
+  return showRaw ? resp.logs : <LogEntriesView entries={entries} />;
+}
+
+/** Everything below the collapsible header: error, unavailable notice, format toggle, and the log body itself. */
+function NodeLogBody({
+  open,
+  error,
+  resp,
+  showRaw,
+  onShowRawChange,
+  entries,
+  bottomRef,
+}: {
+  open: boolean;
+  error: string | null;
+  resp: NodeLogsResponse | null;
+  showRaw: boolean;
+  onShowRawChange: (raw: boolean) => void;
+  entries: LogEntry[];
+  bottomRef: React.RefObject<HTMLDivElement | null>;
+}) {
+  if (error) {
+    return <p className={styles.error}>Failed to load logs: {error}</p>;
+  }
+
+  if (resp === null) {
+    return open ? (
+      <p className={`meta ${styles.placeholder}`}>Loading…</p>
+    ) : null;
+  }
+
+  if (!resp.available) {
+    return (
+      <p className={`meta ${styles.placeholder}`}>
+        {unavailableMessage(resp.reason)}
+      </p>
+    );
+  }
+
+  return (
+    <>
+      {resp.logs && (
+        <div className={styles.toggleRow}>
+          <LogFormatToggle raw={showRaw} onChange={onShowRawChange} />
+        </div>
+      )}
+      <div className={styles.terminal}>
+        {logContent(resp, showRaw, entries)}
+        <div ref={bottomRef} />
+      </div>
+    </>
+  );
 }
 
 // One collapsible live-log panel for one node's pod, read on-demand; older runs fall back to retained Cloud Logging.
@@ -77,48 +141,21 @@ export default function NodeLogPanel({
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [resp]);
 
-  const renderLogContent = () => {
-    if (!resp?.logs) {
-      return "(no output yet)";
-    }
-
-    if (showRaw) {
-      return resp.logs;
-    }
-
-    return <LogEntriesView entries={entries} />;
-  };
-
   return (
     <CollapsibleCard
       title={label}
       labels={[resp?.phase, resp?.archived ? "retained" : null]}
       onToggle={setOpen}
     >
-      {error && <p className={styles.error}>Failed to load logs: {error}</p>}
-
-      {!error && resp && !resp.available && (
-        <p className={`meta ${styles.placeholder}`}>
-          {unavailableMessage(resp.reason)}
-        </p>
-      )}
-
-      {!error && resp?.available && resp.logs && (
-        <div className={styles.toggleRow}>
-          <LogFormatToggle raw={showRaw} onChange={setShowRaw} />
-        </div>
-      )}
-
-      {!error && resp?.available && (
-        <div className={styles.terminal}>
-          {renderLogContent()}
-          <div ref={bottomRef} />
-        </div>
-      )}
-
-      {!error && open && resp === null && (
-        <p className={`meta ${styles.placeholder}`}>Loading…</p>
-      )}
+      <NodeLogBody
+        open={open}
+        error={error}
+        resp={resp}
+        showRaw={showRaw}
+        onShowRawChange={setShowRaw}
+        entries={entries}
+        bottomRef={bottomRef}
+      />
     </CollapsibleCard>
   );
 }
