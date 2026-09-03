@@ -385,6 +385,10 @@ VALUES ('cron.spec_drift.tick', 'cron', '{"repo":"re-cinq/lore"}');
      deterministically across nights, skipping files the changed-file loop already processed this
      run, logging past per-file ingest failures, and counting only files the ingest accepted
      ([validated by `chunks.test.ts:846`](libs/shared/src/project/chunks/chunks.test.ts#L843), [`chunks.test.ts:865`](libs/shared/src/project/chunks/chunks.test.ts#L865), [`reindex-backfill.test.ts:24`](apps/floor/src/jobs/context-jobs/reindex/reindex-backfill.test.ts#L24), [`reindex-backfill.test.ts:58`](apps/floor/src/jobs/context-jobs/reindex/reindex-backfill.test.ts#L58), [`reindex-backfill.test.ts:80`](apps/floor/src/jobs/context-jobs/reindex/reindex-backfill.test.ts#L80), [`reindex-backfill.test.ts:106`](apps/floor/src/jobs/context-jobs/reindex/reindex-backfill.test.ts#L106), [`reindex-backfill.test.ts:125`](apps/floor/src/jobs/context-jobs/reindex/reindex-backfill.test.ts#L125))
+   - Each optional sweep is isolated: a pass that throws is logged under its own name and
+     contributes zero, and the passes after it still run, so a repo keeps everything the
+     earlier passes ingested rather than losing the night to one failing sweep
+     ([validated by `reindex-sweep.test.ts:11`](apps/floor/src/jobs/context-jobs/reindex/reindex-sweep.test.ts#L11), [`reindex-sweep.test.ts:15`](apps/floor/src/jobs/context-jobs/reindex/reindex-sweep.test.ts#L15), [`reindex-sweep.test.ts:21`](apps/floor/src/jobs/context-jobs/reindex/reindex-sweep.test.ts#L21), [`reindex-sweep.test.ts:34`](apps/floor/src/jobs/context-jobs/reindex/reindex-sweep.test.ts#L34))
 
 ## File Changes
 

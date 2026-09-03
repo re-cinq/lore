@@ -646,6 +646,96 @@ async function orphanImpact(
   return [...byXid.values()];
 }
 
+/** Everything the code-side sweep learned: coupled statements, statements orphaned by deleted lines, and the files whose coordinates could not be trusted. */
+interface CodeImpact {
+  raw: Array<ImpactStatement & { xid: string }>;
+  orphaned: OrphanStatement[];
+  skipped: { path: string; reason: SkipReason }[];
+  withGraphData: number;
+}
+
+/** One changed source file against the graph. `baseRanges` (diff old-side) matches graph coordinates only when the file is byte-identical at both commits — what `aligned` records. */
+async function fileImpact(
+  dgraph: DgraphClientPort,
+  repo: string,
+  file: ChangedRange,
+  aligned: boolean,
+): Promise<Array<ImpactStatement & { xid: string }>> {
+  const ranges = file.baseRanges ?? file.ranges;
+
+  return [
+    ...(await implementedByImpact(dgraph, repo, file.path, ranges)),
+    ...(await testFileImpact(dgraph, repo, file.path, {
+      ranges,
+      fileLevel: !aligned,
+    })),
+    // Coverage facets and orphan footprints are line-precise with no file-level fallback, so an unaligned file cannot use them.
+    ...(aligned
+      ? await validatedByImpact(dgraph, repo, file.path, ranges)
+      : []),
+  ];
+}
+
+async function codeImpact(
+  dgraph: DgraphClientPort,
+  repo: string,
+  changed: ChangedRange[],
+  baselineCommit: string | null,
+): Promise<CodeImpact> {
+  const result: CodeImpact = {
+    raw: [],
+    orphaned: [],
+    skipped: [],
+    withGraphData: 0,
+  };
+
+  for (const file of changed) {
+    const aligned = file.aligned === true && Boolean(baselineCommit);
+    const found = await fileImpact(dgraph, repo, file, aligned);
+
+    if (!aligned) {
+      result.skipped.push({
+        path: file.path,
+        reason: baselineCommit ? "unaligned" : "no-baseline",
+      });
+    }
+
+    if (found.length) {
+      result.withGraphData += 1;
+    }
+    result.raw.push(...found);
+
+    if (aligned && file.deleted?.length) {
+      result.orphaned.push(
+        ...(await orphanImpact(dgraph, repo, file.path, file.deleted)),
+      );
+    }
+  }
+
+  return result;
+}
+
+/** Doc-side: a changed spec couples through statement identity, not lines, so this runs regardless of the diff's coordinates. */
+async function docImpact(
+  dgraph: DgraphClientPort,
+  repo: string,
+  docs: NonNullable<ImpactOptions["docs"]>,
+) {
+  const raw: Array<ImpactStatement & { xid: string }> = [];
+  let newStatements = 0;
+  let changedWithoutTests = 0;
+
+  for (const doc of docs) {
+    const impact = await specFileImpact(dgraph, repo, doc.path, doc.content);
+
+    newStatements += impact.added;
+    changedWithoutTests += impact.changedWithoutTests;
+    raw.push(...impact.statements);
+  }
+
+  return { raw, newStatements, changedWithoutTests };
+}
+
 export async function computeImpact(
   dgraph: DgraphClientPort | null,
   repo: string,
@@ -672,77 +762,27 @@ export async function computeImpact(
       skipped: [{ path: "*", reason: "legacy-client" }],
     };
   }
-  const raw: Array<ImpactStatement & { xid: string }> = [];
-  const orphaned: OrphanStatement[] = [];
-  const skipped: { path: string; reason: SkipReason }[] = [];
   const baseline = await readGraphBaseline(dgraph, repo);
-  let withGraphData = 0;
-
-  for (const file of changed) {
-    // `baseRanges` (diff old-side) matches graph coordinates only when the file is byte-identical at both commits — what `aligned` records.
-    const aligned = file.aligned === true && Boolean(baseline.commit);
-    const lookupRanges = file.baseRanges ?? file.ranges;
-    const found = [
-      ...(await implementedByImpact(dgraph, repo, file.path, lookupRanges)),
-      ...(await testFileImpact(dgraph, repo, file.path, {
-        ranges: lookupRanges,
-        fileLevel: !aligned,
-      })),
-      // Coverage facets and orphan footprints are line-precise with no file-level fallback, so an unaligned file cannot use them.
-      ...(aligned
-        ? await validatedByImpact(dgraph, repo, file.path, lookupRanges)
-        : []),
-    ];
-
-    if (!aligned) {
-      skipped.push({
-        path: file.path,
-        reason: baseline.commit ? "unaligned" : "no-baseline",
-      });
-    }
-
-    if (found.length) {
-      withGraphData += 1;
-    }
-    raw.push(...found);
-
-    if (aligned && file.deleted?.length) {
-      orphaned.push(
-        ...(await orphanImpact(dgraph, repo, file.path, file.deleted)),
-      );
-    }
-  }
-
-  // Doc-side: a changed spec couples through statement identity, not lines, so this runs regardless of the diff's coordinates.
+  const code = await codeImpact(dgraph, repo, changed, baseline.commit);
   const docs = options.docs ?? [];
-  let newStatements = 0;
-  let changedWithoutTests = 0;
-
-  for (const doc of docs) {
-    const impact = await specFileImpact(dgraph, repo, doc.path, doc.content);
-
-    newStatements += impact.added;
-    changedWithoutTests += impact.changedWithoutTests;
-    raw.push(...impact.statements);
-  }
+  const doc = await docImpact(dgraph, repo, docs);
   // The signal a reviewer acts on: did this PR touch the tests that hold the statement up, or only the thing they were holding?
   const changedPaths = new Set(changed.map((file) => file.path));
-  const statements = mergeStatements(raw).map((stmt) => ({
+  const statements = mergeStatements([...code.raw, ...doc.raw]).map((stmt) => ({
     ...stmt,
     testsTouched: stmt.tests.some((test) => changedPaths.has(test.file)),
   }));
-  const testSelectors = [
-    ...new Set(statements.flatMap((s) => s.tests.map((t) => t.file))),
-  ];
 
   return {
     status: "ok",
     protocol: options.protocol,
-    coordinates: skipped.length ? "unverified" : "aligned",
-    ...(skipped.length ? { skipped } : {}),
+    coordinates: code.skipped.length ? "unverified" : "aligned",
+    ...(code.skipped.length ? { skipped: code.skipped } : {}),
     statements,
-    orphaned,
-    testSelectors,
+    orphaned: code.orphaned,
+    testSelectors: [
+      ...new Set(statements.flatMap((s) => s.tests.map((t) => t.file))),
+    ],
     ...(baseline.commit
       ? {
           graphCommit: baseline.commit,
@@ -751,10 +791,10 @@ export async function computeImpact(
       : {}),
     examined: {
       files: changed.length,
-      withGraphData,
+      withGraphData: code.withGraphData,
       docs: docs.length,
-      newStatements,
-      changedWithoutTests,
+      newStatements: doc.newStatements,
+      changedWithoutTests: doc.changedWithoutTests,
     },
   };
 }
