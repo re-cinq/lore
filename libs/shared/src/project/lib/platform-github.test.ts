@@ -155,6 +155,36 @@ describe("PlatformGitHub paginated reads + helpers", () => {
     ]);
   });
 
+  it("listIssues carries the issue body and omits a null one", async () => {
+    state.issuesData = [
+      {
+        number: 14,
+        title: "Broken links",
+        state: "open",
+        labels: [],
+        html_url: "https://gh/i/14",
+        created_at: "2026-08-02T09:00:00Z",
+        body: "248 links across 23 specs don't resolve.",
+      },
+      {
+        number: 15,
+        title: "Bodyless",
+        state: "open",
+        labels: [],
+        html_url: "https://gh/i/15",
+        created_at: "2026-08-02T09:00:00Z",
+        body: null,
+      },
+    ];
+    const issues = await gh().listIssues("re-cinq/lore");
+
+    expect(issues[0]).toMatchObject({
+      number: 14,
+      body: "248 links across 23 specs don't resolve.",
+    });
+    expect(issues[1]).not.toHaveProperty("body");
+  });
+
   it("listFiles returns every changed filename (paginated past one page)", async () => {
     state.files = Array.from({ length: 31 }, (_, i) => ({
       filename: `src/f${i}.ts`,

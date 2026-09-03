@@ -65,6 +65,26 @@ describe("createImplementationLoopTickHandler", () => {
     ]);
   });
 
+  it("mints the description with the issue body under the title", async () => {
+    // The DoD node quotes the ticket's central claim (#1745); a description
+    // minted from the title alone gave it a one-line ticket to define done
+    // against, and bowman-ui #11 redefined exactly such a ticket.
+    const d = deps({
+      listIssues: async () => [
+        {
+          ...issue(7, ["priority:high"]),
+          body: "248 links across 23 specs don't resolve.",
+        },
+      ],
+    });
+
+    await createImplementationLoopTickHandler(d.deps)({});
+
+    expect(d.minted[0]).toMatchObject({
+      description: "Ticket 7\n\n248 links across 23 specs don't resolve.",
+    });
+  });
+
   it("does nothing for a repo whose toggle is off", async () => {
     const d = deps({ rawSettings: async () => ({}) });
 
