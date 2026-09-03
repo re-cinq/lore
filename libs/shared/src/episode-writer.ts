@@ -22,18 +22,23 @@ export type CurationDeps = WriteEpisodeDeps;
  * Write an episode to memory.episodes. Fire-and-forget — never throws.
  * Deduplicates via content_hash.
  */
+/** One episode to record: what happened, which surface saw it, and what it is about. */
+export interface EpisodeInput {
+  content: string;
+  source: string;
+  ref: string;
+  /** Defaults to "loretask-watcher", the preserved external identity the memory.* agent_id has always been written under; renaming it means migrating existing rows. */
+  agentId?: string;
+}
+
+export interface CuratedEpisodeInput extends EpisodeInput {
+  taskId?: string;
+}
+
+// Deps FIRST: this used to default to the Floor's `memoryLifecycle()` singleton, which is exactly what stopped it being callable from anywhere else.
 export async function writeEpisode(
-  // Deps FIRST: this used to default to the Floor's `memoryLifecycle()`
-  // singleton, which is exactly what stopped it being callable from anywhere
-  // else. Two processes write episodes now, so each names its own store.
   deps: WriteEpisodeDeps,
-  content: string,
-  source: string,
-  ref: string,
-  // "loretask-watcher" is a preserved external identity (the memory.* agent_id
-  // episodes have always been written under) — kept for continuity, not stale
-  // vocabulary. Do not rename without migrating existing rows.
-  agentId: string = "loretask-watcher",
+  { content, source, ref, agentId = "loretask-watcher" }: EpisodeInput,
 ): Promise<string | null> {
   try {
     // Privacy filter: strip secrets/keys before storing in org-wide memory
@@ -58,14 +63,16 @@ export async function writeEpisode(
  */
 export async function writeEpisodeWithCuration(
   deps: CurationDeps,
-  content: string,
-  source: string,
-  ref: string,
-  agentId: string = "loretask-watcher",
-  taskId?: string,
+  {
+    taskId,
+    content,
+    source,
+    ref,
+    agentId = "loretask-watcher",
+  }: CuratedEpisodeInput,
 ): Promise<void> {
   // Write the episode first (always)
-  const episodeId = await writeEpisode(deps, content, source, ref, agentId);
+  const episodeId = await writeEpisode(deps, { content, source, ref, agentId });
 
   // Skip curation if no API key or episode was a duplicate
   if (!episodeId || !process.env.ANTHROPIC_API_KEY) {

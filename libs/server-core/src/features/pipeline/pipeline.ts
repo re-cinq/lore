@@ -53,7 +53,8 @@ export const recordEvent = (
   fromStatus: string | null,
   toStatus: string | null,
   meta?: Record<string, unknown>,
-) => recordTaskEvent(getPool(), taskId, fromStatus, toStatus, meta);
+) =>
+  recordTaskEvent(getPool(), taskId, { from: fromStatus, to: toStatus }, meta);
 export const updateTaskStatus = (
   taskId: string,
   newStatus: string,
@@ -68,16 +69,27 @@ export const markTaskMerged = (taskId: string) =>
 
 // createTask is single-sourced in shared (trust-gate + insert + recordEvent);
 // mcp keeps its positional signature and resolves the default repo via config.
-export function createTask(
-  description: string,
-  taskType: string = "general",
-  targetRepo?: string,
-  createdBy: string = "ui",
-  contextBundle?: Record<string, unknown>,
-  priority: string = "normal",
-  taskGroupId?: string,
-  contextRefs?: { fact_ids: string[]; memory_ids: string[] },
-): Promise<{
+export interface CreateTaskInput {
+  description: string;
+  taskType?: string;
+  targetRepo?: string;
+  createdBy?: string;
+  contextBundle?: Record<string, unknown>;
+  priority?: string;
+  taskGroupId?: string;
+  contextRefs?: { fact_ids: string[]; memory_ids: string[] };
+}
+
+export function createTask({
+  description,
+  taskType = "general",
+  targetRepo,
+  createdBy = "ui",
+  contextBundle,
+  priority = "normal",
+  taskGroupId,
+  contextRefs,
+}: CreateTaskInput): Promise<{
   task_id: string;
   task_type: string;
   status: string;
@@ -139,14 +151,14 @@ export async function handleReviewResult(
   }
 
   // Re-trigger implementation agent with review feedback (immediate — active feedback loop)
-  await createTask(
-    `Address review feedback on PR: ${comments.substring(0, 200)}`,
-    task.task_type as string,
-    task.target_repo ?? undefined,
-    "review-agent",
-    { branch: task.target_branch, review_comments: comments },
-    "immediate",
-  );
+  await createTask({
+    description: `Address review feedback on PR: ${comments.substring(0, 200)}`,
+    taskType: task.task_type as string,
+    targetRepo: task.target_repo ?? undefined,
+    createdBy: "review-agent",
+    contextBundle: { branch: task.target_branch, review_comments: comments },
+    priority: "immediate",
+  });
   await updateTaskStatus(taskId, "review", {
     review_result: "changes-requested",
     iteration,

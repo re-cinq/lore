@@ -153,7 +153,7 @@ describe.skipIf(!reachable)("Spec Traceability Graph", () => {
     "1. The button is keyboard reachable. ([validated by](spec/a11y_spec.rb#L3))\n";
 
   async function runUnits(repo: string): Promise<void> {
-    await projectSpecFile(repo, specPath, content, dgraphClient);
+    await projectSpecFile({ repo, filePath: specPath, content }, dgraphClient);
     await ingestCoverageReport(
       dgraphClient,
       { repo, tool: "lcov", commit: "c1" },

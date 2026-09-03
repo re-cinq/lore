@@ -71,9 +71,9 @@ describe("spec-task DAG routes", () => {
         tasks_markdown: TASKS_MD,
       });
 
-      const [, repo, slug, parsed] = vi.mocked(syncTasksToDb).mock.calls[0];
+      const [, source, parsed] = vi.mocked(syncTasksToDb).mock.calls[0];
 
-      expect([repo, slug]).toEqual(["o/r", "widgets"]);
+      expect(source).toEqual({ repo: "o/r", specSlug: "widgets" });
       expect(parsed).toHaveLength(2);
     });
 

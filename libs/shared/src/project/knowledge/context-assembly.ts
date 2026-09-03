@@ -447,8 +447,7 @@ export async function hybridChunkItems(
   pool: PgPool,
   query: string,
   repo: string,
-  contentTypes: string[],
-  limit: number,
+  { contentTypes, limit }: { contentTypes: string[]; limit: number },
 ): Promise<SourceItem[]> {
   const [embedding, schema] = await Promise.all([
     getQueryEmbedding(query),
@@ -530,13 +529,10 @@ export const fetchers: Record<string, SourceFetcher> = {
     }
 
     try {
-      const sources = await hybridChunkItems(
-        pool,
-        query,
-        repo,
-        ["doc", "spec"],
-        5,
-      );
+      const sources = await hybridChunkItems(pool, query, repo, {
+        contentTypes: ["doc", "spec"],
+        limit: 5,
+      });
 
       return { sources, status: sources.length > 0 ? "ok" : "empty" };
     } catch {
@@ -551,7 +547,10 @@ export const fetchers: Record<string, SourceFetcher> = {
     }
 
     try {
-      const sources = await hybridChunkItems(pool, query, repo, ["code"], 6);
+      const sources = await hybridChunkItems(pool, query, repo, {
+        contentTypes: ["code"],
+        limit: 6,
+      });
 
       return { sources, status: sources.length > 0 ? "ok" : "empty" };
     } catch {
@@ -566,7 +565,10 @@ export const fetchers: Record<string, SourceFetcher> = {
     }
 
     try {
-      const sources = await hybridChunkItems(pool, query, repo, ["adr"], 10);
+      const sources = await hybridChunkItems(pool, query, repo, {
+        contentTypes: ["adr"],
+        limit: 10,
+      });
 
       return { sources, status: sources.length > 0 ? "ok" : "empty" };
     } catch {
@@ -576,14 +578,10 @@ export const fetchers: Record<string, SourceFetcher> = {
 
   async memories(pool, query, _repo, agentId) {
     try {
-      const results = await searchMemories(
-        pool,
-        query,
+      const results = await searchMemories(pool, query, {
         agentId,
-        undefined,
-        10,
-        false,
-      );
+        limit: 10,
+      });
 
       if (results.length === 0) {
         return { sources: [], status: "empty" };
@@ -641,13 +639,10 @@ export const fetchers: Record<string, SourceFetcher> = {
       const sources: SourceItem[] = [];
 
       for (const word of words.slice(0, 3)) {
-        const graphResults = await queryLiveGraph(
-          pool,
-          word,
-          undefined,
+        const graphResults = await queryLiveGraph(pool, {
+          entity: word,
           repo,
-          false,
-        );
+        });
 
         addUniqueGraphLines(graphResults, seen, sources);
       }
@@ -660,14 +655,10 @@ export const fetchers: Record<string, SourceFetcher> = {
 
   async episodes(pool, query, _repo, agentId) {
     try {
-      const results = await searchMemories(
-        pool,
-        query,
+      const results = await searchMemories(pool, query, {
         agentId,
-        undefined,
-        5,
-        false,
-      );
+        limit: 5,
+      });
       const episodeResults = results.filter((r) => r.source === "episode");
 
       if (episodeResults.length === 0) {
@@ -919,13 +910,18 @@ interface SectionFit {
 }
 
 /** Budget one section's deduped items: how much it gets, what survives, why it was omitted. Pure — the caller applies the deduction. */
+/** What is left to hand out and how this section's share of it is weighted. */
+interface SectionBudget {
+  remaining: number;
+  minTokens: number;
+  nonEmptyWeight: number;
+}
+
 function fitSection(
   deduped: SourceItem[],
   status: FetchStatus,
   section: { priority: number; max_tokens?: number },
-  remaining: number,
-  minTokens: number,
-  nonEmptyWeight: number,
+  { remaining, minTokens, nonEmptyWeight }: SectionBudget,
 ): SectionFit {
   const excluded = {
     allocatedBudget: 0,
@@ -989,17 +985,30 @@ async function fetchSectionSource(
   return { sources: [], status: "error" };
 }
 
+export interface AssembleOptions {
+  templateName?: string;
+  maxTokens?: number;
+  repo?: string;
+  agentId?: string;
+  crossRepo?: boolean;
+  includeIds?: boolean;
+  debug?: boolean;
+  dgraph?: DgraphClientPort | null;
+}
+
 export async function assembleContext(
   pool: PgPool,
   query: string,
-  templateName: string = "default",
-  maxTokens?: number,
-  repo?: string,
-  agentId?: string,
-  crossRepo?: boolean,
-  includeIds?: boolean,
-  debug?: boolean,
-  dgraph?: DgraphClientPort | null,
+  {
+    templateName = "default",
+    maxTokens,
+    repo,
+    agentId,
+    crossRepo,
+    includeIds,
+    debug,
+    dgraph,
+  }: AssembleOptions = {},
 ): Promise<AssembledResult> {
   const startedAt = Date.now();
   const template = getTemplate(templateName);
@@ -1080,14 +1089,11 @@ export async function assembleContext(
     const deduped = dropSeen(dedupeItems(res.sources), seenAcrossSections);
     const rawTokens = deduped.reduce((sum, i) => sum + i.tokens, 0);
 
-    const fit = fitSection(
-      deduped,
-      res.status,
-      section,
+    const fit = fitSection(deduped, res.status, section, {
       remaining,
       minTokens,
       nonEmptyWeight,
-    );
+    });
 
     if (fit.included) {
       remaining -= fit.finalTokens;
@@ -1120,14 +1126,10 @@ export async function assembleContext(
   // Collect context refs for outcome feedback
   if (includeIds) {
     try {
-      const results = await searchMemories(
-        pool,
-        query,
+      const results = await searchMemories(pool, query, {
         agentId,
-        undefined,
-        20,
-        false,
-      );
+        limit: 20,
+      });
 
       collectContextRefIds(results, collectedMemoryIds, collectedFactIds);
     } catch {

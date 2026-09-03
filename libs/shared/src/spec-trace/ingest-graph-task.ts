@@ -1,6 +1,8 @@
 /** ingest-graph-task — deterministic, zero-LLM core turning specs/ADRs/tests into the spec-traceability graph; idempotent via content_hash (unchanged files tally as `skipped`). */
 
 import { parse as parseYaml } from "yaml";
+import type { SourceDocument } from "./project-blocks.js";
+import type { ProjectionOptions } from "./project-spec-file.js";
 import type { DgraphClientPort } from "./deps.js";
 import { projectSpecFile } from "./project-spec-file.js";
 import { projectAdrFile } from "./project-adr-file.js";
@@ -69,12 +71,9 @@ export interface IngestGraphPorts {
 export interface IngestKindDef {
   prefixes: string[];
   project(
-    repo: string,
-    filePath: string,
-    content: string,
+    doc: SourceDocument,
     dgraph: DgraphClientPort,
-    embed?: (text: string) => Promise<number[] | null>,
-    force?: boolean,
+    options?: ProjectionOptions,
   ): Promise<{ projected: boolean }>;
   runsOn: "runner+local" | "local-only";
   /** Whole-file pruning: how to list this kind's graph docs + delete one subtree. Absent = disappeared files are never pruned. */
@@ -142,12 +141,17 @@ export function chunkGlobsForKind(
 }
 
 /** Files of `kind` in the tree, optionally narrowed by `glob`; `patterns` (from `.lore/ingest.yml`) REPLACES the built-in prefix/`.md` defaults when given. */
+/** How an ingest narrows the tree: `glob` is a substring filter, `patterns` (from `.lore/ingest.yml`) REPLACE the kind's built-in prefix/`.md` defaults. */
+export interface IngestScope {
+  glob?: string;
+  patterns?: string[];
+}
+
 export function selectIngestFiles(
   tree: string[],
   kind: IngestKind,
-  glob?: string,
+  { glob, patterns }: IngestScope = {},
   registry: Record<string, IngestKindDef> = INGEST_KINDS,
-  patterns?: string[],
 ): string[] {
   if (patterns && patterns.length > 0) {
     return tree.filter(
@@ -170,13 +174,17 @@ export function selectIngestFiles(
 }
 
 /** Builds the run summary. `failed` only fails the task when EVERY attempted file failed; a partial failure stays `completed`. */
+export interface IngestCounts {
+  attempted: number;
+  projected: number;
+  skipped: number;
+  failedFiles: string[];
+  pruned?: number;
+}
+
 export function summarizeIngest(
   kind: IngestKind,
-  attempted: number,
-  projected: number,
-  skipped: number,
-  failedFiles: string[],
-  pruned?: number,
+  { attempted, projected, skipped, failedFiles, pruned }: IngestCounts,
 ): IngestGraphSummary {
   const failed = failedFiles.length;
   const allAttemptedFailed = projected === 0 && skipped === 0 && failed > 0;
@@ -267,9 +275,8 @@ export async function runIngestGraph(
   const files = selectIngestFiles(
     await ports.listTree(params.ref),
     params.kind,
-    params.glob,
+    { glob: params.glob, patterns },
     registry,
-    patterns,
   );
   // SEQUENTIAL on purpose: every file's projection upserts the shared Repo node, so an unbounded Promise.all causes Dgraph transaction conflicts at scale (a 100+-spec repo failed most files on the first pass).
   let projected = 0;
@@ -280,12 +287,9 @@ export async function runIngestGraph(
     try {
       const content = await ports.readFile(filePath, params.ref);
       const result = await def.project(
-        params.repo,
-        filePath,
-        content,
+        { repo: params.repo, filePath, content },
         ports.dgraph,
-        ports.embed,
-        params.force,
+        { embed: ports.embed, force: params.force },
       );
 
       if (result.projected) {
@@ -313,14 +317,13 @@ export async function runIngestGraph(
       projected === 0 && skipped === 0 && failedFiles.length > 0,
   });
 
-  return summarizeIngest(
-    params.kind,
-    files.length,
+  return summarizeIngest(params.kind, {
+    attempted: files.length,
     projected,
     skipped,
     failedFiles,
     pruned,
-  );
+  });
 }
 
 /** Deletes subtrees of graph docs whose files left the tree; skips on no prune seam/empty/suspicious selection/all-failed run/doc-list read error. INVARIANT: must run at the repo's default-branch HEAD (graph is branch-agnostic) — `lore-ingest.yml` enforces `branches: [main]`. */
@@ -348,8 +351,12 @@ async function pruneDisappearedDocs(
   try {
     const graphDocPaths = await def.prune.listDocPaths(dgraph, params.repo);
     const isInScope = (path: string) =>
-      selectIngestFiles([path], params.kind, params.glob, registry, patterns)
-        .length === 1;
+      selectIngestFiles(
+        [path],
+        params.kind,
+        { glob: params.glob, patterns },
+        registry,
+      ).length === 1;
 
     const selection = selectPruneCandidates(
       graphDocPaths,

@@ -111,13 +111,13 @@ beforeEach(() => {
 
 describe("handleOnboard", () => {
   it("commits the ingest workflow even when the repo already has a .github directory", async () => {
-    await handleOnboard(
-      { id: "task-1" } as unknown as PipelineTask,
-      "re-cinq/app",
-      "lore/onboard",
-      undefined,
-      null,
-    );
+    await handleOnboard({
+      task: { id: "task-1" } as unknown as PipelineTask,
+      targetRepo: "re-cinq/app",
+      branchName: "lore/onboard",
+      model: undefined,
+      issueNumber: null,
+    });
 
     expect(fakeRepo.commitFile).toHaveBeenCalledWith(
       "lore/onboard",
@@ -128,19 +128,19 @@ describe("handleOnboard", () => {
   });
 
   it("opens the PR after creating the branch and committing the workflow", async () => {
-    await handleOnboard(
-      { id: "task-1" } as unknown as PipelineTask,
-      "re-cinq/app",
-      "lore/onboard",
-      undefined,
-      null,
-    );
+    await handleOnboard({
+      task: { id: "task-1" } as unknown as PipelineTask,
+      targetRepo: "re-cinq/app",
+      branchName: "lore/onboard",
+      model: undefined,
+      issueNumber: null,
+    });
 
     expect(fakeRepo.createBranch).toHaveBeenCalledWith("lore/onboard");
     expect(fakePulls.open).toHaveBeenCalledTimes(1);
-    expect(fakePulls.open.mock.calls[0][2] as string).not.toContain(
-      "Needs attention",
-    );
+    expect(
+      (fakePulls.open.mock.calls[0][1] as { body: string }).body,
+    ).not.toContain("Needs attention");
     const workflowCall =
       fakeRepo.commitFile.mock.invocationCallOrder[
         fakeRepo.commitFile.mock.calls.findIndex(
@@ -172,16 +172,16 @@ describe("handleOnboard", () => {
   it("opens the PR with a needs-attention section listing files that could not be committed", async () => {
     rejectWorkflowCommits();
 
-    await handleOnboard(
-      { id: "task-1" } as unknown as PipelineTask,
-      "re-cinq/app",
-      "lore/onboard",
-      undefined,
-      null,
-    );
+    await handleOnboard({
+      task: { id: "task-1" } as unknown as PipelineTask,
+      targetRepo: "re-cinq/app",
+      branchName: "lore/onboard",
+      model: undefined,
+      issueNumber: null,
+    });
 
     expect(fakePulls.open).toHaveBeenCalledTimes(1);
-    const body = fakePulls.open.mock.calls[0][2] as string;
+    const body = (fakePulls.open.mock.calls[0][1] as { body: string }).body;
 
     expect(body).toContain("could not be committed");
     expect(body).toContain(LORE_INGEST_WORKFLOW_PATH);
@@ -191,15 +191,15 @@ describe("handleOnboard", () => {
   it("names the missing Workflows App permission when a workflows-path commit is rejected", async () => {
     rejectWorkflowCommits();
 
-    await handleOnboard(
-      { id: "task-1" } as unknown as PipelineTask,
-      "re-cinq/app",
-      "lore/onboard",
-      undefined,
-      null,
-    );
+    await handleOnboard({
+      task: { id: "task-1" } as unknown as PipelineTask,
+      targetRepo: "re-cinq/app",
+      branchName: "lore/onboard",
+      model: undefined,
+      issueNumber: null,
+    });
 
-    const body = fakePulls.open.mock.calls[0][2] as string;
+    const body = (fakePulls.open.mock.calls[0][1] as { body: string }).body;
 
     expect(body).toContain("'Workflows: Read & write' permission");
   });
@@ -216,28 +216,28 @@ describe("handleOnboard", () => {
       }
     });
 
-    await handleOnboard(
-      { id: "task-1" } as unknown as PipelineTask,
-      "re-cinq/app",
-      "lore/onboard",
-      undefined,
-      null,
-    );
+    await handleOnboard({
+      task: { id: "task-1" } as unknown as PipelineTask,
+      targetRepo: "re-cinq/app",
+      branchName: "lore/onboard",
+      model: undefined,
+      issueNumber: null,
+    });
 
-    const body = fakePulls.open.mock.calls[0][2] as string;
+    const body = (fakePulls.open.mock.calls[0][1] as { body: string }).body;
 
     expect(body).toContain('"sha" wasn\'t supplied');
     expect(body).not.toContain("'Workflows: Read & write' permission");
   });
 
   it("configures the ingest variable and secret before opening the PR", async () => {
-    await handleOnboard(
-      { id: "task-1" } as unknown as PipelineTask,
-      "re-cinq/app",
-      "lore/onboard",
-      undefined,
-      null,
-    );
+    await handleOnboard({
+      task: { id: "task-1" } as unknown as PipelineTask,
+      targetRepo: "re-cinq/app",
+      branchName: "lore/onboard",
+      model: undefined,
+      issueNumber: null,
+    });
 
     expect(fakeSettings.setRepoVariable).toHaveBeenCalledWith(
       "LORE_INGEST_URL",
@@ -259,17 +259,17 @@ describe("handleOnboard", () => {
     delete process.env.LORE_INGEST_URL;
     delete process.env.LORE_INGEST_TOKEN;
 
-    await handleOnboard(
-      { id: "task-1" } as unknown as PipelineTask,
-      "re-cinq/app",
-      "lore/onboard",
-      undefined,
-      null,
-    );
+    await handleOnboard({
+      task: { id: "task-1" } as unknown as PipelineTask,
+      targetRepo: "re-cinq/app",
+      branchName: "lore/onboard",
+      model: undefined,
+      issueNumber: null,
+    });
 
     expect(fakeSettings.setRepoVariable).not.toHaveBeenCalled();
     expect(fakeSettings.setRepoSecret).not.toHaveBeenCalled();
-    const body = fakePulls.open.mock.calls[0][2] as string;
+    const body = (fakePulls.open.mock.calls[0][1] as { body: string }).body;
 
     expect(body).toContain("LORE_INGEST_URL");
     expect(body).toContain("LORE_INGEST_TOKEN");
@@ -282,15 +282,15 @@ describe("handleOnboard", () => {
       }),
     );
 
-    await handleOnboard(
-      { id: "task-1" } as unknown as PipelineTask,
-      "re-cinq/app",
-      "lore/onboard",
-      undefined,
-      null,
-    );
+    await handleOnboard({
+      task: { id: "task-1" } as unknown as PipelineTask,
+      targetRepo: "re-cinq/app",
+      branchName: "lore/onboard",
+      model: undefined,
+      issueNumber: null,
+    });
 
-    const body = fakePulls.open.mock.calls[0][2] as string;
+    const body = (fakePulls.open.mock.calls[0][1] as { body: string }).body;
 
     expect(body).toContain("LORE_INGEST_TOKEN");
     expect(body).toContain("Resource not accessible by integration");
@@ -299,13 +299,13 @@ describe("handleOnboard", () => {
   it("records failed onboarding files in the audit log as onboard_files_failed", async () => {
     rejectWorkflowCommits();
 
-    await handleOnboard(
-      { id: "task-1" } as unknown as PipelineTask,
-      "re-cinq/app",
-      "lore/onboard",
-      undefined,
-      null,
-    );
+    await handleOnboard({
+      task: { id: "task-1" } as unknown as PipelineTask,
+      targetRepo: "re-cinq/app",
+      branchName: "lore/onboard",
+      model: undefined,
+      issueNumber: null,
+    });
 
     expect(writeAuditLog).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -324,13 +324,13 @@ describe("handleOnboard", () => {
 
 describe("handleOnboard backlog label seeding", () => {
   it("seeds the priority taxonomy and lore:blocked alongside the dispatch labels", async () => {
-    await handleOnboard(
-      { id: "task-1" } as unknown as PipelineTask,
-      "re-cinq/app",
-      "lore/onboard",
-      undefined,
-      null,
-    );
+    await handleOnboard({
+      task: { id: "task-1" } as unknown as PipelineTask,
+      targetRepo: "re-cinq/app",
+      branchName: "lore/onboard",
+      model: undefined,
+      issueNumber: null,
+    });
 
     const seeded = fakeIssues.createLabels.mock.calls.flat(2) as Array<{
       name: string;

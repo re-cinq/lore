@@ -443,12 +443,18 @@ function registerResponse(
   return { meta, ref: { $ref: `#/components/schemas/${meta.name}` } };
 }
 
+/** The accumulators one document build threads through every route. */
+interface DocumentBuild {
+  coverage: Coverage;
+  schemas: Record<string, JsonSchema>;
+  paths: Record<string, Record<string, Operation>>;
+}
+
 function buildOperation(
   route: ServerRoute,
   method: string,
   normPath: string,
-  coverage: Coverage,
-  schemas: Record<string, JsonSchema>,
+  { coverage, schemas }: DocumentBuild,
 ): Operation {
   const { params, hasOptional } = pathParameters(route.path);
   const publicOp = isPublic(route);
@@ -537,20 +543,12 @@ function applyRequestBody(
 function addRouteOperations(
   route: ServerRoute,
   normPath: string,
-  coverage: Coverage,
-  schemas: Record<string, JsonSchema>,
-  paths: Record<string, Record<string, Operation>>,
+  build: DocumentBuild,
 ): void {
   for (const method of methodsOf(route)) {
-    const operation = buildOperation(
-      route,
-      method,
-      normPath,
-      coverage,
-      schemas,
-    );
+    const operation = buildOperation(route, method, normPath, build);
 
-    (paths[normPath] ??= {})[method.toLowerCase()] = operation;
+    (build.paths[normPath] ??= {})[method.toLowerCase()] = operation;
   }
 }
 
@@ -585,7 +583,7 @@ export function generateOpenApi(
     }
     const normPath = normalizePath(route.path);
 
-    addRouteOperations(route, normPath, coverage, schemas, paths);
+    addRouteOperations(route, normPath, { coverage, schemas, paths });
   }
 
   const usedTags = new Set<string>(

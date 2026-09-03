@@ -117,9 +117,9 @@ const defaultDeps = (): IngestDeltaDeps => {
   return {
     dgraph,
     projectSpec: (repo, path, content) =>
-      projectSpecFile(repo, path, content, must()),
+      projectSpecFile({ repo, filePath: path, content }, must()),
     projectAdr: (repo, path, content) =>
-      projectAdrFile(repo, path, content, must()),
+      projectAdrFile({ repo, filePath: path, content }, must()),
     deleteSpec: (repo, path) => deleteSpecSubtree(must(), repo, path),
     deleteAdr: (repo, path) => deleteAdrSubtree(must(), repo, path),
     ingestReport: (repo, payload) =>

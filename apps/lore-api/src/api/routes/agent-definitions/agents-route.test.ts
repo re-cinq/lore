@@ -71,8 +71,13 @@ describe("routes — agents", () => {
     url: string,
     method: "GET" | "POST" | "PUT" | "DELETE",
     body?: unknown,
-    headers: Record<string, string> = {},
-    pool = makePool(),
+    {
+      headers = {},
+      pool = makePool(),
+    }: {
+      headers?: Record<string, string>;
+      pool?: ReturnType<typeof makePool>;
+    } = {},
   ) {
     pool.query.mockResolvedValue({});
     const payload = body === undefined ? undefined : JSON.stringify(body);
@@ -174,7 +179,7 @@ describe("routes — agents", () => {
         BASE,
         "POST",
         { name: "custom", image: "golang:1.23" },
-        { "x-lore-approval-pr": "#5" },
+        { headers: { "x-lore-approval-pr": "#5" } },
       );
 
       expect(res.result).toMatchObject({
@@ -192,7 +197,7 @@ describe("routes — agents", () => {
         BASE,
         "POST",
         { name: "custom", image: "golang:1.23" },
-        { "x-lore-approval-pr": "#5" },
+        { headers: { "x-lore-approval-pr": "#5" } },
       );
 
       expect(res.result).toMatchObject({

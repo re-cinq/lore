@@ -1,3 +1,4 @@
+import type { PullDraft } from "./pull-requests-port.js";
 import type {
   PullRequestsPort,
   PullRef,
@@ -60,15 +61,8 @@ export class PullRequests {
     return this.pulls.merge(this.repo, number, method);
   }
 
-  open(
-    branch: string,
-    title: string,
-    body: string,
-    base?: string,
-    labels?: string[],
-    draft?: boolean,
-  ): Promise<PullRef> {
-    return this.pulls.open(this.repo, branch, title, body, base, labels, draft);
+  open(branch: string, pr: PullDraft): Promise<PullRef> {
+    return this.pulls.open(this.repo, branch, pr);
   }
 
   update(

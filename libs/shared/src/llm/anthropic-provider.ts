@@ -1,4 +1,5 @@
 import { enforceTrue } from "../lib/enforce.js";
+import type { LlmCallOutcome } from "./call-outcome.js";
 /**
  * Anthropic provider — the proven `callLLM`/`callLLMWithTool` logic (relocated
  * from agent/src/platform/anthropic.ts) wrapped behind {@link LlmProvider}.
@@ -114,12 +115,21 @@ function formatBreakLogTag(a: CacheBreakAnalysis): string {
   }
 }
 
+export interface TokenUsage {
+  inputTokens: number;
+  outputTokens: number;
+  cacheCreationTokens: number;
+  cacheReadTokens: number;
+}
+
 export function computeCost(
   model: string,
-  inputTokens: number,
-  outputTokens: number,
-  cacheCreationTokens: number,
-  cacheReadTokens: number,
+  {
+    inputTokens,
+    outputTokens,
+    cacheCreationTokens,
+    cacheReadTokens,
+  }: TokenUsage,
 ): number {
   const pricing = pricingFor(model);
 
@@ -148,10 +158,7 @@ export class AnthropicProvider implements LlmProvider {
   private async logCall(
     req: { taskId?: string; jobName?: string },
     model: string,
-    inputTokens: number,
-    outputTokens: number,
-    costUsd: number,
-    durationMs: number,
+    { inputTokens, outputTokens, costUsd, durationMs }: LlmCallOutcome,
   ): Promise<void> {
     if (!this.opts.usage) {
       return;
@@ -229,13 +236,12 @@ export class AnthropicProvider implements LlmProvider {
       const cacheCreationTokens =
         response.usage.cache_creation_input_tokens ?? 0;
       const cacheReadTokens = response.usage.cache_read_input_tokens ?? 0;
-      const costUsd = computeCost(
-        model,
+      const costUsd = computeCost(model, {
         inputTokens,
         outputTokens,
         cacheCreationTokens,
         cacheReadTokens,
-      );
+      });
       const breakAnalysis = analyzeCacheBreak(
         req.jobName,
         prefixHash,
@@ -243,14 +249,12 @@ export class AnthropicProvider implements LlmProvider {
         cacheReadTokens,
       );
 
-      await this.logCall(
-        req,
-        model,
+      await this.logCall(req, model, {
         inputTokens,
         outputTokens,
         costUsd,
         durationMs,
-      );
+      });
       console.log(
         `[llm] call: ${model} ${inputTokens}+${outputTokens} tokens (cache ${formatBreakLogTag(breakAnalysis)} w/r ${cacheCreationTokens}/${cacheReadTokens}) $${costUsd.toFixed(4)} ${durationMs}ms`,
       );
@@ -324,13 +328,12 @@ export class AnthropicProvider implements LlmProvider {
       const cacheCreationTokens =
         response.usage.cache_creation_input_tokens ?? 0;
       const cacheReadTokens = response.usage.cache_read_input_tokens ?? 0;
-      const costUsd = computeCost(
-        model,
+      const costUsd = computeCost(model, {
         inputTokens,
         outputTokens,
         cacheCreationTokens,
         cacheReadTokens,
-      );
+      });
       const breakAnalysis = analyzeCacheBreak(
         req.jobName,
         prefixHash,
@@ -338,14 +341,12 @@ export class AnthropicProvider implements LlmProvider {
         cacheReadTokens,
       );
 
-      await this.logCall(
-        req,
-        model,
+      await this.logCall(req, model, {
         inputTokens,
         outputTokens,
         costUsd,
         durationMs,
-      );
+      });
       console.log(
         `[llm] tool call: ${model} ${inputTokens}+${outputTokens} tokens (cache ${formatBreakLogTag(breakAnalysis)} w/r ${cacheCreationTokens}/${cacheReadTokens}) $${costUsd.toFixed(4)} ${durationMs}ms`,
       );

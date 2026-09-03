@@ -181,14 +181,14 @@ export function memoryRoute(getPool: () => Pool | null): ServerRoute {
         switch (body.action) {
           case "write": {
             const written = isMemoryDbAvailable()
-              ? await writeMemory(
-                  body.key,
-                  body.value,
-                  body.agent_id,
-                  body.ttl,
-                  embedding || undefined,
-                  body.repo,
-                )
+              ? await writeMemory({
+                  key: body.key,
+                  value: body.value,
+                  agentId: body.agent_id,
+                  ttl: body.ttl,
+                  embedding: embedding || undefined,
+                  repo: body.repo,
+                })
               : writeMemoryFile(body.key, body.value, body.agent_id, body.ttl);
 
             // Fire-and-forget: the caller is waiting on the write, not on the facts.
@@ -223,15 +223,13 @@ export function memoryRoute(getPool: () => Pool | null): ServerRoute {
           case "search":
             return h.response(
               isMemoryDbAvailable()
-                ? await searchMemories(
-                    pool!,
-                    body.query,
-                    body.agent_id,
-                    body.pool_name,
-                    body.limit || 10,
-                    body.include_invalidated,
-                    body.graph_augment,
-                  )
+                ? await searchMemories(pool!, body.query, {
+                    agentId: body.agent_id,
+                    poolName: body.pool_name,
+                    limit: body.limit || 10,
+                    includeInvalidated: body.include_invalidated,
+                    graphAugment: body.graph_augment,
+                  })
                 : searchMemoryFile(body.query, body.agent_id, body.limit || 10),
             );
           case "delete":

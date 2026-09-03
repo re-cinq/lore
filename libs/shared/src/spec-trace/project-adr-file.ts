@@ -12,6 +12,8 @@
  */
 
 import { createHash } from "node:crypto";
+import type { SourceDocument } from "./project-blocks.js";
+import type { ProjectionOptions } from "./project-spec-file.js";
 import type { DgraphClientPort } from "./deps.js";
 import {
   projectDocumentBlocks,
@@ -39,15 +41,11 @@ async function readAdrContentHash(
   });
 }
 
+// ADRs are not embedded, so `embed` in the options is ignored; the shape matches IngestKindDef.project alongside projectSpecFile.
 export async function projectAdrFile(
-  repo: string,
-  filePath: string,
-  content: string,
+  { repo, filePath, content }: SourceDocument,
   dgraph: DgraphClientPort,
-  // `_embed` is unused (ADRs are not embedded) — present only so projectAdrFile
-  // matches the IngestKindDef.project shape `(…, embed?, force?)` alongside projectSpecFile.
-  _embed?: (text: string) => Promise<number[] | null>,
-  force = false,
+  { force = false }: ProjectionOptions = {},
 ): Promise<{ projected: boolean }> {
   const contentHash = sha256(content);
   const xid = `${repo}|${filePath}`;
@@ -69,12 +67,11 @@ export async function projectAdrFile(
   await deletePredicate(dgraph, adrUid, "ADR.content_hash");
 
   await upsertByXid(dgraph, "Repo", repo, { "Repo.adrs": [{ uid: adrUid }] });
-  const validXids = await projectDocumentBlocks(
-    dgraph,
+  const validXids = await projectDocumentBlocks(dgraph, {
     repo,
     filePath,
     content,
-  );
+  });
 
   await pruneOrphanBlocksByFile(dgraph, repo, filePath, validXids);
 

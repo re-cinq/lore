@@ -127,18 +127,15 @@ export function contextRoute(getPool: () => Pool | null): ServerRoute {
           repo || undefined,
           crossRepoRequested,
         );
-        const result = await assembleContext(
-          pool,
-          query,
-          template,
+        const result = await assembleContext(pool, query, {
+          templateName: template,
           maxTokens,
-          repo || undefined,
+          repo: repo || undefined,
           agentId,
           crossRepo,
-          undefined,
           debug,
           dgraph,
-        );
+        });
 
         return h.response({
           text: result.text || null,

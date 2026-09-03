@@ -131,25 +131,41 @@ describe("containedVelocity", () => {
 
   it("leaves the velocity of a node inside the radius unchanged", () => {
     expect(
-      containedVelocity({ x: 10, y: 0 }, { vx: 5, vy: 0 }, center, 100),
+      containedVelocity(
+        { x: 10, y: 0 },
+        { vx: 5, vy: 0 },
+        { center, radius: 100 },
+      ),
     ).toEqual({ vx: 5, vy: 0 });
   });
 
   it("zeroes a denormal-tiny velocity to avoid float jitter", () => {
     expect(
-      containedVelocity({ x: 10, y: 0 }, { vx: 1e-9, vy: -1e-9 }, center, 100),
+      containedVelocity(
+        { x: 10, y: 0 },
+        { vx: 1e-9, vy: -1e-9 },
+        { center, radius: 100 },
+      ),
     ).toEqual({ vx: 0, vy: 0 });
   });
 
   it("cancels the outward velocity of a node past the border (it cannot move further out)", () => {
     expect(
-      containedVelocity({ x: 110, y: 0 }, { vx: 5, vy: 0 }, center, 100).vx,
+      containedVelocity(
+        { x: 110, y: 0 },
+        { vx: 5, vy: 0 },
+        { center, radius: 100 },
+      ).vx,
     ).toBeLessThanOrEqual(0);
   });
 
   it("keeps an already-inward velocity heading inward when past the border", () => {
     expect(
-      containedVelocity({ x: 110, y: 0 }, { vx: -5, vy: 0 }, center, 100).vx,
+      containedVelocity(
+        { x: 110, y: 0 },
+        { vx: -5, vy: 0 },
+        { center, radius: 100 },
+      ).vx,
     ).toBeLessThan(0);
   });
 
@@ -157,14 +173,12 @@ describe("containedVelocity", () => {
     const near = containedVelocity(
       { x: 110, y: 0 },
       { vx: 0, vy: 10 },
-      center,
-      100,
+      { center, radius: 100 },
     );
     const far = containedVelocity(
       { x: 600, y: 0 },
       { vx: 0, vy: 10 },
-      center,
-      100,
+      { center, radius: 100 },
     );
 
     expect(speed(far)).toBeLessThan(speed(near));

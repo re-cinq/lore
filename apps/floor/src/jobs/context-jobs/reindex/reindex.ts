@@ -148,10 +148,15 @@ async function getTree(fullName: string): Promise<string[]> {
  * them would wedge the sweep's capped query on the same files every night.
  * Per-file failures are logged and skipped; returns files healed. Unit-tested
  * with the in-memory chunks double in reindex-heal.test.ts. */
+/** The repo a sweep walks and the team schema its chunks live in. */
+export interface IndexedRepo {
+  schema: string;
+  repo: string;
+}
+
 export async function healStaleChunkerFiles(
   port: Pick<ChunksPort, "staleChunkerFiles" | "deleteChunksForFile">,
-  schema: string,
-  repo: string,
+  { schema, repo }: IndexedRepo,
   alreadyProcessed: Set<string>,
   ingest: (filePath: string) => Promise<boolean>,
 ): Promise<number> {
@@ -206,10 +211,11 @@ export async function healStaleChunkerFiles(
  * the in-memory chunks double in reindex-backfill.test.ts. */
 export async function backfillUningestedFiles(
   port: Pick<ChunksPort, "chunkedFilePaths">,
-  schema: string,
-  repo: string,
-  treePaths: string[],
-  alreadyProcessed: Set<string>,
+  { schema, repo }: IndexedRepo,
+  {
+    treePaths,
+    alreadyProcessed,
+  }: { treePaths: string[]; alreadyProcessed: Set<string> },
   ingest: (filePath: string) => Promise<boolean>,
 ): Promise<number> {
   const chunked = new Set(await port.chunkedFilePaths(schema, repo));
@@ -396,8 +402,7 @@ export async function reindexJob(): Promise<string> {
       try {
         repoFileCount += await healStaleChunkerFiles(
           chunks(),
-          schema,
-          repo.full_name,
+          { schema, repo: repo.full_name },
           new Set(filePaths),
           (filePath) => ingestFile(filePath, repo.full_name, schema),
         );
@@ -453,10 +458,8 @@ export async function reindexJob(): Promise<string> {
         treePaths ??= await getTree(repo.full_name);
         repoFileCount += await backfillUningestedFiles(
           chunks(),
-          schema,
-          repo.full_name,
-          treePaths,
-          new Set(filePaths),
+          { schema, repo: repo.full_name },
+          { treePaths, alreadyProcessed: new Set(filePaths) },
           (filePath) => ingestFile(filePath, repo.full_name, schema),
         );
       } catch (err) {

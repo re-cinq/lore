@@ -50,13 +50,10 @@ export default function AdrListView({
     );
   }
   const statusOf = (adr: AdrSummary) => statuses[adr.filePath];
-  const { counts, visible } = filterDocCards(
-    adrs,
-    statusOf,
-    filter,
+  const { counts, visible } = filterDocCards(adrs, statusOf, filter, {
     query,
-    (adr) => `${adr.title} ${adr.description} ${adr.filePath}`,
-  );
+    textOf: (adr) => `${adr.title} ${adr.description} ${adr.filePath}`,
+  });
   const ordered = sortDocCards(visible, order, statusOf);
 
   return (

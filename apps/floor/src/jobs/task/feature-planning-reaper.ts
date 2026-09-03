@@ -66,13 +66,10 @@ export async function featurePlanningReaperJob(): Promise<string> {
       const lostRound = lostArtifactRound(latest, latestRun, feature.status);
       const recoveredFromTranscript =
         lostRound !== null &&
-        (await recoverLostRound(
-          project,
-          feature.id,
-          lostRound,
-          latestRun?.graph ?? null,
-          runOpen,
-        ));
+        (await recoverLostRound(project, feature.id, lostRound, {
+          graph: latestRun?.graph ?? null,
+          open: runOpen,
+        }));
 
       if (recoveredFromTranscript) {
         recovered++;
@@ -134,25 +131,21 @@ async function recoverLostRound(
   project: Project,
   featureId: string,
   lostRound: NonNullable<ReturnType<typeof lostArtifactRound>>,
-  runGraph: Parameters<typeof decideArtifactRecovery>[1],
-  runOpen: boolean,
+  run: { graph: Parameters<typeof decideArtifactRecovery>[1]; open: boolean },
 ): Promise<boolean> {
   const stationRuns = await pipeline().assemblyRuns.listStationRuns(
     lostRound.runId,
   );
-  const decision = decideArtifactRecovery(stationRuns, runGraph, runOpen);
+  const decision = decideArtifactRecovery(stationRuns, run.graph, run.open);
 
   if (decision.kind !== "recover") {
     return false;
   }
 
-  return recoverArtifact(
-    project,
-    featureId,
-    lostRound.round,
-    lostRound.runId,
-    decision.agentCrName,
-  );
+  return recoverArtifact(project, featureId, lostRound.round, {
+    runId: lostRound.runId,
+    agentCrName: decision.agentCrName,
+  });
 }
 
 /** isActive probes the agent-cr backend this repo's round ran on — the legacy path for rounds that predate assembly-run execution. */
@@ -200,8 +193,7 @@ async function recoverArtifact(
   project: Project,
   featureId: string,
   latest: { iteration: number },
-  runId: string,
-  agentCrName: string | null,
+  { runId, agentCrName }: { runId: string; agentCrName: string | null },
 ): Promise<boolean> {
   const envelopes: unknown[] = [];
   let cursor = "0";

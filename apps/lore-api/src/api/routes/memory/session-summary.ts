@@ -89,9 +89,11 @@ export function sessionSummaryRoute(getPool: () => Pool | null): ServerRoute {
           extractAndUpdateGraph(
             pool,
             content,
-            repo || null,
-            rows[0].id,
-            null,
+            {
+              repo: repo || null,
+              sourceEpisodeId: rows[0].id,
+              sourceMemoryId: null,
+            },
             gLlm,
           ).catch(() => {});
         }

@@ -199,11 +199,15 @@ type OnboardWrite = { repoId: string; taskId: string } | OnboardBlockedResult;
  * task committed on its own connection could outlive a rolled-back repos row
  * and then block every retry as "in flight".
  */
+interface RepoIdentity {
+  fullName: string;
+  owner: string;
+  name: string;
+}
+
 async function writeOnboard(
   client: PoolClient,
-  fullName: string,
-  owner: string,
-  name: string,
+  { fullName, owner, name }: RepoIdentity,
   options: { reonboard?: boolean },
 ): Promise<OnboardWrite> {
   await client.query("BEGIN");
@@ -300,7 +304,7 @@ export async function onboardRepo(
   let written: OnboardWrite;
 
   try {
-    written = await writeOnboard(client, fullName, owner, name, options);
+    written = await writeOnboard(client, { fullName, owner, name }, options);
   } catch (err) {
     await client.query("ROLLBACK").catch(() => undefined);
     throw err;
@@ -548,12 +552,12 @@ export async function checkOnboardingPRs(pool: Pool): Promise<void> {
         const { createTask } =
           await import("@re-cinq/lore-server-core/features/pipeline/pipeline.js");
 
-        await createTask(
-          `Initial ingestion for ${repo.full_name}: read CLAUDE.md, ADRs, runbooks, code structure`,
-          "general",
-          repo.full_name,
-          "onboard-ingest",
-        );
+        await createTask({
+          description: `Initial ingestion for ${repo.full_name}: read CLAUDE.md, ADRs, runbooks, code structure`,
+          taskType: "general",
+          targetRepo: repo.full_name,
+          createdBy: "onboard-ingest",
+        });
         console.log(
           `[repo-onboard] Onboarding PR merged for ${repo.full_name}, ingestion triggered`,
         );

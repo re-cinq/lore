@@ -32,17 +32,18 @@ describe("backfillUningestedFiles", () => {
 
     const backfilled = await backfillUningestedFiles(
       chunks,
-      SCHEMA,
-      REPO,
-      [
-        "src/never.test.ts",
-        "src/chunked.ts",
-        "src/api-owned.ts",
-        "assets/logo.png",
-        "graveyard/dead.ts",
-        "src/also-never.ts",
-      ],
-      new Set(),
+      { schema: SCHEMA, repo: REPO },
+      {
+        treePaths: [
+          "src/never.test.ts",
+          "src/chunked.ts",
+          "src/api-owned.ts",
+          "assets/logo.png",
+          "graveyard/dead.ts",
+          "src/also-never.ts",
+        ],
+        alreadyProcessed: new Set(),
+      },
       async (filePath) => {
         ingested.push(filePath);
 
@@ -60,10 +61,11 @@ describe("backfillUningestedFiles", () => {
 
     const backfilled = await backfillUningestedFiles(
       chunks,
-      SCHEMA,
-      REPO,
-      ["src/just-ingested.ts"],
-      new Set(["src/just-ingested.ts"]),
+      { schema: SCHEMA, repo: REPO },
+      {
+        treePaths: ["src/just-ingested.ts"],
+        alreadyProcessed: new Set(["src/just-ingested.ts"]),
+      },
       async (filePath) => {
         ingested.push(filePath);
 
@@ -85,10 +87,11 @@ describe("backfillUningestedFiles", () => {
 
     const backfilled = await backfillUningestedFiles(
       chunks,
-      SCHEMA,
-      REPO,
-      [...tree].reverse(),
-      new Set(),
+      { schema: SCHEMA, repo: REPO },
+      {
+        treePaths: [...tree].reverse(),
+        alreadyProcessed: new Set(),
+      },
       async (filePath) => {
         ingested.push(filePath);
 
@@ -105,10 +108,11 @@ describe("backfillUningestedFiles", () => {
 
     const backfilled = await backfillUningestedFiles(
       chunks,
-      SCHEMA,
-      REPO,
-      ["src/bad.ts", "src/ok.ts"],
-      new Set(),
+      { schema: SCHEMA, repo: REPO },
+      {
+        treePaths: ["src/bad.ts", "src/ok.ts"],
+        alreadyProcessed: new Set(),
+      },
       (filePath) =>
         filePath === "src/bad.ts"
           ? Promise.reject(new Error("boom"))
@@ -123,10 +127,11 @@ describe("backfillUningestedFiles", () => {
 
     const backfilled = await backfillUningestedFiles(
       chunks,
-      SCHEMA,
-      REPO,
-      ["src/declined.ts"],
-      new Set(),
+      { schema: SCHEMA, repo: REPO },
+      {
+        treePaths: ["src/declined.ts"],
+        alreadyProcessed: new Set(),
+      },
       async () => false,
     );
 

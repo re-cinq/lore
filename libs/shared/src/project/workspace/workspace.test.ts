@@ -61,7 +61,7 @@ describe("Workspace", () => {
       replyToReviewComment: async () => {},
       addLabel: async () => {},
       merge: async () => {},
-      open: async (repo, branch, title) => {
+      open: async (repo, branch, { title }) => {
         opened.push(`${repo}#${branch}`);
 
         return {

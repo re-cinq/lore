@@ -22,7 +22,7 @@ const runNode: EventHandler = async (params) => {
   await runPublishedNode(
     parsePublishedNode(params),
     (target, outcome, args, result) =>
-      reportToParkedNode(eventReporter(), target, outcome, args, result),
+      reportToParkedNode(eventReporter(), target, { outcome, args, result }),
   );
 };
 

@@ -135,6 +135,15 @@ resource "helm_release" "lore_platform" {
         # public URL + the event-router front door to satellite installers.
         LORE_API_URL                 = var.lore_api_url
         LORE_EVENT_ROUTER_PUBLIC_URL = var.lore_event_router_hostname != "" ? "https://${var.lore_event_router_hostname}" : ""
+        # /spend's compute ESTIMATE prices pod-hours at these rates. The code
+        # defaults to an e2 on-demand ballpark ($0.022/cpu-h), but this platform
+        # runs on GKE AUTOPILOT, which bills the pod's own requests at roughly
+        # twice that — so the unset default understated every pod figure on the
+        # page by ~2x. Autopilot general-purpose, europe-west1. The real invoice
+        # arrives separately through the billing export (ADR-043); this only has
+        # to be honest about "now".
+        LORE_GKE_CPU_HOUR_USD     = "0.0489"
+        LORE_GKE_MEM_GIB_HOUR_USD = "0.0054"
       }
       dbPasswordSecret  = { name = "lore-api-db-password", key = "password" }
       ingestTokenSecret = { name = "lore-ingest-token", key = "token" }

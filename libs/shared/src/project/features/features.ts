@@ -59,7 +59,10 @@ export class Features {
     gap: GapResult | null,
     status: IterationStatus,
   ): Promise<void> {
-    return this.port.setIterationResult(this.repo, id, iteration, gap, status);
+    return this.port.setIterationResult(this.repo, id, iteration, {
+      gap,
+      status,
+    });
   }
 
   transitionStatus(

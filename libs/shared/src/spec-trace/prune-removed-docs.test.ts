@@ -175,11 +175,9 @@ describe.skipIf(!reachable)("whole-file pruning (live Dgraph)", () => {
     const content =
       "# Dead\n\n## Overview\n\nThe widget MUST work.\n\n## Acceptance Criteria\n\n1. It holds.\n";
 
-    await projectSpecFile(repo, deadPath, content, dgraphClient);
+    await projectSpecFile({ repo, filePath: deadPath, content }, dgraphClient);
     await projectSpecFile(
-      repo,
-      alivePath,
-      content.replace("Dead", "Alive"),
+      { repo, filePath: alivePath, content: content.replace("Dead", "Alive") },
       dgraphClient,
     );
 
@@ -210,15 +208,21 @@ describe.skipIf(!reachable)("whole-file pruning (live Dgraph)", () => {
     const alivePath = "specs/alive/spec.md";
 
     await projectSpecFile(
-      repo,
-      deadPath,
-      "# D\n\n## Overview\n\n- Shared ([validated by](src/shared.test.ts#L1))\n- Solo ([validated by](src/solo.test.ts#L2))\n",
+      {
+        repo,
+        filePath: deadPath,
+        content:
+          "# D\n\n## Overview\n\n- Shared ([validated by](src/shared.test.ts#L1))\n- Solo ([validated by](src/solo.test.ts#L2))\n",
+      },
       dgraphClient,
     );
     await projectSpecFile(
-      repo,
-      alivePath,
-      "# A\n\n## Overview\n\n- Also shared ([validated by](src/shared.test.ts#L9))\n",
+      {
+        repo,
+        filePath: alivePath,
+        content:
+          "# A\n\n## Overview\n\n- Also shared ([validated by](src/shared.test.ts#L9))\n",
+      },
       dgraphClient,
     );
 
@@ -247,8 +251,11 @@ describe.skipIf(!reachable)("whole-file pruning (live Dgraph)", () => {
     const planPath = "specs/feat/plan.md";
     const content = "# F\n\nA point.\n";
 
-    await projectSpecFile(repo, specPath, content, dgraphClient);
-    await projectSpecFile(repo, planPath, `${content}extra`, dgraphClient);
+    await projectSpecFile({ repo, filePath: specPath, content }, dgraphClient);
+    await projectSpecFile(
+      { repo, filePath: planPath, content: `${content}extra` },
+      dgraphClient,
+    );
 
     await deleteSpecSubtree(dgraphClient, repo, specPath);
     const afterFirst = (await readGraph(
@@ -273,7 +280,10 @@ describe.skipIf(!reachable)("whole-file pruning (live Dgraph)", () => {
     createdRepo = repo;
     const specPath = "specs/dead/spec.md";
 
-    await projectSpecFile(repo, specPath, "# D\n\nA point.\n", dgraphClient);
+    await projectSpecFile(
+      { repo, filePath: specPath, content: "# D\n\nA point.\n" },
+      dgraphClient,
+    );
     await deleteSpecSubtree(dgraphClient, repo, specPath);
 
     await expect(
@@ -288,9 +298,11 @@ describe.skipIf(!reachable)("whole-file pruning (live Dgraph)", () => {
     const adrPath = "adrs/ADR-011-dead.md";
 
     await projectAdrFile(
-      repo,
-      adrPath,
-      "# ADR-011\n\nA retired decision.\n",
+      {
+        repo,
+        filePath: adrPath,
+        content: "# ADR-011\n\nA retired decision.\n",
+      },
       dgraphClient,
     );
 
@@ -319,15 +331,11 @@ describe.skipIf(!reachable)("whole-file pruning (live Dgraph)", () => {
 
     createdRepo = repo;
     await projectSpecFile(
-      repo,
-      "specs/a/spec.md",
-      "# A\n\nA point.\n",
+      { repo, filePath: "specs/a/spec.md", content: "# A\n\nA point.\n" },
       dgraphClient,
     );
     await projectAdrFile(
-      repo,
-      "adrs/ADR-001.md",
-      "# One\n\nX.\n",
+      { repo, filePath: "adrs/ADR-001.md", content: "# One\n\nX.\n" },
       dgraphClient,
     );
 
@@ -384,9 +392,12 @@ describe.skipIf(!reachable)("whole-file pruning (live Dgraph)", () => {
     const specPath = "specs/dead/spec.md";
 
     await projectSpecFile(
-      repo,
-      specPath,
-      "# D\n\n## Overview\n\n- Solo ([validated by](src/solo.test.ts#L2))\n",
+      {
+        repo,
+        filePath: specPath,
+        content:
+          "# D\n\n## Overview\n\n- Solo ([validated by](src/solo.test.ts#L2))\n",
+      },
       dgraphClient,
     );
 
@@ -427,9 +438,12 @@ describe.skipIf(!reachable)("whole-file pruning (live Dgraph)", () => {
     const specPath = "specs/dead/spec.md";
 
     await projectSpecFile(
-      repo,
-      specPath,
-      "# D\n\n## Overview\n\n- Solo ([validated by](src/solo.test.ts#L2))\n",
+      {
+        repo,
+        filePath: specPath,
+        content:
+          "# D\n\n## Overview\n\n- Solo ([validated by](src/solo.test.ts#L2))\n",
+      },
       dgraphClient,
     );
 
@@ -466,9 +480,7 @@ describe.skipIf(!reachable)("whole-file pruning (live Dgraph)", () => {
     const adrPath = "adrs/ADR-099-dead.md";
 
     await projectAdrFile(
-      repo,
-      adrPath,
-      "# ADR-099\n\nRetired.\n",
+      { repo, filePath: adrPath, content: "# ADR-099\n\nRetired.\n" },
       dgraphClient,
     );
 
@@ -508,9 +520,7 @@ describe.skipIf(!reachable)("whole-file pruning (live Dgraph)", () => {
     const adrPath = "adrs/ADR-042-target.md";
 
     await projectAdrFile(
-      repo,
-      adrPath,
-      "# ADR-042\n\nDecision.\n",
+      { repo, filePath: adrPath, content: "# ADR-042\n\nDecision.\n" },
       dgraphClient,
     );
 
@@ -574,15 +584,21 @@ describe.skipIf(!reachable)("whole-file pruning (live Dgraph)", () => {
     const alivePath = "specs/alive/spec.md";
 
     await projectSpecFile(
-      repo,
-      deadPath,
-      "# D\n\n## Overview\n\n- Shared ([validated by](src/shared.test.ts#L1))\n",
+      {
+        repo,
+        filePath: deadPath,
+        content:
+          "# D\n\n## Overview\n\n- Shared ([validated by](src/shared.test.ts#L1))\n",
+      },
       dgraphClient,
     );
     await projectSpecFile(
-      repo,
-      alivePath,
-      "# A\n\n## Acceptance Criteria\n\n1. Also shared ([validated by](src/shared.test.ts#L9))\n",
+      {
+        repo,
+        filePath: alivePath,
+        content:
+          "# A\n\n## Acceptance Criteria\n\n1. Also shared ([validated by](src/shared.test.ts#L9))\n",
+      },
       dgraphClient,
     );
 

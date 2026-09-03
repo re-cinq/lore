@@ -197,11 +197,14 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
     const specPath = "specs/example/spec.md";
 
     await projectSpecFile(
-      repo,
-      specPath,
-      "# Feature Specification: Widget Service\n\n## Requirements\n\n1. Onboarding a new repo produces a\n   PR within 5 minutes\n",
+      {
+        repo,
+        filePath: specPath,
+        content:
+          "# Feature Specification: Widget Service\n\n## Requirements\n\n1. Onboarding a new repo produces a\n   PR within 5 minutes\n",
+      },
       dgraphClient,
-      async () => null,
+      { embed: async () => null },
     );
 
     const report = {
@@ -236,11 +239,14 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
     const specPath = "specs/example/spec.md";
 
     await projectSpecFile(
-      repo,
-      specPath,
-      "# Feature Specification: Widget Service\n\n## Requirements\n\n1. Onboarding a new repo produces a\n   PR within 5 minutes\n",
+      {
+        repo,
+        filePath: specPath,
+        content:
+          "# Feature Specification: Widget Service\n\n## Requirements\n\n1. Onboarding a new repo produces a\n   PR within 5 minutes\n",
+      },
       dgraphClient,
-      async () => null,
+      { embed: async () => null },
     );
 
     const report = {
@@ -500,11 +506,14 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
     const specPath = "specs/example/spec.md";
 
     await projectSpecFile(
-      repo,
-      specPath,
-      "# Feature Specification: Widget Service\n\n## Requirements\n\n1. Onboarding a new repo produces a PR within 5 minutes\n",
+      {
+        repo,
+        filePath: specPath,
+        content:
+          "# Feature Specification: Widget Service\n\n## Requirements\n\n1. Onboarding a new repo produces a PR within 5 minutes\n",
+      },
       dgraphClient,
-      async () => null,
+      { embed: async () => null },
     );
     await ingestTestReport(dgraphClient, repo, {
       tests: [
@@ -696,11 +705,14 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
     const specPath = "specs/example/spec.md";
 
     await projectSpecFile(
-      repo,
-      specPath,
-      "# Feature Specification: Widget Service\n\n## Acceptance Criteria\n\n1. Rollback completes within one minute\n",
+      {
+        repo,
+        filePath: specPath,
+        content:
+          "# Feature Specification: Widget Service\n\n## Acceptance Criteria\n\n1. Rollback completes within one minute\n",
+      },
       dgraphClient,
-      async () => null,
+      { embed: async () => null },
     );
 
     const report = {
@@ -739,11 +751,14 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
     const specPath = "specs/example/spec.md";
 
     await projectSpecFile(
-      repo,
-      specPath,
-      "# Feature Specification: Widget Service\n\n## Acceptance Criteria\n\n1. Rollback completes within one minute\n",
+      {
+        repo,
+        filePath: specPath,
+        content:
+          "# Feature Specification: Widget Service\n\n## Acceptance Criteria\n\n1. Rollback completes within one minute\n",
+      },
       dgraphClient,
-      async () => null,
+      { embed: async () => null },
     );
 
     const report = {

@@ -204,11 +204,14 @@ describe.skipIf(!reachable)(
 
       createdRepo = repo;
       await projectSpecFile(
-        repo,
-        "specs/adder/spec.md",
-        "# Feature Specification: Adder\n\n## Requirements\n\n1. Adds numbers. ([validated by](src/a.test.ts#L1))\n",
+        {
+          repo,
+          filePath: "specs/adder/spec.md",
+          content:
+            "# Feature Specification: Adder\n\n## Requirements\n\n1. Adds numbers. ([validated by](src/a.test.ts#L1))\n",
+        },
         dgraphClient,
-        async () => null,
+        { embed: async () => null },
       );
       await ingestTestReport(dgraphClient, repo, seedReport());
 

@@ -299,6 +299,10 @@ export default function SpendView({ spend, recordAction }: SpendViewProps) {
             <th>Assembly line</th>
             <th>Runs</th>
             <th>Cost</th>
+            {/* What a single run of this line costs — the figure that says
+                whether a model or prompt change paid off, which a total hides
+                behind however many runs happened to occur this interval. */}
+            <th>Cost / run</th>
           </tr>
         </thead>
         <tbody>
@@ -307,9 +311,39 @@ export default function SpendView({ spend, recordAction }: SpendViewProps) {
               <td>{r.blueprint}</td>
               <td>{num(r.runs)}</td>
               <td>{usd(r.usd)}</td>
+              <td>{r.runs > 0 ? usd(r.usd / r.runs) : "—"}</td>
             </tr>
           ))}
           {llm.by_blueprint.length === 0 && (
+            <tr>
+              <td colSpan={4} className={`meta ${styles.center}`}>
+                No data
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+
+      <h2>Cost by Vendor</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Vendor</th>
+            <th>Calls</th>
+            <th>Cost</th>
+          </tr>
+        </thead>
+        <tbody>
+          {llm.by_vendor.map((r) => (
+            <tr key={r.vendor}>
+              <td>
+                <span className="badge">{r.vendor}</span>
+              </td>
+              <td>{num(r.calls)}</td>
+              <td>{usd(r.cost_usd)}</td>
+            </tr>
+          ))}
+          {llm.by_vendor.length === 0 && (
             <tr>
               <td colSpan={3} className={`meta ${styles.center}`}>
                 No data
@@ -318,6 +352,15 @@ export default function SpendView({ spend, recordAction }: SpendViewProps) {
           )}
         </tbody>
       </table>
+      {/* Only the Anthropic slice draws the recorded credits; the rest bills
+          its own vendor (Gemini lands on the Google invoice the GCP figures
+          above report). */}
+      {llm.by_vendor.some((r) => r.vendor !== "anthropic") && (
+        <p className={`meta ${styles.subnote}`}>
+          Only Anthropic spend draws the balance above — other vendors bill
+          their own account.
+        </p>
+      )}
 
       <h2>Cost by Model</h2>
       <table>

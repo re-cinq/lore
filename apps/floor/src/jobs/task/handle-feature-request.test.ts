@@ -76,16 +76,16 @@ describe("handleFeatureRequest", () => {
       }),
     );
 
-    await handleFeatureRequest(
-      {
+    await handleFeatureRequest({
+      task: {
         id: "task-1",
         description: "Add health checks",
       } as unknown as PipelineTask,
-      "re-cinq/app",
-      "lore/spec",
-      undefined,
-      null,
-    );
+      targetRepo: "re-cinq/app",
+      branchName: "lore/spec",
+      model: undefined,
+      issueNumber: null,
+    });
 
     expect(fakeRepo.createBranch).toHaveBeenCalledWith("lore/spec");
     expect(fakeRepo.commitFile).toHaveBeenCalledTimes(3);
@@ -101,16 +101,16 @@ describe("handleFeatureRequest", () => {
     Llm.setInstance(new FakeLlm({ text: "SKIP" }));
 
     await expect(
-      handleFeatureRequest(
-        {
+      handleFeatureRequest({
+        task: {
           id: "task-1",
           description: "Add health checks",
         } as unknown as PipelineTask,
-        "re-cinq/app",
-        "lore/spec",
-        undefined,
-        null,
-      ),
+        targetRepo: "re-cinq/app",
+        branchName: "lore/spec",
+        model: undefined,
+        issueNumber: null,
+      }),
     ).rejects.toThrow(new Error("Failed to generate any spec artifacts"));
 
     expect(fakeRepo.commitFile).not.toHaveBeenCalled();

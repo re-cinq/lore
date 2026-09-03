@@ -5,19 +5,34 @@ import { buildPrompt, getTaskTypeConfig } from "../../kernel/config.js";
 import { agentPrompt } from "../../kernel/agent-invocation.js";
 import { ensureTaskBranch } from "./ensure-task-branch.js";
 
+/** The dark-factory pair travels together or not at all: `assemblyLine` is what turns dark mode on for the dispatch, and `baseBranch` is only meaningful once it has. */
+export interface DarkFactoryDispatch {
+  assemblyLine: string;
+  baseBranch?: string;
+}
+
+export interface ClaudeCodeTaskInput {
+  task: PipelineTask;
+  targetRepo: string;
+  branchName: string;
+  model?: string;
+  repoOverrides?: Record<string, unknown>;
+  darkFactory?: DarkFactoryDispatch;
+  image?: string;
+  agentDef?: { prompt?: string | null; timeout_minutes?: number | null } | null;
+}
+
 /** Handle complex tasks (implementation, refactoring) by dispatching an Agent CR to the ai-agent-subsystem via the Project agents port; the agent-watcher job creates the PR when it completes. */
-export async function handleClaudeCodeTask(
-  task: PipelineTask,
-  targetRepo: string,
-  branchName: string,
-  model: string | undefined,
-  _issueNumber: number | null,
-  repoOverrides?: Record<string, unknown>,
-  darkFactoryAssemblyLine?: string,
-  darkFactoryBaseBranch?: string,
-  image?: string,
-  agentDef?: { prompt?: string | null; timeout_minutes?: number | null } | null,
-): Promise<void> {
+export async function handleClaudeCodeTask({
+  task,
+  targetRepo,
+  branchName,
+  model,
+  repoOverrides,
+  darkFactory,
+  image,
+  agentDef,
+}: ClaudeCodeTaskInput): Promise<void> {
   // Prompt + timeout from the resolved agent definition (project.agentDefs), falling back to the yaml loader; the pod can also re-fetch via AgentDefsHttp.
   const fullPrompt = agentPrompt(
     agentDef?.prompt,
@@ -55,13 +70,13 @@ export async function handleClaudeCodeTask(
     model: model || "claude-sonnet-4-6",
     timeoutMinutes,
     ...(image ? { image } : {}),
-    ...(darkFactoryAssemblyLine
+    ...(darkFactory
       ? {
           extraLabels: { "lore.re-cinq.com/dark-factory": "true" },
           // `workflowName` is the CR-spec wire field (read by the pod via LORE_DARK_FACTORY_WORKFLOW) — renaming it needs both sides.
           darkFactory: {
-            workflowName: darkFactoryAssemblyLine,
-            baseBranch: darkFactoryBaseBranch ?? "main",
+            workflowName: darkFactory.assemblyLine,
+            baseBranch: darkFactory.baseBranch ?? "main",
           },
         }
       : {}),

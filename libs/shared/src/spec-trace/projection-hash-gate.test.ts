@@ -128,11 +128,13 @@ describe("projectSpecFile hash gate (fake port)", () => {
     fake.failMutation(4);
     await expect(
       projectSpecFile(
-        "re-cinq/lore",
-        "specs/hash-gate/spec.md",
-        SPEC_CONTENT,
+        {
+          repo: "re-cinq/lore",
+          filePath: "specs/hash-gate/spec.md",
+          content: SPEC_CONTENT,
+        },
         fake.port,
-        stubEmbed,
+        { embed: stubEmbed },
       ),
     ).rejects.toThrow("Transaction has been aborted. Please retry");
     expect(fake.nodeByXid(xid)?.["Spec.content_hash"]).toBeUndefined();
@@ -141,11 +143,13 @@ describe("projectSpecFile hash gate (fake port)", () => {
 
     expect(
       await projectSpecFile(
-        "re-cinq/lore",
-        "specs/hash-gate/spec.md",
-        SPEC_CONTENT,
+        {
+          repo: "re-cinq/lore",
+          filePath: "specs/hash-gate/spec.md",
+          content: SPEC_CONTENT,
+        },
         fake.port,
-        stubEmbed,
+        { embed: stubEmbed },
       ),
     ).toEqual({ projected: true });
     expect(fake.nodeByXid(xid)?.["Spec.content_hash"]).toBe(
@@ -157,11 +161,13 @@ describe("projectSpecFile hash gate (fake port)", () => {
     const fake = fakeDgraph();
 
     await projectSpecFile(
-      "re-cinq/lore",
-      "specs/hash-gate/spec.md",
-      SPEC_CONTENT,
+      {
+        repo: "re-cinq/lore",
+        filePath: "specs/hash-gate/spec.md",
+        content: SPEC_CONTENT,
+      },
       fake.port,
-      stubEmbed,
+      { embed: stubEmbed },
     );
     const withHash = fake.mutations.flatMap((mutation, index) => {
       const setJson = mutation["setJson"] as
@@ -177,30 +183,35 @@ describe("projectSpecFile hash gate (fake port)", () => {
     const fake = fakeDgraph();
 
     await projectSpecFile(
-      "re-cinq/lore",
-      "specs/hash-gate/spec.md",
-      SPEC_CONTENT,
+      {
+        repo: "re-cinq/lore",
+        filePath: "specs/hash-gate/spec.md",
+        content: SPEC_CONTENT,
+      },
       fake.port,
-      stubEmbed,
+      { embed: stubEmbed },
     );
 
     expect(
       await projectSpecFile(
-        "re-cinq/lore",
-        "specs/hash-gate/spec.md",
-        SPEC_CONTENT,
+        {
+          repo: "re-cinq/lore",
+          filePath: "specs/hash-gate/spec.md",
+          content: SPEC_CONTENT,
+        },
         fake.port,
-        stubEmbed,
+        { embed: stubEmbed },
       ),
     ).toEqual({ projected: false });
     expect(
       await projectSpecFile(
-        "re-cinq/lore",
-        "specs/hash-gate/spec.md",
-        SPEC_CONTENT,
+        {
+          repo: "re-cinq/lore",
+          filePath: "specs/hash-gate/spec.md",
+          content: SPEC_CONTENT,
+        },
         fake.port,
-        stubEmbed,
-        true,
+        { embed: stubEmbed, force: true },
       ),
     ).toEqual({ projected: true });
   });
@@ -215,9 +226,11 @@ describe("projectAdrFile hash gate (fake port)", () => {
     fake.failMutation(4);
     await expect(
       projectAdrFile(
-        "re-cinq/lore",
-        "adrs/ADR-999-hash-gate.md",
-        ADR_CONTENT,
+        {
+          repo: "re-cinq/lore",
+          filePath: "adrs/ADR-999-hash-gate.md",
+          content: ADR_CONTENT,
+        },
         fake.port,
       ),
     ).rejects.toThrow("Transaction has been aborted. Please retry");
@@ -227,9 +240,11 @@ describe("projectAdrFile hash gate (fake port)", () => {
 
     expect(
       await projectAdrFile(
-        "re-cinq/lore",
-        "adrs/ADR-999-hash-gate.md",
-        ADR_CONTENT,
+        {
+          repo: "re-cinq/lore",
+          filePath: "adrs/ADR-999-hash-gate.md",
+          content: ADR_CONTENT,
+        },
         fake.port,
       ),
     ).toEqual({ projected: true });
@@ -240,9 +255,11 @@ describe("projectAdrFile hash gate (fake port)", () => {
     const fake = fakeDgraph();
 
     await projectAdrFile(
-      "re-cinq/lore",
-      "adrs/ADR-999-hash-gate.md",
-      ADR_CONTENT,
+      {
+        repo: "re-cinq/lore",
+        filePath: "adrs/ADR-999-hash-gate.md",
+        content: ADR_CONTENT,
+      },
       fake.port,
     );
     const withHash = fake.mutations.flatMap((mutation, index) => {
@@ -259,28 +276,33 @@ describe("projectAdrFile hash gate (fake port)", () => {
     const fake = fakeDgraph();
 
     await projectAdrFile(
-      "re-cinq/lore",
-      "adrs/ADR-999-hash-gate.md",
-      ADR_CONTENT,
+      {
+        repo: "re-cinq/lore",
+        filePath: "adrs/ADR-999-hash-gate.md",
+        content: ADR_CONTENT,
+      },
       fake.port,
     );
 
     expect(
       await projectAdrFile(
-        "re-cinq/lore",
-        "adrs/ADR-999-hash-gate.md",
-        ADR_CONTENT,
+        {
+          repo: "re-cinq/lore",
+          filePath: "adrs/ADR-999-hash-gate.md",
+          content: ADR_CONTENT,
+        },
         fake.port,
       ),
     ).toEqual({ projected: false });
     expect(
       await projectAdrFile(
-        "re-cinq/lore",
-        "adrs/ADR-999-hash-gate.md",
-        ADR_CONTENT,
+        {
+          repo: "re-cinq/lore",
+          filePath: "adrs/ADR-999-hash-gate.md",
+          content: ADR_CONTENT,
+        },
         fake.port,
-        undefined,
-        true,
+        { force: true },
       ),
     ).toEqual({ projected: true });
   });

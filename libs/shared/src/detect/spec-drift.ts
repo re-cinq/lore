@@ -65,11 +65,9 @@ export async function specDriftJob(opts: SpecDriftOptions): Promise<string> {
       const fileDrift = async (copy: DriftTaskCopy): Promise<void> => {
         const outcome = await createDriftTask(
           project,
-          repo,
-          spec.filePath,
+          { repo, path: spec.filePath },
           copy,
-          filed >= MAX_DRIFT_TASKS_PER_REPO_RUN,
-          activeIssues,
+          { atCap: filed >= MAX_DRIFT_TASKS_PER_REPO_RUN, activeIssues },
         );
 
         if (outcome === "filed") {
@@ -229,13 +227,17 @@ function heuristicTaskCopy(
   };
 }
 
+/** The per-run filing state every drift task is weighed against. */
+interface DriftFiling {
+  atCap: boolean;
+  activeIssues: Set<number> | null;
+}
+
 async function createDriftTask(
   project: Project,
-  repo: string,
-  specPath: string,
+  { repo, path: specPath }: { repo: string; path: string },
   copy: DriftTaskCopy,
-  atCap: boolean,
-  activeIssues: Set<number> | null,
+  { atCap, activeIssues }: DriftFiling,
 ): Promise<FileOutcome> {
   // Dedup on the stable spec_path key (not the LLM-reworded title): skip when in flight or within cooldown.
   const existing = await project.tasks.driftTasksForSpec("gap-fill", specPath);

@@ -46,12 +46,16 @@ interface GraphTestChunk {
  * silently matching nothing: a link with no line information still couples the
  * statement to the file, and dropping it is how `implemented_by` went dark.
  */
+export interface TestFileLookup {
+  ranges: [number, number][];
+  fileLevel?: boolean;
+}
+
 export async function testFileImpact(
   dgraph: DgraphClientPort,
   repo: string,
   file: string,
-  ranges: [number, number][],
-  options: { fileLevel?: boolean } = {},
+  { ranges, ...options }: TestFileLookup,
 ): Promise<Array<ImpactStatement & { xid: string }>> {
   const chunks = await withTxn(dgraph, async (txn) => {
     const res = await txn.queryWithVars(TEST_LINK_QUERY, {

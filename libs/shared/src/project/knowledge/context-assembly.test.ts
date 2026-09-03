@@ -235,8 +235,10 @@ describe("hybridChunkItems", () => {
       pool,
       "settings form parser",
       "re-cinq/lore",
-      ["code"],
-      6,
+      {
+        contentTypes: ["code"],
+        limit: 6,
+      },
     );
 
     expect(calls[0].text).toContain("SELECT team FROM lore.repos");
@@ -267,7 +269,10 @@ describe("hybridChunkItems", () => {
       },
     );
 
-    await hybridChunkItems(pool, "q", "re-cinq/lore", ["doc", "spec"], 5);
+    await hybridChunkItems(pool, "q", "re-cinq/lore", {
+      contentTypes: ["doc", "spec"],
+      limit: 5,
+    });
 
     expect(calls[2].text).toContain("FROM platform.chunks");
     expect(calls[2].text).not.toContain("org_shared");
@@ -289,7 +294,10 @@ describe("hybridChunkItems", () => {
       },
     );
 
-    await hybridChunkItems(pool, "q", "re-cinq/lore", ["code"], 6);
+    await hybridChunkItems(pool, "q", "re-cinq/lore", {
+      contentTypes: ["code"],
+      limit: 6,
+    });
 
     expect(calls[1].text).toContain("embedding <=>");
     expect(calls[1].params).toContainEqual("[0.1,0.2,0.3]");
@@ -365,8 +373,10 @@ describe("hybridChunkItems", () => {
       pool as unknown as Parameters<typeof hybridChunkItems>[0],
       "q",
       "re-cinq/lore",
-      ["code"],
-      6,
+      {
+        contentTypes: ["code"],
+        limit: 6,
+      },
     )) as Array<{ score?: number }>;
 
     expect(sources[0].score).toBeCloseTo(1.0);

@@ -285,8 +285,10 @@ export function createLineHarness(
     assemblyRunId: string,
     nodeId: string,
     outcome: "success" | "changes_requested" | "failed",
-    args?: Record<string, unknown>,
-    iteration?: number,
+    {
+      args,
+      iteration,
+    }: { args?: Record<string, unknown>; iteration?: number } = {},
   ): Promise<void> {
     await resumeHandler({
       assemblyRunId,

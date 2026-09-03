@@ -92,8 +92,10 @@ describe("postReview", () => {
     };
 
     await postReview(pulls, 7, output, {
-      right: new Map([["src/a.ts", new Set([12])]]),
-      left: new Map([["src/b.ts", new Set([3])]]),
+      positions: {
+        right: new Map([["src/a.ts", new Set([12])]]),
+        left: new Map([["src/b.ts", new Set([3])]]),
+      },
     });
 
     expect(calls).toHaveLength(1);
@@ -126,7 +128,9 @@ describe("postReview", () => {
       ],
     };
 
-    await postReview(pulls, 7, output, positions(["src/a.ts", 12]));
+    await postReview(pulls, 7, output, {
+      positions: positions(["src/a.ts", 12]),
+    });
 
     expect(calls[0]?.input.comments).toHaveLength(1);
     expect(calls[0]?.input.comments[0]?.line).toBe(12);
@@ -143,12 +147,9 @@ describe("postReview", () => {
       findings: [finding({ path: "src/a.ts", line: 12, subject: "boom" })],
     };
 
-    const delivery = await postReview(
-      pulls,
-      7,
-      output,
-      positions(["src/a.ts", 12]),
-    );
+    const delivery = await postReview(pulls, 7, output, {
+      positions: positions(["src/a.ts", 12]),
+    });
 
     expect(delivery).toEqual({
       mode: "fallback",
@@ -169,7 +170,9 @@ describe("maybePostReview", () => {
       findings: [],
     })}\n\`\`\``;
 
-    expect(await maybePostReview(pulls, 7, output, positions())).toEqual({
+    expect(
+      await maybePostReview(pulls, 7, output, { positions: positions() }),
+    ).toEqual({
       mode: "inline",
     });
     expect(calls).toHaveLength(1);
@@ -179,7 +182,9 @@ describe("maybePostReview", () => {
     const { pulls, calls } = recorder();
 
     expect(
-      await maybePostReview(pulls, 7, "REVIEW_RESULT:APPROVED", positions()),
+      await maybePostReview(pulls, 7, "REVIEW_RESULT:APPROVED", {
+        positions: positions(),
+      }),
     ).toEqual({ mode: "inline" });
     expect(calls).toHaveLength(1);
     expect(calls[0]?.input.event).toBe("APPROVE");
@@ -195,7 +200,7 @@ describe("maybePostReview", () => {
         pulls,
         7,
         "REVIEW_RESULT:CHANGES_REQUESTED:but no block",
-        positions(),
+        { positions: positions() },
       ),
     ).toBeNull();
     expect(calls).toHaveLength(0);
@@ -245,7 +250,9 @@ describe("maybePostReview on a real Agent status.output stream", () => {
     const { pulls, calls } = recorder();
 
     expect(
-      await maybePostReview(pulls, 841, ndjson, positions([path, 95])),
+      await maybePostReview(pulls, 841, ndjson, {
+        positions: positions([path, 95]),
+      }),
     ).toBeNull();
     expect(calls).toHaveLength(0);
   });
@@ -254,12 +261,9 @@ describe("maybePostReview on a real Agent status.output stream", () => {
     const { pulls, calls } = recorder();
 
     expect(
-      await maybePostReview(
-        pulls,
-        841,
-        resultTextFromOutput(ndjson),
-        positions([path, 95]),
-      ),
+      await maybePostReview(pulls, 841, resultTextFromOutput(ndjson), {
+        positions: positions([path, 95]),
+      }),
     ).toEqual({ mode: "inline" });
     expect(calls).toHaveLength(1);
     expect(calls[0]?.input.comments).toMatchObject([{ path, line: 95 }]);
@@ -281,7 +285,10 @@ describe("review run marker (#870 dedupe)", () => {
   it("stamps the marker into the inline review body", async () => {
     const { pulls, calls } = recorder();
 
-    await postReview(pulls, 7, output, positions(["src/a.ts", 12]), marker);
+    await postReview(pulls, 7, output, {
+      positions: positions(["src/a.ts", 12]),
+      marker,
+    });
 
     expect(calls[0]?.input.body).toContain(marker);
   });
@@ -289,7 +296,10 @@ describe("review run marker (#870 dedupe)", () => {
   it("stamps the marker into the fallback comment when the inline post is rejected", async () => {
     const { pulls, comments } = recorder({ createReviewThrows: true });
 
-    await postReview(pulls, 7, output, positions(["src/a.ts", 12]), marker);
+    await postReview(pulls, 7, output, {
+      positions: positions(["src/a.ts", 12]),
+      marker,
+    });
 
     expect(comments[0]?.body).toContain(marker);
   });
@@ -297,7 +307,9 @@ describe("review run marker (#870 dedupe)", () => {
   it("posts an unmarked body when no marker is given", async () => {
     const { pulls, calls } = recorder();
 
-    await postReview(pulls, 7, output, positions(["src/a.ts", 12]));
+    await postReview(pulls, 7, output, {
+      positions: positions(["src/a.ts", 12]),
+    });
 
     expect(calls[0]?.input.body).not.toContain("lore-review-run");
   });
@@ -383,7 +395,10 @@ describe("maybePostReview dedupe", () => {
     };
 
     expect(
-      await maybePostReview(probing, 7, findings, positions(), marker),
+      await maybePostReview(probing, 7, findings, {
+        positions: positions(),
+        marker,
+      }),
     ).toEqual({ mode: "deduped", marker });
     expect(calls).toHaveLength(0);
     expect(comments).toHaveLength(0);
@@ -406,7 +421,10 @@ describe("maybePostReview dedupe", () => {
     };
 
     expect(
-      await maybePostReview(probing, 7, "no block here", positions(), marker),
+      await maybePostReview(probing, 7, "no block here", {
+        positions: positions(),
+        marker,
+      }),
     ).toBeNull();
     expect(probes).toEqual([]);
   });
@@ -420,8 +438,10 @@ describe("fallback preamble vs the issue-comment adapter filter", () => {
       pulls,
       7,
       { verdict: "approved", findings: [], summary: "s" },
-      positions(),
-      reviewRunMarker("line-1", "review", 1),
+      {
+        positions: positions(),
+        marker: reviewRunMarker("line-1", "review", 1),
+      },
     );
 
     expect(comments[0]?.body).toMatch(/^_Inline placement/);
@@ -436,7 +456,9 @@ describe("formal verdict submission (always on)", () => {
       findings: [finding({ path: "src/a.ts", line: 12, subject: "tiny nit" })],
     };
 
-    await postReview(pulls, 7, output, positions(["src/a.ts", 12]));
+    await postReview(pulls, 7, output, {
+      positions: positions(["src/a.ts", 12]),
+    });
 
     expect(calls[0]?.input).toMatchObject({
       event: "APPROVE",
@@ -451,7 +473,9 @@ describe("formal verdict submission (always on)", () => {
       findings: [finding({ path: "src/a.ts", line: 12, subject: "real bug" })],
     };
 
-    await postReview(pulls, 7, output, positions(["src/a.ts", 12]));
+    await postReview(pulls, 7, output, {
+      positions: positions(["src/a.ts", 12]),
+    });
 
     expect(calls[0]?.input).toMatchObject({
       event: "REQUEST_CHANGES",

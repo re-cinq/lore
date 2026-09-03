@@ -62,13 +62,13 @@ describe("blobUrl", () => {
   });
 
   it("appends a #L{start}-L{end} range when both lines given", () => {
-    expect(blobUrl("re-cinq/lore", "main", "a/b.ts", 10, 42)).toEqual(
-      "https://github.com/re-cinq/lore/blob/main/a/b.ts#L10-L42",
-    );
+    expect(
+      blobUrl("re-cinq/lore", "main", "a/b.ts", { start: 10, end: 42 }),
+    ).toEqual("https://github.com/re-cinq/lore/blob/main/a/b.ts#L10-L42");
   });
 
   it("appends a single #L{start} when only start given", () => {
-    expect(blobUrl("re-cinq/lore", "main", "a/b.ts", 10)).toEqual(
+    expect(blobUrl("re-cinq/lore", "main", "a/b.ts", { start: 10 })).toEqual(
       "https://github.com/re-cinq/lore/blob/main/a/b.ts#L10",
     );
   });
@@ -80,6 +80,8 @@ describe("blobUrl", () => {
   });
 
   it("returns empty string when repo is not owner/name", () => {
-    expect(blobUrl("unknown", "main", "a.ts", 1, 2)).toEqual("");
+    expect(blobUrl("unknown", "main", "a.ts", { start: 1, end: 2 })).toEqual(
+      "",
+    );
   });
 });

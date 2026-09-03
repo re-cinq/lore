@@ -23,13 +23,10 @@ export function decideRoundDispatch(
   nodes: readonly ParkedNode[],
   graph: RunGraph | null,
 ): RoundDispatch {
-  const parked = parkedHumanNode(
-    status,
-    nodes,
-    graph,
-    AUTHOR_STATION_TYPE,
-    AUTHOR_NODE,
-  );
+  const parked = parkedHumanNode(status, nodes, graph, {
+    type: AUTHOR_STATION_TYPE,
+    fallbackNodeId: AUTHOR_NODE,
+  });
 
   return parked
     ? { kind: "resume", nodeId: parked.nodeId, iteration: parked.iteration }

@@ -11,12 +11,21 @@ export interface LiveGraphResult {
   valid_from: string;
 }
 
+export interface LiveGraphFilter {
+  entity?: string;
+  relationType?: string;
+  repo?: string;
+  includeInvalidated?: boolean;
+}
+
 export async function queryLiveGraph(
   pool: PgPool,
-  entity?: string,
-  relationType?: string,
-  repo?: string,
-  includeInvalidated = false,
+  {
+    entity,
+    relationType,
+    repo,
+    includeInvalidated = false,
+  }: LiveGraphFilter = {},
 ): Promise<LiveGraphResult[]> {
   const validFilter = includeInvalidated ? "" : "AND e.valid_to IS NULL";
 

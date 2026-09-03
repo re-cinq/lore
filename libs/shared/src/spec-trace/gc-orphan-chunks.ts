@@ -45,15 +45,23 @@ const CHUNK_OWNER_EDGES: Record<GcNodeType, string[]> = {
  * soon-to-be-deleted owners in `excludeOwnerUids` to GC before their deletion
  * with the same ownership answer.
  */
+export interface OrphanSweep {
+  /** Chunk uids the owner pointed at before this write. */
+  previous: string[];
+  /** Chunk uids it points at now; anything in `previous` but not here is a candidate. */
+  current: string[];
+  /** Owners about to be deleted, so their edges do not count as ownership. */
+  excludeOwners?: Set<string>;
+}
+
 export async function gcOrphanChunks(
   dgraph: DgraphClientPort,
   nodeType: GcNodeType,
-  previousUids: string[],
-  currentUids: string[],
-  excludeOwnerUids: Set<string> = new Set(),
+  { previous, current: currentUids, excludeOwners }: OrphanSweep,
 ): Promise<void> {
+  const excludeOwnerUids = excludeOwners ?? new Set<string>();
   const current = new Set(currentUids);
-  const dropped = previousUids.filter((uid) => !current.has(uid));
+  const dropped = previous.filter((uid) => !current.has(uid));
   const ownerEdges = CHUNK_OWNER_EDGES[nodeType];
 
   for (const uid of dropped) {

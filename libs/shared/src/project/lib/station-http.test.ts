@@ -68,9 +68,11 @@ describe("createStationProject", () => {
       targetRepo: "o/r",
       createdBy: "spec-drift",
     });
-    const pr = await project.pulls.open("br", "title", "body", undefined, [
-      "lore-managed",
-    ]);
+    const pr = await project.pulls.open("br", {
+      title: "title",
+      body: "body",
+      labels: ["lore-managed"],
+    });
 
     expect(pr.url).toBe("https://pr/1");
     expect(

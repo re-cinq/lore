@@ -129,13 +129,18 @@ export type ReviewPostDelivery =
   | { mode: "fallback"; error: string }
   | { mode: "deduped"; marker: string };
 
+/** How a review reaches the PR: where inline comments may land, the per-run marker that dedupes it, and the model the disclosure names. */
+export interface ReviewDelivery {
+  positions: CommentablePositions;
+  marker?: string;
+  model?: string;
+}
+
 export async function postReview(
   pulls: ReviewPoster,
   prNumber: number,
   output: ReviewOutput,
-  positions: CommentablePositions,
-  marker?: string,
-  model?: string,
+  { positions, marker, model }: ReviewDelivery,
 ): Promise<ReviewPostDelivery> {
   const { inline, overflow } = partitionByHunks(output.findings, positions);
 
@@ -175,10 +180,9 @@ export async function maybePostReview(
   pulls: ReviewPoster,
   prNumber: number,
   agentOutput: string,
-  positions: CommentablePositions,
-  marker?: string,
-  model?: string,
+  delivery: ReviewDelivery,
 ): Promise<ReviewPostDelivery | null> {
+  const { marker } = delivery;
   const output =
     parseReviewFindings(agentOutput) ?? approvedWithoutFindings(agentOutput);
 
@@ -190,7 +194,7 @@ export async function maybePostReview(
     return { mode: "deduped", marker };
   }
 
-  return postReview(pulls, prNumber, output, positions, marker, model);
+  return postReview(pulls, prNumber, output, delivery);
 }
 
 /** Whether this run's review already reached the PR, via either delivery shape; best-effort — a missing read surface or a throwing probe reports "not posted" so the guard never drops a review. */

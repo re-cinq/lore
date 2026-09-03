@@ -32,12 +32,17 @@ export function parkedNode(
 }
 
 /** The row parked on a human station of the given type, or null. Joins on TYPE from the run's own graph, not a hardcoded node id — an id constant is the fragile key that killed the pr_merged join (FR6.32). fallbackNodeId serves pre-clone runs (graph null); delete it with the other pre-clone fallbacks. */
+/** Which human station to look for: by TYPE in the run's graph, by node id only for a pre-clone run with no graph. */
+export interface HumanStation {
+  type: string;
+  fallbackNodeId: string;
+}
+
 export function parkedHumanNode(
   status: string | null,
   nodes: readonly ParkedNode[],
   graph: RunGraph | null,
-  humanType: string,
-  fallbackNodeId: string,
+  { type: humanType, fallbackNodeId }: HumanStation,
 ): ParkedNode | null {
   if (!graph) {
     return parkedNode(status, nodes, fallbackNodeId);
@@ -65,13 +70,17 @@ export interface ParkedTarget {
 }
 
 /** Reports a station outcome to a parked node; deliberately not swallowed like fire-and-forget triggers — a lost event would lose the work while the caller's 202 claimed it started. */
+export interface StationReport {
+  outcome: "success" | "changes_requested" | "failed";
+  args?: Record<string, unknown>;
+  /** What the worker produced beyond a decision; optional since a human station reports only an outcome. `unknown`, not NodeResult, since assembly-lines depends on this package — the Floor validates it on receipt (NodeResultSchema). */
+  result?: unknown;
+}
+
 export async function reportToParkedNode(
   reporter: EventReporter,
   target: ParkedTarget,
-  outcome: "success" | "changes_requested" | "failed",
-  args: Record<string, unknown> = {},
-  /** What the worker produced beyond a decision; optional since a human station reports only an outcome. `unknown`, not NodeResult, since assembly-lines depends on this package — the Floor validates it on receipt (NodeResultSchema). */
-  result?: unknown,
+  { outcome, args = {}, result }: StationReport,
 ): Promise<void> {
   await reporter.insert({
     eventName: RUN_RESUME_EVENT,

@@ -17,12 +17,17 @@ export interface DocFilterResult<T> {
   visible: T[];
 }
 
+/** Free-text narrowing: the typed query and how to read an item's searchable text. */
+export interface DocSearch<T> {
+  query?: string;
+  textOf?: (item: T) => string;
+}
+
 export function filterDocCards<T>(
   cards: T[],
   statusOf: (card: T) => SpecStatusInfo | undefined,
   filter: SpecStatusFilter,
-  query?: string,
-  textOf?: (card: T) => string,
+  { query, textOf }: DocSearch<T> = {},
 ): DocFilterResult<T> {
   const needle = query?.trim().toLowerCase() ?? "";
   const matched =

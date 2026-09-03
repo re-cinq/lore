@@ -252,14 +252,11 @@ export async function postReviewFromNode(
         : reviewRunMarker(row.id, node.id, ports.iteration);
     const diff = await pulls.getDiff(prNumber).catch(() => "");
     const positions = commentablePositions(diff);
-    const posted = await maybePostReview(
-      pulls,
-      prNumber,
-      output ?? "",
+    const posted = await maybePostReview(pulls, prNumber, output ?? "", {
       positions,
       marker,
-      ports.model,
-    );
+      model: ports.model,
+    });
 
     if (!posted) {
       await auditUnparsedFindings(row, prNumber, output, ports);
@@ -338,8 +335,7 @@ function replyRunMarker(
 async function resolveRepliedThread(
   row: AssemblyRunRecord,
   pulls: ReplyPoster,
-  prNumber: number,
-  inReplyTo: number,
+  { prNumber, inReplyTo }: { prNumber: number; inReplyTo: number },
   ports: ReplyPorts,
 ): Promise<void> {
   if (row.args.intent !== "address") {
@@ -458,7 +454,7 @@ export async function postReplyFromNode(
 
     if (inReplyTo > 0) {
       await pulls.replyToReviewComment(prNumber, inReplyTo, stamped);
-      await resolveRepliedThread(row, pulls, prNumber, inReplyTo, ports);
+      await resolveRepliedThread(row, pulls, { prNumber, inReplyTo }, ports);
 
       return "posted";
     }

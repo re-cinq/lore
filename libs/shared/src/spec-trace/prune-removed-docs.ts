@@ -171,20 +171,16 @@ export async function deleteSpecSubtree(
   // The ownership queries see the doomed Statements/ACs still alive, so their uids are excluded — a chunk owned ONLY by this spec's children is orphaned.
   const doomedOwners = new Set(doomed.childUids);
 
-  await gcOrphanChunks(
-    dgraph,
-    "TestChunk",
-    doomed.validatedUids,
-    [],
-    doomedOwners,
-  );
-  await gcOrphanChunks(
-    dgraph,
-    "CodeChunk",
-    doomed.implementedUids,
-    [],
-    doomedOwners,
-  );
+  await gcOrphanChunks(dgraph, "TestChunk", {
+    previous: doomed.validatedUids,
+    current: [],
+    excludeOwners: doomedOwners,
+  });
+  await gcOrphanChunks(dgraph, "CodeChunk", {
+    previous: doomed.implementedUids,
+    current: [],
+    excludeOwners: doomedOwners,
+  });
 
   if (doomed.featureUid) {
     await gcFeatureIfOrphan(dgraph, doomed.featureUid, doomed.specUid);

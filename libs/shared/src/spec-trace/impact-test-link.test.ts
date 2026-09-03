@@ -119,9 +119,9 @@ describe.skipIf(!reachable)("testFileImpact (live Dgraph)", () => {
     await seedStatementValidatedBy("test/login.test.ts", 40, 60);
 
     expect(
-      await testFileImpact(dgraphClient, repo, "test/login.test.ts", [
-        [45, 50],
-      ]),
+      await testFileImpact(dgraphClient, repo, "test/login.test.ts", {
+        ranges: [[45, 50]],
+      }),
     ).toMatchObject([
       {
         specPath,
@@ -139,9 +139,9 @@ describe.skipIf(!reachable)("testFileImpact (live Dgraph)", () => {
     await seedStatementValidatedBy("test/login.test.ts", 40, 60);
 
     expect(
-      await testFileImpact(dgraphClient, repo, "test/login.test.ts", [
-        [100, 110],
-      ]),
+      await testFileImpact(dgraphClient, repo, "test/login.test.ts", {
+        ranges: [[100, 110]],
+      }),
     ).toEqual([]);
   });
 
@@ -150,9 +150,9 @@ describe.skipIf(!reachable)("testFileImpact (live Dgraph)", () => {
     await seedStatementValidatedBy("test/login.test.ts", 40, 0);
 
     expect(
-      await testFileImpact(dgraphClient, repo, "test/login.test.ts", [
-        [100, 110],
-      ]),
+      await testFileImpact(dgraphClient, repo, "test/login.test.ts", {
+        ranges: [[100, 110]],
+      }),
     ).toMatchObject([{ evidence: "test-link" }]);
   });
 
@@ -161,7 +161,9 @@ describe.skipIf(!reachable)("testFileImpact (live Dgraph)", () => {
     await seedStatementValidatedBy("test/login.test.ts", 40, 60);
 
     expect(
-      await testFileImpact(dgraphClient, repo, "test/other.test.ts", [[1, 5]]),
+      await testFileImpact(dgraphClient, repo, "test/other.test.ts", {
+        ranges: [[1, 5]],
+      }),
     ).toEqual([]);
   });
 });

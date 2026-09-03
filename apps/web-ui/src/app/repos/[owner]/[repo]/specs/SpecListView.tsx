@@ -46,13 +46,10 @@ export default function SpecListView({
   const groups = groupSpecSummaries(specs);
   const statusOf = (group: { key: string; files: { filePath: string }[] }) =>
     statuses[`${group.key}/spec.md`] ?? statuses[group.files[0]?.filePath];
-  const { counts, visible } = filterDocCards(
-    groups,
-    statusOf,
-    filter,
+  const { counts, visible } = filterDocCards(groups, statusOf, filter, {
     query,
-    (group) => `${group.title} ${group.description} ${group.key}`,
-  );
+    textOf: (group) => `${group.title} ${group.description} ${group.key}`,
+  });
   const ordered = sortDocCards(visible, order, statusOf);
 
   return (

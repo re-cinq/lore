@@ -12145,6 +12145,25 @@
                   "additionalProperties": false
                 }
               },
+              "by_vendor": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "vendor": {
+                      "type": "string"
+                    },
+                    "calls": {
+                      "type": "number"
+                    },
+                    "cost_usd": {
+                      "type": "number"
+                    }
+                  },
+                  "required": ["vendor", "calls", "cost_usd"],
+                  "additionalProperties": false
+                }
+              },
               "by_kind": {
                 "type": "array",
                 "items": {
@@ -12230,6 +12249,7 @@
               "by_blueprint",
               "by_repo",
               "by_model",
+              "by_vendor",
               "by_kind",
               "daily",
               "by_task_type",

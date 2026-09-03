@@ -39,17 +39,17 @@ const NO_OP_DGRAPH = {
 export function stationBackend(
   assemblyLineDefinitions: ReadonlySet<string> = new Set(),
 ): StationBackend {
-  return new AgentCrStationBackend(
+  return new AgentCrStationBackend({
     // launch() = project.assemblyRuns.start(); the assembly_line.start event
     // handler launches the entry node — the walk advances on agent_node events.
-    new AssemblyLineStationBackend(pipeline().assemblyRuns),
-    assemblyLineDefinitions,
-    pipeline().assemblyRuns,
-    new HttpAgentApi(clusterAgent()),
+    assemblyLine: new AssemblyLineStationBackend(pipeline().assemblyRuns),
+    assemblyLineNames: assemblyLineDefinitions,
+    assemblyRuns: pipeline().assemblyRuns,
+    agents: new HttpAgentApi(clusterAgent()),
     // The same read `advance.ts` resolves a node's required_tags from, so a
     // single visit and a line's visits are tagged from one source.
-    (repo) => settings().rawSettings(repo),
-  );
+    repoSettings: (repo) => settings().rawSettings(repo),
+  });
 }
 
 /** The builtin assembly line names (task types with an assembly line), loaded + cached once. */
@@ -78,9 +78,8 @@ const cachedProject = memoizePerKey<Project>(async (repo) => {
   const dgraph = createDgraphClient() ?? NO_OP_DGRAPH;
   const station = stationBackend(await assemblyLineNames());
 
-  return createProject(repo, getPool(), dgraph, process.env, {
-    station,
-    pipeline: pipeline(),
+  return createProject(repo, getPool(), dgraph, {
+    providers: { station, pipeline: pipeline() },
   });
 });
 

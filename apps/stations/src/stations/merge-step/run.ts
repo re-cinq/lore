@@ -99,17 +99,19 @@ function productionDeps(): MergeStepDeps {
 
       await writeEpisodeWithCuration(
         { memory: memoryLifecycle() },
-        [
-          `Task ${task.task_type} on ${task.target_repo}: PR #${task.pr_number} merged.`,
-          `Files changed: ${stats.files_changed}, +${stats.additions}/-${stats.deletions}`,
-          `Review comments: ${stats.comments}`,
-          `Time to merge: ${hoursBetween(stats.created_at, stats.merged_at)}h`,
-          `Description: ${task.description.substring(0, 200)}`,
-        ].join("\n"),
-        "ci",
-        `${task.target_repo}/${task.id}`,
-        "merge-line",
-        task.id,
+        {
+          content: [
+            `Task ${task.task_type} on ${task.target_repo}: PR #${task.pr_number} merged.`,
+            `Files changed: ${stats.files_changed}, +${stats.additions}/-${stats.deletions}`,
+            `Review comments: ${stats.comments}`,
+            `Time to merge: ${hoursBetween(stats.created_at, stats.merged_at)}h`,
+            `Description: ${task.description.substring(0, 200)}`,
+          ].join("\n"),
+          source: "ci",
+          ref: `${task.target_repo}/${task.id}`,
+          agentId: "merge-line",
+          taskId: task.id,
+        },
       );
     },
     applyOutcomeFeedback: (id, kind) => applyOutcomeFeedback(id, kind),
