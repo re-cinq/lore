@@ -270,6 +270,41 @@ describe("POST /api/repos/{owner}/{repo}/ingest", () => {
     ).toBe(400);
   });
 
+  it("reports the pointer unrecorded when the state table has not been migrated", async () => {
+    // The projection landed; only the pointer cannot persist. A 500 here would
+    // fail CI after the graph already absorbed the delta — instead the caller
+    // hears \"unrecorded\", the next GET answers null, and the flow degrades to
+    // a full ingest per push until the migration lands.
+    const deps = fakeDeps();
+    const pool = {
+      query: async (sql: string) =>
+        /ingest_state/.test(sql)
+          ? Promise.reject(
+              Object.assign(new Error("no such table"), { code: "42P01" }),
+            )
+          : { rows: [] },
+    } as never;
+    const server = Hapi.server();
+
+    server.auth.scheme("stub", () => ({
+      authenticate: (_request, h) => h.authenticated({ credentials: {} }),
+    }));
+    server.auth.strategy("bearer-scope", "stub");
+    server.auth.default("bearer-scope");
+    server.route(ingestDeltaRoute(() => pool, deps));
+
+    const res = await post(server, {
+      kind: "specs",
+      commit: SHA_B,
+      base_commit: null,
+      files: [{ path: "specs/x/spec.md", content: "x" }],
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(JSON.parse(res.payload)).toMatchObject({ state: "unrecorded" });
+    expect(deps.calls.length).toBeGreaterThan(0);
+  });
+
   it("returns 503 with a clear message when no graph store is configured", async () => {
     const deps = { ...fakeDeps(), dgraph: () => null };
     const res = await post(await serverWith(deps), {

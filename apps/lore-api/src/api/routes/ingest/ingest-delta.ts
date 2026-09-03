@@ -73,8 +73,10 @@ const IngestDeltaResultSchema = z.object({
   kind: z.string(),
   commit: z.string(),
   /** `advanced` once the state pointer moved; `pending-chunks` while earlier
-   *  chunks of a multi-part ingest are still being posted. */
-  state: z.enum(["advanced", "pending-chunks"]),
+   *  chunks of a multi-part ingest are still being posted; `unrecorded` when
+   *  the projection landed but the state table has not been migrated — the
+   *  next GET answers null and the flow degrades to full ingests. */
+  state: z.enum(["advanced", "pending-chunks", "unrecorded"]),
   projected: z.number(),
   deleted: z.number(),
   test_chunks: z.number(),
@@ -260,15 +262,43 @@ export function ingestDeltaRoute(
 
       // The advance is a compare-and-set, not a blind write: it lands only
       // while the stored commit still equals the base this delta diffed from.
-      const { rows } = await pool.query<{ commit_sha: string }>(
-        `INSERT INTO pipeline.ingest_state (repo, kind, commit_sha)
-         VALUES ($1, $2, $3)
-         ON CONFLICT (repo, kind) DO UPDATE
-           SET commit_sha = EXCLUDED.commit_sha, updated_at = now()
-           WHERE pipeline.ingest_state.commit_sha IS NOT DISTINCT FROM $4
-         RETURNING commit_sha`,
-        [repo, body.kind, body.commit, body.base_commit],
-      );
+      // An unmigrated state table is not a failure of the INGEST — the graph
+      // already absorbed the delta — so it reports `unrecorded` rather than
+      // 500-ing CI: the next GET answers null and the flow degrades to a full
+      // ingest per push until the migration lands.
+      let rows: Array<{ commit_sha: string }>;
+
+      try {
+        rows = (
+          await pool.query<{ commit_sha: string }>(
+            `INSERT INTO pipeline.ingest_state (repo, kind, commit_sha)
+             VALUES ($1, $2, $3)
+             ON CONFLICT (repo, kind) DO UPDATE
+               SET commit_sha = EXCLUDED.commit_sha, updated_at = now()
+               WHERE pipeline.ingest_state.commit_sha IS NOT DISTINCT FROM $4
+             RETURNING commit_sha`,
+            [repo, body.kind, body.commit, body.base_commit],
+          )
+        ).rows;
+      } catch (err) {
+        if (!(
+          err instanceof Error &&
+          "code" in err &&
+          err.code === UNDEFINED_TABLE
+        )) {
+          throw err;
+        }
+
+        return h.response({
+          kind: body.kind,
+          commit: body.commit,
+          state: "unrecorded" as const,
+          projected,
+          deleted,
+          test_chunks: testChunks,
+          pruned_test_files: prunedTestFiles,
+        });
+      }
 
       enforceTrue(
         rows.length > 0,

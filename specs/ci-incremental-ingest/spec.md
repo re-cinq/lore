@@ -50,8 +50,11 @@ already owns the dgraph egress and the Vertex embed path.
   before projection (a stale delta is refused before any graph write) and the
   CAS after it (a failed projection must never move the pointer past work
   that did not land; projection is idempotent xid upserts, so the loser of
-  the rare mid-flight race redoes harmless work).
-  ([validated by refuses a stale base with a 409 naming the current commit, and projects nothing](apps/lore-api/src/api/routes/ingest/ingest-delta.test.ts#L192), [`ingest-delta.test.ts:113`](apps/lore-api/src/api/routes/ingest/ingest-delta.test.ts#L113), [`ingest-delta.test.ts:286`](apps/lore-api/src/api/routes/ingest/ingest-delta.test.ts#L286))
+  the rare mid-flight race redoes harmless work). On a cluster whose state
+  table has not been migrated the projection still lands and the response
+  says `unrecorded` instead of 500-ing CI — the next state fetch answers
+  null and the flow degrades to a full ingest per push.
+  ([validated by refuses a stale base with a 409 naming the current commit, and projects nothing](apps/lore-api/src/api/routes/ingest/ingest-delta.test.ts#L192), [`ingest-delta.test.ts:113`](apps/lore-api/src/api/routes/ingest/ingest-delta.test.ts#L113), [`ingest-delta.test.ts:321`](apps/lore-api/src/api/routes/ingest/ingest-delta.test.ts#L321), [`ingest-delta.test.ts:273`](apps/lore-api/src/api/routes/ingest/ingest-delta.test.ts#L273))
 
 - **FR3 — the delta is JSON posted straight to lore-api, projected in-process.**
   `POST /api/repos/{owner}/{repo}/ingest` (write scope) takes the kind, the
@@ -65,7 +68,7 @@ already owns the dgraph egress and the Vertex embed path.
   Unknown kinds and malformed commits are 400s; a deployment without
   `LORE_DGRAPH_HTTP` refuses with a 503 naming the missing configuration
   instead of pretending to ingest.
-  ([validated by projects changed docs, prunes deleted ones, and advances the state](apps/lore-api/src/api/routes/ingest/ingest-delta.test.ts#L113), [`ingest-delta.test.ts:147`](apps/lore-api/src/api/routes/ingest/ingest-delta.test.ts#L147), [`ingest-delta.test.ts:165`](apps/lore-api/src/api/routes/ingest/ingest-delta.test.ts#L165), [`ingest-delta.test.ts:213`](apps/lore-api/src/api/routes/ingest/ingest-delta.test.ts#L213), [`ingest-delta.test.ts:250`](apps/lore-api/src/api/routes/ingest/ingest-delta.test.ts#L250), [`ingest-delta.test.ts:273`](apps/lore-api/src/api/routes/ingest/ingest-delta.test.ts#L273))
+  ([validated by projects changed docs, prunes deleted ones, and advances the state](apps/lore-api/src/api/routes/ingest/ingest-delta.test.ts#L113), [`ingest-delta.test.ts:147`](apps/lore-api/src/api/routes/ingest/ingest-delta.test.ts#L147), [`ingest-delta.test.ts:165`](apps/lore-api/src/api/routes/ingest/ingest-delta.test.ts#L165), [`ingest-delta.test.ts:213`](apps/lore-api/src/api/routes/ingest/ingest-delta.test.ts#L213), [`ingest-delta.test.ts:250`](apps/lore-api/src/api/routes/ingest/ingest-delta.test.ts#L250), [`ingest-delta.test.ts:308`](apps/lore-api/src/api/routes/ingest/ingest-delta.test.ts#L308))
 
 - **FR4 — deletions ride in the payload and prune their graph subtrees.** An
   incremental report carries only CHANGED tests, so absence stops meaning
@@ -76,11 +79,11 @@ already owns the dgraph egress and the Vertex embed path.
   TestSuites, the Coverage nodes hanging off them, and the incoming edges
   that would otherwise dangle — a Statement's or AcceptanceCriterion's
   `validated_by` (the statement itself survives, reporting the link broken)
-  and the Repo root's `test_chunks`/`test_suites`. CodeChunks and Files the
+  and the Repo root's `test_chunks`/`test_suites`/`coverage`. CodeChunks and Files the
   doomed Coverage covered are garbage-collected through the shared ownership
   rules, so a code chunk still covered by another test file survives. A path
   with no graph presence prunes as a no-op, so a re-driven prune converges.
-  ([validated by prunes every TestChunk and TestSuite of the named files and keeps the rest](libs/shared/src/spec-trace/prune-test-files.test.ts#L123), [`prune-test-files.test.ts:160`](libs/shared/src/spec-trace/prune-test-files.test.ts#L160), [`prune-test-files.test.ts:188`](libs/shared/src/spec-trace/prune-test-files.test.ts#L188), [`prune-test-files.test.ts:222`](libs/shared/src/spec-trace/prune-test-files.test.ts#L222))
+  ([validated by prunes every TestChunk and TestSuite of the named files and keeps the rest](libs/shared/src/spec-trace/prune-test-files.test.ts#L123), [`prune-test-files.test.ts:160`](libs/shared/src/spec-trace/prune-test-files.test.ts#L160), [`prune-test-files.test.ts:214`](libs/shared/src/spec-trace/prune-test-files.test.ts#L214), [`prune-test-files.test.ts:248`](libs/shared/src/spec-trace/prune-test-files.test.ts#L248), [`prune-test-files.test.ts:188`](libs/shared/src/spec-trace/prune-test-files.test.ts#L188))
 
 ## Planned (next slices)
 

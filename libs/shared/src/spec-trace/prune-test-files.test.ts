@@ -185,6 +185,32 @@ describe.skipIf(!reachable)("pruneTestFiles (live Dgraph)", () => {
     expect(data.code ?? []).toEqual([]);
   });
 
+  it("leaves no dangling Repo.coverage edge to a pruned Coverage node", async () => {
+    // `<uid> * * .` drops only OUTGOING edges — the Repo root keeps a dangling
+    // forward ref unless its edge is deleted explicitly (the same lesson
+    // Repo.test_chunks already carries).
+    const repo = `prune-tests/${randomUUID()}`;
+
+    createdRepo = repo;
+    await ingestTestReport(dgraphClient, repo, seedReport());
+
+    await pruneTestFiles(dgraphClient, repo, ["src/a.test.ts"]);
+
+    const data = (await readGraph(
+      `query q($repo: string) {
+        root(func: eq(Repo.xid, $repo)) { edges: count(Repo.coverage) }
+        cov(func: eq(Coverage.repo, $repo)) { uid }
+      }`,
+      { $repo: repo },
+    )) as {
+      root?: Array<{ edges?: number }>;
+      cov?: Array<{ uid: string }>;
+    };
+
+    // Exactly the surviving (b's) coverage node — no ref to a deleted uid.
+    expect(data.root?.[0]?.edges ?? 0).toBe((data.cov ?? []).length);
+  });
+
   it("keeps a statement the pruned test validated, dropping only the validated_by edge", async () => {
     const repo = `prune-tests/${randomUUID()}`;
 

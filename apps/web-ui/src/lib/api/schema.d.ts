@@ -2730,7 +2730,7 @@ export interface components {
       kind: string;
       commit: string;
       /** @enum {string} */
-      state: "advanced" | "pending-chunks";
+      state: "advanced" | "pending-chunks" | "unrecorded";
       projected: number;
       deleted: number;
       test_chunks: number;

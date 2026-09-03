@@ -160,6 +160,9 @@ export async function pruneTestFiles(
         ...target.suiteUids.map(
           (uid) => `<${target.rootUid}> <Repo.test_suites> <${uid}> .`,
         ),
+        ...target.coverageUids.map(
+          (uid) => `<${target.rootUid}> <Repo.coverage> <${uid}> .`,
+        ),
       );
     }
     await withTxn(dgraph, (txn) =>

@@ -10238,7 +10238,7 @@
           },
           "state": {
             "type": "string",
-            "enum": ["advanced", "pending-chunks"]
+            "enum": ["advanced", "pending-chunks", "unrecorded"]
           },
           "projected": {
             "type": "number"
