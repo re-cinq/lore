@@ -183,3 +183,16 @@ describe("the implementation-tdd recipe", () => {
     );
   });
 });
+
+describe("the acceptance-dod recipe", () => {
+  it("names no_new_test as a valid outcome for trivial or mechanical tickets", () => {
+    // specs/implementation-loop#FR3-no-new-test
+    // A rename, deletion, or documentation update has no behaviour to test first.
+    // The recipe must name no_new_test so the agent knows to return it (and so
+    // the implementation-loop line can route it without failing the run).
+    const parsed = parseTaskTypesFile(COMMITTED);
+    const dod = parsed.taskTypes["acceptance-dod"]?.prompt_template ?? "";
+
+    expect(dod).toContain("no_new_test");
+  });
+});
