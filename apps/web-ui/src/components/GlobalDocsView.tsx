@@ -78,7 +78,7 @@ export default function GlobalDocsView({
               return (
                 <li key={filePath} className={styles.docItem}>
                   <Link href={hrefFor(kind, repo, filePath)}>{filePath}</Link>
-                  {info && <SpecStatusPill info={info} />}
+                  {info && <SpecStatusPill status={info} />}
                 </li>
               );
             })}

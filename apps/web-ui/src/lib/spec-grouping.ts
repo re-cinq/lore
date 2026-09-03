@@ -93,8 +93,8 @@ export function groupSpecSummaries(summaries: SpecSummaryInput[]): SpecGroup[] {
 
   const groups: SpecGroup[] = [];
 
-  for (const [key, items] of byKey) {
-    const sorted = [...items].sort(orderSpecFirst);
+  for (const [key, specs] of byKey) {
+    const sorted = [...specs].sort(orderSpecFirst);
     const primary = sorted.find((s) => isSpecDoc(s.filePath)) ?? sorted[0];
 
     groups.push({

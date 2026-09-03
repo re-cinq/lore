@@ -6,7 +6,7 @@ function form(fields: Record<string, string | string[]>): FormData {
 
   for (const [k, v] of Object.entries(fields)) {
     if (Array.isArray(v)) {
-      v.forEach((x) => fd.append(k, x));
+      v.forEach((value) => fd.append(k, value));
       continue;
     }
     fd.set(k, v);
