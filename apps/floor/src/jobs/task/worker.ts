@@ -211,6 +211,89 @@ async function dispatchAgentCr(input: DispatchInput): Promise<void> {
   });
 }
 
+/** pending → queued → running, then tell the Issue who picked it up. The comment is best-effort: a task runs whether or not its Issue can be written to. */
+async function claimTask(
+  task: PipelineTask,
+  agentId: string,
+  project: Awaited<ReturnType<typeof projectFor>>,
+  issueNumber: number | null,
+): Promise<void> {
+  await setStatus(task.id, "queued", { agent_id: agentId });
+  await insertEvent(task.id, "pending", "queued");
+  await setStatus(task.id, "running");
+  await insertEvent(task.id, "queued", "running");
+
+  if (!issueNumber) {
+    return;
+  }
+  const pipelineUrl = taskPageUrl(task.id, process.env.LORE_UI_URL);
+
+  await project.issues
+    .comment(
+      issueNumber,
+      `Agent \`${agentId}\` picked up this task.` +
+        (pipelineUrl ? ` Follow it on the pipeline: ${pipelineUrl}` : ""),
+    )
+    .catch(() => {});
+}
+
+interface RepoSettings {
+  task_overrides?: Record<
+    string,
+    { model?: string; system_prompt_suffix?: string }
+  >;
+  dark_factory?: { enabled?: boolean };
+  [key: string]: unknown;
+}
+
+/** Unreadable settings are not a reason to fail the task; the plan falls back to the defaults. */
+async function readRepoSettings(targetRepo: string): Promise<RepoSettings> {
+  try {
+    return ((await settings().rawSettings(targetRepo)) as RepoSettings) ?? {};
+  } catch {
+    return {};
+  }
+}
+
+/** How this task runs: which branch, which model, which agent definition, and whether the repo puts it through the Floor-side graph. */
+async function resolveTaskPlan(
+  task: PipelineTask,
+  targetRepo: string,
+  project: Awaited<ReturnType<typeof projectFor>>,
+) {
+  const repoSettings = await readRepoSettings(targetRepo);
+  // Resolved through the single project.agentDefs seam (project → org → yaml);
+  // an unavailable port falls back to the yaml loader downstream.
+  const agentDef = await project.agentDefs
+    .resolve(task.task_type)
+    .catch(() => null);
+  const repoOverrides = repoSettings.task_overrides?.[task.task_type];
+  const contextBundle = (task.context_bundle || {}) as {
+    branch?: string;
+    feedback?: string;
+  };
+
+  // A revision runs on the branch it is revising, and says what it is revising.
+  if (contextBundle.feedback) {
+    task.description = `REVISION FEEDBACK: ${contextBundle.feedback}\n\nOriginal task: ${task.description}`;
+  }
+
+  return {
+    repoSettings,
+    repoOverrides,
+    agentDef,
+    branchName:
+      contextBundle.branch ||
+      `lore/${task.task_type}/${slugify(task.description)}-${task.id.substring(0, 8)}`,
+    // The resolved agent definition wins, then legacy per-repo overrides.
+    model:
+      agentDef?.model ||
+      repoOverrides?.model ||
+      getTaskTypeConfig(task.task_type)?.model,
+    darkFactoryEnabled: repoSettings?.dark_factory?.enabled === true,
+  };
+}
+
 async function processTask(task: PipelineTask): Promise<void> {
   const agentId = `lore-agent-${task.id.substring(0, 8)}`;
   const targetRepo = task.target_repo || "re-cinq/lore";
@@ -230,94 +313,23 @@ async function processTask(task: PipelineTask): Promise<void> {
     return; // Don't process yet — waiting on the approval label
   }
 
-  // pending → queued
-  await setStatus(task.id, "queued", { agent_id: agentId });
-  await insertEvent(task.id, "pending", "queued");
-
-  // queued → running
-  await setStatus(task.id, "running");
-  await insertEvent(task.id, "queued", "running");
-
-  if (issueNumber) {
-    const pipelineUrl = taskPageUrl(task.id, process.env.LORE_UI_URL);
-
-    await project.issues
-      .comment(
-        issueNumber,
-        `Agent \`${agentId}\` picked up this task.` +
-          (pipelineUrl ? ` Follow it on the pipeline: ${pipelineUrl}` : ""),
-      )
-      .catch(() => {});
-  }
+  await claimTask(task, agentId, project, issueNumber);
 
   try {
-    // Fetch per-repo settings for prompt customization
-    let repoSettings: {
-      task_overrides?: Record<
-        string,
-        { model?: string; system_prompt_suffix?: string }
-      >;
-      dark_factory?: { enabled?: boolean };
-      [key: string]: unknown;
-    } = {};
-
-    try {
-      repoSettings =
-        ((await settings().rawSettings(targetRepo)) as typeof repoSettings) ??
-        {};
-    } catch {
-      /* non-fatal */
-    }
-
-    // Resolve the agent definition (project → org → yaml) through the single
-    // project.agentDefs port seam; fall back to the yaml loader if unavailable.
-    const agentDef = await project.agentDefs
-      .resolve(task.task_type)
-      .catch(() => null);
-
-    // Build prompt from the resolved definition, with optional per-repo suffix.
-    const repoOverrides = repoSettings.task_overrides?.[task.task_type];
-
-    // Determine branch — use existing branch for revision tasks
-    const contextBundle = (task.context_bundle || {}) as {
-      branch?: string;
-      feedback?: string;
-    };
-    const slug = slugify(task.description);
-    const branchName =
-      contextBundle.branch ||
-      `lore/${task.task_type}/${slug}-${task.id.substring(0, 8)}`;
-
-    // If this is a revision task, prepend feedback to the description
-    if (contextBundle.feedback) {
-      task.description = `REVISION FEEDBACK: ${contextBundle.feedback}\n\nOriginal task: ${task.description}`;
-    }
+    const plan = await resolveTaskPlan(task, targetRepo, project);
 
     enforceTrue(
       project.repo.isConfigured(),
       Error,
       "GitHub App not configured — cannot create PR",
     );
-
-    // Resolve model — the resolved agent definition wins, then legacy overrides.
-    const resolvedModel = agentDef?.model || repoOverrides?.model;
-    const model = resolvedModel || getTaskTypeConfig(task.task_type)?.model;
-
-    // Forwarded to the Agent CR dispatch: dark-mode repos run the Floor-side graph, one Agent CR per node.
-    const darkFactoryEnabled = repoSettings?.dark_factory?.enabled === true;
-
     await dispatchByTaskType(routeTask(task.task_type), {
       task,
       targetRepo,
-      branchName,
-      model,
       issueNumber,
       project,
-      repoSettings,
-      repoOverrides,
-      agentDef,
-      darkFactoryEnabled,
       isFeaturePlanningType,
+      ...plan,
     });
   } catch (err) {
     const failureReason: string = errorMessage(err);
@@ -378,67 +390,76 @@ async function ensureIssue(
   project: Project,
   isFeaturePlanningType: boolean,
 ): Promise<number | null> {
-  let issueNumber: number | null = task.issue_number || null;
+  const existing = task.issue_number || null;
+
+  if (existing) {
+    console.log(
+      `[floor] Using existing issue #${existing} on ${targetRepo} (webhook-dispatched)`,
+    );
+
+    return existing;
+  }
   const { shouldCreateIssue } = await import("../dark-factory/dark-factory.js");
-  const issueGate = await shouldCreateIssue(task);
+  const gate = await shouldCreateIssue(task);
+  // A general task never files one, and a feature-planning line files its own.
+  const eligible = task.task_type !== "general" && !isFeaturePlanningType;
 
-  const isIssueEligibleTaskType =
-    task.task_type !== "general" && !isFeaturePlanningType;
+  // A general task files none by design, so its skip is not worth reporting.
+  const skipIsNoteworthy = task.task_type !== "general";
 
-  const createIssue =
-    !issueNumber && isIssueEligibleTaskType && issueGate.create;
-  const hasExistingIssue = Boolean(issueNumber);
-
-  if (createIssue) {
-    try {
-      const taskTypeLabel =
-        task.task_type === "feature-request" ? "spec" : task.task_type;
-      const copy = await generateArtifactCopy({
-        kind: "issue",
-        taskType: task.task_type,
-        description: task.description,
-        repo: targetRepo,
-      });
-      const issueBody = linkifyMarkdown(copy.body, {
-        repo: targetRepo,
-        uiUrl: process.env.LORE_UI_URL,
-      });
-      const issue = await project.issues.create(
-        copy.title,
-        composeIssueBody(issueBody, task, process.env.LORE_UI_URL),
-        ["lore-managed", taskTypeLabel],
-      );
-
-      issueNumber = issue.number;
-      await pipeline().taskQueue.setColumns(task.id, {
-        issue_number: issue.number,
-        issue_url: issue.url,
-      });
-      console.log(`[floor] Created issue #${issue.number} on ${targetRepo}`);
-    } catch (err) {
-      // Non-fatal — proceed without issue if GitHub App lacks permission
-      console.warn(
-        `[floor] Could not create issue on ${targetRepo}: ${errorMessage(err)}`,
-      );
-    }
-  }
-
-  if (!createIssue && hasExistingIssue) {
+  if ((!eligible || !gate.create) && skipIsNoteworthy) {
     console.log(
-      `[floor] Using existing issue #${issueNumber} on ${targetRepo} (webhook-dispatched)`,
+      `[floor] Skipping issue for ${targetRepo} task ${task.id} (dark-factory: ${gate.reason})`,
     );
   }
 
-  const issueSkippedByGate =
-    !createIssue && !hasExistingIssue && !issueGate.create;
-
-  if (issueSkippedByGate && task.task_type !== "general") {
-    console.log(
-      `[floor] Skipping issue for ${targetRepo} task ${task.id} (dark-factory: ${issueGate.reason})`,
-    );
+  if (!eligible || !gate.create) {
+    return null;
   }
 
-  return issueNumber;
+  return createTaskIssue(task, targetRepo, project);
+}
+
+/** File the Issue this task reports against. Non-fatal: a GitHub App without permission costs the task its Issue, not its run. */
+async function createTaskIssue(
+  task: PipelineTask,
+  targetRepo: string,
+  project: Project,
+): Promise<number | null> {
+  try {
+    const copy = await generateArtifactCopy({
+      kind: "issue",
+      taskType: task.task_type,
+      description: task.description,
+      repo: targetRepo,
+    });
+    const issueBody = linkifyMarkdown(copy.body, {
+      repo: targetRepo,
+      uiUrl: process.env.LORE_UI_URL,
+    });
+    const issue = await project.issues.create(
+      copy.title,
+      composeIssueBody(issueBody, task, process.env.LORE_UI_URL),
+      [
+        "lore-managed",
+        task.task_type === "feature-request" ? "spec" : task.task_type,
+      ],
+    );
+
+    await pipeline().taskQueue.setColumns(task.id, {
+      issue_number: issue.number,
+      issue_url: issue.url,
+    });
+    console.log(`[floor] Created issue #${issue.number} on ${targetRepo}`);
+
+    return issue.number;
+  } catch (err) {
+    console.warn(
+      `[floor] Could not create issue on ${targetRepo}: ${errorMessage(err)}`,
+    );
+
+    return null;
+  }
 }
 
 /**
