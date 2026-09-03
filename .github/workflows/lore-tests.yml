@@ -25,6 +25,10 @@ jobs:
       - uses: actions/checkout@v5
         with:
           persist-credentials: false
+          # The incremental ingest diffs HEAD against the commit Lore last
+          # absorbed; a shallow clone cannot reach it and would fall back to a
+          # full report on every push.
+          fetch-depth: 0
 
       - uses: actions/setup-node@v4
         with:
@@ -66,14 +70,17 @@ jobs:
       - name: Run tests + ingest
         if: hashFiles('lore-code-trace') != ''
         env:
+          # Incremental path: state fetch + delta POST to lore-api (no pods).
+          LORE_API_URL: ${{ vars.LORE_API_URL }}
+          # Chunked-webhook fallback for a lore-api that predates the route.
           LORE_WEBHOOK_URL: ${{ vars.LORE_WEBHOOK_URL }}
           LORE_INGEST_TOKEN: ${{ secrets.LORE_INGEST_TOKEN }}
           # Cold CI runners are slower than dev machines; give the full-suite list +
           # per-file coverage runs headroom over the 120s default.
           LORE_TRACE_TIMEOUT_MS: "600000"
         run: |
-          if [ -z "${LORE_WEBHOOK_URL}" ]; then
-            echo "::warning::LORE_WEBHOOK_URL not set — skipping (pending Floor ci-tests cutover)"; exit 0
+          if [ -z "${LORE_API_URL}" ] && [ -z "${LORE_WEBHOOK_URL}" ]; then
+            echo "::warning::neither LORE_API_URL nor LORE_WEBHOOK_URL set — skipping test ingest"; exit 0
           fi
           # Hard-fail: a swallowed warning here let the ci-tests ingest 404 silently
           # for weeks (ingress only routed /api/webhook/github) and starved the

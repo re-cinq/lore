@@ -85,24 +85,29 @@ already owns the dgraph egress and the Vertex embed path.
   with no graph presence prunes as a no-op, so a re-driven prune converges.
   ([validated by prunes every TestChunk and TestSuite of the named files and keeps the rest](libs/shared/src/spec-trace/prune-test-files.test.ts#L116), [`prune-test-files.test.ts:151`](libs/shared/src/spec-trace/prune-test-files.test.ts#L151), [`prune-test-files.test.ts:198`](libs/shared/src/spec-trace/prune-test-files.test.ts#L198), [`prune-test-files.test.ts:232`](libs/shared/src/spec-trace/prune-test-files.test.ts#L232), [`prune-test-files.test.ts:176`](libs/shared/src/spec-trace/prune-test-files.test.ts#L176))
 
+- **FR5 — the runner diffs and filters (lore-code-trace).** `--post` now
+  runs the handshake before anything else: it fetches the state for
+  `test-report`; no state ⇒ a full ingest posted with `base_commit: null`. A
+  state whose commit is UNREACHABLE in the runner's history (force-pushed
+  main, over-shallow clone) ⇒ full ingest CONTENT with `base_commit` still set
+  to the observed commit — the CAS target is the observed state, not the diff
+  basis, and posting null against a recorded state would 409 on every retry
+  forever. Otherwise `git diff --name-status <base>..HEAD` (the workflow
+  checkout carries `fetch-depth: 0`; a shallow clone cannot reach the base)
+  selects the tests living in changed test files plus every test whose
+  coverage touches ANY changed file — an edit shifts the line ranges of
+  everything below it in the same file, so file-granularity re-projection is
+  the correct unit — and names the deleted paths (a rename deletes its old
+  path). On a 409 the runner re-fetches the state and re-diffs exactly once
+  before failing the step out loud. A lore-api that does not serve the routes
+  yet reads as "no state" on the fetch and as a typed absence on the post, and
+  the runner falls back to the chunked webhook rather than reddening CI.
+  ([validated by [`delta_test.go:8`](apps/lore-code-trace/delta_test.go#L8), [`delta_test.go:23`](apps/lore-code-trace/delta_test.go#L23), [`delta_test.go:55`](apps/lore-code-trace/delta_test.go#L55), [`delta_test.go:69`](apps/lore-code-trace/delta_test.go#L69), [`delta_test.go:79`](apps/lore-code-trace/delta_test.go#L79), [`delta_test.go:87`](apps/lore-code-trace/delta_test.go#L87), [`ingest_test.go:13`](apps/lore-code-trace/ingest_test.go#L13), [`ingest_test.go:37`](apps/lore-code-trace/ingest_test.go#L37), [`ingest_test.go:52`](apps/lore-code-trace/ingest_test.go#L52), [`ingest_test.go:69`](apps/lore-code-trace/ingest_test.go#L69), [`ingest_test.go:99`](apps/lore-code-trace/ingest_test.go#L99), [`ingest_test.go:117`](apps/lore-code-trace/ingest_test.go#L117), [`ingest_test.go:164`](apps/lore-code-trace/ingest_test.go#L164), [`ingest_test.go:182`](apps/lore-code-trace/ingest_test.go#L182), [`ingest_test.go:201`](apps/lore-code-trace/ingest_test.go#L201), [`ingest_test.go:221`](apps/lore-code-trace/ingest_test.go#L221), [`ingest_test.go:240`](apps/lore-code-trace/ingest_test.go#L240))
+
 ## Planned (next slices)
 
-The CI half and the rollout are follow-up slices, specified here so the
-routes above have their consumer named:
-
-- **FR5 — the runner diffs and filters (lore-code-trace).** Fetch the state;
-  no state ⇒ full ingest with `base_commit: null`. A state whose commit is
-  UNREACHABLE in the runner's history (force-pushed main, over-shallow
-  clone) ⇒ full ingest CONTENT with `base_commit` still set to the observed
-  commit — the CAS target is the observed state, not the diff basis, and
-  posting null against a recorded state would 409 on every retry forever.
-  Otherwise `git diff --name-status <base>..HEAD` (the workflow
-  checkout needs `fetch-depth: 0`; a shallow clone cannot reach the base) and
-  send: tests living in changed test files, every test whose coverage touches
-  ANY changed file (an edit shifts the line ranges of everything below it in
-  the same file, so file-granularity re-projection is the correct unit), and
-  the deleted paths. On a 409, re-fetch the state and re-diff once before
-  giving up loudly.
+The onboarding scaffold and the rollout are follow-up slices, specified here
+so the routes above have their consumer named:
 
 - **FR6 — onboarding scaffolds the incremental flow.** The `onboard` task's
   generated `lore-tests.yml` / `lore-ingest.yml` workflows and the
