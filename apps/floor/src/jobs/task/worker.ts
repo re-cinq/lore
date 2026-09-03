@@ -263,18 +263,23 @@ async function processTask(task: PipelineTask): Promise<void> {
         task.task_type,
       );
 
-      await handleClaudeCodeTask(
+      await handleClaudeCodeTask({
         task,
         targetRepo,
         branchName,
         model,
-        issueNumber,
         repoOverrides,
-        darkFactoryAssemblyLine,
-        darkFactoryBaseBranch,
-        executionImage,
+        ...(darkFactoryAssemblyLine
+          ? {
+              darkFactory: {
+                assemblyLine: darkFactoryAssemblyLine,
+                baseBranch: darkFactoryBaseBranch,
+              },
+            }
+          : {}),
+        image: executionImage,
         agentDef,
-      );
+      });
     }
   } catch (err) {
     const failureReason: string = errorMessage(err);
