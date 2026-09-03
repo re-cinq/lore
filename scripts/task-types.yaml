@@ -168,6 +168,22 @@ task_types:
       - Do not weaken, skip or `.todo` a test to make the suite tidy. Red is the
         deliverable.
 
+      SCOPE FIDELITY, EQUALLY NON-NEGOTIABLE. The ticket below carries the
+      issue's title AND body — the reported problem is in there, not in your
+      reading of it:
+      - Open `.lore/dod.md` by QUOTING the ticket's central claim, verbatim.
+        The claim is what the reporter says is wrong, in their words.
+      - Every acceptance test must fail BECAUSE of that claim. Run each red
+        test and read its failure output against the quote: failing for a
+        reason the ticket never states means you have redefined the ticket,
+        and a merged PR built on it closes the report without fixing it.
+        That is `changes_requested`, not a DoD.
+      - A neighbouring problem you notice on the way is a finding for your
+        final message, never a substitute subject for the tests.
+      - A bulk mechanical fix across hundreds of sites is "really several
+        tickets": park it via the `changes_requested` line below rather than
+        shrinking it into the slice you can express.
+
       TRIAGE — pick exactly one strategy and say which:
       - `direct` — a seam already exists. The acceptance test can call the real
         entry point today and fail on behaviour. Use this whenever it is honest.
@@ -188,6 +204,7 @@ task_types:
       Record the triage in `.lore/dod.md`, committed with the tests. Write it
       for the next pod, which has your branch and none of your reasoning:
         # Definition of Done
+        Ticket claim: <the ticket's central claim, quoted verbatim>
         Strategy: direct | parallel-change | characterize
         Why: <one or two sentences — what seam exists or does not>
         Acceptance tests:
@@ -239,9 +256,11 @@ task_types:
       on its own line, as the final thing in your message:
       - Red acceptance tests are committed and pushed:
         LORE_NODE_RESULT: {"outcome":"success","extras":{"Lore-Dod-Strategy":"direct"}}
-      - The ticket cannot be expressed as acceptance tests — it is ambiguous, it
-        is really several tickets, or it asks for something unobservable. Say
-        precisely what you would need, then:
+      - The ticket cannot be expressed as acceptance tests that fail for ITS
+        stated reason — it is ambiguous, it is really several tickets (a bulk
+        mechanical fix included), it asks for something unobservable, or every
+        honest red test you can write fails for a reason the ticket never
+        states. Say precisely what you would need, then:
         LORE_NODE_RESULT: {"outcome":"changes_requested","extras":{"Lore-Dod-Blocked":"<one line: what is missing>"}}
         This parks the ticket for a human. It is the right answer for a bad
         ticket and the wrong answer for a hard one.
@@ -439,7 +458,16 @@ task_types:
       no emoji, no "Summary/Changes/Testing" headings, no restating the diff.
       Link the specs and ADRs the change touches by path. If you deviated from
       `.lore/dod.md`'s strategy, say so and say why — that is the single most
-      useful sentence in the description.
+      useful sentence in the description. Do not write closing-keyword lines
+      (`Closes`/`Refs #N`) or `Lore-Task:` trailers — Lore appends that footer
+      itself when it updates the pull request.
+
+      THEN JUDGE COVERAGE. Re-read the ticket (title and body) against the
+      branch: does this PR resolve everything the ticket reports, or only part
+      of it? Part is an honest and common answer — say which part in the
+      description. You report the verdict in your final line below; on
+      `"partial"` Lore stamps the PR to REFERENCE the ticket (`Refs`) instead
+      of closing it on merge, so the rest of the report stays open.
 
       THEN clean up: `git rm .lore/dod.md`. It was scaffolding between pods and
       does not belong in the review.
@@ -476,8 +504,10 @@ task_types:
 
       Print exactly one of these as the last line of your final message:
       - Every acceptance test is green, `.lore/pr-body.md` is written,
-        `.lore/dod.md` is removed, and all of it is pushed:
-        LORE_NODE_RESULT: {"outcome":"success","extras":{"Lore-Pr-Ready":"green"}}
+        `.lore/dod.md` is removed, and all of it is pushed. Set
+        `"Lore-Issue-Coverage"` to `"full"` when the branch resolves everything
+        the ticket reports, `"partial"` when it resolves only part:
+        LORE_NODE_RESULT: {"outcome":"success","extras":{"Lore-Pr-Ready":"green","Lore-Issue-Coverage":"full"}}
       - Something is still red:
         LORE_NODE_RESULT: {"outcome":"failed","extras":{"Lore-Pr-Blocked":"<one line: what failed>"}}
 
