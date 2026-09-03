@@ -1,20 +1,20 @@
-/** Bounded-concurrency `Promise.all`: runs `fn` over `items` at most `limit` at once, keeping input order — keeps per-file test commands from fork-bombing the box. */
+/** Bounded-concurrency `Promise.all`: runs `fn` over `inputs` at most `limit` at once, keeping input order — keeps per-file test commands from fork-bombing the box. */
 export async function mapWithLimit<T, R>(
-  items: readonly T[],
+  inputs: readonly T[],
   limit: number,
   fn: (item: T, index: number) => Promise<R>,
 ): Promise<R[]> {
-  const results = new Array<R>(items.length);
+  const results = new Array<R>(inputs.length);
   let next = 0;
   const worker = async (): Promise<void> => {
-    while (next < items.length) {
+    while (next < inputs.length) {
       const index = next;
 
       next += 1;
-      results[index] = await fn(items[index], index);
+      results[index] = await fn(inputs[index], index);
     }
   };
-  const workerCount = Math.max(1, Math.min(limit, items.length));
+  const workerCount = Math.max(1, Math.min(limit, inputs.length));
 
   await Promise.all(Array.from({ length: workerCount }, () => worker()));
 
