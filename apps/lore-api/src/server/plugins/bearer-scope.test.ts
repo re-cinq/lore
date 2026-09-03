@@ -9,10 +9,6 @@ import {
 
 const originalEnv = { ...process.env };
 
-// The auth matrix for native routes, proven against the scheme via throwaway
-// routes: a MISSING bearer → 401 {error:unauthorized}; any present-but-invalid
-// or under-scoped token → 403 {error:insufficient scope}; admin / legacy token
-// grant everything. Bodies match the legacy dispatcher byte-for-byte (SC-3).
 function server(pool: unknown): Hapi.Server {
   const s = Hapi.server();
 

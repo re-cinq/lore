@@ -25,8 +25,6 @@ describe("ConversationsPort", () => {
   });
 
   it("skips a reserved conversation whose run never uploaded", async () => {
-    // Offering it would send the next pod after an object that does not exist —
-    // and a failed fetch is silent by design, so it would look like a fresh start.
     const store = new InMemoryConversations();
 
     await store.reserve({ thread, conversationId: "c1", assemblyLineId: "l1" });
@@ -90,9 +88,6 @@ describe("ConversationsPort rewind", () => {
   };
 
   it("resumes the round the author chose, not the newest one", async () => {
-    // Rewind is exactly this: rounds 3 and 4 exist, and continuing from round 2
-    // means resuming round 2's transcript. Fork-per-round is what leaves it there
-    // to resume — resume-in-place would have overwritten it.
     const conversations = new InMemoryConversations();
 
     for (const [line, id] of [
@@ -116,9 +111,6 @@ describe("ConversationsPort rewind", () => {
   });
 
   it("offers nothing when the chosen round never uploaded its state", async () => {
-    // An explicit choice must not silently fall through to the newest round: the
-    // author asked for round 2, and quietly resuming round 4 would look identical
-    // to a rewind that worked.
     const conversations = new InMemoryConversations();
 
     await conversations.reserve({
@@ -159,10 +151,6 @@ describe("ConversationsPort rewind", () => {
 });
 
 describe("a thread whose rounds share one assembly line", () => {
-  // The merged planning line: every round is a revisit of the same node on the SAME
-  // line id. The old exclusion was "not this line", written when each round WAS a
-  // line — on the merged line it excludes precisely the sibling rounds a run needs,
-  // and continuity dies silently because a missing prior just re-briefs from scratch.
   const execution = (iteration: number) => ({
     assemblyLineId: "line-1",
     iteration,
@@ -186,8 +174,6 @@ describe("a thread whose rounds share one assembly line", () => {
   });
 
   it("never offers a run its own reserved conversation", async () => {
-    // The guard's real intent: a re-dispatch of the SAME node execution must not
-    // resume itself. Identity is (line, node, iteration) — not the line.
     const store = new InMemoryConversations();
 
     await store.reserve({
@@ -220,8 +206,6 @@ describe("a thread whose rounds share one assembly line", () => {
   });
 
   it("offers nothing when the rewound-to round of a shared line never saved", async () => {
-    // The rewind contract, unchanged: an explicit choice that resolves to nothing
-    // must start fresh rather than quietly resume the newest round.
     const store = new InMemoryConversations();
 
     await store.reserve({
@@ -237,8 +221,6 @@ describe("a thread whose rounds share one assembly line", () => {
 });
 
 describe("a row written before conversations carried an iteration", () => {
-  // Migration 0038 added the column; rows written before it have NULL. Such a row is
-  // "the only execution on its line", which was true when a line ran exactly one.
   const preMigration = async (store: InMemoryConversations) => {
     await store.reserve({
       thread,
@@ -261,9 +243,6 @@ describe("a row written before conversations carried an iteration", () => {
   });
 
   it("offers it to a later round of the same line", async () => {
-    // The merged line's rounds share the id, so treating a NULL row as "could be any
-    // execution here" hides round 1 from every round after it — the same silent loss
-    // the iteration column was added to end.
     const store = new InMemoryConversations();
 
     await preMigration(store);

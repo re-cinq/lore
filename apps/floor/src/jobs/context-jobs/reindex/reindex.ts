@@ -14,34 +14,20 @@ import { verifyRepoChunks } from "./verify.js";
 
 const SCHEMA_RE = /^[a-z][a-z0-9_]+$/;
 
-/** Root-level files and directory prefixes seeded for repos with no prior
- *  ingestion. Prefixes match recursively, so nested specs (`specs/<feature>/
- *  spec.md`) are covered — not just the flat `.specify/spec.md` convention. */
+/** Root-level files and directory prefixes seeded for repos with no prior ingestion. */
 const SEED_EXACT = new Set(["CLAUDE.md", "AGENTS.md"]);
 const SEED_PREFIXES = ["adrs/", "specs/", ".specify/"];
 
-/** Audit rows cap the recorded pruned-path list so a mass prune (thousands of
- *  orphans after a restructure) cannot write a megabyte payload; the full
- *  count is always recorded. */
+/** Audit rows cap the recorded pruned-path list to prevent megabyte payloads. */
 const AUDIT_PRUNED_PATHS_CAP = 500;
 
-/** Per-repo, per-run cap on the chunker-upgrade heal sweep, so a version bump
- *  re-embeds the org's code chunks across a few nights instead of one giant
- *  run. Healed files stamp the current version and drop out of the query.
- *  A query cap, not a healed-count cap: stale files the changed-file loop
- *  already re-ingested this run occupy slots and are then skipped — the
- *  shortfall heals the next night. Intentional, to keep the query cheap. */
+/** Per-repo, per-run cap on chunker-upgrade heal sweep to spread re-embed across nights. */
 const HEAL_FILES_PER_RUN = 200;
 
-/** Per-repo, per-run cap on the never-ingested backfill sweep (mirrors
- *  HEAL_FILES_PER_RUN), so onboarding a large repo — or closing issue #999's
- *  204-file gap — spreads the ingest+embed cost across nights. Backfilled
- *  files gain chunks and drop out of the tree-vs-chunks diff. */
+/** Per-repo, per-run cap on never-ingested backfill sweep (mirrors HEAL_FILES_PER_RUN). */
 export const BACKFILL_FILES_PER_RUN = 200;
 
-/** Filters a full repo file tree down to the seed set: supported content
- *  types (per classifyFile) that live under a seed root. Pure — unit-tested
- *  in reindex-seed.test.ts. */
+/** Filters repo tree to seed set: supported types under seed roots (unit-tested in reindex-seed.test.ts). */
 export function selectSeedFiles(treePaths: string[]): string[] {
   return treePaths.filter(
     (path) =>
@@ -141,13 +127,8 @@ async function getTree(fullName: string): Promise<string[]> {
 
 // ── Chunker-upgrade heal sweep ──────────────────────────────────────
 
-/** Re-ingest code files whose stored chunks predate the current
- * CHUNKER_VERSION, skipping files this run already processed. A file the
- * ingest declines (classifyFile no longer supports its path) has its chunks
- * deleted instead — no current ingest path would recreate them, and leaving
- * them would wedge the sweep's capped query on the same files every night.
- * Per-file failures are logged and skipped; returns files healed. Unit-tested
- * with the in-memory chunks double in reindex-heal.test.ts. */
+/** Re-ingest code files pre-dating CHUNKER_VERSION; delete chunks for reclassified files. */
+
 /** The repo a sweep walks and the team schema its chunks live in. */
 export interface IndexedRepo {
   schema: string;
@@ -199,16 +180,7 @@ export async function healStaleChunkerFiles(
 
 // ── Never-ingested backfill sweep ───────────────────────────────────
 
-/** Ingest classifyFile-supported files present in the repo tree but absent
- * from the chunks table (issue #999: the full seed is docs-only and the
- * changed-file path only sees post-onboarding commits, so files that predate
- * ingestion — or fell through a commit-listing gap — never enter the DB, and
- * the chunker heal sweep only re-ingests files that already have chunks).
- * Absence is judged against ALL of the repo's chunks regardless of owner, so
- * api/ui-ingested files are never re-ingested. Sorted then capped, so an
- * oversized gap drains deterministically across nightly runs. Per-file
- * failures are logged and skipped; returns files backfilled. Unit-tested with
- * the in-memory chunks double in reindex-backfill.test.ts. */
+/** Ingest tree files absent from chunks (issue #999: seed is docs-only, changed-file post-onboarding). */
 export async function backfillUningestedFiles(
   port: Pick<ChunksPort, "chunkedFilePaths">,
   { schema, repo }: IndexedRepo,
@@ -352,16 +324,12 @@ export async function reindexJob(): Promise<string> {
         continue;
       }
 
-      // Relocate legacy org_shared rows into the resolved schema BEFORE the
-      // chunk count below — a newly team-resolved repo must adopt its history
-      // rather than read as empty and trigger a full re-seed. No-op when
-      // clean; non-fatal like the verification pass.
+      // Relocate legacy org_shared rows into the resolved schema before chunk count.
       if (schema !== "org_shared") {
         await adoptLegacyOrgSharedChunks(schema, repo.full_name);
       }
 
-      // Determine which files to process
-      // If repo has zero chunks, always do a full seed (handles failed first ingestion)
+      // Determine which files to process; zero chunks → full seed (failed first ingestion).
       const hasChunks =
         (await chunks().countChunks(schema, repo.full_name)) > 0;
 
@@ -395,10 +363,7 @@ export async function reindexJob(): Promise<string> {
         );
       }
 
-      // Chunker-upgrade heal: re-ingest code files whose stored chunks predate
-      // CHUNKER_VERSION, so chunking fixes reach files that never change
-      // (issue #995: pre-v2 chunks dropped test bodies and line ranges).
-      // Non-fatal; the cap spreads the one-time re-embed across nights.
+      // Chunker-upgrade heal: re-ingest code files for fix in issue #995.
       try {
         repoFileCount += await healStaleChunkerFiles(
           chunks(),
@@ -412,9 +377,7 @@ export async function reindexJob(): Promise<string> {
         );
       }
 
-      // Verification pass: re-stamp reindex-owned chunks whose files still
-      // exist, prune orphans of deleted files. Non-fatal — staleness clears
-      // on the next successful night.
+      // Verification pass: re-stamp chunks and prune orphans of deleted files.
       try {
         treePaths ??= await getTree(repo.full_name);
         const { touched, pruned, prunedFiles } = await verifyRepoChunks(
@@ -451,9 +414,7 @@ export async function reindexJob(): Promise<string> {
         );
       }
 
-      // Backfill sweep: ingest supported files present in the tree but absent
-      // from the chunks table (issue #999). Non-fatal; the cap drains an
-      // oversized gap across nights.
+      // Backfill sweep: ingest never-ingested files (issue #999).
       try {
         treePaths ??= await getTree(repo.full_name);
         repoFileCount += await backfillUningestedFiles(

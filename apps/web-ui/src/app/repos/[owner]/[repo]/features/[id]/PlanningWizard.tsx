@@ -50,13 +50,10 @@ export default function PlanningWizard({
   ) => Promise<void>;
   onFinalize: (userAnswers: SectionAnswers) => Promise<void>;
   onCreateDraft: (title: string, prompt: string) => void;
-  /** What to show once the lifecycle stops moving. The parent owns it — it needs the
-   *  decomposition rows, which the poll does not carry — but the WIZARD decides when,
-   *  because only the line knows whether an open PR is still being waited on. */
+  /** Parent owns it for decomposition rows; wizard decides when based on line state. */
   settledView: ReactNode;
 }) {
-  // Seeded from the server render so the first paint is not empty; the hook's mount
-  // fetch replaces it with the fields only the poll carries (task, run, live output).
+  // Seeded from the server render so the first paint is not empty; the mount fetch adds task, run and live output.
   const { data: poll, refresh: fetchLatest } = useFeaturePlanningPoll({
     owner,
     repo,
@@ -72,16 +69,13 @@ export default function PlanningWizard({
     },
   });
   const [feedback, setFeedback] = useState<FeedbackState>(emptyFeedback());
-  /** Which round the next one continues from; undefined = the latest. */
+  /** Undefined = continue from latest. */
   const [continueFrom, setContinueFrom] = useState<number | undefined>();
   const [pending, startTransition] = useTransition();
   const [finalizing, setFinalizing] = useState(false);
 
   const latest = poll.latestIteration;
-  // One value instead of five booleans rebuilt from the round's task. The LINE says
-  // which node is working; the round's own rows only decide for a legacy feature
-  // that resolves no line. `latestReady` still gates the server refresh + which
-  // analysis to show, which is a question about the DATA rather than about the phase.
+  // One value instead of five booleans; line says which node works; round's rows only for legacy features with no line.
   const phase = featurePhaseOf({
     run: poll.run,
     feature: poll.feature,
@@ -93,8 +87,7 @@ export default function PlanningWizard({
 
   useRefreshWhenRoundLands(latestReady, latest?.iteration ?? null);
 
-  // From the server-rendered feature, refreshed by router.refresh() when a round
-  // lands — the poll payload carries only the latest iteration, not the history.
+  // Server-rendered feature refreshed when round lands; poll carries only latest iteration, not history.
   const rounds = rewindOptions(feature.iterations);
   const rewinding = isRewind(rounds, continueFrom);
 
@@ -106,9 +99,7 @@ export default function PlanningWizard({
       await fetchLatest();
     });
 
-  // The author fills the form and accepts in one motion, so the accept carries the
-  // same answers a refine would. Sending nothing dropped the last thing they said
-  // about the plan before it became a spec.
+  // Accept carries the same answers as refine to avoid dropping last form input.
   const submitCreateSpecFile = () =>
     startTransition(async () => {
       setFinalizing(true);
@@ -161,13 +152,7 @@ export default function PlanningWizard({
   );
 }
 
-/**
- * The poll updates THIS component, but the draft spec renders from the server's
- * copy of the feature (FeatureDetailView reads feature.draft_spec_md). Without a
- * refresh, a round that just landed leaves the page showing pre-round data until
- * the reader thinks to reload. Once per iteration — refresh() re-renders the
- * parent, which would otherwise re-trigger this on every poll.
- */
+/** The draft spec renders from the SERVER's copy, so a landed round shows pre-round data until this refreshes it — once per iteration, since refresh() re-renders the parent. */
 function useRefreshWhenRoundLands(
   latestReady: boolean,
   iteration: number | null,
@@ -186,13 +171,7 @@ function useRefreshWhenRoundLands(
   }, [latestReady, iteration, router]);
 }
 
-/**
- * After finalize, the feature-finalize task runs async (no intermediate status). The
- * poll is already running, so this only watches its payload: once the feature leaves
- * the planning phase (→ pr-open), refresh the server component so the parent swaps
- * the wizard for the FinalizedView. A second interval here would just re-ask the
- * same route on its own schedule.
- */
+/** Finalize runs async with no intermediate status, so this watches the running poll's payload rather than adding a second interval of its own. */
 function useRefreshWhenPlanningEnds(
   finalizing: boolean,
   featureStatus: Parameters<typeof isPlanningActive>[0],
@@ -360,37 +339,29 @@ function phaseView({
   finalizing: boolean;
   latestCreatedAt: string | undefined;
 }): ReactNode {
-  // The lifecycle stopped moving: hand back to the parent's finished view. Gated on
-  // the FEATURE as well as the line, because a legacy feature mints one line per
-  // round — that line reports `done` the moment its round lands, while the author
-  // still has a decision to make.
+  // Gated on the FEATURE as well as the line: a legacy feature mints one line per round, which reports `done` while the author still has a decision to make.
   if (phase.kind === "done" && !isPlanningActive(poll.feature.status)) {
     return <>{settledView}</>;
   }
 
-  // The spec PR is open and the line is parked on `merged` — waiting on a PERSON,
-  // not on the machine. Before the merged line this state was invisible.
+  // Spec PR open, line parked on `merged`, waiting on a PERSON, not the machine.
   if (phase.kind === "awaiting-merge") {
     return <SpecPrCard feature={poll.feature} />;
   }
 
-  // The merge resumed the line: decompose is breaking the spec down, or the
-  // issues station is filing what it produced.
+  // Merge resumed the line: decompose breaks spec down or issues station files results.
   if (phase.kind === "decomposing") {
     return (
       <DecompositionProgressCard
         nodeId={phase.nodeId}
         since={phase.since}
-        // The decompose NODE's attempt — a correction round on the line, which is
-        // not the number of planning rounds the author ran before the PR existed.
+        // Decompose node's attempt (correction round), not count of pre-PR planning rounds.
         iteration={phase.nodeIteration}
       />
     );
   }
   const working = phase.kind === "planning" || phase.kind === "writing-spec";
-  // `finalizing` only bridges the gap until the first poll shows the line moving, and
-  // never survives it finishing: a line that ends without producing a PR must give the
-  // controls back rather than leave a progress card running forever.
+  // `finalizing` bridges only until the first poll shows the line moving; a line that ends without a PR must give the controls back.
   const showSpec =
     phase.kind === "writing-spec" ||
     (finalizing && (poll.run?.status ?? "running") === "running");
@@ -399,18 +370,14 @@ function phaseView({
     return null;
   }
 
-  // The spec phase gets the SAME card as a planning round: it runs on the same line,
-  // and the author has no decision to make while it does. Showing the decision row
-  // with everything disabled offered two dead controls and hid the run graph.
+  // Same card as a planning round: same line, and the author has no decision to make while it runs.
   return (
     <RunningCard
       iteration={iteration}
-      // The working NODE's start, not the round's — a spec node that began 20
-      // minutes after the round must not read as 20 minutes over budget.
+      // The working NODE's start, not the round's, or a late spec node reads as over budget.
       since={"since" in phase ? (phase.since ?? latestCreatedAt) : undefined}
       timeoutMinutes={timeoutMinutes}
-      // Which node is working, so the card counts against THAT node's kill
-      // deadline rather than the planning round's unenforced budget.
+      // Counts against THAT node's kill deadline, not the round's unenforced budget.
       nodeId={"nodeId" in phase ? phase.nodeId : undefined}
       liveOutput={poll.liveOutput}
       run={poll.run}

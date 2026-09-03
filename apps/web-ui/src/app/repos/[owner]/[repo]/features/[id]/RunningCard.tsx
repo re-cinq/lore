@@ -9,9 +9,7 @@ import { formatTokens, type RunTokens } from "@/lib/run-tokens";
 import RunVisualizationPanel from "@/app/assembly-runs/[id]/RunVisualizationPanel";
 import type { FeatureRunPayload } from "@/lib/feature-run";
 
-/** Elapsed / budget (m:ss / mm:00) from when the working node started, ticking every
- *  second. Turns red once elapsed passes the budget — which is the deadline the
- *  assembly-line reaper actually kills the node at, not a decorative target. */
+/** Elapsed/budget timer ticking every second; turns red when deadline (reaper's kill time) passes. */
 function ElapsedTimer({
   since,
   timeoutMinutes,
@@ -51,9 +49,7 @@ function ElapsedTimer({
   );
 }
 
-/** What the run has spent so far. Rendered only once something has been reported:
- *  a "0 tokens" badge on a pod that has not streamed its first turn yet says
- *  "nothing is happening", which is the opposite of true. */
+/** Run's spent tokens; omit "0 tokens" on pod that hasn't streamed first turn yet. */
 function TokenCount({ tokens }: { tokens: RunTokens | null | undefined }) {
   if (!tokens) {
     return null;
@@ -80,21 +76,17 @@ export default function RunningCard({
 }: {
   iteration: number;
   since: string | undefined;
-  /** Fallback budget for a feature that resolves no line — a legacy feature minted
-   *  a task per round and has no definition to read a per-node deadline from. */
+  /** Fallback budget for legacy features with no definition to read per-node deadline. */
   timeoutMinutes: number;
-  /** The node the line is working, which is what owns the real deadline. */
+  /** The node the line is working; owns the real deadline. */
   nodeId?: string;
   liveOutput?: string | null;
   run?: FeatureRunPayload | null;
-  /** Which half of the line is working: a planning ROUND, or the SPEC work that
-   *  follows the author's accept. Both run on the same line and get the same card —
-   *  before this the spec phase showed a row of disabled buttons and no graph. */
+  /** Planning ROUND or SPEC work following author's accept; both run on same line and get same card. */
   phase?: "round" | "spec";
 }) {
   const spec = phase === "spec";
-  // The node's own deadline when the line can name one; the round's budget only for
-  // a feature with no line to read.
+  // Node's deadline when line names one; round's budget only for features with no line.
   const budget = nodeBudgetMinutes(run?.definition, nodeId) ?? timeoutMinutes;
 
   return (

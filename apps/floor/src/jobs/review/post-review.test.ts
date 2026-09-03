@@ -15,7 +15,6 @@ import type {
   ReviewOutput,
 } from "@re-cinq/lore-shared/review/review-findings.js";
 
-/** Build commentable positions (right side) from (path, line) pairs. */
 function positions(...entries: Array<[string, number]>): CommentablePositions {
   const right = new Map<string, Set<number>>();
 
@@ -207,14 +206,6 @@ describe("maybePostReview", () => {
   });
 });
 
-/**
- * Characterization of the real production payload (PR #841). `Agent.status.output`
- * is an NDJSON stream carrying the agent text inside a JSON string field, so the
- * fenced block's newlines arrive escaped. The findings regex needs a literal
- * newline, so the raw stream parses to nothing — the review node recorded
- * `changes_requested` while zero comments reached the PR. `resultTextFromOutput`
- * unwraps the envelope; only then does the poster see what the agent printed.
- */
 describe("maybePostReview on a real Agent status.output stream", () => {
   const path = "tools/eslint-plugin-lore/rules/lib/intro-paragraph.mjs";
   const agentText = [

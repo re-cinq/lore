@@ -5,14 +5,10 @@ import { SubmitButton } from "@/components/SubmitButton";
 import type { RecordTopUpState } from "./actions";
 import styles from "./SpendView.module.css";
 
-// The only interactive thing on this screen, split out so SpendView stays a
-// server component: a form needs a client boundary, and pulling the whole view
-// across one would ship every figure's formatting to the browser for nothing.
+// Client boundary: form split out so SpendView stays a server component
 
 export interface RecordTopUpProps {
-  /** True when the ledger is empty, which changes what this form is FOR: the
-   *  first entry is an opening balance read off the Anthropic console, not a
-   *  top-up, and asking for "the amount added" would collect the wrong number. */
+  /** True when ledger is empty; first entry is opening balance, not a top-up. */
   first: boolean;
   recordAction: (
     prev: RecordTopUpState | null,
@@ -24,10 +20,7 @@ export default function RecordTopUp({ first, recordAction }: RecordTopUpProps) {
   const [state, formAction] = useActionState(recordAction, null);
 
   return (
-    // Open when nothing is recorded: on an empty ledger this form is the only
-    // useful thing on the screen, and collapsing it behind a triangle made the
-    // whole feature look like it had not deployed. Collapsed once there is a
-    // figure to read, since from then on reading is the common act.
+    // Open when nothing recorded (empty ledger): collapsed once there is a figure to read
     <details className={styles.recordDetails} open={first}>
       <summary>
         {first ? "Record the starting balance" : "Record a top-up"}
@@ -50,12 +43,8 @@ export default function RecordTopUp({ first, recordAction }: RecordTopUpProps) {
           autoComplete="off"
         />
 
-        {/* "Defaults to today" was ambiguous: a reader could equally take it
-            as "defaults to now", and those anchor the arithmetic at opposite
-            ends of a day's spend. The label now states the consequence rather
-            than the default. */}
-        {/* One fact — when the money landed — split across two controls, so
-            they share a row and wrap together rather than separately. */}
+        {/* "Defaults to today": label states consequence not default, to avoid ambiguity with "now" */}
+        {/* One fact ("when money landed") split across two controls to share a row */}
         <div className={styles.fieldRow}>
           <div>
             <label htmlFor="effective_date">Date it landed</label>
@@ -83,11 +72,7 @@ export default function RecordTopUp({ first, recordAction }: RecordTopUpProps) {
 
         {first && <input type="hidden" name="kind" value="opening" />}
 
-        {/* The rules are stated on the form rather than left to be inferred
-            from the figures. Two of them are counter-intuitive enough to have
-            been got wrong during this feature's own review: a blank date is
-            NOT "now", and a late-recorded top-up needs no accurate timestamp
-            at all. */}
+        {/* Rules stated on form: blank date ≠ "now"; late-recorded top-up needs no accurate timestamp */}
         <dl className={styles.legend}>
           <dt>Amount</dt>
           <dd>

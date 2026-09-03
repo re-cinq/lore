@@ -5,10 +5,6 @@ import RepoOverviewView, { type RecentTask } from "./RepoOverviewView";
 import { type RepoEvent } from "./events/pagination";
 import { type Check } from "@/lib/enrollment";
 
-// EnrollmentSection (rendered as-is by the View) pulls in Icon, which calls
-// useTheme() and throws without a ThemeProvider. Stub the icon leaf so the
-// View's composition is the subject under test; EnrollmentSection's own markup
-// (incl. the reonboard button) still renders.
 vi.mock("@/components/Icon", () => ({ default: () => null }));
 
 const action = vi.fn();
@@ -178,7 +174,6 @@ describe("RepoOverviewView", () => {
       "href",
       "https://github.com/re-cinq/lore/pull/7",
     );
-    // Second task has no PR — renders the em-dash placeholder.
     expect(screen.getByText("—")).toBeInTheDocument();
   });
 

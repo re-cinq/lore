@@ -1,13 +1,8 @@
-// Does the signed-in user (their GitHub OAuth token) have access to `repo`?
-// Log/timeline proxy routes gate on this so a user can only read runtime data
-// for repos they can already see on GitHub. Distinct from lib/github.ts
-// `checkRepoAccess`, which asks whether the *App installation* has access.
+// Gate for log/timeline proxy routes; distinct from checkRepoAccess (App vs user token).
 
 type FetchLike = typeof fetch;
 
-/** Why GitHub said no, in the terms an operator can act on. The three cases are
- *  materially different and the caller sees one flat "Access denied" for all of
- *  them, so the distinction has to survive here or it is lost. */
+/** Why GitHub denied access (distinction must survive for operator visibility). */
 function denialReason(status: number): string {
   if (status === 404) {
     return "a 404 here usually means the OAuth app has no access to the org, not that the repo is missing";

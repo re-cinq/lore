@@ -2,14 +2,6 @@ import { describe, it, expect, vi } from "vitest";
 import Hapi from "@hapi/hapi";
 import { ingestDeltaRoute, type IngestDeltaDeps } from "./ingest-delta.js";
 
-/**
- * The incremental CI ingest sink (specs/ci-incremental-ingest FR3): CI diffs
- * against the last-ingested commit and POSTs only the delta as JSON — changed
- * doc contents, an incremental test report, and the deleted paths — which this
- * route projects in-process and then advances the stored commit with a
- * compare-and-set. No pods, no events: the graph write happens here.
- */
-
 const SHA_A = "a".repeat(40);
 const SHA_B = "b".repeat(40);
 
@@ -97,14 +89,11 @@ const post = (server: Hapi.Server, payload: Record<string, unknown>) =>
     payload,
   });
 
-/** The stored state matches the posted base → the pre-check reads the base
- *  back and the CAS insert/update reports 1 row. */
 const casAdvances: Array<[RegExp, unknown[]]> = [
   [/INSERT INTO pipeline\.ingest_state/, [{ commit_sha: SHA_B }]],
   [/SELECT commit_sha/, [{ commit_sha: SHA_A }]],
 ];
 
-/** No stored state at all — the base-null full-ingest case. */
 const casFirstIngest: Array<[RegExp, unknown[]]> = [
   [/INSERT INTO pipeline\.ingest_state/, [{ commit_sha: SHA_B }]],
 ];
@@ -190,9 +179,6 @@ describe("POST /api/repos/{owner}/{repo}/ingest", () => {
   });
 
   it("refuses a stale base with a 409 naming the current commit, and projects nothing", async () => {
-    // Two merges raced: this POST diffed from a base the state has already
-    // moved past. Projecting the delta anyway could skip the other merge's
-    // changes forever — CI must re-fetch the state and re-diff.
     const deps = fakeDeps();
     const server = await serverWith(deps, [
       [/INSERT INTO pipeline\.ingest_state/, []],
@@ -226,8 +212,6 @@ describe("POST /api/repos/{owner}/{repo}/ingest", () => {
     expect(JSON.parse(first.payload)).toMatchObject({
       state: "pending-chunks",
     });
-    // Every chunk CAS-checks the base (a delayed stale chunk must refuse, not
-    // overwrite newer graph state), but only the final chunk WRITES the state.
     expect(
       issued.some((q) => /INSERT INTO pipeline\.ingest_state/.test(q.sql)),
     ).toBe(false);
@@ -271,10 +255,6 @@ describe("POST /api/repos/{owner}/{repo}/ingest", () => {
   });
 
   it("reports the pointer unrecorded when the state table has not been migrated", async () => {
-    // The projection landed; only the pointer cannot persist. A 500 here would
-    // fail CI after the graph already absorbed the delta — instead the caller
-    // hears \"unrecorded\", the next GET answers null, and the flow degrades to
-    // a full ingest per push until the migration lands.
     const deps = fakeDeps();
     const pool = {
       query: async (sql: string) =>
@@ -332,8 +312,6 @@ describe("POST /api/repos/{owner}/{repo}/ingest", () => {
     });
 
     expect(res.statusCode).toBe(500);
-    // The stale-base pre-check may read the state, but nothing WRITES it: a
-    // pointer moved past a failed projection would skip that delta forever.
     expect(
       issued.some((q) => /INSERT INTO pipeline\.ingest_state/.test(q.sql)),
     ).toBe(false);

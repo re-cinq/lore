@@ -1,8 +1,5 @@
 import { enforceTrue } from "../lib/enforce.js";
-// The decomposition of a finalized feature spec into an implementable tree:
-// user stories, each with its tasks. Produced by the `feature-decompose` agent
-// (ADR-029) and parsed leniently — the same drift tolerance as GapResult — so
-// model variance never hard-fails a round. Pure; no I/O.
+// Feature spec decomposition into user stories/tasks (ADR-029); lenient parse, pure, no I/O.
 
 export interface DecompTask {
   id: string; // "T001"
@@ -11,8 +8,7 @@ export interface DecompTask {
   parallelizable: boolean;
   phase: number; // 0 when the agent gives no phase
   file_path?: string;
-  /** Labels the agent chose from the repo's REAL label list. Validated before use —
-   *  see decideIssueWork; GitHub would otherwise create an invented one silently. */
+  /** Agent labels from repo REAL list; validated (see decideIssueWork) to prevent GitHub silent invention. */
   labels?: string[];
 }
 
@@ -126,9 +122,7 @@ function normalizeStory(raw: unknown): UserStory {
   return story;
 }
 
-/** Parse + normalize an agent's raw decomposition into the canonical shape.
- *  Throws on structural failure (no object root, no stories array, a titleless
- *  story, or a task with no description); tolerates field-name drift otherwise. */
+/** Parse + normalize decomposition; throws on structural failure, tolerates field-name drift. */
 export function parseDecomposition(raw: unknown): DecompositionResult {
   enforceTrue(
     !(!raw || typeof raw !== "object" || Array.isArray(raw)),

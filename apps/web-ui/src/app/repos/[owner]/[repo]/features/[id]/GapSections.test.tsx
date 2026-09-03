@@ -29,9 +29,6 @@ describe("GapSections", () => {
   });
 
   it("falls back to the draft spec when the round produced no sections", () => {
-    // A GapResult with an empty sections list is structurally valid — sanitizeGapResult
-    // accepts it — and one round produced exactly that beside an 8KB draft. Rendering
-    // nothing over a result that exists is the worst of both worlds.
     renderGap({
       sections: [],
       draft_spec_markdown: "# Assembly lines live view\n\nThe whole plan.",

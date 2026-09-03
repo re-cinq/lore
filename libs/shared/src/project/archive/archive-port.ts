@@ -1,7 +1,4 @@
-/**
- * project.archive — durable blob archival (agent-event streams, job-run logs).
- * Consumers redact/shape the payload; the port only stores and retrieves it.
- */
+/** project.archive — durable blob archival (agent-event streams, job-run logs). Consumers redact/shape the payload; the port only stores and retrieves it. */
 
 export interface ArchiveSaveOptions {
   contentType: string;
@@ -9,8 +6,7 @@ export interface ArchiveSaveOptions {
 }
 
 export interface ArchivePort {
-  /** Text or bytes: an agent conversation archive is gzip, and storing binary through
-   *  a utf-8 string round-trip corrupts it. */
+  /** Text or bytes: an agent conversation archive is gzip, and storing binary through a utf-8 string round-trip corrupts it. */
   save(
     key: string,
     body: string | Uint8Array,

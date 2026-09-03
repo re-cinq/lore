@@ -5,11 +5,7 @@ import type { EventQueueRepository, EventRow } from "./event-queue-port.js";
 /** Errors are truncated before storage to keep the row bounded. */
 const MAX_ERROR_LEN = 2000;
 
-/**
- * Postgres-backed {@link EventQueueRepository}. The consume-side SQL moved here
- * verbatim from the Floor `main-loop/store.ts`; `insert` delegates to the shared
- * {@link insertEvent} writer so the INSERT stays single-sourced.
- */
+/** Postgres-backed EventQueueRepository: consume-side SQL + shared insertEvent writer. */
 export class PgEventQueue implements EventQueueRepository {
   constructor(private readonly pool: PgPool) {}
 

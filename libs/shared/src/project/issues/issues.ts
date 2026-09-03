@@ -5,10 +5,7 @@ import type {
   CloseReason,
 } from "../lib/github-port.js";
 
-/**
- * project.issues — a value-object sub-facade over the GitHubPort, repo bound.
- * Cheap to construct per access, so Project stays stateless.
- */
+/** Value-object sub-facade over GitHubPort (repo-bound); cheap to construct, keeps Project stateless. */
 export class IssueCollection {
   constructor(
     private readonly repo: string,

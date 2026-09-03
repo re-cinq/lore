@@ -8,13 +8,7 @@ import type {
   CodeChunkFull,
 } from "./chunks-port.js";
 
-/**
- * project.chunks — the vector-store `chunks` reads a detection run needs, repo
- * bound. Backed by PgChunks on the Floor and ChunksHttp in a station pod (D7:
- * pods read chunks over the API, never Postgres). Only the per-repo reads the
- * detectors use are exposed here (all resolved-schema); the reindex write +
- * verification path stays on the raw ChunksPort.
- */
+/** project.chunks: the vector-store `chunks` reads a detection run needs, repo bound. */
 export class ChunkStore {
   constructor(
     private readonly repo: string,

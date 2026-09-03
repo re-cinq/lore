@@ -51,15 +51,6 @@ The widget MUST render on mount.
 The widget MUST unmount cleanly.
 `;
 
-/**
- * impact-statement-delta — the doc-side coupling direction, by content identity.
- *
- * Statements carry no line position in the graph, so a changed spec is diffed by
- * `text_hash` rather than by line arithmetic. That makes this lookup immune to
- * line drift and usable with no graph baseline at all — which matters, because a
- * spec-only PR is exactly the case the line-based lookups reported as "no spec
- * impact" (#1076).
- */
 describe("diffStatements", () => {
   it("reports nothing changed when the file still contains every known statement", () => {
     const graph = [
@@ -204,8 +195,8 @@ describe.skipIf(!reachable)("specFileImpact (live Dgraph)", () => {
           commitNow: true,
         });
       }
+      // eslint-disable-next-line no-empty
     } catch {
-      /* best-effort cleanup */
     } finally {
       await txn.discard().catch(() => {});
     }

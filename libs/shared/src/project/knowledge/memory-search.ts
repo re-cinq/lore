@@ -1,11 +1,4 @@
-/**
- * Semantic search over agent memories.
- *
- * Uses Reciprocal Rank Fusion (RRF) to combine vector similarity and
- * keyword (ILIKE) results across memory.memories and memory.facts.
- * Degrades gracefully to keyword-only when Vertex AI embeddings are
- * unavailable.
- */
+/** Semantic search over agent memories via RRF (vector + keyword). */
 
 import { getQueryEmbedding } from "../../embeddings/embedding-service.js";
 import { resolveAgentId } from "../../agent-id.js";
@@ -73,16 +66,13 @@ export async function searchMemories(
     ]);
   }
 
-  // Keyword search always runs (provides results when embedding unavailable
-  // and boosts relevant keyword matches via RRF when embedding is available)
+  // Keyword search always runs (fallback when embedding unavailable).
   const [keywordMemories, keywordFacts] = await Promise.all([
     keywordSearchMemories(pool, query, agent, poolId),
     keywordSearchFacts(pool, query, agent, includeInvalidated),
   ]);
 
-  // Merge via RRF. Each list arrives in contiguous rank order (SQL
-  // ROW_NUMBER + LIMIT 20), so the shared rrfMerge's index-based rank
-  // equals each row's rank — identical fusion scores.
+  // Merge via RRF: lists arrive pre-ranked (SQL ROW_NUMBER), rrfMerge combines them.
   const merged = rrfMerge([
     vectorMemories,
     vectorFacts,
@@ -90,8 +80,7 @@ export async function searchMemories(
     keywordFacts,
   ]);
 
-  // Sort descending by score, cap per agent_id::source, then limit.
-  // Prevents one verbose session from dominating search results.
+  // Sort by score and diversify to prevent one session dominating results.
   let results: MemorySearchResult[] = diversify(merged, limit);
 
   // Graph augmentation: enrich results with 1-hop graph neighbors

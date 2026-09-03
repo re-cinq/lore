@@ -16,15 +16,7 @@ import type {
   CreateTaskInput,
 } from "../tasks/task-store-port.js";
 
-/**
- * The HTTP-backed Project a detection **station pod** runs on. A pod can't reach
- * Postgres, Dgraph, or the GitHub App (ADR-031 D6/D7), so every port it uses
- * proxies the Lore API over a scoped token + allowed egress. Only the methods
- * the detectors call are implemented — the adapters are cast into the ports map
- * (which is untyped), so an unused method surfaces as a runtime miss, never a
- * silent DB/GitHub reach. The Floor keeps its full Pg/octokit Project via
- * createProject; this is the pod-only sibling.
- */
+/** HTTP-backed Project for detection pods (proxies Lore API; ADR-031 D6/D7). */
 
 interface HttpConfig {
   baseUrl: string;
@@ -93,8 +85,7 @@ class GitHubHttp {
       })
     ).issues;
   }
-  /** The http client is already repo-scoped (the repo is in its base URL), so the
-   *  port's `repo` argument is unused here — same as listIssues above. */
+  /** HTTP client already repo-scoped; repo argument unused. */
   async listLabels(_repo: string): Promise<string[]> {
     return (await this.http.get<{ labels: string[] }>("/labels")).labels;
   }
@@ -171,19 +162,7 @@ class TaskStoreHttp {
       })
     ).tasks;
   }
-  /**
-   * The ACCEPT half of the `pipeline.tasks` wire rename (6-dark-factory FR6.41).
-   *
-   * A station pod ships as its own image, so it is always one rollout apart from
-   * the API that feeds it — in whichever direction the deploy happens to fall.
-   * Reading through `acceptEitherSpelling` means a producer can flip
-   * `task_type` to `taskType` in a later release without a coordinated deploy,
-   * which is the only way that flip is safe to make at all.
-   *
-   * The tolerance is DERIVED from the model's column map, so a field added to
-   * `pipeline.tasks` is accepted in both spellings without anyone remembering to
-   * list it here.
-   */
+  /** Accept either spelling of pipeline.tasks fields for pod rollout tolerance. */
   async findOpenLike(input: FindOpenLikeInput): Promise<PipelineTask[]> {
     const { tasks } = await this.http.get<{ tasks: DbRow[] }>(
       "/tasks/open-like",
@@ -227,11 +206,7 @@ export interface StationProjectEnv {
   LORE_INGEST_TOKEN?: string;
 }
 
-/**
- * Compose the pod-only Project for `repo`. Requires LORE_API_URL; the token is
- * LORE_STATION_TOKEN (falls back to LORE_INGEST_TOKEN). fetchImpl is injectable
- * for tests.
- */
+/** Compose the pod-only Project for repo (requires LORE_API_URL). */
 export function createStationProject(
   repo: string,
   env: StationProjectEnv = process.env,

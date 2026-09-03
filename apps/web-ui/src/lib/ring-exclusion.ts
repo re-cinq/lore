@@ -1,19 +1,9 @@
-/**
- * Pure, deterministic ring-exclusion geometry for the D3 spec-graph view.
- * Keeps non-ring nodes outside the open "ring" discs: any node that falls
- * within a disc's keep-out radius (r + margin) is pushed radially out along
- * the center→point direction to sit exactly on that radius. Value-in/value-out,
- * no side effects — the layout calls it per node every tick.
- */
+/** Pure ring-exclusion geometry for D3 spec-graph; keeps non-ring nodes outside discs via radial push; deterministic, no side effects. */
 
 /** An exclusion disc: center (x, y) and radius r, in layout coordinates. */
 export type Disc = { x: number; y: number; r: number };
 
-/**
- * Pushes `point` out of every disc it intrudes on, to that disc's keep-out
- * radius (r + margin), preserving the center→point direction. A point already
- * clear of a disc is left untouched by that disc.
- */
+/** Push point out of disc intrusions to keep-out radius, preserving center→point direction. */
 export function resolveExclusion(
   point: { x: number; y: number },
   discs: Disc[],

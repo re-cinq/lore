@@ -1,9 +1,4 @@
-/**
- * Pure view-model deriver for the Dark Factory console tab. Folds the resolved
- * settings, the repo's recent tasks, and its dark-factory audit events into a
- * render-ready model (container/presentational, data-down). Activation is
- * `active` when the repo is enabled (all tasks run on the agent-cr subsystem).
- */
+/** View-model deriver: fold settings, tasks, and audit events into render-ready model for Dark Factory console. */
 
 import type { ResolvedDarkFactorySettings } from "@/lib/dark-factory-resolve";
 import type { components } from "@/lib/api/schema";

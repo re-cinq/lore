@@ -1,19 +1,10 @@
 import { describe, it, expect, vi } from "vitest";
 
-// No Vertex creds in tests → keyword-only retrieval path (deterministic, no net).
 vi.mock("../../embeddings/embedding-service.js", () => ({
   getQueryEmbedding: async () => null,
 }));
 
 import { searchMemories, strengthenRetrievals } from "./memory-search.js";
-
-/**
- * searchMemories against a scripted PgPool that records SQL/params and returns
- * routed rows (the memory-store fake-pool style). Proves the validity gate
- * ($3::boolean), the graph-augmentation branch, and retrieval strengthening
- * without a live database. getQueryEmbedding is mocked to null so only the
- * deterministic keyword path runs.
- */
 
 type Call = { sql: string; params: unknown[] };
 

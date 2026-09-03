@@ -1,23 +1,4 @@
-/**
- * The code-review choreography (ADR-012 / assembly-lines): PR-lifecycle webhooks
- * and PR comments start short-lived assembly lines. The line itself does not
- * listen for events — all wiring lives in the Floor registry.
- *
- * Triggers (ADR-012 amendment):
- * - deep review on open / out-of-draft / first push (`onTrigger`, first-review-only)
- * - fast `code-review-recheck` on every later push (`onTrigger` routes to it once
- *   the PR has been reviewed), so the formal verdict tracks the fix
- * - explicit `@lore review` comment (`onComment` keyword fast-path) forces a deep pass
- * - every other human comment is ignored while the Haiku `comment-triage` line
- *   is switched off (2026-09-03); `onCommentTriaged` still routes a finished
- *   triage line's action so re-enabling the start is a one-line change
- * - a formal "request changes" review → address (`onReviewSubmitted`)
- *
- * Both reviews emit structured findings and the Floor submits a formal
- * APPROVE/REQUEST_CHANGES verdict; code fixes are human-gated (the `address` intent).
- * Gated per-repo on `auto_review`; bot actors are skipped so the review never
- * re-triggers on its own output.
- */
+/** Code-review choreography (ADR-012): PR-lifecycle webhooks start assembly lines; bot actors skipped. */
 
 import type { EventHandler } from "../../main-loop/types.js";
 import type {
@@ -78,10 +59,7 @@ export function decideReviewOnReply(input: {
   };
 }
 
-/**
- * Where the triage routes a classified comment. Pure so the routing table is
- * unit-testable; `ignore` yields null (no follow-up line, only the triage pod ran).
- */
+/** Route a triaged comment; pure for unit-testability; ignore yields null. */
 export function routeTriagedComment(
   action: TriageAction,
   ctx: CommentContext,
@@ -175,12 +153,7 @@ export interface CodeReviewDeps {
   project(repo: string): Promise<CodeReviewProject>;
   autoReview(repo: string): Promise<boolean>;
   uiUrl(): string | undefined;
-  /**
-   * Reclaim the per-run GitHub token + AgentDefinition/Station triple a line
-   * held. Needed here because closing a PR ends its review lines WITHOUT going
-   * through `finishLine`, which is the only other place that reclaims —
-   * idempotent, so a line the walk also closes is a harmless double-free.
-   */
+  /** Reclaim per-run token/definition; needed because PR close bypasses finishLine. */
   cleanupToken(key: string): Promise<void>;
 }
 
@@ -201,11 +174,7 @@ interface ReviewSubmittedParams extends OpenParams {
   review_body?: string;
 }
 
-/**
- * The actual feedback of a submitted review: its body plus every inline comment
- * (with ids so the reply agent can target each thread). Pure; empty when the
- * review carried neither.
- */
+/** Review feedback: body plus inline comments with ids for thread targeting. */
 export function reviewFeedback(
   body: string,
   comments: ReviewComment[],
@@ -234,17 +203,11 @@ export interface CommentContext {
   comment_id: number;
   comment_body: string;
   in_reply_to_id?: number | null;
-  /** The human who triggered the line (commenter / reviewer) — surfaced as the
-   *  run list's "By" for task-less lines via args.actor. */
+  /** The human who triggered the line; surfaced as the "By" for task-less lines. */
   actor?: string;
 }
 
-/**
- * Start a `code-review` line (mode `review`) and post the how-to started comment.
- * `forced` bypasses the auto-review gate (explicit human intent: the `@lore review`
- * keyword, the manual UI button, or a triage `review` route). Returns the line id
- * or null when the gate/PR check skips it.
- */
+/** Start a code-review line and post the how-to comment; forced bypasses auto-review gate. */
 export async function startReview(
   project: CodeReviewProject,
   input: {
@@ -269,23 +232,11 @@ export async function startReview(
     return null;
   }
   const subjectKey = reviewSubject(input.prNumber);
-  // `start` on a subject is start-or-JOIN and answers with an id either way, so it
-  // cannot tell us which happened. Ask first: whatever is open on this subject now
-  // is what a join would hand back.
-  //
-  // Check-then-act, deliberately. Two triggers landing in the same instant can
-  // still both read "nothing open" and both announce — but the subject key means
-  // only ONE run exists either way, so the cost is a duplicate comment, not
-  // duplicate work. Closing it properly wants a join signal from the port
-  // (`start` answering `{id, joined}`), which is worth doing when something needs
-  // to ACT on the difference; today only this message does.
+  // Check-then-act to detect JOINs and avoid redundant announcements; only this message needs it
   const alreadyOpen = await project.assemblyRuns.findOpenBySubject(subjectKey);
   const id = await project.assemblyRuns.start("code-review", {
     branch: pr.branch,
-    // One review run per PR. Keyed on the PR rather than its branch: the branch is
-    // a shared workspace — recheck, reply and triage lines all ride it and are MEANT
-    // to overlap — so a branch key made a review defer to whichever comment line
-    // happened to be open. They now declare no subject and are unaffected.
+    // Subject key on PR, not branch (shared workspace across recheck/reply/triage lines)
     subjectKey,
     args: {
       pr_number: input.prNumber,
@@ -296,10 +247,7 @@ export async function startReview(
     },
   });
 
-  // A JOIN starts nothing, so it has nothing to announce — the run it handed back
-  // was announced when it actually started. Announcing anyway posted the same
-  // "Lore is reviewing this PR" comment, naming the same run, every time somebody
-  // typed `@lore review` or pressed the UI button while a review was in flight.
+  // JOIN runs were announced when started; announcing again posts duplicate comments
   if (alreadyOpen?.id === id) {
     return id;
   }
@@ -312,16 +260,7 @@ export async function startReview(
   return id;
 }
 
-/**
- * Start a `code-review-recheck` line — the fast re-check that runs on every new
- * push after the deep review, re-deciding the PR's formal APPROVE / REQUEST_CHANGES
- * on the updated diff. Same open/non-draft/non-bot gate as the first review, but
- * posts no per-push comment (the deep review already posted the how-to, and a
- * comment per push would be noise). Returns the line id or null when the gate
- * skips it. Re-check lines are in `BRANCH_SHARED_WORKSPACE` (advance.ts) so a push
- * that lands while a review/reply line still holds the PR branch is never silently
- * dropped as `lease_held` by the overlap guard — the verdict update always runs.
- */
+/** Fast re-check for pushes after initial review; BRANCH_SHARED_WORKSPACE prevents lease_held drops. */
 export async function startRecheck(
   project: CodeReviewProject,
   input: { repo: string; prNumber: number; autoReview: boolean },
@@ -364,10 +303,7 @@ export function createCodeReviewHandlers(deps: CodeReviewDeps): {
     }
     const project = await deps.project(repo);
 
-    // First push → the deep review; every later push → the fast re-check, which
-    // re-decides APPROVE / REQUEST_CHANGES on the updated diff so the PR's formal
-    // verdict tracks the fix. `hasReviewedPr` matches the `code-review` line only,
-    // so re-check lines never flip it and every subsequent push routes here.
+    // First push = deep review; later pushes = fast re-check with updated verdict
     if (await project.assemblyRuns.hasReviewedPr(pr_number)) {
       await startRecheck(project, { repo, prNumber: pr_number, autoReview });
 
@@ -422,8 +358,7 @@ export function createCodeReviewHandlers(deps: CodeReviewDeps): {
       return;
     }
 
-    // Only a "request changes" review is a work order — approvals and comment
-    // reviews must not spawn an address line.
+    // Only "request changes" reviews spawn a work order
     if ((p.review_state ?? "changes_requested") !== "changes_requested") {
       return;
     }
@@ -482,23 +417,14 @@ export function createCodeReviewHandlers(deps: CodeReviewDeps): {
     const { repo, pr_number } = params as unknown as OpenParams;
     const project = await deps.project(repo);
 
-    // ONLY this choreography's own lines. Closing a PR used to close every open
-    // line carrying that number, which since the push node started stamping the
-    // spec PR meant a merged spec PR closed the FEATURE-PLANNING line parked on
-    // `merged` — killing the feature exactly one step before decomposition, on the
-    // same event that was supposed to advance it.
+    // Only close this choreography's lines to prevent closing spec PRs on FEATURE-PLANNING
     const closed = await project.assemblyRuns.finishOpenByPr(
       pr_number,
       "pr_closed",
       REVIEW_DEFINITIONS,
     );
 
-    // Closing here BYPASSES finishLine, which is what normally reclaims a line's
-    // per-run token and catalog triple — and the node's own terminal event cannot
-    // pick up the slack, because it returns early once the row is no longer
-    // running. Without this, every PR closed while its review was still in flight
-    // left a `GH_TOKEN_*` key behind in `agent-secrets`, which is how that Secret
-    // reached its 1MiB ceiling and took the fleet down on 2026-08-25.
+    // Cleanup per-run token; without it PRs closed mid-review left GH_TOKEN_* keys (fleet outage 2026-08-25)
     await Promise.all(
       closed.map((run) => deps.cleanupToken(run.taskId ?? run.id)),
     );

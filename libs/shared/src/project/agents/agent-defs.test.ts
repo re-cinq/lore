@@ -6,12 +6,6 @@ import type {
   AgentDefsPort,
 } from "./agent-defs-port.js";
 
-/**
- * project.agentDefs — the Agent *definition* methods, which delegate to the
- * AgentDefsPort bound to the facade's repo. Execution (run, trust-gated) is on
- * project.agents / Agents — see agents.test.ts.
- */
-
 function recordingDefs(
   calls: Array<{ method: string; args: unknown[] }> = [],
 ): AgentDefsPort {

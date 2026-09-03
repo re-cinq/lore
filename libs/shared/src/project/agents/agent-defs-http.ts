@@ -4,13 +4,7 @@ import {
   type AgentDefsPort,
 } from "./agent-defs-port.js";
 
-/**
- * AgentDefsPort over the Lore HTTP API — the RUNNER/Station adapter. A Job pod
- * can't reach Postgres (NetworkPolicy), so it fetches its agent definition from
- * the agent-definitions endpoint over its allowed egress + scoped token, the
- * same channel as context hydration. Read-only: writes throw (runners never
- * mutate config).
- */
+// AgentDefsPort over Lore HTTP API — RUNNER/Station adapter for pods without Postgres access (NetworkPolicy).
 
 const READ_ONLY =
   "agent definitions are read-only from a runner — edit them via the API or UI";

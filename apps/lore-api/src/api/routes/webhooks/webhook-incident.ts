@@ -8,10 +8,7 @@ import { z } from "zod";
 import { formatZodError } from "../../../server/plugins/zod-validate.js";
 import { rawBody } from "../../../server/raw-body.js";
 
-/**
- * Constant-time compare over two UTF-8 strings. Length-guarded because
- * `timingSafeEqual` throws on unequal-length buffers.
- */
+// Constant-time string compare; length-guarded since timingSafeEqual throws on unequal buffers.
 function safeEqual(a: string, b: string): boolean {
   const aBuf = Buffer.from(a);
   const bBuf = Buffer.from(b);
@@ -19,11 +16,7 @@ function safeEqual(a: string, b: string): boolean {
   return aBuf.length === bBuf.length && timingSafeEqual(aBuf, bBuf);
 }
 
-/**
- * PagerDuty v3 signs the raw body with HMAC-SHA256; `X-PagerDuty-Signature` is a
- * comma-delimited list of `v1=<hex>` signatures (more than one during secret
- * rotation). Accept the request if any entry matches.
- */
+// PagerDuty HMAC-SHA256 verification; X-PagerDuty-Signature is comma-delimited v1=<hex> list.
 /** The incident was recorded against a repo. */
 const IncidentRecordedSchema = z.object({
   ok: z.literal(true),
@@ -75,12 +68,7 @@ type IncidentEntry = z.infer<typeof IncidentEntrySchema>;
 const asString = (value: unknown, fallback: string): string =>
   typeof value === "string" && value.length > 0 ? value : fallback;
 
-/**
- * Normalize a direct-format or PagerDuty/Opsgenie-envelope body into the stored
- * incident entry. Returns an `{ error }` (→ 400) on any shape violation. A
- * client-supplied `date` is validated as ISO and clamped to `now` so a future
- * timestamp cannot pin itself atop the FIFO-capped list and evict real entries.
- */
+// Normalize PagerDuty/Opsgenie/direct payload; validate date as ISO clamped to now to prevent eviction.
 export function parseIncident(
   body: string,
   now: number,
@@ -141,8 +129,7 @@ export function incidentWebhookRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "POST",
     path: "/api/webhook/incident",
-    // Auth-exempt from the bearer-scope strategy: this route verifies senders
-    // itself (PagerDuty HMAC or an Opsgenie shared token) below.
+    // Auth-exempt; senders verified by HMAC or shared token below.
     options: zodResponse(
       { auth: false, payload: { parse: false } },
       IncidentRecordedSchema,
@@ -173,8 +160,7 @@ export function incidentWebhookRoute(getPool: () => Pool | null): ServerRoute {
 
       const result = parseIncident(body, Date.now());
 
-      // Not a precondition: `result.error` exists only inside this branch, so
-      // hoisting the read into an enforce argument would type-error.
+      // result.error exists only inside this branch; type-narrowing prevents enforce.
       if ("error" in result) {
         return h.response({ error: result.error }).code(400);
       }

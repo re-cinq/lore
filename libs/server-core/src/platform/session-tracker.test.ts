@@ -1,8 +1,5 @@
 import { describe, it, expect } from "vitest";
 
-// Re-implement the core logic for unit testing (module state is shared)
-// Same pattern as local-runner.test.ts
-
 interface ToolCallEntry {
   tool: string;
   timestamp: string;
@@ -162,7 +159,7 @@ describe("session tracker", () => {
       const aIdx = summary.indexOf("a_tool");
       const bIdx = summary.indexOf("b_tool");
 
-      expect(aIdx).toBeLessThan(bIdx); // a_tool (3x) should come before b_tool (1x)
+      expect(aIdx).toBeLessThan(bIdx);
     });
 
     it("calculates average duration per tool", () => {
@@ -206,7 +203,7 @@ describe("session tracker", () => {
         });
       }
       expect(log.length).toBe(MAX);
-      expect(log[0].tool).toBe("tool_100"); // oldest entries shifted out
+      expect(log[0].tool).toBe("tool_100");
     });
   });
 });

@@ -484,10 +484,7 @@ export async function productionNodeEventDeps(): Promise<NodeEventDeps> {
       }
       // readyPrBody rebuilds the Closes/Lore-Task footer (rewriting with prose alone destroyed it); null means no prose was produced, so the PR keeps its old body.
       const body = readyPrBody(row, result.extras);
-      // The draft opened under the TICKET's title, written before any code
-      // existed. The pr-ready node has read the finished branch, so it renames
-      // the PR after the work; a node that reported no title leaves the
-      // ticket title standing rather than blanking it.
+      // PR title updated by pr-ready node after code finishes; null keeps ticket title.
       const title = readyPrTitle(result.extras);
 
       if (body !== null || title !== null) {

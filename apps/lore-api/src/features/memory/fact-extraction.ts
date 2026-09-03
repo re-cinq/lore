@@ -1,15 +1,7 @@
 import type { PgPool } from "@re-cinq/lore-shared";
 import { extractFacts } from "@re-cinq/lore-server-core/features/memory/facts.js";
 
-/**
- * Fact extraction for a just-written memory (`extract_facts: true`).
- *
- * `writeMemory` returns the key and version, not the row id, so the id is
- * resolved the same way the MCP tool used to before ADR-032 moved this work
- * server-side: newest version of that key for the repo or agent. Best-effort
- * throughout — a caller `void`s this, and a failure here must never surface as a
- * failed write.
- */
+/** Fact extraction for a just-written memory; resolves memory id and extracts facts (best-effort, never fails writes). */
 export async function extractFactsForMemory(
   pool: PgPool,
   memory: { key: string; value: string; agentId: string; repo?: string },

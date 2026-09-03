@@ -7,10 +7,6 @@ import {
   LEGACY_TOKEN,
 } from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
 
-// The Dgraph-configured branches of GET /api/trace/specs. The null-client
-// fail-soft (`{ specs: [] }`) and the 401 no-bearer gate are covered in
-// trace.test.ts via the real env-gated createDgraphClient; here the client is
-// faked so the success and error paths are reachable.
 vi.mock("@re-cinq/lore-shared", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@re-cinq/lore-shared")>();
 

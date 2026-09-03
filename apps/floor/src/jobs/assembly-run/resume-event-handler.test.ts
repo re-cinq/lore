@@ -3,7 +3,6 @@ import { InMemoryAssemblyRuns } from "@re-cinq/lore-shared/project/assembly-runs
 import { createResumeEventHandler } from "./resume-event-handler.js";
 import type { NodeResult } from "@re-cinq/lore-assembly-lines";
 
-/** Records what the handler did, so the test asserts the PATH, not a mock's shape. */
 function harness() {
   const lines = new InMemoryAssemblyRuns();
   const finished: Array<{
@@ -39,9 +38,6 @@ const params = (over: Record<string, unknown> = {}) => ({
 
 describe("createResumeEventHandler", () => {
   it("records the outcome and advances, the same path a pod's outcome takes", async () => {
-    // The point of the whole design: a station reporting from a browser and a station
-    // reporting from a pod converge here. If this ever forks, the human node stops
-    // being a station and becomes a special case.
     const { handler, finished } = harness();
 
     await handler(params());
@@ -58,8 +54,6 @@ describe("createResumeEventHandler", () => {
   });
 
   it("carries the author's feedback into the line before advancing", async () => {
-    // The next analyze node reads its brief from args, exactly as it reads
-    // args.description — the objection channel, reused rather than reinvented.
     const { handler, lines } = harness();
     const id = await lines.start({
       blueprintName: "feature",
@@ -89,7 +83,6 @@ describe("createResumeEventHandler", () => {
   });
 
   it("refuses an outcome the station contract does not define", async () => {
-    // A typo'd outcome would route down an edge nobody wrote, or none at all.
     const { handler } = harness();
 
     await expect(handler(params({ outcome: "approved" }))).rejects.toThrow(
@@ -106,8 +99,6 @@ describe("createResumeEventHandler", () => {
   });
 
   it("refuses an event that names no node", async () => {
-    // Without the node there is nothing to complete: the line may be parked on any
-    // of several waits, and guessing would resume the wrong one.
     const { handler } = harness();
 
     await expect(handler(params({ nodeId: "" }))).rejects.toThrow(/nodeId/);

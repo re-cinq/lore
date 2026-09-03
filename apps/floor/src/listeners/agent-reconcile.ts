@@ -11,8 +11,7 @@ import { emitEvent } from "../main-loop/store.js";
 const PRUNE_AFTER_MS = 60 * 60 * 1000;
 const LIST_PAGE_LIMIT = 50;
 
-/** The one call the paged walk makes. Narrowed from a CustomObjectsApi slice to
- *  exactly this, so a test fakes one method rather than a Kubernetes client. */
+/** Narrowed from CustomObjectsApi: test fakes one method vs full Kubernetes client. */
 export interface AgentLister {
   listPage(opts: {
     limit: number;

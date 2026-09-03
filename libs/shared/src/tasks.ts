@@ -1,9 +1,4 @@
-/**
- * Spec-task parsing with phase-aware dependency inference.
- *
- * Shared between MCP server (webhook sync) and agent (merge-check fallback).
- * DB operations stay in mcp-server/src/tasks.ts.
- */
+/** Spec-task parsing with phase-aware dependency inference (shared MCP/agent); DB ops in mcp-server. */
 
 import type { PgPool } from "./memory-store.js";
 
@@ -15,14 +10,13 @@ export interface ParsedTask {
   dependsOn: string[]; // e.g. ["T002", "T003"]
   parallelizable: boolean;
   completed: boolean;
-  phase: number; // extracted from ## Phase N headers (0 if no phase)
-  filePath?: string; // extracted from | file_path suffix
+  phase: number;
+  filePath?: string;
 }
 
 // ── Parsing ─────────────────────────────────────────────────────────
 
-// Matches: - [ ] T001 [P] Description | file/path.ts
-//      or: - [x] T001 Description [DEPENDS ON: T002, T003]
+// Matches: `- [ ] T001 [P] Description | file/path.ts` or `- [x] T001 Description [DEPENDS ON: T002, T003]`
 const TASK_RE = /^- \[([ x])\] (T\d+)\s*/;
 const PARALLEL_RE = /\[P\]\s*/;
 const DEPENDS_RE = /\[DEPENDS ON:\s*([^\]]+)\]/;
@@ -100,13 +94,7 @@ export function parseTasks(markdown: string): ParsedTask[] {
 
 // ── Phase-based dependency inference ────────────────────────────────
 
-/**
- * Infer dependencies from phase structure:
- * - All tasks in Phase N depend on all tasks in Phase N-1 completing
- * - Within a phase, [P] tasks can run in parallel (no intra-phase deps)
- * - Within a phase, non-[P] tasks chain sequentially (each depends on previous)
- * - Explicit [DEPENDS ON:] markers always take precedence (not overwritten)
- */
+/** Infer dependencies from phase structure; [DEPENDS ON:] markers take precedence. */
 export function inferPhaseDependencies(tasks: ParsedTask[]): ParsedTask[] {
   if (tasks.length === 0) {
     return tasks;
@@ -196,12 +184,7 @@ function enrichPhaseTasks(
 
 const FEATURE_REQUEST_BRANCH_PREFIX = "lore/feature-request/";
 
-/**
- * Extract the spec slug from a feature-request branch of the form
- * `lore/feature-request/{slug}-{taskId8}`. Returns null when the branch is not a
- * feature-request branch or carries no slug. Single-sources the parse the webhook
- * spec-PR-merge handler and the merge-check fallback both need.
- */
+/** Extract spec slug from feature-request branch `lore/feature-request/{slug}-{taskId8}`; single-sourced parser. */
 export function specSlugFromBranch(branch: string): string | null {
   if (!branch.startsWith(FEATURE_REQUEST_BRANCH_PREFIX)) {
     return null;
@@ -213,11 +196,7 @@ export function specSlugFromBranch(branch: string): string | null {
   return slug || null;
 }
 
-/**
- * Upsert parsed spec-tasks into pipeline.tasks (task_type = 'spec-task'). Conflict
- * key is spec_task_id + spec_slug + target_repo. Relocated from mcp-server so the
- * Floor spec-PR-merge event handler and the mcp pipeline tools share one writer.
- */
+/** Upsert spec-tasks to pipeline.tasks (spec-task); conflict key: spec_task_id + spec_slug + target_repo. */
 /** The spec whose tasks.md is being synced, and the group its tasks land in. */
 export interface SpecTaskSource {
   repo: string;

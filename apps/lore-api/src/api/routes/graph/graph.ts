@@ -19,11 +19,7 @@ const GraphQuery = z.object({
 
 type GraphQuery = z.infer<typeof GraphQuery>;
 
-/**
- * GET /api/graph — read the live knowledge graph. The remote counterpart of the
- * `lore_query_graph` MCP tool, so a local stdio server (no Postgres) can proxy here
- * over LORE_API_URL instead of requiring a direct DB connection.
- */
+/** GET /api/graph — read the live knowledge graph (MCP-proxied lore_query_graph). */
 /** Graph query results — shape follows the query. */
 const GraphQuerySchema = z.record(z.unknown());
 

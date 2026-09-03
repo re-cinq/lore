@@ -1,22 +1,4 @@
-/**
- * Deterministic spec segmentation + section-heuristic classification.
- *
- * The linker (server-side, picks ordinals + persists statements) and the
- * rehype highlighter (client-side, anchors marks) both call
- * `segmentStatements()` and must agree on every `(ordinal, text, kind)`
- * tuple so persisted `spec_test_links.statement_ordinal` values resolve to
- * the same statement at render time.
- *
- * Rules (per spec.md §Statement segmentation):
- *   - Headings, fenced code blocks, and tables are excluded — consume no
- *     ordinals.
- *   - Each list item (top-level or indented) is its own statement.
- *   - Prose paragraphs are split on `.?!` followed by whitespace and an
- *     uppercase letter / digit / open bracket, with an abbreviation guard
- *     (e.g. / i.e. / etc. / single-letter initials).
- *   - Every statement carries its enclosing heading (most recent `#…`
- *     line), used by the heuristic classifier.
- */
+/** Deterministic spec segmentation; must agree with rehype highlighter on (ordinal, text, kind). */
 
 export type StatementKind = "sentence" | "list-item";
 export type Testability = "testable" | "untestable";
@@ -34,10 +16,7 @@ export interface Statement {
   text: string;
   kind: StatementKind;
   enclosingHeading: string | null;
-  /** 1-based line where the statement's source construct starts (the paragraph
-   * for a sentence, the marker line for a list item). Sentences split from the
-   * same paragraph share its start line. Always set by `segmentStatements`;
-   * optional so hand-built `Statement` doubles in tests need not supply it. */
+  /** 1-based source line; optional for hand-built doubles in tests. */
   line?: number;
 }
 
@@ -73,10 +52,7 @@ const ABBREVIATIONS = new Set([
   "v4",
 ]);
 
-/** A trailing `([label](target))` markdown-link parenthetical belongs to the
- * sentence it follows, not the next one. Keeps v3 inline coverage links
- * (`Statement. ([validated by …](path#Lnn))`, see spec-link-parser.ts) attached
- * so they survive segmentation and form graph edges. */
+/** Trailing markdown link parenthetical belongs to previous sentence (spec-link-parser.ts). */
 const TRAILING_LINK_PARENTHETICAL = /^\(\[[^\]]*\]\(/;
 
 function isListItem(line: string): boolean {
@@ -320,14 +296,7 @@ const SECTION_RULES: { match: RegExp; category: UntestableCategory }[] = [
   },
 ];
 
-/**
- * Content-level rules over the statement *text*, section-independent. A
- * `Decision:` record or a bare `See ADR-…`/`See … spec` cross-reference
- * specifies no behaviour to test no matter which heading it sits under, so it
- * is narrative even inside a Functional Requirements section. Kept
- * deliberately narrow (anchored, reference-token-gated) so a real requirement
- * that merely mentions an ADR stays `testable`.
- */
+/** Content rules: Decision/See ADR/See spec always untestable (narrow anchors). */
 const CONTENT_RULES: { match: RegExp; category: UntestableCategory }[] = [
   { match: /^\s*\*{0,2}\s*decision\s*\*{0,2}\s*[:—-]/i, category: "rationale" },
   {
@@ -336,10 +305,7 @@ const CONTENT_RULES: { match: RegExp; category: UntestableCategory }[] = [
   },
 ];
 
-/** Build the set of statement ordinals considered "intro" — anything with no
- * enclosing heading (the H1 itself produces no statements, only enclosing
- * heading text) or whose enclosing heading IS the document's first heading
- * (the H1 — its body text is the spec's introduction). */
+/** Build intro ordinals (no heading or first heading). */
 export function buildIntroOrdinals(statements: Statement[]): Set<number> {
   const ordinals = new Set<number>();
   let firstHeading: string | null = null;
@@ -360,16 +326,7 @@ export function buildIntroOrdinals(statements: Statement[]): Set<number> {
   return ordinals;
 }
 
-/**
- * Cheap, high-precision section-heading heuristic. Statements under a
- * recognised "narrative" section (Problem Statement / Vision / Clarifications
- * / Open Questions / Limitations / Rationale / Background) and statements in
- * the H1 / intro paragraph are marked untestable with a category. Everything
- * else returns `{ testability: 'testable', matchedBySection: false }` and
- * goes to the LLM fallback in the linker — biased toward `testable` so a
- * false negative surfaces a harmless red gap rather than hiding a real one
- * behind grey.
- */
+/** Section-heading heuristic: narrative sections → untestable; else → LLM. */
 export function classifyByHeuristic(
   statement: Statement,
   introOrdinals: Set<number>,

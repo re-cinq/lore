@@ -3,8 +3,7 @@ import type { ColumnMap } from "../lib/row.js";
 
 // `lore.agent_definitions` — stored Agent CONFIG (ADR-024); resolved project row → org default → task-types.yaml.
 
-// Recipe fields no column stores (skills/disallowed_tools/watch/command/env/...); tolerant like TaskTypeConfigSchema, unknown fields survive a stale reader.
-// Per-definition pod resource ceiling; the catalog seed never overwrites an existing org row, so it survives deploys.
+// Recipe fields lack columns; pod resources survive deploys as catalog never overwrites existing org rows.
 const PodResourcesSchema = z.object({
   requests: z.record(z.string()).optional(),
   limits: z.record(z.string()).optional(),

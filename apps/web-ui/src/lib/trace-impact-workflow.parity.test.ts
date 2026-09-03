@@ -1,12 +1,4 @@
 import { describe, it, expect } from "vitest";
-// web-ui can't import the @re-cinq/lore-shared PACKAGE (workspace + Docker
-// isolation), so lore-trace-impact.yml is hand-duplicated. This CI-only test
-// (runs in a full checkout) imports shared's PURE module by file path — never
-// the package — to keep the mirror in lockstep. The bytes matter: the web-ui
-// "fix" button commits the MIRROR into repos while onboard commits the SHARED
-// one, so a silent divergence ships two different workflows. Worse here than
-// for ingest: the backend suppresses a stale client's findings outright, so a
-// drifted mirror would hand repos a workflow that stays switched off.
 import * as mirror from "./trace-impact-workflow";
 import * as canonical from "../../../../libs/shared/src/trace-impact-workflow";
 

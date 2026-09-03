@@ -10,11 +10,7 @@ export interface RepoTasksViewProps {
   runs: AssemblyRun[];
 }
 
-/**
- * Per-repo assembly-runs tab, scoped to one repo. Pure render: the container
- * (`page.tsx`) fetches the per-attempt runs and this component renders them
- * through the shared <AssemblyRunsTable>.
- */
+/** Per-repo assembly-runs tab: pure render of runs via shared <AssemblyRunsTable>. */
 export default function RepoTasksView({
   owner,
   repo,

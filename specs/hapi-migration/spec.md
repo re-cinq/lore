@@ -46,7 +46,7 @@ We want hapi's declarative routing, first-class auth strategies, request
 lifecycle extensions, and per-route validation — **without a flag day**. The
 API must stay green and shippable after every single PR.
 
-- The server drains and THEN flushes telemetry on `SIGTERM`. It used to only call `server.stop()`, so every rollout discarded the last span and metric batch — the telemetry from the final minute of a pod that was, by definition, being replaced. Both steps are best-effort and independent: a server that will not stop is exactly when the last batch is most worth having, and a failed export (an unauthed environment has no project id) must not turn a clean shutdown into a SIGKILL. The sequence is a named function rather than an inline handler so it is testable without raising a real signal at the test runner. ([validated by stops the server, then flushes telemetry](apps/lore-api/src/server/http-server.test.ts#L5), [`http-server.test.ts:18`](apps/lore-api/src/server/http-server.test.ts#L18), [`http-server.test.ts:31`](apps/lore-api/src/server/http-server.test.ts#L31))
+- The server drains and THEN flushes telemetry on `SIGTERM`. It used to only call `server.stop()`, so every rollout discarded the last span and metric batch — the telemetry from the final minute of a pod that was, by definition, being replaced. Both steps are best-effort and independent: a server that will not stop is exactly when the last batch is most worth having, and a failed export (an unauthed environment has no project id) must not turn a clean shutdown into a SIGKILL. The sequence is a named function rather than an inline handler so it is testable without raising a real signal at the test runner. ([validated by stops the server, then flushes telemetry](apps/lore-api/src/server/http-server.test.ts#L5), [`http-server.test.ts:16`](apps/lore-api/src/server/http-server.test.ts#L16), [`http-server.test.ts:27`](apps/lore-api/src/server/http-server.test.ts#L27))
 
 ## Solution
 
@@ -154,7 +154,7 @@ low-risk reads before touching auth-sensitive writes:
   constructed. Production boot and the integration tests both use it.
 - **FR4** Native routes are guarded by the `bearer-scope` auth strategy with the
   same required scope the route has today; webhook routes keep their own HMAC
-  verification and set `auth: false`. ([validated by `bearer-scope.test.ts:76`](apps/lore-api/src/server/plugins/bearer-scope.test.ts#L76))
+  verification and set `auth: false`. ([validated by `bearer-scope.test.ts:76`](apps/lore-api/src/server/plugins/bearer-scope.test.ts#L72))
 - **FR5** Migrating a group deletes that group's rows from the legacy
   `API_ROUTES` table and its entries from the `getRequiredScope`/`SCOPE_OVERRIDES`
   maps in the same PR — no dead legacy routing is left behind.
@@ -170,11 +170,11 @@ low-risk reads before touching auth-sensitive writes:
   the **hapi** server via `buildServer`, unchanged in intent.
 - **SC-3** Auth matrix preserved: for every route, an under-scoped token still
   gets `403`, a missing token `401`, and `LORE_INGEST_TOKEN` full access — proven
-  by tests migrated alongside each group. ([validated by `bearer-scope.test.ts:45`](apps/lore-api/src/server/plugins/bearer-scope.test.ts#L45))
+  by tests migrated alongside each group. ([validated by `bearer-scope.test.ts:45`](apps/lore-api/src/server/plugins/bearer-scope.test.ts#L41))
 - **SC-4** Rate limiting still returns `429` + `Retry-After: 60` at the same
   per-bucket thresholds (webhook 30, task 60, default 200 per minute); a bucket
   allows requests up to its limit then blocks, and admits them again once the 60s
-  window slides past. ([validated by `rate-limit.test.ts:42`](apps/lore-api/src/server/plugins/rate-limit.test.ts#L42), [validated by `auth.test.ts:17`](apps/lore-api/src/api/routes/auth.test.ts#L17), [validated by `auth.test.ts:24`](apps/lore-api/src/api/routes/auth.test.ts#L24))
+  window slides past. ([validated by `rate-limit.test.ts:42`](apps/lore-api/src/server/plugins/rate-limit.test.ts#L39), [validated by `auth.test.ts:17`](apps/lore-api/src/api/routes/auth.test.ts#L17), [validated by `auth.test.ts:24`](apps/lore-api/src/api/routes/auth.test.ts#L24))
 - **SC-5** Each PR in the migration is independently revertable and was merged
   without an API outage (no route 404s introduced mid-migration).
 

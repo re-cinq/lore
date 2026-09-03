@@ -18,14 +18,12 @@ import {
 import type { TestRunnerPort, TestRunReport } from "./test-runner-port.js";
 
 const execShell = promisify(exec);
-// A full-suite `list` (and large per-file `run`s) can outrun a tight ceiling on
-// cold CI runners. Override with LORE_TRACE_TIMEOUT_MS; default stays 120s.
+// Default timeout: 120s; override with LORE_TRACE_TIMEOUT_MS.
 const DEFAULT_TIMEOUT_MS = Number(process.env.LORE_TRACE_TIMEOUT_MS) || 120_000;
 /** Max test files run concurrently by `report` — bounds per-file processes so the suite can't fork-bomb. */
 const REPORT_CONCURRENCY = 4;
 
-/** Run the manifest `list` command and parse its descriptors. Single source for
- *  both this adapter and mcp's spec-trace-tools (which re-exports it). */
+/** Single source for list command (adapter + mcp spec-trace-tools). */
 export async function runTestsList(
   listCommand: string,
   cwd: string,
@@ -61,11 +59,7 @@ export function parseCommandJson(stdout: string, what: string): unknown {
   }
 }
 
-/**
- * TestRunnerPort over the repo's .lore/test-commands.yml — relocated from
- * mcp-server/src/spec-trace-tools.ts (runTestsList/runTestsRun/buildTestReport).
- * The trust gate lives on the TestSuite facade; this just runs the commands.
- */
+/** TestRunnerPort over .lore/test-commands.yml; trust gate on TestSuite facade. */
 export class ExecTestRunner implements TestRunnerPort {
   listTests(cwd: string): Promise<TestDescriptor[]> {
     const manifest = loadManifest(cwd);
@@ -90,8 +84,7 @@ export class ExecTestRunner implements TestRunnerPort {
     concurrency = REPORT_CONCURRENCY,
   ): Promise<TestRunReport> {
     const tests = await this.listTests(cwd);
-    // Coverage/run is file-level: run each file ONCE (selector = file) under a
-    // concurrency cap, then fan its result to every descriptor sharing the file.
+    // Coverage/run is file-level; run each file once, fan result to all descriptors.
     const byFile = groupRunsByFile(tests);
     const files = [...byFile.keys()];
     const fileResults = await mapWithLimit(files, concurrency, (file) =>

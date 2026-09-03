@@ -48,8 +48,7 @@ function describeNode(
   };
 }
 
-/** GET /api/assembly-runs/{id} — one run: the run row, its nodes, and the Station
- *  each node dispatches to. */
+/** GET /api/assembly-runs/{id}: run row, nodes, and Station per node. */
 export function assemblyRunReadRoute(
   load: () => Promise<Map<string, AssemblyLine>> = loadBuiltinAssemblyLines,
 ): ServerRoute {

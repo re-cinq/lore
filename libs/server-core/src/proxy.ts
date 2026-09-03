@@ -1,10 +1,4 @@
-/**
- * API proxy client for local mode (MCP adapter without a direct DB). Shared
- * infra: the local tools proxy their reads/writes to the remote Lore API
- * through these helpers. Lives in server-core so the proxy surface and the
- * `ProxyResult` shape have one home; `mcp/tools/deps.ts` re-exports it for the
- * tool modules.
- */
+/** API proxy client for local mode; tools proxy reads/writes to remote Lore API. */
 import {
   isCacheEnabled,
   readFresh,
@@ -15,15 +9,7 @@ import {
   type ReadCachePolicy,
 } from "./platform/proxy-cache.js";
 
-// Shape lets callers distinguish "no proxy configured" (fall through to
-// file mode is fine) from "proxy configured but unreachable" (loud
-// failure — silently writing to a local file would lose org-wide
-// shared state, which is what bit us on 2026-04-29 when GKE Autopilot
-// was bouncing pods every few minutes).
-// `denied` (401/403) is kept distinct from `unreachable` on purpose: an
-// authoritative "you may not read this" must NOT trigger a stale-cache serve
-// (that would disclose data the caller has lost access to), whereas a true
-// outage may fall back to a stale copy. See withReadCache.
+// ProxyResult distinguishes not_configured/unreachable; denied (401/403) prevents stale-cache serve.
 export type ProxyResult =
   | { ok: true; body: string }
   | { ok: false; reason: "not_configured" }
@@ -31,8 +17,7 @@ export type ProxyResult =
       ok: false;
       reason: "unreachable";
       detail: string;
-      /** Set only for a non-retriable HTTP response, so a caller can tell an
-       *  authoritative refusal (e.g. a 409 conflict) from a real outage. */
+      /** Set only for non-retriable HTTP to distinguish authoritative refusal from outage. */
       status?: number;
       /** That response's raw body, when it had one. */
       body?: string;
@@ -42,21 +27,16 @@ export type ProxyResult =
 export const PROXY_RETRY_DELAYS_MS = [200, 600, 1800]; // ~2.6s total budget before giving up
 
 function isRetriableStatus(status: number): boolean {
-  // 502 bad-gateway / 503 unavailable / 504 timeout — exactly the
-  // codes you get from a load-balancer mid-Autopilot-eviction. 408
-  // (request timeout) and 429 (throttle) are also retry-safe.
+  // 5xx + 408/429 are retriable; 4xx are not (4xx = config gap, not outage).
   return status === 408 || status === 429 || (status >= 500 && status < 600);
 }
 
-// 401 (unauthenticated) / 403 (unauthorized) are authoritative access denials,
-// not outages — never serve a stale cached copy past one.
+// 401/403 are authoritative denials, not outages; never serve stale copy past one.
 function isAuthDenial(status: number): boolean {
   return status === 401 || status === 403;
 }
 
-// Read an error response body without ever throwing: a missing/throwing
-// `text()` (or a rejected read) must NOT escape and flip a non-retriable 4xx
-// into the retry path. `try` (not `.catch`) so a synchronous throw is caught too.
+// Reads error body without throwing; never flips non-retriable 4xx to retry path.
 async function readErrorBody(res: {
   text?: () => Promise<string>;
 }): Promise<string> {
@@ -67,9 +47,7 @@ async function readErrorBody(res: {
   }
 }
 
-// Fold the server's error message into the detail for non-retriable (4xx)
-// responses so callers surface the cause (e.g. "GitHub not configured")
-// instead of a bare status line. Best-effort: tolerates non-JSON bodies.
+// Folds server's error message into detail for non-retriable (4xx) responses; best-effort.
 function errorBodyDetail(
   status: number,
   statusText: string,
@@ -129,10 +107,7 @@ export async function proxyToApi(
       }
 
       if (!isRetriableStatus(res.status)) {
-        // 4xx (validation / config gap) — retrying won't help. Surface the
-        // server's message so the caller sees the cause, not just the status,
-        // and carry the status + body so a caller can recognise an
-        // authoritative refusal instead of reporting it as an outage.
+        // Non-retriable 4xx: surface server message + status/body so caller recognizes refusal.
         const errorBody = await readErrorBody(res);
         const detail = errorBodyDetail(res.status, res.statusText, errorBody);
 
@@ -189,11 +164,7 @@ function storeWhenCacheable(
   store(policy, body);
 }
 
-// Read-through cache wrapper for proxied reads. Fresh hit short-circuits the
-// network; on `ok` the response is stored; on `unreachable` a stale entry (if
-// any) is served instead of erroring. `label` prepends a cache marker (skip it
-// when the body is parsed downstream); `cacheIf` gates storage (e.g. logs only
-// when complete). See proxy-cache.ts.
+// Cache wrapper for proxied reads; fresh hit short-circuits network; stale on unreachable.
 export async function withReadCache(
   policy: ReadCachePolicy | undefined,
   doProxy: () => Promise<ProxyResult>,
@@ -237,8 +208,7 @@ export async function withReadCache(
   };
 }
 
-// GET sibling of proxyToApi for read-only routes (e.g. /trace/*). Same
-// config gate, retry budget, and ProxyResult shape; no request body.
+// GET sibling of proxyToApi for read-only routes; same gate/budget/shape, no body.
 export async function proxyGetApi(path: string): Promise<ProxyResult> {
   const apiUrl = process.env.LORE_API_URL;
   const apiToken = process.env.LORE_INGEST_TOKEN;
@@ -269,8 +239,7 @@ export async function proxyGetApi(path: string): Promise<ProxyResult> {
       }
 
       if (!isRetriableStatus(res.status)) {
-        // 4xx (validation / config gap) — retrying won't help. Surface the
-        // server's message so the caller sees the cause, not just the status.
+        // Non-retriable 4xx: surface server's message to caller.
         const detail = errorBodyDetail(
           res.status,
           res.statusText,
@@ -306,9 +275,7 @@ export async function proxyGetApi(path: string): Promise<ProxyResult> {
   return { ok: false, reason: "unreachable", detail: lastDetail };
 }
 
-// Format an MCP error for an unreachable proxy. Surfaces the failure
-// to the caller instead of silently writing to a local file (which
-// would never sync to the org-wide DB).
+// Format MCP error for unreachable proxy; surfaces failure instead of silent fallback.
 export function unreachableError(
   op: string,
   detail: string,
@@ -326,9 +293,7 @@ export function unreachableError(
   };
 }
 
-// Format an MCP error for a proxy access denial (401/403). Surfaces the
-// denial instead of serving a stale cached copy or falling back to local
-// state — the backend has authoritatively refused this read.
+// Format MCP error for proxy access denial (401/403); surfaces refusal instead of stale/local fallback.
 export function deniedError(
   op: string,
   detail: string,
@@ -346,10 +311,7 @@ export function deniedError(
   };
 }
 
-// Format an MCP error for a proxy call that cannot run because the API
-// endpoint/token are not configured. Distinct from unreachable (env is set
-// but the network failed) so the developer knows to configure rather than
-// debug connectivity.
+// Format MCP error for unconfigured API endpoint/token; distinct from unreachable.
 export function notConfiguredError(op: string): {
   content: [{ type: "text"; text: string }];
 } {

@@ -1,11 +1,4 @@
-/**
- * The behavioural spec for {@link PodLogsRepository}, and the double every
- * consumer test runs against.
- *
- * Written first and kept honest by the shared contract test: the Pg adapter has
- * to agree with it, so `(podName, seq)` collapsing and `seq` ordering are
- * pinned here rather than living only in SQL nobody can run in a unit test.
- */
+/** Behavioral spec for PodLogsRepository; contract-tested with Pg adapter to pin (podName, seq) collapsing and seq ordering. */
 
 import type { PodLogChunk } from "../../models/pod-log-chunk.js";
 import type { PodLogChunkInsert, PodLogsRepository } from "./pod-logs-port.js";
@@ -36,11 +29,7 @@ export class InMemoryPodLogs implements PodLogsRepository {
 
   listForJob(jobName: string): Promise<PodLogChunk[]> {
     const forJob = this.rows.filter((row) => row.jobName === jobName);
-    // By POD first, then by seq within it. Ordering by seq alone interleaves two
-    // attempts of a retried node — pod-1 seq1, pod-2 seq1, pod-1 seq2 … — which
-    // reads worse than either attempt on its own. Pods are ordered by when they
-    // first appear, not by name, so a retry reads after the attempt it replaced;
-    // the Pg adapter gets the same order from MIN(id) per pod.
+    // Sort by POD first, then seq within it; retries must show after original attempt, not interleaved.
     const podOrder = [...new Set(forJob.map((row) => row.podName))];
 
     return Promise.resolve(

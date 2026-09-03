@@ -13,9 +13,7 @@ import { chunkHeader, type ChunkMeta } from "@/lib/chunk-presenter";
 import readme from "../ReadmeBox.module.css";
 import styles from "./ChunkBody.module.css";
 
-/** Content types whose `content` is markdown (rendered as prose). Everything
- * that isn't `code` falls back to this branch — `pull_request`/`rule` and any
- * future text type render fine as markdown. */
+/** Non-code types render as markdown prose (pull_request/rule/etc). */
 const CODE_TYPE = "code";
 
 export interface ChunkBodyProps {
@@ -30,13 +28,7 @@ export interface ChunkBodyProps {
   preview?: boolean;
 }
 
-/**
- * Renders ONE ingested chunk richly. Prose (`doc`/`adr`/`spec`/`pull_request`/
- * `rule`) goes through ReactMarkdown with repo-relative links rewritten to
- * GitHub (new tab); `code` is run through the same pipeline inside a synthesized
- * fenced block so highlight.js colors it. Reused by the list cards (preview)
- * and the per-file detail views.
- */
+/** Render ingested chunk: prose→ReactMarkdown with GitHub links, code→highlight.js. */
 export default function ChunkBody({
   content,
   contentType,

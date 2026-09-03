@@ -2,12 +2,6 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-// Static guard on migration 0016's content (the live apply is verified against a
-// throwaway Postgres in CI/PR). 0015 was edited in place to create
-// lore.agent_definitions, but DBs that already applied the original 0015 still
-// hold lore.agents — 0016 renames them. Every statement must be IF EXISTS so it
-// is a no-op on a fresh DB that already built the new name from 0015.
-
 const sql = readFileSync(
   resolve(
     process.cwd(),

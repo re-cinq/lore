@@ -1,16 +1,4 @@
-/**
- * Pure hierarchical-edge-bundling geometry for the D3 spec-graph.
- *
- * Cross-cutting edges (validated_by / implemented_by / covers / decided_by) drawn
- * as straight chords turn a dense graph into a hairball. Bundling routes an edge
- * along the containment tree (Feature ⊃ Spec ⊃ Statement/AcceptanceCriterion):
- * up from the source to the lowest common ancestor, then back down to the target.
- * Edges that share a subtree visually converge, exposing flow instead of noise.
- *
- * These helpers return render-agnostic control-node id *sequences*; the shell
- * resolves them to live positions per tick and smooths them with a spline. No
- * side effects.
- */
+/** Hierarchical-edge-bundling geometry for D3 spec-graph (reduces hairball visualization). */
 
 export interface KindedLink {
   source: string;
@@ -18,10 +6,7 @@ export interface KindedLink {
   kind: string;
 }
 
-/**
- * Builds the child→parent map from containment links only (parent = source).
- * Cross-cutting kinds are ignored, so leaf artefacts stay out of the tree.
- */
+/** Build child→parent map from containment links; ignore cross-cutting kinds. */
 export function buildContainmentForest(
   links: KindedLink[],
   containmentKinds: Set<string>,
@@ -60,11 +45,7 @@ export function ancestorChain(
   return chain;
 }
 
-/**
- * Control-node ids for bundling the edge source→target: source up to the lowest
- * common ancestor, then down to target. Falls back to a straight [source, target]
- * when the two share no ancestor (e.g. a leaf with no tree home).
- */
+/** Control-node ids: source up to LCA, then down to target. */
 export function bundleControlIds(
   parent: Map<string, string>,
   sourceId: string,
@@ -84,8 +65,8 @@ export function bundleControlIds(
     if (lcaTargetIndex === undefined) {
       continue;
     }
-    const upToLca = chainSource.slice(0, sourceIndex + 1); // source … LCA
-    const downFromLca = chainTarget.slice(0, lcaTargetIndex).reverse(); // child-of-LCA … target
+    const upToLca = chainSource.slice(0, sourceIndex + 1);
+    const downFromLca = chainTarget.slice(0, lcaTargetIndex).reverse();
 
     return [...upToLca, ...downFromLca];
   }

@@ -3,8 +3,6 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import PRStatusCard, { type PRDetails } from "./PRStatusCard";
 
-// Icon pulls in ThemeProvider via useTheme(); render its name so we can assert
-// which status icons appear without standing up the theme context.
 vi.mock("@/components/Icon", () => ({
   default: ({ name }: { name: string }) => <i data-testid={`icon-${name}`} />,
 }));

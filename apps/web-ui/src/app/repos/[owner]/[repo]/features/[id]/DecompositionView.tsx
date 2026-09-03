@@ -11,8 +11,7 @@ function TaskStatus({ status }: { status: string }) {
   );
 }
 
-/** The story/task tree a merged feature spec decomposed into (ADR-029). Hidden
- *  until the feature has been decomposed. */
+/** Story/task tree from merged feature spec decomposition (ADR-029), hidden until complete. */
 export default function DecompositionView({
   owner,
   repo,

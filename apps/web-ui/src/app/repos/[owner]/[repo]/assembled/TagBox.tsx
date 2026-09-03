@@ -4,8 +4,7 @@ import Markdown from "@/components/Markdown";
 import type { TagNode } from "./tag-tree";
 import styles from "./TagBox.module.css";
 
-/** The monospace attribute chip that straddles the top border of each box —
- *  black "terminal readout" with a colored tag name and green attribute values. */
+/** Monospace attribute chip: terminal readout with colored tags and green values. */
 function TagChip({ tag, attrs }: { tag: string; attrs: [string, string][] }) {
   return (
     <span className={styles.chip}>
@@ -20,8 +19,7 @@ function TagChip({ tag, attrs }: { tag: string; attrs: [string, string][] }) {
   );
 }
 
-/** Recursive nested-box renderer: each tag is a bordered div containing its
- *  children (or, at a leaf `document`, its content as markdown or raw text). */
+/** Recursive nested-box renderer: tags as bordered divs, leaves render content. */
 export default function TagBox({
   node,
   raw,

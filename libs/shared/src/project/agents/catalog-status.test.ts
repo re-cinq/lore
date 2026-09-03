@@ -3,13 +3,6 @@ import { InMemoryCatalogStatus } from "./catalog-status-memory.js";
 import { PgCatalogStatus } from "./catalog-status-pg.js";
 import type { PgPool } from "../../memory-store.js";
 
-/**
- * The per-cluster verdict store both ways: the InMemory double as the
- * behavioral spec (a later verdict replaces the earlier one, per-cluster and
- * per-project scoping) and the Pg adapter's SQL/binding through the house
- * fake-pool stub.
- */
-
 type Row = Record<string, unknown>;
 
 function fakePool(

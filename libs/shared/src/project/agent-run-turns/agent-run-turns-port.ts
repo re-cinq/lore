@@ -1,68 +1,24 @@
 import type { AgentRunTurn } from "../../models/agent-run-turn.js";
 
-/**
- * One row of `pipeline.agent_run_turns` — the full-fidelity turn-level
- * transcript store (specs/turn-level-transcript-store), sibling to the
- * deliberately truncated `agent_run_events` projection.
- *
- * `id` is a string-encoded bigint and stays a string across every wire
- * boundary: the identity column outgrows `Number.MAX_SAFE_INTEGER` and doubles
- * as the read cursor, so narrowing it to a JS number would silently corrupt
- * the read position.
- *
- * Every correlation field is nullable. A line the agent subsystem attributed
- * to no task, or whose CR name matches no node row, is still stored — a store
- * whose whole point is fidelity must not drop the lines it cannot label.
- */
-/**
- * One row of `pipeline.agent_run_turns`. The shape is the `AgentRunTurn` model —
- * see `libs/shared/src/models/agent-run-turn.ts` for the columns and why every
- * correlation field is nullable (a store whose point is fidelity must not drop
- * the lines it cannot label).
- */
+/** One row of pipeline.agent_run_turns — full-fidelity turn-level transcript store (specs/turn-level-transcript-store), sibling to deliberately truncated agent_run_events. id is string-encoded bigint across all wires (outgrows MAX_SAFE_INTEGER, doubles as read cursor). All correlation fields nullable (fidelity store must not drop unlabeled lines). */
 export type AgentRunTurnRow = AgentRunTurn;
 
-/**
- * What the ingest tee supplies for one turn. The correlated fields
- * (`assemblyLineId`, `nodeId`, `iteration`) are absent by design — the
- * repository resolves them from `agentCrName` at write time — as are `id` and
- * `createdAt`, which the database mints.
- */
+/** Ingest tee input per turn. Correlated fields (assemblyLineId, nodeId, iteration) resolved from agentCrName at write time; id and createdAt minted by database. */
 import type { CarriedRunIdentity } from "../run-identity/carried-run-identity.js";
 
 export interface AgentRunTurnInsert {
   taskId: string | null;
   agentCrName: string | null;
-  /** The identity the turn STATED, when its producer knew it (#1147). Present it
-   *  and the `agentCrName` lookup is not consulted. */
+  /** The identity the turn STATED, when its producer knew it (#1147). Present it and the agentCrName lookup is not consulted. */
   carried?: CarriedRunIdentity | null;
   eventType: string | null;
-  /**
-   * The envelope as JSON **text**, not as a parsed object: the ingest path
-   * already holds the raw NDJSON line as a string, and handing that string
-   * straight through means the hot path neither re-parses nor re-serializes a
-   * payload it is already carrying. The adapter casts it to `jsonb` in the
-   * statement; readers get it back parsed.
-   */
+  /** Envelope as JSON **text**, not parsed object: ingest path already holds raw NDJSON line as string, handing string straight through means hot path neither re-parses nor re-serializes. Adapter casts to jsonb in statement; readers get it back parsed. */
   envelope: string;
-  /**
-   * Idempotency key for re-ingested lines (#1389): the task-turns relay stamps
-   * one per relayed line, so a retried POST skips rows already stored instead
-   * of duplicating the transcript. Null/absent (every non-relay producer)
-   * means "never dedup" — the fidelity default.
-   */
+  /** Idempotency key for re-ingested lines (#1389): task-turns relay stamps one per relayed line, so retried POST skips rows already stored instead of duplicating transcript. Null/absent (every non-relay producer) means "never dedup" — the fidelity default. */
   dedupKey?: string | null;
 }
 
-/**
- * Order two rows by their string-encoded bigint id, ascending.
- *
- * Lives on the port because "rows come back ascending by id" is the port's
- * contract, and because both adapters need it: a private copy in each was one
- * transcription away from disagreeing, which is exactly how the Pg copy came to
- * return 1 for equal ids. A comparator that never returns 0 is not a total
- * order, and `Array#sort` is free to do anything with one.
- */
+/** Order two rows by their string-encoded bigint id, ascending. Lives on port because "rows come back ascending by id" is the port contract; both adapters need it. Comparator that never returns 0 is not a total order, and Array#sort is free to do anything with one. */
 export function compareTurnIdAscending(
   a: AgentRunTurnRow,
   b: AgentRunTurnRow,
@@ -87,21 +43,9 @@ export interface AgentRunTurnNodeRef {
   iteration: number;
 }
 
-/**
- * The turn-level transcript surface: the ingest tee writes through
- * `insertBatch`, post-mortems page through `listByLine` / `listByTask`, and
- * the retention cron reaps through `pruneOld`.
- */
+/** The turn-level transcript surface: ingest tee writes through insertBatch, post-mortems page through listByLine / listByTask, retention cron reaps through pruneOld. */
 export interface AgentRunTurnsRepository {
-  /**
-   * Insert a batch, resolving `agentCrName` to (`assemblyLineId`, `nodeId`,
-   * `iteration`) against `pipeline.station_runs` at write time. A turn
-   * that correlates to nothing is still inserted, with `agentCrName` retained
-   * and the three correlated fields left null. A row whose non-null `dedupKey`
-   * is already stored is skipped silently — never a batch failure. Returns the
-   * rows THIS CALL inserted, ascending by id; skipped duplicates are persisted
-   * (from their first ingest) but not returned.
-   */
+  /** Insert a batch, resolving agentCrName to (assemblyLineId, nodeId, iteration) against pipeline.station_runs at write time. Turns that correlate to nothing still insert with agentCrName retained, correlated fields null. Rows with non-null dedupKey already stored are skipped silently — never batch failure. Returns rows THIS CALL inserted, ascending by id. */
   insertBatch(rows: readonly AgentRunTurnInsert[]): Promise<AgentRunTurnRow[]>;
   /** One assembly line's turns with id > afterId, ascending, capped. */
   listByLine(
@@ -109,8 +53,7 @@ export interface AgentRunTurnsRepository {
     afterId: string,
     limit: number,
   ): Promise<AgentRunTurnRow[]>;
-  /** One task's turns with id > afterId, ascending, capped — the only path to
-   *  rows that correlate to no assembly-line node. */
+  /** One task's turns with id > afterId, ascending, capped — only path to rows that correlate to no assembly-line node. */
   listByTask(
     taskId: string,
     afterId: string,

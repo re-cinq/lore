@@ -19,11 +19,7 @@ export interface GapsViewProps {
   zeroResultSearches: ZeroResultSearchRow[];
 }
 
-/**
- * Presentational view for the global gap-detection page. Pure render — the
- * container (`page.tsx`) runs the `memory.audit_log` and `memory.memories`
- * queries and passes the resolved rows down. Read-only: no callbacks.
- */
+/** Gap detection view; pure render with audit_log and memories from container (read-only). */
 export default function GapsView({
   gapMemories,
   zeroResultSearches,

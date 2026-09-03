@@ -11,8 +11,7 @@ export default async function RepoSpecs({
   const { owner, repo } = await params;
   const fullName = `${owner}/${repo}`;
 
-  // The spec-traceability graph is the source of truth — the list and the
-  // lifecycle status pills alike, both from this one call.
+  // Spec-traceability graph is source of truth for list and lifecycle status pills.
   const summaries = await fetchSpecSummaries(fullName);
   const specs = summaries.sort((a, b) => a.filePath.localeCompare(b.filePath));
   const statuses = statusesByPath(specs);

@@ -1,7 +1,4 @@
-// Canvas fillStyle/strokeStyle and d3 color interpolators cannot resolve
-// var() references, so chart code resolves theme tokens to literal colors
-// through these helpers once per render, from a computed-style lookup.
-// SVG attributes and JSX styles keep the raw var() references.
+// Resolves theme tokens to literal colors (canvas/d3 need it; SVG/JSX keep var()).
 
 export type TokenLookup = (name: string) => string;
 

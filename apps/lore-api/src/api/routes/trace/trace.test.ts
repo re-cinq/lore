@@ -11,11 +11,6 @@ const originalEnv = { ...process.env };
 const get = (url: string, headers?: Record<string, string>) =>
   buildServer(() => makePool() as any).inject({ method: "GET", url, headers });
 
-/**
- * GET /api/repos/:o/:r/trace/{kind} and GET /api/trace/specs — the read routes.
- * With LORE_DGRAPH_HTTP unset the global viewer fails soft to an empty list, and
- * the per-repo route's pre-graph validation (404 unknown kind) is reachable.
- */
 describe("GET /api/repos/:owner/:repo/trace/:kind", () => {
   useRateLimitSafeClock();
   beforeEach(() => {

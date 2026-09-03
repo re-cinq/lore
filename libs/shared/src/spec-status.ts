@@ -130,14 +130,12 @@ export function docStatusPill(
   };
 }
 
-/** Enforcement tier for a bucket: `rejected` and `retired` skip the rule (dead
- * specs), every other status (shipped / draft / in-progress / unknown) warns. */
+/** Enforcement tier: rejected/retired skip; shipped/draft/in-progress/unknown warn. */
 export function statusTier(status: StatusBucket | null): StatusTier {
   return status === "rejected" || status === "retired" ? "skip" : "warn";
 }
 
-/** Rewrite a status value cell to `label`, preserving the leading space and the
- *  original cell width so the table stays aligned when the label fits. */
+/** Rewrite status cell preserving leading space and width for table alignment. */
 function replaceStatusCell(rawCell: string, label: string): string {
   const leading = rawCell.match(/^\s*/)?.[0] ?? " ";
   const core = `${leading}${label}`;

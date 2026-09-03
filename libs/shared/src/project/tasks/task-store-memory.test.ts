@@ -208,7 +208,6 @@ describe("InMemoryTaskStore status writes", () => {
   });
 });
 
-/** A spec-task row as the issues station files it (feature_id + spec_task_id). */
 const specTask = (
   id: string,
   featureId: string,
@@ -319,7 +318,6 @@ describe("InMemoryTaskStore dedup reads", () => {
       {
         id: "t5",
         target_repo: "a/b",
-        // A feature's Issues are not its spec-tasks.
         task_type: "implementation",
         status: "pending",
         context_bundle: { feature_id: "feat-1", spec_task_id: "T009" },
@@ -354,7 +352,6 @@ describe("InMemoryTaskStore dedup reads", () => {
   });
 
   it("specTasksForFeature returns nothing for a feature with no tasks", async () => {
-    // The honest empty case: a feature that was never decomposed.
     expect(
       await new InMemoryTaskStore([]).specTasksForFeature("a/b", "feat-1"),
     ).toEqual([]);

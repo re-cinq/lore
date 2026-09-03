@@ -7,9 +7,6 @@ const Body = z.object({ ok: z.literal(true) });
 
 describe("zodResponse", () => {
   it("preserves the auth scope it is merged onto", () => {
-    // The reason it takes a base instead of returning standalone options: two
-    // producers spread together would clobber options.plugins and silently drop
-    // the bearer scope from every route.
     const options = zodResponse(bearerScope("read"), Body, { name: "Ok" });
 
     expect(options.auth).toBe("bearer-scope");

@@ -12,12 +12,10 @@ describe("Pipeline Task Lifecycle", () => {
       user: process.env.LORE_DB_USER || "lore",
       password: process.env.LORE_DB_PASSWORD || "test",
     });
-    // Verify connection and schema
     await pool.query("SELECT 1");
   });
 
   afterAll(async () => {
-    // Delete events first (FK constraint), then tasks
     await pool.query(
       "DELETE FROM pipeline.task_events WHERE task_id IN (SELECT id FROM pipeline.tasks WHERE created_by = 'integration-test')",
     );
@@ -56,7 +54,6 @@ describe("Pipeline Task Lifecycle", () => {
     expect(claimed[0].status).toBe("running");
     expect(claimed[0].claimed_by).toBe("test-agent");
 
-    // Second claim attempt should return no rows (atomic guard)
     const { rows: doubleClaim } = await pool.query(
       `UPDATE pipeline.tasks
        SET status = 'running', claimed_by = 'other-agent'
@@ -75,7 +72,6 @@ describe("Pipeline Task Lifecycle", () => {
        RETURNING id`,
     );
 
-    // GKE worker query uses a 30s grace period to avoid race conditions
     const { rows: gkeResult } = await pool.query(
       `SELECT id FROM pipeline.tasks
        WHERE status = 'pending'
@@ -84,7 +80,6 @@ describe("Pipeline Task Lifecycle", () => {
       [created[0].id],
     );
 
-    // Task was just created -- it must NOT be picked up yet
     expect(gkeResult).toHaveLength(0);
   });
 
@@ -181,7 +176,6 @@ describe("Pipeline Task Lifecycle", () => {
     );
     const id = rows[0].id;
 
-    // Increment review iteration (as watcher does after CHANGES_REQUESTED)
     await pool.query(
       `UPDATE pipeline.tasks SET review_iteration = review_iteration + 1 WHERE id = $1`,
       [id],
@@ -222,7 +216,6 @@ describe("Pipeline Task Lifecycle", () => {
        RETURNING id`,
     );
 
-    // Immediate tasks should be picked up even when just created (no 30s grace period)
     const { rows: picked } = await pool.query(
       `SELECT id FROM pipeline.tasks
        WHERE status = 'pending'

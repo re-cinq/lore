@@ -13,17 +13,7 @@ export interface VendorCostRow {
   cost_usd: number;
 }
 
-/**
- * Fold the by-model rollup into per-vendor totals.
- *
- * Derived from rows the handler already fetched rather than a second GROUP BY:
- * the vendor of a model id is a fact about the id, and expressing it as SQL
- * would put the classification in two places — the balance query already reads
- * the shared patterns, and this reads the shared classifier.
- *
- * Sorted by cost descending so the reader sees where the money went; ties break
- * on vendor name, so the order is stable across refreshes.
- */
+// Fold by-model into per-vendor totals; sorted by cost descending (stable on vendor name).
 export function vendorSplit(rows: ModelCostRow[]): VendorCostRow[] {
   const totals = new Map<string, VendorCostRow>();
 

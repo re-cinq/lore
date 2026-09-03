@@ -18,13 +18,7 @@ import type {
   InsertTaskInput,
 } from "./task-queue-port.js";
 
-/**
- * Postgres-backed {@link TaskQueueRepository}. The SQL is the org-wide
- * claim/sweep that used to live inline in the Floor worker, stale-task-check,
- * and spec-task-executor jobs, moved here verbatim (the only change: the dead
- * `status != 'running-local'` predicate is dropped from the worker claim — it
- * is unreachable once `status = 'pending'` holds).
- */
+/** Postgres TaskQueueRepository; org-wide claim/sweep SQL from Floor jobs. */
 export class PgTaskQueue implements TaskQueueRepository {
   constructor(private readonly pool: PgPool) {}
 

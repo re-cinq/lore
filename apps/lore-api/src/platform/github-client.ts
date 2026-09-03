@@ -1,9 +1,4 @@
-/**
- * Consolidated GitHub client — single source of truth for GitHub auth.
- *
- * Prefers GitHub App auth (App ID + Private Key + Installation ID),
- * falls back to GITHUB_TOKEN for environments without App credentials.
- */
+// Single source of truth for GitHub auth; prefers App credentials, falls back to GITHUB_TOKEN
 
 import { Octokit } from "octokit";
 import { withoutBlindRetryOnCreates } from "@re-cinq/lore-shared/project/lib/octokit-retry-policy.js";
@@ -23,10 +18,7 @@ export function isAppConfigured(): boolean {
   return !!(APP_ID && PRIVATE_KEY && INSTALLATION_ID);
 }
 
-/**
- * Get an authenticated Octokit instance.
- * Prefers App auth, falls back to personal token.
- */
+// Authenticated Octokit; prefers App auth, falls back to personal token
 export async function getOctokit(): Promise<Octokit> {
   if (APP_ID && PRIVATE_KEY && INSTALLATION_ID) {
     return withoutBlindRetryOnCreates(
@@ -50,10 +42,7 @@ export async function getOctokit(): Promise<Octokit> {
   );
 }
 
-/**
- * Get a raw Bearer token (for direct fetch calls).
- * Prefers App installation token, falls back to GITHUB_TOKEN.
- */
+// Raw Bearer token for direct fetch calls; prefers App token, falls back to GITHUB_TOKEN
 export async function getGitHubToken(): Promise<string | null> {
   if (APP_ID && PRIVATE_KEY && INSTALLATION_ID) {
     try {
@@ -114,11 +103,7 @@ export async function postReviewComment(
   });
 }
 
-/**
- * Fetch live PR state from GitHub via raw REST + Bearer token. Returns
- * null when GitHub is not configured. Extracted verbatim from the
- * lore_get_pr_status MCP tool.
- */
+// Fetch live PR state via raw REST; returns null if GitHub not configured
 export async function fetchPrStatus(
   repo: string,
   prNumber: number,
@@ -213,12 +198,7 @@ export interface PrReview {
   submitted_at: string;
 }
 
-/**
- * The badge state web-ui shows for a PR. Pure so the precedence is testable.
- * "approved" requires every check to have *concluded* success/skipped — a check
- * still running (conclusion === null) must NOT count as approved, or the badge
- * flips green before CI finishes.
- */
+// Badge state pure function; "approved" requires ALL checks concluded (not running)
 export function deriveComputedStatus(
   pr: { merged?: boolean; state?: string; draft?: boolean },
   checks: PrCheck[],

@@ -47,7 +47,6 @@ describe("GET /api/context", () => {
     const pool = makePool();
     const res = await get(pool, "/api/context?query=hi&debug=1");
 
-    // Trailing null is the Dgraph port — createDgraphClient returns null when LORE_DGRAPH_HTTP is unset.
     expect(vi.mocked(assembleContext).mock.calls[0]).toEqual([
       pool,
       "hi",

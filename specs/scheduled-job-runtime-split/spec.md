@@ -218,11 +218,11 @@ VALUES ('cron.spec_drift.tick', 'cron', '{"repo":"re-cinq/lore"}');
   the Floor, so anything wanting to start a line had to be the Floor. The write is
   `start()`'s existing atomic CTE — the `pipeline.assembly_runs` row and its
   `assembly_run.start` event land together — and the Floor's event loop claims the
-  event and walks the line as it does for every other run. ([validated by `start-run.test.ts:40`](apps/lore-api/src/api/routes/assembly-lines/start-run.test.ts#L76), [`start-run.test.ts:52`](apps/lore-api/src/api/routes/assembly-lines/start-run.test.ts#L88), [`start-run.test.ts:72`](apps/lore-api/src/api/routes/assembly-lines/start-run.test.ts#L108))
+  event and walks the line as it does for every other run. ([validated by `start-run.test.ts:40`](apps/lore-api/src/api/routes/assembly-lines/start-run.test.ts#L76), [`start-run.test.ts:88`](apps/lore-api/src/api/routes/assembly-lines/start-run.test.ts#L88), [`start-run.test.ts:108`](apps/lore-api/src/api/routes/assembly-lines/start-run.test.ts#L108))
 - **FR8.2 — The start endpoint refuses a body it cannot act on.** A missing
   `definition` or a `repo` that is not `owner/name` is rejected `400` and starts
   nothing; a run row minted from a malformed body would be walked by the Floor and
-  fail somewhere less legible than the call that made it. ([validated by `start-run.test.ts:85`](apps/lore-api/src/api/routes/assembly-lines/start-run.test.ts#L121), [`start-run.test.ts:95`](apps/lore-api/src/api/routes/assembly-lines/start-run.test.ts#L131))
+  fail somewhere less legible than the call that made it. ([validated by `start-run.test.ts:85`](apps/lore-api/src/api/routes/assembly-lines/start-run.test.ts#L121), [`start-run.test.ts:131`](apps/lore-api/src/api/routes/assembly-lines/start-run.test.ts#L131))
 - **FR8.3 — The endpoint is authenticated.** It is registered on the built server
   under the `task` bearer scope; an unauthenticated post is rejected `401`. Starting
   arbitrary assembly lines is a privileged capability — the courier holds a token
@@ -349,7 +349,7 @@ VALUES ('cron.spec_drift.tick', 'cron', '{"repo":"re-cinq/lore"}');
    (team schemas ∪ org_shared), not a fixed org_shared: the schema list intersects
    `information_schema` with `lore.repos.team` behind a schema-name injection gate, one grouped
    UNION ALL query spans all schemas, and the active variant gates each repo on a code chunk
-   ingested inside the 7-day activity window. ([validated by `fan-out.test.ts:33`](apps/floor/src/jobs/detect/fan-out.test.ts#L34), [`fan-out.test.ts:41`](apps/floor/src/jobs/detect/fan-out.test.ts#L42), [`fan-out.test.ts:88`](apps/floor/src/jobs/detect/fan-out.test.ts#L89), [`fan-out.test.ts:111`](apps/floor/src/jobs/detect/fan-out.test.ts#L112), [`fan-out.test.ts:127`](apps/floor/src/jobs/detect/fan-out.test.ts#L190), [`fan-out.test.ts:162`](apps/floor/src/jobs/detect/fan-out.test.ts#L226), [`fan-out.test.ts:173`](apps/floor/src/jobs/detect/fan-out.test.ts#L237), [`fan-out.test.ts:187`](apps/floor/src/jobs/detect/fan-out.test.ts#L251), [`fan-out.test.ts:195`](apps/floor/src/jobs/detect/fan-out.test.ts#L259), [`fan-out.test.ts:205`](apps/floor/src/jobs/detect/fan-out.test.ts#L269), [`fan-out.test.ts:215`](apps/floor/src/jobs/detect/fan-out.test.ts#L279), [`fan-out.test.ts:229`](apps/floor/src/jobs/detect/fan-out.test.ts#L293))
+   ingested inside the 7-day activity window. ([validated by `fan-out.test.ts:33`](apps/floor/src/jobs/detect/fan-out.test.ts#L34), [`fan-out.test.ts:42`](apps/floor/src/jobs/detect/fan-out.test.ts#L42), [`fan-out.test.ts:87`](apps/floor/src/jobs/detect/fan-out.test.ts#L87), [`fan-out.test.ts:110`](apps/floor/src/jobs/detect/fan-out.test.ts#L110), [`fan-out.test.ts:180`](apps/floor/src/jobs/detect/fan-out.test.ts#L180), [`fan-out.test.ts:215`](apps/floor/src/jobs/detect/fan-out.test.ts#L215), [`fan-out.test.ts:226`](apps/floor/src/jobs/detect/fan-out.test.ts#L226), [`fan-out.test.ts:240`](apps/floor/src/jobs/detect/fan-out.test.ts#L240), [`fan-out.test.ts:248`](apps/floor/src/jobs/detect/fan-out.test.ts#L248), [`fan-out.test.ts:258`](apps/floor/src/jobs/detect/fan-out.test.ts#L258), [`fan-out.test.ts:268`](apps/floor/src/jobs/detect/fan-out.test.ts#L268), [`fan-out.test.ts:282`](apps/floor/src/jobs/detect/fan-out.test.ts#L282))
 
 11. `context_reindex` ends every per-repo pass with a verification sweep (ADR-019 amendment
    2026-07, issue #967 — `ingested_at` on reindex-owned rows now means "last verified against the
@@ -362,7 +362,7 @@ VALUES ('cron.spec_drift.tick', 'cron', '{"repo":"re-cinq/lore"}');
      in `specs/1-lore-platform/spec.md`): before counting the repo's chunks — so a newly
      team-resolved repo adopts its history instead of reading as empty and re-seeding — any rows
      the repo still holds in `org_shared.chunks` move into its resolved schema, non-fatally, and
-     the org_shared-resolved pass skips relocation entirely ([validated by `chunks.test.ts:672`](libs/shared/src/project/chunks/chunks.test.ts#L672), [`chunks.test.ts:735`](libs/shared/src/project/chunks/chunks.test.ts#L735), [`chunks.test.ts:746`](libs/shared/src/project/chunks/chunks.test.ts#L746))
+     the org_shared-resolved pass skips relocation entirely ([validated by `chunks.test.ts:672`](libs/shared/src/project/chunks/chunks.test.ts#L669), [`chunks.test.ts:732`](libs/shared/src/project/chunks/chunks.test.ts#L732), [`chunks.test.ts:743`](libs/shared/src/project/chunks/chunks.test.ts#L743))
    - Pruning leaves an audit trail: the verification pass returns the distinct pruned file
      paths (a hard DELETE has no other record of what vanished), and the reindex job writes a
      `reindex_prune` row to `pipeline.audit_log` per repo with the row count and the path list
@@ -375,7 +375,7 @@ VALUES ('cron.spec_drift.tick', 'cron', '{"repo":"re-cinq/lore"}');
      (classifyFile no longer supports its path) so the capped query converges instead of
      re-selecting the same wedged files nightly — so chunking fixes reach files that never
      change, with the per-run cap spreading the one-time re-embed across nights
-     ([validated by `chunks.test.ts:781`](libs/shared/src/project/chunks/chunks.test.ts#L781), [`chunks.test.ts:820`](libs/shared/src/project/chunks/chunks.test.ts#L820), [`reindex-heal.test.ts:27`](apps/floor/src/jobs/context-jobs/reindex/reindex-heal.test.ts#L27), [`reindex-heal.test.ts:52`](apps/floor/src/jobs/context-jobs/reindex/reindex-heal.test.ts#L52), [`reindex-heal.test.ts:73`](apps/floor/src/jobs/context-jobs/reindex/reindex-heal.test.ts#L73), [`reindex-heal.test.ts:94`](apps/floor/src/jobs/context-jobs/reindex/reindex-heal.test.ts#L94))
+     ([validated by `chunks.test.ts:781`](libs/shared/src/project/chunks/chunks.test.ts#L778), [`chunks.test.ts:817`](libs/shared/src/project/chunks/chunks.test.ts#L817), [`reindex-heal.test.ts:27`](apps/floor/src/jobs/context-jobs/reindex/reindex-heal.test.ts#L27), [`reindex-heal.test.ts:52`](apps/floor/src/jobs/context-jobs/reindex/reindex-heal.test.ts#L52), [`reindex-heal.test.ts:73`](apps/floor/src/jobs/context-jobs/reindex/reindex-heal.test.ts#L73), [`reindex-heal.test.ts:94`](apps/floor/src/jobs/context-jobs/reindex/reindex-heal.test.ts#L94))
    - Each pass ends with a never-ingested backfill sweep (issue #999): the repo tree is diffed
      against `chunkedFilePaths` — the distinct file paths holding ANY chunk regardless of owner or
      content type, so api/ui-ingested files are never re-ingested and re-owned — and the
@@ -384,7 +384,7 @@ VALUES ('cron.spec_drift.tick', 'cron', '{"repo":"re-cinq/lore"}');
      post-onboarding commits leaves pre-existing code files permanently unindexed) drains
      deterministically across nights, skipping files the changed-file loop already processed this
      run, logging past per-file ingest failures, and counting only files the ingest accepted
-     ([validated by `chunks.test.ts:846`](libs/shared/src/project/chunks/chunks.test.ts#L846), [`chunks.test.ts:868`](libs/shared/src/project/chunks/chunks.test.ts#L868), [`reindex-backfill.test.ts:24`](apps/floor/src/jobs/context-jobs/reindex/reindex-backfill.test.ts#L24), [`reindex-backfill.test.ts:58`](apps/floor/src/jobs/context-jobs/reindex/reindex-backfill.test.ts#L58), [`reindex-backfill.test.ts:80`](apps/floor/src/jobs/context-jobs/reindex/reindex-backfill.test.ts#L80), [`reindex-backfill.test.ts:106`](apps/floor/src/jobs/context-jobs/reindex/reindex-backfill.test.ts#L106), [`reindex-backfill.test.ts:125`](apps/floor/src/jobs/context-jobs/reindex/reindex-backfill.test.ts#L125))
+     ([validated by `chunks.test.ts:846`](libs/shared/src/project/chunks/chunks.test.ts#L843), [`chunks.test.ts:865`](libs/shared/src/project/chunks/chunks.test.ts#L865), [`reindex-backfill.test.ts:24`](apps/floor/src/jobs/context-jobs/reindex/reindex-backfill.test.ts#L24), [`reindex-backfill.test.ts:58`](apps/floor/src/jobs/context-jobs/reindex/reindex-backfill.test.ts#L58), [`reindex-backfill.test.ts:80`](apps/floor/src/jobs/context-jobs/reindex/reindex-backfill.test.ts#L80), [`reindex-backfill.test.ts:106`](apps/floor/src/jobs/context-jobs/reindex/reindex-backfill.test.ts#L106), [`reindex-backfill.test.ts:125`](apps/floor/src/jobs/context-jobs/reindex/reindex-backfill.test.ts#L125))
 
 ## File Changes
 

@@ -1,20 +1,8 @@
-/**
- * Bearer-token auth as a hapi scheme + two strategies, replacing the inline
- * `authorization?.replace("Bearer ", "")` checks the old handlers each rolled by
- * hand:
- *  - `ingest-token`   → LORE_INGEST_TOKEN          (ci-ingest, ci-tests)
- *  - `internal-token` → LORE_AGENT_INTERNAL_TOKEN  (agent-events)
- *
- * The expected token is read once at strategy registration (server build). A
- * missing token short-circuits exactly as before: 503 for the ingest routes,
- * 401 for the internal sink. A wrong token is always 401.
- */
+/** Bearer-token auth: hapi scheme + ingest-token (503) + internal-token (401) strategies. */
 
 import { apiError } from "./api-error.js";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
-// The one constant-time compare every service shares. The Floor had a private
-// byte-for-byte copy, which is exactly the drift `bearer.ts` was written to end:
-// a hardening applied there would have left this strategy on the old code.
+// Shared constant-time compare; prevents drift from `bearer.ts` hardening.
 import { secretEquals } from "@re-cinq/lore-shared/http/bearer.js";
 import type { Server, ServerAuthScheme } from "@hapi/hapi";
 

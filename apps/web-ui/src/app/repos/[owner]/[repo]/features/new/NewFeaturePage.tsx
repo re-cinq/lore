@@ -10,8 +10,7 @@ export default async function NewFeaturePage({
   const { owner, repo } = await params;
   const fullName = `${owner}/${repo}`;
 
-  // Fetched here, not in the view: the Floor owns the YAML, and a preview that
-  // needs a web-ui rebuild to catch up would defeat the point.
+  // Fetched here (Floor owns YAML); preview needing rebuild would defeat the point.
   const definition = await getAssemblyLineDefinition("feature-planning");
 
   return (

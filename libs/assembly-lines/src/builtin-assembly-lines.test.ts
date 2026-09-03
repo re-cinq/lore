@@ -27,10 +27,6 @@ describe("loadBuiltinAssemblyLines", () => {
     expect((await loadBuiltinAssemblyLines()).size).toBe(yamlCount);
   });
 
-  // PR #1714 merged five minutes after its only review visit failed (the
-  // findings block did not parse): `failed` routed straight to `done`, so the
-  // run COMPLETED and the one red check was all that ever said a review never
-  // happened. A parse flake is retryable; a second identical failure is not.
   it("retries a failed code-review visit once, then fails the run instead of completing it", async () => {
     const line = (await loadBuiltinAssemblyLines()).get("code-review");
 

@@ -6,27 +6,12 @@ import type {
   ProcessedCounts,
 } from "./usage-port.js";
 
-/**
- * Postgres-backed {@link UsagePort}: a single INSERT into
- * `pipeline.llm_calls`. Relocated from the agent's claude-code spawner so
- * usage accounting reaches the table through the Project facade.
- */
+/** Postgres UsagePort; single INSERT into pipeline.llm_calls. */
 export class PgUsage implements UsagePort {
   constructor(private readonly pool: PgPool) {}
 
   async logLlmCall(record: LlmCallRecord): Promise<LlmCallResult> {
-    // Correlate at write time (mirroring agent-run-events-pg):
-    //   task_id          — the given id when it is a task
-    //   assembly_line_id — resolved from the Agent CR name against
-    //                      assembly_line_nodes (the exact attempt, so a
-    //                      task-backed run gets per-attempt cost, #947); falls
-    //                      back to the given id when it is itself a line id (the
-    //                      task-less pods that post `taskId ?? row.id`, #943).
-    // A null CR compares as NULL under `n.agent_cr_name = g.cr` (never true), so
-    // the lateral yields no row and COALESCE falls through to al.id — the intended
-    // no-op, same as agent-run-events-pg. An id/CR matching nothing keeps the row
-    // uncorrelated (both null) rather than failing the FK; RETURNING reports that
-    // so the sink can surface it (#945).
+    // Correlate at write time from Agent CR; null CR → uncorrelated (#943,#945,#947).
     const { rows } = await this.pool.query<{ correlated: boolean }>(
       `INSERT INTO pipeline.llm_calls
          (task_id, assembly_line_id, station_run_id, job_name, model, input_tokens, output_tokens, cost_usd, duration_ms, status, error)

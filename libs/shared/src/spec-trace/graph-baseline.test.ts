@@ -27,12 +27,6 @@ async function dgraphReachable(): Promise<boolean> {
 
 const reachable = await dgraphReachable();
 
-/**
- * graph-baseline — the commit whose line numbering the trace graph's ranges are
- * expressed in. Stamped by whichever ingest writes those ranges (coverage), read
- * back by the pre-merge impact query so it can align a PR diff to the same
- * coordinate system instead of silently overlapping two different ones.
- */
 describe.skipIf(!reachable)("graph baseline (live Dgraph)", () => {
   const dgraphClient = new dgraph.DgraphClient(
     new dgraph.DgraphClientStub(DGRAPH_HTTP),
@@ -70,8 +64,8 @@ describe.skipIf(!reachable)("graph baseline (live Dgraph)", () => {
           commitNow: true,
         });
       }
+      // eslint-disable-next-line no-empty
     } catch {
-      /* best-effort cleanup */
     } finally {
       await txn.discard().catch(() => {});
     }

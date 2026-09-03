@@ -6,8 +6,6 @@ import { FAMILY_KEY, SCHEME_KEY } from "./theme-core";
 
 type MediaListener = (e: { matches: boolean }) => void;
 
-// Controllable matchMedia stub. `dark` decides what (prefers-color-scheme: dark)
-// reports, and registered change listeners can be fired via `emit`.
 function installMatchMedia(dark: boolean) {
   const listeners = new Set<MediaListener>();
   const mql = {
@@ -45,8 +43,6 @@ function installMatchMedia(dark: boolean) {
   };
 }
 
-// Captures the live context value so assertions can read it and tests can
-// invoke setFamily/setScheme through buttons (exercising the useCallback paths).
 function Consumer() {
   const theme = useTheme();
 
@@ -88,7 +84,6 @@ describe("ThemeProvider seeding", () => {
   it("seeds family from window.__loreFamily when present", () => {
     installMatchMedia(false);
     window.__loreFamily = "retro";
-    // A conflicting DOM attribute must lose to the window global.
     document.documentElement.setAttribute("data-theme-family", "elegant");
 
     render(
@@ -346,14 +341,12 @@ describe("ThemeProvider OS-auto media listener", () => {
     );
     expect(media.listenerCount()).toBe(1);
 
-    // auto -> light: effect cleanup runs, early-return branch skips re-subscribe.
     act(() => {
       fireEvent.click(screen.getByText("scheme-light"));
     });
     expect(media.listenerCount()).toBe(0);
     expect(schemeAttr()).toBe("light");
 
-    // light -> auto: listener registered again.
     act(() => {
       fireEvent.click(screen.getByText("scheme-auto"));
     });
@@ -364,7 +357,6 @@ describe("ThemeProvider OS-auto media listener", () => {
 describe("useTheme outside a provider", () => {
   it("throws a descriptive error when used without a ThemeProvider", () => {
     installMatchMedia(false);
-    // Silence the React error-boundary console output for the expected throw.
     const spy = vi.spyOn(console, "error").mockImplementation(() => {});
 
     expect(() => render(<Consumer />)).toThrow(

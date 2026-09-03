@@ -8,16 +8,9 @@ import {
   type PodResourcesWrite,
 } from "./agent-defs-port.js";
 
-/**
- * AgentDefsPort over lore.agent_definitions. resolve/list field-merge three layers via the
- * pure resolveAgentConfig: the repo's project row → the org default row → the
- * task-types.yaml `base` (so org rows seed only the tunable scalars and leave
- * prompt to inherit the yaml). Writes target the repo's project row. The pod
- * never reaches this adapter — it uses AgentDefsHttp.
- */
+// AgentDefsPort over lore.agent_definitions via resolveAgentConfig three-layer merge (project → org → yaml); pods use AgentDefsHttp.
 
-// Qualified with the `a` alias: the resolve/list queries LEFT JOIN lore.repos,
-// which also has `name`/`id` columns, so unqualified selects are ambiguous.
+// Qualified with `a` alias: resolve/list queries LEFT JOIN lore.repos (unqualified selects would be ambiguous).
 const JOIN_COLS =
   "a.name, a.model, a.timeout_minutes, a.prompt, a.image, a.execution_mode, a.review_required, a.project_id, a.config";
 // Unqualified for INSERT ... RETURNING (single table, no alias in scope).
@@ -48,15 +41,7 @@ const toDef = (r: AgentRow): AgentDefinition => ({
   config: r.config ?? null,
 });
 
-/**
- * The config an upsert writes, merged in SQL so a pod_resources edit is applied
- * under the row lock — never read in one statement and written back in another,
- * where a concurrent edit could be silently discarded. `touched` false keeps
- * `own` (the row's config on conflict, the plain bound value on insert); true
- * replaces `pod_resources` in the row's own config — or in the inherited
- * layer's when the row has none — and collapses an emptied object to NULL so
- * the row falls through to the layer below.
- */
+// Merged config for upsert — pod_resources edit applied under row lock to prevent concurrent edits being discarded.
 function mergedConfigSql(
   own: string,
   touched: number,
@@ -88,13 +73,7 @@ const split = (rows: AgentRow[]) => ({
   org: rows.find((r) => r.project_id === null) ?? null,
 });
 
-/**
- * The effective definition for a catalog entry addressed the way the
- * catalog-events feed addresses it — by `(name, projectId)`, no repo full_name
- * in hand. A named projectId whose override row is gone resolves to null (the
- * reader deletes the CRD pair); an org entry falls through to the yaml layer,
- * the same safety net PgAgentDefs.resolve keeps.
- */
+// Effective definition for catalog entry by (name, projectId); missing override or org entry falls through to yaml layer.
 export async function resolveCatalogEntry(
   pool: PgPool,
   base: AgentDefsPort,
@@ -120,34 +99,13 @@ export async function resolveCatalogEntry(
   );
 }
 
-/**
- * The stationRef a dispatch for `repo` should carry for a catalog base name:
- * the project-qualified CRD name when the repo holds an override row, the bare
- * name otherwise. Per-repo overrides render under qualified CRD names (two
- * repos overriding one task type used to silently replace each other's CR),
- * so the dispatch side must point at the same spelling the sync loop applied.
- */
+// Dispatch stationRef for repo: project-qualified CRD name if override exists, bare name otherwise.
 export async function qualifiedStationRef(
   pool: PgPool,
   baseName: string,
   repo: string,
 ): Promise<string> {
-  // An override only earns the qualified name if some cluster actually applied
-  // its CR. A row every cluster REFUSED — a model whose credential family none
-  // of them holds, say — has no CR and never will, so pointing dispatch at the
-  // qualified name would send every run at a stationRef that cannot resolve.
-  //
-  // That is not hypothetical: it took central's reviews down on 2026-09-01.
-  // Qualification alone was safe, and refusing to render an unservable recipe
-  // was safe; together they turned "runs on the org default" — the wrong model
-  // but a working one — into "Station or AgentDefinition not found". The
-  // fallback is deliberately silent HERE and loud on the /agents page, where
-  // the Rollout column names the cluster and the reason (FR9.6): a review that
-  // runs on the org default beats no review, as long as nobody has to guess why.
-  //
-  // Absence of a verdict is NOT refusal: a cluster that has not reported yet
-  // (or an older agent that never reports) leaves no rows, and the override
-  // keeps its qualified name exactly as before.
+  // Override earns qualified name only if cluster applied its CR; prevents dispatch at unresolvable stationRef (2026-09-01 outage).
   const { rows } = await pool.query<{ project_id: string }>(
     `SELECT a.project_id FROM lore.agent_definitions a
        JOIN lore.repos r ON r.id = a.project_id
@@ -171,12 +129,7 @@ export async function qualifiedStationRef(
   return catalogCrdName(baseName, projectId ?? null);
 }
 
-/**
- * Upsert the ORG-DEFAULT row for a name (the global /agents editor's write —
- * no repo in hand, `project_id IS NULL`). Same one-statement row + catalog
- * event shape as the project writes, so the cluster-agents' sync loops see
- * every org edit too.
- */
+// Upsert ORG-DEFAULT row (project_id IS NULL) — writes catalog event for cluster-agents to see.
 export async function updateOrgDefinition(
   pool: PgPool,
   patch: AgentDefinitionInput,
@@ -285,9 +238,7 @@ export class PgAgentDefs implements AgentDefsPort {
     repo: string,
     def: AgentDefinitionInput,
   ): Promise<AgentDefinition> {
-    // The written CTE row and the catalog_events append land in ONE statement,
-    // so a definition can never exist without the change event the
-    // cluster-agents' sync loops tail (and vice versa).
+    // Written CTE row and catalog_events append land in ONE statement — definition cannot exist without change event.
     const { rows } = await this.pool.query(
       `WITH written AS (
          INSERT INTO lore.agent_definitions

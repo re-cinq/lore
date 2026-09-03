@@ -1,17 +1,5 @@
 import { zodResponse } from "../../../server/plugins/zod-response.js";
-/**
- * `POST /api/repos/:o/:r/impact` — the deterministic, zero-LLM pre-merge
- * spec-breakage query. Body: `{ commit?, base?, files: [{ path, ranges, deleted }] }`
- * (a PR diff). Walks the spec-traceability graph to the coupled spec Statements
- * + orphaned (coverage-deleted) statements and returns the `ImpactReport` plus
- * pre-shaped Checks-API `annotations[]` the GitHub Action renders verbatim.
- *
- * Fail-soft by design: when Dgraph is unreachable (`LORE_DGRAPH_HTTP` unset on
- * the shared server) or the query errors, returns `200 { status:"unavailable" }`
- * — NOT an error — so the advisory Action posts its neutral skip comment and
- * never red-Xes the PR. Read-only; the trust gate that forbids test *execution*
- * does not apply to a graph read.
- */
+/** POST /api/repos/:o/:r/impact — pre-merge spec-breakage query; fail-soft (no Dgraph). */
 
 import type { ServerRoute } from "@hapi/hapi";
 import {
@@ -27,21 +15,17 @@ import { z } from "zod";
 import { bearerScope } from "../../../server/plugins/bearer-scope.js";
 import { zodValidate } from "../../../server/plugins/zod-validate.js";
 
-// Fail-soft: `files` stays unknown so a malformed value degrades to [] in the
-// handler (not a 400); an absent body coerces to {}.
+// Fail-soft: unknown files degrade to []; missing body coerces to {}.
 const ImpactBody = z.preprocess(
   (v) => v ?? {},
   z.object({
     commit: z.string().optional(),
     base: z.string().optional(),
     graphCommit: z.string().nullish(),
-    // Wire format. Absent means a protocol-1 client, whose diff was computed
-    // against the base-branch tip — the server suppresses those findings.
+    // Wire format; absent means protocol-1 client, server suppresses findings.
     protocol: z.number().optional(),
     files: z.unknown().optional(),
-    // Head content of changed spec/ADR files. The client already has the
-    // checkout, so sending it here avoids a GitHub round-trip and works on fork
-    // PRs. Left unknown for the same fail-soft reason as `files`.
+    // Head spec/ADR content (avoids GitHub round-trip on forks).
     docs: z.unknown().optional(),
   }),
 );
@@ -91,12 +75,7 @@ export function impactRoute(): ServerRoute {
   };
 }
 
-/**
- * Never throws: a Dgraph outage degrades to `unavailable`, not a 500. But it is
- * NOT silent — a query error (reachable Dgraph, broken DQL / missing schema) is
- * logged with context. The null-client case (LORE_DGRAPH_HTTP unset) is the
- * expected fail-soft and needs no log.
- */
+/** Never throws; Dgraph errors are logged (null-client is expected fail-soft). */
 async function safeComputeImpact(
   repo: string,
   files: ChangedRange[],

@@ -2,16 +2,8 @@ import { describe, it, expect, vi } from "vitest";
 import { escalateTask, cancelTask, reviseTask } from "./pipeline-tasks.js";
 import type { PgPool } from "./memory-store.js";
 
-/**
- * Answers by matching SQL: the task read, the priority UPDATE, and the
- * task_events INSERT all run on the same pool, so one recorded call list is the
- * whole story.
- */
 function poolWithTask(task: Record<string, unknown> | null) {
   const query = vi.fn((sql: string, _params?: unknown[]) => {
-    // Matched on the TABLE, not on `SELECT *`: the read now names the model's
-    // columns, and a matcher pinned to the wildcard answers no rows the moment
-    // the column list becomes explicit.
     if (sql.includes("FROM pipeline.tasks")) {
       return Promise.resolve({ rows: task === null ? [] : [task] });
     }
@@ -74,9 +66,6 @@ describe("escalateTask", () => {
 });
 
 describe("cancelTask terminal states", () => {
-  // `completed` is terminal for the UI's own guard (isCancellable) and for the
-  // documented mcp guard, but was missing here — so the same click answered 400
-  // in the browser and 200 through the API.
   it.each(["completed", "merged", "failed", "cancelled"])(
     "throws for a %s task",
     async (status) => {
@@ -99,17 +88,12 @@ describe("cancelTask terminal states", () => {
 });
 
 describe("reviseTask", () => {
-  /** The revision reads the parent, inserts the follow-up task, records the
-   *  request on the parent, and moves the parent to revision-requested. */
   function poolWithParent(task: Record<string, unknown> | null) {
     const query = vi.fn((sql: string, _params?: unknown[]) => {
       if (sql.includes("INSERT INTO pipeline.tasks")) {
         return Promise.resolve({ rows: [{ id: "revision-1" }] });
       }
 
-      // Matched on the TABLE, not on `SELECT *`: the read now names the model's
-      // columns, and a matcher pinned to the wildcard answers no rows the moment
-      // the column list becomes explicit.
       if (sql.includes("FROM pipeline.tasks")) {
         return Promise.resolve({ rows: task === null ? [] : [task] });
       }

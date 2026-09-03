@@ -15,9 +15,8 @@ function parseFacts(raw: string): string[] {
         )
         .slice(0, 10);
     }
-  } catch {
-    /* empty */
-  }
+    // eslint-disable-next-line no-empty
+  } catch {}
 
   return raw
     .split("\n")

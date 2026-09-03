@@ -4,13 +4,6 @@ import { Pool } from "pg";
 import { createProject } from "./project-factory.js";
 import type { DgraphClientPort } from "../../memory-store.js";
 
-/**
- * End-to-end Project wiring against the REAL local Postgres — proves the
- * dynamic-import factory + pg adapters (settings/tasks/knowledge) run against a
- * live connection, not just fakes. Container-gated: skips when Postgres is
- * unreachable so `npm test` passes without a DB. Bring one up with `npm run db:up`.
- */
-
 const PG_CONFIG = {
   host: "localhost",
   port: 5432,

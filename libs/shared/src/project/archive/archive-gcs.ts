@@ -1,10 +1,7 @@
 import { Storage } from "@google-cloud/storage";
 import type { ArchivePort, ArchiveSaveOptions } from "./archive-port.js";
 
-/**
- * The slice of the GCS client the adapter touches — a structural seam so tests
- * inject a fake instead of mocking the SDK module.
- */
+/** The slice of the GCS client the adapter touches — a structural seam so tests inject a fake instead of mocking the SDK module. */
 export interface StorageLike {
   bucket(name: string): {
     file(key: string): {

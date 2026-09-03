@@ -1,14 +1,4 @@
-/**
- * Canonical content-type classifier for ingested files. Single source of
- * truth shared by the mcp-server ingest path (`ingest.ts`) and the agent
- * nightly reindex (`reindex.ts`) — previously duplicated in both plus a
- * third copy inside a test, which let the implementations drift.
- *
- * Source code is classified by extension FIRST, so a source file that
- * happens to live under a directory named `specs/`, `adrs/`, or `runbooks/`
- * (e.g. `web-ui/src/app/specs/page.tsx`) is `'code'`, never a doc/spec/adr.
- * The directory rules only apply to non-code files (markdown, yaml).
- */
+/** Canonical content-type classifier (single source for ingest + reindex); source by extension first, dir rules only for non-code. */
 
 export type ContentType = "doc" | "adr" | "spec" | "code";
 
@@ -23,8 +13,7 @@ export function classifyFile(path: string): ContentType | null {
     return null;
   }
 
-  // Test fixtures are props, not content: a fixture spec's deliberately-fake
-  // links would reach the spec-link validator as real rot (issue #1015).
+  // Fixtures not content; fake links would be real rot to validator (#1015).
   if (/(?:^|\/)(?:fixtures|__fixtures__)\//.test(path)) {
     return null;
   }
@@ -65,16 +54,7 @@ export function classifyFile(path: string): ContentType | null {
   return null;
 }
 
-/**
- * Read-side twin of {@link classifyFile} for chunk consumers: drops rows whose
- * path classifyFile returns null for (graveyard, fixtures, binaries,
- * unrecognised extensions). Chunks ingested before an exclusion was added
- * linger in `{schema}.chunks` until the manual operator purge runs, and
- * without this filter that stale debris keeps resurfacing as detect findings
- * (issue #1018 — fixture spec links reported as rot after the #1016 ingest
- * fix). Any future exclusion added to classifyFile is inherited here
- * automatically.
- */
+/** Read-side twin of classifyFile; drops exclusions (#1018: stale debris resurfacing as findings); auto-inherited. */
 export function dropIngestExcluded<T extends { filePath: string }>(
   rows: T[],
 ): T[] {

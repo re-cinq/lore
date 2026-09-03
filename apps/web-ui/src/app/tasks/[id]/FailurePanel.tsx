@@ -28,11 +28,7 @@ function categoryLabel(category: string): string {
   return CATEGORY_LABELS[category] ?? category;
 }
 
-/**
- * Renders the structured failure metadata from a failed task_events row
- * (written by the agent's top-level catch) so a failed task can be diagnosed
- * from the UI page alone — category, remediation hint, and per-step breakdown.
- */
+/** Renders structured failure metadata for diagnosis: category, hint, per-step breakdown. */
 export default function FailurePanel({
   metadata,
   repo,

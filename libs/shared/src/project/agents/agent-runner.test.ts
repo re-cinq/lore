@@ -5,12 +5,6 @@ import type { LoreTaskSpec } from "./k8s-port.js";
 import type { StationBackend } from "./station-port.js";
 import type { LlmPort } from "./llm-port.js";
 
-/**
- * AgentRunner routes the three modes. Local spawns a real (stub) CLI via
- * LORE_AGENT_CLI; cluster/direct delegate to injected fake providers — real
- * objects, no mock library. Skips local spawn on Windows.
- */
-
 describe("AgentRunner", () => {
   it.skipIf(process.platform === "win32")(
     "local mode spawns the agent CLI and reports started",
@@ -68,10 +62,6 @@ describe("AgentRunner", () => {
   });
 
   it("cluster mode forwards every run option to the Station spec", async () => {
-    // The spec is rebuilt field by field, so anything the list forgets is dropped
-    // in silence. featureId and roundFeedback were both added and both lost that
-    // way — the run dispatched fine and simply continued no conversation, which
-    // is indistinguishable from continuity that remembered nothing.
     const created: LoreTaskSpec[] = [];
     const station: StationBackend = {
       launch: async (spec) => {

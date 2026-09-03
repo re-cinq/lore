@@ -83,8 +83,6 @@ describe("resolveSettings", () => {
 
     expect(r.create_issue).toBe("on_gate");
     expect(r.review).toBe("trust_based");
-    // Empty notify list — escalations always fire via decideNotify
-    // regardless, so listing them explicitly was redundant.
     expect(r.notify).toEqual([]);
     expect(r.auto_merge.paths).toContain("CLAUDE.md");
   });
@@ -98,7 +96,6 @@ describe("resolveSettings", () => {
 
     expect(r.create_issue).toBe("always");
     expect(r.auto_merge.paths).toEqual(["only-this/**"]);
-    // Other auto_merge sub-fields fall back to defaults
     expect(r.auto_merge.min_trust).toBe("docs");
     expect(r.auto_merge.require_green_ci).toBe(true);
   });

@@ -1,7 +1,4 @@
-/** Resolve a repo-markdown href for display in the web UI. Repo-relative
- * paths (test links, ADR/doc refs) can't resolve inside the app, so point
- * them at the file on GitHub (and open in a new tab); absolute URLs and
- * in-page anchors are left untouched. */
+/** Resolve repo-markdown href for web UI; repo-relative → GitHub blob URL. */
 export function resolveHref(
   rawHref: string,
   repo: string,
@@ -11,7 +8,6 @@ export function resolveHref(
     return { href: rawHref, external: /^https?:/i.test(rawHref) };
   }
 
-  // Only rewrite when we know the owner/name repo; otherwise leave as-is.
   if (!repo.includes("/")) {
     return { href: rawHref, external: false };
   }
@@ -23,9 +19,7 @@ export function resolveHref(
   };
 }
 
-/** Build a GitHub blob URL for a repo-relative file path, with an optional
- * `#L{start}-L{end}` (or `#L{start}`) line anchor. Returns '' when the repo
- * is not an `owner/name` pair (e.g. an unknown chunk repo). */
+/** Build GitHub blob URL for repo-relative path, with optional line anchor. */
 export function blobUrl(
   repo: string,
   branch: string,

@@ -1,8 +1,4 @@
-// Thin server-side client for the mcp-server spec-traceability /trace API — the
-// graph (source of truth) reached through the shared Project facade, NOT direct
-// Postgres/Dgraph queries. web-ui is not a workspace member, so the HTTP API is
-// the boundary (same LORE_API_URL + LORE_INGEST_TOKEN the context-preview route
-// already uses). IO glue — excluded from coverage like lib/db.ts.
+// HTTP client for mcp-server /trace API (IO glue, excluded from coverage like lib/db.ts).
 
 import type { TraceDocument } from "@/lib/trace-types";
 import type { SpecGraph, SpecRing } from "@/lib/spec-graph";
@@ -10,11 +6,7 @@ import type { SpecStatusInfo } from "@/lib/spec-status";
 
 export type { TraceDocument };
 
-/**
- * A global-viewer list entry. The status pill ships with the list rather than
- * being fetched per document: the old one-source-fetch-per-doc fan-out put a
- * single /specs render at 114 requests, over the API's shared 200/min bucket.
- */
+/** Global-viewer entry with status pill included (avoids per-doc fetch). */
 export interface GlobalDocEntry {
   repo: string;
   filePath: string;

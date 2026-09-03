@@ -1,12 +1,4 @@
-/**
- * GET /healthz — liveness + readiness. 200 when Postgres answers, 503 when it
- * does not: a router that cannot write is not ready to be sent a webhook, and
- * GitHub redelivers a 5xx while a 202 it never earned would be lost.
- *
- * Deliberately thinner than the Floor's, which also reports task and job
- * counters. This process runs no tasks and no jobs; reporting on them would be
- * reporting on someone else's health.
- */
+/** GET /healthz: 200 if Postgres answers (ready for webhooks), 503 otherwise. */
 
 import type { ServerRoute } from "@hapi/hapi";
 import { isDbAvailable } from "@re-cinq/lore-shared/db/pg-pool.js";

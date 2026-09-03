@@ -3,22 +3,14 @@ import type { components } from "@/lib/api/schema";
 import RecordTopUp from "./RecordTopUp";
 import type { RecordTopUpState } from "./actions";
 
-// Every row here is an alias over the OpenAPI document lore-api generates from
-// the /api/analytics/spend-window contract (ADR-035). None of these shapes
-// comes from a table — they are SQL aggregates — so the contract is stated
-// beside the queries that produce them, and this file reads it rather than
-// restating it. The whole page is scoped to ONE selected interval; the
-// balance is the deliberate exception (a balance added in June is still money
-// in August), and the live pod list is by nature "now".
-
+// Rows are aliases over OpenAPI /api/analytics/spend-window contract (ADR-035); balance is not scoped to interval
 export type SpendWindow = components["schemas"]["SpendWindow"];
 
 export type BudgetRow = SpendWindow["budget"];
 
 export interface SpendViewProps {
   spend: SpendWindow;
-  /** Records money added. Omitted → the form is not rendered; the figures are
-   *  read-only either way. */
+  /** Records money added; omitted → form not rendered, figures read-only. */
   recordAction?: (
     prev: RecordTopUpState | null,
     formData: FormData,
@@ -30,20 +22,7 @@ const usd = (n: number) =>
 
 const num = (n: number) => Number(n).toLocaleString();
 
-/**
- * A `YYYY-MM-DD` calendar day rendered day-month-year.
- *
- * Formatted from the string's own parts, never through `new Date`: parsing
- * `"2026-08-18"` yields UTC midnight, which renders as the 17th for every
- * viewer west of Greenwich — a date that is simply wrong for half the people
- * reading it.
- *
- * Day-month-year is a DELIBERATE locale override, not an accident of where it
- * was written. `toLocaleDateString` renders the same day differently for two
- * people reading this page together — `08-09` is the 8th of September to one
- * and the 9th of August to the other — and a spend figure people compare out
- * loud cannot afford that. One fixed order, the same for every viewer.
- */
+/** Render YYYY-MM-DD as DD-MM-YYYY: parse string not Date to avoid UTC shift, fixed locale for consistency. */
 const day = (isoDay: string) => {
   const [year, month, dayOfMonth] = isoDay.split("-");
 
@@ -70,36 +49,17 @@ const midnight = (isoDay: string) => {
   return new Date(year, month - 1, dayOfMonth);
 };
 
-/**
- * The anchor arrives as an ISO-8601 UTC instant. Its leading 10 characters are
- * the calendar day, taken as a STRING rather than via `new Date`, because
- * every other day on this page is handled that way and for the same reason:
- * parsing puts it at UTC midnight, which renders as the previous day for every
- * viewer west of Greenwich.
- */
+/** Anchor day: parse as string, not Date, to avoid UTC→local timezone shift. */
 const anchorDay = (anchoredAt: string) => anchoredAt.slice(0, 10);
 
-/** The clock part, or null when the entry anchors to the start of its day —
- *  which is what a date without a known time records. */
+/** Clock part, or null if entry anchors to start of day (no known time). */
 const anchorTime = (anchoredAt: string) => {
   const clock = anchoredAt.slice(11, 16);
 
   return !clock || clock === "00:00" ? null : clock;
 };
 
-/**
- * Average daily burn since the anchor, and how many days the remaining balance
- * covers at that rate — the part that answers "are we running low", which is
- * the question a bare remaining figure leaves open.
- *
- * `today` is a parameter rather than a `new Date()` inside, so the arithmetic
- * is testable without freezing a clock.
- *
- * Null whenever a projection would be a guess dressed as a number: an anchor
- * in the future, or no spend yet to average. Day differences are ROUNDED, not
- * floored — a daylight-saving boundary makes a calendar day 23 or 25 hours
- * long, and flooring that silently loses a day from the divisor.
- */
+/** Daily burn rate and projected runway from anchor; null if anchor is future or no spend yet. */
 export function budgetOutlook(
   budget: NonNullable<BudgetRow>,
   today: Date,
@@ -127,10 +87,7 @@ export function budgetOutlook(
   };
 }
 
-/**
- * The projection line, split out so the one `new Date()` this view needs has a
- * single home. Renders nothing when `budgetOutlook` declines to project.
- */
+/** Projection line: renders only when budgetOutlook projects. */
 function BudgetOutlookNote({ budget }: { budget: NonNullable<BudgetRow> }) {
   const outlook = budgetOutlook(budget, new Date());
 
@@ -186,13 +143,7 @@ export default function SpendView({ spend, recordAction }: SpendViewProps) {
             <div className={`meta ${styles.subnote}`}>
               as of {stamp(billed.as_of as string)}
             </div>
-            {/* Anthropic's cost report never includes the in-progress day, so
-                the billed figure always trails. Surface the remainder
-                separately and labeled rather than folding it in: the sum would
-                silently mix an authoritative number with a computed one. The
-                span is read from `billed_through`, never assumed to be one day
-                — assuming it is what made this line understate the gap by a
-                whole day's spend whenever the sync fell behind. */}
+            {/* Anthropic report lags; surface unbilled amount separately and labeled */}
             {billed.unbilled_usd > 0 && (
               <div className={`meta ${styles.subnote}`}>
                 {billed.billed_through
@@ -214,11 +165,7 @@ export default function SpendView({ spend, recordAction }: SpendViewProps) {
             + {usd(compute.live_usd_per_hour)}/h burning now
           </div>
         </div>
-        {/* Google's actual invoice for the interval, net of credits, synced
-            daily from the Cloud Billing BigQuery export. Beside the estimate
-            rather than replacing it: the export lags a day or more, so the
-            estimate stays the only figure that covers "now". Absent (like the
-            Anthropic billed card) until the sync has ever run. */}
+        {/* GCP invoice synced from BigQuery export; lags a day+, so estimate still needed */}
         {gcp.available && (
           <div className={`spec-card ${styles.card}`}>
             <div className="meta">Google Cloud (billed)</div>
@@ -233,14 +180,7 @@ export default function SpendView({ spend, recordAction }: SpendViewProps) {
         )}
       </div>
 
-      {/* Below the interval figures, so the numbers it depends on are read
-          first: the balance is spend subtracted from what was recorded, and it
-          makes more sense after you have seen the spend than before. Anthropic
-          exposes no credit-balance endpoint, so the recorded side of that
-          subtraction is whatever a person has entered. The one section NOT
-          scoped to the interval — a balance added in June is still money in
-          August, and clipping it to the window would silently forgive every
-          dollar spent outside it. */}
+      {/* Balance: not scoped to interval (money persists); subtract spend from recorded amount */}
       <h2>Balance</h2>
       <div className={styles.cards}>
         {budget ? (
@@ -253,10 +193,7 @@ export default function SpendView({ spend, recordAction }: SpendViewProps) {
             >
               {usd(budget.remaining_usd)}
             </div>
-            {/* The clock shows only when the anchor carries one. An entry
-                recorded for a day counts that whole day, and printing
-                "00:00" would dress a deliberate approximation up as a
-                measurement. */}
+            {/* Clock only if anchor carries it; day-recorded entries don't show 00:00 */}
             <div className={`meta ${styles.subnote}`}>
               {usd(budget.ledger_total_usd)} recorded −{" "}
               {usd(budget.spent_since_usd)} spent since{" "}
@@ -270,9 +207,7 @@ export default function SpendView({ spend, recordAction }: SpendViewProps) {
         ) : (
           <div className={`spec-card ${styles.balanceCard}`}>
             <div className="meta">Credits remaining</div>
-            {/* Not "$0.00". Nobody having told us the balance is a different
-                fact from the balance being nothing, and rendering the first as
-                the second would read as "we are out of money". */}
+            {/* No $0.00: unrecorded balance ≠ exhausted; use em dash */}
             <div className={styles.figure}>—</div>
             <div className={`meta ${styles.subnote}`}>
               No balance recorded yet. Anthropic publishes usage and cost but
@@ -299,9 +234,7 @@ export default function SpendView({ spend, recordAction }: SpendViewProps) {
             <th>Assembly line</th>
             <th>Runs</th>
             <th>Cost</th>
-            {/* What a single run of this line costs — the figure that says
-                whether a model or prompt change paid off, which a total hides
-                behind however many runs happened to occur this interval. */}
+            {/* Cost per run: shows whether model/prompt changes paid off */}
             <th>Cost / run</th>
           </tr>
         </thead>
@@ -352,9 +285,7 @@ export default function SpendView({ spend, recordAction }: SpendViewProps) {
           )}
         </tbody>
       </table>
-      {/* Only the Anthropic slice draws the recorded credits; the rest bills
-          its own vendor (Gemini lands on the Google invoice the GCP figures
-          above report). */}
+      {/* Only Anthropic draws recorded credits; others bill their own vendor */}
       {llm.by_vendor.some((r) => r.vendor !== "anthropic") && (
         <p className={`meta ${styles.subnote}`}>
           Only Anthropic spend draws the balance above — other vendors bill
@@ -513,10 +444,7 @@ export default function SpendView({ spend, recordAction }: SpendViewProps) {
           </tr>
         </thead>
         <tbody>
-          {/* Two honest groups: the null bucket is the home account's own
-              spend (no cluster-agent claim), the rest are registered
-              clusters. A satellite here bills to its own credential, so its
-              spend does not touch the balance above. */}
+          {/* Null bucket: home account spend; rest: registered clusters */}
           {llm.by_cluster.some((r) => r.cluster === null) && (
             <tr>
               <td colSpan={3} className={styles.subhead}>

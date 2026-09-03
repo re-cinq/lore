@@ -1,31 +1,5 @@
-// MIRROR — the ORIGINAL is libs/shared/src/trace-impact-workflow.ts. Edit there
-// first, then copy the result here; `trace-impact-workflow.parity.test.ts`
-// imports shared's PURE module by file path and byte-compares the two, so
-// starting on this side fails CI. web-ui can't import the @re-cinq/lore-shared
-// PACKAGE (separate workspace + lockfile), hence the duplication. The bytes
-// matter: the web-ui "fix" button commits THIS constant into repos while
-// onboard commits the shared one, so a silent divergence ships two different
-// workflows to different repos.
-/**
- * Mirror of the canonical `lore-trace-impact.yml` GitHub Actions
- * workflow that every onboarded repo installs. On each pull_request it sends the
- * diff (changed file + line ranges) plus the head text of any changed spec/ADR
- * to the Lore `/impact` endpoint, and renders the returned annotations + sticky
- * summary comment — the deterministic, advisory pre-merge spec-impact check.
- * The agent's onboard handler commits {@link TRACE_IMPACT_WORKFLOW_CONTENT};
- * drift is surfaced via {@link traceImpactWorkflowStatus} (mirrors lore-ingest.yml).
- *
- * This constant is the ORIGINAL; `.github/workflows/lore-trace-impact.yml` in
- * this repo is its dogfood installation, held byte-identical by
- * `trace-impact-workflow.parity.test.ts`. The two silently diverged at v1 (the
- * installed copy grew the comment-before-check ordering and a different vars
- * name) while both still claimed version 1, so the drift detector reported
- * "aligned" for a workflow that was not.
- *
- * Bump {@link TRACE_IMPACT_WORKFLOW_VERSION} (and the first-line marker) on any
- * change. The check is ALWAYS advisory (neutral conclusion) and fails soft when
- * the backend reports the graph is unavailable — it never red-Xes a PR.
- */
+// Mirror of libs/shared/src/trace-impact-workflow.ts (edit source first; byte-compared by parity test).
+/** `lore-trace-impact.yml` workflow (sends PR diff + spec text to /impact endpoint; fails soft). */
 
 export const TRACE_IMPACT_WORKFLOW_PATH =
   ".github/workflows/lore-trace-impact.yml";

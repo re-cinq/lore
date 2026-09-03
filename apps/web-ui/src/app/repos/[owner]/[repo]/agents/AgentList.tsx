@@ -8,20 +8,12 @@ import type {
 } from "@/lib/agents-api";
 import styles from "./agents.module.css";
 
-/**
- * Where a definition is dispatched from, as one line under its card. The three
- * shapes are deliberately distinct: blueprint references name the nodes, a
- * blueprint-less LLM/ingest recipe still runs (as a single Agent CR whose
- * stationRef is the task type), and only a station-mode recipe nothing
- * references is genuinely dormant.
- */
+/** Where definition is dispatched from; three shapes: blueprint refs, single-agent, dormant-station. */
 function usageLine(
   def: AgentDefinition,
   refs: Record<string, AgentUsageRef[]> | null,
 ): { text: string; dormant: boolean } {
-  // Unknown is not "unreferenced": with no usage data (endpoint unreachable,
-  // older lore-api) claiming "no assembly line" would be a wrong statement
-  // dressed as a fact — a stale server 404'd exactly this way once.
+  // Unknown ≠ unreferenced: null usage means endpoint unreachable or old lore-api.
   if (refs === null) {
     return { text: "—", dormant: false };
   }
@@ -39,9 +31,7 @@ function usageLine(
     };
   }
 
-  // Grouped per line, each line named once: a station visited by five nodes
-  // of one blueprint reads "general · a, b, c, d, e", not five repetitions
-  // of the blueprint name. Duplicate (line, node) pairs collapse too.
+  // Group per blueprint; dedupe (line, node) pairs; collapse duplicate refs.
   const byLine = new Map<string, string[]>();
 
   for (const ref of own) {
@@ -60,14 +50,7 @@ function usageLine(
   return { text: `used by ${lines}`, dormant: false };
 }
 
-/**
- * The Mode cell: "claude-code" says nothing a reader can act on, so an LLM
- * recipe shows the assembly line(s) that dispatch it instead — deduped, since
- * a line can visit one station from several nodes. Station and zero-LLM modes
- * keep their tags (a station can serve many lines and its mode is the fact
- * that matters); a blueprint-less LLM recipe reads "single agent", and with no
- * usage data at all the raw mode is the only honest answer left.
- */
+/** Mode cell: LLM recipes show dispatch lines (deduped), station/zero-LLM keep tags, single-agent fallback. */
 function modeLabel(
   def: AgentDefinition,
   refs: Record<string, AgentUsageRef[]> | null,
@@ -88,12 +71,7 @@ function modeLabel(
   return refs === null ? def.execution_mode : "single agent";
 }
 
-/**
- * What the clusters did with this definition. The distinction that matters is
- * refused-vs-unknown: no verdict means nobody has reported yet, which is NOT a
- * claim that every cluster applied it — the whole reason this column exists is
- * that a refusal used to live only in one pod's stdout.
- */
+/** Cluster rollout verdict; no verdict ≠ applied (reason: refusals once lived in stdout). */
 function rolloutCell(
   def: AgentDefinition,
   applied: Record<string, AgentApplyStatus[]> | null,
@@ -124,28 +102,19 @@ function rolloutCell(
   };
 }
 
-/**
- * Read-only table of a repo's resolved agent definitions — the house `<table>`
- * (globals.css), one row per definition. A definition with no project row is
- * labelled `org` (the organisation default); once overridden it's `project`.
- * Editing/creating happens on dedicated pages (Edit / New links) so the Agents
- * tab stays selected with a breadcrumb.
- */
+/** Agent definitions table; org vs project labeling (editing on dedicated pages). */
 export default function AgentList({
   base,
   agents,
   usage = null,
   orgEditable = false,
 }: {
-  /** Repo base path for the Edit links — null renders the org-catalog table
-   *  (the global /agents page). */
+  /** Repo base path for Edit links; null renders org-catalog (/agents). */
   base: string | null;
   agents: AgentDefinition[];
-  /** Blueprint references and per-cluster verdicts, from the usage endpoint —
-   *  null when the endpoint could not answer (renders as unknown). */
+  /** Blueprint refs and cluster verdicts; null when endpoint unreachable (renders unknown). */
   usage?: AgentUsage | null;
-  /** With base null: link each row to the global org-default editor
-   *  (`/agents/edit/[name]`) instead of rendering read-only. */
+  /** With base null: link to global org editor (/agents/edit/[name]). */
   orgEditable?: boolean;
 }) {
   const showEdit = base !== null || orgEditable;

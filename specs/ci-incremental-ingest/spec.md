@@ -34,7 +34,7 @@ already owns the dgraph egress and the Vertex embed path.
   than 500 — "no recorded state" and "state table absent" mean the same thing
   to the caller: diff against nothing, send everything. An unknown kind is a
   400 naming the valid set.
-  ([validated by returns the stored commit for the repo and kind](apps/lore-api/src/api/routes/ingest/ingest-state.test.ts#L38), [`ingest-state.test.ts:57`](apps/lore-api/src/api/routes/ingest/ingest-state.test.ts#L57), [`ingest-state.test.ts:69`](apps/lore-api/src/api/routes/ingest/ingest-state.test.ts#L69), [`ingest-state.test.ts:81`](apps/lore-api/src/api/routes/ingest/ingest-state.test.ts#L81))
+  ([validated by returns the stored commit for the repo and kind](apps/lore-api/src/api/routes/ingest/ingest-state.test.ts#L35), [`ingest-state.test.ts:54`](apps/lore-api/src/api/routes/ingest/ingest-state.test.ts#L54), [`ingest-state.test.ts:66`](apps/lore-api/src/api/routes/ingest/ingest-state.test.ts#L66), [`ingest-state.test.ts:78`](apps/lore-api/src/api/routes/ingest/ingest-state.test.ts#L78))
 
 - **FR2 — the pointer advances by compare-and-set, never a blind write.**
   Every delta names the state it OBSERVED as `base_commit` — what
@@ -54,7 +54,7 @@ already owns the dgraph egress and the Vertex embed path.
   table has not been migrated the projection still lands and the response
   says `unrecorded` instead of 500-ing CI — the next state fetch answers
   null and the flow degrades to a full ingest per push.
-  ([validated by refuses a stale base with a 409 naming the current commit, and projects nothing](apps/lore-api/src/api/routes/ingest/ingest-delta.test.ts#L192), [`ingest-delta.test.ts:113`](apps/lore-api/src/api/routes/ingest/ingest-delta.test.ts#L113), [`ingest-delta.test.ts:321`](apps/lore-api/src/api/routes/ingest/ingest-delta.test.ts#L321), [`ingest-delta.test.ts:273`](apps/lore-api/src/api/routes/ingest/ingest-delta.test.ts#L273))
+  ([validated by refuses a stale base with a 409 naming the current commit, and projects nothing](apps/lore-api/src/api/routes/ingest/ingest-delta.test.ts#L181), [`ingest-delta.test.ts:102`](apps/lore-api/src/api/routes/ingest/ingest-delta.test.ts#L102), [`ingest-delta.test.ts:301`](apps/lore-api/src/api/routes/ingest/ingest-delta.test.ts#L301), [`ingest-delta.test.ts:257`](apps/lore-api/src/api/routes/ingest/ingest-delta.test.ts#L257))
 
 - **FR3 — the delta is JSON posted straight to lore-api, projected in-process.**
   `POST /api/repos/{owner}/{repo}/ingest` (write scope) takes the kind, the
@@ -68,7 +68,7 @@ already owns the dgraph egress and the Vertex embed path.
   Unknown kinds and malformed commits are 400s; a deployment without
   `LORE_DGRAPH_HTTP` refuses with a 503 naming the missing configuration
   instead of pretending to ingest.
-  ([validated by projects changed docs, prunes deleted ones, and advances the state](apps/lore-api/src/api/routes/ingest/ingest-delta.test.ts#L113), [`ingest-delta.test.ts:147`](apps/lore-api/src/api/routes/ingest/ingest-delta.test.ts#L147), [`ingest-delta.test.ts:165`](apps/lore-api/src/api/routes/ingest/ingest-delta.test.ts#L165), [`ingest-delta.test.ts:213`](apps/lore-api/src/api/routes/ingest/ingest-delta.test.ts#L213), [`ingest-delta.test.ts:250`](apps/lore-api/src/api/routes/ingest/ingest-delta.test.ts#L250), [`ingest-delta.test.ts:308`](apps/lore-api/src/api/routes/ingest/ingest-delta.test.ts#L308))
+  ([validated by projects changed docs, prunes deleted ones, and advances the state](apps/lore-api/src/api/routes/ingest/ingest-delta.test.ts#L102), [`ingest-delta.test.ts:136`](apps/lore-api/src/api/routes/ingest/ingest-delta.test.ts#L136), [`ingest-delta.test.ts:154`](apps/lore-api/src/api/routes/ingest/ingest-delta.test.ts#L154), [`ingest-delta.test.ts:199`](apps/lore-api/src/api/routes/ingest/ingest-delta.test.ts#L199), [`ingest-delta.test.ts:234`](apps/lore-api/src/api/routes/ingest/ingest-delta.test.ts#L234), [`ingest-delta.test.ts:288`](apps/lore-api/src/api/routes/ingest/ingest-delta.test.ts#L288))
 
 - **FR4 — deletions ride in the payload and prune their graph subtrees.** An
   incremental report carries only CHANGED tests, so absence stops meaning

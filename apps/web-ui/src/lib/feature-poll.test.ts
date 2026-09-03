@@ -15,7 +15,6 @@ vi.mock("@/lib/station-conversation", () => ({
 
 const { loadFeaturePoll } = await import("./feature-poll");
 
-/** The one call the loader makes for the round's state. */
 function answerStatus(payload: {
   feature?: unknown;
   latest_iteration?: unknown;
@@ -120,8 +119,6 @@ describe("loadFeaturePoll", () => {
   });
 
   it("draws the run from the line the server resolved for the round", async () => {
-    // From round 2 a resumed round mints no task, so only lore-api — which knows
-    // the OWNING task — can name the line. The loader no longer guesses it.
     answerStatus({
       latest_iteration: { iteration: 4, task_id: "t4" },
       assembly_line_id: "line-7",
@@ -131,15 +128,10 @@ describe("loadFeaturePoll", () => {
     expect((await loadFeaturePoll("re-cinq/lore", "f1"))?.run).toEqual({
       status: "running",
     });
-    // The second argument is the run whose graph the caller already holds —
-    // undefined here, because this call names no cached graph.
     expect(fetchFeatureRunById).toHaveBeenCalledWith("line-7", undefined);
   });
 
   it("draws the run from assembly_run_id when the API sends the current spelling", async () => {
-    // The API emits both keys during the rename, and will emit only this one once
-    // the deprecated key is dropped. The loader must already be following it, or
-    // that drop silently blanks the wizard's run graph.
     answerStatus({
       latest_iteration: { iteration: 4, task_id: "t4" },
       assembly_run_id: "run-7",
@@ -161,9 +153,6 @@ describe("loadFeaturePoll", () => {
   });
 
   it("passes the client's cached-graph run through to the run read", async () => {
-    // The whole point of the protocol change: the wizard says which run's graph it
-    // already holds, and the server omits that clone instead of re-shipping it
-    // every four seconds.
     answerStatus({
       latest_iteration: { iteration: 4, task_id: "t4" },
       assembly_line_id: "line-7",

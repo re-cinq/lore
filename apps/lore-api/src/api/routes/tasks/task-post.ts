@@ -122,9 +122,7 @@ async function actOnExistingTask(
     return h.response(await retryTask(taskId));
   }
 
-  // Each of these refuses rather than silently no-op'ing: cancel on an unknown
-  // id or a terminal state, run-now on a task past `pending`, revise by parking
-  // the parent so it never points at an unexplained follow-up.
+  // Refuse rather than silently no-op on unknown id, terminal state, or past pending.
   if (parsed.action === "cancel") {
     return refusable(h, () => cancelPipelineTask(pool, taskId));
   }

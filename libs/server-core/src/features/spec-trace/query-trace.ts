@@ -1,11 +1,4 @@
-/**
- * query-trace — pure formatter for the `lore-query-trace` MCP tool. Turns a
- * TraceDocument (read from the spec-traceability graph via the remote
- * `/trace/document` route) into agent-readable text: a no-selector signal
- * summary, or a focused view of the selected statement(s) with their
- * validated_by / implemented_by / decided_by links. No IO — the tool handler
- * fetches; this projects the result.
- */
+/** Formats TraceDocument into agent-readable text (summary or focused view with links). */
 
 import type {
   TraceDocument,
@@ -154,12 +147,7 @@ export interface QueryTraceDeps {
   detectRepo: () => string | null;
 }
 
-/**
- * Orchestrates the query: resolve the repo, proxy a GET for the spec's trace
- * document to the remote backend, and format the result. Returns text on every
- * path (never throws) — the proxy seam is injected so this is testable without
- * a network.
- */
+/** Orchestrates query: resolves repo, proxies GET for trace document, formats result (never throws). */
 export async function runQueryTrace(
   args: QueryTraceArgs,
   deps: QueryTraceDeps,

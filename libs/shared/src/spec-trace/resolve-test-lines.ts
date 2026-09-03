@@ -1,18 +1,4 @@
-/**
- * spec-traceability-graph — per-`it` line resolver (ADR-023).
- *
- * `vitest list --json` emits only `{name, file}`, so descriptors are line-blind
- * and the line-precise inline spec links have nothing to bind against. This pure
- * resolver scans a test file's source for each `it`/`test` declaration and its
- * line, then stamps the `[startLine, endLine]` span onto the descriptor whose
- * LEAF name (the segment after the last ` > ` of the describe chain) matches the
- * declared test string. A declaration's span runs to the next declaration's line
- * minus one, or to end of file for the last. Descriptors whose leaf name matches
- * no declaration are returned unchanged — the binder then skips them.
- *
- * Line-blind in → line-bearing out, so {@link bindDescriptorsToSpecLinks} can
- * match `([validated by](test.ts#Lline))` against the test it names.
- */
+/** Per-it line resolver (ADR-023); scans test source for it/test declarations and stamps [startLine, endLine] on matching descriptors. */
 
 import type { TestDescriptor } from "../test-report.js";
 

@@ -22,11 +22,7 @@ export default async function RepoOverview({
   const { owner, repo: repoName } = await params;
   const fullName = `${owner}/${repoName}`;
 
-  // Everything below is mutually independent — fetch in one batch so page
-  // latency tracks the slowest call, not the sum (#1030). Per-call .catch
-  // fallbacks keep the original fail-soft semantics: memory.episodes and
-  // pipeline.audit_log may not exist on legacy clusters, GitHub/webhook
-  // lookups fail soft to null.
+  // Mutually independent fetches in one batch; page latency = slowest call (#1030); per-call .catch keeps fail-soft.
   const [
     readme,
     repoInfo,
@@ -44,9 +40,7 @@ export default async function RepoOverview({
     getRepoTasks(fullName, 5).then((r) =>
       r.status === "ok" ? r.data.tasks : [],
     ),
-    // Latest event-bus activity for this repo (fail-soft — repo is a first-class
-    // column since migration 0024, so only github.* / internal.* events match; the
-    // full, infinite-scrolling list lives at /repos/:o/:r/events).
+    // Latest event-bus activity (fail-soft); full infinite-scrolling list at /repos/:o/:r/events.
     getRepoEvents(fullName, 10).then((r) =>
       r.status === "ok" ? (r.data.events as unknown as RepoEvent[]) : [],
     ),
@@ -59,8 +53,7 @@ export default async function RepoOverview({
       ".github/workflows/lore-ingest.yml": null,
     })),
     getWebhookStatus(fullName).catch(() => null),
-    // Dark Factory dashboard counts (T052) — best-effort, each figure falls back
-    // to null so the panel never breaks the page.
+    // Dark Factory dashboard counts (T052) — best-effort, each figure falls back to null.
     getRepoActivityCounts(fullName).then((r) =>
       r.status === "ok"
         ? r.data
@@ -68,9 +61,7 @@ export default async function RepoOverview({
     ),
   ]);
 
-  // Second batch: the webhook secret is fetched (admin-scoped) only when the
-  // hook needs setting up by hand — revealed so it can be pasted into GitHub alongside the URL, never
-  // reaching the client for an already-wired repo.
+  // Webhook secret fetched (admin-scoped) only when hook needs setup by hand (pasted into GitHub, never to client).
   const webhookNeedsSetup = webhook !== null && webhook.state !== "configured";
   const [chunkSummary, webhookSecret] = await Promise.all([
     getRepoChunkSummary(fullName).then((r) =>

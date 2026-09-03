@@ -8,12 +8,7 @@ export interface RepoTaskCreateViewProps {
   createTaskAction: (formData: FormData) => void | Promise<void>;
 }
 
-/**
- * Presentational view for the per-repo "New Task" form. Pure render — the
- * container (`page.tsx`) resolves the repo identity and passes it down, and
- * hands in the create action which the form fires back up, keeping this
- * component free of data access.
- */
+/** Per-repo "New Task" form: pure render, container resolves repo identity and handles create action. */
 export default function RepoTaskCreateView({
   fullName,
   createTaskAction,

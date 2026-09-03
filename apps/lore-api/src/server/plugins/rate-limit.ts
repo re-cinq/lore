@@ -1,10 +1,4 @@
-/**
- * Rate limiting as a hapi `onPreAuth` extension (ADR-033). Reuses the exact
- * sliding-window buckets from `routes/auth.ts` (single source of thresholds).
- * `/healthz` is exempt (the Helm probes must never be throttled); every other
- * request is bucketed by path. 429 + `Retry-After: 60` +
- * `{ error: "rate limit exceeded" }`.
- */
+/** Rate limiting as a hapi extension (ADR-033). */
 
 import type { Server } from "@hapi/hapi";
 import { rateLimit, type RateBucket } from "../../api/routes/auth.js";

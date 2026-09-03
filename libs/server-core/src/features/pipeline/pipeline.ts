@@ -1,11 +1,5 @@
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
-/**
- * Pipeline task CRUD. The policy-free CRUD (getTask/listTasks/updateTaskStatus/
- * recordEvent/cancelTask/markTaskMerged) lives once in @re-cinq/lore-shared and
- * is re-exported here; this file keeps the mcp-specific policy (trust-level gate
- * + getDefaultRepo on createTask, retry, review-iteration). Task processing
- * itself is handled by the Floor service.
- */
+/** Pipeline task CRUD with mcp-specific policy (trust-gate + getDefaultRepo). */
 
 import { getDefaultRepo } from "./pipeline-config.js";
 import {
@@ -67,8 +61,7 @@ export const markTaskMerged = (taskId: string) =>
 
 // ── Task CRUD ────────────────────────────────────────────────────────
 
-// createTask is single-sourced in shared (trust-gate + insert + recordEvent);
-// mcp keeps its positional signature and resolves the default repo via config.
+// createTask single-sourced in shared; mcp adds trust-gate + default repo resolve.
 export interface CreateTaskInput {
   description: string;
   taskType?: string;

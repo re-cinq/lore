@@ -52,8 +52,7 @@ function statusLabel(section: TraceSection): string {
   return `omitted · ${section.omitReason ?? section.status}`;
 }
 
-/** A horizontal used/total bar reused for budget + per-section allocation.
- *  The fill width is the one genuinely dynamic value, handed to the stylesheet. */
+/** Used/total bar for budget + per-section; fill width passed to stylesheet. */
 function Bar({ used, total }: { used: number; total: number }) {
   const pct = total > 0 ? Math.min(100, (used / total) * 100) : 0;
 
@@ -68,8 +67,7 @@ function Bar({ used, total }: { used: number; total: number }) {
   );
 }
 
-/** One per-section trace card: how much budget it got, what status it ended in,
- *  and (expandable) every document that contributed, with provenance. */
+/** Per-section card: budget, status, documents with provenance (expandable). */
 function TraceCard({
   owner,
   repo,
@@ -139,12 +137,7 @@ function TraceCard({
   );
 }
 
-/**
- * Prompt-debug view for the assembled-context preview. The container
- * (`AssembledContextPanel`) owns query/template/fetch state; this renders the
- * form, the assembly trace (inputs, budget, per-section provenance), and the
- * final prompt as a nested tag tree.
- */
+/** Assembled context view: form + assembly trace + final prompt tree. */
 export default function AssembledContextView({
   owner,
   repo,

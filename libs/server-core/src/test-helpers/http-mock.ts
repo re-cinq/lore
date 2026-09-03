@@ -1,11 +1,4 @@
-/**
- * Test harness for driving routes.ts through its public `handleApiRoute`
- * dispatcher. There is no `node-mocks-http` dependency, so we build the
- * minimal `IncomingMessage` / `ServerResponse` surface the handlers touch:
- * `readBody`/`readJsonBody` only need `req` to be a Readable that emits
- * `data`/`end`; `json()` only needs `res.writeHead(code, headers?)` to chain
- * into `.end(body)`.
- */
+/** Test harness for routes.ts dispatcher with minimal IncomingMessage/ServerResponse surface. */
 import { Readable } from "node:stream";
 import { beforeEach, afterEach, vi } from "vitest";
 import type { IncomingMessage, ServerResponse } from "node:http";
@@ -14,8 +7,7 @@ export interface MockReqInit {
   url: string;
   method?: string;
   headers?: Record<string, string>;
-  /** Object bodies are JSON-stringified; strings pass through untouched
-   *  (needed for raw HMAC bodies and URL-encoded Slack payloads). */
+  /** Objects JSON-stringified; strings pass through (HMAC/URL-encoded payloads). */
   body?: unknown;
 }
 
@@ -114,14 +106,7 @@ export function makeOctokit() {
   };
 }
 
-/**
- * Keep the in-module rate-limit sliding window from tripping across a large
- * suite. `rateLimit` keys on `Date.now()`; faking only `Date` (not timers)
- * leaves mocked fetch/Octokit promises resolving normally. Each test jumps
- * 120s ahead so the previous test's 60s window is fully evicted, while time
- * stays frozen *within* a test so the dedicated 429 tests can pile calls into
- * one window.
- */
+/** Keeps rate-limit window from tripping; fakes Date.now() to jump 120s between tests. */
 let clockTick = 0;
 const CLOCK_BASE = 1_700_000_000_000;
 

@@ -35,9 +35,6 @@ export interface LlmCallResult {
 export interface UsagePort {
   logLlmCall(record: LlmCallRecord): Promise<LlmCallResult>;
   processedCounts(): Promise<ProcessedCounts>;
-  /** The distinct models that billed against one station run — the truthful
-   *  "who reviewed this" (the dispatch spec snapshots the yaml default, which
-   *  the agent-definition row overrides at run time). Empty when no call was
-   *  recorded. */
+  /** Distinct models billed against station run; reflects agent-definition override. */
   modelsUsed(stationRunId: string): Promise<string[]>;
 }

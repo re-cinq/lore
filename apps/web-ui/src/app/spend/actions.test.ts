@@ -44,9 +44,6 @@ describe("recordTopUpAction", () => {
   });
 
   it("omits effective_date entirely when the field is blank", async () => {
-    // Not sent as "" — the API defaults a MISSING date to `current_date` in
-    // Postgres, and an empty string would be a value that fails its format
-    // check instead of an absence that takes the default.
     await recordTopUpAction(
       null,
       form({ amount_usd: "100", effective_date: "" }),
@@ -83,8 +80,6 @@ describe("recordTopUpAction", () => {
   });
 
   it("rejects an empty amount without calling the API", async () => {
-    // The trap this pins: `Number("")` is 0, not NaN, so a blank field would
-    // otherwise sail past a plain isFinite check and post a zero entry.
     const state = await recordTopUpAction(null, form({ amount_usd: "" }));
 
     expect(state).toMatchObject({ error: expect.stringContaining("amount") });
@@ -106,10 +101,6 @@ describe("recordTopUpAction", () => {
   });
 
   it("records a negative amount as a correction, not a topup", async () => {
-    // The form has no kind control, so the sign is the only signal of intent —
-    // and a "-$20 top-up" is a sentence that means nothing. This assertion
-    // used to omit `kind`, which is exactly how the mislabelling survived a
-    // test whose own name claimed to cover it.
     await recordTopUpAction(null, form({ amount_usd: "-20", note: "typo" }));
 
     expect(recordCreditEntry).toHaveBeenCalledWith(

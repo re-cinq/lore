@@ -15,10 +15,7 @@ export default async function RepoAdrDetail({
   const filePath = path.map(decodeURIComponent).join("/");
   const adrsLink = `/repos/${owner}/${repo}/adrs`;
 
-  // ADRs have no Statement/coverage overlay — render the byte-exact source
-  // reassembled from the graph's Block layer (recomputeFile), minus the YAML
-  // frontmatter, which renders as a metadata header instead (safe to strip:
-  // statements=[] means no offset coupling to the original source).
+  // ADR source from graph (no coverage), frontmatter → metadata header (safe to strip).
   const source = await fetchTraceSource(fullName, filePath);
   const { meta, body } = parseFrontmatter(source ?? "");
 

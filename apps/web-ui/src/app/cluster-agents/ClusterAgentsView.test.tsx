@@ -32,10 +32,6 @@ const offlineEvent = (
 
 describe("ClusterAgentsView", () => {
   it("binds each row's Pause button to that row's agent id", async () => {
-    // The prop must be BOUND, never wrapped in an inline arrow: this view is a
-    // server component, and React refuses to serialize a plain closure to a
-    // client component — which took the whole page down in production once.
-    // Binding is also what keeps the id server-side.
     const calls: Array<[string, boolean]> = [];
 
     render(

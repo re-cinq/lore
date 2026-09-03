@@ -1,21 +1,4 @@
-/**
- * Open + record the PR a `push` node produced.
- *
- * Nothing did this for an assembly line. The push recipe ends "commit it, and
- * stop … The watcher opens the PR" (`scripts/task-types.yaml`), and the watcher
- * returns early for every CR carrying `lore.re-cinq.com/assembly-line-id`
- * (`agent-watcher.ts`) precisely so per-CR dedupe cannot route each node of a line
- * into PR creation. The single-agent path kept the PR logic; the line path got
- * none, so on the merged planning line no spec PR was ever opened and
- * `lore.features.spec_pr_url` stayed null.
- *
- * Recording it on the LINE is the load-bearing half. `findOpenByPr` matches on
- * `args->>'pr_number'`, so a line whose PR was never stamped cannot be found when
- * that PR merges — which is what the `merged` wait node needs to be resumable.
- *
- * The decision is pure and separate from the effect: whether a finished node earns
- * a PR is a rule, and rules are worth testing without a GitHub double.
- */
+/** Module: open and record PR a push node produced (feature-dependent, load-bearing for merged node resumability). */
 
 import { prFooter } from "@re-cinq/lore-shared";
 import type { AssemblyRunRecord } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
@@ -26,46 +9,22 @@ import type {
   FeatureStatus,
 } from "@re-cinq/lore-shared/project/features/features-port.js";
 
-/** The `prompt_ref` every line's pushing node carries (implementation, general,
- *  gap-fill, feature-planning). Identifying the node by its
- *  recipe rather than its id keeps this working for a line that names it
- *  something other than "push". */
+/** Constant prompt_ref for every line's pushing node; by recipe not id keeps it resilient to renames. */
 const PUSH_PROMPT_REF = "push-only";
 
-/**
- * What a failed PR open MEANS for the line.
- *
- * `empty-branch` — GitHub refused because the branch carries nothing to review.
- * The pushing node reported success and pushed nothing (#1330), so no retry can
- * help and the wait node downstream would park forever on a PR that cannot
- * exist. That is a failed line, and saying so is the whole point: the wizard
- * reads a diagnosis instead of showing "Waiting for the spec PR" indefinitely.
- *
- * `transient` — anything else (a 5xx, a token blip). The line keeps its shape
- * and the reaper re-drives it; failing a run on a network hiccup would throw
- * away work that is genuinely fine.
- *
- * Matched on GitHub's own validation text rather than a status code: a 422 is
- * also what a duplicate PR or a bad base returns, and only this one means the
- * branch is empty.
- */
+/** Decide if PR open failure is empty-branch (node pushed nothing, #1330) or transient (retry candidate). */
 export function decideStampFailure(
   message: string,
 ): "empty-branch" | "transient" {
   return /no commits between/i.test(message) ? "empty-branch" : "transient";
 }
 
-/** The reason recorded on a line whose branch had nothing to open a PR from —
- *  written for whoever reads it in the wizard, naming the node that should have
- *  delivered and the branch that stayed empty. */
+/** Reason for empty branch failure; names the node that should have delivered commits. */
 export function emptyBranchReason(branch: string | null): string {
   return `the push node reported success but pushed nothing — ${branch ?? "the run branch"} has no commits, so no spec PR could be opened`;
 }
 
-/** Whether the node that just finished should cause the line's PR to be ensured.
- *  Pure. A line that already carries a `pr_number` is skipped, so a push re-run
- *  after a write/analyse correction updates the existing PR rather than opening a
- *  second one for the same branch. */
+/** Decide if finished node should stamp PR on line; idempotent for push re-runs after corrections. */
 export function decidePrStamp(input: {
   promptRef?: string | null;
   outcome: string | null;
@@ -78,29 +37,12 @@ export function decidePrStamp(input: {
   );
 }
 
-/** Whether this line's PR opens as a draft. Read off the RUN, never off the
- *  blueprint name — the Floor stays domain-free about which lines want one, and a
- *  line asks by seeding `pr_draft` on its args.
- *
- *  A draft PR gets no Lore code review (both review entry points gate on
- *  `draft !== true`), which is what lets a line push many times before asking a
- *  person to look. Strictly boolean: a stray string must not silently draft a PR
- *  nobody would then review. */
+/** Decide if PR opens as draft (read from run args); drafts bypass code review for multiple pushes. */
 export function decidePrDraft(args: Record<string, unknown>): boolean {
   return args.pr_draft === true;
 }
 
-/** Whether the node that just finished hands its PR to a human.
- *
- *  Keyed on the DESTINATION node's TYPE, not on a node id: the `pr_merged` join
- *  died of exactly that rename (FR6.32), and "the step before the wait" is what
- *  this means regardless of what the wait is called. A run with no PR has
- *  nothing to flip.
- *
- *  Once only. `fix-ci` also routes back to the wait, so this asks a second time
- *  on every CI repair. `markReady` itself is idempotent — it reads `isDraft`
- *  first — but the body rewrite beside it is NOT, and a second pass would
- *  overwrite a description a human had edited since. */
+/** Decide if ready node hands PR to human (once per run, keyed on destination node type not id, FR6.32). */
 export function decideMarkReady(input: {
   outcome: string | null;
   nextNodeType: string | undefined;
@@ -114,8 +56,7 @@ export function decideMarkReady(input: {
   );
 }
 
-/** How long a pull-request title may be. GitHub allows far more, but a title is
- *  read in a list, and one that does not fit there is a title nobody reads. */
+/** Maximum PR title length (70 chars); unread titles harm discoverability. */
 const TITLE_MAX = 70;
 
 /** One line, no runs of whitespace, cut with an ellipsis past the cap. */
@@ -127,13 +68,7 @@ function clampTitle(text: string): string {
     : oneLine;
 }
 
-/** The title the DRAFT opens under, before a reviewer ever sees the branch.
- *
- *  `lore: <branch>` is what every backlog pull request was called — a branch
- *  name a reader has to open the PR to decode, on the one artifact the loop
- *  asks a human to look at. The ticket title the run was minted from is the
- *  only meaningful thing known at this point, so it is what the draft carries;
- *  the branch stays as the fallback for a run that carries no ticket. */
+/** Draft PR title from feature or issue title; branch name as fallback if no ticket. */
 export function draftPrTitle(input: {
   featureTitle: string | null;
   args: Record<string, unknown>;
@@ -151,9 +86,7 @@ export function draftPrTitle(input: {
   return `lore: ${input.branch}`;
 }
 
-/** The title the ready flip renames the PR to: the one the pr-ready node
- *  reported after reading the finished branch. Null when it reported none, and
- *  the PR keeps the ticket title the draft opened under — never blanked. */
+/** Title the ready flip renames PR to (from pr-ready node); null keeps draft title. */
 export function readyPrTitle(
   extras: Record<string, string> | undefined,
 ): string | null {
@@ -166,8 +99,7 @@ export function readyPrTitle(
   return clampTitle(reported);
 }
 
-/** The surface this writes through — a narrow, repo-bound slice of `project`, so a
- *  caller passes `project.pulls` and `project.features` straight in. */
+/** Narrow repo-bound slice of project; caller passes pulls and features directly. */
 export interface SpecPrPorts {
   pulls: {
     list(): Promise<PullRef[]>;
@@ -187,8 +119,7 @@ export interface SpecPrPorts {
   };
   features: {
     get(id: string): Promise<Feature | null>;
-    /** Returns the updated row; this module ignores it, so the narrowest honest
-     *  contract is "resolves to something". */
+    /** Returns updated row; narrowest honest contract is resolving to something. */
     transitionStatus(
       id: string,
       status: FeatureStatus,
@@ -197,8 +128,7 @@ export interface SpecPrPorts {
   };
 }
 
-/** The open PR already on this branch, if any — pushing twice must not fork the
- *  review across two PRs. */
+/** Find existing PR on branch to avoid forking review across multiple PRs. */
 async function existingPrFor(
   branch: string,
   pulls: SpecPrPorts["pulls"],
@@ -208,13 +138,7 @@ async function existingPrFor(
   return open.find((pr) => pr.branch === branch) ?? null;
 }
 
-/** Ensure the line's branch has a PR, record it on the line, and — when the line
- *  carries a feature — move that feature to `pr-open` with the spec PR on it.
- *
- *  The stamp happens BEFORE the feature transition and is not undone if that
- *  transition throws: losing the stamp would strand the line at its `merged` node
- *  forever, which is a worse failure than a stale feature status a later run can
- *  still correct. */
+/** Ensure PR on branch, record on line; stamp before feature transition (safer if transition fails). */
 export async function stampLinePr(
   row: AssemblyRunRecord,
   ports: SpecPrPorts,
@@ -262,18 +186,7 @@ export async function stampLinePr(
   }
 }
 
-/** The body the ready flip rewrites the PR with: the pr-ready node's prose plus
- *  the same footer the draft carried. The flip's `pulls.update` is a FULL
- *  replacement, so writing `args.pr_description` verbatim destroyed the footer
- *  stampLinePr had put on the draft — the merged PR closed no issue and the
- *  web-ui lost PR-to-task resolution. Recomposing here is also where the
- *  coverage verdict lands (#1745): a `Lore-Issue-Coverage: "partial"` extra
- *  from the pr-ready node downgrades `Closes #N` to `Refs #N`, so a branch
- *  resolving only part of its ticket leaves the ticket open on merge. Absent
- *  or malformed extras mean full coverage — the close-on-merge default.
- *
- *  Null when the node delivered no prose; the caller then keeps the PR's old
- *  body rather than replacing it with a bare footer. */
+/** Rewrite PR body with pr-ready prose + footer; coverage verdict downgrades Closes→Refs for partial coverage (#1745). */
 export function readyPrBody(
   run: AssemblyRunRecord,
   extras: Record<string, string> | undefined,
@@ -296,11 +209,7 @@ export function readyPrBody(
   return head + prFooter({ issueNumber, taskId: run.taskId, coverage });
 }
 
-/** The line's PR body, with the standard footer every Lore-authored PR carries.
- *
- *  It carried NEITHER before: no `Lore-Task:`, so the web-ui could not resolve
- *  PR to task, and no issue line, so a merged backlog ticket stayed open and
- *  was eligible to be picked again on the next tick. */
+/** Line's PR body with standard footer; adds Lore-Task for PR-to-task resolution and closes merged tickets. */
 function prBody(
   branch: string,
   feature: Feature | null,

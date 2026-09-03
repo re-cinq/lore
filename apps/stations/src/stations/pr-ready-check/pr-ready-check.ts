@@ -24,13 +24,10 @@ export interface PrReadyCheckDeps {
   /** The PR's head sha — the ref ciConclusion is asked about. */
   getPrHeadSha(repo: string, number: number): Promise<string | null>;
   ciConclusion(repo: string, ref: string): Promise<CiConclusion>;
-  /** Does this repo run checks at all? Asked of the DEFAULT branch, which is a
-   *  repo fact rather than a clock — it tells `none` on a head sha apart from
-   *  `none` on a repo with no CI. */
+  /** Does this repo run checks at all? A repo fact, not a clock. */
   hasCiHistory(repo: string): Promise<boolean>;
   listReviewThreads(repo: string, number: number): Promise<ReviewThread[]>;
-  /** Open runs of the PR-review family for this PR — "the address round-trip
-   *  is still in flight" signal. */
+  /** Open runs of PR-review family for this PR — "address round-trip in flight" signal. */
   countOpenReviewRuns(repo: string, number: number): Promise<number>;
   report(
     target: ParkedTarget,
@@ -39,19 +36,11 @@ export interface PrReadyCheckDeps {
   ): Promise<void>;
 }
 
-/** The park is located by station TYPE from the run's own graph;
- *  the id is only the pre-clone fallback. */
+/** Park located by station TYPE from run's graph; id is pre-clone fallback. */
 const AWAIT_STATION_TYPE = "pr_review";
 const AWAIT_NODE = "await-pr";
 
-/**
- * Evaluate every open implementation-loop run parked at await-pr and resume
- * the ones whose PR has settled (specs/implementation-loop FR4): green CI with
- * zero unresolved-and-current threads resumes `success`; red CI, or unresolved
- * threads with no review-family run open, resumes `changes_requested`. A
- * pending CI or an in-flight address round-trip is left for the next tick.
- * One bad PR read never stops the sweep.
- */
+/** Resume implementation-loop await-pr nodes whose PR has settled: green CI or unresolved threads with no review run open (specs/implementation-loop FR4). */
 export async function prReadyCheckSweep(
   deps: PrReadyCheckDeps,
 ): Promise<string> {
@@ -143,8 +132,7 @@ export async function prReadyCheckJob(): Promise<string> {
   const { reportToParkedNode } =
     await import("@re-cinq/lore-shared/project/assembly-runs/parked-node.js");
   const OPEN = ["queued", "running"] as const;
-  // One Project per repo per sweep — three PR reads per run would otherwise
-  // rebuild the same repo facade three times.
+  // One Project per repo per sweep; avoid rebuilding the same repo facade three times for three PR reads
   const projects = new Map<string, ReturnType<typeof projectFor>>();
   const projectOf = (repo: string) => {
     const cached = projects.get(repo) ?? projectFor(repo);
@@ -174,9 +162,7 @@ export async function prReadyCheckJob(): Promise<string> {
       (await (await projectOf(repo)).pulls.get(number))?.headSha ?? null,
     ciConclusion: async (repo, ref) =>
       (await projectOf(repo)).pulls.ciConclusion(ref),
-    // Memoised per repo, for the same reason `projects` is: this is a REPO fact,
-    // and asking it once per parked PR would spend two GitHub reads per run on an
-    // answer that cannot differ between them.
+    // Memoised per repo: this is a REPO fact; asking once per PR saves GitHub reads
     hasCiHistory: (repo) => {
       const cached = ciHistory.get(repo) ?? readCiHistory(repo);
 
@@ -195,10 +181,7 @@ export async function prReadyCheckJob(): Promise<string> {
           prNumber: number,
         })
       ).length,
-    // Through the proxy's QUEUE, not a direct insert: the sweep catches per run
-    // and then resolves, so its delivery is marked done whether or not the
-    // report landed — a router blip used to lose the resume outright and the
-    // parked node waited for the reaper.
+    // Report through queue, not direct insert; sweep resolves regardless of delivery to avoid losing resume on router blip
     report: (target, outcome, args) =>
       reportToParkedNode(queuedReporter(eventProxy()), target, {
         outcome,

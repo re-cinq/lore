@@ -1,16 +1,4 @@
-// The assembly-line run behind a feature, shaped for the planning wizard's poll
-// payload, so the wizard can watch the working node instead of staring at a
-// spinner.
-//
-// WHICH run that is comes from the server, which resolves it by the feature's
-// subject key. It used to be resolved here from a task id, which could only ever
-// find a run some task had started for that round — a finalize run is a different
-// task on a different blueprint, so pressing "Create spec PR" started work this
-// module had no way to name.
-//
-// The definition is resolved here (server-side, no IO) rather than in the client:
-// definitionForRun is pure, and a round that has not recorded a node row yet still
-// needs a graph to draw, which only the declared builtin can supply.
+// Assembly-line run for a feature, shaped for planning wizard poll payload; server resolves which run by feature subject key.
 
 import type { AssemblyLineDefinition } from "./assembly-line-definition";
 import {
@@ -35,18 +23,13 @@ export interface FeatureRunPayload {
   /** True when the graph was inferred from visit rows — the caller hides edge labels. */
   synthetic: boolean;
   nodes: AssemblyRunNode[];
-  /** What the run has spent so far, or null when it has reported nothing yet. */
+  /** Run's token cost so far, or null if unreported. */
   tokens: RunTokens | null;
-  /**
-   * Set when `definition` was OMITTED because the client said it already holds
-   * this run's graph — not because the run has none. The two are different
-   * answers and a client that conflated them would blank the graph every tick.
-   */
+  /** True when definition omitted because client already holds this run's graph. */
   definitionUnchanged?: boolean;
 }
 
-/** Shape a run + its visit rows into the poll payload, resolving the graph to draw.
- *  Pure — definitionForRun does no IO. */
+/** Shape run + nodes into poll payload; pure. */
 export function toFeatureRunPayload(
   run: AssemblyRun,
   nodes: AssemblyRunNode[],
@@ -71,16 +54,10 @@ export function toFeatureRunPayload(
   };
 }
 
-/** The run to visualize, given the line id lore-api already resolved for the
- *  round. Preferred over `fetchFeatureRun`: from round 2 a resumed round mints no
- *  task, so only the server — which knows the OWNING task — can name the line.
- *  Never throws; the wizard's poll must keep reporting the round's status even
- *  when run visualization is unavailable. */
+/** Fetch run to visualize by line id (resolved by lore-api). */
 export async function fetchFeatureRunById(
   assemblyLineId: string | null | undefined,
-  /** The run whose graph the caller already holds, if any — see
-   *  {@link graphIsCacheable}. Naming the RUN (not just "yes") is what keeps a
-   *  retry's new clone from being mistaken for the one already on screen. */
+  /** Run whose graph caller already holds (avoid re-shipping clone). */
   haveGraphForRun?: string | null,
 ): Promise<FeatureRunPayload | null> {
   if (!assemblyLineId) {
@@ -100,8 +77,7 @@ export async function fetchFeatureRunById(
       await fetchRunTokens(run.id),
     );
 
-    // Omit the graph the caller already has. Only for THIS run, and never for a
-    // synthetic graph, which changes as visit rows land.
+    // Omit graph caller already has (not for synthetic graphs).
     return haveGraphForRun === run.id && graphIsCacheable(payload)
       ? { ...payload, definition: null, definitionUnchanged: true }
       : payload;

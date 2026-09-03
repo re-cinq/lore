@@ -2,11 +2,6 @@ import { describe, it, expect } from "vitest";
 import { IssueCollection } from "./issues.js";
 import type { GitHubPort, IssueRef } from "../lib/github-port.js";
 
-/**
- * The facade delegates to a GitHubPort with zero heavy deps. The fake is a
- * hand-written object literal (no mock library): real values in, real out.
- */
-
 function fakeGitHub(issues: IssueRef[], calls: string[] = []): GitHubPort {
   return {
     name: "fake",

@@ -1,9 +1,4 @@
-/**
- * Layer-3 handlers for `cron.*.tick` events. The in-process scheduler no longer
- * runs these jobs directly — it emits a tick event and the loop dispatches here.
- * These are the light/operational jobs that are safe to run in the Floor pod;
- * heavy batch jobs (reindex/eval/gap-detect …) are handled separately.
- */
+/** Layer-3 handlers for `cron.*.tick` events: light/operational jobs safe in Floor pod. */
 
 import { specTaskExecutorJob } from "./task/spec-task-executor.js";
 import { staleTaskCheckJob } from "./task/stale-task-check.js";
@@ -17,19 +12,10 @@ import type { EventHandler } from "../main-loop/types.js";
 /** Agent run events are per-tool-call telemetry: high volume, low half-life. */
 const AGENT_RUN_EVENT_RETENTION_DAYS = 14;
 
-/** Turns are the full-fidelity transcript: kept longer than the projection's 14
- *  days because the store exists precisely for questions asked after the live
- *  view has moved on, but deliberately conservative. There is no pilot and so no
- *  growth measurement to justify a longer horizon; 30 days is the starting bet
- *  and the prune's log line is the only growth signal until one exists. The env
- *  override is the operator lever the GCS task-log bucket had via the
- *  `log_retention_days` terraform variable (also 30 by default) — read per call
- *  (an hourly tick, so free) purely as a test seam; env is fixed for a pod's
- *  lifetime either way. */
+/** Full-fidelity transcript retention (configurable via LORE_AGENT_RUN_TURN_RETENTION_DAYS). */
 const DEFAULT_AGENT_RUN_TURN_RETENTION_DAYS = 30;
 
-/** Postgres `make_interval(days => N)` takes an int32; an absurd override must
- *  fall back rather than fail every hourly eventsPrune tick. */
+/** Postgres `make_interval` takes int32; absurd overrides fall back to not fail hourly tick. */
 const MAX_AGENT_RUN_TURN_RETENTION_DAYS = 3650;
 
 const turnRetentionDays = (): number => {
@@ -61,13 +47,7 @@ const fromJob =
     await job();
   };
 
-/**
- * Run a station that lives in the stations service.
- *
- * The Floor keeps the schedule, the `job_runs` row and the overlap guard; the
- * work itself moved (ADR-024's service-endpoint station form). A refusal
- * propagates so the scheduler records a failed run rather than a silent no-op.
- */
+/** Run a station in the stations service; Floor keeps schedule and overlap guard. */
 const fromStation = (name: string): EventHandler =>
   fromJob(() => stationClient().run(name));
 
@@ -75,14 +55,7 @@ export const mergeCheck = fromStation("merge-check");
 export const prReadyCheck = fromStation("pr-ready-check");
 export const approvalCheck = fromStation("approval-check");
 
-/**
- * The weekly link backfill fans out per SPECIFICATION, not per repository.
- *
- * It was one job per repo at a 30-minute budget, judging every candidate
- * statement of every spec with a model — so a failure cost the whole repo's pass
- * and the deadline was the only thing bounding how many PRs it opened. The scan
- * starts one unit per spec, under a cap that is now a number someone chose.
- */
+/** Weekly link backfill fans out per SPECIFICATION, not per repository. */
 export const specCoverageBackfill = fromStation("backfill-scan");
 export const specTaskExecutor = fromJob(specTaskExecutorJob);
 export const staleTaskCheck = fromJob(staleTaskCheckJob);
@@ -91,9 +64,7 @@ export const featurePlanningReaper = fromJob(featurePlanningReaperJob);
 /** Delete leases >5min past expiry, writing a `lease_expired` audit entry per row. */
 export const leaseReaper = fromJob(() => leaseReaperJob());
 
-/** The event-driven walk's liveness bound: resolve dropped node-terminal events,
- *  requeue claims that produced no CR, fail rows queued past the claim wait,
- *  time out stuck nodes, fail wedged rows. */
+/** Liveness bound: resolve dropped node events, requeue orphans, time out stuck nodes. */
 export const assemblyLineReaper: EventHandler = async () => {
   const [
     { assemblyLineReaperJob, centralClusterAgentName },
@@ -119,8 +90,6 @@ export const assemblyLineReaper: EventHandler = async () => {
       );
     },
     audit: (entry) => writeAuditLog(entry),
-    // What the queue-timeout message reads to name the cluster that could have
-    // taken the work and did not — paused, offline, or never registered.
     listClusterAgents: () => clusterAgents().list(),
     centralClusterAgentId: async () =>
       (await clusterAgents().findByName(centralClusterAgentName()))?.id ?? null,
@@ -135,20 +104,7 @@ export const assemblyLineReaper: EventHandler = async () => {
   }
 };
 
-/**
- * Close the circuit breaker's loop: ask the account whether it can answer, and
- * let dispatch through again if it can.
- *
- * Nothing else can clear the gate. The failures that trip it arrive from pods,
- * and once dispatch is blocked there are no more pods to report — so without a
- * probe the factory would stay parked until someone restarted the Floor.
- *
- * Fail-open by construction: `anthropicCreditsExhausted` returns false with no
- * API key configured (a Floor billing a subscription token), on any status other
- * than a credit-shaped 429/403, and on any network error. The worst case is
- * un-parking a run that then fails and re-trips the gate five minutes later; the
- * opposite bias would wedge the whole factory on a flaky probe.
- */
+/** Close circuit breaker loop: probe Anthropic account and un-block dispatch if it can answer (fail-open). */
 export const llmCreditProbe: EventHandler = async () => {
   const [{ anthropicCreditsExhausted }, { llmDispatchGate }] =
     await Promise.all([
@@ -170,12 +126,10 @@ export const llmCreditProbe: EventHandler = async () => {
   );
 };
 
-/** How far back the orphan report looks. Matches this handler's hourly tick, so
- *  consecutive runs neither skip a window nor re-report the same events. */
+/** Orphan report lookback window (matches hourly tick); no skip or re-report. */
 const ORPHAN_WINDOW_MINUTES = 60;
 
-/** Housekeeping: drop old terminal event rows so the claim index stays small, and
- *  reap agent run events past the 14-day retention horizon (FR1.13). */
+/** Housekeeping: prune old terminal events and agent run events past retention. */
 export const eventsPrune: EventHandler = async () => {
   const n = await pruneHandled(7);
 
@@ -183,10 +137,7 @@ export const eventsPrune: EventHandler = async () => {
     console.log(`[events] pruned ${n} handled delivery(ies)`);
   }
 
-  // The failure the delivery model introduces: an event name nobody subscribed
-  // to used to be a LOUD dead-letter and is now silence — no deliveries, no
-  // handler, no row anyone looks at. Reporting it is what keeps a producer whose
-  // consumer was never deployed from failing invisibly.
+  // Report unclaimed event names to prevent silent producer failures.
   const orphaned = await orphanedEvents(ORPHAN_WINDOW_MINUTES);
 
   if (orphaned.length > 0) {

@@ -1,19 +1,9 @@
-/**
- * One row in `pipeline.job_runs` — a single scheduled-job invocation's
- * lifecycle (started → completed/failed) with an optional log pointer.
- * Written by the Floor scheduler around every cron-job handler run.
- */
+/** One pipeline.job_runs row: scheduled-job invocation lifecycle (started → completed/failed) with optional log pointer. */
 export interface JobRunRecord {
   startedAt: Date;
 }
 
-/**
- * The scheduled-job run-history surface. The Floor scheduler records each
- * job invocation through here — start stamps a `running` row, complete/fail
- * close it — and reads the last `started_at` to decide whether a job is due.
- * Relocated out of the Floor so run accounting reaches the table through the
- * Project facade instead of a kernel `query` call.
- */
+/** Scheduled-job run-history surface; Floor scheduler records invocations, decides due via last started_at, routes through Project facade not kernel query. */
 export interface JobRunsPort {
   start(jobName: string): Promise<string>;
   complete(

@@ -2,11 +2,6 @@ import { describe, it, expect } from "vitest";
 import { MemoryStoreBridge } from "./memory-store-bridge.js";
 import type { MemoryStore } from "../../memory-store.js";
 
-/**
- * The bridge maps the repo-scoped MemoryPort onto the MemoryStore seam. The fake
- * store is a real in-memory object satisfying the seam — no mock library.
- */
-
 function fakeStore(): MemoryStore {
   const rows = new Map<
     string,

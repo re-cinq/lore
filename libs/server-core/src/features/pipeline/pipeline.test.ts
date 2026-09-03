@@ -2,11 +2,6 @@ import { describe, it, expect, vi } from "vitest";
 import type { Pool } from "pg";
 import { setPipelinePool, handleReviewResult } from "./pipeline.js";
 
-// handleReviewResult runs its queries against the module-level pool set via
-// setPipelinePool. A scripted mock pool returns rows by matching the SQL text,
-// so each test asserts on the exact statements the handler issues — no live
-// Postgres needed. Script order matters: the first matching entry wins.
-
 interface ScriptedRow {
   match: RegExp;
   rows: Record<string, unknown>[];

@@ -1,11 +1,4 @@
-/**
- * spec-traceability-graph Phase 4 / T242 — derives a Statement's STATUS from
- * its TraceLink evidence tiers.
- *
- * KERNEL facet: a Statement with NO TraceLinks derives to "untested". The
- * `claimed` / `verified-implemented` branches are triangulated in by later
- * cycles; the structure here leaves a single seam (the `top` tier) for them.
- */
+/** Derive Statement status from TraceLink evidence tiers; untested when no links (Phase 4/T242). */
 
 import type { DgraphClientPort } from "./deps.js";
 import { withTxn } from "./dgraph-upsert.js";

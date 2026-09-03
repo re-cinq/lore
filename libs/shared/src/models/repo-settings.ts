@@ -4,19 +4,7 @@ import {
   TrustLevelSchema,
 } from "./dark-factory-settings.js";
 
-/**
- * The `lore.repos.settings` JSONB column.
- *
- * Keys stay SNAKE_CASE for the same reason the dark-factory block's do: this is
- * the stored document and the settings API's request body, not a row. Every key
- * is optional — a repo carries only what it has overridden, and the resolver
- * supplies the rest.
- *
- * Unknown keys PASS THROUGH. The document is written by several edges (the
- * settings page, the MCP tool, onboarding) and a strict schema here would
- * silently drop a key one of them added, turning a read-modify-write into data
- * loss.
- */
+/** The lore.repos.settings JSONB column; SNAKE_CASE keys; unknown keys pass through; every key is optional. */
 
 /** Per-task-type overrides merged over `task-types.yaml`; repo values win. */
 export const TaskOverrideSchema = z
@@ -39,8 +27,7 @@ export const RepoSettingsSchema = z
     task_types: z.array(z.string()).optional(),
     task_overrides: z.record(TaskOverrideSchema).optional(),
     auto_review: z.boolean().optional(),
-    // Top-level on purpose: the loop never merges, so it stays outside the
-    // two-key dark_factory ceremony (implementation-loop FR7).
+    // Top-level on purpose; stays outside two-key dark_factory ceremony (FR7).
     implementation_loop: z
       .object({ enabled: z.boolean().optional() })
       .passthrough()

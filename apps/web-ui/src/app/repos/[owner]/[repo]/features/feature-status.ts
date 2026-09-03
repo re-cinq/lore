@@ -5,8 +5,7 @@ export interface StatusBadge {
   color: string;
 }
 
-// Lifecycle status → human label + pill color (mirrors the D3 graph coloring).
-// Colors are theme tokens so the palette follows the active family × scheme.
+// Lifecycle status → label + color (mirrors D3 coloring); theme tokens follow active family × scheme.
 const BADGES: Record<FeatureStatus, StatusBadge> = {
   draft: { label: "Draft", color: "var(--chart-neutral)" },
   planning: { label: "Planning", color: "var(--warning)" },
@@ -20,15 +19,12 @@ export function statusBadge(status: FeatureStatus): StatusBadge {
   return BADGES[status] ?? { label: status, color: "var(--chart-neutral)" };
 }
 
-// Single source for the lifecycle palette. The D3 graph (SpecGraphD3) colors
-// Feature nodes through this so node fills and status pills never drift apart.
-// Returns undefined for an unknown status so callers can fall back to a default.
+// Single source for lifecycle palette; D3 colors Feature nodes so fills and pills don't drift.
 export function featureStatusColor(status: string): string | undefined {
   return (BADGES as Record<string, StatusBadge>)[status]?.color;
 }
 
-// A feature is mid-planning (the wizard polls) until it is ready to finalize or
-// already shipped.
+// Feature is mid-planning (wizard polls) until ready to finalize or shipped.
 export function isPlanningActive(status: FeatureStatus): boolean {
   return (
     status === "draft" ||
@@ -38,13 +34,7 @@ export function isPlanningActive(status: FeatureStatus): boolean {
   );
 }
 
-// A feature's lifecycle is still moving until it ships. Wider than
-// `isPlanningActive` on purpose: the spec PR being open is a WAITING STATE on the
-// same assembly line — the line is parked on `merged`, and merging it resumes the
-// walk into decomposition. Gating the wizard on `isPlanningActive` unmounted it the
-// moment the PR was stamped, so the awaiting-merge and decomposing views could only
-// ever appear to a reader who was already watching; opening the page fresh showed
-// the finished view for a feature that was still working.
+// Lifecycle is moving until shipped; wider than `isPlanningActive` to include spec PR open (WAITING STATE on line).
 export function isLifecycleActive(status: FeatureStatus): boolean {
   return isPlanningActive(status) || status === "pr-open";
 }

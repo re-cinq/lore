@@ -1,14 +1,7 @@
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { apiError } from "../../../server/api-error.js";
 import { zodResponse } from "../../../server/plugins/zod-response.js";
-/**
- * `POST /api/repos/:o/:r/ingest-graph` — the REST/curl/CI (re-)projection
- * trigger for the spec-traceability graph. Only docs (`specs`/`adrs`) flow
- * here: each fires the fire-and-forget spec-trace trigger — the coordinator
- * reads the repo and projects them into the graph, no pipeline task. Test
- * projection is CI-only (the lore-code-trace binary POSTs the Floor ci-tests
- * ingress), so a non-doc kind is rejected.
- */
+/** POST /api/repos/:o/:r/ingest-graph — spec-traceability projection trigger (docs only). */
 
 import type { Pool } from "pg";
 import type { ServerRoute } from "@hapi/hapi";

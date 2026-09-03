@@ -1,13 +1,4 @@
-/**
- * impact-test-link — couples a changed TEST file to the spec statements it
- * validates.
- *
- * The coverage lookup roots on the file a test *covers*, so a PR that rewrites
- * the test itself produced no finding at all unless that test file happened to
- * appear in its own coverage set — a coverage-config accident, not a contract.
- * This roots on `TestChunk.file_path` directly, which is the edge the graph
- * actually holds: `Statement.validated_by → TestChunk`.
- */
+/** Couples changed TEST file to spec statements it validates; roots on TestChunk.file_path edge. */
 
 import type { DgraphClientPort } from "./deps.js";
 import { withTxn } from "./dgraph-upsert.js";
@@ -39,13 +30,7 @@ interface GraphTestChunk {
   stmts?: GraphStatement[];
 }
 
-/**
- * Statements validated by a test chunk in `file` whose own line span the diff
- * touches. A chunk with no usable span (`end_line` absent — the projector only
- * writes it when the spec link carried one) matches the whole file rather than
- * silently matching nothing: a link with no line information still couples the
- * statement to the file, and dropping it is how `implemented_by` went dark.
- */
+/** Statements validated by a test chunk in file whose span the diff touches; missing span matches whole file. */
 export interface TestFileLookup {
   ranges: [number, number][];
   fileLevel?: boolean;
@@ -70,9 +55,7 @@ export async function testFileImpact(
   for (const chunk of chunks) {
     const start = chunk["TestChunk.start_line"] ?? 0;
     const end = chunk["TestChunk.end_line"] ?? 0;
-    // `fileLevel` is the honest degrade for a file whose graph coordinates no
-    // longer line up with the diff: the link still couples the statement to this
-    // file, so report it rather than silently comparing incomparable numbers.
+    // `fileLevel` degrades for missing coordinates; link couples statement to file.
     const spanKnown = !options.fileLevel && start > 0 && end >= start;
 
     if (

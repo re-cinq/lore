@@ -1,6 +1,4 @@
-// Pure filter/count/sort logic shared by every doc card list (per-repo specs,
-// per-repo ADRs, the global browsers). Views own only the useState wiring;
-// the counts feed SpecStatusChips and `visible` is what renders.
+// Pure filter/count/sort logic for doc card lists (specs, ADRs); Views own only useState wiring.
 
 import {
   matchesSpecStatusFilter,
@@ -52,8 +50,7 @@ export function filterDocCards<T>(
   };
 }
 
-/** `path` keeps the input order (lists arrive path-sorted); `status` stable-sorts
- *  by lifecycle order (draft → … → retired), unstatused items last. */
+/** Sort by path (input order) or status (lifecycle order). */
 export function sortDocCards<T>(
   cards: T[],
   order: DocSortOrder,

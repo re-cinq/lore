@@ -125,7 +125,7 @@ describe("inferPhaseDependencies", () => {
     );
     const result = inferPhaseDependencies(tasks);
 
-    expect(result[0].dependsOn).toEqual([]); // Phase 1 first task, no deps
+    expect(result[0].dependsOn).toEqual([]);
     expect(result[2].dependsOn).toContain("T001");
     expect(result[2].dependsOn).toContain("T002");
   });
@@ -157,9 +157,8 @@ describe("inferPhaseDependencies", () => {
     );
     const result = inferPhaseDependencies(tasks);
 
-    expect(result[0].dependsOn).toEqual([]); // [P] no deps
-    expect(result[1].dependsOn).toEqual([]); // [P] no deps
-    // T003 is sequential but there's no previous sequential task, so no intra-phase dep
+    expect(result[0].dependsOn).toEqual([]);
+    expect(result[1].dependsOn).toEqual([]);
     expect(result[2].dependsOn).toEqual([]);
   });
 
@@ -174,7 +173,6 @@ describe("inferPhaseDependencies", () => {
     );
     const result = inferPhaseDependencies(tasks);
 
-    // T002 has explicit dep, should NOT be overwritten
     expect(result[1].dependsOn).toEqual(["T001"]);
   });
 
@@ -193,18 +191,14 @@ describe("inferPhaseDependencies", () => {
     );
     const result = inferPhaseDependencies(tasks);
 
-    // Phase 1: no deps
     expect(result[0].dependsOn).toEqual([]);
     expect(result[1].dependsOn).toEqual([]);
 
-    // Phase 2: depend on Phase 1
     expect(result[2].dependsOn).toContain("T001");
     expect(result[2].dependsOn).toContain("T002");
-    // T004 (sequential) also depends on Phase 1 + previous sequential in phase
     expect(result[3].dependsOn).toContain("T001");
     expect(result[3].dependsOn).toContain("T002");
 
-    // Phase 3: depends on Phase 2
     expect(result[4].dependsOn).toContain("T003");
     expect(result[4].dependsOn).toContain("T004");
   });

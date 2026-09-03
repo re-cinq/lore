@@ -24,12 +24,7 @@ const BTN: React.CSSProperties = {
   fontSize: "var(--fs-sm)",
 };
 
-/**
- * Toolbar + graph container. Holds the search query and a reset signal, wiring
- * the ingest buttons, a live node-search input, and a Reset button into one row
- * above the D3 graph. Reset clears the persisted layout for this repo and bumps
- * `resetSignal`, which re-runs the graph's layout effect from scratch.
- */
+/** Toolbar + graph container with search/reset; reset clears persisted layout and re-runs layout effect. */
 export default function GraphView({
   owner,
   repo,

@@ -1,9 +1,4 @@
-/**
- * The GitHub port the Project facade reads through. A structural subset of
- * agent's CodePlatform (agent/src/platform.ts) so GitHubPlatform satisfies it
- * without a rewrite. Grows method-by-method as later slices triangulate the
- * surface — same philosophy as the MemoryStore seam.
- */
+/** GitHub port: structural subset of agent's CodePlatform. */
 
 export type IssueState = "open" | "closed";
 export type CloseReason = "completed" | "not_planned";
@@ -15,13 +10,9 @@ export interface IssueRef {
   state: IssueState;
   labels: string[];
   url?: string;
-  /** ISO timestamp — the backlog picker's tie-break. Optional: only the
-   *  octokit adapter populates it. */
+  /** ISO timestamp (backlog picker tie-break; octokit adapter only). */
   createdAt?: string;
-  /** The issue body — what the backlog picker mints into the ticket
-   *  description, so a loop pod defines done against the reported problem
-   *  rather than a one-line title (#1745). Optional: only the octokit
-   *  adapter populates it, and GitHub returns null for a bodyless issue. */
+  /** Issue body (octokit adapter only; GitHub returns null if empty). */
   body?: string;
 }
 
@@ -33,8 +24,7 @@ export interface IssueFilter {
 export type CheckStatus = "queued" | "in_progress" | "completed";
 export type CheckConclusion = "success" | "neutral" | "failure" | "cancelled";
 
-/** A GitHub check run upsert — keyed by `(headSha, name)`, so re-publishing a
- *  line's state updates the same check rather than stacking new ones. */
+/** GitHub check run upsert keyed by (headSha, name). */
 export interface CheckRunInput {
   headSha: string;
   name: string;
@@ -79,9 +69,7 @@ export interface GitHubPort {
     body: string,
     labels?: string[],
   ): Promise<IssueRef>;
-  /** Every label the repo defines. The `issues` station checks the labels an agent
-   *  chose against this: GitHub's create-issue silently CREATES an unknown label, so
-   *  an invented one would quietly join the taxonomy instead of failing. */
+  /** List every label the repo defines (GitHub silently creates unknown ones). */
   listLabels(repo: string): Promise<string[]>;
   /** Ensure a set of repo labels exists (create-or-ignore-existing) — onboarding. */
   createLabels(
@@ -93,9 +81,7 @@ export interface GitHubPort {
   addIssueLabel(repo: string, number: number, label: string): Promise<void>;
   removeIssueLabel(repo: string, number: number, label: string): Promise<void>;
   // API writes (no clone) — branch + single-file commit
-  /** True when the branch already exists on the remote. Optional: only the octokit
-   *  adapter implements it, and a caller that cannot ask MUST NOT guess — see
-   *  createBranch, which force-resets an existing branch. */
+  /** True when branch exists (octokit only; caller must not guess). */
   branchExists?(repo: string, branch: string): Promise<boolean>;
   createBranch(repo: string, branch: string, base?: string): Promise<void>;
   commitFile(repo: string, branch: string, change: FileChange): Promise<void>;

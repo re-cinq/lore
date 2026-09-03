@@ -38,11 +38,7 @@ function sourceBadgeClass(source: SearchResult["source"]): string {
   return "op-read";
 }
 
-/**
- * Presentational view for the cross-source search page. Pure render — the
- * container (`page.tsx`) runs the memory/fact/chunk queries, merges and scores
- * them, and passes the resolved view-model down.
- */
+/** Cross-source search page: pure render of merged/scored memory/fact/chunk results. */
 export default function SearchView({
   q,
   repo,

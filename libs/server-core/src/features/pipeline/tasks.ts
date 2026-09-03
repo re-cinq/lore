@@ -1,18 +1,9 @@
-/**
- * Spec-task syncing, claiming, and completion.
- *
- * Pipeline-backed MCP tools for task tracking. Tasks live in pipeline.tasks with
- * task_type = 'spec-task'. The queue mechanics — DAG readiness, atomic claim,
- * completion + unblocked dependents — are single-sourced in the shared
- * TaskQueueRepository (PgTaskQueue). This module is a thin pool-binding delegate
- * plus the mcp-specific audit events.
- */
+/** Spec-task syncing, claiming, completion; thin pool-binding delegate to shared TaskQueueRepository. */
 
 import { recordTaskEvent, type PgPool } from "@re-cinq/lore-shared";
 import { PgTaskQueue } from "@re-cinq/lore-shared/project/tasks/task-queue-pg.js";
 
-// Re-export parsing + spec-task syncing from the shared package (syncTasksToDb
-// now lives in @re-cinq/lore-shared so the Floor event handler shares it).
+// Re-exports shared parsing + spec-task syncing (Floor event handler shares syncTasksToDb).
 export {
   parseTasks,
   inferPhaseDependencies,

@@ -1,17 +1,4 @@
-/**
- * Write the OpenAPI document to `apps/lore-api/openapi.json` (ADR-035).
- *
- * The document existed only in memory and as the body of `GET /api/openapi.json`,
- * so nothing could generate from it. The committed artifact is what
- * `openapi-typescript` turns into the web UI's client types — replacing 162 lines
- * of hand-mirrored interfaces.
- *
- * DETERMINISM IS THE WHOLE POINT. A drift guard compares a regenerated file to the
- * committed one, so anything environmental in the output makes the check noise
- * rather than signal: no `serverUrl` (`LORE_API_URL` differs per environment), no
- * timestamp, no pool. `routeList(() => null)` is safe because generation reads
- * route metadata only — no handler runs.
- */
+/** Write OpenAPI document to openapi.json (ADR-035); determinism required (no serverUrl/timestamp/pool). */
 
 import { execFileSync } from "node:child_process";
 import { writeFileSync } from "node:fs";
@@ -28,8 +15,7 @@ function generate(): void {
   const { document, coverage } = generateOpenApi(routeList(() => null));
 
   writeFileSync(dest, `${JSON.stringify(document, null, 2)}\n`);
-  // Prettier formats the repo's json too, and the root `format` job PUSHES its
-  // reformat — an unformatted artifact would drift against itself on every PR.
+  // Root format job pushes json reformat; unformatted artifact would drift on every PR.
   execFileSync("npx", ["--no-install", "prettier", "--write", dest], {
     stdio: "ignore",
   });

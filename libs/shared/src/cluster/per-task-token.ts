@@ -1,11 +1,4 @@
-// Per-task GitHub token (ADR-031 D6 / #697): a code task that targets a repo needs a
-// short-lived git token to clone/push. The Floor mints one, PATCHes it into the single
-// `agent-secrets` Secret under a per-task key, and materialises a per-task triple — an
-// AgentDefinition (cloned from the catalog recipe, with the target repo + token_secret
-// added so the init container clones it with auth) and a Station referencing it — that
-// the Agent runs on. The key + triple are removed on terminal. This module is the pure
-// core (key naming + the clone/inject transforms); the mint/PATCH/apply IO is in the
-// KubeTokenProvisioner.
+// Per-task GitHub token (ADR-031 D6 / #697): pure core (key naming + clone/inject transforms); IO in KubeTokenProvisioner.
 
 import type { AgentDefinition, Station } from "@re-cinq/agent-contracts";
 import type { LoreTaskSpec } from "../project/agents/k8s-port.js";
@@ -28,27 +21,19 @@ export function needsToken(spec: LoreTaskSpec): boolean {
   return !!spec.targetRepo;
 }
 
-/** The catalog recipe the per-task triple clones: the spec's explicit Station
- *  (station nodes run `def-<type>`, agent nodes may pin a `station_ref` recipe),
- *  else the task type. Looking up the task type for a station node cloned the
- *  wrong recipe — or none at all for task-less lines, whose ingest pods then
- *  had no repo to read (2026-07-17). */
+/** Catalog recipe the per-task triple clones: spec's explicit Station or task type (#2026-07-17 fix). */
 export function catalogLookupName(spec: LoreTaskSpec): string {
   return spec.stationRef ?? spec.taskType;
 }
 
-/** Clone a catalog AgentDefinition into a per-task one: rename, label with the task id,
- *  and add the target repo carrying the per-task token-secret key (so the subsystem's
- *  init container clones it with auth). The recipe (model/prompt/tools) is preserved. */
+/** Clone catalog AgentDef per-task: rename, label with task id, add repo with token-secret (for subsystem init); recipe preserved. */
 export function injectRepoToken(
   catalog: AgentDefinition,
   spec: LoreTaskSpec,
   tokenKey: string,
   name: string,
 ): AgentDefinition {
-  // The subsystem rejects a promptless AgentDefinition at admission
-  // (ai-agent-subsystem#155), so a catalog row missing one can only produce a
-  // per-task clone the API server refuses — fail here, where the task id is known.
+  // Subsystem rejects promptless AgentDef at admission (ai-agent-subsystem#155); fail here with task id known.
   enforceTrue(
     catalog.spec?.prompt,
     Error,
@@ -68,9 +53,7 @@ export function injectRepoToken(
       ...catalog.spec,
       resources: {
         ...(catalog.spec?.resources ?? {}),
-        // The conversation is per-RUN (which previous run, saved as which id), so it
-        // rides the per-task clone exactly as the repo token does — the shared
-        // catalog recipe cannot carry it.
+        // Conversation is per-RUN (id-identified); rides per-task clone like repo token; catalog recipe cannot carry it.
         ...(spec.conversation
           ? {
               conversation: {

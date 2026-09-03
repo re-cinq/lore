@@ -24,18 +24,7 @@ import {
 } from "../../../features/chunks/repo-schema.js";
 import { memoizeWithTtl } from "../../../features/chunks/ttl-memo.js";
 
-/**
- * The context browser's chunk reads, moved out of web-ui together with the
- * schema-union machinery they depend on (ADR-032). This is what lets web-ui stop
- * holding a Postgres pool at all.
- *
- * Chunks are stored per TEAM schema plus `org_shared`, so a global read is a
- * UNION ALL across every provisioned schema and a repo-scoped read is a single
- * schema resolved from that repo's team. Getting the set wrong does not error —
- * it silently shows another team's chunks, or none — which is why the catalog is
- * the source of truth rather than `lore.repos.team`, a free-text column that can
- * name a schema nobody ever provisioned.
- */
+/** Context browser chunk reads via schema union (ADR-032); queries per-team schemas + org_shared. */
 
 const SCHEMA_CATALOG_TTL_MS = 30_000;
 
@@ -98,13 +87,7 @@ function schemaReaders(pool: Pool) {
   return { getChunkSchemas, repoSchema };
 }
 
-/**
- * The context browser's chunk row.
- *
- * A READ MODEL over `{team}.chunks`, not the row: `content` is truncated to a
- * preview and `rank` is computed per query, so the fields it does share with the
- * table are derived from the model and the two computed ones are stated here.
- */
+/** Chunk browse read model: content preview + rank are computed, rest derived from schema. */
 const ChunkBrowseSchema = wireSchema(
   ChunkSchema.pick({
     id: true,
@@ -163,8 +146,7 @@ export function chunkBrowseRoutes(getPool: () => Pool | null): ServerRoute[] {
           request.query as unknown as ChunksQuery;
         const { getChunkSchemas, repoSchema } = schemaReaders(pool);
 
-        // One past the page size, so a caller detects a further page without a
-        // second COUNT over every schema.
+        // Limit+1 so caller detects another page without COUNT.
         const pageSize = limit + 1;
 
         const select = (schema: string, offset: number) => ({
@@ -232,8 +214,7 @@ export function chunkBrowseRoutes(getPool: () => Pool | null): ServerRoute[] {
         const { repo } = request.query as { repo?: string };
         const { getChunkSchemas, repoSchema } = schemaReaders(pool);
 
-        // The chip set is data-driven and deliberately UNFILTERED by the active
-        // type/search, so a chip never disappears the moment it is selected.
+        // Chips deliberately unfiltered so they don't disappear when selected.
         if (repo) {
           const schema = await repoSchema(repo);
           const { rows } = await pool.query<{ content_type: string }>(
@@ -332,8 +313,7 @@ export function chunkBrowseRoutes(getPool: () => Pool | null): ServerRoute[] {
 
           return h.response({ chunks: rows });
         }
-        // A file path is normally unique to one repo, but the global view spans
-        // every team schema — the caller groups by repo.
+        // File path unique per repo, but global view spans all schemas; caller groups by repo.
         const union = buildChunkUnionQuery(
           await getChunkSchemas(),
           (schema, offset) => ({

@@ -25,12 +25,7 @@ export interface AuditViewProps {
   hasNext: boolean;
 }
 
-/**
- * Presentational view for the audit log. Pure render — the container
- * (`page.tsx`) fetches rows and resolves the pagination flags; this
- * component only renders. Pagination URLs are rebuilt here from the
- * current filter values (a pure derivation of props).
- */
+/** Audit log view: pure render; rebuilds pagination URLs from props. */
 export default function AuditView({
   entries,
   totalCount,

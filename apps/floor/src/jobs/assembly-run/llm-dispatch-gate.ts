@@ -18,14 +18,7 @@ export class LlmDispatchGate {
 
   constructor(private readonly now: () => Date = () => new Date()) {}
 
-  /**
-   * Report a classified node failure. Returns true only when THIS call tripped
-   * the gate — the caller uses that to log the outage once rather than once per
-   * drowned run.
-   *
-   * A rate limit deliberately does not trip it: it clears on its own, and parking
-   * the whole factory on one would wedge more work than it saves.
-   */
+  /** Report failure: returns true iff THIS call tripped gate; caller logs outage once. */
   trip(failureClass: string, detail?: string): boolean {
     if (!ACCOUNT_WIDE.has(failureClass) || this.since !== null) {
       return false;
@@ -59,13 +52,5 @@ export class LlmDispatchGate {
   }
 }
 
-/**
- * The one gate the factory shares.
- *
- * It lives here, beside the class, because BOTH sides of the outage reach for
- * it: the node-event handler trips it, and the credit-probe cron clears it. They
- * must hold the same object — a second instance leaves the factory parked after
- * the account is topped up — and the holder should be the module that owns the
- * concept rather than whichever handler happened to need it first.
- */
+/** Shared gate: node-event trips it, credit-probe clears it; must be single instance. */
 export const llmDispatchGate = new LlmDispatchGate();

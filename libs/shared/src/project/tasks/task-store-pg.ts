@@ -32,12 +32,7 @@ import {
   type FeatureTaskRow,
 } from "./task-store-port.js";
 
-/**
- * TaskStorePort over the pipeline.tasks table. The three views group the
- * existing TaskStatus union; reads are plain SELECTs. transition applies the
- * minimal status update — richer claim/cancel semantics are relocated from
- * mcp-server during migration.
- */
+/** TaskStorePort over pipeline.tasks; status updates via transition(). */
 
 export class PgTaskStore implements TaskStorePort {
   constructor(private readonly pool: PgPool) {}

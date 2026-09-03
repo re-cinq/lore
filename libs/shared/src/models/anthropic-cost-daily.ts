@@ -1,15 +1,7 @@
 import { z } from "zod";
 import type { ColumnMap } from "../lib/row.js";
 
-/**
- * `pipeline.anthropic_cost_daily` — one day/model billing bucket, synced from
- * Anthropic's Admin Cost + Usage reports.
- *
- * DDL: migration `0009_anthropic_cost_daily.sql`. `(bucketDate, model)` is the
- * natural key and the upsert's ON CONFLICT target; a row with `model: ""` holds
- * non-token cost (web search, code execution). `costUsd` is DOLLARS — the Admin
- * API returns cents-as-string and the parser divides by 100.
- */
+/** One day/model billing bucket synced from Anthropic Admin Cost + Usage; (bucketDate, model) is the natural key. */
 
 export const AnthropicCostDailySchema = z.object({
   bucketDate: z.string(),
@@ -24,10 +16,7 @@ export const AnthropicCostDailySchema = z.object({
 
 export type AnthropicCostDaily = z.infer<typeof AnthropicCostDailySchema>;
 
-/**
- * What a writer supplies. `fetchedAt` is stamped server-side with `now()` on
- * every write, so a caller neither sets it nor can lie about it.
- */
+/** What a writer supplies; fetchedAt is stamped server-side so callers cannot set or lie about it. */
 export const AnthropicCostDailyUpsertSchema = AnthropicCostDailySchema.omit({
   fetchedAt: true,
 });

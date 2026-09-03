@@ -43,12 +43,7 @@ export interface RepoOverviewViewProps {
   setupWebhookAction: () => Promise<void>;
 }
 
-/**
- * Presentational view for a repo's overview page. Pure render — all data is
- * resolved by the container (`page.tsx`) and passed down; the only mutation
- * (re-onboard) is handed in as `reonboardAction` and fired back up via the
- * EnrollmentSection button, keeping this component free of data access.
- */
+/** Repo overview: pure render with reonboardAction callback (no data access). */
 export default function RepoOverviewView({
   owner,
   repo,

@@ -1,15 +1,4 @@
-/**
- * spec-traceability-graph — ADR source-layer projection.
- *
- * The ADR artifact joins the lossless Block layer that specs already enjoy.
- * Projects one Block node per source block (xid =
- * `${repo}|${filePath}|block|${ordinal}`), keyed by `Block.file_path` so
- * `recomputeFile` can pull them back without a Spec parent. A minimal ADR node
- * (xid `${repo}|${filePath}`) holds the `content_hash` freshness gate so an
- * unchanged re-projection is a pure no-op (`{ projected: false }`), matching
- * `projectSpecFile`; ADR number/title/status metadata is a LATER overlay. Talks
- * only to the injected DgraphClientPort.
- */
+/** ADR source-layer projection; projects Block nodes; ADR node holds content_hash freshness gate. */
 
 import { createHash } from "node:crypto";
 import type { SourceDocument } from "./project-blocks.js";
@@ -61,9 +50,7 @@ export async function projectAdrFile(
     ...(number != null ? { "ADR.number": number } : {}),
   });
 
-  // The hash is a completed-projection receipt: cleared now, persisted only
-  // after every child write succeeds, so a mid-file failure reopens the gate
-  // and the next attempt re-projects (same ordering as projectSpecFile).
+  // Hash is receipt; cleared now, persisted after writes succeed; mid-file failure re-projects.
   await deletePredicate(dgraph, adrUid, "ADR.content_hash");
 
   await upsertByXid(dgraph, "Repo", repo, { "Repo.adrs": [{ uid: adrUid }] });

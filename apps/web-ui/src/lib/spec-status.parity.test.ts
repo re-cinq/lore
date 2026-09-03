@@ -1,16 +1,7 @@
 import { describe, it, expect } from "vitest";
-// web-ui can't import the @re-cinq/lore-shared PACKAGE (workspace + Docker
-// isolation), so the doc-status buckets are hand-duplicated. This CI-only test
-// (runs in a full checkout) imports shared's PURE spec-status.ts by file path —
-// never the package — to keep the parse core in lockstep: the same raw status
-// value must bucket and label identically for the web-ui pill and the
-// require-statement-links lint tier. The union shape itself is guarded at
-// compile time by scripts/type-drift/spec-status.drift.ts.
 import { parseSpecStatus, statusInfoFromValue } from "./spec-status";
 import { docStatusPill } from "../../../../libs/shared/src/spec-status";
 
-// One raw value per BUCKETS regex alternative, plus decorated, unknown, and
-// bold/suffixed forms — generated coverage of every bucketing branch.
 const VALUES = [
   "Draft",
   "In Progress",

@@ -1,17 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
-/**
- * `platform-github.ts` reaches libsodium through `const spec = "libsodium-wrappers";
- * await import(spec)` — an indirection that exists to dodge type resolution and, as a
- * side effect, hides the import from every static dependency checker. The package is a
- * production runtime requirement of `setRepoSecret`, which encrypts the ingest token
- * before uploading it as a GitHub Actions secret during onboarding.
- *
- * It was declared only as a devDependency, surviving in the Floor image purely because
- * that Dockerfile's `npm ci` omits `--omit=dev`. This asserts the declaration is a real
- * dependency so a routine image-slimming change cannot silently break onboarding.
- */
 const packageJson = JSON.parse(
   readFileSync(new URL("../../../package.json", import.meta.url), "utf8"),
 ) as {

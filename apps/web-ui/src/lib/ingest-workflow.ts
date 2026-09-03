@@ -1,22 +1,10 @@
-/**
- * In-sync mirror of `shared/src/ingest-workflow.ts`. web-ui is not a
- * workspace member, so it can't import from `@re-cinq/lore-shared`
- * directly. Keep both copies in step — the byte content here is what the
- * "fix" button commits to repos and must match what the agent installs —
- * `ingest-workflow.parity.test.ts` holds the two byte-identical. See
- * web-ui/CLAUDE.md and `lib/onboard-guard.ts` for the mirror pattern.
- */
+// In-sync mirror of shared/src/ingest-workflow.ts; byte-content-identical mirror pattern.
 
 export const LORE_INGEST_WORKFLOW_PATH = ".github/workflows/lore-ingest.yml";
 
 export const LORE_INGEST_WORKFLOW_VERSION = 4;
 
-// v4 hardening (issue #1545, pattern ported from re-cinq/bowman-ui PR #37):
-// the v3 curl steps ended in `|| echo ::warning`, which kept every run green
-// while an unset LORE_INGEST_TOKEN 401-rejected every POST for a repo's
-// entire history. v4 fails loudly on misconfiguration and 4xx, warns only on
-// plausibly-transient 5xx/network trouble, and never puts the token on the
-// curl command line.
+// v4 hardening: fail loudly on misconfig/4xx, warn on 5xx/network (issue #1545).
 export const LORE_INGEST_WORKFLOW_CONTENT = `# lore-ingest-version: 4
 name: Lore Context Ingest
 
@@ -205,11 +193,7 @@ export function parseIngestWorkflowVersion(content: string): number | null {
   return match ? parseInt(match[1], 10) : null;
 }
 
-/**
- * Classify a repo's installed workflow against the canonical version.
- * `null` content means the file is absent. A missing or older marker is
- * `stale` (legacy installs predate the marker and carry the broken body).
- */
+/** Classify installed workflow status: missing/stale/aligned. */
 export function ingestWorkflowStatus(
   content: string | null,
 ): IngestWorkflowStatus {

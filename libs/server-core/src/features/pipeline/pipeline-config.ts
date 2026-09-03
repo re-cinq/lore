@@ -1,9 +1,4 @@
-/**
- * Pipeline task-type configuration loader.
- *
- * Reads task type definitions from scripts/task-types.yaml and exposes
- * helpers for prompt building, default repos, and type enumeration.
- */
+/** Pipeline task-type configuration loader. */
 
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -44,8 +39,7 @@ export function loadTaskTypes(): void {
       console.log(
         `[pipeline] Loaded ${Object.keys(config).length} task types from ${p}`,
       );
-      // Same ConfigMap, same #866 risk as the Floor's reader — reported here
-      // too rather than left for whichever process happens to log it.
+      // Same #866 ConfigMap risk as Floor's reader — warn rather than ignore.
       warnOnDrift("[pipeline]", p, drift);
 
       return;
@@ -74,10 +68,7 @@ export function buildPrompt(type: string, description: string): string {
   return tmpl.replace("{description}", description);
 }
 
-/**
- * Merge global task type config with per-repo overrides from lore.repos.settings.task_overrides.
- * Repo overrides win for any field they specify.
- */
+/** Merge global task type config with per-repo overrides; repo overrides win. */
 export function getTaskTypeConfigForRepo(
   type: string,
   repoSettings:

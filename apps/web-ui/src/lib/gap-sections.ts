@@ -1,20 +1,8 @@
-// Normalizing a stored gap result into a uniform sections list.
-//
-// A RUNTIME function, which is why it cannot live in feature-types.ts any more:
-// that file is now aliases over the generated OpenAPI schema, and a generated
-// `.d.ts` carries no code. It duplicates shared's `sectionsOf`
-// (libs/shared/src/feature-planning/gap-result.ts) because web-ui is not an npm
-// workspace member and cannot import it; feature-types.parity.test.ts pins the two
-// together.
-//
-// Why the client still normalizes at all: the planning pages read `gap_result`
-// straight from Postgres, so there is no server hop that could normalize legacy
-// rows on the way out.
+// Normalize stored gap result into uniform sections list; mirrors shared's sectionsOf.
 
 import type { GapResult, GapSection } from "./feature-types";
 
-/** A uniform sections list — new `sections` if present, else derived from the legacy
- *  shape so old stored results still render. Mirrors shared's `sectionsOf`. */
+/** Uniform sections list; new or derived from legacy shape. */
 export function sectionsOf(gap: GapResult | null | undefined): GapSection[] {
   if (!gap) {
     return [];

@@ -1,13 +1,4 @@
-/**
- * The comment-triage core: a cheap Haiku classification that decides what, if
- * anything, Lore should do with a human PR comment. Run by the `comment-triage`
- * station; the Floor routes the returned {@link TriageAction} to the right line
- * (review / address-and-commit / answer-in-thread / nothing). "ignore" is the
- * cost-saver — chatter never spins up an action pod.
- *
- * Model-free path is proven by the LLM seam: a thrown/invalid completion defaults
- * to `ignore` rather than taking an action on a guess.
- */
+/** Haiku classification for comment triage (what action Lore should take). */
 
 import { Llm } from "../llm/llm.js";
 import type { LlmUsage } from "../llm/llm-provider.js";
@@ -27,10 +18,7 @@ export interface CommentContext {
 export interface TriageDecision {
   action: TriageAction;
   reason: string;
-  /**
-   * Usage of the classification call, for the station's cost report. Absent
-   * when triage failed — the throw means no billable completion arrived.
-   */
+  /** Usage of the classification call; absent when triage failed. */
   usage?: LlmUsage;
 }
 
@@ -53,15 +41,7 @@ const TOOL_SCHEMA = {
   required: ["action", "reason"],
 } as const;
 
-/**
- * Classify one PR comment into a single follow-up action.
- *
- * A model failure PROPAGATES. It used to be swallowed into `ignore`, which the
- * station then reported as success — so with no model credential in a station
- * pod (they carry only LORE_INGEST_TOKEN, and the image ships no CLI to fall
- * back to) every human comment was silently classified as ignorable and no
- * follow-up ever started. `ignore` now means the model said ignore.
- */
+/** Classify PR comment into follow-up action; model failures propagate (not swallowed). */
 export async function classifyComment(
   ctx: CommentContext,
 ): Promise<TriageDecision> {

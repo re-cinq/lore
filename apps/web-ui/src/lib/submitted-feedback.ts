@@ -1,9 +1,4 @@
-// What the author submitted for a round, recovered for display.
-//
-// The feedback is persisted on the iteration row before the pod is ever dispatched,
-// so a failing pipeline cannot lose it — but nothing read it back, and the wizard
-// clears the form on submit. The words left the screen the moment the button was
-// pressed, and a failed round had no way back to them.
+// Author's submitted feedback recovered for display (persisted on iteration row).
 
 import type { SectionAnswers, SectionDirection } from "./feature-types";
 
@@ -15,14 +10,7 @@ export interface SubmittedLine {
   body: string;
 }
 
-/**
- * The author's input for a round, in the order they gave it: per-section comments
- * and directions, then answered questions, then the free-form note.
- *
- * A section marked `keep` with no comment is still input — the author said something
- * about that section — so it survives with an empty body. Whitespace-only text is
- * not input and is dropped. Round one, which reacts to nothing, yields nothing.
- */
+/** Author's input for a round (sections, questions, free-form); whitespace-only dropped. */
 export function submittedFeedback(
   answers: SectionAnswers | null | undefined,
 ): SubmittedLine[] {

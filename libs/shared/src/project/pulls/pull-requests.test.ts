@@ -6,12 +6,6 @@ import type {
   MergeMethod,
 } from "./pull-requests-port.js";
 
-/**
- * project.pulls is canonical for all PR ops. The fake records the merge it was
- * asked for so we assert the repo is bound and the method passes through.
- */
-
-/** The write-side calls the fake records, each into the array the test hands it. */
 interface RecordedWrites {
   resolutions?: string[];
   updates?: Array<{

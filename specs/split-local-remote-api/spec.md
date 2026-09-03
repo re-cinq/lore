@@ -147,7 +147,7 @@ or naming-honesty goal).
   and behave identically (proxy to `LORE_API_URL`, file fallback to `~/.lore`).
   The server-core proxy client round-trips a GET read and a POST write through the
   real lore-api server (the change persists in the DB), and returns
-  `not_configured` when no `LORE_API_URL` is set. ([validated by `proxy.test.ts:84`](apps/lore-api/src/integration-tests/proxy.test.ts#L84), [validated by `proxy.test.ts:97`](apps/lore-api/src/integration-tests/proxy.test.ts#L97), [validated by `proxy.test.ts:125`](apps/lore-api/src/integration-tests/proxy.test.ts#L125))
+  `not_configured` when no `LORE_API_URL` is set. ([validated by `proxy.test.ts:84`](apps/lore-api/src/integration-tests/proxy.test.ts#L69), [validated by `proxy.test.ts:97`](apps/lore-api/src/integration-tests/proxy.test.ts#L80), [validated by `proxy.test.ts:125`](apps/lore-api/src/integration-tests/proxy.test.ts#L101))
 - **FR-8** Infra points at the new remote app: Dockerfile, Helm values,
   terraform, and CI workflows build/deploy `apps/lore-api`.
 - **FR-9** Developer scripts updated: `install.sh`, `dev-local.sh`,
@@ -163,7 +163,7 @@ or naming-honesty goal).
   onboarding. The import is indirected through a variable
   (`const spec = "libsodium-wrappers"`) to avoid demanding a declaration file
   for an untyped package, which makes it invisible to every static dependency
-  checker — so the declaration is pinned by a test rather than by tooling. ([validated by `runtime-deps.test.ts:23`](libs/shared/src/project/lib/runtime-deps.test.ts#L23), [`runtime-deps.test.ts:27`](libs/shared/src/project/lib/runtime-deps.test.ts#L27), [`runtime-deps.test.ts:31`](libs/shared/src/project/lib/runtime-deps.test.ts#L31))
+  checker — so the declaration is pinned by a test rather than by tooling. ([validated by `runtime-deps.test.ts:23`](libs/shared/src/project/lib/runtime-deps.test.ts#L12), [`runtime-deps.test.ts:16`](libs/shared/src/project/lib/runtime-deps.test.ts#L16), [`runtime-deps.test.ts:20`](libs/shared/src/project/lib/runtime-deps.test.ts#L20))
 
 ## Success Criteria
 

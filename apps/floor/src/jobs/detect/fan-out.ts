@@ -51,8 +51,7 @@ export async function chunkSchemas(q: QueryFn = query): Promise<string[]> {
   return [...new Set(["org_shared", ...teamSchemas])];
 }
 
-/** One grouped UNION ALL over every chunk schema; activeOnly additionally
- *  requires a code chunk ingested inside the activity window ($1 in days). */
+/** UNION ALL over chunk schemas; activeOnly filters to activity window ($1 in days). */
 export function specReposSql(
   schemas: string[],
   opts: { activeOnly: boolean },

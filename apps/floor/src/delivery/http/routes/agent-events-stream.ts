@@ -62,8 +62,7 @@ export interface RunEventStream {
   ready: Promise<void>;
 }
 
-/** Everything a Transform holds on either side — the readable half is where an
- *  unread SSE response actually piles up. */
+/** Everything a Transform holds: readable side accumulates unread SSE response. */
 const bufferedBytes = (stream: PassThrough): number =>
   stream.writableLength + stream.readableLength;
 
@@ -227,8 +226,7 @@ export function agentEventsStreamRoute(
           .type("text/event-stream")
           .header("cache-control", "no-cache, no-transform")
           .header("x-accel-buffering", "no")
-          // Compressing an SSE stream would let an intermediary hold frames back
-          // until a compression block fills; identity keeps each frame on the wire.
+          // Compression buffers SSE frames; identity encoding keeps frames on the wire immediately.
           .header("content-encoding", "identity")
       );
     },

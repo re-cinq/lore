@@ -19,8 +19,6 @@ function stubFetch(impl: (url: string) => unknown) {
   return fetchMock as unknown as ReturnType<typeof vi.fn>;
 }
 
-// Flush the .then/.catch microtask chain hanging off the awaited fetch so the
-// resulting setState lands inside an act() scope.
 async function flushFetch() {
   await act(async () => {
     await Promise.resolve();

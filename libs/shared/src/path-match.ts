@@ -1,20 +1,12 @@
 import { minimatch } from "minimatch";
 
 const MATCH_OPTIONS = {
-  dot: true, // match dotfiles (e.g. .claude/**)
-  matchBase: false, // require explicit ** for nested matching
-  nocase: false, // path matches are case-sensitive on Linux
+  dot: true,
+  matchBase: false,
+  nocase: false,
 };
 
-/**
- * Returns true only when **every** changed path matches at least one
- * glob in the allowlist. Empty `changedPaths` returns true (vacuous);
- * empty `allowlist` returns false.
- *
- * Used by the auto-merge engine to gate path-allowlisted PRs (FR3.3).
- * Mixed PRs — one allowlisted path plus one non-allowlisted — are
- * intentionally denied: the rule is "all paths in scope," not "any."
- */
+/** Returns true only when every changed path matches at least one glob in the allowlist; used by auto-merge engine (FR3.3). */
 export function allPathsMatch(
   changedPaths: string[],
   allowlist: string[],
@@ -32,10 +24,7 @@ export function allPathsMatch(
   );
 }
 
-/**
- * Lists which patterns in the allowlist matched a path. Useful for
- * diagnostics in the auto-merge audit log.
- */
+/** Lists which patterns in the allowlist matched a path; useful for auto-merge audit log. */
 export function matchingPatterns(path: string, allowlist: string[]): string[] {
   return allowlist.filter((p) => minimatch(path, p, MATCH_OPTIONS));
 }

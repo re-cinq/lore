@@ -105,9 +105,10 @@ export default tseslint.config(
       // all five: error when the queue hits zero. Queue sizes at introduction
       // (2026-09-03, after the nesting sweep): max-comment-lines 5644,
       // max-lines-per-function 1334, complexity 582, no-vague-names 291,
-      // max-params 81.
+      // max-params 81. max-comment-lines reached zero on 2026-09-04 and is
+      // promoted.
       "max-params": ["warn", { max: 4 }],
-      "lore/max-comment-lines": ["warn", { max: 1 }],
+      "lore/max-comment-lines": ["error", { max: 1 }],
       "lore/no-vague-names": "warn",
       "max-lines-per-function": [
         "warn",
@@ -237,9 +238,9 @@ export default tseslint.config(
       "@typescript-eslint/no-floating-promises": "off",
       "@typescript-eslint/no-misused-promises": "off",
       "@typescript-eslint/await-thenable": "off",
-      // Zero comments in tests: the test NAME carries the meaning. Warn while
-      // the existing prose is triaged; promote to error at queue zero.
-      "lore/max-comment-lines": ["warn", { max: 0 }],
+      // Zero comments in tests: the test NAME carries the meaning. Queue hit
+      // zero on 2026-09-04, so this is an error.
+      "lore/max-comment-lines": ["error", { max: 0 }],
       // A describe callback is one function holding every test, so per-function
       // line/callback budgets are meaningless here. Per-it bodies stay covered
       // by complexity and the nesting rules.

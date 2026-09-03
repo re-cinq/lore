@@ -11,12 +11,6 @@ import { join } from "node:path";
 import { stringify } from "yaml";
 import { ExecTestRunner } from "./test-runner-exec.js";
 
-/**
- * ExecTestRunner against a REAL .lore/test-commands.yml whose list/run are
- * trivial shell commands emitting the contract JSON. Integration (real exec),
- * no mocks. Skips on Windows where the shell differs.
- */
-
 describe.skipIf(process.platform === "win32")(
   "ExecTestRunner (live shell)",
   () => {

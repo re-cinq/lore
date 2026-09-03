@@ -1,7 +1,4 @@
-/**
- * One row in `pipeline.dark_factory_baseline`: a pre-feature counter snapshot
- * over a 30-day window per repo, used for the SC1/SC4/SC6 dark-factory deltas.
- */
+/** One row in `pipeline.dark_factory_baseline`: a pre-feature counter snapshot over a 30-day window per repo. */
 export interface BaselineRow {
   repo: string;
   window_start: Date;
@@ -17,11 +14,7 @@ export interface TaskBaselineStats {
   median_ttm_hours: number | null;
 }
 
-/**
- * The dark-factory baseline surface. Absorbs the Floor-local baseline writer
- * and the tasks-table baseline read, so the snapshot job reaches both through
- * the Project facade instead of two bespoke repos.
- */
+/** The dark-factory baseline surface: the snapshot job reaches both through the Project facade. */
 export interface BaselinePort {
   /** Append a baseline snapshot row to `pipeline.dark_factory_baseline`. */
   insert(row: BaselineRow): Promise<void>;

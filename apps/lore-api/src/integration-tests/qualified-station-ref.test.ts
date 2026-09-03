@@ -2,21 +2,6 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import pg from "pg";
 import { qualifiedStationRef } from "@re-cinq/lore-shared/project/agents/agent-defs-pg.js";
 
-/**
- * The dispatch guard, against a migrated Postgres.
- *
- * The rule lives entirely in SQL — a NOT(refused AND NOT applied) over
- * `lore.catalog_apply_status` — so a unit test with a fake pool can assert the
- * query's shape and nothing about its behaviour. What it must get right is the
- * exact case that took central's reviews down on 2026-09-01: an override every
- * cluster REFUSED must not win the qualified name, because the CR behind that
- * name will never exist and every dispatch to it fails with "Station or
- * AgentDefinition not found" instead of quietly running the org default.
- *
- * The two neighbouring cases matter as much: an override nobody has reported
- * on yet still qualifies (absence of a verdict is not refusal), and one some
- * cluster applied qualifies again (a refusal elsewhere must not veto it).
- */
 const REPO = "test/qualified-ref";
 
 describe("qualifiedStationRef, against real Postgres", () => {

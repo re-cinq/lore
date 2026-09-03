@@ -1,8 +1,4 @@
-/**
- * Git working-tree port — clone + writes. The GitCli adapter wraps the execSync
- * git worktree/add/commit/push idiom already in mcp-server/src/local-runner.ts.
- * This is the only place file WRITES exist; reads-for-context go over the API.
- */
+/** Git working-tree port; only place file writes exist (reads go over API). */
 
 export interface CloneOpts {
   ref?: string;

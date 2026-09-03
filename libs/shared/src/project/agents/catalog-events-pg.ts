@@ -36,9 +36,7 @@ export class PgCatalogEvents implements CatalogEventsRepository {
   }
 
   async snapshot(): Promise<{ entries: CatalogEntry[]; cursor: string }> {
-    // Cursor first, snapshot second: an event appended between the two reads
-    // is BELOW the stored cursor and its row is already in the snapshot, so
-    // the reader's first tail at worst re-applies it — never skips it.
+    // Read cursor before snapshot; event appended between is already in snapshot (re-applies, never skips).
     const { rows: cursorRows } = await this.pool.query<{ max: string | null }>(
       `SELECT MAX(id)::text AS max FROM lore.catalog_events`,
     );

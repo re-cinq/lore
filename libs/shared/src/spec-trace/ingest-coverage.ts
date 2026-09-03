@@ -1,23 +1,4 @@
-/**
- * spec-traceability-graph — Phase 3 coverage ingest.
- *
- * Writes one Coverage node per record, keyed by `${repo}|${testFile}|${testName}`,
- * carrying repo/tool/commit. The covered code is aggregated to **File** nodes
- * (one per `${repo}|${file}`): each covered file gets a `Coverage --covers--> File`
- * edge whose covered line intervals live on a `Coverage.covers|ranges` edge facet
- * ("5-10,20-25") — no per-range node explosion. When a record names a TestChunk
- * that already exists (same repo/file_path/test_name), a `TestChunk.coverage` edge
- * (HAS_COVERAGE) is set to its Coverage node.
- *
- * Re-ingest replaces the `Coverage.covers` set (delete-then-set, with facets), then
- * GCs the File nodes that dropped out of coverage and no other coverage owns (via
- * the shared {@link gcOrphanChunks}) — so a file that stops being covered doesn't
- * linger as an orphan node.
- *
- * Shares the generic create-or-update primitive ({@link upsertByXid}) with the
- * Phase 1 projection via `./dgraph-upsert`. Talks only to the injected
- * DgraphClientPort; never imports the driver.
- */
+/** Phase 3 coverage ingest; writes Coverage nodes keyed by repo|testFile|testName; aggregates to File nodes with ranges facets. */
 
 import type { CoveredChunk, DgraphClientPort } from "./deps.js";
 import {
@@ -34,12 +15,7 @@ function serializeRanges(ranges: CoveredChunk[]): string {
   return ranges.map((r) => `${r.startLine}-${r.endLine}`).join(",");
 }
 
-/**
- * Upserts one File node per covered file (xid `${repo}|${file}`) and returns each
- * as a faceted edge target — the file's merged intervals serialized onto the
- * `Coverage.covers|ranges` facet. Files preserve first-seen order; their intervals
- * preserve covered order.
- */
+/** Upserts File nodes and returns as faceted edge targets with merged intervals serialized to ranges facet. */
 async function upsertCoveredFiles(
   dgraph: DgraphClientPort,
   repo: string,
@@ -85,12 +61,7 @@ async function readCoversUids(
   });
 }
 
-/**
- * Sets the HAS_COVERAGE edge (`TestChunk.coverage` → Coverage) when a TestChunk
- * matching the record (repo + file_path=testFile + test_name=testName) already
- * exists. Absent a match the edge is left untouched. Query and mutate run in
- * separate one-shot `withTxn` calls — the established pattern for this driver.
- */
+/** Sets TestChunk.coverage edge when matching TestChunk exists; query and mutate in separate txns. */
 async function linkTestChunkCoverage(
   dgraph: DgraphClientPort,
   repo: string,
@@ -152,15 +123,14 @@ export async function ingestCoverageReport(
       "Coverage.covers",
       fileTargets,
     );
-    // Delete the File nodes this coverage dropped that no other coverage still owns.
+    // GC File nodes this coverage dropped if no other coverage owns them.
     await gcOrphanChunks(dgraph, "File", {
       previous: previousCovers,
       current: fileUids,
     });
     coversEdges += fileUids.length;
 
-    // Connect the Coverage node and its covered Files to the Repo root so neither
-    // is orphaned from the graph's entry point (set-union dedups on re-ingest).
+    // Connect Coverage and Files to Repo root to prevent orphaning from graph entry point.
     await upsertByXid(dgraph, "Repo", meta.repo, {
       "Repo.coverage": [{ uid: coverageUid }],
       ...(fileUids.length
@@ -171,17 +141,11 @@ export async function ingestCoverageReport(
     await linkTestChunkCoverage(dgraph, meta.repo, record, coverageUid);
   }
 
-  // The ranges just written are expressed in this commit's line numbering, so
-  // stamp it once per report — the pre-merge impact query aligns a PR diff to
-  // these coordinates rather than guessing. Skipped when nothing was written:
-  // advancing the baseline past ranges that did not move would claim more than
-  // the data supports.
+  // Ranges expressed in this commit's line numbering; stamp once per report for pre-merge query alignment.
   if (records.length) {
     await stampGraphBaseline(dgraph, meta.repo, meta.commit, new Date());
   }
 
-  // `coversEdges` counts covered FILES (one Coverage→File edge each); `unmatched`
-  // is always 0 now (every covered file is upserted). Both kept for return-shape
-  // stability with existing callers.
+  // `coversEdges` counts covered FILES; `unmatched` always 0 (for return-shape stability).
   return { coverageNodes: records.length, coversEdges, unmatched: 0 };
 }

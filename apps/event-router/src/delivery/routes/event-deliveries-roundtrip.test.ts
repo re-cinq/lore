@@ -1,7 +1,3 @@
-// The delivery half of the wire, driven the same way as the queue half: the REAL
-// HttpEventDeliveries against the REAL routes over hapi's inject, so a path, a
-// field name or a status code that disagrees fails here rather than in a cluster.
-
 import { describe, it, expect, beforeEach } from "vitest";
 import Hapi from "@hapi/hapi";
 import { InMemoryEventDeliveries } from "@re-cinq/lore-shared/project/events/event-deliveries-memory.js";
@@ -148,9 +144,6 @@ describe("the claim's serial-family exclusion survives the wire", () => {
     await client.insert({ eventName: "busy", source: "internal" });
     await client.insert({ eventName: "free", source: "internal" });
 
-    // The client sends the exclusion; a route that parsed the body without
-    // reading it would drop it silently and hand back BOTH — which is exactly
-    // the concurrent execution the exclusion exists to prevent.
     const first = await client.claim(FLOOR, 10, ["busy"]);
 
     expect(first.map((d) => d.event_name)).toEqual(["free"]);

@@ -4,16 +4,6 @@ import pg from "pg";
 import { buildServer } from "../server/build-server.js";
 import { restoreEnv } from "./restore-env.js";
 
-/**
- * `ENRICH_SELECT` is the one query the run reads WRITE rather than move: the
- * `unnest` join onto the ids the port selected, the LATERAL cost fallback for
- * calls that predate per-line attribution, and the `created_by` COALESCE.
- *
- * The route's own tests answer the pool from a mock, so every enriched field is
- * whatever the mock says — which proves the mapping and nothing about the SQL.
- * This runs it against a migrated Postgres, with real rows in the three tables
- * it joins.
- */
 const TOKEN = "test-enrichment-token";
 const REPO = "test/enrichment-repo";
 const CREATED_BY = "integration-test-enrichment";
@@ -64,9 +54,6 @@ describe("the run reads' enrichment query", () => {
 
     runId = run.rows[0].id;
 
-    // One call attributed to the run, one attributed only to its task — the
-    // LATERAL fallback is what keeps the second from silently zeroing a run
-    // started before `llm_calls.assembly_line_id` existed.
     await pool.query(
       `INSERT INTO pipeline.llm_calls
          (task_id, assembly_line_id, model, input_tokens, output_tokens, cost_usd, duration_ms)

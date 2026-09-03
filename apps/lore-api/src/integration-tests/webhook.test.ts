@@ -13,7 +13,6 @@ describe("Webhook Dispatch", () => {
       password: process.env.LORE_DB_PASSWORD || "test",
     });
 
-    // Seed test repo
     await pool.query(`
       INSERT INTO lore.repos (owner, name, full_name, onboarding_pr_merged, settings)
       VALUES ('test', 'repo', 'test/repo', true, '{"auto_review": true, "dispatch_label": "lore"}')
@@ -41,13 +40,11 @@ describe("Webhook Dispatch", () => {
   });
 
   it("prevents duplicate tasks for the same issue", async () => {
-    // Insert a running task for issue 999
     await pool.query(
       `INSERT INTO pipeline.tasks (description, task_type, target_repo, issue_number, created_by, status)
        VALUES ('existing task', 'implementation', 'test/repo', 999, 'integration-test-webhook', 'running')`,
     );
 
-    // Duplicate check: look for active tasks on the same issue
     const { rows } = await pool.query(
       `SELECT id FROM pipeline.tasks
        WHERE issue_number = 999
@@ -59,13 +56,11 @@ describe("Webhook Dispatch", () => {
   });
 
   it("allows new task after previous one failed", async () => {
-    // Insert a failed task for issue 888
     await pool.query(
       `INSERT INTO pipeline.tasks (description, task_type, target_repo, issue_number, created_by, status, failure_reason)
        VALUES ('failed task', 'implementation', 'test/repo', 888, 'integration-test-webhook', 'failed', 'timeout')`,
     );
 
-    // Duplicate check should NOT find it (failed is excluded)
     const { rows } = await pool.query(
       `SELECT id FROM pipeline.tasks
        WHERE issue_number = 888
@@ -96,7 +91,6 @@ describe("Webhook Dispatch", () => {
     );
     const id = created[0].id;
 
-    // Simulate agent updating issue after creation (as worker.ts does)
     await pool.query(
       `UPDATE pipeline.tasks SET issue_number = $1, issue_url = $2 WHERE id = $3`,
       [123, "https://github.com/test/repo/issues/123", id],

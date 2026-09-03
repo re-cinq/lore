@@ -1,12 +1,4 @@
-/**
- * Session tracker — in-memory log of MCP tool calls during a session.
- *
- * Captures tool name, duration, and success/failure for each tool call.
- * On process exit, dumps the log to ~/.lore/last-session.json so the
- * Stop hook can POST it to /api/session-summary for LLM summarization.
- *
- * This enables passive memory capture without agent cooperation.
- */
+/** In-memory log of MCP tool calls; dumps to ~/.lore/last-session.json for passive memory capture. */
 
 import { writeFileSync, mkdirSync } from "node:fs";
 import { join, dirname } from "node:path";
@@ -53,10 +45,7 @@ export function getSessionStartTime(): string {
   return sessionStartTime;
 }
 
-/**
- * Format the session log as a human-readable summary.
- * Pure formatting — no LLM needed.
- */
+/** Formats session log as human-readable summary (pure formatting, no LLM). */
 export function formatSessionSummary(): string {
   if (sessionLog.length === 0) {
     return "";
@@ -108,9 +97,7 @@ export function formatSessionSummary(): string {
   return lines.join("\n");
 }
 
-/**
- * Write the session log to a JSON file (called on process exit).
- */
+/** Writes session log to JSON file on process exit. */
 export function dumpSessionLog(filePath?: string): void {
   if (sessionLog.length === 0) {
     return;

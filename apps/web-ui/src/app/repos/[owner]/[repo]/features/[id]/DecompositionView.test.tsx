@@ -47,7 +47,7 @@ describe("DecompositionView", () => {
     ).toHaveAttribute("href", "https://github.com/o/r/issues/7");
     expect(screen.getByText("T001: build it")).toBeInTheDocument();
     expect(screen.getByText("pending")).toBeInTheDocument();
-    expect(screen.getByText("Tasks")).toBeInTheDocument(); // null-story group label
-    expect(screen.getByText("weird")).toBeInTheDocument(); // unknown status → fallback color branch
+    expect(screen.getByText("Tasks")).toBeInTheDocument();
+    expect(screen.getByText("weird")).toBeInTheDocument();
   });
 });

@@ -1,11 +1,6 @@
 import type { NodeStationModule } from "../lib/station.js";
 
-/**
- * Write the run's episode and mark the line done.
- *
- * Runtime — Pooled: one HTTP POST, best-effort, over data the platform itself produced.
- *  A pod per node for that is the waste the service form exists to remove.
- */
+/** Write run's episode and mark line done (pooled service: one HTTP POST, best-effort). */
 export const retrospective: NodeStationModule = {
   manifest: {
     name: "retrospective",

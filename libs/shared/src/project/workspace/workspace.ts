@@ -2,12 +2,7 @@ import { enforceTrue } from "../../lib/enforce.js";
 import type { GitPort } from "./git-port.js";
 import type { PullRequestsPort, PullRef } from "../pulls/pull-requests-port.js";
 
-/**
- * A cloned working tree. Stateful — owns the branch + file-write state for one
- * checkout so the logical Project stays stateless. openPr pushes then delegates
- * to the canonical pulls port (Workspace.openPr is the push-then-open
- * convenience). Returned only by Project.cache(), so writes require a clone.
- */
+/** Cloned working tree; stateful for one checkout while Project remains stateless. */
 export class Workspace {
   constructor(
     readonly repo: string,

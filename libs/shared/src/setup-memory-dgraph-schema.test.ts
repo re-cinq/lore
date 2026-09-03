@@ -3,15 +3,6 @@ import { execFileSync } from "node:child_process";
 import { join } from "node:path";
 import { findRepoRoot } from "./lib/repo-root.js";
 
-/**
- * T003 — the memory Dgraph schema applier
- * (`scripts/infra/setup-memory-dgraph-schema.sh`) is idempotent and lands the
- * native HNSW vector index + the `xid` upsert index. Runs against the REAL
- * local Dgraph container (no mocks), per the memory-dgraph-migration spec
- * (AC10). Skips when Dgraph isn't reachable so `npm test` still passes without
- * a container. Bring one up with `npm run services:up` (or `dgraph:up`).
- */
-
 const DGRAPH_HTTP = process.env.DGRAPH_HTTP ?? "http://localhost:8081";
 const APPLIER = join(
   findRepoRoot(),
@@ -80,7 +71,7 @@ describe.skipIf(!reachable)(
 
       const before = sortByPred((await querySchema("schema {}")).schema);
 
-      applySchema(); // second run — must be a no-op
+      applySchema();
       const after = sortByPred((await querySchema("schema {}")).schema);
 
       expect(after).toEqual(before);

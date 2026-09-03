@@ -1,11 +1,4 @@
-// The pure half of the spend page's Kubernetes cost ESTIMATE.
-//
-// Google's billing export lags a day or more, so a realtime number can only be
-// an estimate — and the honest estimator is resource REQUESTS × on-demand
-// rates, because requests are what size the nodes the autoscaler bills for.
-// The rates are env-overridable and default to an e2 on-demand ballpark; the
-// response always echoes the rates and profile used, so the UI can label the
-// number as the estimate it is instead of dressing it up as an invoice.
+// Kubernetes cost ESTIMATE: requests × on-demand rates (rates env-overridable, echoed in response).
 
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 
@@ -14,14 +7,10 @@ export interface ComputeRates {
   memGibHourUsd: number;
 }
 
-/** e2 on-demand ballpark (per vCPU-hour / per GiB-hour). Overridable so a
- *  different machine family or a committed-use discount can be reflected
- *  without a release. */
+// e2 on-demand rates (per vCPU/GiB-hour); overridable for discount/machine-family changes.
 const DEFAULT_RATES: ComputeRates = { cpuHourUsd: 0.022, memGibHourUsd: 0.003 };
 
-/** What a historical pod is ASSUMED to have requested when its actual requests
- *  are gone with it — station_runs records when a pod ran, not how big it was.
- *  Deliberately modest; the live view uses each pod's real requests. */
+// Assumed pod requests when actual requests are gone (station_runs lacks size); live view uses real requests.
 export const DEFAULT_POD_PROFILE: Record<string, string> = {
   cpu: "1",
   memory: "4Gi",
@@ -45,8 +34,7 @@ export function ratesFromEnv(env: NodeJS.ProcessEnv): ComputeRates {
   };
 }
 
-/** Kubernetes cpu quantity → cores. Absent or malformed reads as zero: a
- *  missing request must cost the estimate nothing rather than poison it. */
+// Kubernetes cpu quantity → cores; absent/malformed → 0 (missing request costs zero).
 export function parseCpuCores(quantity: string | undefined): number {
   if (!quantity) {
     return 0;
@@ -100,11 +88,7 @@ const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const MAX_SPAN_DAYS = 92;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-/**
- * The spend page's date interval, validated: inclusive YYYY-MM-DD bounds,
- * defaulting to the last 7 days ending today, capped at 92 days so one query
- * cannot aggregate a year of llm_calls rows.
- */
+// Spend page interval: YYYY-MM-DD bounds, default 7 days, max 92 days.
 export function spendInterval(
   from: string | undefined,
   to: string | undefined,

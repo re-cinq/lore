@@ -6,16 +6,6 @@ import { randomUUID } from "node:crypto";
 import * as dgraph from "dgraph-js-http";
 import { suggestCandidates } from "./suggest-links.js";
 
-/**
- * suggestCandidates (spec-traceability-graph, Phase 5) — deterministic vector
- * ANN candidate suggestion, no LLM. For an un-linked Statement it reads
- * Statement.embedding, runs a Dgraph similar_to ANN over both CodeChunk.embedding
- * and TestChunk.embedding, and returns the nearest code and test chunks. Kernel
- * invariant: a Statement and a chunk carrying the SAME embedding → that chunk is
- * the top candidate for its kind.
- * Tested against live Dgraph (no mocks); skips when unreachable.
- */
-
 const DGRAPH_HTTP = process.env.DGRAPH_HTTP ?? "http://localhost:8081";
 const APPLIER = join(
   findRepoRoot(),
@@ -86,8 +76,8 @@ describe.skipIf(!reachable)("suggestCandidates (live Dgraph)", () => {
           commitNow: true,
         });
       }
+      // eslint-disable-next-line no-empty
     } catch {
-      // best-effort cleanup must never mask the assertion
     } finally {
       await txn.discard().catch(() => {});
     }
@@ -286,10 +276,6 @@ describe.skipIf(!reachable)("suggestCandidates (live Dgraph)", () => {
     createdStatementXid = statementXid;
     createdExtraRepos = [repoB];
 
-    // 40 repo-B chunks + 1 repo-A chunk, all identical: an un-overfetched
-    // similar_to top-5 is (near-)certainly all repo-B, so the repo @filter
-    // would starve repo A to an empty result. 41 total stays within the
-    // k * ANN_OVERFETCH = 50 fetch window, so repo A's chunk must survive.
     const floodChunks = Array.from({ length: 40 }, (_, i) => ({
       "dgraph.type": "CodeChunk",
       "CodeChunk.xid": `${repoB}|cc${i}`,

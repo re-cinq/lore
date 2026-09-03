@@ -1,13 +1,4 @@
-// Blueprint graphs as TEST FIXTURES.
-//
-// This was `builtin-definitions.ts`, a hand-transcribed copy of the builtin YAMLs
-// that the run views READ. That role is gone: a run carries its own graph
-// (FR6.38), so nothing in production consults a transcription any more — it could
-// only ever describe the CURRENT blueprint, never the one a given run walked.
-//
-// The graphs remain useful as fixtures, so they live on under a name that says so.
-// They are NOT a source of truth and nothing outside a test may import them; when
-// they drift from the YAML it costs a test edit, not a wrong picture in the UI.
+// Blueprint graphs as TEST FIXTURES; was builtin-definitions.ts, now runs carry their own (FR6.38).
 
 import type { AssemblyLineDefinition } from "./assembly-line-definition";
 

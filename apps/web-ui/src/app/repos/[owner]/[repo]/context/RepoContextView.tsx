@@ -40,12 +40,7 @@ function emptyMessage(q?: string, type?: string): string {
   return "No context ingested yet. Context will appear after the nightly ingestion runs.";
 }
 
-/**
- * Presentational view for a single repo's ingested context. Pure render — the
- * container (`page.tsx`) runs the schema-scoped queries (distinct types,
- * filtered + ranked chunks) and hands the view-model down. Each chunk renders
- * as a rich card linking to its per-file detail page.
- */
+/** Presentational view for repo's ingested context; container runs queries and hands view-model down. */
 export default function RepoContextView({
   owner,
   repo,

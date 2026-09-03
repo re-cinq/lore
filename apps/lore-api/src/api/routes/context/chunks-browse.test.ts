@@ -9,11 +9,6 @@ import {
 
 const originalEnv = { ...process.env };
 
-/**
- * The schema union is the whole point of these cases. A chunk read spans every
- * provisioned team schema plus `org_shared`, and getting the schema set wrong
- * means the context browser silently shows another team's chunks — or none.
- */
 describe("chunk browse reads", () => {
   useRateLimitSafeClock();
   beforeEach(() => {
@@ -24,8 +19,6 @@ describe("chunk browse reads", () => {
     vi.clearAllMocks();
   });
 
-  /** The catalog reads every union does first: the referenced teams, then the
-   *  schemas that actually hold a `chunks` table. */
   function poolWithSchemas(teams: string[], provisioned: string[]) {
     const pool = makePool();
 
@@ -81,8 +74,6 @@ describe("chunk browse reads", () => {
     });
 
     it("skips a team whose schema was never provisioned", async () => {
-      // `lore.repos.team` is free text: it can name a schema that does not
-      // exist, and unioning it would make every chunk read fail.
       const pool = poolWithSchemas(["platform", "ghost"], ["platform"]);
 
       await get("/api/chunks", pool);

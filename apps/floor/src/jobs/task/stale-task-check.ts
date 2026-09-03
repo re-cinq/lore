@@ -1,32 +1,4 @@
-/**
- * Stale-task safety net.
- *
- * Catches tasks stuck in `running` far beyond any realistic legitimate
- * duration and moves them to `needs-human-help`. Defense against
- * categories of bugs where a task enters `running` but never transitions
- * out — e.g. the 2026-04-17/19 incident where review tasks whose
- * LoreTask returned CHANGES_REQUESTED stayed `running` forever because
- * the watcher forgot to mark them completed (fixed in PR #256).
- *
- * Rationale for the threshold:
- *   - Max legitimate timeoutMinutes in scripts/task-types.yaml is 30
- *     (implementation). Local runner re-queues at 30 min.
- *   - 6 hours is ~12x that — well past any sane retry window for any
- *     task type but still short enough to raise an alert before a weekend.
- *   - We use pipeline.tasks.created_at as the "age" signal (not
- *     updated_at) because watchers keep bumping updated_at on every
- *     tick even when no real progress is happening.
- *
- * Age alone is NOT sufficient, for the same reason the boot-time
- * `recoverStaleTasks` sweep stopped trusting it: a line parked on a HUMAN node
- * legitimately stays open for days, and the task that owns it stays `running`
- * that whole time. Escalating it was worse than a false alarm — it was
- * irreversible: `decideTaskSettlement` only settles a task still in
- * {pending, queued, running}, so when the person finally answered and the line
- * completed, the task stayed at `needs-human-help` forever and the issue was
- * never picked up again. So the open line is consulted first; the clock only
- * decides among tasks nothing is actually working on.
- */
+/** Stale-task safety net (6h threshold): moves stuck-running tasks to needs-human-help, consulting open lines first. */
 
 import { projectFor } from "../../composition/project-boot.js";
 import { pipeline, taskStore } from "../../kernel/queues.js";
@@ -35,8 +7,7 @@ const STALE_THRESHOLD_HOURS = 6;
 
 export interface StaleTaskCheckDeps {
   findStaleRunning(hours: number): Promise<StaleTaskRow[]>;
-  /** True while an assembly run for this task is still queued or running —
-   *  including one parked on a human node, which is open, not stuck. */
+  /** True while an assembly run is queued/running/parked on human node (open, not stuck). */
   hasOpenLine(taskId: string): Promise<boolean>;
   escalate(task: StaleTaskRow, ageHours: number): Promise<void>;
 }
@@ -87,10 +58,7 @@ export async function staleTaskCheckJob(
 function productionDeps(): StaleTaskCheckDeps {
   return {
     findStaleRunning: (hours) => pipeline().taskQueue.findStaleRunning(hours),
-    // The same read `recoverStaleTasks` binds, deliberately duplicated: "open =
-    // queued or running" is spelled out at a dozen sites across the Floor and
-    // shared, so single-sourcing it here would leave eleven copies and a helper
-    // reachable from two. It is one sweep or none.
+    // Deliberately duplicated read; "open = queued or running" is common pattern; one sweep or none
     hasOpenLine: async (taskId) =>
       (await pipeline().assemblyRuns.listForTask(taskId)).some(
         (line) => line.status === "running" || line.status === "queued",

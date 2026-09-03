@@ -1,11 +1,6 @@
 import { errorMessage, BACKLOG_LABEL_SEED } from "@re-cinq/lore-shared";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
-/**
- * Onboard handler (per-file LLM calls).
- *
- * Inspects a repo and generates Lore platform files (CLAUDE.md, AGENTS.md,
- * ADRs, spec, CI workflows, test-command manifest) in an onboarding PR.
- */
+/** Onboard handler: generates Lore platform files (CLAUDE.md, AGENTS.md, ADRs, spec, CI, test-commands). */
 
 import { Llm } from "@re-cinq/lore-shared";
 import { projectFor } from "../../composition/project-boot.js";
@@ -155,11 +150,7 @@ export const ONBOARD_FILES: {
   },
 ];
 
-/**
- * Onboard scaffold prompt for the suggested `.lore/test-commands.yml` manifest
- * (project-test-interface AC12). Language-agnostic — the agent detects the real
- * runner. The team reviews and adjusts the suggestion in the onboarding PR.
- */
+/** Onboard scaffold prompt for suggested .lore/test-commands.yml (AC12); language-agnostic, team-reviewed. */
 const TEST_COMMAND_MANIFEST_SCAFFOLD_PROMPT =
   "Generate a suggested `.lore/test-commands.yml` test-command manifest for this repository. Detect the actual test framework and coverage tooling from the repo's build files and config — never assume a runner. Declare three keys: `list` (a shell command that prints to stdout a JSON array of test descriptors `{id, name, file, startLine, endLine, spec?}`, where `id` is the framework's native, stable test node id), `run` (a shell command containing the literal `{selector}` placeholder that runs the single test named by that id with coverage and prints `{passed, covered:[{file, startLine, endLine}]}` or emits an lcov/cobertura report), and `coverage_format` (one of lcov | cobertura | json). For a monorepo, emit a top-level list with one entry per package, each carrying its own `cwd`. This is a suggested scaffold the team reviews and adjusts — do not change any test behaviour.";
 
@@ -182,30 +173,21 @@ const ADR_TOPICS = [
   },
 ];
 
-/** A raw failure message, made safe for a one-line markdown bullet: newlines
- *  collapsed and length capped so a pathological octokit/LLM error can neither
- *  break the list nor push the PR body toward GitHub's size cap. */
+/** Failure message safe for markdown bullets: collapsed newlines and length-capped. */
 const asBulletText = (error: string): string => {
   const flat = error.replace(/\s+/g, " ").trim();
 
   return flat.length > 300 ? `${flat.slice(0, 300)}…` : flat;
 };
 
-/** True when any failure is the missing Workflows App permission, classified
- *  by the shared detector (both GitHub phrasings), never by bespoke status
- *  keying — a sha-conflict 422 on the same path must not trip this. */
+/** True when any failure is missing Workflows App permission (shared detector, not status keying). */
 const anyWorkflowsPermissionFailure = (failures: StepFailure[]): boolean =>
   failures.some(
     (f) =>
       classifyError(f.error, f.step).category === "github-workflows-permission",
   );
 
-/**
- * The onboarding PR's "what went wrong" section. Empty string when nothing
- * failed. A missing workflow file or ingest callback config is not a partial
- * inconvenience — the repo will never re-ingest — so it must be loud in the
- * one place a human is guaranteed to look: the PR under review.
- */
+/** Onboarding PR's "what went wrong" section; missing workflows/config block re-ingest. */
 function onboardAttentionSection(
   failures: StepFailure[],
   configFailures: string[],
@@ -281,15 +263,7 @@ async function planOnboardFiles(
   return toGenerate;
 }
 
-/**
- * Test-interface check (project-test-interface AC12): a repo that declares NO
- * manifest — neither `.lore/test-commands.yml` nor
- * `lore.repos.settings.test_commands` — gets the suggested manifest plus a
- * per-toolchain lore-tests.yml scaffolded into the onboarding PR. A repo that
- * already declares one scaffolds nothing, so re-onboarding is idempotent.
- * Declining (not merging the scaffold) leaves the repo in documented fallback
- * mode with no error: the scaffold is a suggestion, never enforced.
- */
+/** Test-interface check (AC12): scaffold manifest + lore-tests.yml for repos without one. */
 async function testInterfaceScaffold(
   targetRepo: string,
   existingFiles: Set<string>,
@@ -481,11 +455,7 @@ export async function handleOnboard({
   const committed: string[] = [];
   const failures: StepFailure[] = [];
 
-  // Always (re)install both workflows. commitFile upserts, and the coarse
-  // static-file skip below would wrongly skip them on any repo that already has
-  // a .github directory — which is most of them. The spec-impact one is
-  // fail-soft (it no-ops until the backend graph is available), so it is safe
-  // to ship to every onboarded repo.
+  // Always reinstall workflows; skip doesn't apply to upserted .github files; spec-impact is fail-soft
   for (const workflow of [
     { path: LORE_INGEST_WORKFLOW_PATH, content: LORE_INGEST_WORKFLOW_CONTENT },
     {
@@ -566,10 +536,7 @@ export async function handleOnboard({
     );
   }
 
-  // Configure the ingest callback (repo variable + secret) BEFORE opening the
-  // PR, so a failure here can still be reported in the PR body. An unset Floor
-  // value is never written as an empty variable — that would make lore-ingest.yml
-  // fail with a blank URL while looking configured.
+  // Configure ingest callback before opening PR so failures can be reported; never write empty vars
   const configFailures = await configureIngestCallback(project);
   const ingestConfigured = configFailures.length === 0;
 
@@ -623,8 +590,7 @@ export async function handleOnboard({
   try {
     await project.issues.createLabels([
       { name: "lore", color: "7B61FF", description: "Dispatch to Lore agent" },
-      // From the same table the webhook reads them back out of, so a repo is
-      // never given a dispatch label the reader does not understand.
+      // Source from the same table the webhook reads to ensure reader understanding
       ...DISPATCH_LABELS.map(({ name, color, description }) => ({
         name,
         color,

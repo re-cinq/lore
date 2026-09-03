@@ -6,17 +6,6 @@ import { randomUUID } from "node:crypto";
 import * as dgraph from "dgraph-js-http";
 import { verifyCoverageLink } from "./verify-coverage.js";
 
-/**
- * verifyCoverageLink (spec-traceability-graph, Phase 3 coverage-first
- * verification) — derives a verdict for ONE statement by walking the live
- * graph. Tested against real Dgraph (no mocks). Container-gated.
- *
- * Three verdicts: "execution-verified" when a VALIDATED_BY test covers a
- * CodeChunk the statement IMPLEMENTS (covered ∩ implemented ≠ ∅);
- * "link-unproven" when validating tests exist but cover nothing the statement
- * implements; "untested" when the statement has no VALIDATED_BY test at all.
- */
-
 const DGRAPH_HTTP = process.env.DGRAPH_HTTP ?? "http://localhost:8081";
 const APPLIER = join(
   findRepoRoot(),
@@ -100,8 +89,8 @@ describe.skipIf(!reachable)("verifyCoverageLink (live Dgraph)", () => {
           commitNow: true,
         });
       }
+      // eslint-disable-next-line no-empty
     } catch {
-      // best-effort cleanup must never mask the assertion
     } finally {
       await txn.discard().catch(() => {});
     }
@@ -145,8 +134,6 @@ describe.skipIf(!reachable)("verifyCoverageLink (live Dgraph)", () => {
     });
     const tc1uid = tcUids.tc;
 
-    // Coverage covers a FILE (same path as the implemented CodeChunk) — the match
-    // is by file path, not node identity.
     const fileUids = await mutate({
       uid: "_:f",
       "dgraph.type": "File",
@@ -227,8 +214,6 @@ describe.skipIf(!reachable)("verifyCoverageLink (live Dgraph)", () => {
     });
     const ccXuid = ccUids.cc;
 
-    // A validating test with no Coverage at all → covered set is empty, so it
-    // overlaps none of the statement's implemented code.
     const tcUids = await mutate({
       uid: "_:tc",
       "dgraph.type": "TestChunk",

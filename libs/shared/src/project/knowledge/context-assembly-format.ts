@@ -1,12 +1,4 @@
-/**
- * Pure serialization + dedup helpers for context assembly.
- *
- * The assembled context is emitted as XML-tagged documents rather than a
- * markdown blob: every chunk carries its provenance in tag attributes, and its
- * (markdown) content is contained inside the tag, so the chunks' own `##`
- * headings and YAML `---` fences can no longer collide with the structural
- * skeleton. This is the format agents and the prompt-debug view both consume.
- */
+/** Pure serialization + dedup helpers for context assembly; XML-tagged format (chunks with provenance + markdown) for agents + debug view. */
 
 export interface SourceItem {
   text: string;
@@ -40,11 +32,7 @@ export function escapeXmlAttr(value: string): string {
     .replace(/"/g, "&quot;");
 }
 
-/**
- * Collapse items sharing a source_path to one, keeping the highest-scoring (then
- * most recently ingested) copy. Items without a source_path are never merged —
- * memories, facts, and graph edges have no canonical path to dedup on.
- */
+/** Collapse items sharing source_path to one (highest-scoring, then most recently ingested); no path → never merged. */
 export function dedupeItems(sources: SourceItem[]): SourceItem[] {
   const byPath = new Map<string, SourceItem>();
   const passthrough: SourceItem[] = [];

@@ -6,16 +6,6 @@ import { randomUUID } from "node:crypto";
 import * as dgraph from "dgraph-js-http";
 import { recomputeFile, sourceFromBlockRows } from "./recompute-spec-file.js";
 
-/**
- * recomputeFile not-found signaling (spec-traceability-graph) — reconstructing a
- * file that was NEVER projected must be distinguishable from a genuinely empty
- * document. With zero Block nodes for (repo, filePath), recomputeFile returns
- * null (not ""). Tested against live Dgraph (no mocks); skips when unreachable.
- *
- * The pure reconstruction core `sourceFromBlockRows` is unit-tested directly
- * (no container) below — it's the value-in/value-out seam behind recomputeFile.
- */
-
 describe("sourceFromBlockRows (pure)", () => {
   it("returns null for zero rows (a never-projected document)", () => {
     expect(sourceFromBlockRows([])).toBeNull();
@@ -106,8 +96,8 @@ describe.skipIf(!reachable)("recomputeFile (live Dgraph)", () => {
           commitNow: true,
         });
       }
+      // eslint-disable-next-line no-empty
     } catch {
-      // best-effort cleanup must never mask the assertion
     } finally {
       await txn.discard().catch(() => {});
     }

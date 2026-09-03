@@ -5,12 +5,6 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { GitCli } from "./git-cli.js";
 
-/**
- * GitCli against a REAL local bare repo — the integration counterpart to the
- * Workspace unit test. No network/auth: a temp bare repo is the remote. Skips
- * when git is unavailable.
- */
-
 function gitAvailable(): boolean {
   try {
     execFileSync("git", ["--version"]);
@@ -102,7 +96,6 @@ describe.skipIf(!hasGit)("GitCli (live git)", () => {
     const dest = join(base, "cache-x");
 
     await git.ensureClone(bare, dest);
-    // An untracked marker survives a fetch+checkout reuse, but not a re-clone.
     writeFileSync(join(dest, "MARKER"), "keep");
     await git.ensureClone(bare, dest);
 

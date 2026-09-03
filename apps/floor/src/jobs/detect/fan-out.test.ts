@@ -57,8 +57,6 @@ describe("createDetectTickHandler", () => {
     await handler({});
 
     expect(listed).toHaveLength(1);
-    // The job_run is pre-created here (the walk closes it via args.job_run_id)
-    // and the branch reproduces the old lease key for the overlap guard.
     expect(started).toEqual([
       "spec_drift:re-cinq/lore",
       "spec_drift:re-cinq/other",
@@ -152,9 +150,6 @@ describe("createDetectTickHandler", () => {
     const { failed, jobRuns } = fakeJobRuns();
     const assemblyRuns = new InMemoryAssemblyRuns();
 
-    // The winner: already running, holding the subject. The pre-check cannot see it
-    // because this handler read BEFORE the winner started — so simulate the race by
-    // letting start() do what it does, which is join.
     const winner = await assemblyRuns.start({
       blueprintName: "spec-drift",
       repo: "re-cinq/lore",
@@ -162,9 +157,6 @@ describe("createDetectTickHandler", () => {
       args: { job_run_id: "jr-winner" },
     });
     const handler = createDetectTickHandler("spec-drift", {
-      // Only the HANDLER's read is stale — start() and getById delegate to the real
-      // store, whose own guard still refuses a second run. Stubbing the method on the
-      // store itself would disable that guard too, since start() consults it.
       assemblyRuns: {
         findOpenBySubject: async () => null,
         start: (input: Parameters<InMemoryAssemblyRuns["start"]>[0]) =>
@@ -178,8 +170,6 @@ describe("createDetectTickHandler", () => {
 
     await handler({});
 
-    // One run, and the loser's job_run is CLOSED rather than left open forever —
-    // nothing reaps job_runs, so an orphan here is permanent.
     expect(assemblyRuns.rows).toHaveLength(1);
     expect(assemblyRuns.rows[0].id).toBe(winner);
     expect(failed).toEqual([
@@ -203,7 +193,6 @@ describe("createDetectTickHandler", () => {
 
     await expect(handler({})).rejects.toThrow("db down");
     expect(started).toEqual(["spec_drift:re-cinq/lore"]);
-    // the orphaned job_run is failed, not left running forever.
     expect(failed).toEqual([
       { runId: "jr-1", reason: expect.stringContaining("db down") },
     ]);

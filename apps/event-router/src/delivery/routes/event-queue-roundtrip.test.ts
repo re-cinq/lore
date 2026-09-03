@@ -1,8 +1,3 @@
-// The client and the routes are two halves of one contract, written apart. This
-// drives the REAL `HttpEventQueue` against the REAL routes over hapi's inject,
-// so a path, a field name or a status code that disagrees fails here rather
-// than in a cluster.
-
 import { describe, it, expect, beforeEach } from "vitest";
 import Hapi from "@hapi/hapi";
 import { InMemoryEventQueue } from "@re-cinq/lore-shared/project/events/event-queue-memory.js";
@@ -18,9 +13,6 @@ let client: HttpEventQueue;
 let injectAsFetch: typeof fetch;
 
 beforeEach(() => {
-  // A clock the test drives. `reapStuck(0)` compares `claimed_at < now()`
-  // strictly, so a claim and a reap landing in the same millisecond reap
-  // nothing — real time made this assertion a coin flip roughly one run in six.
   queue = new InMemoryEventQueue([], () => clock);
   clock = 1_000_000;
 
@@ -34,7 +26,6 @@ beforeEach(() => {
     ...eventQueueRoutes({ queue: () => queue, bearerToken: TOKEN }),
   ]);
 
-  // `fetch` over inject: no socket, but every layer above it is the real one.
   injectAsFetch = (async (url: string, init: RequestInit) => {
     const res = await server.inject({
       method: (init.method ?? "GET") as "POST",
@@ -97,7 +88,6 @@ describe("HttpEventQueue against the router's own routes", () => {
   });
 
   it("surfaces a refusal rather than reporting work that never landed", async () => {
-    // Same transport, same routes — only the credential differs.
     const wrongToken = new HttpEventQueue(
       "http://router.test",
       "not-the-token",

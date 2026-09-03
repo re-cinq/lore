@@ -1,8 +1,4 @@
-/**
- * Pure node-search predicate for the spec-graph live filter. A node matches when
- * the (trimmed, lower-cased) query is a substring of its label or path. An empty
- * query matches every node, so clearing the search box restores the full view.
- */
+/** Node matches when trimmed lowercase query is substring of label or path. */
 export function nodeMatchesQuery(
   node: { label?: string; path?: string },
   query: string,

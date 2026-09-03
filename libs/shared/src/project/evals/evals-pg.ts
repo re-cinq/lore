@@ -1,12 +1,7 @@
 import type { PgPool } from "../../memory-store.js";
 import type { EvalRunsPort, EvalRun, EvalRunSample } from "./evals-port.js";
 
-/**
- * Postgres-backed {@link EvalRunsPort}: a single INSERT into
- * `pipeline.eval_runs` and a `pass_rate` read ordered by `run_at DESC`.
- * Relocated from the eval-runner / autoresearch jobs so eval bookkeeping
- * reaches the table through the Project facade.
- */
+/** Postgres-backed EvalRunsPort: inserts and reads pass_rate from pipeline.eval_runs. */
 export class PgEvalRuns implements EvalRunsPort {
   constructor(private readonly pool: PgPool) {}
 

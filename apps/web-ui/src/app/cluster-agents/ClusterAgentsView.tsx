@@ -11,10 +11,7 @@ import ConnectClusterPanel from "./ConnectClusterPanel";
 import PauseClusterButton from "./PauseClusterButton";
 import RestartClusterButton from "./RestartClusterButton";
 
-/** The platform's own cluster always registers under this name (see
- *  ai-agents-helm/values.yaml's `claim.name`). lore-api dials one static
- *  in-cluster address, so a restart is only ever reachable for this row —
- *  a satellite has no inbound path back to lore-api. */
+/** Central cluster: lore-api dials static in-cluster address; satellites have no inbound path. */
 const CENTRAL_CLUSTER_AGENT_NAME = "central";
 
 export interface ClusterAgentsViewProps {
@@ -22,8 +19,7 @@ export interface ClusterAgentsViewProps {
   offlineEvents: ClusterOfflineEvent[];
   /** Null when the install hand-out could not be fetched (the panel hides). */
   installInfo: ClusterInstallInfo | null;
-  /** Takes one cluster out of the rotation, or puts it back. The container
-   *  binds the agent id, so this view never chooses which. */
+  /** Takes cluster in/out of rotation; container binds agent id. */
   togglePaused: (id: string, paused: boolean) => Promise<void>;
   /** Bounces the central cluster-agent. The container binds the agent id. */
   restart: (id: string) => Promise<void>;
@@ -38,14 +34,7 @@ export function formatElapsed(ms: number): string {
   return minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`;
 }
 
-/**
- * Presentational view for the registered-clusters page (FR7 of
- * specs/running-stations-in-any-k8s-cluster). Pure render — the container
- * fetches the roster + offline log; this component only renders. The offline
- * table resolves an agent id to its registered name when the registry still
- * holds it (the audit row deliberately survives registry churn, so a deleted
- * agent falls back to its raw id).
- */
+/** Clusters view: pure render with offline audit fallback to raw id (FR7). */
 export default function ClusterAgentsView({
   agents,
   offlineEvents,
@@ -101,9 +90,7 @@ export default function ClusterAgentsView({
                   >
                     {agent.status}
                   </span>
-                  {/* Liveness and the operator switch are different facts: a
-                      paused cluster is alive and finishing its work, it is just
-                      not handed more. Both badges can show at once. */}
+                  {/* Liveness and paused status are independent; both badges can show. */}
                   {agent.paused && (
                     <span className="badge badge-gray">paused</span>
                   )}
@@ -121,13 +108,7 @@ export default function ClusterAgentsView({
                   )}
                 </td>
                 <td>
-                  {/* BOUND, never wrapped in an arrow. This is a server
-                      component: an inline closure is a plain function and
-                      React refuses to serialize it to a client component
-                      ("Functions cannot be passed directly to Client
-                      Components"), which took the whole page down. `.bind`
-                      produces a server action, which is serializable — and
-                      keeps the agent id server-side either way. */}
+                  {/* BOUND via .bind() — inline arrow would not serialize to client component. */}
                   <PauseClusterButton
                     paused={agent.paused}
                     toggle={togglePaused.bind(null, agent.id)}

@@ -5,11 +5,6 @@ import { tmpdir } from "node:os";
 import { AgentDefsYaml } from "./agent-defs-yaml.js";
 import { DECOMPOSITION_INSTRUCTIONS } from "../../feature-planning/decomposition-instructions.js";
 
-/**
- * AgentDefsYaml maps task-types.yaml into org-level definitions and refuses
- * writes. Driven against a REAL yaml file written to a temp dir — no doubles.
- */
-
 let dir: string;
 let path: string;
 

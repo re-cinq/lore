@@ -3,12 +3,6 @@ import { Settings } from "./settings.js";
 import { InMemorySettings } from "./settings-memory.js";
 import { resolveDarkFactorySettings } from "../../dark-factory-settings.js";
 
-/**
- * project.settings is repo-bound and delegates to the port. The InMemorySettings
- * double resolves through the REAL resolveDarkFactorySettings, proving the facade
- * does no resolution of its own (move/wrap, never rewrite).
- */
-
 describe("Settings", () => {
   it("resolves the repo's settings via the real resolver", async () => {
     const port = new InMemorySettings([

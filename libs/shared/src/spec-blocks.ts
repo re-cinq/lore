@@ -26,11 +26,7 @@ export function segmentBlocks(content: string): Block[] {
     blocks.push(block);
   };
 
-  // The single accumulating-run mechanism. The multi-line accumulating kinds
-  // (paragraph and table) share ONE pending run: an accumulating line either
-  // continues a run of its own kind or flushes the previous run and starts a
-  // new one; every block boundary flushes once. (List items and headings do
-  // not accumulate — each is flushed and emitted as its own block.)
+  // Single accumulating-run for multi-line kinds (paragraph, table); per-line/heading are flushed separately.
   let pending: { kind: BlockKind; lines: string[] } | null = null;
   const flushPending = () => {
     if (pending === null) {
@@ -108,8 +104,7 @@ export function segmentBlocks(content: string): Block[] {
   return blocks;
 }
 
-/** Inverse of `segmentBlocks`: rejoin block texts with `"\n"` to reconstruct
- * the original source verbatim. */
+/** Inverse of segmentBlocks: rejoin blocks with newlines. */
 export function reassembleBlocks(blocks: Block[]): string {
   return blocks.map((block) => block.text).join("\n");
 }

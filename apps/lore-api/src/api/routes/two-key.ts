@@ -1,13 +1,4 @@
-/**
- * The two-key CODEOWNERS-approval ceremony shared by the dark-factory settings
- * PUT and the agent-definitions `image` writes (ADR-016/ADR-025). A privileged
- * change needs an `X-Lore-Approval-PR` header referencing an open PR labeled
- * `dark-factory-approval` by a CODEOWNER of the repo's CLAUDE.md.
- *
- * Returns the outcome rather than writing the response, so each native route
- * shapes its own ceremony from the evidence (dark-factory keeps `pr_url`, agents
- * does not) and turns a denial into `h.response(body).code(code)`.
- */
+// Two-key CODEOWNERS-approval ceremony for dark-factory settings + agent-definition writes (ADR-016/025).
 
 import type { Request } from "@hapi/hapi";
 import {

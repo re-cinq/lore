@@ -3,11 +3,7 @@ import CollapsibleCard from "@/components/CollapsibleCard";
 import CopyButton from "@/components/CopyButton";
 import styles from "./TestCommandsSetup.module.css";
 
-/**
- * The guard against test suites no CI job runs: the setup prompt that wires a
- * repo's tests into the traceability graph. Folded closed by default — the
- * prompt is long, and the card summary is enough until a developer needs it.
- */
+/** Setup prompt to wire repo's tests into traceability graph; folded closed by default. */
 export default function TestCommandsSetup() {
   return (
     <CollapsibleCard title="Set up test commands">

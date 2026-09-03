@@ -1,15 +1,7 @@
 import { z } from "zod";
 import type { ColumnMap } from "../lib/row.js";
 
-/**
- * `lore.settings` — org-wide key/value settings (api_url, ingest_token,
- * approval_config).
- *
- * DDL: `scripts/infra/setup-repos-schema.sh`. `value` is TEXT even when the
- * setting is structured: the callers that store JSON here stringify it, and the
- * column has never been typed otherwise. Per-repo settings live in
- * `lore.repos.settings` — see `repo-settings.ts`.
- */
+/** Org-wide key/value settings; value is TEXT even when structured; per-repo settings in repo-settings.ts. */
 
 export const GlobalSettingSchema = z.object({
   key: z.string(),

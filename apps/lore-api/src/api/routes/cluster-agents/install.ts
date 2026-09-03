@@ -3,19 +3,7 @@ import { z } from "zod";
 import { bearerScope } from "../../../server/plugins/bearer-scope.js";
 import { zodResponse } from "../../../server/plugins/zod-response.js";
 
-/**
- * The connect-a-cluster hand-out (#1572): the central side already knows the
- * three values a satellite installer would otherwise hand-carry — its own
- * public URL, the event-router front door, and the registration token — so it
- * serves them ready to run instead.
- *
- * Two admin-scoped reads: `install-info` (JSON, what the web UI's
- * Connect-a-cluster panel renders) and `install.sh` (a shell script with the
- * same values baked in, for curl users). Deliberately NOT included: the LLM
- * credential (subscription vs org key is the installing operator's choice)
- * and GHCR pull credentials (org secrets stay out of anything this easy to
- * copy). Admin scope because the registration token rides in both responses.
- */
+/** Connect-a-cluster hand-out (#1572): serves URLs and registration token to satellite installers. */
 
 const DEFAULT_REPO_URL = "https://github.com/re-cinq/lore";
 

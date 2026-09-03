@@ -22,11 +22,7 @@ interface ContextPage {
   hasMore: boolean;
 }
 
-/**
- * Client-side pager for the per-repo context list. The first page is rendered
- * server-side; this appends subsequent pages on demand from the context API
- * route so the initial load stays small.
- */
+/** Client-side pager for per-repo context list; appends pages on demand to keep initial load small. */
 export default function LoadMore({
   owner,
   repo,

@@ -7,13 +7,7 @@ import type { ServerRoute } from "@hapi/hapi";
 import type { Pool } from "pg";
 import { bearerScope } from "../../../server/plugins/bearer-scope.js";
 
-/**
- * The ingest station's payload-by-reference fetch (specs/ingest-station FR3):
- * a test-report body is ~1 MB and cannot ride `station_input` argv, so the pod
- * reads it back from the `pipeline.events` row that scheduled its line. The
- * row's repo must match the path — a token scoped to one repo can't read
- * another repo's payloads through this.
- */
+/** Ingest station's payload-by-reference fetch (~1MB too large for argv). */
 /** The stored event params, verbatim — shape varies by event name. */
 const EventPayloadSchema = z.record(z.unknown());
 
@@ -49,8 +43,7 @@ export function eventPayloadRoute(getPool: () => Pool | null): ServerRoute {
 
         return h.response(row.payload as object);
       } catch (err) {
-        // A guard's refusal already carries its status; only an unexpected failure
-        // is this block's to shape.
+        // Guard refusals carry their status; shape only unexpected failures.
         rethrowBoom(err);
 
         return h.response({ error: errorMessage(err) }).code(500);

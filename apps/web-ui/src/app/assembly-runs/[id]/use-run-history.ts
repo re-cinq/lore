@@ -1,7 +1,6 @@
 "use client";
 
-// The panel's two history readers. Both fold rows through the SAME reducer the
-// live stream feeds, so a run looks identical however its events arrived.
+// Both readers fold rows through the SAME reducer the live stream feeds, so a run looks identical however its events arrived.
 import { useCallback, useEffect, useRef, useState } from "react";
 import { parseRunStreamRow, type RunStreamEvent } from "@/lib/run-stream-types";
 import {

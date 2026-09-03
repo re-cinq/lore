@@ -1,12 +1,3 @@
-/**
- * FR5 of specs/running-stations-in-any-k8s-cluster, driven through the real
- * route: POST /api/events accepts a per-agent token whose SHA-256 matches a
- * `pipeline.cluster_agents.token_hash` row, rotation revokes the old token,
- * offline status does not block a late terminal report, and the bus-wide
- * ingest token keeps working. The registry is the in-memory double — no
- * Postgres.
- */
-
 import { describe, it, expect, beforeEach } from "vitest";
 import Hapi from "@hapi/hapi";
 import type { EventInsert } from "@re-cinq/lore-shared";

@@ -2,9 +2,6 @@ import { describe, it, expect } from "vitest";
 import { sectionsOf } from "./gap-sections";
 import type { GapResult } from "./feature-types";
 
-// Unit coverage for the web-ui mirror's legacy-shape normalization (the branch the
-// parity test intentionally skips because shared renders it richer). Keeps old stored
-// results — pre-dynamic-sections — rendering.
 describe("sectionsOf legacy normalization (web-ui mirror)", () => {
   const legacy: GapResult = {
     architecture: {
@@ -19,7 +16,7 @@ describe("sectionsOf legacy normalization (web-ui mirror)", () => {
     },
     user_flows: [{ name: "create draft", steps: ["open tab", "submit"] }],
     mockups: [
-      { title: "arch", format: "svg", markup: "<svg/>" }, // no section → defaults to architecture bucket
+      { title: "arch", format: "svg", markup: "<svg/>" },
       { title: "flow", format: "svg", markup: "<svg/>", section: "user_flows" },
     ],
     questions: [
@@ -69,7 +66,6 @@ describe("sectionsOf legacy normalization (web-ui mirror)", () => {
   });
 
   it("tolerates a componentless architecture and user_flows with no tagged mockup", () => {
-    // Old rows may omit architecture.components and carry no diagrams.
     const g = {
       architecture: { summary: "sum" },
       user_flows: [{ name: "flow", steps: ["a"] }],
@@ -81,8 +77,8 @@ describe("sectionsOf legacy normalization (web-ui mirror)", () => {
       "Architecture",
       "User flows",
     ]);
-    expect(sections[0].content).toBe("sum"); // components ?? [] → summary only, no bullets
-    expect(sections[1].mockups).toBeUndefined(); // no user_flows-tagged mockup → mockups omitted
+    expect(sections[0].content).toBe("sum");
+    expect(sections[1].mockups).toBeUndefined();
   });
 
   it("returns [] for undefined and for an unrecognized shape", () => {

@@ -20,8 +20,6 @@ describe("route placeholder grammar", () => {
   });
 
   it("what the grammar accepts, resolveRoute resolves — one grammar, two readers", () => {
-    // The loader validates with these helpers; drift between "valid" and
-    // "resolvable" would bless a route that renders as a dead link forever.
     const route = "/repos/{args.repo}";
 
     expect(routePlaceholders(route).every(isRouteArgPlaceholder)).toBe(true);
@@ -51,8 +49,6 @@ describe("resolveRoute", () => {
   });
 
   it("returns null while a placeholder's arg does not exist yet", () => {
-    // pr_url is absent until the push node opens the PR; a half-built href
-    // sends the reader to a page that does not exist.
     expect(resolveRoute("{args.pr_url}", {})).toBeNull();
   });
 
@@ -65,8 +61,6 @@ describe("resolveRoute", () => {
   });
 
   it("treats an empty-string arg as missing rather than building a broken href", () => {
-    // /repos//features/feat-1 is exactly the half-built link the null contract
-    // exists to prevent.
     expect(
       resolveRoute("/repos/{args.repo}/features/{args.feature_id}", {
         repo: "",

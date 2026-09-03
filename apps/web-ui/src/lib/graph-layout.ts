@@ -1,13 +1,4 @@
-/**
- * Pure, deterministic helpers for the D3 spec-graph layout.
- *
- * The graph is a plain force-directed cloud — connected nodes cluster on their
- * own, no node type or degree is mapped to a fixed region. These helpers only
- * keep it tidy: a headless pre-warm budget, a size-based radius the cloud is
- * kept inside, and the velocity correction that enforces that border. All
- * value-in/value-out; the imperative D3 setup consumes them. Siblings of the
- * other geometry modules (anchor-spacing, ring-exclusion, graph-crowding).
- */
+// Pure, deterministic helpers for D3 spec-graph layout.
 
 const SETTLE_FLOOR = 120;
 const SETTLE_CAP = 400;
@@ -25,10 +16,7 @@ export interface LayoutLink {
   target: string;
 }
 
-/**
- * Partition the node set into connected components (union-find over the links).
- * Nodes that appear in no link come back as their own singleton component.
- */
+/** Partition nodes into connected components via union-find. */
 export function connectedComponents(
   nodeIds: string[],
   links: LayoutLink[],
@@ -83,12 +71,7 @@ export function connectedComponents(
   return [...groups.values()];
 }
 
-/**
- * Give each (small) component its own spot on a rim of `rimRadius` around
- * `center`, evenly spaced by angle so the components sit apart instead of
- * clumping on one ring. Every node of a component maps to that component's spot;
- * charge then spreads the component's own members locally around it.
- */
+/** Component spots on rim, evenly spaced by angle. */
 export function rimTargets(
   components: string[][],
   center: Point,
@@ -112,12 +95,7 @@ export function rimTargets(
   return out;
 }
 
-/**
- * Seed Feature nodes across a sunflower spiral (even angular coverage) with each
- * Feature claiming area proportional to its `size`, so larger Features land
- * further out and end up more distanced from their neighbours. Returns a target
- * per feature id; the layout seeds fresh positions from these.
- */
+/** Feature nodes across sunflower spiral; area proportional to size. */
 export function featureSeedPositions(
   features: { id: string; size: number }[],
   center: Point,
@@ -161,11 +139,7 @@ export interface BoundingRadiusOptions {
   cap?: number;
 }
 
-/**
- * The radius of the circle the whole layout is kept inside — the "radius border"
- * that stops nodes flying off. Grows with the square root of the graph's total
- * size (vertices + edges), then clamped to [floor, cap].
- */
+/** Radius of circle layout is kept inside; grows with √(vertices+edges). */
 export function boundingRadius(
   vertexCount: number,
   edgeCount: number,
@@ -187,8 +161,7 @@ export interface ContainmentOptions {
   epsilon?: number;
 }
 
-/** The overshoot correction: cancel the outward component, ease back in with a
- *  capped pull, and damp the remaining speed the further the node has strayed. */
+/** Overshoot correction: cancel outward, ease back in with capped pull. */
 function containOverflowVelocity(
   velocity: { vx: number; vy: number },
   unit: { ux: number; uy: number },
@@ -212,14 +185,7 @@ function containOverflowVelocity(
   return { vx: vx * damp, vy: vy * damp };
 }
 
-/**
- * Replace a node's velocity with one that keeps it inside the radius border. A
- * node past `radius` has its outward velocity component cancelled (so it can't
- * integrate any further out), is eased back by a capped inward pull, and has its
- * remaining speed damped more the further it has strayed ("slower the further").
- * Runs at full strength every tick (not alpha-scaled) so containment doesn't fade
- * as the simulation cools. Denormal-tiny components are flattened to 0.
- */
+/** Keep node velocity inside radius border; damp speed by overshoot. */
 export function containedVelocity(
   point: Point,
   velocity: { vx: number; vy: number },
@@ -269,13 +235,7 @@ export interface RadialTreeOptions {
   angleEnd?: number;
 }
 
-/**
- * Tidy radial-tree seed positions for one containment tree (e.g. a Feature and
- * its specs/statements/leaves). Depth → radius (root at the centre); leaves are
- * spread evenly around the wedge and each internal node sits at the mean angle of
- * its children. Pure value-in/value-out — the D3 setup lays out one tree per
- * feature with its own centre, then a forceX/forceY holds the shape during relax.
- */
+/** Radial-tree seed positions; depth→radius, leaves spread evenly. */
 export function radialTree(
   root: string,
   childrenOf: Map<string, string[]>,
@@ -354,22 +314,7 @@ export interface PlacedNode {
   y: number;
 }
 
-/**
- * Keeps the small disconnected components strictly outside the main graph: finds
- * the main graph's current radius (the farthest non-small node from `center`) and
- * pushes any small node that has drifted inside out to `mainRadius + margin`,
- * preserving its angle. Returns the new position only for the nodes that moved, so
- * a small component always ends up at least `margin` away from every main node.
- * Adapts to the relaxed extent, so it can be called every simulation tick.
- */
-/**
- * Radius of the circle the feature trees are arranged on, scaled so neighbouring
- * trees don't overlap: with `featureCount` trees of radius `treeRadius`, seat each
- * centre ~2.2·treeRadius of arc apart (a little gap beyond touching). Falls back
- * to `minRadius` when few/small trees would otherwise pull the ring in too tight.
- * Eliminating tree overlap is the dominant edge-crossing reduction (≈-62% on a
- * 43-feature graph).
- */
+/** Radius of feature tree ring, scaled to prevent overlap. */
 export function featureRingRadius(
   featureCount: number,
   treeRadius: number,
@@ -386,13 +331,7 @@ export interface CrossingEdge {
 const orient = (a: Point, b: Point, c: Point): number =>
   (c.y - a.y) * (b.x - a.x) - (b.y - a.y) * (c.x - a.x);
 
-/**
- * Counts pairs of edges whose straight segments properly cross — a layout-quality
- * metric (lower = clearer). Edges sharing a node are skipped (they meet at a
- * shared endpoint, they don't cross). Endpoints are looked up in `pos`; edges
- * with a missing endpoint are ignored. O(E²): intended for one-off measurement,
- * not a per-tick call.
- */
+/** Count pairs of edges whose straight segments properly cross. */
 interface CrossingSegment {
   s: string;
   t: string;

@@ -11,10 +11,7 @@ import { bearerScope } from "../../../server/plugins/bearer-scope.js";
 import { zodValidate } from "../../../server/plugins/zod-validate.js";
 import { repoFullName, boolFlag } from "../common-schemas.js";
 
-// Absent/invalid max_tokens keeps the documented 8000 default (the template
-// default must not silently raise it). template is the closed set of shipped YAML
-// templates; agent_id scopes memories/facts; cross_repo falls back to the repo's
-// settings flag when not explicitly requested.
+// max_tokens defaults to 8000; template/agent_id/cross_repo follow documented behavior.
 const ContextQuery = z.object({
   repo: repoFullName.optional(),
   query: z.string().optional(),
@@ -22,8 +19,7 @@ const ContextQuery = z.object({
     .enum(["default", "review", "implementation", "research"])
     .default("default"),
   debug: boolFlag,
-  // .max keeps the budget meaningful — an absurd max_tokens (e.g. 1000000)
-  // would re-open the unbounded chunk-join this budget exists to close.
+  // .max(128000) keeps unbounded chunks from re-opening on agent CR size limit.
   max_tokens: z.coerce
     .number()
     .int()
@@ -41,11 +37,7 @@ const SEPARATOR = "\n\n---\n\n";
 // The same chars-per-token heuristic the assembly engine's truncateText uses.
 const CHARS_PER_TOKEN = 4;
 
-/**
- * Joins doc/adr/spec chunks whole until the next would overflow the char
- * budget. Unbounded, this path returned ~3 MB for a repo — which, injected
- * into an Agent CR's parameters, blew the 2 MiB apiserver limit (2026-07-17).
- */
+/** Joins doc/adr/spec chunks until budget exceeded; prevents ~3MB overflow on Agent CR size (#1761). */
 async function joinedDocChunksWithinBudget(
   pool: Pool,
   repo: string,
@@ -75,10 +67,7 @@ async function joinedDocChunksWithinBudget(
   return parts.length > 0 ? parts.join(SEPARATOR) : null;
 }
 
-/**
- * Assembled context. `text` is the block an agent is handed; `sections` and
- * `trace` appear only on the debug path, which is why both are optional.
- */
+/** Assembled context: text for agents, sections/trace for debug output only. */
 const AssembledContextSchema = z.object({
   text: z.string().nullable(),
   sections: z.unknown().optional(),
@@ -119,8 +108,7 @@ export function contextRoute(getPool: () => Pool | null): ServerRoute {
           return h.response({ text });
         }
 
-        // Fail-soft: null when LORE_DGRAPH_HTTP is unset, so the coupling source
-        // degrades to an empty section.
+        // Dgraph is optional; null when LORE_DGRAPH_HTTP is unset.
         const dgraph = createDgraphClient(process.env);
         const crossRepo = await resolveCrossRepo(
           pool,

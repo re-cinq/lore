@@ -3,12 +3,7 @@
 import { Alert } from "@/components/Alert";
 import type { FeatureRow } from "@/lib/feature-types";
 
-// The spec PR is open and the line is parked on its `merged` wait node.
-//
-// Before the lifecycle became one line this state was invisible: the wizard
-// vanished and the finalized view said "Creating the spec PR…" indefinitely. The
-// author needs to know the machine is waiting on a PERSON, and that nothing else
-// is required of them once it merges.
+// Spec PR open, line parked on `merged` wait node; author needs to know machine waits on PERSON.
 export default function SpecPrCard({ feature }: { feature: FeatureRow }) {
   return (
     <div className="spec-card" role="status">

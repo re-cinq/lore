@@ -12,8 +12,7 @@ export default async function ImplementationLoopPage({
   const fullName = `${owner}/${repo}`;
   const result = await getImplementationLoop(fullName);
 
-  // An API failure must not masquerade as a disabled loop with an empty
-  // backlog — say what actually happened.
+  // API failure must not masquerade as disabled loop with empty backlog.
   if (result.status !== "ok") {
     return (
       <Alert variant="secondary">
