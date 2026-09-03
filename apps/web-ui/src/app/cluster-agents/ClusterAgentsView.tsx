@@ -62,7 +62,7 @@ export default function ClusterAgentsView({
         Every registered execution cluster: what it can run, whether it is
         alive, and how many station runs it currently holds.
       </p>
-      {installInfo && <ConnectClusterPanel info={installInfo} />}
+      {installInfo && <ConnectClusterPanel install={installInfo} />}
       {agents.length === 0 ? (
         <EmptyState
           title="No clusters registered"

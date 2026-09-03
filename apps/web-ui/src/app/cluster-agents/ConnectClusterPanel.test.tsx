@@ -31,7 +31,7 @@ describe("buildConnectCommand", () => {
 
 describe("ConnectClusterPanel", () => {
   it("renders the command with lcar_secret and updates it when the name changes", () => {
-    render(<ConnectClusterPanel info={info()} />);
+    render(<ConnectClusterPanel install={info()} />);
 
     expect(screen.getByText(/lcar_secret/)).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("Name"), {
@@ -44,7 +44,7 @@ describe("ConnectClusterPanel", () => {
   it("explains what is missing when the hand-out is unavailable", () => {
     render(
       <ConnectClusterPanel
-        info={info({
+        install={info({
           available: false,
           reason: "not configured on the lore-api deployment: LORE_API_URL",
           api_url: null,

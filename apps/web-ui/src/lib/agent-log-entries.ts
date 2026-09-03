@@ -98,17 +98,17 @@ export function toolResultText(content: unknown): string {
 
   if (Array.isArray(content)) {
     return content
-      .map((item) => {
-        if (!isRecord(item)) {
+      .map((block) => {
+        if (!isRecord(block)) {
           return "";
         }
 
-        if (typeof item.text === "string") {
-          return item.text;
+        if (typeof block.text === "string") {
+          return block.text;
         }
 
-        if (typeof item.tool_name === "string") {
-          return `[${item.tool_name}]`;
+        if (typeof block.tool_name === "string") {
+          return `[${block.tool_name}]`;
         }
 
         return "";
