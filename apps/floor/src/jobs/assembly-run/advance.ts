@@ -15,8 +15,15 @@ import {
   type NodeResult,
   type StageOutcome,
 } from "@re-cinq/lore-assembly-lines";
-import { resolveRunGraph, selectEdge } from "@re-cinq/lore-assembly-lines";
-import type { RunGraphNode } from "@re-cinq/lore-shared/project/assembly-runs/run-graph.js";
+import {
+  resolveRunGraph,
+  selectEdge,
+  type Transition,
+} from "@re-cinq/lore-assembly-lines";
+import type {
+  RunGraph,
+  RunGraphNode,
+} from "@re-cinq/lore-shared/project/assembly-runs/run-graph.js";
 import { nodeStationFor } from "@re-cinq/lore-stations";
 
 /** True when this node type's station runs in the pooled service, not a pod. */
@@ -219,51 +226,77 @@ export async function collectPriorNodeFailures(
 }
 
 /** Re-derives the line's next step from its node rows and performs it (launch/finish/fail); safe to call redundantly. */
+/** Close the run when the walk is over. `await` means a node is still running, so nothing settles. A `finish` reads its outcome back off the visits, because a line whose last node succeeded can still have failed earlier. */
+async function settleIfTerminal(
+  transition: Exclude<Transition, { kind: "launch" }>,
+  assemblyRun: AssemblyRunRecord,
+  visits: NodeVisit[],
+  deps: AdvanceDeps,
+): Promise<void> {
+  if (transition.kind === "await") {
+    return;
+  }
+  const { outcome, reason } =
+    transition.kind === "finish"
+      ? lineOutcomeFromVisits(visits)
+      : { outcome: transition.outcome, reason: transition.reason };
+
+  await finishLine(assemblyRun, outcome, reason, deps);
+}
+
+/** What the walk replays from: the open run, the graph it walks, and the visits recorded so far. Null when there is nothing to walk — the run is gone or finished, or it is a single-CR record (FR6.8) whose lifecycle the agent-watcher owns. */
+async function loadWalkState(
+  assemblyLineId: string,
+  deps: AdvanceDeps,
+): Promise<{
+  assemblyRun: AssemblyRunRecord;
+  runGraph: RunGraph;
+  visits: NodeVisit[];
+} | null> {
+  const assemblyRun = await deps.assemblyRuns.getById(assemblyLineId);
+
+  if (!assemblyRun || assemblyRun.status !== "running") {
+    return null;
+  }
+  const runGraph = await resolveRunGraph(assemblyRun, deps.definitions);
+
+  if (!runGraph) {
+    return null;
+  }
+  const nodes = await deps.assemblyRuns.listStationRuns(assemblyLineId);
+
+  return {
+    assemblyRun,
+    runGraph,
+    // Read off the rows so the replay survives a Floor restart mid-line.
+    visits: nodes.map((n) => ({
+      nodeId: n.nodeId,
+      iteration: n.iteration,
+      outcome: n.outcome as StageOutcome | null,
+      failureClass: n.failureClass,
+      failureDetail: n.failureDetail,
+    })),
+  };
+}
+
 export async function advanceLine(
   assemblyLineId: string,
   deps: AdvanceDeps,
 ): Promise<void> {
-  const assemblyRun = await deps.assemblyRuns.getById(assemblyLineId);
+  const state = await loadWalkState(assemblyLineId, deps);
 
-  if (!assemblyRun || assemblyRun.status !== "running") {
+  if (!state) {
     return;
   }
-
-  const runGraph = await resolveRunGraph(assemblyRun, deps.definitions);
-
-  if (!runGraph) {
-    // A single-CR run record (FR6.8) — the agent-watcher owns its lifecycle.
-    return;
-  }
-
-  const nodes = await deps.assemblyRuns.listStationRuns(assemblyLineId);
-
-  const visits: NodeVisit[] = nodes.map((n) => ({
-    nodeId: n.nodeId,
-    iteration: n.iteration,
-    outcome: n.outcome as StageOutcome | null,
-    // Read off the row so the replay survives a Floor restart mid-line.
-    failureClass: n.failureClass,
-    failureDetail: n.failureDetail,
-  }));
-
+  const { assemblyRun, runGraph, visits } = state;
   const transition = getNextTransition(runGraph, visits);
 
-  if (transition.kind === "await") {
-    return;
-  }
-
-  if (transition.kind === "finish" || transition.kind === "fail") {
-    const { outcome, reason } =
-      transition.kind === "finish"
-        ? lineOutcomeFromVisits(visits)
-        : { outcome: transition.outcome, reason: transition.reason };
-
-    await finishLine(assemblyRun, outcome, reason, deps);
+  // Nothing to launch: the walk is parked on a node still running, or it is over.
+  if (transition.kind !== "launch") {
+    await settleIfTerminal(transition, assemblyRun, visits, deps);
 
     return;
   }
-
   const node = runGraph.nodes.find((n) => n.id === transition.nodeId);
 
   enforceTrue(
@@ -304,6 +337,40 @@ export async function advanceLine(
     },
     deps,
   );
+
+  await launchNode({
+    node,
+    task,
+    dispatch,
+    visits,
+    assemblyRun,
+    iteration: transition.iteration,
+    deps,
+  });
+}
+
+/** One node the walk decided to launch, and everything the launch reads. */
+interface NodeLaunch {
+  node: RunGraphNode;
+  task: ReturnType<typeof taskFromAssemblyRun>;
+  dispatch: Awaited<ReturnType<typeof resolveNodeDispatch>>;
+  visits: NodeVisit[];
+  assemblyRun: AssemblyRunRecord;
+  iteration: number;
+  deps: AdvanceDeps;
+}
+
+/** Record the visit, then hand the node to whoever runs it: a human station parks and waits, a service node is published for the pooled service, and everything else arms its row for a cluster-agent to claim. */
+async function launchNode({
+  node,
+  task,
+  dispatch,
+  visits,
+  assemblyRun,
+  iteration,
+  deps,
+}: NodeLaunch): Promise<void> {
+  const assemblyLineId = assemblyRun.id;
   // Row before CR: a crash between them leaves an open row the reaper resolves by reading the deterministically named CR; the row also MINTS the station-run id so a converged duplicate reuses it. A service node names no CR (null), so the reaper never mistakes it for the crash-between-row-and-launch case and relaunches it as a duplicate pod.
   const runsInService = isServiceNode(node.type);
   // Only a POD node's row parks `queued` for a cluster-agent's claim (FR3) — human/service rows keep `running` and are never claimable.
@@ -311,10 +378,10 @@ export async function advanceLine(
   const { stationRunId, nodeRowId } = await deps.assemblyRuns.ensureStationRun({
     assemblyRunId: assemblyLineId,
     nodeId: node.id,
-    iteration: transition.iteration,
+    iteration,
     agentCrName: runsInService
       ? null
-      : nodeAgentName(assemblyLineId, node.id, transition.iteration),
+      : nodeAgentName(assemblyLineId, node.id, iteration),
     input: stationRunInputFor(node, task, dispatch.content, dispatch.prompt),
     status: dispatchedAsPod ? "queued" : undefined,
     requiredTags: dispatchedAsPod
@@ -340,7 +407,7 @@ export async function advanceLine(
         stationRunId,
         assemblyLineId,
         nodeId: node.id,
-        iteration: transition.iteration,
+        iteration: iteration,
         nodeType: node.type,
         repo: assemblyRun.repo,
         branch: assemblyRun.branch,
@@ -356,9 +423,9 @@ export async function advanceLine(
   const spec = nodeLaunchSpec(dispatch, {
     node,
     task,
-    iteration: transition.iteration,
+    iteration,
     stationRunId,
-    priorOutcome: priorOutcomeOf(visits, transition.nodeId),
+    priorOutcome: priorOutcomeOf(visits, node.id),
     incomingFailure: incomingFailureOf(visits),
   });
 
