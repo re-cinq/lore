@@ -192,11 +192,16 @@ export interface CatalogSyncTickDeps {
 }
 
 /** One poll: fetch the unapplied batch, land every entry, remember the cursor to ack next call. Never throws. `snapshot` forces a full boot resync, repairing a lost or differently-rendered apply (#1727). */
-export async function catalogSyncOnce(
+type FetchOutcome =
+  | { kind: "batch"; body: CatalogEventsResponse }
+  | { kind: "refused"; outcome: CatalogSyncOutcome };
+
+/** Ask for the next batch of catalog events. Every way this can fail — unreachable, unauthorized, refused, unparseable — comes back as an outcome the caller reports without advancing the ack. */
+async function fetchCatalogBatch(
   deps: CatalogSyncTickDeps,
   ack: string | undefined,
-  snapshot = false,
-): Promise<{ outcome: CatalogSyncOutcome; ack: string | undefined }> {
+  snapshot: boolean,
+): Promise<FetchOutcome> {
   const fetchFn = deps.fetchFn ?? fetch;
   const { id, token } = deps.identity();
   const params = new URLSearchParams();
@@ -209,7 +214,6 @@ export async function catalogSyncOnce(
     params.set("snapshot", "1");
   }
   const query = params.size > 0 ? `?${params.toString()}` : "";
-
   let res: Response;
 
   try {
@@ -222,42 +226,104 @@ export async function catalogSyncOnce(
       },
     );
   } catch (err) {
-    return {
-      outcome: {
-        kind: "error",
-        message: `catalog-events fetch failed: ${errorMessage(err)}`,
-      },
-      ack,
-    };
+    return refusedFetch(`catalog-events fetch failed: ${errorMessage(err)}`);
   }
 
   if (res.status === 401 || res.status === 403) {
-    return { outcome: { kind: "unauthorized" }, ack };
+    return { kind: "refused", outcome: { kind: "unauthorized" } };
   }
 
   if (!res.ok) {
-    return {
-      outcome: {
-        kind: "error",
-        message: `catalog-events refused (HTTP ${res.status})`,
-      },
-      ack,
-    };
+    return refusedFetch(`catalog-events refused (HTTP ${res.status})`);
   }
-
-  let body: CatalogEventsResponse;
 
   try {
-    body = (await res.json()) as CatalogEventsResponse;
+    return { kind: "batch", body: (await res.json()) as CatalogEventsResponse };
   } catch (err) {
+    return refusedFetch(
+      `catalog-events response parse failed: ${errorMessage(err)}`,
+    );
+  }
+}
+
+function refusedFetch(message: string): FetchOutcome {
+  return { kind: "refused", outcome: { kind: "error", message } };
+}
+
+/** What one entry did. `transient` is the only verdict that stops the batch: the ack stays put so the whole batch re-serves. */
+type EntryVerdict =
+  | { state: "applied" | "deleted" }
+  | { state: "skipped" | "refused"; detail: string; reason: string }
+  | { state: "transient"; message: string };
+
+/** Land one catalog entry as a CRD pair. */
+async function applyCatalogEntry(
+  deps: CatalogSyncTickDeps,
+  entry: CatalogEventsResponse["entries"][number],
+  crdName: string,
+): Promise<EntryVerdict> {
+  try {
+    // Ownership check FIRST, for deletes too — a null-definition event must never remove a seed-owned or hand-applied CR.
+    const ownership = deps.ownSeeded
+      ? { writable: true as const }
+      : await checkCrdOwnership(deps.catalog, crdName);
+
+    if (!ownership.writable) {
+      const owner = ownership.managedBy ?? "an unlabeled writer";
+
+      return {
+        state: "skipped",
+        detail: `${crdName} (${ownership.managedBy ?? "unlabeled"})`,
+        reason: `owned by ${owner}`,
+      };
+    }
+
+    if (entry.definition === null) {
+      await deps.catalog.deletePair(crdName);
+
+      return { state: "deleted" };
+    }
+    // Refusal is permanent for this (row, cluster) pair, so the loop acks past it — re-serving head-of-line blocked the tail for 2h on 2026-09-01.
+    const refusal = validateCatalogEntry(entry.definition, deps.crdOptions);
+
+    if (refusal !== null) {
+      return {
+        state: "refused",
+        detail: `${crdName}: ${refusal}`,
+        reason: refusal,
+      };
+    }
+    await deps.catalog.applyPair(
+      agentDefToCrds(entry.definition, deps.crdOptions),
+    );
+
+    return { state: "applied" };
+  } catch (err) {
+    // A 400/422 can never succeed, so it refuses; anything else is transient and keeps the ack so the batch re-serves.
+    if (isPermanentApplyError(err)) {
+      const reason = `${errorMessage(err)} (pair may be half-applied — Station half lands first)`;
+
+      return { state: "refused", detail: `${crdName}: ${reason}`, reason };
+    }
+
     return {
-      outcome: {
-        kind: "error",
-        message: `catalog-events response parse failed: ${errorMessage(err)}`,
-      },
-      ack,
+      state: "transient",
+      message: `catalog entry ${crdName} failed to land: ${errorMessage(err)}`,
     };
   }
+}
+
+export async function catalogSyncOnce(
+  deps: CatalogSyncTickDeps,
+  ack: string | undefined,
+  snapshot = false,
+): Promise<{ outcome: CatalogSyncOutcome; ack: string | undefined }> {
+  const fetched = await fetchCatalogBatch(deps, ack, snapshot);
+
+  if (fetched.kind === "refused") {
+    return { outcome: fetched.outcome, ack };
+  }
+  const body = fetched.body;
 
   if (body.entries.length === 0) {
     // Ack still advances — a snapshot of an empty catalog must still land the agent in tail mode.
@@ -270,76 +336,36 @@ export async function catalogSyncOnce(
   const refused: string[] = [];
   // Structured verdicts for the status report — a log line dies with the pod (2026-09-01).
   const reports: CatalogApplyReport[] = [];
-  const report = (
-    entry: { name: string; project_id: string | null },
-    state: CatalogApplyReport["state"],
-    reason: string | null,
-  ): void => {
-    reports.push({
-      name: entry.name,
-      projectId: entry.project_id,
-      state,
-      reason,
-    });
-  };
 
   for (const entry of body.entries) {
     const crdName = catalogCrdName(entry.name, entry.project_id);
+    const verdict = await applyCatalogEntry(deps, entry, crdName);
 
-    try {
-      // Ownership check FIRST, for deletes too — a null-definition event must never remove a seed-owned or hand-applied CR.
-      const ownership = deps.ownSeeded
-        ? { writable: true as const }
-        : await checkCrdOwnership(deps.catalog, crdName);
-
-      if (!ownership.writable) {
-        skippedNames.push(`${crdName} (${ownership.managedBy ?? "unlabeled"})`);
-        report(
-          entry,
-          "skipped",
-          `owned by ${ownership.managedBy ?? "an unlabeled writer"}`,
-        );
-        continue;
-      }
-
-      if (entry.definition === null) {
-        await deps.catalog.deletePair(crdName);
-        deleted += 1;
-        report(entry, "deleted", null);
-        continue;
-      }
-
-      // Refusal is permanent for this (row, cluster) pair, so the loop acks past it — re-serving head-of-line blocked the tail for 2h on 2026-09-01.
-      const refusal = validateCatalogEntry(entry.definition, deps.crdOptions);
-
-      if (refusal !== null) {
-        refused.push(`${crdName}: ${refusal}`);
-        report(entry, "refused", refusal);
-        continue;
-      }
-      await deps.catalog.applyPair(
-        agentDefToCrds(entry.definition, deps.crdOptions),
-      );
-      applied += 1;
-      report(entry, "applied", null);
-    } catch (err) {
-      // A 400/422 can never succeed, so it refuses; anything else is transient and keeps the ack so the batch re-serves.
-      if (isPermanentApplyError(err)) {
-        const reason = `${errorMessage(err)} (pair may be half-applied — Station half lands first)`;
-
-        refused.push(`${crdName}: ${reason}`);
-        report(entry, "refused", reason);
-        continue;
-      }
-
-      return {
-        outcome: {
-          kind: "error",
-          message: `catalog entry ${crdName} failed to land: ${errorMessage(err)}`,
-        },
-        ack,
-      };
+    if (verdict.state === "transient") {
+      return { outcome: { kind: "error", message: verdict.message }, ack };
     }
+
+    if (verdict.state === "applied") {
+      applied += 1;
+    }
+
+    if (verdict.state === "deleted") {
+      deleted += 1;
+    }
+
+    if (verdict.state === "skipped") {
+      skippedNames.push(verdict.detail);
+    }
+
+    if (verdict.state === "refused") {
+      refused.push(verdict.detail);
+    }
+    reports.push({
+      name: entry.name,
+      projectId: entry.project_id,
+      state: verdict.state,
+      reason: "reason" in verdict ? verdict.reason : null,
+    });
   }
 
   // Best effort, after the applies — a cluster that cannot report must keep syncing; a failed report costs visibility, never delivery.
