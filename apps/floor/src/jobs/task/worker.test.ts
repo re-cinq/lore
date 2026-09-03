@@ -1,5 +1,9 @@
 import { describe, it, expect, vi } from "vitest";
-import { recoverStaleTasks, isFeatureLifecycleType } from "./worker.js";
+import {
+  recoverStaleTasks,
+  isFeatureLifecycleType,
+  routeTask,
+} from "./worker.js";
 import { slugify } from "./task-helpers.js";
 import { InMemoryTaskQueue } from "@re-cinq/lore-shared/project/tasks/task-queue-memory.js";
 
@@ -42,25 +46,10 @@ describe("slugify", () => {
   });
 });
 
-// ── Task routing logic (mirrors processTask decision tree) ──────────
-
-/**
- * Pure function that mirrors the routing decision in worker.ts processTask().
- * Returns which handler would be called for a given task type.
- */
-function routeTask(
-  taskType: string,
-): "handleOnboard" | "handleFeatureRequest" | "handleClaudeCodeTask" {
-  if (taskType === "onboard") {
-    return "handleOnboard";
-  }
-
-  if (taskType === "feature-request") {
-    return "handleFeatureRequest";
-  }
-
-  return "handleClaudeCodeTask";
-}
+// ── Task routing ───────────────────────────────────────────────────
+//
+// `routeTask` is imported, not re-implemented: a test that mirrors the decision
+// it claims to check passes happily after the real one changes.
 
 describe("task routing", () => {
   it("routes onboard tasks to handleOnboard", () => {
