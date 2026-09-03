@@ -391,7 +391,14 @@ describe("createNodeEventHandler", () => {
     await h.port.finish(id, "pr_closed");
     await h.handler(params(id, crName));
 
-    expect(h.port.nodes[0]).toMatchObject({ outcome: null });
+    // Closing the run closes the visit it stranded (FR6.10a), so the evidence
+    // that the HANDLER ignored the event is the detail on that row — the
+    // run-finish wrote it, not the event — plus the launch that never happened.
+    expect(h.port.nodes[0]).toMatchObject({
+      outcome: "failed",
+      failureClass: "unknown",
+    });
+    expect(h.port.nodes[0]?.failureDetail).toMatch(/never reported an outcome/);
     expect(h.launched).toEqual([]);
   });
 
