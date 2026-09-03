@@ -183,3 +183,15 @@ describe("the implementation-tdd recipe", () => {
     );
   });
 });
+
+describe("the acceptance-dod recipe", () => {
+  it("forbids self-referential source-reading meta-tests", () => {
+    const parsed = parseTaskTypesFile(COMMITTED);
+    const dod = parsed.taskTypes["acceptance-dod"]?.prompt_template ?? "";
+
+    // The recipe must name the failure mode it guards against. Calling it
+    // "meta-test" is what stops the pod from producing one when the ticket
+    // is about recipe behaviour rather than a runtime seam.
+    expect(dod).toContain("meta-test");
+  });
+});
