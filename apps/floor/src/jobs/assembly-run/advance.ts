@@ -15,7 +15,11 @@ import {
   type NodeResult,
   type StageOutcome,
 } from "@re-cinq/lore-assembly-lines";
-import { resolveRunGraph, selectEdge } from "@re-cinq/lore-assembly-lines";
+import {
+  resolveRunGraph,
+  selectEdge,
+  type Transition,
+} from "@re-cinq/lore-assembly-lines";
 import type {
   RunGraph,
   RunGraphNode,
@@ -224,10 +228,7 @@ export async function collectPriorNodeFailures(
 /** Re-derives the line's next step from its node rows and performs it (launch/finish/fail); safe to call redundantly. */
 /** Close the run when the walk is over. `await` means a node is still running, so nothing settles. A `finish` reads its outcome back off the visits, because a line whose last node succeeded can still have failed earlier. */
 async function settleIfTerminal(
-  transition: Exclude<
-    Awaited<ReturnType<typeof getNextTransition>>,
-    { kind: "launch" }
-  >,
+  transition: Exclude<Transition, { kind: "launch" }>,
   assemblyRun: AssemblyRunRecord,
   visits: NodeVisit[],
   deps: AdvanceDeps,
@@ -344,7 +345,6 @@ export async function advanceLine(
     visits,
     assemblyRun,
     iteration: transition.iteration,
-    nodeId: transition.nodeId,
     deps,
   });
 }
@@ -357,7 +357,6 @@ interface NodeLaunch {
   visits: NodeVisit[];
   assemblyRun: AssemblyRunRecord;
   iteration: number;
-  nodeId: string;
   deps: AdvanceDeps;
 }
 
@@ -369,7 +368,6 @@ async function launchNode({
   visits,
   assemblyRun,
   iteration,
-  nodeId,
   deps,
 }: NodeLaunch): Promise<void> {
   const assemblyLineId = assemblyRun.id;
@@ -380,7 +378,7 @@ async function launchNode({
   const { stationRunId, nodeRowId } = await deps.assemblyRuns.ensureStationRun({
     assemblyRunId: assemblyLineId,
     nodeId: node.id,
-    iteration: iteration,
+    iteration,
     agentCrName: runsInService
       ? null
       : nodeAgentName(assemblyLineId, node.id, iteration),
@@ -425,9 +423,9 @@ async function launchNode({
   const spec = nodeLaunchSpec(dispatch, {
     node,
     task,
-    iteration: iteration,
+    iteration,
     stationRunId,
-    priorOutcome: priorOutcomeOf(visits, nodeId),
+    priorOutcome: priorOutcomeOf(visits, node.id),
     incomingFailure: incomingFailureOf(visits),
   });
 
