@@ -271,7 +271,7 @@ deliberate answers rather than shims:
 |---|---|---|
 | Agent nodes on an assembly line (implementation, review, general, feature-planning, …) | full stream-json transcript | correlated to `assembly_line_id`/`node_id`/`iteration` |
 | Plain Agent CR on a non-dark-factory repo (`agent-<taskId8>`) | full transcript, `task_id` only | readable via `listByTask` and the task-keyed HTTP route (#1150, landed) |
-| Station pods (validate, gate, detect, github_action, comment-triage, ingest, issues, retrospective) | 2–6 `log`/`result` lines | not a Claude Code transcript; `log` lines exist only here (the viz projection drops them) |
+| Station pods (validate, gate, detect, github_action, ingest, issues, retrospective) | 2–6 `log`/`result` lines | not a Claude Code transcript; `log` lines exist only here (the viz projection drops them) |
 | `onboard`, `feature-request` (direct Anthropic SDK in the Floor process) | none | no transcript artifact exists anywhere; cost lands in `pipeline.llm_calls`, a summary in `memory.episodes` |
 | Floor-side batch LLM calls (episode-writer, artifact-copy, memory-lifecycle) | none | same no-transcript property |
 | Human stations (`feature_review`, `pr_review`) | none | nothing executes — correct |

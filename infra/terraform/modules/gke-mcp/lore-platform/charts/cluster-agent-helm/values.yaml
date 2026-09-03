@@ -65,7 +65,7 @@ claim:
   name: central
   # The central agent carries every tag, including the central-only ones
   # (node:ingest mounts LORE_INGEST_TOKEN) satellites never receive.
-  tags: node:agent,node:validate,node:gate,node:retrospective,node:github_action,node:detect,node:ingest,node:comment-triage
+  tags: node:agent,node:validate,node:gate,node:retrospective,node:github_action,node:detect,node:ingest
   # In-cluster URL — registration/claim/heartbeat never leave the VPC here.
   loreApiUrl: http://lore-api.lore-api.svc.cluster.local:3000
   registrationTokenSecret:

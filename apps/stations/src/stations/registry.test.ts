@@ -125,15 +125,15 @@ describe("declared triggers are usable as declared", () => {
 describe("what may run in the pooled service", () => {
   /**
    * The pooled service holds the GitHub App private key, the database password
-   * and a model credential. A station that executes code it did not write, reads
-   * a working tree it did not produce, or feeds untrusted text to a model must
-   * not share that process — it runs in its own pod, where a compromise reaches
-   * one run's scoped token and nothing else.
+   * and a model credential. A station that executes code it did not write or
+   * reads a working tree it did not produce must not share that process — it
+   * runs in its own pod, where a compromise reaches one run's scoped token and
+   * nothing else. (An enum-constrained model call is not on that list; see the
+   * comment-triage test below.)
    */
   const MUST_BE_ISOLATED = {
     validate: "runs the target repo's own lint and typecheck commands",
     ingest: "reads a cloned working tree and alone holds graph-store egress",
-    "comment-triage": "feeds human-authored comment text to a model",
   } as const;
 
   it.each(Object.entries(MUST_BE_ISOLATED))(
@@ -146,6 +146,19 @@ describe("what may run in the pooled service", () => {
       expect(triggers.map((t) => t.runtime)).toEqual(["pod"]);
     },
   );
+
+  it("pools comment-triage — its one model call is enum-constrained, not agentic", () => {
+    // The pod this once required bought no isolation the output schema had not
+    // already provided: the call has no tools and no workspace, and its result
+    // is parsed against the closed review/address/answer/ignore enum — the only
+    // thing hostile comment text can steer is WHICH follow-up starts, which the
+    // commenter controls anyway by writing the words. What the pod did buy was
+    // ~19 minutes of schedule/pull/boot ceremony per fraction-of-a-cent call
+    // (527 pods, 164 pod-hours in one month).
+    const triggers = nodeTriggers(STATIONS["comment-triage"].manifest);
+
+    expect(triggers.map((t) => t.runtime)).toEqual(["service"]);
+  });
 
   it("asks for a cloned workspace only where something actually needs one", () => {
     const cloning = Object.values(STATIONS)

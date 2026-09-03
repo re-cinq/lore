@@ -55,7 +55,6 @@ export const CENTRAL_TAGS = [
   "node:github_action",
   "node:detect",
   "node:ingest",
-  "node:comment-triage",
 ];
 
 /** What the standalone installer defaults a satellite to (#1617). */

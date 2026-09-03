@@ -1297,14 +1297,11 @@ stations:
     # credential those paths error per spec -- logged, unlike comment-triage's
     # silent swallow, but the work still does not happen.
     needs_model: true
-  comment-triage:
-    command: ["lore-station", "comment-triage"]
-    timeout_minutes: 5
-    # It classifies a human comment with a model, so its pod needs the LLM
-    # credential. Without it the call failed, the failure was swallowed into
-    # "ignore", and the station reported SUCCESS -- every PR comment dropped,
-    # silently. Verified in the built image before this line existed.
-    needs_model: true
+  # comment-triage has no pod recipe: its manifest says runtime "service", so
+  # the walk publishes the node to the pooled stations service — a single
+  # enum-constrained Haiku call needs none of what a pod provides, and one Job
+  # per PR comment was 527 pods for $0.20 of model work in a month. Migration
+  # 0058 dropped the seeded def-comment-triage row.
   issues:
     command: ["lore-station", "issues"]
     # Files one Issue per story and one spec-task per task over the Lore API — no

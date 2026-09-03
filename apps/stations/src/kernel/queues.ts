@@ -8,6 +8,7 @@ import type { PipelineRepositories } from "@re-cinq/lore-shared";
 import { PgTaskStore } from "@re-cinq/lore-shared/project/tasks/task-store-pg.js";
 import { PgSettings } from "@re-cinq/lore-shared/project/settings/settings-pg.js";
 import { PgCost } from "@re-cinq/lore-shared/project/cost/cost-pg.js";
+import { PgUsage } from "@re-cinq/lore-shared/project/usage/usage-pg.js";
 import { PgEventDeliveries } from "@re-cinq/lore-shared/project/events/event-deliveries-pg.js";
 import type { EventDeliveriesPort } from "@re-cinq/lore-shared/project/events/event-deliveries-port.js";
 import { selectEventDeliveries } from "@re-cinq/lore-shared/project/events/select-event-reporter.js";
@@ -48,6 +49,13 @@ export const memoryLifecycle = (): PgMemoryLifecycle =>
  *  decomposition) and, like every producer, go through the router (ADR-044). */
 /** pipeline.anthropic_cost_daily — the cost import's write surface. */
 export const cost = (): PgCost => (costSingleton ??= new PgCost(getPool()));
+
+let usageSingleton: PgUsage | undefined;
+
+/** Per-call `pipeline.llm_calls` cost logging — the transport a service-run
+ *  station's model call reports through (a pod reports via its terminal line
+ *  instead, and `Llm.usageConfigured` keeps the two from double-counting). */
+export const usage = (): PgUsage => (usageSingleton ??= new PgUsage(getPool()));
 
 export const eventProxy = (): EventProxy =>
   (eventProxySingleton ??= selectEventProxy({

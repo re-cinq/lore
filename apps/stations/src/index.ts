@@ -8,9 +8,10 @@
 
 import { loadApprovalConfig } from "@re-cinq/lore-shared";
 import { getPool, initPool } from "@re-cinq/lore-shared/db/pg-pool.js";
+import { Llm } from "@re-cinq/lore-shared/llm/llm.js";
 import { startServer } from "./delivery/server.js";
 import { startStationDrain } from "./drain/loop-boot.js";
-import { deliveries, eventProxy } from "./kernel/queues.js";
+import { deliveries, eventProxy, usage } from "./kernel/queues.js";
 
 const PORT = parseInt(process.env.PORT ?? "8080", 10);
 
@@ -23,6 +24,10 @@ async function main(): Promise<void> {
   // Module state read by approval-check; the Floor loads the same config for
   // its worker's gate.
   await loadApprovalConfig(getPool());
+  // Service-run stations may call a model (comment-triage's Haiku
+  // classification); wiring the UsagePort here makes those calls land in
+  // `pipeline.llm_calls` exactly as the Floor's own calls do.
+  Llm.configure({ usage: usage() });
 
   // Before the server: a published node with nobody claiming it sits open until
   // the reaper times it out, and `merge_step` has no pod to fall back to.

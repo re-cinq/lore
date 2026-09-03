@@ -1431,7 +1431,7 @@ describe("a node whose station runs in the pooled service is not given a pod", (
       published.push(ev);
     };
 
-    await advanceLine(id, deps); // launches triage (a pod station)
+    await advanceLine(id, deps); // publishes triage (a service station since the de-podding)
     await finishNodeAndAdvance(
       {
         assemblyLineId: id,
@@ -1442,11 +1442,14 @@ describe("a node whose station runs in the pooled service is not given a pod", (
       deps,
     );
 
-    // `done` is a retrospective: one HTTP POST, which the pooled service runs.
-    expect(published.map((e) => e.eventName)).toEqual(["station.run"]);
-    expect(enqueued.map((l) => l.name)).toEqual([
-      `${id.substring(0, 12)}-triage`,
+    // Both nodes pool now: triage is one enum-constrained model call and `done`
+    // is a retrospective's HTTP POST — neither is given a pod, so the whole
+    // line walks without a single CR.
+    expect(published.map((e) => e.eventName)).toEqual([
+      "station.run",
+      "station.run",
     ]);
+    expect(enqueued).toEqual([]);
   });
 
   it("publishes an open node once, and keys it to the visit rather than the node", async () => {
@@ -1483,8 +1486,13 @@ describe("a node whose station runs in the pooled service is not given a pod", (
     // node, so a revisit at a later iteration is still its own unit of work.
     await advanceLine(id, deps);
 
-    expect(published).toHaveLength(1);
-    expect(published[0]?.dedupeKey).toMatch(/^station-run:.+/);
+    // Two visits published (triage, then done) — the re-drive added neither a
+    // third publish nor a duplicate of the open `done` visit.
+    expect(published).toHaveLength(2);
+
+    for (const ev of published) {
+      expect(ev.dedupeKey).toMatch(/^station-run:.+/);
+    }
   });
 
   it("still enqueues a pod station's dispatch, so isolation is not quietly withdrawn", async () => {
