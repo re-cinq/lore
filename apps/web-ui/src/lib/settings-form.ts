@@ -81,7 +81,9 @@ export interface CurrentSettings {
   >;
 }
 
-const yesNo = (fd: FormData, name: string): boolean => fd.get(name) === "yes";
+/** A checkbox's submitted value, or undefined when the form never rendered the control. */
+const checkbox = (fd: FormData, name: string): boolean | undefined =>
+  fd.has(name) ? fd.get(name) === "yes" : undefined;
 const text = (fd: FormData, name: string): string =>
   ((fd.get(name) as string) || "").trim();
 const sameArray = (a: string[] = [], b: string[] = []): boolean =>
@@ -110,15 +112,14 @@ function recordText(
   }
 }
 
-/** Record a field the form always submits (a checkbox or a multi-select) only when it was present AND differs. Presence is the guard: an absent field is a form that never rendered the control, not a cleared value. */
-function recordPresent<T>(
+/** Record a checkbox only when the form rendered it AND it differs from what is stored — an absent control means the form never offered the field, not that it was cleared. */
+function recordCheckbox(
   into: Record<string, unknown>,
   key: string,
-  present: boolean,
-  value: T,
-  stored: T,
+  value: boolean | undefined,
+  stored: boolean,
 ): void {
-  if (present && value !== stored) {
+  if (value !== undefined && value !== stored) {
     into[key] = value;
   }
 }
@@ -129,11 +130,10 @@ function darkFactoryChanges(
 ): Record<string, unknown> {
   const changes: Record<string, unknown> = {};
 
-  recordPresent(
+  recordCheckbox(
     changes,
     "enabled",
-    formData.has("df_enabled"),
-    yesNo(formData, "df_enabled"),
+    checkbox(formData, "df_enabled"),
     df.enabled ?? false,
   );
   recordText(
@@ -196,18 +196,16 @@ function autoMergeChanges(
     text(formData, "df_am_min_trust"),
     am.min_trust,
   );
-  recordPresent(
+  recordCheckbox(
     changes,
     "require_green_ci",
-    formData.has("df_am_green_ci"),
-    yesNo(formData, "df_am_green_ci"),
+    checkbox(formData, "df_am_green_ci"),
     am.require_green_ci ?? true,
   );
-  recordPresent(
+  recordCheckbox(
     changes,
     "require_bot_approval",
-    formData.has("df_am_bot_approval"),
-    yesNo(formData, "df_am_bot_approval"),
+    checkbox(formData, "df_am_bot_approval"),
     am.require_bot_approval ?? true,
   );
 

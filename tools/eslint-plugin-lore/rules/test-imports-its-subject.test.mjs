@@ -54,6 +54,27 @@ ruleTester.run("test-imports-its-subject", rule, {
       code: `import { suite } from "vitest";`,
       filename: "/repo/apps/x.contract.test.ts",
     },
+    // A suite under integration-tests/ drives a system, exactly as the
+    // .integration.test suffix does — the directory is this repo's spelling.
+    {
+      code: `import pg from "pg";`,
+      filename: "/repo/apps/lore-api/src/integration-tests/pipeline.test.ts",
+    },
+    // Reading the artifact under test IS loading the real subject. These suites
+    // assert on a migration's SQL, a stylesheet, or the source tree — files, not
+    // modules, so there is nothing for them to import.
+    {
+      code: `import { readFileSync } from "node:fs";\nconst sql = readFileSync("0015.sql", "utf8");`,
+      filename: "/repo/apps/lore-api/src/migration-0015.test.ts",
+    },
+    {
+      code: `import { readFileSync } from "fs";`,
+      filename: "/repo/apps/web-ui/src/app/theme-tokens.test.ts",
+    },
+    {
+      code: `import { it } from "vitest";\nconst fs = await import("node:fs");`,
+      filename: F,
+    },
   ],
   invalid: [
     // THE BUG: imports only vitest, then re-implements what it claims to test.
@@ -84,7 +105,14 @@ ruleTester.run("test-imports-its-subject (dynamic)", rule, {
   invalid: [
     // A dynamic import of a third-party module still loads no first-party code.
     {
-      code: `import { it } from "vitest";\nconst x = await import("node:fs");`,
+      code: `import { it } from "vitest";\nconst x = await import("pg");`,
+      filename: F,
+      errors: [{ messageId: "noSubjectImport" }],
+    },
+    // Another node builtin is not the artifact escape hatch — only reading a
+    // file makes the suite's subject a file.
+    {
+      code: `import { createHmac } from "node:crypto";\nfunction verify() {}`,
       filename: F,
       errors: [{ messageId: "noSubjectImport" }],
     },

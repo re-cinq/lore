@@ -1,63 +1,8 @@
 import { describe, it, expect } from "vitest";
-
-interface ToolCallEntry {
-  tool: string;
-  timestamp: string;
-  durationMs: number;
-  success: boolean;
-}
-
-function formatSessionSummaryFromLog(
-  log: ToolCallEntry[],
-  startTime: string,
-): string {
-  if (log.length === 0) {
-    return "";
-  }
-
-  const now = new Date();
-  const start = new Date(startTime);
-  const durationMin = Math.round((now.getTime() - start.getTime()) / 60000);
-
-  const toolCounts: Record<
-    string,
-    { calls: number; errors: number; totalMs: number }
-  > = {};
-
-  for (const entry of log) {
-    if (!toolCounts[entry.tool]) {
-      toolCounts[entry.tool] = { calls: 0, errors: 0, totalMs: 0 };
-    }
-    toolCounts[entry.tool].calls++;
-    toolCounts[entry.tool].totalMs += entry.durationMs;
-
-    if (!entry.success) {
-      toolCounts[entry.tool].errors++;
-    }
-  }
-
-  const totalCalls = log.length;
-  const totalErrors = log.filter((e) => !e.success).length;
-
-  const lines: string[] = [
-    `Session: ${durationMin}min, ${totalCalls} tool calls, ${totalErrors} errors`,
-    "",
-    "Tool usage:",
-  ];
-
-  const sorted = Object.entries(toolCounts).sort(
-    (a, b) => b[1].calls - a[1].calls,
-  );
-
-  for (const [tool, stats] of sorted) {
-    const avgMs = Math.round(stats.totalMs / stats.calls);
-    const errSuffix = stats.errors > 0 ? ` (${stats.errors} errors)` : "";
-
-    lines.push(`  ${tool}: ${stats.calls}x, avg ${avgMs}ms${errSuffix}`);
-  }
-
-  return lines.join("\n");
-}
+import {
+  formatSessionSummaryFromLog,
+  type ToolCallEntry,
+} from "./session-tracker.js";
 
 describe("session tracker", () => {
   describe("formatSessionSummary", () => {

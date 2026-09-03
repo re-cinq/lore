@@ -192,13 +192,13 @@ repo B
 ### FR-5: Transfer Scoring
 
 - FR-5.1: Add `computeTransferScore(factText: string): number`
-  function in `memory-search.ts`. ([validated by `transfer-score.test.ts:44`](apps/mcp-server/src/features/context/transfer-score.test.ts#L44))
+  function in `memory-search.ts`. ([validated by `transfer-score.test.ts:44`](apps/mcp-server/src/features/context/transfer-score.test.ts#L5))
 - FR-5.2: Portable keywords boost score: `error`, `pattern`,
-  `gotcha`, `rule`, `convention`, `best-practice`, `anti-pattern`. ([validated by `transfer-score.test.ts:50`](apps/mcp-server/src/features/context/transfer-score.test.ts#L50))
+  `gotcha`, `rule`, `convention`, `best-practice`, `anti-pattern`. ([validated by `transfer-score.test.ts:50`](apps/mcp-server/src/features/context/transfer-score.test.ts#L11))
 - FR-5.3: Local keywords reduce score: `config`, `deploy`, `url`,
-  `auth`, `secret`, `env`, `port`, `hostname`, `endpoint`. ([validated by `transfer-score.test.ts:58`](apps/mcp-server/src/features/context/transfer-score.test.ts#L58))
+  `auth`, `secret`, `env`, `port`, `hostname`, `endpoint`. ([validated by `transfer-score.test.ts:58`](apps/mcp-server/src/features/context/transfer-score.test.ts#L19))
 - FR-5.4: Base score 0.5, each portable keyword +0.15, each local
-  keyword -0.15, clamped to [0, 1]. ([validated by `transfer-score.test.ts:82`](apps/mcp-server/src/features/context/transfer-score.test.ts#L82))
+  keyword -0.15, clamped to [0, 1]. ([validated by `transfer-score.test.ts:82`](apps/mcp-server/src/features/context/transfer-score.test.ts#L43))
 - FR-5.5: Cross-repo queries in `context-assembly.ts` filter to
   `transfer_score >= 0.5`.
 

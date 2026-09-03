@@ -210,23 +210,13 @@ export default function AgentList({
                       {modeLabel(a, usage?.refs ?? null)}
                     </td>
                     <td
-                      className={styles.detail}
-                      style={
-                        use.dormant
-                          ? ({ color: "var(--warning)" } as CSSProperties)
-                          : undefined
-                      }
+                      className={`${styles.detail} ${use.dormant ? styles.detailDormant : ""}`}
                       data-testid={`usage-${a.name}`}
                     >
                       {use.text}
                     </td>
                     <td
-                      className={styles.detail}
-                      style={
-                        rollout.bad
-                          ? ({ color: "var(--danger)" } as CSSProperties)
-                          : undefined
-                      }
+                      className={`${styles.detail} ${rollout.bad ? styles.detailBad : ""}`}
                       data-testid={`rollout-${a.name}`}
                     >
                       {rollout.text}

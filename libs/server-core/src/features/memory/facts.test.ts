@@ -1,29 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-
-function parseFacts(raw: string): string[] {
-  try {
-    const cleaned = raw
-      .replace(/```json?\s*/g, "")
-      .replace(/```/g, "")
-      .trim();
-    const parsed = JSON.parse(cleaned);
-
-    if (Array.isArray(parsed)) {
-      return parsed
-        .filter(
-          (f): f is string => typeof f === "string" && f.trim().length > 0,
-        )
-        .slice(0, 10);
-    }
-    // eslint-disable-next-line no-empty
-  } catch {}
-
-  return raw
-    .split("\n")
-    .map((line) => line.replace(/^\s*[-*\d.)\]]+\s*/, "").trim())
-    .filter((line) => line.length > 0)
-    .slice(0, 10);
-}
+import { parseFacts } from "./facts.js";
 
 describe("parseFacts", () => {
   it("parses a JSON array of strings", () => {

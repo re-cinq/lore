@@ -5,18 +5,18 @@ import { join } from "node:path";
 
 // Live knowledge graph (PostgreSQL-backed)
 
-interface ExtractedGraphEntity {
+export interface ExtractedGraphEntity {
   name: string;
   type: string;
 }
 
-interface ExtractedGraphEdge {
+export interface ExtractedGraphEdge {
   source: string;
   target: string;
   relation: string;
 }
 
-interface GraphExtractionResult {
+export interface GraphExtractionResult {
   entities: ExtractedGraphEntity[];
   edges: ExtractedGraphEdge[];
 }
@@ -33,7 +33,7 @@ const GRAPH_EXTRACTION_PROMPT =
   "Only include clearly stated relationships. Maximum 10 entities and 10 edges. " +
   "Normalize entity names to lowercase. Return only the JSON object.";
 
-function parseGraphExtraction(raw: string): GraphExtractionResult {
+export function parseGraphExtraction(raw: string): GraphExtractionResult {
   try {
     const cleaned = raw
       .replace(/```json?\s*/g, "")

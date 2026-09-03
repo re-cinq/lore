@@ -1,47 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-
-interface ExtractedGraphEntity {
-  name: string;
-  type: string;
-}
-
-interface ExtractedGraphEdge {
-  source: string;
-  target: string;
-  relation: string;
-}
-
-function parseGraphExtraction(raw: string): {
-  entities: ExtractedGraphEntity[];
-  edges: ExtractedGraphEdge[];
-} {
-  try {
-    const cleaned = raw
-      .replace(/```json?\s*/g, "")
-      .replace(/```/g, "")
-      .trim();
-    const parsed = JSON.parse(cleaned);
-    const entities = (parsed.entities || [])
-      .filter((e: any) => e.name && e.type)
-      .map((e: any) => ({
-        name: String(e.name).toLowerCase().trim(),
-        type: String(e.type).toLowerCase().trim(),
-      }))
-      .slice(0, 10);
-    const edges = (parsed.edges || [])
-      .filter((e: any) => e.source && e.target && e.relation)
-      .map((e: any) => ({
-        source: String(e.source).toLowerCase().trim(),
-        target: String(e.target).toLowerCase().trim(),
-        relation: String(e.relation).toLowerCase().trim(),
-      }))
-      .slice(0, 10);
-
-    return { entities, edges };
-  } catch {
-    return { entities: [], edges: [] };
-  }
-}
+import { parseGraphExtraction } from "./graph.js";
 
 describe("parseGraphExtraction", () => {
   it("parses entities and edges from JSON", () => {

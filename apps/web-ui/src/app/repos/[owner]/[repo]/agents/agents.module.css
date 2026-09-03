@@ -68,6 +68,15 @@
   font-family: var(--font-mono);
 }
 
+/* Both recolour a .detail cell, so they must stay below it to win on order. */
+.detailDormant {
+  color: var(--warning);
+}
+
+.detailBad {
+  color: var(--danger);
+}
+
 .resourceGrid {
   display: grid;
   grid-template-columns: auto repeat(3, minmax(6rem, 10rem));

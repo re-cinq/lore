@@ -466,35 +466,35 @@ The system MUST automatically identify and address knowledge gaps. ([validated b
 ### FR-11: Live Knowledge Graph (Phase 1+)
 
 The system MUST support traversable knowledge via a PostgreSQL-backed
-live knowledge graph. ([validated by `graph.test.ts:47`](libs/server-core/src/features/memory/graph.test.ts#L47))
+live knowledge graph. ([validated by `graph.test.ts:47`](libs/server-core/src/features/memory/graph.test.ts#L5))
 
 - FR-11.1: Knowledge graph stored in `memory.entities` and
   `memory.edges` tables in PostgreSQL. Updated incrementally on
-  every `lore_write_episode` call via the Lore Agent fact extractor. ([validated by `graph.test.ts:133`](libs/server-core/src/features/memory/graph.test.ts#L133))
+  every `lore_write_episode` call via the Lore Agent fact extractor. ([validated by `graph.test.ts:133`](libs/server-core/src/features/memory/graph.test.ts#L91))
 - FR-11.2: Entity types: Service, Team, Function, PR, ADR, Spec,
   Concept, Runbook. Typed relationships: OWNS, CALLS, IMPLEMENTS,
-  SUPERSEDES, REFERENCES, AUTHORED_BY, DEFINES. ([validated by `graph.test.ts:47`](libs/server-core/src/features/memory/graph.test.ts#L47), [`graph.test.ts:115`](libs/server-core/src/features/memory/graph.test.ts#L115))
+  SUPERSEDES, REFERENCES, AUTHORED_BY, DEFINES. ([validated by `graph.test.ts:47`](libs/server-core/src/features/memory/graph.test.ts#L5), [`graph.test.ts:73`](libs/server-core/src/features/memory/graph.test.ts#L73))
 - FR-11.3: `lore_query_graph(query)` MCP tool traverses the live graph
   for multi-hop relationship results. ([validated by `memory-tools.test.ts:44`](apps/mcp-server/src/mcp/tools/memory-tools.test.ts#L44))
 - FR-11.4: Facts carry temporal validity (`valid_from`/`valid_to`),
   confidence tiers (`verified` / `observed` / `inferred` / `stale`),
   and retrieval metadata (`retrieval_count`, `last_retrieved_at`,
-  `half_life_days`). ([validated by `facts.test.ts:96`](libs/server-core/src/features/memory/facts.test.ts#L95), [`memory-ranking.test.ts:162`](libs/shared/src/memory-ranking.test.ts#L162))
+  `half_life_days`). ([validated by `facts.test.ts:96`](libs/server-core/src/features/memory/facts.test.ts#L71), [`memory-ranking.test.ts:162`](libs/shared/src/memory-ranking.test.ts#L162))
 - FR-11.5: Contradiction detection: when a new fact has cosine
   similarity ≥ 0.92 to an existing one, the old fact is invalidated
   and a conflict record written to `memory.fact_conflicts`. Context
   assembly prefixes `[CONFLICT]` on facts with recent (7-day)
-  conflicts. ([validated by `facts.test.ts:96`](libs/server-core/src/features/memory/facts.test.ts#L95), [`facts.test.ts:128`](libs/server-core/src/features/memory/facts.test.ts#L128))
+  conflicts. ([validated by `facts.test.ts:96`](libs/server-core/src/features/memory/facts.test.ts#L71), [`facts.test.ts:104`](libs/server-core/src/features/memory/facts.test.ts#L104))
 
 ### FR-12: Intelligent Memory Lifecycle (Phase 1)
 
 The system MUST manage agent memory automatically without agent
-cooperation. ([validated by `session-tracker.test.ts:193`](libs/server-core/src/platform/session-tracker.test.ts#L190))
+cooperation. ([validated by `session-tracker.test.ts:193`](libs/server-core/src/platform/session-tracker.test.ts#L135))
 
 - FR-12.1: MCP server tracks all tool calls in a 500-entry ring
   buffer (`session-tracker.ts`). On exit, dumps to
   `~/.lore/last-session.json`. Stop hook POSTs to
-  `/api/session-summary` for automatic episode + fact extraction. ([validated by `session-tracker.test.ts:193`](libs/server-core/src/platform/session-tracker.test.ts#L190), [`session-tracker.test.ts:70`](libs/server-core/src/platform/session-tracker.test.ts#L70))
+  `/api/session-summary` for automatic episode + fact extraction. ([validated by `session-tracker.test.ts:193`](libs/server-core/src/platform/session-tracker.test.ts#L135), [`session-tracker.test.ts:15`](libs/server-core/src/platform/session-tracker.test.ts#L15))
 - FR-12.2: Daily job at 5 AM scores memories 0-10 using half-life
   decay (`strength = 0.5^(age / half_life_days)`). Evicts
   lowest-scoring memories when agent exceeds 500 entries. Cleans
@@ -773,7 +773,7 @@ attempt). ([validated by `TaskDetailView.test.tsx:109`](apps/web-ui/src/app/task
   and records the transition carrying the priority it replaced.
   `cancelTask` treats `completed`, `merged`, `failed` and `cancelled` as
   terminal — `completed` was missing, so the web UI's own guard refused
-  a click the API accepted. ([validated by `sets priority immediate on a pending task`](libs/shared/src/pipeline-tasks.escalate.test.ts#L20), [`pipeline-tasks.escalate.test.ts:34`](libs/shared/src/pipeline-tasks.escalate.test.ts#L34), [`pipeline-tasks.escalate.test.ts:51`](libs/shared/src/pipeline-tasks.escalate.test.ts#L51), [`pipeline-tasks.escalate.test.ts:59`](libs/shared/src/pipeline-tasks.escalate.test.ts#L59), [`pipeline-tasks.escalate.test.ts:80`](libs/shared/src/pipeline-tasks.escalate.test.ts#L69), [`pipeline-tasks.escalate.test.ts:80`](libs/shared/src/pipeline-tasks.escalate.test.ts#L80))
+  a click the API accepted. ([validated by `sets priority immediate on a pending task`](libs/shared/src/pipeline-tasks.escalate.test.ts#L20), [`pipeline-tasks.escalate.test.ts:34`](libs/shared/src/pipeline-tasks.escalate.test.ts#L34), [`pipeline-tasks.escalate.test.ts:51`](libs/shared/src/pipeline-tasks.escalate.test.ts#L51), [`pipeline-tasks.escalate.test.ts:59`](libs/shared/src/pipeline-tasks.escalate.test.ts#L59), [`pipeline-tasks.escalate.test.ts:69`](libs/shared/src/pipeline-tasks.escalate.test.ts#L69), [`pipeline-tasks.escalate.test.ts:80`](libs/shared/src/pipeline-tasks.escalate.test.ts#L80))
 
 - FR-19.17: lore-api serves one `lore.repos` row at
   `GET /api/repos/{owner}/{repo}` under the `read` scope, reading it

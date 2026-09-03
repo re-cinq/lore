@@ -1,44 +1,5 @@
 import { describe, it, expect } from "vitest";
-
-const PORTABLE_KEYWORDS = [
-  "error",
-  "pattern",
-  "gotcha",
-  "rule",
-  "convention",
-  "best-practice",
-  "anti-pattern",
-];
-const LOCAL_KEYWORDS = [
-  "config",
-  "deploy",
-  "url",
-  "auth",
-  "secret",
-  "env",
-  "port",
-  "hostname",
-  "endpoint",
-];
-
-function computeTransferScore(text: string): number {
-  const lower = text.toLowerCase();
-  let score = 0.5;
-
-  for (const kw of PORTABLE_KEYWORDS) {
-    if (lower.includes(kw)) {
-      score += 0.15;
-    }
-  }
-
-  for (const kw of LOCAL_KEYWORDS) {
-    if (lower.includes(kw)) {
-      score -= 0.15;
-    }
-  }
-
-  return Math.max(0, Math.min(1, score));
-}
+import { computeTransferScore } from "@re-cinq/lore-shared";
 
 describe("computeTransferScore", () => {
   it("returns 0.5 for neutral text", () => {

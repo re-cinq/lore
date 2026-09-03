@@ -130,7 +130,7 @@ available to agents — the authoritative interface.
   extraction runs asynchronously. Knowledge graph entities and edges
   are extracted and upserted. Superseded facts are auto-invalidated
   (cosine similarity >= 0.92). Does not require the agent to
-  structure the input — unstructured prose is fine. ([validated by `episode.test.ts:84`](apps/lore-api/src/api/routes/memory/episode.test.ts#L84), [`facts.test.ts:29`](libs/server-core/src/features/memory/facts.test.ts#L29), [`graph.test.ts:47`](libs/server-core/src/features/memory/graph.test.ts#L47))
+  structure the input — unstructured prose is fine. ([validated by `episode.test.ts:84`](apps/lore-api/src/api/routes/memory/episode.test.ts#L84), [`facts.test.ts:5`](libs/server-core/src/features/memory/facts.test.ts#L5), [`graph.test.ts:5`](libs/server-core/src/features/memory/graph.test.ts#L5))
 
 ### Knowledge Graph
 
@@ -252,7 +252,7 @@ returning the new id or null when a duplicate already exists. ([validated by `me
 Live knowledge graph: entities represent services, teams, technologies, and
 other named concepts; edges represent typed relationships (e.g., `depends_on`,
 `owns`, `uses`), both carry temporal validity, and contradictory edges (same
-source + relation, different target) auto-invalidate the prior edge. ([validated by `graph.test.ts:47`](libs/server-core/src/features/memory/graph.test.ts#L47), [`graph-edge.test.ts:40`](libs/server-core/src/features/memory/graph-edge.test.ts#L40), [`graph-edge.test.ts:86`](libs/server-core/src/features/memory/graph-edge.test.ts#L86))
+source + relation, different target) auto-invalidate the prior edge. ([validated by `graph.test.ts:47`](libs/server-core/src/features/memory/graph.test.ts#L5), [`graph-edge.test.ts:40`](libs/server-core/src/features/memory/graph-edge.test.ts#L40), [`graph-edge.test.ts:86`](libs/server-core/src/features/memory/graph-edge.test.ts#L86))
 
 ### snapshots
 
@@ -292,7 +292,7 @@ each extracted fact gets an independent embedding for fine-grained search. ([val
 The LLM's raw output is parsed into individual facts: a JSON array
 (unwrapping ```` ```json ```` code fences), falling back to newline /
 numbered-list splitting for non-JSON, with empty strings filtered out
-and a cap of 10 facts. ([validated by `facts.test.ts:39`](libs/server-core/src/features/memory/facts.test.ts#L38), [`facts.test.ts:44`](libs/server-core/src/features/memory/facts.test.ts#L44), [`facts.test.ts:50`](libs/server-core/src/features/memory/facts.test.ts#L50), [`facts.test.ts:64`](libs/server-core/src/features/memory/facts.test.ts#L64))
+and a cap of 10 facts. ([validated by `facts.test.ts:39`](libs/server-core/src/features/memory/facts.test.ts#L14), [`facts.test.ts:20`](libs/server-core/src/features/memory/facts.test.ts#L20), [`facts.test.ts:26`](libs/server-core/src/features/memory/facts.test.ts#L26), [`facts.test.ts:40`](libs/server-core/src/features/memory/facts.test.ts#L40))
 
 ## Memory Lifecycle (Background Jobs)
 
@@ -378,7 +378,7 @@ Facts retrieved for cross-repo context are filtered by a portability
 score. Portable keywords (`error`, `pattern`, `gotcha`, `convention`)
 boost the score; local keywords (`config`, `deploy`, `url`, `auth`,
 `secret`) reduce it. Each portable keyword adds 0.15 above the 0.5 base and each local keyword subtracts 0.15, with the result clamped to `[0, 1]`. Only facts scoring >= 0.5 pass through to
-prevent repo-specific configuration from polluting other repos. ([validated by `transfer-score.test.ts:66`](apps/mcp-server/src/features/context/transfer-score.test.ts#L66), [`memory-ranking.test.ts:33`](libs/shared/src/memory-ranking.test.ts#L33), [`memory-ranking.test.ts:37`](libs/shared/src/memory-ranking.test.ts#L37), [`memory-ranking.test.ts:41`](libs/shared/src/memory-ranking.test.ts#L41), [`memory-ranking.test.ts:47`](libs/shared/src/memory-ranking.test.ts#L47))
+prevent repo-specific configuration from polluting other repos. ([validated by `transfer-score.test.ts:66`](apps/mcp-server/src/features/context/transfer-score.test.ts#L27), [`memory-ranking.test.ts:33`](libs/shared/src/memory-ranking.test.ts#L33), [`memory-ranking.test.ts:37`](libs/shared/src/memory-ranking.test.ts#L37), [`memory-ranking.test.ts:41`](libs/shared/src/memory-ranking.test.ts#L41), [`memory-ranking.test.ts:47`](libs/shared/src/memory-ranking.test.ts#L47))
 
 ## Divergences from Original Design
 
