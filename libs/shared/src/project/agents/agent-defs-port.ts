@@ -61,31 +61,22 @@ export function resolveAgentConfig(
   if (!top) {
     return null;
   }
+  // Per FIELD, not per layer: the topmost layer that sets a field wins it, so a project row overriding only the model still inherits the org prompt.
+  const layered = <K extends keyof AgentDefinition>(
+    field: K,
+  ): AgentDefinition[K] | null =>
+    pick(project?.[field], org?.[field], yamlDefault?.[field]);
 
   return {
     name: top.name,
-    model: pick(project?.model, org?.model, yamlDefault?.model),
-    timeout_minutes: pick(
-      project?.timeout_minutes,
-      org?.timeout_minutes,
-      yamlDefault?.timeout_minutes,
-    ),
-    prompt: pick(project?.prompt, org?.prompt, yamlDefault?.prompt),
-    image: pick(project?.image, org?.image, yamlDefault?.image),
-    execution_mode:
-      pick(
-        project?.execution_mode,
-        org?.execution_mode,
-        yamlDefault?.execution_mode,
-      ) ?? "claude-code",
-    review_required:
-      pick(
-        project?.review_required,
-        org?.review_required,
-        yamlDefault?.review_required,
-      ) ?? false,
+    model: layered("model"),
+    timeout_minutes: layered("timeout_minutes"),
+    prompt: layered("prompt"),
+    image: layered("image"),
+    execution_mode: layered("execution_mode") ?? "claude-code",
+    review_required: layered("review_required") ?? false,
     project_id: project?.project_id ?? null,
     // Whole-object, not field-merged — a layer that sets config owns all of it, or splicing project skills into org disallowed_tools would produce a recipe nobody wrote.
-    config: pick(project?.config, org?.config, yamlDefault?.config),
+    config: layered("config"),
   };
 }
