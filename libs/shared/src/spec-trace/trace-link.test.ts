@@ -6,15 +6,6 @@ import { randomUUID } from "node:crypto";
 import * as dgraph from "dgraph-js-http";
 import { upsertTraceLink, projectTraceLinks } from "./trace-link.js";
 
-/**
- * upsertTraceLink (spec-traceability-graph, Phase 4 / T242) — reified TraceLink
- * edge-evidence model against the REAL local Dgraph cluster (no mocks).
- * Container-gated: skips when Dgraph isn't reachable.
- *
- * KERNEL facet: one upsert writes one reified TraceLink node carrying kind +
- * evidence + target, linked from the Statement via Statement.trace_links.
- */
-
 const DGRAPH_HTTP = process.env.DGRAPH_HTTP ?? "http://localhost:8081";
 const APPLIER = join(
   findRepoRoot(),
@@ -98,7 +89,7 @@ describe.skipIf(!reachable)("upsertTraceLink (live Dgraph)", () => {
         });
       }
     } catch {
-      // best-effort cleanup must never mask the assertion
+      void 0;
     } finally {
       await txn.discard().catch(() => {});
     }
@@ -124,7 +115,7 @@ describe.skipIf(!reachable)("upsertTraceLink (live Dgraph)", () => {
         });
       }
     } catch {
-      // best-effort cleanup must never mask the assertion
+      void 0;
     } finally {
       await txn.discard().catch(() => {});
     }
@@ -311,7 +302,7 @@ describe.skipIf(!reachable)("upsertTraceLink (live Dgraph)", () => {
     ]);
   });
 
-  it("tags the validated_by TraceLink execution-verified when the coverage chain proves it", async () => {
+  it("tags the validated_by TraceLink execution-verified when Coverage covers the same file path as the implemented CodeChunk", async () => {
     const repo = `tracelink/${randomUUID()}`;
 
     createdRepo = repo;
@@ -333,8 +324,6 @@ describe.skipIf(!reachable)("upsertTraceLink (live Dgraph)", () => {
     });
     const ccUid = codeChunkRes.data.uids.cc;
 
-    // Coverage covers the FILE (same path as the implemented CodeChunk) — the
-    // execution-verified verdict matches by file path.
     const fileRes = await dgraphClient.newTxn().mutate({
       setJson: {
         uid: "_:f",

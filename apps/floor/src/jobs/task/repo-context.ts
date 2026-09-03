@@ -26,10 +26,37 @@ const KEY_FILES = [
 
 const SAMPLE_DIRS = ["src", "lib", "cmd", "internal", "app", "pkg"];
 
-/**
- * Fetches contextual information about a repo: top-level tree, key config
- * files, and a sample of source files from well-known directories.
- */
+/** Reads up to the 3-sample cap from one directory's entries (first 200 lines each); per-file read failures are logged and skipped. */
+async function sampleDirEntries(
+  project: Awaited<ReturnType<typeof projectFor>>,
+  fullName: string,
+  dir: string,
+  entries: string[],
+  samples: Record<string, string>,
+): Promise<void> {
+  for (const entryName of entries) {
+    if (Object.keys(samples).length >= 3) {
+      return;
+    }
+    const entryPath = `${dir}/${entryName}`;
+
+    try {
+      const content = await project.repo.read(entryPath);
+
+      if (content !== null) {
+        const first200 = content.split("\n").slice(0, 200).join("\n");
+
+        samples[entryPath] = first200;
+      }
+    } catch (err) {
+      console.error(
+        `[floor] Error fetching sample ${fullName}/${entryPath}: ${errorMessage(err)}`,
+      );
+    }
+  }
+}
+
+/** Fetches contextual information about a repo: top-level tree, key config files, and a sample of source files from well-known directories. */
 export async function fetchRepoContext(fullName: string): Promise<RepoContext> {
   const [owner, repo] = fullName.split("/");
 
@@ -89,26 +116,7 @@ export async function fetchRepoContext(fullName: string): Promise<RepoContext> {
       continue;
     }
 
-    for (const entryName of entries) {
-      if (Object.keys(samples).length >= 3) {
-        break;
-      }
-      const entryPath = `${dir}/${entryName}`;
-
-      try {
-        const content = await project.repo.read(entryPath);
-
-        if (content !== null) {
-          const first200 = content.split("\n").slice(0, 200).join("\n");
-
-          samples[entryPath] = first200;
-        }
-      } catch (err) {
-        console.error(
-          `[floor] Error fetching sample ${fullName}/${entryPath}: ${errorMessage(err)}`,
-        );
-      }
-    }
+    await sampleDirEntries(project, fullName, dir, entries, samples);
   }
 
   return { tree, files, samples };

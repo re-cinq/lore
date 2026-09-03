@@ -4,16 +4,7 @@ import {
   getUpdateStatus,
 } from "../../features/update/mcp-update.js";
 
-/**
- * lore_update — rebuild the installed local MCP adapter from the latest
- * origin/main. Local-machine only: on the shared server there is no checkout to
- * update, so the underlying git/build no-ops and the tool reports that.
- *
- * Runs the audited scripts/lore-update.sh (git pull + npm ci --ignore-scripts +
- * build shared→server-core→mcp). Meant to be invoked only after the user
- * consents — lore_assemble_context flags `lore_mcp_update_available` when the
- * local MCP is behind.
- */
+// lore_update rebuilds the local MCP adapter via scripts/lore-update.sh; on the shared server there's no checkout, so it no-ops and reports that.
 export function registerUpdateTools(server: McpServer) {
   server.tool(
     "lore_update",

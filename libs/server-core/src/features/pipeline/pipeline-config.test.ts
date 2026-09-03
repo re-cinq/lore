@@ -8,24 +8,19 @@ import {
 } from "./pipeline-config.js";
 import { join } from "node:path";
 
-// ---------------------------------------------------------------------------
-// loadTaskTypes — point TASK_TYPES_PATH at the real scripts/task-types.yaml
-// ---------------------------------------------------------------------------
-
 describe("loadTaskTypes", () => {
   afterEach(() => {
     delete process.env.TASK_TYPES_PATH;
   });
 
   it("loads task types from the project's YAML file", () => {
-    // Point directly at the repo's task-types.yaml
     const yamlPath = join(
       import.meta.dirname,
-      "..", // pipeline → features
-      "..", // features → src
-      "..", // src → mcp-server
-      "..", // mcp-server → apps
-      "..", // apps → repo root
+      "..",
+      "..",
+      "..",
+      "..",
+      "..",
       "scripts",
       "task-types.yaml",
     );
@@ -43,9 +38,8 @@ describe("loadTaskTypes", () => {
     expect(types).toContain("feature-request");
   });
 
-  it("handles missing YAML gracefully (empty config)", () => {
+  it("handles missing YAML gracefully — getTaskTypes returns whatever was loaded before, and the call does not throw", () => {
     process.env.TASK_TYPES_PATH = "/nonexistent/path/task-types.yaml";
-    // Override cwd-based paths too
     const origCwd = process.cwd;
 
     process.cwd = () => "/nonexistent";
@@ -58,29 +52,21 @@ describe("loadTaskTypes", () => {
 
     loadTaskTypes();
 
-    // Restore
     process.cwd = origCwd;
     process.env.HOME = origHome;
     process.env.CONTEXT_PATH = origCtx;
-
-    // After failed load, getTaskTypes returns whatever was loaded before.
-    // This test verifies it doesn't throw.
   });
 });
-
-// ---------------------------------------------------------------------------
-// getTaskTypeConfig — requires loadTaskTypes to have been called
-// ---------------------------------------------------------------------------
 
 describe("getTaskTypeConfig", () => {
   beforeAll(() => {
     const yamlPath = join(
       import.meta.dirname,
-      "..", // pipeline → features
-      "..", // features → src
-      "..", // src → mcp-server
-      "..", // mcp-server → apps
-      "..", // apps → repo root
+      "..",
+      "..",
+      "..",
+      "..",
+      "..",
       "scripts",
       "task-types.yaml",
     );

@@ -1,7 +1,4 @@
-// Pure presentation helpers for the run-keyed assembly-line views. No DB or
-// React here so the formatting rules stay unit-testable in isolation (precedent:
-// task-presenter.ts). Re-homed from the retired task-chain grouping lib.
-
+// Pure presentation helpers for the run-keyed assembly-line views — no DB/React, so formatting rules stay unit-testable (precedent: task-presenter.ts).
 const EM_DASH = "—";
 
 const RELATIVE_UNITS: { secs: number; name: string }[] = [
@@ -43,8 +40,7 @@ export function formatDuration(seconds: number | null): string {
 export type StatusTone =
   "success" | "danger" | "warning" | "info" | "running" | "muted";
 
-/** Map the run vocabulary (queued/running/finished/failed × outcome) to a
- *  display label + tone. `finished` is refined by the run's outcome. */
+/** Maps the run vocabulary (queued/running/finished/failed × outcome) to a display label + tone; `finished` is refined by outcome. */
 export function runStatusVisual(
   status: string,
   outcome: string | null,
@@ -61,10 +57,7 @@ export function runStatusVisual(
     return { label: "Failed", tone: "danger" };
   }
 
-  // status === "finished" — the outcome carries the real verdict. A `finished`
-  // row can still be a FAILURE: the pg adapter maps only outcome `error` to
-  // status `failed`, so a single-CR task closed `failed`/`needs-human-help` and a
-  // code-review line closed `pr_closed` both land here with a non-error outcome.
+  // status === "finished" carries the real verdict in outcome — the pg adapter maps only outcome `error` to status `failed`.
   switch (outcome) {
     case "pr_created":
       return { label: "PR created", tone: "success" };

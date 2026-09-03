@@ -1,8 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { ensureTaskBranch } from "./ensure-task-branch.js";
 
-/** A repo double recording what the Floor asked of it. `exists` undefined models an
- *  adapter that cannot answer (the station HTTP shim). */
 function repoDouble(exists: boolean | undefined) {
   const created: { branch: string; base?: string }[] = [];
 
@@ -38,7 +36,7 @@ describe("ensureTaskBranch", () => {
     expect(created).toEqual([]);
   });
 
-  it("creates nothing when the adapter cannot report existence", async () => {
+  it("creates nothing when the adapter (e.g. the station HTTP shim) cannot report existence", async () => {
     const { repo, created } = repoDouble(undefined);
 
     await ensureTaskBranch(repo, "lore/implementation/unknown");

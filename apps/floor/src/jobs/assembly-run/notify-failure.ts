@@ -1,11 +1,4 @@
-// Generic user-facing failure notification for any assembly-line run (station and
-// agent nodes alike): every line closure funnels through finishLine, which calls
-// this for failure outcomes — one seam covers code-review, comment-triage, detect
-// fan-outs and every future definition. Channels: the repo's dark_factory.notify
-// Slack routing (escalation level) plus, for PR-linked lines, a PR comment; the
-// red lore/<definition> check comes from publishPrCheck reading the failed row.
-// Best-effort by contract: a notification failure is audited, never thrown — it
-// must not fail the line transition or re-drive the event retry.
+// Best-effort by contract: a notification failure is audited, never thrown — must not fail the line transition or re-drive the event retry.
 
 import type { AssemblyRunRecord } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
 import type { NotifyLevel } from "@re-cinq/lore-shared/project/notify/notify-port.js";

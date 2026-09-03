@@ -56,10 +56,7 @@ describe("decideIssueWork", () => {
     ]);
   });
 
-  it("requests changes naming a label the repo does not have", () => {
-    // GitHub's create-issue SILENTLY CREATES an unknown label, so an invented one
-    // would permanently pollute the taxonomy rather than fail loudly. Sending the
-    // decomposition back is the only way the agent learns it guessed.
+  it("requests changes naming a label the repo does not have, since GitHub silently creates unknown labels instead of failing loudly", () => {
     const work = decideIssueWork(
       decomposition({
         stories: [{ ...decomposition().stories[0], labels: ["area:frontend"] }],
@@ -107,8 +104,7 @@ describe("decideIssueWork", () => {
     });
   });
 
-  it("requests changes for a story that breaks into no tasks", () => {
-    // A story nobody can start is not an implementation plan.
+  it("requests changes for a story that breaks into no tasks, since nobody can start it", () => {
     const work = decideIssueWork(
       decomposition({
         stories: [{ ...decomposition().stories[0], tasks: [] }],
@@ -121,8 +117,7 @@ describe("decideIssueWork", () => {
     );
   });
 
-  it("proceeds with no labels at all rather than blocking the work", () => {
-    // A repo with no taxonomy still gets its issues; lore-managed is the floor.
+  it("proceeds with no labels at all rather than blocking the work, since lore-managed is the floor for a repo with no taxonomy", () => {
     const work = decideIssueWork(
       decomposition({
         stories: [

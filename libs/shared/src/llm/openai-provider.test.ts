@@ -1,7 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { OpenAiProvider } from "./openai-provider.js";
 
-/** The fetch boundary is injected (a real fn returning a real Response) — no vi.mock. */
 describe("OpenAiProvider", () => {
   it("posts system+user messages to the chat-completions endpoint and extracts the content", async () => {
     let captured: { url: string; body: any } | null = null;

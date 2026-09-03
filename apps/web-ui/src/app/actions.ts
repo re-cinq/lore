@@ -13,12 +13,7 @@ import { clearIngestStatusCache } from "@/lib/ingest-status-cache";
 import type { FixWorkflowResult } from "@/lib/fix-workflow-result";
 import { revalidatePath } from "next/cache";
 
-/**
- * Fail-soft per repo so one bad repo never sinks the batch — but every
- * failure is reported with its reason, never swallowed: the App lacking the
- * Workflows permission made this action silently open zero PRs for the
- * org's entire history.
- */
+// Fail-soft per repo, every failure reported with its reason — a silent App-permission gap once opened zero PRs org-wide.
 async function openFixPRs(
   repos: string[],
   open: (repo: string) => Promise<{ url: string; number: number } | null>,
@@ -69,12 +64,7 @@ export async function fixIngestWorkflows(
   );
 }
 
-/**
- * Open a fix-PR installing the canonical spec-impact workflow on each repo.
- * Worth surfacing separately: until a repo is on v2 the backend suppresses
- * its findings, so a stale workflow is not a cosmetic drift but a check that
- * is switched off.
- */
+// Separate from fixIngestWorkflows: until a repo is on v2 the backend suppresses its findings, so a stale workflow disables the check entirely.
 export async function fixTraceImpactWorkflows(
   repos: string[],
 ): Promise<FixWorkflowResult> {

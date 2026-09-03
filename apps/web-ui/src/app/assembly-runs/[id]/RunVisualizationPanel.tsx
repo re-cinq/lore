@@ -1,10 +1,6 @@
 "use client";
 
-// The live-run container: it owns every piece of mutable state on this page and
-// every side effect that produces one. RunGraphView below it stays a pure
-// function of props (DDAU), which is what lore/no-io-in-view encodes — the
-// Panel suffix is the sanctioned place for the IO that the View may not do.
-
+// The live-run container: owns every piece of mutable state and IO here so RunGraphView below stays a pure function of props (DDAU / lore/no-io-in-view).
 import {
   useCallback,
   useEffect,
@@ -59,9 +55,7 @@ export interface RunVisualizationPanelProps {
   nodes: readonly AssemblyRunNode[];
   repo: string;
   reason: string | null;
-  /** nodeId → agents-editor href for each agent node whose recipe the catalog
-   *  holds (repo override or org default — `agentEditHrefs` decides which).
-   *  Resolved server-side; the panel only renders what it is handed. */
+  // nodeId → agents-editor href for each agent node the catalog holds; resolved server-side, the panel only renders what it is handed.
   agentEditHrefs?: Record<string, string>;
 }
 
@@ -79,10 +73,7 @@ export default function RunVisualizationPanel({
   reason,
   agentEditHrefs,
 }: RunVisualizationPanelProps) {
-  // The timeline's right edge is `now`. A stalled node emits no events, so without
-  // a clock it would freeze at the last tick and the stall would be invisible.
-  // Tick once a second while the run is live; a terminal run stops emitting and
-  // needs no moving edge.
+  // The timeline's right edge is `now` — without a clock a stalled node's last tick would look identical to a live one. Ticks once a second while live.
   const runIsLive = !isTerminalRunStatus(runStatus);
   const [now, setNow] = useState(() => new Date().toISOString());
 
@@ -99,11 +90,9 @@ export default function RunVisualizationPanel({
   const [state, dispatch] = useReducer(reduceRunEvent, undefined, () =>
     initialRunState(definition, nodes),
   );
-  // The run history was folded FOR: comparing it to runId makes a stale gate
-  // impossible by construction, where a boolean would need resetting.
+  // Comparing to runId (not a boolean) makes a stale "history loaded" gate impossible by construction.
   const [historyLoadedFor, setHistoryLoadedFor] = useState<string | null>(null);
-  // The ordered persisted events, retained only to drive the replay scrubber on
-  // a terminal run. A live run reads its state from the reducer and never scrubs.
+  // Ordered persisted events, retained only to drive the replay scrubber on a terminal run; a live run never scrubs.
   const [historyEvents, setHistoryEvents] = useState<RunStreamEvent[]>([]);
   // null = latest (the whole history / live end); a number = a scrub cursor.
   const [replayCursor, setReplayCursor] = useState<number | null>(null);
@@ -112,9 +101,7 @@ export default function RunVisualizationPanel({
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [showAllFiles, setShowAllFiles] = useState(false);
 
-  // The history fold runs once per run and is the only promise this component
-  // owns. A rejection degrades to the seeded graph plus an Offline chip rather
-  // than an unhandled rejection or a blank page.
+  // Runs once per run; a rejection degrades to the seeded graph plus an Offline chip rather than an unhandled rejection or a blank page.
   useEffect(() => {
     let cancelled = false;
 
@@ -128,11 +115,13 @@ export default function RunVisualizationPanel({
             signal: AbortSignal.timeout(15_000),
           });
 
+          if (!res.ok && cancelled) {
+            return;
+          }
+
           if (!res.ok) {
-            if (!cancelled) {
-              setStreamUnavailable(true);
-              setConnection("offline");
-            }
+            setStreamUnavailable(true);
+            setConnection("offline");
 
             return;
           }
@@ -144,14 +133,14 @@ export default function RunVisualizationPanel({
             return;
           }
 
-          for (const row of rows) {
+          rows.forEach((row) => {
             const parsed = parseRunStreamRow(row);
 
             if (parsed !== null) {
               dispatch(parsed);
               collected.push(parsed);
             }
-          }
+          });
 
           const next = nextPageCursor(
             rows.filter(
@@ -195,9 +184,7 @@ export default function RunVisualizationPanel({
     () => setShowAllFiles((shown) => !shown),
     [],
   );
-  // "offline" from the hook means it gave up for good (STREAM_MAX_ATTEMPTS
-  // consecutive failures). Marking the stream unavailable flips the mode to
-  // history-only, which disables the hook and hands the run to the poll below.
+  // "offline" means the hook gave up for good (STREAM_MAX_ATTEMPTS); flips mode to history-only, disabling the hook and handing off to the poll below.
   const onConnectionChange = useCallback((next: ConnectionState) => {
     setConnection(next);
 
@@ -214,10 +201,7 @@ export default function RunVisualizationPanel({
     onConnectionChange,
   });
 
-  // The degraded path for a live run without a stream: poll the history proxy
-  // from the reducer's own cursor. The cursor rides in a ref so a poll result
-  // does not restart the interval, and the reducer's id de-duplication makes an
-  // overlap with already-applied events a no-op.
+  // Degraded path for a live run without a stream: polls from the reducer's cursor, kept in a ref so a poll result never restarts the interval.
   const lastEventIdRef = useRef(state.lastEventId ?? "0");
 
   useEffect(() => {
@@ -286,11 +270,7 @@ export default function RunVisualizationPanel({
     fallbackPollActive: streamFallbackPollActive,
   });
 
-  // A terminal run renders the state AS OF the scrub cursor by folding the
-  // persisted history through the SAME reducer live mode uses. The base is the
-  // all-idle definition state, never the visit-row seed: rewinding a node to
-  // idle is only possible when every status came from a replayed event. A live
-  // run keeps its reducer state and shows no scrubber.
+  // A terminal run renders state AS OF the scrub cursor by folding history through the SAME reducer live mode uses, based on the all-idle state (never the visit-row seed).
   const replayState = useMemo(
     () =>
       replayTo(
@@ -326,14 +306,12 @@ export default function RunVisualizationPanel({
 
   const selected =
     selectedNodeId === null ? null : displayState.nodeStates[selectedNodeId];
-  // The selected node's walk rows in execution order — the inspector's attempt
-  // history and the source of its per-attempt pod-log panels.
+  // The selected node's walk rows in execution order — the inspector's attempt history and per-attempt pod-log panel source.
   const selectedRows = useMemo(
     () => nodes.filter((node) => node.nodeId === selectedNodeId),
     [nodes, selectedNodeId],
   );
-  // What each visit was GIVEN is per-visit STATE, like its outcome — it rides the
-  // walk rows, not the event stream, because no pod ever echoes its own prompt.
+  // What each visit was GIVEN is per-visit STATE, like its outcome — rides the walk rows, not the event stream (no pod echoes its own prompt).
   const nodeInputs = useMemo(
     () =>
       selectedRows.flatMap((node) =>
@@ -350,9 +328,7 @@ export default function RunVisualizationPanel({
     [definition, nodes],
   );
 
-  // Run data exists once the walk has visited a node — via a persisted row or a
-  // node that left idle on the live stream. Run mode is the default; "Show possible
-  // outcomes" flips to the definition view without disturbing it.
+  // Run data exists once the walk visited a node (persisted row or left-idle live stream); "Show possible outcomes" flips to definition view without disturbing it.
   const participated = (s: {
     status: string;
     transcript: readonly unknown[];
@@ -363,9 +339,7 @@ export default function RunVisualizationPanel({
   const [showOutcomes, setShowOutcomes] = useState(false);
   const graphMode = hasRunData && !showOutcomes ? "run" : "definition";
   const latestRows = useMemo(() => latestRowByNode(nodes), [nodes]);
-  // The fork source for "retry this node" — null hides the button: a live run,
-  // an unvisited node, the entry node, or a prefix the fork API cannot name
-  // exactly (see retry-resume.ts).
+  // Fork source for "retry this node" — null hides the button (live run, unvisited node, entry node, or an unnameable prefix; see retry-resume.ts).
   const retrySource = useMemo(
     () =>
       runIsLive || selectedNodeId === null
@@ -373,33 +347,31 @@ export default function RunVisualizationPanel({
         : retryResumeSource(nodes, selectedNodeId),
     [runIsLive, nodes, selectedNodeId],
   );
-  // Mid-scrub only: the cursor sits strictly before the history's end, so the
-  // slider's right end stays byte-identical to Back to live — nodes with walk
-  // rows but no events (a `done` terminal) keep their verdict at max cursor.
+  // Mid-scrub only — the cursor sits strictly before the history's end, so the slider's right end stays byte-identical to Back to live.
   const replayActive =
     !runIsLive && replayCursor !== null && replayCursor < historyEvents.length;
   const runData = useMemo<RunData>(() => {
-    // Mid-replay, the walk rows are gated behind the replayed reducer state: a
-    // recorded verdict shows only once the cursor has applied that
-    // node-iteration's result event, and the taken path grows with the cursor.
+    // Mid-replay, walk rows are gated behind the replayed reducer state — a verdict shows only once the cursor applies that result event.
     if (replayActive) {
       return replayRunData(definition, nodes, displayState.nodeStates);
     }
 
     const entries = Object.entries(displayState.nodeStates);
-    // The verdict is the walk row's recorded outcome, latest iteration per node.
-    // It must come from the rows, not the reducer state: a replayed terminal run
-    // seeds its node states from events, which never carry the verdict, so a
-    // review that exited its pod cleanly with a failed verdict would otherwise
-    // read from its "succeeded" execution status instead of "failed".
+    // Verdict is the walk row's recorded outcome (must come from rows, not reducer state — replayed events never carry the verdict).
     const rows = [...latestRows.values()];
-    // The run failed if any node's recorded outcome failed — mirrors the Floor's
-    // lineOutcomeFromVisits, so a code-review line that closes `finished` with a
-    // failed review still reports the run result as failed on its terminal.
+    // Mirrors the Floor's lineOutcomeFromVisits: any failed node outcome fails the run result, even on a `finished` terminal.
     const anyFailed = rows.some((n) => (n.outcome ?? "").includes("failed"));
+    let runResult: RunData["result"] = null;
+
+    if (anyFailed) {
+      runResult = "failed";
+    }
+
+    if (!anyFailed && isTerminalRunStatus(runStatus)) {
+      runResult = "completed";
+    }
 
     return {
-      // A node participated once it left idle (live stream) or has a walk row.
       executed: new Set([
         ...nodes.map((n) => n.nodeId),
         ...entries.filter(([, s]) => participated(s)).map(([id]) => id),
@@ -407,11 +379,7 @@ export default function RunVisualizationPanel({
       verdicts: Object.fromEntries(rows.map((n) => [n.nodeId, n.outcome])),
       statuses: Object.fromEntries(entries.map(([id, s]) => [id, s.status])),
       taken: takenEdges,
-      result: anyFailed
-        ? "failed"
-        : isTerminalRunStatus(runStatus)
-          ? "completed"
-          : null,
+      result: runResult,
     };
   }, [
     replayActive,
@@ -490,10 +458,7 @@ export default function RunVisualizationPanel({
               agentEditHrefs?.[selectedNodeId] !== undefined ? (
                 <>
                   {agentEditHrefs?.[selectedNodeId] !== undefined ? (
-                    // Inside a <summary>: navigation is the click's own
-                    // default, but without stopPropagation the card would also
-                    // toggle shut behind the navigation. Link, not <a> — an
-                    // internal route deserves client-side navigation.
+                    // Inside a <summary>: without stopPropagation the card would also toggle shut behind the navigation.
                     <Link
                       className="btn-secondary"
                       href={agentEditHrefs?.[selectedNodeId] ?? ""}
@@ -536,9 +501,7 @@ export default function RunVisualizationPanel({
         <p className={styles.hint}>No node executions recorded.</p>
       ) : null}
       {selectedNodeId ? (
-        // Keyed on the run for the same reason historyLoadedFor compares to
-        // runId above: a run change must reset the loaded transcript by
-        // construction, not by a flag someone has to remember to clear.
+        // Keyed on the run so a run change resets the loaded transcript by construction, not by a flag someone has to remember to clear.
         <FullTranscriptPanel
           key={runId}
           runId={runId}

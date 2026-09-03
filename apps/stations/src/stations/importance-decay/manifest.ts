@@ -1,12 +1,6 @@
 import type { SweepStationModule } from "../lib/station.js";
 
-/**
- * Score and evict memories past the per-agent cap; age unretrieved facts.
- *
- * A single data operation on a schedule, so it runs beside the data rather than
- * in a pod of its own. The host supplies the port; this package is shared with a
- * pod that has none.
- */
+// Scores and evicts memories past the per-agent cap; ages unretrieved facts. A single scheduled data op that runs beside the data rather than in its own pod; the host supplies the port since this package is shared with a pod that has none.
 export const importanceDecayStation: SweepStationModule = {
   manifest: {
     name: "importance-decay",

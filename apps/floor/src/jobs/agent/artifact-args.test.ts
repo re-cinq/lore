@@ -57,9 +57,7 @@ describe("deliverArtifact", () => {
     });
   });
 
-  it("leaves the planning result to its own handler", async () => {
-    // deliverPlanningResult posts it to the features API — a different destination,
-    // and merging it into args as well would duplicate a whole GapResult per round.
+  it("leaves the planning result to deliverPlanningResult, which posts it to the features API instead of duplicating a GapResult into args", async () => {
     const lines = new InMemoryAssemblyRuns();
 
     await lineFor(lines);
@@ -71,8 +69,7 @@ describe("deliverArtifact", () => {
     ).toMatchObject({ outcome: "skipped" });
   });
 
-  it("merges nothing when the agent never produced the artifact", async () => {
-    // The node's own outcome already reports this; there is no content to carry.
+  it("merges nothing when the agent never produced the artifact, since the node's own outcome already reports it", async () => {
     const lines = new InMemoryAssemblyRuns();
     const id = await lineFor(lines);
 
@@ -117,10 +114,7 @@ describe("artifactsFromTerminalOutput", () => {
       },
     });
 
-  it("reads the declared artifacts out of a terminal status, so delivery rides the advancing event", () => {
-    // The sink is a SEPARATE HTTP post racing the k8s event the walk advances on.
-    // The same file events are in status.output, which the handler already reads —
-    // so the artifact can arrive with the outcome instead of hoping to beat it.
+  it("reads the declared artifacts out of a terminal status, so delivery rides the advancing event instead of racing the separate artifact-sink HTTP post", () => {
     expect(
       artifactsFromTerminalOutput(
         `{"type":"log","message":"working"}\n${fileLine({ content: '{"updates":[]}' })}`,

@@ -113,7 +113,7 @@ accumulation period required.
 - FR-1.3: Entity deduplication by `(name, entity_type, repo)`.
   Upserting an entity with the same key updates properties.
 - FR-1.4: Edge deduplication by
-  `(source_id, target_id, relation_type)` where `valid_to IS NULL`. ([validated by `graph.test.ts:198`](libs/server-core/src/features/memory/graph.test.ts#L198))
+  `(source_id, target_id, relation_type)` where `valid_to IS NULL`. ([validated by `graph.test.ts:192`](libs/server-core/src/features/memory/graph.test.ts#L192))
 
 ### FR-2: Entity Extraction Pipeline
 
@@ -123,17 +123,17 @@ accumulation period required.
 - FR-2.2: Output format: list of `{name, type}` entities and
   `{source, target, relation}` edges. The parser unwraps ```` ```json ````
   code fences, filters entities/edges with missing fields, and caps the
-  result at 10 entities and 10 edges. ([validated by `graph.test.ts:49`](libs/server-core/src/features/memory/graph.test.ts#L49), [`graph.test.ts:83`](libs/server-core/src/features/memory/graph.test.ts#L83), [`graph.test.ts:117`](libs/server-core/src/features/memory/graph.test.ts#L117), [`graph.test.ts:98`](libs/server-core/src/features/memory/graph.test.ts#L98))
+  result at 10 entities and 10 edges. ([validated by `graph.test.ts:47`](libs/server-core/src/features/memory/graph.test.ts#L47), [`graph.test.ts:81`](libs/server-core/src/features/memory/graph.test.ts#L81), [`graph.test.ts:115`](libs/server-core/src/features/memory/graph.test.ts#L115), [`graph.test.ts:96`](libs/server-core/src/features/memory/graph.test.ts#L96))
 - FR-2.3: Entity names are normalized (lowercase, trimmed) for
-  deduplication. ([validated by `graph.test.ts:71`](libs/server-core/src/features/memory/graph.test.ts#L71))
+  deduplication. ([validated by `graph.test.ts:69`](libs/server-core/src/features/memory/graph.test.ts#L69))
 - FR-2.4: If entity extraction fails, facts are still stored.
-  Graph update is best-effort. ([validated by `graph.test.ts:91`](libs/server-core/src/features/memory/graph.test.ts#L91))
+  Graph update is best-effort. ([validated by `graph.test.ts:89`](libs/server-core/src/features/memory/graph.test.ts#L89))
 
 ### FR-3: Temporal Edge Invalidation
 
 - FR-3.1: When a new edge contradicts an existing one (same
   source + relation type but different target), the old edge
-  gets `valid_to = now()`. ([validated by `graph.test.ts:137`](libs/server-core/src/features/memory/graph.test.ts#L137))
+  gets `valid_to = now()`. ([validated by `graph.test.ts:133`](libs/server-core/src/features/memory/graph.test.ts#L133))
 - FR-3.2: Example: `auth-service --uses--> Express` is
   invalidated when `auth-service --uses--> Hono` is added.
 - FR-3.3: Non-contradictory edges (different relation types, or

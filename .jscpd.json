@@ -1,0 +1,16 @@
+{
+  "pattern": "{apps,libs}/*/src/**/*.{ts,tsx}",
+  "ignore": [
+    "**/dist/**",
+    "**/.next/**",
+    "**/node_modules/**",
+    "**/schema.d.ts",
+    "**/fixtures/**"
+  ],
+  "minTokens": 50,
+  "threshold": 5,
+  "mode": "mild",
+  "reporters": ["console", "html"],
+  "output": "reports/jscpd",
+  "gitignore": true
+}

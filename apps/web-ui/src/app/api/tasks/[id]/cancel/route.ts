@@ -3,15 +3,7 @@ import { NextResponse } from "next/server";
 import { cancelTask } from "@/lib/api/tasks";
 import { serverError, upstreamError } from "@/lib/api-error";
 
-/**
- * POST /api/tasks/[id]/cancel — cancel a task, then bounce back to its page.
- *
- * The state rules (unknown id → 404, terminal task → 409) live in lore-api's
- * cancel seam, which also records the transition in pipeline.task_events. This
- * route forwards the refusal it was given rather than re-deciding it: two copies
- * of "which statuses are cancellable" is how the browser came to answer 400 for
- * a completed task while the API answered 200.
- */
+// Cancel a task, then bounce back to its page. State rules live in lore-api's cancel seam; this route forwards its refusal rather than re-deciding it.
 export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> },

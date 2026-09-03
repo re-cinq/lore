@@ -1,8 +1,4 @@
-/**
- * The unified Project facade — pure surface only. Adapters (octokit, pg, git,
- * exec) are reached by deep import so this barrel stays importable from light
- * runtimes (web-ui) without pulling heavy deps.
- */
+/** The unified Project facade — pure surface only; adapters are reached by deep import so this barrel stays importable from light runtimes without pulling heavy deps. */
 
 export { Project } from "./lib/project.js";
 export { createProject, setProject, project } from "./lib/project-factory.js";
@@ -84,8 +80,7 @@ export type {
   AgentRunTurnNodeRef,
 } from "./agent-run-turns/agent-run-turns-port.js";
 
-// Type only — the Pg composition stays off the barrel so the light runtimes
-// never take on `pg`.
+// Type only — the Pg composition stays off the barrel so the light runtimes never take on `pg`.
 export type { PipelineRepositories } from "./pipeline/pipeline-repositories.js";
 
 export type {

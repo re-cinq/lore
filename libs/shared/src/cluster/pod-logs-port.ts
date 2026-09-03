@@ -1,9 +1,4 @@
-// Reading a run pod's logs, as a port.
-//
-// Shared for the same reason the Agent CR ports are: the cluster agent
-// implements it against a real Kubernetes API and the Floor consumes it over
-// HTTP. `podLog` returns a bounded string rather than a stream — the tail is
-// taken at the source, so this survives being a request/response call.
+// Reading a run pod's logs, as a port — shared like the Agent CR ports (cluster-agent implements against real Kubernetes, Floor consumes over HTTP); podLog returns a bounded tail string, not a stream.
 
 export interface AgentPodInfo {
   phase: string | null;
@@ -15,10 +10,7 @@ export interface PodSummary {
   creationTimestamp?: string;
 }
 
-/** One live run pod as the compute-cost estimator needs it: identity, when it
- *  started, and the agent container's resource REQUESTS — requests, not usage,
- *  because requests are what size the node the autoscaler bills for. Labels
- *  carry the run correlation (`lore.re-cinq.com/*`). */
+/** One live run pod as the compute-cost estimator needs it: identity, start time, and resource REQUESTS (not usage — requests size the node the autoscaler bills for), plus run-correlation labels. */
 export interface RunningPodInfo {
   name: string;
   phase: string;
@@ -27,8 +19,7 @@ export interface RunningPodInfo {
   labels: Record<string, string>;
 }
 
-/** The Kubernetes IO seam — the live impl talks to CoreV1Api/CustomObjectsApi;
- *  tests supply an in-memory double. */
+/** The Kubernetes IO seam — the live impl talks to CoreV1Api/CustomObjectsApi; tests supply an in-memory double. */
 export interface PodLogSource {
   /** Agent CR phase + jobName by name; null when the CR does not exist. */
   agentInfo(name: string): Promise<AgentPodInfo | null>;

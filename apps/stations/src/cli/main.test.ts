@@ -15,8 +15,6 @@ const inputJson = JSON.stringify({
   params: {},
 });
 
-/** The seam is a RESOLVER now, not a map: the registry owns type-to-station, so
- *  this hands back one runner for the type under test and nothing for any other. */
 const runners =
   (runner: NodeStationRun) =>
   (type: string): NodeStationRun | undefined =>

@@ -1,33 +1,13 @@
 import type { ResolvedAgentDefinition } from "../../models/agent-definition.js";
-/**
- * Agent DEFINITIONS port — the configuration side, reached via project.agentDefs
- * (distinct from the AgentRunnerPort execution side, project.agents.run()). An
- * agent definition is the per-task-type config (model, prompt, timeout, image)
- * that lives in lore.agent_definitions. A row with project_id = null is the
- * organisation default; a row with a project_id is that repo's override.
- * Resolution merges project → org → task-types.yaml.
- */
+// Agent definitions port (configuration side, project.agentDefs — distinct from AgentRunnerPort's execution side, project.agents.run()). project_id=null is the org default, a set project_id is that repo's override; resolution merges project → org → task-types.yaml.
 
-/**
- * The resolved per-task-type config. Shape lives with the table it resolves
- * from, in `libs/shared/src/models/agent-definition.ts`, which also carries the
- * ROW (`AgentDefinition` there) — this is the merged projection, so it has no
- * id or timestamps.
- */
+/** The resolved per-task-type config; shape lives with the table in models/agent-definition.ts — this is the merged projection, so no id or timestamps. */
 export type AgentDefinition = ResolvedAgentDefinition;
 
 /** A new/updated definition as submitted by the UI/skill (id + timestamps are server-side). */
 export type AgentDefinitionInput = Omit<AgentDefinition, "project_id">;
 
-/**
- * A write that touches `config.pod_resources` — the one config key the Agents
- * UI owns. The adapter merges it over the row's own config INSIDE the upsert
- * (atomic under the row lock, so two concurrent edits serialise instead of one
- * being read-then-lost), falling back to `inheritedConfig` — the layer below,
- * which a row that wrote `{pod_resources}` alone would orphan, since config is
- * whole-object across layers. A null `podResources` removes the block; an
- * emptied config collapses to NULL so the row falls through to the layer below.
- */
+/** A write touching config.pod_resources (the one key the Agents UI owns); merged over the row's config inside the upsert (atomic under the row lock) with inheritedConfig as fallback since config is whole-object across layers. */
 export interface PodResourcesWrite {
   podResources: Record<string, unknown> | null;
   inheritedConfig: Record<string, unknown> | null;
@@ -44,10 +24,7 @@ export const KNOWN_MODELS: ReadonlyArray<{ id: string; label: string }> = [
   { id: "gemini-2.5-flash-lite", label: "Gemini 2.5 Flash Lite" },
 ];
 
-/**
- * The configuration surface of project.agents — read + write agent definitions.
- * Read adapters (yaml, http) implement resolve/list and throw on writes.
- */
+/** The configuration surface of project.agents — read + write agent definitions; read adapters (yaml, http) implement resolve/list and throw on writes. */
 export interface AgentDefsPort {
   /** The effective definition for a task type in a repo (project → org → yaml), or null. */
   resolve(repo: string, name: string): Promise<AgentDefinition | null>;
@@ -73,12 +50,7 @@ const pick = <T>(...layers: (T | null | undefined)[]): T | null => {
   return null;
 };
 
-/**
- * Field-merge the precedence layers: a project row's set field beats the org
- * row, which beats the task-types.yaml default. A null nullable field on a layer
- * means "inherit the next layer down". Returns null only when every layer is
- * absent.
- */
+/** Field-merges the precedence layers (project beats org beats yaml default); a null nullable field means "inherit the next layer down". Returns null only when every layer is absent. */
 export function resolveAgentConfig(
   project: AgentDefinition | null,
   org: AgentDefinition | null,
@@ -113,9 +85,7 @@ export function resolveAgentConfig(
         yamlDefault?.review_required,
       ) ?? false,
     project_id: project?.project_id ?? null,
-    // Whole-object, not field-merged: a layer that sets config owns ALL of it.
-    // Splicing a project's skills into an org's disallowed_tools would produce
-    // a recipe nobody wrote.
+    // Whole-object, not field-merged — a layer that sets config owns all of it, or splicing project skills into org disallowed_tools would produce a recipe nobody wrote.
     config: pick(project?.config, org?.config, yamlDefault?.config),
   };
 }

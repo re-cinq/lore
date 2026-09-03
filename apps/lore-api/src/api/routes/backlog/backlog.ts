@@ -21,14 +21,7 @@ import {
   type Ticket,
 } from "./backlog-schema.js";
 
-/**
- * `/api/repos/{owner}/{repo}/implementation-loop` — the backlog loop's repo
- * surface (implementation-loop FR10). GET (`read`) returns the toggle, the
- * ticket being worked, the ordered queue, and recently addressed tickets; PUT
- * (`admin`) flips the toggle. The toggle is deliberately NOT a dark-factory
- * privileged field — the loop never merges — so the write is a plain settings
- * merge with no CODEOWNER ceremony (FR7).
- */
+// The backlog loop's repo surface (FR10): GET returns toggle/current/queue/recent, PUT flips the toggle. Deliberately not a dark-factory privileged field — the loop never merges, so no CODEOWNER ceremony (FR7).
 
 const PATH = "/api/repos/{owner}/{repo}/implementation-loop";
 
@@ -67,9 +60,7 @@ interface NodeRow {
   outcome: string | null;
 }
 
-/** The mini graph: every graph node in definition order, colored by its latest
- *  station-run outcome — absent rows read as pending, an open row as running
- *  (waiting, for a human station). */
+// The mini graph: every graph node in definition order, colored by its latest station-run outcome (absent = pending, open = running/waiting for a human station).
 export function pipelineOf(
   run: LoopRunRow | undefined,
   nodeRows: readonly NodeRow[],
@@ -159,8 +150,7 @@ export function implementationLoopRoutes(
         const enabled =
           (settings as { implementation_loop?: { enabled?: unknown } })
             .implementation_loop?.enabled === true;
-        // 2x the display cap: filtering out the open rows must still leave a
-        // full recent list.
+        // 2x the display cap: filtering out the open rows must still leave a full recent list.
         const { rows: taskRows } = await pool.query<LoopTaskRow>(
           `SELECT id, created_at, status, description, issue_number, issue_url, pr_url
              FROM pipeline.tasks
@@ -178,10 +168,7 @@ export function implementationLoopRoutes(
             ORDER BY created_at DESC LIMIT 1`,
           [repo],
         );
-        // The mini graphs: each listed task's latest loop run and its node rows,
-        // two batched queries regardless of ticket count.
-        // Guarded: `= ANY($1)` with an empty JS array makes Postgres guess the
-        // array's type and fail — a fresh repo with no tasks would 500 here.
+        // Each listed task's latest loop run + node rows, two batched queries; guarded because `= ANY($1)` on an empty JS array makes Postgres guess the type and 500 on a fresh repo.
         const taskIds = taskRows.map((t) => t.id);
         const { rows: taskRuns } = taskIds.length
           ? await pool.query<LoopRunRow>(
@@ -214,11 +201,7 @@ export function implementationLoopRoutes(
               nodeRows,
             )
           : null;
-        // Mirror the driver's eligibility guard: an issue whose task is not
-        // failed/cancelled is either being worked or already addressed with its
-        // PR awaiting a human merge — showing it as "next up" would promise a
-        // pick the driver will never make, and it is what put the same ticket
-        // in next and recent at once.
+        // Mirror the driver's eligibility guard: an issue whose task isn't failed/cancelled is already being worked or addressed — showing it as "next up" duplicated it into next and recent at once.
         const guardedIssues = new Set(
           taskRows
             .filter((t) => !["failed", "cancelled"].includes(t.status))
@@ -296,11 +279,7 @@ export function implementationLoopRoutes(
           [repo, enabled],
         );
 
-        // Opting in seeds the loop's label taxonomy (FR1/FR7). Onboarding
-        // seeds it for NEW repos; this covers every repo onboarded before the
-        // feature existed, so enabling is the only gesture a human needs.
-        // createLabels is create-or-ignore-existing, and a code-host hiccup
-        // must not fail the settings write that already committed.
+        // Opting in seeds the loop's label taxonomy (FR1/FR7) for repos onboarded before the feature existed; create-or-ignore-existing, and a code-host hiccup must not fail the settings write that already committed.
         if (enabled) {
           try {
             const project = await projectFor(repo);

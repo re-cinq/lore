@@ -1,16 +1,4 @@
-/**
- * This service's drain loop.
- *
- * Without it a service-form node is published by the walk and claimed by
- * nobody: `advanceLine` stops creating an Agent CR for those nodes, so the visit
- * simply sits open until the reaper times it out. That makes this a
- * PREREQUISITE for the merge line rather than an optimisation — `merge_step` has
- * no pod recipe to fall back to.
- *
- * Uses the SAME loop as the Floor, so both drainers share one retry ladder, one
- * attempt cap and one dead-letter rule. A second implementation is how they
- * would come to disagree about when work is abandoned.
- */
+// This service's drain loop, a PREREQUISITE (not an optimisation): a published service-form node is claimed by nobody without it and merge_step has no pod fallback; uses the same loop as the Floor so both drainers agree on retry/dead-letter behavior.
 
 import {
   startEventLoop,
@@ -48,17 +36,7 @@ export interface SubscribeRetry {
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-/**
- * Register, retrying a transient refusal.
- *
- * This service and the router come up together — under `npm start` they race,
- * and in a cluster a rollout reorders them — so the first attempt can hit a
- * router that is not listening yet. Fataling on that leaves the service dead
- * with the router healthy seconds later, which is what happens without this.
- * Retrying does not weaken the guard below: the boot still fails if the last
- * attempt fails, because a drainer claiming an unregistered set looks exactly
- * like one with nothing to do.
- */
+// Retries subscribe on boot since this service and the router race up (npm start) or reorder (rollout); still fails hard on the last attempt, since an unregistered drainer looks identical to an idle one.
 async function subscribeWithRetry(
   deps: StationDrainDeps,
   retry: SubscribeRetry,
@@ -86,15 +64,10 @@ export async function startStationDrain(
   handlers: Map<string, EventHandler> = buildStationHandlers(),
   retry: SubscribeRetry = { attempts: 10, delayMs: 1000 },
 ): Promise<NodeJS.Timeout> {
-  // BEFORE the loop, and awaited: fan-out reads the subscription set at INSERT
-  // time, so an event captured before this lands is delivered to nobody.
+  // Awaited before the loop — fan-out reads the subscription set at insert time, so an earlier event is delivered to nobody.
   await subscribeWithRetry(deps, retry);
 
-  // AFTER registering, because it repairs what fan-out could not do BEFORE the
-  // registration existed: a producer that rolled out first published into a bus
-  // this service had not subscribed to, and those events have no delivery row
-  // that anything else would ever create. Swallowed on purpose — it is a repair,
-  // not a precondition, and a drainer that cannot repair should still drain.
+  // After registering, to repair events published before this boot's subscription existed (no delivery row was ever created for them); swallowed on purpose since a drainer that can't repair should still drain.
   try {
     const repaired = await deps.reconcileDeliveries(RECONCILE_WINDOW_MINUTES);
 

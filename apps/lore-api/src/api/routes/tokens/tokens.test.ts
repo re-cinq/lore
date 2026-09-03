@@ -9,16 +9,21 @@ import {
 
 const originalEnv = { ...process.env };
 
+function serializedPayload(requestBody: unknown): string | undefined {
+  if (requestBody === undefined) {
+    return undefined;
+  }
+
+  return typeof requestBody === "string"
+    ? requestBody
+    : JSON.stringify(requestBody);
+}
+
 function req(
   opts: { method: "GET" | "POST" | "PUT"; body?: unknown; query?: string },
   pool: unknown = makePool(),
 ) {
-  const payload =
-    opts.body === undefined
-      ? undefined
-      : typeof opts.body === "string"
-        ? opts.body
-        : JSON.stringify(opts.body);
+  const payload = serializedPayload(opts.body);
 
   return buildServer(() => pool as any).inject({
     method: opts.method,

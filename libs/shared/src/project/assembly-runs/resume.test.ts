@@ -162,9 +162,6 @@ describe("resolveResumePrefix", () => {
   });
 
   it("throws ResumeRefusedError for every refusal, so the API edge can tell a refusal from breakage", () => {
-    // The start route maps refusals to a 409 carrying the message; anything
-    // else must surface as the 500 it is. A plain Error here would make a DB
-    // outage read as "the fork was refused".
     expect(() => resolveResumePrefix(input(), null, [])).toThrow(
       ResumeRefusedError,
     );
@@ -272,8 +269,6 @@ describe("resolveResumePrefix", () => {
   });
 
   it("copies through the named iteration only, so a self-loop retry excludes the failed later visit", () => {
-    // implement@2 failed on a self-edge: retrying it names implement@1 so the
-    // fork's replay re-derives the launch of implement@2 with a fresh budget.
     const nodes = [
       node("1", "implement", 1, "failed"),
       node("2", "implement", 2, "failed"),

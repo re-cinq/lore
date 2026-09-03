@@ -1,8 +1,3 @@
-// The Floor's `StationClient` and this service's route are two halves of one
-// contract, written apart. This drives the REAL client against the REAL route
-// over hapi's inject, so a path, a field name or a status code that disagrees
-// fails here rather than on a cron tick in a cluster.
-
 import { describe, it, expect, beforeEach } from "vitest";
 import Hapi from "@hapi/hapi";
 import { StationClient } from "@re-cinq/lore-shared/project/stations/station-client.js";
@@ -36,7 +31,7 @@ beforeEach(() => {
   client = new StationClient("http://stations.test", TOKEN, injectAsFetch);
 });
 
-describe("StationClient against the service's own route", () => {
+describe("StationClient against the real stations route (contract drift caught here, not on a cron tick)", () => {
   it("returns the summary the station reported, for the job_runs row", async () => {
     expect(await client.run("approval-check")).toBe(
       "Checked 3 tasks, 1 approved",

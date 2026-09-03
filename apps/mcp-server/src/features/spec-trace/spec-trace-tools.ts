@@ -1,16 +1,4 @@
-/**
- * Test-interface plumbing for the `lore_list_tests` / `lore_run_test` MCP tools.
- * `executionRefusal` is the trust-boundary gate (test commands run only
- * in a local sandbox, never on a cluster instance with `LORE_DB_HOST`
- * set). `runTestsList` and `runTestsRun` execute the repo's manifest
- * commands through a shell — each invocation is timeout-bounded, so a
- * runaway command is killed and the call rejects — and hand stdout to
- * the shared `parseTestDescriptors` / `parseRunResult` parsers.
- * `loadTestCommandManifest` reads `<repoRoot>/.lore/test-commands.yml`.
- * `listTestsTool` / `runTestTool` are the orchestrators the tool
- * registrations call: gate → manifest precondition → run → JSON.
- * See `specs/project-test-interface/contracts/test-commands.md`.
- */
+// Test-interface plumbing for lore_list_tests/lore_run_test: executionRefusal gates to a local sandbox only (see specs/project-test-interface/contracts/test-commands.md).
 
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -24,8 +12,7 @@ import {
   type TestCommandManifest,
 } from "@re-cinq/lore-shared";
 
-// Relocated to @re-cinq/lore-shared (project/lib/trust.ts); re-exported here for
-// back-compat with existing importers.
+// Relocated to @re-cinq/lore-shared (project/lib/trust.ts); re-exported here for back-compat with existing importers.
 export { executionRefusal };
 
 const NO_MANIFEST = "No test-command manifest declared for this repo.";
@@ -67,9 +54,7 @@ export function stripCoveredPaths(
   };
 }
 
-// runTestsList/runTestsRun/parseCommandJson are single-sourced in shared
-// (project/test-runner/test-runner-exec — also backing the ExecTestRunner
-// adapter); imported for local use + re-exported for existing importers.
+// runTestsList/runTestsRun/parseCommandJson are single-sourced in shared (also backing the ExecTestRunner adapter); imported for local use + re-exported for existing importers.
 import {
   runTestsList,
   runTestsRun,

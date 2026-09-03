@@ -1,9 +1,4 @@
-/**
- * Layer-3 handlers for GitHub events. auto-merge already lived in
- * Floor; the issues-labeled dispatch and the spec-PR-merge spec-task sync are
- * MOVED here from the mcp-server webhook (they do real DB + GitHub work, not just
- * a fan-out), using Floor's platform + the shared task helpers.
- */
+/** Layer-3 handlers for GitHub events; issues-labeled dispatch and the spec-PR-merge spec-task sync were MOVED here from the mcp-server webhook (real DB + GitHub work, not just a fan-out). */
 
 import { randomUUID } from "node:crypto";
 import {
@@ -47,8 +42,7 @@ export const autoMerge: EventHandler = async (params) => {
   await autoMergeForPR(repo, pr_number);
 };
 
-/** A submitted review can flip the auto-merge gate (the address handling rides the
- *  code-review-reply line, wired separately in the registry). */
+/** A submitted review can flip the auto-merge gate (the address handling rides the code-review-reply line, wired separately in the registry). */
 export const onReviewSubmitted: EventHandler = async (params) => {
   const { repo, pr_number } = params as { repo: string; pr_number: number };
 
@@ -80,22 +74,15 @@ export const issuesLabeled: EventHandler = async (params) => {
       dispatch_default_type?: string;
     };
 
-    if (parsed.dispatch_label) {
-      dispatchLabel = parsed.dispatch_label;
-    }
-
-    if (parsed.dispatch_default_type) {
-      dispatchDefaultType = parsed.dispatch_default_type;
-    }
+    dispatchLabel = parsed.dispatch_label || dispatchLabel;
+    dispatchDefaultType = parsed.dispatch_default_type || dispatchDefaultType;
   }
 
   if (label !== dispatchLabel) {
     return;
   } // not the dispatch label → no-op
 
-  // The same table onboarding seeds the repo from — a label a repo is GIVEN and
-  // a label this reader UNDERSTANDS have to be one declaration, or a seeded
-  // label silently dispatches as the repo's default type instead.
+  // The same table onboarding seeds the repo from — GIVEN and UNDERSTOOD labels must be one declaration, or a seeded label silently dispatches as the default type.
   const taskType = dispatchTypeFromLabels(issue.labels) ?? dispatchDefaultType;
 
   const issues = (await projectFor(repo)).issues;
@@ -139,21 +126,7 @@ export const issuesLabeled: EventHandler = async (params) => {
   ]);
 };
 
-/**
- * pull_request closed+merged: wake the line that was waiting for that PR.
- *
- * The resume already existed but was unreachable. Its only caller was
- * `handleMergedTask`, which the mergeable sweep reaches only for a task whose OWN
- * row carries a PR — and a feature-planning task is `running` with a null
- * `pr_number`, because the push node stamps the LINE's args (which is what
- * `findOpenByPr` matches on) and nothing copies it back. So a merged spec PR
- * decomposed on no deployment: not by webhook, not by the cron that is supposed to
- * be the webhook's safety net.
- *
- * Reading the merge here needs no task row. `resumeDecomposition` still targets a
- * NODE rather than the PR, so a code-review or implementation line sharing the same
- * PR is passed over rather than advanced by a step it never waited for.
- */
+/** pull_request closed+merged: wake the line waiting for that PR. Previously unreachable — a feature-planning task's null `pr_number` (the push node stamps only the LINE's args) meant a merged spec PR decomposed on no deployment; this reads the merge directly, needing no task row, and still targets a NODE so a line sharing the PR but not waiting on it is passed over. */
 export const specPrResumeLine: EventHandler = async (params) => {
   const pr = decideResumeFromClosedPr(params);
   const pool = getPool();

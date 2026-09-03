@@ -1,6 +1,3 @@
-// Colocated with the predicate it moved beside: both terminal doors read it, so
-// it is no longer the reaper's private helper.
-
 import { describe, it, expect } from "vitest";
 import { agentCrVisible } from "./cr-visibility.js";
 

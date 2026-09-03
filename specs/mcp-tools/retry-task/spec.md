@@ -77,20 +77,20 @@ A single MCP text content block — one of: the missing-DB message, the compact
 
 A failed task spawns a new linked task and returns the new id alongside the
 original via `retry_of`.
-([validated by `creates a linked task when the original is failed`](apps/mcp-server/src/features/pipeline/pipeline-crud.test.ts#L113))
+([validated by `creates a linked task when the original is failed`](apps/mcp-server/src/features/pipeline/pipeline-crud.test.ts#L105))
 
 A task that is not in a retryable state (e.g. running) is rejected with a
 `Cannot retry task in <state> state` error.
-([validated by `throws cannot retry when the task is still running`](apps/mcp-server/src/features/pipeline/pipeline-crud.test.ts#L153))
+([validated by `throws cannot retry when the task is still running`](apps/mcp-server/src/features/pipeline/pipeline-crud.test.ts#L145))
 
 A task id with no matching row is rejected with `Task not found`.
-([validated by `throws task not found when no row matches`](apps/mcp-server/src/features/pipeline/pipeline-crud.test.ts#L166))
+([validated by `throws task not found when no row matches`](apps/mcp-server/src/features/pipeline/pipeline-crud.test.ts#L158))
 
 The retry action is posted to `/api/task` and the new task is returned
-verbatim. ([validated by `lore_retry_task posts the retry action and returns the new task`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L287))
+verbatim. ([validated by `lore_retry_task posts the retry action and returns the new task`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L280))
 
 An unconfigured API yields the not-configured message rather than a PostgreSQL
-message. ([validated by `every proxied pipeline tool reports a missing API configuration`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L440))
+message. ([validated by `every proxied pipeline tool reports a missing API configuration`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L433))
 
 ## Out of Scope
 

@@ -3,10 +3,6 @@ import type { PipelineTask } from "@re-cinq/lore-shared";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { Llm, FakeLlm } from "@re-cinq/lore-shared";
 
-// handleFeatureRequest drives the repo/pulls facades via projectFor(repo)
-// and the Llm singleton — the fake Project's facades are the spies, FakeLlm
-// supplies the canned spec content. Same fake-and-mock pattern as
-// worker.onboard.test.ts.
 const fakeRepo = {
   createBranch: vi.fn(),
   commitFile: vi.fn(),
@@ -36,8 +32,6 @@ vi.mock("../../kernel/db.js", () => ({
   query: (...a: unknown[]) => query(...a),
   getPool: () => ({ query: async () => ({ rows: [] }) }),
 }));
-// Spread the real barrel: episode-writer moved into it, and replacing the whole
-// module would take every other export down with it.
 vi.mock("@re-cinq/lore-shared", async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
   writeEpisode: (...a: unknown[]) => writeEpisode(...a),

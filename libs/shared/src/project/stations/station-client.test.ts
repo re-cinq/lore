@@ -18,11 +18,7 @@ describe("StationClient.run", () => {
     ).toBe("3 repos swept");
   });
 
-  it("reports an overlapping tick as a skip, not a failure", async () => {
-    // The station latches while it runs and answers 409 to a tick that arrives
-    // before the last one finished. That is the sweep saying "already on it" —
-    // the work is not lost, the next tick picks it up. Raised as an error it
-    // burns the retry ladder and dead-letters once a minute forever.
+  it("reports an overlapping tick as a skip, not a failure, so it doesn't burn the retry ladder into a dead letter", async () => {
     expect(await client(409).run("merge-check")).toBe(
       "skipped: already running",
     );

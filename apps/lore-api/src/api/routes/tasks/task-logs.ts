@@ -28,15 +28,7 @@ const TaskLogsQuery = z.object({
 
 type TaskLogsQuery = z.infer<typeof TaskLogsQuery>;
 
-// Both verbs require the "write" scope, matching the canonical route spec
-// (specs/api-routes/task-logs/spec.md) and the original method-agnostic
-// "/api/task-logs"→"write" scope map. The legacy prefix matcher resolved
-// "/api/task-logs".startsWith("/api/task") first, silently shadowing that entry
-// with "task"; per-route declaration removes the collision.
-/**
- * A slice of a task's transcript. `next_offset` and `cursor` are how a poller
- * resumes: the cursor rides the turn store, the offset the legacy bucket read.
- */
+// Both verbs need "write" scope per-route (specs/api-routes/task-logs/spec.md); `next_offset`/`cursor` are how a poller resumes (cursor rides the turn store, offset the legacy bucket read).
 const TaskLogSliceSchema = z.object({
   logs: z.string(),
   next_offset: z.number(),
@@ -104,14 +96,7 @@ interface TurnResume {
 
 const PG_BIGINT_MAX = 9223372036854775807n;
 
-/**
- * Parse a `<taskId>:<rowId>:<chars>` resume cursor. Only a cursor minted for
- * this task whose char count does not exceed the requested offset is trusted;
- * at offset 0 the caller wants the full transcript, so any cursor is ignored.
- * Row ids are string-encoded bigints and stay strings end to end; an id past
- * the PG bigint range would 500 inside `id > $2::bigint`, so it is rejected
- * here and falls back to the full re-scan like every other untrusted cursor.
- */
+// Parses `<taskId>:<rowId>:<chars>`; trusted only for this task with chars<=offset (offset 0 always ignores it), and an id past PG bigint range is rejected to avoid a 500 in `id > $2::bigint`.
 function parseTurnCursor(
   raw: string | undefined,
   taskId: string,
@@ -139,114 +124,136 @@ function parseTurnCursor(
   return { afterId, consumed };
 }
 
-/**
- * Flatten a task's turns (one `JSON.stringify(envelope)` NDJSON line each) and
- * return the UTF-16 code-unit slice `[offset, offset + LOG_SLICE_MAX)`. The
- * prefix before `offset` is length-counted and dropped, never accumulated, so
- * peak memory is one slice plus one page regardless of how deep the caller has
- * paged.
- *
- * `resume` seeks straight to the last row boundary a previous response minted
- * as its `cursor` instead of re-paging the whole prefix (#1307). When the
- * resumed offset sits past the boundary (`offset > chars`) it must land
- * strictly inside the first row after `rowId` — anything else means the cursor
- * is stale or forged, and the read restarts as a full authoritative scan from
- * row id 0; the restart recurses at most once, since it passes `resume: null`,
- * which disarms the validation. At the boundary itself (`offset == chars`) the
- * pair is trusted as-is: server-minted cursors are self-consistent with real
- * rows, and verifying the boundary would take the very prefix scan this resume
- * avoids. The accepted consequence is that a caller can forge
- * `<taskId>:<rowId>:<offset>` at the boundary and skip rows — reads are
- * bearer-scoped and the damage is confined to the forger's own response.
- * The returned `cursor` names the last fully consumed row and the flattened
- * char count through its end; when a request consumes no full row it echoes
- * the resume point, so an idle tail-follow poll stays O(new rows).
- *
- * Offsets are stable across polls because rows are append-only and jsonb key
- * order is deterministic — except when concurrent ingest POSTs commit out of
- * id order, which can splice a late row into an already-read prefix. A re-poll
- * from an earlier offset self-heals: any rewind below the boundary rejects the
- * cursor (`chars > offset`) and re-scans from row id 0 on its own.
- */
+// Flattens turns to the UTF-16 slice [offset, offset+LOG_SLICE_MAX); `resume` seeks straight to the previous cursor's row boundary instead of re-paging the whole prefix (#1307) — a stale/forged offset past the boundary falls back to a full rescan from row id 0, while an at-boundary cursor is trusted as-is (bearer-scoped, so a forged skip only affects the forger's own read); a rewind below the boundary self-heals the same way.
 async function readTurnSlice(
   turns: AgentRunTurnsRepository,
   taskId: string,
   offset: number,
   resume: TurnResume | null,
 ): Promise<TurnSlice> {
-  let consumed = resume?.consumed ?? 0;
+  const state: TurnScanState = {
+    consumed: resume?.consumed ?? 0,
+    boundaryId: resume?.afterId ?? "0",
+    boundaryChars: resume?.consumed ?? 0,
+    slice: "",
+    mustValidateResume: resume !== null && offset > resume.consumed,
+  };
   let afterId = resume?.afterId ?? "0";
-  let boundaryId = afterId;
-  let boundaryChars = consumed;
-  let slice = "";
   let sawTurns = resume !== null;
-  let mustValidateResume = resume !== null && offset > consumed;
 
   for (;;) {
     const page = await turns.listByTask(taskId, afterId, TURNS_PAGE_SIZE);
 
     sawTurns = sawTurns || page.length > 0;
 
-    if (mustValidateResume && page.length === 0) {
+    if (state.mustValidateResume && page.length === 0) {
+      return readTurnSlice(turns, taskId, offset, null);
+    }
+    const outcome = consumeTurnPage(state, page, offset);
+
+    if (outcome === "restart") {
       return readTurnSlice(turns, taskId, offset, null);
     }
 
-    for (const row of page) {
-      if (slice.length >= LOG_SLICE_MAX) {
-        return {
-          slice,
-          hasMore: true,
-          sawTurns,
-          cursor: `${taskId}:${boundaryId}:${boundaryChars}`,
-        };
-      }
-      const line = `${JSON.stringify(row.envelope)}\n`;
-
-      if (mustValidateResume) {
-        mustValidateResume = false;
-
-        if (consumed + line.length <= offset) {
-          return readTurnSlice(turns, taskId, offset, null);
-        }
-      }
-
-      if (consumed + line.length <= offset) {
-        consumed += line.length;
-        boundaryId = row.id;
-        boundaryChars = consumed;
-        continue;
-      }
-      const start = Math.max(0, offset - consumed);
-      const piece = line.substring(
-        start,
-        start + (LOG_SLICE_MAX - slice.length),
-      );
-
-      slice += piece;
-
-      if (start + piece.length < line.length) {
-        return {
-          slice,
-          hasMore: true,
-          sawTurns,
-          cursor: `${taskId}:${boundaryId}:${boundaryChars}`,
-        };
-      }
-      consumed += line.length;
-      boundaryId = row.id;
-      boundaryChars = consumed;
+    if (outcome === "sliced") {
+      return {
+        slice: state.slice,
+        hasMore: true,
+        sawTurns,
+        cursor: `${taskId}:${state.boundaryId}:${state.boundaryChars}`,
+      };
     }
 
     if (page.length < TURNS_PAGE_SIZE) {
       return {
-        slice,
+        slice: state.slice,
         hasMore: false,
         sawTurns,
-        cursor: `${taskId}:${boundaryId}:${boundaryChars}`,
+        cursor: `${taskId}:${state.boundaryId}:${state.boundaryChars}`,
       };
     }
     afterId = page.at(-1)?.id ?? afterId;
   }
+}
+
+interface TurnScanState {
+  consumed: number;
+  boundaryId: string;
+  boundaryChars: number;
+  slice: string;
+  mustValidateResume: boolean;
+}
+
+// Folds one page into the scan state: "restart" when the resume cursor proves stale, "sliced" when the slice budget is exhausted mid-page, else null.
+function consumeTurnPage(
+  state: TurnScanState,
+  page: Awaited<ReturnType<AgentRunTurnsRepository["listByTask"]>>,
+  offset: number,
+): "restart" | "sliced" | null {
+  for (const row of page) {
+    if (state.slice.length >= LOG_SLICE_MAX) {
+      return "sliced";
+    }
+    const line = `${JSON.stringify(row.envelope)}\n`;
+    const lineEndsBeforeOffset = state.consumed + line.length <= offset;
+
+    if (state.mustValidateResume && lineEndsBeforeOffset) {
+      return "restart";
+    }
+    state.mustValidateResume = false;
+
+    if (lineEndsBeforeOffset) {
+      state.consumed += line.length;
+      state.boundaryId = row.id;
+      state.boundaryChars = state.consumed;
+      continue;
+    }
+    const start = Math.max(0, offset - state.consumed);
+    const piece = line.substring(
+      start,
+      start + (LOG_SLICE_MAX - state.slice.length),
+    );
+
+    state.slice += piece;
+
+    if (start + piece.length < line.length) {
+      return "sliced";
+    }
+    state.consumed += line.length;
+    state.boundaryId = row.id;
+    state.boundaryChars = state.consumed;
+  }
+
+  return null;
+}
+
+interface TurnStoreRead {
+  finished: boolean;
+  taskRepo: string | null;
+  turnSlice: TurnSlice;
+}
+
+// A task row that no longer exists counts as settled — else turns for a deleted task (kept, no FKs by design) poll forever with complete:false.
+async function readFromTurnStore(
+  pool: Pool,
+  taskId: string,
+  offset: number,
+  rawCursor: string | undefined,
+): Promise<TurnStoreRead> {
+  const { rows } = await pool.query<{
+    status: string;
+    target_repo: string | null;
+  }>(`SELECT status, target_repo FROM pipeline.tasks WHERE id = $1`, [taskId]);
+  const task = rows[0];
+  const finished = task === undefined || !ACTIVE_STATUSES.has(task.status);
+  const turnSlice = await readTurnSlice(
+    new PgAgentRunTurns(pool),
+    taskId,
+    offset,
+    parseTurnCursor(rawCursor, taskId, offset),
+  );
+
+  return { finished, taskRepo: task?.target_repo ?? null, turnSlice };
 }
 
 export function taskLogsGetRoute(getPool: () => Pool | null): ServerRoute {
@@ -275,39 +282,24 @@ export function taskLogsGetRoute(getPool: () => Pool | null): ServerRoute {
         const pool = getPool();
         let finished = false;
 
-        // Cluster runs stream to pipeline.agent_run_turns (the bucket object is
-        // only ever written by the mcp local runner), so the turn store is read
-        // first and GCS is the local-runner fallback.
-        if (pool) {
-          const { rows } = await pool.query<{
-            status: string;
-            target_repo: string | null;
-          }>(`SELECT status, target_repo FROM pipeline.tasks WHERE id = $1`, [
-            taskId,
-          ]);
-          const task = rows[0];
+        // Cluster runs stream to pipeline.agent_run_turns; the bucket is only ever written by the mcp local runner, so the turn store is read first.
+        const stored = pool
+          ? await readFromTurnStore(pool, taskId, offset, query.cursor)
+          : null;
 
-          // A task row that no longer exists will never transition again, so it
-          // counts as settled — otherwise turns for a deleted task (the store
-          // keeps them: no FKs, by design) poll forever with complete: false.
-          finished = task === undefined || !ACTIVE_STATUSES.has(task.status);
-          const turnSlice = await readTurnSlice(
-            new PgAgentRunTurns(pool),
-            taskId,
-            offset,
-            parseTurnCursor(query.cursor, taskId, offset),
-          );
+        finished = stored?.finished ?? false;
 
-          if (turnSlice.sawTurns) {
-            return h.response({
-              logs: turnSlice.slice,
-              next_offset: offset + turnSlice.slice.length,
-              complete: finished && !turnSlice.hasMore,
-              cursor: turnSlice.cursor,
-            });
-          }
-          repo = repo ?? task?.target_repo ?? null;
+        if (stored?.turnSlice.sawTurns) {
+          const { turnSlice } = stored;
+
+          return h.response({
+            logs: turnSlice.slice,
+            next_offset: offset + turnSlice.slice.length,
+            complete: finished && !turnSlice.hasMore,
+            cursor: turnSlice.cursor,
+          });
         }
+        repo = repo ?? stored?.taskRepo ?? null;
 
         enforceTrue(repo || pool, apiError(503), DB_UNAVAILABLE);
 
@@ -325,17 +317,14 @@ export function taskLogsGetRoute(getPool: () => Pool | null): ServerRoute {
         const [content] = await file.download();
         const full = content.toString("utf-8");
 
-        // The local runner re-POSTs the full buffer while still running, so a
-        // bucket hit does not mean the run ended; without a pool there is no
-        // status to consult and the legacy always-complete read stands.
+        // The local runner re-POSTs the full buffer while running, so a bucket hit doesn't mean the run ended; no pool means no status to check.
         return h.response({
           logs: full.substring(offset),
           next_offset: full.length,
           complete: pool ? finished : true,
         });
       } catch (err) {
-        // A guard's refusal already carries its status; only an unexpected failure
-        // is this block's to shape.
+        // A guard's refusal already carries its status; only an unexpected failure is this block's to shape.
         rethrowBoom(err);
 
         return h.response({ error: errorMessage(err) }).code(500);

@@ -10,8 +10,6 @@ import {
   type ExpiredLease,
 } from "./lease-backends.js";
 
-// ── DbLeaseBackend ─────────────────────────────────────────────────────
-
 describe("DbLeaseBackend.acquire", () => {
   it("returns acquired:true on first acquire (no prior row)", async () => {
     const { pool, calls } = fakePgPool([
@@ -152,8 +150,6 @@ describe("DbLeaseBackend.reapExpired", () => {
   });
 });
 
-// ── FileLeaseBackend ───────────────────────────────────────────────────
-
 describe("FileLeaseBackend", () => {
   let tmpDir: string;
 
@@ -192,7 +188,7 @@ describe("FileLeaseBackend", () => {
   it("allows takeover after the prior lease has expired and reports tookOverFrom (T027)", async () => {
     const backend = new FileLeaseBackend(tmpDir);
 
-    await backend.acquire("b", "t1", "holder-A", -1); // expires immediately
+    await backend.acquire("b", "t1", "holder-A", -1);
     const r = await backend.acquire("b", "t2", "holder-B");
 
     expect(r).toEqual({ acquired: true, tookOverFrom: "holder-A" });
@@ -227,7 +223,6 @@ describe("FileLeaseBackend", () => {
 
     await backend.acquire("b", "t1", "holder-A");
     expect(await backend.release("b", "holder-A")).toBe(true);
-    // file should be gone
     const fname = path.join(tmpDir, encodeURIComponent("b") + ".json");
 
     await expect(fs.access(fname)).rejects.toThrow();
@@ -240,13 +235,13 @@ describe("FileLeaseBackend", () => {
     expect(await backend.release("b", "holder-B")).toBe(false);
     const fname = path.join(tmpDir, encodeURIComponent("b") + ".json");
 
-    await fs.access(fname); // does not throw
+    await fs.access(fname);
   });
 
   it("reapExpired removes and returns only leases past the cutoff", async () => {
     const backend = new FileLeaseBackend(tmpDir);
 
-    await backend.acquire("a", "t-old", "h", -1); // already expired
+    await backend.acquire("a", "t-old", "h", -1);
     await backend.acquire("b", "t-fresh", "h", 600);
 
     const expired = await backend.reapExpired(new Date());
@@ -267,8 +262,6 @@ describe("FileLeaseBackend", () => {
     expect(files[0]).toContain("lore%2Ffeature%2Fwith%2Fslashes");
   });
 });
-
-// ── InMemoryLeaseReaper ────────────────────────────────────────────────
 
 describe("InMemoryLeaseReaper.reapExpired", () => {
   const lease = (over: Partial<ExpiredLease>): ExpiredLease => ({

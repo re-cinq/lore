@@ -1,15 +1,9 @@
-// The station contract's outcome parsing (ADR-031 D4/D9): map a terminal Agent
-// CR status to the node outcome the transition replay routes on. Precedence on
-// Succeeded: the contract's LORE_NODE_RESULT line → the agent review
-// REVIEW_RESULT line → success. A CR phase of Failed (crash, non-zero exit, Job
-// deadline) is an infrastructure failure, distinct from a station reporting
-// outcome "failed" as its normal result. Consumed by the Floor's node-event
-// handler + reaper and (parseNodeResult) by the lore-station pod itself.
+// Station contract's outcome parsing (ADR-031 D4/D9): maps a terminal Agent CR status to the node outcome the transition replay routes on. Precedence on Succeeded: LORE_NODE_RESULT → REVIEW_RESULT → success; a CR phase of Failed is a distinct infrastructure failure.
 
 import { classifyError } from "@re-cinq/lore-shared/error-classify.js";
 import type { NodeResult, StageOutcome } from "./node-types.js";
 
-/** The slice of an Agent's status the outcome mapping reacts to. */
+// The slice of an Agent's status the outcome mapping reacts to.
 export type { AgentNodeStatus } from "@re-cinq/lore-shared/cluster/agent-node-status.js";
 import type { AgentNodeStatus } from "@re-cinq/lore-shared/cluster/agent-node-status.js";
 
@@ -19,7 +13,7 @@ const OUTCOMES = new Set<StageOutcome>([
   "failed",
 ]);
 
-/** Review nodes ask the agent to print exactly one REVIEW_RESULT line. */
+// Review nodes ask the agent to print exactly one REVIEW_RESULT line.
 export function parseReviewVerdict(
   output?: string,
 ): "success" | "changes_requested" | null {
@@ -38,14 +32,7 @@ export function parseReviewVerdict(
   return null;
 }
 
-/**
- * The payload of the LAST line-start `LORE_NODE_RESULT:` marker, or null.
- *
- * Line-start and last-wins together are what make the marker safe to DISCUSS: an
- * agent quoting its own contract mid-sentence decides nothing, and one that
- * explains the marker and then prints it is read by its final word. The payload is
- * one physical line — the contract's own shape, and all `JSON.parse` accepts here.
- */
+// Payload of the LAST line-start `LORE_NODE_RESULT:` marker, or null — line-start + last-wins together make the marker safe to DISCUSS (an agent quoting it mid-sentence decides nothing; one printing it after explaining it is read by its final word).
 function lastNodeResultPayload(output?: string): string | null {
   const matches = [
     ...(output ?? "").matchAll(/^LORE_NODE_RESULT:[ \t]*(.*)$/gm),
@@ -55,8 +42,7 @@ function lastNodeResultPayload(output?: string): string | null {
 }
 
 function nodeResultFromPayload(payload: string): NodeResult | null {
-  // The bare word is legacy but LIVE: a deployed recipe instructs exactly it, and
-  // rejecting it turned a station's objection into a silent success (#1469).
+  // The bare word is legacy but LIVE: a deployed recipe instructs exactly it; rejecting it turned a station's objection into a silent success (#1469).
   if (OUTCOMES.has(payload as StageOutcome)) {
     return { outcome: payload as StageOutcome, extras: {} };
   }
@@ -86,26 +72,14 @@ function nodeResultFromPayload(payload: string): NodeResult | null {
   return { outcome: outcome as StageOutcome, extras: stringExtras };
 }
 
-/**
- * The station contract's terminal line: `LORE_NODE_RESULT: {"outcome": ...,
- * "extras": {...}}`, or the legacy bare word. Null on absence or malformation —
- * a malformed line is not a formatting slip to shrug off, though: see
- * {@link malformedNodeResultLine}, which is how the node fails instead.
- */
+// Station contract's terminal line (LORE_NODE_RESULT JSON or legacy bare word); null on absence or malformation — see malformedNodeResultLine, which is how the node fails instead.
 export function parseNodeResult(output?: string): NodeResult | null {
   const payload = lastNodeResultPayload(output);
 
   return payload === null ? null : nodeResultFromPayload(payload);
 }
 
-/**
- * The offending line when a marker is PRESENT but says nothing usable.
- *
- * The `success` default exists for an agent that prints NO marker. An agent that
- * printed one and was misheard is a different thing entirely — that is the
- * failure this surfaces, so a recipe whose contract has drifted reports itself
- * instead of passing every node.
- */
+// The offending line when a marker is PRESENT but unusable — distinct from the `success` default for no marker at all, so a drifted recipe contract reports itself instead of passing every node.
 export function malformedNodeResultLine(output?: string): string | null {
   const payload = lastNodeResultPayload(output);
 
@@ -119,31 +93,37 @@ export function malformedNodeResultLine(output?: string): string | null {
 const failureKind = (node: NodeKind): string =>
   node.type === "agent" ? "agent" : "station";
 
-/** All this needs of a node is its TYPE, so a blueprint node and the clone a run
- *  carries both satisfy it without conversion. */
+// All this needs of a node is its TYPE, so a blueprint node and the clone a run carries both satisfy it without conversion.
 export interface NodeKind {
   type: string;
 }
 
-/** Map a terminal Agent status to the node outcome (see precedence above).
- *  The set of outcomes this can return per node type is mirrored by
- *  PRODUCIBLE_OUTCOMES in loader.ts (the load-time edge-coverage check) — keep
- *  the two in sync when adding an outcome. */
+// The validate station reports dead suites only via extras; lift that into failureDetail (with the commands' own output when sent) so the terminal reason names it — "lint,build failed" says where, the output says what to fix.
+function withValidationFailureDetail(stationResult: NodeResult): NodeResult {
+  const failedSuites = stationResult.extras?.["Lore-Validation-Failed"];
+  const failureOutput = stationResult.extras?.["Lore-Validation-Output"];
+  const needsLiftedDetail =
+    stationResult.outcome === "failed" && !stationResult.failureDetail;
+
+  if (needsLiftedDetail && failedSuites) {
+    return {
+      ...stationResult,
+      failureDetail: failureOutput
+        ? `validation failed: ${failedSuites}\n\n${failureOutput}`
+        : `validation failed: ${failedSuites}`,
+    };
+  }
+
+  return stationResult;
+}
+
+// Maps a terminal Agent status to the node outcome (precedence above); mirrored by PRODUCIBLE_OUTCOMES in loader.ts — keep both in sync when adding an outcome.
 export function stationNodeOutcome(
   node: NodeKind,
   status: AgentNodeStatus,
 ): NodeResult {
   if (status.phase === "Failed") {
-    // Precedence is the whole point: the agent's own last words first, the
-    // Job-level reason only when it never got to speak. Reading `failureReason`
-    // first classified every death as `BackoffLimitExceeded` — which is how a
-    // dry Anthropic account reached an author as a retry-budget message.
-    //
-    // `||`, not `??`: `terminalErrorText` answers `parsed.result` for any line
-    // with `is_error`, and an agent that errors with an EMPTY result string
-    // would otherwise win the precedence with nothing to say — classifying as
-    // `unknown`, emitting an empty summary, and discarding the Job-level reason
-    // that was the only information anyone had. "Said nothing" is not "spoke".
+    // Precedence: agent's own last words first, Job-level reason only when it never spoke (reading failureReason first classified every death as BackoffLimitExceeded, e.g. a dry Anthropic account). `||` not `??`: an EMPTY error string must not win over the Job-level reason — "said nothing" is not "spoke".
     const detail = (
       status.errorText ||
       status.failureReason ||
@@ -163,33 +143,10 @@ export function stationNodeOutcome(
   const stationResult = parseNodeResult(status.output);
 
   if (stationResult) {
-    // The validate station reports which suites died only through its extras;
-    // lift that into failureDetail so the terminal reason can name it — and
-    // carry the commands' OWN OUTPUT when it sent any. "lint,build failed" says
-    // where to look; the compiler errors say what to fix, and the agent sent
-    // back to fix them is the one reading this.
-    const failedSuites = stationResult.extras?.["Lore-Validation-Failed"];
-    const failureOutput = stationResult.extras?.["Lore-Validation-Output"];
-
-    if (
-      stationResult.outcome === "failed" &&
-      !stationResult.failureDetail &&
-      failedSuites
-    ) {
-      return {
-        ...stationResult,
-        failureDetail: failureOutput
-          ? `validation failed: ${failedSuites}\n\n${failureOutput}`
-          : `validation failed: ${failedSuites}`,
-      };
-    }
-
-    return stationResult;
+    return withValidationFailureDetail(stationResult);
   }
 
-  // Spoken but misheard. Falling through to the default made an agent's objection
-  // a `success` and skipped the human decision point its edge exists for (#1469) —
-  // and the recipe bug behind it left no trace anywhere.
+  // Spoken but misheard: falling through to the default made an agent's objection a `success`, skipping the human decision point its edge exists for (#1469).
   const malformed = malformedNodeResultLine(status.output);
 
   if (malformed) {
@@ -200,8 +157,7 @@ export function stationNodeOutcome(
 
     return {
       outcome: "failed",
-      // Not a classified infrastructure failure: this is a recipe/contract bug, and
-      // `unknown` is the class that never trips the account-wide dispatch gate.
+      // Not a classified infrastructure failure: a recipe/contract bug, and `unknown` never trips the account-wide dispatch gate.
       failureClass: "unknown",
       failureDetail: detail,
       extras: {

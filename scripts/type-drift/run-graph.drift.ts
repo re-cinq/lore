@@ -1,16 +1,4 @@
-/**
- * Compile-time drift guard for the run-graph mirror.
- *
- * apps/web-ui cannot import @re-cinq/lore-shared (npm-workspace exclusion +
- * isolated Docker build context), so the persisted RunGraph wire format is
- * hand-mirrored in apps/web-ui/src/lib/run-graph.ts. This file makes
- * `npm run typecheck:drift` go red the moment either side changes shape.
- *
- * Exact both ways, not keys-only: unlike the loader mirror (zod inference
- * quirks), both sides here are plain interfaces describing the same stored
- * jsonb — an optionality mismatch is real drift (the mirror shipped with
- * `station_inherited?` where the clone always records it).
- */
+// Drift guard: web-ui can't import @re-cinq/lore-shared, so RunGraph is hand-mirrored in web-ui/src/lib/run-graph.ts; exact both ways since both sides are plain interfaces.
 
 import type {
   RunGraphNode as CanonNode,
@@ -37,9 +25,7 @@ export const _node: MirrorsExactly<CanonNode, MirrorNode> = true;
 export const _edge: MirrorsExactly<CanonEdge, MirrorEdge> = true;
 export const _graph: MirrorsExactly<CanonGraph, MirrorGraph> = true;
 
-// The human-station type set: web-ui's HUMAN_STATIONS record is keyed on this
-// union, so a libs-side addition goes red here and then red at every consumer
-// until the record answers for the new member.
+// web-ui's HUMAN_STATIONS record is keyed on this union, so a libs-side addition goes red here until the record answers for it.
 export const _humanStationType: MirrorsExactly<
   CanonHumanStationType,
   MirrorHumanStationType

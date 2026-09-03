@@ -20,7 +20,6 @@ const baseSpec: LoreTaskSpec = {
   branch: "lore/impl-abcdef12",
 };
 
-// A real in-memory AgentApi: records created agents, replays listByLabel results.
 class FakeAgentApi implements AgentApi {
   readonly created: Agent[] = [];
   constructor(
@@ -106,7 +105,6 @@ describe("AgentCrBackend.launch", () => {
 });
 
 describe("AgentCrBackend.launch — per-task token (#697)", () => {
-  // Records the spec it was asked to provision; replays a configured Station ref.
   class FakeProvisioner implements TokenProvisioner {
     readonly seen: LoreTaskSpec[] = [];
     constructor(private readonly stationRef: string | undefined) {}

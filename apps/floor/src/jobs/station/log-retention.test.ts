@@ -14,9 +14,7 @@ describe("pruneTelemetry", () => {
     );
   });
 
-  it("still prunes the other table when one fails, so neither grows unbounded", async () => {
-    // Settled, not all: these are two independent sweeps, and letting a failure
-    // in one skip the other is how a table quietly outgrows its window.
+  it("still prunes the other table when one fails as an independent sweep, so neither grows unbounded", async () => {
     const result = await pruneTelemetry({
       runEvents: {
         pruneOld: () => Promise.reject(new Error("deadlock detected")),

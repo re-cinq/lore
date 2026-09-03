@@ -24,14 +24,13 @@ export function decideNotify(
     return { fire: true, matchedChannels: ["escalation"] };
   }
 
-  if (level === "watched" || level === "completion") {
-    if (channels.includes("watched")) {
-      return { fire: true, matchedChannels: ["watched"] };
-    }
-
-    return { fire: false, matchedChannels: [] };
+  if (
+    (level === "watched" || level === "completion") &&
+    channels.includes("watched")
+  ) {
+    return { fire: true, matchedChannels: ["watched"] };
   }
 
-  // pr_open: only `all` lets these through
+  // pr_open, or watched/completion without the channel: only `all` lets these through
   return { fire: false, matchedChannels: [] };
 }

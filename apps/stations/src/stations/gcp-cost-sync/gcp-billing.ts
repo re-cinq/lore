@@ -2,28 +2,13 @@ import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { z } from "zod";
 import type { GcpCostDailyRow } from "@re-cinq/lore-shared/project/cost/cost-port.js";
 
-/**
- * The pure half of the GCP billing sync: which export table to read, the SQL
- * that reads it, and the parse of BigQuery's stringly-typed query response.
- *
- * Google publishes actual spend through exactly one machine-readable channel —
- * the Cloud Billing export to BigQuery — so this is a BigQuery read, not a
- * Billing API call (that API serves SKU price lists, never an invoice).
- */
+// The pure half of the GCP billing sync: which export table to read, the SQL that reads it, and the parse of BigQuery's stringly-typed response. Google publishes spend through exactly one machine-readable channel — the Cloud Billing export to BigQuery — so this is a BigQuery read, not a Billing API call (that API serves SKU price lists, never an invoice).
 
-/** Standard usage-cost export tables carry this prefix plus the billing
- *  account id. The detailed (`_resource_`) export nests per-resource rows we
- *  would only re-aggregate, so the standard table is preferred when both
- *  exist. */
+// Standard usage-cost export tables carry this prefix plus the billing account id; the detailed (`_resource_`) export nests per-resource rows we'd only re-aggregate, so the standard table is preferred when both exist.
 const STANDARD_EXPORT_PREFIX = "gcp_billing_export_v1_";
 const DETAILED_EXPORT_PREFIX = "gcp_billing_export_resource_v1_";
 
-/**
- * The export table to read from a dataset's table list, or null before the
- * console-side export setup has produced one — a state the sync reports as a
- * skip rather than an error, since only a Billing Admin in the Cloud Console
- * can change it.
- */
+// The export table to read from a dataset's table list, or null before the console-side export setup has produced one — a state the sync reports as a skip rather than an error, since only a Billing Admin in the Cloud Console can change it.
 export function pickBillingTable(tableIds: string[]): string | null {
   return (
     tableIds.find((id) => id.startsWith(STANDARD_EXPORT_PREFIX)) ??
@@ -32,14 +17,7 @@ export function pickBillingTable(tableIds: string[]): string | null {
   );
 }
 
-/**
- * One day/service rollup over the export, windowed and filtered to the
- * platform's own project — the export spans the whole billing account, and a
- * neighbour project's spend on the Lore spend page would be a lie.
- *
- * Credits are summed from their nested array separately from cost: the net is
- * a rendering concern, and net-only storage cannot be taken apart again.
- */
+// One day/service rollup over the export, windowed and filtered to the platform's own project (the export spans the whole billing account, and a neighbour project's spend on /spend would be a lie). Credits are summed separately from cost since the net is a rendering concern and net-only storage can't be taken apart again.
 export function buildBillingQuery(
   table: { project: string; dataset: string; tableId: string },
   windowStartIso: string,
@@ -55,8 +33,7 @@ export function buildBillingQuery(
  ORDER BY bucket_date, service`;
 }
 
-/** BigQuery's REST query response: every cell arrives as a string under
- *  `f[].v`, in the SELECT's column order. */
+// BigQuery's REST query response: every cell arrives as a string under `f[].v`, in the SELECT's column order.
 const QueryResponse = z.object({
   jobComplete: z.boolean().optional(),
   rows: z

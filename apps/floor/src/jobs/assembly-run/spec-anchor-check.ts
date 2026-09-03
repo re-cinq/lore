@@ -64,66 +64,71 @@ function resolveTarget(
   return null;
 }
 
-export function findRottenAnchors(
-  specs: Array<{ path: string; content: string }>,
+function rottenAnchorsInSpec(
+  spec: { path: string; content: string },
   readLines: (path: string) => string[] | null,
 ): RottenAnchor[] {
   const rotten: RottenAnchor[] = [];
 
-  for (const spec of specs) {
-    for (const match of spec.content.matchAll(ANCHOR)) {
-      const target = match[1];
-      const line = parseInt(match[2], 10);
+  for (const match of spec.content.matchAll(ANCHOR)) {
+    const target = match[1];
+    const line = parseInt(match[2], 10);
 
-      if (/^[a-z]+:\/\//.test(target)) {
-        continue;
-      }
-      const resolved = resolveTarget(spec.path, target, readLines);
+    if (/^[a-z]+:\/\//.test(target)) {
+      continue;
+    }
+    const resolved = resolveTarget(spec.path, target, readLines);
 
-      if (!resolved) {
-        rotten.push({
-          specPath: spec.path,
-          target: targetCandidates(spec.path, target)[0] ?? target,
-          line,
-          reason: "missing file",
-        });
-        continue;
-      }
-      const targetLine = resolved.lines[line - 1];
+    if (!resolved) {
+      rotten.push({
+        specPath: spec.path,
+        target: targetCandidates(spec.path, target)[0] ?? target,
+        line,
+        reason: "missing file",
+      });
+      continue;
+    }
+    const targetLine = resolved.lines[line - 1];
 
-      if (targetLine === undefined) {
-        rotten.push({
-          specPath: spec.path,
-          target: resolved.path,
-          line,
-          reason: "line out of range",
-        });
-        continue;
-      }
-      const trimmed = targetLine.trim();
+    if (targetLine === undefined) {
+      rotten.push({
+        specPath: spec.path,
+        target: resolved.path,
+        line,
+        reason: "line out of range",
+      });
+      continue;
+    }
+    const trimmed = targetLine.trim();
 
-      if (trimmed.length === 0) {
-        rotten.push({
-          specPath: spec.path,
-          target: resolved.path,
-          line,
-          reason: "blank line",
-        });
-        continue;
-      }
+    if (trimmed.length === 0) {
+      rotten.push({
+        specPath: spec.path,
+        target: resolved.path,
+        line,
+        reason: "blank line",
+      });
+      continue;
+    }
 
-      if (commentReason(resolved.path, trimmed)) {
-        rotten.push({
-          specPath: spec.path,
-          target: resolved.path,
-          line,
-          reason: "comment line",
-        });
-      }
+    if (commentReason(resolved.path, trimmed)) {
+      rotten.push({
+        specPath: spec.path,
+        target: resolved.path,
+        line,
+        reason: "comment line",
+      });
     }
   }
 
   return rotten;
+}
+
+export function findRottenAnchors(
+  specs: Array<{ path: string; content: string }>,
+  readLines: (path: string) => string[] | null,
+): RottenAnchor[] {
+  return specs.flatMap((spec) => rottenAnchorsInSpec(spec, readLines));
 }
 
 export interface RottenAnchorReportInput {
@@ -165,23 +170,19 @@ export async function rottenAnchorReport(
   };
 
   // Pre-fetch every candidate target so findRottenAnchors stays synchronous.
-  for (const spec of specs) {
-    for (const match of spec.content.matchAll(ANCHOR)) {
-      const target = match[1];
+  const candidates = new Set(
+    specs.flatMap((spec) =>
+      [...spec.content.matchAll(ANCHOR)]
+        .map((match) => match[1])
+        .filter((target) => !/^[a-z]+:\/\//.test(target))
+        .flatMap((target) => targetCandidates(spec.path, target)),
+    ),
+  );
 
-      if (/^[a-z]+:\/\//.test(target)) {
-        continue;
-      }
+  for (const candidate of candidates) {
+    const content = await input.repo.read(candidate, input.branch);
 
-      for (const candidate of targetCandidates(spec.path, target)) {
-        if (cache.has(candidate)) {
-          continue;
-        }
-        const content = await input.repo.read(candidate, input.branch);
-
-        cache.set(candidate, content?.split(/\r?\n/) ?? null);
-      }
-    }
+    cache.set(candidate, content?.split(/\r?\n/) ?? null);
   }
   const rotten = findRottenAnchors(specs, readLines);
 

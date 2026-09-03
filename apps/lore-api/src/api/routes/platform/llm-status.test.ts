@@ -96,9 +96,6 @@ describe("GET /api/platform/llm-status", () => {
   }
 
   it("answers healthy on a database that predates the failure columns", async () => {
-    // Every sibling run read degrades to empty on a pre-migration database. This
-    // one is polled by a BANNER, so a 500 here is the outage-reporting machinery
-    // reporting itself rather than the outage.
     const pool = makePool();
 
     pool.query.mockRejectedValue(

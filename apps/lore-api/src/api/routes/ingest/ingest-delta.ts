@@ -153,6 +153,52 @@ async function storedCommit(
   }
 }
 
+async function applyTestReportDelta(
+  deps: IngestDeltaDeps,
+  repo: string,
+  body: IngestDeltaBody,
+): Promise<{ testChunks: number; prunedTestFiles: number }> {
+  let testChunks = 0;
+  let prunedTestFiles = 0;
+
+  if (body.report !== undefined) {
+    testChunks = (await deps.ingestReport(repo, body.report)).testChunks;
+  }
+
+  if (body.deleted?.length) {
+    await deps.pruneTests(repo, body.deleted);
+    prunedTestFiles = body.deleted.length;
+  }
+
+  return { testChunks, prunedTestFiles };
+}
+
+async function applyDocDelta(
+  deps: IngestDeltaDeps,
+  repo: string,
+  body: IngestDeltaBody,
+): Promise<{ projected: number; deleted: number }> {
+  const project = body.kind === "specs" ? deps.projectSpec : deps.projectAdr;
+  const remove = body.kind === "specs" ? deps.deleteSpec : deps.deleteAdr;
+  let projected = 0;
+  let deleted = 0;
+
+  for (const file of body.files ?? []) {
+    const outcome = await project(repo, file.path, file.content);
+
+    if (outcome.projected) {
+      projected += 1;
+    }
+  }
+
+  for (const path of body.deleted ?? []) {
+    await remove(repo, path);
+    deleted += 1;
+  }
+
+  return { projected, deleted };
+}
+
 export function ingestDeltaRoute(
   getPool: () => Pool | null,
   deps: IngestDeltaDeps = defaultDeps(),
@@ -219,33 +265,15 @@ export function ingestDeltaRoute(
       let prunedTestFiles = 0;
 
       if (body.kind === "test-report") {
-        if (body.report !== undefined) {
-          testChunks = (await deps.ingestReport(repo, body.report)).testChunks;
-        }
-
-        if (body.deleted?.length) {
-          await deps.pruneTests(repo, body.deleted);
-          prunedTestFiles = body.deleted.length;
-        }
+        ({ testChunks, prunedTestFiles } = await applyTestReportDelta(
+          deps,
+          repo,
+          body,
+        ));
       }
 
       if (body.kind !== "test-report") {
-        const project =
-          body.kind === "specs" ? deps.projectSpec : deps.projectAdr;
-        const remove = body.kind === "specs" ? deps.deleteSpec : deps.deleteAdr;
-
-        for (const file of body.files ?? []) {
-          const outcome = await project(repo, file.path, file.content);
-
-          if (outcome.projected) {
-            projected += 1;
-          }
-        }
-
-        for (const path of body.deleted ?? []) {
-          await remove(repo, path);
-          deleted += 1;
-        }
+        ({ projected, deleted } = await applyDocDelta(deps, repo, body));
       }
 
       if (!finalChunk) {

@@ -85,8 +85,7 @@ export const ICONS: Record<ThemeFamily, Record<IconName, string>> = {
     done: "pixelarticons:flag",
     gate: "pixelarticons:debug",
   },
-  // Chicago (Win98) reuses the pixelarticons set — its blocky, low-res glyphs
-  // read as period-correct chrome next to the beveled silver controls.
+  // Chicago (Win98) reuses the pixelarticons set — its blocky glyphs read as period-correct chrome next to the beveled silver controls.
   chicago: {
     check: "pixelarticons:check",
     warning: "pixelarticons:alert",

@@ -1,16 +1,4 @@
-// The Floor's Postgres pool.
-//
-// The pool itself is the shared one (`@re-cinq/lore-shared/db/pg-pool.js`) —
-// three services had produced a byte-identical copy of it, which is one copy
-// past the point where duplication is cheaper than a seam.
-//
-// What stays here is `query`, the Floor's last inline-SQL escape hatch, kept
-// because a handful of knowledge reads have not moved behind a port yet (see
-// "Floor data access" above). It is deliberately NOT shared: giving every
-// service this hatch would invite the next one to reach through it, and the
-// ports exist so it does not have to. (There used to be a `queryOne` beside it
-// with no callers at all — an advertised hatch nobody used, which only made the
-// remaining migration look larger than it is.)
+// The Floor's Postgres pool: the pool itself is shared (`@re-cinq/lore-shared/db/pg-pool.js`); what stays here is `query`, the Floor's last inline-SQL escape hatch (kept for reads not yet behind a port), deliberately NOT shared so other services can't reach through it too.
 
 export {
   getPool,

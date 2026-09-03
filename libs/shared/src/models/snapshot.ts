@@ -1,13 +1,7 @@
 import { z } from "zod";
 import type { ColumnMap } from "../lib/row.js";
 
-/**
- * `memory.snapshots` — a point-in-time capture of which memories an agent held.
- *
- * DDL: `scripts/infra/setup-memory-schema.sh`. `memoryRefs` stores references
- * rather than copies, so a snapshot records WHAT was held without duplicating
- * the values (and without pinning them against decay).
- */
+/** `memory.snapshots` — a point-in-time capture of which memories an agent held; `memoryRefs` stores references rather than copies, so a snapshot doesn't pin values against decay. */
 
 export const SnapshotSchema = z.object({
   id: z.string(),

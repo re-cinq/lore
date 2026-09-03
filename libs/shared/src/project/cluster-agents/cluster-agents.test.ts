@@ -195,8 +195,6 @@ describe("InMemoryClusterAgents", () => {
     });
 
     expect(created.paused).toBe(false);
-    // Paused is the operator's; status stays the reaper's. A paused agent is
-    // alive — that is what keeps its in-flight work from being requeued.
     expect(await repo.setPaused(created.id, true)).toMatchObject({
       id: created.id,
       paused: true,

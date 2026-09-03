@@ -1,10 +1,4 @@
-/**
- * CliProvider — shells out to the `claude` CLI (`claude -p … --output-format
- * text`), using the developer's subscription instead of API credits. Restores
- * the old facts.ts / graph-extraction CLI fallback behind the shared interface,
- * so EVERY model call (not just those two) can run on subscription with zero API
- * spend — the budget-0 escape hatch. The exec boundary is injectable for tests.
- */
+/** CliProvider — shells out to the `claude` CLI, using the developer's subscription instead of API credits (the budget-0 escape hatch); exec boundary is injectable for tests. */
 
 import type {
   LlmCompleteRequest,

@@ -31,8 +31,7 @@ import {
 } from "@re-cinq/lore-shared/models/memory-entry.js";
 
 const version = z.union([z.string(), z.number()]).optional();
-// Non-coerced (unlike common-schemas' clampedLimit/offsetParam): this is a JSON
-// body, so a stringy limit/offset is malformed and rejected rather than parsed.
+// Non-coerced (unlike common-schemas' clampedLimit/offsetParam) — a stringy limit/offset in this JSON body is malformed.
 const listLimit = z
   .number()
   .int()
@@ -62,8 +61,7 @@ const MemoryBody = z.discriminatedUnion("action", [
     agent_id: z.string().optional(),
     pool_name: z.string().optional(),
     limit: z.number().optional(),
-    // Carried from lore_search_memory, which has no pool of its own to honor
-    // them with (ADR-032).
+    // Carried from lore_search_memory, which has no pool of its own to honor them with (ADR-032).
     include_invalidated: z.boolean().default(false),
     graph_augment: z.boolean().default(false),
   }),
@@ -88,13 +86,7 @@ const MemoryVersionSchema = z.object({
   created_at: z.string(),
 });
 
-/**
- * One listed memory: the pool path's projection, keyed by the columns that store
- * it and derived from the model so a renamed column cannot leave this
- * declaration behind. `created_at` is restated as the STRING the wire carries —
- * the model types it as the `Date` the driver returns, which is the value BEFORE
- * serialization — and `has_facts` is computed per row rather than stored.
- */
+// Pool path's projection: `created_at` restated as the wire STRING (model types it as a pre-serialization `Date`).
 const MemoryListEntrySchema = wireSchema(
   MemoryEntrySchema.pick({
     key: true,
@@ -109,29 +101,7 @@ const MemoryListEntrySchema = wireSchema(
   has_facts: z.boolean(),
 });
 
-/**
- * One POST multiplexes write, read, search, delete and list, and each answers a
- * different shape.
- *
- * Declared as the UNION of the five rather than as the open document it was.
- * A union still makes a generated client narrow — but it narrows over five named
- * shapes instead of over nothing, which is the difference between a contract and
- * a shrug. `read` is itself two answers: one version, or every version.
- *
- * `zodResponse` is documentation-only, so nothing here validates at runtime and
- * a named union can be wrong SILENTLY where the open document could not be wrong
- * at all. `memory-contract.test.ts` is what makes it a contract rather than a
- * claim: it drives the five actions for real and parses every answer through
- * this schema. Both backends answer ONE shape per action — writing the test is
- * what surfaced the three places they did not, and the fallback was moved onto
- * the pool path's answer rather than the union widened to cover both.
- *
- * SPLITTING the five actions into five routes is what would buy five precise
- * contracts, and it is deliberately not done here: the action rides in the BODY,
- * so every caller — the mcp-server memory tools and the `~/.lore/memory` file
- * fallback among them — posts to this one path. Moving them is an expand/contract
- * across a separately-shipped image, not a refactor of this file.
- */
+// One POST multiplexes write/read/search/delete/list as a named union (not split into 5 routes: the action rides in the BODY); memory-contract.test.ts is what actually holds it to that shape since zodResponse doesn't validate at runtime.
 export const MemoryOperationSchema = z.union([
   /** write — the row it landed, from the pool or the file fallback alike. */
   z.object({
@@ -140,8 +110,7 @@ export const MemoryOperationSchema = z.union([
     agent_id: z.string(),
     created_at: z.string(),
   }),
-  /** read — the latest version, or one named version. Null when the key holds
-   *  nothing readable. Both answers carry the key: a read states what it read. */
+  /** read — latest or one named version; null when nothing readable; always carries the key. */
   z
     .object({
       key: z.string(),
@@ -152,8 +121,7 @@ export const MemoryOperationSchema = z.union([
     .nullable(),
   /** read, `version: "all"` — every version, newest first. */
   z.array(MemoryVersionSchema),
-  /** search — hits across memories, facts, episodes and the graph. The file
-   *  fallback searches memories only, and says so in the same field. */
+  /** search — hits across memories/facts/episodes/graph; file fallback searches memories only. */
   z.array(
     z.object({
       key: z.string(),
@@ -197,12 +165,15 @@ export function memoryRoute(getPool: () => Pool | null): ServerRoute {
       const body = request.payload as MemoryBody;
 
       try {
-        const embedInput =
-          body.action === "write"
-            ? body.value
-            : body.action === "search"
-              ? body.query
-              : undefined;
+        let embedInput: string | undefined;
+
+        if (body.action === "write") {
+          embedInput = body.value;
+        }
+
+        if (body.action === "search") {
+          embedInput = body.query;
+        }
         const embedding = embedInput
           ? await getQueryEmbedding(embedInput)
           : null;
@@ -220,8 +191,7 @@ export function memoryRoute(getPool: () => Pool | null): ServerRoute {
                 )
               : writeMemoryFile(body.key, body.value, body.agent_id, body.ttl);
 
-            // Fire-and-forget: fact extraction calls an LLM, and the caller is
-            // waiting on the write, not on the facts.
+            // Fire-and-forget: the caller is waiting on the write, not on the facts.
             if (body.extract_facts && isMemoryDbAvailable()) {
               void extractFactsForMemory(pool!, {
                 key: body.key,
@@ -234,12 +204,15 @@ export function memoryRoute(getPool: () => Pool | null): ServerRoute {
             return h.response(written);
           }
           case "read": {
-            const v =
-              body.version === "all"
-                ? "all"
-                : body.version
-                  ? Number(body.version)
-                  : undefined;
+            let v: "all" | number | undefined;
+
+            if (body.version === "all") {
+              v = "all";
+            }
+
+            if (body.version && body.version !== "all") {
+              v = Number(body.version);
+            }
 
             return h.response(
               (isMemoryDbAvailable()

@@ -14,7 +14,6 @@ type TrustLevel = "docs" | "tests" | "implementation" | "full";
 
 const settings = resolveDarkFactorySettings({ enabled: true });
 
-/** A seeded task's PR coordinates. pr_number=null means "no PR yet". */
 const task = (over: Partial<TaskPrInfo>): TaskPrInfo => ({
   target_repo: "re-cinq/lore",
   target_branch: "lore/x",
@@ -44,9 +43,6 @@ interface PullsStub {
   throws?: boolean;
 }
 
-// pr-policy reads PR state through project.pulls (paginated inside the shared
-// adapter — see platform-github.test.ts). Here we fake the facade to drive the
-// gate inputs; a thrown read must leave the conservative defaults.
 function pullsFor(stub: PullsStub): (repo: string) => Promise<PullRequests> {
   const guard = () => {
     enforceTrue(!stub.throws, Error, "GitHub API down");

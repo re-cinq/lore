@@ -15,7 +15,6 @@ vi.mock("../main-loop/store.js", () => ({
 }));
 
 vi.mock("../kernel/queues.js", () => ({
-  // The logs route resolves the cluster agent from here.
   clusterAgent: () => ({}),
   pipeline: () => ({
     agentRunEvents: { pruneOld: (days: number) => pruneOld(days) },

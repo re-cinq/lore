@@ -1,13 +1,4 @@
-/**
- * How long the reaper waits for one node before presuming it dead.
- *
- * Three sources, in order. The YAML wins where it speaks, because a line may
- * deliberately extend a step. Where it is silent — as every `merge.yaml` node
- * is — the STATION's own declared budget answers, since the station is what
- * knows how long its work takes. The global default is the last resort, and it
- * is a poor one for service nodes: a `merge_step` declaring five minutes would
- * otherwise sit un-reaped for sixty-two.
- */
+/** How long the reaper waits for one node before presuming it dead: YAML wins where it speaks, else the station's declared budget, else the global default (a poor fit for service nodes, e.g. a 5-minute `merge_step` sitting un-reaped for sixty-two). */
 
 import { nodeStationFor } from "@re-cinq/lore-stations";
 
@@ -23,12 +14,7 @@ export const nodeTimeoutMinutes = ({
   manifest,
 }: NodeTimeoutInput): number | undefined => yaml ?? manifest;
 
-/**
- * The declared budget of the station claiming this node type, if any.
- *
- * Read from the manifest rather than restated Floor-side: the budget belongs to
- * the station that has to finish inside it.
- */
+/** The declared budget of the station claiming this node type, if any — read from the manifest rather than restated Floor-side. */
 export function stationBudgetFor(nodeType: string): number | undefined {
   const trigger = nodeStationFor(nodeType)?.manifest.triggers.find(
     (t) => t.kind === "node" && t.nodeType === nodeType,

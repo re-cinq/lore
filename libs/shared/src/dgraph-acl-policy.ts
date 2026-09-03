@@ -1,11 +1,4 @@
-/**
- * Pure policy auditor for the Dgraph deployment (memory-dgraph-migration AC9):
- * given parsed K8s/Helm manifest docs, returns a list of security-invariant
- * violations (ACL enabled, scoped lore-memory-app runtime user, guardian
- * credential only in the pre-install bootstrap Job, ESO + Workload Identity,
- * no hardcoded credential in any chart). Empty array = compliant. Pure: the
- * YAML/file reading happens at the edge (an integration test), not here.
- */
+/** Pure policy auditor for the Dgraph deployment (memory-dgraph-migration AC9): given parsed K8s/Helm manifest docs, returns security-invariant violations (empty array = compliant); YAML/file reading happens at the edge, not here. */
 const CRED_NAME = /password|secret|token|cred|acl/i;
 const GUARDIAN = /guardian|groot|superuser/i;
 
@@ -38,20 +31,21 @@ function* findEnvEntries(node: unknown): Generator<Rec> {
   }
   const rec = asRec(node);
 
-  if (rec) {
-    if (Array.isArray(rec.env)) {
-      for (const envEntry of rec.env) {
-        const entry = asRec(envEntry);
+  if (!rec) {
+    return;
+  }
+  const envEntries = Array.isArray(rec.env) ? rec.env : [];
 
-        if (entry) {
-          yield entry;
-        }
-      }
-    }
+  for (const envEntry of envEntries) {
+    const entry = asRec(envEntry);
 
-    for (const value of Object.values(rec)) {
-      yield* findEnvEntries(value);
+    if (entry) {
+      yield entry;
     }
+  }
+
+  for (const value of Object.values(rec)) {
+    yield* findEnvEntries(value);
   }
 }
 
@@ -65,14 +59,16 @@ function* findContainers(node: unknown): Generator<Rec> {
   }
   const rec = asRec(node);
 
-  if (rec) {
-    if (Array.isArray(rec.command) || Array.isArray(rec.args)) {
-      yield rec;
-    }
+  if (!rec) {
+    return;
+  }
 
-    for (const value of Object.values(rec)) {
-      yield* findContainers(value);
-    }
+  if (Array.isArray(rec.command) || Array.isArray(rec.args)) {
+    yield rec;
+  }
+
+  for (const value of Object.values(rec)) {
+    yield* findContainers(value);
   }
 }
 

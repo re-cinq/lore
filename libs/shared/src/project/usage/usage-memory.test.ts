@@ -46,9 +46,7 @@ describe("InMemoryUsage.logLlmCall", () => {
     expect(usage.rows[0]).toMatchObject({ assembly_line_id: "line-new" });
   });
 
-  it("takes the identity the call carried over both the CR name and the given id", async () => {
-    // Cost attribution stops depending on a node row being findable by name — the
-    // failure this replaces is a copied node row stealing another run's cost.
+  it("takes the identity the call carried over both the CR name and the given id, so a copied node row cannot steal another run's cost", async () => {
     const usage = new InMemoryUsage();
 
     usage.registerNode({ agentCrName: "cr-a", assemblyLineId: "guessed-line" });

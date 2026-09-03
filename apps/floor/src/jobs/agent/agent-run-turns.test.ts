@@ -6,8 +6,6 @@ import {
 
 const envelope = (
   event: Record<string, unknown>,
-  // `unknown`, not `string`: the attribution carries a numeric `iteration`
-  // (#1147), so a string-valued map is a narrower shape than the wire's.
   source: Record<string, unknown> = { task: "t1" },
 ) => ({
   source,
@@ -67,9 +65,7 @@ describe("turnFromEnvelope", () => {
     expect(turnFromEnvelope(parsed, raw)?.envelope).toBe(raw);
   });
 
-  it("stores the untruncated envelope, however large the line", () => {
-    // Spaces on purpose: an unbroken 200k alphanumeric run is a base64 blob to
-    // the redactor, which would make this assert redaction rather than size.
+  it("stores the untruncated envelope, however large the line, using spaced words so the redactor doesn't mistake the run for a base64 blob", () => {
     const text = "a line of agent prose ".repeat(10_000);
     const parsed = envelope({ type: "assistant", text });
     const raw = JSON.stringify(parsed);

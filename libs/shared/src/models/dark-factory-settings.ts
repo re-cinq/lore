@@ -4,17 +4,7 @@ import type {
 } from "../dark-factory-settings.js";
 import { z } from "zod";
 
-/**
- * The `dark_factory` block of `lore.repos.settings` (ADR-016).
- *
- * Stored inside a JSONB column, so its keys stay SNAKE_CASE: they are the
- * storage format and the settings API's wire contract, not TypeScript fields.
- * Renaming them would be a data migration plus a breaking API change, and would
- * buy nothing — the camelCase rule applies to columns, which this is not.
- *
- * The resolver and its defaults stay in `../dark-factory-settings.js`; only the
- * shape lives here, so there is one declaration of it.
- */
+/** The `dark_factory` block of `lore.repos.settings` (ADR-016); JSONB storage, so keys stay snake_case (the wire contract, not TS fields). Resolver + defaults stay in `../dark-factory-settings.js` — only the shape lives here. */
 
 export const TrustLevelSchema = z.enum([
   "docs",
@@ -74,22 +64,13 @@ export type {
 
 type Assert<T extends true> = T;
 
-/**
- * Identity-based equality, not a bidirectional `extends`. An `extends` pair
- * cannot see an added OPTIONAL field — `{a?: x}` and `{}` each extend the other
- * — which is exactly the drift most likely to appear here.
- */
+/** Identity-based equality, not a bidirectional `extends` — an `extends` pair can't see an added OPTIONAL field (`{a?: x}` and `{}` each extend the other). */
 type Equals<A, B> =
   (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2
     ? true
     : false;
 
-/**
- * The schemas above and the plain types in `../dark-factory-settings.ts` are two
- * representations of ONE shape. They are separate only because that module has
- * to stay dependency-free for web-ui, which cannot have zod — so this is where
- * the equivalence is proved. A field added to either side alone fails `tsc`.
- */
+/** Proves the schemas above and the plain types in `../dark-factory-settings.ts` are one shape (kept separate only because that module must stay dependency-free for web-ui); a field added to either side alone fails `tsc`. */
 type SchemaMatchesTypes = Assert<
   Equals<z.infer<typeof DarkFactorySettingsSchema>, DarkFactorySettings>
 > &

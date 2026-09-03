@@ -2,7 +2,6 @@ import { describe, it, expect } from "vitest";
 import { resolveTestLines } from "./resolve-test-lines.js";
 import type { TestDescriptor } from "../test-report.js";
 
-// Line map: 4 = it("greets…"), 8 = it("farewells…"), 12 = it.skip("naps…").
 const FILE = `import { describe, it } from "vitest";
 
 describe("greeter", () => {

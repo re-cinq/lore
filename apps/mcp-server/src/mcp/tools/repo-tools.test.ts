@@ -1,12 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
-/**
- * Drives the registered repo-tool handlers via a fake McpServer. lore_ingest_files
- * covers only the deterministic guard branches — its success path is a live fetch
- * to LORE_API_URL, left to integration. detectCurrentRepo is mocked so the
- * "could not detect repo" branch is reachable without a git remote. lore_list_repos
- * mocks proxyGetApi to exercise the offset walk without a live API.
- */
 vi.mock("@re-cinq/lore-server-core/features/repo/repo-detect.js", () => ({
   detectCurrentRepo: vi.fn(),
 }));
@@ -87,7 +80,7 @@ describe("lore_ingest_files", () => {
 });
 
 describe("lore_onboard_repo", () => {
-  it("returns the guard's refusal body verbatim on a 409", async () => {
+  it("returns the guard's refusal body verbatim on a 409, not the unreachable-retry copy, since the caller needs task_id to poll", async () => {
     const body = JSON.stringify({
       blocked: "in-flight",
       error: "re-cinq/x is already in flight",
@@ -104,8 +97,6 @@ describe("lore_onboard_repo", () => {
     const handler = handlerFor("lore_onboard_repo");
     const result = await handler({ full_name: "re-cinq/x" });
 
-    // Not the "unreachable ... check the GKE pods and retry" copy: a refusal is
-    // an answer about state, and the caller needs task_id to poll instead.
     expect(result.content[0].text).toBe(body);
   });
 

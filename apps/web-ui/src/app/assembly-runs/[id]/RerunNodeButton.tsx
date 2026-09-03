@@ -1,19 +1,6 @@
 "use client";
 
-/**
- * "Retry from this node" — fork-and-rerun of a terminal run from the inspected
- * node (specs/fork-rerun-from-node). Lives in the node card's HEADER row, so
- * the click must preventDefault: inside a <summary>, the default click also
- * toggles the fold. Posts to the /api/assembly-runs/rerun proxy over fetch —
- * a native form POST navigated the whole page to the API route, which turned
- * any error into a bare JSON screen — and navigates to the NEW run's page on
- * success, showing the failure inline otherwise. `node_id`/`iteration` name
- * the resume SOURCE (the kept prefix's last visit), resolved by
- * `retryResumeSource` — the retried node is simply whatever the walk replays
- * next. A `*Button.tsx` name keeps this exempt from `no-io-in-view`, same as
- * TriggerReviewButton.
- */
-
+// "Retry from this node" (specs/fork-rerun-from-node): posts via fetch (a native form POST navigated the whole page into a bare JSON screen) and navigates to the new run on success; `*Button.tsx` name keeps this exempt from no-io-in-view.
 import { useState } from "react";
 
 export function RerunNodeButton({

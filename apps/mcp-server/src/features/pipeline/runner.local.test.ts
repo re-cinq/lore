@@ -3,11 +3,6 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import * as os from "node:os";
 
-// We test pure functions from local-runner.ts. Some are private (slugify,
-// readTasks, writeTasks), so we re-implement them here — same pattern used
-// by facts.test.ts and graph.test.ts. For exported functions (readConfig,
-// writeConfig, listPendingTasks, skipTask) we import directly.
-
 import {
   withLoreWorkflowPreamble,
   readConfig,
@@ -22,10 +17,6 @@ import {
   type LocalRunnerConfig,
   type PendingTask,
 } from "./runner.local.js";
-
-// ---------------------------------------------------------------------------
-// slugify — private in local-runner.ts, copied here for unit testing
-// ---------------------------------------------------------------------------
 
 function slugify(text: string): string {
   return text
@@ -44,10 +35,9 @@ describe("slugify", () => {
     expect(slugify("Fix Bug In PARSER")).toBe("fix-bug-in-parser");
   });
 
-  it("replaces special characters with dashes", () => {
+  it("replaces special characters with dashes, stripping the trailing dash left by a closing paren", () => {
     const result = slugify("fix: handle 404 errors (edge case)");
 
-    // The trailing ")" becomes "-" which gets stripped by replace(/-$/, "")
     expect(result).toBe("fix-handle-404-errors-edge-case");
     expect(result).not.toMatch(/-$/);
   });
@@ -60,8 +50,7 @@ describe("slugify", () => {
     expect(result.length).toBeLessThanOrEqual(40);
   });
 
-  it("strips trailing dashes after truncation", () => {
-    // Force a truncation that lands on a dash
+  it("strips trailing dashes when truncation lands on a dash", () => {
     const input = "a".repeat(39) + " b";
     const result = slugify(input);
 
@@ -81,15 +70,8 @@ describe("slugify", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// readConfig / writeConfig — use a temp directory to avoid polluting ~/.lore
-// ---------------------------------------------------------------------------
-
 describe("readConfig", () => {
-  it("returns defaults when config file does not exist", () => {
-    // readConfig falls back to defaults when the file is missing.
-    // Since we cannot control the HOME path for the import, we test
-    // the expected default shape instead.
+  it("exposes the default shape since the HOME path can't be redirected for this import", () => {
     const defaults = readConfig();
 
     expect(defaults).toHaveProperty("enabled");
@@ -103,10 +85,9 @@ describe("readConfig", () => {
     expect(Array.isArray(defaults.task_types)).toBe(true);
   });
 
-  it("default config has sensible values", () => {
+  it("falls back to hardcoded defaults (concurrency 2, sonnet-4-6) when disabled", () => {
     const defaults = readConfig();
 
-    // If no config file exists these are the hardcoded defaults
     if (!defaults.enabled) {
       expect(defaults.max_concurrent).toBe(2);
       expect(defaults.task_types).toContain("implementation");
@@ -130,7 +111,7 @@ describe("writeConfig + readConfig round-trip", () => {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
-  it("writeConfig creates the config file", () => {
+  it("serializes config the way writeConfig would, verified against a temp path since its own path is hardcoded", () => {
     const configPath = path.join(tmpDir, "local-runner.json");
     const config: LocalRunnerConfig = {
       enabled: true,
@@ -140,18 +121,12 @@ describe("writeConfig + readConfig round-trip", () => {
       model: "claude-sonnet-4-6",
     };
 
-    // Write using fs directly to the temp path (writeConfig uses
-    // a hardcoded path, so we verify the serialization logic)
     fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
     const read = JSON.parse(fs.readFileSync(configPath, "utf-8"));
 
     expect(read).toEqual(config);
   });
 });
-
-// ---------------------------------------------------------------------------
-// listPendingTasks / skipTask — test with a temp pending file
-// ---------------------------------------------------------------------------
 
 describe("pending task helpers", () => {
   let tmpDir: string;
@@ -165,8 +140,6 @@ describe("pending task helpers", () => {
   });
 
   it("listPendingTasks returns empty array when file is missing", () => {
-    // The real function reads from ~/.lore/pending-tasks.json
-    // If it doesn't exist, it returns []. Verify that logic.
     const tasks = listPendingTasks();
 
     expect(Array.isArray(tasks)).toBe(true);
@@ -190,17 +163,12 @@ describe("pending task helpers", () => {
       },
     ];
 
-    // Simulate the filter logic that skipTask performs
     const filtered = tasks.filter((t) => t.id !== "task-1");
 
     expect(filtered).toHaveLength(1);
     expect(filtered[0].id).toBe("task-2");
   });
 });
-
-// ---------------------------------------------------------------------------
-// Branch name generation — integration of slugify with task metadata
-// ---------------------------------------------------------------------------
 
 describe("branch name generation", () => {
   it("creates lore/<type>/<slug>-<shortId> format", () => {
@@ -225,11 +193,7 @@ describe("branch name generation", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// validateRepoMatch — guards against pushing to the wrong repo (issue #250)
-// ---------------------------------------------------------------------------
-
-describe("validateRepoMatch", () => {
+describe("validateRepoMatch guards against pushing to the wrong repo (#250)", () => {
   it("passes when cwd repo matches task repo", () => {
     expect(() =>
       validateRepoMatch("re-cinq/lore", "re-cinq/lore"),
@@ -253,23 +217,13 @@ describe("validateRepoMatch", () => {
     }
   });
 
-  it("passes when cwd repo cannot be detected (null)", () => {
-    // Caller is not in a git repo — nothing to check against.
-    // Note: the null-cwd path still means spawnLocalTask will fail later
-    // on "Not in a git repository — cannot create worktree", so letting
-    // this validator pass keeps error messages focused.
+  it("passes when cwd repo cannot be detected (null), leaving the later worktree-creation error to spawnLocalTask", () => {
     expect(() => validateRepoMatch("re-cinq/lore", null)).not.toThrow();
   });
 });
 
-// ---------------------------------------------------------------------------
-// cancelLocalTask — the not-found branch is the only deterministic, side-effect
-// free path: an unknown id never exists in ~/.lore/local-tasks.json, so the
-// handler returns the not-found result without touching processes or worktrees.
-// ---------------------------------------------------------------------------
-
 describe("cancelLocalTask", () => {
-  it("returns not-found for an unknown task id with no local registry", () => {
+  it("returns not-found for an unknown id without touching processes or worktrees", () => {
     const unknownId = "00000000-dead-beef-0000-000000000000";
 
     expect(cancelLocalTask(unknownId)).toEqual({
@@ -278,12 +232,6 @@ describe("cancelLocalTask", () => {
     });
   });
 });
-
-// ---------------------------------------------------------------------------
-// lore_configure_local_runner update merge — the handler overwrites only the fields
-// the caller provides and keeps the rest. This is the pure object logic from
-// the tool registration (max_concurrent applied only when !== undefined).
-// ---------------------------------------------------------------------------
 
 function applyConfigUpdate(
   config: LocalRunnerConfig,
@@ -334,10 +282,6 @@ describe("lore_configure_local_runner update merge", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// buildTurnLines — per-line redaction + stream-json filtering for turn ingest
-// ---------------------------------------------------------------------------
-
 describe("buildTurnLines", () => {
   it("keeps parseable stream-json lines untouched", () => {
     const lines = [
@@ -387,10 +331,6 @@ describe("buildTurnLines", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// batchTurnLines — greedy batching under the relay's byte and line caps
-// ---------------------------------------------------------------------------
-
 describe("batchTurnLines", () => {
   it("splits on the line cap", () => {
     const lines = ["1", "2", "3", "4", "5"];
@@ -402,9 +342,7 @@ describe("batchTurnLines", () => {
     ]);
   });
 
-  it("splits on the byte cap measured with Buffer.byteLength", () => {
-    // "ü" is 1 char but 2 utf-8 bytes: 3 lines of 10 bytes each under a
-    // 25-byte cap must split after two lines, not three.
+  it("splits on the byte cap using each line's utf-8 byte length, not char count (ü = 2 bytes)", () => {
     const line = "ü".repeat(5);
 
     expect(batchTurnLines([line, line, line], 25, 100)).toEqual([
@@ -424,12 +362,7 @@ describe("batchTurnLines", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// dropOversizedTurnLines — a line that can never fit one relay request is
-// dropped loudly instead of 413-ing its batch
-// ---------------------------------------------------------------------------
-
-describe("dropOversizedTurnLines", () => {
+describe("dropOversizedTurnLines drops a line that can never fit one relay request instead of 413-ing its batch", () => {
   it("keeps lines at or under the byte cap and counts the rest", () => {
     const small = "x".repeat(10);
     const big = "y".repeat(40);
@@ -440,8 +373,7 @@ describe("dropOversizedTurnLines", () => {
     });
   });
 
-  it("measures utf-8 bytes plus the join newline, not characters", () => {
-    // 10 chars but 20 utf-8 bytes: over a 15-byte cap despite length 10.
+  it("measures utf-8 bytes not characters: 10 chars of ü is 20 bytes, over a 15-byte cap", () => {
     const multibyte = "ü".repeat(10);
 
     expect(dropOversizedTurnLines([multibyte], 15)).toEqual({
@@ -451,12 +383,7 @@ describe("dropOversizedTurnLines", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// ingestTurns — each relayed batch carries its cumulative line offset so the
-// relay can key lines by transcript position (#1389)
-// ---------------------------------------------------------------------------
-
-describe("ingestTurns x-turn-offset header", () => {
+describe("ingestTurns x-turn-offset header carries each batch's cumulative line offset so the relay can key lines by transcript position (#1389)", () => {
   const localTask: LocalTask = {
     taskId: "task-1",
     pid: 1,

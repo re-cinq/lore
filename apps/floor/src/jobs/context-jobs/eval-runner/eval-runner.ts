@@ -14,15 +14,7 @@ interface EvalResult {
   failed: number;
 }
 
-/**
- * Nightly Eval Runner
- *
- * Runs at 3am UTC (after reindex at 2am). For each team's PromptFoo config:
- * 1. Execute `promptfoo eval`
- * 2. Parse JSON output for pass rate
- * 3. Store results in pipeline.eval_runs
- * 4. If pass rate drops >5% from previous run, create pipeline task
- */
+/** Nightly Eval Runner (3am UTC, after reindex): runs each team's PromptFoo config, stores results, and files a task when pass rate drops >5%. */
 export async function evalRunnerJob(): Promise<string> {
   if (!(await isPromptfooAvailable())) {
     console.log("[job] eval-runner: promptfoo not available, skipping");
@@ -48,15 +40,16 @@ export async function evalRunnerJob(): Promise<string> {
 
     const evalResult = await runPromptfooEval({ configPath });
 
-    if (!evalResult.ok) {
-      if (evalResult.reason === "exec-failed") {
-        console.error(
-          `[job] eval-runner: eval failed for team ${team}:`,
-          evalResult.error,
-        );
+    if (!evalResult.ok && evalResult.reason === "exec-failed") {
+      console.error(
+        `[job] eval-runner: eval failed for team ${team}:`,
+        evalResult.error,
+      );
 
-        continue;
-      }
+      continue;
+    }
+
+    if (!evalResult.ok) {
       console.error(
         `[job] eval-runner: no usable stats for team ${team} (${evalResult.reason})`,
       );
@@ -99,22 +92,23 @@ export async function evalRunnerJob(): Promise<string> {
     // Check for regression vs previous run
     const prev = await evalRuns().recent(result.team, 1, 1);
 
-    if (prev.length > 0) {
-      const delta = result.passRate - prev[0].pass_rate;
+    if (prev.length === 0) {
+      continue;
+    }
+    const delta = result.passRate - prev[0].pass_rate;
 
-      if (delta < -REGRESSION_THRESHOLD) {
-        regressions++;
-        console.log(
-          `[job] eval-runner: REGRESSION in ${result.team}: ${(prev[0].pass_rate * 100).toFixed(1)}% → ${(result.passRate * 100).toFixed(1)}% (${(delta * 100).toFixed(1)}%)`,
-        );
+    if (delta < -REGRESSION_THRESHOLD) {
+      regressions++;
+      console.log(
+        `[job] eval-runner: REGRESSION in ${result.team}: ${(prev[0].pass_rate * 100).toFixed(1)}% → ${(result.passRate * 100).toFixed(1)}% (${(delta * 100).toFixed(1)}%)`,
+      );
 
-        await taskStore().create({
-          description: `Eval regression: ${result.team} dropped from ${(prev[0].pass_rate * 100).toFixed(1)}% to ${(result.passRate * 100).toFixed(1)}% (${(delta * 100).toFixed(1)}% regression)`,
-          taskType: "gap-fill",
-          targetRepo: result.team,
-          createdBy: "eval-runner",
-        });
-      }
+      await taskStore().create({
+        description: `Eval regression: ${result.team} dropped from ${(prev[0].pass_rate * 100).toFixed(1)}% to ${(result.passRate * 100).toFixed(1)}% (${(delta * 100).toFixed(1)}% regression)`,
+        taskType: "gap-fill",
+        targetRepo: result.team,
+        createdBy: "eval-runner",
+      });
     }
   }
 

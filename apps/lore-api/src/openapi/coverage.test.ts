@@ -18,6 +18,12 @@ const routes = routeList(() => null);
 const isApi = (r: ServerRoute) => r.path.startsWith("/api/");
 const { document, coverage } = generateOpenApi(routes);
 
+function allOperations() {
+  return Object.entries(document.paths).flatMap(([path, pathItem]) =>
+    Object.entries(pathItem).map(([method, op]) => ({ path, method, op })),
+  );
+}
+
 describe("OpenAPI coverage drift guard", () => {
   it("leaves no live write route uncovered", () => {
     expect(coverage.uncovered).toEqual([]);
@@ -103,14 +109,12 @@ describe("OpenAPI coverage drift guard", () => {
   it("assigns every operation exactly one declared category, none uncategorized", () => {
     const declared = new Set(document.tags.map((t) => t.name));
 
-    for (const [path, item] of Object.entries(document.paths)) {
-      for (const [method, op] of Object.entries(item)) {
-        expect(op.tags, `${method} ${path} tags`).toHaveLength(1);
-        expect(
-          declared.has(op.tags[0]),
-          `${method} ${path} -> ${op.tags[0]}`,
-        ).toBe(true);
-      }
+    for (const { path, method, op } of allOperations()) {
+      expect(op.tags, `${method} ${path} tags`).toHaveLength(1);
+      expect(
+        declared.has(op.tags[0]),
+        `${method} ${path} -> ${op.tags[0]}`,
+      ).toBe(true);
     }
   });
 });
@@ -130,24 +134,20 @@ describe("OpenAPI document is structurally valid 3.1", () => {
   });
 
   it("gives every operation a security declaration and a responses object", () => {
-    for (const [path, item] of Object.entries(document.paths)) {
-      for (const [method, op] of Object.entries(item)) {
-        expect(op.security, `${method} ${path} security`).toBeDefined();
-        expect(op.responses, `${method} ${path} responses`).toBeDefined();
-        expect(
-          op["x-rate-limit-bucket"],
-          `${method} ${path} bucket`,
-        ).toBeDefined();
-      }
+    for (const { path, method, op } of allOperations()) {
+      expect(op.security, `${method} ${path} security`).toBeDefined();
+      expect(op.responses, `${method} ${path} responses`).toBeDefined();
+      expect(
+        op["x-rate-limit-bucket"],
+        `${method} ${path} bucket`,
+      ).toBeDefined();
     }
   });
 
   it("shapes every request body as an application/json schema", () => {
-    for (const item of Object.values(document.paths)) {
-      for (const op of Object.values(item)) {
-        if (op.requestBody && !hasRawNdjsonBody(op.requestBody)) {
-          expect(op.requestBody.content).toHaveProperty(["application/json"]);
-        }
+    for (const { op } of allOperations()) {
+      if (op.requestBody && !hasRawNdjsonBody(op.requestBody)) {
+        expect(op.requestBody.content).toHaveProperty(["application/json"]);
       }
     }
   });

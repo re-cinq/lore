@@ -22,8 +22,7 @@ import {
 } from "./deps.js";
 import { invalidate as invalidateCache } from "@re-cinq/lore-server-core/platform/proxy-cache.js";
 
-// Reads whose results a memory/episode write can change. Over-invalidating is
-// safe — it only forces the next read to re-fetch.
+// Reads whose results a memory/episode write can change; over-invalidating is safe, it only forces the next read to re-fetch.
 const MEMORY_DERIVED_READS = [
   "lore_search_memory",
   "lore_read_memory",
@@ -122,8 +121,15 @@ export function registerMemoryTools(server: McpServer) {
     },
     async ({ key, agent_id, version }) => {
       try {
-        const ver =
-          version === "all" ? "all" : version ? Number(version) : undefined;
+        let ver: "all" | number | undefined;
+
+        if (version === "all") {
+          ver = "all";
+        }
+
+        if (version && version !== "all") {
+          ver = Number(version);
+        }
 
         const proxied = await withReadCache(
           {
@@ -473,8 +479,7 @@ export function registerMemoryTools(server: McpServer) {
     async ({ entity, relation_type, repo, include_invalidated }) => {
       return trackLatency("lore_query_graph", async () => {
         try {
-          // Local stdio mode: proxy the read to the GKE server over LORE_API_URL
-          // (mirrors lore_assemble_context) instead of requiring a direct DB.
+          // Local stdio mode proxies the read to the GKE server over LORE_API_URL (mirrors lore_assemble_context) instead of requiring a direct DB.
           const params = new URLSearchParams();
 
           if (entity) {

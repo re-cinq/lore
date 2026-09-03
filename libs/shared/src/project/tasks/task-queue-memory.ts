@@ -15,10 +15,7 @@ import type {
   InsertTaskInput,
 } from "./task-queue-port.js";
 
-/**
- * Seed row for {@link InMemoryTaskQueue}. A loose superset of the `pipeline.tasks`
- * columns the queue mechanics read — tests set only the fields they exercise.
- */
+/** Seed row for {@link InMemoryTaskQueue}: a loose superset of the pipeline.tasks columns the queue mechanics read; tests set only the fields they exercise. */
 export interface SeedTask {
   id: string;
   status?: string;
@@ -44,11 +41,7 @@ const ms = (ts: string | undefined): number =>
 const isRunningOrQueued = (status?: string): boolean =>
   status === "running" || status === "queued";
 
-/**
- * In-memory {@link TaskQueueRepository}: the behavioral spec of the Pg adapter,
- * computed over seeded rows. `now` is injectable so age-dependent sweeps are
- * deterministic in tests. The default clock is `Date.now`.
- */
+/** In-memory {@link TaskQueueRepository}: behavioral spec of the Pg adapter over seeded rows; `now` is injectable for deterministic age-dependent sweeps in tests. */
 export class InMemoryTaskQueue implements TaskQueueRepository {
   constructor(
     public tasks: SeedTask[] = [],
@@ -361,8 +354,7 @@ export class InMemoryTaskQueue implements TaskQueueRepository {
     taskId: string,
     columns: Record<string, unknown>,
   ): Promise<void> {
-    // Same allowlist gate as the Pg adapter — a typo'd column must not pass
-    // tests against this double while no-oping in prod.
+    // Same allowlist gate as the Pg adapter — a typo'd column must not pass tests against this double while no-oping in prod.
     enforceSettableTaskColumns(columns);
     const task = this.tasks.find((t) => t.id === taskId);
 

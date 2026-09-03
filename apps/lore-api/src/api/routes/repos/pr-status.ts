@@ -2,11 +2,7 @@ import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { zodResponse } from "../../../server/plugins/zod-response.js";
 import { rethrowBoom, apiError } from "../../../server/api-error.js";
 import { errorMessage } from "@re-cinq/lore-shared";
-/**
- * `GET /api/pr-status?repo=owner/name&pr_number=N` — live PR/CI/review verdict
- * from GitHub. Server-side because it needs the GitHub App credentials; the
- * local `lore_get_pr_status` tool proxies here instead of carrying octokit.
- */
+// Server-side because it needs GitHub App credentials — `lore_get_pr_status` proxies here instead of carrying octokit.
 
 import type { ServerRoute } from "@hapi/hapi";
 import { z } from "zod";
@@ -22,13 +18,7 @@ const PrStatusQuery = z.object({
 
 type PrStatusQuery = z.infer<typeof PrStatusQuery>;
 
-/**
- * A pull request's computed status.
- *
- * A GitHub read, not a table read — so this is stated rather than derived. It
- * mirrors `PRDetails` in `@re-cinq/lore-shared`, which is where the shape is
- * declared for every consumer that does not go through HTTP.
- */
+// A GitHub read, not a table read, so this shape is stated rather than derived; mirrors `PRDetails` in @re-cinq/lore-shared.
 const PrStatusSchema = z.object({
   url: z.string(),
   number: z.number(),
@@ -79,8 +69,7 @@ export function prStatusRoute(): ServerRoute {
 
         return h.response(result);
       } catch (err) {
-        // A guard's refusal already carries its status; only an unexpected failure
-        // is this block's to shape.
+        // A guard's refusal already carries its status; only an unexpected failure is this block's to shape.
         rethrowBoom(err);
 
         return h.response({ error: errorMessage(err) }).code(500);

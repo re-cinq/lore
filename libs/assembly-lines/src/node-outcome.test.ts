@@ -74,9 +74,7 @@ describe("stationNodeOutcome", () => {
     });
   });
 
-  it("carries the failing commands' output into the detail when the station sent it", () => {
-    // The agent sent back to fix the code reads this. "lint" alone says where
-    // to look; the compiler's own words say what to fix.
+  it("carries the failing commands' output into the detail when the station sent it (the agent sent back to fix the code reads this: 'lint' says where, the compiler's words say what)", () => {
     const status: AgentNodeStatus = {
       phase: "Succeeded",
       output: resultLine({
@@ -169,11 +167,7 @@ describe("stationNodeOutcome failure classification", () => {
     });
   });
 
-  it("falls back to the Job-level reason when the agent errored with an empty string", () => {
-    // `terminalErrorText` answers `parsed.result` for any line carrying
-    // `is_error`, and "" is a result. Under `??` that empty string won the
-    // precedence, so the summary went out blank and the only real information —
-    // the Job-level reason — was discarded.
+  it("falls back to the Job-level reason when the agent errored with an empty string (under `??` that empty string used to win precedence, discarding the only real information)", () => {
     expect(
       stationNodeOutcome(
         { type: "agent" },
@@ -228,17 +222,13 @@ describe("an outcome line that was spoken is never silently a success", () => {
     prompt_ref: "spec-analysis",
   };
 
-  it("parses the legacy bare-word form the spec-analysis prompt taught", () => {
-    // A deployed recipe instructs exactly this. Rejecting it turned a station's
-    // objection into `success` and skipped the human decision point (#1469).
+  it("parses the legacy bare-word form the spec-analysis prompt taught (a deployed recipe instructs exactly this; rejecting it turned a station's objection into `success`, #1469)", () => {
     expect(
       parseNodeResult("JSON is valid.\nLORE_NODE_RESULT: changes_requested"),
     ).toEqual({ outcome: "changes_requested", extras: {} });
   });
 
-  it("counts only line-start markers, and the last one when several appear", () => {
-    // An agent quoting its own contract mid-sentence must not decide the node;
-    // an agent that discusses the marker and THEN prints it still succeeds.
+  it("counts only line-start markers, and the last one when several appear (an agent quoting its own contract mid-sentence must not decide the node)", () => {
     expect(
       parseNodeResult("the contract says LORE_NODE_RESULT: failed somewhere"),
     ).toBeNull();
@@ -259,10 +249,7 @@ describe("an outcome line that was spoken is never silently a success", () => {
     ).toBeNull();
   });
 
-  it("treats a bare LORE_NODE_RESULT: with nothing after it as spoken but empty", () => {
-    // The station printed the marker and then said nothing. That is not "no
-    // marker" — it is a contract the recipe half-followed, and the node must
-    // report it rather than pass.
+  it("treats a bare LORE_NODE_RESULT: with nothing after it as spoken but empty, a half-followed contract that must report rather than pass", () => {
     expect(malformedNodeResultLine("LORE_NODE_RESULT:")).not.toBeNull();
     expect(
       stationNodeOutcome(agentNode, {

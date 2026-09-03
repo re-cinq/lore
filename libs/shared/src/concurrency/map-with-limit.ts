@@ -1,10 +1,4 @@
-/**
- * Bounded-concurrency `Promise.all`: maps `items` through `fn` running at most
- * `limit` tasks at once, returning results in input order. Used by the
- * spec-traceability test orchestrators so running per-file test commands can't
- * fork-bomb the box (the reason the runner previously collapsed to one descriptor
- * per file).
- */
+/** Bounded-concurrency `Promise.all`: runs `fn` over `items` at most `limit` at once, keeping input order — keeps per-file test commands from fork-bombing the box. */
 export async function mapWithLimit<T, R>(
   items: readonly T[],
   limit: number,

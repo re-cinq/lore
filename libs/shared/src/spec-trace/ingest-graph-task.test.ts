@@ -9,14 +9,6 @@ import {
 } from "./ingest-graph-task.js";
 import type { DgraphClientPort } from "./deps.js";
 
-/**
- * ingest-graph-task — the deterministic, zero-LLM core the agent worker and the
- * local MCP runner both call. Pure helpers (selectIngestFiles, summarizeIngest)
- * and the runIngestGraph orchestrator are exercised here with an INJECTED fake
- * kind registry + fake content source, so no live Dgraph is needed; the real
- * projectSpecFile/projectAdrFile idempotency is covered by their own live tests.
- */
-
 const TREE = [
   "specs/auth/spec.md",
   "specs/auth/plan.md",

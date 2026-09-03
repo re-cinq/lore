@@ -1,25 +1,10 @@
-/**
- * Canonical source of truth for the `lore-ingest.yml` GitHub Actions
- * workflow that every onboarded repo installs. The agent's onboard
- * handler commits {@link LORE_INGEST_WORKFLOW_CONTENT}, and the web-ui
- * dashboard compares each repo's installed copy against it via
- * {@link ingestWorkflowStatus} to surface drift.
- *
- * Bump {@link LORE_INGEST_WORKFLOW_VERSION} (and the matching marker on
- * the first line of the content) whenever the workflow changes; installs
- * carrying an older marker — or none at all — report as `stale`.
- */
+/** Canonical source of truth for the lore-ingest.yml workflow every onboarded repo installs; bump {@link LORE_INGEST_WORKFLOW_VERSION} (and the content's first-line marker) whenever it changes, or {@link ingestWorkflowStatus} reports installs `stale`. */
 
 export const LORE_INGEST_WORKFLOW_PATH = ".github/workflows/lore-ingest.yml";
 
 export const LORE_INGEST_WORKFLOW_VERSION = 4;
 
-// v4 hardening (issue #1545, pattern ported from re-cinq/bowman-ui PR #37):
-// the v3 curl steps ended in `|| echo ::warning`, which kept every run green
-// while an unset LORE_INGEST_TOKEN 401-rejected every POST for a repo's
-// entire history. v4 fails loudly on misconfiguration and 4xx, warns only on
-// plausibly-transient 5xx/network trouble, and never puts the token on the
-// curl command line.
+// v4 hardening (#1545, ported from re-cinq/bowman-ui PR #37): v3's curl steps ended in `|| echo ::warning`, silently masking a permanently-401ing unset token; v4 fails loudly on misconfiguration/4xx and warns only on transient 5xx/network trouble.
 export const LORE_INGEST_WORKFLOW_CONTENT = `# lore-ingest-version: 4
 name: Lore Context Ingest
 
@@ -208,11 +193,7 @@ export function parseIngestWorkflowVersion(content: string): number | null {
   return match ? parseInt(match[1], 10) : null;
 }
 
-/**
- * Classify a repo's installed workflow against the canonical version.
- * `null` content means the file is absent. A missing or older marker is
- * `stale` (legacy installs predate the marker and carry the broken body).
- */
+/** Classifies a repo's installed workflow against the canonical version; null content means absent, and a missing/older marker is `stale` (legacy installs predate the marker and carry the broken body). */
 export function ingestWorkflowStatus(
   content: string | null,
 ): IngestWorkflowStatus {

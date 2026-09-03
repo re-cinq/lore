@@ -19,12 +19,7 @@ interface StoredEvent {
   captured_at: string;
 }
 
-/**
- * In-memory {@link EventDeliveriesPort}: the behavioural spec of the Pg adapter
- * over two arrays. `now` is injectable so backoff and visibility windows are
- * deterministic. Fan-out happens inside `insert`, exactly as the SQL clause does
- * it on the other side — including producing nothing for a deduplicated event.
- */
+/** In-memory EventDeliveriesPort — behavioural spec of the Pg adapter over two arrays; now is injectable for deterministic backoff/visibility windows. Fan-out happens inside insert, same as the SQL clause. */
 export class InMemoryEventDeliveries implements EventDeliveriesPort {
   private eventSeq = 0;
   private deliverySeq = 0;
@@ -40,9 +35,7 @@ export class InMemoryEventDeliveries implements EventDeliveriesPort {
     subscriber: string,
     subscriptions: EventSubscription[],
   ): Promise<void> {
-    // Replaces rather than merges: a boot registration declares the whole set,
-    // so a name it omits is a handler that was removed. An empty set says
-    // nothing at all, so as not to take a mis-booted subscriber off the bus.
+    // Replaces rather than merges — a boot registration declares the whole set, so an omitted name was removed; an empty set says nothing, so a mis-booted subscriber isn't taken off the bus.
     if (subscriptions.length === 0) {
       return;
     }
@@ -81,13 +74,7 @@ export class InMemoryEventDeliveries implements EventDeliveriesPort {
     this.fanOut(event);
   }
 
-  /**
-   * One delivery per subscriber of this event, skipping any that already exists.
-   *
-   * Shared by the insert path and the boot reconcile so the two cannot disagree
-   * about what a delivery looks like — the skip is what the store's
-   * (event_id, subscriber) uniqueness gives the real adapter for free.
-   */
+  /** One delivery per subscriber, skipping existing ones; shared by insert and boot reconcile so they can't disagree — mirrors the store's (event_id, subscriber) uniqueness. */
   private fanOut(event: StoredEvent): number {
     let created = 0;
 
@@ -145,13 +132,13 @@ export class InMemoryEventDeliveries implements EventDeliveriesPort {
           (d.status === "pending" || d.status === "failed") &&
           Date.parse(d.next_attempt_at) <= now,
       )
-      .sort((a, b) =>
-        a.next_attempt_at === b.next_attempt_at
-          ? Number(a.id) - Number(b.id)
-          : a.next_attempt_at < b.next_attempt_at
-            ? -1
-            : 1,
-      )
+      .sort((a, b) => {
+        if (a.next_attempt_at === b.next_attempt_at) {
+          return Number(a.id) - Number(b.id);
+        }
+
+        return a.next_attempt_at < b.next_attempt_at ? -1 : 1;
+      })
       .slice(0, limit);
 
     for (const d of runnable) {
@@ -206,9 +193,7 @@ export class InMemoryEventDeliveries implements EventDeliveriesPort {
       (d) =>
         d.status === "processing" &&
         d.claimed_at !== null &&
-        // <= not <: Postgres compares against a now() that has advanced since
-        // the claim's statement, so a budget of N is due once N has elapsed. A
-        // strict < here made a zero budget never due and the two disagree.
+        // <= not <: Postgres compares against an advanced now(), so a budget of N is due once N has elapsed; strict < made a zero budget never due.
         Date.parse(d.claimed_at) + d.visibility_timeout_seconds * 1000 <= now,
     );
 
@@ -221,9 +206,7 @@ export class InMemoryEventDeliveries implements EventDeliveriesPort {
   }
 
   async pruneHandled(olderThanDays: number): Promise<number> {
-    // Inclusive, unlike the strict `<` the SQL uses, because this clock does not
-    // tick: with olderThanDays 0 the cutoff IS the handled_at just written, and a
-    // strict compare would keep a row Postgres collects (its now() has moved on).
+    // Inclusive (unlike the SQL's strict <) since this clock doesn't tick — with olderThanDays 0 the cutoff equals the just-written handled_at.
     const cutoff = this.now() - olderThanDays * 86_400_000;
     const before = this.deliveries.length;
 

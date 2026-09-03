@@ -1,10 +1,6 @@
 import type { AgentDefinition } from "./agents-mirror";
 
-// Server-to-server client for the mcp-server agents API. Reads (resolved
-// definitions) and writes (create/update/delete) all route through the gated
-// endpoint — image changes need the CODEOWNERS approval-PR header. The admin
-// token never reaches the browser (these run only in Server Actions / RSC).
-
+// Server-to-server client for the mcp-server agents API — image changes need the CODEOWNERS approval-PR header; admin token never reaches the browser.
 export type AgentSaveResult =
   | { status: "ok"; agent: AgentDefinition }
   | { status: "two_key_required"; detail: string }
@@ -14,9 +10,7 @@ export type AgentSaveResult =
 
 function cfg(): { apiUrl: string; token: string } | null {
   const apiUrl = process.env.LORE_API_URL;
-  // Prefer the admin token; fall back to the legacy full-access ingest token,
-  // which is what local dev (and the web-ui→mcp proxy) configures. The mcp route
-  // enforces admin scope on writes — the legacy token satisfies it.
+  // Prefer the admin token; the legacy full-access ingest token (local dev default) also satisfies the mcp route's admin-scope check.
   const token = process.env.LORE_ADMIN_TOKEN || process.env.LORE_INGEST_TOKEN;
 
   return apiUrl && token ? { apiUrl, token } : null;
@@ -47,8 +41,7 @@ export async function listAgents(repo: string): Promise<AgentDefinition[]> {
   }
 }
 
-/** The org-default catalog — org rows overlaid on the yaml fallback, no
- *  per-repo layer. Feeds the global /agents page. */
+/** The org-default catalog — org rows overlaid on the yaml fallback, no per-repo layer. Feeds the global /agents page. */
 export async function listOrgAgents(): Promise<AgentDefinition[]> {
   const c = cfg();
 
@@ -89,22 +82,10 @@ export interface AgentUsageRef {
   inherited: boolean;
 }
 
-/**
- * Where each catalog entry is dispatched from — every builtin blueprint node
- * that resolves to it, keyed by definition name. A name absent from the map is
- * either a blueprint-less task type (runs as a single Agent CR) or dormant;
- * the list view tells the two apart by the definition's execution_mode.
- *
- * NULL, not `{}`, when the endpoint is unreachable or refuses: an empty map
- * asserts "nothing references anything", and the list would then claim every
- * definition runs outside any assembly line — a wrong statement dressed as a
- * fact (a stale lore-api 404'd exactly this way). Unknown must render as
- * unknown.
- */
+/** Where each catalog entry is dispatched from, keyed by name; null (not `{}`) when the endpoint is unreachable, so "unknown" never renders as "nothing references anything". */
 export interface AgentUsage {
   refs: Record<string, AgentUsageRef[]>;
-  /** Verdicts keyed by definition name. An empty list for a name means no
-   *  cluster has reported on it — unknown, not "applied everywhere". */
+  /** Verdicts keyed by definition name — an empty list means no cluster has reported, not "applied everywhere". */
   applied: Record<string, AgentApplyStatus[]>;
 }
 
@@ -188,9 +169,7 @@ export async function saveAgent(
   return mapWriteResponse(res);
 }
 
-/** Update an ORG-DEFAULT definition — the global /agents editor's write. The
- *  API refuses a non-empty image here (repo-scoped two-key ceremony), which
- *  surfaces as a plain error result. */
+/** Global /agents editor's write — API refuses a non-empty image here (repo-scoped two-key ceremony), surfacing as a plain error. */
 export async function saveOrgAgent(
   def: Partial<AgentDefinition> & { name: string },
 ): Promise<AgentSaveResult> {

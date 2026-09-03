@@ -147,7 +147,7 @@ or naming-honesty goal).
   and behave identically (proxy to `LORE_API_URL`, file fallback to `~/.lore`).
   The server-core proxy client round-trips a GET read and a POST write through the
   real lore-api server (the change persists in the DB), and returns
-  `not_configured` when no `LORE_API_URL` is set. ([validated by `proxy.test.ts:91`](apps/lore-api/src/integration-tests/proxy.test.ts#L91), [validated by `proxy.test.ts:104`](apps/lore-api/src/integration-tests/proxy.test.ts#L104), [validated by `proxy.test.ts:132`](apps/lore-api/src/integration-tests/proxy.test.ts#L132))
+  `not_configured` when no `LORE_API_URL` is set. ([validated by `proxy.test.ts:84`](apps/lore-api/src/integration-tests/proxy.test.ts#L84), [validated by `proxy.test.ts:97`](apps/lore-api/src/integration-tests/proxy.test.ts#L97), [validated by `proxy.test.ts:125`](apps/lore-api/src/integration-tests/proxy.test.ts#L125))
 - **FR-8** Infra points at the new remote app: Dockerfile, Helm values,
   terraform, and CI workflows build/deploy `apps/lore-api`.
 - **FR-9** Developer scripts updated: `install.sh`, `dev-local.sh`,

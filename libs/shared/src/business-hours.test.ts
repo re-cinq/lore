@@ -8,7 +8,6 @@ const ENV_KEYS = [
   "LORE_BUSINESS_DAYS",
 ] as const;
 
-// Fixed instants (UTC). 2026-06-03 is a Wednesday, 2026-06-06 a Saturday.
 const WED_10_00Z = new Date("2026-06-03T10:00:00Z");
 const WED_08_30Z = new Date("2026-06-03T08:30:00Z");
 const WED_09_00Z = new Date("2026-06-03T09:00:00Z");

@@ -1,28 +1,4 @@
-/**
- * Validate the test links embedded in each spec.md.
- *
- * v3 of `spec-test-coverage` puts the source of truth for the
- * spec → test linkage in markdown inside the spec itself, as
- * `Statement. ([label](path/to/test.ts#L42))`. This job parses
- * those links from every spec chunk and resolves each link's
- * `path#Lline` against the AST-chunked test metadata in
- * `{schema}.chunks`. Broken links are aggregated per repo and
- * reported via a `spec-link-rot` labelled issue — but only when the
- * repo has no open one already, since this job runs both daily and on
- * every ingest and would otherwise file a fresh duplicate every run.
- *
- * Runs:
- *   1. on every successful `/api/ingest` (post-ingest fan-out via the
- *      `internal.ingest.spec_coverage_validate` event)
- *   2. on a daily sweep schedule, as a fallback in case the post-
- *      ingest trigger missed an event
- *
- * Pure (no DB, no GitHub) helpers exported for unit tests:
- *   - resolveTestLink
- *   - collectBrokenLinks
- *   - formatBrokenLinksReport
- *   - hasOpenLinkRotIssue
- */
+/** Validates spec-test-coverage v3 inline links (`Statement. ([label](test.ts#L42))`) against `{schema}.chunks`; runs post-ingest + daily, files a deduped `spec-link-rot` issue. */
 
 import {
   dropIngestExcluded,
@@ -39,9 +15,7 @@ export interface ChunkLineRange {
   file_path: string;
   start_line: number | null;
   end_line: number | null;
-  /** When the chunk was last ingested/verified. Optional so the pure helpers
-   * stay usable without freshness data — absent means "unknown", which keeps
-   * the strict pre-freshness judgment. */
+  /** When the chunk was last ingested/verified; absent means "unknown" (keeps the strict pre-freshness judgment). */
   ingested_at?: string | Date | null;
 }
 
@@ -75,8 +49,7 @@ export function resolveTestLink(
     (c) => c.start_line !== null && c.end_line !== null,
   );
 
-  // A file whose chunks carry no line ranges (pre-v2 chunker output) gives
-  // us nothing to judge the line against — unverifiable is not broken.
+  // A file whose chunks carry no line ranges (pre-v2 chunker output) is unverifiable, not broken.
   if (ranged.length === 0) {
     return { ok: true };
   }
@@ -97,13 +70,7 @@ export function resolveTestLink(
   return { ok: false, reason: "line-out-of-range" };
 }
 
-/** A line past the file's LAST ranged line, on chunks ingested BEFORE the
- * spec that carries the link, is index lag rather than rot: tests are
- * appended at file end by convention, so a spec linking a just-added test
- * points past the old EOF until reindex re-chunks the file (and the capped
- * sweep can lag by days). Unverifiable-lag is not broken — the daily rerun
- * re-judges once the test chunks catch up to the spec. A stale anchor on a
- * FRESH index (or one landing in a mid-file gap) still flags. */
+/** A line past the file's last ranged line, on chunks ingested before the linking spec, is index lag not rot — the daily rerun re-judges once chunks catch up. */
 function isIndexLagShaped(
   line: number,
   ranged: ChunkLineRange[],
@@ -129,6 +96,45 @@ function isIndexLagShaped(
   return Math.max(...stamps) < new Date(specIngestedAt).getTime();
 }
 
+function brokenLinksForStatement(
+  specPath: string,
+  statementText: string,
+  testLinks: TestLinkRef[],
+  chunks: ChunkLineRange[],
+  specIngestedAt?: string | Date | null,
+): BrokenLink[] {
+  const out: BrokenLink[] = [];
+
+  for (const link of testLinks) {
+    // Chunk file_paths are repo-root-relative; a `../` href is spec-directory-relative (GitHub-render semantics) and must be canonicalized before matching.
+    const resolved: TestLinkRef = {
+      ...link,
+      path: resolveLinkPath(link.path, specPath),
+    };
+    const r = resolveTestLink(resolved, chunks, specIngestedAt);
+
+    if (!r.ok) {
+      out.push({
+        spec_path: specPath,
+        statement_text: statementText,
+        link: resolved,
+        reason: r.reason,
+      });
+    }
+  }
+
+  for (const link of findMisplacedCoverageLinks(statementText)) {
+    out.push({
+      spec_path: specPath,
+      statement_text: statementText,
+      link: { ...link, path: resolveLinkPath(link.path, specPath) },
+      reason: "non-trailing-link",
+    });
+  }
+
+  return out;
+}
+
 export function collectBrokenLinks(
   specPath: string,
   content: string,
@@ -138,34 +144,15 @@ export function collectBrokenLinks(
   const out: BrokenLink[] = [];
 
   for (const { statement, testLinks } of linksForStatements(content)) {
-    for (const link of testLinks) {
-      // Chunk file_paths are repo-root-relative; a `../` href is relative to
-      // the spec's directory (GitHub-render semantics), so canonicalize before
-      // matching — a raw `../` path can never equal a chunk path.
-      const resolved: TestLinkRef = {
-        ...link,
-        path: resolveLinkPath(link.path, specPath),
-      };
-      const r = resolveTestLink(resolved, chunks, specIngestedAt);
-
-      if (!r.ok) {
-        out.push({
-          spec_path: specPath,
-          statement_text: statement.text,
-          link: resolved,
-          reason: r.reason,
-        });
-      }
-    }
-
-    for (const link of findMisplacedCoverageLinks(statement.text)) {
-      out.push({
-        spec_path: specPath,
-        statement_text: statement.text,
-        link: { ...link, path: resolveLinkPath(link.path, specPath) },
-        reason: "non-trailing-link",
-      });
-    }
+    out.push(
+      ...brokenLinksForStatement(
+        specPath,
+        statement.text,
+        testLinks,
+        chunks,
+        specIngestedAt,
+      ),
+    );
   }
 
   return out;
@@ -173,6 +160,29 @@ export function collectBrokenLinks(
 
 /** GitHub rejects issue bodies over 65,536 chars; leave headroom for the footer. */
 const MAX_ISSUE_BODY = 60_000;
+
+function sectionBulletsWithinBudget(
+  list: BrokenLink[],
+  startBudget: number,
+): { bullets: string[]; sectionBudget: number; elided: number } {
+  const bullets: string[] = [];
+  let sectionBudget = startBudget;
+  let elided = 0;
+
+  for (const b of list) {
+    const where = `\`${b.link.path}${b.link.line ? `:${b.link.line}` : ""}\``;
+    const bullet = `- **${b.reason}** ${where} — referenced by: _${truncate(b.statement_text, 80)}_`;
+
+    if (sectionBudget + bullet.length > MAX_ISSUE_BODY) {
+      elided += 1;
+      continue;
+    }
+    bullets.push(bullet);
+    sectionBudget += bullet.length + 1;
+  }
+
+  return { bullets, sectionBudget, elided };
+}
 
 export function formatBrokenLinksReport(broken: BrokenLink[]): string {
   if (broken.length === 0) {
@@ -192,9 +202,7 @@ export function formatBrokenLinksReport(broken: BrokenLink[]): string {
     `${broken.length} link${broken.length === 1 ? "" : "s"} across ${bySpec.size} spec${bySpec.size === 1 ? "" : "s"} don't resolve to a known test chunk or sit outside the trailing parenthetical.`,
     "",
   ];
-  // Whole bullets only, up to the budget: a raw slice could cut mid-line and
-  // drop the footer, and the total counts above already preserve the full
-  // picture when the tail is elided.
+  // Whole bullets only, up to the budget — a raw slice could cut mid-line and drop the footer.
   let budget = lines.join("\n").length;
   let elided = 0;
 
@@ -206,28 +214,19 @@ export function formatBrokenLinksReport(broken: BrokenLink[]): string {
       continue;
     }
 
-    const bullets: string[] = [];
-    let sectionBudget = budget + heading.length + 2;
+    const section = sectionBulletsWithinBudget(
+      list,
+      budget + heading.length + 2,
+    );
 
-    for (const b of list) {
-      const where = `\`${b.link.path}${b.link.line ? `:${b.link.line}` : ""}\``;
-      const bullet = `- **${b.reason}** ${where} — referenced by: _${truncate(b.statement_text, 80)}_`;
+    elided += section.elided;
 
-      if (sectionBudget + bullet.length > MAX_ISSUE_BODY) {
-        elided += 1;
-        continue;
-      }
-      bullets.push(bullet);
-      sectionBudget += bullet.length + 1;
-    }
-
-    // Every bullet was elided — a dangling empty heading would misread as a
-    // clean spec, so skip the section entirely.
-    if (bullets.length === 0) {
+    // Every bullet was elided — a dangling empty heading would misread as a clean spec.
+    if (section.bullets.length === 0) {
       continue;
     }
-    lines.push(heading, "", ...bullets, "");
-    budget = sectionBudget + 1;
+    lines.push(heading, "", ...section.bullets, "");
+    budget = section.sectionBudget + 1;
   }
 
   if (elided > 0) {
@@ -250,8 +249,7 @@ function truncate(s: string, max: number): string {
 
 const LINK_ROT_LABEL = "spec-link-rot";
 
-/** True when the repo already has an open spec-link-rot issue, so we don't file a
- *  duplicate on every daily + per-ingest run. */
+/** True when the repo already has an open spec-link-rot issue, avoiding a duplicate on every daily + per-ingest run. */
 export function hasOpenLinkRotIssue(
   openIssues: { labels: string[] }[],
 ): boolean {
@@ -261,11 +259,9 @@ export function hasOpenLinkRotIssue(
 // ── Orchestration (per repo, via the Project facade) ────────────────
 
 export interface ValidateOptions {
-  /** The repo whose specs are validated. Set by the detect fan-out and the
-   * post-ingest `internal.ingest.spec_coverage_validate` trigger. */
+  /** The repo whose specs are validated, set by the detect fan-out or post-ingest trigger. */
   repoFilter: string;
-  /** Data facade — projectFor(repo) on the Floor, createStationProject(env) in
-   *  a pod. Defaults to projectFor(repo). */
+  /** Data facade — projectFor(repo) on the Floor, createStationProject(env) in a pod. */
   project: Project;
 }
 
@@ -285,8 +281,7 @@ function specsByPath(
   return byPath;
 }
 
-/** Newest ingest stamp across a spec's chunks — the freshness of the links it
- * carries, compared against test-chunk stamps to spot index lag. */
+/** Newest ingest stamp across a spec's chunks, compared against test-chunk stamps to spot index lag. */
 function latestIngest(chunks: SpecChunkWithIngest[]): string | Date | null {
   const stamps = chunks
     .map((c) => c.ingestedAt)
@@ -307,10 +302,7 @@ export async function validateSpecCoverageJob(
   const repo = opts.repoFilter;
   const project = opts.project;
 
-  // Both reads pass through dropIngestExcluded: chunks whose paths today's
-  // ingest policy refuses (fixtures, graveyard) may still linger in the DB
-  // from before the exclusion existed, and their deliberately-fake links must
-  // not surface as rot (issue #1018).
+  // Both reads pass through dropIngestExcluded: excluded-path chunks may linger from before the exclusion existed and their fake links must not surface as rot (#1018).
   const specs = dropIngestExcluded(await project.chunks.specChunksWithIngest());
 
   if (specs.length === 0) {
@@ -354,47 +346,7 @@ export async function validateSpecCoverageJob(
   let reportsOpened = 0;
 
   if (broken.length > 0) {
-    // Dedup: skip filing when an open spec-link-rot issue already exists (this
-    // job runs daily AND on every ingest). A read failure leaves openIssues empty
-    // and we fall through to file — surfacing the rot beats silence.
-    try {
-      const openIssues = await project.issues
-        .list({ state: "open" })
-        .catch((err) => {
-          console.error(
-            `[job] spec-coverage-validate: open-issue read failed for ${repo}:`,
-            err,
-          );
-
-          return [] as Awaited<ReturnType<typeof project.issues.list>>;
-        });
-
-      const alreadyReported = hasOpenLinkRotIssue(openIssues);
-
-      if (alreadyReported) {
-        console.log(
-          `[job] spec-coverage-validate: ${repo} — ${broken.length} broken links, open spec-link-rot issue exists, skipping`,
-        );
-      }
-
-      if (!alreadyReported) {
-        const issue = await project.issues.create(
-          "Broken test links in spec.md",
-          formatBrokenLinksReport(broken),
-          [LINK_ROT_LABEL, "lore-managed"],
-        );
-
-        reportsOpened++;
-        console.log(
-          `[job] spec-coverage-validate: ${repo} — ${broken.length} broken links → issue ${issue.url}`,
-        );
-      }
-    } catch (err) {
-      console.error(
-        `[job] spec-coverage-validate: failed to file report for ${repo}:`,
-        err,
-      );
-    }
+    reportsOpened = await fileLinkRotReport(project, repo, broken);
   }
 
   const summary = `Checked ${totalSpecs} specs in ${repo} — ${broken.length} broken links, ${reportsOpened} reports opened`;
@@ -402,4 +354,51 @@ export async function validateSpecCoverageJob(
   console.log(`[job] spec-coverage-validate: ${summary}`);
 
   return summary;
+}
+
+/** Files a spec-link-rot issue unless an open one exists; a read failure falls through to file, since surfacing rot beats silence. Returns 0 or 1. */
+async function fileLinkRotReport(
+  project: Project,
+  repo: string,
+  broken: BrokenLink[],
+): Promise<number> {
+  try {
+    const openIssues = await project.issues
+      .list({ state: "open" })
+      .catch((err) => {
+        console.error(
+          `[job] spec-coverage-validate: open-issue read failed for ${repo}:`,
+          err,
+        );
+
+        return [] as Awaited<ReturnType<typeof project.issues.list>>;
+      });
+
+    if (hasOpenLinkRotIssue(openIssues)) {
+      console.log(
+        `[job] spec-coverage-validate: ${repo} — ${broken.length} broken links, open spec-link-rot issue exists, skipping`,
+      );
+
+      return 0;
+    }
+
+    const issue = await project.issues.create(
+      "Broken test links in spec.md",
+      formatBrokenLinksReport(broken),
+      [LINK_ROT_LABEL, "lore-managed"],
+    );
+
+    console.log(
+      `[job] spec-coverage-validate: ${repo} — ${broken.length} broken links → issue ${issue.url}`,
+    );
+
+    return 1;
+  } catch (err) {
+    console.error(
+      `[job] spec-coverage-validate: failed to file report for ${repo}:`,
+      err,
+    );
+
+    return 0;
+  }
 }

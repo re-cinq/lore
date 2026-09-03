@@ -1,11 +1,4 @@
-/**
- * graph-context-assembly — pure projection of the spec-traceability graph into a
- * ranked, deduplicated, budget-capped context block. Given the spec Statements
- * coupled to a task (already resolved by the seed-expansion query), ranks them by
- * signal (violated > drifted > untested > normal) and surfaces the distinct ADR
- * rationale + test selectors to hydrate alongside them. Deterministic, zero-LLM —
- * the I/O wrapper runs the DQL, this function is the projection of its result.
- */
+/** graph-context-assembly — pure, deterministic projection of coupled spec Statements into a ranked (violated > drifted > untested > normal), deduplicated, budget-capped context block; the I/O wrapper runs the DQL, this projects its result. */
 
 import type { DgraphClientPort } from "./deps.js";
 import { withTxn } from "./dgraph-upsert.js";
@@ -132,20 +125,7 @@ function distinct(
   statements: GraphContextStatement[],
   pick: (s: GraphContextStatement) => string[],
 ): string[] {
-  const seen = new Set<string>();
-  const out: string[] = [];
-
-  for (const stmt of statements) {
-    for (const value of pick(stmt)) {
-      if (seen.has(value)) {
-        continue;
-      }
-      seen.add(value);
-      out.push(value);
-    }
-  }
-
-  return out;
+  return [...new Set(statements.flatMap(pick))];
 }
 
 /** Default budget cap on ranked statements — a token-budget proxy for the assembled block. */
@@ -211,11 +191,7 @@ const GRAPH_CONTEXT_DQL = `query gc($repo: string) {
   }
 }`;
 
-/**
- * Reads a repo's coupled spec Statements from the graph and projects them into a
- * ranked context block. Degrades to an empty block when no graph client is wired,
- * so the caller can fall back to the legacy similarity path without branching.
- */
+/** Reads a repo's coupled spec Statements from the graph and projects a ranked context block; degrades to empty when no graph client is wired, so the caller can fall back to the legacy similarity path without branching. */
 export async function fetchGraphContext(
   dgraph: DgraphClientPort | null,
   repo: string,

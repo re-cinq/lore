@@ -1,7 +1,4 @@
-// Parses an agent pod's raw NDJSON log (claude stream-json events, lifecycle
-// markers, station lines, runner markers) into typed entries for the log
-// viewers. Lines that cannot be parsed as JSON pass through as raw. Pure.
-
+// Parses an agent pod's raw NDJSON log into typed entries for the log viewers; unparseable lines pass through as raw. Pure.
 export type LogEntry =
   | { kind: "lifecycle"; phase?: string; status: string; exitCode?: number }
   | {
@@ -15,8 +12,7 @@ export type LogEntry =
   | {
       kind: "assistant-text";
       text: string;
-      /** Present on a gemini streaming chunk — the fold appends it to the
-       *  previous assistant-text instead of starting a new paragraph. */
+      /** Gemini streaming chunk — the fold appends it to the previous assistant-text instead of a new paragraph. */
       delta?: true;
     }
   | { kind: "tool-use"; summary: string }
@@ -31,9 +27,7 @@ export type LogEntry =
       numTurns?: number;
     }
   | { kind: "station-log"; text: string }
-  /** A declared artifact the subsystem raised after the agent exited
-   *  (`output.watch` → `{"kind":"file"}`). `reason` is present — and `content`
-   *  empty — when the agent never produced the file. */
+  /** Declared artifact raised after the agent exited (`output.watch` → `{"kind":"file"}`); `reason` present, `content` empty, when never produced. */
   | {
       kind: "file";
       /** The recipe-declared event name, e.g. `pr.description`. */
@@ -46,8 +40,7 @@ export type LogEntry =
       kind: "hook";
       hookId: string;
       hookName: string;
-      /** The subtype past its `hook_` prefix: started | progress | response,
-       *  or whatever a newer subsystem names next. */
+      /** The subtype past its `hook_` prefix: started | progress | response, or whatever comes next. */
       phase: string;
       output: string;
       outcome?: string;
@@ -55,24 +48,19 @@ export type LogEntry =
     }
   | {
       kind: "tool-progress";
-      /** The tool call being reported on — `parent_tool_use_id` when the line
-       *  carries one, since a heartbeat's own `tool_use_id` is a fresh
-       *  `<parent>-heartbeat-<n>` and would defeat the fold. */
+      /** `parent_tool_use_id` when present — a heartbeat's own `tool_use_id` is a fresh `<parent>-heartbeat-<n>` and would defeat the fold. */
       toolUseId: string;
       toolName: string;
-      /** Absent on a line that reports no clock — the summary then omits the
-       *  parenthetical rather than claiming the call has run for zero seconds. */
+      /** Absent when the line reports no clock — the summary omits the parenthetical rather than claiming zero seconds. */
       elapsedSeconds?: number;
     }
   | { kind: "system"; subtype: string; detailsJson: string }
   | { kind: "rate-limit"; status: string; windows: RateLimitWindow[] }
-  /** gemini-cli's standalone error event — claude carries errors inside its
-   *  result line, gemini emits them as their own stream event. */
+  /** gemini-cli's standalone error event — claude carries errors inside its result line instead. */
   | { kind: "agent-error"; severity: "warning" | "error"; message: string }
   | { kind: "raw"; text: string };
 
-/** One usage window of a rate_limit_event. `utilization` is the fraction the
- *  API sends (0.94 = 94%), `resetsAt` epoch seconds. */
+/** One usage window of a rate_limit_event; `utilization` is a fraction (0.94 = 94%), `resetsAt` epoch seconds. */
 export interface RateLimitWindow {
   window: string;
   utilization: number;
@@ -158,19 +146,7 @@ export function formatDuration(ms: number): string {
   return `${seconds}s`;
 }
 
-/**
- * Whether `next` replaces `previous` instead of following it. Three tickers
- * report a running total rather than an increment, so a run of any of them is
- * one entry: thinking-tokens; a hook's own line — `hook_progress` repeats the
- * whole output so far, so the newest line for a `hook_id` contains every
- * earlier one; and a long tool call's heartbeats, whose `elapsed_time_seconds`
- * is the total for that call rather than the gap since the last beat. The one
- * home for that rule — the blob parser and the run page's per-turn projection
- * both fold on it rather than each knowing it.
- *
- * Adjacent-only, so two hooks (or two tool calls) running concurrently keep
- * their interleaved order instead of collapsing across each other's lines.
- */
+/** Whether `next` replaces `previous`: thinking-tokens, hook_progress, and tool heartbeats all report running totals, not increments (adjacent-only, so concurrent hooks/calls stay interleaved). */
 export function supersedesPrevious(
   previous: LogEntry | undefined,
   next: LogEntry,
@@ -193,14 +169,7 @@ export function supersedesPrevious(
   );
 }
 
-/**
- * The join of a gemini streaming chunk onto the assistant text before it, or
- * null when `next` starts its own entry. Gemini emits assistant prose ONLY as
- * `delta: true` fragments — there is no final complete message to prefer — so
- * without this append the transcript reads as one line per fragment.
- * Adjacent-only, like `supersedesPrevious`: a tool call between chunks starts
- * a new paragraph rather than gluing across it.
- */
+/** Joins a gemini streaming chunk onto the prior assistant text (null if `next` starts its own entry) — gemini emits prose only as `delta:true` fragments, never a final message. */
 export function mergedDelta(
   previous: LogEntry | undefined,
   next: LogEntry,
@@ -220,8 +189,7 @@ export function mergedDelta(
   };
 }
 
-/** Classifies an already-decoded envelope. Callers holding the object (the
- *  transcript store hands out parsed JSONB) must not stringify to re-parse it. */
+/** Classifies an already-decoded envelope — callers holding the object (transcript store hands out parsed JSONB) must not stringify to re-parse it. */
 export function logEntriesFromValue(
   value: unknown,
   originalLine: string,
@@ -229,8 +197,7 @@ export function logEntriesFromValue(
   return classify(unwrapEnvelope(value), originalLine);
 }
 
-/** One NDJSON line → its entries. Empty lines yield none; anything that is not
- *  parseable JSON passes through verbatim as raw. */
+/** One NDJSON line → its entries; empty lines yield none, unparseable JSON passes through verbatim as raw. */
 export function parseAgentLogLine(line: string): LogEntry[] {
   const trimmed = line.trim();
 
@@ -257,21 +224,23 @@ export function parseAgentLog(raw: string): LogEntry[] {
   const entries: LogEntry[] = [];
 
   for (const line of raw.split("\n")) {
-    for (const entry of parseAgentLogLine(line)) {
+    parseAgentLogLine(line).forEach((entry) => {
       const previous = entries[entries.length - 1];
       const merged = mergedDelta(previous, entry);
 
       if (merged !== null) {
         entries[entries.length - 1] = merged;
-        continue;
+
+        return;
       }
 
       if (supersedesPrevious(previous, entry)) {
         entries[entries.length - 1] = entry;
-        continue;
+
+        return;
       }
       entries.push(entry);
-    }
+    });
   }
 
   return entries;
@@ -288,8 +257,7 @@ function errorMessage(error: unknown): string {
     : "";
 }
 
-// The ai-agent-subsystem's {"source":…,"event":…} attribution envelope
-// (ADR-031 D8); prod streams have carried it single- and double-wrapped.
+// {"source":…,"event":…} attribution envelope (ADR-031 D8); prod streams carry it single- and double-wrapped.
 function isAttributedEnvelope(
   value: unknown,
 ): value is { source: unknown; event: unknown } {
@@ -355,8 +323,7 @@ function classify(value: unknown, originalLine: string): LogEntry[] {
     return [toolProgressEntry(value)];
   }
 
-  // Any remaining system line still says which kind it is, which beats dumping
-  // its bytes at the reader — the whole event stays one click away.
+  // Naming the subtype beats dumping raw bytes at the reader; the whole event stays one click away.
   if (value.type === "system" && typeof value.subtype === "string") {
     return [
       {
@@ -373,10 +340,7 @@ function classify(value: unknown, originalLine: string): LogEntry[] {
     return entries.length > 0 ? entries : [{ kind: "raw", text: originalLine }];
   }
 
-  // gemini-cli's `--output-format stream-json` dialect (the GeminiAgent
-  // vendor): flat events instead of claude's message.content blocks —
-  // `init`, `message` with string content, top-level `tool_use`/`tool_result`,
-  // a standalone `error`, and a `result` keyed by `status`.
+  // gemini-cli stream-json dialect: flat events instead of message.content blocks (init/message/tool_use/tool_result/error/result-by-status).
   if (value.type === "init" && typeof value.model === "string") {
     return [
       {
@@ -388,23 +352,7 @@ function classify(value: unknown, originalLine: string): LogEntry[] {
   }
 
   if (value.type === "message" && typeof value.content === "string") {
-    // A delta chunk keeps even whitespace-only content: it joins the previous
-    // chunk at fold time, and trimming it would glue the words around it.
-    if (value.delta === true && value.role !== "user") {
-      return value.content
-        ? [{ kind: "assistant-text", text: value.content, delta: true }]
-        : [];
-    }
-
-    if (!value.content.trim()) {
-      return [];
-    }
-
-    return [
-      value.role === "user"
-        ? { kind: "user-text", text: value.content }
-        : { kind: "assistant-text", text: value.content },
-    ];
+    return plainMessageEntries(value.role, value.content, value.delta === true);
   }
 
   if (value.type === "tool_use" && typeof value.tool_name === "string") {
@@ -464,8 +412,7 @@ function classify(value: unknown, originalLine: string): LogEntry[] {
     ];
   }
 
-  // The subsystem's declared-artifact delivery. An event name is required —
-  // without one the floor projection cannot route it either, so the bytes stay.
+  // Declared-artifact delivery — an event name is required, or the floor projection can't route it, so the bytes stay raw.
   if (value.kind === "file" && typeof value.event === "string") {
     return [
       {
@@ -486,8 +433,7 @@ function classify(value: unknown, originalLine: string): LogEntry[] {
     const info = isRecord(value.rate_limit_info) ? value.rate_limit_info : {};
     const windows = rateLimitWindows(info);
 
-    // A shape carrying no readable window keeps its bytes rather than
-    // rendering a confidently empty sentence.
+    // No readable window keeps its bytes rather than rendering a confidently empty sentence.
     return windows.length > 0
       ? [
           {
@@ -502,9 +448,7 @@ function classify(value: unknown, originalLine: string): LogEntry[] {
   return [{ kind: "raw", text: originalLine }];
 }
 
-/** A progress report on a tool call still running. Keyed on the type rather
- *  than on `heartbeat`, so a progress line that carries real progress instead
- *  of a bare keepalive still renders as one. */
+/** Keyed on the type rather than `heartbeat`, so real-progress lines (not just keepalives) still render. */
 function isToolProgressLine(
   value: Record<string, unknown>,
 ): value is Record<string, unknown> & { tool_use_id: string } {
@@ -532,8 +476,7 @@ function toolProgressEntry(
 
 const HOOK_SUBTYPE_PREFIX = "hook_";
 
-/** A system line one hook emitted about itself. Keyed on `hook_id` rather than
- *  the three known subtypes, so a newer `hook_*` kind still folds and renders. */
+/** Keyed on `hook_id` rather than the three known subtypes, so a newer `hook_*` kind still folds and renders. */
 function isHookLine(
   value: Record<string, unknown>,
 ): value is Record<string, unknown> & { subtype: string; hook_id: string } {
@@ -545,8 +488,7 @@ function isHookLine(
   );
 }
 
-/** A hook line's text: the combined `output` when the runner supplies one, else
- *  whatever the two streams carry. */
+/** Combined `output` when the runner supplies one, else whatever the two streams carry. */
 function hookOutput(value: Record<string, unknown>): string {
   if (typeof value.output === "string" && value.output.trim()) {
     return value.output.trim();
@@ -578,6 +520,34 @@ function hookEntry(
   };
 }
 
+// A delta chunk keeps whitespace-only content — trimming it would glue the words around it at fold time.
+function plainMessageEntries(
+  role: unknown,
+  content: string,
+  delta: boolean,
+): LogEntry[] {
+  if (delta && role !== "user") {
+    return content
+      ? [{ kind: "assistant-text", text: content, delta: true }]
+      : [];
+  }
+
+  if (!content.trim()) {
+    return [];
+  }
+
+  if (role === "user") {
+    return [{ kind: "user-text", text: content }];
+  }
+
+  return [{ kind: "assistant-text", text: content }];
+}
+
+/** The candidate unchanged when it is a non-blank string, else empty. */
+function trimmedBlockText(candidate: unknown): string {
+  return typeof candidate === "string" && candidate.trim() ? candidate : "";
+}
+
 function messageEntries(value: Record<string, unknown>): LogEntry[] {
   const message = value.message;
 
@@ -591,21 +561,28 @@ function messageEntries(value: Record<string, unknown>): LogEntry[] {
       continue;
     }
 
-    if (block.type === "thinking" && typeof block.thinking === "string") {
-      if (block.thinking.trim()) {
-        entries.push({ kind: "thinking", text: block.thinking });
-      }
+    const thinkingText = trimmedBlockText(block.thinking);
+    const blockText = trimmedBlockText(block.text);
+
+    if (block.type === "thinking" && thinkingText === "") {
       continue;
     }
 
-    if (block.type === "text" && typeof block.text === "string") {
-      if (block.text.trim()) {
-        entries.push(
-          value.type === "user"
-            ? { kind: "user-text", text: block.text }
-            : { kind: "assistant-text", text: block.text },
-        );
-      }
+    if (block.type === "thinking") {
+      entries.push({ kind: "thinking", text: thinkingText });
+      continue;
+    }
+
+    if (block.type === "text" && blockText === "") {
+      continue;
+    }
+
+    if (block.type === "text") {
+      entries.push(
+        value.type === "user"
+          ? { kind: "user-text", text: blockText }
+          : { kind: "assistant-text", text: blockText },
+      );
       continue;
     }
 
@@ -643,8 +620,7 @@ function toWindow(name: string, value: unknown): RateLimitWindow | null {
   };
 }
 
-/** Every window the event reports: the `unifiedWindows` map when present, else
- *  the single window the top-level fields describe. */
+/** Every window the event reports: `unifiedWindows` map when present, else the single window the top-level fields describe. */
 export function rateLimitWindows(
   info: Record<string, unknown>,
 ): RateLimitWindow[] {
@@ -664,8 +640,7 @@ export function rateLimitWindows(
   return single === null ? [] : [single];
 }
 
-/** The whole sentence, formatted here rather than in JSX so it is testable
- *  without a DOM. `utilization` is a fraction of the window, never a percent. */
+/** Formatted here (not JSX) so it's testable without a DOM; `utilization` is a fraction, never a percent. */
 export function rateLimitSummary(
   entry: Extract<LogEntry, { kind: "rate-limit" }>,
 ): string {

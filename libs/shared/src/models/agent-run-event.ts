@@ -1,31 +1,9 @@
 import { z } from "zod";
 import type { ColumnMap } from "../lib/row.js";
 
-/**
- * `pipeline.agent_run_events` — one projected tool call from an agent's
- * stream-json output, behind the live run visualization (ADR-037).
- *
- * DDL: migration `0031_agent_run_events.sql`, plus `station_run_id` (0040).
- * No foreign keys, deliberately: ingest is skip-not-fail, and an FK would let
- * one unknown id drop a whole batch.
- *
- * `id` is a string-encoded bigint — it outgrows `Number.MAX_SAFE_INTEGER` and
- * doubles as the SSE `Last-Event-ID` cursor, so it is never a JS number.
- *
- * `assemblyLineId` keeps the PRE-RENAME spelling: 0040 renamed the tables this
- * column points AT, but a pointer column on a same-named table has no compat
- * view to hide behind (0040:130-137). `stationRunId` is the go-forward key.
- */
+/** `pipeline.agent_run_events` (migration `0031`, + `station_run_id` in `0040`) — one projected tool call from an agent's stream-json output, behind the live run viz (ADR-037); no FKs (skip-not-fail ingest); `id` is a string-encoded bigint doubling as the SSE `Last-Event-ID` cursor; `assemblyLineId` keeps its pre-rename spelling since 0040 gave the pointed-at tables no compat view (0040:130-137) — `stationRunId` is the go-forward key. */
 
-/**
- * The seven stream-json line kinds the projector persists. A line of any other
- * kind is dropped before it reaches the store, so the column is closed in
- * practice even though the DDL does not constrain it.
- *
- * `hook` covers only a hook's TERMINAL line. `hook_progress` restates the whole
- * output each time, and this is a row store with no fold, so persisting the
- * intermediate lines would store one run's log a dozen times over.
- */
+/** The seven stream-json line kinds the projector persists (others dropped); `hook` covers only a hook's TERMINAL line since `hook_progress` restates the whole output each time and this store has no fold. */
 export const AgentRunEventTypeSchema = z.enum([
   "init",
   "message",

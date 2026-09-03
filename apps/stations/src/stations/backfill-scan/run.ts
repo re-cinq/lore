@@ -1,10 +1,4 @@
-/**
- * Bind the backfill scan to this process's ports.
- *
- * Each unit is an ordinary `spec-coverage-backfill` line whose detect node
- * carries `spec_path`, so the sharding needs no new blueprint — only a narrower
- * argument to the one that already exists.
- */
+// Binds the backfill scan to this process's ports — each unit is an ordinary `spec-coverage-backfill` line whose detect node carries `spec_path`, so sharding needs no new blueprint.
 
 import type { SweepContext } from "../lib/station.js";
 import { scanForBackfill } from "./backfill-scan.js";
@@ -19,9 +13,7 @@ const subjectFor = (repo: string, specPath: string): string =>
 
 export function runBackfillScan(_ctx: SweepContext): Promise<string> {
   return scanForBackfill({
-    // Onboarded repos, filtered to those that actually have specs by the
-    // per-repo listing below — rather than a second definition of "a repo with
-    // specs" living here alongside the Floor's.
+    // Onboarded repos, filtered to those with specs by the per-repo listing below, rather than a second definition of "a repo with specs" living here alongside the Floor's.
     repos: async () =>
       (await settings().onboardedRepos()).map((r) => r.full_name),
     specsFor: async (repo) =>

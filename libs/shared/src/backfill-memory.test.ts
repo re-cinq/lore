@@ -5,18 +5,6 @@ import * as dgraph from "dgraph-js-http";
 import { backfillMemoryToDgraph } from "./backfill-memory.js";
 import { parseEmbedding, cosineSimilarity } from "./spec-judge.js";
 
-/**
- * Backfill exporter (memory-dgraph-migration AC6) — migrates Postgres
- * memory.* into Dgraph, preserving each Postgres UUID as the node xid.
- * Tested against the REAL local Postgres AND the REAL local Dgraph (no
- * mocks). Gated on BOTH being reachable; skips otherwise so `npm test`
- * passes without containers.
- *
- * Kernel facet only: one memory.memories row → one Dgraph Memory node
- * whose Memory.xid EQUALS the Postgres row's id. Nothing about
- * embeddings, idempotency, relationships, or other tables here.
- */
-
 const PG_CONFIG = {
   host: "localhost",
   port: 5432,
@@ -85,7 +73,7 @@ describe.skipIf(!reachable)(
           });
         }
       } catch {
-        // best-effort cleanup must never mask the assertion
+        void 0;
       } finally {
         await txn.discard().catch(() => {});
       }
@@ -110,7 +98,7 @@ describe.skipIf(!reachable)(
           });
         }
       } catch {
-        // best-effort cleanup must never mask the assertion
+        void 0;
       } finally {
         await txn.discard().catch(() => {});
       }

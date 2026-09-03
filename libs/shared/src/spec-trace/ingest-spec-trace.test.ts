@@ -6,17 +6,6 @@ import { randomUUID } from "node:crypto";
 import * as dgraph from "dgraph-js-http";
 import { ingestSpecTrace } from "./ingest-spec-trace.js";
 
-/**
- * ingestSpecTrace (spec-traceability-graph end-to-end wiring) — the thin
- * dispatcher the agent's `/api/trigger/spec-trace` handler calls, routing a
- * posted payload to the right ingest function. Runs against REAL local Dgraph
- * (no mocks). Container-gated: skips when Dgraph isn't reachable.
- *
- * KERNEL facet: kind === "test-report" delegates to ingestTestReport, so a
- * single descriptor produces one TestChunk keyed `${repo}|${id}`. The
- * kind === "coverage" branch is a LATER facet.
- */
-
 const DGRAPH_HTTP = process.env.DGRAPH_HTTP ?? "http://localhost:8081";
 const APPLIER = join(
   findRepoRoot(),
@@ -97,7 +86,7 @@ describe.skipIf(!reachable)("ingestSpecTrace (live Dgraph)", () => {
         });
       }
     } catch {
-      // best-effort cleanup must never mask the assertion
+      void 0;
     } finally {
       await txn.discard().catch(() => {});
     }
@@ -146,7 +135,7 @@ describe.skipIf(!reachable)("ingestSpecTrace (live Dgraph)", () => {
     });
   });
 
-  it("writes Coverage with a COVERS edge via ingestCoverageReport when kind is coverage", async () => {
+  it("writes Coverage with a COVERS edge to a File node via ingestCoverageReport when kind is coverage, with no pre-seeding or AST", async () => {
     const repo = `spec-trace/${randomUUID()}`;
 
     createdRepo = repo;
@@ -170,7 +159,6 @@ describe.skipIf(!reachable)("ingestSpecTrace (live Dgraph)", () => {
       { $repo: repo },
     )) as { cov?: Record<string, unknown>[] };
 
-    // Coverage aggregates the covered range to a File node (no pre-seeding / AST).
     expect(data.cov?.[0]?.["Coverage.covers"]).toEqual([
       { "File.xid": `${repo}|src/widget.ts` },
     ]);

@@ -1,8 +1,4 @@
-// Pure file-attention heatmap: a read/write tally in, a ranked bar list out. No
-// fetch, no EventSource, no timers — the Panel above owns the reducer state and
-// the show-all flag (lore/no-io-in-view). The reducer has already aggregated the
-// tally per path; this view only ranks, weights, and truncates for display.
-
+// Pure file-attention heatmap (lore/no-io-in-view) — the Panel above owns fetch/reducer state; this view only ranks, weights, and truncates.
 import CollapsibleCard from "@/components/CollapsibleCard";
 import {
   aggregateFileTouches,

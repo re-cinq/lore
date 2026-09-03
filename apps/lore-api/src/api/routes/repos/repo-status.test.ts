@@ -11,8 +11,6 @@ const originalEnv = { ...process.env };
 const get = (pool: unknown, url = "/api/repo-status?repo=o/r") =>
   buildServer(() => pool as any).inject({ method: "GET", url, headers: AUTH });
 
-// Native hapi route (Phase 3), driven through buildServer.inject with the legacy
-// token (auth passes; the auth matrix itself lives in bearer-scope.test.ts).
 describe("GET /api/repo-status", () => {
   useRateLimitSafeClock();
   beforeEach(() => {

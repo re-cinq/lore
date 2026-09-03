@@ -1,33 +1,10 @@
-/**
- * spec-traceability-graph — Phase 2 generation-time provenance capture.
- *
- * Lifts inline `lore:validates` annotations out of a generated code/test file
- * and returns the provenance refs that file carries. Pure: string in, refs out;
- * no Dgraph, no I/O.
- *
- * Sibling source of the same `ProvenanceRef` vocabulary is
- * `parseValidatesTrailers` in `@re-cinq/lore-shared`, which lifts the equivalent
- * links out of commit messages. `resolveProvenance` merges inline-link,
- * annotation, and trailer refs into one deduplicated list;
- * `detectProvenanceConflicts` surfaces statements that drew disagreeing targets
- * across those same sources.
- */
+/** spec-traceability-graph Phase 2: pure generation-time provenance capture — lifts inline `lore:validates` annotations out of a generated file; sibling to commit-trailer parsing (`resolveProvenance` merges both, `detectProvenanceConflicts` finds disagreements). */
 import { type ProvenanceRef } from "./deps.js";
 
-/**
- * Matches a single inline annotation with the grammar
- * `<//|#> lore:validates <specPath>#<ordinal>`. Both `//` (C-style) and `#`
- * (shell/Python-style) comment markers are recognized. Capture group 1 is the
- * spec path, group 2 the (1-based) statement ordinal.
- */
+/** Matches `<//|#> lore:validates <specPath>#<ordinal>`, both C-style and shell/Python-style comment markers. */
 const VALIDATES_ANNOTATION_RE = /(?:\/\/|#)\s*lore:validates\s+(\S+?)#(\d+)/;
 
-/**
- * Scan `fileContent` for `// lore:validates <specPath>#<ordinal>` annotations
- * and return one `ProvenanceRef` per match. The annotated file (`filePath`) is
- * the validating `target` of every ref it carries; non-matching lines are
- * ignored and an empty result means the file declared no provenance.
- */
+/** Scans `fileContent` for `lore:validates` annotations, returning one `ProvenanceRef` per match with `filePath` as the validating target. */
 export function parseValidatesAnnotations(
   fileContent: string,
   filePath: string,
@@ -49,20 +26,12 @@ export function parseValidatesAnnotations(
   return refs;
 }
 
-/**
- * Pair-identity key for conflict detection: two refs target the same statement
- * when their `(specPath, ordinal)` pair matches, regardless of validating target.
- */
+/** Pair-identity key for conflict detection: two refs target the same statement when their `(specPath, ordinal)` matches, regardless of target. */
 function pairKey(ref: ProvenanceRef): string {
   return `${ref.specPath}|${ref.ordinal}`;
 }
 
-/**
- * The three provenance forms a generated file can carry, each pre-parsed into
- * refs: inline `([validated by])` spec links, `lore:validates` code annotations,
- * and `Lore-Validates:` commit trailers. Consumed by `resolveProvenance` and
- * `detectProvenanceConflicts`.
- */
+/** The three provenance forms a generated file can carry, pre-parsed into refs: inline spec links, code annotations, and commit trailers. */
 export interface ProvenanceSources {
   inline?: ProvenanceRef[];
   annotation?: ProvenanceRef[];
@@ -77,41 +46,24 @@ interface TaggedRef {
 
 type SourceName = "inline" | "annotation" | "trailer";
 
-/**
- * The single canonical read order for provenance sources — inline, then
- * annotation, then trailer. Both `resolveProvenance` and
- * `detectProvenanceConflicts` flatten in this order, so it lives here once.
- */
+/** The single canonical read order for provenance sources, shared by `resolveProvenance` and `detectProvenanceConflicts`. */
 const READ_ORDER: readonly SourceName[] = ["inline", "annotation", "trailer"];
 
-/**
- * Flatten `sources` into one ref stream in canonical read order, each ref tagged
- * with the source form it came from. Empty/absent source arrays contribute
- * nothing.
- */
+/** Flattens `sources` into one ref stream in canonical read order, each ref tagged with its source form. */
 function refsInReadOrder(sources: ProvenanceSources): TaggedRef[] {
   return READ_ORDER.flatMap((source) =>
     (sources[source] ?? []).map((ref) => ({ ref, source })),
   );
 }
 
-/**
- * Source precedence, most specific first: a `lore:validates` annotation in the
- * code beats a `Lore-Validates:` commit trailer, which beats an inline
- * `([validated by])` spec link. Higher rank wins a conflict on the same pair.
- */
+/** Source precedence, most specific first: code annotation beats commit trailer beats inline spec link. Higher rank wins a conflict on the same pair. */
 const SOURCE_RANK: Record<SourceName, number> = {
   annotation: 3,
   trailer: 2,
   inline: 1,
 };
 
-/**
- * Merge pre-parsed provenance refs from the inline-link, annotation, and trailer
- * forms into one list. For each `(specPath, ordinal)` pair the ref from the
- * highest-precedence source wins (annotation > trailer > inline); a rank tie
- * keeps the first-seen ref. First-appearance order of each pair is preserved.
- */
+/** Merges pre-parsed provenance refs from all three forms into one list; for each pair, the highest-precedence source wins (a rank tie keeps first-seen). */
 export function resolveProvenance(sources: ProvenanceSources): ProvenanceRef[] {
   const winners = new Map<string, { ref: ProvenanceRef; rank: number }>();
 
@@ -128,24 +80,14 @@ export function resolveProvenance(sources: ProvenanceSources): ProvenanceRef[] {
   return [...winners.values()].map((entry) => entry.ref);
 }
 
-/**
- * A `(specPath, ordinal)` statement that drew two or more distinct validating
- * targets across the provenance sources — the data-model's "provenance
- * discrepancy" surfaced as a value for the caller to log.
- */
+/** A `(specPath, ordinal)` statement that drew two or more distinct validating targets across sources — the "provenance discrepancy" for the caller to log. */
 export interface ProvenanceConflict {
   specPath: string;
   ordinal: number;
   targets: string[];
 }
 
-/**
- * Find every `(specPath, ordinal)` pair that drew two or more DISTINCT targets
- * across the sources, scanned in read order (inline, then annotation, then
- * trailer). Each conflict lists its distinct targets in first-appearance order;
- * pairs with a single target are not conflicts. First-appearance order of the
- * conflicting pairs is preserved.
- */
+/** Finds every pair that drew two or more DISTINCT targets across sources (read in canonical order); pairs with a single target are not conflicts. */
 export function detectProvenanceConflicts(
   sources: ProvenanceSources,
 ): ProvenanceConflict[] {

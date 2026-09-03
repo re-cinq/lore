@@ -1,15 +1,4 @@
-/**
- * Context assembly: retrieves from all sources and formats into
- * a structured, token-budgeted block for LLM consumption.
- *
- * Sources return provenance-bearing items (path, type, tokens, relevance) plus a
- * status that explains emptiness, so every assembly decision is traceable. The
- * output is XML-tagged (see context-assembly-format.ts), and a `debug` flag adds
- * a full trace of what each source returned, how the budget was split, and what
- * was truncated or omitted.
- *
- * Templates are YAML files loaded at startup from mcp-server/templates/.
- */
+// Context assembly: retrieves from all sources into a structured, token-budgeted, XML-tagged block; `debug` adds a full per-source trace (context-assembly-format.ts).
 
 import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { join } from "node:path";
@@ -161,8 +150,7 @@ function estimateTokens(text: string): number {
   return Math.ceil(text.length / 4);
 }
 
-/** Truncate at a paragraph boundary to fit a token budget — no inline marker;
- *  the `truncated="true"` document attribute carries that signal instead. */
+/** Truncate at a paragraph boundary; no inline marker — the `truncated="true"` document attribute carries that signal instead. */
 function truncateText(text: string, maxTokens: number): string {
   const maxChars = maxTokens * 4;
 
@@ -179,9 +167,47 @@ function mkItem(text: string, extra: Partial<SourceItem> = {}): SourceItem {
   return { text, tokens: estimateTokens(text), ...extra };
 }
 
+/** Append one graph item per relation line not already in `seen`. */
+function addUniqueGraphLines(
+  graphResults: Awaited<ReturnType<typeof queryLiveGraph>>,
+  seen: Set<string>,
+  items: SourceItem[],
+): void {
+  for (const r of graphResults) {
+    const line = `${r.entity} (${r.entity_type}) --${r.relation}--> ${r.related_entity} (${r.related_type})`;
+
+    if (seen.has(line)) {
+      continue;
+    }
+    seen.add(line);
+    items.push(mkItem(line, { content_type: "graph" }));
+  }
+}
+
+/** Split search-result ids into memory refs and fact refs (outcome feedback). */
+function collectContextRefIds(
+  results: Awaited<ReturnType<typeof searchMemories>>,
+  memoryIds: string[],
+  factIds: string[],
+): void {
+  for (const r of results) {
+    if (!r.id) {
+      continue;
+    }
+
+    if (r.source === "memory") {
+      memoryIds.push(r.id);
+      continue;
+    }
+    factIds.push(r.id);
+  }
+}
+
 function toScore(value: unknown): number | undefined {
-  const n =
-    typeof value === "number" ? value : value != null ? Number(value) : NaN;
+  if (value == null) {
+    return undefined;
+  }
+  const n = typeof value === "number" ? value : Number(value);
 
   return Number.isFinite(n) ? n : undefined;
 }
@@ -198,11 +224,7 @@ function toIso(value: unknown): string | undefined {
   }
 }
 
-/** Pack items into a token budget: keep whole items until the budget is hit,
- *  truncate the one that overflows, drop the rest. Reports whether anything was cut.
- *  `maxPerDocTokens` caps any single document so one mega-doc (e.g. CLAUDE.md)
- *  can't crowd out several smaller, more-relevant chunks — a capped doc is
- *  truncated and packing continues with the next items. Exported for unit tests. */
+/** Pack items into a token budget: keep whole items, truncate the overflow item, drop the rest. `maxPerDocTokens` caps any single document so a mega-doc can't crowd out smaller ones. */
 export function fitItemsToBudget(
   items: SourceItem[],
   budgetTokens: number,
@@ -233,8 +255,7 @@ export function fitItemsToBudget(
     used += tokens;
     truncated = true;
 
-    // Stop only when the BUDGET was the binding limit; a per-doc cap leaves
-    // room, so keep packing more documents.
+    // Stop only when the BUDGET was the binding limit; a per-doc cap leaves room to keep packing.
     if (limit >= remaining) {
       break;
     }
@@ -243,8 +264,7 @@ export function fitItemsToBudget(
   return { items: kept, truncated };
 }
 
-// Common words that add no retrieval signal — dropped from the keyword leg so a
-// paragraph-length query matches on its distinctive terms, not its filler.
+// Common words dropped from the keyword leg so a paragraph-length query matches on its distinctive terms, not filler.
 const STOPWORDS = new Set([
   "the",
   "a",
@@ -303,9 +323,7 @@ const STOPWORDS = new Set([
   "our",
 ]);
 
-/** Distinctive terms from a (possibly paragraph-length) query: drop stopwords and
- *  ≤2-char words, de-duplicate (case-insensitive), preserve order, cap at `max`.
- *  Used to focus the keyword retrieval leg. Exported for unit tests. */
+/** Distinctive terms from a query: drop stopwords + ≤2-char words, de-dupe case-insensitively, preserve order, cap at `max`. */
 export function extractKeyTerms(query: string, max = 12): string[] {
   const seen = new Set<string>();
   const out: string[] = [];
@@ -327,9 +345,7 @@ export function extractKeyTerms(query: string, max = 12): string[] {
   return out;
 }
 
-/** Filter out items already emitted in an earlier section (keyed by source path,
- *  else text), recording the survivors as seen. Keeps a document in its highest-
- *  priority section only — no duplicate across sections. Exported for unit tests. */
+/** Filter out items already emitted in an earlier section (keyed by source path, else text) — keeps a document in its highest-priority section only. */
 export function dropSeen(items: SourceItem[], seen: Set<string>): SourceItem[] {
   const kept: SourceItem[] = [];
 
@@ -346,9 +362,7 @@ export function dropSeen(items: SourceItem[], seen: Set<string>): SourceItem[] {
   return kept;
 }
 
-/** Rescale item scores so the top result is 1.0 and the rest are proportional
- *  fractions — RRF/`ts_rank` raw scores are tiny (~0.02) and unreadable as a
- *  relevance signal. No-op when there is no positive score. */
+/** Rescale item scores so the top result is 1.0 — RRF/ts_rank raw scores are tiny (~0.02) and unreadable as relevance. No-op with no positive score. */
 function normalizeScores(items: SourceItem[]): SourceItem[] {
   const max = Math.max(0, ...items.map((i) => i.score ?? 0));
 
@@ -369,10 +383,7 @@ const COUPLING_SIGNAL_SCORE: Record<string, number> = {
   normal: 0.1,
 };
 
-/** Project a spec-traceability `GraphContextBlock` (statements coupled to the
- *  repo's code/tests, ranked by collision signal) into context items — the
- *  deterministic "what spec rules + tests govern this code" source vector search
- *  can't produce. Exported for unit tests. */
+/** Project a spec-traceability GraphContextBlock into context items — the deterministic "what spec rules + tests govern this code" signal vector search can't produce. */
 export function formatCouplingItems(block: GraphContextBlock): SourceItem[] {
   return block.statements.map((s) => {
     const head = `[${s.signal}] ${s.specPath}${s.section ? ` › ${s.section}` : ""} — ${s.statementText}`;
@@ -391,10 +402,7 @@ export function formatCouplingItems(block: GraphContextBlock): SourceItem[] {
   });
 }
 
-/** Coupling context source: reads the repo's coupled spec statements from the
- *  spec-traceability graph and formats them. Fail-soft — `disabled` when no graph
- *  client is wired (`LORE_DGRAPH_HTTP` unset), so the rest of assembly is
- *  unaffected. Exported for unit tests. */
+/** Coupling context source: reads the repo's coupled spec statements from the spec-traceability graph. Fail-soft — `disabled` when no graph client is wired (LORE_DGRAPH_HTTP unset). */
 export async function fetchCouplingSource(
   dgraph: DgraphClientPort | null,
   repo?: string,
@@ -413,19 +421,8 @@ export async function fetchCouplingSource(
   }
 }
 
-/** Hybrid Reciprocal-Rank-Fusion retrieval over the repo's resolved chunk
- *  schema (team schema when provisioned, else `org_shared`) for a repo +
- *  content types. Combines a pgvector cosine leg with a BM25 (`ts_rank`) leg —
- *  the same RRF that powers `search_context` — so a natural-language query
- *  surfaces semantically-relevant chunks (incl. code), not just keyword overlap.
- *  Degrades to keyword-only when no query embedding is available. Exported for
- *  unit tests. */
-/**
- * One hybrid-search HIT, not a chunk row: `score` is a `ts_rank`/cosine
- * aggregate the query computes and no column holds. Named for what it is — the
- * repo carried three different types called `ChunkRow`, and this was the one
- * that never described a table.
- */
+/** Hybrid RRF retrieval over the repo's resolved chunk schema: pgvector cosine leg + BM25 (ts_rank) leg, same as search_context; degrades to keyword-only with no query embedding. */
+/** One hybrid-search HIT, not a chunk row — `score` is a ts_rank/cosine aggregate the query computes, no column holds it (the repo had three types named ChunkRow; this is the one that never described a table). */
 interface ChunkSearchHit {
   content: string;
   file_path: string;
@@ -454,8 +451,7 @@ export async function hybridChunkItems(
     getQueryEmbedding(query),
     resolveChunkSchemaForRepo(pool, repo),
   ]);
-  // The keyword leg searches the query's distinctive terms (OR'd) rather than the
-  // whole paragraph, which would AND every filler word and match almost nothing.
+  // Keyword leg searches distinctive terms (OR'd) rather than the whole paragraph, which would AND every filler word.
   const keywordQuery = extractKeyTerms(query).join(" OR ") || query;
   const mapRows = (rows: ChunkSearchHit[]): SourceItem[] =>
     normalizeScores(
@@ -522,12 +518,9 @@ type SourceFetcher = (
   agentId?: string,
 ) => Promise<FetchResult>;
 
-/** Exported for unit tests (the cross_repo union has no shipped template
- *  section to drive it through assembleContext). */
+// cross_repo has no shipped template section to drive it through assembleContext, hence the direct export.
 export const fetchers: Record<string, SourceFetcher> = {
-  // Repo conventions: docs + specs (ADRs are their own section). Hybrid
-  // vector+keyword ranking so a natural-language query matches on meaning, not
-  // just term overlap (which floated unrelated web-ui specs to the top).
+  // Repo conventions: docs + specs (ADRs are their own section); hybrid ranking avoids floating unrelated web-ui specs on term overlap alone.
   async repo(pool, query, repo) {
     if (!repo) {
       return { items: [], status: "empty" };
@@ -548,8 +541,7 @@ export const fetchers: Record<string, SourceFetcher> = {
     }
   },
 
-  // Source code the task touches — previously NEVER retrieved (the repo source
-  // excluded code), so implementation tasks got zero of the files they edit.
+  // Source code the task touches — previously NEVER retrieved, so implementation tasks got zero of the files they edit.
   async code(pool, query, repo) {
     if (!repo) {
       return { items: [], status: "empty" };
@@ -654,15 +646,7 @@ export const fetchers: Record<string, SourceFetcher> = {
           false,
         );
 
-        for (const r of graphResults) {
-          const line = `${r.entity} (${r.entity_type}) --${r.relation}--> ${r.related_entity} (${r.related_type})`;
-
-          if (seen.has(line)) {
-            continue;
-          }
-          seen.add(line);
-          items.push(mkItem(line, { content_type: "graph" }));
-        }
+        addUniqueGraphLines(graphResults, seen, items);
       }
 
       return { items, status: items.length > 0 ? "ok" : "empty" };
@@ -767,8 +751,7 @@ export const fetchers: Record<string, SourceFetcher> = {
       const linkedRepos: string[] =
         repoRows[0]?.settings?.cross_repo_repos || [];
 
-      // Linked repos may live in any team schema, so the search spans every
-      // provisioned chunk schema plus org_shared.
+      // Linked repos may live in any team schema, so the search spans every provisioned chunk schema plus org_shared.
       const repoFilter =
         linkedRepos.length > 0 ? "repo = ANY($1)" : "repo != $1";
       const branches = schemas.map(
@@ -858,8 +841,7 @@ export const fetchers: Record<string, SourceFetcher> = {
 
 // ── Main assembly ───────────────────────────────────────────────────
 
-// Per-template default token budgets. Smaller budgets for task-shaped
-// templates; research keeps the old 16K ceiling since it's memory/episode-heavy.
+// Per-template default token budgets; research keeps the old 16K ceiling since it's memory/episode-heavy.
 const TEMPLATE_DEFAULT_BUDGETS: Record<string, number> = {
   default: 8000,
   implementation: 8000,
@@ -933,8 +915,7 @@ interface SectionFit {
   keptItems: SourceItem[];
 }
 
-/** Budget one section's deduped items: how much it gets, what survives, and why
- *  it was omitted when nothing did. Pure — the caller applies the deduction. */
+/** Budget one section's deduped items: how much it gets, what survives, why it was omitted. Pure — the caller applies the deduction. */
 function fitSection(
   deduped: SourceItem[],
   status: FetchStatus,
@@ -968,9 +949,7 @@ function fitSection(
   if (allocatedBudget <= 100) {
     return { ...excluded, allocatedBudget, omitReason: "budget exhausted" };
   }
-  // When documents compete for a section, cap any single one to half the
-  // budget so a mega-doc (e.g. CLAUDE.md) can't crowd out smaller, more-
-  // relevant chunks. A lone document keeps the whole budget.
+  // Cap any single competing document to half the budget so a mega-doc can't crowd out smaller ones; a lone document keeps it all.
   const perDocCap =
     deduped.length > 1 ? Math.floor(allocatedBudget * 0.5) : undefined;
   const fit = fitItemsToBudget(deduped, allocatedBudget, perDocCap);
@@ -982,6 +961,29 @@ function fitSection(
     included: fit.items.length > 0,
     keptItems: fit.items,
   };
+}
+
+/** Route one section to its source; the coupling source reads the spec-traceability graph (Dgraph), not the Postgres pool. */
+async function fetchSectionSource(
+  source: string,
+  fetcher: SourceFetcher | undefined,
+  ctx: {
+    pool: PgPool;
+    dgraph: DgraphClientPort | null;
+    query: string;
+    repo?: string;
+    agentId?: string;
+  },
+): Promise<FetchResult> {
+  if (source === "coupling") {
+    return fetchCouplingSource(ctx.dgraph, ctx.repo);
+  }
+
+  if (fetcher) {
+    return fetcher(ctx.pool, ctx.query, ctx.repo, ctx.agentId);
+  }
+
+  return { items: [], status: "error" };
 }
 
 export async function assembleContext(
@@ -1040,14 +1042,13 @@ export async function assembleContext(
       let res: FetchResult;
 
       try {
-        // The coupling source reads the spec-traceability graph (Dgraph), not the
-        // Postgres pool — fail-soft `disabled` when no graph client is wired.
-        res =
-          section.source === "coupling"
-            ? await fetchCouplingSource(dgraph ?? null, repo)
-            : fetcher
-              ? await fetcher(pool, query, repo, agentId)
-              : { items: [], status: "error" };
+        res = await fetchSectionSource(section.source, fetcher, {
+          pool,
+          dgraph: dgraph ?? null,
+          query,
+          repo,
+          agentId,
+        });
       } catch {
         res = { items: [], status: "error" };
       }
@@ -1057,8 +1058,7 @@ export async function assembleContext(
     }),
   );
 
-  // Allocate the token budget by priority (higher priority = lower number =
-  // larger share), highest-priority first, deducting as we go.
+  // Allocate the token budget by priority (lower number = larger share), highest first, deducting as we go.
   const nonEmptyWeight =
     fetched
       .filter((f) => f.res.items.length > 0)
@@ -1070,8 +1070,7 @@ export async function assembleContext(
   let remaining = minTokens;
   const serialized: SerializedSection[] = [];
   const traceSections: TraceSection[] = [];
-  // A document is emitted in its highest-priority section only — no repeats
-  // across sections (e.g. the same episode in both Agent Memory and Recent Episodes).
+  // A document is emitted in its highest-priority section only — no repeats across sections.
   const seenAcrossSections = new Set<string>();
 
   for (const { section, res } of ordered) {
@@ -1127,17 +1126,7 @@ export async function assembleContext(
         false,
       );
 
-      for (const r of results) {
-        if (!r.id) {
-          continue;
-        }
-
-        if (r.source === "memory") {
-          collectedMemoryIds.push(r.id);
-          continue;
-        }
-        collectedFactIds.push(r.id);
-      }
+      collectContextRefIds(results, collectedMemoryIds, collectedFactIds);
     } catch {
       /* non-fatal */
     }

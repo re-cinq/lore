@@ -11,12 +11,7 @@ import type {
   RegisterClusterAgentInput,
 } from "./cluster-agents-port.js";
 
-/**
- * Postgres-backed {@link ClusterAgentsRepository} over
- * `pipeline.cluster_agents`. `heartbeat` and `markOffline` both flip `status`
- * so the reaper's offline sweep and the agent's own revival cannot disagree
- * about what `active` means.
- */
+/** Postgres-backed {@link ClusterAgentsRepository}; `heartbeat` and `markOffline` both flip `status` so the reaper's sweep and the agent's revival can't disagree about `active`. */
 export class PgClusterAgents implements ClusterAgentsRepository {
   constructor(private readonly pool: PgPool) {}
 
@@ -49,8 +44,7 @@ export class PgClusterAgents implements ClusterAgentsRepository {
   }
 
   async create(input: RegisterClusterAgentInput): Promise<ClusterAgent | null> {
-    // ON CONFLICT DO NOTHING: two first-boots of the same name race between
-    // the route's findByName and this insert; the loser gets null, not a 23505.
+    // ON CONFLICT DO NOTHING: two first-boots of the same name race the route's findByName; the loser gets null, not a 23505.
     const { rows } = await this.pool.query<DbRow>(
       `INSERT INTO ${CLUSTER_AGENT_TABLE} (name, tags, token_hash, cluster_info)
        VALUES ($1, $2, $3, $4)

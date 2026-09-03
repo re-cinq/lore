@@ -1,6 +1,4 @@
-// The one arrowhead every connector points with. The marker id lives here next
-// to the marker itself, so the definition and the reference cannot drift.
-
+// The one arrowhead every connector points with; the marker id lives next to the marker so definition and reference cannot drift.
 import styles from "./run-graph.module.css";
 
 const ARROW_MARKER_ID = "rgv-arrow";

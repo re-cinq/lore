@@ -1,7 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { createStationProject } from "./station-http.js";
 
-/** Records requests; replays canned JSON per "METHOD path" (path only, host-stripped). */
 function fakeFetch(routes: Record<string, unknown>): {
   fetchImpl: typeof fetch;
   calls: Array<{ method: string; path: string; body?: unknown }>;

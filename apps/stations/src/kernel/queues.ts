@@ -1,7 +1,4 @@
-// The org-wide `pipeline.*` repositories, bound to this service's pool.
-//
-// Lazy for the usual reason: `getPool()` throws until `initPool()` has run at
-// boot. Never call at module scope.
+// The org-wide `pipeline.*` repositories, bound to this service's pool. Lazy for the usual reason: `getPool()` throws until `initPool()` has run at boot — never call at module scope.
 
 import { createPipelineRepositories } from "@re-cinq/lore-shared/project/pipeline/pipeline-repositories-pg.js";
 import type { PipelineRepositories } from "@re-cinq/lore-shared";
@@ -48,8 +45,7 @@ export const settings = (): PgSettings =>
 export const memoryLifecycle = (): PgMemoryLifecycle =>
   (memoryLifecycleSingleton ??= new PgMemoryLifecycle(getPool()));
 
-/** Where this service reports events. Stations produce them (a resume, a
- *  decomposition) and, like every producer, go through the router (ADR-044). */
+// Stations report events (resume, decomposition) through the router like every producer (ADR-044).
 /** pipeline.anthropic_cost_daily — the cost import's write surface. */
 export const cost = (): PgCost => (costSingleton ??= new PgCost(getPool()));
 
@@ -61,9 +57,7 @@ export const gcpCost = (): PgGcpCost =>
 
 let usageSingleton: PgUsage | undefined;
 
-/** Per-call `pipeline.llm_calls` cost logging — the transport a service-run
- *  station's model call reports through (a pod reports via its terminal line
- *  instead, and `Llm.usageConfigured` keeps the two from double-counting). */
+// Per-call `pipeline.llm_calls` cost logging — the transport a service-run station's model call reports through (a pod uses its terminal line instead; `Llm.usageConfigured` avoids double-counting).
 export const usage = (): PgUsage => (usageSingleton ??= new PgUsage(getPool()));
 
 export const eventProxy = (): EventProxy =>
@@ -71,20 +65,10 @@ export const eventProxy = (): EventProxy =>
     local: () => pipelineRepositories().eventQueue,
   }));
 
-/**
- * The reporting half of that hub: `insert`, synchronous and throwing. A
- * producer with nobody to return a status to reaches for `eventProxy().emit`
- * instead.
- */
+// The reporting half of that hub: `insert`, synchronous and throwing; a producer with nobody to return a status to uses `eventProxy().emit` instead.
 export const eventReporter = (): EventReporter => eventProxy();
 
-/**
- * The deliveries this service consumes.
- *
- * Resolved the same three ways every other bus client is: over HTTP to the
- * event-router where one is configured, and against the local pool otherwise so
- * `npm start` keeps working with no router in front of it.
- */
+// The deliveries this service consumes — resolved like every bus client: over HTTP to the event-router when configured, else the local pool (so `npm start` works with no router).
 export const deliveries = (): EventDeliveriesPort =>
   (deliveriesSingleton ??= selectEventDeliveries({
     local: () => new PgEventDeliveries(getPool()),

@@ -9,9 +9,6 @@ import {
 } from "./planning-prompt.js";
 import { parseGapResult, type GapResult } from "./gap-result.js";
 
-/** The prompt the pod actually runs. Read from the file the catalog is generated
- *  from, not from a constant, because a constant is exactly what used to drift
- *  out of the delivered recipe without anything noticing. */
 function planningPromptTemplate(): string {
   const yamlPath = resolve(
     dirname(fileURLToPath(import.meta.url)),
@@ -24,8 +21,6 @@ function planningPromptTemplate(): string {
   return doc.task_types["feature-planning"].prompt_template;
 }
 
-/** The worked example the prompt embeds, as JSON. It is the last `{...}` block
- *  before the round content, so it is bounded by the heading that follows it. */
 function embeddedExample(template: string): unknown {
   const after = template.split("Example of a valid result.json:")[1];
   const json = after.split("## This round")[0].trim();
@@ -112,9 +107,7 @@ describe("composePlanningPrompt", () => {
 });
 
 describe("the feature-planning prompt template", () => {
-  it("embeds an example that parses cleanly against the GapResult schema", () => {
-    // The guard PLANNING_EXAMPLE used to give, moved to the text that ships: an
-    // example demonstrating a shape the parser rejects teaches the agent to fail.
+  it("embeds an example that parses cleanly against the GapResult schema, replacing the removed PLANNING_EXAMPLE guard", () => {
     const example = embeddedExample(planningPromptTemplate());
 
     expect(parseGapResult(example)).toEqual(example);
@@ -136,11 +129,7 @@ describe("the feature-planning prompt template", () => {
     expect(new Set(formats)).toEqual(new Set(["mermaid", "html"]));
   });
 
-  it("embeds a self-contained example stylesheet, defining every token it uses", () => {
-    // The mockup frame loads none of the repo's stylesheets, so a token that is only
-    // REFERENCED is undefined there — the declaration is invalid and the mockup
-    // renders as unstyled black text on a blank page. An example demonstrating that
-    // pattern teaches the agent to produce it, which is exactly what happened.
+  it("embeds a self-contained example stylesheet, defining every token it uses, since the mockup frame loads none of the repo's stylesheets", () => {
     const example = parseGapResult(embeddedExample(planningPromptTemplate()));
     const css = example.mockup_stylesheet ?? "";
     const used = new Set(
@@ -154,11 +143,7 @@ describe("the feature-planning prompt template", () => {
     expect([...used].filter((token) => !defined.has(token))).toEqual([]);
   });
 
-  it("carries the round-content placeholder and leaves {context} to the catalog", () => {
-    // agent-catalog appends `\n\n{context}` to every recipe prompt. A template that
-    // also carried one produced the prompt a live pod was observed running, which
-    // ended `{context}\n\n{context}` — both unfilled, since renderPrompt leaves an
-    // unknown placeholder intact.
+  it("carries the round-content placeholder and leaves {context} to the catalog, which appends its own", () => {
     const template = planningPromptTemplate();
 
     expect(template).toContain("{description}");
@@ -197,8 +182,6 @@ describe("composeRoundFeedback", () => {
   };
 
   it("nests each answered question under the section that asked it", () => {
-    // The agent holds the draft in its conversation, not in the prompt — so the
-    // feedback has to say WHICH section each comment lands on by itself.
     const out = composeRoundFeedback({ round: 4, priorGap: gap, answers });
 
     expect(out).toContain('<Section title="Data model" direction="refine">');
@@ -207,8 +190,7 @@ describe("composeRoundFeedback", () => {
     ).toContain('<Question id="q1">');
   });
 
-  it("quotes the question text beside the answer", () => {
-    // Not just the id: a compacted conversation may no longer hold what q1 asked.
+  it("quotes the question text beside the answer, not just its id, in case the conversation was compacted", () => {
     const out = composeRoundFeedback({ round: 4, priorGap: gap, answers });
 
     expect(out).toContain("<Asked>Which repos?</Asked>");

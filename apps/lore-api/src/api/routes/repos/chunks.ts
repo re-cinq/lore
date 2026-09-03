@@ -6,22 +6,7 @@ import type { ServerRoute } from "@hapi/hapi";
 import { projectFor } from "../../../platform/project-boot.js";
 import { bearerScope } from "../../../server/plugins/bearer-scope.js";
 
-/**
- * GET /api/repos/:owner/:repo/chunks/{kind} — the vector-store chunk reads the
- * detection jobs need, served through `project.chunks` (the shared Project
- * facade, NOT direct DB queries). A station pod's ChunksHttp adapter calls this
- * so it never opens a Postgres connection (ADR-031 D7). Repo-scoped; the server
- * resolves the team schema (else org_shared) exactly as the Floor would.
- *
- *   spec           → { specs: SpecChunkRow[] }
- *   code-symbols   → { symbols: CodeSymbolRow[] }
- *   spec-ingest    → { specs: SpecChunkWithIngest[] }
- *   test-ranges    → { ranges: TestChunkRange[] }
- *   spec-backfill  → { specs: SpecChunkWithEmbedding[] }
- *   code-backfill  → { chunks: CodeChunkFull[] }
- *   has?content_type=&file_suffix=  → { has: boolean }
- *   stale?days=    → { count: number }
- */
+// Vector-store chunk reads for detection jobs, via `project.chunks` (not direct DB) so a station pod's ChunksHttp adapter never opens Postgres (ADR-031 D7); body shape varies by {kind}.
 const CHUNK_KINDS = new Set([
   "spec",
   "code-symbols",
@@ -86,8 +71,7 @@ export function chunksRoute(): ServerRoute {
           }
         }
       } catch (err) {
-        // A guard's refusal already carries its status; only an unexpected failure
-        // is this block's to shape.
+        // A guard's refusal already carries its status; only an unexpected failure is this block's to shape.
         rethrowBoom(err);
 
         return h

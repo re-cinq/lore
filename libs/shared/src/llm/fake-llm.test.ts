@@ -1,7 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { FakeLlm } from "./fake-llm.js";
 
-/** The shared real-object test double — replaces per-test vi.fn() stubs. */
 describe("FakeLlm", () => {
   it("complete returns the canned text with zeroed usage", async () => {
     const result = await new FakeLlm({ text: "hello" }).complete({

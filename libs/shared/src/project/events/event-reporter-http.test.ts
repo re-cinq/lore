@@ -2,7 +2,6 @@ import { describe, it, expect } from "vitest";
 import { HttpEventReporter } from "./event-reporter-http.js";
 import type { EventInsert } from "../../events.js";
 
-/** The one call the reporter makes, captured for assertion. */
 function captureFetch(response: Response): {
   calls: { url: string; init: RequestInit }[];
   fetchImpl: typeof fetch;
@@ -64,8 +63,6 @@ describe("HttpEventReporter", () => {
   });
 
   it("resolves a function token per call, so a rotation cannot 401 every report", async () => {
-    // The satellite case: its per-agent token changes at re-registration, and
-    // a value captured at construction would authenticate nothing afterwards.
     const { calls, fetchImpl } = captureFetch(
       new Response(null, { status: 202 }),
     );

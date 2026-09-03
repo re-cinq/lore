@@ -1,9 +1,4 @@
-/**
- * Standalone task-type configuration loader for the agent.
- *
- * Reads task type definitions from a YAML config file and exposes
- * helpers for prompt building, default repos, and type enumeration.
- */
+/** Standalone task-type configuration loader for the agent: reads YAML task type definitions and exposes prompt building, default repos, and type enumeration. */
 
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -24,16 +19,7 @@ const taskTypes: Map<string, TaskTypeRecipe> = new Map();
 
 // ── Public API ───────────────────────────────────────────────────────
 
-/**
- * Load task type definitions from YAML.
- *
- * Resolution order:
- *  1. Explicit `configPath` argument
- *  2. `TASK_TYPES_PATH` env variable
- *  3. `./task-types.yaml` (cwd)
- *  4. `../scripts/task-types.yaml` (repo root scripts/)
- *  5. `/config/task-types.yaml` (container mount)
- */
+/** Load task type definitions from YAML, trying in order: `configPath` arg, `TASK_TYPES_PATH` env, `./task-types.yaml`, `../scripts/task-types.yaml`, `/config/task-types.yaml`. */
 export function loadTaskTypes(configPath?: string): void {
   const paths: string[] = [];
 
@@ -58,21 +44,16 @@ export function loadTaskTypes(configPath?: string): void {
       );
 
       taskTypes.clear();
-
-      for (const [name, cfg] of Object.entries(types)) {
-        taskTypes.set(name, cfg);
-      }
+      Object.entries(types).forEach(([name, cfg]) => taskTypes.set(name, cfg));
 
       console.log(`[floor] Loaded ${taskTypes.size} task types from ${p}`);
 
-      // The container reads this from a ConfigMap. A stale one is the failure
-      // mode that once blinded every review (#866) — say so rather than serve a
-      // shape the code no longer describes.
+      // A stale ConfigMap once blinded every review (#866) — warn rather than silently serve a shape the code no longer describes.
       warnOnDrift("[floor]", p, drift);
 
       return;
     } catch {
-      // try next path
+      // continue
     }
   }
 
@@ -91,14 +72,7 @@ export function getTaskTypes(): string[] {
   return [...taskTypes.keys()];
 }
 
-/**
- * Build a prompt string for the given task type and description.
- *
- * Falls back to the "general" type if `taskType` is not found,
- * and to a hardcoded default if "general" is also missing. That fallback is for
- * a TASK whose type predates the config; a node naming a `prompt_ref` must use
- * {@link buildNodePrompt}, which refuses to substitute a different recipe.
- */
+/** Build a prompt for a task type, falling back to "general" then a hardcoded default — only for a TASK whose type predates the config; a node's `prompt_ref` must use {@link buildNodePrompt} instead, which refuses to substitute. */
 export function buildPrompt(taskType: string, description: string): string {
   const cfg = taskTypes.get(taskType) ?? taskTypes.get("general");
   const template =
@@ -107,34 +81,12 @@ export function buildPrompt(taskType: string, description: string): string {
   return fillDescription(template, description);
 }
 
-/**
- * Substitute a task description into a prompt template's `{description}` slot,
- * LITERALLY.
- *
- * `String.prototype.replace` reads `$&`, `` $` ``, `$'`, `$1` and `$$` in the
- * REPLACEMENT argument, and a task description is user input — from the UI, Slack
- * or an Issue body. A description quoting a shell variable (`$'`, "the text after
- * the match") spliced the rest of the template back into itself and the agent ran
- * on a silently corrupted prompt; nothing threw. A replacer FUNCTION is the one
- * form that never interprets its result.
- */
+/** Substitute a description into `{description}` LITERALLY via a replacer function, since `String.prototype.replace`'s string form interprets `$&`/`$'`/`$1` in user input (UI/Slack/Issue text) and silently corrupted the prompt. */
 export function fillDescription(template: string, description: string): string {
   return template.replace("{description}", () => description);
 }
 
-/**
- * The prompt for an assembly-line node — resolved STRICTLY, throwing when the
- * `prompt_ref` names nothing.
- *
- * A node's `prompt_ref` is a claim about which recipe the node runs, and the
- * silent fallback made it unfalsifiable: every push node in the platform
- * declared `prompt_ref: push-only`, no such task type ever existed, and so every
- * one of them quietly ran the GENERAL prompt — "complete the following task" —
- * against the whole feature description. They edited files, committed, exited 0
- * and reported success, for weeks, while no line opened a PR (#1329). A missing
- * recipe is a broken blueprint; running a different one and calling it success
- * is the failure mode that hid it.
- */
+/** The prompt for an assembly-line node, resolved STRICTLY (throws on an unknown `prompt_ref`) — a silent fallback once let every push node quietly run the wrong prompt and report success for weeks with no PR opened (#1329). */
 export function buildNodePrompt(
   promptRef: string,
   description: string,
@@ -156,11 +108,7 @@ export function buildNodePrompt(
   return fillDescription(cfg.prompt_template, description);
 }
 
-/**
- * Return the default target repo for a task type.
- *
- * Falls back to "re-cinq/lore" when the type has no explicit target_repo.
- */
+/** Return the default target repo for a task type, falling back to "re-cinq/lore". */
 export function getDefaultRepo(taskType: string): string {
   return taskTypes.get(taskType)?.target_repo || "re-cinq/lore";
 }

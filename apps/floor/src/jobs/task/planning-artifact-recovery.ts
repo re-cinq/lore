@@ -1,23 +1,4 @@
-// Whether a planning round's lost artifact can be recovered, and from WHOSE
-// transcript (#1302).
-//
-// #1299's blanket exemption — skip recovery whenever the round is `running` on
-// an OPEN run — hid exactly the incident shape it existed for: analyze
-// SUCCEEDED, the walk parked on `author`, the artifact was lost, and the round
-// sat `running` on an open run, permanently exempt. The precise rule keys on
-// the round's WORK row (the newest station run a pod actually executed — human
-// stations have no pod and no transcript):
-//
-//   * work row succeeded          → recover, whatever the run's status is
-//   * work row open, run open     → in flight; the artifact is not lost yet
-//   * work row open, run closed   → recover — the pod may have written the
-//                                   artifact and had its node event eaten (#1298)
-//   * work row failed             → nothing to recover; a previous round's
-//                                   artifact must NOT be replayed into this one
-//
-// The decision carries the work row's Agent CR name so the transcript scan is
-// scoped to THIS round's pod: an unscoped scan over a multi-round run would
-// resurface the previous round's `result.json` as if the current round wrote it.
+// Whether a planning round's lost artifact can be recovered, and from WHOSE transcript (#1302): keys on the round's newest WORK row (succeeded → recover; open+run-open → wait; open+run-closed → recover, node event may have been eaten #1298; failed → none), scoped to that row's Agent CR name so a multi-round run's scan can't resurface a prior round's result.json. Replaces #1299's blanket "skip while running on an open run" exemption, which hid exactly this incident shape.
 
 import { isHumanStation } from "@re-cinq/lore-assembly-lines";
 import type { RunGraph } from "@re-cinq/lore-shared/project/assembly-runs/run-graph.js";
@@ -34,13 +15,7 @@ export type ArtifactRecoveryDecision =
   | { kind: "wait" }
   | { kind: "none" };
 
-/**
- * Decide from the run's station-run rows (visit order) and its cloned graph.
- *
- * A run with no graph predates the clone column (FR6.38); there the work-row
- * test falls back to CR presence — a human station's row never names an Agent
- * CR, a pod's always does.
- */
+/** Decide from the run's station-run rows and cloned graph; a run predating the clone column (FR6.38) falls back to CR presence to distinguish a human station's row. */
 export function decideArtifactRecovery(
   nodes: readonly RecoveryNode[],
   graph: RunGraph | null,

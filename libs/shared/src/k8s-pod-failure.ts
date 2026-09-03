@@ -1,10 +1,4 @@
-/**
- * Classifies Job-pod failure reasons as transient infrastructure failures
- * (worth a bounded retry) vs task-content failures (terminal). Pure and
- * domain-neutral — the loretask-watcher uses it to self-heal failures like the
- * #571 batch (a bad-secret deploy → CreateContainerConfigError →
- * BackoffLimitExceeded) instead of filing terminal `lore-failed` issues.
- */
+/** Classifies Job-pod failure reasons as transient infra failures (bounded retry) vs task-content failures (terminal); used to self-heal failures like the #571 batch instead of filing terminal `lore-failed` issues. */
 
 const TRANSIENT_INFRA_PATTERNS = [
   "BackoffLimitExceeded",

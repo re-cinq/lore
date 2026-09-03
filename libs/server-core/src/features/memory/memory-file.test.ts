@@ -3,12 +3,6 @@ import { mkdtempSync, rmSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-// memory-file.ts captures BASE_DIR = $HOME/.lore/memory at module-load time, so
-// HOME must be pointed at a throwaway dir BEFORE the module is imported. Static
-// imports are hoisted, so the module is loaded via a dynamic import() inside
-// beforeAll after HOME is set, and every call passes an explicit agent id so
-// resolveAgentId never reaches for the real ~/.lore.
-
 let mod: typeof import("./memory-file.js");
 let tmpHome: string;
 let originalHome: string | undefined;
@@ -80,8 +74,6 @@ describe("memory-file round-trips against real disk", () => {
     const listing = mod.listMemoriesFile("agent-list");
 
     expect(listing.total).toBe(1);
-    // A listing enumerates keys and carries no value — the pool path's SELECT
-    // reads none either, and the endpoint declares one shape for both backends.
     expect(listing.memories).toEqual([
       expect.objectContaining({
         key: "keeper",

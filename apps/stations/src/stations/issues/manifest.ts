@@ -1,10 +1,6 @@
 import type { NodeStationModule } from "../lib/station.js";
 
-/**
- * File the Issues and spec-tasks a decomposition calls for.
- *
- * Runtime — Pooled: writes over HTTP, seconds of work, no clone and no untrusted input.
- */
+// Files the Issues and spec-tasks a decomposition calls for. Runtime: pooled — writes over HTTP, seconds of work, no clone and no untrusted input.
 export const issues: NodeStationModule = {
   manifest: {
     name: "issues",
@@ -19,7 +15,6 @@ export const issues: NodeStationModule = {
       },
     ],
   },
-  // Its second parameter is a test seam, not the pod env; passing StationEnv
-  // straight in would hand it an object it does not understand.
+  // Its second parameter is a test seam, not the pod env; passing StationEnv straight in would hand it an object it does not understand.
   run: async (input) => (await import("./issues.js")).runIssuesStation(input),
 };

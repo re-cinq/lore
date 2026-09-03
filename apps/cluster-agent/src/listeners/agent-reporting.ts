@@ -1,15 +1,4 @@
-// What the watch DOES with a CR, separated from the connection that delivers it.
-//
-// The reconnect loop and the live `Watch` next door cannot be unit-tested
-// without a cluster; these two can, against a plain object and a fake lister —
-// so they live apart from the shell rather than being excluded from coverage
-// along with it.
-//
-// This file used to carry a retry ladder and a re-registration hook as well.
-// Both moved to the shared `EventProxy`: every producer that reports to the
-// router needs that ladder and exactly one of them had it. What is left is the
-// mapping — observe a CR, hand the event over — which is all an input should
-// decide.
+// What the watch DOES with a CR, separated from the connection that delivers it — testable against a plain object and a fake lister, unlike the reconnect loop and live Watch beside it.
 
 import { errorMessage } from "@re-cinq/lore-shared";
 import type { Agent as AgentCr } from "@re-cinq/agent-contracts";
@@ -19,15 +8,13 @@ import { forEachPage } from "@re-cinq/lore-shared/lib/paginate.js";
 import type { CustomObjectsApi } from "@kubernetes/client-node";
 import { GROUP, VERSION, AGENT_PLURAL as PLURAL } from "../kernel/crd.js";
 
-// Re-exported: k8s-watch.ts reads the CRD identity through this module rather
-// than a second import from ../kernel/crd.js.
+// Re-exported so k8s-watch.ts reads the CRD identity through this module rather than a second import.
 export { GROUP, VERSION, PLURAL };
 
 const LIST_PAGE_LIMIT = 50;
 
 export interface WatchDeps {
-  /** Hand the event to the proxy. Resolves once QUEUED, and blocks while the
-   *  queue is full — which is the only backpressure the watch has. */
+  /** Hand the event to the proxy — resolves once QUEUED, blocking while full (the only backpressure the watch has). */
   emit: Emit;
 }
 
@@ -36,8 +23,7 @@ export type AgentLister = Pick<CustomObjectsApi, "listNamespacedCustomObject">;
 
 interface AgentListPage {
   items?: AgentCr[];
-  // The wire field is `continue`; custom-object responses are raw JSON, but the
-  // client's model mapper would surface `_continue` — read whichever is present.
+  // The wire field is `continue`; the model mapper would surface `_continue` instead — read whichever is present.
   metadata?: {
     continue?: string;
     _continue?: string;
@@ -45,12 +31,7 @@ interface AgentListPage {
   };
 }
 
-/**
- * Walk the Agent CRs one page at a time, returning the list's resourceVersion.
- * Never holds (or JSON.parses) the whole namespace at once: 180 accumulated CRs
- * (~1.4MB of status each) in a single unpaginated LIST blew Node's heap and
- * crash-looped the Floor on 2026-07-24.
- */
+/** Walk the Agent CRs one page at a time, returning the list's resourceVersion — 180 accumulated CRs in one unpaginated LIST blew Node's heap on 2026-07-24. */
 export async function forEachAgentPage(
   k8sApi: AgentLister,
   namespace: string,
@@ -68,8 +49,7 @@ export async function forEachAgentPage(
       _continue: continueToken,
     })) as AgentListPage;
 
-    // Captured here rather than returned by the walk: the resourceVersion is
-    // this caller's concern (it seeds the watch), not pagination's.
+    // Captured here rather than returned by the walk — the resourceVersion is this caller's concern (it seeds the watch), not pagination's.
     resourceVersion = page.metadata?.resourceVersion ?? resourceVersion;
 
     return {
@@ -81,16 +61,7 @@ export async function forEachAgentPage(
   return resourceVersion;
 }
 
-/**
- * Map one observed CR and hand it to the proxy, if it is terminal.
- *
- * A failed emit is logged and swallowed HERE, unlike everywhere else this repo
- * reports events. The caller is a watch callback with nobody to return a status
- * to: throwing would take down the stream over one CR. Delivery failure is no
- * longer among the things that can happen here — `emit` only queues — so this
- * guards a defect rather than a blip, and the Floor's reconcile pass re-emits
- * anything missed either way.
- */
+/** Map one observed CR and hand it to the proxy if terminal. A failed emit is logged and swallowed HERE — the caller is a watch callback with nobody to return a status to. */
 export async function reportForAgent(
   agent: AgentCr,
   deps: WatchDeps,

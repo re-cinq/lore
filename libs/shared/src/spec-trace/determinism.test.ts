@@ -7,17 +7,6 @@ import * as dgraph from "dgraph-js-http";
 import { projectSpecFile } from "./project-spec-file.js";
 import { ingestCoverageReport } from "./ingest-coverage.js";
 
-/**
- * Determinism (spec-traceability-graph, AC #11 / T281) — the graph is a derived
- * projection only: deleting the entire traceability subgraph and re-running the
- * units from the SAME markdown + chunks + coverage reproduces it EXACTLY. Proven
- * against the REAL local Dgraph (no mocks); skips when unreachable.
- *
- * Passes by construction: every node's xid is content/path-derived (not random)
- * and `upsertByXid` is idempotent, so a snapshot keyed by xid (uids excluded) is
- * stable across delete + re-projection. A failure means a real non-determinism bug.
- */
-
 const DGRAPH_HTTP = process.env.DGRAPH_HTTP ?? "http://localhost:8081";
 const APPLIER = join(
   findRepoRoot(),
@@ -43,9 +32,32 @@ interface NodeRecord {
   fields: Record<string, unknown>;
 }
 
-// Spec-sentence acceptance link (testing-standards opt-in): the 3-level nesting
-// `describe(spec title) > describe(verbatim AC sentence) > it(label)` lets the
-// runner derive VALIDATED_BY structurally from the describe chain.
+function normalizeEdgeValue(value: unknown): unknown {
+  if (!Array.isArray(value)) {
+    return value;
+  }
+
+  return value
+    .map(
+      (target) => Object.values(target as Record<string, unknown>)[0] as string,
+    )
+    .sort();
+}
+
+function nodeRecordOf(
+  group: string,
+  node: Record<string, unknown>,
+): NodeRecord {
+  const xidKey = Object.keys(node).find((k) => k.endsWith(".xid"))!;
+  const fields: Record<string, unknown> = {};
+
+  for (const [pred, value] of Object.entries(node)) {
+    fields[pred] = normalizeEdgeValue(value);
+  }
+
+  return { key: `${group}|${node[xidKey] as string}`, fields };
+}
+
 describe.skipIf(!reachable)("Spec Traceability Graph", () => {
   const dgraphClient = new dgraph.DgraphClient(
     new dgraph.DgraphClientStub(DGRAPH_HTTP),
@@ -58,12 +70,6 @@ describe.skipIf(!reachable)("Spec Traceability Graph", () => {
     });
   });
 
-  /**
-   * Canonical, order-independent snapshot of a repo's whole subgraph: one record
-   * per node keyed `${type}|${xid}` carrying its scalar fields and its outgoing
-   * uid-edges as SORTED target-xid arrays. Excludes internal `uid` (compared by
-   * xid), `Coverage.generated_at` (timestamp), and `*.embedding` (float vectors).
-   */
   async function snapshot(repo: string): Promise<NodeRecord[]> {
     const txn = dgraphClient.newTxn();
 
@@ -88,29 +94,10 @@ describe.skipIf(!reachable)("Spec Traceability Graph", () => {
       );
       const data = res.data as Record<string, Array<Record<string, unknown>>>;
 
-      const records: NodeRecord[] = [];
-
-      for (const [group, nodes] of Object.entries(data)) {
-        for (const node of nodes ?? []) {
-          const xidKey = Object.keys(node).find((k) => k.endsWith(".xid"))!;
-          const fields: Record<string, unknown> = {};
-
-          for (const [pred, value] of Object.entries(node)) {
-            // an outgoing edge — normalize to a sorted array of target xids
-            fields[pred] = Array.isArray(value)
-              ? value
-                  .map(
-                    (target) =>
-                      Object.values(
-                        target as Record<string, unknown>,
-                      )[0] as string,
-                  )
-                  .sort()
-              : value;
-          }
-          records.push({ key: `${group}|${node[xidKey] as string}`, fields });
-        }
-      }
+      const records: NodeRecord[] = Object.entries(data).flatMap(
+        ([group, nodes]) =>
+          (nodes ?? []).map((node) => nodeRecordOf(group, node)),
+      );
 
       return records.sort((a, b) => a.key.localeCompare(b.key));
     } finally {
@@ -148,7 +135,7 @@ describe.skipIf(!reachable)("Spec Traceability Graph", () => {
         });
       }
     } catch {
-      // best-effort cleanup must never mask the assertion
+      void 0;
     } finally {
       await txn.discard().catch(() => {});
     }
@@ -162,7 +149,6 @@ describe.skipIf(!reachable)("Spec Traceability Graph", () => {
     "## Acceptance Criteria\n\n" +
     "1. The button is keyboard reachable. ([validated by](spec/a11y_spec.rb#L3))\n";
 
-  // The replayed "units" — markdown projection + a coverage report — identical across both runs.
   async function runUnits(repo: string): Promise<void> {
     await projectSpecFile(repo, specPath, content, dgraphClient);
     await ingestCoverageReport(

@@ -4,12 +4,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-options";
 import { serverError } from "@/lib/api-error";
 
-/**
- * GET /api/spend-window — the spend page's interval fetch. A thin
- * authenticated proxy to lore-api's /api/analytics/spend-window: the browser
- * holds a session, never the ingest token. Coverage-exempt IO glue
- * (`src/app/api/**`), same as the other proxies.
- */
+// Thin authenticated proxy to lore-api's /api/analytics/spend-window — the browser holds a session, never the ingest token.
 export async function GET(req: Request) {
   try {
     const session = await getServerSession(authOptions);

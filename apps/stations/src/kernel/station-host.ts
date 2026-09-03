@@ -1,10 +1,4 @@
-/**
- * This process's implementation of the ports a sweep reaches data through.
- *
- * The composition root for stations: the registry lives in a package shared with
- * a pod that has no pool, so a station cannot resolve its own database — it is
- * GIVEN one, here, by the process that has it.
- */
+// This process's implementation of the ports a sweep reaches data through — the composition root: the registry is shared with a pod that has no pool, so a station is GIVEN its database here rather than resolving one itself.
 
 import { getApprovalLabel } from "@re-cinq/lore-shared";
 import type { StationHost, StationRepo } from "../stations/index.js";
@@ -31,11 +25,7 @@ async function repoFor(repo: string): Promise<StationRepo> {
   };
 }
 
-/**
- * This service holds a pool AND a GitHub App, so it serves every port — the
- * scheduled data operations as readily as the repo sweeps. lore-api's host
- * serves only the data half and says so; nothing here needs to.
- */
+// This service holds a pool AND a GitHub App, so it serves every port — the scheduled data ops as readily as the repo sweeps (lore-api's host serves only the data half).
 export const stationHost = (): StationHost => ({
   awaitingApproval: () => pipeline().taskQueue.awaitingApproval(),
   approvalLabel: getApprovalLabel,

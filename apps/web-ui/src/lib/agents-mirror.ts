@@ -1,14 +1,4 @@
-// The agent display type is NOT mirrored any more: `AgentDefinition` is an alias
-// over the OpenAPI document lore-api generates from its own route contracts
-// (ADR-035), so the shape has one declaration — the `ResolvedAgentDefinition`
-// schema in libs/shared/src/models/agent-definition.ts — and
-// scripts/check-openapi-drift.sh fails CI when the generated artifact is stale.
-// This file previously hand-copied the interface with no drift guard at all.
-//
-// KNOWN_MODELS stays here on purpose. It is a curated DROPDOWN, not part of any
-// response, so no generated type can carry it; the API accepts custom text for
-// `model` regardless of what this list offers.
-
+// AgentDefinition aliases the OpenAPI-generated schema (ADR-035; scripts/check-openapi-drift.sh guards it) — no longer hand-copied. KNOWN_MODELS stays here: a curated dropdown, not part of any response.
 import type { components } from "./api/schema";
 
 /** One resolved agent definition, as the API serves it. */

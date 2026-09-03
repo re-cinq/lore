@@ -1,9 +1,4 @@
-/**
- * Pure markdown body for a decoration hover. Returns a string the caller wraps
- * in a trusted `vscode.MarkdownString`; every link is an `openLocal` command URI
- * so it opens the local document (never a browser). Pure + tested so the link
- * wiring can't regress silently.
- */
+// Every link uses the openLocal command URI, never a browser, so hovers open the local document.
 
 import type { RangeEntry } from "./spec-index.js";
 import { openLocalCommandUri } from "./command-links.js";

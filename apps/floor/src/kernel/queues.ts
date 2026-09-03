@@ -1,14 +1,4 @@
-/**
- * Floor-side singletons for the shared, repo-agnostic repositories: `pipeline()`
- * for the whole `pipeline.*` bundle (ADR-024), plus one accessor each for the
- * tables that sit outside it.
- *
- * Lazy because `getPool()` throws until `initPool()` has run at startup — the
- * accessor defers construction to first use (after the pool exists), mirroring
- * how the kernel repositories defer their first `query`. Never call one at
- * module scope. Jobs default their injected dependency to these so tests can
- * swap in the shared InMemory doubles.
- */
+/** Floor-side singletons for the shared, repo-agnostic repositories, lazy because `getPool()` throws until `initPool()` has run at startup — never call one at module scope. */
 import { getPool } from "./db.js";
 import { createPipelineRepositories } from "@re-cinq/lore-shared/project/pipeline/pipeline-repositories-pg.js";
 import type { PipelineRepositories } from "@re-cinq/lore-shared";
@@ -49,22 +39,11 @@ let settingsSingleton: PgSettings | undefined;
 let chunksSingleton: PgChunks | undefined;
 let memoryLifecycleSingleton: PgMemoryLifecycle | undefined;
 
-/**
- * The org-wide `pipeline.*` repositories — the task queue, the event queue,
- * assembly runs, job runs, audit, leases, and the agent-run event + turn
- * telemetry — bound to the pool as ONE bundle (ADR-024). lore-api binds the
- * same bundle through `project.pipeline`, so both deployables construct these
- * adapters exactly one way.
- */
+/** The org-wide `pipeline.*` repositories bound to the pool as ONE bundle (ADR-024); lore-api binds the same bundle through `project.pipeline`. */
 export const pipeline = (): PipelineRepositories =>
   (pipelineSingleton ??= createPipelineRepositories(getPool()));
 
-/**
- * Repo-agnostic task *record* surface (create / by-id reads + status writes /
- * event recording), bound to the pool. The cross-repo cron jobs reach
- * `pipeline.tasks` records through this instead of inline SQL; a job that holds
- * a Project uses `project.tasks` instead.
- */
+/** Repo-agnostic task *record* surface, bound to the pool; cross-repo cron jobs use this instead of inline SQL, a job holding a Project uses `project.tasks`. */
 export const taskStore = (): PgTaskStore =>
   (taskStoreSingleton ??= new PgTaskStore(getPool()));
 
@@ -86,11 +65,7 @@ export const cost = (): PgCost => (costSingleton ??= new PgCost(getPool()));
 export const contextCore = (): PgContextCore =>
   (contextCoreSingleton ??= new PgContextCore(getPool()));
 
-/**
- * Org-wide lore.repos record reads/writes (settings JSONB, team, onboarded set,
- * ingest stamp). Read-only binding — repo var/secret writes go through a
- * repo-scoped `project.settings` (which carries the GitHub writer).
- */
+/** Org-wide lore.repos record reads/writes; repo var/secret writes go through a repo-scoped `project.settings` (which carries the GitHub writer) instead. */
 export const settings = (): PgSettings =>
   (settingsSingleton ??= new PgSettings(getPool()));
 
@@ -98,49 +73,24 @@ export const settings = (): PgSettings =>
 export const chunks = (): PgChunks =>
   (chunksSingleton ??= new PgChunks(getPool()));
 
-/**
- * Floor-side memory.* lifecycle (decay/eviction/consolidation, PR-outcome
- * feedback, episode + memory writes). Distinct from the agent-facing memory
- * tools — this is the cron/job write surface.
- */
+/** Floor-side memory.* lifecycle (decay/eviction/consolidation, PR-outcome feedback); distinct from the agent-facing memory tools — this is the cron/job write surface. */
 export const memoryLifecycle = (): PgMemoryLifecycle =>
   (memoryLifecycleSingleton ??= new PgMemoryLifecycle(getPool()));
 
 let eventProxySingleton: EventProxy | undefined;
 
-/**
- * The hub this Floor reports through (ADR-044 + its 2026-08-28 amendment). The
- * event-router owns `pipeline.events`, so in a cluster this reports over HTTP;
- * with no `EVENT_ROUTER_URL` (local `npm start`) it falls back to the pool.
- *
- * ONE per process, memoized — the queue is the proxy's own state, so a second
- * instance would be a second queue with nothing draining it. `index.ts` starts
- * it and the shutdown drains it.
- */
+/** The hub this Floor reports through (ADR-044): over HTTP to the event-router in a cluster, or the pool with no `EVENT_ROUTER_URL`; memoized to ONE per process since a second instance would be a second, undrained queue. */
 export const eventProxy = (): EventProxy =>
   (eventProxySingleton ??= selectEventProxy({
     local: () => pipeline().eventQueue,
   }));
 
-/**
- * The reporting half of that hub: `insert`, synchronous and throwing.
- *
- * The ingress routes answer 202 only once the insert lands and turn a throw into
- * a 500 so the sender redelivers — so this stays the default. A producer with
- * nobody to return a status to reaches for `eventProxy().emit` instead.
- */
+/** The reporting half of that hub: `insert`, synchronous and throwing so ingress routes can 500 to make the sender redeliver; a producer with no status to return uses `eventProxy().emit` instead. */
 export const eventReporter = (): EventReporter => eventProxy();
 
 let eventQueueSingleton: EventQueueRepository | undefined;
 
-/**
- * The queue this Floor DRAINS (ADR-044). The router owns `pipeline.events`, so
- * in a cluster the loop claims and acks over HTTP; with no `EVENT_ROUTER_URL`
- * (local `npm start`) it falls back to the pool.
- *
- * The claim stays atomic either way — `FOR UPDATE SKIP LOCKED` is one statement
- * server-side, and going over HTTP only carries the request to it.
- */
+/** The queue this Floor DRAINS (ADR-044): over HTTP to the router in a cluster, or the pool locally; `FOR UPDATE SKIP LOCKED` keeps the claim atomic either way. */
 export const eventQueue = (): EventQueueRepository =>
   (eventQueueSingleton ??= selectEventQueue({
     local: () => pipeline().eventQueue,
@@ -148,15 +98,7 @@ export const eventQueue = (): EventQueueRepository =>
 
 let deliveriesSingleton: EventDeliveriesPort | undefined;
 
-/**
- * The DELIVERIES this Floor consumes (ADR-044 amendment).
- *
- * The Floor is one subscriber among several now rather than the drainer, so it
- * claims its own copies of the events it registered for. Its former ability to
- * receive an event it had no handler for — and dead-letter it on the spot, with
- * no retry — is gone by construction: nothing it did not subscribe to is ever
- * delivered to it.
- */
+/** The DELIVERIES this Floor consumes (ADR-044 amendment): one subscriber among several claiming its own copies, so nothing it did not subscribe to is ever delivered to it. */
 export const deliveries = (): EventDeliveriesPort =>
   (deliveriesSingleton ??= selectEventDeliveries({
     local: () => new PgEventDeliveries(getPool()),
@@ -164,10 +106,7 @@ export const deliveries = (): EventDeliveriesPort =>
 
 let stationClientSingleton: StationClient | undefined;
 
-/**
- * The stations service (ADR-024's service-endpoint form). The Floor still owns
- * WHEN a station runs; this is how it says so.
- */
+/** The stations service (ADR-024's service-endpoint form); the Floor still owns WHEN a station runs, this is how it says so. */
 export const stationClient = (): StationClient =>
   (stationClientSingleton ??= new StationClient(
     process.env.STATIONS_URL ?? "",
@@ -176,17 +115,13 @@ export const stationClient = (): StationClient =>
 
 let clusterAgentsSingleton: PgClusterAgents | undefined;
 
-/** The execution-cluster registry (specs/running-stations-in-any-k8s-cluster):
- *  registration, the reaper's offline sweep, and central-id resolution. */
+/** The execution-cluster registry (specs/running-stations-in-any-k8s-cluster): registration, the reaper's offline sweep, and central-id resolution. */
 export const clusterAgents = (): PgClusterAgents =>
   (clusterAgentsSingleton ??= new PgClusterAgents(getPool()));
 
 let clusterAgentSingleton: ClusterAgentClient | undefined;
 
-/**
- * This cluster's agent — the only process that talks to its Kubernetes API.
- * The Floor decides WHAT to dispatch; the agent performs it.
- */
+/** This cluster's agent — the only process that talks to its Kubernetes API; the Floor decides WHAT to dispatch, the agent performs it. */
 export const clusterAgent = (): ClusterAgentClient =>
   (clusterAgentSingleton ??= new ClusterAgentClient(
     process.env.CLUSTER_AGENT_URL ?? "",

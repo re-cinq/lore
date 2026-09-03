@@ -3,16 +3,6 @@ import { execFileSync } from "node:child_process";
 import { join } from "node:path";
 import { findRepoRoot } from "./lib/repo-root.js";
 
-/**
- * The spec-traceability-graph Dgraph schema applier
- * (`scripts/infra/setup-spec-trace-schema.sh`) lands the core traceability
- * predicates: the `Statement.xid` hash upsert index and the
- * `Statement.embedding` float32vector HNSW index. Runs against the REAL local
- * Dgraph container (no mocks), per the spec-traceability-graph data-model.
- * Skips when Dgraph isn't reachable so `npm test` still passes without a
- * container. Bring one up with `npm run services:up` (or `dgraph:up`).
- */
-
 const DGRAPH_HTTP = process.env.DGRAPH_HTTP ?? "http://localhost:8081";
 const APPLIER = join(
   findRepoRoot(),

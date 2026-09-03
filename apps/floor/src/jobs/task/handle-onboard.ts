@@ -317,18 +317,19 @@ export async function handleOnboard(
   }
 
   if (interfaceCheck.status !== "configured") {
-    for (const scaffoldPath of interfaceCheck.files) {
-      if (existingFiles.has(scaffoldPath)) {
-        continue;
-      }
-      toGenerate.push({
+    const missingScaffolds = interfaceCheck.files.filter(
+      (scaffoldPath) => !existingFiles.has(scaffoldPath),
+    );
+
+    toGenerate.push(
+      ...missingScaffolds.map((scaffoldPath) => ({
         path: scaffoldPath,
         prompt:
           scaffoldPath === ".github/workflows/lore-tests.yml"
             ? LORE_TESTS_INSTRUCTION
             : TEST_COMMAND_MANIFEST_SCAFFOLD_PROMPT,
-      });
-    }
+      })),
+    );
   }
 
   // ADRs: generate if no adrs/ directory exists

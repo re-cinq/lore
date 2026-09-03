@@ -5,18 +5,13 @@ import {
   maybeAlertBilling,
 } from "./billing-alert.js";
 
-// What `normalizeAgentStatus` hands the alert in production: the terminal error
-// already lifted off the raw stream, alongside the Job-level reason that says
-// nothing useful. Feeding the raw NDJSON here instead is exactly what hid the
-// never-firing alert (#1455) — the pure function passed while the composition
-// could not.
 const billingStatus = {
   errorText: "Credit balance is too low",
   failureReason: "BackoffLimitExceeded: Job has reached the backoff limit",
 };
 
 describe("billingAlertMessage", () => {
-  it("names the repo, node type, and the account error for a billing failure", () => {
+  it("names the repo, node type, and the account error for a billing failure built from the terminal error normalizeAgentStatus lifts off the raw stream, not the raw NDJSON that hid the never-firing alert (#1455)", () => {
     const message = billingAlertMessage(
       "re-cinq/lore",
       "review",
@@ -90,7 +85,6 @@ describe("maybeAlertBilling", () => {
     expect(
       await maybeAlertBilling("re-cinq/lore", "review", status, ports),
     ).toBe(true);
-    // A second drowned run in the same window is suppressed by the throttle.
     expect(
       await maybeAlertBilling("re-cinq/other", "refine", status, ports),
     ).toBe(false);
@@ -116,7 +110,6 @@ describe("maybeAlertBilling", () => {
       ),
     ).toBe(false);
     expect(sends).toBe(0);
-    // The throttle was never consumed, so a real billing failure still alerts.
     expect(
       await maybeAlertBilling("re-cinq/lore", "review", status, ports),
     ).toBe(true);

@@ -80,16 +80,6 @@ function harness() {
   };
 }
 
-/**
- * The same handler with the REAL `maybeAlertBilling` behind the seam instead of
- * a recorder.
- *
- * This composition is the one nobody tested, and the gap was the bug (#1455):
- * `billing-alert.test.ts` fed the pure function raw NDJSON, `harness()` above
- * stubs the seam out entirely, and in between them the handler normalizes the
- * status — destroying the very result line the alert needed. Both suites were
- * green for months while the alert never fired once in production.
- */
 function alertingHarness() {
   const port = new InMemoryAssemblyRuns();
   const sent: string[] = [];
@@ -202,13 +192,12 @@ describe("createNodeEventHandler", () => {
     expect(h.agentConfigAlerts).toEqual([{ repo: "o/r", nodeType: "agent" }]);
   });
 
-  it("alerts through the real billing path when the pod died out of credits", async () => {
+  it("alerts through the real billing path when the pod died out of credits, closing the gap that left the alert unfired in prod (#1455)", async () => {
     const h = alertingHarness();
     const { id, crName } = await reviewInFlight(
       h as unknown as ReturnType<typeof harness>,
     );
 
-    // Exactly what the cluster wrote for agent-job-3f05f9c7-cd2-analyze-2.
     h.statusByName[crName] = {
       phase: "Failed",
       failureReason:
@@ -238,8 +227,6 @@ describe("createNodeEventHandler", () => {
       h as unknown as ReturnType<typeof harness>,
     );
 
-    // Exactly what the cluster wrote when skills_source pointed nowhere
-    // reachable — claude never reaches a result line at all.
     h.statusByName[crName] = {
       phase: "Failed",
       failureReason:
@@ -332,9 +319,7 @@ describe("createNodeEventHandler", () => {
     });
   });
 
-  // Production hands the handler an NDJSON stream, not the bare marker the cases
-  // above use — the outcome must come out identical either way.
-  it("routes a review node whose outcome arrives inside an NDJSON envelope", async () => {
+  it("routes a review node whose outcome arrives inside an NDJSON envelope, as production sends rather than a bare marker", async () => {
     const h = harness();
     const { id, crName } = await reviewInFlight(h);
 
@@ -375,10 +360,7 @@ describe("createNodeEventHandler", () => {
     expect(await h.port.getById(id)).toMatchObject({ status: "finished" });
   });
 
-  it("uses the reported status even for a CR claimed by an unreachable cluster", async () => {
-    // The exact case that stranded PR #1599's review: a satellite-claimed CR
-    // this Floor's central-only read cannot see. Reporting the status on the
-    // event itself makes the visibility gate irrelevant for this event.
+  it("uses the reported status even for a CR claimed by an unreachable cluster, the case that stranded PR #1599's review", async () => {
     const h = harness();
     const { id, crName } = await reviewInFlight(h);
 
@@ -396,7 +378,6 @@ describe("createNodeEventHandler", () => {
     const h = harness();
     const { id, crName } = await reviewInFlight(h);
 
-    // No status registered → readAgentStatus returns null → phase decides.
     await h.handler(params(id, crName, "Failed"));
 
     expect(h.port.nodes[0]).toMatchObject({ outcome: "failed" });
@@ -466,8 +447,6 @@ describe("a declared artifact is delivered before the walk advances", () => {
     const h = harness();
     const { id, crName } = await openRun(h, fileLine());
 
-    // The sink is the fast path and normally wins; the terminal merge writes the
-    // same content, so ordering between them changes nothing.
     await h.port.mergeArgs(id, { spec_plan: '{"updates":[]}' });
     await h.handler(params(id, crName));
 
@@ -492,11 +471,7 @@ describe("a declared artifact is delivered before the walk advances", () => {
   });
 });
 
-describe("a delivering node that pushed nothing", () => {
-  // The deterministic half of the same fix: an implement node that ends with
-  // an empty branch is not a success, whatever it printed. Caught HERE, right
-  // after the node, rather than two nodes later at push — validate would
-  // otherwise diff an empty branch and lint the whole tree for nothing.
+describe("a delivering node that pushed nothing (caught here, not two nodes later at validate/push)", () => {
   const implLine: AssemblyLine = parseAssemblyLine(`
 name: implementation-loop
 description: implement -> validate
@@ -563,7 +538,6 @@ edges:
       phase: "Succeeded",
       output: JSON.stringify({ type: "result", result: "done" }),
     };
-    // Not the file's `params()` helper: that one names the review node.
     await createNodeEventHandler(h.deps)({
       assemblyLineId: id,
       nodeId: "implement",
@@ -575,7 +549,7 @@ edges:
     return { h, id, calls };
   }
 
-  it("records the node failed, naming the empty branch, when zero commits landed", async () => {
+  it("records the node failed, naming the empty branch, and retries via the self-retry edge when zero commits landed", async () => {
     const { h, id, calls } = await implementRun(0);
 
     expect(calls).toEqual([
@@ -585,8 +559,6 @@ edges:
       outcome: "failed",
       failureDetail: expect.stringContaining("pushed nothing"),
     });
-    // Retryable: the self-retry edge is exactly the right response to an agent
-    // that forgot to push, so the walk re-dispatches implement.
     expect(h.port.nodes.map((n) => `${n.nodeId}:${n.iteration}`)).toEqual([
       "implement:1",
       "implement:2",

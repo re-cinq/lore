@@ -1,9 +1,4 @@
 // @vitest-environment node
-//
-// The paths and query names ARE the contract with lore-api: these calls replaced
-// SQL the pages ran themselves, so a rename is now a 404 rather than a compile
-// error.
-
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 vi.mock("server-only", () => ({}));

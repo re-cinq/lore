@@ -263,24 +263,26 @@ function buildHighlighter(
     const next: ElementContent[] = [];
     let changed = false;
 
-    for (const child of node.children) {
-      if (child.type === "text") {
-        const replaced = processTextNode(child);
-
-        if (replaced) {
-          next.push(...replaced);
-          changed = true;
-          continue;
-        }
-        next.push(child);
-        continue;
-      }
-
+    node.children.forEach((child) => {
       if (child.type === "element" && child.tagName !== "mark") {
         walkElement(child);
       }
+
+      if (child.type !== "text") {
+        next.push(child);
+
+        return;
+      }
+      const replaced = processTextNode(child);
+
+      if (replaced) {
+        next.push(...replaced);
+        changed = true;
+
+        return;
+      }
       next.push(child);
-    }
+    });
 
     if (changed) {
       node.children = next;
@@ -302,24 +304,26 @@ function buildHighlighter(
       const rootChildren: RootContent[] = [];
       let rootChanged = false;
 
-      for (const child of tree.children) {
-        if (child.type === "text") {
-          const replaced = processTextNode(child);
-
-          if (replaced) {
-            rootChildren.push(...(replaced as RootContent[]));
-            rootChanged = true;
-            continue;
-          }
-          rootChildren.push(child);
-          continue;
-        }
-
+      tree.children.forEach((child) => {
         if (child.type === "element") {
           walkElement(child);
         }
+
+        if (child.type !== "text") {
+          rootChildren.push(child);
+
+          return;
+        }
+        const replaced = processTextNode(child);
+
+        if (replaced) {
+          rootChildren.push(...(replaced as RootContent[]));
+          rootChanged = true;
+
+          return;
+        }
         rootChildren.push(child);
-      }
+      });
 
       if (rootChanged) {
         tree.children = rootChildren;
@@ -341,6 +345,65 @@ function StatementPopover({
   repo: string;
   branch: string;
 }) {
+  const renderStateBlock = () => {
+    if (statement.state === "narrative") {
+      return (
+        <div className={styles.popoverNarrative}>
+          <strong>Narrative</strong>
+          {statement.category ? ` · ${statement.category}` : ""}
+          <div className={styles.popoverHint}>
+            Excluded from the coverage denominator — context, not a verifiable
+            requirement.
+          </div>
+        </div>
+      );
+    }
+
+    if (statement.state === "untested") {
+      return (
+        <div className={styles.popoverUntested}>
+          <strong>Untested</strong>
+          <div className={styles.popoverHint}>
+            Add an inline test link at end of this statement:{" "}
+            <code>([label](path/to/test.ts#L42))</code>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className={styles.popoverTested}>
+        <strong>
+          {statement.testLinks.length} test
+          {statement.testLinks.length === 1 ? "" : "s"} validate this
+        </strong>
+        <ul className={styles.popoverTestList}>
+          {statement.testLinks.map((t, i) => (
+            <li key={`${t.path}-${t.line ?? ""}-${i}`}>
+              <a
+                href={
+                  resolveHref(
+                    `${t.path}${t.line ? `#L${t.line}` : ""}`,
+                    repo,
+                    branch,
+                  ).href
+                }
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                {t.label}
+              </a>
+              <div className={styles.popoverRationale}>
+                {t.path}
+                {t.line ? `:${t.line}` : ""}
+              </div>
+            </li>
+          ))}
+        </ul>
+      </div>
+    );
+  };
+
   return (
     <>
       {statement.drifted && (
@@ -351,54 +414,7 @@ function StatementPopover({
           </div>
         </div>
       )}
-      {statement.state === "narrative" ? (
-        <div className={styles.popoverNarrative}>
-          <strong>Narrative</strong>
-          {statement.category ? ` · ${statement.category}` : ""}
-          <div className={styles.popoverHint}>
-            Excluded from the coverage denominator — context, not a verifiable
-            requirement.
-          </div>
-        </div>
-      ) : statement.state === "untested" ? (
-        <div className={styles.popoverUntested}>
-          <strong>Untested</strong>
-          <div className={styles.popoverHint}>
-            Add an inline test link at end of this statement:{" "}
-            <code>([label](path/to/test.ts#L42))</code>
-          </div>
-        </div>
-      ) : (
-        <div className={styles.popoverTested}>
-          <strong>
-            {statement.testLinks.length} test
-            {statement.testLinks.length === 1 ? "" : "s"} validate this
-          </strong>
-          <ul className={styles.popoverTestList}>
-            {statement.testLinks.map((t, i) => (
-              <li key={`${t.path}-${t.line ?? ""}-${i}`}>
-                <a
-                  href={
-                    resolveHref(
-                      `${t.path}${t.line ? `#L${t.line}` : ""}`,
-                      repo,
-                      branch,
-                    ).href
-                  }
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  {t.label}
-                </a>
-                <div className={styles.popoverRationale}>
-                  {t.path}
-                  {t.line ? `:${t.line}` : ""}
-                </div>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+      {renderStateBlock()}
     </>
   );
 }
@@ -451,11 +467,11 @@ export default function SpecDetails({
       "mark[data-ordinal]",
     );
 
-    if (!target) {
-      if (hover) {
-        setHover(null);
-      }
+    if (!target && hover) {
+      setHover(null);
+    }
 
+    if (!target) {
       return;
     }
     const ordinal = Number(target.dataset.ordinal);

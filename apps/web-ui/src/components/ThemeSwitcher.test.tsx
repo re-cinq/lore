@@ -3,19 +3,12 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import type { ColorSchemePref, ThemeFamily } from "@/lib/theme/types";
 
-// Icon pulls in the iconify collections and the theme context; it's irrelevant
-// to the radio markup ThemeSwitcher contributes, so stub the leaf (the same
-// convention EnrollmentSection.test.tsx / RepoOverviewView.test.tsx use). The
-// stub echoes the icon name so the per-scheme icon mapping stays assertable.
 vi.mock("./Icon", () => ({
   default: ({ name }: { name: string }) => (
     <span data-testid={`icon-${name}`} />
   ),
 }));
 
-// Mock the theme hook so the test fully controls family/scheme (driving the
-// `selected`-class branches) and can assert the setter side effects without a
-// real ThemeProvider (which would also drag in window.matchMedia).
 const setFamily = vi.fn();
 const setScheme = vi.fn();
 let family: ThemeFamily = "elegant";
@@ -64,7 +57,6 @@ describe("ThemeSwitcher", () => {
     expect(screen.getByRole("radio", { name: "Retro" })).toBeChecked();
     expect(screen.getByRole("radio", { name: "Elegant" })).not.toBeChecked();
 
-    // each appearance option carries its label as a title attribute
     expect(screen.getByRole("radio", { name: "Light" })).toHaveAttribute(
       "aria-label",
       "Light",
@@ -81,7 +73,6 @@ describe("ThemeSwitcher", () => {
 
     expect(elegant).toBeChecked();
     expect(retro).not.toBeChecked();
-    // the wrapping label gets the `selected` modifier only for the active value
     expect(elegant.closest("label")?.className).toMatch(/selected/);
     expect(retro.closest("label")?.className).not.toMatch(/selected/);
   });
@@ -102,8 +93,6 @@ describe("ThemeSwitcher", () => {
   });
 
   it("calls setFamily with retro when the inactive retro radio is selected", () => {
-    // A controlled radio only fires onChange on a real checked→true transition,
-    // so each click target must start unchecked (driven by the mocked family).
     family = "elegant";
     render(<ThemeSwitcher />);
 

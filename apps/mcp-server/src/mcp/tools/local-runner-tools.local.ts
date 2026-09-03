@@ -1,6 +1,90 @@
 import { errorMessage } from "@re-cinq/lore-shared";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
+import type { PendingTask } from "../../features/pipeline/runner.local.js";
+
+/** Registers the task via the API, returning the server-issued id, or null when offline. */
+async function createPipelineTaskViaApi(
+  description: string,
+  taskType: string,
+  repo: string,
+): Promise<string | null> {
+  const apiUrl = process.env.LORE_API_URL || "";
+  const token = process.env.LORE_INGEST_TOKEN || "";
+
+  if (!(apiUrl && token)) {
+    return null;
+  }
+
+  try {
+    const resp = await fetch(`${apiUrl}/api/task`, {
+      signal: AbortSignal.timeout(30_000),
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        description,
+        task_type: taskType,
+        target_repo: repo,
+        created_by: "local-runner",
+      }),
+    });
+    const created = (await resp.json()) as { task_id?: string };
+
+    return created.task_id ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** Fetches one task from the API; undefined when unreachable or not pending. */
+async function fetchPendingTaskFromApi(
+  taskId: string,
+): Promise<PendingTask | undefined> {
+  const apiUrl = process.env.LORE_API_URL || "";
+  const apiToken = process.env.LORE_INGEST_TOKEN || "";
+
+  if (!(apiUrl && apiToken)) {
+    return undefined;
+  }
+
+  try {
+    const resp = await fetch(`${apiUrl}/api/task/${taskId}`, {
+      signal: AbortSignal.timeout(30_000),
+      headers: { Authorization: `Bearer ${apiToken}` },
+    });
+
+    if (!resp.ok) {
+      return undefined;
+    }
+    const fetchedTask = (await resp.json()) as {
+      status?: string;
+      id: string;
+      description: string;
+      task_type: string;
+      target_repo: string;
+      issue_number?: number;
+      created_at: string;
+    };
+
+    if (fetchedTask.status !== "pending") {
+      return undefined;
+    }
+
+    return {
+      id: fetchedTask.id,
+      description: fetchedTask.description,
+      task_type: fetchedTask.task_type,
+      target_repo: fetchedTask.target_repo,
+      issue_number: fetchedTask.issue_number,
+      created_at: fetchedTask.created_at,
+    };
+  } catch {
+    return undefined;
+  }
+}
 
 export function registerLocalRunnerTools(server: McpServer) {
   server.tool(
@@ -62,36 +146,13 @@ export function registerLocalRunnerTools(server: McpServer) {
           };
         }
 
-        // Create pipeline task via API
-        const apiUrl = process.env.LORE_API_URL || "";
-        const token = process.env.LORE_INGEST_TOKEN || "";
-        let taskId: string = crypto.randomUUID();
-
-        if (apiUrl && token) {
-          try {
-            const resp = await fetch(`${apiUrl}/api/task`, {
-              signal: AbortSignal.timeout(30_000),
-              method: "POST",
-              headers: {
-                Authorization: `Bearer ${token}`,
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({
-                description: args.description,
-                task_type: args.task_type,
-                target_repo: repo,
-                created_by: "local-runner",
-              }),
-            });
-            const data = (await resp.json()) as { task_id?: string };
-
-            if (data.task_id) {
-              taskId = data.task_id;
-            }
-          } catch {
-            /* use generated UUID */
-          }
-        }
+        // Create pipeline task via API; fall back to a generated UUID offline.
+        const taskId =
+          (await createPipelineTaskViaApi(
+            args.description,
+            args.task_type,
+            repo,
+          )) ?? crypto.randomUUID();
 
         const task = await spawnLocalTask({
           taskId,
@@ -212,42 +273,7 @@ export function registerLocalRunnerTools(server: McpServer) {
 
         // If not in local cache, try fetching from API (supports cross-repo tasks)
         if (!task) {
-          const apiUrl = process.env.LORE_API_URL || "";
-          const apiToken = process.env.LORE_INGEST_TOKEN || "";
-
-          if (apiUrl && apiToken) {
-            try {
-              const resp = await fetch(`${apiUrl}/api/task/${args.task_id}`, {
-                signal: AbortSignal.timeout(30_000),
-                headers: { Authorization: `Bearer ${apiToken}` },
-              });
-
-              if (resp.ok) {
-                const data = (await resp.json()) as {
-                  status?: string;
-                  id: string;
-                  description: string;
-                  task_type: string;
-                  target_repo: string;
-                  issue_number?: number;
-                  created_at: string;
-                };
-
-                if (data.status === "pending") {
-                  task = {
-                    id: data.id,
-                    description: data.description,
-                    task_type: data.task_type,
-                    target_repo: data.target_repo,
-                    issue_number: data.issue_number,
-                    created_at: data.created_at,
-                  };
-                }
-              }
-            } catch {
-              /* fall through */
-            }
-          }
+          task = await fetchPendingTaskFromApi(args.task_id);
         }
 
         if (!task) {

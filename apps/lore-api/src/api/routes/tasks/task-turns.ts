@@ -15,14 +15,7 @@ const TaskTurnsParams = z.object({
   taskId: z.string().uuid(),
 });
 
-/**
- * The wrap side of the station contract's attribution envelope
- * (libs/assembly-lines/src/agent-output.ts holds the unwrap side; the pod-side
- * wrap lives in the ai-agent-subsystem, out of repo). The raw line is embedded
- * verbatim so the Floor's turn store keeps the exact bytes the laptop redacted.
- * `turn_key` is this relay's idempotency stamp (#1389): the Floor's turn store
- * skips a key it already holds, so a retried POST cannot duplicate rows.
- */
+// Wrap side of the station contract's attribution envelope (unwrap is agent-output.ts); `turn_key` is this relay's idempotency stamp (#1389) — the Floor's turn store skips a key it already holds.
 function wrapTaskEnvelope(
   taskId: string,
   rawLine: string,
@@ -37,11 +30,7 @@ function turnKey(taskId: string, slot: number, line: string): string {
     .digest("hex");
 }
 
-/**
- * The `x-turn-offset` header: the position of this POST's first line within
- * the runner's full transcript buffer. Absent or malformed (an older runner)
- * → null, and keying falls back to per-POST occurrence numbering.
- */
+// The `x-turn-offset` header: this POST's first line's position in the full transcript; absent/malformed (older runner) → null, falls back to per-POST occurrence numbering.
 function parseTurnOffset(value: unknown): number | null {
   if (typeof value !== "string" || !/^(?:0|[1-9]\d{0,14})$/.test(value)) {
     return null;
@@ -50,16 +39,7 @@ function parseTurnOffset(value: unknown): number | null {
   return Number(value);
 }
 
-/**
- * The relayable lines, each with its dedup key: sha256 over (task, slot, line
- * bytes). With an offset the slot is the line's position in the whole
- * transcript, so a full-buffer re-POST — including one whose tail batch grew —
- * reproduces the keys of every line it already sent. The occurrence fallback
- * numbers byte-identical copies within one POST, which keys a same-body retry
- * identically while keeping legitimate repeats distinct; its known limit is
- * byte-identical lines in DIFFERENT POSTs, which collide at occurrence 0 (the
- * Floor counts such skips as `turn_deduped`).
- */
+// Dedup key = sha256(task, slot, line); with an offset the slot is the line's position in the whole transcript so a re-POST reproduces prior keys, else an occurrence fallback keys same-body retries identically (known limit: byte-identical lines across DIFFERENT POSTs collide at occurrence 0 — Floor counts these as `turn_deduped`).
 function keyedRelayableLines(
   taskId: string,
   lines: string[],
@@ -84,16 +64,7 @@ function keyedRelayableLines(
   return keyed;
 }
 
-/**
- * A relayed line must be a plain claude stream-json event. Two shapes are
- * refused because the Floor's sink acts on them beyond storing the turn:
- *  - an attributed envelope ({source, event}) — unwrapAttribution's double-peel
- *    merges the inner source, letting a laptop forge an agent CR name or a
- *    carried run identity onto a real assembly run;
- *  - a kind:"file" event — it drives planning-round settlement and assembly-line
- *    artifact merge (deliverPlanningResults / deliverArtifact).
- * Legitimate `claude --print` output never emits either shape.
- */
+// Refuses an attributed envelope ({source,event} — could forge an agent CR/run identity via unwrapAttribution's double-peel) and a kind:"file" event (drives planning/artifact merge); legitimate `claude --print` output never emits either.
 function relayableEvent(line: string): boolean {
   let parsed: unknown;
 
@@ -112,17 +83,7 @@ function relayableEvent(line: string): boolean {
   return !("source" in record && "event" in record) && record.kind !== "file";
 }
 
-/**
- * POST /api/task-turns/{taskId} — relays a locally-run task's redacted claude
- * stream-json transcript to the Floor's /api/agent-events sink, so local runs
- * land in pipeline.agent_run_turns like cluster runs (issue #1295). The Floor
- * ingress is deliberately cluster-internal; laptops reach it through this
- * relay with the write-scoped token they already hold, and lore-api attaches
- * the internal token it already mounts.
- *
- * Body is raw NDJSON (payload.parse: false) — one claude stream-json line per
- * row, already redacted on the laptop before anything left the machine.
- */
+// Relays a local run's redacted transcript to the Floor's cluster-internal /api/agent-events sink so it lands in pipeline.agent_run_turns like cluster runs (#1295); lore-api attaches the internal token laptops can't hold.
 /** How many relayed turns were stored, and how many the filter skipped. */
 const TurnsRelayedSchema = z.object({
   forwarded: z.number(),
@@ -168,8 +129,7 @@ export function taskTurnsPostRoute(getPool: () => Pool | null): ServerRoute {
       enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
 
       try {
-        // The task id keys everything the sink writes (llm_calls, run events,
-        // turns), so an unknown id is refused rather than stored uncorrelated.
+        // The task id keys everything the sink writes — an unknown id is refused rather than stored uncorrelated.
         const { rows } = await pool.query(
           `SELECT id FROM pipeline.tasks WHERE id = $1`,
           [taskId],
@@ -213,8 +173,7 @@ export function taskTurnsPostRoute(getPool: () => Pool | null): ServerRoute {
 
         return h.response({ forwarded: relayable.length, skipped });
       } catch (err) {
-        // A guard's refusal already carries its status; only an unexpected failure
-        // is this block's to shape.
+        // A guard's refusal already carries its status; only an unexpected failure is this block's to shape.
         rethrowBoom(err);
 
         return h.response({ error: errorMessage(err) }).code(500);

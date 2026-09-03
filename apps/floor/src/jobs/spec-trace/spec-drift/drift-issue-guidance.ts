@@ -1,9 +1,4 @@
-/**
- * Shared recommendation block + drift-task predicate for spec-drift gap-fill
- * issues. The guidance is static (identical on every drift issue) and appended
- * to the issue body *after* the LLM copy pass, which compresses the body and
- * strips trailers — so it can't live in the task description.
- */
+/** Static guidance appended to the issue body *after* the LLM copy pass (which compresses the body and strips trailers), so it can't live in the task description. */
 
 export interface DriftTaskLike {
   task_type?: string;

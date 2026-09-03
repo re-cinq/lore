@@ -91,10 +91,6 @@ describe("buildAgentDefinition", () => {
   });
 
   it("gives every agent pod a git identity, so a commit does not need one invented", () => {
-    // A pod runs `git commit` itself and never goes through GitCli, whose env
-    // defaults cover the Floor. Without this the commit fails "Author identity
-    // unknown", the agent burns a turn on `git config`, and authorship becomes
-    // whatever that pod happened to guess.
     expect(
       buildAgentDefinition("implementation-tdd", impl).spec?.resources?.env,
     ).toEqual([
@@ -218,19 +214,11 @@ describe("catalogChartYaml", () => {
   const out = catalogChartYaml({ implementation: impl });
 
   it("emits an unguarded doc stream — the catalog-seed hook owns the seedCatalog gate — and keeps every object on uninstall", () => {
-    // The docs moved out of templates/ into a file the pre-upgrade hook applies
-    // server-side, because Helm diffs RENDERED manifests and so never repairs an
-    // object the API server pruned (#1468). The gate moved with the hook.
     expect(out).toContain("DO NOT EDIT.");
     expect(out).not.toContain("{{- if .Values.seedCatalog }}");
     expect(out).toContain("helm.sh/resource-policy: keep");
   });
   it("guards the {context} placeholder behind .Values.loreMcpUrl — a pod with no gateway is never told to call a tool it does not have", () => {
-    // The parameter that fills this slot is an INSTRUCTION to call
-    // lore_assemble_context (dispatch-time hydration was removed 2026-08-28). A
-    // satellite renders no mcp_servers block, because the gateway authenticates
-    // with LORE_INGEST_TOKEN and FR5 keeps that credential central — so on those
-    // pods the placeholder must vanish with the tool it points at (#1629).
     expect(out).toMatch(
       /\{\{- if \.Values\.loreMcpUrl \}\}\n *\{context\}\n\{\{- end \}\}/,
     );
@@ -244,15 +232,10 @@ describe("catalogChartYaml", () => {
     expect(out).toContain("url: {{ .Values.agentEventsUrl }}");
     expect(out).not.toContain("__AGENT_EVENTS_URL__");
   });
-  it("guards the http telemetry sink behind .Values.agentEventsUrl so a deployment without it never asks a pod for a secret it cannot have", () => {
-    // The standalone satellite chart has no bus-wide LORE_AGENT_INTERNAL_TOKEN
-    // to give this sink, and its default agentEventsUrl is empty — an
-    // unguarded sink is a hard CreateContainerConfigError on every satellite
-    // pod, of every node type (#1575).
+  it("guards the http telemetry sink behind .Values.agentEventsUrl so a deployment without it never asks a pod for a secret it cannot have, while stdout stays unconditional", () => {
     expect(out).toMatch(
       /\{\{- if \.Values\.agentEventsUrl \}\}\n *- type: http\n *url: \{\{ \.Values\.agentEventsUrl \}\}\n *headers_secret: agent-events-auth\n\{\{- end \}\}/,
     );
-    // stdout stays unconditional — a satellite still gets pod-log output.
     expect(out).toMatch(/sinks:\n *- type: stdout\n *\{\{- if/);
   });
   it("templates the station recipes' LORE_API_URL with the helm value (no sentinel leaks)", () => {
@@ -273,10 +256,6 @@ describe("catalogChartYaml", () => {
     expect(out).toContain("{{- if .Values.loreSkillsUrl }}");
     expect(out).toContain("skills_source: {{ .Values.loreSkillsUrl }}");
     expect(out).not.toContain("__LORE_SKILLS_URL__");
-    // The guard opens immediately before `skills:` and closes after `skills_source:`
-    // — an unguarded skills list renders `skills_source: null`, which the init
-    // treats as a successful no-op and the agent then dies on the missing
-    // settings.json it was supposed to fetch.
     expect(out).toMatch(
       /\{\{- if \.Values\.loreSkillsUrl \}\}\n *skills:\n(?: +- .*\n)+ *skills_source: \{\{ \.Values\.loreSkillsUrl \}\}\n\{\{- end \}\}/,
     );

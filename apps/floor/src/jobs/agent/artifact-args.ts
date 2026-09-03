@@ -1,13 +1,4 @@
-// A produced artifact becomes the next node's input.
-//
-// One node's deliverable is the next node's brief — the spec-change plan feeds the
-// node that writes the specs, the decomposition feeds the station that files the
-// issues. Both cross as a declared `output.watch` artifact, and both land in the
-// line's `args`, which is already the channel a node reads its input from
-// (`args.description`, `args.round_feedback`).
-//
-// Deliberately generic: the routing is the event's own name, so a new artifact needs
-// a recipe declaration and a prompt, not a branch in here.
+// A produced artifact becomes the next node's input, landing in the line's `args` (the same channel `args.description`/`args.round_feedback` use); routing is deliberately generic on the event's own name, so a new artifact needs only a recipe declaration and a prompt, not a branch here.
 
 import type {
   AssemblyRunRecord,
@@ -25,21 +16,12 @@ export interface ArtifactArgsDeps {
 export type ArtifactDelivery =
   { outcome: "merged"; arg: string } | { outcome: "skipped"; error: string };
 
-/** `spec.plan` → `spec_plan`. Every separator flattens, so an event name can never
- *  produce an arg key a consumer has to quote or a JSON path has to escape. */
+/** `spec.plan` → `spec_plan`; every separator flattens, so no arg key ever needs quoting or JSON-path escaping. */
 export function argNameForEvent(event: string): string {
   return event.replace(/[^a-zA-Z0-9]+/g, "_");
 }
 
-/**
- * Merge one declared artifact into its line's args.
- *
- * Skips silently in three cases, none of them errors: an event another handler owns,
- * an artifact the agent never produced (the node's own outcome already reports that,
- * and there is no content to carry), and a run with no assembly line behind it — the
- * sink carries every run's artifacts, so most calls land on something this has no
- * business touching.
- */
+/** Merge one declared artifact into its line's args; skips silently for an event owned elsewhere, an artifact never produced, or a run with no assembly line behind it. */
 export async function deliverArtifact(
   fileEvent: AgentFileEvent,
   deps: ArtifactArgsDeps,
@@ -65,38 +47,21 @@ export async function deliverArtifact(
   return { outcome: "merged", arg };
 }
 
-/** The line a fresh artifact belongs to: the most recently started one for the task.
- *  A task re-dispatched after a crash has more than one, and the artifact came from
- *  the run that is still going. */
+/** The line a fresh artifact belongs to: the most recently started one for the task, since a crash-redispatched task has more than one and the artifact came from the run still going. */
 function newestOpen(lines: AssemblyRunRecord[]): AssemblyRunRecord | undefined {
   return [...lines]
     .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
     .at(-1);
 }
 
-/** What one terminal status says about the artifacts its node declared: the args
- *  to merge, and the names of any the agent never produced. */
+/** What one terminal status says about the artifacts its node declared: the args to merge, and the names of any the agent never produced. */
 export interface TerminalArtifacts {
   args: Record<string, string>;
-  /** `<event> (<reason>)` per declared-but-absent artifact — the node's failure
-   *  detail, because advancing without it hands the next node an empty bag. */
+  /** `<event> (<reason>)` per declared-but-absent artifact, since advancing without it hands the next node an empty bag. */
   missing: string[];
 }
 
-/**
- * The artifacts carried by an Agent CR's RAW terminal output.
- *
- * The sink these events normally arrive on is a separate HTTP post racing the
- * Kubernetes event the walk advances on, so nothing ordered the merge before the
- * next node's dispatch — the next station could read an arg the pod had already
- * produced and simply not find it. The same events are in `status.output`, which
- * the terminal handler already reads, so delivery can ride the advancing event
- * instead of hoping to beat it. Merging the same content twice is a no-op, which
- * is what lets the sink stay the fast path.
- *
- * Must be given the RAW output: `normalizeAgentStatus` replaces it with the
- * agent's result text, which no longer parses as a stream.
- */
+/** Artifacts carried by an Agent CR's RAW terminal output — rides the advancing Kubernetes event instead of racing the sink's separate HTTP post; must be RAW since `normalizeAgentStatus` replaces it with result text that no longer parses as a stream. */
 export function artifactsFromTerminalOutput(
   rawOutput: string | undefined,
 ): TerminalArtifacts {

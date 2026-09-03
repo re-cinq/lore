@@ -26,15 +26,6 @@ async function dgraphReachable(): Promise<boolean> {
 
 const reachable = await dgraphReachable();
 
-/**
- * impact-test-link — the changed-TEST-file coupling direction.
- *
- * The coverage query roots on the file a test COVERS, so editing the test
- * itself surfaced nothing unless that test file happened to appear in its own
- * coverage set (a vitest-config accident). This roots on the test file
- * directly, which is how a PR that rewrites a test gets told which spec
- * statements it was holding up.
- */
 describe.skipIf(!reachable)("testFileImpact (live Dgraph)", () => {
   const dgraphClient = new dgraph.DgraphClient(
     new dgraph.DgraphClientStub(DGRAPH_HTTP),
@@ -117,7 +108,7 @@ describe.skipIf(!reachable)("testFileImpact (live Dgraph)", () => {
         });
       }
     } catch {
-      /* best-effort cleanup */
+      void 0;
     } finally {
       await txn.discard().catch(() => {});
     }

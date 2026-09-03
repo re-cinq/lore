@@ -409,7 +409,6 @@ describe("replay scrubber", () => {
     await scrubTo(1);
 
     expect(nodeStatus(container, "implement")).toContain("Running");
-    // validate has not run at this cursor — drawn, but reading as pending.
     expect(nodeStatus(container, "validate")).toContain("Pending");
   });
 
@@ -442,7 +441,6 @@ describe("replay scrubber", () => {
       fireEvent.click(screen.getByRole("button", { name: /back to live/i }));
     });
 
-    // Final state: implement carries its verdict, the terminal the run result.
     expect(nodeStatus(container, "implement")).toContain("Succeeded");
     expect(nodeStatus(container, "validate")).toContain("Completed");
   });
@@ -455,11 +453,6 @@ describe("run-graph verdict on a finished run (regression)", () => {
     container.querySelector(`[data-node="${id}"]`)?.textContent ?? "";
 
   it("shows a failed review's verdict, not its clean pod exit, and a failed terminal", async () => {
-    // The exact production bug: a finished code-review run whose review pod
-    // exited 0 (a benign `result` event → status succeeded) but whose recorded
-    // verdict is failed. The verdict comes from the walk row, so the graph must
-    // read Failed, not the green execution status; the terminal shows the run
-    // result (Failed), not "Completed" derived from the `finished` status.
     stubHistory([
       eventRow({ id: "1", nodeId: "review", eventType: "init" }),
       eventRow({
@@ -511,8 +504,6 @@ describe("run-graph verdict on a finished run (regression)", () => {
 });
 
 describe("replay rewinds the run graph (regression)", () => {
-  // The finished #927 fixture WITH walk rows: the recorded verdicts exist from
-  // the first render, but scrubbing must gate them behind the replayed cursor.
   const reviewNodes = [
     {
       nodeId: "review",
@@ -593,7 +584,6 @@ describe("replay rewinds the run graph (regression)", () => {
 
     expect(nodeText(container, "review")).toContain("Running");
     expect(nodeText(container, "review")).not.toContain("Failed");
-    // Unreached at this cursor: drawn as the step ahead, still pending.
     expect(nodeText(container, "done")).toContain("Pending");
   });
 
@@ -886,8 +876,6 @@ describe("a node's input opens its transcript", () => {
   });
 
   it("shows a dispatched-but-silent node's input card", async () => {
-    // The case the feature exists for: the row is minted, the pod has not
-    // spoken, and the brief lives in the Input card below the node detail.
     stubHistory([]);
     useFakeEventSource();
     render(

@@ -9,14 +9,6 @@ import {
   parseTraceImpactWorkflowVersion,
 } from "./trace-impact-workflow.js";
 
-/**
- * The constant is what onboard commits into every repo; this repo's own
- * `.github/workflows/lore-trace-impact.yml` is its dogfood installation. The two
- * drifted apart at v1 — different vars name, different step ordering — while
- * both still carried `version: 1`, so `traceImpactWorkflowStatus` reported
- * "aligned" for a workflow that was not. A version integer a human maintains
- * cannot detect that; comparing the bytes can.
- */
 describe("lore-trace-impact.yml parity", () => {
   const installed = readFileSync(
     join(findRepoRoot(), TRACE_IMPACT_WORKFLOW_PATH),
@@ -54,9 +46,7 @@ describe("lore-trace-impact.yml parity", () => {
     expect(TRACE_IMPACT_WORKFLOW_CONTENT).not.toContain("\u0000");
   });
 
-  it("posts the body from a file, since docs[] outgrows a single shell argument", () => {
-    // Linux caps one argument at MAX_ARG_STRLEN (128KB); three changed specs
-    // was enough for "curl: Argument list too long" on the first live run.
+  it("posts the body from a file — docs[] hit curl's 128KB MAX_ARG_STRLEN on the first live run", () => {
     expect(TRACE_IMPACT_WORKFLOW_CONTENT).toContain(
       "--data-binary @impact-body.json",
     );

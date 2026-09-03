@@ -1,16 +1,4 @@
-// The single source of truth for the station contract's output envelope
-// (ADR-031 D8/D9): the wrap side every station emits through and the unwrap
-// side every Floor reader consumes through. An Agent's `status.output` is an
-// NDJSON event stream whose terminal line is the claude-style
-// `{"type":"result","is_error":false,"result":"<agent text>"}`.
-//
-// The agent text rides inside a JSON string field, so its newlines arrive
-// escaped and any fenced block or embedded JSON is backslash-escaped with it.
-// Unwrap here, once, at the read boundary — then the text parsers
-// (parseNodeResult / parseReviewVerdict / parseReviewFindings) stay pure and
-// see the agent text exactly as the agent printed it. Parsers that scan for a
-// single-line marker survive the escaping by luck; anything needing a real
-// newline (the ```REVIEW_FINDINGS block) does not.
+// Single source of truth for the station contract's output envelope (ADR-031 D8/D9) — wrap side every station emits through, unwrap side every Floor reader consumes through; `status.output` is NDJSON, terminal line `{"type":"result","is_error":false,"result":"<agent text>"}`.
 
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import type { NodeResult, NodeLlmUsage } from "./node-types.js";
@@ -21,18 +9,14 @@ interface ResultLine {
   is_error?: unknown;
 }
 
-/** A gemini-style assistant chunk: the CLI streams the message as delta
- *  fragments and its terminal result line carries stats only — no text. */
+// Gemini-style assistant chunk: the CLI streams delta fragments, and the terminal result line carries stats only — no text.
 interface MessageLine {
   type: string;
   role?: unknown;
   content?: unknown;
 }
 
-// TRANSITIONAL (delete once no pre-cutover CRs remain): before the
-// ai-agent-subsystem stopped stamping its {"source": {...}, "event": <line>}
-// attribution envelope onto stdout, every status.output line arrived wrapped
-// one level deeper. Peel that layer so those CRs' results still parse.
+// TRANSITIONAL (delete once no pre-cutover CRs remain): peels the {"source":{...},"event":<line>} envelope pre-cutover CRs still wrap status.output in.
 interface AttributedLine {
   source: unknown;
   event: unknown;
@@ -91,15 +75,7 @@ function parseAssistantLine(line: string): string | null {
   }
 }
 
-/**
- * The final assistant message, reassembled from the delta chunks that
- * immediately precede the result line. Walks backwards and stops at the first
- * line that is not an assistant chunk: earlier turns are separated by tool
- * events, and including them would let a marker MENTIONED mid-run (an agent
- * thinking aloud about the REVIEW_FINDINGS block it is about to write) shadow
- * the block it actually wrote. Chunks concatenate with no separator — they are
- * fragments of one text, not lines.
- */
+// Final assistant message, reassembled from delta chunks immediately preceding the result line; stops at the first non-chunk line so a marker mentioned mid-run can't shadow the block actually written, and chunks concatenate with no separator (fragments of one text).
 function trailingAssistantText(
   lines: readonly string[],
   resultIndex: number,
@@ -138,12 +114,7 @@ function attributionSource(value: unknown): Record<string, unknown> | null {
     : null;
 }
 
-/**
- * The attribution envelope peeled off a subsystem line: the event it carries and
- * the source that attributes it (null when the line is bare, or its source is
- * not an object). The unwrap side of the envelope for both lanes — the
- * `status.output` read path and the NDJSON telemetry sink (POST /api/agent-events).
- */
+// Attribution envelope peeled off a subsystem line (event + source, null source when bare/non-object) — unwrap side for both the status.output read path and the NDJSON telemetry sink (POST /api/agent-events).
 export function unwrapAttribution(value: unknown): {
   source: Record<string, unknown> | null;
   event: unknown;
@@ -155,16 +126,7 @@ export function unwrapAttribution(value: unknown): {
   const source = attributionSource(value.source);
   const event = value.event;
 
-  // TRANSITIONAL — the second peel only. Prod emits double-wrapped lines
-  // ({source, event: {source, event}}) on the sink lane, so the terminal result
-  // sits at .event.event and its cost row is dropped without it (#875).
-  // Deletion condition: remove once the ai-agent-subsystem wrapper enforces
-  // single-wrap at the source for the sink lane. subsystem#171 claims stdout
-  // already does — unverifiable from this repo, and it cannot be the whole story
-  // while nested lines still arrive, so the nesting either predates that guard
-  // or reaches the sink by another path. Confirm which before deleting.
-  // Deliberately bounded at two: a third layer is left intact as the event
-  // rather than peeled by a loop.
+  // TRANSITIONAL, second peel only: prod double-wraps sink-lane lines ({source, event:{source, event}}), dropping the cost row without this (#875); remove once subsystem enforces single-wrap at source (subsystem#171 unverified) — bounded at two, a third layer is left intact.
   if (isAttributedLine(event)) {
     const inner = attributionSource(event.source);
 
@@ -177,12 +139,7 @@ export function unwrapAttribution(value: unknown): {
   return { source, event };
 }
 
-/**
- * The agent text carried by the last terminal result line of an NDJSON stream.
- * Falls back to the raw input when the output is not an NDJSON stream, carries
- * no result line, or the result line has no string payload — legacy and
- * already-unwrapped output must pass through untouched.
- */
+// Agent text from the last terminal result line of an NDJSON stream; falls back to raw input when not a stream, no result line, or no string payload — legacy/already-unwrapped output passes through untouched.
 export function resultTextFromOutput(output: string): string {
   const lines = output.split("\n");
 
@@ -193,12 +150,7 @@ export function resultTextFromOutput(output: string): string {
       return parsed.result;
     }
 
-    // A result line with NO text payload is the gemini shape: its stream-json
-    // terminal line carries stats only, and the agent's final text arrives as
-    // assistant delta chunks just before it. Reassemble those — otherwise the
-    // fallback hands the parsers raw NDJSON, where a fenced block's newlines
-    // are escaped inside a JSON string and can never match (run 6cb4b352,
-    // 2026-09-02: verdict seen, findings lost, review failed).
+    // A result line with no text payload is the gemini shape (stats-only terminal line, text arrives as preceding delta chunks) — reassemble those or the fallback hands parsers raw escaped NDJSON (run 6cb4b352, 2026-09-02: verdict seen, findings lost).
     if (parsed) {
       return trailingAssistantText(lines, i) ?? output;
     }
@@ -207,14 +159,7 @@ export function resultTextFromOutput(output: string): string {
   return output;
 }
 
-/**
- * The error text of the last `is_error` result line in an NDJSON stream (the
- * same envelope `resultTextFromOutput` reads, both bare and `{source,event}`
- * wrapped), capped at 300 chars. Null when the terminal result is not an error,
- * there is no result line, or the output is not a stream. This is how the Floor
- * surfaces WHY a CR's Job failed — the infra-failure branch only sees the CR
- * phase, not the message the agent printed before it died.
- */
+// Error text of the last `is_error` result line (same envelope as resultTextFromOutput), capped at 300 chars, null when not an error/no result line/not a stream — how the Floor surfaces WHY a CR's Job failed, since the infra-failure branch only sees the CR phase.
 export function terminalErrorText(output?: string): string | null {
   if (!output) {
     return null;
@@ -236,24 +181,13 @@ export function terminalErrorText(output?: string): string | null {
   return null;
 }
 
-/** The runner's relay prefix for the engine's own stderr. */
+// The runner's relay prefix for the engine's own stderr.
 const AGENT_STDERR_PREFIX = "[agent] ";
 
-/** The lifecycle phase the relayed stderr belongs to. */
+// The lifecycle phase the relayed stderr belongs to.
 const AGENT_PHASE = "agent";
 
-/**
- * True for a lifecycle envelope reporting the AGENT phase as failed.
- *
- * Parsed here rather than through `parseLine`, which answers only for RESULT
- * shapes and so discards a lifecycle envelope entirely.
- *
- * A phase this marker NAMES must be the agent's: an init-phase death has its
- * own markers, and attributing the engine's stderr to it would put the wrong
- * cause on the run. A marker naming NO phase still counts — `phase` is optional
- * on the shape, and demanding it would let the very defect this exists for
- * survive in a phase-less variant.
- */
+// True for a lifecycle envelope reporting the AGENT phase failed; parsed separately from `parseLine` (RESULT-only) — a marker naming no phase (phase is optional) still counts, or a phase-less variant would escape detection.
 function isFailedLifecycle(line: string): boolean {
   try {
     const marker = failedLifecycleMarker(JSON.parse(line));
@@ -268,7 +202,7 @@ function isFailedLifecycle(line: string): boolean {
   }
 }
 
-/** The parsed value as a FAILED lifecycle marker, or null for anything else. */
+// The parsed value as a FAILED lifecycle marker, or null for anything else.
 function failedLifecycleMarker(value: unknown): { phase?: unknown } | null {
   if (typeof value !== "object" || value === null) {
     return null;
@@ -280,32 +214,13 @@ function failedLifecycleMarker(value: unknown): { phase?: unknown } | null {
   return isFailedMarker ? marker : null;
 }
 
-/**
- * The agent's own last words when it never reached a result line.
- *
- * `terminalErrorText` reads claude's terminal `is_error` result line, which is
- * the richest statement of a failure — and does not exist when the engine dies
- * at BOOT. The pod still says what happened, on the other stream: the runner
- * relays the engine's stderr as `[agent] …` between lifecycle envelopes. Run
- * 129235d4 (2026-08-28) printed exactly one such line —
- * `Error: Settings file not found: /agent/.claude/settings.json` — and because
- * nothing read it, the classifier fell through to Kubernetes' `BackoffLimit-
- * Exceeded`, called a permanent misconfiguration retryable `infra`, and spent a
- * 25-minute implement retry on a fault no retry could clear.
- *
- * Two gates keep this from reading ordinary chatter as a cause: the line must
- * carry the runner's own prefix (model prose and tool results are JSON on their
- * own lines and never prefixed), and the run must carry a lifecycle envelope
- * reporting the agent phase FAILED. Bounded like its sibling — this text rides
- * a CR status and a notification.
- */
+// The agent's own last words when it never reached a result line (engine died at BOOT, before terminalErrorText's is_error line exists) — the runner relays engine stderr as `[agent] …`; run 129235d4 (2026-08-28) showed an unread boot error misclassified as retryable `infra`, burning a 25min retry. Gated on the runner's own prefix + a lifecycle envelope reporting agent phase FAILED, so ordinary chatter never reads as a cause.
 export function agentStderrError(output?: string): string | null {
   if (!output) {
     return null;
   }
   const lines = output.split("\n").map((line) => line.trim());
-  // The scan is BOUNDED by the failure, not by the end of the stream: a line
-  // the runner logs while shutting down is not what killed the engine.
+  // Scan is bounded by the failure, not stream end — a shutdown log line is not what killed the engine.
   const failedAt = lines.findIndex(isFailedLifecycle);
 
   if (failedAt === -1) {
@@ -313,19 +228,20 @@ export function agentStderrError(output?: string): string | null {
   }
 
   for (let i = failedAt; i >= 0; i--) {
-    if (lines[i].startsWith(AGENT_STDERR_PREFIX)) {
-      const text = lines[i].slice(AGENT_STDERR_PREFIX.length).trim();
+    if (!lines[i].startsWith(AGENT_STDERR_PREFIX)) {
+      continue;
+    }
+    const text = lines[i].slice(AGENT_STDERR_PREFIX.length).trim();
 
-      if (text.length > 0) {
-        return text.substring(0, 300);
-      }
+    if (text.length > 0) {
+      return text.substring(0, 300);
     }
   }
 
   return null;
 }
 
-/** True when `text` is already a serialized result line or attribution envelope. */
+// True when `text` is already a serialized result line or attribution envelope.
 function isWrappedAgentOutput(text: string): boolean {
   try {
     const value: unknown = JSON.parse(text);
@@ -336,13 +252,7 @@ function isWrappedAgentOutput(text: string): boolean {
   }
 }
 
-/**
- * The terminal NDJSON line a station emits. A NodeResult (including outcome
- * "failed" — a normal result that routes the failed edge) emits
- * `is_error:false`; pass `null` + an error message for infrastructure
- * failures, which fail the CR itself. `usage` wins over `result.usage` and
- * also rides error lines, so a failed run's partial spend is still recorded.
- */
+// Terminal NDJSON line a station emits: a NodeResult (incl. outcome "failed", a routable edge) emits is_error:false; pass null + message for infra failures, which fail the CR. `usage` wins over `result.usage` and rides error lines too, so partial spend is still recorded.
 export function resultLine(
   result: NodeResult | null,
   errorMessage?: string,
@@ -366,18 +276,12 @@ export function resultLine(
   });
 }
 
-/** Progress lines for the log sinks (anything non-terminal). */
+// Progress lines for the log sinks (anything non-terminal).
 export function eventLine(message: string): string {
   return JSON.stringify({ type: "log", message });
 }
 
-/**
- * Reported node LLM usage as the claude-style fields the `/api/agent-events`
- * cost sink reads off a terminal result event (`usage` + `total_cost_usd` +
- * `duration_ms` + `model`) — how a Postgres-less station pod gets a
- * `pipeline.llm_calls` row. Empty when the node reported no usage, keeping
- * usage-less terminal lines byte-identical to the pre-usage envelope.
- */
+// Node LLM usage as the claude-style fields the /api/agent-events cost sink reads (usage + total_cost_usd + duration_ms + model) — how a Postgres-less station pod gets a pipeline.llm_calls row; empty when unreported, keeping the envelope byte-identical to pre-usage.
 function usageFields(usage?: NodeLlmUsage): Record<string, unknown> {
   if (!usage) {
     return {};

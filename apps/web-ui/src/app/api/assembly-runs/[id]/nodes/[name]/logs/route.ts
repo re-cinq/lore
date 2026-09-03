@@ -6,14 +6,7 @@ import { fetchAssemblyRun, fetchAssemblyRunNodes } from "@/lib/assembly-runs";
 import { userCanAccessRepo } from "@/lib/user-repo-access";
 import { proxyUpstreamStatus, serverError } from "@/lib/api-error";
 
-/**
- * GET /api/assembly-runs/[id]/nodes/[name]/logs — proxy for one node's live pod
- * logs. Resolves the run, confirms `name` is actually a node of it, checks the
- * user can see the repo, then proxies to the Floor's /api/agent-logs/{name}
- * (the UI SA has no cluster access; the Floor brokers the read). Passes `?tail`
- * through. Returns the Floor's `{ available, logs, phase, podName }` verbatim,
- * except the Floor's own 401/403 (ingest-token drift), which surface as 502.
- */
+// Proxy for one node's live pod logs via the Floor's /api/agent-logs/{name} (UI SA has no cluster access); Floor 401/403 surface as 502.
 export async function GET(
   req: Request,
   { params }: { params: Promise<{ id: string; name: string }> },
@@ -35,8 +28,7 @@ export async function GET(
       return NextResponse.json({ error: "Run not found" }, { status: 404 });
     }
 
-    // Authorize before probing the node table, so an unauthorized user can't
-    // distinguish a valid agentCrName (404 "not found") from an invalid one.
+    // Authorize before probing the node table so an unauthorized user can't distinguish a valid agentCrName from an invalid one.
     if (!(await userCanAccessRepo(session.accessToken, run.repo))) {
       return NextResponse.json(
         { error: "Access denied — you do not have access to this repo" },

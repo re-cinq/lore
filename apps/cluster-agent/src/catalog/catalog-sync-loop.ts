@@ -1,23 +1,4 @@
-/**
- * The pull-based catalog sync loop (the fan-out sibling of the claim loop):
- * poll `GET /api/cluster-agents/{id}/catalog-events`, and apply every entry it
- * returns to THIS cluster — build the AgentDefinition + Station pair from the
- * resolved definition with this cluster's own env-derived values, or delete the
- * pair when the definition resolved to null. Pull for the same reason claim
- * pulls: a satellite is unreachable for inbound calls, so a /agents save can
- * only reach it by being fetched.
- *
- * Delivery is at-least-once: the server re-serves the same batch until the
- * NEXT call acks the cursor this one finished applying, and the apply itself
- * is merge-onto-live idempotent, so a crash mid-batch re-applies instead of
- * skipping. The first successful sync of a fresh agent is the full snapshot —
- * the bootstrap guarantee the Helm catalog-seed hook used to provide — which
- * is why the claim loop's start is gated on it: an Agent CR must never be
- * created before its stationRef target exists in this cluster.
- *
- * Every side effect is injected (fetch, catalog, sleep) so each tick and the
- * schedule test without a cluster or a network.
- */
+// Pull-based catalog sync (claim loop's fan-out sibling): polls catalog-events, applies entries idempotently (at-least-once delivery), gates the claim loop's start on the first full snapshot.
 
 import { errorMessage } from "@re-cinq/lore-shared";
 import {
@@ -52,13 +33,7 @@ export function syncIntervalMs(env: NodeJS.ProcessEnv): number {
   );
 }
 
-/**
- * The per-cluster values the CRD builder renders — everything the Helm chart
- * used to substitute into the committed catalog seed, now read from THIS
- * process's environment. An unset value omits the block it feeds (the seed's
- * guard rule), which is exactly right on a satellite that has no MCP gateway,
- * events sink or skills registry to point at.
- */
+// Per-cluster CRD render values, read from env instead of the Helm seed; an unset value omits its block (right for a satellite with no MCP/events/skills).
 export function crdOptionsFromEnv(env: NodeJS.ProcessEnv): CatalogCrdOptions {
   return {
     ...(env.LORE_AGENT_EVENTS_URL
@@ -78,14 +53,7 @@ export function crdOptionsFromEnv(env: NodeJS.ProcessEnv): CatalogCrdOptions {
   };
 }
 
-/**
- * `{"gemini":"GEMINI_API_KEY"}` → the family→key map the render and validator
- * consult. JSON on both ends — the chart serializes with `toJson` — because a
- * hand-rolled k=v codec pair drops malformed entries SILENTLY, and a silently
- * absent family degrades validation to the bare-cluster pass: the
- * misconfigured-full-cluster class again. A set-but-unparseable value throws
- * out of boot instead.
- */
+// `{"gemini":"GEMINI_API_KEY"}` family→key map; JSON both ends so a malformed value throws at boot instead of silently degrading validation to the bare-cluster pass.
 export function parseModelSecretKeys(raw: string): Record<string, string> {
   const parsed: unknown = JSON.parse(raw);
 
@@ -104,20 +72,11 @@ export function parseModelSecretKeys(raw: string): Record<string, string> {
   return parsed as Record<string, string>;
 }
 
-/**
- * What this cluster CLAIMS to offer, declared — never inferred from which env
- * vars happen to be set. `full` is a cluster with the platform around it (MCP
- * gateway, skills registry, events sink); `bare` is a satellite that renders
- * recipes without those blocks ON PURPOSE. The 2026-09-01 incident was a full
- * cluster rendering the bare shape because two env vars went unset: with the
- * profile declared, that misconfiguration refuses to boot instead.
- */
+// What this cluster CLAIMS to offer — declared, never inferred from env vars (the 2026-09-01 incident: an undeclared full cluster silently rendered bare).
 export function catalogProfile(env: NodeJS.ProcessEnv): "full" | "bare" {
   const raw = env.LORE_CATALOG_PROFILE;
 
-  // Only the exact words: for a knob whose whole point is "declared, never
-  // inferred", coercing "Full"/"ful"/"true" to the permissive value would put
-  // the incident one typo away.
+  // Only the exact words — coercing near-matches would put the incident one typo away.
   enforceTrue(
     raw === undefined || raw === "" || raw === "full" || raw === "bare",
     Error,
@@ -144,9 +103,7 @@ export function enforceCatalogProfile(env: NodeJS.ProcessEnv): void {
     );
   }
 
-  // The credential axis of the same incident class: a full cluster with no
-  // anthropic key renders every default recipe secretless while validation
-  // passes (an empty map reads as a deliberate bare cluster).
+  // Credential axis of the same incident class: a full cluster with no anthropic key would render every default recipe secretless while validation passes.
   enforceTrue(
     env.LORE_AGENT_LLM_SECRET_KEY ||
       (env.LORE_MODEL_SECRET_KEYS &&
@@ -182,9 +139,7 @@ export type CatalogSyncOutcome =
   | { kind: "unauthorized" }
   | { kind: "error"; message: string };
 
-/** Empties back off exactly like the claim loop; a synced batch polls again at
- *  the base (no rush — catalog edits are human-paced), and errors are not
- *  idleness. */
+/** Empties back off like the claim loop; a synced batch polls again at the base (catalog edits are human-paced). */
 export function nextSyncDelay(
   baseMs: number,
   idleTicks: number,
@@ -198,8 +153,7 @@ export function nextSyncDelay(
   return backoffDelay(baseMs, idleTicks, maxIdleMs);
 }
 
-/** The three catalog operations a sync needs — the routes' applyPair/deletePair
- *  plus the read the seed-ownership guard makes. */
+/** The three catalog operations a sync needs: applyPair/deletePair plus the read the seed-ownership guard makes. */
 export interface CatalogTarget {
   applyPair(pair: {
     agentDefinition: AgentDefinition;
@@ -209,30 +163,35 @@ export interface CatalogTarget {
   getAgentDefinition(name: string): Promise<AgentDefinition | null>;
 }
 
+type CrdOwnership =
+  { writable: true } | { writable: false; managedBy: string | undefined };
+
+/** A live CR labeled by neither the sync loop nor the UI belongs to someone else. */
+async function checkCrdOwnership(
+  catalog: CatalogTarget,
+  crdName: string,
+): Promise<CrdOwnership> {
+  const live = await catalog.getAgentDefinition(crdName);
+  const managedBy = live?.metadata?.labels?.["app.kubernetes.io/managed-by"];
+  const foreign =
+    live !== null &&
+    managedBy !== SYNC_MANAGED_BY &&
+    managedBy !== UI_MANAGED_BY;
+
+  return foreign ? { writable: false, managedBy } : { writable: true };
+}
+
 export interface CatalogSyncTickDeps {
   apiUrl: string;
   identity: () => ClusterAgentIdentity;
   catalog: CatalogTarget;
   crdOptions: CatalogCrdOptions;
-  /**
-   * Transition guard: while the Helm catalog-seed hook still runs (its
-   * server-side apply force-claims ownership on every deploy), this loop
-   * SKIPS CRs the seed labeled rather than fighting it — two writers with
-   * even slightly different renders would silently flap. Set
-   * LORE_CATALOG_SYNC_OWN_SEEDED=1 at cutover (seedCatalog: false) and the
-   * loop takes them over; the label persists on the object, so an
-   * unconditional skip would orphan every org default forever.
-   */
+  // Transition guard: skips seed-labeled CRs until LORE_CATALOG_SYNC_OWN_SEEDED=1 at cutover, else two writers would flap.
   ownSeeded: boolean;
   fetchFn?: typeof fetch;
 }
 
-/** One poll: fetch the unapplied batch, land every entry, remember the cursor
- *  to ack on the NEXT call. Never throws — every failure shape is an outcome.
- *  `snapshot` asks for the FULL catalog regardless of the stored cursor — the
- *  boot resync: applied-state is a function of row content AND this binary's
- *  rendering, so a restart re-renders everything, repairing an apply a dying
- *  pod lost or one an older binary rendered differently (issue #1727). */
+/** One poll: fetch the unapplied batch, land every entry, remember the cursor to ack next call. Never throws. `snapshot` forces a full boot resync, repairing a lost or differently-rendered apply (#1727). */
 export async function catalogSyncOnce(
   deps: CatalogSyncTickDeps,
   ack: string | undefined,
@@ -301,8 +260,7 @@ export async function catalogSyncOnce(
   }
 
   if (body.entries.length === 0) {
-    // Nothing to apply, but the ack still advances (a snapshot of an empty
-    // catalog must still land the agent in tail mode).
+    // Ack still advances — a snapshot of an empty catalog must still land the agent in tail mode.
     return { outcome: { kind: "empty" }, ack: body.cursor };
   }
 
@@ -310,9 +268,7 @@ export async function catalogSyncOnce(
   let deleted = 0;
   const skippedNames: string[] = [];
   const refused: string[] = [];
-  // The same verdicts, structured, for the status report: a log line dies with
-  // the pod, and a refusal nobody can read afterwards is a refusal nobody acts
-  // on (2026-09-01).
+  // Structured verdicts for the status report — a log line dies with the pod (2026-09-01).
   const reports: CatalogApplyReport[] = [];
   const report = (
     entry: { name: string; project_id: string | null },
@@ -331,32 +287,19 @@ export async function catalogSyncOnce(
     const crdName = catalogCrdName(entry.name, entry.project_id);
 
     try {
-      // Ownership FIRST — for deletes as much as applies: a null-definition
-      // event must not remove a seed-owned org default (delete/re-seed flap)
-      // or an operator's hand-applied CR. While the transition holds the loop
-      // owns its own label, the UI push's (that render is degraded on purpose
-      // and this loop's validated render repairing it is the point), and what
-      // does not exist yet. The seed label stays the chart's until cutover,
-      // and an UNLABELED live CR is a human's — never clobbered, never
-      // validated, never REFUSED-logged on their behalf.
-      if (!deps.ownSeeded) {
-        const live = await deps.catalog.getAgentDefinition(crdName);
-        const managedBy =
-          live?.metadata?.labels?.["app.kubernetes.io/managed-by"];
+      // Ownership check FIRST, for deletes too — a null-definition event must never remove a seed-owned or hand-applied CR.
+      const ownership = deps.ownSeeded
+        ? { writable: true as const }
+        : await checkCrdOwnership(deps.catalog, crdName);
 
-        if (
-          live !== null &&
-          managedBy !== SYNC_MANAGED_BY &&
-          managedBy !== UI_MANAGED_BY
-        ) {
-          skippedNames.push(`${crdName} (${managedBy ?? "unlabeled"})`);
-          report(
-            entry,
-            "skipped",
-            `owned by ${managedBy ?? "an unlabeled writer"}`,
-          );
-          continue;
-        }
+      if (!ownership.writable) {
+        skippedNames.push(`${crdName} (${ownership.managedBy ?? "unlabeled"})`);
+        report(
+          entry,
+          "skipped",
+          `owned by ${ownership.managedBy ?? "an unlabeled writer"}`,
+        );
+        continue;
       }
 
       if (entry.definition === null) {
@@ -366,12 +309,7 @@ export async function catalogSyncOnce(
         continue;
       }
 
-      // The render contract, BEFORE the render: a refusal is permanent for
-      // this (row, cluster) pair — only a new event or new cluster config
-      // changes the answer — so the loop acks past it. Re-serving it instead
-      // is how one dead row (`def-github_action`, 422 forever) head-of-line
-      // blocked the entire tail for two hours on 2026-09-01. The previous CR,
-      // if any, stays live: last-known-good beats unbootable.
+      // Refusal is permanent for this (row, cluster) pair, so the loop acks past it — re-serving head-of-line blocked the tail for 2h on 2026-09-01.
       const refusal = validateCatalogEntry(entry.definition, deps.crdOptions);
 
       if (refusal !== null) {
@@ -385,12 +323,7 @@ export async function catalogSyncOnce(
       applied += 1;
       report(entry, "applied", null);
     } catch (err) {
-      // The apiserver's verdict decides the retry: a 400/422 can never
-      // succeed (the validator's backstop), so it refuses and the loop moves
-      // on; anything else is transient — keep the ack so the batch re-serves.
-      // Known edge, accepted: applyCatalogPair writes Station first, so a
-      // permanent rejection of the AgentDefinition half leaves the new
-      // Station template live beside the old recipe — the refusal names it.
+      // A 400/422 can never succeed, so it refuses; anything else is transient and keeps the ack so the batch re-serves.
       if (isPermanentApplyError(err)) {
         const reason = `${errorMessage(err)} (pair may be half-applied — Station half lands first)`;
 
@@ -409,8 +342,7 @@ export async function catalogSyncOnce(
     }
   }
 
-  // Best effort, and deliberately after the applies: a cluster that cannot
-  // report must keep syncing. A failed report costs visibility, never delivery.
+  // Best effort, after the applies — a cluster that cannot report must keep syncing; a failed report costs visibility, never delivery.
   await reportStatus(deps, reports);
 
   return {
@@ -479,8 +411,7 @@ export interface CatalogSyncLoopDeps {
   sleep: (ms: number) => Promise<void>;
   baseDelayMs: number;
   running: () => boolean;
-  /** Resolved once, after the first successful sync (snapshot applied or
-   *  already in tail) — the gate the claim loop's start awaits. */
+  /** Resolved once after the first successful sync — the gate the claim loop's start awaits. */
   onFirstSync?: () => void;
 }
 
@@ -489,8 +420,7 @@ export async function runCatalogSyncLoop(
 ): Promise<void> {
   let ack: string | undefined;
   let first = true;
-  // The boot resync flag: true until one sync actually LANDS (synced or
-  // empty), so an unauthorized or failed first poll does not eat it.
+  // True until one sync actually LANDS (synced or empty), so a failed first poll does not eat the boot resync.
   let resync = true;
 
   await runPollLoop<CatalogSyncOutcome>({
@@ -530,8 +460,7 @@ export async function runCatalogSyncLoop(
         }
       }
 
-      // Reached only for synced/empty (the failure kinds return above): the
-      // resync landed, so later polls tail from the acked cursor.
+      // Reached only for synced/empty — resync landed, so later polls tail from the acked cursor.
       resync = false;
 
       if (first) {

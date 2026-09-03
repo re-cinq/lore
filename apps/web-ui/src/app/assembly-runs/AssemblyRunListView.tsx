@@ -13,11 +13,7 @@ export interface AssemblyRunListViewProps {
 /** The run status vocabulary — one status per run, so filtering is SQL-side. */
 const FILTERS = ["queued", "running", "finished", "failed"] as const;
 
-/**
- * Global assembly-runs list, keyed on the per-attempt run records. Pure render:
- * the container (`page.tsx`) fetches the runs (already status-filtered) and
- * passes them down; the table is the shared <AssemblyRunsTable>.
- */
+// Global assembly-runs list, keyed on per-attempt run records. Pure render — page.tsx fetches the status-filtered runs and passes them down.
 export default function AssemblyRunListView({
   activeStatus,
   runs,

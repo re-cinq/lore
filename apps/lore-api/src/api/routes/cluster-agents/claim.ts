@@ -13,17 +13,7 @@ import { PgAssemblyRuns } from "@re-cinq/lore-shared/project/assembly-runs/assem
 import { zodResponse } from "../../../server/plugins/zod-response.js";
 import { DB_UNAVAILABLE } from "../common-schemas.js";
 
-/**
- * POST /api/cluster-agents/{id}/claim — a cluster-agent pulls its next queued
- * station run (FR3 of specs/running-stations-in-any-k8s-cluster).
- *
- * Auth is the per-agent bearer token issued at registration, NOT the
- * bearer-scope strategy: the token identifies the claiming agent, and a valid
- * token may only claim as itself — presenting agent A's token against agent
- * B's id is a 403, not a claim on B's behalf.
- *
- * No matching queued run is a 204, the idle-poll signal an agent backs off on.
- */
+// A cluster-agent pulls its next queued station run (FR3, specs/running-stations-in-any-k8s-cluster); per-agent bearer token (not bearer-scope) so A's token against B's id is a 403; no queued run is a 204 idle-poll signal.
 
 const ClaimResponse = z.object({
   station_run_id: z.string(),
@@ -62,11 +52,7 @@ export async function handleClaim(
   }
 
   if (!mayClaim(agent)) {
-    // 204, the same answer as "nothing queued for you": a paused agent needs
-    // no new client behaviour, its existing idle backoff simply keeps polling
-    // until an operator un-pauses it. Enforced HERE rather than in the claim
-    // SQL because pausing is a fact about the cluster-agent, and the station-run
-    // queue has no business knowing about the registry.
+    // Same 204 as "nothing queued": a paused agent needs no new client behaviour, just its existing idle backoff; enforced HERE since pausing is a fact about the registry, not the queue.
     return { code: 204 };
   }
 

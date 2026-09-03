@@ -3,19 +3,8 @@ import { apiFetch } from "./client";
 import type { ApiResult } from "./result";
 import type { components } from "./schema";
 
-// The task operations the UI needs, typed at one place. These replace direct
-// `pipeline.tasks` / `pipeline.task_events` SQL in the /api/tasks/[id]/* proxy
-// routes: the UI is a presentation tier, and the transitions (cancel, run-now)
-// carry state rules — refusing a terminal task, recording the event — that
-// belong beside the data, not in six Next route handlers.
-
-/** The task fields the UI reads. `GET /api/task/{id}` returns the whole row
- *  plus its events; this names only what the proxies actually use. */
-// The task and run shapes are aliases over the OpenAPI document lore-api
-// generates from its route contracts (ADR-035) — which are themselves derived
-// from the shared models plus their column maps. One declaration reaches from
-// the column to this type; check-openapi-drift.sh fails CI when it goes stale.
-
+// Task operations typed at one place, replacing direct pipeline.tasks SQL in the proxy routes — transition rules (cancel, run-now) belong beside the data, not in six route handlers.
+/** Task/run shapes alias the OpenAPI document lore-api generates (ADR-035); check-openapi-drift.sh guards staleness. `GET /api/task/{id}` returns more than this names. */
 export type Task = components["schemas"]["TaskDetail"];
 
 export type TaskRun = components["schemas"]["TaskRunList"]["runs"][number];
@@ -28,16 +17,7 @@ export interface TaskLogs {
 
 export type CreatedTask = components["schemas"]["StationTaskCreated"];
 
-/**
- * Queue a task. lore-api inserts the row and its pending `task_events` entry and
- * RETURNS the new id.
- *
- * The id matters: the create pages used to insert, then re-read the newest task
- * in the whole table to learn which one they had just made. Two concurrent
- * submissions — from any repo, by any user — and the second one wins that read,
- * so the first page attached its pending event to a stranger's task and
- * redirected the author there.
- */
+/** Queues a task; lore-api RETURNS the new id — pages used to re-read the newest table row instead, which two concurrent submissions could misattribute to a stranger's task. */
 export function createTask(input: {
   description: string;
   taskType?: string;
@@ -63,8 +43,7 @@ export function getTask(id: string): Promise<ApiResult<Task>> {
   return apiFetch("lore-api", `/api/task/${encodeURIComponent(id)}`);
 }
 
-/** Refuses an unknown id (404) or a terminal task (409) — the result carries
- *  both, so a proxy can answer with the same distinction it was given. */
+/** Refuses an unknown id (404) or a terminal task (409); the proxy answers with the same distinction it was given. */
 export function cancelTask(
   id: string,
 ): Promise<ApiResult<{ task_id: string; status: string }>> {
@@ -74,8 +53,7 @@ export function cancelTask(
   });
 }
 
-/** Jump a pending task to the front of the queue. Refuses anything past
- *  `pending` (409) rather than silently leaving it where it was. */
+/** Jumps a pending task to the front of the queue; refuses anything past `pending` (409) rather than silently no-op-ing. */
 export function runTaskNow(
   id: string,
 ): Promise<ApiResult<{ task_id: string; priority: string }>> {
@@ -85,8 +63,7 @@ export function runTaskNow(
   });
 }
 
-/** Queue a revision of a task from human feedback. Refuses an unknown id (404)
- *  or blank feedback (409) rather than queueing an empty revision. */
+/** Queues a revision from human feedback; refuses an unknown id (404) or blank feedback (409) rather than queueing an empty revision. */
 export function reviseTask(
   id: string,
   feedback: string,
@@ -115,8 +92,7 @@ export function getTaskLogs(
 
 // ── dashboard reads ──────────────────────────────────────────────────
 
-/** A repo's most recent tasks. Empty (not an error) on a database with no
- *  `pipeline.tasks` — the panel renders without them. */
+/** A repo's most recent tasks; empty (not an error) on a database with no `pipeline.tasks` — the panel renders without them. */
 export function getRepoTasks(
   repo: string,
   limit = 15,

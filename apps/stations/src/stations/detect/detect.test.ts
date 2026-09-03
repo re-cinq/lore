@@ -15,7 +15,7 @@ const input = (over: Partial<StationInput> = {}): StationInput => ({
 });
 
 describe("runDetectStation", () => {
-  it("dispatches by job_ref and returns the detector summary (capped)", async () => {
+  it('dispatches by job_ref and returns the detector summary (capped): spec_drift with no specs returns "No specs found"', async () => {
     const fakeProject = {
       chunks: { specChunks: async () => [] },
     } as unknown as Project;
@@ -25,7 +25,6 @@ describe("runDetectStation", () => {
       () => fakeProject,
     );
 
-    // spec_drift with no specs returns "No specs found"
     expect(result).toEqual({
       outcome: "success",
       extras: { "Lore-Detect-Summary": "No specs found" },

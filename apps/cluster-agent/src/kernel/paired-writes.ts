@@ -1,25 +1,9 @@
-// The catalog read-modify-write pair, kept whole on this side of the network.
-//
-// It is here rather than inline in `deps.ts` because it is a DECISION — a
-// write order — and `deps.ts` is an IO shell excluded from coverage. It
-// shipped with a defect while it lived there: written in the order its own
-// sibling's comment argued against. Decision logic in an IO shell is decision
-// logic nobody tests.
-//
-// The status read-modify-write that used to live beside this one is gone with
-// the route it backed (`PATCH /api/cluster/agents/{name}/status`) — the
-// watcher went cluster-blind and nothing calls it any more.
+// The catalog read-modify-write pair, kept whole here rather than inline in `deps.ts` (an IO shell excluded from coverage) since the write ORDER is a decision that needs testing.
 
 import { preserveUnownedFields } from "@re-cinq/lore-shared";
 import type { AgentDefinition, Station } from "@re-cinq/agent-contracts";
 
-/** The catalog half of a recipe, applied Station FIRST.
- *
- *  The mirror of `deletePair`: the AgentDefinition is what a dispatch looks up,
- *  so writing it LAST means a recipe is never visible pointing at a station
- *  that does not exist yet. Applying them the other way round opens exactly
- *  that window, and `deletePair` already said so about its own order.
- */
+/** The catalog half of a recipe, applied Station FIRST (mirror of `deletePair`) — writing the AgentDefinition last means a recipe is never visible pointing at a missing station. */
 export async function applyCatalogPair(
   catalog: CatalogWriter,
   {
@@ -27,9 +11,7 @@ export async function applyCatalogPair(
     station,
   }: { agentDefinition: AgentDefinition; station: Station },
 ): Promise<void> {
-  // Both reads together — only the WRITE order is load-bearing. Neither write
-  // depends on the OTHER read's result, so combining the reads changes nothing
-  // about what each write is allowed to start from.
+  // Both reads together — only the WRITE order is load-bearing; neither write depends on the other's read result.
   const [liveStation, liveDefinition] = await Promise.all([
     catalog.getStation(station.metadata!.name!),
     catalog.getAgentDefinition(agentDefinition.metadata!.name!),
@@ -41,8 +23,7 @@ export async function applyCatalogPair(
   );
 }
 
-/** The four catalog calls an apply makes. `metadata.name` is guaranteed by the
- *  route's schema, which is why the assertions above are safe. */
+/** The four catalog calls an apply makes; `metadata.name` is guaranteed by the route's schema, which is why the assertions above are safe. */
 export interface CatalogWriter {
   getStation(name: string): Promise<Station | null>;
   getAgentDefinition(name: string): Promise<AgentDefinition | null>;

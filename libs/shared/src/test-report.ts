@@ -1,14 +1,5 @@
 import { enforceTrue } from "./lib/enforce.js";
-/**
- * Parsers for the deterministic, zero-LLM output of the project's test
- * commands: `parseTestDescriptors` turns `tests.list` stdout into
- * {@link TestDescriptor}s (one per test, seeding `TestChunk`), and
- * `parseRunResult` turns `tests.run <id>` stdout into a {@link RunResult}
- * (`passed` + covered {@link CoveredChunk}s). The covered-chunk shape is
- * identical across `tests.run`, the `test-report` `covered[]`, and the
- * bulk `/coverage` body. See
- * `specs/project-test-interface/contracts/test-commands.md`.
- */
+/** Parsers for the project's test-command output (`specs/project-test-interface/contracts/test-commands.md`): `parseTestDescriptors` turns `tests.list` stdout into {@link TestDescriptor}s, `parseRunResult` turns `tests.run <id>` stdout into a {@link RunResult}. */
 
 export interface TestDescriptor {
   id: string;

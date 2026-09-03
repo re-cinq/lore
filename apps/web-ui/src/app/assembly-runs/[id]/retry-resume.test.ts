@@ -8,9 +8,7 @@ const visit = (nodeId: string, iteration: number, outcome: string | null) => ({
 });
 
 describe("retryResumeSource", () => {
-  it("resolves await-pr as the kept prefix when retrying fix-ci", () => {
-    // Run 52c3fdd5's walk: retrying the node that died forks from the visit
-    // just before it.
+  it("resolves await-pr as the kept prefix when retrying fix-ci, forking from the visit just before the dead node", () => {
     const visits = [
       visit("tdd-round", 1, "success"),
       visit("ready-for-review", 1, "failed"),
@@ -41,10 +39,7 @@ describe("retryResumeSource", () => {
     ).toBeNull();
   });
 
-  it("names the predecessor row by iteration when that node ran again later", () => {
-    // implement's latest visit sits between two validate visits: naming
-    // validate@1 (not validate's latest row) keeps exactly the prefix before
-    // the retry target, so loops don't hide the retry.
+  it("names the predecessor row by iteration (validate@1, not its latest row) when that node ran again later", () => {
     const visits = [
       visit("implement", 1, "success"),
       visit("validate", 1, "failed"),
@@ -58,10 +53,7 @@ describe("retryResumeSource", () => {
     });
   });
 
-  it("retrying a self-looped node names its own earlier iteration", () => {
-    // implement failed twice on a self-edge: the kept prefix ends at
-    // implement@1, and the fork's replay re-launches implement with a fresh
-    // budget for the spent back-edge.
+  it("retrying a self-looped node names its own earlier iteration, re-launching with a fresh budget for the spent back-edge", () => {
     const visits = [
       visit("implement", 1, "failed"),
       visit("implement", 2, "failed"),

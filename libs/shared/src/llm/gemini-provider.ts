@@ -1,16 +1,4 @@
-/**
- * Google Gemini provider. Raw `fetch` against the Generative Language API —
- * mirrors `openai-provider.ts`'s hand-rolled-HTTP shape rather than adding a
- * `@google/generative-ai` dependency. Tool/structured output uses Gemini's
- * `responseMimeType: "application/json"` mode with a parse fallback, the same
- * pattern `OpenAiProvider.completeWithTool` uses — Gemini has no forced-tool-call
- * primitive equivalent to Anthropic's `tool_choice`.
- *
- * Cost logging goes through an injected `UsagePort`, same as
- * `AnthropicProvider` — a caller passing an assembly-line id as `taskId` lands
- * on `assembly_run_id` instead of being FK-rejected. Port absent → logging is
- * skipped.
- */
+// Google Gemini provider: raw `fetch` (mirrors `openai-provider.ts`, no `@google/generative-ai` dep); structured output uses `responseMimeType: "application/json"` since Gemini has no `tool_choice`-equivalent forced-tool-call primitive.
 
 import { enforceTrue } from "../lib/enforce.js";
 import type { UsagePort } from "../project/usage/usage-port.js";
@@ -25,13 +13,7 @@ import type {
 
 const ZERO_CACHE = { cacheCreationTokens: 0, cacheReadTokens: 0 };
 
-// $/token, derived from published $/1M rates for prompts under the 200k-token
-// tier boundary (Pro/Flash step to a higher rate above it — not modelled here,
-// most Lore-internal jobs stay well under it). Reverify current figures at
-// https://ai.google.dev/gemini-api/docs/pricing before relying on this table;
-// Gemini pricing changes more often than Anthropic's. Every figure below was
-// read off that page on 2026-09-01; the 3.7 Flash rate is a launch price
-// (through 2026-12-31 — it doubles after).
+// $/token for prompts under the 200k-token tier boundary, read off https://ai.google.dev/gemini-api/docs/pricing on 2026-09-01 — reverify before relying on this table (3.7 Flash is a launch price through 2026-12-31, then doubles).
 export const GEMINI_MODEL_PRICING: Record<string, ModelPricing> = {
   "gemini-2.5-pro": {
     inputPerToken: 1.25 / 1_000_000,

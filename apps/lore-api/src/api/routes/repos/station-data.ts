@@ -41,28 +41,7 @@ const TaskBody = z.object({
   contextBundle: z.record(z.unknown()).optional(),
 });
 
-/**
- * The data + write endpoints a detection station pod reaches over HTTP, so it
- * never opens Postgres or holds GitHub App creds (ADR-031 D6/D7). Each proxies
- * the shared Project facade server-side. Grouped in one array for registration.
- *
- *   GET  /repos/:o/:r/onboarded                → { onboarded }
- *   GET  /repos/:o/:r/issues?state=            → { issues }
- *   POST /repos/:o/:r/issues                   → the created issue
- *   POST /repos/:o/:r/branches                 → { ok }        (branch create)
- *   POST /repos/:o/:r/commit                   → { ok }        (commit a file)
- *   POST /repos/:o/:r/pulls                    → the opened PR
- *   GET  /repos/:o/:r/ci-conclusion?ref=       → { conclusion }
- *   GET  /repos/:o/:r/tasks/drift?…            → { tasks }     (spec_path dedup)
- *   GET  /repos/:o/:r/tasks/open-like?…        → { tasks }     (prefix dedup)
- *   POST /repos/:o/:r/tasks                     → the created task
- */
-/**
- * The bodies a STATION POD reads. A pod reaches neither Postgres nor the GitHub
- * App (ADR-031 D6/D7), so these are its whole view of a repo — which is exactly
- * why they are worth declaring: the pod ships as its own image, and an
- * undeclared body is one nothing can check across that boundary.
- */
+// Data + write endpoints + bodies a station pod (its own image, no Postgres/GitHub App creds — ADR-031 D6/D7) reaches over HTTP via the shared Project facade; declared since an undeclared body is uncheckable across that image boundary.
 const IssueRefSchema = z.object({
   repo: z.string(),
   number: z.number(),
@@ -286,8 +265,7 @@ export function stationDataRoutes(): ServerRoute[] {
 
           return h.response({ conclusion: await p.pulls.ciConclusion(ref) });
         } catch (err) {
-          // A guard's refusal already carries its status; only an unexpected failure
-          // is this block's to shape.
+          // A guard's refusal already carries its status; only an unexpected failure is this block's to shape.
           rethrowBoom(err);
 
           return fail(h, err);
@@ -316,8 +294,7 @@ export function stationDataRoutes(): ServerRoute[] {
             tasks: await p.tasks.driftTasksForSpec(q.task_type, q.spec_path),
           });
         } catch (err) {
-          // A guard's refusal already carries its status; only an unexpected failure
-          // is this block's to shape.
+          // A guard's refusal already carries its status; only an unexpected failure is this block's to shape.
           rethrowBoom(err);
 
           return fail(h, err);
@@ -351,8 +328,7 @@ export function stationDataRoutes(): ServerRoute[] {
             }),
           });
         } catch (err) {
-          // A guard's refusal already carries its status; only an unexpected failure
-          // is this block's to shape.
+          // A guard's refusal already carries its status; only an unexpected failure is this block's to shape.
           rethrowBoom(err);
 
           return fail(h, err);

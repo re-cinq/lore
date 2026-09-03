@@ -1,11 +1,4 @@
-/**
- * GET /healthz — liveness + readiness.
- *
- * Answers 200 as soon as the process is serving. Deliberately does NOT probe
- * the Kubernetes API: an apiserver blip would take the agent out of rotation
- * exactly when a caller most needs to hear a real error from it, and every
- * route already reports its own failure honestly.
- */
+// GET /healthz — liveness + readiness. Answers 200 as soon as the process serves; deliberately does NOT probe the Kubernetes API (an apiserver blip would take the agent out of rotation).
 
 import type { ServerRoute } from "@hapi/hapi";
 

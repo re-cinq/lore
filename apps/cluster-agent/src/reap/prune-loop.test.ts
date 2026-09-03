@@ -70,8 +70,6 @@ describe("pruneOnce", () => {
   });
 
   it("skips one object it cannot delete and still sweeps the rest", async () => {
-    // A single object wedged by a finalizer must not keep a 40MiB backlog in
-    // the informer's cache; the next tick tries it again.
     const { api, deleted } = cluster({
       agents: [old("wedged"), old("fine")],
       failOn: "wedged",
@@ -139,7 +137,6 @@ describe("the schedule and the retention window", () => {
   });
 
   it("keeps three days of evidence by default", () => {
-    // The window that let run 129235d4 be read two days after it died.
     expect(pruneTtlMs({})).toBe(72 * HOUR);
     expect(pruneTtlMs({ LORE_CLUSTER_AGENT_CR_TTL_HOURS: "12" })).toBe(
       12 * HOUR,
@@ -147,7 +144,6 @@ describe("the schedule and the retention window", () => {
   });
 
   it("ignores a zero or unparseable retention rather than deleting everything", () => {
-    // A misread `0` here would delete every terminal run the moment it landed.
     expect(pruneTtlMs({ LORE_CLUSTER_AGENT_CR_TTL_HOURS: "0" })).toBe(
       72 * HOUR,
     );

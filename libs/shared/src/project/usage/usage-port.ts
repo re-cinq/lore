@@ -1,17 +1,11 @@
 import type { CarriedRunIdentity } from "../run-identity/carried-run-identity.js";
 
-/**
- * One `pipeline.llm_calls` row — a single LLM invocation's token + cost
- * accounting. Written by the runner's agent node after each completion.
- */
+/** One pipeline.llm_calls row — a single LLM invocation's token+cost accounting, written by the runner's agent node after each completion. */
 export interface LlmCallRecord {
   taskId?: string | null;
-  /** The Agent CR name (`source.agent`). When it resolves to an
-   *  `assembly_line_nodes` row, the cost lands on that exact assembly-line
-   *  attempt — giving task-backed runs per-attempt cost (#947). */
+  /** The Agent CR name (source.agent); when it resolves to an assembly_line_nodes row, cost lands on that exact attempt (per-attempt cost, #947). */
   agentCrName?: string | null;
-  /** The identity the event STATED, when its producer knew it (#1147). Present it
-   *  and neither the CR-name lookup nor the given-id fallback is consulted. */
+  /** Identity the event itself stated, if known (#1147); present skips both the CR-name lookup and the given-id fallback. */
   carried?: CarriedRunIdentity | null;
   jobName?: string | null;
   model: string;
@@ -33,9 +27,7 @@ export interface ProcessedCounts {
 
 /** Outcome of persisting one cost row. */
 export interface LlmCallResult {
-  /** True when the row landed on a task or an assembly line; false when the
-   *  incoming id matched neither, so the row is stored uncorrelated (both
-   *  columns null). The ingest sink surfaces the false case (issue #945). */
+  /** True when the row landed on a task or assembly line; false when uncorrelated (both columns null) — the ingest sink surfaces the false case (#945). */
   correlated: boolean;
 }
 

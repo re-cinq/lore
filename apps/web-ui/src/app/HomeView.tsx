@@ -8,12 +8,7 @@ import Link from "next/link";
 import styles from "./HomeView.module.css";
 import type { components } from "@/lib/api/schema";
 
-/**
- * What this view renders of a repo row — a PICK over the published shape, not a
- * copy of it. The page reads whole rows from `/api/repos`; naming the nine
- * fields the card actually shows keeps the component honest about its inputs
- * while the field TYPES still come from the contract.
- */
+// A PICK over the published shape, not a copy — types still come from the contract.
 export type Repo = Pick<
   components["schemas"]["RepoList"]["repos"][number],
   | "full_name"
@@ -73,13 +68,19 @@ function ingestBadge(
   return null;
 }
 
-/**
- * Presentational view for the repositories overview. Pure render — the
- * repo list and per-repo ingest-workflow status are resolved by the
- * container (`page.tsx`) and passed down; the only mutation (Fix ingest
- * workflow) is handed in as `fixIngestWorkflows` and fired back up via the
- * client button, keeping this component free of data access.
- */
+function ingestionSummary(repo: Repo): string {
+  if (repo.last_ingested_at) {
+    return `Last ingested ${new Date(repo.last_ingested_at).toLocaleDateString()}`;
+  }
+
+  if (repo.onboarding_pr_merged) {
+    return "Onboarded, awaiting ingestion";
+  }
+
+  return "Onboarding PR pending";
+}
+
+// Pure render — repo list/status come from page.tsx; fixIngestWorkflows is the only mutation, fired via the client button.
 export default function HomeView({
   repos,
   ingestStatus,
@@ -146,13 +147,7 @@ export default function HomeView({
                 ) : null;
               })()}
             </div>
-            <div className="meta">
-              {r.last_ingested_at
-                ? `Last ingested ${new Date(r.last_ingested_at).toLocaleDateString()}`
-                : r.onboarding_pr_merged
-                  ? "Onboarded, awaiting ingestion"
-                  : "Onboarding PR pending"}
-            </div>
+            <div className="meta">{ingestionSummary(r)}</div>
           </Link>
         ))}
         {repos.length === 0 && (

@@ -1,14 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { PlatformGitHub } from "./platform-github.js";
 
-/**
- * The auth resolution (relocated from github-client.ts) without network: with
- * no App creds and no token, any call fails with the clear config error. Real
- * env values drive it — no mocks. Authenticated REST behavior is integration.
- */
-
-// The `{}`-env auth tests below throw from the config check before any REST call,
-// so mocking octokit doesn't disturb them; the paginated-read suite uses it.
 const state: {
   files: Array<{ filename: string }>;
   checkRuns: Array<{ name: string; status: string; conclusion: string | null }>;
@@ -27,8 +19,6 @@ const state: {
 
 vi.mock("octokit", () => ({
   Octokit: class {
-    // Part of the real client; the retry policy (#1017) installs a request hook at
-    // construction, so a fake without it models a client that does not exist.
     hook = { before: () => {} };
     auth = async () => ({ token: state.token });
     graphql = async (query: string, vars: Record<string, unknown>) => {
@@ -404,8 +394,6 @@ describe("PlatformGitHub review threads (GraphQL)", () => {
   });
 
   it("markReady sends no mutation for a pull request already out of draft", async () => {
-    // GitHub errors the mutation on a non-draft PR, so a re-delivered event or a
-    // reaper re-drive would fail a run for work that is already done.
     state.prNode = { id: "PR_42", isDraft: false };
 
     await gh().markReady("re-cinq/lore", 7);

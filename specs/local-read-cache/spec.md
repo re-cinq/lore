@@ -86,7 +86,7 @@ On a 2xx response the proxy returns `ok` with the upstream body serialized to a 
    entry is served with a `lore-cache: STALE` marker rather than erroring. ([validated by `does not return an expired entry as fresh but readAny still serves it`](libs/server-core/src/platform/proxy-cache.test.ts#L86), [`proxy-cache.test.ts:147`](libs/server-core/src/platform/proxy-cache.test.ts#L147))
 
 7. **AC7** On an authoritative access denial (HTTP 401/403), no cached copy
-   is served — fresh or stale — and the denial is surfaced to the caller. ([validated by `context-tools.test.ts:171`](apps/mcp-server/src/mcp/tools/context-tools.test.ts#L171))
+   is served — fresh or stale — and the denial is surfaced to the caller. ([validated by `context-tools.test.ts:165`](apps/mcp-server/src/mcp/tools/context-tools.test.ts#L165))
 
 8. **AC8** Per-tool TTLs apply; `ttl_overrides[tool]` in `config.json`
    overrides the policy TTL, including an override of `0`. ([implemented by `effectiveTtl`](libs/server-core/src/platform/proxy-cache.ts#L165))

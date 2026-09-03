@@ -3,12 +3,6 @@ import { TestSuite } from "./test-suite.js";
 import type { TestRunnerPort } from "./test-runner-port.js";
 import type { TestDescriptor } from "../../test-report.js";
 
-/**
- * The trust boundary. With LORE_DB_HOST set (the shared GKE server) the facade
- * refuses before touching the runner; in a sandbox it delegates. Real env
- * values drive the gate — no mocks.
- */
-
 const descriptors: TestDescriptor[] = [
   {
     id: "t1",

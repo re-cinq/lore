@@ -9,10 +9,6 @@ import {
   formatValidationOutput,
 } from "./repo-validation.js";
 
-// ---------------------------------------------------------------------------
-// Helpers — create temp directories with config files for detection tests
-// ---------------------------------------------------------------------------
-
 let tmpDir: string;
 
 beforeEach(() => {
@@ -29,10 +25,6 @@ function writeFile(name: string, content: string): void {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
   fs.writeFileSync(filePath, content);
 }
-
-// ---------------------------------------------------------------------------
-// detectTooling
-// ---------------------------------------------------------------------------
 
 describe("detectTooling", () => {
   it("detects Node repo with lint and typecheck scripts", async () => {
@@ -159,10 +151,6 @@ testpaths = ["tests"]
   });
 });
 
-// ---------------------------------------------------------------------------
-// runValidation
-// ---------------------------------------------------------------------------
-
 describe("runValidation", () => {
   it("returns passed=true for successful commands", async () => {
     const result = await runValidation(tmpDir, [
@@ -203,13 +191,7 @@ describe("runValidation", () => {
     expect(result.steps).toEqual([]);
   });
 
-  it("scopes a lint SCRIPT to the changed files by rewriting the script, not the npm command", async () => {
-    // Run b6ed264c (2026-08-30), validate:3: `npm run lint --silent` ran
-    // `eslint .` over the whole monorepo and hit the 30s budget —
-    // `spawnSync /bin/sh ETIMEDOUT`. Scoping strips a trailing " ." from the
-    // COMMAND, and the command is `npm run lint --silent`; the "." lives
-    // inside package.json. So for every repo with a lint script — which is
-    // most of them — scoping has never applied at all.
+  it("scopes a lint SCRIPT to the changed files by rewriting the script, not the npm command (fixes the ETIMEDOUT regression from run b6ed264c)", async () => {
     const calls: string[] = [];
     const exec: ValidationExec = async (command) => {
       calls.push(command);
@@ -277,12 +259,12 @@ describe("runValidation", () => {
     expect(calls).toEqual(["npm run lint --silent"]);
   });
 
-  it("skips lint steps when no matching changed files", async () => {
+  it("skips lint steps when the only changed file is a .md, which doesn't match eslint extensions", async () => {
     const result = await runValidation(
       tmpDir,
       [{ name: "eslint", command: "echo should-not-run", timeoutMs: 5000 }],
       ["README.md"],
-    ); // .md files don't match eslint extensions
+    );
 
     expect(result.passed).toBe(true);
     expect(result.steps[0].output).toContain("skipped");
@@ -297,10 +279,6 @@ describe("runValidation", () => {
     expect(result.steps[0].durationMs).toBeLessThan(5000);
   });
 });
-
-// ---------------------------------------------------------------------------
-// formatValidationOutput
-// ---------------------------------------------------------------------------
 
 describe("formatValidationOutput", () => {
   it("formats passing results", async () => {
@@ -329,10 +307,6 @@ describe("formatValidationOutput", () => {
     expect(output).toContain("error TS1234");
   });
 });
-
-// ---------------------------------------------------------------------------
-// Dependency install — a fresh clone must be validatable
-// ---------------------------------------------------------------------------
 
 describe("detectTooling — a lint script that can be scoped", () => {
   it("derives a scoped form from an eslint script by replacing its dot with the files", () => {
@@ -391,10 +365,7 @@ describe("detectTooling — a lint script that can be scoped", () => {
     ).toBeUndefined();
   });
 
-  it("never scopes a lint script it could not rewrite, even with changed files", async () => {
-    // The regex path used to claim the `lint` step too; it could only ever
-    // have matched a command ending in " .", which `npm run lint` never does.
-    // Dropping it makes "unscoped" the explicit outcome, not an accident.
+  it("never scopes a lint script it could not rewrite, even with changed files, making unscoped an explicit outcome not an accident", async () => {
     const calls: string[] = [];
     const exec: ValidationExec = async (command) => {
       calls.push(command);
@@ -412,10 +383,7 @@ describe("detectTooling — a lint script that can be scoped", () => {
     expect(calls).toEqual(["npm run lint --silent"]);
   });
 
-  it("gives lint a budget a whole monorepo can finish in, since scoping is best-effort", () => {
-    // 30s was calibrated for the scoped run that never happened. Unscoped
-    // `eslint .` on this repo takes minutes; a diff that cannot be derived
-    // (no origin/HEAD) still has to finish.
+  it("gives lint a budget a whole monorepo can finish in, since scoping is best-effort and unscoped eslint takes minutes", () => {
     writeFile(
       "package.json",
       JSON.stringify({ scripts: { lint: "eslint ." } }),
@@ -458,13 +426,7 @@ describe("detectTooling — dependency install on a fresh clone", () => {
     expect(tooling.fullChecks[0]?.name).toBe("install");
   });
 
-  it("runs the build BEFORE lint on a fresh-clone workspaces repo", () => {
-    // Run b219a4f1 (2026-08-30): `npm ci` restored node_modules and eslint then
-    // died on `cannot import @re-cinq/lore-shared/spec-status.js` — this repo's
-    // own ESLint plugin imports a workspace package's COMPILED output, which an
-    // install does not produce. Both implement nodes succeeded and both
-    // validate nodes failed identically, so the retry bought a second
-    // 40-minute implementation against a fault no implementation could fix.
+  it("runs the build BEFORE lint on a fresh-clone workspaces repo, since the ESLint plugin imports a workspace package's compiled output (run b219a4f1)", () => {
     writeFile(
       "package.json",
       JSON.stringify({
@@ -487,9 +449,7 @@ describe("detectTooling — dependency install on a fresh clone", () => {
     ]);
   });
 
-  it("moves that build rather than adding a second one", () => {
-    // One command, one step. A `workspace-build` beside the existing `build`
-    // would compile the repo twice on every fresh clone.
+  it("moves that build rather than adding a second one, avoiding a double compile on every fresh clone", () => {
     writeFile(
       "package.json",
       JSON.stringify({
@@ -522,9 +482,7 @@ describe("detectTooling — dependency install on a fresh clone", () => {
     });
   });
 
-  it("leaves the build after lint for a repo that declares no workspaces", () => {
-    // A single-package repo's lint reads source, so compiling first buys
-    // nothing and costs every validate the time.
+  it("leaves the build after lint for a repo that declares no workspaces, since a single-package lint reads source and gains nothing from building first", () => {
     writeFile(
       "package.json",
       JSON.stringify({ scripts: { lint: "eslint .", build: "tsc -b" } }),
@@ -538,10 +496,7 @@ describe("detectTooling — dependency install on a fresh clone", () => {
     ]);
   });
 
-  it("hoists for Yarn's object spelling of workspaces too", () => {
-    // `{ packages: [...] }` is Yarn's form, and plenty of npm-installed repos
-    // still carry it. The intent of the guard is "is this a monorepo", not
-    // "which tool wrote the field".
+  it("hoists for Yarn's object spelling of workspaces too, since the guard means 'is this a monorepo' not 'which tool wrote the field'", () => {
     writeFile(
       "package.json",
       JSON.stringify({

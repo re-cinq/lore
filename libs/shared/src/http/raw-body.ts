@@ -1,16 +1,4 @@
-// The unparsed request body, shared by the two hapi servers (#1051).
-//
-// `rawBody` was byte-identical in `apps/floor` and `apps/lore-api`. Routes that
-// need the bytes as sent — HMAC verification, NDJSON, parse-anything-as-JSON —
-// set `payload: { parse: false }`, so hapi hands back a Buffer; this normalizes
-// it to a string.
-//
-// The parameter is typed STRUCTURALLY rather than as hapi's `Request`. Neither
-// this package nor its lean consumers depend on hapi, and a type-only import
-// would still make `@hapi/hapi` resolvable-or-bust for everyone who typechecks
-// against these declarations — including the MCP adapter, whose whole point is
-// not to carry the servers' dependencies (ADR-032). `{ payload?: unknown }` is
-// also an honest statement of what the function reads.
+// Unparsed request body, deduped from apps/floor + apps/lore-api (#1051); typed structurally (not hapi's `Request`) so the MCP adapter's lean consumers never need `@hapi/hapi` resolvable (ADR-032).
 
 /** Anything with a hapi-shaped payload — `Request` satisfies this. */
 export interface WithPayload {
@@ -32,13 +20,7 @@ export function rawBody(request: WithPayload): string {
   return "";
 }
 
-/**
- * The body as BYTES, for content that is not text.
- *
- * An agent conversation archive is gzip, and `rawBody`'s utf-8 decode replaces
- * every invalid sequence with U+FFFD — silently corrupting it. Routes handling
- * binary must use this instead.
- */
+/** The body as BYTES: `rawBody`'s utf-8 decode corrupts binary (e.g. gzip archives) via U+FFFD replacement, so binary routes must use this instead. */
 export function rawBytes(request: WithPayload): Buffer {
   const payload = request.payload;
 

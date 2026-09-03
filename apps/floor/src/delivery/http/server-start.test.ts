@@ -37,11 +37,9 @@ describe("startHealthServer failure paths", () => {
     expect(exit).toHaveBeenCalledWith(1);
   });
 
-  it("logs the generic error message and exits 1 on a non-port failure", async () => {
+  it("logs the generic error message and exits 1 on EACCES from a privileged port 80", async () => {
     const { exit, error } = spies();
 
-    // Port 80 is privileged for a non-root test run: start() fails EACCES,
-    // which is exactly the "some other error" branch.
     await startHealthServer(80, () => ({}));
 
     expect(error.mock.calls[0]?.[0]).toBe("[floor] Health server error:");

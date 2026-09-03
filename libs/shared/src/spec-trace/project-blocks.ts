@@ -1,31 +1,10 @@
-/**
- * spec-traceability-graph — shared lossless block projection.
- *
- * Both the spec and the ADR source layers project the same thing: one Block node
- * per {@link segmentBlocks} run (xid = `${repo}|${filePath}|block|${ordinal}`),
- * carrying its ordinal/kind/verbatim text (+ heading level). This is the single
- * authoritative writer for that idiom.
- *
- * `Block.file_path` is set on EVERY block so any document (spec, ADR, …) can be
- * reconstructed uniformly by file_path via `recomputeFile`. The spec path also
- * passes `specUid`, which adds the `Block.spec` uid edge so the spec→block
- * traversal (and its `~Block.spec` reverse-edge pruning) keeps working. Pruning
- * stays with the caller that owns the parent; this helper only writes.
- *
- * Returns the set of valid Block xids it wrote, so callers that prune orphans can
- * pass it straight to their sweep. Talks only through {@link upsertByXid}; never
- * imports the driver.
- */
+/** Shared lossless block projection: one Block node per {@link segmentBlocks} run (xid = `${repo}|${filePath}|block|${ordinal}`), the single authoritative writer used by both the spec and ADR layers; `Block.file_path` is set on every block so `recomputeFile` reconstructs any document uniformly, and callers own their own pruning. */
 
 import { segmentBlocks } from "./deps.js";
 import type { DgraphClientPort } from "./deps.js";
 import { upsertByXid, withTxn } from "./dgraph-upsert.js";
 
-/**
- * Upserts one Block per source block of `content`. Always sets `Block.file_path`;
- * additionally sets the `Block.spec` edge when `specUid` is given. Returns the
- * valid Block xids for the caller's pruning sweep.
- */
+/** Upserts one Block per source block of `content`, always setting `Block.file_path` (+ the `Block.spec` edge when `specUid` is given); returns the valid Block xids for the caller's pruning sweep. */
 export async function projectDocumentBlocks(
   dgraph: DgraphClientPort,
   repo: string,
@@ -57,15 +36,7 @@ export async function projectDocumentBlocks(
   );
 }
 
-/**
- * Deletes every Block scoped to `(filePath, repo)` whose xid is not in
- * `validXids` — the orphaned higher-ordinal blocks left behind when a shorter
- * document re-projects over a longer one. The single authoritative Block sweep
- * for every document layer (spec, ADR, …): because {@link projectDocumentBlocks}
- * sets `Block.file_path` on every Block, the `(Block.file_path, Block.repo)`
- * index reaches them all without needing a Spec parent — so ADRs (which have no
- * Spec) and specs alike prune through this one function.
- */
+/** Deletes every Block scoped to `(filePath, repo)` not in `validXids` — the orphaned higher-ordinal blocks left when a shorter document re-projects over a longer one; the single authoritative sweep for every document layer (spec, ADR, …), needing no Spec parent since `Block.file_path` is set on every Block. */
 export async function pruneOrphanBlocksByFile(
   dgraph: DgraphClientPort,
   repo: string,

@@ -1,22 +1,9 @@
-/**
- * Retry a fallible async operation with a fixed schedule of backoff delays.
- * Runs `delaysMs.length + 1` attempts total: the initial try, then one more after
- * each delay. `delaysMs[i]` is awaited between attempt `i` and attempt `i + 1`, so
- * `[1000, 4000]` means 3 attempts sleeping 1s then 4s. On exhaustion the last error
- * is rethrown so the caller can record the failure.
- *
- * (Replaces the two hand-rolled `for (attempt < delays.length)` loops in the floor
- * escalation + auto-merge jobs, which ran one fewer attempt than their comments
- * claimed and never awaited the final delay.)
- */
+// Retries a fallible async op on a fixed delay schedule: `delaysMs.length + 1` attempts total, rethrowing the last error on exhaustion — replaces two hand-rolled floor loops that ran one attempt short and never awaited the final delay.
 export interface BackoffOptions {
   delaysMs: readonly number[];
   /** Injectable sleep for tests; defaults to setTimeout. */
   sleep?: (ms: number) => Promise<void>;
-  /**
-   * Retry only errors this predicate accepts; anything else rethrows
-   * immediately, before any sleep. Omitted = retry every error.
-   */
+  /** Retry only errors this predicate accepts; omitted = retry every error. */
   retryOn?: (err: unknown) => boolean;
 }
 

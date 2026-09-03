@@ -1,18 +1,4 @@
-/**
- * Kubernetes-Secret-backed {@link IdentityStore} (FR1/FR6).
- *
- * The standalone chart runs the container with `readOnlyRootFilesystem` and
- * mounts the identity Secret read-only, so a file write can never persist the
- * registered `{id, token}` — on first boot the mount path does not even exist
- * (the Secret is `optional` and absent until someone creates it). Persistence
- * goes through the Kubernetes API instead: `save` creates or patches the ONE
- * named Secret the `lore-cluster-agent-identity` Role grants, and `load` reads
- * it back through the same API — no volume-projection delay, no writable
- * filesystem needed. `FileIdentityStore` stays for local (non-cluster) runs.
- *
- * The decision logic is pure over {@link IdentitySecretsApi}; the thin
- * CoreV1Api shell lives in {@link kubeIdentitySecretsApi}.
- */
+// Kubernetes-Secret-backed IdentityStore (FR1/FR6): the standalone chart mounts the identity Secret read-only, so save/load go through the Kubernetes API instead of a file write.
 
 import { parseIdentity } from "./identity-store.js";
 import type { ClusterAgentIdentity, IdentityStore } from "./identity-store.js";
@@ -46,8 +32,7 @@ export class KubeIdentityStore implements IdentityStore {
     try {
       return parseIdentity(raw);
     } catch (err) {
-      // Corrupt data is a fresh start, not a crash — same contract as the
-      // file store: registration 409s loudly if the name is taken.
+      // Corrupt data is a fresh start, not a crash — same contract as the file store.
       console.warn(
         `[cluster-agent] identity secret ${this.secretName} is unreadable (${errorMessage(err)}) — treating as unregistered`,
       );
@@ -98,8 +83,7 @@ export function kubeIdentitySecretsApi(namespace: string): IdentitySecretsApi {
       });
     },
     async patch(name, stringData) {
-      // Read-replace (the kube-token-provisioner idiom): the identity has a
-      // single writer, so no optimistic-concurrency retry loop is needed.
+      // Read-replace (kube-token-provisioner idiom) — single writer, so no optimistic-concurrency retry needed.
       const current = await core.readNamespacedSecret({ name, namespace });
 
       current.stringData = stringData;

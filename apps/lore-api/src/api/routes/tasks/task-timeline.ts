@@ -24,12 +24,7 @@ interface RawCommit {
   commit: { message: string; committer: { date?: string | null } | null };
 }
 
-/**
- * Fold the raw GitHub commit list (most-recent-first) into the ordered
- * stage-commit timeline. Pure: takes plain commits + the task start time,
- * returns the timeline with per-stage durations. Only commits carrying
- * Lore stage trailers contribute.
- */
+// Folds the raw GitHub commit list (most-recent-first) into the ordered stage-commit timeline; only commits carrying Lore stage trailers contribute.
 /** The branch-as-state view: what each stage committed, and who holds the lease. */
 const TaskTimelineSchema = z.object({
   task_id: z.string(),
@@ -47,8 +42,7 @@ export function buildTimeline(
   commitsApi: RawCommit[],
   createdAt: Date,
 ): TimelineCommit[] {
-  // Stage commits are most-recent-first from GitHub. Reverse for
-  // chronological order so durations compute correctly.
+  // Stage commits are most-recent-first from GitHub — reverse for chronological order so durations compute correctly.
   const ordered = [...commitsApi].reverse();
   const stageCommits: TimelineCommit[] = [];
   let prevTimeMs = createdAt.getTime();
@@ -80,8 +74,7 @@ export function buildTimeline(
   return stageCommits;
 }
 
-/** Wire shape of a held-or-lapsed lease row; `held` reflects the clock, not the
- *  row's existence. */
+/** Wire shape of a held-or-lapsed lease row; `held` reflects the clock, not the row's existence. */
 function leaseFromRow(row: { holder: string; expires_at: string }): {
   held: boolean;
   holder?: string;
@@ -155,8 +148,7 @@ export function timelineRoute(getPool: () => Pool | null): ServerRoute {
         });
       }
 
-      // Fetch commits via the GitHub API. Avoids requiring a local git checkout —
-      // the branch is the source of truth on the remote anyway.
+      // Fetch commits via the GitHub API — avoids requiring a local checkout since the branch is the remote source of truth.
       let commitsApi: RawCommit[];
       let prState: "open" | "closed" | "merged" | null = null;
 

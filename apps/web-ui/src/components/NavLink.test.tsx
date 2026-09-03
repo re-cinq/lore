@@ -2,7 +2,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 
-// Keep the real Link, stub useLinkStatus so we control the pending state.
 const linkStatus = vi.fn(() => ({ pending: false }));
 
 vi.mock("next/link", async (importOriginal) => {

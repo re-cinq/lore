@@ -3,16 +3,6 @@ import { InMemorySettings } from "./settings-memory.js";
 import { PgSettings } from "./settings-pg.js";
 import type { PgPool } from "../../memory-store.js";
 
-/**
- * `record()` is the whole `lore.repos` row, added because five web-ui pages each
- * SELECTed a different column subset of it. One read serves them all; a caller
- * picks the fields it needs.
- *
- * The row is the `Repo` model (`libs/shared/src/models/repo.ts`), so both
- * adapters answer in the model's camelCase regardless of how the columns are
- * spelled in Postgres — that mapping is what these tests pin.
- */
-
 function fakePool(
   capture: Array<{ text: string; params?: unknown[] }>,
   rows: unknown[],
@@ -36,7 +26,6 @@ const SEEDED = {
   onboarding_pr_merged: true,
 };
 
-/** A row as the driver hands it back — every column, snake_case. */
 const DB_ROW = {
   id: "5f0ffc55-0000-4000-8000-000000000001",
   owner: "re-cinq",

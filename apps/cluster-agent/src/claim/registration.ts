@@ -1,17 +1,4 @@
-/**
- * Boot-time registration with the Lore API (FR1 of
- * specs/running-stations-in-any-k8s-cluster): the cluster-agent presents the
- * pre-shared registration token, declares its name + capability tags, and
- * receives the durable `{id, token}` identity every later claim/heartbeat call
- * authenticates with.
- *
- * A known name re-registers only by presenting its persisted per-agent token
- * (`current_token`) — the registration token alone must never take over a live
- * cluster's identity — so the identity store is loaded before every attempt.
- *
- * All IO is injected (fetch, store, sleep) so the decisions test without a
- * network; the composition shell lives in start-claim-loop.ts.
- */
+// Boot-time registration (FR1, specs/running-stations-in-any-k8s-cluster): presents the pre-shared token, receives the durable {id, token} identity; a known name re-registers only via its persisted current_token.
 
 import { errorMessage } from "@re-cinq/lore-shared";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
@@ -37,18 +24,7 @@ export function parseTags(raw: string | undefined): string[] {
     .filter((tag) => tag.length > 0);
 }
 
-/**
- * The registration triple, or a refusal to boot.
- *
- * There is no unregistered mode any more. Since dispatch flipped from push to
- * pull (FR3) a cluster-agent that does not register claims nothing, and a
- * cluster whose queued runs nobody claims does not fail — it goes quiet until
- * every run dies at the queue-wait bound. A crash naming the missing variable
- * is the only honest answer, and it is the one Kubernetes surfaces.
- *
- * Every missing name at once: an operator who learns one name per restart
- * restarts three times to read a list this function already holds.
- */
+// The registration triple, or a refusal to boot — since dispatch flipped push→pull (FR3), an unregistered cluster-agent claims nothing and its queue goes silently quiet.
 export function registrationConfig(env: NodeJS.ProcessEnv): RegistrationConfig {
   const apiUrl = env.LORE_API_URL;
   const registrationToken = env.LORE_CLUSTER_AGENT_REGISTRATION_TOKEN;
@@ -77,24 +53,13 @@ export interface RegisterDeps {
   config: RegistrationConfig;
   store: IdentityStore;
   fetchFn?: typeof fetch;
-  /** Publishes the freshly-minted per-agent token as the run pods' telemetry
-   *  credential. Optional: a composition without it (tests, a satellite whose
-   *  pods have no sink configured) simply registers as before. */
+  /** Publishes the freshly-minted per-agent token as run pods' telemetry credential; optional so tests can skip it. */
   publishTelemetryCredential?: (
     identity: ClusterAgentIdentity,
   ) => Promise<void>;
 }
 
-/** One registration attempt. Persists and returns the identity on 200; null on
- *  any failure — the caller owns the retry schedule, and the process must keep
- *  serving its inbound routes either way.
- *
- *  NEVER throws. Every caller relies on it: `pollUntil` has no catch, so a throw
- *  here ends the boot registrant and leaves a Ready pod that claims nothing;
- *  through `reRegister` the same throw ends the claim loop, the heartbeat loop
- *  or the proxy's drain. A 200 carrying an ingress error page, a body missing
- *  its fields, and an identity Secret the Role cannot read or write are all
- *  refusals to retry, not reasons to stop. */
+/** One registration attempt: persists and returns the identity on 200, null on any failure. NEVER throws — `pollUntil` has no catch, so a throw here would end the boot registrant for good. */
 export async function registerOnce(
   deps: RegisterDeps,
 ): Promise<ClusterAgentIdentity | null> {
@@ -109,8 +74,7 @@ export async function registerOnce(
   }
 }
 
-/** One attempt, which may throw: `registerOnce` is the wrapper that promises it
- *  never does. Returns null for a refusal the caller should simply retry. */
+/** One attempt, which may throw — `registerOnce` is the wrapper that promises it never does. Null means retry. */
 async function attemptRegistration(
   deps: RegisterDeps,
 ): Promise<ClusterAgentIdentity | null> {
@@ -153,15 +117,13 @@ async function attemptRegistration(
   const identity = { id: body.id, token: body.token };
 
   await store.save(identity);
-  // Both first registration and every rotation land here, so the run pods'
-  // copy of the credential never outlives the token it carries.
+  // Both first registration and every rotation land here, so the run pods' credential never outlives its token.
   await deps.publishTelemetryCredential?.(identity);
 
   return identity;
 }
 
-/** Retry registration on the 30s→5m schedule until it succeeds. Never throws,
- *  never gives up — an unreachable API on boot must not crash the process. */
+/** Retry registration on the 30s→5m schedule until it succeeds. Never throws or gives up — an unreachable API on boot must not crash the process. */
 export async function registerWithBackoff(
   deps: RegisterDeps & { sleep: (ms: number) => Promise<void> },
 ): Promise<ClusterAgentIdentity> {

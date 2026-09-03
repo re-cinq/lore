@@ -14,25 +14,11 @@ const STALE_CHUNK_FLOOR = 10;
 export interface GapDetectOptions {
   /** The onboarded repo this run covers (per-repo assembly-line fan-out). */
   repoFilter: string;
-  /** Data facade to read/write through — projectFor(repo) on the Floor,
-   *  createStationProject(env) in a pod. Defaults to projectFor(repo). */
+  /** Data facade to read/write through — projectFor(repo) on the Floor, createStationProject(env) in a pod. */
   project: Project;
 }
 
-/**
- * Gap Detection Job — one repo per run.
- *
- * Runs as the `detect` node of the `gap-detect` assembly line, fanned out
- * weekly per onboarded repo by the `cron.gap_detection.tick` handler. Reads and
- * files entirely through the Project facade so it runs unchanged on the Floor
- * (Postgres) and in a station pod (HTTP, no DB). Checks the repo for:
- * 1. Missing CLAUDE.md (doc chunk with a `%CLAUDE.md` path)
- * 2. Missing ADRs (0 adr chunks)
- * 3. Missing specs (0 spec chunks)
- * 4. Stale content (reindex-owned chunks not verified in >90 days — the
- *    nightly reindex verification pass re-stamps chunks whose files still
- *    exist, so this fires only when reindex has stopped covering the repo)
- */
+/** Gap Detection Job: the `detect` node of `gap-detect`, fanned out weekly per repo by cron.gap_detection.tick; checks CLAUDE.md/ADRs/specs presence + stale reindex content (>90d unverified), through the Project facade so it runs unchanged on the Floor or in a station pod. */
 export async function gapDetectJob(opts: GapDetectOptions): Promise<string> {
   const repo = opts.repoFilter;
   const project = opts.project;
@@ -99,11 +85,7 @@ async function detectGaps(
   return gaps;
 }
 
-/**
- * File a gap-fill task per gap. Goes through project.tasks.create so the
- * trust-level gate + created_by provenance apply; findOpenLike dedups against an
- * in-flight or failed matching task.
- */
+/** Files a gap-fill task per gap via project.tasks.create (trust-level gate + created_by provenance apply); findOpenLike dedups against an in-flight or failed matching task. */
 async function fileGaps(gaps: GapReport[], project: Project): Promise<number> {
   let created = 0;
   const dedupStatuses = [...OPEN_TASK_STATES, "failed"];

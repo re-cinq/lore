@@ -6,17 +6,6 @@ import { randomUUID } from "node:crypto";
 import * as dgraph from "dgraph-js-http";
 import { ingestCoverageReport } from "./ingest-coverage.js";
 
-/**
- * ingestCoverageReport (spec-traceability-graph, Phase 3 coverage ingest) —
- * writes Coverage nodes into the REAL local Dgraph cluster, keyed by
- * `${repo}|${testFile}|${testName}`. Tested against live Dgraph (no mocks).
- * Container-gated: skips when Dgraph isn't reachable.
- *
- * KERNEL facet: a single record with no covered ranges writes exactly one
- * Coverage node carrying repo/tool/commit. COVERS edges + unmatched accounting
- * are LATER facets.
- */
-
 const DGRAPH_HTTP = process.env.DGRAPH_HTTP ?? "http://localhost:8081";
 const APPLIER = join(
   findRepoRoot(),
@@ -100,7 +89,7 @@ describe.skipIf(!reachable)("ingestCoverageReport (live Dgraph)", () => {
         });
       }
     } catch {
-      // best-effort cleanup must never mask the assertion
+      void 0;
     } finally {
       await txn.discard().catch(() => {});
     }
@@ -201,7 +190,7 @@ describe.skipIf(!reachable)("ingestCoverageReport (live Dgraph)", () => {
       ],
     );
 
-    expect(result).toMatchObject({ coversEdges: 1, unmatched: 0 }); // ONE File, not two ranges
+    expect(result).toMatchObject({ coversEdges: 1, unmatched: 0 });
 
     const data = (await readGraph(
       `query q($xid: string) {
@@ -264,7 +253,6 @@ describe.skipIf(!reachable)("ingestCoverageReport (live Dgraph)", () => {
       (cov.cov?.[0]?.["Coverage.covers"] ?? []).map((c) => c["File.xid"]),
     ).toEqual([`${repo}|b.ts`]);
 
-    // The dropped a.ts File is GC'd (no other owner).
     const orphan = (await readGraph(
       `query q($xid: string) { f(func: eq(File.xid, $xid)) { uid } }`,
       { $xid: `${repo}|a.ts` },
@@ -273,7 +261,7 @@ describe.skipIf(!reachable)("ingestCoverageReport (live Dgraph)", () => {
     expect(orphan.f ?? []).toEqual([]);
   });
 
-  it("keeps a File that another Coverage still covers after one drops it", async () => {
+  it("keeps a File that another Coverage still covers after a.test.ts re-ingests with no coverage", async () => {
     const repo = `test-cov/${randomUUID()}`;
 
     createdRepo = repo;
@@ -287,7 +275,6 @@ describe.skipIf(!reachable)("ingestCoverageReport (live Dgraph)", () => {
         { testFile: "b.test.ts", testName: "b", covered: [shared] },
       ],
     );
-    // a.test.ts re-ingests with NO coverage; b.test.ts still covers the shared range.
     await ingestCoverageReport(
       dgraphClient,
       { repo, tool: "lcov", commit: "c2" },

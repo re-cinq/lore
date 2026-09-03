@@ -1,8 +1,4 @@
-// What the `issues` station files, decided from the decomposition alone.
-//
-// Pure: the station does the IO, this decides. It is also the first place the
-// decomposition is read as DATA rather than prose, so it is where "the agent made
-// something unusable" actually becomes visible — and where the station sends it back.
+// What the `issues` station files, decided from the decomposition alone. Pure: the station does the IO, this decides.
 
 import type { DecompositionResult, UserStory } from "./decomposition-result.js";
 
@@ -27,20 +23,7 @@ export type IssueWork =
   | { outcome: "proceed"; issues: PlannedIssue[]; tasks: PlannedTask[] }
   | { outcome: "changes_requested"; objection: string };
 
-/**
- * The issues and spec-tasks a decomposition calls for, or the objection that sends
- * it back.
- *
- * Labels are checked against the repo's REAL labels because GitHub's create-issue
- * silently creates one it does not know: an agent that invents `area:frontend` would
- * not fail, it would permanently add that label to the taxonomy. Rejecting is the
- * only way the agent finds out it guessed — and naming every unknown label at once
- * means one correction fixes them all rather than one per round.
- *
- * A repo with no labels of its own is not an error; the work still gets filed under
- * the base labels. The check is "did you invent one", not "does this repo have a
- * taxonomy".
- */
+/** The issues and spec-tasks a decomposition calls for, or the objection that sends it back; rejects invented labels because GitHub's create-issue silently adds unknown ones to the repo's real taxonomy. */
 export function decideIssueWork(
   decomposition: DecompositionResult,
   repoLabels: readonly string[],
@@ -60,15 +43,11 @@ export function decideIssueWork(
     };
   }
   const known = new Set(repoLabels);
-  const unknown = new Set<string>();
-
-  for (const story of decomposition.stories) {
-    for (const label of proposedLabels(story)) {
-      if (!known.has(label)) {
-        unknown.add(label);
-      }
-    }
-  }
+  const unknown = new Set(
+    decomposition.stories
+      .flatMap((story) => proposedLabels(story))
+      .filter((label) => !known.has(label)),
+  );
 
   if (unknown.size > 0) {
     const named = [...unknown]

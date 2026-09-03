@@ -1,7 +1,3 @@
-// The turn-collection half of parseAgentSink (specs/turn-level-transcript-store
-// FR3), kept out of agent-sink.test.ts because that file carries #L anchors
-// from specs/assembly-line-run-viz that any insertion would silently shift.
-
 import { describe, it, expect } from "vitest";
 import { parseAgentSink } from "./agent-events.js";
 import { MAX_RUN_TURNS_PER_BATCH } from "./agent-run-turns.js";
@@ -26,11 +22,7 @@ describe("parseAgentSink turn collection", () => {
     expect(parseAgentSink(body, false, false).turns).toEqual([]);
   });
 
-  // The property the removed feature flag used to let an operator restore.
-  // With collection unconditional there is no off switch in production, so this
-  // is the only thing standing between the turn store and a regression in the
-  // cost rows or the run-viz projection.
-  it("leaves the cost rows and viz rows identical whether turns are collected or not", () => {
+  it("leaves the cost rows and viz rows identical whether turns are collected or not (no production off-switch since the feature flag was removed)", () => {
     const without = parseAgentSink(body, true, false);
     const with_ = parseAgentSink(body, true, true);
 
@@ -72,11 +64,6 @@ describe("parseAgentSink turn collection", () => {
   });
 });
 
-// A genuine (not stubbed) JSON-breaking redaction: the private-key pattern is
-// not anchored inside one JSON string, so a BEGIN marker in a property NAME and
-// an END marker in a later value collapse the structure between them. An agent
-// can emit that pair deliberately, which is why the drop must be counted rather
-// than silent — otherwise it is a self-censorship vector out of the transcript.
 const REDACTION_BREAKING_LINE = JSON.stringify({
   source: src,
   event: {

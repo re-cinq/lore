@@ -4,23 +4,7 @@ import type { ProjectProviders } from "./providers.js";
 import type { LeasePool } from "../leases/lease-backends.js";
 import { Project } from "./project.js";
 
-/**
- * Build a Project from a repo fullName and the two database connections. The
- * Project OWNS port initialization: every adapter is constructed here via
- * DYNAMIC import, so neither this module nor the package barrel statically pulls
- * a heavy dependency (octokit/pg/dgraph/child_process) — keeping the core
- * importable from light runtimes (web-ui). Callers never instantiate an adapter.
- *
- * Async because adapter modules are imported on demand; it is a boot-time
- * composition root, called once per repo. env defaults to process.env for the
- * trust gates and ambient GitHub/git auth. `providers` optionally injects
- * clients for capabilities beyond pg+dgraph (LLM/k8s/embeddings) — methods that
- * need an absent provider throw a clear error.
- */
-// Agent DEFINITIONS port — three-way optional-port seam by environment:
-//   DB present   → PgAgentDefs (floor, mcp-server on GKE)
-//   API only     → AgentDefsHttp (Station pod / local stdio: fetch over egress)
-//   neither      → AgentDefsYaml (offline/bootstrap from task-types.yaml)
+// Agent definitions port, three-way seam by environment: DB present -> PgAgentDefs, API only -> AgentDefsHttp, neither -> AgentDefsYaml.
 async function agentDefsForEnv(
   env: NodeJS.ProcessEnv,
   pgPool: PgPool,
@@ -42,8 +26,7 @@ async function agentDefsForEnv(
   return new AgentDefsYaml(undefined, env);
 }
 
-// Leases: Postgres in cluster mode (LORE_DB_HOST set), file-backed under
-// ~/.lore/leases for the local runner. Mirrors the agent's leaseBackendForEnv.
+// Leases: Postgres in cluster mode (LORE_DB_HOST set), file-backed under ~/.lore/leases for the local runner — mirrors the agent's leaseBackendForEnv.
 async function leasesForEnv(
   env: NodeJS.ProcessEnv,
   pgPool: PgPool,
@@ -65,6 +48,7 @@ async function leasesForEnv(
   return new FileLeaseBackend(path.join(os.homedir(), ".lore", "leases"));
 }
 
+/** Builds a Project from a repo fullName + two DB connections; Project owns port init (every adapter is constructed here via dynamic import so no heavy dep loads statically). Boot-time composition root, called once per repo. */
 export async function createProject(
   fullName: string,
   pgPool: PgPool,
@@ -91,9 +75,7 @@ export async function createProject(
 
   ports.set("chunks", new PgChunks(pgPool));
 
-  // The pipeline.* tables are org-wide, so a caller that already built the
-  // bundle passes it in and every repo shares those adapters. The fallback
-  // keeps a caller that has not (tests, bootstrap) working exactly as before.
+  // pipeline.* tables are org-wide — a caller that already built the bundle passes it in so every repo shares those adapters; the fallback keeps tests/bootstrap callers working as before.
   if (providers.pipeline) {
     ports.set("pipeline", providers.pipeline);
   }

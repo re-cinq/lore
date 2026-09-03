@@ -1,18 +1,4 @@
-/**
- * Deterministic review poster. The `review` node emits structured
- * {@link ReviewOutput} findings (it no longer writes comment markdown itself);
- * this renders each finding as a {@link ConventionalComment} and posts one review
- * carrying the whole comments array, plus a scannable summary body.
- *
- * Two hazards it is built to survive, because both silently drop a real review:
- * - GitHub's review API is atomic — a single inline comment on a line outside
- *   the diff 422s the WHOLE review. Findings on files the PR does not touch are
- *   folded into the body instead of posted inline, and any residual post failure
- *   (an out-of-hunk line in a changed file) falls back to one top-level comment.
- * - An approval with nothing to flag emitted no findings block, so nothing was
- *   posted and the run looked silent. A bare `REVIEW_RESULT:APPROVED` now posts
- *   a visible "no issues" review.
- */
+// Deterministic review poster: renders ReviewOutput findings as ConventionalComments and posts one review, surviving two hazards — an out-of-hunk inline comment 422ing the whole atomic review (falls back to a top-level comment) and a no-findings approval otherwise looking silent (posts a visible "no issues" review).
 
 import { ConventionalComment } from "@re-cinq/lore-shared/review/conventional-comment.js";
 import { buildReviewSummary } from "@re-cinq/lore-shared/review/review-summary.js";
@@ -33,10 +19,7 @@ import type {
   PullReview,
 } from "@re-cinq/lore-shared/project/pulls/pull-requests-port.js";
 
-/** The narrow PR surface the poster touches — a light double in tests. The two
- *  reads back the dedupe probe; they are optional because a poster without them
- *  simply skips the probe (the guard fails open — a rare duplicate beats a
- *  dropped review). */
+/** The narrow PR surface the poster touches; the two reads (dedupe probe) are optional and fail open — a rare duplicate beats a dropped review. */
 export interface ReviewPoster {
   createReview(number: number, input: CreateReviewInput): Promise<void>;
   comment(number: number, body: string): Promise<void>;
@@ -45,13 +28,7 @@ export interface ReviewPoster {
   listIssueComments?(number: number): Promise<IssueComment[]>;
 }
 
-/**
- * Invisible per-run identity stamped into every posted review (inline body and
- * fallback comment alike), keyed per iteration so a legitimate revisit still
- * posts. The post runs BEFORE the node-outcome CAS (post-then-transition, spec
- * 6-dark-factory FR6.11), so a redelivered terminal event re-executes it; the
- * probe for this marker is what makes the re-execution a no-op (#870).
- */
+/** Per-run identity stamped into every posted review, keyed per iteration; probing for it makes a redelivered terminal event's re-execution a no-op (post-then-transition, spec 6-dark-factory FR6.11, #870). */
 export function reviewRunMarker(
   assemblyLineId: string,
   nodeId: string,
@@ -64,13 +41,7 @@ function withMarker(body: string, marker?: string): string {
   return marker ? `${body}\n\n${marker}` : body;
 }
 
-/**
- * Split findings by whether their exact (path, line) is inside a diff hunk. Only
- * a line GitHub will accept can be an inline comment — one that is not (a line in
- * an unchanged region, or a file the PR does not touch) 422s the whole atomic
- * review — so it rides in the body instead. Line-level, not file-level: a finding
- * on a changed file but an unchanged line still cannot be inline.
- */
+/** Split findings by whether (path, line) is inside a diff hunk — line-level, not file-level, since an unchanged line on a changed file still 422s an inline comment. */
 export function partitionByHunks(
   findings: ReviewFinding[],
   positions: CommentablePositions,
@@ -102,10 +73,7 @@ function renderComment(finding: ReviewFinding): string {
   }).render();
 }
 
-/** The formal GitHub review event carrying the node's verdict. Always submitted
- *  (no suggestion-only COMMENT): an approved verdict APPROVEs, everything else
- *  REQUEST_CHANGES — the signal auto-merge's bot-approval gate reads. The same
- *  review carries the inline findings, so one post delivers both. */
+/** Always APPROVE or REQUEST_CHANGES (never suggestion-only COMMENT) — the signal auto-merge's bot-approval gate reads. */
 function reviewEvent(output: ReviewOutput): PRReviewEvent {
   return output.verdict === "approved" ? "APPROVE" : "REQUEST_CHANGES";
 }
@@ -123,8 +91,7 @@ function renderOutOfDiff(finding: ReviewFinding): string {
   return `**\`${finding.path}:${finding.line}\`** — ${renderComment(finding)}`;
 }
 
-/** The review body: the standard summary, plus any findings on lines GitHub
- *  cannot inline (out-of-hunk lines, or files outside the diff). */
+/** The review body: the standard summary, plus any findings GitHub cannot inline. */
 export function composeBody(
   output: ReviewOutput,
   overflow: ReviewFinding[],
@@ -140,17 +107,11 @@ export function composeBody(
   return `${summary}\n\n### Notes on lines outside changed hunks\n\n${notes}`;
 }
 
-/** Marks a review that fell back from an inline post — a flat comment with no
- *  inline annotations otherwise looks like an intentional body-only review.
- *  The dedupe probe reads fallback comments back through `listIssueComments`,
- *  whose adapter drops bot-noise comments by prefix (`PR created:` / `Agent ` /
- *  `Task ` in platform-github) — a preamble starting with one of those prefixes
- *  would silently kill fallback dedupe. */
+/** Marks a fallback-posted review; must not start with a bot-noise prefix (`PR created:`/`Agent `/`Task ` in platform-github) or the dedupe probe's `listIssueComments` read would silently drop it. */
 const FALLBACK_NOTE =
   "_Inline placement was rejected by GitHub, so this review is posted as a single comment._";
 
-/** The whole review as one top-level comment — the never-drop fallback for when
- *  the inline post is rejected (e.g. an out-of-hunk line 422). */
+/** The whole review as one top-level comment — the never-drop fallback for a rejected inline post (e.g. an out-of-hunk line 422). */
 function fallbackComment(output: ReviewOutput, model?: string): string {
   const summary = `${FALLBACK_NOTE}\n\n${buildReviewSummary(output, { model })}`;
 
@@ -162,10 +123,7 @@ function fallbackComment(output: ReviewOutput, model?: string): string {
   return `${summary}\n\n${all}`;
 }
 
-/** How the post was delivered. `fallback` means GitHub rejected the inline
- *  review and the whole review went out as one top-level comment — the caller
- *  audits it, because a silent downgrade is invisible at the PR. `deduped`
- *  means this run's marker was already on the PR and nothing was re-posted. */
+/** `fallback`: GitHub rejected the inline review, so the caller audits the downgrade to a top-level comment. `deduped`: this run's marker was already on the PR. */
 export type ReviewPostDelivery =
   | { mode: "inline" }
   | { mode: "fallback"; error: string }
@@ -190,8 +148,7 @@ export async function postReview(
 
     return { mode: "inline" };
   } catch (err) {
-    // The review post is atomic — one out-of-hunk line 422s all of it. Never
-    // drop the review: deliver it whole as a single top-level comment.
+    // Never drop the review: an atomic-post 422 falls back to one top-level comment.
     const error = (err as Error).message;
 
     console.warn(
@@ -206,23 +163,14 @@ export async function postReview(
   }
 }
 
-/** A bare `REVIEW_RESULT:APPROVED` with no findings block is a legitimate "LGTM"
- *  — synthesize an empty approved review so the approval is visible, not silent. */
+/** A bare `REVIEW_RESULT:APPROVED` with no findings is a legitimate "LGTM" — synthesize an empty approved review so it's visible, not silent. */
 function approvedWithoutFindings(agentOutput: string): ReviewOutput | null {
   return parseReviewVerdict(agentOutput) === "success"
     ? { verdict: "approved", findings: [], summary: "No issues found." }
     : null;
 }
 
-/**
- * Parse the review node's raw output and post the review. No-op (returns null)
- * when the output carries neither a valid `REVIEW_FINDINGS` block nor a bare
- * approval verdict. `positions` are the diff's commentable lines, used to keep a
- * finding on an uninlineable line out of the inline comments array. With a
- * `marker`, the dedupe probe runs after the parse — a run that would post
- * nothing never spends the paginated reads — and immediately before the post,
- * keeping the check-then-act window as small as the probe latency itself.
- */
+/** Parse the review node's raw output and post it; no-op (null) with neither a `REVIEW_FINDINGS` block nor a bare approval. With `marker`, the dedupe probe runs after the parse (so a no-op run skips the paginated reads) and right before the post. */
 export async function maybePostReview(
   pulls: ReviewPoster,
   prNumber: number,
@@ -245,13 +193,7 @@ export async function maybePostReview(
   return postReview(pulls, prNumber, output, positions, marker, model);
 }
 
-/**
- * Whether this run's review already reached the PR — through either delivery
- * shape (inline review or fallback comment). Best-effort: a poster without the
- * read surface, or a probe that throws, reports "not posted" so the review is
- * never dropped by its own guard; the residual cost is a duplicate exactly as
- * rare as the probe outage.
- */
+/** Whether this run's review already reached the PR, via either delivery shape; best-effort — a missing read surface or a throwing probe reports "not posted" so the guard never drops a review. */
 export async function reviewAlreadyPosted(
   pulls: ReviewPoster,
   prNumber: number,

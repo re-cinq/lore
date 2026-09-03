@@ -1,12 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
-/**
- * Drives the actual registered lore_my_usage / lore_get_analytics handlers via a
- * fake McpServer. Both tools are pure proxies — the local adapter holds no pool
- * — so `proxyGetApi` is stubbed at the deps seam (the proxy's own retry/denial
- * mechanics are covered in server-core's proxy.test.ts) and the tools' query
- * building, formatting, and failure copy are exercised end to end.
- */
 vi.mock("./deps.js", async (importOriginal) => ({
   ...(await importOriginal<typeof import("./deps.js")>()),
   proxyGetApi: vi.fn(),

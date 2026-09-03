@@ -11,6 +11,18 @@ export type AgentFormAction = (
 
 const KNOWN_IDS = KNOWN_MODELS.map((m) => m.id);
 
+function scopeNote(orgScope: boolean, inherited: boolean): string {
+  if (orgScope) {
+    return "This is the organisation default. Saving updates it for every repo without its own override.";
+  }
+
+  if (inherited) {
+    return "These values are inherited from the organisation default. Saving creates a project agent for this repo; later edits update it.";
+  }
+
+  return "This is a project agent for this repo, overriding the organisation default.";
+}
+
 /**
  * Full-page create/edit form for an agent, shared by /agents/new and
  * /agents/[name]/edit. On success the page's server action redirects back to
@@ -63,13 +75,7 @@ export default function AgentForm({
       />
 
       {!isNew && (
-        <p className={styles.formNote}>
-          {orgScope
-            ? "This is the organisation default. Saving updates it for every repo without its own override."
-            : inherited
-              ? "These values are inherited from the organisation default. Saving creates a project agent for this repo; later edits update it."
-              : "This is a project agent for this repo, overriding the organisation default."}
-        </p>
+        <p className={styles.formNote}>{scopeNote(orgScope, inherited)}</p>
       )}
 
       <label>Name</label>

@@ -2,21 +2,7 @@ import { z } from "zod";
 import { enforceTrue } from "./enforce.js";
 import type { ColumnMap } from "./row.js";
 
-/**
- * The wire projection of a model: the same fields, keyed by the COLUMNS that
- * store them.
- *
- * Several surfaces publish a row under its snake_case column names — that is
- * what the deployed clients read, and flipping any of them is expand/contract
- * work rather than a rename. Restating the shape per surface is how those copies
- * drift; deriving it from the model plus its column map means the wire contract
- * and the table cannot disagree about which fields exist.
- *
- * Timestamps stay `z.date()`. The OpenAPI generator renders that as a
- * `date-time` STRING, which is exactly what JSON carries and what the generated
- * client should therefore see — so one declaration produces the right type on
- * both sides.
- */
+/** The wire projection of a model: fields keyed by their snake_case COLUMNS, derived from the model + column map so wire contract and table cannot drift out of sync; timestamps stay `z.date()` so OpenAPI renders the `date-time` string JSON actually carries. */
 export function wireSchema<
   Shape extends z.ZodRawShape,
   Columns extends ColumnMap<z.infer<z.ZodObject<Shape>>>,
@@ -31,10 +17,7 @@ export function wireSchema<
   for (const [field, value] of Object.entries(schema.shape)) {
     const column = (columns as Record<string, string>)[field];
 
-    // No silent fallback to the field name. A miss here means the schema and the
-    // column map disagree about which fields exist, and defaulting to the
-    // camelCase spelling would publish a key no reader is looking for — a wrong
-    // contract, which is worse than none.
+    // No silent fallback to the field name: a miss means schema and column map disagree, and defaulting would publish a wrong contract.
     enforceTrue(
       column !== undefined,
       Error,

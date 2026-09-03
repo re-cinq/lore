@@ -1,10 +1,4 @@
-/**
- * Local re-export funnel for the spec-trace subtree. spec-trace lives in
- * `shared` now, and a package file cannot import its own `@re-cinq/lore-shared`
- * barrel, so the moved files import their shared siblings by relative path
- * through here — one funnel keeps each moved file's change to a single
- * `@re-cinq/lore-shared` → `./deps.js` swap.
- */
+/** Local re-export funnel for the spec-trace subtree: a package file can't import its own `@re-cinq/lore-shared` barrel, so moved files import shared siblings through here — one funnel, one `@re-cinq/lore-shared` → `./deps.js` swap per file. */
 export {
   segmentStatements,
   classifyByHeuristic,

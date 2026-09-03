@@ -12,7 +12,6 @@ const skillsRoot = resolve(
   "../../agent-skills",
 );
 
-/** The recipe file, from this test's dir: src/server -> repo root. */
 const TASK_TYPES_PATH = "../../../../scripts/task-types.yaml";
 
 function mockRes() {
@@ -90,15 +89,10 @@ describe("handleSkillsRequest", () => {
 
     const buf = await done;
 
-    expect([buf[0], buf[1]]).toEqual([0x1f, 0x8b]); // gzip magic
+    expect([buf[0], buf[1]]).toEqual([0x1f, 0x8b]);
   });
 
-  // The drift guard for per-recipe skills (specs/floor-on-ai-subsystem FR34): a
-  // recipe naming a skill this bundle does not carry renders a `skills:` entry the
-  // init fetches as a 404. That is FR26's failure shape one level down — the run
-  // still starts, just without the contract the recipe asked for — so it is caught
-  // here, where the 404 would be served, rather than in a pod.
-  it("serves every skill the task-type recipes declare", async () => {
+  it("serves every skill the task-type recipes declare, guarding against per-recipe skill drift (specs/floor-on-ai-subsystem FR34)", async () => {
     const recipes = parse(
       await readFile(
         resolve(dirname(fileURLToPath(import.meta.url)), TASK_TYPES_PATH),

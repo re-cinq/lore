@@ -1,7 +1,4 @@
-// CLI: regenerate the ai-agents-helm seeded catalog from scripts/task-types.yaml.
-//   node apps/floor/dist/delivery/gen-catalog.js   (or: npm run gen:catalog)
-// Thin IO shell around the pure catalog generator (agent-catalog.ts); excluded from
-// coverage. A drift check re-runs it and diffs the committed output.
+// CLI: regenerate the ai-agents-helm seeded catalog from scripts/task-types.yaml (npm run gen:catalog); thin IO shell around agent-catalog.ts, excluded from coverage — a drift check re-runs it and diffs the committed output.
 
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
@@ -25,8 +22,7 @@ function generateCatalog(): void {
     stations?: Record<string, StationCatalogConfig>;
   };
 
-  // The generated file lives beside the chart's templates, not among them — a
-  // fresh checkout has no files/ dir until this runs.
+  // The generated file lives beside the chart's templates, not among them — a fresh checkout has no files/ dir until this runs.
   mkdirSync(dirname(dest), { recursive: true });
   writeFileSync(
     dest,
@@ -35,8 +31,7 @@ function generateCatalog(): void {
   console.log(`[gen-catalog] wrote ${dest}`);
 }
 
-// Only run the filesystem write when invoked as the CLI, not on import (a bare
-// `import` of this module used to read + write files as a side effect).
+// Only run the filesystem write when invoked as the CLI, not on import (a bare `import` used to read + write files as a side effect).
 const argv1 = process.argv[1] ?? "";
 
 if (argv1.endsWith("gen-catalog.js") || argv1.endsWith("gen-catalog.ts")) {

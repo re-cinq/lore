@@ -4,12 +4,6 @@ import { parseAssemblyLine, type AssemblyLine } from "./loader.js";
 import { loadBuiltinAssemblyLines } from "./builtin-assembly-lines.js";
 import type { StageOutcome } from "./node-types.js";
 
-// Handcrafted rather than parseAssemblyLine: implement and validate
-// deliberately lack failed / changes_requested edges so the runtime
-// no-edge guard below stays exercisable — the loader now rejects a
-// definition whose producible outcomes are uncovered (#946), keeping
-// `getNextTransition`'s no-edge failure as defense-in-depth for graphs
-// that never went through the loader.
 const reviewLoop: AssemblyLine = {
   name: "review-loop",
   description: "implement → validate → review → (changes → implement)",
@@ -35,7 +29,6 @@ const reviewLoop: AssemblyLine = {
   ],
 };
 
-// implementation.yaml's shape: an ALWAYS back-edge carrying iteration_max.
 const alwaysLoop: AssemblyLine = parseAssemblyLine(`
 name: always-loop
 description: address loops back to validate unconditionally, bounded
@@ -68,7 +61,6 @@ const visit = (
   outcome: StageOutcome | null,
 ): NodeVisit => ({ nodeId, iteration, outcome });
 
-// feature-planning.yaml's shape: a node that retries ITSELF once on failure.
 const selfRetry: AssemblyLine = parseAssemblyLine(`
 name: feature-planning
 description: analyze retries itself once, then the author reads the round
@@ -93,9 +85,6 @@ edges:
     iteration_max: 1
 `);
 
-// A line whose `failed` edge routes FORWARD, to the retrospective every
-// definition runs on its way out. Suppressing a permanent failure's RETRY must
-// not suppress its ROUTE, or the line silently skips that work.
 const forwardOnFailed: AssemblyLine = parseAssemblyLine(`
 name: forward-on-failed
 description: review fails forward into the retrospective
@@ -300,9 +289,7 @@ describe("getNextTransition", () => {
     expect(t).toMatchObject({ kind: "fail", outcome: "error" });
   });
 
-  it("fails when a recorded node's iteration diverges from the recomputed walk", () => {
-    // implement@1 succeeded, but the next row was persisted as validate@2 (wrong
-    // iteration) — must fail loudly, not replay a split-brain iteration.
+  it("fails when a recorded node's iteration diverges from the recomputed walk (implement@1 succeeded but next row persisted as validate@2)", () => {
     const visits = [
       visit("implement", 1, "success"),
       visit("validate", 2, "success"),
@@ -314,34 +301,38 @@ describe("getNextTransition", () => {
   });
 });
 
-// The executor parity oracle retired with the in-process walk (its extraction-time
-// parity run covered every builtin YAML). This keeps a live guarantee: an
-// all-success walk of every builtin definition routes node-by-node to finish.
 describe("getNextTransition walks every builtin assembly line to finish on success", () => {
+  const walkAnsweringSuccess = (line: AssemblyLine): NodeVisit[] => {
+    const visits: NodeVisit[] = [];
+
+    for (let step = 0; step < 50; step++) {
+      const t = getNextTransition(line, visits);
+
+      if (t.kind === "finish") {
+        break;
+      }
+      expect(t.kind, `${line.name} step ${step}`).toBe("launch");
+
+      if (t.kind === "launch") {
+        visits.push({
+          nodeId: t.nodeId,
+          iteration: t.iteration,
+          outcome: "success",
+        });
+      }
+    }
+
+    return visits;
+  };
+
   it("routes each builtin definition's success path to the exit", async () => {
     const builtins = await loadBuiltinAssemblyLines();
 
     expect(builtins.size).toBeGreaterThan(0);
 
     for (const line of builtins.values()) {
-      const visits: NodeVisit[] = [];
+      const visits = walkAnsweringSuccess(line);
 
-      for (let step = 0; step < 50; step++) {
-        const t = getNextTransition(line, visits);
-
-        if (t.kind === "finish") {
-          break;
-        }
-        expect(t.kind, `${line.name} step ${step}`).toBe("launch");
-
-        if (t.kind === "launch") {
-          visits.push({
-            nodeId: t.nodeId,
-            iteration: t.iteration,
-            outcome: "success",
-          });
-        }
-      }
       expect(getNextTransition(line, visits), line.name).toEqual({
         kind: "finish",
       });
@@ -350,9 +341,7 @@ describe("getNextTransition walks every builtin assembly line to finish on succe
 });
 
 describe("rework: a step sends work back to the step that fed it", () => {
-  it("routes the station's objection back to decompose, then fails rather than looping", async () => {
-    // The decompose/issues pair is the TAIL of feature-planning now, not its own
-    // line — the objection loop is unchanged, only its home is.
+  it("routes the station's objection back to decompose, then fails rather than looping (decompose/issues is now the tail of feature-planning)", async () => {
     const decompose = (await loadBuiltinAssemblyLines()).get(
       "feature-planning",
     );
@@ -444,8 +433,6 @@ describe("iteration_max reason carries the station's real failure", () => {
   });
 });
 
-// Two back-edges into the same node: implement retries itself, and validate
-// sends the walk back to implement. This is the implementation-loop shape.
 const twoWaysBack: AssemblyLine = parseAssemblyLine(`
 name: two-ways-back
 description: implement retries itself, validate routes back to implement
@@ -480,10 +467,7 @@ edges:
 `);
 
 describe("getNextTransition — a revisit numbers past every prior visit", () => {
-  it("launches implement at iteration 3 when validate sends the walk back after implement already retried itself", () => {
-    // The old code counted per edge; validate->implement was edge-count 1, so
-    // it computed iteration 2 — a row that already existed — and the walk
-    // deadlocked.
+  it("launches implement at iteration 3 when validate sends the walk back after implement already retried itself (per-edge counting previously deadlocked on the existing iteration 2 row)", () => {
     const visits = [
       visit("implement", 1, "failed"),
       visit("implement", 2, "success"),
@@ -513,12 +497,7 @@ describe("getNextTransition — a revisit numbers past every prior visit", () =>
   });
 });
 
-describe("an unclaimed node on the real implementation blueprint", () => {
-  // The 2026-08-29 incident, replayed: `validate` needed `node:validate`, the
-  // only cluster offering it was paused, and the reaper failed the visit. The
-  // walk then spent the validate->round budget re-running a long agent node —
-  // which could not change whether a cluster existed — waited out a second
-  // queue-timeout, and reported the exhausted edge as the cause.
+describe("an unclaimed node on the real implementation blueprint (2026-08-29 incident replay: validate needed node:validate, the only offering cluster was paused, reaper failed the visit)", () => {
   const unclaimedValidate = async (): Promise<NodeVisit[]> => [
     { nodeId: "implement", iteration: 1, outcome: "success" },
     {
@@ -531,9 +510,6 @@ describe("an unclaimed node on the real implementation blueprint", () => {
     },
   ];
 
-  // The `implementation` line, not `implementation-loop`: the loop dropped its
-  // validate node (lint is CI's job there, and fix-ci repairs it), so this is
-  // where the incident's shape still lives.
   const implementationLoop = async (): Promise<AssemblyLine> => {
     const line = (await loadBuiltinAssemblyLines()).get("implementation");
 
@@ -562,9 +538,7 @@ describe("an unclaimed node on the real implementation blueprint", () => {
     );
   });
 
-  it("still routes a genuine validate failure back to implement", async () => {
-    // The suppression is scoped to the class, not to the edge: a validate that
-    // actually ran and found lint errors must still buy its retry.
+  it("still routes a genuine validate failure back to implement (suppression is scoped to failure class, not edge)", async () => {
     expect(
       getNextTransition(await implementationLoop(), [
         { nodeId: "implement", iteration: 1, outcome: "success" },

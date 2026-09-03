@@ -59,33 +59,16 @@ export function createStartEventHandler(
     const definition = definitions.get(blueprintName);
 
     if (definition) {
-      // Record WHICH blueprint this run executes, once (FR6.38, and
-      // specs/fork-rerun-from-node FR4). This is the only place holding both the
-      // row id and a RESOLVED blueprint — `start` is called by lore-api and by
-      // choreographies that deliberately ship no definitions — so it is where the
-      // hash AND the graph the run will walk get recorded. Everything downstream
-      // reads the clone instead of re-reading the file.
-      await deps.assemblyRuns.stampBlueprint(
-        assemblyLineId,
-        definitionHash(definition),
-        snapshotGraph(definition, blueprintName),
+      await startResolvedBlueprint(
+        {
+          assemblyLineId,
+          blueprintName,
+          taskId,
+          resumedFrom: params.resumedFrom,
+          definition,
+        },
+        deps,
       );
-      await deps.assemblyRuns.markRunning(assemblyLineId);
-
-      // A FORK resumes work whose task the source's terminal walk already
-      // settled — reopen it before the walk launches, so the task-keyed
-      // surfaces (the implementation-loop page's current ticket) see the
-      // resumption instead of the source's verdict. Plain starts carry a null
-      // `resumedFrom` and skip this.
-      if (params.resumedFrom != null && taskId && deps.reopenTask) {
-        await deps.reopenTask({ id: assemblyLineId, taskId });
-      }
-
-      // Launch the entry node and return — the walk advances on
-      // `kubernetes.agent_node.*` events; a Floor restart loses nothing because
-      // the state is the node rows. A throw here propagates so the event loop
-      // retries transient launch failures (advance is idempotent end to end).
-      await deps.advance(assemblyLineId);
 
       return;
     }
@@ -132,6 +115,48 @@ export function createStartEventHandler(
 
     return;
   };
+}
+
+/** The definition arm: record WHICH blueprint this run executes, once (FR6.38,
+ *  and specs/fork-rerun-from-node FR4). This is the only place holding both the
+ *  row id and a RESOLVED blueprint — `start` is called by lore-api and by
+ *  choreographies that deliberately ship no definitions — so it is where the
+ *  hash AND the graph the run will walk get recorded. Everything downstream
+ *  reads the clone instead of re-reading the file. It then launches the entry
+ *  node — the walk advances on `kubernetes.agent_node.*` events; a Floor
+ *  restart loses nothing because the state is the node rows. A throw propagates
+ *  so the event loop retries transient launch failures (advance is idempotent
+ *  end to end). */
+async function startResolvedBlueprint(
+  params: {
+    assemblyLineId: string;
+    blueprintName: string;
+    taskId: string | null;
+    resumedFrom: unknown;
+    definition: AssemblyLine;
+  },
+  deps: StartEventHandlerDeps,
+): Promise<void> {
+  const { assemblyLineId, blueprintName, taskId, resumedFrom, definition } =
+    params;
+
+  await deps.assemblyRuns.stampBlueprint(
+    assemblyLineId,
+    definitionHash(definition),
+    snapshotGraph(definition, blueprintName),
+  );
+  await deps.assemblyRuns.markRunning(assemblyLineId);
+
+  // A FORK resumes work whose task the source's terminal walk already
+  // settled — reopen it before the walk launches, so the task-keyed
+  // surfaces (the implementation-loop page's current ticket) see the
+  // resumption instead of the source's verdict. Plain starts carry a null
+  // `resumedFrom` and skip this.
+  if (resumedFrom != null && taskId && deps.reopenTask) {
+    await deps.reopenTask({ id: assemblyLineId, taskId });
+  }
+
+  await deps.advance(assemblyLineId);
 }
 
 /** Composed production handler for the registry. Deps are resolved lazily so

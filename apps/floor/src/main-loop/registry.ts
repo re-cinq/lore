@@ -1,9 +1,4 @@
-/**
- * The event registry (layer 2 → layer 3): maps a fully-qualified event_name to
- * exactly one handler. The loop calls `resolve` for each claimed event. Adding a
- * producer that emits a new name requires a matching entry here, or the event
- * dead-letters with "no handler".
- */
+/** The event registry (layer 2 → layer 3): maps a fully-qualified event_name to exactly one handler; a producer emitting an unregistered name dead-letters with "no handler". */
 
 import type { EventHandler } from "./types.js";
 import * as github from "../jobs/github.js";
@@ -30,12 +25,7 @@ import {
   codeReviewOnClose,
 } from "../jobs/review/code-review.js";
 
-/**
- * Compose one primary handler with best-effort secondaries under a single event
- * name (the registry is one-handler-per-event). The primary's throw propagates so
- * its retry/dead-letter semantics are unchanged; a secondary throw is logged and
- * swallowed so an added reaction can never break the existing handler.
- */
+/** Compose one primary handler with best-effort secondaries under one event name; the primary's throw propagates (retry/dead-letter unchanged), a secondary's is logged and swallowed. */
 export function withExtra(
   primary: EventHandler,
   ...extra: EventHandler[]
@@ -63,8 +53,7 @@ export function buildRegistry(): Map<string, EventHandler> {
     ["github.pull_request.ready_for_review", codeReviewOnTrigger],
     [
       "github.pull_request.closed",
-      // specPrResumeLine is the one that wakes a line parked on `merged`. It rides
-      // as an EXTRA so a throw in it cannot stop the spec-task sync, and vice versa.
+      // specPrResumeLine wakes a line parked on `merged`; rides as EXTRA so it can't break the spec-task sync, or vice versa.
       withExtra(github.specPrMerge, github.specPrResumeLine, codeReviewOnClose),
     ],
     [
@@ -80,25 +69,14 @@ export function buildRegistry(): Map<string, EventHandler> {
     // ── Internal (mcp-server post-ingest) ──
     ["internal.ingest.spec_trace", internal.specTrace],
     ["internal.repo.team_changed", internal.repoTeamChanged],
-    // FR5 (specs/ingest-station): the post-ingest validate rides the SAME detect
-    // tick as the weekly cron — params.repo narrows it, the core runs in a
-    // station pod, never inline in the Floor.
+    // FR5 (specs/ingest-station): post-ingest validate rides the SAME detect tick as the weekly cron; params.repo narrows it, core runs in a station pod.
     ["internal.ingest.spec_coverage_validate", detect.specCoverageValidateTick],
 
-    // ── Assembly lines (project.assemblyRuns.start() inserts row + event atomically;
-    //    a top-level family — the assembly line is a primary concept, its producer
-    //    spans shared/mcp/floor rather than one source) ──
-    // Through the constant: the live entry must track whatever the writers emit,
-    // so a future flip cannot leave the Floor deaf to the current spelling.
+    // ── Assembly lines (project.assemblyRuns.start() inserts row + event atomically; through the constant so the entry tracks whatever the writers emit) ──
     [RUN_START_EVENT, assemblyLineStart],
-    // A HUMAN station's worker reporting in: the planning wizard, or the spec-PR
-    // webhook. Same two steps as a terminal CR — record the node, advance the walk.
+    // A HUMAN station's worker reporting in (planning wizard or spec-PR webhook): same two steps as a terminal CR.
     [RUN_RESUME_EVENT, assemblyLineResume],
-    // The pre-rename `assembly_line.*` entries were deleted 2026-08-18 (#1272),
-    // one retention window after the writer flip — the events table is pruned
-    // after handling, so no unhandled row still carries the old spelling. The
-    // rule they taught stands (FR6.44): a frozen wire value is spelled as a
-    // LITERAL, because the constant beside it is the thing that moves.
+    // Pre-rename `assembly_line.*` entries deleted 2026-08-18 (#1272): a frozen wire value is spelled LITERAL (FR6.44), the constant beside it is what moves.
 
     // ── Kubernetes (the Agent-CR watch emits on terminal phase) ──
     ["kubernetes.agent.succeeded", kubernetes.agentSucceeded],
@@ -106,9 +84,7 @@ export function buildRegistry(): Map<string, EventHandler> {
     // Assembly-line node CRs (labeled): the event-driven walk's transitions.
     ["kubernetes.agent_node.succeeded", agentNodeTerminal],
     ["kubernetes.agent_node.failed", agentNodeTerminal],
-    // Run-pod stdout, followed and batched by the cluster-agent. Persisted
-    // because the live read and its Cloud Logging fallback are both
-    // central-only, so a satellite's run has no other log path.
+    // Run-pod stdout, batched by the cluster-agent; persisted because the live read + Cloud Logging fallback are both central-only, so a satellite's run has no other log path.
     ["kubernetes.pod_log.appended", podLogAppended],
 
     // ── Cron (in-process scheduler emits the tick; loop runs it) ──

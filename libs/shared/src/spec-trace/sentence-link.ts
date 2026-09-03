@@ -1,18 +1,8 @@
-/**
- * spec-traceability-graph — sentence-match linking. A third way to link a test
- * to a spec statement (alongside inline `([validated by])` links and
- * `TestDescriptor.spec` anchors): the test's NAME carries the link as a
- * `<spec> | <sentence> | <label>` triple. The `<spec>` segment is matched as a
- * substring of the spec's H1 title and `<sentence>` as a substring of a
- * Statement/AcceptanceCriterion's text — both under shallow normalization
- * (lowercase, whitespace removed, inline link parentheticals stripped) so ragged
- * indentation and trailing links never break the match. Deterministic, zero-LLM.
- */
+/** sentence-match linking: a third way to link test→spec statement (alongside inline `([validated by])` links and `TestDescriptor.spec` anchors), via the test NAME carrying a `<spec> | <sentence> | <label>` triple matched as normalized substrings. Deterministic, zero-LLM. */
 
 import type { TestDescriptor } from "../test-report.js";
 
-/** Drops inline `([label](target))` / `[label](target)` link parentheticals so the
- *  prose matches a test name that never carried them. */
+/** Drops inline `([label](target))` / `[label](target)` link parentheticals so prose matches a test name that never carried them. */
 function stripLinkParens(text: string): string {
   return text.replace(/\(?\[[^\]]*\]\([^)]*\)\)?/g, "");
 }
@@ -36,13 +26,7 @@ export interface SentenceLink {
   label: string;
 }
 
-/**
- * Parses a `<spec> | <sentence> | <label>` test name. The first two ` | `
- * segments are the spec and sentence; everything after is the label (so a label
- * may itself contain ` | `). Returns null when there are fewer than three
- * segments. Kept for hand-written single-string names; {@link sentenceLinkFromSuite}
- * is the primary, structural path.
- */
+/** Parses a `<spec> | <sentence> | <label>` test name (label may itself contain ` | `); null under three segments. Kept for hand-written names — {@link sentenceLinkFromSuite} is the primary, structural path. */
 export function parseSentenceLink(testName: string): SentenceLink | null {
   const parts = testName.split(" | ");
 
@@ -57,14 +41,7 @@ export function parseSentenceLink(testName: string): SentenceLink | null {
   };
 }
 
-/**
- * Derives a {@link SentenceLink} from a descriptor's describe nesting:
- * `suite[0]` = spec title, `suite[1]` = the verbatim sentence, the leaf `name` =
- * label. Returns null unless there are at least two describe levels — so a plain
- * `describe(unit) > it(behavior)` unit test (suite length 1) never links. This is
- * the primary path: it's structural, so it never depends on a ` | ` vs ` > `
- * separator and a unit test can't accidentally parse as a link.
- */
+/** Derives a {@link SentenceLink} from describe nesting (`suite[0]`=spec title, `suite[1]`=sentence, leaf `name`=label); null under two describe levels, so a plain unit test never links. The primary, structural path. */
 export function sentenceLinkFromSuite(
   descriptor: TestDescriptor,
 ): SentenceLink | null {

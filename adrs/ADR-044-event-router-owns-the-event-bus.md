@@ -50,11 +50,11 @@ ADR-024 pins to it and reaches every byte of its data over HTTP.
 - `POST /api/events` is the single front door, and every producer uses it —
   GitHub webhooks, the Kubernetes watch, human-station resumes, cron ticks,
   CI-ingest, and the internal ingest triggers alike. A producer reports the
-  whole `EventInsert` verbatim; the router does not reshape it. ([validated by posts the whole EventInsert](libs/shared/src/project/events/event-reporter-http.test.ts#L21))
+  whole `EventInsert` verbatim; the router does not reshape it. ([validated by posts the whole EventInsert](libs/shared/src/project/events/event-reporter-http.test.ts#L20))
 - A report that does not land throws rather than resolving. An event that fails
   to insert loses the work it was meant to start, and a producer that reports
   success anyway converts that loss into silence — which is how a resume behind
-  a `202` went missing before (FR6.32). ([validated by throws on a refusal rather than losing the event silently](libs/shared/src/project/events/event-reporter-http.test.ts#L54))
+  a `202` went missing before (FR6.32). ([validated by throws on a refusal rather than losing the event silently](libs/shared/src/project/events/event-reporter-http.test.ts#L53))
 - The route carries two authentication branches, not two routes. Multiplexing
   an untrusted external caller and a trusted internal one on one path means the
   branch cannot be a single hapi auth strategy — both checks run in sequence
@@ -112,10 +112,10 @@ A report is now a network call rather than a write on the reporting process's ow
 pool, so it retries before giving up. Every event `mapAgentToEvent` produces
 carries a `dedupeKey`, which is what makes repeating one safe.
 
-- A terminal Agent CR becomes its kubernetes event. ([validated by reports a terminal Agent CR as its kubernetes event](apps/cluster-agent/src/listeners/agent-reporting.test.ts#L29))
+- A terminal Agent CR becomes its kubernetes event. ([validated by reports a terminal Agent CR as its kubernetes event](apps/cluster-agent/src/listeners/agent-reporting.test.ts#L28))
 - A CR that has not reached a terminal phase reports nothing, so the repeated
   MODIFIED notifications a running pod generates cost one map and no row.
-  ([validated by reports nothing for a CR that has not reached a terminal phase](apps/cluster-agent/src/listeners/agent-reporting.test.ts#L62))
+  ([validated by reports nothing for a CR that has not reached a terminal phase](apps/cluster-agent/src/listeners/agent-reporting.test.ts#L61))
 - A report retries before it is given up on, because it now crosses a network
   rather than writing to this process's own pool — and a dropped terminal event
   leaves its node open until the reaper, which is the failure the bus exists to
@@ -128,14 +128,14 @@ carries a `dedupeKey`, which is what makes repeating one safe.
   another instance of it registers (a RollingUpdate overlap did exactly that on
   2026-08-28), and a report that only retried with the rotated-out token lost
   run 595d2b0b's terminal event for good; nothing central can see a satellite's
-  CR to reap it. An ordinary blip still just retries. ([validated by re-registers once on a refused credential and the retry then lands](libs/shared/src/project/events/event-proxy.test.ts#L169), [reads 401 and 403 as a refused credential](libs/shared/src/project/events/delivery-policy.test.ts#L8), [reads 503 as a blip, not a refusal, so a busy router never rotates the token](libs/shared/src/project/events/delivery-policy.test.ts#L15), [`event-reporter-http.test.ts:119`](libs/shared/src/project/events/event-reporter-http.test.ts#L119))
+  CR to reap it. An ordinary blip still just retries. ([validated by re-registers once on a refused credential and the retry then lands](libs/shared/src/project/events/event-proxy.test.ts#L169), [reads 401 and 403 as a refused credential](libs/shared/src/project/events/delivery-policy.test.ts#L8), [reads 503 as a blip, not a refusal, so a busy router never rotates the token](libs/shared/src/project/events/delivery-policy.test.ts#L15), [`event-reporter-http.test.ts:116`](libs/shared/src/project/events/event-reporter-http.test.ts#L116))
 - The watch hands each observed CR to that proxy rather than delivering it
   itself, and a failed hand-off is swallowed here, unlike everywhere else this
   repo reports events: the caller is a watch callback with nobody to return a
-  status to, so throwing would end the stream over one CR. ([validated by swallows a failed emit so one bad CR cannot end the watch](apps/cluster-agent/src/listeners/agent-reporting.test.ts#L80))
+  status to, so throwing would end the stream over one CR. ([validated by swallows a failed emit so one bad CR cannot end the watch](apps/cluster-agent/src/listeners/agent-reporting.test.ts#L79))
 - The catch-up pass walks the namespace one page at a time. 180 accumulated CRs
   in a single unpaginated LIST blew Node's heap and crash-looped the Floor on
-  2026-07-24. ([validated by walks every page rather than holding the namespace at once](apps/cluster-agent/src/listeners/agent-reporting.test.ts#L100), [reads the raw `continue` token too, which is what the API actually sends](apps/cluster-agent/src/listeners/agent-reporting.test.ts#L120), [reports no resourceVersion when a page carries none](apps/cluster-agent/src/listeners/agent-reporting.test.ts#L145))
+  2026-07-24. ([validated by walks every page rather than holding the namespace at once](apps/cluster-agent/src/listeners/agent-reporting.test.ts#L99), [reads the raw `continue` token too, which is what the API actually sends](apps/cluster-agent/src/listeners/agent-reporting.test.ts#L119), [reports no resourceVersion when a page carries none](apps/cluster-agent/src/listeners/agent-reporting.test.ts#L144))
 
 ### The router serves the drain loop
 
@@ -150,7 +150,7 @@ process happens to do both.
   receive disjoint batches. ([validated by claims nothing twice, so two drainers cannot run the same event](apps/event-router/src/delivery/routes/event-queue.test.ts#L46))
 - A busy serial family can be held back at claim time, so its waiting rows stay
   `pending` rather than being parked in `processing` and reaped as presumed
-  dead. ([validated by holds back an excluded event name](apps/event-router/src/delivery/routes/event-queue.test.ts#L67))
+  dead. ([validated by holds back an excluded event name](apps/event-router/src/delivery/routes/event-queue.test.ts#L66))
 - An acked event is not handed out again. ([validated by marks a claimed event done](apps/event-router/src/delivery/routes/event-queue.test.ts#L82))
 - A failed event returns for another attempt after its backoff. ([validated by fails a claimed event back for another attempt after its backoff](apps/event-router/src/delivery/routes/event-queue.test.ts#L96))
 - Dead-lettering is its own endpoint, not a flag on failure: whether an event
@@ -158,11 +158,11 @@ process happens to do both.
   together would move that decision to a service that does not know the retry
   budget. ([validated by dead-letters an event that has run out of attempts](apps/event-router/src/delivery/routes/event-queue.test.ts#L111))
 - The reaper recovers rows a crashed claimer left in flight, and prunes handled
-  ones. ([validated by reaps rows a crashed claimer left in flight](apps/event-router/src/delivery/routes/event-queue.test.ts#L127), [`event-queue.test.ts:142`](apps/event-router/src/delivery/routes/event-queue.test.ts#L142))
-- Draining requires the same token reporting does. ([validated by refuses to hand out a batch to a caller with no token](apps/event-router/src/delivery/routes/event-queue.test.ts#L156), [`event-queue.test.ts:164`](apps/event-router/src/delivery/routes/event-queue.test.ts#L164))
+  ones. ([validated by reaps rows a crashed claimer left in flight](apps/event-router/src/delivery/routes/event-queue.test.ts#L126), [`event-queue.test.ts:142`](apps/event-router/src/delivery/routes/event-queue.test.ts#L142))
+- Draining requires the same token reporting does. ([validated by refuses to hand out a batch to a caller with no token](apps/event-router/src/delivery/routes/event-queue.test.ts#L154), [`event-queue.test.ts:164`](apps/event-router/src/delivery/routes/event-queue.test.ts#L164))
 - The client and the routes are two halves of one contract written apart, so
   they are exercised against each other rather than each against its own idea
-  of the other. ([validated by reports an event and claims it back](apps/event-router/src/delivery/routes/event-queue-roundtrip.test.ts#L56), [`event-queue-roundtrip.test.ts:63`](apps/event-router/src/delivery/routes/event-queue-roundtrip.test.ts#L63), [`event-queue-roundtrip.test.ts:72`](apps/event-router/src/delivery/routes/event-queue-roundtrip.test.ts#L72), [`event-queue-roundtrip.test.ts:81`](apps/event-router/src/delivery/routes/event-queue-roundtrip.test.ts#L81), [`event-queue-roundtrip.test.ts:90`](apps/event-router/src/delivery/routes/event-queue-roundtrip.test.ts#L90), [`event-queue-roundtrip.test.ts:99`](apps/event-router/src/delivery/routes/event-queue-roundtrip.test.ts#L99))
+  of the other. ([validated by reports an event and claims it back](apps/event-router/src/delivery/routes/event-queue-roundtrip.test.ts#L55), [`event-queue-roundtrip.test.ts:63`](apps/event-router/src/delivery/routes/event-queue-roundtrip.test.ts#L63), [`event-queue-roundtrip.test.ts:72`](apps/event-router/src/delivery/routes/event-queue-roundtrip.test.ts#L72), [`event-queue-roundtrip.test.ts:81`](apps/event-router/src/delivery/routes/event-queue-roundtrip.test.ts#L81), [`event-queue-roundtrip.test.ts:90`](apps/event-router/src/delivery/routes/event-queue-roundtrip.test.ts#L90), [`event-queue-roundtrip.test.ts:99`](apps/event-router/src/delivery/routes/event-queue-roundtrip.test.ts#L99))
 
 ### Every other producer reports through the router
 
@@ -368,13 +368,13 @@ against it and declare only what they observed.
 - A full queue BLOCKS the producer. An unbounded queue in front of an
   unreachable router grows until the process dies, and a lossy one discards
   exactly what nobody is left to re-derive; blocking pushes the pressure back to
-  the only place that can decide to slow down. ([validated by blocks the producer once the queue is full](libs/shared/src/project/events/event-proxy.test.ts#L137), [leaves push pending once capacity is reached](libs/shared/src/project/events/bounded-queue.test.ts#L22), [admits the waiting producer when a shift frees the slot](libs/shared/src/project/events/bounded-queue.test.ts#L35))
+  the only place that can decide to slow down. ([validated by blocks the producer once the queue is full](libs/shared/src/project/events/event-proxy.test.ts#L137), [leaves push pending once capacity is reached](libs/shared/src/project/events/bounded-queue.test.ts#L21), [admits the waiting producer when a shift frees the slot](libs/shared/src/project/events/bounded-queue.test.ts#L34))
 - Blocked producers are admitted in arrival order, so the drain stays FIFO end
-  to end even while saturated. ([validated by resolves push immediately while a slot is free](libs/shared/src/project/events/bounded-queue.test.ts#L12), [admits blocked producers in the order they arrived](libs/shared/src/project/events/bounded-queue.test.ts#L50), [returns undefined from shift on an empty queue](libs/shared/src/project/events/bounded-queue.test.ts#L65))
+  to end even while saturated. ([validated by resolves push immediately while a slot is free](libs/shared/src/project/events/bounded-queue.test.ts#L11), [admits blocked producers in the order they arrived](libs/shared/src/project/events/bounded-queue.test.ts#L49), [returns undefined from shift on an empty queue](libs/shared/src/project/events/bounded-queue.test.ts#L64))
 - Backpressure only bites if the producer AWAITS the emit; a fire-and-forget
   caller accumulates pending promises instead of items and the bound becomes
   fiction. A zero-slot queue is refused for the same reason — it would block
-  forever rather than never. ([validated by rejects a capacity below 1](libs/shared/src/project/events/bounded-queue.test.ts#L69))
+  forever rather than never. ([validated by rejects a capacity below 1](libs/shared/src/project/events/bounded-queue.test.ts#L68))
 
 ### The ladder, and why rotation is separate from the retry
 

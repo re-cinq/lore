@@ -1,16 +1,7 @@
 import { z } from "zod";
 import type { ColumnMap } from "../lib/row.js";
 
-/**
- * `pipeline.events` — the Floor's trigger substrate (ADR-015 amendment).
- *
- * DDL: migration `0023_pipeline_events.sql`, plus `repo` (0024). Listeners only
- * insert; the main loop claims runnable rows with `FOR UPDATE SKIP LOCKED` and
- * dispatches by `eventName`.
- *
- * `id` is a string-encoded bigint: the column is `GENERATED ALWAYS AS IDENTITY`
- * and doubles as a cursor, so it is never narrowed to a JS number.
- */
+/** `pipeline.events` — the Floor's trigger substrate (ADR-015 amendment); listeners only insert, the main loop claims via `FOR UPDATE SKIP LOCKED` and dispatches by `eventName`; `id` is a string-encoded bigint doubling as a cursor, never narrowed to a JS number. */
 
 export const EventStatusSchema = z.enum([
   "pending",

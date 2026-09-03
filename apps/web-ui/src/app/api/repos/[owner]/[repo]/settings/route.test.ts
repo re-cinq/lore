@@ -1,9 +1,4 @@
 // @vitest-environment node
-//
-// The route is now a proxy: lore-api owns the write, the privileged-field
-// refusal, and the `internal.repo.team_changed` event (all covered by
-// repo-settings.test.ts there). What is left to prove here is that this route
-// forwards the caller's patch faithfully and does not flatten a refusal.
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
 

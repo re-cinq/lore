@@ -75,21 +75,21 @@ Never throws.
 ## Acceptance Criteria
 
 A pending task is locked, flipped to `running` with the claiming agent, and the
-transaction commits returning true. ([validated by `returns true and records the claim event when a pending task is claimed`](apps/mcp-server/src/features/pipeline/tasks-db.test.ts#L148))
+transaction commits returning true. ([validated by `returns true and records the claim event when a pending task is claimed`](apps/mcp-server/src/features/pipeline/tasks-db.test.ts#L143))
 
 When the row is already locked or absent the handler rolls back and returns
-false. ([validated by `returns false and records no event when the row is already claimed`](apps/mcp-server/src/features/pipeline/tasks-db.test.ts#L164))
+false. ([validated by `returns false and records no event when the row is already claimed`](apps/mcp-server/src/features/pipeline/tasks-db.test.ts#L159))
 
 A failure recording the claim event does not abort the claim; the transaction
-still commits. ([validated by `still returns true when the event-recording insert throws`](apps/mcp-server/src/features/pipeline/tasks-db.test.ts#L175))
+still commits. ([validated by `still returns true when the event-recording insert throws`](apps/mcp-server/src/features/pipeline/tasks-db.test.ts#L170))
 
 The resolved agent id is posted with the task id and a successful claim is
-confirmed by name. ([validated by `lore_claim_task posts the resolved agent id and confirms the claim`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L394))
+confirmed by name. ([validated by `lore_claim_task posts the resolved agent id and confirms the claim`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L387))
 
-A refused claim renders the already-claimed/not-found message. ([validated by `lore_claim_task reports a task that could not be claimed`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L406))
+A refused claim renders the already-claimed/not-found message. ([validated by `lore_claim_task reports a task that could not be claimed`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L399))
 
 An unconfigured API yields the not-configured message rather than a PostgreSQL
-message. ([validated by `every proxied pipeline tool reports a missing API configuration`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L440))
+message. ([validated by `every proxied pipeline tool reports a missing API configuration`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L433))
 
 ## Out of Scope
 

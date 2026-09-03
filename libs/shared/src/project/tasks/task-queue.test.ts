@@ -3,8 +3,6 @@ import { fakePgPool } from "../../test-helpers/fake-pg-pool.js";
 import { PgTaskQueue } from "./task-queue-pg.js";
 import { InMemoryTaskQueue, type SeedTask } from "./task-queue-memory.js";
 
-// ── PgTaskQueue: SQL shape ─────────────────────────────────────────────
-
 describe("PgTaskQueue.claimNextPending", () => {
   it("selects one pending task, immediate-first then oldest, with the 30s grace", async () => {
     const { pool, calls } = fakePgPool([
@@ -114,8 +112,8 @@ describe("PgTaskQueue.completeSpecTask", () => {
 
   it("flips to completed and skips the readiness scan without slug metadata", async () => {
     const { pool, calls } = fakePgPool([
-      { rows: [{ status: "running", context_bundle: {}, target_repo: "a/b" }] }, // load
-      { rows: [] }, // UPDATE completed
+      { rows: [{ status: "running", context_bundle: {}, target_repo: "a/b" }] },
+      { rows: [] },
     ]);
 
     expect(await new PgTaskQueue(pool).completeSpecTask("t1")).toEqual({
@@ -136,8 +134,8 @@ describe("PgTaskQueue.completeSpecTask", () => {
             target_repo: "a/b",
           },
         ],
-      }, // load
-      { rows: [] }, // UPDATE
+      },
+      { rows: [] },
       {
         rows: [
           {
@@ -168,7 +166,7 @@ describe("PgTaskQueue.completeSpecTask", () => {
             },
           },
         ],
-      }, // findReadySpecTasks
+      },
     ]);
 
     expect(await new PgTaskQueue(pool).completeSpecTask("t1")).toEqual({
@@ -224,8 +222,6 @@ describe("PgTaskQueue org-wide reads", () => {
   });
 });
 
-// ── InMemoryTaskQueue: behavioral spec ─────────────────────────────────
-
 const at = (now: number, deltaSec: number) =>
   new Date(now - deltaSec * 1000).toISOString();
 
@@ -246,9 +242,7 @@ describe("InMemoryTaskQueue.claimNextPending", () => {
     expect((await q.claimNextPending())?.id).toBe("i");
   });
 
-  it("withholds a normal task until it is strictly older than the 30s grace", async () => {
-    // The claim uses `created_at < now() - interval '30 seconds'`: a task exactly
-    // 30s old is the boundary and not yet eligible; eligibility needs age > 30s.
+  it("withholds a normal task at exactly the 30s boundary — eligibility needs age strictly greater than 30s", async () => {
     for (const ageSec of [29, 30]) {
       expect(
         await queue([

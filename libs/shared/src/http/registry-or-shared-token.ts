@@ -52,16 +52,20 @@ export async function enforceRegistryOrSharedToken(
 ): Promise<void> {
   const token = extractBearer(headers["authorization"]);
 
-  if (token !== undefined && deps.sharedToken !== undefined) {
-    if (secretEquals(token, deps.sharedToken)) {
-      return;
-    }
+  if (
+    token !== undefined &&
+    deps.sharedToken !== undefined &&
+    secretEquals(token, deps.sharedToken)
+  ) {
+    return;
   }
 
-  if (token !== undefined && deps.findByTokenHash) {
-    if (await deps.findByTokenHash(hashAgentToken(token))) {
-      return;
-    }
+  if (
+    token !== undefined &&
+    deps.findByTokenHash &&
+    (await deps.findByTokenHash(hashAgentToken(token)))
+  ) {
+    return;
   }
 
   enforceBearer(headers, deps.sharedToken, service, deps.sharedTokenEnvName);

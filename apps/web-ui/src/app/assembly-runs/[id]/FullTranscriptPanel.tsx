@@ -1,22 +1,6 @@
 "use client";
 
-// The on-demand full-fidelity transcript for the selected node, read from the
-// turn-level transcript store (specs/turn-level-transcript-store, #1148)
-// through the session-authed /turns proxy. Collapsed by default and fetched
-// only on first open, so the truncated live view — which stays the page's
-// default — pays nothing for this panel's existence.
-//
-// Renders as a formatted conversation by default (one node visit's turns
-// parsed through the same classifier the pod-log viewers use), with a Raw
-// toggle restoring today's untruncated per-turn envelope — that escape hatch
-// is this panel's whole reason to exist, so it is never removed, only hidden.
-//
-// One walk per mounted run: the parent keys this mount on the run id, so a
-// run change remounts with fresh state (the parent's own historyLoadedFor
-// lesson), and `startedRef` keeps toggling the panel from starting a second
-// walk while the first is in flight. Switching the selected node refilters
-// the already-loaded line-scoped turns instead of refetching.
-
+// On-demand full-fidelity transcript (specs/turn-level-transcript-store #1148), collapsed and fetched only on first open; `startedRef` blocks a second walk while one is in flight, keyed per mounted run.
 import { useEffect, useMemo, useRef, useState } from "react";
 import { parseAgentRunTurn, type AgentRunTurn } from "@/lib/run-turn-types";
 import {
@@ -53,8 +37,7 @@ export default function FullTranscriptPanel({
   const [error, setError] = useState<string | null>(null);
   const [showRaw, setShowRaw] = useState(false);
   const startedRef = useRef(false);
-  // Unmount is the only cancellation: a re-closed panel still wants the data
-  // it asked for, but a dead component must not receive it.
+  // Unmount is the only cancellation — a re-closed panel still wants its data, but a dead component must not receive it.
   const disposedRef = useRef(false);
 
   useEffect(
@@ -72,8 +55,7 @@ export default function FullTranscriptPanel({
 
     async function walk() {
       try {
-        // A reopen retries a failed walk — drop the stale error so the retry
-        // shows Loading… rather than the previous failure.
+        // A reopen retries a failed walk — drop the stale error so the retry shows Loading… rather than the previous failure.
         setError(null);
         const collected: AgentRunTurn[] = [];
         let cursor = "0";
@@ -106,28 +88,24 @@ export default function FullTranscriptPanel({
 
           pages += 1;
 
-          for (const row of rows) {
+          rows.forEach((row) => {
             const parsed = parseAgentRunTurn(row);
 
             if (parsed !== null) {
               collected.push(parsed);
             }
-          }
+          });
 
           const hasMoreFlag = parseHasMore(body);
           const next = nextTurnsCursor(rows, hasMoreFlag);
 
           if (next === null) {
-            // A drained transcript ends silently; a stalled one — the server
-            // reports more but the page carries no usable cursor — must not,
-            // because this one-shot walk never retries.
+            // A drained transcript ends silently; a stalled one (server reports more, no usable cursor) must not, since this one-shot walk never retries.
             hitCap = serverReportsMore(rows, hasMoreFlag);
             break;
           }
 
-          // The page bound backstops a Floor clamp far below the requested
-          // page size — bounded requests, and a visible notice instead of a
-          // silently partial transcript.
+          // Backstops a Floor clamp far below the requested page size — bounded requests plus a visible notice instead of a silent partial transcript.
           if (collected.length >= MAX_TURNS_LOADED || pages >= MAX_WALK_PAGES) {
             hitCap = true;
             break;
@@ -141,8 +119,7 @@ export default function FullTranscriptPanel({
       } catch (e) {
         if (!disposedRef.current) {
           setError(e instanceof Error ? e.message : String(e));
-          // A failed walk re-arms the gate, so closing and reopening the
-          // panel retries instead of pinning the error until a page reload.
+          // Re-arms the gate so closing/reopening retries instead of pinning the error until a page reload.
           startedRef.current = false;
         }
       }

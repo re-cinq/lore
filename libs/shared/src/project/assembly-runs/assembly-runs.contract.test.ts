@@ -1,40 +1,3 @@
-// The AssemblyRunsPort contract, run against EVERY implementation (#1230).
-//
-// Why this file exists. The port had two implementations tested in two different
-// universes: `InMemoryAssemblyRuns` was checked for BEHAVIOUR — so it quietly
-// became the spec — while `PgAssemblyRuns` was checked for SQL TEXT against a
-// fake pool, which proves only that the string typed is the string meant. Both
-// suites passed while the two disagreed, which is exactly how a renamed column
-// shipped green in #1228 and had to be fixed in review.
-//
-// There was even a `describe` titled "plain start agrees across the adapter and
-// the double" that asserted SQL text on one side and behaviour on the other.
-// That is not agreement; it is two unrelated assertions sharing a block.
-//
-// So: ONE set of expectations, executed against both. The in-memory run is
-// unconditional. The Postgres run needs a database with the migrations applied
-// and SKIPS when there is none, warning loudly — a suite that quietly tested
-// nothing would be worse than no suite.
-//
-// Where that database exists today: LOCALLY, via `npm run db:up &&
-// scripts/infra/setup-local-schema.sh`. NOT in CI. The Integration Tests
-// workflow hand-rolls a subset of the schema inline and never applies
-// `ui-helm/migrations/`, so `pipeline.assembly_runs` is absent there and this
-// half skips. Applying the chain to that baseline does not work either — 20 of
-// the migrations need tables the inline subset lacks (llm_calls, memories,
-// agent_definitions, chunks…), measured, not guessed.
-//
-// Closing that is a bigger change than this file: the integration database
-// should come from the same source as production rather than a parallel
-// hand-written one. Tracked separately — until then the Postgres half is a
-// local gate, and the honest reading of a green CI run is "the in-memory
-// implementation passed".
-//
-// Deliberately behavioural only. Nothing here asserts SQL text — that belongs in
-// the adapter's own file, where it is a test of the implementation. What is
-// asserted here is what any implementation must do, which is the thing the two
-// were free to disagree about.
-
 import { describe, it, expect, afterAll } from "vitest";
 import { randomUUID } from "node:crypto";
 import { Pool } from "pg";
@@ -51,11 +14,6 @@ const PG_CONFIG = {
   password: process.env.PGPASSWORD ?? "lore",
 };
 
-/**
- * Reachable AND migrated. Reachability alone is not enough: a database that
- * predates migration 0040 has no `pipeline.assembly_runs`, and every test would
- * fail on a missing relation rather than skip.
- */
 async function pgAvailable(): Promise<{ ok: boolean; why: string }> {
   let probe: Pool | undefined;
 
@@ -81,16 +39,6 @@ async function pgAvailable(): Promise<{ ok: boolean; why: string }> {
 
 const pg = await pgAvailable();
 
-/**
- * A skipped implementation must be VISIBLE. `console.warn` from module scope is
- * swallowed by the runner, so the state is asserted as a named test instead —
- * the reporter prints the reason either way.
- *
- * `LORE_REQUIRE_PG_CONTRACT=1` turns the skip into a failure. Any environment
- * that is supposed to have a migrated database sets it, so the Postgres half can
- * never quietly stop running there and leave a green tick meaning less than it
- * did yesterday.
- */
 describe("the Postgres implementation is actually exercised", () => {
   it(
     pg.ok
@@ -125,11 +73,7 @@ const GRAPH: RunGraph = {
 
 interface Subject {
   port: AssemblyRunsPort;
-  /** A repo nobody else in this file uses, so filtered reads see only their own rows. */
   repo: string;
-  /** A task id the store will ACCEPT. `assembly_runs.task_id` is a real foreign
-   *  key in Postgres, so the contract cannot invent one — each implementation
-   *  supplies an id that exists for it. */
   taskId: () => Promise<string>;
 }
 
@@ -138,7 +82,6 @@ const pgRepos: string[] = [];
 
 afterAll(async () => {
   if (pool) {
-    // Node rows cascade from the run rows; args/graph go with them.
     await pool.query(
       `DELETE FROM pipeline.assembly_runs WHERE repo = ANY($1)`,
       [pgRepos],
@@ -153,9 +96,6 @@ afterAll(async () => {
 const IMPLEMENTATIONS: Array<[string, () => Subject]> = [
   [
     "in-memory",
-    // A fixed repo is safe ONLY because `make()` hands back a fresh store per
-    // test, so nothing leaks between them. Hoisting this into a shared instance
-    // (a beforeEach refactor, say) would silently break every filtered read.
     () => ({
       port: new InMemoryAssemblyRuns(),
       repo: "re-cinq/contract",
@@ -287,8 +227,6 @@ describe.each(IMPLEMENTATIONS)(
     });
 
     it("a converged duplicate keeps the first visit's input rather than overwriting it", async () => {
-      // The relaunch door dispatches the same visit again; the row already names
-      // what that visit was given, and the second call must not rewrite history.
       const { port, repo } = make();
       const id = await port.start({ blueprintName: "code-review", repo });
       const base = { assemblyRunId: id, nodeId: "review", iteration: 1 };
@@ -541,9 +479,6 @@ describe.each(IMPLEMENTATIONS)(
     });
 
     it("findOpenOnBranch returns open runs for that repo+branch as graph-less summaries", async () => {
-      // The overlap guard's read. It compares five scalars, so the summary must
-      // NOT haul the graph clone — and it must not see other branches, or a run
-      // would defer to work it has nothing to do with.
       const { port, repo } = make();
       const branch = "feat/contract";
       const open = await port.start({
@@ -572,8 +507,6 @@ describe.each(IMPLEMENTATIONS)(
     });
 
     it("hasReviewedPr is true once ANY code-review run exists for the repo+PR, terminal included", async () => {
-      // The first-review-only guard: a push after the first review must not
-      // re-review, so a FINISHED run still has to count.
       const { port, repo } = make();
       const reviewed = await port.start({
         blueprintName: "code-review",
@@ -589,8 +522,6 @@ describe.each(IMPLEMENTATIONS)(
     });
 
     it("findOpenByPr finds BOTH a queued and a running run for that PR", async () => {
-      // Open means queued OR running: a run that has not started yet still holds
-      // the PR, and missing it starts a second review on the same pull request.
       const { port, repo } = make();
       const queued = await port.start({
         blueprintName: "code-review",
@@ -611,7 +542,7 @@ describe.each(IMPLEMENTATIONS)(
       expect(ids).toContain(running);
     });
 
-    it("finishOpenByPr closes only the definitions the caller names", async () => {
+    it("finishOpenByPr closes only the definitions the caller names, leaving a parked planning run running (FR6.37)", async () => {
       const { port, repo } = make();
       const review = await port.start({
         blueprintName: "code-review",
@@ -632,13 +563,10 @@ describe.each(IMPLEMENTATIONS)(
           (run) => run.id,
         ),
       ).toEqual([review]);
-      // The refs alone would pass even if the outcome were never written.
       expect(await port.getById(review)).toMatchObject({
         status: "finished",
         outcome: "pr_closed",
       });
-      // The planning run was parked WAITING for that merge — closing it here is
-      // the bug FR6.37 was written about.
       expect((await port.getById(planning))?.status).toBe("running");
     });
 
@@ -800,10 +728,6 @@ describe.each(IMPLEMENTATIONS)(
         subjectKey: "feature:seven",
       });
 
-      // Membership, not order: both runs are created in the same millisecond here,
-      // and this port documents ties as stable-but-arbitrary in BOTH adapters. The
-      // property under test is that the blueprint name is not a filter — the point
-      // of a subject is finding the run without knowing which line produced it.
       expect(
         (await port.list({ repo, subjectKey: "feature:seven" }))
           .map((r) => r.id)
@@ -838,9 +762,6 @@ describe.each(IMPLEMENTATIONS)(
         resumeFrom: { lineId: source, nodeId: "review" },
       });
 
-      // A fork RE-RUNS the same work, so it must hold the guard its source held and
-      // answer the same subject query. Inheriting is safe precisely because forking
-      // is legal only from a terminal run — the key is always free by then.
       expect(await port.getById(fork)).toMatchObject({
         subjectKey: "feature:eight",
       });
@@ -880,12 +801,6 @@ describe.each(IMPLEMENTATIONS)(
         resumeFrom: { lineId: source, nodeId: "review" },
       });
 
-      // The copied row keeps WHAT happened and drops the classification of WHY,
-      // which belongs to the attempt that is over. `getNextTransition` replays the
-      // copied prefix and refuses a retry on a permanent failure — inherit the
-      // verdict and a fork taken to rerun a credit failure dies of the failure
-      // it exists to get past, on its first advance, right after someone tops
-      // the account up.
       expect(await port.listStationRuns(fork)).toMatchObject([
         {
           nodeId: "review",
@@ -895,8 +810,6 @@ describe.each(IMPLEMENTATIONS)(
         },
       ]);
     });
-
-    // ── Pull-based dispatch (specs/running-stations-in-any-k8s-cluster FR3) ──
 
     it("claims the oldest queued run whose required tags the claimant satisfies", async () => {
       const { port, repo } = make();
@@ -992,8 +905,6 @@ describe.each(IMPLEMENTATIONS)(
 
     it("counts open claims per cluster-agent, dropping finished and unclaimed visits", async () => {
       const { port, repo } = make();
-      // The count is deliberately global (the registered-clusters page reads
-      // the whole fleet), so this test keys on an agent id nobody else uses.
       const agentId = randomUUID();
       const runId = await port.start({ blueprintName: "code-review", repo });
       const first = await port.ensureStationRun({
@@ -1004,9 +915,6 @@ describe.each(IMPLEMENTATIONS)(
       });
 
       await port.enqueueStationRunDispatch(first.nodeRowId, { prompt: "p" });
-      // The claim scan is global too — age this row to the front would race
-      // other rows, so claim by TAG nobody else queues.
-      // (Simpler: claim until this run's row is taken or the queue is dry.)
       let claimed = await port.claimNextStationRun({
         clusterAgentId: agentId,
         tags: [],
@@ -1066,10 +974,6 @@ describe.each(IMPLEMENTATIONS)(
     });
 
     it("arming a claimed row is a no-op, so a re-dispatch cannot rewrite what a pod is being built from", async () => {
-      // The window is real: a crash-recovery re-dispatch can land after another
-      // cluster took the row, and the claim already handed that cluster the
-      // spec. Rewriting it then changes nothing about the pod being launched and
-      // everything about what the row claims was launched.
       const { port, repo } = make();
       const runId = await port.start({ blueprintName: "code-review", repo });
       const { nodeRowId } = await port.ensureStationRun({
@@ -1135,11 +1039,6 @@ describe.each(IMPLEMENTATIONS)(
     });
 
     it("requeue restarts the queue clock so the wait is measured from the requeue", async () => {
-      // The reaper bounds a `queued` visit by `startedAt`. Leaving it at the
-      // ORIGINAL enqueue meant a visit requeued after a long claim was already
-      // past the wait the moment it went back on the queue, and the very next
-      // tick failed it as "no cluster-agent claimed this run" — naming a timeout
-      // that had in fact been claimed and lost.
       const { port, repo } = make();
       const runId = await port.start({ blueprintName: "code-review", repo });
       const { nodeRowId } = await port.ensureStationRun({

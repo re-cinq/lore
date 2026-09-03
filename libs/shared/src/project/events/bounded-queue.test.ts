@@ -1,7 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { BoundedQueue } from "./bounded-queue.js";
 
-/** Whether a promise has settled, without waiting on it. */
 async function settled(promise: Promise<unknown>): Promise<boolean> {
   const pending = Symbol("pending");
 

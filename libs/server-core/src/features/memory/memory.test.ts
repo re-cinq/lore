@@ -10,11 +10,6 @@ import {
   agentStats,
 } from "./memory.js";
 
-// These handlers run their queries against the module-level pool set via
-// setMemoryPool. A scripted mock pool returns rows by matching the SQL text,
-// so each test asserts on the exact params the handler builds and the shape
-// it returns — no live Postgres needed.
-
 interface ScriptedRow {
   match: RegExp;
   rows: any[];
@@ -54,7 +49,6 @@ describe("isMemoryDbAvailable", () => {
 describe("writeMemory", () => {
   it("inserts version 1 for a new key and returns the write result", async () => {
     const pool = scriptedPool([
-      // existing-row lookup: none
       { match: /SELECT id, version FROM memory\.memories/, rows: [] },
       {
         match: /INSERT INTO memory\.memories/,
@@ -476,8 +470,6 @@ describe("writeMemory transactional write", () => {
   });
 });
 
-// Imported here, not up top: 34 anchors across 6 spec files (2-agent-memory
-// + 5 mcp-tools/* specs) point at it() lines above; hoisting shifts them all.
 import { sharedWrite } from "./memory.js";
 
 describe("sharedWrite transactional write", () => {

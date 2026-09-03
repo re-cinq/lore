@@ -1,14 +1,4 @@
-/**
- * The six request bodies of the event-queue HTTP surface (ADR-044).
- *
- * They live here rather than beside the routes because the two ends of each
- * call are in different packages: `event-queue-http.ts` builds the body, and
- * `apps/event-router`'s routes parse it. Declared twice, a renamed field is a
- * runtime 400 that both sides typecheck cleanly — the drift no compiler catches.
- *
- * Not in `models/`: nothing here is a table row. `models/` binds columns to
- * fields; these bind a caller to a route.
- */
+/** The six request bodies of the event-queue HTTP surface (ADR-044); declared twice (builder + router) since the two ends live in different packages. Not in `models/` — nothing here is a table row. */
 
 import { z } from "zod";
 

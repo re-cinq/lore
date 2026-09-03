@@ -1,8 +1,4 @@
-/**
- * The no-clone PR lifecycle port. Consumed by auto-merge + the code-review
- * choreography, which operate purely over the API and never clone.
- * lib/platform-github implements this alongside GitHubPort.
- */
+// No-clone PR lifecycle port; consumed by auto-merge + code-review choreography (API-only, never clone). Implemented by lib/platform-github alongside GitHubPort.
 
 export type PRReviewEvent = "APPROVE" | "REQUEST_CHANGES" | "COMMENT";
 
@@ -22,8 +18,7 @@ export interface CreateReviewInput {
 }
 export type MergeMethod = "squash" | "merge" | "rebase";
 
-/** Aggregate GitHub Actions conclusion for a ref: the deterministic gate (ADR-031 D3).
- *  `none` = no checks configured. */
+/** Aggregate GitHub Actions conclusion for a ref — the deterministic gate (ADR-031 D3); "none" = no checks configured. */
 export type CiConclusion = "success" | "failure" | "pending" | "none";
 
 export interface PullRef {
@@ -82,13 +77,11 @@ export interface CheckRun {
 
 /** One inline comment inside a review thread — the GraphQL node, REST-mappable. */
 export interface ReviewThreadComment {
-  /** REST review-comment id (GraphQL `databaseId`) — the join key back to
-   *  {@link ReviewComment.id}, so a reply posted over REST can find its thread. */
+  /** REST review-comment id (GraphQL databaseId) — join key back to {@link ReviewComment.id} so a REST reply can find its thread. */
   databaseId: number | null;
 }
 
-/** One PR review thread. GraphQL-only surface: resolution state has no REST
- *  read, so `id` is the GraphQL node id — pass it to `resolveReviewThread`. */
+/** One PR review thread (GraphQL-only — resolution state has no REST read); id is the GraphQL node id, pass to resolveReviewThread. */
 export interface ReviewThread {
   id: string;
   isResolved: boolean;
@@ -121,9 +114,7 @@ export interface PullRequestsPort {
     number: number,
     input: CreateReviewInput,
   ): Promise<void>;
-  /** Reply in-thread to a review comment (…/pulls/{n}/comments/{comment_id}/replies).
-   *  The code-review-refine node emits the reply text; the Floor posts it here
-   *  (the agent pod has no `gh`). */
+  /** Reply in-thread to a review comment; the refine node emits the text, the Floor posts it (the agent pod has no gh). */
   replyToReviewComment(
     repo: string,
     number: number,
@@ -139,9 +130,7 @@ export interface PullRequestsPort {
     body: string,
     base?: string,
     labels?: string[],
-    /** Open as a draft. A draft PR gets no Lore code review — both review entry
-     *  points gate on `draft !== true` — which is what lets a line push many
-     *  times before asking anyone to look. */
+    /** Open as a draft — both review entry points gate on draft !== true, letting a line push repeatedly before review. */
     draft?: boolean,
   ): Promise<PullRef>;
   /** Rewrite an open pull request's title and/or body. */
@@ -150,10 +139,7 @@ export interface PullRequestsPort {
     number: number,
     fields: { title?: string; body?: string },
   ): Promise<void>;
-  /** Take a pull request out of draft, which is what starts the code review.
-   *  GraphQL-only: REST's `pulls.update` has no `draft` field. Idempotent — a PR
-   *  that is already ready is a no-op, because GitHub errors the mutation on one
-   *  and a re-delivered event must not fail a run for work already done. */
+  /** Takes a PR out of draft (starts code review); GraphQL-only (REST has no draft field), idempotent since GitHub errors the mutation on an already-ready PR. */
   markReady(repo: string, number: number): Promise<void>;
   // reads
   getDiff(repo: string, number: number): Promise<string>;
@@ -164,20 +150,16 @@ export interface PullRequestsPort {
   isMerged(repo: string, number: number): Promise<boolean>;
   isClosed(repo: string, number: number): Promise<boolean>;
   getStats(repo: string, number: number): Promise<PullStats>;
-  /** Number of files that differ between two refs (compare-commits). The agent-watcher
-   *  uses this for the no-changes vs PR decision — `Agent.status` carries no changedFiles. */
+  /** Files differing between two refs; agent-watcher uses it for the no-changes vs PR decision (Agent.status carries no changedFiles). */
   changedFileCount(repo: string, base: string, head: string): Promise<number>;
   /** Aggregate GitHub Actions conclusion for a ref — the deterministic gate (D3). */
   ciConclusion(repo: string, ref: string): Promise<CiConclusion>;
-  /** Every changed filename on a PR — paginated so the auto-merge path gate can't
-   *  silently truncate a large PR at one API page. */
+  /** Every changed filename on a PR, paginated so auto-merge's path gate can't silently truncate a large PR at one API page. */
   listFiles(repo: string, number: number): Promise<string[]>;
-  /** Every check run for a ref — paginated, raw. The gate predicate stays in the caller
-   *  (pr-policy needs `every(success|skipped)`, stricter than ciConclusion). */
+  /** Every check run for a ref, paginated raw — the gate predicate (stricter than ciConclusion) stays in the caller. */
   listChecks(repo: string, ref: string): Promise<CheckRun[]>;
   /** Every review thread on a PR — GraphQL, since resolution has no REST read. */
   listReviewThreads(repo: string, number: number): Promise<ReviewThread[]>;
-  /** Mark one thread resolved. `threadId` is the globally unique GraphQL node
-   *  id from listReviewThreads, so no repo parameter is needed. */
+  /** Mark one thread resolved; threadId is the GraphQL node id from listReviewThreads (no repo param needed). */
   resolveReviewThread(threadId: string): Promise<void>;
 }

@@ -72,15 +72,15 @@ logged/audited so a run's true graph effect is visible.
 Each descriptor is stamped with the `[startLine, endLine]` of the `it`/`test`
 declaration whose string matches its leaf name; a declaration's span runs to the
 next declaration's line minus one, or end of file for the last.
-([validated by `resolve-test-lines.test.ts:30`](libs/shared/src/spec-trace/resolve-test-lines.test.ts#L30))
+([validated by `resolve-test-lines.test.ts:29`](libs/shared/src/spec-trace/resolve-test-lines.test.ts#L29))
 
 `it.skip` / `it.only` and other modifiers resolve, and the final test's span
 runs to end of file.
-([validated by `resolve-test-lines.test.ts:40`](libs/shared/src/spec-trace/resolve-test-lines.test.ts#L40))
+([validated by `resolve-test-lines.test.ts:39`](libs/shared/src/spec-trace/resolve-test-lines.test.ts#L39))
 
 A descriptor whose leaf name matches no declaration is returned unchanged
 (line-blind), so the binder skips it.
-([validated by `leaves a descriptor whose leaf name matches no declaration unchanged`](libs/shared/src/spec-trace/resolve-test-lines.test.ts#L40), [validated by `resolve-test-lines:47`](libs/shared/src/spec-trace/resolve-test-lines.test.ts#L47))
+([validated by `leaves a descriptor whose leaf name matches no declaration unchanged`](libs/shared/src/spec-trace/resolve-test-lines.test.ts#L39), [validated by `resolve-test-lines:47`](libs/shared/src/spec-trace/resolve-test-lines.test.ts#L46))
 
 ### Producer (descriptors from the runner list)
 
@@ -122,11 +122,11 @@ parse.
 
 Link paths and descriptor files are compared after normalizing a leading `./`
 or `/`, so repo-root-relative and dot-relative forms match.
-([validated by `bind-descriptors-to-spec-links.test.ts:81`](libs/shared/src/spec-trace/bind-descriptors-to-spec-links.test.ts#L81), [validated by `bind-descriptors-to-spec-links:107`](libs/shared/src/spec-trace/bind-descriptors-to-spec-links.test.ts#L107))
+([validated by `bind-descriptors-to-spec-links.test.ts:81`](libs/shared/src/spec-trace/bind-descriptors-to-spec-links.test.ts#L81), [validated by `bind-descriptors-to-spec-links:107`](libs/shared/src/spec-trace/bind-descriptors-to-spec-links.test.ts#L105))
 
 A link with no `#Lline` anchor seeds no `(path, line)` index entry and binds
 nothing.
-([validated by `bind-descriptors-to-spec-links.test.ts:90`](libs/shared/src/spec-trace/bind-descriptors-to-spec-links.test.ts#L90), [validated by `bind-descriptors-to-spec-links:122`](libs/shared/src/spec-trace/bind-descriptors-to-spec-links.test.ts#L122))
+([validated by `bind-descriptors-to-spec-links.test.ts:90`](libs/shared/src/spec-trace/bind-descriptors-to-spec-links.test.ts#L90), [validated by `bind-descriptors-to-spec-links:122`](libs/shared/src/spec-trace/bind-descriptors-to-spec-links.test.ts#L120))
 
 ### Observability
 

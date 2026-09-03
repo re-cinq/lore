@@ -7,12 +7,7 @@ import {
 import { generateArtifactCopy } from "../lib/artifact-copy.js";
 import { setStatus, insertEvent } from "./task-helpers.js";
 
-/**
- * After a failed planning round, set the feature back to 'draft' ONLY when no
- * round ever produced a result — otherwise leave the prior status (the earlier
- * analysis still stands; the wizard shows it). Never badge a failed feature
- * 'awaiting-input' — that implies a result is waiting for the user.
- */
+/** After a failed planning round, revert to 'draft' ONLY when no round ever produced a result — never badge a failed feature 'awaiting-input'. */
 export async function revertFeatureAfterFailure(
   project: Pick<Project, "features">,
   featureId: string,
@@ -28,11 +23,7 @@ export async function revertFeatureAfterFailure(
   }
 }
 
-/**
- * The tail of a Station's captured output, for a failure message — last
- * non-empty lines, bounded. Pure. The cause of an exit (e.g. a git "Repository
- * not found" on 128) lives in the output, not the code, so surface it.
- */
+/** Tail of a Station's captured output for a failure message — the cause of an exit lives in the output, not the code, so surface it. */
 export function stationLogTail(
   output: string,
   maxLines = 40,
@@ -56,15 +47,7 @@ export function stationLogTail(
   return tail;
 }
 
-/**
- * Finalize a synchronous (Docker) Station run inline — there is no
- * loretask-watcher locally (ADR-028). The K8s path keeps using the watcher; this
- * mirrors its post-completion behavior for the local container:
- *  - non-zero exit → task failed
- *  - feature-planning / no file changes → just complete (planning self-POSTed its result)
- *  - changes pushed → open the PR for the branch, update the task, and (for
- *    the merged planning line) flip the feature to pr-open.
- */
+/** Finalize a synchronous (Docker) Station run inline — no loretask-watcher locally (ADR-028); mirrors the K8s watcher's post-completion behavior. */
 export async function finalizeStationRun(opts: {
   task: PipelineTask;
   targetRepo: string;
@@ -75,31 +58,11 @@ export async function finalizeStationRun(opts: {
   const { task, targetRepo, branch, completion, project } = opts;
 
   if (completion.exitCode !== 0) {
-    // Surface the container's own logs (exit 128 is almost always a git/clone
-    // failure whose cause is only in the output) so the wizard shows WHY.
+    // Surface the container's own logs — exit 128 is almost always a git/clone failure whose cause is only in the output.
     const tail = stationLogTail(completion.output);
     const reason = `Station exited ${completion.exitCode}.${tail ? `\n\n${tail}` : ""}`;
 
-    // Keep the feature row consistent: a failed planning round must mark its
-    // iteration failed (not leave it 'running') + drop the feature to awaiting-input.
-    if (
-      task.task_type === "feature-planning" &&
-      task.context_bundle?.feature_id &&
-      task.context_bundle?.iteration != null
-    ) {
-      await project.features
-        .setIterationResult(
-          task.context_bundle.feature_id as string,
-          task.context_bundle.iteration as number,
-          null,
-          "failed",
-        )
-        .catch(() => {});
-      await revertFeatureAfterFailure(
-        project,
-        task.context_bundle.feature_id as string,
-      );
-    }
+    await markFailedPlanningIteration(task, project);
     await setStatus(task.id, "failed", { failure_reason: reason });
     await insertEvent(task.id, "running", "failed", {
       reason: `station exit ${completion.exitCode}`,
@@ -109,17 +72,17 @@ export async function finalizeStationRun(opts: {
     return;
   }
 
+  // Non-planning, no file changes → no PR. Just close the task out.
+  if (task.task_type !== "feature-planning" && completion.changedFiles === 0) {
+    await setStatus(task.id, "completed");
+    await insertEvent(task.id, "running", "completed", {
+      changedFiles: completion.changedFiles,
+    });
+
+    return;
+  }
+
   if (task.task_type !== "feature-planning") {
-    // Non-planning, no file changes → no PR. Just close the task out.
-    if (completion.changedFiles === 0) {
-      await setStatus(task.id, "completed");
-      await insertEvent(task.id, "running", "completed", {
-        changedFiles: completion.changedFiles,
-      });
-
-      return;
-    }
-
     // The container pushed a branch — open the PR for it.
     const copy = await generateArtifactCopy({
       kind: "pr",
@@ -148,17 +111,11 @@ export async function finalizeStationRun(opts: {
     });
     await insertEvent(task.id, "running", "pr-created", { pr_url: pr.url });
 
-    // The feature's own move to `pr-open` is NOT done here. A feature's spec PR is
-    // opened by the merged planning line's `push` node, and `spec-pr.ts` owns that
-    // transition (FR6.33); this branch was the retired feature-finalize task's copy
-    // of it.
+    // The feature's own move to `pr-open` is NOT done here — `spec-pr.ts` owns that transition (FR6.33).
     return;
   }
 
-  // feature-planning self-POSTs its GapResult from inside the container. Verify it
-  // actually landed — a run that exits 0 but posts nothing must surface as a
-  // failure (with logs), not a silent "completed" that leaves the wizard stuck
-  // "analyzing" forever.
+  // feature-planning self-POSTs its GapResult; verify it landed — exit 0 with nothing posted must surface as a failure, not a silent stuck "analyzing".
   const featureId = task.context_bundle?.feature_id as string | undefined;
   const iteration = task.context_bundle?.iteration as number | undefined;
   const feature = featureId ? await project.features.get(featureId) : null;
@@ -188,4 +145,29 @@ export async function finalizeStationRun(opts: {
   await insertEvent(task.id, "running", "failed", {
     reason: "planning posted no result",
   });
+}
+
+async function markFailedPlanningIteration(
+  task: PipelineTask,
+  project: Project,
+): Promise<void> {
+  if (
+    task.task_type !== "feature-planning" ||
+    !task.context_bundle?.feature_id ||
+    task.context_bundle?.iteration == null
+  ) {
+    return;
+  }
+  await project.features
+    .setIterationResult(
+      task.context_bundle.feature_id as string,
+      task.context_bundle.iteration as number,
+      null,
+      "failed",
+    )
+    .catch(() => {});
+  await revertFeatureAfterFailure(
+    project,
+    task.context_bundle.feature_id as string,
+  );
 }

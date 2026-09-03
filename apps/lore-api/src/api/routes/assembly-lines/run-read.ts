@@ -20,37 +20,9 @@ import type {
 import { PgAssemblyRuns } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-pg.js";
 import { bearerScope } from "../../../server/plugins/bearer-scope.js";
 
-/**
- * GET /api/assembly-runs/{id} — one run: the run row, its nodes, and the Station
- * each node dispatches to.
- *
- * Moved from the Floor (#1347). The old comment there said these reads had to
- * live on the Floor because station resolution needs the assembly-line
- * definitions, which were "deliberately absent from lore-api's lean image" — a
- * previous attempt put them here and the container failed to build, because the
- * dependency resolved through workspace hoisting locally and did not exist in
- * Docker. That is a packaging problem, not a boundary: lore-api's Dockerfile now
- * builds `libs/assembly-lines` like the Floor's does, YAMLs included.
- *
- * The Station is the field worth serving. It carries the recipe — the prompt
- * template and the `output.watch` that decides what artifact a run can produce —
- * and an agent node declaring no `station_ref` INHERITS the one named after its
- * line's task type. That inheritance silently ran the planning prompt for every
- * node on the merged planning line; `stationInherited` puts it in the response
- * rather than leaving it to be reconstructed from YAML.
- */
+// GET /api/assembly-runs/{id} — the run, its nodes, and the Station each dispatches to; moved from the Floor (#1347) once lore-api's Dockerfile started building libs/assembly-lines too. stationInherited surfaces station inheritance in the response rather than leaving it to be reconstructed from YAML.
 
-/**
- * A node row joined to what the run's OWN graph says about that node (FR6.38 —
- * station and route were resolved once, at clone time; re-deriving them from the
- * current YAML is how an edited blueprint rewrote a run's history). Graph facts
- * are null when the run predates clones AND its blueprint is gone — the rows are
- * the record of what actually ran, so they still serve.
- */
-/**
- * The ENRICHED run read (FR6.40a): the run, whether its blueprint resolved, and
- * each node joined to the graph the run actually walked.
- */
+// The ENRICHED run read (FR6.40a): each node joined to what the run's OWN graph says (FR6.38, resolved at clone time); graph facts are null only when the run predates clones AND its blueprint is gone.
 const RunReadSchema = z.object({
   line: z.record(z.unknown()),
   definitionKnown: z.boolean(),
@@ -72,12 +44,7 @@ export function describeNode(
     finishedAt: row.finishedAt,
     type: node?.type ?? null,
     promptRef: node?.prompt_ref ?? null,
-    // The page a HUMAN station's worker acts on, resolved against THIS run's
-    // args (FR6.40) — `pr_url` does not exist until the push node opened the PR,
-    // so a route resolved any earlier would name a page that is not there yet.
-    // Null when the run does not carry every placeholder: a half-built href
-    // sends the reader somewhere that does not exist, which is worse than no
-    // link.
+    // The page a HUMAN station's worker acts on, resolved against THIS run's args (FR6.40); null when a placeholder (e.g. pr_url) isn't there yet — a half-built href is worse than no link.
     route: resolveRoute(node?.route, args),
     station: node?.station ?? null,
     stationInherited: node?.station_inherited ?? false,
@@ -100,10 +67,7 @@ export function runReadRoute(
     handler: async (request) => {
       const pool = getPool();
 
-      // A disjunction cannot narrow `pool`, so the cast below carries the proof:
-      // it is only reached when `runs` is undefined, which the guard pairs with
-      // `pool !== null`. Narrowing properly would mean two guards saying the same
-      // thing, and an injected port has no pool to check.
+      // A disjunction cannot narrow `pool`; the cast below is proven by this guard pairing `runs !== undefined` with `pool !== null`.
       enforceTrue(
         runs !== undefined || pool !== null,
         apiError(503),
@@ -115,8 +79,7 @@ export function runReadRoute(
       enforceTrue(line !== null, apiError(404), "assembly run not found");
       const [rows, graph] = await Promise.all([
         port.listStationRuns(line.id),
-        // The run's own clone; a blueprint loaded by name only for rows stamped
-        // before clones existed (same rule as the walk and the reaper).
+        // The run's own clone; loaded by name only for rows stamped before clones existed (same rule as the walk and the reaper).
         resolveRunGraph(line, load),
       ]);
 

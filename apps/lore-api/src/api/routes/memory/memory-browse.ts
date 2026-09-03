@@ -25,15 +25,7 @@ import {
   DB_UNAVAILABLE,
 } from "../common-schemas.js";
 
-/**
- * The memory browse reads — the graph explorer, shared pools, the episode list
- * and an agent's memories — moved out of web-ui page bodies (ADR-032).
- *
- * Shaped per SCREEN rather than per table: the graph explorer needs its counts,
- * its type breakdown, its entity list and (only when one is selected) that
- * entity's edges to render one view. Four endpoints would mean four round trips
- * for one page, and the page would still be the only caller of each.
- */
+// Memory browse reads (ADR-032), shaped per SCREEN not per table — one round trip per page.
 
 const GraphBrowseQuery = z.object({
   entity: z.string().max(200).optional(),
@@ -65,11 +57,7 @@ const MemoriesQuery = z.object({
 
 type MemoriesQuery = z.infer<typeof MemoriesQuery>;
 
-/**
- * The memory browser's read models. Each shares its stored fields with a model —
- * derived, so a renamed column cannot leave the contract behind — and states the
- * COMPUTED ones (counts, previews) that no table holds.
- */
+// Read models share stored fields with a model (renamed column can't drift) plus COMPUTED fields no table holds.
 const PoolSchema = wireSchema(SharedPoolSchema, SHARED_POOL_COLUMNS);
 
 const PoolListSchema = z.object({
@@ -110,8 +98,7 @@ const EpisodePageSchema = z.object({
       }),
       EPISODE_COLUMNS,
     ).extend({
-      /** The first 300 characters — the list never ships whole episodes.
-       *  Not nullable: `LEFT()` of a NOT NULL column always yields a string. */
+      /** First 300 chars; not nullable — `LEFT()` of a NOT NULL column always yields a string. */
       content_preview: z.string(),
       fact_count: z.number(),
     }),
@@ -119,17 +106,7 @@ const EpisodePageSchema = z.object({
   total: z.number(),
 });
 
-/**
- * The knowledge graph as the browser reads it.
- *
- * `entities` carries an `edge_count` subquery and `edges` is a three-way join
- * that reads NAMES rather than ids, so neither is a `memory.entities` or
- * `memory.edges` row — they are this screen's read models, and the shapes belong
- * here with the queries.
- *
- * `edges` is EMPTY unless an entity is selected: reading them unconditionally is
- * the explorer's most expensive query, run on every page view.
- */
+// Read models, not raw rows: `edges` joins to NAMES, and stays empty unless an entity is selected (costliest query).
 const GraphBrowseSchema = z.object({
   stats: z.object({
     entity_count: z.number(),
@@ -218,8 +195,7 @@ export function memoryBrowseRoutes(getPool: () => Pool | null): ServerRoute[] {
           type ? [type] : [],
         );
 
-        // Only a selected entity has edges to show — reading them unconditionally
-        // would be the explorer's most expensive query run on every page view.
+        // Only a selected entity has edges to show — else it's the explorer's costliest query.
         const edges = entity
           ? (
               await pool.query(
@@ -381,9 +357,7 @@ export function memoryBrowseRoutes(getPool: () => Pool | null): ServerRoute[] {
         enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
         const { q } = request.query as unknown as MemorySearchQuery;
 
-        // Lexical, not semantic: this is the search PAGE, which ranks by
-        // ts_rank over the raw text. `lore_search_memory` is the embedding
-        // search and lives on POST /api/memory — different question, same table.
+        // Lexical (ts_rank), not semantic — embedding search is `lore_search_memory` via POST /api/memory.
         const { rows: memories } = await pool.query(
           `SELECT key, substring(value, 1, 300) as value, agent_id,
                   ts_rank(to_tsvector('english', value), plainto_tsquery($1)) as score,
@@ -397,8 +371,7 @@ export function memoryBrowseRoutes(getPool: () => Pool | null): ServerRoute[] {
             LIMIT 20`,
           [q],
         );
-        // Facts carry episode-derived knowledge too, and an invalidated fact is
-        // excluded — a superseded belief must not surface as a current one.
+        // Excludes invalidated facts — a superseded belief must not surface as current.
         const { rows: facts } = await pool.query(
           `SELECT COALESCE(m.key, e.source || ':' || COALESCE(e.ref, e.id::text)) as key,
                   substring(f.fact_text, 1, 300) as value,
@@ -463,8 +436,7 @@ export function memoryBrowseRoutes(getPool: () => Pool | null): ServerRoute[] {
               WHERE memory_id = $1 ORDER BY version DESC`,
             [memory.id],
           );
-          // `has_facts` is why the row carries that EXISTS: a memory without
-          // facts skips a query per row, which on 100 rows is 100 round trips.
+          // `has_facts` EXISTS check skips a per-row query when there are none (100 rows = 100 round trips).
           const facts = memory.has_facts
             ? (
                 await pool.query(

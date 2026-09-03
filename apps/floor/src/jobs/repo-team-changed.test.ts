@@ -14,7 +14,6 @@ const relocateLegacyChunks =
   >();
 
 vi.mock("../kernel/queues.js", () => ({
-  // The logs route resolves the cluster agent from here.
   clusterAgent: () => ({}),
   settings: () => ({ team }),
   chunks: () => ({ relocateLegacyChunks }),

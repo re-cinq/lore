@@ -1,6 +1,4 @@
-// The one way a page shows a passive informational note — the bootstrap-style
-// info/secondary alert. `role="status"` (polite), not `role="alert"`: these
-// notes are ambient context, never a failed action (that's FormError's job).
+// Passive info alert; role="status" not "alert" — ambient context, never a failed action (see FormError).
 import type { ReactNode } from "react";
 import styles from "./Alert.module.scss";
 

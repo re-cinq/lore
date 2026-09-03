@@ -15,17 +15,7 @@ import type {
 import { PgAssemblyRuns } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-pg.js";
 import type { AssemblyRunStatus } from "@re-cinq/lore-shared/models/assembly-run.js";
 
-/**
- * The assembly-line reads the run views need, moved here verbatim from web-ui's
- * `lib/assembly-line-runs.ts` (ADR-032: the UI is a presentation tier and holds
- * no pool). The SQL is unchanged — a rewrite would have to re-earn the LATERAL
- * cost fallback below, which is load-bearing.
- *
- * Every read degrades to empty rather than 500 on a database that predates the
- * tables (migration 0025 for the lines, 0037 for the turns): a run view is
- * additive, and taking a page down because a cluster has not migrated yet is
- * worse than showing it without runs.
- */
+// Assembly-line reads for the run views, moved verbatim from web-ui (ADR-032: UI holds no pool); every read degrades to empty (not 500) on a database predating migrations 0025/0037.
 
 /** Postgres "relation does not exist". */
 const UNDEFINED_TABLE = "42P01";
@@ -33,21 +23,7 @@ const UNDEFINED_TABLE = "42P01";
 const missingTable = (err: unknown) =>
   (err as { code?: string }).code === UNDEFINED_TABLE;
 
-/**
- * The cross-table half of a run read: the task's PR and the summed cost.
- *
- * WHICH runs to answer with is the port's decision — `list`/`listSummaries` own
- * the filter, the order and the limit, and duplicating them here is how "every
- * code-review run" came to mean two different things depending on the endpoint.
- * This query never touches `pipeline.assembly_runs` at all: it is handed the
- * (id, task_id) pairs the port selected and joins the two OTHER tables onto them.
- *
- * `cost_usd` falls back to the TASK's calls when a call predates per-line
- * attribution — dropping that fallback silently zeroes the cost of every run
- * started before `llm_calls.assembly_line_id` existed. (That column keeps its
- * pre-rename spelling deliberately — 0040's telemetry carve-out; the new one
- * arrives with the writer-flip.)
- */
+// Cross-table half of a run read (task PR + summed cost), joined onto the port-selected (id, task_id) pairs; cost_usd falls back to the task's calls for runs predating per-line attribution (llm_calls.assembly_line_id keeps its pre-rename spelling — 0040 telemetry carve-out).
 const ENRICH_SELECT = `
   SELECT r.id,
          t.pr_url, t.pr_number AS task_pr_number, t.created_by,
@@ -85,15 +61,7 @@ async function enrichmentById(
   return new Map(rows.map(({ id, ...enrichment }) => [id, enrichment]));
 }
 
-/**
- * The PR number a run's args carry, or null when they carry none.
- *
- * `Number(null)` is 0, `Number("")` is 0, and `Number.isFinite` is happy with
- * both — so a bare coercion serves `args_pr_number: 0` for a run whose args hold
- * an explicit null, and the run page renders a link to a PR that does not exist.
- * The SQL this replaced lifted the value with `(args->>'pr_number')::int`, which
- * answers NULL for both.
- */
+// PR number from a run's args, or null; a bare Number() coercion turns null/"" into 0, rendering a link to a PR that doesn't exist — the replaced SQL answered NULL for both.
 function argsPrNumber(raw: unknown): number | null {
   if (typeof raw === "number") {
     return Number.isFinite(raw) ? raw : null;
@@ -107,17 +75,7 @@ function argsPrNumber(raw: unknown): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-/**
- * One run as the run views read it.
- *
- * `definition_name` doubles the blueprint name under its pre-rename spelling for
- * the web-ui image behind the legacy path alias — an old client that maps
- * `row.definition_name` would otherwise render blank names in the exact rollout
- * window the alias exists for. DELETE alongside the alias.
- *
- * Dates go out as ISO strings, which is what the contract below declares and
- * what the pg driver's `Date` serialized to anyway.
- */
+// One run as the run views read it; definition_name doubles blueprint_name under its pre-rename spelling for the legacy-alias rollout window — DELETE alongside that alias.
 function toRunRow(
   run: AssemblyRunSummary & { graph?: unknown },
   enrichment: RunEnrichment | undefined,
@@ -147,18 +105,7 @@ function toRunRow(
   };
 }
 
-/**
- * What the run reads answer with.
- *
- * A CROSS-TABLE read model, not a projection of `pipeline.assembly_runs`: it
- * carries the task's PR, the summed cost from `pipeline.llm_calls`, and the
- * `args->>'pr_number'` lift. Its keys stay snake_case because that is what the
- * deployed web-ui reads — the `AssemblyRun` MODEL is the table's shape, and this
- * is the contract over it, so the two live apart on purpose.
- *
- * `definition_name` doubles `blueprint_name` for the rollout window described
- * above; it goes when the legacy path alias does.
- */
+// A CROSS-TABLE read model (task PR + summed cost + args pr_number), not a projection of pipeline.assembly_runs; snake_case keys since that's what deployed web-ui reads, deliberately apart from the AssemblyRun model.
 const RunRowSchema = z.object({
   id: z.string(),
   blueprint_name: z.string(),
@@ -190,8 +137,7 @@ const StationRunRowSchema = z.object({
   outcome: z.string().nullable(),
   agent_cr_name: z.string().nullable(),
   station_run_id: z.string().nullable(),
-  /** What the visit was dispatched with. Null for visits recorded before the
-   *  column existed — "not captured", not "no input". */
+  // What the visit was dispatched with; null for visits predating the column means "not captured", not "no input".
   input: StationRunInputSchema.nullable(),
   commit_sha: z.string().nullable(),
   started_at: z.string(),
@@ -212,35 +158,20 @@ const TokenUsageSchema = z.object({
 const RunsQuery = z.object({
   status: z.string().max(40).optional(),
   repo: z.string().max(200).optional(),
-  /** Browse by blueprint — "every code-review run", which nothing could ask for
-   *  before (FR6.42). */
+  // Browse by blueprint — "every code-review run" (FR6.42).
   blueprint: z.string().max(200).optional(),
-  /** A task-centric caller (the planning wizard) knows only its task id; the run
-   *  to draw is the newest attempt, since a retry mints a fresh row. */
+  // A task-centric caller (planning wizard) knows only its task id; draws the newest attempt since a retry mints a fresh row.
   task_id: z.string().max(100).optional(),
-  /** Runs holding an open station-run claimed by this cluster-agent — the
-   *  registered-clusters page's running-claims drill-down (FR7). */
+  // Runs with an open station-run claimed by this cluster-agent — the registered-clusters running-claims drill-down (FR7).
   cluster_agent_id: z.string().uuid().optional(),
-  /** Browse by SUBJECT — every run that has worked on one thing, whatever
-   *  blueprint each ran. This is how a reader finds "the run for this feature"
-   *  without knowing which task started it or which line it turned out to be;
-   *  resolving it through task id + blueprint name is what made a feature's
-   *  finalize run invisible to its own page. */
+  // Browse by SUBJECT across blueprints, so a reader can find "the run for this feature" without resolving via task id + blueprint name (which hid a finalize run from its own page).
   subject_key: z.string().max(200).optional(),
   limit: clampedLimit.default(50),
 });
 
 type RunsQuery = z.infer<typeof RunsQuery>;
 
-/**
- * The canonical paths are `/api/assembly-runs/*` (FR6.41 — the runtime model is an
- * AssemblyRun; an assembly line is the blueprint). Every route is ALSO served at
- * its pre-rename `/api/assembly-lines/*` path, because web-ui ships as a separate
- * image in the same umbrella release and would otherwise 404 against a newer API
- * for the length of a rollout.
- *
- * DELETE the aliases once no deployed client calls them.
- */
+// Canonical paths are /api/assembly-runs/* (FR6.41); also served at pre-rename /api/assembly-lines/* since web-ui ships as a separate image and would 404 otherwise. DELETE the aliases once no deployed client calls them.
 function withLegacyAlias(routes: ServerRoute[]): ServerRoute[] {
   return routes.flatMap((route) => [
     route,
@@ -253,13 +184,10 @@ function withLegacyAlias(routes: ServerRoute[]): ServerRoute[] {
 
 export function assemblyLineRoutes(
   getPool: () => Pool | null,
-  /** Injected by the tests; production builds one per request off the pool, as
-   *  `run-read.ts` does. */
+  // Injected by tests; production builds one per request off the pool, as run-read.ts does.
   runs?: AssemblyRunsPort,
 ): ServerRoute[] {
-  /** The port a handler reads through: the injected one, or one over the pool
-   *  this request resolved. Named once — three handlers building their own is
-   *  three places to remember when the adapter's construction changes. */
+  // The port a handler reads through, named once so three handlers don't each rebuild it.
   const portFor = (pool: Pool): AssemblyRunsPort =>
     runs ?? new PgAssemblyRuns(pool);
 
@@ -294,8 +222,7 @@ export function assemblyLineRoutes(
         const port = portFor(pool);
 
         try {
-          // A task-centric caller draws the run it gets back, so it needs the
-          // clone; a browse page renders tables that never touch it.
+          // A task-centric caller draws the run it gets back (needs the clone); a browse page renders tables that never touch it.
           const selected = task_id
             ? await port.list({ taskId: task_id, limit })
             : await port.listSummaries({
@@ -373,12 +300,7 @@ export function assemblyLineRoutes(
 
         enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
 
-        // `pipeline.agent_run_turns`, NOT `pipeline.llm_calls`: the cost table is
-        // authoritative and carries dollars, but a row lands only when an agent
-        // run ENDS — which for a planning round is the moment the card showing
-        // the number disappears. Turns arrive while the pod streams, so they are
-        // the only source that can answer "so far" while something still runs.
-        // Summed SQL-side: four scalars beat shipping every turn of a long run.
+        // pipeline.agent_run_turns, NOT llm_calls: the cost table only lands a row when the run ENDS, but turns arrive while the pod streams — the only source that can answer "so far".
         try {
           const { rows } = await pool.query(
             `SELECT
@@ -408,15 +330,7 @@ export function assemblyLineRoutes(
       },
     },
   ]).concat([
-    // The FLAT by-id read, now served ONLY under the legacy spelling. The
-    // canonical /api/assembly-runs/{id} serves the enriched shape (the run, its
-    // nodes, and the Station each node dispatches to) from run-read.ts. This one
-    // stays until the deployed web-ui moves to that shape — web-ui ships as its
-    // own image, so one side of a rollout is always older than the other.
-    // DELETE with the aliases (#1347 PR3).
-    //
-    // Registered OUTSIDE withLegacyAlias deliberately: passing it through would
-    // alias the legacy path to itself and hapi rejects the duplicate route.
+    // FLAT by-id read, served ONLY under the legacy spelling now (canonical /api/assembly-runs/{id} serves the enriched shape from run-read.ts); DELETE with the aliases (#1347 PR3). Registered OUTSIDE withLegacyAlias deliberately — aliasing it to itself would make hapi reject the duplicate route.
     {
       method: "GET",
       path: "/api/assembly-lines/{id}",
@@ -438,8 +352,7 @@ export function assemblyLineRoutes(
 
           return h.response(toRunRow(run, enrichment.get(run.id), true));
         } catch (err) {
-          // A guard's refusal already carries its status; only an unexpected failure
-          // is this block's to shape.
+          // A guard's refusal already carries its status; only an unexpected failure is this block's to shape.
           rethrowBoom(err);
 
           enforceTrue(!missingTable(err), apiError(404), "Run not found");

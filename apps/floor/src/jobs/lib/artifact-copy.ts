@@ -67,10 +67,7 @@ export function fallbackCopy(input: ArtifactCopyInput): ArtifactCopy {
 const defaultLlm: CopyLlm = (params) =>
   Llm.instance.completeWithTool<{ title?: string; body?: string }>(params);
 
-/**
- * Ask the model for an engagement-optimized title + description, falling back to
- * deterministic copy if the model errors or returns nothing usable.
- */
+/** Asks the model for an engagement-optimized title + description, falling back to deterministic copy if it errors or returns nothing usable. */
 export async function generateArtifactCopy(
   input: ArtifactCopyInput,
   llm: CopyLlm = defaultLlm,

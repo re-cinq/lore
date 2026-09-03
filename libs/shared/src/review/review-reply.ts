@@ -1,11 +1,4 @@
-/**
- * The structured output contract for the code-review-refine `reply` node. Like
- * the review node, the agent does NOT post to GitHub itself (the pod has no
- * `gh` and no shell token) — it emits a fenced ` ```REVIEW_REPLY ` block whose
- * body is the markdown reply, and the Floor posts it in-thread through the
- * PullRequestsPort (App token). Absent or empty block yields `null`, so a
- * formatting slip posts nothing rather than crashing the node.
- */
+/** Structured output contract for the code-review-refine `reply` node: the agent emits a fenced ` ```REVIEW_REPLY ` block (no `gh`/shell token in-pod), the Floor posts it via PullRequestsPort; absent/empty block yields `null`. */
 
 const REPLY_BLOCK = /```REVIEW_REPLY\s*\n([\s\S]*?)```/;
 

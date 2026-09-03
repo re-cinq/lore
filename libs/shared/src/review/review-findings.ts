@@ -1,13 +1,4 @@
-/**
- * The structured output contract for the code-review `review` node. The agent
- * assesses the diff and emits a fenced ` ```REVIEW_FINDINGS ` JSON block matching
- * {@link ReviewOutput} — it does NOT post comments itself. The deterministic
- * poster parses that block and renders each finding as a {@link ConventionalComment}.
- *
- * Validation is a plain guard (shared carries no zod): a malformed or absent block
- * yields `null`, so a formatting slip posts no comments rather than crashing the node.
- */
-
+// Structured output contract for the code-review `review` node: the agent emits a fenced ```REVIEW_FINDINGS JSON block matching {@link ReviewOutput}; a malformed/absent block yields `null` rather than crashing the node.
 import type {
   ConventionalDecoration,
   ConventionalLabel,
@@ -64,23 +55,7 @@ export function parseReviewFindings(output: string): ReviewOutput | null {
   return isReviewOutput(raw) ? raw : null;
 }
 
-/**
- * Accept the OTHER findings schema this repo also defines, so a review written
- * in it reaches the author instead of vanishing.
- *
- * The reviewer reads this codebase, which documents a second findings shape —
- * the `/code-review` skill's and the `ReportFindings` tool's
- * `file`/`category`/`short_summary`/`summary`/`failure_scenario` — and models
- * reliably emit THAT when reviewing this repo: three PRs on 2026-09-01
- * (#1698, #1699, #1703) each produced a well-formed block of valid JSON whose
- * every finding failed the shape check, so the node reported "the findings are
- * lost" and a real `changes_requested` review reached nobody. Same failure as
- * #1401, one layer up: the block parses, the SHAPE is what rejects it.
- *
- * Only fills what is missing — a finding already spelled the recipe's way is
- * untouched — and it invents nothing: a finding carrying neither spelling of a
- * required field still fails validation below.
- */
+// Accepts the OTHER findings schema (`/code-review` skill's file/category/short_summary/failure_scenario) this repo also defines, since models reliably emit it here and its well-formed JSON was otherwise silently rejected by the shape check (#1698/#1699/#1703, same root cause as #1401).
 function normalizeAliases(value: unknown): unknown {
   if (!isRecord(value) || !Array.isArray(value.findings)) {
     return value;
@@ -94,21 +69,19 @@ function normalizeAliases(value: unknown): unknown {
   };
 }
 
+// A present label is left as-written even if invalid (rejecting a typo is deliberate); only a missing label is defaulted, from `category` when valid, else `issue`.
+function findingLabel(finding: Record<string, unknown>): unknown {
+  if (finding.label !== undefined) {
+    return finding.label;
+  }
+
+  return includes(LABELS, finding.category) ? finding.category : "issue";
+}
+
 function normalizeFinding(finding: Record<string, unknown>): unknown {
   const str = (v: unknown): string | undefined =>
     typeof v === "string" && v.length > 0 ? v : undefined;
-  // A PRESENT label is left exactly as written, valid or not: rejecting an
-  // unknown label is deliberate, and a fallback here would swallow the typo
-  // this parser exists to catch. Only a finding with no label at all — which
-  // is what the other schema emits — is given one, from `category` when that
-  // happens to be a label, else `issue`, since a finding worth reporting is
-  // never silently downgraded to a nit.
-  const label =
-    finding.label !== undefined
-      ? finding.label
-      : includes(LABELS, finding.category)
-        ? finding.category
-        : "issue";
+  const label = findingLabel(finding);
   const joined = [str(finding.summary), str(finding.failure_scenario)]
     .filter((part): part is string => part !== undefined)
     .join("\n\n");
@@ -126,15 +99,7 @@ function normalizeFinding(finding: Record<string, unknown>): unknown {
   };
 }
 
-/**
- * Parse a REVIEW_FINDINGS block, tolerating the one class of malformed JSON a
- * model reliably produces: a free-written narrative field (`discussion`,
- * `subject`, `suggestion`) that quotes a symbol, or wraps a line, without
- * escaping it. #1401 reproduced this verbatim — a well-formed block whose one
- * broken string killed `JSON.parse` and discarded every finding, including the
- * blocking one. Strict parsing is tried first; only a `SyntaxError` falls
- * through to the repair pass, so already-valid JSON never takes this path.
- */
+// Tolerates the one class of malformed JSON a model reliably produces: an unescaped quote/newline in a narrative field, which killed JSON.parse and discarded every finding in #1401. Strict parse tried first; repair only on SyntaxError.
 function safeParseJson(text: string): unknown {
   try {
     return JSON.parse(text);
@@ -149,19 +114,13 @@ function safeParseJson(text: string): unknown {
   }
 }
 
-/**
- * Escape literal newlines and quotes found INSIDE a JSON string value, leaving
- * everything outside strings — and every quote that actually closes one —
- * untouched.
- *
- * A quote is read as a closer only when the next non-whitespace character is
- * one JSON allows there: `,` `}` `]` `:` or end of input. Anything else — the
- * common case being a quoted word inside a sentence — is a literal quote the
- * model forgot to escape, so it is escaped here instead. This cannot be done
- * with a single regex: whether a `"` closes the string depends on what comes
- * after it, which a regex has no way to look past reliably once the string
- * itself may contain further quotes.
- */
+// Escapes literal newlines/quotes INSIDE a JSON string, leaving true closing quotes untouched; can't be a single regex since whether `"` closes the string depends on what follows it.
+const WHITESPACE_ESCAPES: Record<string, string> = {
+  "\n": "\\n",
+  "\r": "\\r",
+  "\t": "\\t",
+};
+
 function repairUnescapedStringContent(text: string): string {
   let result = "";
   let inString = false;
@@ -170,9 +129,7 @@ function repairUnescapedStringContent(text: string): string {
     const ch = text[i];
 
     if (!inString) {
-      if (ch === '"') {
-        inString = true;
-      }
+      inString = ch === '"';
       result += ch;
       continue;
     }
@@ -185,17 +142,18 @@ function repairUnescapedStringContent(text: string): string {
     }
 
     if (ch === "\n" || ch === "\r" || ch === "\t") {
-      result += ch === "\n" ? "\\n" : ch === "\r" ? "\\r" : "\\t";
+      result += WHITESPACE_ESCAPES[ch];
+      continue;
+    }
+
+    if (ch === '"' && closesAString(text, i + 1)) {
+      inString = false;
+      result += ch;
+
       continue;
     }
 
     if (ch === '"') {
-      if (closesAString(text, i + 1)) {
-        inString = false;
-        result += ch;
-
-        continue;
-      }
       result += '\\"';
 
       continue;
@@ -207,19 +165,7 @@ function repairUnescapedStringContent(text: string): string {
   return result;
 }
 
-/**
- * Whether the character at `text[from]`, skipping whitespace, is one that can
- * only follow the end of a JSON string — i.e. the quote just before it closed
- * the string rather than sitting inside it.
- *
- * Including `:` is what lets a key's closing quote (`"key":`) be told apart
- * from a literal one — but it also means a narrative value that itself
- * quotes-then-colons a word, e.g. `"discussion":"the \"foo\": bar case"`, is
- * read as closing early at that inner quote. That does not produce a wrong
- * repair: the string JSON.parse then sees is malformed either way, so this
- * input still comes back `null`, same as no repair at all — just a known
- * limit of the heuristic, not a silent corruption.
- */
+// Whether the char at text[from] (skipping whitespace) can only follow a closing JSON string quote (`,}]:` or EOF); including `:` has a known false-positive on a quoted-then-colon narrative value, but that just falls back to `null`, never a silent corruption.
 function closesAString(text: string, from: number): boolean {
   let j = from;
 
@@ -267,23 +213,7 @@ function includes<T extends string>(allowed: T[], value: unknown): value is T {
   return typeof value === "string" && (allowed as string[]).includes(value);
 }
 
-/**
- * An optional field: absent, explicitly null, or of the right type.
- *
- * `null` counts as absent because that is what it means here. A model writing
- * `"suggestion": null` for a finding that has no suggestion is saying the same
- * thing as omitting the key, and the two spellings must not decide whether a
- * review reaches the author.
- *
- * Read as a VALUE, one null failed its type check, `every` failed with it, and
- * the ENTIRE block was discarded — so a review that found ten things posted none
- * and its node failed with the findings lost. That is the shape of #1401, and it
- * recurred six times on one PR on 2026-08-25 before anyone could read what the
- * review had actually said.
- *
- * A wrong TYPE is still rejected: this widens what counts as absent, not what
- * counts as valid.
- */
+// `null` counts as absent (same as omitting the key) — treating it as a value that fails its type check discarded an entire ten-finding review as #1401, recurring six times on one PR (2026-08-25). A wrong type is still rejected.
 function optional(value: unknown, check: (v: unknown) => boolean): boolean {
   return value === undefined || value === null || check(value);
 }

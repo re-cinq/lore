@@ -15,10 +15,7 @@ describe("agentPrompt", () => {
 });
 
 describe("a description carrying $-replacement patterns", () => {
-  it("inserts $' and $& verbatim rather than expanding them", () => {
-    // String.prototype.replace reads these in the REPLACEMENT: `$'` means "the
-    // text after the match", so a description quoting a shell variable used to
-    // splice the rest of the template back into itself.
+  it("inserts $' and $& verbatim rather than expanding them as String.prototype.replace replacement patterns", () => {
     expect(
       agentPrompt(
         "Implement: {description}\nEnd.",

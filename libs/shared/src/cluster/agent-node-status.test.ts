@@ -3,11 +3,7 @@ import type { Agent as AgentCr } from "@re-cinq/agent-contracts";
 import { statusFromAgentCr } from "./agent-node-status.js";
 
 describe("statusFromAgentCr", () => {
-  it("a CR the controller has not stamped yet maps to Pending, not absence", () => {
-    // Absence means "crashed between the row insert and the launch — relaunch me".
-    // A born-but-unstamped CR read as absence made the reaper relaunch over a LIVE
-    // pod every 60s, re-provisioning its recipe clone without the conversation
-    // (#1466). The two must not share an answer.
+  it("a CR the controller has not stamped yet maps to Pending, not absence (#1466)", () => {
     expect(
       statusFromAgentCr({ metadata: { name: "a1-review" } } as AgentCr),
     ).toEqual({ phase: "Pending" });

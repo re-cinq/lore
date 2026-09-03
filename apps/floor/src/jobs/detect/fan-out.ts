@@ -1,17 +1,4 @@
-// Layer-3 handlers for the detection-family `cron.<job>.tick` events. A tick
-// fans out one assembly-line start per target repo; targets are enumerated
-// across every provisioned chunk schema (team schemas plus org_shared), since
-// a repo's chunks live in its team schema when one is provisioned. Each start
-// event is then claimed independently by the loop (per-repo retry +
-// dead-letter), and the branch-keyed overlap guard in advanceLine defers
-// concurrent duplicates (lease parity). A mid-loop failure lets the loop
-// retry the whole tick — re-starting an already-started repo is acceptable
-// because detection runs are idempotent and overlap-guarded.
-//
-// Manual trigger (documented in specs/scheduled-job-runtime-split):
-//   INSERT INTO pipeline.events (event_name, source, params)
-//   VALUES ('cron.spec_drift.tick', 'cron', '{"repo":"re-cinq/lore"}');
-// Omit `repo` for the full fan-out.
+// Layer-3 handlers for the detection-family `cron.<job>.tick` events: fans out one assembly-line start per target repo across every provisioned chunk schema; idempotent + overlap-guarded, so a mid-loop retry is safe (specs/scheduled-job-runtime-split for the manual-trigger SQL).
 
 import type { AssemblyRunsPort } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
 import { loadBuiltinAssemblyLines } from "@re-cinq/lore-assembly-lines";
@@ -21,9 +8,7 @@ import type { EventHandler } from "../../main-loop/types.js";
 import { query } from "../../kernel/db.js";
 import { pipeline, settings } from "../../kernel/queues.js";
 
-/** The line's branch: a synthetic ref no `git checkout` resolves — detect nodes
- *  read through the API and clone nothing. It used to double as the overlap-guard
- *  key; guarding now rides {@link detectSubject}, and this is only a branch. */
+/** Synthetic ref — detect nodes read through the API and clone nothing. No longer the overlap-guard key ({@link detectSubject} is). */
 export function detectBranchName(blueprintName: string, repo: string): string {
   return `detect/${blueprintName}/${repo}`;
 }
@@ -125,19 +110,13 @@ export const specRepos = async (q: QueryFn = query): Promise<string[]> => {
   return rows.map((r) => r.repo);
 };
 
-/** Every onboarded repo, through the shared settings port rather than a second
- *  copy of its SELECT. What "onboarded" means belongs in one place — with two,
- *  a new `archived`/`disabled` column would have to be found and applied twice
- *  or gap-detect fans out to repos the reindex scan has stopped considering
- *  onboarded. (Sorted here because the detect fan-out wants a stable order and
- *  the port makes no ordering promise.) */
+/** Through the shared settings port, not a second copy of its SELECT — "onboarded" belongs in one place. Sorted here since the port makes no ordering promise. */
 const onboardedRepos = async (): Promise<string[]> =>
   (await settings().onboardedRepos()).map((repo) => repo.full_name).sort();
 
 export interface DetectFanOutDeps {
   assemblyRuns: AssemblyRunsPort;
-  /** Pre-create the `<job_ref>:<repo>` pipeline.job_runs row; the walk closes it
-   *  via `args.job_run_id` when the line reaches a terminal state. */
+  /** Pre-create the `<job_ref>:<repo>` job_runs row; the walk closes it via `args.job_run_id` at a terminal state. */
   jobRuns: {
     start(jobName: string): Promise<string>;
     fail(runId: string, reason: string): Promise<unknown>;
@@ -167,9 +146,7 @@ export function createDetectTickHandler(
     const jobRef = await deps.jobRef();
 
     for (const repo of repos) {
-      // Asked BEFORE the job_run is minted, not after the start comes back joined:
-      // a job_run created for work that turns out to be already running has no
-      // owner to close it (there is no job_runs reaper) and would sit open forever.
+      // Asked BEFORE the job_run is minted — one created for already-running work has no owner to close it (no job_runs reaper).
       const inFlight = await deps.assemblyRuns.findOpenBySubject(
         repo,
         detectSubject(blueprintName, repo),
@@ -183,9 +160,7 @@ export function createDetectTickHandler(
       }
       const jobRunId = await deps.jobRuns.start(`${jobRef}:${repo}`);
 
-      // start() throwing mid-loop (the case the header blesses for tick retry)
-      // would orphan the just-created job_run open forever (no job_runs reaper) —
-      // fail it before rethrowing so the retry's duplicate settles cleanly.
+      // start() throwing mid-loop would orphan the job_run (no reaper) — fail it before rethrowing so the retry settles cleanly.
       let id: string;
 
       try {
@@ -206,11 +181,7 @@ export function createDetectTickHandler(
         throw err;
       }
 
-      // The pre-check above closes the common case, not the race: two ticks can both
-      // read "nothing in flight" before either calls start(). The loser's start()
-      // JOINS the winner's run, and its job_run — already minted — has no owner to
-      // close it and no reaper to find it. The run carries the job_run_id of
-      // whichever tick actually started it, so a mismatch IS the join.
+      // The race: two ticks can both read "nothing in flight"; the loser's start() JOINS the winner's run — a job_run_id mismatch IS the join.
       const startedRun = await deps.assemblyRuns.getById(id);
 
       if (startedRun && startedRun.args.job_run_id !== jobRunId) {
@@ -243,7 +214,7 @@ const productionTick =
       listTargetRepos,
     })(params);
 
-/** Composed production handlers, one per detection tick (registry layer 3). */
+// Composed production handlers, one per detection tick (registry layer 3).
 export const specDriftTick = productionTick("spec-drift", activeSpecRepos);
 
 export const gapDetectionTick = productionTick("gap-detect", onboardedRepos);

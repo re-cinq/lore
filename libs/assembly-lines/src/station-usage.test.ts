@@ -3,13 +3,6 @@ import { stationUsage } from "./station-usage.js";
 import { loadBuiltinAssemblyLines } from "./builtin-assembly-lines.js";
 import { parseAssemblyLine } from "./loader.js";
 
-/**
- * The blueprint→catalog usage walk behind the /agents "used by" surface: which
- * station every node resolves to, inherited or explicit, human nodes excluded —
- * run against both a synthetic line and the real builtin catalog so the shape
- * stays honest about what production blueprints actually reference.
- */
-
 const LINE = `
 name: demo
 description: usage walk fixture
@@ -70,13 +63,11 @@ describe("stationUsage", () => {
     });
   });
 
-  it("the builtin catalog references implementation and def-validate but never runbook", async () => {
+  it("the builtin catalog references implementation and def-validate but never runbook (runbook has no blueprint — it runs as a single Agent CR)", async () => {
     const usage = stationUsage(await loadBuiltinAssemblyLines());
 
     expect(usage.get("implementation")?.length).toBeGreaterThan(0);
     expect(usage.get("def-validate")?.length).toBeGreaterThan(0);
-    // runbook has no blueprint — it runs as a single Agent CR, which is exactly
-    // why usage alone cannot define the catalog roster.
     expect(usage.get("runbook")).toBeUndefined();
   });
 });

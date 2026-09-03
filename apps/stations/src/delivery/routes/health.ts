@@ -1,11 +1,4 @@
-/**
- * GET /healthz — liveness + readiness. 200 when Postgres answers, 503 when it
- * does not: every station here works by reading and writing the database, so a
- * pool that cannot answer means none of them can run.
- *
- * Deliberately thin: this process runs stations on demand and keeps no
- * counters of its own, so there is nothing else honest to report.
- */
+// GET /healthz — 200 when Postgres answers, 503 otherwise (every station here needs the DB); deliberately thin, no counters of its own.
 
 import type { ServerRoute } from "@hapi/hapi";
 import { isDbAvailable } from "@re-cinq/lore-shared/db/pg-pool.js";

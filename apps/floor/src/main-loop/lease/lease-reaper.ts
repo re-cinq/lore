@@ -14,12 +14,7 @@ export interface LeaseReaperDeps {
   audit: AuditPort;
 }
 
-/**
- * Reaper job: deletes leases whose expiry is more than 5 minutes past,
- * emitting one `lease_expired` audit log entry per row. The 5-minute
- * grace beyond TTL absorbs clock skew between the supervisor pod and
- * the database. Scheduled at 60s tick by the agent's job runner.
- */
+/** Reaper job: deletes leases whose expiry is more than 5 minutes past (grace absorbs clock skew between the supervisor pod and the database), emitting one `lease_expired` audit entry per row; scheduled at 60s tick by the agent's job runner. */
 export async function leaseReaperJob(
   deps: LeaseReaperDeps = {
     leases: pipeline().leases,

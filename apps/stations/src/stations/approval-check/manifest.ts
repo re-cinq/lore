@@ -1,15 +1,6 @@
 import type { SweepStationModule } from "../lib/station.js";
 
-/**
- * Promote tasks whose issue has gained the approval label.
- *
- * Two triggers on purpose. `github.issues.labeled` is the FAST path — the event
- * already exists and was being discarded, while a sweep asked the database the
- * same question every 60 seconds. The cron stays as a RECONCILER for the
- * delivery that never arrives, at an hour rather than a minute: webhooks are
- * lossy, and event-driven plus a slow sweep is strictly more reliable than
- * either alone.
- */
+// Two triggers on purpose: `github.issues.labeled` is the FAST path (was being discarded before), and the hourly cron is a RECONCILER for deliveries that never arrive — webhooks are lossy, so event-driven plus a slow sweep beats either alone.
 export const approvalCheck: SweepStationModule = {
   manifest: {
     name: "approval-check",

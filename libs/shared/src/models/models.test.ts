@@ -5,21 +5,8 @@ import { dirname, join } from "node:path";
 import type { ZodRawShape, ZodTypeAny } from "zod";
 import { REPO_COLUMNS, REPO_TABLE } from "./repo.js";
 
-/**
- * The guard over every model in this folder. A model binds a table's columns to
- * its own camelCase fields, and nothing but this test checks that the binding is
- * total — a field with no column reads `undefined` forever, and a column the map
- * spells wrong only fails once that query runs in production.
- *
- * It DISCOVERS the models by reading the directory rather than taking a
- * registry, so a file added without a line here is still covered. Files that
- * export no `*_COLUMNS` are value shapes (a JSONB document, an enum) rather than
- * tables, and are held to the one rule that still applies: they claim no table.
- */
-
 const modelsDir = dirname(fileURLToPath(import.meta.url));
 
-/** Fields of the schema that the column map does not bind. */
 export function unboundFields(
   shape: ZodRawShape,
   columns: Record<string, string>,
@@ -27,7 +14,6 @@ export function unboundFields(
   return Object.keys(shape).filter((field) => !(field in columns));
 }
 
-/** Columns bound to no field of the schema — a map that outlived its model. */
 export function strayColumns(
   shape: ZodRawShape,
   columns: Record<string, string>,
@@ -35,17 +21,6 @@ export function strayColumns(
   return Object.keys(columns).filter((field) => !(field in shape));
 }
 
-/**
- * Column maps in a model's SOURCE that are not pinned with `as const`.
- *
- * Read from the text, because there is nothing else to read: `as const` is a
- * compile-time pin with no runtime trace, so a sweep that inspects the loaded
- * object cannot tell a pinned map from a widened one. And a widened one is not a
- * cosmetic difference — `KeysAreColumns` resolves `Columns[keyof T]` to `string`
- * without it, `Exclude<keyof Shape, string>` is `never`, and every assertion
- * built on that map answers `true` no matter what shape it is handed. The guard
- * would not fail; it would stop inspecting anything.
- */
 export function unpinnedColumnMaps(source: string): string[] {
   return source
     .split(/(?:^|\n)export const /)
@@ -58,7 +33,6 @@ export function unpinnedColumnMaps(source: string): string[] {
     .map((declaration) => declaration.split(/\s*=/)[0]);
 }
 
-/** Column names Postgres would need quoting for; a model must never need it. */
 export function nonSnakeColumns(columns: Record<string, string>): string[] {
   return Object.values(columns).filter((c) => !/^[a-z][a-z0-9_]*$/.test(c));
 }
@@ -72,20 +46,9 @@ interface TableModel {
   table: string;
   shape: ZodRawShape;
   columns: Record<string, string>;
-  /** The model's own source text — the only place an `as const` pin is visible. */
   source: string;
 }
 
-/**
- * Discovery accepts either extension, keyed by STEM so a directory holding both
- * yields each model once. `dist/**` is excluded from this suite, so today the
- * sweep only ever sees `.ts` — but pinning it to that extension made the sweep
- * silently find nothing anywhere else, which is a worse failure than a wrong
- * answer: it reports success over an empty set.
- *
- * When both exist for one stem, SOURCE wins — stated here rather than left to
- * fall out of sort order, so the tie-break is a decision and not an accident.
- */
 const files = [
   ...new Map(
     readdirSync(modelsDir)
@@ -96,8 +59,6 @@ const files = [
           !f.endsWith(".d.ts"),
       )
       .sort()
-      // `.js` sorts before `.ts`, and a Map keeps the LAST value written for a
-      // key — so source wins the tie.
       .map((f) => [f.replace(/\.[tj]s$/, ""), f] as const),
   ).values(),
 ].sort();
@@ -122,13 +83,6 @@ function columnsOf(mod: ModelModule): Record<string, string> | undefined {
   return key ? (mod[key] as Record<string, string>) : undefined;
 }
 
-/**
- * The schema name a column map implies: `ASSEMBLY_RUN_COLUMNS` → `AssemblyRunSchema`.
- *
- * Derived rather than "the first export ending in Schema", which quietly picked a
- * model's status ENUM — it has no `.shape`, so the model dropped out of the sweep
- * and reported nothing while looking covered.
- */
 export function schemaNameFor(columnsExport: string): string {
   const pascal = columnsExport
     .replace(/_COLUMNS$/, "")
@@ -148,7 +102,6 @@ function shapeOf(mod: ModelModule): ZodRawShape | undefined {
   return schema?.shape;
 }
 
-/** Files that declare a table but whose schema the sweep could not resolve. */
 const unreadable: string[] = [];
 
 const tableModels: TableModel[] = loaded.flatMap(([file, mod]) => {

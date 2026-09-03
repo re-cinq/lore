@@ -1,9 +1,4 @@
-/**
- * The top-level body of a Lore review — a scannable verdict header, a one-line
- * severity tally derived from the finding labels, and the shared how-to footer.
- * Rendered once per review; the per-line detail lives in the inline
- * {@link ConventionalComment}s.
- */
+/** The top-level body of a Lore review — verdict header, severity tally, shared how-to footer — rendered once per review; per-line detail lives in the inline {@link ConventionalComment}s. */
 
 import type { ReviewOutput } from "./review-findings.js";
 import { REVIEW_RERUN_HINT } from "./review-definitions.js";

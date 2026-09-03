@@ -98,8 +98,7 @@ export function sessionSummaryRoute(getPool: () => Pool | null): ServerRoute {
 
         return h.response({ status: "ok", episode_id: rows[0].id });
       } catch (err) {
-        // A guard's refusal already carries its status; only an unexpected failure
-        // is this block's to shape.
+        // A guard's refusal already carries its status; only an unexpected failure is this block's to shape.
         rethrowBoom(err);
 
         return h.response({ error: errorMessage(err) }).code(500);

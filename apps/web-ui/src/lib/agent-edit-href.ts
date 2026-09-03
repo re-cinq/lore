@@ -1,14 +1,4 @@
-// Where "edit this agent" goes for each agent node of a run's graph.
-//
-// The run page's node inspector shows WHAT a recipe did; changing the recipe
-// happens in the agents editor — and there are two, because definitions
-// resolve project → org (CLAUDE.md "Agent definitions"): a repo override is
-// edited on the repo's Agents tab, an org default in the global /agents
-// editor. The discriminator is the resolved definition's `project_id`, the
-// same field the repo Agents list badges overrides with. A recipe the catalog
-// does not hold gets no link — pointing an editor at a definition that would
-// be CREATED by saving is the /agents/new flow, not this affordance.
-
+// Editor href per agent node: `project_id` on the resolved definition picks repo Agents tab vs global /agents; no catalog entry means no link.
 import type { AssemblyLineDefinition } from "./assembly-line-definition";
 
 export interface AgentDefRef {

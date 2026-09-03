@@ -1,12 +1,6 @@
 import type { Pool } from "pg";
 
-/**
- * Cross-repo context is enabled when the caller passes cross_repo=true, or
- * when the repo's settings.cross_repo flag is set. Shared by the MCP tool
- * (direct DB path) and the /api/context route (the path local stdio sessions
- * proxy to) so both honor the same documented fallback. Best-effort: a settings
- * lookup failure degrades to disabled rather than throwing.
- */
+// Cross-repo context is enabled by caller cross_repo=true or the repo's settings.cross_repo flag; shared by the MCP tool and /api/context route so both honor the same fallback. Best-effort: a settings lookup failure degrades to disabled rather than throwing.
 export async function resolveCrossRepo(
   pool: Pool | null,
   repo: string | undefined,

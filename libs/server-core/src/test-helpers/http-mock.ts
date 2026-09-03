@@ -19,13 +19,20 @@ export interface MockReqInit {
   body?: unknown;
 }
 
+function rawRequestBody(body: unknown): string {
+  if (body === undefined) {
+    return "";
+  }
+
+  if (typeof body === "string") {
+    return body;
+  }
+
+  return JSON.stringify(body);
+}
+
 export function makeReq(init: MockReqInit): IncomingMessage {
-  const raw =
-    init.body === undefined
-      ? ""
-      : typeof init.body === "string"
-        ? init.body
-        : JSON.stringify(init.body);
+  const raw = rawRequestBody(init.body);
   const stream = Readable.from([
     Buffer.from(raw, "utf-8"),
   ]) as unknown as IncomingMessage & {

@@ -14,13 +14,7 @@ import {
   type FeaturePatch,
 } from "./features-port.js";
 
-/**
- * In-memory {@link FeaturesPort}: the behavioral spec of the Pg adapter over
- * `lore.features` + `lore.feature_iterations`. JSONB values are stored as their
- * post-round-trip parsed form (node-pg returns jsonb already parsed, so through
- * the Pg adapter callers only ever see the parsed value). `clock` is injectable
- * so updated_at ordering is deterministic in tests.
- */
+/** In-memory {@link FeaturesPort}: behavioral spec of the Pg adapter; JSONB values stored as their post-round-trip parsed form. `clock` is injectable for deterministic updated_at ordering in tests. */
 export class InMemoryFeatures implements FeaturesPort {
   readonly rows: Feature[] = [];
   readonly iterations: FeatureIteration[] = [];
@@ -99,8 +93,7 @@ export class InMemoryFeatures implements FeaturesPort {
   ): Promise<FeatureIteration> {
     const feature = this.find(repo, id);
 
-    // The Pg adapter dereferences the UPDATE's returned row unguarded — a
-    // missing feature throws there too.
+    // Mirrors the Pg adapter's unguarded dereference of the UPDATE's returned row — a missing feature throws there too.
     enforceTrue(feature, Error, "appendIteration: feature not found");
     feature.current_iteration += 1;
     feature.status = "planning";
@@ -204,10 +197,7 @@ export class InMemoryFeatures implements FeaturesPort {
     return this.rows.find((f) => f.id === id && f.repo === repo);
   }
 
-  /**
-   * Iteration writes are repo-scoped through the owning feature (the EXISTS
-   * join in Pg — the cross-repo forgery defense), so a wrong repo finds nothing.
-   */
+  /** Iteration writes are repo-scoped through the owning feature (the EXISTS join in Pg — cross-repo forgery defense), so a wrong repo finds nothing. */
   private findIteration(
     repo: string,
     featureId: string,

@@ -88,10 +88,7 @@ describe("assemblyLineCheck", () => {
     ).toMatchObject({ status: "completed", conclusion: "neutral" });
   });
 
-  it("maps a completed line whose review node recorded changes_requested to a neutral conclusion", () => {
-    // The production bug (PR #938): the walk routes changes_requested → done, so
-    // the line closes with outcome "completed" and only the node row carries the
-    // verdict — the check must not read success/"Approved." from the line alone.
+  it("maps a completed line whose review node recorded changes_requested to a neutral conclusion (PR #938: reads the node row's verdict, not the line's own success)", () => {
     expect(
       assemblyLineCheck(line({ status: "finished", outcome: "completed" }), [
         nodeRow({ outcome: "changes_requested" }),

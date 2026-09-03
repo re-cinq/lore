@@ -1,22 +1,4 @@
-/**
- * Terminal Agent-run processing (ADR-031). The decisions that differ from a
- * LoreTask (the reported status carries no changedFiles / reviewResult / taskType,
- * and the deterministic gate is the repo's GitHub Actions conclusion, D3) live in
- * agent-watcher-logic.ts; this is the IO shell.
- *
- * `processAgentTerminal` is a thin dispatcher: it recovers the dispatch facts,
- * applies the DB re-entry guard, and routes a terminal run to one of the extracted
- * handlers (`handleSucceededChanges` → no-changes / PR, `handleFailure`,
- * `handleReviewVerdict`).
- *
- * Event-driven (the event bus): a cluster-agent's watch reports the terminal phase
- * inward, the router writes `kubernetes.agent.{succeeded,failed}`, and the handler
- * settles the run from THAT — it does not read the cluster back. It cannot: since
- * dispatch went pull-based, the pod may have run in a cluster this process has no
- * route to, and a CR read there answers "gone" indistinguishably from "never
- * existed". The reconcile path (agent-reconcile) still lists and prunes CRs, but
- * only in the cluster it can reach, and only as a re-emit backstop.
- */
+/** Terminal Agent-run processing (ADR-031), event-driven off `kubernetes.agent.{succeeded,failed}` — never reads the cluster back, since dispatch is pull-based and the pod may have run somewhere this process can't reach. */
 
 import { resultTextFromOutput } from "@re-cinq/lore-assembly-lines";
 import type { PipelineTask } from "@re-cinq/lore-shared";
@@ -64,15 +46,10 @@ function tailOutput(output: string, limit = 60000): string {
     : output;
 }
 
-/** Best-effort removal of a terminal task's per-task token key + AgentDefinition/Station
- *  triple (#697). Idempotent (404s ignored); co-located with Agent-CR deletion. Exported
- *  so the assembly-line completion path reclaims a station line's token (its shared token
- *  can only be freed once the whole line is done — no per-node cleanup is safe). */
+/** Best-effort per-task token + AgentDefinition/Station cleanup (#697); exported so a station line reclaims its shared token only once the whole line is done. */
 export function cleanupPerTaskToken(taskId: string): Promise<void> {
   return new HttpTokenCleanup(clusterAgent()).cleanup(taskId).catch((err) =>
-    // Swallowed as before — a task must settle even if reclaim fails — but
-    // LOGGED now. This used to hide a 403 the Floor's RBAC never granted, and
-    // an unreachable agent would look exactly the same.
+    // Swallowed so a task still settles on reclaim failure, but logged (used to hide a 403).
     console.warn(
       `[agent-watcher] token cleanup for ${taskId} failed:`,
       (err as Error).message,
@@ -82,27 +59,10 @@ export function cleanupPerTaskToken(taskId: string): Promise<void> {
 
 // ── Telling the repo about one task update ──────────
 
-/**
- * One CR produces AT MOST ONE of these: the three call sites below are mutually
- * exclusive per phase (a Succeeded CR reports either no-changes or a PR; a
- * Failed one reports a failure; a review verdict reports nothing here).
- *
- * There used to be a `SlackBatch` collected per invocation and
- * flushed at the end. Because it was per-invocation it never held more than one
- * entry, so its `byRepo` grouping and its whole `N PRs ready / N tasks completed
- * / N failed` summary branch — about sixty lines — could not be reached by any
- * call, and no test could cover them.
- */
+/** One CR produces at most one of these — the three call sites are mutually exclusive per phase. */
 type SlackUpdateType = "pr" | "completed" | "failed";
 
-/**
- * How each update reads and how urgent it is, in ONE table — the prefix and the
- * notify level answer the same question about the same value, and splitting them
- * across two switches is how they drift.
- *
- * The level matters: it is what the repo's `dark_factory.notify` channel list
- * filters on, so a repo that wants escalations only still hears about failures.
- */
+/** Prefix + notify level in one table so they can't drift; the level is what `dark_factory.notify` filters on. */
 const SLACK_UPDATES: Record<
   SlackUpdateType,
   { prefix: string; level: NotifyLevel }
@@ -127,17 +87,7 @@ async function notifyTaskUpdate(
 
 // ── Helpers (CR-agnostic) ─────────────────
 
-/**
- * Tell the repo's people about a task, through `project.notify`.
- *
- * This used to be a second Slack poster — its own token lookup, its own channel
- * lookup, its own fetch — sitting beside the shared one and differing in the way
- * that matters: it had no `decideNotify` gate, so a repo that had switched Slack
- * off in `dark_factory.notify` still got every PR and failure message from the
- * watcher. The one thing it did that the port could not was prefer the channel a
- * Slack-ORIGINATED task came from, so that became an option on the port rather
- * than a reason to keep a second implementation.
- */
+/** Routes through `project.notify` (has the `decideNotify` gate a prior duplicate Slack poster lacked); prefers the task's originating Slack channel. */
 async function notifySlack(
   taskId: string,
   repo: string,
@@ -204,12 +154,7 @@ async function commentFailureOnIssue(
   }
 }
 
-/** The derived context threaded through the per-outcome handlers.
- *
- *  Holds no cluster handle and no CR name. Everything here was recovered from
- *  what the Floor wrote down (the run row, the task row) plus what the event
- *  reported — nothing is read back from the cluster that ran the pod, because
- *  that cluster is not necessarily one this process can reach. */
+/** Context threaded through the per-outcome handlers, recovered entirely from the run/task rows + event — never read back from the cluster. */
 interface AgentContext {
   taskId: string;
   taskType: string;
@@ -219,11 +164,7 @@ interface AgentContext {
   output: string;
 }
 
-/** Close a single-CR task's open run rows with an outcome derived from the task's
- *  post-handler status (total coverage — no walk finishes these rows). The CR
- *  `phase` disambiguates an un-advanced task: a Failed CR whose task is still
- *  `running` (e.g. Failed with no failureReason) closes its row `failed`, not
- *  `completed`. */
+/** Closes a single-CR task's open run rows from the task's post-handler status; `phase` disambiguates a Failed-but-still-`running` task so it closes `failed`, not `completed`. */
 async function finishSingleCrRunRows(
   taskId: string,
   phase: string | undefined,
@@ -242,10 +183,7 @@ async function finishSingleCrRunRows(
 
   await Promise.all(
     open.map(async (row) => {
-      // The visit before the run. A single CR's node row is now a real queued
-      // visit a cluster claimed, so leaving it open would leave the run's one
-      // station showing as still executing after the run itself had closed —
-      // and would keep the reaper interested in a row nobody is working.
+      // Close the station-run row too, else it shows executing forever and the reaper stays interested.
       const nodes = await pipeline().assemblyRuns.listStationRuns(row.id);
 
       await Promise.all(
@@ -256,10 +194,7 @@ async function finishSingleCrRunRows(
               node.id,
               stationOutcomeForRunOutcome(outcome),
               undefined,
-              // `unknown`, not an invented class: failureClass is the closed
-              // taxonomy of INFRASTRUCTURE failures that drive retry and the
-              // account-wide dispatch gate. What this run reported belongs in
-              // the detail, which is the part a reader needs.
+              // `unknown`, not invented: failureClass is the closed taxonomy driving retry/dispatch gating.
               failureReason
                 ? { failureClass: "unknown", failureDetail: failureReason }
                 : undefined,
@@ -271,33 +206,19 @@ async function finishSingleCrRunRows(
   );
 }
 
-/**
- * Settle one terminal Agent run from the report its event carried. Invoked by the
- * `kubernetes.agent.{succeeded,failed}` handlers. Recovers the dispatch facts,
- * applies the DB re-entry guard, and dispatches to the matching handler; the
- * Slack flush runs in `finally` so an early return still delivers notifications.
- *
- * Nothing here touches a cluster. Assembly-line NODE CRs never arrive: the event
- * mapper routes them to `kubernetes.agent_node.*` on their assembly-run label, so
- * the label check this function used to make was unreachable by the time the
- * params were built.
- */
+/** Settles one terminal Agent run from its event report; node CRs never arrive here (routed to `kubernetes.agent_node.*` instead). */
 export async function processAgentTerminal(
   report: AgentTerminalReport,
 ): Promise<void> {
   const { taskId, phase } = report;
 
-  // DB-level re-entry guard (only act on tasks still running/queued). A run whose
-  // taskId has no backing pipeline task is a task-less assembly line (e.g.
-  // code-review, keyed on its assemblyLineId): the supervisor owns the run, so the
-  // watcher has nothing to reconcile — return before any PR/no-changes work.
+  // DB-level re-entry guard: a task-less run (e.g. code-review) has nothing here to reconcile.
   const task = await taskStore().getById(taskId);
 
   if (!task || !["running", "queued"].includes(task.status)) {
     return;
   }
-  // The run row first: it recorded the repo, branch and description AT dispatch,
-  // and unlike the Agent CR it is neither cluster-local nor pruned an hour later.
+  // Prefer the run row over the Agent CR: it's neither cluster-local nor pruned an hour later.
   const runs = await pipeline().assemblyRuns.listForTask(taskId);
   const run =
     runs.find((row) => ["queued", "running"].includes(row.status)) ??
@@ -313,9 +234,7 @@ export async function processAgentTerminal(
     output: resultTextFromOutput(report.output ?? ""),
   };
 
-  // No `status.prUrl` guard: it was the CR's own re-entry marker, and every path
-  // that stamped it had already moved the task out of `running` first — so the
-  // DB guard above is the same gate, read from the source that survives the pod.
+  // No `status.prUrl` guard: the DB guard above is the same gate, read from a source that survives the pod.
   if (phase === "Succeeded" && ctx.taskType !== "review") {
     await handleSucceededChanges(ctx);
   }
@@ -334,10 +253,7 @@ export async function processAgentTerminal(
     await handleReviewVerdict(ctx, reviewResult);
   }
 
-  // Terminal single-CR task: close its run row (the watcher owns the single-CR
-  // lifecycle — no walk finishes these) and reclaim the per-task token (#784).
-  // Multi-node station lines do both at line completion, so the tell is the
-  // routing (builtin assembly line for the task type), not row existence.
+  // Single-CR task: close its run row + reclaim its token here (#784); station lines do both at line completion.
   const isAssemblyLineTask = (await assemblyLineNames()).has(ctx.taskType);
 
   if (!isAssemblyLineTask) {
@@ -346,6 +262,104 @@ export async function processAgentTerminal(
 
   if (decideTokenReclaim({ phase, isAssemblyLineTask })) {
     await cleanupPerTaskToken(taskId);
+  }
+}
+
+/** Closes out a succeeded no-changes task, routing the result through its GitHub Issue. */
+async function completeNoChangeTask(
+  ctx: AgentContext,
+  taskUrl: ReturnType<typeof taskPageUrl>,
+  logsRef: string,
+): Promise<void> {
+  const { taskId, taskType, targetRepo, description, output } = ctx;
+
+  // feature-planning posts its result straight to the features API (ADR-027).
+  if (taskType === "feature-planning") {
+    try {
+      await taskStore().setStatus(taskId, "completed");
+      await taskStore().recordEvent(taskId, "running", "completed", {
+        feature_planning: true,
+      });
+    } catch (err) {
+      console.error(
+        `[agent-watcher] feature-planning completion failed for ${taskId}: ${errorMessage(err)}`,
+      );
+    }
+
+    return;
+  }
+
+  try {
+    let { issue_number, target_repo } = await getIssueNumber(taskId);
+
+    if (!target_repo) {
+      target_repo = targetRepo;
+    }
+
+    const existingIssue = issue_number;
+
+    if (!existingIssue) {
+      try {
+        const copy = await generateArtifactCopy({
+          kind: "issue",
+          taskType,
+          description,
+          agentOutput: output,
+          repo: target_repo,
+        });
+        const body = output
+          ? `${tailOutput(output)}\n\n---\n*Lore-Task: ${taskId}*`
+          : `${copy.body}\n\nTask completed (no output). ${logsRef}.`;
+        const issue = await (
+          await projectFor(target_repo)
+        ).issues.create(copy.title, body, ["lore-managed", taskType]);
+
+        issue_number = issue.number;
+        await pipeline().taskQueue.setColumns(taskId, {
+          issue_number: issue.number,
+          issue_url: issue.url,
+        });
+      } catch {
+        /* best effort */
+      }
+    }
+
+    if (existingIssue) {
+      const body = output
+        ? `## Result\n\n${tailOutput(output)}`
+        : `Task completed (no code changes). ${logsRef} for full output.`;
+
+      await projectFor(target_repo)
+        .then((p) => p.issues.comment(existingIssue, body))
+        .catch(() => {});
+    }
+    await taskStore().setStatus(taskId, "completed", { log_url: taskUrl });
+    await taskStore().recordEvent(taskId, "running", "completed", {
+      no_changes: true,
+      issue_number,
+    });
+
+    if (issue_number) {
+      await notifyTaskUpdate(
+        taskId,
+        target_repo,
+        "completed",
+        `https://github.com/${target_repo}/issues/${issue_number}`,
+      );
+    }
+    writeEpisode(
+      { memory: memoryLifecycle() },
+      `Task ${taskType} on ${target_repo} completed (no changes)\nDescription: ${description.substring(0, 500)}\nOutput: ${output.substring(0, 2000)}`,
+      "ci",
+      `${target_repo}/${taskId}`,
+    ).catch(() => {});
+    console.log(
+      `[agent-watcher] Task ${taskId} completed → issue #${issue_number || "none"}`,
+    );
+  } catch (err) {
+    console.error(
+      `[agent-watcher] Failed to complete no-change task ${taskId}: ${errorMessage(err)}`,
+    );
   }
 }
 
@@ -371,94 +385,7 @@ async function handleSucceededChanges(ctx: AgentContext): Promise<void> {
   }
 
   if (changedFiles === 0) {
-    // feature-planning posts its result straight to the features API (ADR-027).
-    if (taskType === "feature-planning") {
-      try {
-        await taskStore().setStatus(taskId, "completed");
-        await taskStore().recordEvent(taskId, "running", "completed", {
-          feature_planning: true,
-        });
-      } catch (err) {
-        console.error(
-          `[agent-watcher] feature-planning completion failed for ${taskId}: ${errorMessage(err)}`,
-        );
-      }
-
-      return;
-    }
-
-    try {
-      let { issue_number, target_repo } = await getIssueNumber(taskId);
-
-      if (!target_repo) {
-        target_repo = targetRepo;
-      }
-
-      const existingIssue = issue_number;
-
-      if (!existingIssue) {
-        try {
-          const copy = await generateArtifactCopy({
-            kind: "issue",
-            taskType,
-            description,
-            agentOutput: output,
-            repo: target_repo,
-          });
-          const body = output
-            ? `${tailOutput(output)}\n\n---\n*Lore-Task: ${taskId}*`
-            : `${copy.body}\n\nTask completed (no output). ${logsRef}.`;
-          const issue = await (
-            await projectFor(target_repo)
-          ).issues.create(copy.title, body, ["lore-managed", taskType]);
-
-          issue_number = issue.number;
-          await pipeline().taskQueue.setColumns(taskId, {
-            issue_number: issue.number,
-            issue_url: issue.url,
-          });
-        } catch {
-          /* best effort */
-        }
-      }
-
-      if (existingIssue) {
-        const body = output
-          ? `## Result\n\n${tailOutput(output)}`
-          : `Task completed (no code changes). ${logsRef} for full output.`;
-
-        await projectFor(target_repo)
-          .then((p) => p.issues.comment(existingIssue, body))
-          .catch(() => {});
-      }
-      await taskStore().setStatus(taskId, "completed", { log_url: taskUrl });
-      await taskStore().recordEvent(taskId, "running", "completed", {
-        no_changes: true,
-        issue_number,
-      });
-
-      if (issue_number) {
-        await notifyTaskUpdate(
-          taskId,
-          target_repo,
-          "completed",
-          `https://github.com/${target_repo}/issues/${issue_number}`,
-        );
-      }
-      writeEpisode(
-        { memory: memoryLifecycle() },
-        `Task ${taskType} on ${target_repo} completed (no changes)\nDescription: ${description.substring(0, 500)}\nOutput: ${output.substring(0, 2000)}`,
-        "ci",
-        `${target_repo}/${taskId}`,
-      ).catch(() => {});
-      console.log(
-        `[agent-watcher] Task ${taskId} completed → issue #${issue_number || "none"}`,
-      );
-    } catch (err) {
-      console.error(
-        `[agent-watcher] Failed to complete no-change task ${taskId}: ${errorMessage(err)}`,
-      );
-    }
+    await completeNoChangeTask(ctx, taskUrl, logsRef);
 
     return;
   }
@@ -493,10 +420,7 @@ async function handleSucceededChanges(ctx: AgentContext): Promise<void> {
       target_branch: branch,
       log_url: taskUrl,
     });
-    // Best-effort AND outside the failure path: the PR is already open, so a
-    // stamp failure must not re-label this as a PR-open failure. A missing
-    // stamp leaves await-pr's route unresolved and pr-ready-check skipping the
-    // run with a log line — visible, recoverable, not fatal.
+    // Best-effort outside the failure path: PR is already open, a stamp failure must not re-label it as PR-open failure.
     await stampPrOnOpenRuns(pipeline().assemblyRuns, taskId, pr).catch((err) =>
       console.warn(
         `[agent-watcher] stampPrOnOpenRuns failed for ${taskId} — await-pr route may be unresolvable: ${errorMessage(err)}`,
@@ -507,9 +431,7 @@ async function handleSucceededChanges(ctx: AgentContext): Promise<void> {
     });
     await linkPrToIssue(target_repo, issue_number, pr.url);
 
-    // Link the spec PR back to the feature row (ADR-027). Keyed on the task carrying
-    // a feature, not on its type: the merged line runs a feature's whole life under
-    // one feature-planning task (FR6.26).
+    // Link the spec PR back to the feature row (ADR-027) — keyed on the task carrying a feature, not its type (FR6.26).
     try {
       const link = decideFeatureLink(
         taskType,
@@ -541,10 +463,7 @@ async function handleSucceededChanges(ctx: AgentContext): Promise<void> {
       taskId,
     ).catch(() => {});
 
-    // Deterministic CI gate (D3): only fire auto-merge once CI is green; a red or
-    // still-running CI defers (the webhook-driven re-trigger re-fires when CI
-    // completes). tryAutoMergeForCompletedTask also re-checks CI itself, so this
-    // is belt-and-suspenders that keeps the watcher's gate explicit.
+    // Deterministic CI gate (D3): fire auto-merge only once CI is green; a red/running CI defers to the webhook re-trigger.
     let gate: "proceed" | "defer" = "proceed";
 
     try {
@@ -623,16 +542,11 @@ async function handleSucceededChanges(ctx: AgentContext): Promise<void> {
         })
         .catch(() => {});
 
-      // Tell a human. The status above is a row nobody reads unprompted; the
-      // escalation line is the channel ADR-016 designed for dark mode, and it
-      // had no caller at all between #805 and now. Swallowed, because failing to
-      // ESCALATE a failure must not itself become the failure.
+      // Tell a human via the ADR-016 escalation line (had no caller between #805 and now); swallowed so escalation failure isn't itself a failure.
       await startEscalationLine(
         { id: taskId, repo: targetRepo, branch },
         {
-          // The reason computed twelve lines up, not a generic panic: the Issue
-          // title carries this to a human, and "the supervisor panicked" sends
-          // them hunting a crash when the agent simply produced no commits.
+          // Specific reason, not a generic panic, so the Issue title doesn't send a human hunting a crash.
           reason: isNoCommits ? "no_code_changes" : "pr_already_exists",
           diagnostic: `createPR failed: ${reason}. ${msg.substring(0, 500)}`,
         },
@@ -713,8 +627,7 @@ async function handleFailure(ctx: AgentContext, reason: string): Promise<void> {
   }
 }
 
-/** Bounded re-queue of a transient-infra failure: fail the current row, insert a
- *  fresh pending task carrying the retry count, and keep the Issue thread. */
+/** Bounded re-queue of a transient-infra failure, carrying the retry count forward and keeping the Issue thread. */
 async function requeueTransientInfraFailure(
   ctx: AgentContext,
   failedTask: PipelineTask,
@@ -757,6 +670,65 @@ async function requeueTransientInfraFailure(
   );
 }
 
+async function completeApprovedReview(
+  taskId: string,
+  parentTaskId: string,
+): Promise<void> {
+  await taskStore().setStatus(parentTaskId, "completed");
+  await taskStore().recordEvent(parentTaskId, "review", "completed", {
+    review_result: "approved",
+    review_task_id: taskId,
+  });
+  const { issue_number, target_repo } = await getIssueNumber(parentTaskId);
+
+  if (issue_number) {
+    await projectFor(target_repo)
+      .then((p) =>
+        p.issues.comment(
+          issue_number,
+          "Agent review: **approved**. PR is ready for human merge.",
+        ),
+      )
+      .catch(() => {});
+  }
+  await taskStore().setStatus(taskId, "completed");
+  console.log(
+    `[agent-watcher] Review approved for parent task ${parentTaskId}`,
+  );
+}
+
+async function escalateReviewToHuman(
+  taskId: string,
+  parentTaskId: string,
+  parent: PipelineTask,
+  iteration: number,
+): Promise<void> {
+  await taskStore().recordEvent(parentTaskId, "review", "review", {
+    review_result: "needs-human-review",
+    iterations: iteration,
+  });
+
+  if (parent.issue_number) {
+    await projectFor(parent.target_repo)
+      .then((p) =>
+        p.issues.comment(
+          parent.issue_number!,
+          `Agent review: changes requested (iteration ${iteration}/2). Escalating to human review.`,
+        ),
+      )
+      .catch(() => {});
+    await projectFor(parent.target_repo)
+      .then((p) =>
+        p.issues.addLabel(parent.issue_number!, "needs-human-review"),
+      )
+      .catch(() => {});
+  }
+  await taskStore().setStatus(taskId, "completed");
+  console.log(
+    `[agent-watcher] Review escalated to human for ${parentTaskId} (iteration ${iteration})`,
+  );
+}
+
 /** A review Agent's verdict drives the iteration-capped fix loop on the parent task. */
 async function handleReviewVerdict(
   ctx: AgentContext,
@@ -781,27 +753,7 @@ async function handleReviewVerdict(
   }
 
   if (reviewResult === "approved") {
-    await taskStore().setStatus(parentTaskId, "completed");
-    await taskStore().recordEvent(parentTaskId, "review", "completed", {
-      review_result: "approved",
-      review_task_id: taskId,
-    });
-    const { issue_number, target_repo } = await getIssueNumber(parentTaskId);
-
-    if (issue_number) {
-      await projectFor(target_repo)
-        .then((p) =>
-          p.issues.comment(
-            issue_number,
-            "Agent review: **approved**. PR is ready for human merge.",
-          ),
-        )
-        .catch(() => {});
-    }
-    await taskStore().setStatus(taskId, "completed");
-    console.log(
-      `[agent-watcher] Review approved for parent task ${parentTaskId}`,
-    );
+    await completeApprovedReview(taskId, parentTaskId);
 
     return;
   }
@@ -818,30 +770,7 @@ async function handleReviewVerdict(
   });
 
   if (iteration >= 2) {
-    await taskStore().recordEvent(parentTaskId, "review", "review", {
-      review_result: "needs-human-review",
-      iterations: iteration,
-    });
-
-    if (parent.issue_number) {
-      await projectFor(parent.target_repo)
-        .then((p) =>
-          p.issues.comment(
-            parent.issue_number!,
-            `Agent review: changes requested (iteration ${iteration}/2). Escalating to human review.`,
-          ),
-        )
-        .catch(() => {});
-      await projectFor(parent.target_repo)
-        .then((p) =>
-          p.issues.addLabel(parent.issue_number!, "needs-human-review"),
-        )
-        .catch(() => {});
-    }
-    await taskStore().setStatus(taskId, "completed");
-    console.log(
-      `[agent-watcher] Review escalated to human for ${parentTaskId} (iteration ${iteration})`,
-    );
+    await escalateReviewToHuman(taskId, parentTaskId, parent, iteration);
 
     return;
   }

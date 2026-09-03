@@ -1,11 +1,4 @@
-// A filesystem ArchivePort, for a stack running on one machine.
-//
-// GCS is the deployed archive. Without a local equivalent, `agentEventsArchive()`
-// is null on a laptop, so a conversation POST answers 202 "skipped" and the GET
-// answers 404 — both by design, both silent, and together they make continuity
-// impossible to exercise anywhere except a real cluster. Shipping a resume path
-// that has only ever run in production is the failure this whole area keeps
-// producing, so local dev gets somewhere to put the bytes.
+// A filesystem ArchivePort so local dev has somewhere to put the bytes GCS holds in production, letting the resume path run outside a real cluster.
 
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join, relative, resolve } from "node:path";
@@ -15,8 +8,7 @@ import type { ArchivePort, ArchiveSaveOptions } from "./archive-port.js";
 export class FileArchive implements ArchivePort {
   constructor(private readonly root: string) {}
 
-  /** `options` carries the content type, which only an object store records —
-   *  a file's type is its extension here, so it is accepted and ignored. */
+  /** `options` carries the content type, which only an object store records; accepted and ignored here. */
   async save(
     key: string,
     body: string | Uint8Array,
@@ -43,14 +35,11 @@ export class FileArchive implements ArchivePort {
       return null;
     }
 
-    // A missing object is not an error for either caller — the conversation GET
-    // answers 404 and the pod degrades to a fresh conversation.
+    // A missing object is not an error for either caller — the conversation GET answers 404, the pod degrades to a fresh conversation.
     return readFile(path).catch(() => null);
   }
 
-  /** The absolute path for a key, or null when the key would escape the root. Keys
-   *  are built from ids that arrive over HTTP, so traversal has to be refused here
-   *  rather than trusted upstream. */
+  /** The absolute path for a key, or null when it would escape the root — keys are built from ids arriving over HTTP, so traversal is refused here. */
   private pathFor(key: string): string | null {
     const path = resolve(join(this.root, key));
     const rel = relative(resolve(this.root), path);

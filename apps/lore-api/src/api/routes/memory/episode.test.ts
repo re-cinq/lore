@@ -21,8 +21,6 @@ vi.mock("@re-cinq/lore-shared", () => ({
   parseSpecTitle: vi.fn(),
   extractSummary: vi.fn(),
   reassembleSpec: vi.fn(),
-  // The graph closure routes through Llm.instance now; provider-internal cost
-  // logging is tested in shared, so a tiny fake suffices here.
   Llm: { instance: { complete: vi.fn().mockResolvedValue({ text: "ok" }) } },
 }));
 

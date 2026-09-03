@@ -1,9 +1,4 @@
-// Which round content a node's prompt is rendered with.
-//
-// A run that resumed a conversation already holds its own last answer, so restating
-// it re-briefs the model on what it just said. A run that did NOT resume holds
-// nothing, and a feedback-only turn would ask it to refine a draft it has never
-// seen. The line carries both forms; this picks.
+// Which round content a node's prompt is rendered with: a resumed conversation already holds its last answer (restating it re-briefs the model), a fresh one holds nothing and needs the full composition; the line carries both forms, this picks.
 
 import type { LoreTaskSpec } from "@re-cinq/lore-shared";
 
@@ -12,14 +7,7 @@ export interface RoundContentTask {
   args?: Record<string, unknown>;
 }
 
-/**
- * The description to render the node's prompt with.
- *
- * `conversation.id` is the whole signal: it is the id of the run being resumed, and
- * dispatch leaves it empty when there is nothing to resume — a first round, a retry,
- * or a thread whose only prior run never uploaded its state. Every one of those
- * needs the full composition, so no extra flag has to stay in sync with it.
- */
+/** The description to render the node's prompt with. `conversation.id` is the whole signal — empty means nothing to resume (first round, retry, or unpersisted prior run), so no extra flag has to stay in sync with it. */
 export function resolveRoundContent(
   task: RoundContentTask,
   conversation: LoreTaskSpec["conversation"] | undefined,

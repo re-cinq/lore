@@ -1,8 +1,4 @@
-/**
- * ADR reference parsing for the DECIDED_BY edge. A statement that cites an ADR
- * ("per ADR-016", "see ADR-7", "ADR-016-dark-factory") links to that ADR node
- * by number — the "why" behind the statement. Deterministic, zero-LLM.
- */
+/** ADR reference parsing for the DECIDED_BY edge — a statement citing an ADR ("per ADR-016", "see ADR-7") links to that ADR node by number. Deterministic, zero-LLM. */
 
 const ADR_REF = /\bADR-0*(\d+)/gi;
 

@@ -1,14 +1,4 @@
-/**
- * The `lore:*` labels that dispatch an Issue to a task type — ONE declaration,
- * read by both the repo that gets them seeded and the webhook that reads them.
- *
- * They were declared twice by hand: onboarding created three labels with their
- * colours and descriptions, and the webhook matched the same three names in an
- * if/else chain. Nothing tied the two together, so a fourth label seeded on a
- * repo (by onboarding, or by a person copying the pattern) dispatched as the
- * repo's default type instead of the one it names — and a task type removed from
- * `task-types.yaml` left a label behind that creates tasks no handler serves.
- */
+/** The `lore:*` labels that dispatch an Issue to a task type — ONE declaration read by both the onboarding seeder and the dispatch webhook, so the two can't drift apart as they once did by hand. */
 export interface DispatchLabel {
   /** The label as it appears on the Issue. */
   name: string;
@@ -40,14 +30,7 @@ export const DISPATCH_LABELS: readonly DispatchLabel[] = [
   },
 ];
 
-/**
- * The task type an Issue's labels ask for, or null when none of them do — the
- * caller supplies its own default, because "no label" is the repo's choice to
- * make (`settings.dispatch_default_type`) rather than this table's.
- *
- * First match wins, in declaration order, so a mislabelled Issue carrying two
- * dispatch labels resolves deterministically instead of by chain order.
- */
+/** The task type an Issue's labels ask for, or null when none do (caller supplies its own default via `settings.dispatch_default_type`); first match wins in declaration order for determinism. */
 export function dispatchTypeFromLabels(
   labels: readonly string[],
 ): string | null {

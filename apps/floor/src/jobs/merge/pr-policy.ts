@@ -1,20 +1,4 @@
-/**
- * PR-state → AutoMergePolicyInputs lookup for the auto-merge gate.
- *
- * It sits beside its ONE caller, `auto-merge-trigger.ts`. It used to have two —
- * the in-agent orchestrator was the other — but that path was deleted with the
- * in-process supervisor (#805), and the header kept claiming a second caller
- * that no longer existed.
- *
- * It does not move to a station or to shared, for the same reason the rest of
- * `jobs/merge/` does not: merge authority is Floor-side by decision (ADR-016),
- * never inside a pod that also runs repo content. This reads the state that
- * authority is exercised on, so it belongs on the same side of that line.
- *
- * PR state is read through the Project facade's `pulls` (paginated inside the
- * shared adapter), not a hand-built Octokit — the auto-merge gate must see every
- * changed file / check / review, and the auth ladder lives once in PlatformGitHub.
- */
+// PR-state → AutoMergePolicyInputs lookup, staying Floor-side (never in a pod) because merge authority is Floor-side by decision (ADR-016); its sole caller is auto-merge-trigger.ts.
 import type { ResolvedDarkFactorySettings } from "@re-cinq/lore-shared";
 import type { PullRequests } from "@re-cinq/lore-shared/project/pulls/pull-requests.js";
 import type { TaskPrInfo } from "@re-cinq/lore-shared/project/tasks/task-queue-port.js";
@@ -63,11 +47,7 @@ const defaultPullsFor = (repo: string): Promise<PullRequests> =>
 
 type TrustLevel = "docs" | "tests" | "implementation" | "full";
 
-/**
- * The repo's configured trust level, read from `lore.repos.settings.trust.level`.
- * Mirrors the former PgReposRepository.trustLevel: undefined on absence or a
- * settings-read failure (so a DB hiccup leaves the conservative `docs` default).
- */
+/** The repo's configured trust level; undefined on absence or a settings-read failure, so a DB hiccup leaves the conservative `docs` default. */
 async function readTrustLevel(
   repos: RepoSettingsReader,
   repo: string,
@@ -83,16 +63,7 @@ async function readTrustLevel(
   }
 }
 
-/**
- * Look up everything `evaluateAndMerge` needs by task id. Returns
- * null if the task has no PR yet (auto-merge has nothing to act on).
- *
- * Conservative defaults: assumes CI hasn't passed and the bot hasn't
- * approved until proven otherwise. Flipping these to `true` as the
- * initial state would let auto-merge fire when GitHub returns no
- * check_runs / reviews (a brand-new PR) — exactly when we most need
- * the gate.
- */
+/** Look up everything `evaluateAndMerge` needs by task id; defaults assume CI hasn't passed and the bot hasn't approved, since flipping to `true` would let auto-merge fire on a brand-new PR with no check_runs/reviews yet. */
 export async function resolvePrForTaskFromDb(
   taskId: string,
   darkFactorySettings: ResolvedDarkFactorySettings,
@@ -110,31 +81,14 @@ export async function resolvePrForTaskFromDb(
 
   let ciSucceeded = false;
   let botApproved = false;
-  // Mixed-default note: `humanChangesRequested = false` is the
-  // *permissive* state for that flag (no human blocking), unlike
-  // ciSucceeded/botApproved where false is conservative. Safe because
-  // the listReviews call is in the same try block as listFiles +
-  // listForRef — if any of them throws, all three flags stay at their
-  // initial values and `ciSucceeded = false` alone causes the engine
-  // to defer with `deferred:ci_failed`, so the others' values never
-  // matter on the API-failure path. Don't "fix" by flipping to true —
-  // that would block merges when the API is healthy and there are
-  // simply no human reviews yet (the common case).
+  // `humanChangesRequested = false` is deliberately the *permissive* default (unlike the other two): a same-try-block API failure leaves `ciSucceeded = false` to defer the merge on its own, so this one staying false never wrongly blocks a healthy PR with no reviews yet.
   let humanChangesRequested = false;
   let changedPaths: string[] = [];
-  // Specific bot login the auto-merge gate trusts. Defaults to the
-  // Lore agent App slug as configured by the GitHub App's
-  // installation (visible in the App's settings page; the production
-  // value is "lore-agent[bot]" matching the App name). Deployments
-  // using a different App slug override via LORE_REVIEW_BOT_LOGIN.
-  // Without this, *any* bot's APPROVED review (Dependabot, Renovate,
-  // an external review bot) would satisfy require_bot_approval.
+  // Trusted bot login, overridable via LORE_REVIEW_BOT_LOGIN — without it, any bot's APPROVED review (Dependabot, Renovate, etc.) would satisfy require_bot_approval.
   const botLogin = process.env.LORE_REVIEW_BOT_LOGIN ?? "lore-agent[bot]";
 
   try {
-    // All three reads are paginated inside the shared adapter (a single API page
-    // caps at 30 and would silently truncate the file allowlist gate / check set /
-    // review list). Independent — run them together.
+    // All three reads are paginated inside the shared adapter (an uncapped single page would silently truncate); independent, so run them together.
     const pulls = await deps.pullsFor(row.target_repo);
     const ref = row.target_branch ?? `pull/${row.pr_number}/head`;
     const [files, checkRuns, reviews] = await Promise.all([
@@ -145,18 +99,14 @@ export async function resolvePrForTaskFromDb(
 
     changedPaths = files;
 
-    // Vacuous truth on an empty array would let auto-merge fire when
-    // CI hasn't reported yet. Require at least one passing check.
+    // Require at least one passing check — vacuous truth on an empty array would let auto-merge fire before CI has reported.
     ciSucceeded =
       checkRuns.length > 0 &&
       checkRuns.every(
         (c) => c.conclusion === "success" || c.conclusion === "skipped",
       );
 
-    // The bot re-reviews on every push (the code-review-recheck line), so a
-    // stale early APPROVED must not linger past a later REQUEST_CHANGES: take the
-    // bot's LATEST decision, not "any past approval". `id` is monotonic, so it
-    // orders reviews by submission; COMMENT/DISMISSED are not decisions.
+    // Take the bot's LATEST decision (monotonic `id` orders by submission), not "any past approval" — a stale early APPROVED must not linger past a later REQUEST_CHANGES.
     const botDecisions = reviews
       .filter(
         (r) =>
@@ -176,8 +126,7 @@ export async function resolvePrForTaskFromDb(
     );
   }
 
-  // Defer auto-merge while a review-family line is open for this PR (the required
-  // lore/code-review check does the same for human merges; this guards Lore's own).
+  // Defer auto-merge while a review-family line is open for this PR — the required lore/code-review check does the same for human merges; this guards Lore's own.
   let reviewInFlight = false;
 
   try {

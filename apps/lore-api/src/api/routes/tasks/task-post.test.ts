@@ -61,7 +61,6 @@ describe("POST /api/task", () => {
     expect(res.result).toEqual({ task_id: "new" });
   });
 
-  /** Queue the reads `cancelTask` makes: the task row, then its events. */
   function poolWithTask(status: string) {
     const pool = makePool();
 
@@ -331,8 +330,7 @@ describe("POST /api/task", () => {
     expect(res.statusCode).toBe(400);
   });
 
-  it("returns 400 on invalid JSON", async () => {
-    // ADR-034: hapi parses the payload, so malformed JSON is a 400 (was 500).
+  it("returns 400 on invalid JSON, not 500", async () => {
     const res = await post("{bad");
 
     expect(res.statusCode).toBe(400);

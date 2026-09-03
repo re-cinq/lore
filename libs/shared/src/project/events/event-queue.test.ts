@@ -4,8 +4,6 @@ import { PgEventQueue } from "./event-queue-pg.js";
 import { InMemoryEventQueue } from "./event-queue-memory.js";
 import type { EventRow } from "./event-queue-port.js";
 
-// ── PgEventQueue: SQL shape ────────────────────────────────────────────
-
 describe("PgEventQueue.claimBatch", () => {
   it("claims runnable rows with FOR UPDATE SKIP LOCKED, incrementing attempts", async () => {
     const { pool, calls } = fakePgPool([{ rows: [{ id: "1" }] }]);
@@ -57,8 +55,6 @@ describe("PgEventQueue terminal transitions", () => {
   });
 });
 
-// ── InMemoryEventQueue: behavioral spec ────────────────────────────────
-
 const NOW = Date.UTC(2026, 5, 30, 12, 0, 0);
 
 describe("InMemoryEventQueue insert + claim", () => {
@@ -90,7 +86,6 @@ describe("InMemoryEventQueue insert + claim", () => {
 
     expect(claimed.map((r) => r.event_name)).toEqual(["e1"]);
     expect(claimed[0]).toMatchObject({ status: "processing", attempts: 1 });
-    // second claim picks up the next row
     expect((await q.claimBatch(10)).map((r) => r.event_name)).toEqual(["e2"]);
   });
 
@@ -115,7 +110,6 @@ describe("InMemoryEventQueue insert + claim", () => {
       status: "pending",
       attempts: 0,
     });
-    // an unfiltered claim then picks it up
     expect((await q.claimBatch(10)).map((r) => r.event_name)).toEqual([
       "internal.ingest.spec_trace",
     ]);
@@ -129,7 +123,7 @@ describe("InMemoryEventQueue insert + claim", () => {
     const [claimed] = await q.claimBatch(1);
 
     await q.markFailed(claimed.id, "boom", 60);
-    expect(await q.claimBatch(10)).toEqual([]); // still backing off
+    expect(await q.claimBatch(10)).toEqual([]);
     clock = NOW + 61_000;
     expect((await q.claimBatch(10)).map((r) => r.event_name)).toEqual(["e1"]);
   });

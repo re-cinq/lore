@@ -3,19 +3,10 @@ import { apiFetch } from "./client";
 import type { ApiResult } from "./result";
 import type { components } from "./schema";
 
-// The context browser's chunk reads. Chunks live in per-team schemas plus
-// `org_shared`, and the UNION ALL across them moved to lore-api along with the
-// schema catalog it depends on — which is what let web-ui stop holding a pool.
-
-// The row is an alias over the OpenAPI document lore-api generates from its
-// route contract (ADR-035), which derives its shared fields from the chunk model
-// and its column map. `content` is a 300-char preview and `rank` is computed per
-// query — both stated by that contract, neither invented here.
-
+// Context browser's chunk reads; the UNION ALL across per-team schemas + org_shared moved to lore-api, which is what let web-ui stop holding a pool. ChunkRow aliases the OpenAPI schema (ADR-035) — content is a 300-char preview, rank computed per query.
 export type ChunkRow = components["schemas"]["ChunkList"]["chunks"][number];
 
-/** Ranked chunks: org-wide across every schema, or one repo's own. Returns one
- *  row past `limit` so the caller can detect a further page without a COUNT. */
+/** Ranked chunks (org-wide or one repo's own); returns one row past `limit` so the caller can detect a further page without a COUNT. */
 export function getChunks(opts: {
   repo?: string;
   type?: string;
@@ -42,8 +33,7 @@ export function getChunks(opts: {
   return apiFetch("lore-api", `/api/chunks?${params}`);
 }
 
-/** The content types actually present — the chip set, deliberately unfiltered
- *  by the active type so a chip never vanishes when selected. */
+/** Content types actually present — deliberately unfiltered by the active type so a chip never vanishes when selected. */
 export function getChunkTypes(
   repo?: string,
 ): Promise<ApiResult<{ types: string[] }>> {
@@ -69,8 +59,7 @@ export function getChunksByPath(
   return apiFetch("lore-api", `/api/chunks/by-path?${params}`);
 }
 
-/** A repo's chunk count and which convention files it holds — the two figures
- *  the repo overview's enrollment checklist needs. */
+/** A repo's chunk count and which convention files it holds — what the overview's enrollment checklist needs. */
 export function getRepoChunkSummary(
   repo: string,
 ): Promise<ApiResult<{ count: number; convention_files: string[] }>> {

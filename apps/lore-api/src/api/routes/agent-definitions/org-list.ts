@@ -10,17 +10,7 @@ import { bearerScope } from "../../../server/plugins/bearer-scope.js";
 import { zodResponse } from "../../../server/plugins/zod-response.js";
 import { DB_UNAVAILABLE } from "../common-schemas.js";
 
-/**
- * GET /api/agent-definitions — the ORG-DEFAULT catalog: every definition
- * resolved without a repo in hand (org rows overlaid on the yaml fallback,
- * no project layer). The repo-scoped sibling lives at
- * `/api/repos/{owner}/{repo}/agent-definitions`; this one feeds the global
- * /agents page, which shows the roster the whole org inherits.
- *
- * The empty-string repo is deliberate: PgAgentDefs scopes project rows by
- * `r.full_name = $repo`, and no repo is named "", so the query degrades to
- * exactly the org + yaml layers.
- */
+// The org-default catalog (org rows over yaml, no project layer); empty-string repo deliberately degrades PgAgentDefs to org+yaml only.
 
 const OrgAgentsResponse = z.object({
   agents: z.array(ResolvedAgentDefinitionSchema),

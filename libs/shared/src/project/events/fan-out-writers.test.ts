@@ -3,25 +3,10 @@ import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-/**
- * The guard a database trigger would not have needed.
- *
- * Fan-out is composed by each event-insert site rather than enforced by the
- * table, so a new writer CAN forget it — and a forgotten one produces events
- * with no deliveries, which nothing handles and nothing logs. That failure is
- * silent in production, so it is made loud in CI: every site that inserts an
- * event either IS the shared writer or composes the shared clause.
- */
-
 const REPO_ROOT = join(import.meta.dirname, "../../../../..");
 
-/** The one module allowed to write the bare INSERT: it composes the clause itself. */
 const SHARED_WRITER = "libs/shared/src/events.ts";
 
-/** A commented-out INSERT is documentation, not a writer — `detect/fan-out.ts`
- *  documents the manual operator trigger. Matching those would make the guard
- *  cry wolf, and an allowlist to silence it would go stale exactly the way this
- *  test exists to prevent. */
 const isCode = (line: string): boolean => {
   const trimmed = line.trimStart();
 

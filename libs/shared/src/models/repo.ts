@@ -2,15 +2,7 @@ import { z } from "zod";
 import type { ColumnMap } from "../lib/row.js";
 import { RepoSettingsSchema } from "./repo-settings.js";
 
-/**
- * `lore.repos` — one onboarded repository.
- *
- * DDL: `scripts/infra/setup-repos-schema.sh` (the `outcome_stats` column is added
- * by the idempotent ALTER at the foot of the same file).
- *
- * `fullName` (`owner/name`) is the identifier every other schema keys a repo by;
- * `id` exists but is referenced only by `lore.agent_definitions.project_id`.
- */
+/** `lore.repos` — one onboarded repository; `fullName` (`owner/name`) is the identifier every other schema keys a repo by, `id` is referenced only by `lore.agent_definitions.project_id`. */
 
 export const RepoSchema = z.object({
   id: z.string(),

@@ -1,18 +1,9 @@
 import { enforceTrue } from "./lib/enforce.js";
-/**
- * Memory store abstraction.
- *
- * The seam Lore's memory layer talks to. Grows method-by-method as
- * later cycles triangulate the surface. Both Postgres and Dgraph backends
- * are wired; `LORE_MEMORY_BACKEND` selects one without touching callers.
- */
+/** Memory store abstraction, the seam Lore's memory layer talks to; both Postgres and Dgraph backends are wired, selected via LORE_MEMORY_BACKEND without touching callers. */
 
 // ── Ports ────────────────────────────────────────────────────────────
 
-/**
- * The pg pool port the Postgres backend depends on. Owned by the seam
- * module so the contract lives with the interface, not the implementation.
- */
+/** The pg pool port the Postgres backend depends on; owned by the seam module so the contract lives with the interface, not the implementation. */
 export type PgPool = {
   query<T = Record<string, unknown>>(
     text: string,
@@ -26,23 +17,14 @@ export type MemoryTxClient = {
   release: () => void;
 };
 
-/**
- * connect() is feature-detected rather than declared on the PgPool port:
- * pg's PoolClient carries an incompatible inherited connect(), so widening
- * the port would break every client-as-pool call site. A pool without
- * connect() (file doubles, clients) keeps the plain sequential write path.
- */
+/** connect() is feature-detected, not declared on PgPool: pg's PoolClient has an incompatible inherited connect() that would break every client-as-pool call site if widened. */
 export function hasConnect(
   p: PgPool,
 ): p is PgPool & { connect(): Promise<MemoryTxClient> } {
   return typeof (p as { connect?: unknown }).connect === "function";
 }
 
-/**
- * The Dgraph client port the Dgraph backend depends on. Owned by the seam
- * module so the contract lives with the interface, not the implementation —
- * the real `dgraph-js-http` DgraphClient satisfies it structurally.
- */
+/** The Dgraph client port the Dgraph backend depends on; the real dgraph-js-http DgraphClient satisfies it structurally. */
 export interface DgraphTxn {
   queryWithVars(
     query: string,

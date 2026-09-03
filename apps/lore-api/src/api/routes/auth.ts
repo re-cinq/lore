@@ -1,9 +1,4 @@
-/**
- * Cross-cutting auth primitives: the in-memory sliding-window `rateLimit`
- * (driven by the `rate-limit` hapi ext) and per-client token resolution
- * (`resolveTokenScopes`, wrapped by `validateClientToken`), used by the
- * `bearer-scope` auth strategy and the healthz handler's own bearer check.
- */
+// Cross-cutting auth primitives: the in-memory sliding-window rateLimit and per-client token resolution, used by bearer-scope and the healthz handler's own bearer check.
 
 import type { Pool } from "pg";
 import { createHash } from "node:crypto";
@@ -15,14 +10,9 @@ export type RateBucket = "webhook" | "task" | "embed" | "turns" | "default";
 const RATE_LIMITS: Record<RateBucket, number> = {
   webhook: 30, // 30/min for webhooks
   task: 60, // 60/min for task operations
-  // The ingest station embeds one statement per call: a changed-spec batch is
-  // hundreds of POSTs in seconds (7 files → ~250 calls all 429'd on 2026-07-17
-  // under `default`). Own bucket, sized under Vertex's RPM quota, so the burst
-  // neither starves nor is starved by everything else.
+  // Own bucket, sized under Vertex's RPM quota: a changed-spec batch is hundreds of embed POSTs/sec (250 calls all 429'd on 2026-07-17 under `default`).
   embed: 1200,
-  // A local run's transcript relay arrives as a burst of ≤~700KB batches at
-  // run end (dozens for a long run). Own bucket for the same reason as embed:
-  // the burst must neither starve nor be starved by `default`.
+  // Own bucket, same reason as embed: a local run's transcript relay bursts dozens of ≤~700KB batches at run end.
   turns: 300,
   default: 200, // 200/min for everything else
 };
@@ -59,12 +49,7 @@ export type TokenScope = "read" | "write" | "task" | "webhook" | "admin";
 
 const ALL_SCOPES: TokenScope[] = ["read", "write", "task", "webhook", "admin"];
 
-/**
- * Resolve a bearer token to its granted scopes, or null when it is
- * missing/invalid/revoked/expired or the lookup fails. The legacy
- * LORE_INGEST_TOKEN resolves to full access (all scopes) without a DB hit.
- * The bearer-scope hapi strategy builds on this; `validateClientToken` wraps it.
- */
+// Resolves a bearer token to its granted scopes (null if missing/invalid/revoked/expired); the legacy LORE_INGEST_TOKEN resolves to full access without a DB hit.
 export async function resolveTokenScopes(
   pool: Pool | null,
   bearerToken: string,
@@ -99,11 +84,7 @@ export async function resolveTokenScopes(
   }
 }
 
-/**
- * Validate a per-client token against the DB for a required scope. Used by the
- * healthz handler's own optional bearer check; guarded routes use the
- * bearer-scope hapi strategy (which shares `resolveTokenScopes`).
- */
+// Validates a per-client token against the DB for a required scope; used by healthz's own optional bearer check (guarded routes use the bearer-scope strategy instead).
 export async function validateClientToken(
   pool: Pool | null,
   bearerToken: string,

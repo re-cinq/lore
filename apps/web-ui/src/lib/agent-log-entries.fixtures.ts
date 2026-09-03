@@ -1,7 +1,4 @@
-// Real agent pod log lines, captured verbatim from a production review node
-// (assembly line f202c209, node f202c209-review, 2026-07-17). These are the
-// ground truth the parser is written against — do not hand-edit the payloads.
-
+// Real agent pod log lines captured verbatim (assembly line f202c209, node f202c209-review, 2026-07-17) — do not hand-edit the payloads.
 export const LIFECYCLE_STARTED =
   '{"kind":"lifecycle","phase":"agent","status":"started"}';
 
@@ -47,8 +44,7 @@ export const RESULT_TERMINAL =
 export const LIFECYCLE_SUCCEEDED =
   '{"kind":"lifecycle","exitCode":0,"phase":"agent","status":"succeeded"}';
 
-// The exact serialized output of eventLine() / resultLine() in
-// libs/assembly-lines/src/agent-output.ts (web-ui cannot import that lib).
+// Exact serialized output of eventLine()/resultLine() in libs/assembly-lines/src/agent-output.ts (web-ui cannot import that lib).
 export const STATION_LOG =
   '{"type":"log","message":"detect: scanning 42 specs"}';
 
@@ -58,24 +54,15 @@ export const NODE_RESULT_LINE =
 export const RUNNER_MARKER =
   "[runner] Reusing cached repo at /workspace/repo (fetch)";
 
-// Captured from a live review pod (task 7d723e6b, 2026-08-27). The init-phase
-// lifecycle marker carries no `type`, so the transcript store records it with a
-// null event_type — the case that used to render as an `unknown` JSON blob.
+// Live review pod capture (task 7d723e6b, 2026-08-27): init-phase marker carries no `type`, so it used to render as an `unknown` JSON blob.
 export const LIFECYCLE_INIT_STARTED =
   '{"kind":"lifecycle","phase":"init","status":"started"}';
 
-// Same pod, one minute later. `utilization` is a FRACTION of the window, and
-// `resetsAt` is epoch SECONDS.
+// Same pod, one minute later; `utilization` is a fraction of the window, `resetsAt` is epoch seconds.
 export const RATE_LIMIT_EVENT =
   '{"type":"rate_limit_event","uuid":"44497cba-94a4-40e9-a7e3-a99071319e87","session_id":"a4830f52-8b2f-4638-ab11-ba16813e728c","rate_limit_info":{"status":"allowed_warning","resetsAt":1787882400,"utilization":0.94,"rateLimitType":"seven_day","isUsingOverage":false,"unifiedWindows":{"five_hour":{"resetsAt":1787848200,"utilization":0.07},"seven_day":{"resetsAt":1787882400,"utilization":0.94}},"surpassedThreshold":0.75}}';
 
-// SessionStart hook events from a live implement pod (task e3bdf9f8, pod
-// agent-job-595d2b0b-ccb-implement-cczl8, 2026-08-28). Two hooks run
-// CONCURRENTLY, so their lines interleave, and `hook_progress` is CUMULATIVE —
-// every progress line repeats the whole output so far. The run emitted four
-// progress lines for the bootstrap hook; the two middle ones are elided here
-// because they differ from these only in how much of the same log they carry.
-
+// Live SessionStart hook capture (task e3bdf9f8, 2026-08-28): two hooks run concurrently and `hook_progress` is cumulative — each line repeats the whole output so far; two of four bootstrap progress lines are elided.
 export const HOOK_STARTED_SESSION =
   '{"type":"system","uuid":"9f3101c1-ac5b-48fd-a8bc-5b0dcc13afb5","hook_id":"56eebdca-70de-4c3c-a5f3-d3f4f4ec2096","subtype":"hook_started","hook_name":"SessionStart:startup","hook_event":"SessionStart","session_id":"c83b4bb1-f1fb-4039-b39c-d34f445d6c68"}';
 
@@ -98,34 +85,18 @@ export const HOOK_RESPONSE_BOOTSTRAP =
 export const HOOK_RESPONSE_FAILED =
   '{"type":"system","uuid":"5f2c0a71-3d5e-4a1b-9c88-2b6f0e4d1a33","output":"lore-doctor: skill drift detected\\n","stderr":"lore-doctor: skill drift detected\\n","stdout":"","hook_id":"aa11bb22-cc33-dd44-ee55-ff6677889900","outcome":"blocked","subtype":"hook_response","exit_code":2,"hook_name":"PreToolUse:Bash","hook_event":"PreToolUse","session_id":"c83b4bb1-f1fb-4039-b39c-d34f445d6c68"}';
 
-// Heartbeats from a live review pod (task f89164e0, pod
-// agent-job-f89164e0-31a-review-zhs6b, 2026-08-28), carrying the attribution
-// envelope exactly as the transcript store holds them. A tool that runs long
-// emits one every ~30s, and they are CUMULATIVE: `elapsed_time_seconds` is the
-// total so far, and each line's own `tool_use_id` is a fresh
-// `<parent>-heartbeat-<n>`, so only `parent_tool_use_id` identifies the call.
-// The run emitted nineteen of these for one Skill; the elided ones differ from
-// these two only in how far the clock had run.
-
+// Live heartbeat capture (task f89164e0, 2026-08-28): cumulative `elapsed_time_seconds`, fresh `tool_use_id` each line — only `parent_tool_use_id` identifies the call; 17 of 19 elided.
 export const TOOL_PROGRESS_SKILL_FIRST =
   '{"event":{"type":"tool_progress","uuid":"fef6ccfa-242e-4fb6-b3b7-86b01dd4a606","heartbeat":true,"tool_name":"Skill","session_id":"a87a1a11-4898-4b8c-b252-b5b48f3f9021","tool_use_id":"toolu_01U2T4eX8rrZghzWR3ETfD5X-heartbeat-13","parent_tool_use_id":"toolu_01U2T4eX8rrZghzWR3ETfD5X","elapsed_time_seconds":420},"source":{"pod":"agent-job-f89164e0-31a-review-zhs6b","task":"f89164e0-31ad-4429-9d46-f1a6367d8f89","agent":"f89164e0-31a-review","station":"pt-f89164e0","namespace":"ai-agents"}}';
 
 export const TOOL_PROGRESS_SKILL_LAST =
   '{"event":{"type":"tool_progress","uuid":"931f6491-d1ef-40c2-b2f7-5286c79f3b21","heartbeat":true,"tool_name":"Skill","session_id":"a87a1a11-4898-4b8c-b252-b5b48f3f9021","tool_use_id":"toolu_01U2T4eX8rrZghzWR3ETfD5X-heartbeat-19","parent_tool_use_id":"toolu_01U2T4eX8rrZghzWR3ETfD5X","elapsed_time_seconds":600},"source":{"pod":"agent-job-f89164e0-31a-review-zhs6b","task":"f89164e0-31ad-4429-9d46-f1a6367d8f89","agent":"f89164e0-31a-review","station":"pt-f89164e0","namespace":"ai-agents"}}';
 
-/** A `system` line of a subtype the parser has never seen. Pins the generic
- *  fallback: unrecognized system events must summarize, not dump raw JSON. */
+/** Unrecognized `system` subtype — pins that the fallback summarizes rather than dumping raw JSON. */
 export const SYSTEM_COMPACT_BOUNDARY =
   '{"type":"system","subtype":"compact_boundary","compact_metadata":{"trigger":"auto","pre_tokens":154238},"uuid":"7c1e9d40-8a2b-4f6c-b1d3-9e0a5c7f2b18","session_id":"c83b4bb1-f1fb-4039-b39c-d34f445d6c68"}';
 
-// gemini-cli `--output-format stream-json` lines from a live GeminiAgent review
-// pod (run 6cb4b352, pod agent-job-6cb4b352-f9e-review-p52r7, 2026-09-02). The
-// dialect is FLAT — no message.content blocks: `init` (not system/init),
-// `message` with a string `content`, top-level `tool_use`/`tool_result` keyed
-// by `tool_id`, and `parameters` where claude says `input`. Assistant prose
-// arrives ONLY as `delta: true` chunks — the CLI never emits a final complete
-// message (nonInteractiveCli.ts), so rendering depends on merging them.
-
+// gemini-cli stream-json is FLAT (no message.content blocks): `init`, string `content`, top-level `tool_use`/`tool_result` keyed by `tool_id`, `parameters` not `input`; prose arrives only as `delta:true` chunks to merge (nonInteractiveCli.ts never emits a final message).
 export const GEMINI_INIT =
   '{"type":"init","model":"gemini-3.1-pro-preview","timestamp":"2026-09-02T07:09:20.459Z","session_id":"c8f63789-c5d5-4844-a11d-009f61886864"}';
 
@@ -135,14 +106,11 @@ export const GEMINI_USER_MESSAGE =
 export const GEMINI_TOOL_USE =
   '{"type":"tool_use","tool_id":"run_shell_command__call_659048","timestamp":"2026-09-02T07:09:23.523Z","tool_name":"run_shell_command","parameters":{"command":"git -C /workspace/target diff main...HEAD"}}';
 
-// `status` is the CLI's own verdict on the dispatch, not the command's exit —
-// this live line carries a failed external diff under status "success".
+// `status` is the CLI's own dispatch verdict, not the command's exit — this live line carries a failed diff under status "success".
 export const GEMINI_TOOL_RESULT_OK =
   '{"type":"tool_result","output":"error: cannot run : No such file or directory\\nfatal: external diff died, stopping at .lore/pr-body.md","status":"success","tool_id":"run_shell_command__call_659048","timestamp":"2026-09-02T07:09:23.683Z"}';
 
-// Shapes below follow packages/core/src/output/types.ts of gemini-cli (the
-// run above ended before emitting them, so these are schema-true, not captured).
-
+// Schema-true (not captured) per packages/core/src/output/types.ts of gemini-cli — the run above ended before emitting these.
 export const GEMINI_TOOL_RESULT_ERROR =
   '{"type":"tool_result","status":"error","error":{"type":"ToolError","message":"File not found: /workspace/target/missing.ts"},"tool_id":"read_file__call_112233","timestamp":"2026-09-02T07:10:01.000Z"}';
 
@@ -161,20 +129,15 @@ export const GEMINI_RESULT_SUCCESS =
 export const GEMINI_RESULT_ERROR =
   '{"type":"result","status":"error","error":{"type":"QuotaError","message":"Resource has been exhausted"},"timestamp":"2026-09-02T07:10:04.000Z"}';
 
-// A declared-artifact delivery captured from a live implement pod (task
-// b0f8665a, 2026-09-02): the subsystem raises each `output.watch` file as a
-// `kind:"file"` event once the agent exits. The inner object carries its own
-// `event` name string, which must not be mistaken for an attribution wrapper.
+// Declared-artifact delivery (task b0f8665a, 2026-09-02): each `output.watch` file raises as `kind:"file"`; its own `event` name must not be mistaken for the attribution wrapper.
 export const FILE_EVENT_PR_DESCRIPTION =
   '{"event":{"kind":"file","path":"/workspace/target/.lore/pr-body.md","event":"pr.description","content":"The codebase already consolidated the duplicated clip.\\n\\nNo deviations were necessary.\\n"},"source":{"pod":"agent-job-94600b2c-cd7-ready-for-review-3-t2dnm","task":"b0f8665a-07ea-41e2-a602-92d871c192fd","agent":"94600b2c-cd7-ready-for-review-3","station":"pt-b0f8665a","namespace":"ai-agents"}}';
 
-// The other half of the contract: a declared artifact the agent never produced
-// reports `reason` instead of `content` (mutually exclusive).
+// Other half of the contract: a never-produced artifact reports `reason` instead of `content` (mutually exclusive).
 export const FILE_EVENT_MISSING =
   '{"kind":"file","path":"/workspace/target/.lore/pr-body.md","event":"pr.description","reason":"agent exited before writing the file"}';
 
-// The ai-agent-subsystem's attribution envelope (ADR-031 D8) — single and the
-// transitional double wrap both appear in prod streams.
+// ai-agent-subsystem attribution envelope (ADR-031 D8) — single and the transitional double wrap both appear in prod streams.
 export function wrapped(line: string): string {
   return JSON.stringify({ source: { task: "t1" }, event: JSON.parse(line) });
 }

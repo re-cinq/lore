@@ -1,8 +1,4 @@
-/**
- * A provider that refuses to do anything. Installed as the global default in
- * test setup so a path that is supposed to be deterministic proves it: the
- * moment it calls the model seam, the test throws. Production never uses this.
- */
+/** Refuses to do anything — installed as the test-setup default so a path meant to be deterministic throws the moment it calls the model seam. Never used in production. */
 
 import type {
   LlmCompleteRequest,

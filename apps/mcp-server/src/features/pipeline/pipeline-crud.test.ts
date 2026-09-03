@@ -7,14 +7,6 @@ import {
 } from "@re-cinq/lore-shared";
 import { makePool } from "@re-cinq/lore-server-core/test-helpers/http-mock.js";
 
-/**
- * Drives the shared pipeline CRUD — the exact functions the lore_cancel_task,
- * lore_retry_task, and lore_get_pipeline_status MCP handlers execute (mcp's pipeline.ts
- * binds the pool and re-exports them). The pool is a makePool() mock whose
- * `query` is sequenced per call so we exercise the real branching without a
- * live Postgres.
- */
-
 const TASK_ID = "11111111-1111-1111-1111-111111111111";
 
 describe("getTask", () => {
@@ -49,8 +41,8 @@ describe("listTasks", () => {
     const pool = makePool();
 
     pool.query
-      .mockResolvedValueOnce({ rows: [{ id: TASK_ID, status: "running" }] }) // rows
-      .mockResolvedValueOnce({ rows: [{ total: 1 }] }); // count
+      .mockResolvedValueOnce({ rows: [{ id: TASK_ID, status: "running" }] })
+      .mockResolvedValueOnce({ rows: [{ total: 1 }] });
     expect(await listTasks(pool)).toEqual({
       tasks: [{ id: TASK_ID, status: "running" }],
       total: 1,
@@ -75,11 +67,11 @@ describe("cancelTask", () => {
     const pool = makePool();
 
     pool.query
-      .mockResolvedValueOnce({ rows: [{ id: TASK_ID, status: "running" }] }) // getTask: task
-      .mockResolvedValueOnce({ rows: [] }) // getTask: events
-      .mockResolvedValueOnce({ rows: [{ status: "running" }] }) // updateTaskStatus: read old
-      .mockResolvedValueOnce({ rows: [] }) // setTaskStatus update
-      .mockResolvedValueOnce({ rows: [] }); // recordEvent
+      .mockResolvedValueOnce({ rows: [{ id: TASK_ID, status: "running" }] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{ status: "running" }] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] });
     expect(await cancelTask(pool, TASK_ID)).toEqual({
       task_id: TASK_ID,
       status: "cancelled",
@@ -126,9 +118,9 @@ describe("retryTask", () => {
             created_by: "mcp",
           },
         ],
-      }) // getTask: task
-      .mockResolvedValueOnce({ rows: [] }) // getTask: events
-      .mockResolvedValueOnce({ rows: [] }) // createTask trust-gate: repo settings lookup
+      })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({
         rows: [
           {
@@ -138,11 +130,11 @@ describe("retryTask", () => {
             created_at: "2026-06-10",
           },
         ],
-      }) // createTask insert
-      .mockResolvedValueOnce({ rows: [] }) // createTask recordEvent
-      .mockResolvedValueOnce({ rows: [{ status: "failed" }] }) // updateTaskStatus read old
-      .mockResolvedValueOnce({ rows: [] }) // setTaskStatus
-      .mockResolvedValueOnce({ rows: [] }); // recordEvent
+      })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{ status: "failed" }] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] });
     expect(await retryTask(pool, TASK_ID)).toEqual({
       task_id: NEW_ID,
       status: "pending",

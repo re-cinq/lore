@@ -21,9 +21,7 @@ export interface HttpGatewayOptions {
 /** Match the lore-api ingress cap so an authenticated-but-rogue pod can't OOM the gateway. */
 const MAX_BODY_BYTES = 1024 * 1024;
 
-/** Bound the per-session server map so leaked sessions (a pod that drops without
- *  DELETE, so `onclose` never fires) can't grow it without limit. Far above the
- *  handful of concurrent agent pods; hitting it means a leak, so evict the oldest. */
+// Bounds the per-session server map against leaked sessions (a pod that drops without DELETE, so `onclose` never fires); hitting it means a leak, so evict the oldest.
 const MAX_SESSIONS = 1000;
 
 /** An HTTP error carrying the status the gateway should return. */
@@ -40,9 +38,7 @@ function statusOf(err: unknown): number {
   return err instanceof HttpError ? err.status : 500;
 }
 
-/** Read the request body with a hard size cap, then parse it as JSON — a
- *  malformed body is a client error (400), an oversized one is 413; neither
- *  should surface as a 500. Exported for unit testing. */
+// Reads the body with a hard size cap then parses JSON: malformed is 400, oversized is 413 — neither should surface as a 500.
 export async function readJsonBody(req: IncomingMessage): Promise<unknown> {
   const chunks: Buffer[] = [];
   let size = 0;
@@ -79,28 +75,22 @@ function jsonRpcError(res: ServerResponse, status: number, message: string) {
   );
 }
 
-/**
- * A new McpServer + transport per MCP session (an McpServer binds to one
- * transport), tracked by the session id the transport mints on initialize.
- */
+// A new McpServer + transport per MCP session (an McpServer binds to one transport), tracked by the session id the transport mints on initialize.
 function newSession(
   opts: HttpGatewayOptions,
   sessions: Map<string, StreamableHTTPServerTransport>,
 ): StreamableHTTPServerTransport {
-  // Map keeps insertion order, so the first key is the oldest session — evict it
-  // (closing frees its McpServer) rather than let a leak grow the map unbounded.
-  if (sessions.size >= MAX_SESSIONS) {
-    const oldest = sessions.keys().next().value;
+  // Map keeps insertion order, so the first key is the oldest session — evict it rather than let a leak grow the map unbounded.
+  const oldest =
+    sessions.size >= MAX_SESSIONS ? sessions.keys().next().value : undefined;
 
-    if (oldest) {
-      void sessions.get(oldest)?.close();
-      sessions.delete(oldest);
-    }
+  if (oldest) {
+    void sessions.get(oldest)?.close();
+    sessions.delete(oldest);
   }
   const transport = new StreamableHTTPServerTransport({
     sessionIdGenerator: () => randomUUID(),
-    // Lore's tools are request/response, so a single JSON reply is enough —
-    // simpler for clients than an SSE stream.
+    // Lore's tools are request/response, so a single JSON reply is simpler for clients than an SSE stream.
     enableJsonResponse: true,
     onsessioninitialized: (id) => {
       sessions.set(id, transport);
@@ -117,14 +107,10 @@ function newSession(
   return transport;
 }
 
-/**
- * Serve MCP over Streamable HTTP so headless agent pods can reach the same
- * toolset the stdio adapter exposes. One shared gateway; per-session servers.
- */
+// Serves MCP over Streamable HTTP so headless agent pods reach the same toolset the stdio adapter exposes: one shared gateway, per-session servers.
 export function startHttpGateway(opts: HttpGatewayOptions): Server {
   const sessions = new Map<string, StreamableHTTPServerTransport>();
-  // The agent-skills bundle baked into this gateway image (Lore content in a Lore
-  // service). The subsystem init fetches it over /skills; it is not part of MCP.
+  // The agent-skills bundle baked into this gateway image; the subsystem init fetches it over /skills, not part of MCP.
   const skillsRoot =
     process.env.LORE_AGENT_SKILLS_DIR ?? resolve(process.cwd(), "agent-skills");
 
@@ -199,12 +185,13 @@ export function startHttpGateway(opts: HttpGatewayOptions): Server {
     const body = await readJsonBody(req);
     let transport = sessionId ? sessions.get(sessionId) : undefined;
 
-    if (!transport) {
-      if (!isInitializeRequest(body)) {
-        jsonRpcError(res, 400, "No valid session — send initialize first");
+    if (!transport && !isInitializeRequest(body)) {
+      jsonRpcError(res, 400, "No valid session — send initialize first");
 
-        return;
-      }
+      return;
+    }
+
+    if (!transport) {
       transport = newSession(opts, sessions);
     }
     await transport.handleRequest(req, res, body);

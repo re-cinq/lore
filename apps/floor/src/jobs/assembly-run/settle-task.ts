@@ -1,23 +1,10 @@
-// Closing the books on an assembly line's backing task.
-//
-// `finishLine` closes the run row and reclaims the token, but nothing wrote back to
-// pipeline.tasks: an assembly-line-backed task sat at `running` with a NULL
-// failure_reason forever, because the agent-watcher's post-completion handling
-// returns early for node CRs (they carry the assembly-line-id label) and only the
-// synchronous Docker path ever ran finalizeStationRun. A feature-planning round
-// that died in its init container therefore surfaced in the wizard as an endless
-// spinner, then a canned guess about ANTHROPIC_API_KEY.
-//
-// This is the cluster-path twin of finalizeStationRun's checks: the decision is
-// pure, the writes are CAS so a losing racer is a no-op.
+// Closing the books on an assembly line's backing task: `finishLine` reclaims the token but never wrote pipeline.tasks, leaving it stuck `running` (the wizard's endless-spinner bug); this is the cluster-path twin of finalizeStationRun's checks, pure decision + CAS writes so a losing racer is a no-op.
 
 import type { PipelineTask } from "@re-cinq/lore-shared";
 import type { Features } from "@re-cinq/lore-shared/project/features/features.js";
 import { revertFeatureAfterFailure } from "../task/finalize-station-run.js";
 
-/** Task statuses a terminal line may still settle. Anything else (pr-created,
- *  completed, failed, cancelled, merged) is already decided by a path that knows
- *  more than the walk does. */
+/** Task statuses a terminal line may still settle; anything else is already decided by a path that knows more than the walk does. */
 const SETTLEABLE = new Set(["pending", "queued", "running"]);
 
 export interface TaskSettlement {
@@ -44,8 +31,7 @@ export interface SettleTaskDeps {
   featuresFor(repo: string): Promise<{ features: Features }>;
 }
 
-/** What a terminal line means for its task. null = leave it alone: the task is
- *  past settling, or the line deferred to the run that actually holds the branch. */
+/** What a terminal line means for its task; null = leave it alone (past settling, or deferred to the run holding the branch). */
 export function decideTaskSettlement(input: {
   outcome: string;
   reason?: string;
@@ -65,21 +51,11 @@ export function decideTaskSettlement(input: {
   };
 }
 
-/** Mirrors the synchronous Docker path's wording (finalizeStationRun) so a round
- *  reads the same however it ran. */
+/** Mirrors the synchronous Docker path's wording (finalizeStationRun) so a round reads the same however it ran. */
 export const NO_RESULT_REASON =
   "The planning run finished but posted no result — the agent did not produce a result.json the container could POST.";
 
-/**
- * A planning round is only finished when its GapResult actually landed — the pod
- * POSTs it to the features API itself, so a line that ended (however it ended)
- * without one leaves the iteration stuck `running` and the wizard spinning. Mark
- * it failed and drop the feature back per revertFeatureAfterFailure's rule.
- *
- * Returns true when the round produced nothing usable, so the caller can fail the
- * TASK too: a `completed` task over a resultless round is the exact shape that sent
- * the wizard back to guessing, since it leaves no failure_reason to show.
- */
+/** A planning round is only finished when its GapResult landed (the pod POSTs it); a line that ended without one leaves the iteration stuck `running`, so mark it failed and revert the feature. Returns true when the round produced nothing usable, so the caller fails the TASK too rather than leaving no failure_reason to show. */
 async function settlePlanningRound(
   task: PipelineTask,
   deps: SettleTaskDeps,
@@ -106,11 +82,7 @@ async function settlePlanningRound(
   return true;
 }
 
-/**
- * Settle the task behind a line that just reached a terminal state. Safe to call
- * for every line: task-less lines, already-settled tasks, and losing racers all
- * no-op. Never throws — a settle failure must not poison finishLine.
- */
+/** Settle the task behind a line that just reached a terminal state. Safe for every line (task-less, already-settled, losing racers all no-op); never throws — a settle failure must not poison finishLine. */
 export async function settleTaskForLine(
   row: {
     id: string;
@@ -133,9 +105,7 @@ export async function settleTaskForLine(
     if (!task) {
       return;
     }
-    // Captured before the write: the CAS updates the row (and, in-process, the
-    // very object we are holding), so reading it afterwards would report the new
-    // status as the transition's origin.
+    // Captured before the write: the CAS mutates the very object we're holding, so reading afterwards would report the new status as the transition's origin.
     const previousStatus = task.status;
     let settlement = decideTaskSettlement({
       outcome,
@@ -147,21 +117,15 @@ export async function settleTaskForLine(
       return;
     }
 
-    // Settled BEFORE the task write: whether the round produced a result decides
-    // the task's own outcome. A green line whose pod posted nothing is still a
-    // failed round, and saying so here is the difference between the wizard
-    // showing the cause and falling back to a canned guess. (A losing racer may
-    // repeat this write; it is the same value, so it is idempotent.)
-    if (task.task_type === "feature-planning") {
-      const noResult = await settlePlanningRound(task, deps);
+    // Settled BEFORE the task write: whether the round produced a result decides the task's own outcome, so the wizard shows the cause instead of a canned guess (idempotent if a losing racer repeats it).
+    const planningNoResult =
+      task.task_type === "feature-planning" &&
+      (await settlePlanningRound(task, deps));
 
-      if (noResult && settlement.status === "completed") {
-        settlement = { status: "failed", failureReason: NO_RESULT_REASON };
-      }
+    if (planningNoResult && settlement.status === "completed") {
+      settlement = { status: "failed", failureReason: NO_RESULT_REASON };
     }
-    // No spec-analysis objection arm here any more: an analysis that questions the
-    // plan is an EDGE back to the author node (FR6.26), so the line parks on a
-    // person instead of completing and needing a faked task failure to say why.
+    // No spec-analysis objection arm here any more: that's an EDGE back to the author node (FR6.26), parking on a person instead of needing a faked task failure.
     const won = await deps.tasks.setStatusIf(
       task.id,
       previousStatus,

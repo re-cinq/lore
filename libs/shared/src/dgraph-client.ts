@@ -1,9 +1,4 @@
-/**
- * The single runtime seam that constructs a live `dgraph-js-http` client,
- * env-gated on `LORE_DGRAPH_HTTP`. Everything else in the codebase takes an
- * injected `DgraphClientPort` so it stays testable without a real backend.
- * `DgraphClientStub` is lazy — no network call happens on construction.
- */
+/** The single runtime seam constructing a live `dgraph-js-http` client (env-gated on `LORE_DGRAPH_HTTP`); everything else takes an injected `DgraphClientPort`. */
 import * as dgraph from "dgraph-js-http";
 import type { DgraphClientPort } from "./memory-store.js";
 

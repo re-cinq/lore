@@ -1,15 +1,4 @@
-// Reporting a station outcome to the wait node a line is parked on.
-//
-// A `wait` node's worker is a person: the author reviewing a planning round, the
-// reviewer merging a spec PR. Both report the same way — an `assembly_line.resume`
-// event naming the node — so the walk that resumes is the same walk that dispatched
-// the work, and the pause is a step in the graph rather than a gap between runs.
-//
-// This lives here rather than in feature-planning because a parked node is an
-// assembly-line fact. It had two would-be owners: lore-api reported the author's
-// verdict from inside a route module, and merge-check had no way to report anything
-// at all — it minted a fresh task instead, on a predicate that silently stopped
-// matching (specs/6-dark-factory FR6.32).
+// Reports a station outcome to the wait node a line is parked on. A wait node's worker is a person (author, reviewer); both report the same way (an assembly_line.resume event naming the node), so the pause is a graph step, not a gap between runs. Lives here (not feature-planning) since a parked node is an assembly-line fact — merge-check used to mint a fresh task instead, on a predicate that silently stopped matching (specs/6-dark-factory FR6.32).
 
 import type { EventReporter } from "../events/event-queue-port.js";
 import { RUN_RESUME_EVENT } from "./run-events.js";
@@ -25,13 +14,7 @@ export interface ParkedNode {
 /** A line that can still be resumed. A terminal line's node rows are history. */
 const OPEN_STATUSES = new Set(["running", "queued"]);
 
-/**
- * The row `nodeId` is currently parked on, or null.
- *
- * "Parked" is a row for that node with no outcome yet. The NEWEST such row wins: a
- * revisit mints a new (nodeId, iteration) row, and resuming an older open one would
- * report into a walk that has already passed it.
- */
+/** The row nodeId is currently parked on, or null. "Parked" = a row for that node with no outcome yet; the newest such row wins, since a revisit mints a new row and an older open one has already been passed by the walk. */
 export function parkedNode(
   status: string | null,
   nodes: readonly ParkedNode[],
@@ -48,20 +31,7 @@ export function parkedNode(
   );
 }
 
-/**
- * The row parked on a HUMAN station of the given type, or null.
- *
- * Joining on the TYPE from the run's own graph — not on a hardcoded node id — is
- * what survives a blueprint rename: the `pr_merged` join died of exactly that (a
- * declared signal nothing matched, FR6.32), and an id constant is the same
- * fragile key wearing a new name. The plain string compare is deliberate: this
- * package cannot import the human-station registry (`libs/assembly-lines`
- * depends on THIS one), and the caller names the type it waits for anyway.
- *
- * `fallbackNodeId` serves runs stamped before clones existed (graph null) —
- * delete it with the other pre-clone fallbacks. Two graph nodes sharing the type
- * resolve to the newest open row, the same rule as `parkedNode`.
- */
+/** The row parked on a human station of the given type, or null. Joins on TYPE from the run's own graph, not a hardcoded node id — an id constant is the fragile key that killed the pr_merged join (FR6.32). fallbackNodeId serves pre-clone runs (graph null); delete it with the other pre-clone fallbacks. */
 export function parkedHumanNode(
   status: string | null,
   nodes: readonly ParkedNode[],
@@ -94,32 +64,13 @@ export interface ParkedTarget {
   iteration: number;
 }
 
-/**
- * Report a station outcome to a parked node.
- *
- * Deliberately NOT swallowed the way fire-and-forget triggers are: an event that
- * fails to land loses the work, and the caller's 202 would claim it started.
- */
+/** Reports a station outcome to a parked node; deliberately not swallowed like fire-and-forget triggers — a lost event would lose the work while the caller's 202 claimed it started. */
 export async function reportToParkedNode(
   reporter: EventReporter,
   target: ParkedTarget,
   outcome: "success" | "changes_requested" | "failed",
   args: Record<string, unknown> = {},
-  /**
-   * What the worker produced, when it produced more than a decision.
-   *
-   * A HUMAN station reports an outcome and nothing else, which is why this is
-   * optional. A station running in a process produces extras the walk routes on
-   * and a failure class that decides whether a failure spends a retry budget —
-   * omitting them would advance the walk on a result it cannot read.
-   *
-   * `unknown`, not `NodeResult`: assembly-lines depends on THIS package, so
-   * naming its type here would invert the layering and add a phantom dependency
-   * that only resolves because the monorepo hoists. This function's job is to
-   * carry the payload; the Floor validates it on receipt (NodeResultSchema),
-   * which is where a malformed one must fail anyway — it arrives as JSON from
-   * another process, so the sender's type proves nothing about it.
-   */
+  /** What the worker produced beyond a decision; optional since a human station reports only an outcome. `unknown`, not NodeResult, since assembly-lines depends on this package — the Floor validates it on receipt (NodeResultSchema). */
   result?: unknown,
 ): Promise<void> {
   await reporter.insert({

@@ -1,6 +1,3 @@
-// The status-code reading every catch in this service depends on. It is here
-// because the alternative — a bare `catch` — is what let the Floor's missing
-// `delete` verb hide behind 2,686 accumulated CRs for forty days.
 import { describe, it, expect } from "vitest";
 import {
   describeK8sError,
@@ -73,13 +70,7 @@ describe("describeK8sError", () => {
   });
 });
 
-describe("a status carried only in the message", () => {
-  // The shape the client actually throws for a Secret write that lost an
-  // optimistic-concurrency race. Verbatim from production, 2026-08-25: the 409
-  // is nowhere structured, so `code`/`statusCode`/`response.statusCode` are all
-  // undefined and isConflict said false. The mutate() retry that exists for
-  // exactly this case therefore never fired, per-task-tokens 500'd, and no agent
-  // could be launched while several provisioned at once.
+describe("a status carried only in the message, verbatim from the 2026-08-25 production outage", () => {
   const asClientThrowsIt = new Error(
     'HTTP-Code: 409\nMessage: Unknown API Status Code!\nBody: "{\\"kind\\":\\"Status\\",\\"status\\":\\"Failure\\",\\"message\\":\\"Operation cannot be fulfilled on secrets \\\\\\"agent-secrets\\\\\\": the object has been modified\\",\\"reason\\":\\"Conflict\\",\\"code\\":409}"',
   );
@@ -99,9 +90,6 @@ describe("a status carried only in the message", () => {
   });
 
   it("reads no status from a thrown value whose message is not a string", () => {
-    // A rejected non-Error — a bare object, a string — reaches here too. Reading
-    // `.message` off it and handing a non-string to the regex would throw from
-    // inside the classifier that exists to keep failures legible.
     expect([
       isConflict({ message: 409 }),
       isConflict("HTTP-Code: 409"),

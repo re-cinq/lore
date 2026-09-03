@@ -187,9 +187,6 @@ describe("resume_from (fork-and-rerun)", () => {
   });
 
   it("fills blueprintHash from the current definition, so the drift guard has its left-hand side", async () => {
-    // resolveResumePrefix REQUIRES the current definition's hash; the route is
-    // where the definition actually loads. Without this every HTTP fork died as
-    // an opaque 500 ("resume-from start requires definitionHash").
     const { server, calls } = await serverWith(async () => "run-fork");
 
     await server.inject(
@@ -230,9 +227,6 @@ describe("resume_from (fork-and-rerun)", () => {
   });
 
   it("returns 409 carrying the port's refusal instead of an opaque 500", async () => {
-    // The fork's validations (drift, non-terminal source, missing node) throw
-    // ResumeRefusedError before anything is written; the person clicking retry
-    // needs the reason, not "Internal Server Error".
     const { server } = await serverWith(async () => {
       throw new ResumeRefusedError(
         'resume-from source line "run-abc": definition "implementation-loop" has changed since that run (aaaaaaaaaaaa ≠ bbbbbbbbbbbb)',
@@ -256,9 +250,6 @@ describe("resume_from (fork-and-rerun)", () => {
   });
 
   it("lets an unexpected start failure surface as the 500 it is, never a 409", async () => {
-    // Only the port's typed refusals become conflicts — a dropped DB
-    // connection dressed as "the fork was refused" would send the operator
-    // chasing definition drift instead of the outage.
     const { server } = await serverWith(async () => {
       throw new Error("connection terminated unexpectedly");
     });
@@ -326,9 +317,7 @@ describe("resume_from (fork-and-rerun)", () => {
     });
   });
 
-  it("returns 400 when branch rides alongside resume_from", async () => {
-    // The port inherits the source's branch; the route refuses the override
-    // up front rather than letting the port throw a 500-shaped error.
+  it("returns 400 when branch rides alongside resume_from (the port inherits the source's branch)", async () => {
     const { server, calls } = await serverWith(async () => "run-fork");
     const res = await server.inject(
       POST({

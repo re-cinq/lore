@@ -1,21 +1,4 @@
-/**
- * spec-traceability-graph — whole-test-file pruning, the deletion half of the
- * incremental CI ingest (specs/ci-incremental-ingest FR4). An incremental
- * test-report carries only CHANGED tests, so a test's absence stops meaning
- * deletion the way a full report's absence never did either — stale TestChunks
- * simply accumulated. The deleted paths ride beside the report instead, and
- * this deletes their subtrees: every TestChunk of the file (per-test and the
- * file-scoped coverage anchor), the file's TestSuites, the Coverage nodes
- * hanging off those chunks, and the incoming edges that would otherwise
- * dangle — a Statement's/AcceptanceCriterion's `validated_by` and the Repo
- * root's `test_chunks`/`test_suites` (the `<uid> * * .` delete drops only
- * OUTGOING edges; the dangling-Repo-ref lesson is deleteSpecSubtree's).
- * CodeChunks and Files the doomed Coverage covered are garbage-collected
- * through the shared ownership rules, with the doomed Coverage passed as
- * excluded owners so the GC can run before the delete (crash-safe order:
- * everything derived goes first, the chunks last, and a re-run converges
- * because the query keys on file_path, not remembered uids).
- */
+/** Deletes a pruned test file's graph subtree (chunks/suites/coverage + dangling validated_by/Repo edges) for incremental ingest deletion (specs/ci-incremental-ingest FR4); GC runs before delete, keyed on file_path so a re-run converges. */
 
 import type { DgraphClientPort, UidRef } from "./deps.js";
 import { withTxn } from "./dgraph-upsert.js";
@@ -73,24 +56,25 @@ async function queryFileSubtree(
     const criterionEdges: Array<[string, string]> = [];
 
     for (const chunk of chunks) {
-      // `TestChunk.coverage` is the ONLY live edge between a chunk and its
-      // Coverage node — `Coverage.test` is declared in the schema but nothing
-      // writes it, so querying its reverse was dead code.
+      // `TestChunk.coverage` is the only live chunk→Coverage edge; `Coverage.test` is unwritten dead schema.
       if (chunk.covOut) {
         coverageUids.add(chunk.covOut.uid);
-
-        for (const covered of chunk.covOut.covered ?? []) {
-          coveredUids.add(covered.uid);
-        }
+        (chunk.covOut.covered ?? []).forEach((coveredRef) =>
+          coveredUids.add(coveredRef.uid),
+        );
       }
-
-      for (const owner of chunk.stmts ?? []) {
-        statementEdges.push([owner.uid, chunk.uid]);
-      }
-
-      for (const owner of chunk.acs ?? []) {
-        criterionEdges.push([owner.uid, chunk.uid]);
-      }
+      statementEdges.push(
+        ...(chunk.stmts ?? []).map((owner): [string, string] => [
+          owner.uid,
+          chunk.uid,
+        ]),
+      );
+      criterionEdges.push(
+        ...(chunk.acs ?? []).map((owner): [string, string] => [
+          owner.uid,
+          chunk.uid,
+        ]),
+      );
     }
 
     return {
@@ -106,10 +90,7 @@ async function queryFileSubtree(
   });
 }
 
-/**
- * Deletes the graph subtree of each named test file. A file with no graph
- * presence is a no-op, so a re-driven or overlapping prune converges.
- */
+/** Deletes the graph subtree of each named test file; a file with no graph presence is a no-op, so a re-driven or overlapping prune converges. */
 export async function pruneTestFiles(
   dgraph: DgraphClientPort,
   repo: string,
@@ -124,16 +105,13 @@ export async function pruneTestFiles(
       continue;
     }
 
-    // GC before the delete, with the doomed nodes excluded as owners: a
-    // CodeChunk/File still covered by another file's Coverage, or still
-    // implementing a statement, survives.
+    // GC before delete, excluding doomed nodes as owners, so a still-referenced CodeChunk/File survives.
     const excluded = new Set([...doomed.coverageUids, ...doomed.chunkUids]);
 
     await gcOrphanChunks(dgraph, "CodeChunk", doomed.coveredUids, [], excluded);
     await gcOrphanChunks(dgraph, "File", doomed.coveredUids, [], excluded);
 
-    // One atomic mutation on freshly re-queried uids (Dgraph only detects
-    // write-write conflicts, so the double read is the staleness guard).
+    // Re-query uids before the atomic delete mutation — Dgraph only detects write-write conflicts, so this is the staleness guard.
     const target = await queryFileSubtree(dgraph, repo, filePath);
 
     if (!target) {

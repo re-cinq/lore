@@ -13,23 +13,7 @@ import { zodResponse } from "../../../server/plugins/zod-response.js";
 import { zodValidate } from "../../../server/plugins/zod-validate.js";
 import { DB_UNAVAILABLE } from "../common-schemas.js";
 
-/**
- * POST /api/cluster-agents/{id}/catalog-status — a cluster-agent reports what
- * it DID with the entries it last read.
- *
- * The ack cursor already says how far a cluster has read; nothing said whether
- * what it read was applied, refused, or skipped as another writer's. That
- * verdict lived only in the pod's stdout, so a refusal died with the pod — on
- * 2026-09-01 one lasted two hours with no record anywhere, and a satellite
- * refusing every recipe overnight would leave nothing behind at all.
- *
- * Reported SEPARATELY from the ack rather than folded into it: the ack is a
- * GET, and it must stay cheap and side-effect-light so a cluster that cannot
- * report still keeps syncing. A failed report costs visibility, never delivery.
- *
- * Auth is the per-agent bearer token, exactly as claim and catalog-events: a
- * cluster may only report as itself.
- */
+// A cluster-agent reports what it DID with entries it read (applied/refused/skipped/deleted) — previously lived only in pod stdout and died with it (a 2026-09-01 refusal went 2h unrecorded). Reported SEPARATELY from the (GET) ack so a report failure costs visibility, never delivery.
 
 const ReportSchema = z.object({
   reports: z

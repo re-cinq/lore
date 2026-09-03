@@ -69,14 +69,14 @@ throws** — every path returns text.
 
 ## Acceptance Criteria
 
-The API's analytics object is returned to the caller as pretty-printed JSON. ([validated by `returns the API's analytics object as pretty-printed JSON`](apps/mcp-server/src/mcp/tools/usage-tools.test.ts#L116))
+The API's analytics object is returned to the caller as pretty-printed JSON. ([validated by `returns the API's analytics object as pretty-printed JSON`](apps/mcp-server/src/mcp/tools/usage-tools.test.ts#L109))
 
-The requested period is passed through to `/api/analytics`. ([validated by `passes the requested period through to /api/analytics`](apps/mcp-server/src/mcp/tools/usage-tools.test.ts#L131))
+The requested period is passed through to `/api/analytics`. ([validated by `passes the requested period through to /api/analytics`](apps/mcp-server/src/mcp/tools/usage-tools.test.ts#L124))
 
 An unconfigured API yields the not-configured message rather than a
-PostgreSQL message. ([validated by `reports a missing API configuration instead of a PostgreSQL message`](apps/mcp-server/src/mcp/tools/usage-tools.test.ts#L138))
+PostgreSQL message. ([validated by `reports a missing API configuration instead of a PostgreSQL message`](apps/mcp-server/src/mcp/tools/usage-tools.test.ts#L131))
 
-An unreachable API surfaces the underlying failure detail. ([validated by `surfaces the failure detail when the API is unreachable`](apps/mcp-server/src/mcp/tools/usage-tools.test.ts#L146))
+An unreachable API surfaces the underlying failure detail. ([validated by `surfaces the failure detail when the API is unreachable`](apps/mcp-server/src/mcp/tools/usage-tools.test.ts#L139))
 
 ## Out of Scope
 

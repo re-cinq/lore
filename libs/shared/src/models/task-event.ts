@@ -1,13 +1,7 @@
 import { z } from "zod";
 import type { ColumnMap } from "../lib/row.js";
 
-/**
- * `pipeline.task_events` — one status transition of a task.
- *
- * DDL: `scripts/infra/setup-pipeline-schema.sh`. `fromStatus` is null for the
- * row that records a task's creation, which is what makes the trail replayable
- * from nothing rather than from the first change.
- */
+/** `pipeline.task_events` — one status transition of a task; `fromStatus` is null on the creation row, making the trail replayable from nothing rather than from the first change. */
 
 export const TaskEventSchema = z.object({
   id: z.string(),

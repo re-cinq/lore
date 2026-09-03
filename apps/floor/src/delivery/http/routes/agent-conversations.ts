@@ -1,16 +1,6 @@
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { apiError, rethrowBoom } from "../api-error.js";
-// The conversation registry a run pod talks to (ai-agent-subsystem#188).
-//
-// GET  /api/agent-conversations/{id} — the prior run's state archive, which the pod's
-//      init extracts before the agent starts.
-// POST /api/agent-conversations/{id} — this run's own state, saved so a LATER run can
-//      continue it.
-//
-// The bytes go through the ArchivePort that already archives raw run streams, so
-// there is no second blob store and no new retention mechanism; Postgres holds only
-// the index. Auth is `internal-token`, the same kind the pod already uses for
-// /api/agent-events, so the pod needs no new credential.
+// Conversation registry (ai-agent-subsystem#188): GET fetches the prior run's state archive for pod init, POST saves this run's state for a later run; bytes ride the existing ArchivePort, Postgres holds only the index.
 
 import type { ServerRoute } from "@hapi/hapi";
 import { errorMessage } from "@re-cinq/lore-shared";
@@ -30,20 +20,16 @@ export const agentConversationSaveRoute: ServerRoute = {
     const id = request.params.id;
     const archive = conversationArchive();
 
-    // No bucket configured (a laptop without GCS) is not an error: the run still
-    // succeeded, and the only cost is that the NEXT run starts fresh.
+    // No bucket configured (laptop without GCS) is not an error — the next run just starts fresh.
     if (!archive) {
       return h.response({ status: "skipped", reason: "no archive" }).code(202);
     }
-    // rawBytes, never rawBody: a gzip archive through a utf-8 decode loses every
-    // byte above 0x7F to U+FFFD, and the corruption only surfaces later as a tar
-    // that will not extract inside a pod.
+    // rawBytes, never rawBody: a utf-8 decode of gzip bytes corrupts them to a tar that won't extract in a pod.
     const body = rawBytes(request);
     const key = conversationArchiveKey(id);
 
     await archive.save(key, body, { contentType: "application/gzip" });
-    // Reserved at dispatch, so an unknown id means this pod was never told to save
-    // under it — record nothing rather than inventing a row nothing can resolve.
+    // Reserved at dispatch: an unknown id means this pod was never told to save under it, so record nothing.
     const known = await conversations().attachArchive(id, key, body.length);
 
     if (!known) {
@@ -74,12 +60,10 @@ export const agentConversationFetchRoute: ServerRoute = {
 
       return h.response(Buffer.from(bytes)).type("application/gzip").code(200);
     } catch (err) {
-      // A guard above already answered 404 deliberately; only an unexpected
-      // failure belongs in the warn below.
+      // A guard above already answered 404 deliberately; only an unexpected failure reaches here.
       rethrowBoom(err);
 
-      // A failed restore must never fail the RUN — the pod's fetch is best-effort and
-      // degrades to a fresh conversation, so answering 404 keeps that path honest.
+      // A failed restore must never fail the RUN — the pod's fetch is best-effort and degrades to a fresh conversation.
       console.warn(`[agent-conversations] fetch failed: ${errorMessage(err)}`);
 
       return h.response({ error: "not found" }).code(404);

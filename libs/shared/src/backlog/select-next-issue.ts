@@ -1,25 +1,12 @@
 import type { IssueRef } from "../project/lib/github-port.js";
 import { LORE_BLOCKED_LABEL, PRIORITY_LABELS } from "./labels.js";
 
-/**
- * The next ticket the implementation loop should work, or null for an empty
- * backlog (a normal state, not a failure). Pure — the caller supplies the
- * issue records and stays responsible for excluding issues already referenced
- * by an open Lore-authored PR.
- *
- * Eligible = open, exactly one `priority:*` label, no `lore:blocked`. More
- * than one priority label is ineligible on purpose: the ambiguity surfaces to
- * a human instead of being guessed at. Order: high → medium → low, ties by
- * oldest createdAt (undated candidates sort last). The FR1 "no open
- * Lore-authored PR" clause is the loop driver's guard, not a filter here — it
- * needs task and PR state this function deliberately does not see.
- */
+/** Next backlog ticket, or null for an empty backlog (normal, not a failure); pure. Eligible = open + exactly one priority:* label + no lore:blocked, ordered high→medium→low then oldest createdAt; the FR1 "no open Lore PR" filter is the loop driver's job, not this function's. */
 export function selectNextIssue(issues: readonly IssueRef[]): IssueRef | null {
   return orderBacklog(issues)[0] ?? null;
 }
 
-/** The whole eligible queue in pick order — what the repo tab renders as
- *  "next up" (FR9/FR10). Same eligibility and ordering as the picker. */
+/** The whole eligible queue in pick order — the repo tab's "next up" (FR9/FR10); same eligibility and ordering as the picker. */
 export function orderBacklog(issues: readonly IssueRef[]): IssueRef[] {
   const eligible = issues.flatMap((issue) => {
     if (issue.state !== "open") {
@@ -43,8 +30,7 @@ export function orderBacklog(issues: readonly IssueRef[]): IssueRef[] {
   return eligible.map((c) => c.issue);
 }
 
-/** Plain lexicographic compare — correct for ISO timestamps, and not subject
- *  to whatever collation locale the process happens to run under. */
+/** Plain lexicographic compare — correct for ISO timestamps, and not subject to the process's collation locale. */
 function compareIso(a: string, b: string): number {
   if (a < b) {
     return -1;

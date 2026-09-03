@@ -1,13 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { featureDirOf } from "./feature-dir.js";
 
-/**
- * featureDirOf groups a spec file's path to the feature folder that owns it — the
- * node the UI hangs every `.md` of one speckit folder under. Deeper nesting under
- * `specs/<feature>/` collapses to the feature folder; non-`specs/` trees group by
- * their immediate directory; a root-level file has no feature.
- */
-describe("featureDirOf", () => {
+describe("featureDirOf — groups a spec path to its owning feature folder", () => {
   it("returns specs/1-lore-platform for a spec.md inside that feature folder", () => {
     expect(featureDirOf("specs/1-lore-platform/spec.md")).toBe(
       "specs/1-lore-platform",

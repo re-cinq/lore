@@ -74,10 +74,10 @@ remote-error message, the `"invalid status: …"` message, the pretty-printed
 ## Acceptance Criteria
 
 With no filter, all tasks are returned alongside a total count.
-([validated by `pipeline-crud.test.ts:48`](apps/mcp-server/src/features/pipeline/pipeline-crud.test.ts#L48))
+([validated by `pipeline-crud.test.ts:40`](apps/mcp-server/src/features/pipeline/pipeline-crud.test.ts#L40))
 
 With a status filter, only matching rows and their total are returned.
-([validated by `pipeline-crud.test.ts:60`](apps/mcp-server/src/features/pipeline/pipeline-crud.test.ts#L60))
+([validated by `pipeline-crud.test.ts:52`](apps/mcp-server/src/features/pipeline/pipeline-crud.test.ts#L52))
 
 An invalid status string is rejected with the list of valid values.
 *(untested: the status allowlist check is inline in the handler closure and not separately exported.)*

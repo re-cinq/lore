@@ -1,11 +1,3 @@
-// The GCS archive retirement (#1148): with pipeline.agent_run_turns holding the
-// full redacted stream (specs/turn-level-transcript-store), the sink's durable
-// outputs are exactly the three Postgres row families — cost, projection, turns
-// — and it writes no object-storage copy. A separate file from
-// agent-events.test.ts for the same reason agent-events-turns.test.ts is: that
-// file carries #L anchors from other specs, and widening its module mock in
-// place would shift every anchor below it.
-
 import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
 import { buildServer } from "../server.js";
 
@@ -15,7 +7,6 @@ const insertTurns = vi.fn();
 const write = vi.fn();
 
 vi.mock("../../../kernel/queues.js", () => ({
-  // The logs route resolves the cluster agent from here.
   clusterAgent: () => ({}),
   usage: () => ({ logLlmCall }),
   agentRunEvents: () => ({ insertBatch }),
@@ -23,10 +14,6 @@ vi.mock("../../../kernel/queues.js", () => ({
   auditLog: () => ({ write }),
 }));
 
-// Spies on the ONE GCS adapter in the codebase, so the guard catches a
-// re-added kernel/archives singleton call and a direct `new GcsArchive(...)`
-// alike. Today nothing in the route's import graph touches it, so the mock
-// never even instantiates — it arms the moment a regression pulls it back in.
 const save = vi.fn(() => Promise.resolve());
 const gcsConstructed = vi.fn();
 
@@ -79,8 +66,8 @@ afterEach(() => {
   process.env.LORE_AGENT_INTERNAL_TOKEN = ORIG_TOKEN;
 });
 
-describe("POST /api/agent-events object-storage retirement", () => {
-  it("ingests a batch without writing any object-storage copy", async () => {
+describe("POST /api/agent-events object-storage retirement (#1148: agent_run_turns now holds the full redacted stream, so cost/projection/turns are the only durable outputs)", () => {
+  it("ingests a batch without instantiating or writing through the GcsArchive adapter, catching a regression that re-adds it", async () => {
     const res = await post(RESULT_LINE);
 
     expect(res.statusCode).toBe(200);

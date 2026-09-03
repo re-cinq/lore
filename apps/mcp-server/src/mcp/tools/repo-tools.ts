@@ -19,9 +19,7 @@ export function registerRepoTools(server: McpServer) {
     `Lists every repo onboarded into Lore as JSON ({ repos, total }) with per-repo metadata and pipeline task count. Pages through all repos automatically. Instead: to add a repo use lore_onboard_repo; to list pipeline tasks use lore_list_pipeline_tasks.`,
     {},
     async () => {
-      // The API caps a single response at 100, so walk the offset until every
-      // onboarded repo is collected — an org with >100 repos would otherwise
-      // silently see only the first page.
+      // The API caps a single response at 100, so walk the offset — an org with >100 repos would otherwise silently see only the first page.
       const pageSize = 100;
       const repos: unknown[] = [];
       let total: number;
@@ -31,17 +29,17 @@ export function registerRepoTools(server: McpServer) {
           `/api/repos?limit=${pageSize}&offset=${offset}`,
         );
 
+        if (!proxied.ok && proxied.reason === "not_configured") {
+          return {
+            content: [{ type: "text" as const, text: NOT_CONFIGURED }],
+          };
+        }
+
+        if (!proxied.ok && proxied.reason === "denied") {
+          return deniedError("lore_list_repos", proxied.detail);
+        }
+
         if (!proxied.ok) {
-          if (proxied.reason === "not_configured") {
-            return {
-              content: [{ type: "text" as const, text: NOT_CONFIGURED }],
-            };
-          }
-
-          if (proxied.reason === "denied") {
-            return deniedError("lore_list_repos", proxied.detail);
-          }
-
           return unreachableError("lore_list_repos", proxied.detail);
         }
         const body = JSON.parse(proxied.body) as {
@@ -112,10 +110,7 @@ export function registerRepoTools(server: McpServer) {
         return deniedError("lore_onboard_repo", proxied.detail);
       }
 
-      // A 409 is the guard refusing a duplicate: an authoritative answer about
-      // existing state, not an outage. Return the server's body verbatim so the
-      // caller keeps `blocked` and the in-flight `task_id` — enough to poll that
-      // task or pass reonboard — instead of being told to retry a healthy API.
+      // A 409 is the guard refusing a duplicate, not an outage — return the body verbatim so the caller keeps `blocked`/`task_id` to poll or pass reonboard.
       if (proxied.status === 409 && proxied.body) {
         return { content: [{ type: "text" as const, text: proxied.body }] };
       }

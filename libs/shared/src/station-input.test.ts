@@ -5,10 +5,6 @@ import {
   type StationInput,
 } from "./station-input.js";
 
-// This used to live beside the pod entrypoint, next to a SECOND declaration of the
-// shape, with a comment asking whoever edited it to keep two fixtures "in
-// lockstep" by hand. One module owns the shape now, so lockstep is the type
-// system's job rather than a reader's.
 const floorEmitted = JSON.stringify({
   assembly_run_id: "a1b2c3d4e5f6a7b8",
   node_id: "validate",
@@ -65,16 +61,10 @@ describe("serializeStationInput", () => {
   };
 
   it("round-trips through the reader, which is what makes the two sides one", () => {
-    // The drift this replaces: the Floor spelled the shape in an object literal
-    // and the pod re-spelled it in a schema, so a rename on one side passed both
-    // suites and failed every station run. Writing and reading through the same
-    // module makes that a compile error.
     expect(parseStationInput(serializeStationInput(input))).toEqual(input);
   });
 
-  it("rejects an input the contract forbids, at DISPATCH rather than inside a pod", () => {
-    // An empty repo is a Floor bug. Learning it here beats learning it from a
-    // pod's logs after the run has already been dispatched and charged for.
+  it("rejects an empty repo at dispatch time rather than inside a pod", () => {
     expect(() => serializeStationInput({ ...input, repo: "" })).toThrow();
   });
 });

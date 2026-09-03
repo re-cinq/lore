@@ -10,10 +10,7 @@ describe("initPool", () => {
     await pool?.end();
   });
 
-  // With no "error" listener attached, EventEmitter's emit("error") throws
-  // synchronously — this test reaching its assertion proves the process
-  // survives an idle-client failure instead of crashing (#1044).
-  it("logs an emitted pool error instead of crashing the process", () => {
+  it("logs an emitted pool error instead of crashing the process on an idle-client failure (#1044)", () => {
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
     pool = initPool();

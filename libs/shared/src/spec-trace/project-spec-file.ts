@@ -1,35 +1,4 @@
-/**
- * spec-traceability-graph — Phase 1 projection unit.
- *
- * Projects one spec file into the Dgraph traceability graph:
- *   - a Repo root node (xid = repo),
- *   - a Spec child (xid = `${repo}|${filePath}`) carrying the content hash,
- *   - one Section node per unique enclosing heading in document order
- *     (xid = `${repo}|${filePath}|${sectionOrdinal}`), reachable from the Spec
- *     via `Spec.sections`,
- *   - one Statement node per segment (xid = `${repo}|${filePath}|${ordinal}`),
- *     carrying its heuristic classification (`kind`, `testability`, and
- *     `category` when present), linked back to the Spec via `Statement.spec`
- *     and (when it sits under a heading) to its Section via `Statement.section`,
- *   - a TestChunk node (xid = `${repo}|${path}|${line ?? label}`) per inline
- *     test link, attached to its Statement via `Statement.validated_by`,
- *   - a CodeChunk node (same xid scheme) per inline code link, attached to its
- *     Statement via `Statement.implemented_by`,
- *   - one AcceptanceCriterion node per segment under the "Acceptance Criteria"
- *     heading (xid = `${repo}|${filePath}|ac|${ordinal}`), reachable from the
- *     Spec via `Spec.acceptance_criteria`; these segments are projected as
- *     AcceptanceCriterion nodes instead of Statements,
- *   - one Block node per source block (xid = `${repo}|${filePath}|block|${ordinal}`)
- *     forming the lossless source layer, reachable from the Spec via `Block.spec`.
- *
- * Freshness gate: before any write, the persisted `Spec.content_hash` is
- * compared to `sha256(content)`. An unchanged hash is a no-op — nothing is
- * upserted and `{ projected: false }` is returned. Otherwise the file is
- * projected and `{ projected: true }` is returned.
- *
- * Deferred to later facets: idempotent re-projection pruning. Talks only to the
- * injected DgraphClientPort; never imports the driver.
- */
+/** Phase 1 projection unit: projects one spec file into the Dgraph traceability graph (Repo/Spec/Section/Statement/TestChunk/CodeChunk/AcceptanceCriterion/Block), gated by a `Spec.content_hash` freshness check. */
 
 import { createHash } from "node:crypto";
 import {
@@ -42,12 +11,7 @@ import {
 } from "./deps.js";
 import type { Classification, DgraphClientPort, SpecLinkRef } from "./deps.js";
 
-/**
- * Embeds a statement/criterion's text into the float32vector stored on its node,
- * powering drift severity and vector candidate suggestion. Defaults to the shared
- * Vertex singleton; injected as a seam so projection stays deterministic + offline
- * in tests (and degrades to no embedding when the embedder returns null).
- */
+/** Embeds a statement/criterion's text into its node's float32vector; injected as a seam so projection stays deterministic + offline in tests. */
 type EmbedFn = (text: string) => Promise<number[] | null>;
 
 /** Dgraph float32vector literal: the array serialized as a `"[a,b,c]"` string. */
@@ -71,13 +35,7 @@ import { fileScopedTestChunkXid } from "./test-chunk-identity.js";
 import { gcOrphanChunks } from "./gc-orphan-chunks.js";
 import { featureDirOf } from "./feature-dir.js";
 
-/**
- * The fixed addressing context for one spec-file projection: the injected
- * Dgraph port plus the `repo`/`filePath` that key every node's xid and the
- * already-upserted `specUid` that children link back to. Threaded into each
- * per-facet projector so call sites carry one struct instead of a four-arg
- * prefix.
- */
+/** Fixed addressing context for one spec-file projection, threaded into each per-facet projector instead of a four-arg prefix. */
 interface ProjectionContext {
   dgraph: DgraphClientPort;
   repo: string;
@@ -98,12 +56,7 @@ function extractTitle(content: string): string | null {
   return match ? match[1] : null;
 }
 
-/**
- * Upserts the Feature node for this spec's owning folder (xid `${repo}|${featureDir}`)
- * and returns its uid for the `Spec.feature` edge — so every md file in one speckit
- * folder groups under a single UI node. A root-level spec (no feature folder) writes
- * no Feature and returns undefined.
- */
+/** Upserts the Feature node for this spec's owning folder, returning its uid for `Spec.feature` (undefined for a root-level spec with no feature folder). */
 async function projectFeature(
   dgraph: DgraphClientPort,
   repo: string,
@@ -122,13 +75,7 @@ async function projectFeature(
   });
 }
 
-/**
- * Segments under an acceptance-criteria heading become AcceptanceCriterion nodes,
- * not Statements. Matches the title variants in use across specs — `Acceptance
- * Criteria`, `Success Criteria`, `Independent Test Criteria`, and `… & Acceptance
- * Criteria` wrappers — under any heading level / case / trailing colon / bold, so
- * they all fall into the one AcceptanceCriterion category.
- */
+/** True for any heading-variant title used across specs for acceptance/success/independent-test criteria — those segments project as AcceptanceCriterion, not Statement. */
 export function isAcceptanceCriteriaHeading(heading: string | null): boolean {
   if (!heading) {
     return false;
@@ -164,12 +111,7 @@ async function readSpecContentHash(
 /** One segment as produced by {@link segmentStatements}. */
 type SpecSegment = ReturnType<typeof segmentStatements>[number];
 
-/**
- * Upserts a Section per unique enclosing heading in document order and points
- * the Spec at them via `Spec.sections`. Returns a map from heading text to the
- * Section uid so statements can attach to their Section. Headingless specs
- * yield an empty map and write no Section nodes.
- */
+/** Upserts a Section per unique enclosing heading in document order, points `Spec.sections` at them, and returns heading→uid so statements can attach. */
 async function projectSections(
   context: ProjectionContext,
   segments: SpecSegment[],
@@ -226,16 +168,7 @@ const fileScopedXid: ChunkXid = (repo, link) =>
 const lineScopedXid: ChunkXid = (repo, link) =>
   `${repo}|${link.path}|${link.line ?? link.label}`;
 
-/**
- * Parses the inline links in `text`, upserts one chunk node of `nodeType` per
- * link (keyed `${repo}|${chunkKey(link)}`), and returns their uids as edge refs.
- * Every chunk carries `<Type>.repo`/`<Type>.file_path` plus `<Type>.start_line`
- * when the link has a `#L` anchor; `extraFields` adds any node-specific
- * predicates (e.g. TestChunk's `test_name`/`link_label`). Shared by the
- * `validated_by` (TestChunk, file-scoped) and `implemented_by` (CodeChunk,
- * line-scoped) facets — the key granularity differs so TestChunks reconcile with
- * the file-granular runner ingest.
- */
+/** Parses inline links in `text`, upserts one chunk node of `nodeType` per link, and returns their uids; shared by the file-scoped `validated_by` (TestChunk) and line-scoped `implemented_by` (CodeChunk) facets. */
 async function projectLinkedChunks(
   context: ProjectionContext,
   text: string,
@@ -248,8 +181,7 @@ async function projectLinkedChunks(
   const edgeRefs: Array<{ uid: string }> = [];
 
   for (const parsed of parse(text)) {
-    // Resolve the authored target to a repo-relative path so xids/coverage joins
-    // line up; skip anchors and repo-escaping paths that aren't real files.
+    // Resolve to a repo-relative path for xid/coverage joins; skips anchors and repo-escaping paths.
     const path = repoRelativeLinkTarget(filePath, parsed.path);
 
     if (path === null) {
@@ -274,24 +206,13 @@ async function projectLinkedChunks(
   return edgeRefs;
 }
 
-/**
- * The `validated_by`/`implemented_by` predicate names for one owner node type
- * (Statement or AcceptanceCriterion). Both facets link to the same TestChunk /
- * CodeChunk identities; only the owning predicate differs.
- */
+/** The `validated_by`/`implemented_by` predicate names for one owner node type (Statement or AcceptanceCriterion). */
 interface LinkPredicates {
   validatedBy: string;
   implementedBy: string;
 }
 
-/**
- * Projects a text's inline links onto an owner node: TestChunks via the owner's
- * `validated_by` predicate (file-scoped xid) and CodeChunks via `implemented_by`
- * (line-scoped xid). Edges are REPLACED (delete-then-set) so a re-projection that
- * changed the inline links can't set-union stale chunk refs, and dropped chunks
- * are orphan-GC'd. Shared verbatim by {@link projectStatement} and
- * {@link projectAcceptanceCriterion} — only `predicates` differs.
- */
+/** Projects a text's inline links onto an owner node's TestChunk/CodeChunk edges, REPLACING them (not set-union) so re-projection can't leave stale refs; dropped chunks are orphan-GC'd. */
 async function projectLinkEdges(
   context: ProjectionContext,
   ownerUid: string,
@@ -325,9 +246,7 @@ async function projectLinkEdges(
   await replaceEdge(dgraph, ownerUid, predicates.validatedBy, newValidated);
   await replaceEdge(dgraph, ownerUid, predicates.implementedBy, newImplemented);
 
-  // A chunk this owner just unlinked is deleted only if NOTHING else owns it
-  // (another statement's link, or — for code — a Coverage). Scoped to the dropped
-  // uids so it never touches chunks the ingest paths created and left unlinked.
+  // A dropped chunk is deleted only if nothing else owns it (another link, or a Coverage row).
   await gcOrphanChunks(
     dgraph,
     "TestChunk",
@@ -342,12 +261,7 @@ async function projectLinkEdges(
   );
 }
 
-/**
- * Upserts one Statement, its inline-link chunks (TestChunks via
- * `Statement.validated_by`, CodeChunks via `Statement.implemented_by`), and its
- * `Statement.section` edge when the segment sits under a heading. Linked back to
- * the Spec via `Statement.spec`.
- */
+/** Upserts one Statement, its inline-link chunks, and its `Statement.section` edge when the segment sits under a heading. */
 async function projectStatement(
   context: ProjectionContext,
   segment: SpecSegment,
@@ -388,12 +302,7 @@ async function projectStatement(
     implementedBy: "Statement.implemented_by",
   });
 
-  // DECIDED_BY: a statement that cites an ADR ("per ADR-016") links to that ADR
-  // node by number — the "why". Best-effort: only ADRs already projected resolve.
-  // specs and adrs project as independent (parallel) CI jobs, so when a spec and
-  // the ADR it cites land in the same push the edge may attach on a later run
-  // (the next time that spec changes, or a force re-projection); in steady state
-  // the ADR is already in the graph from a prior push and resolves immediately.
+  // DECIDED_BY: links a cited ADR by number, best-effort — specs/adrs project in parallel CI jobs, so an ADR cited in the same push may attach only on a later run.
   const adrRefs = parseAdrRefs(segment.text);
 
   if (adrRefs.length > 0) {
@@ -459,16 +368,7 @@ async function readLinkTargets(
   });
 }
 
-/**
- * Deletes every child node of `nodeType` currently linked to this Spec whose xid
- * is not in `validXids` — the orphans left behind when a re-projection drops a
- * child (e.g. a removed Statement, Section, or AcceptanceCriterion). The sweep
- * walks the reverse `~<Type>.spec` edge from the Spec, so it generalizes across
- * every spec-owned facet that links back via `<Type>.spec`. Upsert-by-xid alone
- * never removes nodes, so this reverse-edge sweep is what keeps re-projection
- * idempotent. `nodeType` is a trusted internal constant, never user input, so it
- * is safe to interpolate into the query predicates.
- */
+/** Deletes every `nodeType` child linked to this Spec whose xid isn't in `validXids` — upsert-by-xid never removes nodes, so this reverse-edge sweep is what keeps re-projection idempotent. */
 async function pruneOrphans(
   context: ProjectionContext,
   nodeType: SpecTraceNodeType,
@@ -492,33 +392,22 @@ async function pruneOrphans(
       .filter((child) => !validXids.has(child[xidPredicate]))
       .map((child) => child.uid);
 
-    if (orphanUids.length) {
-      // `<uid> * * .` drops the orphan node's outgoing edges, but the Spec keeps a
-      // forward `[uid]` edge (Spec.sections / Spec.acceptance_criteria) that Dgraph
-      // set-unions on upsert, so a removed child lingers there as a dangling ref
-      // unless its forward edge is deleted too.
-      const deletes = orphanUids.map((uid) => `<${uid}> * * .`);
-
-      if (forwardEdge) {
-        deletes.push(
-          ...orphanUids.map(
-            (uid) => `<${specUid}> <${forwardEdge}> <${uid}> .`,
-          ),
-        );
-      }
-      await txn.mutate({ deleteNquads: deletes.join("\n"), commitNow: true });
+    if (orphanUids.length === 0) {
+      return;
     }
+    // The Spec's forward edge (Spec.sections / acceptance_criteria) set-unions on upsert, so it must be deleted too or the orphan lingers as a dangling ref.
+    const deletes = orphanUids.map((uid) => `<${uid}> * * .`);
+
+    if (forwardEdge) {
+      deletes.push(
+        ...orphanUids.map((uid) => `<${specUid}> <${forwardEdge}> <${uid}> .`),
+      );
+    }
+    await txn.mutate({ deleteNquads: deletes.join("\n"), commitNow: true });
   });
 }
 
-/**
- * Upserts one AcceptanceCriterion node (xid = `${repo}|${filePath}|ac|${ordinal}`)
- * carrying its verbatim text + text_hash, linked back to the Spec via
- * `AcceptanceCriterion.spec`, plus its inline-link chunks (TestChunks via
- * `AcceptanceCriterion.validated_by`, CodeChunks via `AcceptanceCriterion.implemented_by`)
- * through the shared {@link projectLinkEdges}. Returns its uid for the forward
- * `Spec.acceptance_criteria` edge.
- */
+/** Upserts one AcceptanceCriterion node plus its inline-link chunks, returning its uid for the forward `Spec.acceptance_criteria` edge. */
 async function projectAcceptanceCriterion(
   context: ProjectionContext,
   segment: SpecSegment,
@@ -549,12 +438,7 @@ async function projectAcceptanceCriterion(
   return criterionUid;
 }
 
-/**
- * Upserts an AcceptanceCriterion per "Acceptance Criteria" segment and points
- * the Spec at them via `Spec.acceptance_criteria`. Specs without any such
- * segments write no nodes and leave the edge untouched. Parallel to
- * {@link projectSections}.
- */
+/** Upserts an AcceptanceCriterion per "Acceptance Criteria" segment and points `Spec.acceptance_criteria` at them; specs without any leave the edge untouched. */
 async function projectAcceptanceCriteria(
   context: ProjectionContext,
   acSegments: SpecSegment[],
@@ -573,16 +457,7 @@ async function projectAcceptanceCriteria(
   }
 }
 
-/**
- * Projects the lossless source layer via the shared {@link projectDocumentBlocks}
- * writer — one Block node per source block, linked back to the Spec via
- * `Block.spec` and also carrying `Block.file_path` — then prunes the Blocks that
- * a re-projection orphaned. Pruning goes through the file-scoped
- * {@link pruneOrphanBlocksByFile}, the single authoritative Block sweep shared
- * with the ADR path: every Block carries `Block.file_path`, so the `(file_path,
- * repo)` index reaches the same Blocks the `~Block.spec` reverse edge would,
- * without needing a Spec parent.
- */
+/** Projects the lossless Block source layer via the shared writer, then prunes orphaned Blocks through the file-scoped sweep shared with the ADR path. */
 async function projectBlocks(
   context: ProjectionContext,
   content: string,
@@ -625,11 +500,7 @@ export async function projectSpecFile(
     ...(featureUid ? { "Spec.feature": { uid: featureUid } } : {}),
   });
 
-  // The hash is a completed-projection receipt, not an attempted-projection
-  // marker: clear it now and persist it only after every child write below
-  // succeeds. A projection that dies mid-file (txn abort under contention)
-  // then leaves the gate open, so the next attempt re-projects the whole
-  // file — hash-first left files permanently skipped with partial children.
+  // Clear the hash now, persist only after every child write succeeds — otherwise a mid-file death leaves the file permanently skipped with partial children.
   await deletePredicate(dgraph, specUid, "Spec.content_hash");
 
   await upsertByXid(dgraph, "Repo", repo, { "Repo.specs": [{ uid: specUid }] });

@@ -5,10 +5,6 @@ import {
   computeCost,
 } from "./anthropic-provider.js";
 
-// getCacheControl latches LORE_CACHE_1H_JOBS at module load, so these tests
-// exercise the default allowlist: a 5m breakpoint ({type:"ephemeral"}) for an
-// unlisted/absent job, a 1h breakpoint for a default-eligible job.
-
 describe("buildCacheableSystem", () => {
   it("puts a cache_control breakpoint on the system block", () => {
     const blocks = buildCacheableSystem("You are a helpful assistant.");
@@ -22,10 +18,7 @@ describe("buildCacheableSystem", () => {
     ]);
   });
 
-  it("uses the 1h breakpoint for a default-eligible job", () => {
-    // getCacheControl latches LORE_CACHE_1H_JOBS at module load; an overriding
-    // env would make the default-eligible 1h path unreachable, so skip rather
-    // than fail spuriously (CI runs with the var unset).
+  it("uses the 1h breakpoint for a default-eligible job when LORE_CACHE_1H_JOBS is unset (CI's baseline)", () => {
     if (process.env.LORE_CACHE_1H_JOBS !== undefined) {
       return;
     }

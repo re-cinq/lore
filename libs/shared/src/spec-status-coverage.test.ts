@@ -10,23 +10,21 @@ import {
 
 const LINK = "([validated by](payments.test.ts#L10))";
 
-// Intro prose under the H1 anchors `buildIntroOrdinals` to the H1, so the two
-// requirement sentences land on lines 11 and 13 as testable statements.
 const spec = (status: string) =>
   [
-    "# My Feature", // 1
-    "", // 2
-    "Intro paragraph describing the feature.", // 3
-    "", // 4
-    "| Field | Value |", // 5
-    "|---|---|", // 6
-    `| Status | ${status} |`, // 7
-    "", // 8
-    "## Functional Requirements", // 9
-    "", // 10
-    "The system returns a receipt for every payment.", // 11
-    "", // 12
-    "The system emails the receipt to the payer.", // 13
+    "# My Feature",
+    "",
+    "Intro paragraph describing the feature.",
+    "",
+    "| Field | Value |",
+    "|---|---|",
+    `| Status | ${status} |`,
+    "",
+    "## Functional Requirements",
+    "",
+    "The system returns a receipt for every payment.",
+    "",
+    "The system emails the receipt to the payer.",
   ].join("\n");
 
 const linkFirst = (content: string) =>
@@ -34,7 +32,6 @@ const linkFirst = (content: string) =>
 const linkSecond = (content: string) =>
   content.replace("to the payer.", `to the payer. ${LINK}`);
 
-// Every non-intro statement sits under a narrative heading — nothing testable.
 const narrativeOnly = [
   "# My Feature",
   "",

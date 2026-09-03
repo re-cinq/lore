@@ -1,13 +1,4 @@
-/**
- * Business-hours gating for safety-net crons.
- *
- * Env vars:
- *   LORE_BUSINESS_HOURS_TZ     IANA zone (default "Europe/Berlin")
- *   LORE_BUSINESS_HOURS_START  inclusive start hour 0-23 (default "9")
- *   LORE_BUSINESS_HOURS_END    exclusive end hour 0-23 (default "18")
- *   LORE_BUSINESS_DAYS         comma-separated ISO weekday numbers,
- *                              Mon=1..Sun=7 (default "1,2,3,4,5")
- */
+/** Business-hours gating for safety-net crons, via LORE_BUSINESS_HOURS_{TZ,START,END}/LORE_BUSINESS_DAYS (default Europe/Berlin 9-18 Mon-Fri). */
 
 function parseHour(raw: string | undefined, fallback: number): number {
   const n = raw ? parseInt(raw, 10) : NaN;
@@ -40,7 +31,6 @@ export function isBusinessHours(now: Date = new Date()): boolean {
   const end = parseHour(process.env.LORE_BUSINESS_HOURS_END, 18);
   const days = parseDays(process.env.LORE_BUSINESS_DAYS);
 
-  // Extract hour + weekday in the configured timezone.
   const parts = new Intl.DateTimeFormat("en-US", {
     timeZone: tz,
     hour: "numeric",

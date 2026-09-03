@@ -1,9 +1,6 @@
 import type { ReviewComment } from "./project/pulls/pull-requests-port.js";
 
-/**
- * Human-readable description for the implementation task that addresses review
- * feedback. Replaces dumping the raw runner log into the task description.
- */
+/** Human-readable description for the implementation task addressing review feedback; replaces dumping the raw runner log into the task description. */
 export function buildReviewFixDescription(opts: {
   prNumber: number | null;
   iteration: number;

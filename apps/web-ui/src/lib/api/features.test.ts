@@ -1,10 +1,4 @@
 // @vitest-environment node
-//
-// The paths and body field names ARE the contract with lore-api. A rename on
-// either side is silent otherwise: `apiFetch` reports failure in its return value,
-// and a server action that ignores it turns a 404 into a page that looks like it
-// worked.
-
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 vi.mock("server-only", () => ({}));
@@ -80,18 +74,14 @@ describe("refineFeature", () => {
 });
 
 describe("createSpecFile", () => {
-  it("posts the author's answers to the feature's create-spec-file path", async () => {
+  it("posts the author's answers to create-spec-file (not /finalize — a human still reviews the resulting spec PR)", async () => {
     await createSpecFile("re-cinq/lore", "f1", {
       free_form: "drop the poller",
     });
 
-    // Not `/finalize`: nothing is final here — the run moves to the next station
-    // and a human still reviews the spec PR that comes out.
     expect(url()).toEqual(
       "http://api:3000/api/repos/re-cinq/lore/features/f1/create-spec-file",
     );
-    // The author fills the form and accepts in one motion; an empty body here
-    // dropped the last thing they said before the plan became a spec.
     expect(body()).toEqual({
       user_answers: { free_form: "drop the poller" },
     });

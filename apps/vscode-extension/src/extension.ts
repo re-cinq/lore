@@ -5,6 +5,7 @@ import {
   buildLocalIndex,
   buildCoverageIndex,
   mergeIndexes,
+  type LinkTarget,
   type SpecCodeIndex,
   type SpecSource,
 } from "./spec-index.js";
@@ -156,6 +157,25 @@ function applyToVisibleEditors(): void {
   }
 }
 
+function linkLenses(
+  range: vscode.Range,
+  targets: LinkTarget[],
+): vscode.CodeLens[] {
+  return targets.map(
+    (target) =>
+      new vscode.CodeLens(range, {
+        title: `$(link) ${target.label}`,
+        command: "lore.openLocal",
+        arguments: [
+          {
+            path: target.path,
+            line: target.line ?? 1,
+          } satisfies OpenLocalArgs,
+        ],
+      }),
+  );
+}
+
 const lensProvider: vscode.CodeLensProvider = {
   onDidChangeCodeLenses: lensesChanged.event,
   provideCodeLenses(document) {
@@ -165,20 +185,7 @@ const lensProvider: vscode.CodeLensProvider = {
     for (const lens of specLenses(document.getText())) {
       const range = document.lineAt(Math.min(lens.line, lastLine)).range;
 
-      for (const target of [...lens.tests, ...lens.code]) {
-        lenses.push(
-          new vscode.CodeLens(range, {
-            title: `$(link) ${target.label}`,
-            command: "lore.openLocal",
-            arguments: [
-              {
-                path: target.path,
-                line: target.line ?? 1,
-              } satisfies OpenLocalArgs,
-            ],
-          }),
-        );
-      }
+      lenses.push(...linkLenses(range, [...lens.tests, ...lens.code]));
     }
 
     return lenses;

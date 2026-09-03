@@ -1,13 +1,4 @@
-// What the Floor owes a node that has gone terminal, in the one order that
-// survives a redelivery. Shared by the node-event handler (the normal path) and
-// the reaper (the dropped-event path) — the reaper used to finish nodes without
-// posting anything, so a review that arrived through the slower door was lost
-// exactly as if it had never run.
-//
-// Order matters: `finishNodeAndAdvance` can finish the line, and both callers
-// early-return on a non-running row, so anything posted after it can never be
-// repaired by a retry. Post first, then transition, then publish the check (which
-// reads the post-transition terminal state).
+// Post first, then transition, then publish the check: finishNodeAndAdvance can finish the line and both callers early-return on a non-running row, so anything posted after can't be repaired by a retry — shared by the node-event handler and the reaper so the dropped-event path stops silently losing reviews.
 
 import {
   agentStderrError,
@@ -41,33 +32,12 @@ import type {
 } from "@re-cinq/lore-shared/project/pulls/pull-requests-port.js";
 import { findThreadForComment } from "@re-cinq/lore-shared/project/pulls/review-threads.js";
 
-/**
- * Unwrap the Agent output envelope so every text parser downstream reads the
- * agent text rather than the NDJSON that carries it. Idempotent for already-plain
- * output, so it is safe at any read boundary.
- *
- * It also LIFTS the terminal error text while the raw stream is still here to
- * read. `terminalErrorText` needs the `is_error` result line, which only exists
- * before the unwrap — so every reader downstream saw `null` and fell back to the
- * CR's Job-level `failureReason` (`BackoffLimitExceeded…`) whatever the agent
- * actually said. That is why FR6.14's billing alert never fired once in
- * production: the classifier was reading a string that could never be a billing
- * error. Lifting it here fixes both doors at once, since the node-event handler
- * and the reaper both normalize before they classify.
- */
+// Unwraps the Agent output envelope AND lifts the terminal error text before the raw stream is gone — reading after unwrap always returned null, which is why FR6.14's billing alert never fired (billing errors misread as Job-level BackoffLimitExceeded, #1455).
 export function normalizeAgentStatus(status: AgentNodeStatus): AgentNodeStatus {
   if (status.output === undefined) {
     return status;
   }
-  // Idempotent: a second pass over already-unwrapped text finds no result line,
-  // so it must not erase what the first pass lifted.
-  // Two shapes of "the agent's own last words", in order of richness. The
-  // result line is claude's own terminal statement; the relayed stderr is what
-  // the runner echoes when the engine dies at BOOT and never reaches one. With
-  // only the first, a boot crash fell through to Kubernetes' Job-level reason
-  // (`BackoffLimitExceeded`), which classifies `infra` — retryable — so the walk
-  // spent a 25-minute implement retry on a permanent misconfiguration and then
-  // reported the exhausted budget as the cause (run 129235d4, 2026-08-28).
+  // Falls back through stderr because a boot crash has no result line — without it, the walk misread a permanent misconfig as retryable infra and burned a 25min retry (run 129235d4, 2026-08-28).
   const errorText =
     terminalErrorText(status.output) ??
     agentStderrError(status.output) ??
@@ -87,12 +57,7 @@ export interface NodeTerminalInput {
   output?: string;
 }
 
-/** Ports the review post writes through (production resolves both from the
- *  repo), plus the node visit's iteration — it keys the per-run dedupe marker,
- *  so a revisited review node still posts while a redelivery does not. An
- *  unknown iteration skips marker and probe entirely (fail open): guessing `1`
- *  would let iteration 1's marker suppress a revisit's real review, and the CAS
- *  treats undefined as "newest open visit", not "first". */
+// `iteration` keys the per-run dedupe marker (so a revisit still posts); unknown iteration skips marker+probe (fail open) rather than guessing `1`, which could suppress a revisit's real review.
 export interface ReviewPorts {
   poster?: ReviewPoster;
   audit?: AuditPort;
@@ -102,72 +67,28 @@ export interface ReviewPorts {
   model?: string;
 }
 
-/** How the review post went — the walk converts the outage shape into an honest
- *  node failure so the generic failure notification catches it. `already_posted`
- *  means the probe found this run's marker on the PR (a redelivered terminal
- *  event or an event-vs-reaper race) and nothing was re-posted. */
+// `already_posted` means the probe found this run's marker already on the PR (redelivered event or event-vs-reaper race), so nothing was re-posted.
 export type ReviewPostOutcome =
   "posted" | "already_posted" | "no_findings" | "post_failed" | "not_review";
 
-/**
- * The outage shape: the review published nothing, yet the CR exited 0 —
- * recording `success` would finish the line green ("Approved." on an unreviewed
- * PR).
- *
- * `no_findings` means `maybePostReview` could parse neither a REVIEW_FINDINGS
- * block nor a bare approval, so it covers three cases, and only one of them is
- * benign:
- *
- * - **no verdict either** — the agent never reached a conclusion (it could not
- *   read the diff). Fails.
- * - **verdict `changes_requested`** — the review HAD something to say and could
- *   not say it. This is what #1401 was: the model emitted a findings block whose
- *   `body` carried unescaped quotes, `JSON.parse` died, nothing reached the PR,
- *   and the check went green while four findings (one blocking) were lost. Fails.
- * - **verdict `success`** — a legitimate minimal approve, which
- *   `approvedWithoutFindings` posts, so this combination does not arise in
- *   practice. Left untouched anyway: approving nothing harms nothing.
- *
- * A `post_failed` also stays — the verdict is real, and the throw is audited.
- *
- * A FOURTH case never reaches here, and must not: an output nobody could READ.
- * A CR in a cluster this Floor cannot interrogate answers null, which arrives
- * looking exactly like "the agent emitted nothing" and would be published as a
- * verdict on that reading. The event handler refuses that door upstream
- * (`agentCrVisible`), so every output this function judges is one that was
- * actually read.
- */
+// The outage shape: review published nothing but the CR exited 0, so a bare `success` would finish the line green ("Approved." on an unreviewed PR) — `no_findings` with a `changes_requested` verdict is what #1401 was (JSON.parse died on unescaped quotes, findings lost, check green); the event handler's `agentCrVisible` guard keeps an unreadable CR from ever reaching this judgment.
 export function reviewNodeResultOverride(
   post: ReviewPostOutcome,
   output: string | undefined,
   result: NodeResult,
 ): NodeResult {
-  // A caller that already CLASSIFIED the failure knows more than this function
-  // can infer from an empty output. The reaper's timeout and queue-timeout doors
-  // arrive as `{failed, infra, "timed out after N minutes"}` with no output at
-  // all, which reads here exactly like a review that ran and published nothing —
-  // so an evicted pod was recorded, notified and retried as a recipe/contract
-  // bug. Judge only what the agent actually produced.
+  // Defer to a caller that already classified the failure — the reaper's timeout doors arrive with no output, which otherwise reads exactly like "ran and published nothing" and misrecords an evicted pod as a recipe/contract bug.
   if (result.failureClass) {
     return result;
   }
 
   if (post === "no_findings" && parseReviewVerdict(output) !== "success") {
-    // WHY it failed, not just that it did. Recorded bare — which this did — the
-    // node renders as `node "recheck" failed` with no class and no detail, which
-    // is exactly how an evicted pod, a dry account and a token mismatch render.
-    // On 2026-08-24 that cost two reviewers a hunt for an infrastructure outage
-    // that did not exist; the review had simply found something and failed to
-    // publish it.
+    // Records WHY, not just that it failed — a bare failure renders identically to an evicted pod/dry account/token mismatch and cost two reviewers a false infra-outage hunt on 2026-08-24.
     const verdict = parseReviewVerdict(output);
 
     return {
       outcome: "failed",
-      // `unknown`, not an invented class: FailureCategory is the closed taxonomy
-      // of INFRASTRUCTURE failures that drive retry and the account-wide dispatch
-      // gate. This is a recipe/contract bug, and `unknown` is what node-outcome
-      // already uses for that — the diagnosis belongs in the detail, which is the
-      // part that was missing.
+      // `unknown`, not an invented class: FailureCategory is the closed taxonomy of infra failures driving retry/dispatch gating; this is a recipe/contract bug, and node-outcome already uses `unknown` for that.
       failureClass: "unknown",
       failureDetail:
         verdict === "changes_requested"
@@ -179,13 +100,7 @@ export function reviewNodeResultOverride(
   return result;
 }
 
-/**
- * The model(s) that actually billed against this visit — read back from
- * `llm_calls`, because the dispatch spec snapshots the yaml default while the
- * agent-definition row overrides it at run time, and the disclosure must name
- * the reviewer that really judged the diff. Falls back to the node's declared
- * model when nothing billed (a visit that died before its first call).
- */
+/** The model(s) that actually billed against this visit, read back from `llm_calls`: the dispatch spec snapshots the yaml default while the agent-definition row overrides it at run time, so the disclosure must name the reviewer that really judged the diff. Falls back to the node's declared model when nothing billed. */
 async function resolveVisitModel(
   input: NodeTerminalInput,
   deps: AdvanceDeps,
@@ -210,13 +125,7 @@ async function resolveVisitModel(
   }
 }
 
-/**
- * A review visit that failed because the LLM budget is exhausted must not
- * block the PR: an empty account is an operator problem, not the author's.
- * Post an APPROVE that says loudly no review happened (deduped by the same
- * per-visit marker as a real review), audit it, and record the visit as
- * success so the line completes instead of failing on a spent wallet.
- */
+/** A review visit that failed on an exhausted LLM budget must not block the PR — an empty account is an operator problem, not the author's — so post an APPROVE saying loudly that no review happened (deduped by the same per-visit marker as a real review) and record the visit as success. */
 export async function postBudgetSkipReview(
   row: AssemblyRunRecord,
   node: RunGraphNode,
@@ -316,17 +225,10 @@ export async function finishNodeTerminal(
   await publishCheck(input.row.id, deps);
 }
 
-/** Prompt refs whose nodes emit the REVIEW_FINDINGS + REVIEW_RESULT contract the
- *  deterministic poster renders as a formal review: the deep review on PR open and
- *  the fast re-check on every push. Both post through the same path. */
+// Prompt refs whose nodes emit the REVIEW_FINDINGS + REVIEW_RESULT contract: the deep review on PR open and the fast re-check on every push, both posted through the same path.
 const REVIEW_PROMPT_REFS = new Set(["code-review", "code-review-recheck"]);
 
-/**
- * A review node emits structured findings instead of posting them itself; render
- * and post them here. A review that computes findings and posts nothing is the
- * failure this module exists to make impossible to miss, so both the throw and
- * the silent no-parse are audited rather than warned away.
- */
+// A review node emits structured findings instead of posting them itself; render+post here — a review that computes findings and posts nothing must never go unaudited (both the throw and the silent no-parse are logged).
 export async function postReviewFromNode(
   row: AssemblyRunRecord,
   node: RunGraphNode,
@@ -397,10 +299,7 @@ export async function postReviewFromNode(
   }
 }
 
-/** The narrow PR surface the reply post touches — a light double in tests. The
- *  two reads back the dedupe probe; they are optional because a poster without
- *  them simply skips the probe (the guard fails open — a rare duplicate beats a
- *  dropped reply). */
+// The narrow PR surface the reply post touches; the dedupe-probe reads are optional — a poster without them just skips the probe (fail open: a rare duplicate beats a dropped reply).
 export interface ReplyPoster {
   replyToReviewComment(
     number: number,
@@ -410,41 +309,23 @@ export interface ReplyPoster {
   comment(number: number, body: string): Promise<void>;
   listComments?(number: number): Promise<ReviewComment[]>;
   listIssueComments?(number: number): Promise<IssueComment[]>;
-  /** Optional like the reads above — a poster without the thread methods just
-   *  skips resolution (fail open; specs/implementation-loop FR5). */
+  // Optional like the reads above — a poster without the thread methods just skips resolution (fail open; specs/implementation-loop FR5).
   listReviewThreads?(number: number): Promise<ReviewThread[]>;
   resolveReviewThread?(threadId: string): Promise<void>;
 }
 
-/** Ports the reply post writes through (production resolves both from the
- *  repo), plus the node visit's iteration — same contract as
- *  {@link ReviewPorts}: it keys the per-run dedupe marker, so a revisited
- *  refine node still posts while a redelivery does not, and an unknown
- *  iteration skips marker and probe entirely (fail open) rather than guessing
- *  `1`, which could let a first post suppress a revisit's real reply. */
+// `iteration` keys the per-run dedupe marker (mirrors ReviewPorts) so a revisited refine node still posts while a redelivery does not; unknown iteration skips marker+probe (fail open) rather than guessing `1`.
 export interface ReplyPorts {
   poster?: ReplyPoster;
   audit?: AuditPort;
   iteration?: number;
 }
 
-/** How the reply post went (mirrors {@link ReviewPostOutcome}). `no_reply` when
- *  the refine node emitted no ` ```REVIEW_REPLY ` block; `not_reply` for any other
- *  node; `already_posted` when the probe found this run's marker on the PR (a
- *  redelivered terminal event or an event-vs-reaper race) and nothing was
- *  re-posted. Reply posting is a side effect — it never overrides the node
- *  outcome (the refine node's REVIEW_RESULT verdict drives success/failed). */
+// Mirrors ReviewPostOutcome: `no_reply` = no REVIEW_REPLY block; reply posting is a side effect and never overrides the node outcome (REVIEW_RESULT drives success/failed).
 export type ReplyPostOutcome =
   "posted" | "already_posted" | "no_reply" | "post_failed" | "not_reply";
 
-/**
- * Invisible per-run identity leading every posted reply (in-thread and
- * plain-comment delivery alike), keyed per iteration so a legitimate revisit
- * still posts. Mirrors {@link reviewRunMarker}: the reply post also runs BEFORE
- * the node-outcome CAS (post-then-transition, spec 6-dark-factory FR6.11), so a
- * redelivered terminal event re-executes it; the probe for this marker is what
- * makes the re-execution a no-op (#1004).
- */
+// Invisible per-run identity leading every posted reply, keyed per iteration; runs BEFORE the node-outcome CAS (spec 6-dark-factory FR6.11) so this marker's probe is what makes a redelivered terminal event a no-op (#1004).
 function replyRunMarker(
   assemblyLineId: string,
   nodeId: string,
@@ -453,14 +334,7 @@ function replyRunMarker(
   return `<!-- lore-reply-run: ${assemblyLineId}/${nodeId}/${iteration} -->`;
 }
 
-/**
- * Resolve the thread a reply just landed in, best-effort (FR5): only on the
- * `address` intent — an `answer` leaves the human mid-conversation and their
- * thread open — and never failing the post that succeeded. The REST reply knows
- * only its comment id; GraphQL thread nodes carry each comment's databaseId,
- * so findThreadForComment joins the two. Every failure mode lands in the audit
- * log under one event with a reason discriminator.
- */
+// Resolve the thread a reply just landed in, best-effort (FR5): only on `address` intent (an `answer` leaves the human's thread open on purpose), joining the REST reply's comment id to GraphQL's databaseId via findThreadForComment; never fails the post that already succeeded.
 async function resolveRepliedThread(
   row: AssemblyRunRecord,
   pulls: ReplyPoster,
@@ -531,12 +405,7 @@ async function resolveRepliedThread(
   await audit({ thread_id: thread.id }, true);
 }
 
-/**
- * The code-review-refine node commits its fix (git + clone token) but cannot
- * post to GitHub itself — the pod has no `gh`. It emits a fenced REVIEW_REPLY
- * block; post it in-thread here (in_reply_to_id → the review-comment thread,
- * else a plain PR comment). Absent block or a throw is audited, never fatal.
- */
+// The code-review-refine node commits its fix but can't post to GitHub itself (no `gh` in the pod); it emits a fenced REVIEW_REPLY block, posted in-thread here — absent block or a throw is audited, never fatal.
 export async function postReplyFromNode(
   row: AssemblyRunRecord,
   node: RunGraphNode,
@@ -584,11 +453,7 @@ export async function postReplyFromNode(
 
       return "already_posted";
     }
-    // The marker LEADS the comment because the body is agent-authored: trailing
-    // it would let a reply opening with a prefix platform-github's
-    // `listIssueComments` filter drops (`PR created:` / `Agent ` / `Task `) hide
-    // the fallback comment from the probe (cf. FALLBACK_NOTE in
-    // ../review/post-review.js, where the preamble is ours to pin; here it is not).
+    // The marker LEADS the comment because the body is agent-authored — trailing it risks an opening prefix (`PR created:` / `Agent ` / `Task `) that platform-github's listIssueComments filter drops, hiding the comment from the probe.
     const stamped = marker ? `${marker}\n\n${body}` : body;
 
     if (inReplyTo > 0) {
@@ -621,13 +486,7 @@ export async function postReplyFromNode(
   }
 }
 
-/**
- * Whether this run's reply already reached the PR — through either delivery
- * shape (review-comment thread or plain PR comment). Best-effort like the
- * review post's probe: a poster without the read surface, or a probe that
- * throws, reports "not posted" so the reply is never dropped by its own guard;
- * the residual cost is a duplicate exactly as rare as the probe outage.
- */
+// Whether this run's reply already reached the PR (either delivery shape); best-effort like the review probe — a missing read surface or a throw reports "not posted" so the guard never drops a reply, at the cost of a rare duplicate.
 async function replyAlreadyPosted(
   pulls: ReplyPoster,
   prNumber: number,
@@ -656,8 +515,7 @@ async function replyAlreadyPosted(
   }
 }
 
-/** The reply-side twin of `review_post_deduped` (#1004): this run's marker is
- *  already on the PR, so the reply post was skipped. */
+// The reply-side twin of `review_post_deduped` (#1004): this run's marker is already on the PR, so the reply post was skipped.
 async function auditDedupedReply(
   row: AssemblyRunRecord,
   prNumber: number,
@@ -678,9 +536,7 @@ async function auditDedupedReply(
   );
 }
 
-/** The redelivery that #870 exists for: this run's marker is already on the PR,
- *  so the post was skipped. Audited so a dedupe firing is visible next to the
- *  duplicate it prevented. */
+// The redelivery that #870 exists for: this run's marker is already on the PR, so the post was skipped — audited so a dedupe firing is visible next to the duplicate it prevented.
 async function auditDedupedPost(
   row: AssemblyRunRecord,
   prNumber: number,
@@ -701,10 +557,7 @@ async function auditDedupedPost(
   );
 }
 
-/** The review reached the PR, but as a top-level comment after GitHub rejected
- *  the inline post — the never-drop fallback. Nothing was lost, but a silent
- *  downgrade is invisible at the PR, so it gets an audit row like its siblings
- *  `review_findings_unparsed` and `review_post_failed`. */
+// The review reached the PR as a top-level comment after GitHub rejected the inline post (never-drop fallback) — a silent downgrade is invisible at the PR, so it gets an audit row like its siblings.
 async function auditFallbackPost(
   row: AssemblyRunRecord,
   prNumber: number,
@@ -725,8 +578,7 @@ async function auditFallbackPost(
   );
 }
 
-/** The exact state that produced the outage: a verdict was reached, no findings
- *  parsed, and nothing at all was logged. */
+// The exact state that produced the outage: a verdict was reached, no findings parsed, and nothing at all was logged.
 async function auditUnparsedFindings(
   row: AssemblyRunRecord,
   prNumber: number,
@@ -753,8 +605,7 @@ async function auditUnparsedFindings(
   );
 }
 
-/** Publish the line's current state as a PR check (in_progress while running,
- *  terminal once finished). Best-effort — a missing `checks: write` never blocks. */
+// Publish the line's current state as a PR check (in_progress while running, terminal once finished); best-effort — a missing `checks: write` never blocks.
 export async function publishCheck(
   assemblyLineId: string,
   deps: AdvanceDeps,

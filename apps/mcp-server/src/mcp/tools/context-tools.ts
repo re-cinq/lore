@@ -29,6 +29,87 @@ function readFileSafe(path: string): string | null {
   }
 }
 
+/** Hybrid vector+BM25 search over the team schema, falling back to org_shared when the team has no hits. */
+async function searchDbContext(
+  query: string,
+  team: string | undefined,
+  limit: number,
+): Promise<{ content: Array<{ type: "text"; text: string }> }> {
+  const schema = team || "org_shared";
+  let results = await hybridSearch(query, schema, limit);
+
+  if (results.length === 0 && team && team !== "org_shared") {
+    results = await hybridSearch(query, "org_shared", limit);
+  }
+
+  traceRetrieval({
+    query,
+    namespace: schema,
+    topScore: results[0]?.rrf_score || 0,
+    resultCount: results.length,
+  });
+
+  if (results.length === 0) {
+    return {
+      content: [{ type: "text" as const, text: `No results for "${query}".` }],
+    };
+  }
+  const text = results
+    .map((r) => `**Score:** ${r.rrf_score.toFixed(3)}\n\n${r.content}`)
+    .join("\n\n---\n\n");
+
+  return { content: [{ type: "text" as const, text }] };
+}
+
+interface ParagraphScan {
+  file: string;
+  raw: string;
+  lowerQuery: string;
+  limit: number;
+}
+
+function appendParagraphMatches(
+  results: { source: string; paragraph: string }[],
+  scan: ParagraphScan,
+): void {
+  for (const para of scan.raw.split(/\n{2,}/)) {
+    if (results.length >= scan.limit) {
+      return;
+    }
+
+    if (para.toLowerCase().includes(scan.lowerQuery)) {
+      results.push({
+        source: relative(CONTEXT_PATH, scan.file),
+        paragraph: para.trim(),
+      });
+    }
+  }
+}
+
+/** File-based fallback: substring-scans each file's paragraphs until `limit` matches. */
+function collectMatchingParagraphs(
+  files: string[],
+  lowerQuery: string,
+  limit: number,
+): { source: string; paragraph: string }[] {
+  const results: { source: string; paragraph: string }[] = [];
+
+  for (const file of files) {
+    const raw = readFileSafe(file);
+
+    if (!raw) {
+      continue;
+    }
+    appendParagraphMatches(results, { file, raw, lowerQuery, limit });
+
+    if (results.length >= limit) {
+      break;
+    }
+  }
+
+  return results;
+}
+
 export function registerContextTools(server: McpServer) {
   server.tool(
     "lore_search_context",
@@ -45,8 +126,7 @@ Use this when you want chunk-level evidence or the exact wording of a convention
       limit: z.number().default(8).describe("Maximum passages to return."),
     },
     async ({ query, team, limit }) => {
-      // Auto-detect repo from git remote when no team is specified.
-      // Scopes DB search to the detected repo's context namespace.
+      // Auto-detects repo from git remote when no team is specified, to scope DB search to its context namespace.
       const detectedRepo = !team ? detectCurrentRepo() : null;
 
       if (detectedRepo) {
@@ -56,33 +136,7 @@ Use this when you want chunk-level evidence or the exact wording of a convention
       }
 
       if (await isDbAvailable()) {
-        const schema = team || "org_shared";
-        let results = await hybridSearch(query, schema, limit);
-
-        // If no results in team schema and we have a detected repo, also search org_shared
-        if (results.length === 0 && team && team !== "org_shared") {
-          results = await hybridSearch(query, "org_shared", limit);
-        }
-
-        traceRetrieval({
-          query,
-          namespace: schema,
-          topScore: results[0]?.rrf_score || 0,
-          resultCount: results.length,
-        });
-
-        if (results.length === 0) {
-          return {
-            content: [
-              { type: "text" as const, text: `No results for "${query}".` },
-            ],
-          };
-        }
-        const text = results
-          .map((r) => `**Score:** ${r.rrf_score.toFixed(3)}\n\n${r.content}`)
-          .join("\n\n---\n\n");
-
-        return { content: [{ type: "text" as const, text }] };
+        return searchDbContext(query, team, limit);
       }
 
       // File-based fallback
@@ -104,37 +158,13 @@ Use this when you want chunk-level evidence or the exact wording of a convention
         ? join(searchRoot, "**/*.md")
         : join(CONTEXT_PATH, "**/*.md");
       const files = globSync(pattern, { nodir: true });
-      const lowerQuery = query.toLowerCase();
-      const results: { source: string; paragraph: string }[] = [];
+      const results = collectMatchingParagraphs(
+        files,
+        query.toLowerCase(),
+        limit,
+      );
 
-      for (const file of files) {
-        const raw = readFileSafe(file);
-
-        if (!raw) {
-          continue;
-        }
-        const paragraphs = raw.split(/\n{2,}/);
-
-        for (const para of paragraphs) {
-          if (para.toLowerCase().includes(lowerQuery)) {
-            results.push({
-              source: relative(CONTEXT_PATH, file),
-              paragraph: para.trim(),
-            });
-
-            if (results.length >= limit) {
-              break;
-            }
-          }
-        }
-
-        if (results.length >= limit) {
-          break;
-        }
-      }
-
-      // Trace the retrieval for observability + gap detection
-      const topScore = results.length > 0 ? 1.0 : 0.0; // Phase 0: binary score. Phase 1: RRF score.
+      const topScore = results.length > 0 ? 1.0 : 0.0; // Phase 0: binary score, Phase 1 will be RRF.
 
       traceRetrieval({
         query,
@@ -203,7 +233,7 @@ Instead: use lore_search_context for raw passages/exact wording from ingested do
     async ({ query, template, max_tokens, repo, agent_id, cross_repo }) => {
       return trackLatency("lore_assemble_context", async () => {
         try {
-          // Local stdio mode: proxy to GKE through the read-through cache.
+          // Local stdio mode proxies to GKE through the read-through cache.
           const apiUrl = process.env.LORE_API_URL;
           const apiToken = process.env.LORE_INGEST_TOKEN;
 
@@ -218,10 +248,7 @@ Instead: use lore_search_context for raw passages/exact wording from ingested do
             };
           }
           const resolvedRepo = repo || detectCurrentRepo() || "";
-          // Forward the knobs the backend honors. cross_repo=false is the
-          // no-op default (the server resolves the settings fallback), so it
-          // is only sent when true. The same extras seed the cache key so a
-          // 16000-token request is never served an 8000-token cached body.
+          // Only sent when non-default so these extras also seed the cache key, keeping a 16000-token request from being served an 8000-token cached body.
           const extras: Record<string, string> = {};
 
           if (max_tokens) {
@@ -256,9 +283,7 @@ Instead: use lore_search_context for raw passages/exact wording from ingested do
               }
               const data = JSON.parse(r.body) as { text?: string };
 
-              // A reachable backend that returns empty context is a real
-              // (empty) result, not an outage — return it as-is rather than
-              // forcing a stale, mislabeled "backend unreachable" serve.
+              // A reachable backend returning empty context is a real result, not an outage — return as-is rather than serving a stale, mislabeled fallback.
               return { ok: true as const, body: data.text ?? "" };
             },
           );

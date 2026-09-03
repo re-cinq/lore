@@ -5,11 +5,7 @@ import CopyButton from "./CopyButton";
 import styles from "./EnrollmentSection.module.css";
 import buttonStyles from "./CopyButton.module.css";
 
-/**
- * Renders a sensitive value (the webhook signing secret) masked by default with
- * a reveal toggle + copy button — so an operator can copy it into GitHub's
- * webhook form without it sitting on screen in plaintext.
- */
+/** Masked by default, so a sensitive value never sits on screen in plaintext until the operator reveals it. */
 export default function SecretReveal({
   value,
   label,

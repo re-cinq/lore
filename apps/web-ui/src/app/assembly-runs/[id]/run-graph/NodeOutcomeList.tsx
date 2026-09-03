@@ -1,7 +1,4 @@
-// Definition mode inside a node box: the step's name over the outcomes it can
-// produce, one glyph-and-label row each. They live in the node because the
-// connector that carries them collapsed into a single hop.
-
+// Definition mode inside a node box: outcomes live here (one glyph-and-label row each) because the connector carrying them collapsed into a single hop.
 import { outcomeTone } from "@/lib/graph-view-model";
 import { outcomeVisual } from "@/lib/run-node-status";
 import StatusIcon from "./StatusIcon";

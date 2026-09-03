@@ -92,12 +92,12 @@ Registered in `routeList`
    re-inserts `pipeline.llm_calls` cost rows and `agent_run_events` viz rows
    (follow-up #1394), and rows duplicated before #1389 stay until the 30-day
    prune ages them out. ([validated by
-   stamps the same keys when the same body is retried](../../../apps/lore-api/src/api/routes/tasks/task-turns.test.ts#L204),
-   [validated by keys byte-identical lines within one POST apart](../../../apps/lore-api/src/api/routes/tasks/task-turns.test.ts#L217),
-   [validated by keys byte-identical lines apart under an offset header too](../../../apps/lore-api/src/api/routes/tasks/task-turns.test.ts#L237),
-   [validated by keys a line by its x-turn-offset position so a tail-only re-POST reproduces its key](../../../apps/lore-api/src/api/routes/tasks/task-turns.test.ts#L224),
-   [validated by keys identical lines under different tasks apart](../../../apps/lore-api/src/api/routes/tasks/task-turns.test.ts#L248),
-   [validated by falls back to per-POST occurrence keying when the offset header is not a number](../../../apps/lore-api/src/api/routes/tasks/task-turns.test.ts#L259))
+   stamps the same keys when the same body is retried](../../../apps/lore-api/src/api/routes/tasks/task-turns.test.ts#L199),
+   [validated by keys byte-identical lines within one POST apart](../../../apps/lore-api/src/api/routes/tasks/task-turns.test.ts#L212),
+   [validated by keys byte-identical lines apart under an offset header too](../../../apps/lore-api/src/api/routes/tasks/task-turns.test.ts#L232),
+   [validated by keys a line by its x-turn-offset position so a tail-only re-POST reproduces its key](../../../apps/lore-api/src/api/routes/tasks/task-turns.test.ts#L219),
+   [validated by keys identical lines under different tasks apart](../../../apps/lore-api/src/api/routes/tasks/task-turns.test.ts#L243),
+   [validated by falls back to per-POST occurrence keying when the offset header is not a number](../../../apps/lore-api/src/api/routes/tasks/task-turns.test.ts#L254))
 6. Zero survivors → 200 `{ forwarded: 0, skipped }` without calling the Floor. ([validated by returns 200 without calling the Floor when no line survives filtering](../../../apps/lore-api/src/api/routes/tasks/task-turns.test.ts#L105))
 7. A non-OK upstream response → 502. ([validated by returns 502 when the Floor rejects the forward](../../../apps/lore-api/src/api/routes/tasks/task-turns.test.ts#L136))
 8. Write scope is enforced like every task route. ([validated by returns 403 when the token has task scope but not write](../../../apps/lore-api/src/api/routes/tasks/task-turns.test.ts#L154))
@@ -114,20 +114,20 @@ entirely).
 1. `buildTurnLines` redacts PER LINE — the same rule as the Floor's own turn
    collector, because a whole-text redaction pass can span JSON boundaries and
    erase every line in between. Non-JSON lines are not turns and are skipped
-   silently; a line whose JSON breaks under redaction is dropped and counted. ([validated by keeps parseable stream-json lines untouched](../../../apps/mcp-server/src/features/pipeline/runner.local.test.ts#L342), [validated by skips non-JSON lines without counting them as dropped](../../../apps/mcp-server/src/features/pipeline/runner.local.test.ts#L354), [validated by redacts a secret inside a line and keeps the still-parseable result](../../../apps/mcp-server/src/features/pipeline/runner.local.test.ts#L366), [validated by drops and counts a line whose JSON breaks under redaction](../../../apps/mcp-server/src/features/pipeline/runner.local.test.ts#L379))
+   silently; a line whose JSON breaks under redaction is dropped and counted. ([validated by keeps parseable stream-json lines untouched](../../../apps/mcp-server/src/features/pipeline/runner.local.test.ts#L286), [validated by skips non-JSON lines without counting them as dropped](../../../apps/mcp-server/src/features/pipeline/runner.local.test.ts#L298), [validated by redacts a secret inside a line and keeps the still-parseable result](../../../apps/mcp-server/src/features/pipeline/runner.local.test.ts#L310), [validated by drops and counts a line whose JSON breaks under redaction](../../../apps/mcp-server/src/features/pipeline/runner.local.test.ts#L323))
 2. `batchTurnLines` splits the relay into batches capped by utf-8 bytes
    (~700KB, under lore-api's 1MB body limit) and line count (2000, under the
-   Floor's 10k-turns-per-batch cap). ([validated by splits on the line cap](../../../apps/mcp-server/src/features/pipeline/runner.local.test.ts#L395), [validated by splits on the byte cap measured with Buffer.byteLength](../../../apps/mcp-server/src/features/pipeline/runner.local.test.ts#L405), [validated by emits a line larger than the byte cap as its own batch](../../../apps/mcp-server/src/features/pipeline/runner.local.test.ts#L416))
+   Floor's 10k-turns-per-batch cap). ([validated by splits on the line cap](../../../apps/mcp-server/src/features/pipeline/runner.local.test.ts#L335), [validated by splits on the byte cap measured with Buffer.byteLength](../../../apps/mcp-server/src/features/pipeline/runner.local.test.ts#L345), [validated by emits a line larger than the byte cap as its own batch](../../../apps/mcp-server/src/features/pipeline/runner.local.test.ts#L354))
 3. A line that can never fit one relay request (its own bytes exceed the batch
    cap) is dropped BEFORE batching, with a counted warning — shipping it would
    413 and cost the batches behind it. A failed batch is likewise counted and
    skipped, never allowed to abandon the rest: the terminal result line rides
    last, so aborting mid-relay would silently lose the cost row and the
-   transcript tail. ([validated by keeps lines at or under the byte cap and counts the rest](../../../apps/mcp-server/src/features/pipeline/runner.local.test.ts#L433), [validated by measures utf-8 bytes plus the join newline, not characters](../../../apps/mcp-server/src/features/pipeline/runner.local.test.ts#L443))
+   transcript tail. ([validated by keeps lines at or under the byte cap and counts the rest](../../../apps/mcp-server/src/features/pipeline/runner.local.test.ts#L366), [validated by measures utf-8 bytes plus the join newline, not characters](../../../apps/mcp-server/src/features/pipeline/runner.local.test.ts#L376))
 4. *(Added by #1389:)* `ingestTurns` sends each batch's cumulative line offset
    in `x-turn-offset`, advancing it past failed batches too — a batch consumes
    its transcript positions whether or not it relayed, so a later retry of the
-   same buffer reproduces the same keys. ([validated by stamps each batch with its cumulative line offset](../../../apps/mcp-server/src/features/pipeline/runner.local.test.ts#L486), [validated by advances the offset past a failed batch so later lines keep their positions](../../../apps/mcp-server/src/features/pipeline/runner.local.test.ts#L498))
+   same buffer reproduces the same keys. ([validated by stamps each batch with its cumulative line offset](../../../apps/mcp-server/src/features/pipeline/runner.local.test.ts#L413), [validated by advances the offset past a failed batch so later lines keep their positions](../../../apps/mcp-server/src/features/pipeline/runner.local.test.ts#L425))
 
 ## Alternatives rejected
 

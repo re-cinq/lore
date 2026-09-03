@@ -1,10 +1,4 @@
-/**
- * GET /api/agent-logs/{name} — live pod logs for one assembly-line node's Agent
- * CR, read on-demand from the cluster (never persisted). The web-ui proxies here
- * (after its own repo-access check) with the shared LORE_INGEST_TOKEN. A dead-end
- * — CR gone, no job yet, pod garbage-collected — returns 200 with
- * `available:false`, not an error, since the pod-log lifetime is short by design.
- */
+/** GET /api/agent-logs/{name} — live pod logs for one node's Agent CR, read on-demand from the cluster; a dead pod/CR returns 200 `available:false`, not an error. */
 
 import type { ServerRoute } from "@hapi/hapi";
 import {
@@ -23,9 +17,7 @@ import { clusterAgent } from "../../../kernel/queues.js";
 const DEFAULT_TAIL_LINES = 5000;
 const MAX_TAIL_LINES = 50_000;
 
-/** Clamp the caller-supplied `tail`. LORE_INGEST_TOKEN is shared with the web-ui,
- *  so a signed-in user could hit this route directly — an unbounded `tailLines`
- *  would ask Kubernetes for arbitrarily many lines and pressure the Floor's memory. */
+/** Clamps caller-supplied `tail` — LORE_INGEST_TOKEN is shared with web-ui, so an unbounded value could pressure the Floor's memory. */
 export function parseTail(raw: unknown): number {
   const n = Number(raw);
 
@@ -34,22 +26,11 @@ export function parseTail(raw: unknown): number {
     : DEFAULT_TAIL_LINES;
 }
 
-/**
- * Stored chunks first, Cloud Logging behind them.
- *
- * Stored leads because it is the only source that works for a run executed in a
- * cluster the Floor cannot reach — the live read dials one CLUSTER_AGENT_URL
- * and the Cloud Logging filter names one project, so a satellite's run is
- * invisible to both. Cloud Logging stays behind it because it holds history
- * from before the table existed, and `storedPodLogArchive` returns null rather
- * than "" for a job it has nothing for, which is what lets the chain continue.
- */
+/** Stored chunks first, Cloud Logging behind them — stored is the only source that reaches a satellite-cluster run; `storedPodLogArchive` returns null (not "") to let the chain continue. */
 function defaultArchive(): PodLogArchive {
   return firstAvailableArchive(
     {
-      // `pipeline()` is resolved per READ, not here: this default is evaluated
-      // when the route is registered, and that happens before `initPool`. A
-      // pool resolved eagerly would turn route registration into a boot crash.
+      // Resolved per read, not here — this runs before `initPool`, so eager resolution would boot-crash route registration.
       logsForJob: (jobName, opts) =>
         storedPodLogArchive(pipeline().podLogs).logsForJob(jobName, opts),
     },

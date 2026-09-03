@@ -1,8 +1,4 @@
-// One step in the graph: the box, its keyboard/pointer selection, and whichever
-// body has something to say — a run verdict, the outcomes the step can produce,
-// or just its name. The three bodies are exclusive, so the choice is made once
-// here and the aria-label follows the same order.
-
+// One step in the graph: the box, selection, and one of three exclusive bodies (run verdict, outcome list, or plain name) — the aria-label follows the same choice.
 import type { LayoutNode } from "@/lib/dag-layout";
 import type { GraphMode, VisibleNode } from "@/lib/graph-view-model";
 import {
@@ -20,8 +16,7 @@ import styles from "./run-graph.module.css";
 
 export interface GraphNodeProps {
   node: LayoutNode;
-  /** The view model for this node, absent when the layout carries a node the
-   *  visible graph does not. */
+  // Absent when the layout carries a node the visible graph does not.
   model: VisibleNode | undefined;
   mode: GraphMode;
   height: number;
@@ -29,8 +24,7 @@ export interface GraphNodeProps {
   onSelect?: (nodeId: string) => void;
 }
 
-/** The run-mode badge for a node: the terminal shows the run result, an executed
- *  node its verdict, and an in-flight one "Running". */
+// Run-mode badge: the terminal shows the run result, an executed node its verdict, an in-flight one "Running".
 function runBadge(node: VisibleNode): NodeStatusVisual {
   if (node.result !== null) {
     return resultVisual(node.result);

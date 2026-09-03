@@ -1,13 +1,4 @@
-/**
- * The stored chunks, viewed as the Floor's existing `PodLogArchive` seam.
- *
- * That seam already exists for the Cloud Logging fallback and is asked exactly
- * one question — "what stdout is retained for this Job?" — so the stored chunks
- * slot in as another answer to it rather than as a new branch inside
- * `readAgentLogs`. Returning null when it holds nothing is what lets the two be
- * chained: stored first (it works for every cluster), Cloud Logging behind it
- * (central only, but it has history predating this table).
- */
+// Stored chunks viewed as the Floor's existing PodLogArchive seam — slots in as another answer to "what stdout is retained", chained before Cloud Logging (central-only, but has older history).
 
 import type { PodLogsRepository } from "./pod-logs-port.js";
 
@@ -19,17 +10,14 @@ export interface PodLogArchiveLike {
   ): Promise<string | null>;
 }
 
-/** Keep the last `tailLines` lines, matching what a `kubectl logs --tail` and
- *  the Cloud Logging fallback both return. */
+/** Keep the last `tailLines` lines, matching `kubectl logs --tail` and the Cloud Logging fallback. */
 function tail(text: string, tailLines: number | undefined): string {
   if (!tailLines) {
     return text;
   }
   const lines = text.split("\n");
 
-  // Drop ONLY the empty trailing element a trailing newline leaves behind.
-  // Filtering every falsy line would strip the blank lines inside the log —
-  // which in a stack trace or a diff is content, not padding.
+  // Drop ONLY the trailing empty element a trailing newline leaves; filtering every falsy line would strip meaningful blank lines inside the log.
   if (lines[lines.length - 1] === "") {
     lines.pop();
   }
@@ -44,9 +32,7 @@ export function storedPodLogArchive(
     logsForJob: async (jobName, opts) => {
       const chunks = await store.listForJob(jobName);
 
-      // Null, not "": the seam's contract is "nothing retained", and an empty
-      // string would read as a pod that genuinely produced no output and stop
-      // the chain before Cloud Logging is tried.
+      // Null, not "": an empty string would read as "produced no output" and stop the chain before Cloud Logging is tried.
       if (chunks.length === 0) {
         return null;
       }
@@ -56,13 +42,7 @@ export function storedPodLogArchive(
   };
 }
 
-/**
- * Try each archive in order, first non-null wins.
- *
- * Stored chunks come first because they are the only source that works for a
- * run executed in a cluster the Floor cannot reach; Cloud Logging stays behind
- * them because it holds history from before this table existed.
- */
+/** Try each archive in order, first non-null wins — stored chunks first (work for any cluster), Cloud Logging behind (holds pre-table history). */
 export function firstAvailableArchive(
   ...archives: Array<PodLogArchiveLike | undefined>
 ): PodLogArchiveLike {

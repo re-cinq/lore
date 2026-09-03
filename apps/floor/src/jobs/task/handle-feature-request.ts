@@ -1,13 +1,6 @@
 import type { PipelineTask } from "@re-cinq/lore-shared";
 import { errorMessage } from "@re-cinq/lore-shared";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
-/**
- * Feature request handler.
- *
- * Translates a PM's plain-language intent into a proper spec, data model,
- * and task breakdown — following the target repo's conventions.
- */
-
 import { Llm } from "@re-cinq/lore-shared";
 import { projectFor } from "../../composition/project-boot.js";
 import { fetchRepoContext } from "./repo-context.js";
@@ -21,18 +14,7 @@ import {
   linkPrToIssue,
 } from "./task-helpers.js";
 
-// ── Feature request handler ───────────────────────────────────────────
-
-/**
- * Translates a PM's plain-language intent into a proper spec, data model,
- * and task breakdown — following the target repo's conventions.
- *
- * 1. Pre-fetches repo context (CLAUDE.md, existing specs, ADRs)
- * 2. Generates spec.md matching the repo's spec format
- * 3. Generates data-model.md if the feature involves data
- * 4. Generates an initial tasks.md breakdown
- * 5. Opens a PR with all artifacts for engineer review
- */
+/** Translates a PM's plain-language intent into spec.md/data-model.md/tasks.md matching the target repo's conventions, then opens a PR for engineer review. */
 export async function handleFeatureRequest(
   task: PipelineTask,
   targetRepo: string,
@@ -50,12 +32,7 @@ export async function handleFeatureRequest(
   let existingSpecExample = "";
 
   try {
-    // Through the chunks port, not a second copy of its SELECT: schema
-    // resolution (team schema vs org_shared) is exactly what that port was
-    // created to own. The hand-rolled version re-did the resolution and the
-    // `${schema}` interpolation, inside a catch that swallowed the resulting
-    // error — so a change to either would have silently cost every
-    // feature-request its format example rather than failing loudly.
+    // Through the chunks port, not a hand-rolled second copy of its schema-resolution SELECT — that duplication used to silently swallow errors inside a catch, costing every feature-request its format example.
     const specs = await chunks().specChunks(targetRepo);
 
     if (specs.length > 0) {
@@ -190,7 +167,6 @@ Mark parallelizable tasks with [P]. Include file paths based on the actual proje
   });
   await insertEvent(task.id, "running", "pr-created", { pr_url: pr.url });
 
-  // Auto-capture feature-request as episode
   writeEpisode(
     { memory: memoryLifecycle() },
     `Feature request spec generated for ${targetRepo}\nPM intent: ${pmIntent.substring(0, 300)}\nArtifacts: ${committed.join(", ")}\nPR: ${pr.url}`,

@@ -1,12 +1,4 @@
-// Handler for `assembly_line.resume`: a station reporting from outside the pod
-// system (spec 6-dark-factory FR6.19).
-//
-// A `wait` node's worker is a human in the planning wizard, or a spec PR merging.
-// When that worker acts, the outcome arrives here instead of on a
-// `kubernetes.agent_node.*` event — and then takes exactly the path a pod's outcome
-// takes: record the node, advance the walk. That convergence is the design. If this
-// handler ever grows its own advance logic, the human node has stopped being a
-// station and become a special case.
+// Handler for `assembly_line.resume`: a station reporting from outside the pod system (spec 6-dark-factory FR6.19); converges on the same record-then-advance path as a pod outcome.
 
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import type { AssemblyRunsPort } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
@@ -44,24 +36,20 @@ export function createResumeEventHandler(
       Error,
       "assembly_run.resume event params missing assemblyRunId",
     );
-    // The line may be parked on any of several waits; guessing would resume the
-    // wrong one, so the reporter must say which node it is completing.
+    // The line may be parked on several waits; the reporter must say which node it is completing.
     enforceTrue(
       typeof nodeId === "string" && nodeId.length > 0,
       Error,
       "assembly_line.resume event params missing nodeId",
     );
-    // A typo'd outcome would route down an edge nobody wrote — or none at all,
-    // since selectEdge does not fall through.
+    // A typo'd outcome would route down an edge nobody wrote, since selectEdge does not fall through.
     enforceTrue(
       OUTCOMES.has(outcome),
       Error,
       `assembly_line.resume event has unknown outcome "${outcome}"`,
     );
 
-    // What the worker produced rides into the line BEFORE the walk advances, so the
-    // next node reads it as its brief — the same args channel a produced artifact
-    // uses (FR6.17), not a second mechanism for human input.
+    // Rides in BEFORE the walk advances, via the same args channel a produced artifact uses (FR6.17).
     const args = params.args;
 
     if (args && typeof args === "object" && !Array.isArray(args)) {
@@ -81,20 +69,7 @@ export function createResumeEventHandler(
   };
 }
 
-/**
- * What the resumed node actually produced.
- *
- * A HUMAN station reports a decision and nothing else, so the bare outcome is
- * the whole result and the fallback is not a degradation. A station reporting
- * from a process produces more, and the walk routes on it: a triage node's
- * entire output is `extras.action`, and `failureClass` decides whether a failure
- * spends a retry budget or parks agent dispatch account-wide. Sending only the
- * outcome — which this did — silently discarded both.
- *
- * Parsed rather than cast: the result arrives as JSON from another process, and
- * a malformed one must fail the event (which retries) instead of advancing the
- * walk on a result nothing can route.
- */
+/** What the resumed node produced — parsed (not cast) since a malformed result must fail the event rather than advance the walk unroutably. */
 function resumedResult(
   params: Record<string, unknown>,
   outcome: StageOutcome,
@@ -105,10 +80,7 @@ function resumedResult(
 
   const result = NodeResultSchema.parse(params.result);
 
-  // Both fields carry the outcome, and only `params.outcome` passed the OUTCOMES
-  // guard above — so a result spelling a different one would walk an edge that
-  // was never checked. They come from the same sender, so disagreeing is a bug
-  // in it, and the event failing is how that becomes visible.
+  // Only `params.outcome` passed the OUTCOMES guard above; disagreement is a bug in the sender, surfaced by failing the event.
   enforceTrue(
     result.outcome === outcome,
     Error,
@@ -118,8 +90,7 @@ function resumedResult(
   return result;
 }
 
-/** Composed production handler for the registry. Deps are resolved lazily so
- *  importing the registry never forces the DB pool or the K8s client. */
+/** Composed production handler; deps resolved lazily so importing the registry never forces the DB pool or K8s client. */
 export const assemblyLineResume: EventHandler = async (params) => {
   const [{ pipeline }, { finishNodeAndAdvance }, { productionNodeEventDeps }] =
     await Promise.all([
@@ -130,8 +101,7 @@ export const assemblyLineResume: EventHandler = async (params) => {
 
   const handler = createResumeEventHandler({
     assemblyRuns: pipeline().assemblyRuns,
-    // The SAME deps the node-event handler advances with: a station reporting from a
-    // browser and one reporting from a pod must walk the graph identically.
+    // Same deps the node-event handler advances with — browser and pod reporters must walk the graph identically.
     finishNodeAndAdvance: async (input) =>
       finishNodeAndAdvance(input, await productionNodeEventDeps()),
   });

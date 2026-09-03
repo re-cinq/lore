@@ -1,10 +1,4 @@
-// The ingest station (specs/ingest-station FR1): one pod runs one
-// internal.ingest.* payload. Docs kinds (specs/adrs) project from the LOCAL
-// CLONE at $WORKSPACE_DIR/target — the init container's checkout, so no GitHub
-// App creds ride in the pod (ADR-031 D7) — and write dgraph directly via
-// LORE_DGRAPH_HTTP, the label-scoped egress this station type alone receives
-// (FR4). Payload kinds (test-report/coverage) arrive with FR3
-// (payload-by-reference); until then they are rejected loudly.
+// The ingest station (specs/ingest-station FR1): one pod runs one internal.ingest.* payload. Docs kinds (specs/adrs) project from the LOCAL CLONE at $WORKSPACE_DIR/target (no GitHub App creds in the pod, ADR-031 D7) and write dgraph directly via LORE_DGRAPH_HTTP (the label-scoped egress this station type alone receives, FR4). Payload kinds (test-report/coverage) arrive via FR3 payload-by-reference; until then they're rejected loudly.
 
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -20,14 +14,11 @@ import {
 import { eventLine, type NodeResult } from "@re-cinq/lore-assembly-lines";
 import type { StationInput } from "@re-cinq/lore-shared/station-input.js";
 
-// Derived, not parallel: INGEST_KINDS holds exactly the file-projectable doc
-// kinds (tests is special-cased inside runIngestGraph).
+// Derived, not parallel: INGEST_KINDS holds exactly the file-projectable doc kinds (tests is special-cased inside runIngestGraph).
 const DOC_KINDS = new Set(Object.keys(INGEST_KINDS));
-// Payload kinds arrive by reference (FR3): the body lives on the scheduling
-// pipeline.events row; station_input carries only payload_event_id.
+// Payload kinds arrive by reference (FR3): the body lives on the scheduling pipeline.events row; station_input carries only payload_event_id.
 const PAYLOAD_KINDS = new Set(["test-report", "coverage"]);
-// Keeps the extras value well under the ~1 KB stage-commit trailer guidance
-// (station-contract.md) — long detail belongs in the log lines.
+// Keeps the extras value well under the ~1 KB stage-commit trailer guidance (station-contract.md) — long detail belongs in the log lines.
 const FAILED_FILES_MAX = 900;
 
 export interface IngestStationDeps {
@@ -41,14 +32,8 @@ export interface IngestStationDeps {
   fetchPayload?: (eventId: string) => Promise<unknown>;
 }
 
-/**
- * Statement embedder proxied through the Lore API (FR4): run pods carry no GCP
- * credentials, so Vertex rides POST /api/embed on the API's own access. The
- * default for docs kinds when LORE_API_URL is set; injectable for tests.
- */
-/** Backoff before each 429 retry — a burst that outruns the API's embed bucket
- *  clears within the same sliding-window minute, so short waits win it back. */
-const EMBED_429_DELAYS_MS = [2000, 5000, 15000];
+// Statement embedder proxied through the Lore API (FR4): run pods carry no GCP credentials, so Vertex rides POST /api/embed on the API's own access; the default for docs kinds when LORE_API_URL is set, injectable for tests.
+const EMBED_429_DELAYS_MS = [2000, 5000, 15000]; // Backoff before each 429 retry — a burst that outruns the API's embed bucket clears within the same sliding-window minute, so short waits win it back.
 
 export function apiEmbed(
   baseUrl: string,
@@ -87,8 +72,7 @@ export function apiEmbed(
   };
 }
 
-/** The default embedder: the API proxy when configured, else the projector's
- *  own fallback (Vertex ADC — local/dev only). */
+// The default embedder: the API proxy when configured, else the projector's own fallback (Vertex ADC — local/dev only).
 function defaultEmbed():
   ((text: string) => Promise<number[] | null>) | undefined {
   const baseUrl = process.env.LORE_API_URL;
@@ -210,8 +194,7 @@ export async function runIngestStation(
       eventLine(`ingest ${kind} complete: ${extras["Lore-Ingest-Summary"]}`),
     );
 
-    // Partial failure routes the line's failed edge — never a silent success
-    // with files missing (same contract as the Floor handler it replaces).
+    // Partial failure routes the line's failed edge — never a silent success with files missing (same contract as the Floor handler it replaces).
     return {
       outcome: summary.failed > 0 ? "failed" : "success",
       extras,

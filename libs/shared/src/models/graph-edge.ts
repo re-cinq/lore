@@ -1,13 +1,7 @@
 import { z } from "zod";
 import type { ColumnMap } from "../lib/row.js";
 
-/**
- * `memory.edges` — a relationship between two graph entities.
- *
- * DDL: `scripts/infra/setup-memory-schema.sh`. Edges carry the same temporal
- * validity facts do (`validFrom`/`validTo`), and name the episode or memory
- * they were derived from, so a relationship can be traced back to its evidence.
- */
+/** `memory.edges` — a relationship between two graph entities; carries the same temporal validity as facts (`validFrom`/`validTo`) and names its source episode/memory so it can be traced back to evidence. */
 
 export const GraphEdgeSchema = z.object({
   id: z.string(),

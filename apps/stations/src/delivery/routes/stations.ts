@@ -1,25 +1,11 @@
-/**
- * `POST /api/stations/{name}` — run one station, return what it reported.
- *
- * The fourth execution form of a Station (ADR-024): not a pod dispatched as an
- * assembly-line node, not a local worktree, not a person behind a route — an
- * HTTP handler in a service that sits next to the data. A cron sweep needs none
- * of what a pod gives a line node (workspace clone, per-node identity, a
- * deadline), and paid for all of it.
- *
- * Synchronous on purpose. The caller is the Floor's scheduler, which already
- * opens a `pipeline.job_runs` row and wants the summary to close it with. A
- * station that grows long enough to make that wrong is the signal to give it an
- * async form, not a reason to build one now.
- */
+// POST /api/stations/{name} — the fourth Station execution form (ADR-024): a sync HTTP handler beside the data, so the Floor's scheduler can close its job_runs row with the summary.
 
 import type { ServerRoute } from "@hapi/hapi";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { apiError } from "@re-cinq/lore-shared/http/api-error.js";
 import { enforceBearer } from "@re-cinq/lore-shared/http/bearer.js";
 
-/** A station: no input, one summary line. Exactly the shape the jobs that move
- *  here already had (`(): Promise<string>`), which is why moving them is a move. */
+// A station: no input, one summary line — the exact shape the jobs moving here already had.
 export type Station = () => Promise<string>;
 
 export type StationRegistry = ReadonlyMap<string, Station>;
@@ -31,9 +17,7 @@ export interface StationsRouteDeps {
 }
 
 export function stationsRoute(deps: StationsRouteDeps): ServerRoute {
-  // Which stations are mid-run. The Floor is a single replica today, so this is
-  // insurance rather than load-bearing — but it is the guard that makes a
-  // second Floor replica, or a retried tick, safe rather than a double sweep.
+  // Tracks stations mid-run; the Floor is single-replica today so this is insurance, but it's what makes a second replica or a retried tick safe rather than a double sweep.
   const running = new Set<string>();
 
   return {
@@ -62,8 +46,7 @@ export function stationsRoute(deps: StationsRouteDeps): ServerRoute {
       try {
         return h.response({ summary: await station() }).code(200);
       } finally {
-        // `finally`, not the success path: a station that threw must not stay
-        // latched, or one bad run wedges it until the process restarts.
+        // finally, not the success path — a throw must not leave the station latched.
         running.delete(name);
       }
     },

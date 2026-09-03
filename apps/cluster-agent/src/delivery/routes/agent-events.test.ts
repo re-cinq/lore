@@ -45,10 +45,6 @@ describe("agent-events relay", () => {
   });
 
   it("accepts the satellite's own per-agent token, which is the only one it holds", async () => {
-    // FR5 keeps LORE_INGEST_TOKEN central, so a satellite's run pods
-    // authenticate with the per-agent token this cluster-agent published into
-    // `agent-secrets` at registration. Refusing it would leave every satellite
-    // run with no telemetry path at all — the gap this route exists to close.
     const res = await post(build([undefined, PER_AGENT]), PER_AGENT);
 
     expect({ status: res.statusCode, count: emitted.length }).toEqual({
@@ -67,8 +63,6 @@ describe("agent-events relay", () => {
   });
 
   it("refuses when this cluster holds no credential yet, rather than accepting anything", async () => {
-    // Before registration completes a satellite has no token at all. An empty
-    // accepted set must close the door, not open it.
     const res = await post(build([undefined, undefined]), "anything");
 
     expect({ status: res.statusCode, count: emitted.length }).toEqual({

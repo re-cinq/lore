@@ -1,13 +1,6 @@
 import type { EventInsert } from "../../events.js";
 
-/**
- * One subscriber's copy of an event, joined with the event it delivers.
- *
- * `id` is the delivery's bigint as a string (pg); `event_id` is the event's.
- * The event's own columns ride along because a handler needs the payload, and
- * fetching it separately would let a pruned event hand back a delivery with
- * nothing in it.
- */
+/** One subscriber's copy of an event, joined with the event it delivers (id/event_id are pg bigints as strings); event columns ride along so a handler always has its payload, even after the event is pruned. */
 export interface EventDeliveryRow {
   id: string;
   event_id: string;
@@ -38,16 +31,7 @@ export interface OrphanedEvents {
   count: number;
 }
 
-/**
- * The `pipeline.event_deliveries` mechanics: a subscriber registers what it
- * wants, then claims, acks, fails and dead-letters its OWN deliveries. Two
- * subscribers of one event get a row each, so neither can steal from or starve
- * the other, and one that was offline drains its own backlog when it returns.
- *
- * `insert` is here rather than only on the queue because fan-out happens INSIDE
- * the insert statement (see fan-out.ts) — an implementation that could not
- * insert could not be held to the delivery contract at all.
- */
+/** pipeline.event_deliveries mechanics: a subscriber registers, then claims/acks/fails/dead-letters its own deliveries (one row per subscriber, so neither steals from nor starves the other). insert lives here since fan-out happens inside the insert statement (fan-out.ts). */
 export interface EventDeliveriesPort {
   /** Register (idempotently) the events this subscriber reacts to. */
   subscribe(
@@ -56,14 +40,7 @@ export interface EventDeliveriesPort {
   ): Promise<void>;
   /** Insert one event, fanning it out to its subscribers in the same statement. */
   insert(input: EventInsert): Promise<void>;
-  /**
-   * Atomically claim up to `limit` of THIS subscriber's runnable deliveries.
-   *
-   * `excludeEventNames` holds back a busy serial family at CLAIM time, so its
-   * waiting rows stay `pending` — parking them in `processing` behind an
-   * in-process queue would get them reaped as presumed-dead and re-run
-   * concurrently anyway.
-   */
+  /** Atomically claims up to `limit` of this subscriber's runnable deliveries; excludeEventNames holds back a busy serial family at claim time so its rows stay pending (not processing, which the reaper would presume dead). */
   claim(
     subscriber: string,
     limit: number,
@@ -72,48 +49,15 @@ export interface EventDeliveriesPort {
   markDone(id: string): Promise<void>;
   markFailed(id: string, error: string, backoffSeconds: number): Promise<void>;
   markDead(id: string, error: string): Promise<void>;
-  /**
-   * Return deliveries whose claimer never finished, each judged against ITS OWN
-   * `visibility_timeout_seconds` rather than one global ceiling; returns the count.
-   */
+  /** Returns deliveries whose claimer never finished, each judged against its own visibility_timeout_seconds rather than a global ceiling; returns the count. */
   reapStuck(): Promise<number>;
-  /**
-   * Delete terminal deliveries older than `olderThanDays`; returns the count.
-   * An event with an unhandled delivery is never collected.
-   */
+  /** Deletes terminal deliveries older than olderThanDays (an event with an unhandled delivery is never collected); returns the count. */
   pruneHandled(olderThanDays: number): Promise<number>;
-  /**
-   * Events captured within `withinMinutes` that no subscriber received.
-   *
-   * The failure this design introduces: an unsubscribed name used to be a loud
-   * dead-letter and is now silence. This is what makes it audible.
-   */
+  /** Events captured within withinMinutes that no subscriber received — makes an unsubscribed name audible instead of silent. */
   orphanedEvents(withinMinutes: number): Promise<OrphanedEvents[]>;
-  /**
-   * Create the deliveries that fan-out could not, and return how many.
-   *
-   * Fan-out reads the subscription set at INSERT time, so an event captured
-   * while a subscriber was not yet registered is delivered to nobody — and
-   * nothing else ever creates that row. That is the deploy window: a producer
-   * rolls out before its consumer and the events between them are lost with no
-   * error line, which is the one failure mode of this design that can stop the
-   * factory silently. Running this at boot, after registering, repairs it.
-   *
-   * Idempotent through the same (event_id, subscriber) uniqueness fan-out uses,
-   * so it is safe to run on every boot and safe to run concurrently.
-   *
-   * `withinMinutes` MUST stay well inside the prune window. An event whose
-   * delivery was pruned still has its row for a moment, and reconciling that far
-   * back would recreate the delivery and run the handler a second time.
-   */
+  /** Creates the deliveries fan-out couldn't (a subscriber not yet registered at insert time), repairing the deploy-order gap; idempotent via the same (event_id, subscriber) uniqueness fan-out uses. withinMinutes must stay well inside the prune window or a pruned delivery gets recreated and re-run. */
   reconcileDeliveries(withinMinutes: number): Promise<number>;
 }
 
-/**
- * How far back a boot looks for events it was never delivered.
- *
- * Comfortably longer than a rollout, and FAR shorter than the prune window, for
- * the reason {@link EventDeliveriesPort.reconcileDeliveries} gives. Declared
- * here rather than in either drainer: both use it, and they must agree.
- */
+/** How far back a boot looks for undelivered events — longer than a rollout, far shorter than the prune window (see {@link EventDeliveriesPort.reconcileDeliveries}); shared so both drainers agree. */
 export const RECONCILE_WINDOW_MINUTES = 60;

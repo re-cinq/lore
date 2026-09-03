@@ -1,9 +1,4 @@
-/**
- * Parse the `Coverage.covers|ranges` edge facet the spec graph carries on a
- * File node — a comma-separated list of covered line intervals like
- * `"12-18,30-40"` (a bare number is a one-line interval). Pure; the only
- * structured line data the remote graph exposes for the coverage layer.
- */
+// Parses the "12-18,30-40" Coverage.covers|ranges facet; a bare number is a one-line interval.
 
 export interface LineInterval {
   startLine: number;

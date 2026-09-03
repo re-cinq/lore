@@ -87,20 +87,13 @@ describe("handleCatalogEvents", () => {
     });
   });
 
-  it("a requested snapshot re-serves the full catalog even for an agent with a stored cursor", async () => {
-    // The boot resync: applied-state is a function of row content AND the
-    // agent binary's rendering, so a restarted agent re-renders everything —
-    // the cursor only tracks row content, and an apply the dying pod lost (or
-    // rendered with older logic) is otherwise never repaired.
+  it("a requested snapshot re-serves the full catalog even for an agent with a stored cursor (boot resync)", async () => {
     const { deps, agent, agents, events } = await harness(
       new Map([["implementation ", def("implementation")]]),
     );
 
     events.setEntries([{ name: "implementation", projectId: null }]);
     events.append("implementation", null, "upsert");
-    // A delete PENDING past the stored cursor: absent from the snapshot, so
-    // the answer must hand back the STORED cursor — acking the max would skip
-    // the tail and leak the deleted pair's CRs forever.
     events.append("deleted-thing", null, "delete");
     await agents.advanceCatalogCursor(agent.id, "1");
 

@@ -1,13 +1,6 @@
 "use client";
 
-// Presentational cross-repo doc list shared by the global /specs and /adrs
-// viewers, sourced from the spec-traceability graph. Groups by repo; `kind`
-// picks both the detail-page href and the chip legend. It is a plain string
-// rather than an href-building callback on purpose: this is a client component
-// rendered by server components, and functions cannot cross that boundary.
-// The lifecycle status pill per path comes from the statuses prop (keyed
-// `repo::filePath`, parsed from the graph's byte-exact sources) and drives the
-// filter chips — the graph is the source of truth for list and statuses alike.
+// `kind` is a plain string, not an href-building callback, since a client component rendered by server components cannot receive functions across that boundary.
 import { useState } from "react";
 import Link from "next/link";
 import styles from "./GlobalDocsView.module.scss";

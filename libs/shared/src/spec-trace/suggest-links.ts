@@ -1,27 +1,10 @@
 import { enforceTrue } from "../lib/enforce.js";
-/**
- * spec-traceability-graph — Phase 5 deterministic vector candidate suggestion.
- *
- * For an un-linked Statement, reads its embedding and runs a Dgraph `similar_to`
- * ANN over both `CodeChunk.embedding` and `TestChunk.embedding`, returning the
- * nearest code and test chunks. No LLM.
- *
- * Results are scoped to the Statement's own repo: chunks from other repos are
- * never suggested, even if they carry an identical embedding. Already-linked
- * targets (via `Statement.implemented_by`/`Statement.validated_by`) are excluded —
- * suggestions are for un-linked gaps only.
- *
- * Kernel invariant: a Statement and a chunk carrying the SAME embedding →
- * that chunk is the top candidate for its kind.
- */
+/** Phase 5 deterministic (no LLM) vector candidate suggestion: for an un-linked Statement, ANN-search `CodeChunk`/`TestChunk` embeddings scoped to its own repo, excluding already-linked targets. */
 
 import type { DgraphClientPort } from "./deps.js";
 import { withTxn } from "./dgraph-upsert.js";
 
-/**
- * Extracts the repo from a spec-trace xid. Every node's xid is
- * `repo|file_path|ordinal` (chunks: `repo|...`), so the leading segment is the repo.
- */
+/** Extracts the repo from a spec-trace xid — the leading segment of `repo|file_path|ordinal`. */
 function repoFromXid(xid: string): string {
   return xid.split("|")[0];
 }
@@ -39,25 +22,10 @@ function toVecLiteral(embedding: unknown): string | undefined {
   return undefined;
 }
 
-/**
- * `similar_to` searches the whole index and cannot pre-filter, so the repo
- * `@filter` runs on the global top-k: other repos' chunks consume slots and can
- * starve same-repo candidates entirely. Over-fetching widens the net before the
- * filter; the caller truncates back to `k`.
- */
+/** `similar_to` can't pre-filter by repo, so other repos' chunks can starve same-repo candidates out of the global top-k — over-fetch to widen the net before filtering. */
 const ANN_OVERFETCH = 10;
 
-/**
- * Runs a `similar_to` ANN over one node type's embedding predicate and returns
- * the nearest same-`repo` nodes' xids, nearest-first (over-fetches
- * `k * ANN_OVERFETCH` globally, then filters to `repo` via the derived
- * `<Type>.repo` predicate, e.g. `CodeChunk.embedding` → `CodeChunk.repo`).
- * `embeddingPredicate`/`xidPredicate` are fixed, code-supplied schema names
- * (e.g. `CodeChunk.embedding`/`CodeChunk.xid`), never user input, so inlining
- * the fetch size into the query is safe. Shared per-predicate ANN:
- * `suggestCandidates` calls it once with `CodeChunk.*` and once with
- * `TestChunk.*` and merges the results.
- */
+/** ANN over one node type's embedding predicate, over-fetched then filtered to same-`repo` nodes; `suggestCandidates` calls it once per CodeChunk/TestChunk and merges. */
 async function nearestByVector(
   dgraph: DgraphClientPort,
   embeddingPredicate: string,
@@ -80,11 +48,7 @@ async function nearestByVector(
   });
 }
 
-/**
- * Reads the Statement's embedding (normalized to a `"[...]"` ANN literal) and the
- * set of xids it is already linked to (`Statement.implemented_by` CodeChunks +
- * `Statement.validated_by` TestChunks) so suggestions can exclude them.
- */
+/** Reads the Statement's embedding (normalized to an ANN literal) plus the xids it's already linked to, so suggestions can exclude them. */
 async function readStatementContext(
   dgraph: DgraphClientPort,
   statementXid: string,
@@ -117,10 +81,7 @@ async function readStatementContext(
   });
 }
 
-/**
- * AcceptanceCriterion xids carry an `|ac|` segment (`repo|path|ac|N`) that
- * Statement xids (`repo|path|N`) never do.
- */
+/** AcceptanceCriterion xids carry an `|ac|` segment (`repo|path|ac|N`) that Statement xids (`repo|path|N`) never do. */
 const AC_XID_TAIL = /\|ac\|\d+$/;
 
 export async function suggestCandidates(
@@ -133,9 +94,7 @@ export async function suggestCandidates(
     Error,
     `suggestCandidates: k must be an integer, got ${k}`,
   );
-  // Suggestions are Statement-only (spec-traceability-graph statement 10):
-  // readStatementContext queries Statement.xid, so an AcceptanceCriterion xid
-  // would silently resolve to no embedding and an empty result. Fail loud instead.
+  // Suggestions are Statement-only; an AcceptanceCriterion xid would otherwise silently resolve to an empty result.
   enforceTrue(
     !AC_XID_TAIL.test(statementXid),
     Error,

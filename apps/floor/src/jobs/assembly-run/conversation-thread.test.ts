@@ -29,9 +29,7 @@ describe("resolveThread", () => {
     });
   });
 
-  it("errors when the run carries no such arg", () => {
-    // Falling back to "no conversation" would silently start fresh forever, which
-    // looks exactly like continuity that remembered nothing.
+  it("errors when the run carries no such arg, instead of silently falling back to no conversation forever", () => {
     expect(resolveThread("args.customer_id", "analyze", ctx)).toEqual({
       ok: false,
       error:
@@ -62,10 +60,7 @@ describe("resolveThread", () => {
 });
 
 describe("mayContinue by why the node is being revisited", () => {
-  it("continues when the node's previous visit succeeded — a next round, not a retry", () => {
-    // The merged planning line revisits `analyze` for every round, so round 2 is
-    // iteration 2. Refusing to continue at iteration > 1 silently killed continuity
-    // for every round after the first.
+  it("continues when the node's previous visit succeeded — a next round, not a retry — since a merged planning line revisits `analyze` every round", () => {
     expect(mayContinue("success")).toBe(true);
   });
 
@@ -73,9 +68,7 @@ describe("mayContinue by why the node is being revisited", () => {
     expect(mayContinue("changes_requested")).toBe(true);
   });
 
-  it("refuses when the previous visit failed — a retry must be reproducible", () => {
-    // A retry exists because the last attempt failed; inheriting that attempt's
-    // context would make the rerun path-dependent.
+  it("refuses when the previous visit failed, since inheriting that attempt's context would make the retry path-dependent", () => {
     expect(mayContinue("failed")).toBe(false);
   });
 

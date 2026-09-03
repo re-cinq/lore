@@ -1,28 +1,4 @@
-/**
- * spec-traceability-graph — Phase 4 drift check (file-scoped).
- *
- * Re-ingesting a source file's chunks and reconciling every spec node that
- * traces to that file against the new content:
- *
- *  - T240 content drift — a Statement or AcceptanceCriterion reached via the
- *    direct `implemented_by` edge flips `drifted = true` with reason
- *    `code-content-changed (<symbol>)` when the overlapping chunk's stored
- *    `content_hash` no longer matches the new content; the chunk's stored hash is
- *    refreshed. A chunk seen for the first time (no stored hash) is baselined, not
- *    drifted. (Coverage now aggregates to File nodes — `Coverage.covers` no longer
- *    targets CodeChunks — so there is no coverage-chain drift; only the hash-bearing
- *    `implemented_by` chunks drive content drift.)
- *  - T241 link rot — a chunk that overlaps no remaining new chunk drifts its
- *    nodes with reason `file-missing` (the file produced no chunks) or
- *    `line-out-of-range` (the lines moved away).
- *  - T243 graded severity — on content drift, each node's `drift_severity` is
- *    set to the cosine distance between the new chunk embedding and the node
- *    embedding. Graceful-degrade: inert (no severity written) whenever either
- *    embedding is absent, so it stays dormant until statement embeddings exist.
- *
- * Consciously deferred: link-rot-vs-content precedence, max severity across
- * chunks, and drift-clearing on realignment.
- */
+/** spec-traceability-graph — Phase 4 drift check (file-scoped): reconciles spec nodes tracing to a re-ingested file against new content (T240 content drift via `implemented_by` hash mismatch, T241 link rot on missing/moved chunks, T243 graded severity via cosine distance); link-rot-vs-content precedence and drift-clearing on realignment are consciously deferred. */
 
 import type { DgraphClientPort } from "./deps.js";
 import { cosineSimilarity, parseEmbedding } from "./deps.js";
@@ -118,10 +94,7 @@ function collectAffectedNodes(chunk: GraphCodeChunk): AffectedNode[] {
   return [...byUid.values()];
 }
 
-/**
- * Statement xid is `${repo}|${specPath}|${ordinal}`; AcceptanceCriterion xid is
- * `${repo}|${specPath}|ac|${ordinal}` (the `ac` marker is dropped).
- */
+/** Statement xid is `${repo}|${specPath}|${ordinal}`; AcceptanceCriterion xid is `${repo}|${specPath}|ac|${ordinal}` (the `ac` marker is dropped). */
 function nodeRefFromXid(xid: string): { specPath: string; ordinal: number } {
   const parts = xid.split("|");
   const ordinal = Number(parts.at(-1));
@@ -192,6 +165,24 @@ async function applySeverity(
   );
 }
 
+async function applyDriftSeverity(
+  dgraph: DgraphClientPort,
+  node: AffectedNode,
+  severitySource: number[] | undefined,
+): Promise<void> {
+  if (!severitySource) {
+    return;
+  }
+  const nodeVector = parseEmbedding(node.embedding);
+
+  if (!nodeVector) {
+    return;
+  }
+  const severity = 1 - cosineSimilarity(severitySource, nodeVector);
+
+  await applySeverity(dgraph, node.uid, node.nodeType, severity);
+}
+
 /** Flips every Statement/AcceptanceCriterion affected by a chunk to drifted with the given reason. */
 async function driftChunkStatements(
   dgraph: DgraphClientPort,
@@ -202,16 +193,7 @@ async function driftChunkStatements(
 ): Promise<void> {
   for (const node of collectAffectedNodes(chunk)) {
     await applyDrift(dgraph, node.uid, driftReason, node.nodeType);
-
-    if (severitySource) {
-      const nodeVector = parseEmbedding(node.embedding);
-
-      if (nodeVector) {
-        const severity = 1 - cosineSimilarity(severitySource, nodeVector);
-
-        await applySeverity(dgraph, node.uid, node.nodeType, severity);
-      }
-    }
+    await applyDriftSeverity(dgraph, node, severitySource);
     const { specPath, ordinal } = nodeRefFromXid(node.xid);
 
     drifted.push({

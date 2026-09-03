@@ -155,7 +155,7 @@ VALUES ('cron.spec_drift.tick', 'cron', '{"repo":"re-cinq/lore"}');
   `dist/job-runner.js`, takes a job name argv, calls `initPool()`, dispatches to
   the matching batch-job function, logs its summary, and exits `0` on success or
   non-zero on error. Unknown job name → non-zero with a clear message.
-- **FR1b — A job_run is settled once.** `complete`/`fail` are guarded on `completed_at IS NULL`, so the FIRST writer decides. `finishLine` settles a detect line's `job_run` BEFORE closing the run row — deliberately, so a crash between the two cannot orphan it open — which means a LOSING racer (the node event and the reaper both reaching the same closure) gets there too. Unconditional, the loser overwrote the winner: a line the event door recorded `completed` was rewritten `failed` by the tick that lost. ([validated by keeps the winner's completed verdict when a loser then fails it](libs/shared/src/project/job-runs/job-runs.test.ts#L182), [`job-runs.test.ts:201`](libs/shared/src/project/job-runs/job-runs.test.ts#L201))
+- **FR1b — A job_run is settled once.** `complete`/`fail` are guarded on `completed_at IS NULL`, so the FIRST writer decides. `finishLine` settles a detect line's `job_run` BEFORE closing the run row — deliberately, so a crash between the two cannot orphan it open — which means a LOSING racer (the node event and the reaper both reaching the same closure) gets there too. Unconditional, the loser overwrote the winner: a line the event door recorded `completed` was rewritten `failed` by the tick that lost. ([validated by keeps the winner's completed verdict when a loser then fails it](libs/shared/src/project/job-runs/job-runs.test.ts#L182), [`job-runs.test.ts:196`](libs/shared/src/project/job-runs/job-runs.test.ts#L196))
 - **FR1a — Run tracking parity.** The runner records each run in
   `pipeline.job_runs` exactly as the in-process scheduler's `runJob` does: insert
   a `running` row on start, update to `completed` with `result_summary` (the
@@ -262,7 +262,7 @@ VALUES ('cron.spec_drift.tick', 'cron', '{"repo":"re-cinq/lore"}');
   facts to `stale` stays non-fatal — failing the run over it would leave a
   completed eviction unreported. Memories are scored against one clock read
   once for the whole batch, so two agents cannot rank the same memory
-  differently within a run. ([validated by `importance-decay.test.ts:32`](apps/stations/src/stations/importance-decay/importance-decay.test.ts#L32), [`importance-decay.test.ts:44`](apps/stations/src/stations/importance-decay/importance-decay.test.ts#L44), [`importance-decay.test.ts:54`](apps/stations/src/stations/importance-decay/importance-decay.test.ts#L54), [`importance-decay.test.ts:67`](apps/stations/src/stations/importance-decay/importance-decay.test.ts#L67), [`importance-decay.test.ts:79`](apps/stations/src/stations/importance-decay/importance-decay.test.ts#L79), [`importance-decay.test.ts:107`](apps/stations/src/stations/importance-decay/importance-decay.test.ts#L107))
+  differently within a run. ([validated by `importance-decay.test.ts:28`](apps/stations/src/stations/importance-decay/importance-decay.test.ts#L28), [`importance-decay.test.ts:40`](apps/stations/src/stations/importance-decay/importance-decay.test.ts#L40), [`importance-decay.test.ts:50`](apps/stations/src/stations/importance-decay/importance-decay.test.ts#L50), [`importance-decay.test.ts:63`](apps/stations/src/stations/importance-decay/importance-decay.test.ts#L63), [`importance-decay.test.ts:75`](apps/stations/src/stations/importance-decay/importance-decay.test.ts#L75), [`importance-decay.test.ts:102`](apps/stations/src/stations/importance-decay/importance-decay.test.ts#L102))
 - **FR9.5 — The Anthropic cost sync follows, credential and all.** Reading the
   Anthropic org billing reports and upserting daily rows is an import, not
   coordination, so it runs in lore-api; the `ANTHROPIC_ADMIN_KEY` secret
@@ -281,7 +281,7 @@ VALUES ('cron.spec_drift.tick', 'cron', '{"repo":"re-cinq/lore"}');
   that pulled the image, requested bumped resources, and exited on
   `Unknown job: autoresearch` — while a dispatch entry with no CronJob would
   simply never run and never say so. A scheduled failure and a silent no-op are
-  both worse than a build error. ([validated by `job-runner.test.ts:92`](apps/floor/src/delivery/job-runner.test.ts#L92), [`job-runner.test.ts:103`](apps/floor/src/delivery/job-runner.test.ts#L103))
+  both worse than a build error. ([validated by `job-runner.test.ts:72`](apps/floor/src/delivery/job-runner.test.ts#L72), [`job-runner.test.ts:83`](apps/floor/src/delivery/job-runner.test.ts#L83))
 
 ## Acceptance Criteria
 
@@ -289,7 +289,7 @@ VALUES ('cron.spec_drift.tick', 'cron', '{"repo":"re-cinq/lore"}');
    the DB pool, logs the job summary, and exits 0 on success / non-zero on error;
    an unknown name exits non-zero. `resolveJob` returns the dispatch handler for a known name and
    null for an unknown or empty name; `runJobByName` invokes the resolved handler and exits 0.
-   ([`job-runner.test.ts:52`](apps/floor/src/delivery/job-runner.test.ts#L52), [`job-runner.test.ts:56`](apps/floor/src/delivery/job-runner.test.ts#L56), [`job-runner.test.ts:66`](apps/floor/src/delivery/job-runner.test.ts#L66), [validated by `resolves %s to a handler function`](apps/floor/src/delivery/job-runner.test.ts#L40))
+   ([`job-runner.test.ts:39`](apps/floor/src/delivery/job-runner.test.ts#L39), [`job-runner.test.ts:43`](apps/floor/src/delivery/job-runner.test.ts#L43), [`job-runner.test.ts:50`](apps/floor/src/delivery/job-runner.test.ts#L50), [validated by `resolves %s to a handler function`](apps/floor/src/delivery/job-runner.test.ts#L27))
 
 1a. Each runner invocation writes a `pipeline.job_runs` row — `running` on start,
    then `completed` (with `result_summary`) or `failed` (with `error`) — so a
@@ -312,7 +312,7 @@ VALUES ('cron.spec_drift.tick', 'cron', '{"repo":"re-cinq/lore"}');
    successful run passes the handler result to `completeJobRun`; and
    `getJobStatus` reports `idle` plus the in-memory last-attempt timestamp
    (`null` before the first attempt in this process).
-   ([validated by `scheduler.test.ts:42`](apps/floor/src/main-loop/scheduling/scheduler.test.ts#L46), [`scheduler.test.ts:66`](apps/floor/src/main-loop/scheduling/scheduler.test.ts#L70), [`scheduler.test.ts:79`](apps/floor/src/main-loop/scheduling/scheduler.test.ts#L83), [`scheduler.test.ts:95`](apps/floor/src/main-loop/scheduling/scheduler.test.ts#L99), [`scheduler.test.ts:111`](apps/floor/src/main-loop/scheduling/scheduler.test.ts#L115), [`scheduler.test.ts:126`](apps/floor/src/main-loop/scheduling/scheduler.test.ts#L130))
+   ([validated by `scheduler.test.ts:45`](apps/floor/src/main-loop/scheduling/scheduler.test.ts#L45), [`scheduler.test.ts:69`](apps/floor/src/main-loop/scheduling/scheduler.test.ts#L69), [`scheduler.test.ts:82`](apps/floor/src/main-loop/scheduling/scheduler.test.ts#L82), [`scheduler.test.ts:98`](apps/floor/src/main-loop/scheduling/scheduler.test.ts#L98), [`scheduler.test.ts:114`](apps/floor/src/main-loop/scheduling/scheduler.test.ts#L114), [`scheduler.test.ts:129`](apps/floor/src/main-loop/scheduling/scheduler.test.ts#L129))
 
 2. Ten CronJobs exist, one per batch job, with schedules exactly matching the
    prior in-process schedules.
@@ -329,7 +329,7 @@ VALUES ('cron.spec_drift.tick', 'cron', '{"repo":"re-cinq/lore"}');
    `README.md` naming its runtime/container; `agent` typecheck and `vitest run`
    pass after the move.
 7. `kubectl create job --from=cronjob/<name>` runs a batch job on demand.
-8. No job is scheduled both in-process and as a CronJob in any release. ([validated by `job-runner.test.ts:46`](apps/floor/src/delivery/job-runner.test.ts#L46))
+8. No job is scheduled both in-process and as a CronJob in any release. ([validated by `job-runner.test.ts:33`](apps/floor/src/delivery/job-runner.test.ts#L33))
 
 9. Each migrated batch job is an independently-runnable unit the runner dispatches and whose one-line
    result the run row records: `memory_ttl` soft-deletes expired memories and reports the count,

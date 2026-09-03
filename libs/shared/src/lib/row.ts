@@ -1,12 +1,4 @@
-/**
- * The field↔column binding a model declares, and the two readers that consume it.
- *
- * A model in `libs/shared/src/models/` names its table's columns once, as a map
- * from its own camelCase field to the snake_case column. Adapters then build their
- * SELECT list and map their result rows from that one declaration instead of
- * restating it — so a column the table no longer has fails as a SQL error on a
- * generated list, rather than as a silently `undefined` field.
- */
+// The field↔column binding a model declares (one map per table), and the readers that consume it — a dropped column fails as a SQL error, not a silent `undefined`.
 
 /** Every field of `T`, bound to the column that stores it. */
 export type ColumnMap<T> = Record<keyof T, string>;
@@ -14,24 +6,14 @@ export type ColumnMap<T> = Record<keyof T, string>;
 /** A result row as the driver hands it back: column name → value. */
 export type DbRow = Record<string, unknown>;
 
-/**
- * The SELECT list for a model, in declaration order. `alias` qualifies every
- * column, which a join needs and an unqualified read does not.
- */
+// The SELECT list for a model, in declaration order; `alias` qualifies every column for a join.
 export function selectList<T>(columns: ColumnMap<T>, alias?: string): string {
   const qualify = alias ? (column: string) => `${alias}.${column}` : String;
 
   return Object.values<string>(columns).map(qualify).join(", ");
 }
 
-/**
- * One result row as the model. Columns the map does not name are dropped, so a
- * query may select extras (a join's cost, a window's rank) without them leaking
- * into the record.
- *
- * NAME the model — `fromRow<Repo>(REPO_COLUMNS, row)`. A `ColumnMap<T>` carries
- * only `T`'s keys, so inference alone would hand back every field as `unknown`.
- */
+// One result row as the model (unnamed columns dropped, so a query may select extras). NAME the model explicitly — `fromRow<Repo>(REPO_COLUMNS, row)` — since inference alone yields `unknown` fields.
 export function fromRow<T>(columns: ColumnMap<T>, row: DbRow): T {
   const record = {} as Record<keyof T, unknown>;
 
@@ -44,12 +26,7 @@ export function fromRow<T>(columns: ColumnMap<T>, row: DbRow): T {
   return record as T;
 }
 
-/**
- * A projection of a column map: the named fields, in the order named.
- *
- * A read that wants some of a table's columns still derives them from the one
- * declaration, so a projection cannot name a column the model does not have.
- */
+// A projection of a column map, in the order named — a projection cannot name a column the model does not have.
 export function pickColumns<T, K extends keyof T>(
   columns: ColumnMap<T>,
   fields: readonly K[],
@@ -63,14 +40,7 @@ export function pickColumns<T, K extends keyof T>(
   return picked;
 }
 
-/**
- * The inverse of {@link fromRow}: one model keyed by the columns that store it.
- *
- * Used where a body publishes the STORED spelling — several clients read
- * snake_case, and flipping any of them is expand/contract work across images
- * rather than a rename, so the model stays camelCase inside and the wire keeps
- * its own keys.
- */
+// Inverse of {@link fromRow}: one model keyed by its stored columns, for wire bodies that publish the snake_case spelling while the model stays camelCase inside.
 export function toRow<T extends object>(
   columns: ColumnMap<T>,
   record: T,
@@ -86,30 +56,7 @@ export function toRow<T extends object>(
   return row;
 }
 
-/**
- * Read a record whose keys may use EITHER spelling — the model's camelCase field
- * names or its snake_case column names — and answer keyed by COLUMN.
- *
- * The reader half of an expand/contract rename (`specs/6-dark-factory` FR6.41):
- * every consumer accepts both spellings in one release BEFORE any producer emits
- * the new one. Without that, flipping a wire key needs a coordinated deploy,
- * which a separately-shipped image cannot give — a station pod and the API that
- * feeds it are always one rollout apart in one direction or the other.
- *
- * The COLUMN spelling wins when a record carries both, because that is the one
- * a producer emits today.
- *
- * The OUTPUT is always keyed by COLUMN, whichever spelling arrived. This widens
- * what a reader ACCEPTS; it does not change what a reader ANSWERS — which is
- * exactly what makes release 1 a no-op on the wire and lets release 2 flip the
- * producers without touching a consumer. Release 3 is the one that is not free:
- * the downstream shape stays snake_case only while this function is in the path,
- * so whoever deletes the shim flips the consumer's own type in the same change.
- *
- * A field absent from `raw` stays absent rather than becoming
- * present-and-undefined — an optional field that is always present, holding
- * nothing, is a different shape than one that is missing.
- */
+// Reader half of an expand/contract rename (specs/6-dark-factory FR6.41): accepts either camelCase field or snake_case column spelling, always outputs keyed by COLUMN (column wins if both present), so a producer can flip spelling in a later release without a coordinated deploy.
 export function acceptEitherSpelling<T>(
   columns: ColumnMap<T>,
   raw: DbRow,
@@ -119,10 +66,13 @@ export function acceptEitherSpelling<T>(
   for (const [field, column] of Object.entries<string>(columns) as Array<
     [keyof T & string, string]
   >) {
-    const key = column in raw ? column : field in raw ? field : undefined;
+    if (column in raw) {
+      row[column] = raw[column];
+      continue;
+    }
 
-    if (key !== undefined) {
-      row[column] = raw[key];
+    if (field in raw) {
+      row[column] = raw[field];
     }
   }
 
@@ -132,26 +82,6 @@ export function acceptEitherSpelling<T>(
 /** Type-only: `Assert<Check>` fails `tsc` when `Check` is not `true`. */
 export type Assert<Check extends true> = Check;
 
-/**
- * Type-only: every key of `Shape` is a column that `Columns` binds.
- *
- * The guard for a hand-written row shape that a model already describes — a
- * pg adapter's result type, an in-memory double's stored row, a wire body.
- * Pairing it with {@link Assert} turns "this shape is the table's shape" from a
- * comment into a build failure, which is what catches a column renamed out from
- * under a `SELECT` before it reaches production as a `42703`.
- *
- * Keys the shape carries DELIBERATELY that are not columns — a joined-in owner,
- * an aggregate — go in an `Omit` at the call site, so the exceptions are a list
- * someone has to write down rather than a paragraph someone has to believe.
- *
- * REQUIRES a column map pinned with `as const`. Without the pin,
- * `Columns[keyof T]` widens from the literal union to `string`,
- * `Exclude<keyof Shape, string>` is `never`, and every assertion built on that
- * map answers `true` whatever shape it is handed — the guard would not fail, it
- * would stop inspecting. Every map in `models/` is pinned, and `models.test.ts`
- * reads the source to keep it that way, since the pin leaves no runtime trace to
- * check.
- */
+// Type-only guard: every key of `Shape` is a column `Columns` binds, catching a renamed column at build time instead of a `42703` in production. Requires `Columns` pinned with `as const` — without it the assertion always answers `true`.
 export type KeysAreColumns<Shape, T, Columns extends ColumnMap<T>> =
   Exclude<keyof Shape, Columns[keyof T]> extends never ? true : false;

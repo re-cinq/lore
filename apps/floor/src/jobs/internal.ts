@@ -1,8 +1,4 @@
-/**
- * Layer-3 handlers for `internal.*` events: mcp-server post-ingest triggers
- * (formerly the `/api/trigger/spec-trace` and `/api/trigger/spec-coverage-validate`
- * endpoints) and the web-ui settings route's team-change signal.
- */
+/** Layer-3 handlers for `internal.*` events: mcp-server post-ingest triggers (formerly `/api/trigger/spec-trace` + `/api/trigger/spec-coverage-validate`) and the web-ui settings route's team-change signal. */
 
 import { createDgraphClient } from "@re-cinq/lore-shared";
 import {
@@ -17,21 +13,7 @@ import { pipeline, chunks, settings } from "../kernel/queues.js";
 import { writeAuditLog } from "./lib/audit.js";
 import type { EventHandler } from "../main-loop/types.js";
 
-/**
- * `internal.repo.team_changed` — a settings write re-pointed the repo's chunk
- * resolution, so any legacy rows still in `org_shared.chunks` just became
- * invisible to every resolved-schema read. Relocate them now instead of
- * waiting for the nightly reindex (which remains the safety net for team
- * changes made outside the settings route). Re-reads the team from
- * `lore.repos` rather than trusting the event payload, so a stale or replayed
- * event relocates against the current state, and resolves it through the
- * uncached `chunkSchemaOrOrgShared` (the per-repo memoized resolver would
- * serve the pre-change schema for its TTL). A relocation error propagates on
- * purpose: relocation is idempotent, so the event loop's retry/backoff and
- * dead-letter give transient failures another shot and permanent ones
- * visibility — the nightly reindex stays the ultimate net either way. Covers
- * the org_shared → team direction only.
- */
+/** `internal.repo.team_changed` — relocates legacy `org_shared.chunks` rows now (rather than waiting for the nightly reindex safety net) since a team re-point makes them invisible to resolved-schema reads; errors propagate so the event loop's retry/dead-letter can handle them. org_shared → team direction only. */
 export const repoTeamChanged: EventHandler = async (params) => {
   const { repo } = params as { repo: string };
   const team = await settings().team(repo);
@@ -61,9 +43,7 @@ export const specTrace: EventHandler = async (params, meta) => {
     payload: unknown;
   };
 
-  // The Floor never writes dgraph itself (FR6) — the pod does — but a cluster
-  // without LORE_DGRAPH_HTTP has no graph system at all, so starting lines
-  // there would only burn pods. Success no-op, not a retry.
+  // The Floor never writes dgraph itself (FR6); without LORE_DGRAPH_HTTP there's no graph system, so this is a success no-op, not a retry.
   if (!createDgraphClient()) {
     console.log(
       `[events] spec-trace skipped for ${repo} (${kind}): LORE_DGRAPH_HTTP not configured`,
@@ -74,8 +54,7 @@ export const specTrace: EventHandler = async (params, meta) => {
   const { logLine, audit } = await dispatchSpecTrace(repo, kind, payload, {
     projectFor,
     insertEvent,
-    // FR2/FR3: docs kinds and payload kinds run as ingest-station lines;
-    // payload bodies hand off by reference through the scheduling event's id.
+    // FR2/FR3: payload bodies hand off by reference through the scheduling event's id.
     startLine: (input) => pipeline().assemblyRuns.start(input),
     eventId: meta?.eventId,
   });

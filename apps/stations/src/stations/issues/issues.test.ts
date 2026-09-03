@@ -35,7 +35,6 @@ function input(params: Record<string, string> = {}): StationInput {
   };
 }
 
-/** A recording stand-in for the pod's HTTP facade — real objects, no mock library. */
 function fakeProject(labels: string[]) {
   const issues: Array<{ title: string; body: string; labels?: string[] }> = [];
   const tasks: Array<Record<string, unknown>> = [];
@@ -121,9 +120,7 @@ describe("runIssuesStation", () => {
     });
   });
 
-  it("sends the decomposition back when it names a label the repo lacks", async () => {
-    // Nothing is filed: GitHub would have created `area:floor` on the spot, and a
-    // half-filed decomposition cannot be re-run cleanly.
+  it("sends the decomposition back when it names a label the repo lacks, filing nothing so a half-filed decomposition can be re-run cleanly", async () => {
     const fake = fakeProject(["area:web-ui", "lore-managed", "user-story"]);
     const result = await runIssuesStation(
       input({ feature_decomposition: DECOMPOSITION }),
@@ -137,8 +134,6 @@ describe("runIssuesStation", () => {
   });
 
   it("fails rather than asking for rework when no artifact reached the node", async () => {
-    // A missing artifact is a WIRING failure — the agent did nothing wrong, so
-    // re-running it would fix nothing.
     const fake = fakeProject([]);
 
     expect(await runIssuesStation(input(), { project: fake.project })).toEqual({
@@ -146,11 +141,7 @@ describe("runIssuesStation", () => {
     });
   });
 
-  it("stamps the feature a spec-task belongs to", async () => {
-    // The join key the whole decomposition view hangs on. Without it the UI's
-    // `context_bundle->>'feature_id'` filter matched zero rows — always — so a
-    // decomposed feature rendered an empty task tree, and merge-check's
-    // spec-status flip never fired either.
+  it("stamps the feature a spec-task belongs to — the join key the whole decomposition view hangs on (its absence left context_bundle->>'feature_id' matching zero rows and merge-check's spec-status flip never firing)", async () => {
     const fake = fakeProject([
       "area:web-ui",
       "area:floor",
@@ -171,11 +162,7 @@ describe("runIssuesStation", () => {
     });
   });
 
-  it("names the spec-task id the way every other consumer reads it", async () => {
-    // The agent's artifact calls it `id`; every reader of a spec-task's
-    // context_bundle — the tasks.md sync, lore_list_pipeline_tasks, the decomposition
-    // view — calls it `spec_task_id`. Spreading the raw task made these rows the only
-    // ones that disagreed, so they rendered with a blank id.
+  it("names the spec-task id spec_task_id, the way every other consumer reads it, not the agent artifact's own `id` (spreading the raw task left these rows with a blank id)", async () => {
     const fake = fakeProject([
       "area:web-ui",
       "area:floor",
@@ -193,8 +180,6 @@ describe("runIssuesStation", () => {
   });
 
   it("omits the feature id when the line carries none", async () => {
-    // A decomposition can be driven without a feature row behind it; the tasks are
-    // still valid work, they just have nothing to link back to.
     const fake = fakeProject([
       "area:web-ui",
       "area:floor",

@@ -35,11 +35,7 @@ describe("staleTaskCheckJob", () => {
     expect(h.escalated).toEqual([{ id: "task-1", ageHours: 9.2 }]);
   });
 
-  it("leaves a task alone while its line is still open", async () => {
-    // A planning line parked on a human node is open for as long as the person
-    // takes. Escalating it was irreversible: decideTaskSettlement only settles a
-    // task still in {pending, queued, running}, so the task stayed at
-    // needs-human-help forever once the person finally answered.
+  it("leaves a task alone while its line is still open, since escalating it would strand it at needs-human-help forever (decideTaskSettlement only settles pending/queued/running)", async () => {
     const h = harness([task()], ["task-1"]);
 
     expect(await staleTaskCheckJob(h.deps)).toContain(

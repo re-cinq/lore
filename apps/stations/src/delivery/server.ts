@@ -1,10 +1,4 @@
-/**
- * The stations service's HTTP server (hapi): one route that runs a station by
- * name, and the probe.
- *
- * `buildServer` does not listen, so tests drive it with `inject()`. It registers
- * NO signal handler — process lifecycle belongs to one owner (index.ts).
- */
+// The stations service's hapi server: one route to run a station by name, plus the health probe. buildServer doesn't listen (tests use inject()); process lifecycle belongs solely to index.ts.
 
 import Hapi from "@hapi/hapi";
 import { stationsRoute } from "./routes/stations.js";
@@ -15,9 +9,7 @@ import { stationHost } from "../kernel/station-host.js";
 export function buildServer(opts: { port?: number } = {}): Hapi.Server {
   const server = Hapi.server({ port: opts.port ?? 0, host: "0.0.0.0" });
 
-  // A handler throw otherwise becomes an anonymous 500 whose cause hapi never
-  // prints — the shape that made #1319 undiagnosable. Deliberate non-500
-  // refusals never reach this channel.
+  // Logs handler throws with their cause (#1319 was undiagnosable without this); deliberate non-500 refusals never reach this channel.
   server.events.on({ name: "request", channels: "error" }, (request, event) => {
     const err = event.error;
     const detail = err instanceof Error ? (err.stack ?? err.message) : `${err}`;

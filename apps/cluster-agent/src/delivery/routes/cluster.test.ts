@@ -9,7 +9,6 @@ let calls: string[];
 let deps: ClusterDeps;
 let app: Hapi.Server;
 
-/** A recording double for every cluster operation the routes expose. */
 function fakeDeps(over: Partial<ClusterDeps> = {}): ClusterDeps {
   return {
     agents: {

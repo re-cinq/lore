@@ -1,12 +1,7 @@
 import type { NodeStationModule } from "../lib/station.js";
 import { join } from "node:path";
 
-/**
- * Project one internal.ingest.* payload into the graph.
- *
- * Runtime — A pod: it reads the init container's clone and is the ONLY workload granted
- *  graph-store egress, which a pooled service must not inherit.
- */
+// Projects one internal.ingest.* payload into the graph. Runtime: a pod — it reads the init container's clone and is the ONLY workload granted graph-store egress, which a pooled service must not inherit.
 export const ingest: NodeStationModule = {
   manifest: {
     name: "ingest",
@@ -22,8 +17,7 @@ export const ingest: NodeStationModule = {
       },
     ],
   },
-  // The clone the init container made lives at <workspace>/target, not at the
-  // workspace root — the adapter the old runner map carried.
+  // The clone the init container made lives at <workspace>/target, not at the workspace root — the adapter the old runner map carried.
   run: async (input, env) =>
     (await import("./ingest.js")).runIngestStation(input, {
       workspaceDir: join(env.workspaceDir, "target"),

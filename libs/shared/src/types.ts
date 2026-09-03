@@ -1,22 +1,8 @@
-/**
- * Shared types used across agent, MCP server, and web-ui.
- */
+/** Shared types used across agent, MCP server, and web-ui. */
 
 import type { PIPELINE_TASK_COLUMNS } from "./models/pipeline-task.js";
 
-/**
- * The `pipeline.tasks` WIRE shape: snake_case keys, timestamps as JSON strings.
- *
- * The table itself is modelled in `models/pipeline-task.ts`; this is what
- * crosses HTTP. The two are deliberately still separate because flipping this
- * one is expand/contract work, not a rename: it is the body a **station pod**
- * reads from `/tasks/open-like`, and a station is a separately deployed image,
- * so by this repo's own rule (6-dark-factory FR6.41) every consumer must accept
- * both spellings in one release before any producer emits the new one.
- *
- * What stops them drifting in the meantime is the assertion below the type: a
- * key here that is not a column of the model fails the build.
- */
+/** `pipeline.tasks` WIRE shape (snake_case): station pods are a separately deployed image, so both spellings must be accepted for one release before a producer switches (FR6.41); the assertion below fails the build if this drifts from `models/pipeline-task.ts`. */
 export interface PipelineTask {
   id: string;
   description: string;
@@ -50,10 +36,7 @@ type TaskColumn =
 
 type Assert<T extends true> = T;
 
-/**
- * The wire type may not carry a key that is not a column. Type-only, so it
- * costs nothing at runtime and fails `tsc` the moment the two disagree.
- */
+/** Type-only guard: fails `tsc` if the wire type carries a key that is not a column. */
 type WireKeysAreColumns = Assert<
   Exclude<keyof PipelineTask, TaskColumn> extends never ? true : false
 >;

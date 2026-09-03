@@ -1,7 +1,4 @@
-/**
- * Direct-LLM port for the agents `direct` mode. The runtime injects a client
- * wrapping the Anthropic SDK (or any provider); shared never imports the SDK.
- */
+// Direct-LLM port for the agents `direct` mode; the runtime injects a client wrapping the SDK — shared never imports it.
 
 export interface LlmCompletion {
   text: string;

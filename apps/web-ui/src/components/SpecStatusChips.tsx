@@ -29,11 +29,7 @@ const LEGEND: Record<DocKind, string> = {
     "decided and live · Rejected / Superseded = abandoned or replaced.",
 };
 
-/**
- * Filter chip row for spec/ADR lists: All + one chip per status present, with
- * counts. `total` is the true list length — it can exceed the status counts'
- * sum because docs with no parsed status are still shown under "All".
- */
+/** `total` can exceed the status counts' sum, since docs with no parsed status are still shown under "All". */
 export default function SpecStatusChips({
   counts,
   total,

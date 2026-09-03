@@ -2,11 +2,6 @@ import { describe, it, expect } from "vitest";
 import { runApprovalCheck } from "./approval-check.js";
 import type { StationHost, StationRepo } from "../lib/station.js";
 
-/**
- * A fake repo that RECORDS rather than asserts, so a test states the outcome it
- * wanted instead of the calls it expected. Real values throughout — the labels
- * are strings and the transitions are recorded transitions, not stubs.
- */
 function repo(labels: string[]): StationRepo & {
   status: Array<{ id: string; to: string }>;
   removed: string[];

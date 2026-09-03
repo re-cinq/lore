@@ -1,9 +1,4 @@
-/**
- * Persistent job-run log storage through the shared ArchivePort (GCS-backed).
- * Logs are redacted before writing, encrypted at rest via CMEK. (The per-task
- * log read/write helpers were removed — they had no callers; only the
- * scheduler's job-run logs are stored here.)
- */
+// Persistent job-run log storage through the shared ArchivePort (GCS-backed), redacted before writing and encrypted at rest via CMEK; the per-task log helpers were removed for having no callers — only the scheduler's job-run logs live here.
 
 import { redactSecrets } from "@re-cinq/lore-shared";
 import type { ArchivePort } from "@re-cinq/lore-shared/project/archive/archive-port.js";

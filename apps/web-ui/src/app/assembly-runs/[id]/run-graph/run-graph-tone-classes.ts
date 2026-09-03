@@ -1,8 +1,4 @@
-// Tone → CSS class, in one place. Every graph part reads its colors from here,
-// so an edge stroke, a status glyph and a label can never disagree about what
-// "warn" looks like. The maps are total over GraphTone: a missing key used to
-// mean a silently uncolored label.
-
+// Tone → CSS class, in one place, so an edge stroke, glyph and label can never disagree about what "warn" looks like; maps are total over GraphTone.
 import type { ConnectorTone } from "@/lib/graph-view-model";
 import type { NodeStatusTone } from "@/lib/run-node-status";
 import styles from "./run-graph.module.css";
@@ -37,8 +33,7 @@ const ICON_FILL: Record<GraphTone, string> = {
   neutral: styles.iconIdle,
 };
 
-/** Join class names, dropping the ones a CSS module does not define (`.forward`
- *  has no rule, so `styles.forward` is undefined). */
+// Join class names, dropping ones a CSS module does not define (e.g. `styles.forward` when `.forward` has no rule).
 export function classes(...names: (string | undefined)[]): string {
   return names.filter(Boolean).join(" ");
 }

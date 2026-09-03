@@ -7,8 +7,7 @@ import { bearerScope } from "../../../server/plugins/bearer-scope.js";
 import { zodValidate } from "../../../server/plugins/zod-validate.js";
 import { clampedLimit, offsetParam } from "../common-schemas.js";
 
-// pipeline.tasks.status is free-form TEXT (no DB enum, open vocabulary), so this
-// bounds the shape rather than fixing a value set.
+// pipeline.tasks.status is free-form TEXT (no DB enum), so this bounds the shape rather than fixing a value set.
 const ListTasksQuery = z.object({
   status: z
     .string()

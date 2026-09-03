@@ -8,8 +8,6 @@ import {
   TaskTypeConfigSchema,
 } from "./task-types-config.js";
 
-/** The committed file the four readers all parse. Resolved from this module so the
- *  dist/ glob run (libs/shared/dist/task-types) lands on the same four-up root. */
 const COMMITTED = readFileSync(
   resolve(import.meta.dirname, "../../../..", "scripts/task-types.yaml"),
   "utf8",
@@ -21,10 +19,6 @@ describe("parseTaskTypesFile", () => {
 
     expect(parsed.drift).toEqual([]);
     expect(Object.keys(parsed.taskTypes)).toHaveLength(21);
-    // The NAMES, not a count: a bare number says a station went and not which,
-    // and the recipes here have to stay in step with the station registry —
-    // pod-runtime stations only; comment-triage left when it pooled (its
-    // manifest says runtime "service", so no pod recipe exists for it).
     expect(Object.keys(parsed.stations).sort()).toEqual([
       "detect",
       "ingest",
@@ -142,13 +136,7 @@ describe("warnOnDrift", () => {
 });
 
 describe("the implementation-tdd recipe", () => {
-  it("tells every implementing recipe to commit and push, because the next node is another pod", () => {
-    // 18 of 18 implementation-loop branches ever created carry 0 commits
-    // (2026-08-30). The push recipe assumed it shared a worktree with implement;
-    // since the per-node-pod cutover each node clones fresh, so the implement
-    // pod's edits died with the pod, validate diffed an empty branch, and push
-    // found "nothing to deliver". spec-write — the one recipe that ships — says
-    // "commit it, and stop"; these never did.
+  it("tells every implementing recipe to commit and push, because the next node is another pod (18/18 implementation-loop branches shipped 0 commits, 2026-08-30)", () => {
     const parsed = parseTaskTypesFile(COMMITTED);
 
     for (const name of DELIVERING_PROMPT_REFS) {
@@ -170,10 +158,7 @@ describe("the implementation-tdd recipe", () => {
     }
   });
 
-  it("holds the DoD to the ticket's own claim — scope fidelity, not reinterpretation", () => {
-    // Bowman-ui #11: issue #7 reported 248 misplaced links, the DoD pinned a
-    // different problem (blank/comment-line rot), and the PR would have closed
-    // the report on a tangent (#1745).
+  it("holds the DoD to the ticket's own claim — scope fidelity, not reinterpretation (bowman-ui #11, #1745)", () => {
     const parsed = parseTaskTypesFile(COMMITTED);
     const dod = parsed.taskTypes["acceptance-dod"]?.prompt_template ?? "";
 
@@ -183,11 +168,7 @@ describe("the implementation-tdd recipe", () => {
     expect(dod).toContain("redefined the ticket");
   });
 
-  it("bans acceptance tests whose subject is the repository's own source text", () => {
-    // Bowman-ui #8/#9/#10: a title-accuracy file readFileSync-ing another test,
-    // a regex self-guard, a literal-scan "duplication" test — all meta-tests
-    // manufactured to satisfy "red is the deliverable" on tickets that owed no
-    // new test (#1743).
+  it("bans acceptance tests whose subject is the repository's own source text (bowman-ui #8/#9/#10, #1743)", () => {
     const parsed = parseTaskTypesFile(COMMITTED);
     const dod = parsed.taskTypes["acceptance-dod"]?.prompt_template ?? "";
     const round = parsed.taskTypes["tdd-round"]?.prompt_template ?? "";
@@ -198,9 +179,7 @@ describe("the implementation-tdd recipe", () => {
     expect(round).toContain("own source text");
   });
 
-  it("offers a mechanical strategy so a trivial ticket owes no new permanent test", () => {
-    // The contract's only exits were "red tests" or "park for a human", so a
-    // two-string label fix got a junk meta-test manufactured for it (#1744).
+  it("offers a mechanical strategy so a trivial ticket owes no new permanent test (#1744)", () => {
     const parsed = parseTaskTypesFile(COMMITTED);
     const dod = parsed.taskTypes["acceptance-dod"]?.prompt_template ?? "";
     const round = parsed.taskTypes["tdd-round"]?.prompt_template ?? "";

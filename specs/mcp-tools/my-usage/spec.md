@@ -74,18 +74,18 @@ the three failure texts, or the `"Error: …"` text. **Never throws**.
 
 ## Acceptance Criteria
 
-The API's usage object is returned to the caller as pretty-printed JSON. ([validated by `returns the API's usage object as pretty-printed JSON`](apps/mcp-server/src/mcp/tools/usage-tools.test.ts#L51))
+The API's usage object is returned to the caller as pretty-printed JSON. ([validated by `returns the API's usage object as pretty-printed JSON`](apps/mcp-server/src/mcp/tools/usage-tools.test.ts#L44))
 
-The request goes to `/api/usage` for the resolved agent id. ([validated by `requests /api/usage for the resolved agent id`](apps/mcp-server/src/mcp/tools/usage-tools.test.ts#L66))
+The request goes to `/api/usage` for the resolved agent id. ([validated by `requests /api/usage for the resolved agent id`](apps/mcp-server/src/mcp/tools/usage-tools.test.ts#L59))
 
-An explicit agent id is url-encoded into the query string. ([validated by `url-encodes an explicit agent id`](apps/mcp-server/src/mcp/tools/usage-tools.test.ts#L75))
+An explicit agent id is url-encoded into the query string. ([validated by `url-encodes an explicit agent id`](apps/mcp-server/src/mcp/tools/usage-tools.test.ts#L68))
 
 An unconfigured API yields the not-configured message rather than a
-PostgreSQL message. ([validated by `reports a missing API configuration instead of a PostgreSQL message`](apps/mcp-server/src/mcp/tools/usage-tools.test.ts#L82))
+PostgreSQL message. ([validated by `reports a missing API configuration instead of a PostgreSQL message`](apps/mcp-server/src/mcp/tools/usage-tools.test.ts#L75))
 
-A denied token yields the denial message naming the tool. ([validated by `reports a denied token`](apps/mcp-server/src/mcp/tools/usage-tools.test.ts#L90))
+A denied token yields the denial message naming the tool. ([validated by `reports a denied token`](apps/mcp-server/src/mcp/tools/usage-tools.test.ts#L83))
 
-An unreachable API surfaces the underlying failure detail. ([validated by `surfaces the failure detail when the API is unreachable`](apps/mcp-server/src/mcp/tools/usage-tools.test.ts#L102))
+An unreachable API surfaces the underlying failure detail. ([validated by `surfaces the failure detail when the API is unreachable`](apps/mcp-server/src/mcp/tools/usage-tools.test.ts#L95))
 
 ## Out of Scope
 

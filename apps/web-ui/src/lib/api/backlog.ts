@@ -3,9 +3,7 @@ import { apiFetch } from "./client";
 import type { ApiResult } from "./result";
 import type { components } from "./schema";
 
-// The implementation-loop repo surface (specs/implementation-loop FR10). The
-// types ALIAS the generated schema — web-ui hand-mirrors no API shapes.
-
+// Implementation-loop repo surface (specs/implementation-loop FR10); types alias the generated schema, no hand-mirrored shapes.
 export type ImplementationLoop = components["schemas"]["ImplementationLoop"];
 export type LoopTicket = NonNullable<ImplementationLoop["current"]>;
 export type ImplementationLoopToggle =

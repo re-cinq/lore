@@ -6,21 +6,12 @@ import type { Pool } from "pg";
 import type { ServerRoute } from "@hapi/hapi";
 import { bearerScope } from "../../../server/plugins/bearer-scope.js";
 
-// Is the factory's model access down right now, and since when (#1455)?
-//
-// Derived on READ from the failure classes station runs recorded, rather than
-// mirrored from the Floor's in-memory dispatch gate: lore-api cannot see another
-// pod's memory, and a second copy of that state would be wrong exactly when it
-// mattered. The station_runs rows are the shared substrate both sides already
-// agree on.
+// Is the factory's model access down right now (#1455)? Derived on READ from station_runs, not mirrored from the Floor's in-memory gate — lore-api can't see another pod's memory.
 
-/** Failure classes that mean the ACCOUNT is down rather than one run — the same
- *  judgement the Floor's dispatch gate makes, kept in step with it deliberately. */
+/** Failure classes meaning the ACCOUNT is down, not one run — mirrors the Floor's dispatch-gate judgement. */
 const ACCOUNT_WIDE = ["anthropic-credit"];
 
-/** How far back a failure still counts as "right now". Long enough to survive a
- *  quiet stretch between runs, short enough that a topped-up account stops
- *  showing a banner within one window. */
+/** How far back a failure still counts as "right now" (long enough to survive a quiet stretch, short enough to clear fast). */
 const WINDOW_MINUTES = 30;
 
 const LlmStatusSchema = z.object({
@@ -49,14 +40,7 @@ const HEALTHY: LlmStatus = {
   affected_runs: 0,
 };
 
-/**
- * Pure: what recent failures say about the platform.
- *
- * Only an account-wide class degrades the platform. Forty pods evicted for
- * ephemeral storage is a bad afternoon for forty runs; one `anthropic-credit`
- * means nothing with a model call in it can succeed, which is the thing worth
- * putting in front of somebody before they retry by hand.
- */
+// Pure: only an account-wide failure class (e.g. anthropic-credit) degrades the platform, not e.g. 40 pods evicted for storage.
 export function decideLlmStatus(groups: RecentFailureGroup[]): LlmStatus {
   const outage = groups.find((g) => ACCOUNT_WIDE.includes(g.failure_class));
 
@@ -73,17 +57,7 @@ export function decideLlmStatus(groups: RecentFailureGroup[]): LlmStatus {
   };
 }
 
-/**
- * One row per recent failure class: how many runs it touched, when it started,
- * and the detail of the run that started it.
- *
- * `min(failure_detail)` alongside `min(finished_at)` was two INDEPENDENT
- * aggregates — `min` over text is lexicographic, so the quoted message was the
- * alphabetically smallest in the group and belonged to no particular row, while
- * `since` came from a different one. The banner quotes a message and dates it;
- * both must come from the same failure. `DISTINCT ON` picks the oldest row per
- * class, and the count is joined onto it.
- */
+// `DISTINCT ON` picks the oldest row per class so detail+date come from the SAME failure — two independent MINs would mismatch them (lexicographic min(text) picks an unrelated row).
 const RECENT_FAILURES_SQL = `
   WITH recent AS (
     SELECT failure_class, failure_detail, finished_at, assembly_run_id
@@ -126,12 +100,7 @@ export function llmStatusRoute(getPool: () => Pool | null): ServerRoute {
 
         return h.response(decideLlmStatus(rows as RecentFailureGroup[]));
       } catch (err) {
-        // A database without the failure columns answers HEALTHY rather than
-        // 500, the same way the run reads degrade to empty on a pre-0025 one.
-        // The deploy hook makes migrate-then-serve the normal ordering, so this
-        // is the abnormal path — a rolled-back migration, an image ahead of the
-        // hook, a local dev database. This endpoint is polled by a BANNER, and
-        // a 500 there is the outage-reporting machinery reporting itself.
+        // Pre-0042 DB (no failure columns) answers HEALTHY, not 500 — this is polled by a BANNER, don't let the outage-reporter report itself.
         if ((err as { code?: string }).code === UNDEFINED_COLUMN) {
           return h.response(HEALTHY);
         }

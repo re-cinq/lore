@@ -1,11 +1,4 @@
-/**
- * POST /api/review/start — the manual "Trigger review" entry (the UI twin of an
- * `@lore review` comment). Bearer-authenticated (LORE_INGEST_TOKEN via the
- * ingest-token strategy); the web-ui button proxies here. Reuses the exact
- * `startReview` helper, so it posts the how-to started-comment and starts a
- * `code-review` line — forced, bypassing the auto_review gate + first-review-only
- * (a human clicking the button is explicit intent).
- */
+/** POST /api/review/start — the manual "Trigger review" entry (the UI twin of an `@lore review` comment); reuses `startReview` forced, bypassing the auto_review gate + first-review-only since a click is explicit intent. */
 
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { apiError } from "../api-error.js";

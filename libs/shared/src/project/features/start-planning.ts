@@ -1,29 +1,8 @@
-/**
- * Start a feature's first planning round.
- *
- * The sequence, not the HTTP around it — the sibling of
- * {@link ./refinement-round.ts}, which covers every round after this one. Both
- * exist because this lifecycle assembles values in one process and reads them
- * in another, and every defect it has produced (#1462, #1466, #1468, #1469,
- * #1470) was a value that crossed that gap with nothing asserting the two ends
- * agreed.
- *
- * One ordering here is load-bearing and asserted rather than described: the
- * round row is appended BEFORE the task is created, because the task carries
- * the iteration number it belongs to — kicking first would name a round that
- * does not exist yet. The task is attached last, because only then is there a
- * task id to attach.
- */
+// Starts a feature's first planning round (sibling of refinement-round.ts, which covers later rounds) — this lifecycle's defects (#1462/1466/1468/1469/1470) were all values crossing the assemble/read process gap unchecked. Load-bearing order: round row appended before task creation (task carries the iteration id), task attached last (needs a task id).
 
 import type { SectionAnswers } from "../../feature-planning/planning-prompt.js";
 
-/**
- * What a planning task carries about the round it is running.
- *
- * The one place this shape is written. It is a CONTRACT between whoever creates
- * the task and the Floor that dispatches it: a key renamed on one side
- * typechecks cleanly on both and reaches the pod as an absent value.
- */
+/** What a planning task carries about its round — the one place this shape is written; a contract between creator and dispatcher (a renamed key typechecks on both sides but reaches the pod absent). */
 export interface PlanningArgsInput {
   featureId: string;
   iteration: number;
@@ -39,16 +18,14 @@ export function planningTaskArgs(
   return {
     feature_id: input.featureId,
     iteration: input.iteration,
-    // Both ride along rather than being resolved here: only the Floor knows at
-    // dispatch whether this round resumes, so neither may be dropped early.
+    // Both ride along rather than resolved here — only the Floor knows at dispatch whether this round resumes.
     ...(input.roundFeedback ? { round_feedback: input.roundFeedback } : {}),
     ...(input.resumeFromTask ? { resume_from_task: input.resumeFromTask } : {}),
   };
 }
 
 export interface StartPlanningInput {
-  /** The `owner/repo` slug, verbatim — it lands in `target_repo` and is cloned
-   *  as `github.com/<target_repo>.git`, so a bare name would clone nothing. */
+  /** The owner/repo slug, verbatim — lands in target_repo and is cloned as github.com/<target_repo>.git; a bare name would clone nothing. */
   repo: string;
   title: string;
   prompt: string;

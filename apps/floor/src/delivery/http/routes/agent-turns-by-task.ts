@@ -1,14 +1,4 @@
-/**
- * GET /api/agent-turns/task/{taskId}?after=&limit= — the task-keyed read of the
- * turn-level transcript store (specs/turn-level-transcript-store FR4, #1148).
- * `listByTask` is the ONLY path to turns that correlate to no assembly-line
- * node, so without this route those rows would be stored but unreachable over
- * HTTP — the write-only-archive gap all over again.
- *
- * Auth, clamping and cursor rules are byte-identical to the line-keyed route:
- * the token is shared with the web-ui, so an unbounded limit would be an
- * unbounded read.
- */
+/** GET /api/agent-turns/task/{taskId}?after=&limit= — the only path to turns uncorrelated to any assembly-line node (specs/turn-level-transcript-store FR4, #1148). */
 
 import { pipeline } from "../../../kernel/queues.js";
 import { parseAfter, parseLimit } from "./agent-events-history.js";

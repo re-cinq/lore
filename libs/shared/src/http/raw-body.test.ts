@@ -17,10 +17,7 @@ describe("rawBody", () => {
 });
 
 describe("rawBytes", () => {
-  it("returns a Buffer payload unchanged, byte for byte", () => {
-    // The reason this function exists: a gzip archive round-tripped through
-    // rawBody's utf-8 decode comes back with U+FFFD where every invalid sequence
-    // was, and the corruption is silent.
+  it("returns a Buffer payload unchanged, byte for byte, unlike rawBody's silent U+FFFD corruption", () => {
     const gzipMagic = Buffer.from([0x1f, 0x8b, 0x08, 0x00, 0xff, 0xfe]);
 
     expect(rawBytes({ payload: gzipMagic })).toBe(gzipMagic);

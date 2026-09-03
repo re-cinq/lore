@@ -7,14 +7,7 @@ import type {
 
 export type { CreateTaskInput, CreatedTask, RetriedTask };
 
-/**
- * The task states where a task is still "in flight" — a new duplicate should be
- * suppressed. Single source for the drift-dedup and gap-dedup jobs (which each
- * used to hard-code their own, divergent, list). `failed` is deliberately NOT
- * here: whether a failed task suppresses a refile is job-specific (spec-drift
- * applies a cooldown; gap-detect suppresses outright), so those jobs add it
- * explicitly when they want it.
- */
+/** Task states still "in flight" (duplicate suppression); single-sourced for drift-dedup/gap-dedup. "failed" deliberately excluded — whether it suppresses a refile is job-specific. */
 export const OPEN_TASK_STATES = [
   "pending",
   "queued",
@@ -24,20 +17,11 @@ export const OPEN_TASK_STATES = [
   "retried",
 ] as const;
 
-/**
- * Task records port. Backed by pipeline.tasks (cluster) or
- * ~/.lore/local-tasks.json (local) — same surface, two adapters. This is the
- * RECORD side; execution lives behind AgentRunnerPort. The SQL for the pg
- * adapter is single-sourced in shared/src/pipeline-tasks.ts.
- */
+// Task records port; backed by pipeline.tasks (cluster) or ~/.lore/local-tasks.json (local), same surface. Record side only — execution lives behind AgentRunnerPort; pg SQL single-sourced in shared/src/pipeline-tasks.ts.
 
 export type TaskAction = "claim" | "cancel" | "retry";
 
-/**
- * The status groups behind the pending/running/executed views and the
- * transition target per action. Shared by the Pg adapter and the in-memory
- * double so the views cannot drift between them.
- */
+/** Status groups behind the pending/running/executed views and transition targets; shared by both adapters so the views can't drift. */
 export const PENDING_STATUSES = ["pending", "queued", "awaiting_approval"];
 export const RUNNING_STATUSES = [
   "running",
@@ -54,8 +38,7 @@ export const NEXT_STATUS: Record<TaskAction, string> = {
 };
 
 /** Dedup lookup: open (per `statuses`) tasks of one type whose description starts with a prefix. */
-/** A spec-task as the feature-detail decomposition view reads it: the three columns
- *  that view needs, not the whole task row. */
+/** A spec-task as the feature-detail decomposition view reads it: the three columns it needs, not the whole task row. */
 export interface FeatureTaskRow {
   description: string;
   status: string;
@@ -65,10 +48,7 @@ export interface FeatureTaskRow {
 export interface FindOpenLikeInput {
   repo: string;
   taskType: string;
-  /**
-   * Matched as an unescaped SQL LIKE prefix (`<prefix>%`, no ESCAPE clause):
-   * a literal `%` or `_` in the prefix acts as a wildcard in both adapters.
-   */
+  /** Matched as an unescaped SQL LIKE prefix (<prefix>%, no ESCAPE) — a literal % or _ acts as a wildcard in both adapters. */
   descriptionPrefix: string;
   statuses: readonly string[];
 }
@@ -110,9 +90,7 @@ export interface TaskStorePort {
     taskType: string,
     specPath: string,
   ): Promise<DriftTaskRow[]>;
-  /** The spec-tasks a feature's merged spec decomposed into (ADR-029), in
-   *  spec-task-id order. Keyed on `context_bundle->>'feature_id'`, which the issues
-   *  station stamps alongside `spec_task_id`. */
+  /** Spec-tasks a feature's merged spec decomposed into (ADR-029), in spec-task-id order; keyed on context_bundle->>'feature_id' (stamped by the issues station). */
   specTasksForFeature(
     repo: string,
     featureId: string,

@@ -16,12 +16,7 @@ import { bearerScope } from "../../../server/plugins/bearer-scope.js";
 import { zodValidate } from "../../../server/plugins/zod-validate.js";
 import { DB_UNAVAILABLE, repoFullName } from "../common-schemas.js";
 
-/**
- * The spec-task DAG (sync → ready → claim → complete) over HTTP, for the MCP
- * tools of the same names: the local adapter holds no pool (ADR-032), so the
- * queue mechanics run here. Markdown parsing runs server-side too, so the
- * tasks.md grammar has exactly one home.
- */
+// Spec-task DAG (sync→ready→claim→complete) over HTTP for the MCP tools — local adapter holds no pool (ADR-032), so queue mechanics + tasks.md parsing run here.
 
 const SyncBody = z.object({
   repo: repoFullName,

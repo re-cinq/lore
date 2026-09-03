@@ -9,13 +9,7 @@ import {
 } from "@/lib/agents-form";
 import AgentForm from "../../../repos/[owner]/[repo]/agents/AgentForm";
 
-/**
- * Edit an ORG-DEFAULT definition from the global /agents page. The save PUTs
- * `/api/agent-definitions/{name}`, which upserts the org row every repo
- * without its own override inherits — per-repo overrides still happen on a
- * repo's Agents tab. No image editing here: the two-key image ceremony is
- * repo-scoped, so the form hides the field (orgScope).
- */
+// Edits the ORG-DEFAULT definition (upserts the org row every repo without its own override inherits); no image field — the two-key image ceremony is repo-scoped.
 export default async function EditOrgAgent({
   params,
 }: {

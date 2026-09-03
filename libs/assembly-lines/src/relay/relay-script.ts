@@ -1,18 +1,4 @@
-/**
- * The BYO toolchain relay (ADR-025, sidecar model). This POSIX-sh script is the
- * command the repo's container runs: it watches a control directory on the
- * volume shared with the kernel container, runs each requested command in its
- * own environment (so the repo's real toolchain — `go vet`, `cargo check`, … —
- * executes), and writes the result back. The BYO image needs nothing but `sh`
- * plus its toolchain; no Lore binary is injected into it.
- *
- * Protocol (files under `$LORE_RELAY_DIR`, driven by {@link RelayExecutor}):
- *   kernel writes  req-<n>.sh  then  req-<n>.ready
- *   relay runs it in $LORE_RELAY_WORKDIR, then writes (in order)
- *     res-<n>.out, res-<n>.err, res-<n>.code, and finally res-<n>.done
- *   `res-<n>.done` is created last so the kernel never reads a partial result.
- *   A `shutdown` file makes the relay exit (ending the sidecar).
- */
+// The BYO toolchain relay (ADR-025, sidecar model): a POSIX-sh script the repo's container runs, watching a shared control directory, running each requested command in its own environment, writing results back — no Lore binary injected. Protocol under $LORE_RELAY_DIR (driven by RelayExecutor): kernel writes req-<n>.sh then req-<n>.ready; relay runs it in $LORE_RELAY_WORKDIR then writes res-<n>.{out,err,code} and finally res-<n>.done (created last so the kernel never reads a partial result); a `shutdown` file ends the sidecar.
 export const RELAY_SCRIPT = `#!/bin/sh
 set -u
 RELAY_DIR="\${LORE_RELAY_DIR:-/workspace/.lore/relay}"

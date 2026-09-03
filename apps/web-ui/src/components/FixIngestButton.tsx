@@ -4,12 +4,7 @@ import { useState, useTransition } from "react";
 import Icon from "@/components/Icon";
 import type { FixWorkflowResult } from "@/lib/fix-workflow-result";
 
-/**
- * Overview-level action: opens a fix-PR installing one workflow on every
- * misaligned repo. Disabled while in flight; reports how many PRs were opened
- * and — critically — how many repos failed and why. "opened 0 PRs" with no
- * reason is exactly how a missing App permission stayed invisible.
- */
+/** Reports how many PRs opened and, critically, why any repo failed — "opened 0 PRs" with no reason is how a missing App permission stayed invisible. */
 export function FixWorkflowButton({
   repos,
   action,
@@ -36,6 +31,22 @@ export function FixWorkflowButton({
       : `${opened}, ${result.failed.length} failed`;
   };
 
+  const renderButtonText = () => {
+    if (pending) {
+      return "opening PRs…";
+    }
+
+    if (done !== null) {
+      return doneLabel(done);
+    }
+
+    return (
+      <>
+        <Icon name="warning" size={13} inline /> {label} ({repos.length})
+      </>
+    );
+  };
+
   return (
     <button
       type="button"
@@ -51,15 +62,7 @@ export function FixWorkflowButton({
           : title
       }
     >
-      {pending ? (
-        "opening PRs…"
-      ) : done !== null ? (
-        doneLabel(done)
-      ) : (
-        <>
-          <Icon name="warning" size={13} inline /> {label} ({repos.length})
-        </>
-      )}
+      {renderButtonText()}
     </button>
   );
 }

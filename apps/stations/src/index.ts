@@ -1,10 +1,4 @@
-/**
- * The stations process: open the pool, load the shared approval config, serve.
- *
- * It schedules nothing itself — the Floor still owns WHEN a station runs — but
- * it now DRAINS as well as serving: a node whose station runs here is published
- * by the walk onto the bus, and without a drainer it would be claimed by nobody.
- */
+// The stations process: opens the pool, loads shared approval config, serves — schedules nothing itself (the Floor owns WHEN) but drains the bus for nodes whose station runs here.
 
 import { loadApprovalConfig } from "@re-cinq/lore-shared";
 import { getPool, initPool } from "@re-cinq/lore-shared/db/pg-pool.js";
@@ -15,22 +9,17 @@ import { deliveries, eventProxy, usage } from "./kernel/queues.js";
 
 const PORT = parseInt(process.env.PORT ?? "8080", 10);
 
-/** How long shutdown waits for the event queue to drain — long enough for a
- *  backlog, short enough not to hold a rollout past its grace period. */
+// How long shutdown waits for the event queue to drain — long enough for a backlog, short enough not to hold a rollout past its grace period.
 const EVENT_DRAIN_TIMEOUT_MS = 5_000;
 
 async function main(): Promise<void> {
   initPool();
-  // Module state read by approval-check; the Floor loads the same config for
-  // its worker's gate.
+  // Module state read by approval-check; the Floor loads the same config for its worker's gate.
   await loadApprovalConfig(getPool());
-  // Service-run stations may call a model (comment-triage's Haiku
-  // classification); wiring the UsagePort here makes those calls land in
-  // `pipeline.llm_calls` exactly as the Floor's own calls do.
+  // Service-run stations may call a model (comment-triage's Haiku); wiring the UsagePort here makes those land in pipeline.llm_calls like the Floor's own calls.
   Llm.configure({ usage: usage() });
 
-  // Before the server: a published node with nobody claiming it sits open until
-  // the reaper times it out, and `merge_step` has no pod to fall back to.
+  // Before the server: a published node with nobody claiming it sits open until reaped, and merge_step has no pod fallback.
   const drain = await startStationDrain({
     subscribe: (subscriber, subs) => deliveries().subscribe(subscriber, subs),
     reconcileDeliveries: (withinMinutes) =>
@@ -43,8 +32,7 @@ async function main(): Promise<void> {
     markDead: (id, error) => deliveries().markDead(id, error),
   });
 
-  // Started before the server: the queue only drains while its loop runs, so an
-  // emit before this would sit in memory until shutdown noticed it.
+  // Started before the server: the queue only drains while its loop runs, so an earlier emit would sit in memory until shutdown noticed it.
   await eventProxy().start();
 
   const stopServer = await startServer(PORT);
@@ -54,8 +42,7 @@ async function main(): Promise<void> {
     clearInterval(drain);
     await stopServer();
 
-    // Before the pool closes and before exit: the queue is in memory, and a
-    // resume dropped on a rollout leaves its parked node waiting for the reaper.
+    // Before the pool closes and before exit: the queue is in memory, and a dropped resume leaves its parked node waiting for the reaper.
     const undrained = await eventProxy().stop(EVENT_DRAIN_TIMEOUT_MS);
 
     if (undrained > 0) {

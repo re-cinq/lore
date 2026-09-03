@@ -23,8 +23,7 @@ import type {
   ClosedRunRef,
 } from "./assembly-runs-port.js";
 
-/** The graph-less projection both open-run reads use. `listOpen` hauls every open
- *  run's graph clone org-wide; these two compare a handful of scalars. */
+/** Graph-less projection shared by both open-run reads (avoids listOpen's org-wide graph clone haul). */
 const OPEN_SUMMARY_COLUMNS = `SELECT id, status, repo, branch, subject_key, created_at
          FROM pipeline.assembly_runs`;
 
@@ -37,8 +36,7 @@ interface OpenRunRow {
   created_at: Date;
 }
 
-/** Postgres `unique_violation`. The subject guard is a partial unique index, so
- *  this is how "someone is already working that subject" arrives. */
+/** Postgres unique_violation; the subject guard is a partial unique index. */
 function isUniqueViolation(err: unknown): boolean {
   return (err as { code?: string } | null)?.code === "23505";
 }
@@ -54,14 +52,7 @@ function toOpenSummary(row: OpenRunRow): OpenRunSummary {
   };
 }
 
-/**
- * Every column `toRecord` maps except `id`, which both lists lead with, and
- * `graph`, the blueprint clone only the full read carries.
- *
- * The two read lists are otherwise identical, so the summary is DERIVED rather
- * than restated: two hand-kept lists differing by one token is a column added to
- * one of them and forgotten in the other.
- */
+// SUMMARY_TAIL: every toRecord column except id/graph, kept single-sourced so the two read lists cannot drift.
 const SUMMARY_TAIL = `blueprint_name, task_id, repo, branch, subject_key, args, status, outcome, reason,
          blueprint_hash, resumed_from_run_id, resumed_from_node_id, inherited_node_count,
          created_at, started_at, finished_at`;
@@ -72,13 +63,22 @@ const SUMMARY_COLUMNS = `id, ${SUMMARY_TAIL}`;
 /** Every column `toRecord` maps, single-sourced so the four read sites cannot drift. */
 const LINE_COLUMNS = `id, graph, ${SUMMARY_TAIL}`;
 
-/**
- * Postgres-backed {@link AssemblyRunsPort} over `pipeline.assembly_runs` /
- * `pipeline.station_runs` (migration 0025). `start` writes the row and
- * the `assembly_line.start` event in ONE data-modifying CTE — atomic without
- * `pool.connect()`, which the narrow {@link PgPool} does not expose. The event
- * columns mirror the shared `insertEvent` writer (`events.ts`).
- */
+// Postgres-backed AssemblyRunsPort (migration 0025); start() writes row + assembly_line.start event atomically since PgPool has no pool.connect().
+/** Normalize the blueprint filter: absent → null, one name → a singleton list. */
+function blueprintNameList(
+  blueprintName: string | readonly string[] | undefined,
+): string[] | null {
+  if (blueprintName === undefined) {
+    return null;
+  }
+
+  if (typeof blueprintName === "string") {
+    return [blueprintName];
+  }
+
+  return [...blueprintName];
+}
+
 export class PgAssemblyRuns implements AssemblyRunsPort {
   constructor(private readonly pool: PgPool) {}
 
@@ -93,18 +93,14 @@ export class PgAssemblyRuns implements AssemblyRunsPort {
       if (!isUniqueViolation(err) || !input.subjectKey) {
         throw err;
       }
-      // Start-or-JOIN: the subject is already in flight, so hand back the run
-      // doing the work instead of a second one. The index — not this branch — is
-      // what makes that true under concurrency; reaching here means it fired.
+      // Start-or-JOIN: subject already in flight — hand back the run doing the work (the index enforces this under concurrency).
       const open = await this.findOpenBySubject(input.repo, input.subjectKey);
 
       if (open) {
         return open.id;
       }
 
-      // The holder settled between the violation and this read, freeing the key.
-      // Retry ONCE: looping would spin against a subject being restarted in a
-      // tight cycle, and a second violation is a genuine race worth surfacing.
+      // Holder settled between the violation and this read; retry once (a second violation is a genuine race).
       return await this.insertStart(input);
     }
   }
@@ -149,9 +145,7 @@ export class PgAssemblyRuns implements AssemblyRunsPort {
   }
 
   async markRunning(id: string): Promise<void> {
-    // Never resurrect a terminal row: a retried assembly_line.start event must not
-    // flip a row the watcher already finished back to `running` (it would then
-    // never close again — the CR terminal event was already consumed).
+    // Never resurrect a terminal row — a retried start event must not flip an already-finished row back to running.
     await this.pool.query(
       `UPDATE pipeline.assembly_runs
          SET status = 'running', started_at = now()
@@ -161,22 +155,7 @@ export class PgAssemblyRuns implements AssemblyRunsPort {
     );
   }
 
-  /**
-   * Fork-and-rerun (specs/fork-rerun-from-node): read the source line and its
-   * node rows, validate, then write the new line row, the `assembly_line.start`
-   * event and every inherited node row in ONE data-modifying CTE. Nothing is
-   * written until validation passes, and every property validated is immutable
-   * on a terminal line — so the read-then-write split opens no window.
-   *
-   * Copied rows deliberately null agent_cr_name: the run-viz ingest and cost
-   * correlation joins resolve a CR name to its line via the NEWEST matching
-   * node row, so echoing the source's CR names onto the fork would steal any
-   * late-arriving agent-event or cost row from the source run. A node row's
-   * CR name always names a CR launched by that line; inherited rows launched
-   * nothing. (Safe for the walk and the reaper: every inherited row is proven
-   * terminal by resolveResumePrefix, and only open rows are ever read back by
-   * CR name.)
-   */
+  /** Fork-and-rerun (specs/fork-rerun-from-node): validates then writes line+event+inherited node rows in one CTE; agent_cr_name nulled on copies so run-viz/cost joins never misattribute to the fork. */
   private async startResumed(
     input: AssemblyRunStartInput,
     resumeFrom: AssemblyRunResumeFrom,
@@ -186,20 +165,7 @@ export class PgAssemblyRuns implements AssemblyRunsPort {
       await this.getById(resumeFrom.lineId),
       await this.listStationRuns(resumeFrom.lineId),
     );
-    // The copy below bounds on `n.id <= cutoff`. That is sound because node-row
-    // ids within one line are monotone in walk order: ensureStationRun inserts
-    // sequentially and its upsert mints no new id on replay, so "rows up to the
-    // chosen visit" and "rows with id <= its id" are the same set (including for
-    // a fork of a fork, whose copied rows are inserted in ORDER BY n.id).
-    //
-    // `failure_class` / `failure_detail` are dropped alongside `agent_cr_name`,
-    // and for the same reason: all three describe the ATTEMPT that is over, not
-    // the history the fork inherits. Copying the verdict would be worse than
-    // untidy — `getNextTransition` replays every visit from the entry node and
-    // fails the run on a permanent failure it meets on a revisit edge, so an
-    // inherited `anthropic-credit` visit anywhere in the copied prefix kills the
-    // fork on its first `advanceLine`. That is exactly the operation someone
-    // performs after topping the account up.
+    // Copy bounds on n.id <= cutoff (node-row ids are monotone in walk order); failure_class/detail/agent_cr_name dropped since they describe the finished attempt, not inherited history (replay would otherwise fail the fork on an inherited permanent-failure visit).
     const cutoffNodeRowId = prefix[prefix.length - 1].id;
     const { rows } = await this.pool.query(
       `WITH al AS (
@@ -251,12 +217,7 @@ export class PgAssemblyRuns implements AssemblyRunsPort {
         prefix.length,
         // A fork replays its source's rows, so it walks the same graph.
         source.graph ? JSON.stringify(source.graph) : null,
-        // A fork re-runs the SAME work: it takes over its source's subject, so it
-        // holds the guard and a subject query finds it. Legal only from a
-        // terminal run, so the key is free by the time we get here.
-        // `?? null` and not just `??`: a bound parameter must be a VALUE. An
-        // undefined here reaches the driver as an absent parameter rather than
-        // SQL NULL, which is a different thing from "this run has no subject".
+        // Fork takes over source's subject (legal only from a terminal run, so the key is free); `?? null` since a bound param needs a value, not undefined.
         input.subjectKey ?? source.subjectKey ?? null,
         resumeFrom.iteration ?? null,
       ],
@@ -270,11 +231,7 @@ export class PgAssemblyRuns implements AssemblyRunsPort {
     hash: string,
     graph?: RunGraph,
   ): Promise<void> {
-    // Write-once, both columns under ONE guard on the hash: the pair describes a
-    // single blueprint, and stamping them independently could leave a row whose
-    // graph and hash came from different loads. A redelivered start that loaded a
-    // since-edited blueprint would otherwise re-point the row at a graph it never
-    // ran.
+    // Write-once under one guard on hash: both columns describe a single blueprint load, so stamping independently could mismatch graph vs hash.
     await this.pool.query(
       `UPDATE pipeline.assembly_runs
          SET blueprint_hash = $2, graph = $3::jsonb
@@ -285,9 +242,7 @@ export class PgAssemblyRuns implements AssemblyRunsPort {
   }
 
   async finish(id: string, outcome: string, reason?: string): Promise<boolean> {
-    // First writer decides: duplicate/late finishers (event redelivery, reaper vs
-    // watch race) never overwrite a terminal row. RETURNING reports the win so
-    // callers can gate once-only side effects on it.
+    // First writer decides — duplicate/late finishers never overwrite a terminal row; RETURNING reports the win for once-only side effects.
     const { rows } = await this.pool.query(
       `UPDATE pipeline.assembly_runs
          SET status = CASE WHEN $1 = 'error' THEN 'failed' ELSE 'finished' END,
@@ -306,11 +261,7 @@ export class PgAssemblyRuns implements AssemblyRunsPort {
   async ensureStationRun(
     input: StationRunStartInput,
   ): Promise<{ nodeRowId: string; stationRunId: string; created: boolean }> {
-    // DO UPDATE (not DO NOTHING) so the statement locks and RETURNS the row in
-    // EVERY case, including the concurrent-duplicate race the primitive exists to
-    // absorb: a DO NOTHING + fallback SELECT sees the winner's not-yet-committed
-    // row as absent under its snapshot and returns zero rows. `xmax = 0` is true
-    // only for a fresh insert, so it distinguishes create from converged duplicate.
+    // DO UPDATE (not DO NOTHING) so the statement always locks+returns the row, including the concurrent-duplicate race; xmax=0 distinguishes create from converged duplicate.
     const { rows } = await this.pool.query(
       `INSERT INTO pipeline.station_runs
          (assembly_run_id, node_id, iteration, agent_cr_name, input,
@@ -391,8 +342,7 @@ export class PgAssemblyRuns implements AssemblyRunsPort {
     clusterAgentId: string;
     tags: string[];
   }): Promise<ClaimedStationRun | null> {
-    // One statement: the FOR UPDATE SKIP LOCKED subquery and the UPDATE share a
-    // snapshot, so two concurrent claimants can never take the same row.
+    // One statement: FOR UPDATE SKIP LOCKED subquery + UPDATE share a snapshot, so concurrent claimants never take the same row.
     const { rows } = await this.pool.query(
       `WITH next AS (
          SELECT id FROM pipeline.station_runs
@@ -437,11 +387,7 @@ export class PgAssemblyRuns implements AssemblyRunsPort {
   }
 
   async requeueStationRun(nodeRowId: string): Promise<boolean> {
-    // `started_at` is the ENQUEUE time of the current queue wait, which is what
-    // the reaper bounds a `queued` visit by — so a requeue must restart it.
-    // Leaving it at the original enqueue made a visit that had been claimed and
-    // lost arrive back on the queue already past the wait, and the next tick
-    // failed it terminally as "no cluster-agent claimed this run".
+    // started_at is the queue-wait clock the reaper bounds by, so requeue must restart it — else a claimed-then-lost visit arrives back already past the wait and fails terminally.
     const { rows } = await this.pool.query(
       `UPDATE pipeline.station_runs
           SET status = 'queued',
@@ -520,10 +466,7 @@ export class PgAssemblyRuns implements AssemblyRunsPort {
     repo: string,
     subjectKey: string,
   ): Promise<OpenRunSummary | null> {
-    // LIMIT 1 states the intent; the partial unique index makes it a fact rather
-    // than a hope. Ordered anyway so that a database predating the index (or one
-    // where it was dropped) answers deterministically instead of returning
-    // whichever row the planner reached first.
+    // LIMIT 1 states intent; the partial unique index makes it a fact. Still ordered so a DB predating (or missing) the index answers deterministically.
     const { rows } = await this.pool.query<OpenRunRow>(
       `${OPEN_SUMMARY_COLUMNS}
         WHERE status IN ('queued', 'running')
@@ -549,10 +492,7 @@ export class PgAssemblyRuns implements AssemblyRunsPort {
   }
 
   async mergeArgs(id: string, patch: Record<string, unknown>): Promise<void> {
-    // Merged in SQL, not read-modify-write: two nodes can produce artifacts within
-    // the same tick, and a JS-side merge would let the second read stale args and
-    // drop the first one's output. `||` is jsonb concatenation — right operand wins
-    // per key, which is exactly the supersede-on-re-run rule.
+    // Merged in SQL (not read-modify-write): two nodes producing artifacts in the same tick would otherwise race and drop one's output; || is jsonb concat, right operand wins per key.
     await this.pool.query(
       `UPDATE pipeline.assembly_runs
           SET args = COALESCE(args, '{}'::jsonb) || $2::jsonb
@@ -585,8 +525,7 @@ export class PgAssemblyRuns implements AssemblyRunsPort {
     const rows = await this.selectList(SUMMARY_COLUMNS, query);
 
     return rows.map((r) => {
-      // toRecord maps `graph` too, and the column is absent here — so drop the
-      // key rather than let it read back as a null the run does not have.
+      // toRecord also maps graph, absent here — drop the key rather than read back a null the run doesn't have.
       const { graph: _graph, ...summary } = toRecord({
         ...(r as Parameters<typeof toRecord>[0]),
         graph: null,
@@ -596,24 +535,12 @@ export class PgAssemblyRuns implements AssemblyRunsPort {
     });
   }
 
-  /**
-   * The one filtered read both list shapes run.
-   *
-   * Built as a NULL-guarded predicate per field rather than by concatenating
-   * clauses: every parameter is bound, the statement text is identical for
-   * every filter combination (so Postgres can reuse the plan), and no caller
-   * input reaches the SQL as text.
-   */
+  /** The one filtered read both list shapes run; NULL-guarded predicate per field (not concatenated clauses) so every param is bound and the plan is reusable. */
   private async selectList(
     columns: string,
     query: AssemblyRunQuery,
   ): Promise<unknown[]> {
-    const blueprints =
-      query.blueprintName === undefined
-        ? null
-        : typeof query.blueprintName === "string"
-          ? [query.blueprintName]
-          : [...query.blueprintName];
+    const blueprints = blueprintNameList(query.blueprintName);
     const { rows } = await this.pool.query(
       `SELECT ${columns}
          FROM pipeline.assembly_runs
@@ -685,9 +612,7 @@ export class PgAssemblyRuns implements AssemblyRunsPort {
     outcome: string,
     definitions?: readonly string[],
   ): Promise<ClosedRunRef[]> {
-    // A null $4 means "every definition" — the caller that owns only part of the
-    // PR's lifecycle passes its own family instead, so closing a PR cannot close a
-    // line that merely references it.
+    // null $4 means "every definition" — callers that own only part of the PR lifecycle pass their own family so closing a PR can't close an unrelated line.
     const { rows } = await this.pool.query<{
       id: string;
       task_id: string | null;
@@ -745,8 +670,7 @@ function toNodeRecord(row: {
     assemblyRunId: row.assembly_run_id,
     nodeId: row.node_id,
     iteration: row.iteration,
-    // Pre-migration reads (SELECT lists without the lifecycle columns) default
-    // to the push-era meaning, same as the InMemory double.
+    // Pre-migration reads (no lifecycle columns) default to the push-era "running" meaning, same as the InMemory double.
     status: StationRunStatusSchema.catch("running").parse(
       row.status ?? "running",
     ),
@@ -757,9 +681,7 @@ function toNodeRecord(row: {
     failureClass: row.failure_class,
     failureDetail: row.failure_detail,
     agentCrName: row.agent_cr_name,
-    // A shape the schema rejects reads as "not captured" rather than throwing:
-    // this column is diagnostics, and a bad row must not break the walk that
-    // reads the visits beside it.
+    // A shape the schema rejects reads as "not captured" rather than throwing — this column is diagnostics and must not break the walk.
     input: StationRunInputSchema.nullable()
       .catch(null)
       .parse(row.input ?? null),

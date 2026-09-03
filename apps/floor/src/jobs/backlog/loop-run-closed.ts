@@ -1,8 +1,7 @@
 import { LORE_BLOCKED_LABEL } from "@re-cinq/lore-shared";
 import type { RunGraph } from "@re-cinq/lore-shared/project/assembly-runs/run-graph.js";
 
-/** The closed run's slice the hook reads — structurally satisfied by
- *  AssemblyRunRecord. */
+/** The closed run's slice the hook reads — structurally satisfied by AssemblyRunRecord. */
 export interface ClosedLoopRun {
   id: string;
   repo: string;
@@ -21,22 +20,14 @@ export interface LoopRunClosedDeps {
   >;
   addLabel(repo: string, issueNumber: number, label: string): Promise<void>;
   comment(repo: string, issueNumber: number, body: string): Promise<void>;
-  /** Re-arm: emit `cron.implementation_loop.tick` scoped to the repo, so the
-   *  next ticket starts in seconds, not at the next 5-minute safety tick. */
+  /** Re-arm: emit `cron.implementation_loop.tick` scoped to the repo, so the next ticket starts in seconds, not at the next 5-minute safety tick. */
   emitTick(repo: string): Promise<void>;
 }
 
 /** Terminal outcomes that are NOT failures — everything else blocks the ticket. */
 const CLEAN_OUTCOMES = new Set(["completed", "lease_held"]);
 
-/**
- * The loop's terminal hook (FR2 re-arm + FR8 blocked tickets). A blocked or
- * errored ticket gets `lore:blocked` — which makes it ineligible under FR1
- * until a human removes it — and a comment naming the failing condition and
- * linking the run's PR. The PR is left open; nothing is closed or reverted.
- * The re-arm always happens, even when the issue write fails: one bad ticket
- * never freezes a repo's backlog.
- */
+/** The loop's terminal hook (FR2 re-arm + FR8 blocked tickets): a blocked/errored ticket gets `lore:blocked` (ineligible under FR1) plus a comment naming the failure, PR left open; the re-arm always happens even when the issue write fails, so one bad ticket never freezes the backlog. */
 export async function handleLoopRunClosed(
   run: ClosedLoopRun,
   outcome: string,
@@ -81,14 +72,7 @@ async function blockedReasonFor(
     .filter((n) => prReviewIds.has(n.nodeId))
     .at(-1);
 
-  // BOTH non-success resumes block, and the reason is the run being CLOSED at
-  // all. A repaired build never reaches here: fix-ci success routes back to the
-  // wait, which opens a new pr_review row and parks the run again. So a closed
-  // run whose last wait resumed `changes_requested` is one where fix-ci gave up
-  // — and blocking only on `failed` let that ticket re-arm, into a fresh run
-  // whose `await-pr -> fix-ci` counter starts at zero. A build that cannot be
-  // reproduced locally would have cycled across runs without bound, since
-  // iteration_max bounds one run and nothing bounded the re-arm.
+  // BOTH non-success resumes block: a repaired build never reaches here (fix-ci success routes back to the wait), so blocking only on `failed` let a re-armed run's iteration_max reset and cycle unbounded across runs.
   if (
     awaitPr?.outcome === "changes_requested" ||
     awaitPr?.outcome === "failed"
@@ -162,9 +146,7 @@ export async function loopRunClosed(
       (await projectFor(repo)).issues.addLabel(issueNumber, label),
     comment: async (repo, issueNumber, body) =>
       (await projectFor(repo)).issues.comment(issueNumber, body),
-    // Queued, not inserted: `onRunClosed` swallows whatever this throws, so a
-    // router blip used to lose the tick outright and the loop simply stopped
-    // until the cron emitter came round. The proxy retries it instead.
+    // Queued, not inserted: `onRunClosed` swallows what this throws, so a router blip used to lose the tick until the cron emitter came round — the proxy retries it instead.
     emitTick: (repo) =>
       eventProxy().emit({
         kind: "event",

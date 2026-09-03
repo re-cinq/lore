@@ -1,28 +1,6 @@
-/**
- * Guard for onboard-task submissions.
- *
- * The two entry points that queue an `onboard` task — `POST /api/onboard`
- * (behind `lore_onboard_repo`) and web-ui's onboard form plus the repo-page
- * "re-run onboarding" button — resolve the repo's onboarding state and run it
- * through `decideOnboard` before writing. Without it a repo that is already
- * onboarded, or that has an onboard task still running, collects duplicate
- * tasks, each of which files its own GitHub Issue and races its own PR (issue
- * #968). The generic task-create paths (`POST /api/task`,
- * `lore_create_pipeline_task`) refuse `onboard` outright and point at
- * `/api/onboard` rather than re-implementing the ceremony.
- *
- * web-ui mirrors this module in `apps/web-ui/src/lib/onboard-guard.ts` (it is
- * not a workspace member and cannot import the package); the mirror is held in
- * lockstep by `onboard-guard.parity.test.ts`.
- */
+// Guard for onboard-task submissions: every queueing entry point runs `decideOnboard` first, so a repo already onboarded or mid-onboard can't collect duplicate tasks each filing its own Issue/PR (#968). web-ui mirrors this in apps/web-ui/src/lib/onboard-guard.ts, held in lockstep by onboard-guard.parity.test.ts.
 
-/**
- * Statuses an onboard task holds while it still counts as in flight: the union
- * of the pending and running sets in `project/tasks/task-store-pg.ts`. Anything
- * narrower lets a live task read as absent — an approval-gated onboard parks at
- * `awaiting_approval`, a locally claimed one sits at `running-local`, and one
- * that has already opened its PR sits at `pr-created`.
- */
+// Statuses where an onboard task still counts as in flight — the union of pending/running in task-store-pg.ts; narrower would miss awaiting_approval/running-local/pr-created.
 export const IN_FLIGHT_TASK_STATUSES = [
   "pending",
   "queued",
@@ -75,12 +53,7 @@ export interface OnboardTaskRow {
   id?: string | null;
 }
 
-/**
- * Derives the guard's input from the two query rows, so the API and the UI
- * cannot disagree about what a missing row or a merged PR means. A merged
- * onboarding PR masks its url: such a repo must read as `already-onboarded`
- * rather than as one whose PR is still waiting to be merged.
- */
+// Derives the guard's input from the two query rows so the API and UI can't disagree; a merged onboarding PR masks its url so the repo reads as `already-onboarded`, not PR-pending.
 export function toOnboardState(
   repoRow: OnboardRepoRow | undefined,
   taskRow: OnboardTaskRow | undefined,
@@ -94,20 +67,12 @@ export function toOnboardState(
   };
 }
 
-/**
- * Advisory-lock key that serializes onboard submissions for one repo. Both apps
- * take `pg_advisory_xact_lock(hashtext(<this>))` before reading the state and
- * writing the task, so two concurrent submissions cannot both see a clear board.
- */
+// Advisory-lock key serializing onboard submissions for one repo — both apps take pg_advisory_xact_lock(hashtext(<this>)) before reading state and writing the task.
 export function onboardLockKey(repo: string): string {
   return `lore.onboard:${repo}`;
 }
 
-/**
- * Description an onboard task carries. The pipeline turns this into the body of
- * the GitHub Issue it files, so a bare repo name (what the UI used to send)
- * produces an Issue that reads as an empty request.
- */
+// The pipeline turns this into the filed GitHub Issue's body — a bare repo name (what the UI used to send) produced an Issue reading as an empty request.
 export function onboardTaskDescription(repo: string): string {
   return (
     `Onboard ${repo} into Lore: inspect the repo and generate the scaffolding it is ` +
@@ -116,13 +81,7 @@ export function onboardTaskDescription(repo: string): string {
   );
 }
 
-/**
- * Decides whether an onboard task may be queued for `repo`. `reonboard` marks
- * the explicit repair path (the repo-page button), which may run against an
- * already-onboarded repo — but never against one whose onboarding is still
- * unfinished, so it waives neither the in-flight block nor the open-PR block.
- * Either would put a second agent on scaffolding an agent is already writing.
- */
+// `reonboard` (the repo-page button) may target an already-onboarded repo but still respects the in-flight/open-PR blocks — either bypass would put a second agent on scaffolding one is already writing.
 export function decideOnboard(
   repo: string,
   state: OnboardState,

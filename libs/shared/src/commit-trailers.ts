@@ -11,10 +11,7 @@ const STAGE_KEY = "Lore-Stage";
 const ITERATION_KEY = "Lore-Iteration";
 const TASK_KEY = "Lore-Task";
 const ASSEMBLY_RUN_KEY = "Lore-Assembly-Run";
-/** The PRE-RENAME key, still READ and never written. Trailers live in git history,
- *  which cannot be rewritten, so every commit Lore has ever authored carries this
- *  spelling forever — the reader accepts both permanently, unlike the event-name
- *  and CR-label shims, which have a deletion condition. */
+// The PRE-RENAME key, still READ and never written — git history can't be rewritten, so this spelling is accepted permanently (unlike the event-name/CR-label shims, which have a deletion condition).
 const LEGACY_ASSEMBLY_LINE_KEY = "Lore-Assembly-Line";
 const VALIDATES_KEY = "Lore-Validates";
 // Lore-Task is NOT required: task-less lines (code-review) commit without one.
@@ -56,18 +53,7 @@ export function formatTrailers(t: Trailers): string {
   return lines.join("\n");
 }
 
-/**
- * Parse the trailer block from a commit message body. Trailers are the
- * last paragraph of the message — a contiguous block of `Key: value`
- * lines preceded by a blank line (or starting at the top).
- *
- * Returns null when:
- *  - the message has no trailer-shaped paragraph,
- *  - the last paragraph mixes trailer and non-trailer lines,
- *  - a required key (Lore-Stage, Lore-Iteration) is missing — Lore-Task is
- *    optional, since task-less lines (code-review) commit without one,
- *  - Lore-Iteration is not a valid integer.
- */
+// Parses the trailer block (last paragraph, contiguous `Key: value` lines); returns null on no trailer paragraph, mixed lines, a missing required key, or a non-integer Lore-Iteration.
 export function parseTrailers(message: string): Trailers | null {
   const normalized = message.replace(/\r\n/g, "\n").trimEnd();
 
@@ -130,36 +116,19 @@ export function parseTrailers(message: string): Trailers | null {
   };
 }
 
-/**
- * A single generation-time provenance link extracted from a commit message,
- * declaring that a test target validates one numbered spec statement.
- */
+/** A generation-time provenance link declaring that a test target validates one numbered spec statement. */
 export interface ProvenanceRef {
   specPath: string;
   ordinal: number;
   target: string;
 }
 
-/**
- * Render a single provenance link as a `Lore-Validates` commit-trailer line,
- * with the grammar `Lore-Validates: <specPath>#<ordinal> -> <target>`. Inverse
- * of `parseValidatesTrailers`: feeding this output back through the parser
- * yields the original `ProvenanceRef`.
- */
+// Renders a provenance link as `Lore-Validates: <specPath>#<ordinal> -> <target>`; inverse of `parseValidatesTrailers`.
 export function formatValidatesTrailer(ref: ProvenanceRef): string {
   return `${VALIDATES_KEY}: ${ref.specPath}#${ref.ordinal} -> ${ref.target}`;
 }
 
-/**
- * Extract every `Lore-Validates` provenance link from a commit message.
- *
- * Each match has the grammar `Lore-Validates: <specPath>#<ordinal> -> <target>`,
- * where `ordinal` is the 1-based number of the spec statement and `target` is
- * the validating test reference. Unlike `parseTrailers`, these lines are scanned
- * anywhere in the message (CRLF-normalized) rather than only in the trailing
- * paragraph, and a message may carry many of them. Non-matching lines are
- * ignored; an empty result means no provenance was declared.
- */
+// Extracts every `Lore-Validates` link from a commit message; unlike parseTrailers, scans the whole message (not just the trailing paragraph) and may return many.
 export function parseValidatesTrailers(message: string): ProvenanceRef[] {
   const refs: ProvenanceRef[] = [];
 

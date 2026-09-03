@@ -12,8 +12,6 @@ import { parseNodeResult } from "./node-outcome.js";
 const logLine = (message: string) => JSON.stringify({ type: "log", message });
 const bareResultLine = (result: string, isError = false) =>
   JSON.stringify({ type: "result", is_error: isError, result });
-// The ai-agent-subsystem's attribution envelope (agentcore output/event.d):
-// every stdout line of a pre-cutover CR arrives as {"source": {...}, "event": <line>}.
 const attributedLine = (event: unknown) =>
   JSON.stringify({
     source: {
@@ -388,9 +386,6 @@ describe("resultLine LLM usage", () => {
 });
 
 describe("agentStderrError", () => {
-  // Byte-for-byte what Agent CR 129235d4-ea2-implement recorded on 2026-08-28.
-  // The engine died before printing a result line, so the ONLY statement of
-  // what happened is the runner's relayed stderr.
   const bootCrash = [
     '{"kind":"lifecycle","phase":"agent","status":"started"}',
     "[agent] Error: Settings file not found: /agent/.claude/settings.json",
@@ -417,7 +412,6 @@ describe("agentStderrError", () => {
   });
 
   it("says nothing about a run the lifecycle never reported as failed", () => {
-    // The gate that keeps ordinary chatter from being read as a cause.
     const output = [
       '{"kind":"lifecycle","phase":"agent","status":"started"}',
       "[agent] warming up",
@@ -427,8 +421,7 @@ describe("agentStderrError", () => {
     expect(agentStderrError(output)).toBeNull();
   });
 
-  it("ignores model prose and tool output, reading only the runner's own prefix", () => {
-    // A fetched page quoting "403 Forbidden" must never become the run's cause.
+  it("ignores model prose and tool output (e.g. a fetched page quoting '403 Forbidden'), reading only the runner's own prefix", () => {
     const output = [
       '{"kind":"lifecycle","phase":"agent","status":"started"}',
       JSON.stringify({ type: "assistant", message: "403 Forbidden somewhere" }),
@@ -439,10 +432,7 @@ describe("agentStderrError", () => {
     expect(agentStderrError(output)).toBeNull();
   });
 
-  it("says nothing when the phase that failed was not the agent's", () => {
-    // An init-phase death has its own markers; the `[agent] ` relay is the
-    // engine's stderr, so attributing it to a different phase's failure would
-    // put the wrong cause on the run.
+  it("says nothing when the phase that failed was not the agent's (init-phase death has its own markers)", () => {
     const output = [
       '{"kind":"lifecycle","phase":"init","status":"started"}',
       "[agent] Error: Settings file not found: /agent/.claude/settings.json",
@@ -452,9 +442,7 @@ describe("agentStderrError", () => {
     expect(agentStderrError(output)).toBeNull();
   });
 
-  it("still reads a failed envelope that names no phase at all", () => {
-    // `phase` is OPTIONAL on the lifecycle marker. Demanding it would let the
-    // exact defect this function exists for survive in a phase-less variant.
+  it("still reads a failed envelope that names no phase at all (phase is optional on the lifecycle marker)", () => {
     const output = [
       "[agent] Error: Settings file not found: /agent/.claude/settings.json",
       '{"kind":"lifecycle","exitCode":1,"status":"failed"}',
@@ -465,9 +453,7 @@ describe("agentStderrError", () => {
     );
   });
 
-  it("reads the line that preceded the failure, not one logged after it", () => {
-    // The reverse scan is bounded by the failure: a shutdown line printed after
-    // the engine died is not what killed it.
+  it("reads the line that preceded the failure, not one logged after it (a shutdown line printed after the engine died is not what killed it)", () => {
     const output = [
       "[agent] Error: Settings file not found: /agent/.claude/settings.json",
       '{"kind":"lifecycle","exitCode":1,"phase":"agent","status":"failed"}',
@@ -495,10 +481,7 @@ describe("agentStderrError", () => {
   });
 });
 
-describe("the gemini result shape", () => {
-  // The real stream shape from run 6cb4b352 (2026-09-02): assistant delta
-  // chunks carrying the text, then a stats-only result line. Claude's result
-  // carries the text itself; gemini's carries none.
+describe("the gemini result shape (run 6cb4b352, 2026-09-02: assistant delta chunks carry the text, then a stats-only result line)", () => {
   const geminiStream = [
     `{"type":"tool_call","name":"read_file"}`,
     `{"type":"message","role":"assistant","content":"\`\`\`REVIEW_FINDINGS\\n{\\n  \\"verdict\\": \\"changes_requested\\",\\n","delta":true}`,

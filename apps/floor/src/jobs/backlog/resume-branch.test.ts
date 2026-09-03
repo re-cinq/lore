@@ -15,9 +15,7 @@ describe("decideBranchResume", () => {
     });
   });
 
-  it("starts fresh when the branch cannot be read", () => {
-    // branchExists is optional on the port, so `undefined` is "unknown", not "no".
-    // Resuming on a guess would hand the run a branch that may not be there.
+  it("starts fresh when the branch cannot be read, treating optional-port undefined as unknown rather than resuming on a guess", () => {
     expect(decideBranchResume({ ...base, branchExists: undefined })).toEqual({
       resume: false,
     });

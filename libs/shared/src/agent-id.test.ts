@@ -9,8 +9,6 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-// AGENT_ID_DIR is captured from process.env.HOME at module load, so each test
-// points HOME at a fresh tmp dir and re-imports the module.
 async function loadResolveAgentId(home: string) {
   process.env.HOME = home;
   vi.resetModules();
@@ -69,7 +67,7 @@ describe("resolveAgentId", () => {
     expect(resolveAgentId()).toBe("machine-stable-id");
   });
 
-  it("generates a uuid and persists it when no source is set", async () => {
+  it("generates a uuid, persists it, and a second resolution reads it back", async () => {
     const resolveAgentId = await loadResolveAgentId(home);
     const id = resolveAgentId();
 
@@ -79,7 +77,6 @@ describe("resolveAgentId", () => {
     expect(readFileSync(join(home, ".lore", "agent-id"), "utf-8").trim()).toBe(
       id,
     );
-    // A second resolution reads the persisted id back rather than regenerating.
     const again = await loadResolveAgentId(home);
 
     expect(again()).toBe(id);

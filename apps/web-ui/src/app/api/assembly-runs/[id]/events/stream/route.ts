@@ -6,25 +6,7 @@ import { fetchAssemblyRun } from "@/lib/assembly-runs";
 import { userCanAccessRepo } from "@/lib/user-repo-access";
 import { serverError } from "@/lib/api-error";
 
-/**
- * GET /api/assembly-runs/[id]/events/stream — session-authed SSE proxy to the
- * Floor's /api/agent-events/stream/{id}. EventSource cannot send an
- * Authorization header, so the browser's same-origin session cookie is the
- * credential and this route exchanges it for the Floor's bearer token.
- *
- * Three things here are load-bearing and easy to undo by accident:
- *  - `upstream.body` is handed back un-awaited. Reading it (.text()/.json())
- *    would buffer the whole stream and the page would show nothing until the
- *    run ended.
- *  - `req.signal` rides along, so closing the tab tears down the Floor stream
- *    instead of leaking a subscriber slot.
- *  - the no-transform / X-Accel-Buffering headers are repeated on this hop,
- *    because the proxy in front of the UI buffers on its own judgement, not the
- *    Floor's (spec FR4.8).
- *
- * Node runtime on purpose — no `export const runtime`. The edge runtime is not
- * needed and would change the fetch/stream semantics this depends on.
- */
+// Session-authed SSE proxy to the Floor's /api/agent-events/stream/{id} (cookie→bearer token exchange). Keep upstream.body un-awaited (streamed, not buffered), req.signal forwarded, and no-transform/X-Accel-Buffering headers repeated per hop (spec FR4.8); Node runtime required, not edge.
 export async function GET(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
@@ -80,12 +62,7 @@ export async function GET(
       { headers, signal: req.signal },
     );
 
-    // A Floor error (404/503) is a JSON error with the status preserved, never
-    // an empty `text/event-stream` — piping the error body as a stream made an
-    // outage indistinguishable from a network blip on the wire. EventSource
-    // cannot read the status either way; the client-side bounded give-up is
-    // what actually stops the retry storm. This keeps the wire truthful for
-    // every other client.
+    // A Floor error is returned as JSON with status preserved, never piped as an event-stream — that made an outage indistinguishable from a blip.
     if (!upstream.ok) {
       return NextResponse.json(
         { error: `Floor stream unavailable (${upstream.status})` },

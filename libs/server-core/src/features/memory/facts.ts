@@ -1,20 +1,10 @@
-/**
- * Async fact extraction via configurable LLM.
- *
- * Extracts individual factual statements from memory values, embeds each
- * fact, and stores them in memory.facts for granular semantic search.
- * Supports Claude, OpenAI, and Ollama as LLM backends.
- *
- * Never throws — a failed extraction must not break the write path.
- */
+// Async fact extraction via configurable LLM: extracts factual statements from memory values, embeds and stores them in memory.facts for granular search. Never throws — a failed extraction must not break the write path.
 
 import { getQueryEmbedding } from "../../platform/db.js";
 import { Llm } from "@re-cinq/lore-shared";
 import type { PgPool } from "@re-cinq/lore-shared";
 
-// Provider selection (Anthropic/OpenAI/Ollama) + cost logging now live behind
-// the shared `Llm` singleton (LORE_LLM_PROVIDER / LORE_FACT_LLM). Fact extraction
-// just calls `Llm.instance.complete`.
+// Provider selection (Anthropic/OpenAI/Ollama) + cost logging live behind the shared `Llm` singleton (LORE_LLM_PROVIDER / LORE_FACT_LLM); fact extraction just calls `Llm.instance.complete`.
 
 const EXTRACTION_PROMPT =
   "Extract individual factual statements from the following text. " +
@@ -81,11 +71,7 @@ const SIMILARITY_THRESHOLD = parseFloat(
   process.env.LORE_FACT_SIMILARITY_THRESHOLD || "0.92",
 );
 
-/**
- * Find existing valid facts that are semantically similar to a new fact
- * and invalidate them (set valid_to, invalidated_by). Fail-open: if
- * anything goes wrong, the new fact is still inserted.
- */
+// Finds existing valid facts semantically similar to a new fact and invalidates them (valid_to, invalidated_by); fail-open — on any error the new fact is still inserted.
 async function invalidateContradictions(
   pool: PgPool,
   newFactId: string,
@@ -254,9 +240,7 @@ export async function extractFacts(
   }
 }
 
-/**
- * Extract facts from an episode (same pipeline, different source column).
- */
+// Extract facts from an episode (same pipeline, different source column).
 export async function extractFactsFromEpisode(
   episodeId: string,
   content: string,

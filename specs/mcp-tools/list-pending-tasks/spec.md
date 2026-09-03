@@ -73,11 +73,11 @@ listing, a "No pending tasks" message, or the error message. Never throws.
 ## Acceptance Criteria
 
 `listPendingTasks` returns an array (empty when the cached pending file is
-absent). ([validated by `runner.local.test.ts:164`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L168))
+absent). ([validated by `runner.local.test.ts:142`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L142))
 
 The local-fallback path applies the `repo` filter, returns the repo-scoped empty
 message when nothing matches, and lists all repos when no filter is given.
-([validated by `returns only the matching repo's tasks`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L78), [validated by `returns the repo-scoped empty message when nothing matches`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L88), [validated by `returns all repos when no filter is given`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L96))
+([validated by `returns only the matching repo's tasks`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L76), [validated by `returns the repo-scoped empty message when nothing matches`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L86), [validated by `returns all repos when no filter is given`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L94))
 
 The API-path grouping/formatting runs only inside the tool. *(untested: the API
 branch needs a live `LORE_API_URL` and the formatting/grouping is inline in the

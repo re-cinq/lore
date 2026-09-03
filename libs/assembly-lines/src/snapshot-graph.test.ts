@@ -52,10 +52,7 @@ describe("snapshotGraph", () => {
     });
   });
 
-  it("resolves an inherited station at clone time, flagged as inherited", () => {
-    // The whole point: an agent node with no station_ref runs the recipe named
-    // after its LINE, and re-deriving that on every read is what let three nodes
-    // silently run the planning prompt.
+  it("resolves an inherited station at clone time, flagged as inherited (re-deriving this on every read is what let three nodes silently run the planning prompt)", () => {
     expect(graph().nodes[0]).toMatchObject({
       id: "implement",
       type: "agent",
@@ -93,11 +90,7 @@ describe("snapshotGraph", () => {
     expect(graph().nodes[1].required_tags).toBeUndefined();
   });
 
-  it("carries the knobs a station pod receives as params", () => {
-    // The Floor reads job_ref / condition_ref straight off the node into the pod's
-    // params, so a clone that dropped them would dispatch a station with no input.
-    // (`validator` used to be one of these and was removed in #1051 — nothing ever
-    // read it.)
+  it("carries the knobs a station pod receives as params (the Floor reads job_ref/condition_ref straight off the node into the pod's params; `validator` was one of these, removed in #1051 since nothing ever read it)", () => {
     expect(graph().nodes[1]).toMatchObject({ job_ref: "quick-checks" });
   });
 

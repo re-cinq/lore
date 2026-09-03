@@ -209,6 +209,18 @@ export function routeList(getPool: () => Pool | null): ServerRoute[] {
   ];
 }
 
+function logOpenApiCoverage(routes: ServerRoute[]): void {
+  const { coverage } = generateOpenApi(routes);
+
+  console.log(summarizeCoverage(coverage));
+
+  if (coverage.uncovered.length) {
+    console.warn(
+      `[openapi] WARNING uncovered write routes: ${coverage.uncovered.join(", ")}`,
+    );
+  }
+}
+
 export function buildServer(getPool: () => Pool | null, port = 0): Hapi.Server {
   const server = Hapi.server({
     port,
@@ -239,15 +251,7 @@ export function buildServer(getPool: () => Pool | null, port = 0): Hapi.Server {
   // silent. Quiet under vitest to keep test output clean; the drift-guard test is
   // the CI enforcement.
   if (!process.env.VITEST) {
-    const { coverage } = generateOpenApi(routes);
-
-    console.log(summarizeCoverage(coverage));
-
-    if (coverage.uncovered.length) {
-      console.warn(
-        `[openapi] WARNING uncovered write routes: ${coverage.uncovered.join(", ")}`,
-      );
-    }
+    logOpenApiCoverage(routes);
   }
 
   return server;

@@ -195,7 +195,6 @@ describe("formatBrokenLinksReport", () => {
         .trimEnd()
         .endsWith("Fix or remove the broken links to silence this."),
     ).toBe(true);
-    // never cuts mid-bullet: every rendered bullet line is complete
 
     for (const line of body.split("\n")) {
       if (line.startsWith("- **")) {

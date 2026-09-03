@@ -1,14 +1,7 @@
 import { z } from "zod";
 import type { ColumnMap } from "../lib/row.js";
 
-/**
- * `pipeline.api_tokens` — a scoped bearer token for the Lore API.
- *
- * DDL: `scripts/infra/setup-pipeline-schema.sh`. The table stores a SHA-256
- * `tokenHash`, never the token: the plaintext exists once, at mint time, in the
- * response. Revocation is `revokedAt`, not a delete, so an audited token's
- * history survives it.
- */
+/** `pipeline.api_tokens` — a scoped bearer token for the Lore API; stores a SHA-256 `tokenHash` only, and revocation is `revokedAt` (not a delete) so an audited token's history survives it. */
 
 export const ApiTokenSchema = z.object({
   id: z.string(),

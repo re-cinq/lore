@@ -16,8 +16,6 @@ describe("anthropicCostSyncJob", () => {
 });
 
 const DAY_MS = 24 * 60 * 60 * 1000;
-// Candidate daily buckets between the window's start and the END of the given
-// day — what the API can return for this request, since the window is open.
 const candidates = (w: { starting_at: string }, now: string) => {
   const day = new Date(now);
   const endOfToday =

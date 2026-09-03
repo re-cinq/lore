@@ -1,20 +1,12 @@
-// The org-wide approval gate's config (lore.settings key `approval_config`).
-//
-// Here rather than on the Floor because it has two readers in two processes:
-// the Floor worker gates a task on `requiresApproval`, and the stations
-// service's approval-check reads `getApprovalLabel` to know which label to look
-// for. A copy in each would be a config that disagrees with itself.
-//
-// Module state, loaded once per process at boot — the same shape it had on the
-// Floor, just reachable from both.
+// The org-wide approval gate's config (lore.settings key `approval_config`), shared by the Floor worker and stations' approval-check so neither holds a disagreeing copy.
 
 import type { PgPool } from "./memory-store.js";
 
 export interface ApprovalConfig {
-  required: boolean; // org-level default
-  label: string; // label name to look for (default: "approved")
-  auto_approve: string[]; // task types that skip approval
-  repos: Record<string, { required: boolean }>; // per-repo overrides
+  required: boolean;
+  label: string;
+  auto_approve: string[];
+  repos: Record<string, { required: boolean }>;
 }
 
 let config: ApprovalConfig = {
@@ -24,15 +16,7 @@ let config: ApprovalConfig = {
   repos: {},
 };
 
-/**
- * Load approval config from lore.settings (key: "approval_config").
- * Falls back to defaults if not set.
- *
- * Takes the pool rather than reaching for an ambient one: TWO processes load
- * this now — the Floor, whose worker asks `requiresApproval`, and the stations
- * service, whose approval-check asks `getApprovalLabel`. Each holds its own
- * pool, and each loads this once at its own boot.
- */
+/** Loads approval_config from lore.settings, falling back to defaults; takes the pool explicitly since the Floor and stations each load it once at their own boot. */
 export async function loadApprovalConfig(pool: PgPool): Promise<void> {
   try {
     const { rows } = await pool.query<{ value: string }>(
@@ -52,9 +36,6 @@ export async function loadApprovalConfig(pool: PgPool): Promise<void> {
   );
 }
 
-/**
- * Check if a task requires approval before processing.
- */
 export function requiresApproval(
   taskType: string,
   targetRepo: string,

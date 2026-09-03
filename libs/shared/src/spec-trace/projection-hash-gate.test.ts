@@ -5,18 +5,6 @@ import { projectSpecFile } from "./project-spec-file.js";
 import { projectAdrFile } from "./project-adr-file.js";
 import type { DgraphClientPort, DgraphTxn } from "../memory-store.js";
 
-/**
- * The content_hash freshness gate must be a COMPLETED-projection receipt, not
- * an attempted-projection marker (spec-traceability-graph). A projection that
- * dies mid-file (dgraph txn abort under contention) must leave the gate open
- * so the next attempt re-projects the whole file — hash written first left 10
- * prod specs permanently skipped with partial children (2026-07-16 outage).
- *
- * Runs against a fake 3-method DgraphClientPort (no container): it answers
- * upsert find-queries from recorded nodes, assigns uids to blank nodes, and
- * can fail the Nth mutation like a real abort would.
- */
-
 const SPEC_CONTENT = `# Feature Specification: Hash Gate
 
 | Field | Value |

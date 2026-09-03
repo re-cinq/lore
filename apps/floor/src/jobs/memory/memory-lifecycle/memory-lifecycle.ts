@@ -1,16 +1,4 @@
-/**
- * Memory lifecycle — automatic consolidation.
- *
- * The importance-decay half moved to lore-api in #1350: it was scoring plus
- * database writes, needing none of the Floor's three exclusive powers. This
- * half stays for now only because it calls Haiku; #1346 moves it to a station.
- *
- * Consolidation:
- *   Periodically groups related facts from recent episodes and
- *   synthesizes higher-level patterns via Haiku. Stores consolidated
- *   insights as memories, reducing noise in search results.
- *   Inspired by ByteRover's ACE Curator phase.
- */
+/** Memory lifecycle — automatic consolidation: periodically groups related facts and synthesizes higher-level patterns via Haiku. The importance-decay half moved to lore-api in #1350; this half stays only because it calls Haiku (#1346 moves it to a station). */
 
 import { memoryLifecycle } from "../../../kernel/queues.js";
 import { Llm } from "@re-cinq/lore-shared";
@@ -20,14 +8,7 @@ import { Llm } from "@re-cinq/lore-shared";
 const CONSOLIDATION_MIN_FACTS = 5;
 const CONSOLIDATION_LOOKBACK_DAYS = 7;
 
-/**
- * Pull the `PATTERN: ` lines out of the model's reply.
- *
- * Extracted so it can be tested against the real thing: the test file used to
- * re-implement this pipeline inline, so a change here could not fail it (#1374).
- * The length floor drops the model's occasional one-word non-answers, and a
- * "NONE" reply produces nothing because it carries no prefix.
- */
+/** Pull the `PATTERN: ` lines out of the model's reply. Extracted so tests exercise the real thing rather than re-implementing it inline (#1374); the length floor drops one-word non-answers, and "NONE" produces nothing (no prefix). */
 export function parseConsolidationPatterns(text: string): string[] {
   return text
     .split("\n")
@@ -87,13 +68,7 @@ export async function consolidationJob(): Promise<string> {
         continue;
       }
 
-      // Store each pattern as a memory
-      for (const pattern of patterns) {
-        const key = `consolidated/${repo.replace(/\//g, "-")}/${Date.now()}`;
-
-        await memoryLifecycle().insertConsolidatedMemory(key, pattern);
-        consolidated++;
-      }
+      consolidated += await storeConsolidatedPatterns(repo, patterns);
     } catch {
       // Best effort — don't crash the job
     }
@@ -106,4 +81,25 @@ export async function consolidationJob(): Promise<string> {
   }
 
   return `Consolidated ${consolidated} patterns from ${recentFacts.length} facts`;
+}
+
+/** Store each extracted pattern as a memory; best effort — a partial store still counts what landed. */
+async function storeConsolidatedPatterns(
+  repo: string,
+  patterns: string[],
+): Promise<number> {
+  let stored = 0;
+
+  try {
+    for (const pattern of patterns) {
+      const key = `consolidated/${repo.replace(/\//g, "-")}/${Date.now()}`;
+
+      await memoryLifecycle().insertConsolidatedMemory(key, pattern);
+      stored++;
+    }
+  } catch {
+    // Best effort — don't crash the job
+  }
+
+  return stored;
 }

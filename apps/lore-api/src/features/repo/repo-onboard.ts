@@ -54,13 +54,13 @@ export async function getInstallationRepos(): Promise<InstallationRepo[]> {
       page,
     });
 
-    for (const repo of data.repositories) {
-      repos.push({
+    repos.push(
+      ...data.repositories.map((repo) => ({
         full_name: repo.full_name,
         owner: repo.owner?.login || repo.full_name.split("/")[0],
         name: repo.name,
-      });
-    }
+      })),
+    );
 
     if (data.repositories.length < perPage) {
       break;
@@ -448,33 +448,54 @@ export async function fetchRepoContext(fullName: string): Promise<RepoContext> {
       continue;
     }
 
-    for (const entry of entries) {
-      if (Object.keys(samples).length >= 3) {
-        break;
-      }
-
-      try {
-        const { data } = await octokit.rest.repos.getContent({
-          owner,
-          repo,
-          path: entry.path,
-        });
-
-        if (!Array.isArray(data) && data.type === "file" && data.content) {
-          const full = decodeContent(data.content);
-          const first200 = full.split("\n").slice(0, 200).join("\n");
-
-          samples[entry.path] = first200;
-        }
-      } catch (err) {
-        console.error(
-          `[onboard] Error fetching sample ${fullName}/${entry.path}: ${errorMessage(err)}`,
-        );
-      }
-    }
+    await sampleSourceFiles(
+      octokit,
+      { owner, repo, fullName },
+      entries,
+      samples,
+    );
   }
 
   return { tree, files, samples };
+}
+
+interface SampledRepoRef {
+  owner: string;
+  repo: string;
+  fullName: string;
+}
+
+/** Fills `samples` (up to 3 entries) with the first 200 lines of each listed file. */
+async function sampleSourceFiles(
+  octokit: Awaited<ReturnType<typeof getOctokit>>,
+  ref: SampledRepoRef,
+  entries: Array<{ name: string; path: string; type: string }>,
+  samples: Record<string, string>,
+): Promise<void> {
+  for (const entry of entries) {
+    if (Object.keys(samples).length >= 3) {
+      break;
+    }
+
+    try {
+      const { data } = await octokit.rest.repos.getContent({
+        owner: ref.owner,
+        repo: ref.repo,
+        path: entry.path,
+      });
+
+      if (!Array.isArray(data) && data.type === "file" && data.content) {
+        const full = decodeContent(data.content);
+        const first200 = full.split("\n").slice(0, 200).join("\n");
+
+        samples[entry.path] = first200;
+      }
+    } catch (err) {
+      console.error(
+        `[onboard] Error fetching sample ${ref.fullName}/${entry.path}: ${errorMessage(err)}`,
+      );
+    }
+  }
 }
 
 // ── Onboarding PR merge detection (T018) ────────────────────────────

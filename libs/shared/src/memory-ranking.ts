@@ -1,10 +1,4 @@
-/**
- * Backend-agnostic memory ranking — the TS home for Reciprocal Rank Fusion
- * and (later) diversification, per memory-dgraph-migration/data-model.md.
- *
- * Stays pure and driver-free so any backend (Postgres, Dgraph) can fuse the
- * ranked lists it produced from its own keyword + vector queries.
- */
+/** Backend-agnostic memory ranking (Reciprocal Rank Fusion + diversification) — pure and driver-free so any backend can fuse its own keyword + vector queries. */
 
 export interface MemorySearchResult {
   key: string;

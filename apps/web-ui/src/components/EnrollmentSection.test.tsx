@@ -4,8 +4,6 @@ import { render, screen } from "@testing-library/react";
 import EnrollmentSection from "./EnrollmentSection";
 import type { Check } from "@/lib/enrollment";
 
-// Icon pulls in the theme context (and window.matchMedia); it's irrelevant to
-// what this component contributes, so stub it out.
 vi.mock("./Icon", () => ({ default: () => null }));
 
 const checks: Check[] = [

@@ -1,12 +1,4 @@
-// Delivering a planning round's GapResult from the pod that produced it.
-//
-// A feature-planning agent's deliverable is a FILE, and the subsystem streams what
-// an agent says — so for a long time nothing carried the artifact back: the pod
-// wrote a perfect result.json, exited 0, and the round failed with no result. The
-// subsystem now raises a declared artifact as a `kind:"file"` event on the same
-// NDJSON sink the Floor already receives (ai-agent-subsystem#188), so the Floor —
-// which has the database — does the write. No token in the pod, no LLM in the
-// delivery path.
+// Delivers a planning round's GapResult from the pod's declared `kind:"file"` artifact on the NDJSON sink (ai-agent-subsystem#188) — the Floor does the write since the pod carries no DB token.
 
 import {
   applyGapResult,
@@ -15,8 +7,7 @@ import {
 import type { PipelineTask } from "@re-cinq/lore-shared";
 import type { AgentFileEvent } from "./agent-events.js";
 
-/** The event name the feature-planning recipe declares in `output.watch`. Must
- *  match the recipe — the Floor routes on it. */
+/** The event name the feature-planning recipe declares in `output.watch`; must match the recipe since the Floor routes on it. */
 export const PLANNING_RESULT_EVENT = "planning.result";
 
 export interface PlanningResultDeps {
@@ -26,23 +17,13 @@ export interface PlanningResultDeps {
   roundOf(taskId: string): Promise<number | undefined>;
 }
 
-/** What the DELIVERY did — never the round's verdict, which only the line's terminal
- *  settlement (settleTaskForLine) records. `failed` here means "a run that declared an
- *  artifact produced none", which is worth a log line; `skipped` means "not mine to
- *  handle" and would bury it among the many events this sink ignores. */
+/** What the DELIVERY did, never the round's verdict (only settleTaskForLine records that); `failed` = a declared artifact produced none, `skipped` = not this handler's event. */
 export type PlanningDelivery =
   | { outcome: "ready" }
   | { outcome: "failed"; error: string }
   | { outcome: "skipped"; error: string };
 
-/**
- * Persist one planning artifact event. Skips anything that is not a planning
- * result, or whose task is not a planning round — the sink carries every run's
- * events, so most calls are a no-op by design.
- *
- * An artifact the agent never produced (`reason`) fails the round carrying that
- * reason, rather than leaving it to be reaped as a mystery later.
- */
+/** Persist one planning artifact event; skips non-planning-result events and non-planning-round tasks (the sink carries every run's events, so most calls are a no-op by design). */
 export async function deliverPlanningResult(
   fileEvent: AgentFileEvent,
   deps: PlanningResultDeps,
@@ -50,20 +31,13 @@ export async function deliverPlanningResult(
   if (fileEvent.event !== PLANNING_RESULT_EVENT) {
     return { outcome: "skipped", error: "not a planning result" };
   }
-  // The sink carries every run's artifacts, so most calls land on a task this
-  // handler has no business touching.
   const task = await deps.tasks.getById(fileEvent.taskId);
 
   if (!task || task.task_type !== "feature-planning") {
     return { outcome: "skipped", error: "not a planning round" };
   }
   const featureId = task.context_bundle?.feature_id as string | undefined;
-  // The LINE owns the round number. A resumed round mints no task (FR6.22), so every
-  // round after the first reports against the feature's ORIGINATING task, whose
-  // context_bundle still says iteration 1 — reading it there wrote round N's result
-  // onto round 1 and left round N with nothing, which the terminal settlement then
-  // reported as a failed round. The task's own value remains the fallback for the
-  // legacy shape, where each round had a line and a task of its own.
+  // The LINE owns the round number: a resumed round mints no task (FR6.22), so context_bundle's iteration is stale past round 1; the task's value is only the legacy fallback.
   const iteration =
     (await deps.roundOf(fileEvent.taskId)) ??
     (task.context_bundle?.iteration as number | undefined);
@@ -73,12 +47,7 @@ export async function deliverPlanningResult(
   }
   const { features } = await deps.featuresFor(task.target_repo ?? "");
 
-  // A failed ATTEMPT is not a failed ROUND. The analyze node carries an
-  // `iteration_max` back-edge, and its retry routinely produces the result the first
-  // pod did not — so recording failure here showed the author "Planning round N
-  // failed", with a Retry button, while a retry was already in flight. The line's
-  // terminal settlement (settleTaskForLine) is the single owner of that verdict, and
-  // it already fails a round that ended without a usable result.
+  // A failed ATTEMPT is not a failed ROUND — the analyze node's iteration_max retry can still produce a result, so settleTaskForLine remains the single owner of the round verdict.
   if (fileEvent.reason) {
     return {
       outcome: "failed",
@@ -101,9 +70,7 @@ export async function deliverPlanningResult(
   return applyGapResult(features, featureId, iteration, payload);
 }
 
-/** Deliver every planning artifact in one sink batch. Never throws: a delivery
- *  failure must not 500 the telemetry ingest, which also carries cost and run-viz
- *  rows for unrelated runs. Returns how many rounds it settled. */
+/** Deliver every planning artifact in one sink batch; never throws, since a delivery failure must not 500 the telemetry ingest that also carries unrelated cost/run-viz rows. Returns how many rounds it settled. */
 export async function deliverPlanningResults(
   fileEvents: readonly AgentFileEvent[],
   deps: PlanningResultDeps,

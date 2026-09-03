@@ -12,8 +12,6 @@ const sha256 = (token: string) =>
   createHash("sha256").update(token).digest("hex");
 
 describe("rateLimit", () => {
-  // The sliding window is module state; the safe clock jumps 120s between tests
-  // so a prior test's 60s window is fully evicted on this test's first call.
   useRateLimitSafeClock();
 
   it("allows requests up to the bucket limit then blocks the next", () => {

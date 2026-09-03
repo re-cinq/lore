@@ -3,11 +3,7 @@ import type { PgPool } from "@re-cinq/lore-shared";
 import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 
-// ══════════════════════════════════════════════════════════════════════
 // Live knowledge graph (PostgreSQL-backed)
-// ══════════════════════════════════════════════════════════════════════
-
-// ── Types ───────────────────────────────────────────────────────────
 
 interface ExtractedGraphEntity {
   name: string;
@@ -127,10 +123,7 @@ async function upsertEdge(
 
 // ── Main extraction entry point ────────────────────────────────────
 
-/**
- * Extract entities and relationships from text and update the graph.
- * Called after fact extraction in the ingestion pipeline.
- */
+// Extract entities and relationships from text and update the graph; called after fact extraction in the ingestion pipeline.
 export async function extractAndUpdateGraph(
   pool: PgPool,
   text: string,
@@ -199,9 +192,7 @@ export async function extractAndUpdateGraph(
 
 export { queryLiveGraph, type LiveGraphResult } from "@re-cinq/lore-shared";
 
-// ══════════════════════════════════════════════════════════════════════
 // Static graph (legacy file-based, fallback when DB is unavailable)
-// ══════════════════════════════════════════════════════════════════════
 
 const CONTEXT_PATH = process.env.CONTEXT_PATH || process.cwd();
 
@@ -258,25 +249,16 @@ function entityMatchesQuery(entity: GraphEntity, lowerQuery: string): boolean {
     return true;
   }
 
-  if (entity.aliases) {
-    for (const alias of entity.aliases) {
-      if (alias.toLowerCase().includes(lowerQuery)) {
-        return true;
-      }
-    }
-  }
-
-  return false;
+  return (entity.aliases ?? []).some((alias) =>
+    alias.toLowerCase().includes(lowerQuery),
+  );
 }
 
 function formatEntity(entity: GraphEntity): string {
   return `${entity.type}:${entity.name}`;
 }
 
-/**
- * Traverse the graph starting from a set of seed entity IDs, following
- * relationships up to `depth` hops. Returns human-readable traversal chains.
- */
+// Traverse the graph from a set of seed entity IDs, following relationships up to `depth` hops; returns human-readable traversal chains.
 function traverseGraph(
   graph: Graph,
   seedIds: Set<string>,
@@ -336,16 +318,8 @@ function traverseGraph(
     chains.push(label);
   }
 
-  while (queue.length > 0) {
-    const item = queue.shift()!;
-
-    if (item.hops >= depth) {
-      continue;
-    }
-
-    const neighbors = adjacency.get(item.entityId) || [];
-
-    for (const { relType, neighborId } of neighbors) {
+  const expandNeighbors = (item: QueueItem): void => {
+    for (const { relType, neighborId } of adjacency.get(item.entityId) || []) {
       if (visited.has(neighborId)) {
         continue;
       }
@@ -366,6 +340,15 @@ function traverseGraph(
         hops: item.hops + 1,
       });
     }
+  };
+
+  while (queue.length > 0) {
+    const item = queue.shift()!;
+
+    if (item.hops >= depth) {
+      continue;
+    }
+    expandNeighbors(item);
   }
 
   return chains;
@@ -395,9 +378,7 @@ export const getDomainSummaryInputSchema = {
 
 // ---------- Tool handlers ----------
 
-/**
- * graph_search: find entities matching a query and traverse relationships.
- */
+// graph_search: find entities matching a query and traverse relationships.
 export async function graphSearchHandler({
   query,
   depth,
@@ -455,8 +436,7 @@ export async function graphSearchHandler({
 
     const chains = traverseGraph(graph, matchingIds, depth);
 
-    // Remove the bare seed-entity labels (single-node entries) if there are
-    // longer chains that already include them, to keep output concise.
+    // Remove bare seed-entity labels when longer chains already include them, to keep output concise.
     const traversalChains = chains.filter((c) => c.includes("\u2192"));
     const output =
       traversalChains.length > 0
@@ -480,9 +460,7 @@ export async function graphSearchHandler({
   }
 }
 
-/**
- * get_domain_summary: return the prose summary for a community/domain.
- */
+// get_domain_summary: return the prose summary for a community/domain.
 export async function getDomainSummaryHandler({
   domain,
 }: {

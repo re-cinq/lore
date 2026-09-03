@@ -84,7 +84,7 @@ describe("AgentsTable rendering", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("renders the Why column with a reason badge and truncated text when a reason is present", () => {
+  it("renders the Why column with a reason badge and truncated text, and no badge when reason_type is missing", () => {
     render(
       <AgentsTable
         agents={[
@@ -104,7 +104,6 @@ describe("AgentsTable rendering", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("implementation")).toHaveClass("badge");
     expect(screen.getByText("x".repeat(50) + "…")).toBeInTheDocument();
-    // The second row carries a reason but no reason_type, so no badge renders for it.
     expect(screen.getByText("no type here")).toBeInTheDocument();
   });
 });

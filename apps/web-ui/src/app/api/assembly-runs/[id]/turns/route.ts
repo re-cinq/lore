@@ -6,17 +6,7 @@ import { fetchAssemblyRun } from "@/lib/assembly-runs";
 import { userCanAccessRepo } from "@/lib/user-repo-access";
 import { proxyUpstreamStatus, serverError } from "@/lib/api-error";
 
-/**
- * GET /api/assembly-runs/[id]/turns — session-authed proxy for one run's
- * full-fidelity turns, forwarding to the Floor's /api/agent-turns/{id}
- * (specs/turn-level-transcript-store, #1148). The sibling of the ./events
- * proxy: same auth ladder, same forwarded paging params, but the rows carry
- * the UNTRUNCATED envelopes, so this backs the on-demand full-transcript view
- * rather than the live projection.
- *
- * The auth ladder is cloned from the events route in the same order:
- * session (401) → run lookup (404) → repo access (403).
- */
+// Sibling of ./events: proxies UNTRUNCATED turns to the Floor's /api/agent-turns/{id} (#1148) for the on-demand full-transcript view; same 401→404→403 auth ladder.
 export async function GET(
   req: Request,
   { params }: { params: Promise<{ id: string }> },

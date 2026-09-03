@@ -2,11 +2,6 @@ import { describe, it, expect } from "vitest";
 import { Notify } from "./notify.js";
 import type { NotifyPort, NotifyLevel } from "./notify-port.js";
 
-/**
- * project.notify binds the repo and passes the level/message through to the
- * port. The fake records what it was asked to deliver.
- */
-
 function fakeNotify(
   sent: Array<{ repo: string; level: NotifyLevel; message: string }>,
 ): NotifyPort {

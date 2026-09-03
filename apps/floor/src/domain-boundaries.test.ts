@@ -69,55 +69,64 @@ function domainOf(abs: string): string {
 
 const files = tsFiles(SRC);
 
+/** Collect the offense strings across every relative import of every source file. */
+function offendingImports(
+  sources: string[],
+  offense: (file: string, spec: string) => string | null,
+): string[] {
+  return sources.flatMap((file) =>
+    relImports(readFileSync(file, "utf8")).flatMap(
+      (spec) => offense(file, spec) ?? [],
+    ),
+  );
+}
+
 describe("floor domain boundaries", () => {
   it("has source to check", () => {
     expect(files.length).toBeGreaterThan(0);
   });
 
   it("never imports a dissolved horizontal layer (adapters/application/data/ports)", () => {
-    const bad: string[] = [];
+    const bad = offendingImports(files, (f, spec) => {
+      const target = domainOf(path.resolve(path.dirname(f), spec));
 
-    for (const f of files) {
-      for (const spec of relImports(readFileSync(f, "utf8"))) {
-        const target = domainOf(path.resolve(path.dirname(f), spec));
+      return DEAD_LAYERS.includes(target)
+        ? `${path.relative(SRC, f)} → ${spec}`
+        : null;
+    });
 
-        if (DEAD_LAYERS.includes(target)) {
-          bad.push(`${path.relative(SRC, f)} → ${spec}`);
-        }
-      }
-    }
     expect(bad).toEqual([]);
   });
 
   it("kernel/ imports nothing outside kernel/ (it is the shared substrate)", () => {
-    const bad: string[] = [];
-
-    for (const f of files.filter((f) => domainOf(f) === "kernel")) {
-      for (const spec of relImports(readFileSync(f, "utf8"))) {
+    const bad = offendingImports(
+      files.filter((f) => domainOf(f) === "kernel"),
+      (f, spec) => {
         const target = domainOf(path.resolve(path.dirname(f), spec));
 
-        if (target !== "kernel") {
-          bad.push(`${path.relative(SRC, f)} → ${spec} (${target})`);
-        }
-      }
-    }
+        return target !== "kernel"
+          ? `${path.relative(SRC, f)} → ${spec} (${target})`
+          : null;
+      },
+    );
+
     expect(bad).toEqual([]);
   });
 
   it("delivery/ is a top entry-point tier — nothing imports it except the root entry", () => {
-    const bad: string[] = [];
     const exempt = (f: string) =>
       domainOf(f) === "delivery" || path.relative(SRC, f) === "index.ts";
-
-    for (const f of files.filter((f) => !exempt(f))) {
-      for (const spec of relImports(readFileSync(f, "utf8"))) {
+    const bad = offendingImports(
+      files.filter((f) => !exempt(f)),
+      (f, spec) => {
         const target = domainOf(path.resolve(path.dirname(f), spec));
 
-        if (target === "delivery") {
-          bad.push(`${path.relative(SRC, f)} → ${spec}`);
-        }
-      }
-    }
+        return target === "delivery"
+          ? `${path.relative(SRC, f)} → ${spec}`
+          : null;
+      },
+    );
+
     expect(bad).toEqual([]);
   });
 
@@ -128,22 +137,20 @@ describe("floor domain boundaries", () => {
   const libPrefix = path.join(SRC, "jobs", "lib") + path.sep;
 
   it("jobs/lib/ is a leaf — imports only kernel/ and shared, never a sibling job domain", () => {
-    const bad: string[] = [];
-
-    for (const f of files.filter((f) => f.startsWith(libPrefix))) {
-      for (const spec of relImports(readFileSync(f, "utf8"))) {
+    const bad = offendingImports(
+      files.filter((f) => f.startsWith(libPrefix)),
+      (f, spec) => {
         const rel = path
           .relative(SRC, path.resolve(path.dirname(f), spec))
           .split(path.sep);
         const withinLib = rel[0] === "jobs" && rel[1] === "lib";
 
-        if (rel[0] !== "kernel" && !withinLib) {
-          bad.push(
-            `${path.relative(SRC, f)} → ${spec} (${rel.slice(0, 2).join("/")})`,
-          );
-        }
-      }
-    }
+        return rel[0] !== "kernel" && !withinLib
+          ? `${path.relative(SRC, f)} → ${spec} (${rel.slice(0, 2).join("/")})`
+          : null;
+      },
+    );
+
     expect(bad).toEqual([]);
   });
 });

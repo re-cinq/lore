@@ -3,11 +3,7 @@ import { NextResponse } from "next/server";
 import { runTaskNow } from "@/lib/api/tasks";
 import { serverError, upstreamError } from "@/lib/api-error";
 
-/**
- * POST /api/tasks/[id]/run-now — escalate a queued task to `immediate`, then
- * bounce back to its page. lore-api owns the guard (only a pending task can be
- * escalated → 409) and records the transition with the priority it left behind.
- */
+// Escalate a queued task to `immediate`, then bounce back to its page; lore-api owns the guard (only pending → 409 otherwise).
 export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> },

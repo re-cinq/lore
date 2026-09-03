@@ -153,6 +153,22 @@ async function handleGet(
   }
 }
 
+/** Deep-merges one task-type override patch (and its nested `execution`) over the stored entry. */
+function mergedTaskOverride(
+  prev: Record<string, unknown> | undefined,
+  patch: TaskOverridesPatch[string],
+): Record<string, unknown> {
+  const merged: Record<string, unknown> = { ...(prev ?? {}), ...patch };
+
+  if (patch.execution) {
+    const prevExecution = (prev?.execution ?? {}) as Record<string, unknown>;
+
+    merged.execution = { ...prevExecution, ...patch.execution };
+  }
+
+  return merged;
+}
+
 async function handlePut(
   request: Request,
   h: ResponseToolkit,
@@ -184,27 +200,29 @@ async function handlePut(
 
   // Two-key check (FR3.9): privileged fields require an approval-PR header.
   const twoKey = twoKeyFieldsTouched(patch, toPatch);
-  let ceremony: Ceremony = { tier: "admin" };
+  const gate =
+    twoKey.length > 0
+      ? await checkApproval(
+          request,
+          repo,
+          twoKey,
+          "Privileged fields require an X-Lore-Approval-PR header. " +
+            "Reference an open PR labeled `dark-factory-approval` by a CODEOWNER.",
+        )
+      : null;
 
-  if (twoKey.length > 0) {
-    const gate = await checkApproval(
-      request,
-      repo,
-      twoKey,
-      "Privileged fields require an X-Lore-Approval-PR header. " +
-        "Reference an open PR labeled `dark-factory-approval` by a CODEOWNER.",
-    );
-
-    if (!gate.ok) {
-      return h.response(gate.body).code(gate.code);
-    }
-    ceremony = {
-      tier: "two_key",
-      pr_ref: gate.evidence.prRef,
-      approver: gate.evidence.approver,
-      pr_url: gate.evidence.prUrl,
-    };
+  if (gate && !gate.ok) {
+    return h.response(gate.body).code(gate.code);
   }
+
+  const ceremony: Ceremony = gate?.ok
+    ? {
+        tier: "two_key",
+        pr_ref: gate.evidence.prRef,
+        approver: gate.evidence.approver,
+        pr_url: gate.evidence.prUrl,
+      }
+    : { tier: "admin" };
 
   // Read current, merge patch, write back. lore.repos.settings is JSONB.
   const client = await pool.connect();
@@ -242,14 +260,7 @@ async function handlePut(
       const nextTo: Record<string, Record<string, unknown>> = { ...prevTo };
 
       for (const [type, ov] of Object.entries(toPatch)) {
-        nextTo[type] = { ...(prevTo[type] ?? {}), ...ov };
-
-        if (ov.execution) {
-          nextTo[type].execution = {
-            ...(prevTo[type]?.execution ?? {}),
-            ...ov.execution,
-          };
-        }
+        nextTo[type] = mergedTaskOverride(prevTo[type], ov);
       }
       settings.task_overrides = nextTo;
     }

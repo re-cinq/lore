@@ -87,3 +87,6 @@ output/
 # helm upgrade — and no chart in this tree tracks them.
 **/Chart.lock
 infra/terraform/modules/gke-mcp/**/charts/*.tgz
+
+# jscpd duplication reports (npm run dup)
+reports/

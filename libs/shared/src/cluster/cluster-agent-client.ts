@@ -1,8 +1,4 @@
-// Reaching this cluster through its agent.
-//
-// One transport, then one adapter per existing port — so the Floor's call sites
-// keep their shape and a green Floor suite is the evidence the adapters are
-// faithful. Nothing here knows Kubernetes; the agent on the other end does.
+// Reaching this cluster through its agent: one transport, then one adapter per existing port, so the Floor's call sites keep their shape.
 
 import type {
   Agent as AgentCr,
@@ -22,8 +18,7 @@ import type {
   PodLogSource,
 } from "./pod-logs-port.js";
 
-/** Generous: a catalog apply does a create, a 409 and a replace before it
- *  answers. Bounded so a wedged agent cannot hold a caller open forever. */
+/** Generous: a catalog apply does a create, a 409, and a replace before it answers; bounded so a wedged agent cannot hold a caller open forever. */
 const TIMEOUT_MS = 60_000;
 
 export class ClusterAgentClient {
@@ -64,23 +59,12 @@ export class ClusterAgentClient {
  *  walk to the fewest round trips it can make. */
 const PAGE_LIMIT = 100;
 
-/**
- * {@link AgentLister} + {@link AgentStatusReader} over the agent — the READ half
- * of the cluster surface, plus the two writes a caller cannot perform locally
- * (a status patch, a delete).
- *
- * Deliberately NOT an {@link AgentApi}: it cannot create. Dispatch is pull-only,
- * so a CR is created by the agent that claimed the run, in its own cluster.
- * `POST /agents` was the last inbound push and is gone with its route.
- */
+/** {@link AgentLister} + {@link AgentStatusReader} over the agent — the READ half plus status-patch/delete. Deliberately NOT an {@link AgentApi}: dispatch is pull-only, so `POST /agents` is gone with its route. */
 export class HttpAgentApi implements AgentLister, AgentStatusReader {
   constructor(private readonly client: ClusterAgentClient) {}
 
   async listByLabel(selector: string): Promise<AgentCr[]> {
-    // Walked, not truncated. A label selector narrow enough to fit one page
-    // today is one busy hour away from not fitting, and the failure of a
-    // silently-truncated list is that it returns the WRONG answer rather than
-    // an error — the caller acts on a subset it believes is the whole set.
+    // Walked, not truncated — a silently-truncated list returns the WRONG answer, not an error, and the caller acts on a subset it believes is the whole set.
     return collectPages<AgentCr>((continueToken?: string) => {
       const q = new URLSearchParams({
         labelSelector: selector,
@@ -91,16 +75,14 @@ export class HttpAgentApi implements AgentLister, AgentStatusReader {
         q.set("continue", continueToken);
       }
 
-      // `call` answers undefined for a 204; an empty page ends the walk, where
-      // a thrown TypeError would end the caller.
+      // `call` answers undefined for a 204; an empty page ends the walk, where a thrown TypeError would end the caller.
       return this.client
         .call<Page<AgentCr>>("GET", `/agents?${q}`)
         .then((page) => page ?? { items: [] });
     });
   }
 
-  /** One page. The caller drives `continue` — see the route's comment on why a
-   *  one-shot list is not offered. */
+  /** One page — the caller drives `continue`; a one-shot list is not offered. */
   async listPage(opts: {
     limit: number;
     continue?: string;
@@ -171,13 +153,7 @@ export class HttpPodLogSource implements PodLogSource {
   }
 }
 
-/**
- * {@link TokenCleanup} over the agent — the reclaim half only.
- *
- * There is no HTTP mint: every launch is a claim, so the cluster that provisions
- * is the cluster that launches, in-process. What crosses the network is the
- * Floor asking a cluster to take a settled task's token back.
- */
+/** {@link TokenCleanup} over the agent — reclaim half only; there is no HTTP mint since every launch is a claim, in-process on the provisioning cluster. */
 export class HttpTokenCleanup implements TokenCleanup {
   constructor(private readonly client: ClusterAgentClient) {}
 

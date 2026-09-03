@@ -17,8 +17,7 @@ import {
   offsetParam,
 } from "../common-schemas.js";
 
-// Defaults to the max page so orgs with <=100 onboarded repos still get them all
-// in one call, preserving the pre-pagination "returns every repo" behavior.
+// Defaults to the max page so orgs with <=100 repos still get them all in one call (pre-pagination behavior).
 const ReposQuery = z.object({
   limit: clampedLimit.default(100),
   offset: offsetParam,
@@ -26,11 +25,7 @@ const ReposQuery = z.object({
 
 type ReposQuery = z.infer<typeof ReposQuery>;
 
-/**
- * The list body: the `Repo` model keyed by its COLUMNS, plus the two counts this
- * page renders beside it. Snake_case because a separately deployed mcp-server
- * proxies this route and reads `full_name`.
- */
+// Repo model keyed by its COLUMNS plus two render counts; snake_case because mcp-server proxies this route and reads `full_name`.
 const RepoListResponse = z.object({
   repos: z.array(
     wireSchema(RepoSchema, REPO_COLUMNS).extend({

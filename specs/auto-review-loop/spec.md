@@ -296,7 +296,7 @@ and the webhook/verdict plumbing it rides on.
 
 8. The watcher parses the agent's review verdict from stdout: `REVIEW_RESULT:APPROVED` → `approved`,
    `CHANGES_REQUESTED` (with trailing feedback) → `changes_requested`, and no marker or absent output
-   → undefined. ([validated by `agent-watcher-logic.test.ts:34`](apps/floor/src/jobs/watcher/agent-watcher-logic.test.ts#L38), [`agent-watcher-logic.test.ts:39`](apps/floor/src/jobs/watcher/agent-watcher-logic.test.ts#L43), [`agent-watcher-logic.test.ts:44`](apps/floor/src/jobs/watcher/agent-watcher-logic.test.ts#L48), [`agent-watcher-logic.test.ts:218`](apps/floor/src/jobs/watcher/agent-watcher-logic.test.ts#L221))
+   → undefined. ([validated by `agent-watcher-logic.test.ts:34`](apps/floor/src/jobs/watcher/agent-watcher-logic.test.ts#L38), [`agent-watcher-logic.test.ts:39`](apps/floor/src/jobs/watcher/agent-watcher-logic.test.ts#L43), [`agent-watcher-logic.test.ts:44`](apps/floor/src/jobs/watcher/agent-watcher-logic.test.ts#L48), [`agent-watcher-logic.test.ts:208`](apps/floor/src/jobs/watcher/agent-watcher-logic.test.ts#L208))
 
 
 
@@ -318,19 +318,19 @@ The code-review assembly line is the sole reviewer (ADR-012 amendment): a **deep
 - keeps a running line in_progress even when a node already recorded changes_requested. ([validated by](apps/floor/src/jobs/assembly-run/pr-check.test.ts#L74))
 - maps a changes_requested line outcome to a neutral conclusion. ([validated by](apps/floor/src/jobs/assembly-run/pr-check.test.ts#L82))
 - maps a completed line whose review node recorded changes_requested to a neutral conclusion — the walk routes `changes_requested → done`, so only the node walk row carries the verdict. ([validated by](apps/floor/src/jobs/assembly-run/pr-check.test.ts#L91))
-- reads the latest iteration of a node, so a re-reviewed success wins over an earlier changes_requested. ([validated by](apps/floor/src/jobs/assembly-run/pr-check.test.ts#L103))
-- maps a completed line to a success conclusion. ([validated by](apps/floor/src/jobs/assembly-run/pr-check.test.ts#L112))
-- maps a failed line to a failure conclusion. ([validated by](apps/floor/src/jobs/assembly-run/pr-check.test.ts#L118))
-- maps a failed line with a changes_requested node to a failure conclusion. ([validated by](apps/floor/src/jobs/assembly-run/pr-check.test.ts#L124))
-- maps a pr_closed outcome to a cancelled conclusion. ([validated by](apps/floor/src/jobs/assembly-run/pr-check.test.ts#L158))
-- maps a pr_closed line with a changes_requested node to a cancelled conclusion. ([validated by](apps/floor/src/jobs/assembly-run/pr-check.test.ts#L164))
-- adds a details_url to the Lore UI when a uiUrl is given. ([validated by](apps/floor/src/jobs/assembly-run/pr-check.test.ts#L172))
-- maps an iteration_max outcome to a failure conclusion. ([validated by](apps/floor/src/jobs/assembly-run/pr-check.test.ts#L180))
-- publishes a code-review-recheck line under the aliased `lore/code-review` check name so a required branch-protection check is refreshed on every push, not stranded under a separate name. ([validated by](apps/floor/src/jobs/assembly-run/pr-check.test.ts#L191))
+- reads the latest iteration of a node, so a re-reviewed success wins over an earlier changes_requested. ([validated by](apps/floor/src/jobs/assembly-run/pr-check.test.ts#L100))
+- maps a completed line to a success conclusion. ([validated by](apps/floor/src/jobs/assembly-run/pr-check.test.ts#L109))
+- maps a failed line to a failure conclusion. ([validated by](apps/floor/src/jobs/assembly-run/pr-check.test.ts#L115))
+- maps a failed line with a changes_requested node to a failure conclusion. ([validated by](apps/floor/src/jobs/assembly-run/pr-check.test.ts#L121))
+- maps a pr_closed outcome to a cancelled conclusion. ([validated by](apps/floor/src/jobs/assembly-run/pr-check.test.ts#L155))
+- maps a pr_closed line with a changes_requested node to a cancelled conclusion. ([validated by](apps/floor/src/jobs/assembly-run/pr-check.test.ts#L161))
+- adds a details_url to the Lore UI when a uiUrl is given. ([validated by](apps/floor/src/jobs/assembly-run/pr-check.test.ts#L169))
+- maps an iteration_max outcome to a failure conclusion. ([validated by](apps/floor/src/jobs/assembly-run/pr-check.test.ts#L177))
+- publishes a code-review-recheck line under the aliased `lore/code-review` check name so a required branch-protection check is refreshed on every push, not stranded under a separate name. ([validated by](apps/floor/src/jobs/assembly-run/pr-check.test.ts#L188))
 
 ### `apps/floor/src/jobs/assembly-run/advance.test.ts`
 
-- A code-review-recheck line opts out of the branch-overlap guard, so a push landing while a review or reply line still holds the PR branch is not silently dropped as `lease_held` (the verdict update always runs). ([validated by](apps/floor/src/jobs/assembly-run/advance.test.ts#L1172))
+- A code-review-recheck line opts out of the branch-overlap guard, so a push landing while a review or reply line still holds the PR branch is not silently dropped as `lease_held` (the verdict update always runs). ([validated by](apps/floor/src/jobs/assembly-run/advance.test.ts#L1120))
 
 ### `apps/floor/src/jobs/merge/auto-merge.test.ts`
 
@@ -367,8 +367,8 @@ The code-review assembly line is the sole reviewer (ADR-012 amendment): a **deep
 - ignores an approved review. ([validated by](apps/floor/src/jobs/review/code-review.test.ts#L403))
 - ignores the bot's own submitted review (loop guard). ([validated by](apps/floor/src/jobs/review/code-review.test.ts#L414))
 - finishes any open code-review lines for the PR. ([validated by](apps/floor/src/jobs/review/code-review.test.ts#L427))
-- re-checks with the head sha and recheck mode on a push to an already-reviewed PR, and posts no per-push comment. ([validated by](apps/floor/src/jobs/review/code-review.test.ts#L462))
-- skips the re-check on a bot-authored PR under the same loop guard as the first review. ([validated by](apps/floor/src/jobs/review/code-review.test.ts#L478))
+- re-checks with the head sha and recheck mode on a push to an already-reviewed PR, and posts no per-push comment. ([validated by](apps/floor/src/jobs/review/code-review.test.ts#L456))
+- skips the re-check on a bot-authored PR under the same loop guard as the first review. ([validated by](apps/floor/src/jobs/review/code-review.test.ts#L472))
 
 ### `apps/floor/src/jobs/review/post-review.test.ts`
 
@@ -376,7 +376,7 @@ The code-review assembly line is the sole reviewer (ADR-012 amendment): a **deep
 - partitions findings by diff hunk — a finding on a commentable line stays inline, one on an uninlineable line folds into overflow. ([validated by](apps/floor/src/jobs/review/post-review.test.ts#L63))
 - A finding on a line GitHub cannot inline (an unchanged line, or a file outside the diff) is folded into the review body, because one such inline comment 422s the whole atomic review. ([validated by](apps/floor/src/jobs/review/post-review.test.ts#L119))
 - When the atomic review post is rejected, the whole review is delivered as one top-level comment rather than silently dropped. ([validated by](apps/floor/src/jobs/review/post-review.test.ts#L139))
-- Starting a review on a subject already in flight is a JOIN, and a join announces nothing: `assemblyRuns.start` answers with the existing run's id and cannot say which happened, so the "Lore is reviewing this PR" comment is posted only when the run was actually started. Announcing unconditionally re-posted it, naming the very same run, on every `@lore review` and every press of the UI trigger while a review was open. ([validated by `code-review.test.ts:518`](apps/floor/src/jobs/review/code-review.test.ts#L518))
+- Starting a review on a subject already in flight is a JOIN, and a join announces nothing: `assemblyRuns.start` answers with the existing run's id and cannot say which happened, so the "Lore is reviewing this PR" comment is posted only when the run was actually started. Announcing unconditionally re-posted it, naming the very same run, on every `@lore review` and every press of the UI trigger while a review was open. ([validated by `code-review.test.ts:509`](apps/floor/src/jobs/review/code-review.test.ts#L509))
 - posts when the output carries a REVIEW_FINDINGS block. ([validated by](apps/floor/src/jobs/review/post-review.test.ts#L165))
 - A bare `REVIEW_RESULT:APPROVED` with no findings block posts a visible formal `APPROVE` review rather than staying silent. ([validated by](apps/floor/src/jobs/review/post-review.test.ts#L178))
 - does nothing when there is no findings block and no approval verdict. ([validated by](apps/floor/src/jobs/review/post-review.test.ts#L190))
@@ -388,12 +388,12 @@ The code-review assembly line is the sole reviewer (ADR-012 amendment): a **deep
 ### `libs/shared/src/review/diff-hunks.test.ts`
 
 - Added and context lines are commentable on the right (new) side. ([validated by](libs/shared/src/review/diff-hunks.test.ts#L25))
-- Removed and context lines are commentable on the left (old) side. ([validated by](libs/shared/src/review/diff-hunks.test.ts#L37))
-- A line inside a hunk is commentable. ([validated by](libs/shared/src/review/diff-hunks.test.ts#L51))
-- A line outside any hunk is not commentable. ([validated by](libs/shared/src/review/diff-hunks.test.ts#L55))
-- A file not in the diff is not commentable. ([validated by](libs/shared/src/review/diff-hunks.test.ts#L59))
-- A LEFT-side comment is checked against the left side, not the right. ([validated by](libs/shared/src/review/diff-hunks.test.ts#L63))
-- A file deleted in the diff (`+++ /dev/null`) is uncommentable on either side. ([validated by](libs/shared/src/review/diff-hunks.test.ts#L80))
+- Removed and context lines are commentable on the left (old) side. ([validated by](libs/shared/src/review/diff-hunks.test.ts#L36))
+- A line inside a hunk is commentable. ([validated by](libs/shared/src/review/diff-hunks.test.ts#L49))
+- A line outside any hunk is not commentable. ([validated by](libs/shared/src/review/diff-hunks.test.ts#L53))
+- A file not in the diff is not commentable. ([validated by](libs/shared/src/review/diff-hunks.test.ts#L57))
+- A LEFT-side comment is checked against the left side, not the right. ([validated by](libs/shared/src/review/diff-hunks.test.ts#L61))
+- A file deleted in the diff (`+++ /dev/null`) is uncommentable on either side. ([validated by](libs/shared/src/review/diff-hunks.test.ts#L78))
 
 ### `apps/floor/src/jobs/assembly-run/node-terminal.test.ts`
 
@@ -429,22 +429,22 @@ The code-review assembly line is the sole reviewer (ADR-012 amendment): a **deep
 
 ### `libs/assembly-lines/src/loader.test.ts`
 
-- code-review is a suggestion-only review→done graph (no refine/auto-commit). ([validated by](libs/assembly-lines/src/loader.test.ts#L656))
-- gap-fill is a linear flow with retrospective + done as exit pair. ([validated by](libs/assembly-lines/src/loader.test.ts#L704))
-- assemblyLinesDir actually exists on disk (sanity check). ([validated by](libs/assembly-lines/src/loader.test.ts#L738))
-- code-review-recheck is a fast Haiku recheck→done graph routing every verdict to done. ([validated by](libs/assembly-lines/src/loader.test.ts#L940))
+- code-review is a suggestion-only review→done graph (no refine/auto-commit). ([validated by](libs/assembly-lines/src/loader.test.ts#L611))
+- gap-fill is a linear flow with retrospective + done as exit pair. ([validated by](libs/assembly-lines/src/loader.test.ts#L662))
+- assemblyLinesDir actually exists on disk (sanity check). ([validated by](libs/assembly-lines/src/loader.test.ts#L716))
+- code-review-recheck is a fast Haiku recheck→done graph routing every verdict to done. ([validated by](libs/assembly-lines/src/loader.test.ts#L916))
 
 ### `libs/shared/src/project/assembly-runs/assembly-runs.test.ts`
 
-- markRunning transitions the matching row to running with started_at. ([validated by](libs/shared/src/project/assembly-runs/assembly-runs.test.ts#L535))
-- throws on unknown ids for markRunning and returns false for finishNodeOnce. ([validated by](libs/shared/src/project/assembly-runs/assembly-runs.test.ts#L645))
-- getById returns the record and null for unknown ids. ([validated by](libs/shared/src/project/assembly-runs/assembly-runs.test.ts#L659))
-- listForTask and getById pass through to the port. ([validated by](libs/shared/src/project/assembly-runs/assembly-runs.test.ts#L838))
-- ensureNodeStart enforces exactly one returned row (invariant names itself). ([validated by](libs/shared/src/project/assembly-runs/assembly-runs.test.ts#L1020))
-- finishNodeOnce CASes on a null outcome and reports whether it won. ([validated by](libs/shared/src/project/assembly-runs/assembly-runs.test.ts#L1032))
-- listOpen selects queued and running rows oldest-first. ([validated by](libs/shared/src/project/assembly-runs/assembly-runs.test.ts#L1090))
-- does not overwrite an already-terminal row (InMemory). ([validated by](libs/shared/src/project/assembly-runs/assembly-runs.test.ts#L1101))
-- guards the Pg UPDATE on a non-terminal status. ([validated by](libs/shared/src/project/assembly-runs/assembly-runs.test.ts#L1116))
+- markRunning transitions the matching row to running with started_at. ([validated by](libs/shared/src/project/assembly-runs/assembly-runs.test.ts#L533))
+- throws on unknown ids for markRunning and returns false for finishNodeOnce. ([validated by](libs/shared/src/project/assembly-runs/assembly-runs.test.ts#L643))
+- getById returns the record and null for unknown ids. ([validated by](libs/shared/src/project/assembly-runs/assembly-runs.test.ts#L657))
+- listForTask and getById pass through to the port. ([validated by](libs/shared/src/project/assembly-runs/assembly-runs.test.ts#L836))
+- ensureNodeStart enforces exactly one returned row (invariant names itself). ([validated by](libs/shared/src/project/assembly-runs/assembly-runs.test.ts#L1018))
+- finishNodeOnce CASes on a null outcome and reports whether it won. ([validated by](libs/shared/src/project/assembly-runs/assembly-runs.test.ts#L1030))
+- listOpen selects queued and running rows oldest-first. ([validated by](libs/shared/src/project/assembly-runs/assembly-runs.test.ts#L1088))
+- does not overwrite an already-terminal row (InMemory). ([validated by](libs/shared/src/project/assembly-runs/assembly-runs.test.ts#L1099))
+- guards the Pg UPDATE on a non-terminal status. ([validated by](libs/shared/src/project/assembly-runs/assembly-runs.test.ts#L1114))
 
 ### `libs/shared/src/project/issues/issues.test.ts`
 
@@ -454,13 +454,13 @@ The code-review assembly line is the sole reviewer (ADR-012 amendment): a **deep
 
 ### `libs/shared/src/project/lib/platform-github.test.ts`
 
-- exposes the github port name. ([validated by](libs/shared/src/project/lib/platform-github.test.ts#L104))
-- createLabels swallows a 422 (already exists) and continues. ([validated by](libs/shared/src/project/lib/platform-github.test.ts#L225))
-- createLabels rethrows a non-422 error. ([validated by](libs/shared/src/project/lib/platform-github.test.ts#L232))
-- createReview posts one review with the mapped comments array. ([validated by](libs/shared/src/project/lib/platform-github.test.ts#L239))
-- get exposes the PR head sha as headSha. ([validated by](libs/shared/src/project/lib/platform-github.test.ts#L262))
-- listReviewThreads maps GraphQL thread nodes (id, resolution, outdated flag, comment databaseIds) and stitches pages past the first cursor. ([validated by](libs/shared/src/project/lib/platform-github.test.ts#L313))
-- resolveReviewThread sends the GraphQL mutation carrying the thread node id. ([validated by](libs/shared/src/project/lib/platform-github.test.ts#L363))
+- exposes the github port name. ([validated by](libs/shared/src/project/lib/platform-github.test.ts#L94))
+- createLabels swallows a 422 (already exists) and continues. ([validated by](libs/shared/src/project/lib/platform-github.test.ts#L215))
+- createLabels rethrows a non-422 error. ([validated by](libs/shared/src/project/lib/platform-github.test.ts#L222))
+- createReview posts one review with the mapped comments array. ([validated by](libs/shared/src/project/lib/platform-github.test.ts#L229))
+- get exposes the PR head sha as headSha. ([validated by](libs/shared/src/project/lib/platform-github.test.ts#L252))
+- listReviewThreads maps GraphQL thread nodes (id, resolution, outdated flag, comment databaseIds) and stitches pages past the first cursor. ([validated by](libs/shared/src/project/lib/platform-github.test.ts#L303))
+- resolveReviewThread sends the GraphQL mutation carrying the thread node id. ([validated by](libs/shared/src/project/lib/platform-github.test.ts#L353))
 
 ### `libs/shared/src/project/pulls/pull-requests.test.ts`
 
@@ -512,7 +512,7 @@ The code-review assembly line is the sole reviewer (ADR-012 amendment): a **deep
   way is untouched, a PRESENT-but-unknown label is still rejected (that
   strictness is the point), and a finding carrying neither spelling of a
   required field still yields null.
-  ([validated by](libs/shared/src/review/review-findings.test.ts#L177), [validated by](libs/shared/src/review/review-findings.test.ts#L191), [validated by](libs/shared/src/review/review-findings.test.ts#L199), [validated by](libs/shared/src/review/review-findings.test.ts#L208), [validated by](libs/shared/src/review/review-findings.test.ts#L226))
+  ([validated by](libs/shared/src/review/review-findings.test.ts#L162), [validated by](libs/shared/src/review/review-findings.test.ts#L176), [validated by](libs/shared/src/review/review-findings.test.ts#L184), [validated by](libs/shared/src/review/review-findings.test.ts#L193), [validated by](libs/shared/src/review/review-findings.test.ts#L211))
 - parses a valid findings block into a ReviewOutput. ([validated by](libs/shared/src/review/review-findings.test.ts#L8))
 - returns null when no findings block is present. ([validated by](libs/shared/src/review/review-findings.test.ts#L42))
 - returns null when the block is not valid JSON that a quote/newline repair
@@ -526,23 +526,23 @@ The code-review assembly line is the sole reviewer (ADR-012 amendment): a **deep
   because whether a `"` closes the string depends on what comes after it.
   ([validated by](libs/shared/src/review/review-findings.test.ts#L50))
 - recovers a finding whose narrative field carries a literal newline, escaping
-  it the same way. ([validated by](libs/shared/src/review/review-findings.test.ts#L63))
+  it the same way. ([validated by](libs/shared/src/review/review-findings.test.ts#L59))
 - recovers a finding whose suggestion carries a literal tab the same way — a
   tabbed-indented code snippet is a raw control character JSON forbids
-  unescaped in a string, exactly like a raw newline. ([validated by](libs/shared/src/review/review-findings.test.ts#L72))
+  unescaped in a string, exactly like a raw newline. ([validated by](libs/shared/src/review/review-findings.test.ts#L68))
 - recovers every finding when several each carry an unescaped quote, not just
-  the first. ([validated by](libs/shared/src/review/review-findings.test.ts#L84))
+  the first. ([validated by](libs/shared/src/review/review-findings.test.ts#L77))
 - does not let the repair pass turn genuinely broken JSON into a false
-  positive — missing quotes around a key or value stay unparseable. ([validated by](libs/shared/src/review/review-findings.test.ts#L97))
-- returns null when a finding has an unknown label. ([validated by](libs/shared/src/review/review-findings.test.ts#L103))
-- returns null when the verdict is missing. ([validated by](libs/shared/src/review/review-findings.test.ts#L114))
+  positive — missing quotes around a key or value stay unparseable. ([validated by](libs/shared/src/review/review-findings.test.ts#L90))
+- returns null when a finding has an unknown label. ([validated by](libs/shared/src/review/review-findings.test.ts#L96))
+- returns null when the verdict is missing. ([validated by](libs/shared/src/review/review-findings.test.ts#L107))
 - treats an optional field written as `null` as absent, because that is what a
   model means by it — read as a value, ONE null failed its type check and the
   ENTIRE block was discarded, so a review that found ten things posted none and
-  its node failed with the findings lost. ([validated by](libs/shared/src/review/review-findings.test.ts#L136))
-- keeps every other finding when one carries a null optional. ([validated by](libs/shared/src/review/review-findings.test.ts#L142))
+  its node failed with the findings lost. ([validated by](libs/shared/src/review/review-findings.test.ts#L124))
+- keeps every other finding when one carries a null optional. ([validated by](libs/shared/src/review/review-findings.test.ts#L130))
 - still rejects a wrong TYPE in an optional field: this widens what counts as
-  absent, not what counts as valid. ([validated by](libs/shared/src/review/review-findings.test.ts#L150))
+  absent, not what counts as valid. ([validated by](libs/shared/src/review/review-findings.test.ts#L138))
 
 ### `libs/shared/src/review/review-summary.test.ts`
 

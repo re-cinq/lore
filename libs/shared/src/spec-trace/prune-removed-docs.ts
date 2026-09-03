@@ -1,35 +1,4 @@
-/**
- * spec-traceability-graph — whole-file pruning. `runIngestGraph` only visits
- * files present in the repo tree, so a spec/ADR that was moved or deleted left
- * its whole subtree behind forever and the graph-driven web-UI kept rendering
- * it. This module finds graph documents whose `file_path` vanished from the
- * current tree selection and deletes their subtrees.
- *
- * Scope discipline: candidates pass through the SAME selection filter that
- * produced the tree files (prefixes / manifest patterns / glob), so a
- * glob-chunked run can only prune inside its own chunk and a manifest-pattern
- * change never mass-deletes out-of-pattern docs. The bad-tree-read fuse is
- * proportional: an empty tree selection prunes nothing, and a removal set of
- * more than 2 candidates exceeding 50% of the in-scope docs is refused —
- * a bad or PARTIAL tree read must never wipe MOST of the graph. The live
- * partial-read risk is the ingest station's `listClone` readdir walk, which
- * would silently return a short listing over a partial clone (GitHub's
- * `listTree` already throws on a truncated response, so that path cannot
- * arrive here short). The floor bounds the exposure rather than removing it:
- * a set of at most 2 docs always passes, so an undetected bad read costs at
- * most 2 docs while a tiny repo deleting its only spec (or a genuine 50%
- * cleanup) still converges. `force` bypasses the proportional fuse — never
- * the empty-selection guard — as the operator escape hatch for a legitimate
- * bulk deletion. Known residual: a chunk-glob run cannot prune a fully
- * deleted directory (chunk globs are derived from the current tree); the
- * next unchunked ingest sweeps it.
- *
- * Crash safety: each subtree delete cleans chunks, Feature, and Blocks FIRST
- * and drops the doc node + its Repo edge LAST in one atomic mutation — the
- * doc node is the resume anchor (the projector's `content_hash`-written-last
- * receipt, inverted for deletion). An interrupted prune leaves the doc in
- * `listGraphDocPaths`, so the next run re-picks it and converges.
- */
+/** Whole-file graph pruning: deletes the subtree of any Spec/ADR whose `file_path` vanished from the tree selection. Bad-tree-read fuse refuses a candidate set >2 docs and >50% of in-scope docs (bypassable via `force`); anchor-deleted-last (doc node + Repo edge) for crash-resume convergence. */
 
 import type { DgraphClientPort, DgraphTxn, UidRef } from "./deps.js";
 import { withTxn } from "./dgraph-upsert.js";
@@ -39,11 +8,7 @@ import { gcOrphanChunks } from "./gc-orphan-chunks.js";
 /** Document node types with a whole-file subtree to prune. */
 export type PrunableDocType = "Spec" | "ADR";
 
-/**
- * The prune selection, or its refusal. `refused-suspicious-tree` means the
- * candidates looked like the product of a partial tree read, not real
- * deletions — the caller must prune nothing and report "didn't run".
- */
+/** The prune selection, or its refusal — `refused-suspicious-tree` means the candidates look like a partial tree read, not real deletions; caller must prune nothing. */
 export type PruneSelection =
   | { outcome: "ok"; candidates: string[] }
   | {
@@ -52,19 +17,7 @@ export type PruneSelection =
       inScopeDocCount: number;
     };
 
-/**
- * Graph doc paths that are in scope for this run but absent from the tree
- * selection — or a refusal when the selection itself looks broken (the
- * proportional bad-tree-read fuse). Empty `selectedFiles` → ok with no
- * candidates, even under `force` (an empty tree is a broken read, not a
- * deletion). Removal sets of at most 2 docs always pass (the floor: a tiny
- * repo deleting its only spec must still converge, at the cost of exposing
- * at most 2 docs to an undetected bad read); larger sets are refused when
- * they exceed 50% of the currently-known in-scope docs (exactly 50% passes)
- * — the fuse catches a partial tree read vanishing MOST of the graph, not
- * smaller losses. `force` bypasses the proportional fuse (the operator
- * escape hatch for a legitimate bulk deletion) but not the empty guard.
- */
+/** Graph doc paths in scope but absent from the tree selection, or a refusal per the proportional bad-tree-read fuse (>2 candidates AND >50% of in-scope docs); empty selection always passes with zero candidates; `force` bypasses the fuse but not the empty guard. */
 export function selectPruneCandidates(
   graphDocPaths: string[],
   selectedFiles: string[],
@@ -91,11 +44,7 @@ export function selectPruneCandidates(
   return { outcome: "ok", candidates };
 }
 
-/**
- * The `file_path` of every document of `docType` for a repo. `docType` is a
- * trusted internal constant, never user input, so it is safe to interpolate
- * into the query predicates (same justification as `pruneOrphans`).
- */
+/** The `file_path` of every document of `docType` for a repo; `docType` is a trusted internal constant, safe to interpolate into query predicates. */
 export async function listGraphDocPaths(
   dgraph: DgraphClientPort,
   docType: PrunableDocType,
@@ -155,14 +104,7 @@ const SPEC_SUBTREE_QUERY = `query q($xid: string, $repo: string) {
   root(func: eq(Repo.xid, $repo), first: 1) { uid }
 }`;
 
-/**
- * Reads the Spec subtree slated for deletion: the Spec uid, every child uid
- * (Statements, Sections, AcceptanceCriteria, their TraceLinks), the Repo root
- * uid, the owning Feature uid, and the link-target chunk uids for GC.
- * Called both in a read-only txn (to obtain the GC inputs) and inside the
- * final mutating txn (the fresh-uid staleness guard). Returns null when no
- * such Spec exists.
- */
+/** Reads the Spec subtree slated for deletion (Spec/children/Repo-root/Feature/link-target uids); called both read-only (GC inputs) and inside the final mutating txn (fresh-uid staleness guard). Null if no such Spec. */
 async function querySpecSubtree(
   txn: DgraphTxn,
   repo: string,
@@ -197,11 +139,7 @@ async function querySpecSubtree(
     ?.uid;
   const feature = Array.isArray(spec.feature) ? spec.feature[0] : spec.feature;
 
-  // Dedupe: TestChunks are file-scoped (xid `${repo}|${path}`), so many
-  // statements/ACs in one spec point at the same chunk uid. Without the
-  // Set, gcOrphanChunks runs its ownership query + delete once per duplicate
-  // (all but the first a no-op) — a 40-statement spec would fire ~40
-  // redundant txns instead of one.
+  // Dedupe: TestChunks are file-scoped, so many statements/ACs point at the same chunk uid — without the Set a 40-statement spec fires ~40 redundant gcOrphanChunks txns.
   return {
     specUid: spec.uid,
     rootUid,
@@ -216,13 +154,7 @@ async function querySpecSubtree(
   };
 }
 
-/**
- * Deletes a Spec's whole subtree: the Spec, its Statements, Sections,
- * AcceptanceCriteria and their TraceLinks, the `Repo.specs` edge, its Blocks,
- * plus GC of link-target chunks and the owning Feature — each only when
- * nothing else still owns them. A missing Spec is a no-op (idempotent).
- * Anchor-deleted-last for crash resume — see the module header.
- */
+/** Deletes a Spec's whole subtree plus GC of link-target chunks and the owning Feature (only when ownerless); missing Spec is a no-op; anchor-deleted-last for crash resume. */
 export async function deleteSpecSubtree(
   dgraph: DgraphClientPort,
   repo: string,
@@ -236,11 +168,7 @@ export async function deleteSpecSubtree(
     return;
   }
 
-  // The ownership queries see the doomed Statements/ACs still alive, so their
-  // uids are excluded: a chunk owned ONLY by this spec's children is orphaned,
-  // while one still validated by another doc, or carrying coverage, survives.
-  // childUids also carries Section/TraceLink uids — a harmless superset, since
-  // those types never appear as chunk owner-edge results.
+  // The ownership queries see the doomed Statements/ACs still alive, so their uids are excluded — a chunk owned ONLY by this spec's children is orphaned.
   const doomedOwners = new Set(doomed.childUids);
 
   await gcOrphanChunks(
@@ -265,9 +193,7 @@ export async function deleteSpecSubtree(
   // An empty valid set makes the file-scoped Block sweep delete every Block.
   await pruneOrphanBlocksByFile(dgraph, repo, filePath, new Set());
 
-  // The final atomic step: re-query inside the mutating txn so the delete
-  // acts on fresh uids rather than the earlier read's snapshot (Dgraph only
-  // detects write-write conflicts, so the double read is the staleness guard).
+  // Re-query inside the mutating txn so the delete acts on fresh uids, not the earlier read's snapshot (Dgraph only detects write-write conflicts).
   await withTxn(dgraph, async (txn) => {
     const target = await querySpecSubtree(txn, repo, filePath);
 
@@ -280,20 +206,14 @@ export async function deleteSpecSubtree(
     ];
 
     if (target.rootUid) {
-      // `<uid> * * .` only drops OUTGOING edges — the Repo keeps a dangling
-      // forward ref unless its edge is deleted explicitly (pruneOrphans lesson).
+      // `<uid> * * .` only drops OUTGOING edges — the Repo keeps a dangling forward ref unless its edge is deleted explicitly.
       deletes.push(`<${target.rootUid}> <Repo.specs> <${target.specUid}> .`);
     }
     await txn.mutate({ deleteNquads: deletes.join("\n"), commitNow: true });
   });
 }
 
-/**
- * Deletes a Feature node once no Spec other than `excludedSpecUid` points at
- * it. The exclusion lets the GC run while the doomed Spec still exists (it is
- * deleted last as the prune's resume anchor), and makes a resumed run converge:
- * a Feature already deleted by a prior attempt just re-checks as ownerless.
- */
+/** Deletes a Feature node once no Spec other than `excludedSpecUid` points at it — lets GC run while the doomed Spec (the resume anchor) still exists, and re-checking makes a resumed run converge. */
 async function gcFeatureIfOrphan(
   dgraph: DgraphClientPort,
   featureUid: string,
@@ -318,14 +238,7 @@ async function gcFeatureIfOrphan(
   });
 }
 
-/**
- * Deletes an ADR's subtree: the ADR node, the `Repo.adrs` edge, incoming
- * `Statement.decided_by` / `AcceptanceCriterion.decided_by` /
- * `ADR.supersedes` refs, the TraceLinks targeting it (and their owning
- * Statements'/AcceptanceCriteria's `trace_links` edges), and its Blocks.
- * Missing ADR → no-op.
- * Same anchor-deleted-last order as {@link deleteSpecSubtree}.
- */
+/** Deletes an ADR's subtree (node, Repo.adrs edge, incoming decided_by/supersedes refs, targeting TraceLinks, Blocks); missing ADR is a no-op; same anchor-deleted-last order as {@link deleteSpecSubtree}. */
 export async function deleteAdrSubtree(
   dgraph: DgraphClientPort,
   repo: string,
@@ -398,13 +311,13 @@ export async function deleteAdrSubtree(
         deletes.push(`<${stmt.uid}> <Statement.trace_links> <${link.uid}> .`);
       }
 
-      // Symmetric to the Statement back-edge above: an AcceptanceCriterion
-      // owning this TraceLink would keep a dangling `trace_links` forward ref.
-      for (const ownerUid of uids(link.acOwners)) {
-        deletes.push(
-          `<${ownerUid}> <AcceptanceCriterion.trace_links> <${link.uid}> .`,
-        );
-      }
+      // Symmetric to the Statement back-edge above — an owning AcceptanceCriterion would keep a dangling `trace_links` forward ref.
+      deletes.push(
+        ...uids(link.acOwners).map(
+          (ownerUid) =>
+            `<${ownerUid}> <AcceptanceCriterion.trace_links> <${link.uid}> .`,
+        ),
+      );
     }
     const rootUid = ((res.data?.root ?? []) as Array<Record<string, string>>)[0]
       ?.uid;

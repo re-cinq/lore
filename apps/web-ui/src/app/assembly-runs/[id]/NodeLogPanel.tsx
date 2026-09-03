@@ -21,9 +21,7 @@ export interface NodeLogPanelProps {
   label: string;
 }
 
-/** One collapsible live-log panel for one node attempt (its Agent CR's pod).
- *  Logs are read on-demand from the cluster and vanish when the pod is cleaned
- *  up; older runs fall back to retained logs from Cloud Logging. */
+// One collapsible live-log panel for one node's pod, read on-demand; older runs fall back to retained Cloud Logging.
 export default function NodeLogPanel({
   assemblyLineId,
   agentCrName,
@@ -79,6 +77,18 @@ export default function NodeLogPanel({
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [resp]);
 
+  const renderLogContent = () => {
+    if (!resp?.logs) {
+      return "(no output yet)";
+    }
+
+    if (showRaw) {
+      return resp.logs;
+    }
+
+    return <LogEntriesView entries={entries} />;
+  };
+
   return (
     <CollapsibleCard
       title={label}
@@ -101,13 +111,7 @@ export default function NodeLogPanel({
 
       {!error && resp?.available && (
         <div className={styles.terminal}>
-          {!resp.logs ? (
-            "(no output yet)"
-          ) : showRaw ? (
-            resp.logs
-          ) : (
-            <LogEntriesView entries={entries} />
-          )}
+          {renderLogContent()}
           <div ref={bottomRef} />
         </div>
       )}

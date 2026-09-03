@@ -11,13 +11,7 @@ import { dirname, join } from "node:path";
 import type { GitPort, CloneOpts } from "./git-port.js";
 import { gitAuthArgs, repoCloneUrl } from "./git-auth.js";
 
-/**
- * GitPort over the local `git` binary — the same execSync idiom as
- * mcp-server/src/local-runner.ts, here behind the port. Auth rides in a
- * per-invocation `http.extraheader` (shared gitAuthArgs), never baked into the
- * clone URL or `.git/config`; a repo that already looks like a URL or path is
- * used as-is (lets integration tests clone a local bare repo without auth).
- */
+/** GitPort over the local `git` binary; auth rides in a per-invocation http.extraheader (gitAuthArgs), never baked into the clone URL or .git/config. */
 export class GitCli implements GitPort {
   constructor(private readonly env: NodeJS.ProcessEnv = process.env) {}
 
@@ -36,19 +30,17 @@ export class GitCli implements GitPort {
     destDir: string,
     opts?: CloneOpts,
   ): Promise<void> {
-    // Reuse an existing clone (the /tmp cache) — fetch + checkout instead of
-    // re-cloning, so a second run against the same cache dir is cheap and keeps
-    // any local state. Only clone when the dir has no .git.
-    if (existsSync(join(destDir, ".git"))) {
-      this.git([...this.authArgs(), "fetch", "origin"], destDir);
-
-      if (opts?.ref) {
-        this.git(["checkout", opts.ref], destDir);
-      }
+    // Reuse an existing clone (/tmp cache): fetch + checkout instead of re-cloning; only clone when the dir has no .git.
+    if (!existsSync(join(destDir, ".git"))) {
+      await this.clone(repo, destDir, opts);
 
       return;
     }
-    await this.clone(repo, destDir, opts);
+    this.git([...this.authArgs(), "fetch", "origin"], destDir);
+
+    if (opts?.ref) {
+      this.git(["checkout", opts.ref], destDir);
+    }
   }
 
   async ensureCheckout(
@@ -134,10 +126,7 @@ export class GitCli implements GitPort {
   }
 
   private git(args: string[], cwd?: string): string {
-    // Forward the adapter's env so a configured identity reaches git, and default
-    // committer/author to the Lore bot — git commits otherwise fail with "empty
-    // ident name" wherever the ambient git config has no identity (CI, job pods).
-    // Any GIT_AUTHOR_*/GIT_COMMITTER_* already in env overrides these defaults.
+    // Default committer/author to the Lore bot — git commits fail with "empty ident name" without one (CI, job pods); env GIT_AUTHOR_*/GIT_COMMITTER_* override.
     const env = {
       GIT_AUTHOR_NAME: "Lore Agent",
       GIT_AUTHOR_EMAIL: "lore-agent@re-cinq.com",
@@ -153,9 +142,7 @@ export class GitCli implements GitPort {
     return this.env.LORE_GIT_HOST ?? "github.com";
   }
 
-  /** Per-invocation git auth args (http.extraheader) when a token is configured —
-   *  keeps the token off disk. Empty when no token is set; harmless for a local
-   *  bare-repo remote (the extraheader is scoped to the https host). */
+  /** Per-invocation git auth args (http.extraheader) when a token is configured, keeping the token off disk; empty (harmless) with no token. */
   private authArgs(): string[] {
     const token = this.env.GITHUB_TOKEN ?? this.env.LORE_INGEST_TOKEN;
 

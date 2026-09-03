@@ -8,16 +8,10 @@ const logLlmCall = vi.fn();
 const insertBatch = vi.fn();
 const write = vi.fn();
 
-/** The one registry row the mocked `clusterAgents()` knows about; a test that
- *  wants a satellite's token accepted sets it. */
 let registeredAgent: { tokenHash: string } | null = null;
 
 vi.mock("../../../kernel/queues.js", () => ({
-  // The logs route resolves the cluster agent from here.
   clusterAgent: () => ({}),
-  // The telemetry sink resolves the REGISTRY from here, to let a satellite's
-  // own per-agent token in. `registeredAgent` is the row the fake returns —
-  // null unless a test registers one.
   clusterAgents: () => ({
     findByTokenHash: async (hash: string) =>
       registeredAgent !== null && registeredAgent.tokenHash === hash
@@ -95,11 +89,7 @@ describe("POST /api/agent-events", () => {
     expect(res.statusCode).toBe(401);
   });
 
-  it("returns 500 when the internal token is not configured", async () => {
-    // Not 401: an unconfigured token is an operator fix (redeploy), not a
-    // caller who presented the wrong credential. This is the shared
-    // enforceBearer's rule, adopted when this door started accepting two
-    // credentials.
+  it("returns 500 not 401 when the internal token is not configured (operator fix, not a bad credential)", async () => {
     delete process.env.LORE_AGENT_INTERNAL_TOKEN;
     const res = await buildServer({ getJobStatus: () => ({}) }).inject({
       method: "POST",
@@ -112,8 +102,6 @@ describe("POST /api/agent-events", () => {
   });
 
   it("accepts a registered cluster-agent's own per-agent token", async () => {
-    // A satellite never holds LORE_AGENT_INTERNAL_TOKEN; its own registered
-    // token is what gives its runs cost rows and run-viz.
     process.env.LORE_AGENT_INTERNAL_TOKEN = "internal-secret";
     const { token, tokenHash } = mintAgentToken();
 
@@ -246,10 +234,7 @@ describe("a cost batch whose inserts settle out of order", () => {
     write.mockReset().mockResolvedValue(undefined);
   });
 
-  it("names the earlier row in first_issue even though its insert resolves last", async () => {
-    // The inserts now go out together. The FOLD must stay in batch order, or the
-    // audit row's first_issue names whichever insert happened to settle first
-    // rather than the first row of the batch.
+  it("names the earlier row in first_issue even though its insert resolves last (fold stays in batch order)", async () => {
     const line = (task: string) =>
       JSON.stringify({
         source: { task, agent: "cr-1" },
@@ -266,7 +251,6 @@ describe("a cost batch whose inserts settle out of order", () => {
     logLlmCall
       .mockReset()
       .mockImplementation(async (row: { taskId: string }) => {
-        // The FIRST row of the batch is the slow one.
         if (row.taskId === "task-uuid-1") {
           await new Promise((resolve) => setTimeout(resolve, 10));
 

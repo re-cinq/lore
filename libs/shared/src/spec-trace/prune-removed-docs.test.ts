@@ -134,7 +134,7 @@ describe.skipIf(!reachable)("whole-file pruning (live Dgraph)", () => {
         });
       }
     } catch {
-      // best-effort cleanup must never mask the assertion
+      void 0;
     } finally {
       await txn.discard().catch(() => {});
     }
@@ -339,9 +339,6 @@ describe.skipIf(!reachable)("whole-file pruning (live Dgraph)", () => {
     ]);
   });
 
-  /** Wraps the real client so the Nth mutate (or one matched on its nquads)
-   *  throws — simulating a crash/Dgraph error mid-prune. The injected error is
-   *  not a txn-abort, so `withTxn`'s backoff propagates it unretried. */
   function portFailingOnMutate(
     base: DgraphClientPort,
     shouldFail: (deleteNquads: string, index: number) => boolean,

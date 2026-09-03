@@ -6,12 +6,6 @@ import {
   __resetCacheStateForTests,
 } from "./prompt-cache.js";
 
-// Note: `shouldUse1hTTL` / `getCacheControl` latch on LORE_CACHE_1H_JOBS
-// at module load time. Changing process.env here doesn't affect them
-// because the module is already imported. We rely on defaults instead
-// and cover parsing logic by exercising the public API's observable
-// behavior (1h for auto-curation, 5m for an unknown job).
-
 import { shouldUse1hTTL, getCacheControl } from "./prompt-cache.js";
 
 describe("djb2Hash", () => {
@@ -127,9 +121,7 @@ describe("analyzeCacheBreak", () => {
   });
 
   it("classifies a cache read as hit", () => {
-    // seed state first
     analyzeCacheBreak(jobName, hashA, 100, 0);
-    // then a hit
     const r = analyzeCacheBreak(jobName, hashA, 0, 100);
 
     expect(r.status).toBe("hit");
@@ -151,18 +143,16 @@ describe("analyzeCacheBreak", () => {
     expect(r.reason).toBe("tools");
   });
 
-  it("classifies ttl-expired when hashes match but no read", () => {
+  it("classifies ttl-expired when the same hash is paid to write again on a second call", () => {
     analyzeCacheBreak(jobName, hashA, 100, 0);
-    // Second call: same hash, paid to write again → TTL expired
     const r = analyzeCacheBreak(jobName, hashA, 100, 0);
 
     expect(r.status).toBe("ttl-expired");
     expect(typeof r.ageMinutes).toBe("number");
   });
 
-  it("tracks state independently per jobName", () => {
+  it("tracks state independently per jobName, so a different job starts fresh", () => {
     analyzeCacheBreak("job-1", hashA, 100, 0);
-    // Different job starts fresh
     const r = analyzeCacheBreak("job-2", hashA, 100, 0);
 
     expect(r.status).toBe("first-call");

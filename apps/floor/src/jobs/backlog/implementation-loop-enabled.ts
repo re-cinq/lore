@@ -1,13 +1,6 @@
 import { settings } from "../../kernel/queues.js";
 
-/**
- * The per-repo `implementation_loop.enabled` opt-in (implementation-loop FR7).
- * Deliberately top-level next to `auto_review`, NOT inside `dark_factory`: the
- * loop never merges, so it must not be dragged behind the two-key CODEOWNERS
- * ceremony that guards merge authority. Pure predicate over a raw settings
- * value, defaulting to disabled by omission; {@link shouldRunImplementationLoop}
- * is the DB-backed wrapper.
- */
+/** The per-repo `implementation_loop.enabled` opt-in (FR7); deliberately top-level, not inside `dark_factory`, since the loop never merges and must not need the two-key CODEOWNERS ceremony. */
 export function implementationLoopEnabled(rawSettings: unknown): boolean {
   const parsed =
     typeof rawSettings === "string" ? safeParse(rawSettings) : rawSettings;

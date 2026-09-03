@@ -16,11 +16,6 @@ const get = (pool: unknown, url = "/api/agent-stats?agent_id=agent-7") =>
     headers: AUTH,
   });
 
-/**
- * The real `agentHealth` / `agentStats` run here — they read the pool set via
- * `setMemoryPool`, so the route test drives the whole path with one pool double
- * and queued rows in call order: health, stats, recent episodes, episode count.
- */
 function statsPool() {
   const pool = makePool();
 

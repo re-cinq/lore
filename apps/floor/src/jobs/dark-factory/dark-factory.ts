@@ -1,7 +1,6 @@
 import { settings as settingsRepo } from "../../kernel/queues.js";
 import { requiresApproval } from "@re-cinq/lore-shared";
-// Canonical types + resolver moved to @re-cinq/lore-shared so all
-// consumers (agent, mcp-server, GKE Job pod runner) share one source.
+// Canonical types + resolver moved to @re-cinq/lore-shared so all consumers share one source.
 import {
   resolveDarkFactorySettings,
   trustMeets,
@@ -18,10 +17,7 @@ export {
   type ReviewMode,
 };
 
-/**
- * Per-repo dark-factory configuration as stored under
- * `lore.repos.settings.dark_factory`. Alias of the canonical type.
- */
+/** Per-repo dark-factory configuration as stored under `lore.repos.settings.dark_factory`. Alias of the canonical type. */
 export type DarkFactoryRepoSettings = DarkFactorySettings;
 
 export interface DarkFactoryTaskOverrides {
@@ -42,13 +38,7 @@ export interface IssueGateDecision {
     | "approval_required_overrides_dark_mode";
 }
 
-/**
- * Pure decision: given the task's approval flag, per-task overrides,
- * and the repo's dark_factory settings, decide whether a GitHub Issue
- * should be created. Exported separately from
- * {@link shouldCreateIssue} so callers can unit-test without the DB
- * round-trip.
- */
+/** Pure decision: given the task's approval flag, per-task overrides, and the repo's dark_factory settings, decide whether a GitHub Issue should be created. Exported separately from {@link shouldCreateIssue} so callers can unit-test without the DB round-trip. */
 export function decideIssueCreate(args: {
   approvalNeeded: boolean;
   overrides: DarkFactoryTaskOverrides | undefined;
@@ -58,8 +48,7 @@ export function decideIssueCreate(args: {
     return { create: true, reason: "with_issue_override" };
   }
 
-  // Approval-required tasks always get an Issue (the Issue is the gate
-  // surface). This wins even over `with_issue: false`.
+  // Approval-required tasks always get an Issue (the gate surface) — wins even over `with_issue: false`.
   if (args.approvalNeeded) {
     return {
       create: true,
@@ -79,25 +68,12 @@ export function decideIssueCreate(args: {
     case "always":
       return { create: true, reason: "create_issue_always" };
     case "on_gate":
-      // approvalNeeded was short-circuited above; reaching here means
-      // no approval gate, so suppress the Issue.
+      // approvalNeeded was short-circuited above; reaching here means no approval gate, so suppress the Issue.
       return { create: false, reason: "create_issue_on_gate_no_approval" };
   }
 }
 
-/**
- * Pure decision (T034): resolves the effective review mode for a
- * task by merging per-task overrides over per-repo dark_factory
- * settings.
- *
- * - per-task `human_review: required` → `always` (cannot be weakened).
- * - dark_factory disabled → `always` (legacy / opt-out behavior).
- * - dark_factory enabled → `settings.review` (default `trust_based`).
- *
- * `trust_based` is the dark-mode default that lets the auto-merge
- * engine gate per-path; `always` forces every PR to wait for a human;
- * `never` skips the bot review entirely.
- */
+/** Pure decision (T034): resolves the effective review mode for a task by merging per-task overrides over per-repo dark_factory settings — `human_review: required` forces `always`; disabled defaults to `always`; enabled uses `settings.review` (default `trust_based`, which lets auto-merge gate per-path; `never` skips bot review). */
 export function decideReviewMode(args: {
   overrides: DarkFactoryTaskOverrides | undefined;
   settings: DarkFactoryRepoSettings | undefined;
@@ -113,15 +89,7 @@ export function decideReviewMode(args: {
   return args.settings.review ?? "trust_based";
 }
 
-/**
- * Decide whether to create a GitHub Issue for a task. Defaults to
- * creating (preserves opt-out behavior). When `dark_factory.enabled`
- * is true, applies the `create_issue` policy. Per-task
- * `with_issue: true` always forces creation; per-task
- * `with_issue: false` is honored only when the task does not require
- * approval (per data-model.md, the latter cannot be silently
- * weakened).
- */
+/** Decide whether to create a GitHub Issue for a task: defaults to creating; when `dark_factory.enabled` applies the `create_issue` policy; `with_issue: true` always forces creation, `with_issue: false` is honored only when the task doesn't require approval (data-model.md). */
 export async function shouldCreateIssue(task: {
   id: string;
   task_type: string;

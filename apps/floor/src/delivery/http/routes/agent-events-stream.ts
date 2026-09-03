@@ -1,21 +1,4 @@
-/**
- * GET /api/agent-events/stream/{assemblyRunId} — the stack's first SSE
- * endpoint (FR2.x). hapi has no SSE support, so the handler returns a
- * `PassThrough` and `streamRunEvents` drives it.
- *
- * The whole point of the sequence below is a lossless handoff between the
- * durable replay and the live tail. Subscribing BEFORE the first `listSince`
- * and buffering what arrives means a row written mid-replay is held rather than
- * missed; de-duplicating on the monotonic id means the same row arriving from
- * both sides is written once. Inverting the order drops events in that gap
- * silently, which is why both properties are tested rather than asserted here.
- *
- * BACKPRESSURE IS OURS, NOT THE BUS'S. The bus drains a subscriber
- * synchronously, so its overflow guard can never fire for a merely slow socket
- * — that data sits in this PassThrough. Past the high-water mark the stream is
- * ended: the browser's EventSource reconnects with `Last-Event-ID` and the
- * replay heals the gap, so dropping costs latency and never data.
- */
+/** GET /api/agent-events/stream/{assemblyRunId} — the stack's first SSE endpoint (FR2.x); subscribes BEFORE the first `listSince` and de-dupes on monotonic id for a lossless replay→live handoff. Backpressure is ours, not the bus's — past the high-water mark the stream ends and EventSource reconnects via `Last-Event-ID`. */
 
 import { apiError } from "../api-error.js";
 import { PassThrough } from "node:stream";
@@ -96,8 +79,7 @@ export function streamRunEvents(
   let cursor = deps.after;
   const buffered: AgentRunEventRow[] = [];
 
-  // Collected rather than named: the bus's overflow callback needs `teardown`,
-  // and `teardown` needs the unsubscribe the same call returns.
+  // Collected rather than named: the overflow callback needs `teardown`, which needs the unsubscribe the same call returns.
   const cleanups: (() => void)[] = [];
 
   const teardown = (): void => {
@@ -134,11 +116,7 @@ export function streamRunEvents(
     }
   };
 
-  // The bus's MAX_BUFFERED_EVENTS guard cannot protect this array: the bus
-  // drains a subscriber synchronously, so during catch-up its backlog sits
-  // HERE, not in the bus. Applying the same cap and the same recovery — end
-  // the response, let EventSource reconnect from Last-Event-ID and replay the
-  // gap — keeps a long replay against a hot line from growing the heap.
+  // The bus's MAX_BUFFERED_EVENTS guard cannot protect this array — during catch-up the backlog sits HERE. Same cap, same recovery (end + EventSource replay).
   const buffer = (rows: AgentRunEventRow[]): void => {
     if (closed) {
       return;
@@ -230,12 +208,7 @@ export function agentEventsStreamRoute(
           highWaterMark: deps?.highWaterMark,
         });
       } catch (err) {
-        // The bus refuses past MAX_SUBSCRIBERS_PER_RUN. That is capacity, not a
-        // bug in the request — 503 tells the client to come back. Anything else
-        // is a real fault and must surface as a 500; swallowing it here would
-        // report every programming error as backpressure. Matched on the bus's
-        // own message prefix because subscribe throws a plain Error — if that
-        // ever becomes a typed error, match the type instead.
+        // The bus refuses past MAX_SUBSCRIBERS_PER_RUN (capacity, not a bug → 503); matched on message prefix since subscribe throws a plain Error.
         const capacity =
           err instanceof Error && err.message.startsWith("agent event bus: ");
 

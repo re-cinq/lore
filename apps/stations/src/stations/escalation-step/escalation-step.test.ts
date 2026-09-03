@@ -72,8 +72,6 @@ describe("runEscalationStep — notify", () => {
   });
 
   it("inlines the diagnostic when no issue was filed, so it is not lost", async () => {
-    // The audit-only fallback. The Issue surface failed, so the notification is
-    // the only place a human can still read what went wrong.
     const sent: string[] = [];
     const audited: Record<string, unknown>[] = [];
 
@@ -100,9 +98,6 @@ describe("runEscalationStep — notify", () => {
 
 describe("filing the issue survives a transient refusal", () => {
   it("retries and succeeds, so a 503 does not degrade a real escalation to audit-only", async () => {
-    // The function this replaced retried three times (1s/4s). Without it, one
-    // blip from GitHub sends the human a Slack line instead of the Issue —
-    // silently, because audit_only is a legitimate outcome and looks like one.
     let attempts = 0;
 
     const result = await runEscalationStep(

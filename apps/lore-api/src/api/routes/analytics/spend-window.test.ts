@@ -12,8 +12,6 @@ interface Issued {
   params: unknown[];
 }
 
-/** Answers queries by issue order — the handler awaits sequentially, so the
- *  order is the fixture. `rejectWhen` simulates an unmigrated table. */
 function poolWith(
   rows: unknown[][],
   issued: Issued[] = [],
@@ -61,8 +59,6 @@ async function serverWith(
   return server;
 }
 
-// Rows in the order the handler issues its reads. The billed stamps make the
-// billed half available; the ledger row makes the budget render.
 const BASE_ROWS: unknown[][] = [
   [{ calls: 42, usd: 82.5, input_tokens: 12345, output_tokens: 735021 }],
   [{ blueprint: "implementation-loop", runs: 15, usd: 27.47 }],
@@ -139,7 +135,6 @@ describe("GET /api/analytics/spend-window", () => {
       runs: 15,
       usd: 27.47,
     });
-    // 6.5 pod-hours × (1 cpu × 0.022 + 4Gi × 0.003) = 6.5 × 0.034 ≈ 0.22
     expect(body.compute.pod_hours[0]).toEqual({
       blueprint: "implementation-loop",
       pods: 9,
@@ -233,9 +228,7 @@ describe("GET /api/analytics/spend-window", () => {
     });
   });
 
-  it("degrades to unavailable GCP figures when gcp_cost_daily is absent", async () => {
-    // The table arrives with migration 0060; a cluster without it must still
-    // render the metered figures and the estimate.
+  it("degrades to unavailable GCP figures when gcp_cost_daily (migration 0060) is absent, still rendering the metered figures", async () => {
     const server = await serverWith(BASE_ROWS, {}, [], (sql) =>
       sql.includes("pipeline.gcp_cost_daily"),
     );
@@ -261,9 +254,6 @@ describe("GET /api/analytics/spend-window", () => {
       "/api/analytics/spend-window?from=2026-09-01&to=2026-09-02",
     );
 
-    // The credit-ledger read and the two budget reads it anchors are excluded
-    // by name rather than by accident: a balance added last month is still
-    // money, and clipping it to the interval would silently zero it.
     const windowed = issued.filter(
       ({ sql, params }) =>
         !sql.includes("pipeline.credit_ledger") &&
@@ -291,7 +281,6 @@ describe("GET /api/analytics/spend-window", () => {
     const body = JSON.parse((await get(server)).payload);
     const pod = body.compute.live_pods[0];
 
-    // 1 cpu × 0.022 + 16Gi × 0.003 = 0.07/h, one hour up so far.
     expect(pod).toMatchObject({
       name: "agent-job-run1-tdd-round-abc",
       usd_per_hour: 0.07,
@@ -321,15 +310,12 @@ describe("GET /api/analytics/spend-window", () => {
     });
   });
 
-  it("caps a never-finished station-run row at 2 hours instead of billing it as still running", async () => {
+  it("caps a never-finished station-run row at 2 hours instead of billing it as still running (177 stale comment-triage rows once billed 8,606 pod-hours riding now())", async () => {
     const issued: Issued[] = [];
     const server = await serverWith(BASE_ROWS, {}, issued);
 
     await get(server);
 
-    // A row whose pod died without a finished_at write must be clipped to
-    // started_at + 2h — 177 stale comment-triage rows once billed 8,606
-    // pod-hours by riding now().
     const podHoursSql =
       issued.find(({ sql }) => sql.includes("agent_cr_name"))?.sql ?? "";
 
@@ -343,18 +329,13 @@ describe("GET /api/analytics/spend-window", () => {
         throw new Error("should be caught by the default deps, not reach here");
       },
     });
-    // The route itself must not call livePods in a way that lets a throw
-    // escape: the defaultDeps swallow, but an injected thrower proves the
-    // handler guards too.
     const res = await get(server);
 
     expect(res.statusCode).toBe(200);
     expect(JSON.parse(res.payload).compute.live_pods).toEqual([]);
   });
 
-  it("reports the billed half unavailable when the sync has never run", async () => {
-    // The table exists but holds no stamp: the view must hide the billed
-    // sections rather than show a confident zero.
+  it("reports the billed half unavailable (not a confident zero) when the sync has never run", async () => {
     const rows = [...BASE_ROWS];
 
     rows[8] = [
@@ -375,9 +356,7 @@ describe("GET /api/analytics/spend-window", () => {
     });
   });
 
-  it("degrades to unavailable billed figures when the cost table is absent", async () => {
-    // anthropic_cost_daily arrives with a migration; the metered figures never
-    // depended on it and must still render.
+  it("degrades to unavailable billed figures when anthropic_cost_daily is absent, still rendering the metered figures", async () => {
     const issued: Issued[] = [];
     const server = await serverWith(BASE_ROWS, {}, issued, (sql) =>
       sql.includes("pipeline.anthropic_cost_daily"),
@@ -396,9 +375,6 @@ describe("GET /api/analytics/spend-window", () => {
   });
 
   it("bounds the unbilled read by the last billed day, and by nothing when never synced", async () => {
-    // `billed_through` is MAX(bucket_date) over the WHOLE table, not the
-    // interval: a sync that stopped at 8/18 leaves 8/19+ in neither figure
-    // unless the unbilled read starts strictly after the last billed day.
     const issued: Issued[] = [];
 
     await get(await serverWith(BASE_ROWS, {}, issued));
@@ -418,10 +394,7 @@ describe("GET /api/analytics/spend-window", () => {
     ).toBe(null);
   });
 
-  it("reports no budget when no balance has ever been recorded", async () => {
-    // An unrecorded balance is not a zero balance — a confident "$0.00
-    // remaining" reads as "we are out of money" when what it means is "nobody
-    // has told us the number yet".
+  it("reports no budget (not a confident $0.00) when no balance has ever been recorded", async () => {
     const rows = [...BASE_ROWS];
 
     rows[16] = [];
@@ -462,13 +435,8 @@ describe("GET /api/analytics/spend-window", () => {
 
     expect(anchored).toHaveLength(2);
     expect(anchored[0].sql).toContain("pipeline.anthropic_cost_daily");
-    // A satellite runs on a colleague's subscription token, so its cost never
-    // draws the recorded credits — counting it would drag the balance negative
-    // on money this account never spent.
     expect(anchored[1].sql).toContain("pipeline.llm_calls");
     expect(anchored[1].sql).toContain("cluster_agent_id IS NULL");
-    // The two halves meet at billed_through and must not overlap: billed
-    // covers up to and including it, computed starts strictly after.
     expect(anchored[1].params).toEqual(["2026-08-01T00:00:00Z", "2026-09-01"]);
   });
 
@@ -481,22 +449,15 @@ describe("GET /api/analytics/spend-window", () => {
       issued.find(({ sql: s }) => s.includes("pipeline.credit_ledger"))?.sql ??
       "";
 
-    // The opening entry decides when counting starts; the earliest row does
-    // not. Anchoring on MIN over everything let a BACKDATED top-up drag the
-    // window weeks earlier and charge old spend against a new balance.
     expect(sql).toContain("MIN(effective_at) FILTER (WHERE kind = 'opening')");
     expect(sql).toContain(
       "MIN(effective_at) FILTER (WHERE kind <> 'correction')",
     );
-    // The SUM stays unfiltered — a correction is still money.
     expect(sql).toContain("COALESCE(SUM(amount_usd), 0)");
     expect(sql).not.toContain("SUM(amount_usd) FILTER");
   });
 
-  it("groups cluster spend through station_runs so unclaimed rows land in the null bucket", async () => {
-    // Pinned as SQL text because a mocked pool answers any shape happily. A
-    // call with no station run (a direct-API task) has no cluster_agent_id and
-    // must fall into the null bucket, not vanish — hence the outer LEFT JOINs.
+  it("groups cluster spend through station_runs (LEFT JOINs) so unclaimed rows land in the null bucket, not vanish", async () => {
     const issued: Issued[] = [];
 
     await get(await serverWith(BASE_ROWS, {}, issued));
@@ -520,10 +481,7 @@ describe("GET /api/analytics/spend-window", () => {
     expect(JSON.parse(res.payload).llm.by_cluster).toEqual([]);
   });
 
-  it("attributes run-scoped spend through llm_calls.assembly_line_id", async () => {
-    // The column is deliberately NOT renamed with the run model: no compat view
-    // can cover a renamed column on a table that keeps its own name. Pinned as
-    // SQL text, since a mocked pool answers any column name happily.
+  it("attributes run-scoped spend through llm_calls.assembly_line_id, a column deliberately NOT renamed with the run model", async () => {
     const issued: Issued[] = [];
 
     await get(await serverWith(BASE_ROWS, {}, issued));

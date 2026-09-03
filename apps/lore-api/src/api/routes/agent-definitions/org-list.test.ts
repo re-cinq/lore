@@ -10,7 +10,6 @@ import {
 
 const originalEnv = { ...process.env };
 
-/** A pool answering the PgAgentDefs list SQL with one org row. */
 function fakePool(rows: Array<Record<string, unknown>>): Pool {
   return {
     query: async () => ({ rows }),

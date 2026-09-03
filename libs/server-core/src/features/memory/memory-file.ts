@@ -1,19 +1,4 @@
-/**
- * File-backed fallback for memory operations (T007).
- *
- * When PostgreSQL is unavailable, all memory tools fall back to this module.
- * Same function signatures as memory.ts but uses JSON files in ~/.lore/memory/.
- *
- * Directory structure:
- *   ~/.lore/memory/
- *     <agent-id>/
- *       memories.json    – { [key]: MemoryRecord }
- *       versions.json    – { [key]: VersionRecord[] }
- *     shared/
- *       <pool-name>/
- *         memories.json
- *     audit.jsonl        – append-only, one JSON per line
- */
+// File-backed fallback for memory operations (T007): same signatures as memory.ts but JSON files under ~/.lore/memory/ (<agent-id>/{memories,versions}.json, shared/<pool>/memories.json, audit.jsonl append-only).
 
 import {
   readFileSync,
@@ -77,14 +62,7 @@ export interface MemoryEntry {
   expires_at: string | null;
 }
 
-/**
- * What a LISTING answers — the pool path's projection, field for field.
- *
- * A listing enumerates keys; it deliberately carries no `value` (the pool path's
- * SELECT does not read one either, since a page of full values is a page of
- * whole documents). `repo` and `has_facts` are stated as the null and false this
- * store can honestly answer: it scopes by agent, and it holds no facts.
- */
+// What a LISTING answers — the pool path's projection, field for field: no `value` (a page of full values is a page of whole documents), `repo`/`has_facts` stated as the null/false this store can honestly answer.
 export interface MemoryListEntry {
   key: string;
   agent_id: string;
@@ -102,10 +80,7 @@ export interface SearchResult {
   score: number;
   agent_id: string;
   created_at: string;
-  /** Always "memory": this store holds nothing else. The pool path answers
-   *  facts, episodes and graph hits too, and the endpoint declares one shape
-   *  for both — so the field is stated rather than left for the caller to
-   *  guess at from which backend answered. */
+  // Always "memory": this store holds nothing else, but the endpoint declares one shape for both backends (the pool path also answers facts/episodes/graph hits).
   source: "memory";
 }
 
@@ -237,6 +212,44 @@ export function writeMemoryFile(
 
 // ── Read ─────────────────────────────────────────────────────────────
 
+/** The record as a MemoryEntry, or null when it is absent, deleted, or expired. */
+function activeMemoryEntry(
+  key: string,
+  record: MemoryRecord | undefined,
+): MemoryEntry | null {
+  if (!record || record.is_deleted || isExpired(record)) {
+    return null;
+  }
+
+  return {
+    key,
+    value: record.value,
+    version: record.version,
+    created_at: record.created_at,
+    ttl_seconds: record.ttl_seconds,
+    is_deleted: record.is_deleted,
+    expires_at: record.expires_at,
+  };
+}
+
+/** Full version history sorted by version descending (newest first). */
+function versionHistoryDescending(
+  agentId: string,
+  key: string,
+): VersionRecord[] | null {
+  const versions = readJson<Record<string, VersionRecord[]>>(
+    versionsPath(agentId),
+    {},
+  );
+  const history = versions[key];
+
+  if (!history || history.length === 0) {
+    return null;
+  }
+
+  return [...history].sort((a, b) => b.version - a.version);
+}
+
 export function readMemoryFile(
   key: string,
   agentId?: string,
@@ -253,20 +266,8 @@ export function readMemoryFile(
     metadata: { version: version ?? "latest" },
   });
 
-  // Return full version history
   if (version === "all") {
-    const versions = readJson<Record<string, VersionRecord[]>>(
-      versionsPath(id),
-      {},
-    );
-    const history = versions[key];
-
-    if (!history || history.length === 0) {
-      return null;
-    }
-
-    // Return sorted by version descending (newest first)
-    return [...history].sort((a, b) => b.version - a.version);
+    return versionHistoryDescending(id, key);
   }
 
   // Return latest version
@@ -275,21 +276,8 @@ export function readMemoryFile(
       memoriesPath(id),
       {},
     );
-    const record = memories[key];
 
-    if (!record || record.is_deleted || isExpired(record)) {
-      return null;
-    }
-
-    return {
-      key,
-      value: record.value,
-      version: record.version,
-      created_at: record.created_at,
-      ttl_seconds: record.ttl_seconds,
-      is_deleted: record.is_deleted,
-      expires_at: record.expires_at,
-    };
+    return activeMemoryEntry(key, memories[key]);
   }
 
   // Return a specific version
@@ -458,40 +446,13 @@ export function sharedReadFile(
 
   // Return a specific key
   if (key !== undefined) {
-    const record = memories[key];
-
-    if (!record || record.is_deleted || isExpired(record)) {
-      return null;
-    }
-
-    return {
-      key,
-      value: record.value,
-      version: record.version,
-      created_at: record.created_at,
-      ttl_seconds: record.ttl_seconds,
-      is_deleted: record.is_deleted,
-      expires_at: record.expires_at,
-    };
+    return activeMemoryEntry(key, memories[key]);
   }
 
   // Return all active entries in the pool
-  const entries: MemoryEntry[] = [];
-
-  for (const [k, record] of Object.entries(memories)) {
-    if (record.is_deleted || isExpired(record)) {
-      continue;
-    }
-    entries.push({
-      key: k,
-      value: record.value,
-      version: record.version,
-      created_at: record.created_at,
-      ttl_seconds: record.ttl_seconds,
-      is_deleted: record.is_deleted,
-      expires_at: record.expires_at,
-    });
-  }
+  const entries = Object.entries(memories)
+    .map(([poolKey, record]) => activeMemoryEntry(poolKey, record))
+    .filter((entry): entry is MemoryEntry => entry !== null);
 
   return entries.length > 0 ? entries : null;
 }

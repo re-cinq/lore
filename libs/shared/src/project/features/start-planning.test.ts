@@ -46,9 +46,7 @@ describe("planningTaskArgs", () => {
     expect("resume_from_task" in args).toBe(false);
   });
 
-  it("carries both when a round resumes an earlier one", () => {
-    // Both ride along because only the Floor knows at dispatch whether to
-    // resume — the route cannot decide it, so it must not drop either.
+  it("carries both when a round resumes an earlier one, since only the Floor decides at dispatch whether to resume", () => {
     expect(
       planningTaskArgs({
         featureId: "f-1",

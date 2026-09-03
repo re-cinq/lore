@@ -49,12 +49,7 @@ function undetectedRepoError(): ToolText {
   return toolText("Could not detect repo. Specify repo parameter.");
 }
 
-/**
- * Run a proxied call and render its body, mapping every failure to tool text.
- * These tools hold no pool (ADR-032), so the API is the only source: a config
- * gap, a denial, and an outage each get their own message rather than a
- * misleading "requires PostgreSQL".
- */
+// Runs a proxied call and maps every failure (no pool per ADR-032: config gap, denial, outage) to its own tool text rather than a misleading "requires PostgreSQL".
 async function proxiedText(
   call: () => Promise<ProxyResult>,
   {
@@ -85,9 +80,7 @@ async function proxiedText(
       return deniedError(toolName, proxied.detail);
     }
 
-    // A non-retriable status means the server answered and refused (e.g. a 409
-    // "Cannot cancel task in merged state"). Reporting that as "unreachable
-    // after 4 attempts" would blame the network for the server's verdict.
+    // A non-retriable status means the server answered and refused (e.g. 409); reporting "unreachable" would wrongly blame the network for the server's verdict.
     if (proxied.status) {
       return toolText(`The Lore API refused ${op}: ${proxied.detail}`);
     }
@@ -100,6 +93,72 @@ async function proxiedText(
   } catch (err) {
     return toolText(`Error ${op}: ${errorMessage(err)}`);
   }
+}
+
+function formatPendingTasksByRepo(tasks: RemoteTaskLite[]): string {
+  const byRepo = new Map<string, RemoteTaskLite[]>();
+
+  for (const t of tasks) {
+    const r = t.target_repo || "unknown";
+    const repoTasks = byRepo.get(r) ?? [];
+
+    repoTasks.push(t);
+    byRepo.set(r, repoTasks);
+  }
+  const sections: string[] = [];
+
+  for (const [r, repoTasks] of byRepo) {
+    const lines = repoTasks.map(
+      (t) =>
+        `  ${t.id.substring(0, 8)} ${t.task_type} ${t.issue_number ? "#" + t.issue_number + " " : ""}${(t.description || "").substring(0, 80)}`,
+    );
+
+    sections.push(`**${r}** (${repoTasks.length})\n${lines.join("\n")}`);
+  }
+
+  return sections.join("\n\n");
+}
+
+/** The pending-task list via the API, grouped by repo; null when the API is unavailable. */
+async function listPendingTasksViaApi(
+  filterRepo: string | undefined,
+): Promise<{ content: Array<{ type: "text"; text: string }> } | null> {
+  const apiUrl = process.env.LORE_API_URL || "";
+  const token = process.env.LORE_INGEST_TOKEN || "";
+
+  if (!(apiUrl && token)) {
+    return null;
+  }
+  const resp = await fetch(`${apiUrl}/api/tasks?status=pending&limit=50`, {
+    signal: AbortSignal.timeout(30_000),
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  if (!resp.ok) {
+    return null;
+  }
+  const data = (await resp.json()) as { tasks?: RemoteTaskLite[] };
+  const remoteTasks = data.tasks || [];
+  const tasks = filterRepo
+    ? remoteTasks.filter((t) => t.target_repo === filterRepo)
+    : remoteTasks;
+
+  if (tasks.length === 0) {
+    return {
+      content: [
+        {
+          type: "text" as const,
+          text: filterRepo
+            ? `No pending tasks for ${filterRepo}.`
+            : "No pending tasks.",
+        },
+      ],
+    };
+  }
+
+  return {
+    content: [{ type: "text" as const, text: formatPendingTasksByRepo(tasks) }],
+  };
 }
 
 export function registerPipelineTools(server: McpServer) {
@@ -159,9 +218,7 @@ export function registerPipelineTools(server: McpServer) {
       context,
     }) => {
       try {
-        // Onboarding is guarded against duplicates inside lore_onboard_repo's
-        // transaction (#968); creating one here would route around that guard.
-        // Refused before the local/remote split so neither path can slip past.
+        // Refused before the local/remote split: onboarding's duplicate guard lives inside lore_onboard_repo's own transaction (#968).
         if (task_type === "onboard") {
           return {
             content: [
@@ -364,9 +421,7 @@ export function registerPipelineTools(server: McpServer) {
           return deniedError("lore_get_pr_status", proxied.detail);
         }
 
-        // A read with no local fallback: surface the server's reason (e.g. a 424
-        // "GitHub not configured" config gap, or a real timeout) plainly rather
-        // than the write-oriented "unreachable / refusing local fallback" copy.
+        // A read with no local fallback: surface the server's reason plainly rather than the write-oriented "unreachable" copy.
         return {
           content: [
             {
@@ -687,9 +742,7 @@ export function registerPipelineTools(server: McpServer) {
     },
     async ({ task_id, offset, cursor }) => {
       try {
-        // Logs live server-side (turn store, GCS fallback); proxy the read. The API resolves the
-        // task's repo from task_id — the local adapter holds no DB to look it up,
-        // so calling getTask() here would throw "Pipeline database not configured".
+        // Logs live server-side; the API resolves the task's repo from task_id since the local adapter holds no DB to look it up.
         const apiUrl = process.env.LORE_API_URL;
         const apiToken = process.env.LORE_INGEST_TOKEN;
 
@@ -880,66 +933,10 @@ export function registerPipelineTools(server: McpServer) {
     async ({ repo: filterRepo }) => {
       try {
         // Try API first for global view (all repos)
-        const apiUrl = process.env.LORE_API_URL || "";
-        const token = process.env.LORE_INGEST_TOKEN || "";
+        const apiListing = await listPendingTasksViaApi(filterRepo);
 
-        if (apiUrl && token) {
-          const resp = await fetch(
-            `${apiUrl}/api/tasks?status=pending&limit=50`,
-            {
-              signal: AbortSignal.timeout(30_000),
-              headers: { Authorization: `Bearer ${token}` },
-            },
-          );
-
-          if (resp.ok) {
-            const data = (await resp.json()) as { tasks?: RemoteTaskLite[] };
-            let tasks: RemoteTaskLite[] = data.tasks || [];
-
-            if (filterRepo) {
-              tasks = tasks.filter((t) => t.target_repo === filterRepo);
-            }
-
-            if (tasks.length === 0) {
-              return {
-                content: [
-                  {
-                    type: "text" as const,
-                    text: filterRepo
-                      ? `No pending tasks for ${filterRepo}.`
-                      : "No pending tasks.",
-                  },
-                ],
-              };
-            }
-            // Group by repo
-            const byRepo = new Map<string, RemoteTaskLite[]>();
-
-            for (const t of tasks) {
-              const r = t.target_repo || "unknown";
-
-              if (!byRepo.has(r)) {
-                byRepo.set(r, []);
-              }
-              byRepo.get(r)!.push(t);
-            }
-            const sections: string[] = [];
-
-            for (const [r, repoTasks] of byRepo) {
-              const lines = repoTasks.map(
-                (t) =>
-                  `  ${t.id.substring(0, 8)} ${t.task_type} ${t.issue_number ? "#" + t.issue_number + " " : ""}${(t.description || "").substring(0, 80)}`,
-              );
-
-              sections.push(
-                `**${r}** (${repoTasks.length})\n${lines.join("\n")}`,
-              );
-            }
-
-            return {
-              content: [{ type: "text" as const, text: sections.join("\n\n") }],
-            };
-          }
+        if (apiListing) {
+          return apiListing;
         }
         // Fallback to local pending file
         const { listPendingTasks } =

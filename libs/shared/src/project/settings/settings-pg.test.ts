@@ -3,12 +3,6 @@ import { PgSettings, type RepoConfigWriter } from "./settings-pg.js";
 import { resolveDarkFactorySettings } from "../../dark-factory-settings.js";
 import type { PgPool } from "../../memory-store.js";
 
-/**
- * PgSettings.resolve reads the JSONB row via a fake PgPool and resolves through
- * the real resolveDarkFactorySettings; var/secret delegate to the injected
- * writer. Proves SQL/binding and delegation without a live database or GitHub.
- */
-
 function fakePool(
   capture: Array<{ text: string; params?: unknown[] }>,
   rows: unknown[],

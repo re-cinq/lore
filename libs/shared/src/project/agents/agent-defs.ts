@@ -5,14 +5,7 @@ import type {
   PodResourcesWrite,
 } from "./agent-defs-port.js";
 
-/**
- * project.agentDefs — repo-bound Agent *definitions* (config), the CRUD side
- * kept separate from execution (`project.agents.run()`). A definition is the
- * stored recipe — model, timeout, prompt, image — a Station instantiates into an
- * Agent (ADR-024); one definition, many runs. resolve/list field-merge
- * project → org → yaml. The adapter behind the port (pg / http / yaml) is chosen
- * by the factory, so a runner pod transparently fetches its config over the API.
- */
+/** project.agentDefs — repo-bound Agent *definitions* (config), CRUD kept separate from execution (`project.agents.run()`); resolve/list field-merge project → org → yaml. */
 export class AgentDefs {
   constructor(
     private readonly repo: string,

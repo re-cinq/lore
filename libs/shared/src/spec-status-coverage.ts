@@ -1,25 +1,4 @@
-/**
- * spec-status-coverage — the lifecycle status a spec/ADR's test links entitle it
- * to claim.
- *
- * Status is the org's backlog signal: the web-UI pills render it, spec-status-upkeep
- * flips it, humans trust it. This module makes it a function of the corpus's own
- * `([validated by](test.ts#Lnn))` links rather than of whoever last edited the row:
- *
- *   no testable statement linked    -> draft
- *   some testable statements linked -> in-progress
- *   every testable statement linked -> shipped
- *
- * Two consumers agree through it, which is why it lives here rather than beside
- * either of them: the `lore/require-status-matches-coverage` ESLint rule (which
- * reports a doc whose row disagrees) and spec-status-upkeep FR1 (which opens the
- * PR that fixes it). A doc with no testable statements yields no tier — there is
- * nothing to infer from — and both callers leave it alone.
- *
- * Reuses the canonical segmenter + classifier + link parser, so a statement
- * counted here is counted the same way by the linker, the spec-coverage backfill
- * and the web-ui coverage bar.
- */
+/** Derives a spec/ADR's status (draft/in-progress/shipped) from its own `([validated by](test.ts#Lnn))` links rather than whoever last edited the row; shared by `lore/require-status-matches-coverage` and spec-status-upkeep FR1. */
 
 import {
   segmentStatements,
@@ -44,10 +23,7 @@ export interface StatementCoverage {
   unlinked: UnlinkedStatement[];
 }
 
-/**
- * Single walk of a doc's testable statements. `require-statement-links` reads
- * `unlinked`; the status rules read the `testable`/`linked` tally.
- */
+/** Single walk of a doc's testable statements; `require-statement-links` reads `unlinked`, status rules read `testable`/`linked`. */
 export function statementCoverage(content: string): StatementCoverage {
   const statements = segmentStatements(content);
   const introOrdinals = buildIntroOrdinals(statements);
@@ -65,8 +41,7 @@ export function statementCoverage(content: string): StatementCoverage {
       coverage.linked++;
       continue;
     }
-    // `Statement.line` is optional (test doubles omit it); every statement from
-    // `segmentStatements` carries one, but fall back to line 1 to be safe.
+    // `Statement.line` is optional (test doubles omit it), so fall back to line 1.
     coverage.unlinked.push({ text: statement.text, line: statement.line ?? 1 });
   }
 
@@ -99,24 +74,18 @@ const TIER_STATUS: Record<CoverageTier, StatusBucket | null> = {
   full: "shipped",
 };
 
-/**
- * The status bucket a tier entitles a doc to claim, or `null` for `vacuous` — no
- * testable statements means no derivable status.
- */
+/** The status bucket a tier entitles a doc to claim, or `null` for `vacuous` (no testable statements to infer from). */
 export function expectedStatus(tier: CoverageTier): StatusBucket | null {
   return TIER_STATUS[tier];
 }
 
-/** House surface form per corpus: spec table cells are Title Case, ADR
- *  frontmatter values lowercase. Both bucket back via `parseDocStatus`. */
+/** House surface form per corpus: spec table cells are Title Case, ADR frontmatter values lowercase; both bucket back via `parseDocStatus`. */
 const STATUS_LABEL: Record<DocKind, Partial<Record<StatusBucket, string>>> = {
   spec: { draft: "Draft", "in-progress": "In Progress", shipped: "Shipped" },
   adr: { draft: "draft", "in-progress": "in progress", shipped: "shipped" },
 };
 
-/** The literal a human (or a status-flip PR) writes into the status cell. Only
- *  the three ladder statuses have a label — the terminal `rejected` / `retired`
- *  are never derived from coverage, so asking for one is a caller bug. */
+/** The literal a human/status-flip PR writes into the status cell; only the three ladder statuses have a label (terminal `rejected`/`retired` are never derived from coverage). */
 export function statusLabel(status: StatusBucket, kind: DocKind): string {
   const label = STATUS_LABEL[kind][status];
 
@@ -129,10 +98,7 @@ export function statusLabel(status: StatusBucket, kind: DocKind): string {
   return label;
 }
 
-/**
- * The status `content` is entitled to claim, as the literal to write into its
- * status cell — or `null` when no tier is derivable (no testable statements).
- */
+/** The status `content` is entitled to claim, as the literal to write into its status cell, or `null` when no tier is derivable. */
 export function coverageStatusLabel(
   content: string,
   kind: DocKind,

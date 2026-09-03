@@ -234,6 +234,17 @@ function resultRow(ev: Record<string, unknown>): Partial<AgentRunEventInsert> {
   };
 }
 
+function systemRows(
+  ev: Record<string, unknown>,
+): Partial<AgentRunEventInsert>[] {
+  if (ev.subtype === "init") {
+    return [initRow(ev)];
+  }
+  const hook = hookRow(ev);
+
+  return hook === null ? [] : [hook];
+}
+
 function contentBlocks(ev: Record<string, unknown>): unknown[] {
   const content = isRecord(ev.message) ? ev.message.content : undefined;
 
@@ -250,12 +261,7 @@ function rowsFromEvent(ev: unknown): Partial<AgentRunEventInsert>[] {
   }
 
   if (ev.type === "system") {
-    if (ev.subtype === "init") {
-      return [initRow(ev)];
-    }
-    const hook = hookRow(ev);
-
-    return hook === null ? [] : [hook];
+    return systemRows(ev);
   }
 
   if (ev.type === "assistant") {

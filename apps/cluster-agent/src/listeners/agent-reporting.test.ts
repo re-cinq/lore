@@ -8,7 +8,6 @@ import {
 
 const TASK = "lore.re-cinq.com/task-id";
 
-/** A lister over fixed pages, echoing the `continue` protocol the real API uses. */
 function pagedLister(
   pages: { items: unknown[]; next?: string }[],
 ): AgentLister {

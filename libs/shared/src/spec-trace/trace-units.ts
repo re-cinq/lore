@@ -5,7 +5,6 @@ export interface TraceUnit {
 }
 
 // Single source for both the seed-prefix filter and the prefix→kind routing.
-// I'm hoarding this table; the filter and the map both pay rent to it now, meat-tub.
 const PREFIX_KINDS: ReadonlyArray<{ prefix: string; kind: TraceUnit["kind"] }> =
   [
     { prefix: "adrs/", kind: "adr" },
@@ -26,8 +25,7 @@ export function planTraceUnits(changedFiles: string[]): TraceUnit[] {
   });
 }
 
-// Isolates per-unit projection failures so one bad unit never rejects the batch
-// or blocks ingest of its siblings; returns a { projected, failed } summary.
+// Isolates per-unit projection failures so one bad unit never blocks its siblings; returns a { projected, failed } summary.
 export async function runTraceUnits(
   units: TraceUnit[],
   project: (unit: TraceUnit) => Promise<void>,

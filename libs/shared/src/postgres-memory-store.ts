@@ -1,9 +1,4 @@
-/**
- * Postgres implementation of the MemoryStore seam.
- *
- * Wraps an injected pg pool. The only backend today; Dgraph arrives
- * as a sibling implementation without touching callers.
- */
+/** Postgres implementation of the MemoryStore seam, wrapping an injected pg pool; the only backend today — Dgraph arrives as a sibling implementation without touching callers. */
 
 import { hasConnect } from "./memory-store.js";
 import type {
@@ -137,9 +132,7 @@ export class PostgresMemoryStore implements MemoryStore {
   async writeMemory(input: UpsertInput): Promise<WriteResult> {
     const agent = input.agentId;
 
-    // The memories row and its version row must land together (#1154): with a
-    // connect()-capable pool the upsert runs in one transaction; a query-only
-    // pool keeps the plain sequential path.
+    // The memories row and its version row must land together (#1154): a connect()-capable pool runs the upsert in one transaction; a query-only pool stays sequential.
     const client = hasConnect(this.pool) ? await this.pool.connect() : null;
     let memoryId: string;
     let version: number;
@@ -158,8 +151,7 @@ export class PostgresMemoryStore implements MemoryStore {
         await client.query("COMMIT");
       }
     } catch (err) {
-      // Best-effort: the connection may already be dead, and that failure must
-      // not mask the original error.
+      // Best-effort: the connection may already be dead, and that failure must not mask the original error.
       await client?.query("ROLLBACK").catch(() => undefined);
       throw err;
     } finally {
@@ -276,7 +268,8 @@ export class PostgresMemoryStore implements MemoryStore {
       params,
     );
 
-    const countParams = repo ? [repo] : agentId ? [agentId] : [];
+    const scopeKey = repo || agentId;
+    const countParams = scopeKey ? [scopeKey] : [];
     const countResult = await this.pool.query(
       `SELECT count(*)::int as total FROM memory.memories
        WHERE ${filter} is_deleted = FALSE

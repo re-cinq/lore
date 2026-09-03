@@ -1,8 +1,4 @@
-// Binding the routes to the real Kubernetes clients.
-//
-// Lazy + memoized: constructing a client loads a kubeconfig, and `buildServer`
-// must be able to describe the service without a cluster present (tests do
-// exactly that).
+// Binding the routes to the real Kubernetes clients. Lazy + memoized: constructing a client loads a kubeconfig, and `buildServer` must describe the service without a cluster present.
 
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { agentsNamespace } from "@re-cinq/lore-shared";
@@ -23,9 +19,7 @@ import { applyCatalogPair } from "./paired-writes.js";
 let singleton: ClusterDeps | undefined;
 let provisionerSingleton: KubeTokenProvisioner | undefined;
 
-/** The one per-task token provisioner. Every launch is a claim now, so the
- *  claim loop is its only caller — kept a shared singleton because the Secret
- *  writer it holds merges into `agent-secrets` and must not race itself. */
+/** The one per-task token provisioner — a shared singleton because the Secret writer it holds merges into `agent-secrets` and must not race itself. */
 export function kubeTokenProvisioner(): KubeTokenProvisioner {
   if (!provisionerSingleton) {
     provisionerSingleton = new KubeTokenProvisioner(
@@ -58,11 +52,7 @@ export function clusterDeps(): ClusterDeps {
             name,
           })) as never;
         } catch (err) {
-          // Only a 404 means "no such CR". An RBAC denial, a 5xx or a dead
-          // socket must NOT be laundered into `found: false` — that is the
-          // shape a caller reads as "already gone" and stops asking about,
-          // which is exactly how the Floor's missing `delete` verb stayed
-          // invisible for forty days.
+          // Only a 404 means "no such CR" — laundering an RBAC denial or 5xx into found:false is how the Floor's missing delete verb stayed invisible for 40 days.
           enforceTrue(
             isNotFound(err),
             Error,
@@ -101,10 +91,7 @@ export function clusterDeps(): ClusterDeps {
             name,
           })
           .catch((err) => {
-            // A delete that lost a race is a success — the CR is gone either
-            // way. Anything else is reported: the caller swallows prune
-            // failures by design, so this log is the only place a denied or
-            // failing delete can still be seen.
+            // A delete that lost a race is a success — the CR is gone either way; the caller swallows prune failures by design, so this log is the only visibility.
             enforceTrue(
               isNotFound(err),
               Error,
@@ -123,12 +110,9 @@ export function clusterDeps(): ClusterDeps {
       cleanup: (taskId) => tokens.cleanup(taskId),
     },
     catalog: {
-      // create → 409 → get-for-resourceVersion → replace, with the live
-      // object's unrendered fields carried across. One call, one side.
-      //
+      // create → 409 → get-for-resourceVersion → replace, with the live object's unrendered fields carried across.
       applyPair: (pair) => applyCatalogPair(catalog, pair),
-      // Station first: the AgentDefinition is what a dispatch looks up, so
-      // removing it last never leaves a recipe pointing at a missing station.
+      // Station first — the AgentDefinition is what a dispatch looks up, so removing it last never leaves a recipe pointing at a missing station.
       deletePair: async (name) => {
         await catalog.deleteStation(name);
         await catalog.deleteAgentDefinition(name);

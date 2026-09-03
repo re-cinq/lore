@@ -1,11 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
 
-// extractFacts itself depends on DB and embedding, so parseFacts is
-// re-implemented here for unit testing and the contradiction detection logic
-// is tested with a mocked pool.
-
-// ── parseFacts (copied from facts.ts for unit testing) ─────────────
-
 function parseFacts(raw: string): string[] {
   try {
     const cleaned = raw
@@ -22,7 +16,7 @@ function parseFacts(raw: string): string[] {
         .slice(0, 10);
     }
   } catch {
-    // Fall through to newline fallback
+    /* empty */
   }
 
   return raw
@@ -75,10 +69,7 @@ describe("parseFacts", () => {
   });
 });
 
-// ── Contradiction detection (integration-style with mock pool) ─────
-
 describe("invalidateContradictions", () => {
-  // Simulate the invalidation logic
   async function invalidateContradictions(
     pool: any,
     newFactId: string,
@@ -132,7 +123,7 @@ describe("invalidateContradictions", () => {
     );
 
     expect(count).toBe(1);
-    expect(mockPool.query).toHaveBeenCalledTimes(2); // find + invalidate
+    expect(mockPool.query).toHaveBeenCalledTimes(2);
   });
 
   it("does nothing when no similar facts exist", async () => {
@@ -148,6 +139,6 @@ describe("invalidateContradictions", () => {
     );
 
     expect(count).toBe(0);
-    expect(mockPool.query).toHaveBeenCalledTimes(1); // only find
+    expect(mockPool.query).toHaveBeenCalledTimes(1);
   });
 });

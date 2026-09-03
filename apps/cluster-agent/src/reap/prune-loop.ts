@@ -1,22 +1,4 @@
-/**
- * The retention half of FR4: a cluster forgets what it finished with.
- *
- * Every run leaves an Agent CR plus the per-task `pt-*` AgentDefinition and
- * Station it ran on, and nothing deleted any of them — the controller's informer
- * caches all of it, so 176 Agent CRs (40MiB, each holding up to 256KiB of run
- * output) OOMKilled the controller every nine minutes on 2026-08-30. Raising its
- * memory limit is the fix that had already failed once at a lower ceiling; what
- * was missing is a reaper.
- *
- * It runs HERE, beside the claim and heartbeat loops, because the Floor cannot
- * reach a satellite's cluster (#1651): a Floor-side reaper would tidy central
- * and let every satellite rot. This process already creates exactly what it
- * deletes and already reclaims the per-task token beside it.
- *
- * Like its siblings, the CONNECTION lives here and every decision lives in
- * `decidePrune`, which tests without a cluster. A tick never throws: a sweep
- * that cannot reach the apiserver is worth a log line, not a dead loop.
- */
+// The retention half of FR4: a cluster forgets what it finished with — 176 Agent CRs OOMKilled the controller on 2026-08-30. Runs HERE (not Floor-side, #1651); CONNECTION only, decisions live in `decidePrune`.
 
 import { errorMessage } from "@re-cinq/lore-shared";
 import { runPollLoop } from "@re-cinq/lore-shared/lib/poll-loop.js";
@@ -27,18 +9,9 @@ import {
   type PrunableRecipe,
 } from "./decide-prune.js";
 
-/** Hourly: the backlog it bounds grows over days, so a tighter poll would only
- *  list the same objects more often. */
+/** Hourly — the backlog it bounds grows over days, so a tighter poll would only list the same objects more often. */
 const DEFAULT_INTERVAL_S = 3600;
-/**
- * How long a terminal run's evidence is kept, in hours.
- *
- * Three days, deliberately generous. Run 129235d4 was diagnosed two days after
- * it failed, from `.status.output` alone, after its pod logs and telemetry were
- * already gone — a retention measured in minutes would have made that question
- * unanswerable. This bounds the cache at roughly a day's throughput while
- * keeping the forensic window that has twice been the only evidence there was.
- */
+/** Three days, deliberately generous — run 129235d4 was diagnosed two days after it failed, from `.status.output` alone, after pod logs and telemetry were gone. */
 const DEFAULT_TTL_HOURS = 72;
 /** Ceiling per tick, so a first sweep over a backlog cannot storm the apiserver. */
 const DEFAULT_MAX_PER_TICK = 50;
@@ -99,14 +72,7 @@ export async function pruneOnce(deps: PruneDeps): Promise<PruneOutcome> {
       maxPerTick: deps.maxPerTick ?? DEFAULT_MAX_PER_TICK,
     });
 
-    // Agents FIRST, then the clones they referenced: a clone deleted while its
-    // CR still stands would leave a run describing a recipe that is not there.
-    //
-    // CALLED THROUGH the port, never handed over as a bare method reference: an
-    // unbound `cluster.deleteAgent` loses its receiver, and the live adapter's
-    // first act is `this.remove(...)`. The throw is then swallowed into "could
-    // not delete" — so the sweep would report nothing deleted, every hour,
-    // while the cache it exists to bound kept growing.
+    // Agents FIRST, then their clones — a clone deleted while its CR still stands would leave a run describing a missing recipe. CALLED THROUGH the port, never as a bare method reference (an unbound call loses `this`).
     const deleted = {
       agents: await deleteEach(
         plan.agents,
@@ -135,11 +101,7 @@ export async function pruneOnce(deps: PruneDeps): Promise<PruneOutcome> {
   }
 }
 
-/**
- * Delete each, counting what went. One failure is skipped rather than abandoning
- * the sweep: a single object wedged by a finalizer must not keep the rest of a
- * 40MiB backlog in the cache, and the next tick tries it again.
- */
+/** Delete each, counting what went. One failure is skipped rather than abandoning the sweep — a wedged finalizer must not keep the rest of the backlog cached. */
 async function deleteEach(
   names: string[],
   remove: (name: string) => Promise<void>,
@@ -185,8 +147,7 @@ export async function runPruneLoop(deps: PruneLoopDeps): Promise<void> {
         log(`[cluster-agent] prune sweep failed: ${outcome.message}`);
       }
     },
-    // Flat: an hourly sweep that found nothing is the normal state, not
-    // idleness worth backing off from.
+    // Flat — an hourly sweep that found nothing is normal, not idleness worth backing off from.
     delayFor: () => deps.intervalMs,
     sleep: deps.sleep,
     running: deps.running,

@@ -1,16 +1,4 @@
-/**
- * One Kubernetes client per process, not one per call.
- *
- * `loadKube` reads the kubeconfig — or, in-cluster, the service-account files —
- * synchronously, and eight sites were doing that on every operation: a single
- * claim launch ran it six times over, and every read route ran it once per
- * request. The config does not change while the pod lives, and the client's own
- * `FileAuth` re-reads the projected token per request, so caching the client
- * does not stale a rotated credential.
- *
- * Memoized lazily rather than at import, because `buildServer` must be able to
- * describe the service with no cluster present — the tests do exactly that.
- */
+// One Kubernetes client per process, not one per call — `loadKube` reads the kubeconfig synchronously and eight sites did that per operation; memoized lazily so `buildServer` describes the service with no cluster present.
 
 import {
   CoreV1Api,

@@ -26,12 +26,13 @@ function usageLine(
     return { text: "—", dormant: false };
   }
   const own = refs[def.name];
+  const unreferenced = !(own && own.length > 0);
 
-  if (!(own && own.length > 0)) {
-    if (def.execution_mode === "station") {
-      return { text: "not referenced by any assembly line", dormant: true };
-    }
+  if (unreferenced && def.execution_mode === "station") {
+    return { text: "not referenced by any assembly line", dormant: true };
+  }
 
+  if (unreferenced) {
     return {
       text: "no assembly line — runs as a single agent",
       dormant: false,
@@ -153,27 +154,39 @@ export default function AgentList({
       ? `${base}/agents/${encodeURIComponent(name)}/edit`
       : `/agents/edit/${encodeURIComponent(name)}`;
 
-  return (
-    <div>
-      {base !== null ? (
+  const renderHint = () => {
+    if (base !== null) {
+      return (
         <p className={styles.hint}>
           Per-repo agent definitions. An <strong>org</strong> definition is the
           organisation default; editing one creates a <strong>project</strong>{" "}
           definition for this repo, and later edits update that project
           definition.
         </p>
-      ) : orgEditable ? (
+      );
+    }
+
+    if (orgEditable) {
+      return (
         <p className={styles.hint}>
           The org-default catalog every repo inherits. Editing here updates the
           organisation default for every repo without its own override; a
           repo&apos;s Agents tab still overrides per repo.
         </p>
-      ) : (
-        <p className={styles.hint}>
-          The org-default catalog every repo inherits. Editing is a per-repo act
-          — open a repo&apos;s Agents tab to override a definition there.
-        </p>
-      )}
+      );
+    }
+
+    return (
+      <p className={styles.hint}>
+        The org-default catalog every repo inherits. Editing is a per-repo act —
+        open a repo&apos;s Agents tab to override a definition there.
+      </p>
+    );
+  };
+
+  return (
+    <div>
+      {renderHint()}
 
       {agents.length === 0 ? (
         <div className={`empty-state ${styles.emptyLeft}`}>

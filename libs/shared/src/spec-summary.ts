@@ -1,14 +1,9 @@
-/**
- * Pure helpers for deriving a human title + summary from a spec's markdown,
- * and for reassembling a spec from its stored chunks. Canonical home: the
- * spec-coverage API (mcp-server) imports these via @re-cinq/lore-shared.
- */
+/** Pure helpers for deriving a title/summary from a spec's markdown and reassembling a spec from stored chunks; canonical home, imported by the spec-coverage API (mcp-server) via @re-cinq/lore-shared. */
 
 const TITLE_PREFIX_RE =
   /^(?:feature\s+specification|spec(?:ification)?)\s*:\s*/i;
 
-/** First H1, with a leading "Feature Specification:" prefix stripped. Falls
- * back to the spec's feature directory, then the raw file path. */
+/** First H1 with a leading "Feature Specification:" prefix stripped; falls back to the feature directory, then the raw file path. */
 export function parseSpecTitle(content: string, filePath: string): string {
   const h1 = content.split("\n").find((line) => /^#\s+\S/.test(line));
 
@@ -34,8 +29,7 @@ function featureDir(filePath: string): string | null {
   return null;
 }
 
-/** First real prose paragraph (skips headings, tables, blockquotes, code fences, lists),
- * whitespace-collapsed and truncated to `maxLength` with an ellipsis. */
+/** First real prose paragraph (skips headings, tables, blockquotes, code fences, lists), whitespace-collapsed and truncated to `maxLength` with an ellipsis. */
 export function extractSummary(content: string, maxLength = 280): string {
   const paragraphs = content.split(/\n\s*\n/);
 
@@ -78,10 +72,7 @@ interface SpecChunk {
   chunk_index?: number | null;
 }
 
-/** Joins a spec's chunks in `metadata.chunk_index` order — the chunker stamps
- * it on every chunk — falling back to ingest order for legacy chunks without
- * one (sorted last), de-duplicating identical content (re-ingests create new
- * rows rather than upserting). */
+/** Joins a spec's chunks in `metadata.chunk_index` order (falling back to ingest order for legacy chunks, sorted last), de-duplicating identical content since re-ingests insert new rows rather than upserting. */
 export function reassembleSpec(chunks: SpecChunk[]): string {
   const ordered = [...chunks].sort((a, b) => {
     const aIndex = a.chunk_index ?? Number.POSITIVE_INFINITY;

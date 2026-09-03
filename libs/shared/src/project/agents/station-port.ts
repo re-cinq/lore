@@ -1,13 +1,4 @@
-/**
- * Station execution backend (ADR-028). A "Station" runs one task in the
- * claude-runner container. Two backends implement this port:
- *  - K8s   (GKE cluster): creates a LoreTask CR; completion is resolved LATER
- *          by the loretask-watcher reading the CR status → `completion` omitted.
- *  - Docker (local dev): `docker run` the same image and wait → `completion` set
- *          synchronously off the container exit.
- * The backend is chosen by {@link selectStationBackend}. `shared` never imports
- * the K8s/Docker SDKs — the runtime injects an adapter.
- */
+/** Station execution backend (ADR-028): K8s (LoreTask CR, completion resolved later by the watcher) or Docker (local, completion set synchronously); `shared` never imports the K8s/Docker SDKs. */
 
 import type { LoreTaskSpec } from "./k8s-port.js";
 
@@ -23,51 +14,26 @@ export interface StationLaunchResult {
   ref: string;
   /** false = already exists (k8s 409) or not started. */
   launched: boolean;
-  /**
-   * Set when this dispatch JOINED a run already working the same subject instead
-   * of starting one (see `AssemblyRunStartInput.subjectKey`). Distinct from a
-   * plain `launched: false`, which also covers a crash-recovery re-dispatch onto
-   * the task's OWN existing CR: that task still completes through its own run,
-   * whereas a joined task never will and must be settled by the caller.
-   */
+  /** Set when this dispatch JOINED a run already working the same subject (`subjectKey`) instead of starting one — a joined task never completes on its own and must be settled by the caller. */
   joinedRun?: string;
-  /** Synchronous backends (docker) resolve completion here; async (k8s) omit it
-   *  and the watcher resolves completion from the CR status later. */
+  /** Synchronous backends (docker) resolve completion here; async (k8s) omit it and the watcher resolves it from the CR status later. */
   completion?: StationCompletion;
 }
 
 export interface StationBackend {
   launch(spec: LoreTaskSpec): Promise<StationLaunchResult>;
-  /**
-   * Is the Station for `taskId` still actually running? Probes the real runtime
-   * (Docker container / K8s LoreTask CR), never the DB. The feature-planning
-   * reaper uses this to tell a live round from one whose container/pod died
-   * (orphaned by a restart or crash). Conservative on the unknown: returns
-   * `true` when the probe can't be resolved (docker/kube unreachable), so the
-   * reaper falls back to its age window instead of killing a live round.
-   */
+  /** Is the Station for `taskId` still actually running (probes the runtime, never the DB)? Returns `true` when unresolvable so the reaper falls back to its age window. */
   isActive(taskId: string): Promise<boolean>;
 }
 
-/**
- * Deterministic Station ref (container name on docker / CR name on k8s) for a
- * task that carries no explicit `spec.name` — `loretask-<first 8 of taskId>`.
- * Both backends mint this same name at launch, so the reaper can re-derive it
- * from the task id alone to probe whether the runtime is still up.
- */
+/** Deterministic Station ref for a task with no explicit `spec.name` — `loretask-<first 8 of taskId>`; the reaper re-derives it from the task id alone. */
 export function defaultStationName(taskId: string): string {
   return `loretask-${taskId.substring(0, 8)}`;
 }
 
 export type StationBackendKind = "k8s" | "docker" | "inprocess";
 
-/**
- * Choose the Station backend: explicit `LORE_STATION_BACKEND` wins; otherwise
- * default by context — in-cluster (`KUBERNETES_SERVICE_HOST` present) → k8s,
- * else docker. `inprocess` is an explicit, never-defaulted escape hatch (the
- * worker runs planning/finalize in-process; other cluster tasks still need a
- * container, so callers treat inprocess as docker for those).
- */
+/** Choose the Station backend: explicit `LORE_STATION_BACKEND` wins; else in-cluster → k8s, else docker. `inprocess` is an explicit, never-defaulted escape hatch. */
 export function selectStationBackend(
   env: NodeJS.ProcessEnv = process.env,
 ): StationBackendKind {

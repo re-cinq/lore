@@ -1,30 +1,9 @@
-/**
- * spec-traceability-graph — shared Dgraph upsert primitives.
- *
- * The generic, facet-agnostic building blocks every spec-trace writer needs:
- *   - {@link withTxn}     — run a unit of work in a fresh, always-discarded txn,
- *   - {@link newUid}      — pull the assigned uid of a blank node out of a result,
- *   - {@link upsertByXid} — idempotent create-or-update keyed on `<Type>.xid`.
- *
- * Extracted from `project-spec-file.ts` once a second consumer
- * (`ingest-coverage.ts`) appeared, so the upsert idiom has a single home. The
- * projection-specific projectors (projectSections, projectStatement,
- * pruneOrphans, …) stay with their facet; only these primitives live here.
- *
- * Mirrors the canonical `withTxn`/`newUid`/`upsertEntity` idiom in
- * `shared/src/dgraph-memory-store.ts`. Talks only to the injected
- * {@link DgraphClientPort}; never imports the driver.
- */
+/** spec-traceability-graph — shared, facet-agnostic Dgraph upsert primitives (withTxn/newUid/upsertByXid); extracted from project-spec-file.ts once ingest-coverage.ts needed them too. Mirrors dgraph-memory-store.ts's idiom; talks only to {@link DgraphClientPort}. */
 
 import type { DgraphClientPort, DgraphTxn } from "./deps.js";
 import { withBackoff } from "../lib/backoff.js";
 
-/**
- * Node types in the spec-traceability graph, all upserted by xid through
- * {@link upsertByXid}: the Phase 1 projection writes Repo, Spec, Section,
- * Statement, TestChunk, CodeChunk, and AcceptanceCriterion; Phase 3 coverage
- * ingest adds Coverage.
- */
+/** Node types in the spec-traceability graph, all upserted by xid through {@link upsertByXid}. */
 export type SpecTraceNodeType =
   | "Repo"
   | "Spec"
@@ -41,13 +20,7 @@ export type SpecTraceNodeType =
   | "Feature"
   | "TraceLink";
 
-/**
- * True for dgraph's abort/conflict errors. The driver (dgraph-js-http)
- * normalizes both aborted txns and write-write conflicts into one plain-Error
- * singleton, "Transaction has been aborted. Please retry" — the message is the
- * only discriminator, and this heuristic mirrors the driver's own
- * `isAbortedError` (lowercased message carrying both "abort" and "retry").
- */
+/** True for dgraph's abort/conflict errors — the driver normalizes both into one plain-Error message, so this mirrors its own `isAbortedError` (message carries "abort" + "retry"). */
 export function isTxnAborted(err: unknown): boolean {
   if (!(err instanceof Error)) {
     return false;
@@ -57,29 +30,12 @@ export function isTxnAborted(err: unknown): boolean {
   return message.includes("abort") && message.includes("retry");
 }
 
-/**
- * Aborts clear as soon as the winning concurrent txn commits (ms-scale), so an
- * early retry wins most races — deliberately NOT the event-loop's 1-300s
- * schedule, which would push a many-write ingest handler toward the 600s
- * stuck-row reaper timeout. Each delay is a full-jitter draw
- * (`random() * delay`, rounded): the hourly ingest fan-out puts ~50 pods on
- * the same shared vertices (e.g. Repo) at once, and a deterministic schedule
- * made every loser re-collide at exactly 200/500/1000ms until the retries ran
- * out (2026-08-10). Worst case per write is ~7.7s of sleeps, still ms-to-seconds
- * against the reaper budget, and only writes that keep losing pay the tail.
- */
+/** Full-jitter retry delays for txn aborts — a deterministic schedule made ~50 concurrently-fanned-out pods re-collide at exactly 200/500/1000ms until retries ran out (2026-08-10); worst case ~7.7s, still well under the 600s reaper timeout. */
 export const TXN_ABORT_DELAYS_MS: readonly number[] = [
   200, 500, 1000, 2000, 4000,
 ];
 
-/**
- * Runs `fn` inside a fresh transaction, always discarding it afterwards.
- * An aborted/conflicted attempt retries on a NEW transaction (an aborted
- * dgraph txn is finished) up to the TXN_ABORT_DELAYS_MS schedule, each delay
- * scaled by full jitter to decorrelate concurrent losers — safe because every
- * spec-trace write is an idempotent xid upsert. Any other error rethrows
- * immediately.
- */
+/** Runs `fn` in a fresh, always-discarded txn; an aborted attempt retries on a NEW txn per TXN_ABORT_DELAYS_MS — safe since every spec-trace write is an idempotent xid upsert. Other errors rethrow immediately. */
 export async function withTxn<T>(
   dgraph: DgraphClientPort,
   fn: (txn: DgraphTxn) => Promise<T>,
@@ -111,14 +67,7 @@ export function newUid(mutateResult: unknown, label: string): string {
     ?.uids?.[label] as string;
 }
 
-/**
- * Dgraph mishandles empty-string scalar values sent through a JSON `set`
- * mutation: `""` is stored verbatim as the two-character literal `"[]"`. Empty
- * strings round-trip correctly only via N-Quads, so we split them out of the
- * JSON payload and write them with a dedicated N-Quads set keyed on the node's
- * uid. (A blank source block carries `Block.text: ""`, the first predicate that
- * exercises this path.)
- */
+/** Dgraph corrupts empty-string scalars sent via JSON `set` (stored as literal `"[]"`); they round-trip correctly only via N-Quads, so split them out for a dedicated N-Quads write. */
 function splitEmptyStringFields(fields: Record<string, unknown>): {
   jsonFields: Record<string, unknown>;
   emptyStringPredicates: string[];
@@ -137,13 +86,7 @@ function splitEmptyStringFields(fields: Record<string, unknown>): {
   return { jsonFields, emptyStringPredicates };
 }
 
-/**
- * Writes each predicate's value as an empty string via N-Quads — the only
- * representation Dgraph round-trips an empty scalar through (see
- * {@link splitEmptyStringFields} for why JSON `set` corrupts it). The N-Quad
- * value is a hardcoded empty literal `""`, never user text, so no value
- * escaping is needed here. Uses the port's `setNquads` mutation directly.
- */
+/** Writes each predicate's value as an empty string via N-Quads — the only representation Dgraph round-trips an empty scalar through (see {@link splitEmptyStringFields}). */
 async function setEmptyStrings(
   dgraph: DgraphClientPort,
   uid: string,
@@ -162,15 +105,7 @@ async function setEmptyStrings(
   });
 }
 
-/**
- * Removes a predicate entirely from a node via the `<uid> <pred> * .` N-Quad
- * delete. This is the clean way to clear a scalar: writing `predicate: ""`
- * through a JSON `set` would corrupt the value to `"[]"` (see
- * {@link splitEmptyStringFields}), so a recovered Statement drops its
- * `violation_reason` by deleting the predicate rather than blanking it. The
- * predicate name is a hardcoded graph identifier, never user text, so no value
- * escaping is needed.
- */
+/** Removes a predicate entirely via `<uid> <pred> * .` — the clean way to clear a scalar, since a JSON `set` of `""` would corrupt it to `"[]"` (see {@link splitEmptyStringFields}). */
 export async function deletePredicate(
   dgraph: DgraphClientPort,
   uid: string,
@@ -184,14 +119,7 @@ export async function deletePredicate(
   });
 }
 
-/**
- * Replaces all of a node's `[uid]` edges on `predicate` with `targetUids` —
- * delete-then-set, so the predicate ends up holding exactly the new set rather
- * than the set-union Dgraph would produce on a plain `setJson`. An empty
- * `targetUids` clears the edge. Used to keep a re-projected Statement's
- * `validated_by`/`implemented_by` in sync when its inline links change (the same
- * shape as ingest-coverage's `Coverage.covers` replacement).
- */
+/** Replaces all of a node's `[uid]` edges on `predicate` with `targetUids` — delete-then-set, so the predicate holds exactly the new set rather than Dgraph's plain-`setJson` union. */
 export async function replaceEdge(
   dgraph: DgraphClientPort,
   uid: string,
@@ -225,12 +153,7 @@ export interface FacetedTarget {
   facets: Record<string, string | number | boolean>;
 }
 
-/**
- * Like {@link replaceEdge}, but each target carries scalar facets written as
- * `predicate|key` pairs (Dgraph edge properties). Used to put the covered line
- * intervals on the `Coverage --covers--> File` edge (`Coverage.covers|ranges`).
- * Delete-then-set so re-ingest mirrors the latest set; facets need no schema.
- */
+/** Like {@link replaceEdge}, but each target carries scalar facets written as `predicate|key` pairs — used for `Coverage.covers|ranges`. Delete-then-set so re-ingest mirrors the latest set. */
 export async function replaceEdgeWithFacets(
   dgraph: DgraphClientPort,
   uid: string,
@@ -266,11 +189,7 @@ export async function replaceEdgeWithFacets(
   );
 }
 
-/**
- * Upserts a node identified by its `<Type>.xid` predicate: reuse the existing
- * uid if the xid is already present, otherwise create a fresh blank node. Extra
- * `fields` are applied in both branches. Returns the node's uid.
- */
+/** Upserts a node identified by its `<Type>.xid` predicate: reuses the existing uid if present, else creates a fresh blank node; `fields` applied in both branches. */
 export async function upsertByXid(
   dgraph: DgraphClientPort,
   nodeType: SpecTraceNodeType,

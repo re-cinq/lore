@@ -48,8 +48,6 @@ edges:
     on: always
 `);
 
-/** The implementation loop's shape: a failing check routes BACK to the agent
- *  that has to fix it. That retry edge is the one that needs feedback. */
 const implementThenValidate: AssemblyLine = parseAssemblyLine(`
 name: implementation-loop
 description: implement -> validate -> done
@@ -134,9 +132,6 @@ edges:
     on: failed
 `);
 
-/** push → merged(wait), the delivery shape: the pushing node is followed by a
- *  human station, so a push that delivered nothing parks the walk on a PR that
- *  cannot exist unless the stamp failure fails the line (#1330). */
 const pushThenWait = parseAssemblyLine(`
 name: push-then-wait
 description: push, then wait for the PR to merge
@@ -167,7 +162,6 @@ edges:
     on: failed
 `);
 
-/** A line whose entry node is parked on the author — the shape stage 1 introduces. */
 const authorGated = parseAssemblyLine(`
 name: author-gated
 description: a line that waits on the author
@@ -191,8 +185,6 @@ function makeDeps(port: InMemoryAssemblyRuns) {
   const cleaned: string[] = [];
   const jobRuns: string[] = [];
   const notified: Array<{ id: string; outcome: string; reason?: string }> = [];
-  // The walk arms the queued row through the port; recording the specs here is
-  // the test's window on "what would a claiming cluster-agent be handed".
   const armDispatch = port.enqueueStationRunDispatch.bind(port);
 
   port.enqueueStationRunDispatch = async (nodeRowId, dispatchSpec) => {
@@ -243,10 +235,7 @@ async function runningLine(port: InMemoryAssemblyRuns) {
 }
 
 describe("advanceLine reads the run's own graph", () => {
-  it("labels the enqueued dispatch spec with the station run id", async () => {
-    // The id is what telemetry keys on (FR6.39). Putting it on the CR is what
-    // makes a running pod traceable back to its visit from Kubernetes alone,
-    // rather than by re-deriving the visit from the CR's NAME.
+  it("labels the enqueued dispatch spec with the station run id so a pod is traceable from Kubernetes alone (FR6.39)", async () => {
     const port = new InMemoryAssemblyRuns();
     const id = await port.start({
       blueprintName: "code-review",
@@ -273,9 +262,6 @@ describe("advanceLine reads the run's own graph", () => {
   });
 
   it("walks the stamped clone, never re-reading the blueprint file", async () => {
-    // The point of the clone: editing a YAML mid-run must not change the graph a
-    // run in flight is walking. The deps here would resolve a DIFFERENT graph, so
-    // a walk that consulted them would launch the wrong node.
     const port = new InMemoryAssemblyRuns();
     const id = await port.start({
       blueprintName: "code-review",
@@ -303,8 +289,6 @@ describe("advanceLine reads the run's own graph", () => {
   });
 
   it("falls back to the blueprint by name for a run stamped before clones existed", async () => {
-    // Rows predating the column carry no graph; they must stay walkable, or the
-    // migration would strand every run that was open when it was applied.
     const port = new InMemoryAssemblyRuns();
     const id = await port.start({
       blueprintName: "code-review",
@@ -345,10 +329,7 @@ describe("advanceLine", () => {
     ]);
   });
 
-  it("dispatches the resumed round's feedback as the CR's description, not just its prompt", async () => {
-    // The recipe the pod runs renders {description}; spec.prompt is not what
-    // reaches the agent. Setting only the prompt left every resumed round being
-    // handed the full draft again — the re-briefing this feature exists to end.
+  it("dispatches the resumed round's feedback as the CR's description, since the recipe renders {description} not spec.prompt", async () => {
     const port = new InMemoryAssemblyRuns();
     const id = await port.start({
       blueprintName: "code-review",
@@ -428,15 +409,13 @@ describe("advanceLine", () => {
         new Map<string, AssemblyLine>([["author-gated", authorGated]]),
     });
 
-    // The row exists, so the walk parks on it and the graph can show it — but no CR
-    // was dispatched, because the person is the worker.
     expect(port.nodes).toEqual([
       expect.objectContaining({ nodeId: "author", iteration: 1 }),
     ]);
     expect(enqueued).toEqual([]);
   });
 
-  it("converges a duplicate advance onto one node row and one armed dispatch", async () => {
+  it("converges a duplicate advance onto one node row and one armed dispatch via the CR name's ON CONFLICT, no 409", async () => {
     const port = new InMemoryAssemblyRuns();
     const id = await runningLine(port);
     const { deps, enqueued } = makeDeps(port);
@@ -445,9 +424,6 @@ describe("advanceLine", () => {
     await advanceLine(id, deps);
 
     expect(port.nodes).toHaveLength(1);
-    // Both advances arm the same deterministic CR name via
-    // enqueueStationRunDispatch; ensureStationRun's ON CONFLICT keeps the row
-    // single and the dispatch UPDATE is idempotent — no 409 involved anymore.
     expect(new Set(enqueued.map((l) => l.name)).size).toBe(1);
   });
 
@@ -541,7 +517,7 @@ describe("advanceLine revisited-node iteration (fresh CR per iteration)", () => 
     deps.definitions = async () =>
       new Map<string, AssemblyLine>([["code-review", reviewLoop]]);
 
-    await advanceLine(id, deps); // launches review@1
+    await advanceLine(id, deps);
     await finishNodeAndAdvance(
       {
         assemblyLineId: id,
@@ -552,7 +528,6 @@ describe("advanceLine revisited-node iteration (fresh CR per iteration)", () => 
       deps,
     );
 
-    // review@1 closed changes_requested → review@2 enqueued under a fresh name.
     expect(port.nodes.map((n) => [n.nodeId, n.iteration])).toEqual([
       ["review", 1],
       ["review", 2],
@@ -589,12 +564,7 @@ describe("finishNodeAndAdvance", () => {
     });
   });
 
-  it("hands the next node the failure that routed to it, not the same prompt again", async () => {
-    // The implementation loop's whole defect: `implement` succeeded, `validate`
-    // failed, and the retried `implement` was dispatched with a byte-identical
-    // prompt — it was never told what broke, so it repeated itself until the
-    // iteration cap. The failing step's own output has to reach the agent that
-    // has to fix it.
+  it("hands the next node the failure that routed to it, not a byte-identical repeated prompt", async () => {
     const port = new InMemoryAssemblyRuns();
     const id = await runningLine(port);
 
@@ -630,14 +600,10 @@ describe("finishNodeAndAdvance", () => {
 
     expect(prompt).toContain("The `validate` step failed on your last attempt");
     expect(prompt).toContain("foo.ts:1 error");
-    // And the FIRST dispatch carried no such block — this is feedback, not boilerplate.
     expect(enqueued[0]?.prompt ?? "").not.toContain("previous step failed");
   });
 
-  it("a forked run's first launch carries the source run's failure detail for the retried node", async () => {
-    // The fork copies the prefix rows with their failure details NULLED (a
-    // copied verdict would kill the fork's replay), so the retried agent can
-    // only learn what its earlier attempts broke on from the SOURCE run's rows.
+  it("a forked run's first launch carries the source run's failure detail, since the fork's own copied rows have it nulled", async () => {
     const port = new InMemoryAssemblyRuns();
     const source = await port.start({
       blueprintName: "implementation-loop",
@@ -681,7 +647,6 @@ describe("finishNodeAndAdvance", () => {
     }
     await port.finish(source, "error", "node failed");
 
-    // Retry implement@2: keep through validate@1, replay re-launches implement.
     const fork = await port.start({
       blueprintName: "implementation-loop",
       repo: "re-cinq/lore",
@@ -704,8 +669,6 @@ describe("finishNodeAndAdvance", () => {
   });
 
   it("collectPriorNodeFailures follows a fork-of-fork chain oldest first and stops at the hop bound", async () => {
-    // Chain of 7 ancestors, each with one failed implement visit; only the 5
-    // nearest contribute, ordered oldest → newest, with this run's own last.
     const runs = new Map<
       string,
       { resumedFromRunId: string | null; detail: string }
@@ -877,7 +840,7 @@ edges:
     ]);
   });
 
-  it("parks an agent node instead of enqueueing it while the account is dry", async () => {
+  it("parks an agent node instead of enqueueing it while the account is dry, minting no station-run row the reaper would relaunch", async () => {
     const port = new InMemoryAssemblyRuns();
     const id = await runningLine(port);
     const { deps, enqueued } = makeDeps(port);
@@ -886,12 +849,8 @@ edges:
     gate.trip("anthropic-credit", "Credit balance is too low");
     await advanceLine(id, { ...deps, llmGate: gate });
 
-    // No CR, and — the part that matters — no station-run row either. A row with
-    // a null outcome is what the reaper reads as "relaunch me", so minting one
-    // here would re-dispatch the pod every 60s for the whole outage.
     expect(enqueued).toEqual([]);
     expect(port.nodes).toEqual([]);
-    // Parked, not failed: nobody is told their work died.
     expect(await port.getById(id)).toMatchObject({ status: "running" });
   });
 
@@ -912,9 +871,6 @@ edges:
       console.log = realLog;
     }
 
-    // `advanceLine` answers void, so the caller cannot tell parked from
-    // advanced. Without this line an operator gets one gate-trip warning and
-    // then silence, while runs sit `running` with no open node.
     expect(logged.join("\n")).toContain(`parked ${id} at node "review"`);
   });
 
@@ -1084,17 +1040,9 @@ describe("taskFromAssemblyRun", () => {
   });
 });
 
-// ── Fork-and-rerun (specs/fork-rerun-from-node FR5): the walk itself is
-//    untouched — a forked line's inherited rows replay through getNextTransition
-//    like any other history. What the guard needs is to stop reading "has node
-//    rows" as "already started work".
-describe("advanceLine on a forked line", () => {
+describe("advanceLine on a forked line (specs/fork-rerun-from-node FR5)", () => {
   const HASH = "hash-code-review";
 
-  /** Strictly-increasing clock: the overlap guard breaks a createdAt TIE on the
-   *  row ids, which are random uuids — a real coin flip. The port takes an
-   *  injectable clock for exactly this, so every line here is unambiguously
-   *  ordered and the guard's decision is the only variable under test. */
   function orderedPort(): InMemoryAssemblyRuns {
     let tick = 0;
 
@@ -1207,12 +1155,11 @@ describe("a push node that delivered nothing", () => {
     return id;
   }
 
-  it("fails the line instead of parking it on a PR that cannot exist", async () => {
+  it("fails the line instead of parking it on a PR that cannot exist, since GitHub's empty branch outranks the pod's success", async () => {
     const port = new InMemoryAssemblyRuns();
     const id = await pushLine(port);
     const { deps, notified } = makeDeps(port);
 
-    // The pod says it worked; GitHub says the branch is empty. GitHub wins.
     await finishNodeAndAdvance(
       { assemblyLineId: id, nodeId: "push", result: { outcome: "success" } },
       {
@@ -1230,7 +1177,6 @@ describe("a push node that delivered nothing", () => {
       reason:
         "the push node reported success but pushed nothing — lore/feature-planning/topic-b81f9fd2 has no commits, so no spec PR could be opened",
     });
-    // and the author is told, rather than left watching a wait node
     expect(notified).toHaveLength(1);
   });
 
@@ -1254,9 +1200,7 @@ describe("a push node that delivered nothing", () => {
     ]);
   });
 
-  it("keeps walking when the stamp failed for a transient reason", async () => {
-    // A 502 says nothing about the branch; the reaper re-drives the stamp, and
-    // failing the run here would throw away work that is genuinely fine.
+  it("keeps walking when the stamp failed for a transient reason, since a 502 says nothing about the branch", async () => {
     const port = new InMemoryAssemblyRuns();
     const id = await pushLine(port);
     const { deps } = makeDeps(port);
@@ -1280,11 +1224,7 @@ describe("a push node that delivered nothing", () => {
 });
 
 describe("the ready flip hands the node's result to the markPrReady seam", () => {
-  it("passes the finishing node's extras through, so the flip can read the coverage verdict", async () => {
-    // The pr-ready node's `Lore-Issue-Coverage` extra decides Closes-vs-Refs at
-    // body-rewrite time (#1745). Extras are never persisted, so the only way
-    // they reach the flip is through this call — a seam that drops them makes
-    // every coverage verdict read as full.
+  it("passes the finishing node's extras through, so the flip can read the Lore-Issue-Coverage verdict deciding Closes-vs-Refs (#1745)", async () => {
     const port = new InMemoryAssemblyRuns();
     const id = await port.start({
       blueprintName: "push-then-wait",
@@ -1335,11 +1275,7 @@ describe("the ready flip hands the node's result to the markPrReady seam", () =>
 });
 
 describe("the visit's row records what it was dispatched with", () => {
-  it("dispatching a node persists its input on the station-run row it mints", async () => {
-    // The Agent CR was the only place the prompt and description ever existed, and
-    // it is pruned after the run — so an hour later nobody could answer "what was
-    // this node actually given", and a node fed a stale plan looked exactly like
-    // one fed the right plan and reasoning badly.
+  it("dispatching a node persists its input on the station-run row it mints, since the pruned CR is otherwise the only record", async () => {
     const port = new InMemoryAssemblyRuns();
     const id = await runningLine(port);
     const { deps } = makeDeps(port);
@@ -1348,7 +1284,6 @@ describe("the visit's row records what it was dispatched with", () => {
 
     expect((await port.listStationRuns(id))[0].input).toMatchObject({
       description: "Review pull request #7",
-      // The prompt the pod renders, not the template it renders from.
       prompt: "code-review::Review pull request #7",
       params: null,
       repo: "re-cinq/lore",
@@ -1486,7 +1421,7 @@ describe("a node whose station runs in the pooled service is not given a pod", (
       published.push(ev);
     };
 
-    await advanceLine(id, deps); // publishes triage (a service station since the de-podding)
+    await advanceLine(id, deps);
     await finishNodeAndAdvance(
       {
         assemblyLineId: id,
@@ -1497,9 +1432,6 @@ describe("a node whose station runs in the pooled service is not given a pod", (
       deps,
     );
 
-    // Both nodes pool now: triage is one enum-constrained model call and `done`
-    // is a retrospective's HTTP POST — neither is given a pod, so the whole
-    // line walks without a single CR.
     expect(published.map((e) => e.eventName)).toEqual([
       "station.run",
       "station.run",
@@ -1507,7 +1439,7 @@ describe("a node whose station runs in the pooled service is not given a pod", (
     expect(enqueued).toEqual([]);
   });
 
-  it("publishes an open node once, and keys it to the visit rather than the node", async () => {
+  it("publishes an open node once, keyed to the visit not the node, so a redelivered event re-drives without duplicating", async () => {
     const port = new InMemoryAssemblyRuns();
     const id = await port.start({
       blueprintName: "triage-then-issues",
@@ -1535,14 +1467,8 @@ describe("a node whose station runs in the pooled service is not given a pod", (
       },
       deps,
     );
-    // Re-driving the walk is what a redelivered terminal event does. The node is
-    // still OPEN, so the walk returns await and publishes nothing a second time —
-    // the dedupe key is the belt to that braces, keying the visit rather than the
-    // node, so a revisit at a later iteration is still its own unit of work.
     await advanceLine(id, deps);
 
-    // Two visits published (triage, then done) — the re-drive added neither a
-    // third publish nor a duplicate of the open `done` visit.
     expect(published).toHaveLength(2);
 
     for (const ev of published) {
@@ -1560,7 +1486,7 @@ describe("a node whose station runs in the pooled service is not given a pod", (
       published.push(ev);
     };
 
-    await advanceLine(id, deps); // `review` is an agent node
+    await advanceLine(id, deps);
 
     expect(published).toEqual([]);
     expect(enqueued).toHaveLength(1);
@@ -1703,7 +1629,7 @@ edges:
     on: always
 `);
 
-  it("parks a pod node's row queued, unclaimed, armed with the full dispatch spec", async () => {
+  it("parks a pod node's row queued, unclaimed, armed with the exact dispatch spec a claiming cluster-agent is handed", async () => {
     const port = new InMemoryAssemblyRuns();
     const id = await runningLine(port);
     const { deps, enqueued } = makeDeps(port);
@@ -1717,8 +1643,6 @@ edges:
       claimedAt: null,
       requiredTags: ["node:agent"],
     });
-    // The armed row is what a cluster-agent claims — and what it is handed is
-    // the exact spec the push path used to launch with.
     const claim = await port.claimNextStationRun({
       clusterAgentId: "central",
       tags: ["node:agent"],
@@ -1746,7 +1670,6 @@ edges:
     expect(port.nodes[0]).toMatchObject({
       requiredTags: ["node:agent", "gpu"],
     });
-    // A claimant without the tag never receives the run; one carrying it does.
     expect(
       await port.claimNextStationRun({ clusterAgentId: "plain", tags: [] }),
     ).toBeNull();
@@ -1833,10 +1756,7 @@ edges:
 });
 
 describe("a losing finisher's once-only side effects", () => {
-  it("records one episode when the node event and the reaper both close the line", async () => {
-    // The episode ran BEFORE the first-writer-wins CAS, so the loser wrote the
-    // run's story a second time. The two doors do not always derive the same
-    // outcome, and two differing renderings are not deduplicated.
+  it("records one episode when the node event and the reaper both close the line, since the episode used to run before the first-writer-wins CAS", async () => {
     const port = new InMemoryAssemblyRuns();
     const id = await runningLine(port);
     const { deps } = makeDeps(port);
@@ -1855,11 +1775,7 @@ describe("a losing finisher's once-only side effects", () => {
 });
 
 describe("what the node-finished reaction is told about the node", () => {
-  it("hands over the node's type, so a reaction need not match its id by string", async () => {
-    // routeCommentTriage used to compare the definition name AND the node id as
-    // literals, so renaming the node in comment-triage.yaml — or reusing a triage
-    // node on another definition — left `extras.action` unread: the walk finished
-    // green and the human's comment was silently never routed.
+  it("hands over the node's type, so a reaction need not match its id or definition name by string (routeCommentTriage regression)", async () => {
     const port = new InMemoryAssemblyRuns();
     const id = await runningLine(port);
     const { deps } = makeDeps(port);
@@ -1885,10 +1801,7 @@ describe("what the node-finished reaction is told about the node", () => {
 });
 
 describe("lineOutcomeFromVisits", () => {
-  // Run 52c3fdd5: ready-for-review failed once, its retry succeeded, and the
-  // walk went on until fix-ci died for real — yet the stored reason blamed
-  // ready-for-review, the one failure the line had already recovered from.
-  it("blames the terminal fix-ci failure, not the recovered ready-for-review retry", () => {
+  it("blames the terminal fix-ci failure, not the recovered ready-for-review retry (regression seen in run 52c3fdd5)", () => {
     const outcome = lineOutcomeFromVisits([
       { nodeId: "tdd-round", iteration: 1, outcome: "success" },
       {

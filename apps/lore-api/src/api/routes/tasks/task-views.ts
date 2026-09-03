@@ -26,12 +26,7 @@ import { bearerScope } from "../../../server/plugins/bearer-scope.js";
 import { zodValidate } from "../../../server/plugins/zod-validate.js";
 import { clampedLimit, DB_UNAVAILABLE } from "../common-schemas.js";
 
-/**
- * The task-shaped reads the dashboards need, moved out of web-ui (ADR-032).
- * Distinct from `/api/tasks`, which is the MCP's task LIST: these answer
- * per-screen questions — a repo's recent activity, the per-agent aggregates,
- * the org totals, one task's runtime trail, and the dark-factory audit feed.
- */
+// Task-shaped reads dashboards need (ADR-032), distinct from `/api/tasks` (the MCP's task LIST) — these answer per-screen questions.
 
 const UNDEFINED_TABLE = "42P01";
 
@@ -60,11 +55,7 @@ const AuditLogQuery = z.object({
 
 type AuditLogQuery = z.infer<typeof AuditLogQuery>;
 
-/**
- * The task dashboard's read models. Stored fields come from the models; the
- * aggregates (counts, summed cost, the agent roll-up) are computed per query and
- * belong to no table, so they are stated here.
- */
+// Task dashboard's read models: stored fields come from the models, computed aggregates (counts, cost, roll-up) belong to no table and are stated here.
 const REPO_TASK_FIELDS = [
   "id",
   "description",
@@ -234,12 +225,7 @@ export function taskViewRoutes(getPool: () => Pool | null): ServerRoute[] {
         enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
         const { repo } = request.query as unknown as AgentActivityQuery;
 
-        // The union is the screen's question: an agent that only ever wrote
-        // memories (a developer's local MCP) never appears in pipeline.tasks,
-        // and dropping it would hide exactly the agents a human recognises.
-        // Cost joins llm_calls per task, so the aggregate stays SQL-side —
-        // shipping every task and call to Node would move the whole pipeline
-        // history over the wire for one dashboard row per agent.
+        // The union is the point: an agent that only wrote memories never appears in pipeline.tasks; the cost aggregate stays SQL-side rather than shipping the whole pipeline history to Node per row.
         const { rows } = await pool.query(
           `WITH task_agents AS (
              SELECT t.agent_id,

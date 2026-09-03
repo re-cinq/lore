@@ -91,12 +91,10 @@ export function parsePrivilegedChanges(
 
   const dfChanges: Record<string, unknown> = {};
 
-  if (formData.has("df_enabled")) {
-    const enabled = yesNo(formData, "df_enabled");
+  const enabled = yesNo(formData, "df_enabled");
 
-    if (enabled !== (df.enabled ?? false)) {
-      dfChanges.enabled = enabled;
-    }
+  if (formData.has("df_enabled") && enabled !== (df.enabled ?? false)) {
+    dfChanges.enabled = enabled;
   }
 
   const createIssue = text(formData, "df_create_issue");
@@ -111,12 +109,10 @@ export function parsePrivilegedChanges(
     dfChanges.review = review;
   }
 
-  if (formData.has("df_notify")) {
-    const notify = formData.getAll("df_notify") as string[];
+  const notify = formData.getAll("df_notify") as string[];
 
-    if (!sameArray(notify, df.notify ?? [])) {
-      dfChanges.notify = notify;
-    }
+  if (formData.has("df_notify") && !sameArray(notify, df.notify ?? [])) {
+    dfChanges.notify = notify;
   }
 
   const execChanges: Record<string, unknown> = {};
@@ -132,15 +128,13 @@ export function parsePrivilegedChanges(
 
   const amChanges: Record<string, unknown> = {};
 
-  if (formData.has("df_am_paths")) {
-    const paths = text(formData, "df_am_paths")
-      .split(/[\n,]/)
-      .map((s) => s.trim())
-      .filter(Boolean);
+  const paths = text(formData, "df_am_paths")
+    .split(/[\n,]/)
+    .map((s) => s.trim())
+    .filter(Boolean);
 
-    if (!sameArray(paths, am.paths ?? [])) {
-      amChanges.paths = paths;
-    }
+  if (formData.has("df_am_paths") && !sameArray(paths, am.paths ?? [])) {
+    amChanges.paths = paths;
   }
   const minTrust = text(formData, "df_am_min_trust");
 
@@ -148,20 +142,21 @@ export function parsePrivilegedChanges(
     amChanges.min_trust = minTrust;
   }
 
-  if (formData.has("df_am_green_ci")) {
-    const greenCi = yesNo(formData, "df_am_green_ci");
+  const greenCi = yesNo(formData, "df_am_green_ci");
 
-    if (greenCi !== (am.require_green_ci ?? true)) {
-      amChanges.require_green_ci = greenCi;
-    }
+  if (
+    formData.has("df_am_green_ci") &&
+    greenCi !== (am.require_green_ci ?? true)
+  ) {
+    amChanges.require_green_ci = greenCi;
   }
+  const botApproval = yesNo(formData, "df_am_bot_approval");
 
-  if (formData.has("df_am_bot_approval")) {
-    const botApproval = yesNo(formData, "df_am_bot_approval");
-
-    if (botApproval !== (am.require_bot_approval ?? true)) {
-      amChanges.require_bot_approval = botApproval;
-    }
+  if (
+    formData.has("df_am_bot_approval") &&
+    botApproval !== (am.require_bot_approval ?? true)
+  ) {
+    amChanges.require_bot_approval = botApproval;
   }
 
   if (Object.keys(amChanges).length > 0) {

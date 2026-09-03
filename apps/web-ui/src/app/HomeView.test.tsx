@@ -4,8 +4,6 @@ import { render, screen, within } from "@testing-library/react";
 import HomeView, { type Repo } from "./HomeView";
 import { type IngestWorkflowStatus } from "@/lib/ingest-workflow";
 
-// Icon pulls in ThemeProvider via useTheme(); render its name so we can assert
-// which status icons appear without standing up the theme context.
 vi.mock("@/components/Icon", () => ({
   default: ({ name }: { name: string }) => <i data-testid={`icon-${name}`} />,
 }));

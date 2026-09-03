@@ -1,13 +1,4 @@
-/**
- * The vendor-neutral LLM completion seam. Every model call in Lore goes through
- * an `LlmProvider` (resolved via the {@link Llm} singleton), so vendors are
- * swappable, cost/caching is reasoned about in one place, and a deterministic
- * path can be *proven* model-free by installing the throwing NoLlmProvider.
- *
- * Two modalities: plain text `complete` and forced-tool/structured
- * `completeWithTool`. The agentic `claude --print` CLI and Vertex embeddings are
- * deliberately NOT modelled here — different modalities.
- */
+/** The vendor-neutral LLM completion seam: every model call goes through an `LlmProvider` (via the {@link Llm} singleton) with two modalities, plain `complete` and forced-tool `completeWithTool`; deliberately excludes the agentic CLI and Vertex embeddings (different modalities). */
 
 /** Token/cost/timing metrics returned with every call. */
 export interface LlmUsage {

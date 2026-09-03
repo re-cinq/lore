@@ -28,11 +28,7 @@ const NO_UPDATE: UpdateStatus = {
   remoteSha: null,
 };
 
-/**
- * Pure decision: given the SHA the running dist was built from, the resolved
- * origin/main SHA, and the commit count between them, decide whether an update
- * is available. Offered only when origin/main is strictly ahead of the build.
- */
+// Pure decision: an update is offered only when origin/main is strictly ahead of the SHA the running dist was built from.
 export function deriveUpdateStatus(
   builtSha: string | null,
   remoteSha: string | null,
@@ -56,11 +52,7 @@ async function git(args: string[], timeoutMs = 8000): Promise<string> {
   return stdout.trim();
 }
 
-/**
- * Fetch origin/main and compare it to the SHA the running dist was built from.
- * Any failure (no local checkout, offline, git missing) resolves to "no update"
- * so the MCP never nags on a bad signal.
- */
+// Fetches origin/main and compares to the built SHA; any failure (no checkout, offline, git missing) resolves to "no update" so the MCP never nags on a bad signal.
 export async function computeUpdateStatus(): Promise<UpdateStatus> {
   try {
     const marker = await readFile(BUILD_MARKER, "utf8").catch(() => "");
@@ -109,11 +101,7 @@ export async function updateBanner(): Promise<string> {
   );
 }
 
-/**
- * Run the audited updater (git pull + npm ci --ignore-scripts + build) and
- * return its combined output. Resets the cached status so a later check
- * reflects the rebuild.
- */
+// Runs the audited updater (git pull + npm ci --ignore-scripts + build) and resets the cached status so a later check reflects the rebuild.
 export async function runUpdate(): Promise<string> {
   cached = null;
 

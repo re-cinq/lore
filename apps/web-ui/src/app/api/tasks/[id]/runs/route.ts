@@ -6,17 +6,7 @@ import { getTask, getTaskRuns } from "@/lib/api/tasks";
 import { userCanAccessRepo } from "@/lib/user-repo-access";
 import { serverError, upstreamError } from "@/lib/api-error";
 
-/**
- * GET /api/tasks/[id]/runs — the task's per-attempt assembly-line runs, newest
- * first. Exists so the task page's refresh coordinator can discover a run that
- * starts after the page rendered and attach the live event stream to it. Same
- * auth ladder as the sibling timeline route: session (401) → task (404) →
- * repo access (403). Empty list on pre-0025 databases.
- *
- * The task read and the run list both come from lore-api: the repo this route
- * authorizes against must be the one the runs were read for, so resolving it
- * from a second source is how the two drift.
- */
+// Task's per-attempt runs, newest first, so the refresh coordinator can attach the live stream to a run started after render. Same 401→404→403 ladder as the timeline route; task + runs both come from lore-api so the authorized repo can't drift from a second source.
 export async function GET(
   _req: Request,
   { params }: { params: Promise<{ id: string }> },

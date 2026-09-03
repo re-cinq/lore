@@ -1,11 +1,7 @@
 import "server-only";
 import { toApiResult, type ApiResult } from "./result";
 
-// One fetch wrapper for both Lore services, so base URL, token choice and error
-// mapping have a single home. Five modules used to repeat this.
-//
-// Service resolution is a TABLE rather than a branch chain — adding a service is
-// a row, and the token each one uses is visible side by side.
+// One fetch wrapper for both Lore services (base URL, token, error mapping in one place); services are a TABLE, not a branch chain, so adding one is a row.
 const SERVICES = {
   "lore-api": () => ({
     baseUrl: process.env.LORE_API_URL,
@@ -27,8 +23,7 @@ export interface FetchOptions {
   revalidate?: number;
 }
 
-/** Call a Lore service. Never throws: transport failure is a result, not an
- *  exception, so a caller decides whether it is fatal (see `enforceOk`). */
+/** Never throws: transport failure is a result, not an exception, so the caller decides whether it is fatal (see `enforceOk`). */
 export async function apiFetch<T>(
   service: Service,
   path: string,

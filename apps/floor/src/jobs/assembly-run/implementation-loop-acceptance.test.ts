@@ -1,10 +1,3 @@
-// Acceptance: the REAL implementation-loop blueprint walked through the real
-// handlers, with the REAL terminal hook (handleLoopRunClosed) behind the
-// onRunClosed seam — the composition implementation-loop-line.test.ts (pure
-// replay) cannot see. The loop is deliberately not a back-edge: re-arm is a
-// driver behavior on the run's terminal state (specs/implementation-loop FR2),
-// so it only exists at this tier.
-
 import { describe, it, expect } from "vitest";
 import { handleLoopRunClosed } from "../backlog/loop-run-closed.js";
 import { createLineHarness } from "./line-acceptance-harness.js";
@@ -57,7 +50,7 @@ async function retrospectiveReported(
   await h.resume(id, "retrospective", "success");
 }
 
-describe("implementation-loop acceptance: one ticket, cluster-free", () => {
+describe("implementation-loop acceptance: one ticket, cluster-free, walked through the REAL blueprint and terminal hook (handleLoopRunClosed) that implementation-loop-line.test.ts's pure replay cannot see; the loop is deliberately not a back-edge (re-arm is a driver behavior, specs/implementation-loop FR2)", () => {
   it("walks the ticket to the PR and parks there with no CR dispatched for the wait", async () => {
     const h = loopHarness();
     const id = await parkedOnPr(h);
@@ -77,7 +70,7 @@ describe("implementation-loop acceptance: one ticket, cluster-free", () => {
     ]);
   });
 
-  it("loops a round that reports work remaining, then leaves on success", async () => {
+  it("loops a round that reports work remaining, then leaves on success, numbering the review node past the run's highest recorded iteration rather than at 1", async () => {
     const h = loopHarness();
     const id = await h.start("implementation-loop", { taskId: "task-1" });
 
@@ -101,8 +94,6 @@ describe("implementation-loop acceptance: one ticket, cluster-free", () => {
       `${short(id)}-tdd-round`,
       `${short(id)}-tdd-round-2`,
       `${short(id)}-tdd-round-3`,
-      // Leaving the loop: the successful round routes straight to review,
-      // numbered past the run's highest recorded iteration rather than at 1.
       `${short(id)}-ready-for-review-3`,
     ]);
   });
@@ -171,11 +162,7 @@ describe("implementation-loop acceptance: one ticket, cluster-free", () => {
   });
 });
 
-describe("implementation-loop acceptance: a boot crash is not worth a retry", () => {
-  // Run 129235d4 (2026-08-28) cost two 25-minute implement attempts and ended
-  // `iteration_max`, because the engine died before printing a result line and
-  // the only string the classifier saw was the Job's BackoffLimitExceeded —
-  // `infra`, which is retryable. The pod had said exactly what was wrong.
+describe("implementation-loop acceptance: a boot crash is not worth a retry (run 129235d4, 2026-08-28, cost two 25-minute attempts on the retryable `infra` misclassification before this fix)", () => {
   const bootCrash = [
     '{"kind":"lifecycle","phase":"agent","status":"started"}',
     "[agent] Error: Settings file not found: /agent/.claude/settings.json",

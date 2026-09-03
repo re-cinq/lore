@@ -38,10 +38,7 @@ describe("parseAgentEvents", () => {
     ]);
   });
 
-  // Real shape captured from a `gemini` CLI (v0.57.0) stream-json terminal
-  // event: no `usage`/`total_cost_usd`, tokens and per-model breakdown live
-  // under `stats` instead.
-  it("maps a gemini-shaped result event (stats, no total_cost_usd) to one llm_calls row", () => {
+  it("maps a gemini CLI v0.57.0 stream-json result event (stats, no total_cost_usd) to one llm_calls row", () => {
     const ndjson = line(
       src,
       result({

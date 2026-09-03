@@ -1,16 +1,4 @@
-/**
- * Promote a task from `awaiting_approval` once a human has put the approval
- * label on its issue.
- *
- * Its data arrives as ports rather than as kernel singletons it imports. That is
- * what lets one registry hold every station: this package is shared with a pod
- * that has no pool, so a station that reached for one could not live here — and
- * the tests below need no database as a consequence.
- *
- * This is a RECONCILER. The fast path is the `github.issues.labeled` event; the
- * sweep exists to catch the delivery that never arrived, because webhooks are
- * lossy and this is cheap and idempotent.
- */
+// Promotes a task from `awaiting_approval` once its issue gets the approval label. Data arrives as ports (no kernel singletons) since this package is shared with a pod with no pool. A RECONCILER: the fast path is the `github.issues.labeled` event; the sweep catches deliveries that never arrive (webhooks are lossy).
 
 import type { StationHost } from "../lib/station.js";
 
@@ -37,8 +25,7 @@ export async function runApprovalCheck(deps: StationHost): Promise<string> {
       }
 
       await repo.approve(task.id);
-      // Best-effort tidy-up: the transition above is the real work, and failing
-      // to remove a label must not re-run it on the next sweep.
+      // Best-effort tidy-up: the transition above is the real work, and a failed label removal must not re-run it next sweep.
       await repo.removeLabel(task.issue_number, WAITING_LABEL).catch(() => {});
       await repo
         .comment(

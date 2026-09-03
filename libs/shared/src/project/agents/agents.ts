@@ -24,13 +24,10 @@ export class Agents {
     // local-execution trust gate. cluster (k8s CR) and direct (API) are remote
     // calls the agent legitimately makes even on the cluster (LORE_DB_HOST set).
     const mode = opts?.mode ?? "local";
+    const refusal = mode === "local" ? executionRefusal(this.env) : null;
 
-    if (mode === "local") {
-      const refusal = executionRefusal(this.env);
-
-      if (refusal) {
-        throw new Error(refusal);
-      }
+    if (refusal) {
+      throw new Error(refusal);
     }
 
     return this.runner.run(this.repo, taskId, opts);

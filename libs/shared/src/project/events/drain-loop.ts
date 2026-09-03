@@ -1,15 +1,9 @@
-/**
- * The drain loop (layer 2): claim a batch, dispatch each event to its registered
- * handler, transition the row. At-least-once — claim increments attempts up front,
- * so a crash-looping handler still walks to the dead-letter cutoff. Store ops are
- * injected so the dispatch logic is unit-testable without a database.
- */
+/** The drain loop (layer 2): claim a batch, dispatch each event to its registered handler, transition the row. At-least-once. */
 
 import { decideRetry } from "./retry.js";
 import type { EventDeliveryRow as EventRow } from "./event-deliveries-port.js";
 
-/** Row identity a handler may need (e.g. to hand a large payload off by
- *  reference instead of copying it); handlers that don't care ignore it. */
+/** Row identity a handler may need (e.g. to hand a large payload off by reference); handlers that don't care ignore it. */
 export interface EventMeta {
   eventId: string;
 }
@@ -35,19 +29,11 @@ export interface LoopDeps {
   batchSize?: number;
   /** Deadline before a serial handler's family slot is released (test hook). */
   serialDeadlineMs?: number;
-  /** Serial-family override (test hook); defaults to the module set — empty
-   *  since specs/ingest-station FR6. */
+  /** Serial-family override (test hook); defaults to the module set — empty since specs/ingest-station FR6. */
   serialFamilies?: ReadonlySet<string>;
 }
 
-/**
- * A serial handler that outlives this deadline releases its family slot: by
- * then the reaper (600s) has already re-queued the row, and holding the busy
- * flag for an unsettled promise starves every later event in the family
- * (observed 2026-07-16: one hung network call froze spec_trace ingestion for
- * good). The abandoned handler runs on unsupervised — exactly a parallel
- * handler's failure mode — and its writes stay safe (idempotent upserts).
- */
+/** A serial handler outliving this deadline releases its family slot before the reaper (600s) re-queues the row (observed 2026-07-16: one hung call froze spec_trace ingestion). */
 const SERIAL_DEADLINE_MS = 620_000;
 
 const releaseAfter = (ms: number): Promise<"deadline"> =>
@@ -57,29 +43,13 @@ const releaseAfter = (ms: number): Promise<"deadline"> =>
     timer.unref?.();
   });
 
-/**
- * Families whose handlers contend on shared external state: at most one
- * handler in flight per Floor instance, excluded at CLAIM time so waiting rows
- * stay `pending` (a dispatch-side queue would park claimed rows in
- * `processing`, where the >600s reaper re-runs them concurrently). EMPTY since
- * specs/ingest-station FR6 — no in-process dgraph writer remains; chunk
- * isolation now comes from one-pod-per-event, the station deadline, and dgraph
- * retry-on-abort inside the pod. The mechanism stays as a general tool
- * (LoopDeps.serialFamilies is the seam).
- */
+/** Families whose handlers contend on shared external state, excluded at CLAIM time; EMPTY since specs/ingest-station FR6 (isolation now comes from one-pod-per-event). */
 const SERIAL_FAMILIES: ReadonlySet<string> = new Set();
 
 /** Serial families with a handler in flight, shared across drain ticks. */
 const busyFamilies = new Set<string>();
 
-/**
- * Give up on a delivery, out loud.
- *
- * Dead-lettering used to write the row and say nothing, so work the bus had
- * abandoned left no trace anywhere an operator looks — the row itself is deleted
- * by the hourly prune a week later. Every failure mode this platform has actually
- * suffered was silent; this one costs a log line to stop being.
- */
+/** Give up on a delivery, out loud — dead-lettering used to write the row and say nothing, and the row itself is deleted by the hourly prune a week later. */
 async function deadLetter(
   deps: LoopDeps,
   ev: EventRow,
@@ -95,20 +65,14 @@ export async function handleOne(ev: EventRow, deps: LoopDeps): Promise<void> {
   const handler = deps.resolve(ev.event_name);
 
   if (!handler) {
-    // Unknown name = config error, not transient → dead immediately.
-    //
-    // Since the Floor consumes DELIVERIES it only receives what it subscribed
-    // to, so reaching here means the subscription set and the registry have
-    // drifted apart — which they are derived from each other to prevent.
+    // Unknown name = config error, not transient — subscription set and registry have drifted apart.
     await deadLetter(deps, ev, `no handler for ${ev.event_name}`);
 
     return;
   }
 
   try {
-    // event_id, NOT id: `id` addresses the DELIVERY (what ack/fail/dead take),
-    // while a handler citing an event — the ingest station fetches a large
-    // payload by reference as `payload_event_id` — needs the event itself.
+    // event_id, NOT id: `id` addresses the DELIVERY; a handler citing an event needs the event itself.
     await handler(ev.params ?? {}, { eventId: ev.event_id });
     await deps.markDone(ev.id);
   } catch (err) {
@@ -132,9 +96,7 @@ export async function drainOnce(deps: LoopDeps): Promise<number> {
     return 0;
   }
 
-  // handleOne swallows handler errors into the row's state; a rejection here means a
-  // mark-op itself failed (e.g. DB down mid-drain) and the row is left mid-flight for
-  // the reaper — surface it rather than letting it vanish.
+  // A rejection here means the mark-op itself failed (e.g. DB down mid-drain); surface it rather than letting it vanish.
   const logTransitionFailure = (ev: EventRow) => (reason: unknown) =>
     console.error(
       `[events] drain: transition failed for ${ev.event_name} (${ev.id}):`,
@@ -181,12 +143,7 @@ export async function drainOnce(deps: LoopDeps): Promise<number> {
   return batch.length;
 }
 
-/** Wire the real store + start the 1s drain. Returns the timer for shutdown/tests. */
-/**
- * Start draining. The STORE is passed in, not imported: two processes drain now
- * — the Floor its own deliveries, the stations service its own — and a loop that
- * reached for one of them could only ever serve that one.
- */
+/** Wire the real store + start the 1s drain; STORE is passed in since both the Floor and the stations service drain their own deliveries. Returns the timer for shutdown/tests. */
 export function startEventLoop(
   deps: LoopDeps,
   intervalMs = 1000,

@@ -123,14 +123,14 @@ describe("evaluateAutoMerge — deferral reasons (priority)", () => {
 });
 
 describe("evaluateAutoMerge — rule trace", () => {
-  it("captures all decision inputs in the audit-log payload", () => {
+  it("captures all decision inputs in the audit-log payload, counting only literal path matches (specs/a.md and *.md, not agent/src/x.ts)", () => {
     const d = evaluateAutoMerge(
       inputs({
         changedPaths: ["specs/a.md", "*.md", "agent/src/x.ts"],
       }),
     );
 
-    expect(d.rule.path_match_count).toBe(2); // specs/a.md and *.md (literal); the .ts misses
+    expect(d.rule.path_match_count).toBe(2);
     expect(d.rule.trust_level).toBe("docs");
     expect(d.rule.ci_status).toBe("success");
     expect(d.rule.bot_review_state).toBe("APPROVED");

@@ -146,14 +146,14 @@ export function layerByLongestPath(
   for (let head = 0; head < queue.length; head += 1) {
     const id = queue[head];
 
-    for (const edge of acyclicOut.get(id) ?? []) {
+    acyclicOut.get(id)?.forEach((edge) => {
       layers[edge.to] = Math.max(layers[edge.to], layers[id] + 1);
       indegree[edge.to] -= 1;
 
       if (indegree[edge.to] === 0) {
         queue.push(edge.to);
       }
-    }
+    });
   }
 
   return new Map(Object.entries(layers));
@@ -266,10 +266,10 @@ function contentBoxOf(
   }
 
   for (const edge of edges) {
-    for (const point of pointsOf(edge.d)) {
+    pointsOf(edge.d).forEach((point) => {
       xs.push(point.x);
       ys.push(point.y);
-    }
+    });
   }
 
   return {

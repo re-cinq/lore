@@ -10,9 +10,7 @@ import { zodValidate } from "../../../server/plugins/zod-validate.js";
 import { DB_UNAVAILABLE } from "../common-schemas.js";
 import { agentUsage } from "../../../features/analytics/usage-queries.js";
 
-// Required, not resolved server-side: agent identity lives on the caller's
-// machine (LORE_AGENT_ID / ~/.lore/agent-id), so resolving it here would report
-// the pod's identity instead of the developer's.
+// Required, not resolved server-side: agent identity lives on the caller's machine, resolving it here would report the pod's identity instead.
 const UsageQuery = z.object({ agent_id: z.string().min(1).max(200) });
 
 type UsageQuery = z.infer<typeof UsageQuery>;

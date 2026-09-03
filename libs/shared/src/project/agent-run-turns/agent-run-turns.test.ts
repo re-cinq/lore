@@ -60,8 +60,7 @@ describe("InMemoryAgentRunTurns insertBatch", () => {
     });
   });
 
-  it("takes the identity the turn carried over the agent_cr_name lookup", async () => {
-    // Same rule as agent_run_events: stated beats inferred, and beats it whole.
+  it("takes the identity the turn carried over the agent_cr_name lookup (same rule as agent_run_events: stated beats inferred, whole)", async () => {
     const repo = new InMemoryAgentRunTurns();
 
     repo.registerNode({
@@ -450,11 +449,7 @@ describe("PgAgentRunTurns adapter", () => {
   });
 });
 
-describe("compareTurnIdAscending", () => {
-  // Both adapters sort with this one comparator. Array#sort's behaviour for a
-  // comparator that never returns 0 is implementation-defined — V8 happens to
-  // mask it today, so the contract has to be asserted directly rather than
-  // through insertBatch, which would pass either way.
+describe("compareTurnIdAscending (asserted directly since Array#sort's zero-comparator behavior is implementation-defined and V8 masks it)", () => {
   const at = (id: string): AgentRunTurnRow => ({
     id,
     taskId: null,
@@ -489,12 +484,7 @@ describe("compareTurnIdAscending", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// Re-ingest dedup (#1389): a relayed line carries a dedupKey; a key already
-// stored skips its row silently (skip-not-fail), a null key never dedups.
-// ---------------------------------------------------------------------------
-
-describe("InMemoryAgentRunTurns dedup", () => {
+describe("InMemoryAgentRunTurns dedup (#1389: a relayed line carries a dedupKey; a stored key skips its row silently, skip-not-fail; a null key never dedups)", () => {
   it("skips a re-inserted batch whose dedup keys are already stored", async () => {
     const repo = new InMemoryAgentRunTurns();
     const batch = [turn({ dedupKey: "key-1" }), turn({ dedupKey: "key-2" })];

@@ -139,7 +139,7 @@ describe("parseGapResult", () => {
     expect(r.sections[0].content).toContain(
       "**features port**: persist lifecycle",
     );
-    expect(r.sections[1].mockups?.[0].title).toBe("flow"); // tagged user_flows → attaches there
+    expect(r.sections[1].mockups?.[0].title).toBe("flow");
     expect(r.sections[2].questions?.[0].question).toBe("Which repos?");
   });
 

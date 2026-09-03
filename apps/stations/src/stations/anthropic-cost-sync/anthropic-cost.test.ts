@@ -72,7 +72,7 @@ describe("parseUsageReport", () => {
 });
 
 describe("mergeCostAndUsage", () => {
-  it("sums cost per date+model and joins matching token counts", () => {
+  it("sums cost per date+model and joins matching token counts, keyed as bucketDate (the stored column name)", () => {
     const cost = [
       { date: "2025-08-01", model: "claude-opus-4-6", costUsd: 1.0 },
       { date: "2025-08-01", model: "claude-opus-4-6", costUsd: 0.5 },
@@ -88,8 +88,6 @@ describe("mergeCostAndUsage", () => {
       },
     ];
 
-    // The merged bucket is the STORED row, so its key is `bucketDate` — the
-    // column. The inputs keep `date`: those are Anthropic's report shapes.
     expect(mergeCostAndUsage(cost, usage)).toEqual([
       {
         bucketDate: "2025-08-01",

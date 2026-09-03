@@ -13,10 +13,7 @@ import {
 import { startHealthServer } from "./delivery/http/server.js";
 import { loadApprovalConfig } from "@re-cinq/lore-shared";
 
-// Event bus (the 3 layers). Layer 1 listeners: the GitHub webhook (mounted on the
-// health server), the k8s Agent-CR watch, and the cron emitters below. Layer 2: the
-// drain loop + reaper over pipeline.events. Layer 3: the registry's handlers (the
-// existing tasks/jobs). See apps/floor/README.md + ADR-015.
+// Event bus (the 3 layers): Layer 1 listeners (webhook, k8s watch, cron emitters), Layer 2 drain loop + reaper over pipeline.events, Layer 3 registry handlers. See apps/floor/README.md + ADR-015.
 import { buildRegistry, resolve } from "./main-loop/registry.js";
 import { startEventLoop } from "@re-cinq/lore-shared/project/events/drain-loop.js";
 import {
@@ -31,9 +28,7 @@ import { RECONCILE_WINDOW_MINUTES } from "@re-cinq/lore-shared/project/events/ev
 import { registerCronEmitter } from "./listeners/scheduler-emitter.js";
 import { CRON_EMITTERS } from "./listeners/cron-emitters.js";
 
-/** How long shutdown waits for the event queue to drain. Long enough for a
- *  backlog to clear, short enough that a wedged router cannot hold a rollout
- *  open past its termination grace period. */
+/** How long shutdown waits for the event queue to drain — long enough to clear a backlog, short enough not to hold a rollout open past its termination grace period. */
 const EVENT_DRAIN_TIMEOUT_MS = 5_000;
 
 async function main(): Promise<void> {
@@ -60,16 +55,10 @@ async function main(): Promise<void> {
   }
 
   const port = parseInt(process.env.PORT || "8080", 10);
-  // Awaited: the stop function is half of the shutdown contract, and a fire-and-
-  // forgotten start left a late failure with nowhere to surface.
+  // Awaited: the stop function is half of the shutdown contract — a fire-and-forgotten start left a late failure with nowhere to surface.
   const stopServing = await startHealthServer(port, getJobStatus);
 
-  // ONE owner of the process lifecycle. Any handler overrides Node's default
-  // terminate, so the Floor must exit itself or the drain loop keeps it alive with
-  // nothing listening — the zombie shape this replaces.
-  // Started here, before anything can report: the proxy's queue only drains
-  // while its loop is running, so an `emit` before this would sit in memory
-  // until shutdown noticed it.
+  // ONE owner of the process lifecycle; started before anything can report, so an `emit` before this would otherwise sit in memory until shutdown noticed it.
   await eventProxy().start();
 
   const shutdown = createShutdown({
@@ -82,30 +71,16 @@ async function main(): Promise<void> {
   process.on("SIGTERM", () => void shutdown("SIGTERM"));
   process.on("SIGINT", () => void shutdown("SIGINT"));
 
-  // Nothing below may run twice. Two Floors do not corrupt a row — SKIP LOCKED just
-  // SPLITS the stream between them, so a stale instance quietly handles some events
-  // with whatever code it loaded while the log you are reading stays clean.
-  //
-  // Deliberately AFTER the health server and the signal handlers: a Floor waiting its
-  // turn is healthy, and if it served nothing while waiting, a liveness probe would
-  // kill it — reproducing the crash-loop the wait exists to avoid — and any monitor
-  // would report the outgoing Floor's successor as down.
+  // Nothing below may run twice — SKIP LOCKED just SPLITS the stream between two Floors, so a stale instance quietly handles events. Deliberately AFTER the health server and signal handlers so a Floor waiting its turn stays healthy under the liveness probe.
   await awaitSoleFloor();
 
   // ── Layer 2: the drain loop + reaper over this Floor's deliveries ──
   const registry = buildRegistry();
 
-  // BEFORE the loop, and awaited: fan-out reads the subscription set at INSERT
-  // time, so an event captured before this lands is delivered to nobody and
-  // simply sits there. The registry is the subscription set by construction —
-  // deriving it means the Floor cannot subscribe to something it cannot handle,
-  // nor handle something it never asked for.
+  // BEFORE the loop, and awaited: fan-out reads the subscription set at INSERT time, and deriving it from the registry means the Floor never subscribes to what it can't handle.
   await subscribe([...registry.keys()].map((eventName) => ({ eventName })));
 
-  // AFTER registering: an event captured while this Floor was not subscribed —
-  // a name added by this very deploy, or the window before the first boot
-  // registered at all — has no delivery row, and nothing else would ever create
-  // one. A repair, not a precondition, so a failure here never stops the loop.
+  // AFTER registering: repairs delivery rows for events captured while unsubscribed (a new name, or before first boot) — a repair, not a precondition, so failure here never stops the loop.
   try {
     const repaired = await reconcileDeliveries(RECONCILE_WINDOW_MINUTES);
 
@@ -120,8 +95,7 @@ async function main(): Promise<void> {
     );
   }
 
-  // The store is passed in now: the stations service drains its own deliveries
-  // through the same loop, so the loop cannot reach for one process's store.
+  // The store is passed in: the stations service drains its own deliveries through the same loop, so the loop cannot reach for one process's store.
   startEventLoop({
     resolve: (name) => resolve(registry, name),
     claim: claimBatch,
@@ -133,10 +107,7 @@ async function main(): Promise<void> {
 
   // ── Layer 1: the k8s Agent-CR watch (emits kubernetes.agent.* events) ──
 
-  // ── Layer 1: cron emitters. Each scheduled tick INSERTs a cron.<name>.tick event;
-  // the loop runs the handler. The set is single-sourced in cron-emitters.ts (the
-  // registry cross-check test derives handler coverage from it). Heavy batch jobs stay
-  // as K8s CronJob pods (ADR-019, carve-out) — they are NOT emitted here.
+  // Layer 1: cron emitters, single-sourced in cron-emitters.ts; heavy batch jobs stay K8s CronJob pods (ADR-019 carve-out), NOT emitted here.
   for (const { name, schedule } of CRON_EMITTERS) {
     registerCronEmitter(name, schedule);
   }

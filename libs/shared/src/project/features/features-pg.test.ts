@@ -2,7 +2,6 @@ import { describe, it, expect } from "vitest";
 import { PgFeatures } from "./features-pg.js";
 import type { PgPool } from "../../memory-store.js";
 
-/** Fake pool that records queries and returns queued result sets in order. */
 function fakePool(queued: Record<string, unknown>[][]): {
   pool: PgPool;
   calls: { text: string; params?: unknown[] }[];
@@ -65,10 +64,10 @@ describe("PgFeatures.list", () => {
 });
 
 describe("PgFeatures.appendIteration", () => {
-  it("bumps the feature counter then inserts a running iteration at the returned number", async () => {
+  it("bumps the feature counter then inserts a running iteration with no taskId (attached later) and no parent (only a rewind records one)", async () => {
     const { pool, calls } = fakePool([
-      [{ current_iteration: 2 }], // UPDATE ... RETURNING current_iteration
-      [{ id: "it1", iteration: 2 }], // INSERT iteration
+      [{ current_iteration: 2 }],
+      [{ id: "it1", iteration: 2 }],
     ]);
     const row = await new PgFeatures(pool).appendIteration("octo/repo", "f1", {
       free_form: "x",
@@ -80,14 +79,10 @@ describe("PgFeatures.appendIteration", () => {
     );
     expect(calls[0].text).toContain("status = 'planning'");
     expect(calls[1].text).toContain("INSERT INTO lore.feature_iterations");
-    // task_id is attached later (after task creation) so the pod's iteration
-    // matches the row the DB actually minted — no taskId at insert time.
     expect(calls[1].params).toEqual([
       "f1",
       2,
       JSON.stringify({ free_form: "x" }),
-      // A normal next round continues the latest, so it records no parent — only a
-      // REWIND names the earlier round it forked from.
       null,
     ]);
     expect(row).toEqual({ id: "it1", iteration: 2 });
