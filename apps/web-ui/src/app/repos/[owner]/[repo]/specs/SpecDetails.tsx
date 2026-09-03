@@ -481,10 +481,10 @@ export default function SpecDetails({
     }
     const rect = target.getBoundingClientRect();
     const wrapperRect = wrapperRef.current?.getBoundingClientRect();
-    const x = rect.left - (wrapperRect?.left ?? 0);
-    const y = rect.bottom - (wrapperRect?.top ?? 0) + 6;
+    const left = rect.left - (wrapperRect?.left ?? 0);
+    const top = rect.bottom - (wrapperRect?.top ?? 0) + 6;
 
-    setHover({ ordinal, x, y });
+    setHover({ ordinal, x: left, y: top });
   }
 
   function handleMouseLeave() {

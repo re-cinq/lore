@@ -35,8 +35,8 @@ export interface AgentNodeStatus {
  * read a CR that may not exist (e.g. `kube-agent-api.ts`'s `getStatus`) apply
  * that convention themselves; this function only ever sees a CR that exists.
  */
-export function statusFromAgentCr(obj: AgentCr): AgentNodeStatus {
-  const status = obj.status;
+export function statusFromAgentCr(cr: AgentCr): AgentNodeStatus {
+  const status = cr.status;
 
   if (!status) {
     return { phase: "Pending" };

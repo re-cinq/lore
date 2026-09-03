@@ -10,27 +10,27 @@ export interface TagNode {
 }
 
 function documentAttrs(
-  item: SourceItem,
+  document: SourceItem,
   truncated: boolean,
 ): [string, string][] {
   const attrs: [string, string][] = [];
 
-  if (item.source_path) {
-    attrs.push(["source", item.source_path]);
+  if (document.source_path) {
+    attrs.push(["source", document.source_path]);
   }
 
-  if (item.content_type) {
-    attrs.push(["type", item.content_type]);
+  if (document.content_type) {
+    attrs.push(["type", document.content_type]);
   }
 
-  if (item.repo) {
-    attrs.push(["repo", item.repo]);
+  if (document.repo) {
+    attrs.push(["repo", document.repo]);
   }
 
-  if (typeof item.score === "number") {
-    attrs.push(["relevance", item.score.toFixed(2)]);
+  if (typeof document.score === "number") {
+    attrs.push(["relevance", document.score.toFixed(2)]);
   }
-  attrs.push(["tokens", String(item.tokens)]);
+  attrs.push(["tokens", String(document.tokens)]);
 
   if (truncated) {
     attrs.push(["truncated", "true"]);
@@ -55,14 +55,14 @@ export function buildTagTree(trace: AssemblyTrace): TagNode {
         ["source", section.source],
         ["priority", String(section.priority)],
       ],
-      children: section.items.map<TagNode>((item, i) => ({
+      children: section.items.map<TagNode>((document, i) => ({
         tag: "document",
         attrs: documentAttrs(
-          item,
+          document,
           section.truncated && i === section.items.length - 1,
         ),
-        content: item.text,
-        contentType: item.content_type,
+        content: document.text,
+        contentType: document.content_type,
       })),
     }));
 

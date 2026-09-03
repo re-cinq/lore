@@ -36,7 +36,7 @@ export default async function RepoGraphPage({
           <code>LORE_DGRAPH_HTTP</code> to be configured on the UI server.
         </p>
       ) : (
-        <GraphView owner={owner} repo={repo} data={graph} />
+        <GraphView owner={owner} repo={repo} graph={graph} />
       )}
     </div>
   );

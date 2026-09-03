@@ -33,11 +33,11 @@ const BTN: React.CSSProperties = {
 export default function GraphView({
   owner,
   repo,
-  data,
+  graph,
 }: {
   owner: string;
   repo: string;
-  data: SpecGraph;
+  graph: SpecGraph;
 }) {
   const [query, setQuery] = useState("");
   const [resetSignal, setResetSignal] = useState(0);
@@ -86,7 +86,7 @@ export default function GraphView({
         </div>
       </div>
       <SpecGraphD3
-        data={data}
+        graph={graph}
         repo={repoId}
         searchQuery={query}
         resetSignal={resetSignal}

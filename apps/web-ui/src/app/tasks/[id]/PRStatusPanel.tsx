@@ -25,13 +25,13 @@ export default function PRStatusPanel({
       signal: AbortSignal.timeout(15_000),
     })
       .then((r) => r.json())
-      .then((data) => {
-        if (data.error) {
-          setError(data.error);
+      .then((prStatus) => {
+        if (prStatus.error) {
+          setError(prStatus.error);
 
           return;
         }
-        setDetails(data);
+        setDetails(prStatus);
         setError(null);
       })
       .catch(() => setError("Status unavailable"));

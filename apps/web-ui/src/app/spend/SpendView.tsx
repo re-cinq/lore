@@ -45,9 +45,9 @@ const num = (n: number) => Number(n).toLocaleString();
  * loud cannot afford that. One fixed order, the same for every viewer.
  */
 const day = (isoDay: string) => {
-  const [y, m, d] = isoDay.split("-");
+  const [year, month, dayOfMonth] = isoDay.split("-");
 
-  return `${d}-${m}-${y}`;
+  return `${dayOfMonth}-${month}-${year}`;
 };
 
 /** A timestamp as day-month-year plus a 24-hour clock, for the same reasons. */
@@ -65,9 +65,9 @@ const MS_PER_DAY = 86_400_000;
 
 /** Local midnight for a `YYYY-MM-DD` day, for the reason `day` gives. */
 const midnight = (isoDay: string) => {
-  const [y, m, d] = isoDay.split("-").map(Number);
+  const [year, month, dayOfMonth] = isoDay.split("-").map(Number);
 
-  return new Date(y, m - 1, d);
+  return new Date(year, month - 1, dayOfMonth);
 };
 
 /**

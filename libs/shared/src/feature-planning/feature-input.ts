@@ -61,18 +61,21 @@ export function parseSectionAnswers(raw: unknown): SectionAnswers | null {
   const sections: SectionAnswers["sections"] = {};
   const rawSections = isPlainObject(raw.sections) ? raw.sections : {};
 
-  for (const [key, val] of Object.entries(rawSections)) {
-    if (!isPlainObject(val)) {
+  for (const [key, section] of Object.entries(rawSections)) {
+    if (!isPlainObject(section)) {
       continue;
     }
     const entry: { comment?: string; direction?: SectionDirection } = {};
 
-    if (typeof val.comment === "string") {
-      entry.comment = val.comment;
+    if (typeof section.comment === "string") {
+      entry.comment = section.comment;
     }
 
-    if (typeof val.direction === "string" && DIRECTIONS.has(val.direction)) {
-      entry.direction = val.direction as SectionDirection;
+    if (
+      typeof section.direction === "string" &&
+      DIRECTIONS.has(section.direction)
+    ) {
+      entry.direction = section.direction as SectionDirection;
     }
     sections[key] = entry;
   }
@@ -80,9 +83,9 @@ export function parseSectionAnswers(raw: unknown): SectionAnswers | null {
   const questions: Record<string, string> = {};
   const rawQuestions = isPlainObject(raw.questions) ? raw.questions : {};
 
-  for (const [key, val] of Object.entries(rawQuestions)) {
-    if (typeof val === "string") {
-      questions[key] = val;
+  for (const [key, question] of Object.entries(rawQuestions)) {
+    if (typeof question === "string") {
+      questions[key] = question;
     }
   }
 

@@ -22,8 +22,8 @@ export class KubeIdentityStore implements IdentityStore {
   ) {}
 
   async load(): Promise<ClusterAgentIdentity | null> {
-    const data = await this.api.read(this.secretName);
-    const raw = data?.[this.fileName];
+    const secret = await this.api.read(this.secretName);
+    const raw = secret?.[this.fileName];
 
     if (!raw) {
       return null; // no Secret yet — first boot
@@ -32,7 +32,7 @@ export class KubeIdentityStore implements IdentityStore {
     try {
       return parseIdentity(raw);
     } catch (err) {
-      // Corrupt data is a fresh start, not a crash — same contract as the file store.
+      // Corrupt secret is a fresh start, not a crash — same contract as the file store.
       console.warn(
         `[cluster-agent] identity secret ${this.secretName} is unreadable (${errorMessage(err)}) — treating as unregistered`,
       );

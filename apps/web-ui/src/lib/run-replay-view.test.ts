@@ -118,7 +118,7 @@ describe("completedRowsAt", () => {
 
 describe("replayRunData", () => {
   it("holds the verdict null while the node runs, even when an older iteration failed", () => {
-    const data = replayRunData(
+    const replay = replayRunData(
       implementationDefinition,
       [
         row({ iteration: 1, outcome: "failed" }),
@@ -127,21 +127,21 @@ describe("replayRunData", () => {
       { implement: nodeState({ status: "running", iteration: 2 }) },
     );
 
-    expect(data.verdicts).toEqual({});
-    expect(data.statuses.implement).toBe("running");
+    expect(replay.verdicts).toEqual({});
+    expect(replay.statuses.implement).toBe("running");
   });
 
   it("reads the verdict from the walk row, not the result event, once the result applies", () => {
     // The #927 case at a cursor: the review pod exited 0 (replayed status
     // succeeded) but the recorded verdict is failed — the badge source must be
     // the row the moment the node completes at the cursor.
-    const data = replayRunData(
+    const replay = replayRunData(
       codeReviewDefinition,
       [row({ nodeId: "review", iteration: 1, outcome: "failed" })],
       { review: nodeState({ status: "succeeded", iteration: 1 }) },
     );
 
-    expect(data.verdicts).toEqual({ review: "failed" });
+    expect(replay.verdicts).toEqual({ review: "failed" });
   });
 
   it("grows the taken path with the cursor, including a retry back-edge", () => {
@@ -163,7 +163,7 @@ describe("replayRunData", () => {
   });
 
   it("excludes nodes the replayed state has not reached from executed", () => {
-    const data = replayRunData(
+    const replay = replayRunData(
       implementationDefinition,
       [
         row({ nodeId: "implement", outcome: "success" }),
@@ -175,11 +175,11 @@ describe("replayRunData", () => {
       },
     );
 
-    expect(data.executed).toEqual(new Set(["implement"]));
+    expect(replay.executed).toEqual(new Set(["implement"]));
   });
 
   it("counts a node with only transcript activity as executed", () => {
-    const data = replayRunData(implementationDefinition, [], {
+    const replay = replayRunData(implementationDefinition, [], {
       implement: nodeState({
         status: "idle",
         transcript: [
@@ -204,16 +204,16 @@ describe("replayRunData", () => {
       }),
     });
 
-    expect(data.executed).toEqual(new Set(["implement"]));
+    expect(replay.executed).toEqual(new Set(["implement"]));
   });
 
   it("returns a null result even when a completed row failed", () => {
-    const data = replayRunData(
+    const replay = replayRunData(
       codeReviewDefinition,
       [row({ nodeId: "review", outcome: "failed" })],
       { review: nodeState({ status: "failed", iteration: 1 }) },
     );
 
-    expect(data.result).toBeNull();
+    expect(replay.result).toBeNull();
   });
 });

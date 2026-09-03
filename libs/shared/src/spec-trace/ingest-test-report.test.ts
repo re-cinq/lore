@@ -72,7 +72,7 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
         }`,
         { $repo: repo },
       );
-      const data = res.data as {
+      const written = res.data as {
         testchunks?: { uid: string }[];
         codechunks?: { uid: string }[];
         coverages?: { uid: string }[];
@@ -84,15 +84,15 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
         root?: { uid: string }[];
       };
       const uids = [
-        ...(data.testchunks ?? []),
-        ...(data.codechunks ?? []),
-        ...(data.coverages ?? []),
-        ...(data.testsuites ?? []),
-        ...(data.specs ?? []),
-        ...(data.statements ?? []),
-        ...(data.blocks ?? []),
-        ...(data.files ?? []),
-        ...(data.root ?? []),
+        ...(written.testchunks ?? []),
+        ...(written.codechunks ?? []),
+        ...(written.coverages ?? []),
+        ...(written.testsuites ?? []),
+        ...(written.specs ?? []),
+        ...(written.statements ?? []),
+        ...(written.blocks ?? []),
+        ...(written.files ?? []),
+        ...(written.root ?? []),
       ].map((node) => node.uid);
 
       if (uids.length) {
@@ -120,8 +120,8 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
         }`,
         { $sx: statementXid },
       );
-      const data = res.data as { stmts?: { uid: string }[] };
-      const uids = (data.stmts ?? []).map((node) => node.uid);
+      const written = res.data as { stmts?: { uid: string }[] };
+      const uids = (written.stmts ?? []).map((node) => node.uid);
 
       if (uids.length) {
         await txn.mutate({
@@ -169,7 +169,7 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
 
     await ingestTestReport(dgraphClient, repo, report);
 
-    const data = (await readGraph(
+    const graph = (await readGraph(
       `query q($repo: string){
         root(func: eq(Repo.xid, $repo)){
           tc: count(Repo.test_chunks)
@@ -184,9 +184,9 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
       }>;
     };
 
-    expect(data.root?.[0]?.tc).toBeGreaterThanOrEqual(1);
+    expect(graph.root?.[0]?.tc).toBeGreaterThanOrEqual(1);
     expect(
-      (data.root?.[0]?.suites ?? []).map((s) => s["TestSuite.name"]),
+      (graph.root?.[0]?.suites ?? []).map((s) => s["TestSuite.name"]),
     ).toEqual(["Widget"]);
   });
 
@@ -220,14 +220,14 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
 
     await ingestTestReport(dgraphClient, repo, report);
 
-    const data = (await readGraph(
+    const graph = (await readGraph(
       `query q($sx: string) {
         stmt(func: eq(Statement.xid, $sx)) { Statement.validated_by { TestChunk.xid } }
       }`,
       { $sx: `${repo}|${specPath}|0` },
     )) as { stmt?: { "Statement.validated_by"?: Record<string, unknown>[] }[] };
 
-    expect(data.stmt?.[0]?.["Statement.validated_by"]).toEqual([
+    expect(graph.stmt?.[0]?.["Statement.validated_by"]).toEqual([
       { "TestChunk.xid": `${repo}|shared/x.test.ts` },
     ]);
   });
@@ -266,14 +266,14 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
 
     await ingestTestReport(dgraphClient, repo, report);
 
-    const data = (await readGraph(
+    const graph = (await readGraph(
       `query q($sx: string) {
         stmt(func: eq(Statement.xid, $sx)) { Statement.validated_by { TestChunk.xid } }
       }`,
       { $sx: `${repo}|${specPath}|0` },
     )) as { stmt?: { "Statement.validated_by"?: Record<string, unknown>[] }[] };
 
-    expect(data.stmt?.[0]?.["Statement.validated_by"]).toEqual([
+    expect(graph.stmt?.[0]?.["Statement.validated_by"]).toEqual([
       { "TestChunk.xid": `${repo}|shared/x.test.ts` },
     ]);
   });
@@ -297,7 +297,7 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
 
     await ingestTestReport(dgraphClient, repo, report);
 
-    const data = (await readGraph(
+    const graph = (await readGraph(
       `query q($xid: string) {
         tc(func: eq(TestChunk.xid, $xid)) {
           TestChunk.xid TestChunk.repo TestChunk.test_name TestChunk.file_path TestChunk.start_line TestChunk.end_line
@@ -306,7 +306,7 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
       { $xid: `${repo}|t1` },
     )) as { tc?: Record<string, unknown>[] };
 
-    expect(data.tc?.[0]).toMatchObject({
+    expect(graph.tc?.[0]).toMatchObject({
       "TestChunk.xid": `${repo}|t1`,
       "TestChunk.repo": repo,
       "TestChunk.test_name": "renders a click",
@@ -337,7 +337,7 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
 
     await ingestTestReport(dgraphClient, repo, report);
 
-    const data = (await readGraph(
+    const graph = (await readGraph(
       `query q($sx: string) {
         stmt(func: eq(Statement.xid, $sx)) {
           Statement.validated_by { TestChunk.xid }
@@ -346,7 +346,7 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
       { $sx: statementXid },
     )) as { stmt?: Record<string, unknown>[] };
 
-    expect(data.stmt?.[0]?.["Statement.validated_by"]).toEqual([
+    expect(graph.stmt?.[0]?.["Statement.validated_by"]).toEqual([
       { "TestChunk.xid": `${repo}|test/widget.test.ts` },
     ]);
   });
@@ -372,7 +372,7 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
 
     await ingestTestReport(dgraphClient, repo, report);
 
-    const data = (await readGraph(
+    const graph = (await readGraph(
       `query q($sx: string) {
         stmt(func: eq(Statement.xid, $sx)) {
           Statement.violated Statement.violation_reason
@@ -381,8 +381,10 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
       { $sx: statementXid },
     )) as { stmt?: Record<string, unknown>[] };
 
-    expect(data.stmt?.[0]?.["Statement.violated"]).toBe(true);
-    expect(data.stmt?.[0]?.["Statement.violation_reason"]).toContain("renders");
+    expect(graph.stmt?.[0]?.["Statement.violated"]).toBe(true);
+    expect(graph.stmt?.[0]?.["Statement.violation_reason"]).toContain(
+      "renders",
+    );
   });
 
   it("keeps the spec Statement violated when one of two validating tests fails and the other passes", async () => {
@@ -415,7 +417,7 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
 
     await ingestTestReport(dgraphClient, repo, report);
 
-    const data = (await readGraph(
+    const graph = (await readGraph(
       `query q($sx: string) {
         stmt(func: eq(Statement.xid, $sx)) {
           Statement.violated
@@ -424,7 +426,7 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
       { $sx: statementXid },
     )) as { stmt?: Record<string, unknown>[] };
 
-    expect(data.stmt?.[0]?.["Statement.violated"]).toBe(true);
+    expect(graph.stmt?.[0]?.["Statement.violated"]).toBe(true);
   });
 
   it("clears the spec Statement violated to false when a re-ingest reports the validating test passed", async () => {
@@ -450,7 +452,7 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
       results: [{ id: "t1", passed: true, covered: [] }],
     });
 
-    const data = (await readGraph(
+    const graph = (await readGraph(
       `query q($sx: string) {
         stmt(func: eq(Statement.xid, $sx)) {
           Statement.violated
@@ -459,7 +461,7 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
       { $sx: statementXid },
     )) as { stmt?: Record<string, unknown>[] };
 
-    expect(data.stmt?.[0]?.["Statement.violated"]).toBe(false);
+    expect(graph.stmt?.[0]?.["Statement.violated"]).toBe(false);
   });
 
   it("clears the spec Statement violation_reason when a re-ingest reports the validating test passed", async () => {
@@ -485,7 +487,7 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
       results: [{ id: "t1", passed: true, covered: [] }],
     });
 
-    const data = (await readGraph(
+    const graph = (await readGraph(
       `query q($sx: string) {
         stmt(func: eq(Statement.xid, $sx)) {
           Statement.violation_reason
@@ -494,7 +496,7 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
       { $sx: statementXid },
     )) as { stmt?: Record<string, unknown>[] };
 
-    expect(data.stmt?.[0]?.["Statement.violation_reason"]).toBeUndefined();
+    expect(graph.stmt?.[0]?.["Statement.violation_reason"]).toBeUndefined();
   });
 
   it("connects Statement to File via validated_by to TestChunk to coverage to covers, minting a CodeChunk for the covered range with no AST pre-seeding", async () => {
@@ -534,7 +536,7 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
       ],
     });
 
-    const data = (await readGraph(
+    const graph = (await readGraph(
       `query q($sx: string) {
         stmt(func: eq(Statement.xid, $sx)) {
           Statement.validated_by { cov: TestChunk.coverage { covers: Coverage.covers { File.xid } } }
@@ -550,7 +552,7 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
     };
 
     expect(
-      data.stmt?.[0]?.["Statement.validated_by"]?.[0]?.cov?.covers,
+      graph.stmt?.[0]?.["Statement.validated_by"]?.[0]?.cov?.covers,
     ).toEqual([{ "File.xid": `${repo}|src/a.ts` }]);
   });
 
@@ -571,7 +573,7 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
 
     await ingestTestReport(dgraphClient, repo, report);
 
-    const data = (await readGraph(
+    const graph = (await readGraph(
       `query q($xid: string) {
         cov(func: eq(Coverage.xid, $xid)) {
           Coverage.covers { File.xid }
@@ -580,7 +582,7 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
       { $xid: `${repo}|test/widget.test.ts|test/widget.test.ts` },
     )) as { cov?: Record<string, unknown>[] };
 
-    expect(data.cov?.[0]?.["Coverage.covers"]).toEqual([
+    expect(graph.cov?.[0]?.["Coverage.covers"]).toEqual([
       { "File.xid": `${repo}|src/widget.ts` },
     ]);
   });
@@ -610,7 +612,7 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
 
     await ingestTestReport(dgraphClient, repo, report);
 
-    const data = (await readGraph(
+    const graph = (await readGraph(
       `query q($r: string) {
         cov(func: eq(Coverage.repo, $r)) { uid }
         fileChunk(func: eq(TestChunk.xid, "${repo}|a.test.ts")) { hasCov: count(TestChunk.coverage) }
@@ -618,8 +620,8 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
       { $r: repo },
     )) as { cov?: { uid: string }[]; fileChunk?: { hasCov?: number }[] };
 
-    expect(data.cov ?? []).toHaveLength(1);
-    expect(data.fileChunk?.[0]?.hasCov).toBe(1);
+    expect(graph.cov ?? []).toHaveLength(1);
+    expect(graph.fileChunk?.[0]?.hasCov).toBe(1);
   });
 
   it("links TestChunk repo|t1 to the innermost TestSuite Overview for a descriptor with suite [Overview]", async () => {
@@ -640,7 +642,7 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
 
     await ingestTestReport(dgraphClient, repo, report);
 
-    const data = (await readGraph(
+    const graph = (await readGraph(
       `query q($xid: string) {
         tc(func: eq(TestChunk.xid, $xid)) {
           TestChunk.suite { TestSuite.xid TestSuite.name TestSuite.file_path }
@@ -649,7 +651,7 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
       { $xid: `${repo}|t1` },
     )) as { tc?: Record<string, unknown>[] };
 
-    expect(data.tc?.[0]?.["TestChunk.suite"]).toEqual({
+    expect(graph.tc?.[0]?.["TestChunk.suite"]).toEqual({
       "TestSuite.xid": `${repo}|test/widget.test.ts|Overview`,
       "TestSuite.name": "Overview",
       "TestSuite.file_path": "test/widget.test.ts",
@@ -674,7 +676,7 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
 
     await ingestTestReport(dgraphClient, repo, report);
 
-    const data = (await readGraph(
+    const graph = (await readGraph(
       `query q($xid: string) {
         tc(func: eq(TestChunk.xid, $xid)) {
           TestChunk.suite {
@@ -686,7 +688,7 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
       { $xid: `${repo}|t1` },
     )) as { tc?: Record<string, unknown>[] };
 
-    expect(data.tc?.[0]?.["TestChunk.suite"]).toEqual({
+    expect(graph.tc?.[0]?.["TestChunk.suite"]).toEqual({
       "TestSuite.xid": `${repo}|test/widget.test.ts|Outer>Inner`,
       "TestSuite.name": "Inner",
       "TestSuite.parent": {
@@ -726,7 +728,7 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
 
     await ingestTestReport(dgraphClient, repo, report);
 
-    const data = (await readGraph(
+    const graph = (await readGraph(
       `query q($xid: string) {
         ac(func: eq(AcceptanceCriterion.xid, $xid)) {
           AcceptanceCriterion.validated_by { TestChunk.xid }
@@ -737,7 +739,7 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
       ac?: { "AcceptanceCriterion.validated_by"?: Record<string, unknown>[] }[];
     };
 
-    expect(data.ac?.[0]?.["AcceptanceCriterion.validated_by"]).toEqual([
+    expect(graph.ac?.[0]?.["AcceptanceCriterion.validated_by"]).toEqual([
       { "TestChunk.xid": `${repo}|shared/x.test.ts` },
     ]);
   });
@@ -772,7 +774,7 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
 
     await ingestTestReport(dgraphClient, repo, report);
 
-    const data = (await readGraph(
+    const graph = (await readGraph(
       `query q($xid: string) {
         ac(func: eq(AcceptanceCriterion.xid, $xid)) {
           AcceptanceCriterion.violated AcceptanceCriterion.violation_reason
@@ -781,8 +783,8 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
       { $xid: `${repo}|${specPath}|ac|0` },
     )) as { ac?: Record<string, unknown>[] };
 
-    expect(data.ac?.[0]?.["AcceptanceCriterion.violated"]).toBe(true);
-    expect(data.ac?.[0]?.["AcceptanceCriterion.violation_reason"]).toContain(
+    expect(graph.ac?.[0]?.["AcceptanceCriterion.violated"]).toBe(true);
+    expect(graph.ac?.[0]?.["AcceptanceCriterion.violation_reason"]).toContain(
       "rollback",
     );
   });

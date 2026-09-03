@@ -14,15 +14,15 @@ const unquote = (value: string): string =>
   value.replace(/^["']|["']$/g, "").trim();
 
 function collectBlockListItems(lines: string[], startIndex: number): string[] {
-  const items: string[] = [];
+  const values: string[] = [];
   let cursor = startIndex;
 
   while (cursor < lines.length && /^\s*-\s+/.test(lines[cursor])) {
-    items.push(unquote(lines[cursor].replace(/^\s*-\s+/, "")));
+    values.push(unquote(lines[cursor].replace(/^\s*-\s+/, "")));
     cursor++;
   }
 
-  return items;
+  return values;
 }
 
 export function parseFrontmatter(source: string): Frontmatter {

@@ -64,19 +64,19 @@ function fakeStore(rows: PipelineTask[]): TaskStorePort {
     list: async () => ({ tasks: rows, total: rows.length }),
     getById: async (id) => rows.find((r) => r.id === id) ?? null,
     getWithEvents: async (id) => {
-      const r = rows.find((x) => x.id === id);
+      const r = rows.find((row) => row.id === id);
 
       return r ? { ...r, events: [] } : null;
     },
     setStatus: async (id, status) => {
-      const r = rows.find((x) => x.id === id);
+      const r = rows.find((row) => row.id === id);
 
       if (r) {
         r.status = status;
       }
     },
     setStatusIf: async (id, expectedStatus, status) => {
-      const r = rows.find((x) => x.id === id);
+      const r = rows.find((row) => row.id === id);
 
       if (!r || r.status !== expectedStatus) {
         return false;
@@ -86,7 +86,7 @@ function fakeStore(rows: PipelineTask[]): TaskStorePort {
       return true;
     },
     updateStatus: async (id, status) => {
-      const r = rows.find((x) => x.id === id);
+      const r = rows.find((row) => row.id === id);
 
       if (r) {
         r.status = status;
@@ -96,7 +96,7 @@ function fakeStore(rows: PipelineTask[]): TaskStorePort {
     cancel: async (id) => ({ task_id: id, status: "cancelled" }),
     markMerged: async (id) => ({ task_id: id, status: "merged" }),
     transition: async (id, action: TaskAction) => {
-      const r = rows.find((x) => x.id === id)!;
+      const r = rows.find((row) => row.id === id)!;
 
       const statusAfterAction: Partial<Record<TaskAction, string>> = {
         cancel: "cancelled",

@@ -3,12 +3,12 @@
 import { enforceTrue } from "../../lib/enforce.js";
 
 interface Waiter<T> {
-  item: T;
+  entry: T;
   admit: () => void;
 }
 
 export class BoundedQueue<T> {
-  private readonly items: T[] = [];
+  private readonly entries: T[] = [];
   private readonly waiters: Waiter<T>[] = [];
 
   constructor(private readonly capacity: number) {
@@ -19,9 +19,9 @@ export class BoundedQueue<T> {
     );
   }
 
-  /** Items currently held. Never exceeds the capacity. */
+  /** Entries currently held. Never exceeds the capacity. */
   get size(): number {
-    return this.items.length;
+    return this.entries.length;
   }
 
   /** Producers parked on a full queue; a steady non-zero value means the sink can't keep up. */
@@ -29,26 +29,26 @@ export class BoundedQueue<T> {
     return this.waiters.length;
   }
 
-  /** Accept an item, resolving once queued; waiters are admitted in arrival order so the drain stays FIFO even while saturated. */
-  push(item: T): Promise<void> {
-    if (this.items.length < this.capacity) {
-      this.items.push(item);
+  /** Accept an entry, resolving once queued; waiters are admitted in arrival order so the drain stays FIFO even while saturated. */
+  push(entry: T): Promise<void> {
+    if (this.entries.length < this.capacity) {
+      this.entries.push(entry);
 
       return Promise.resolve();
     }
 
     return new Promise<void>((resolve) => {
-      this.waiters.push({ item, admit: resolve });
+      this.waiters.push({ entry, admit: resolve });
     });
   }
 
   /** Take the head, admitting the longest-waiting producer into the slot it frees. */
   shift(): T | undefined {
-    const head = this.items.shift();
+    const head = this.entries.shift();
     const waiter = this.waiters.shift();
 
     if (waiter) {
-      this.items.push(waiter.item);
+      this.entries.push(waiter.entry);
       waiter.admit();
     }
 

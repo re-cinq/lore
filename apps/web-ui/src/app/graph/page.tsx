@@ -20,14 +20,14 @@ export default async function GraphPage({
   const showInvalid = show_invalid === "1";
 
   const browse = await getGraphBrowse({ entity, type, showInvalid });
-  const data =
+  const graph =
     browse.status === "ok"
       ? browse.data
       : { stats: {}, entity_types: [], entities: [], edges: [] };
-  const stats = data.stats as unknown as Stats;
-  const entityTypes = data.entity_types as unknown as EntityTypeCount[];
-  const entities = data.entities as unknown as Entity[];
-  const edges = data.edges as unknown as Edge[];
+  const stats = graph.stats as unknown as Stats;
+  const entityTypes = graph.entity_types as unknown as EntityTypeCount[];
+  const entities = graph.entities as unknown as Entity[];
+  const edges = graph.edges as unknown as Edge[];
 
   return (
     <GraphView

@@ -24,7 +24,7 @@ export type CopyLlm = (params: {
   toolSchema: Record<string, unknown>;
   jobName: string;
   maxTokens: number;
-}) => Promise<{ data: { title?: string; body?: string } }>;
+}) => Promise<{ parsed: { title?: string; body?: string } }>;
 
 const SYSTEM_PROMPT =
   "You write GitHub titles and descriptions that engineers actually open and act on. " +
@@ -94,8 +94,8 @@ export async function generateArtifactCopy(
       maxTokens: 600,
     });
 
-    const title = (result.data.title || "").trim();
-    const body = (result.data.body || "").trim();
+    const title = (result.parsed.title || "").trim();
+    const body = (result.parsed.body || "").trim();
 
     if (title && body) {
       return { title, body, source: "llm" };

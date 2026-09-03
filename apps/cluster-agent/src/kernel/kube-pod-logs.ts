@@ -26,7 +26,7 @@ export class KubePodLogs implements PodLogSource {
     const api = customObjectsApi();
 
     try {
-      const obj = (await api.getNamespacedCustomObject({
+      const agent = (await api.getNamespacedCustomObject({
         group: GROUP,
         version: VERSION,
         namespace: this.namespace(),
@@ -35,8 +35,8 @@ export class KubePodLogs implements PodLogSource {
       })) as AgentCr;
 
       return {
-        phase: obj.status?.phase ?? null,
-        jobName: obj.status?.jobName ?? null,
+        phase: agent.status?.phase ?? null,
+        jobName: agent.status?.jobName ?? null,
       };
     } catch (err) {
       if (isNotFound(err)) {

@@ -33,9 +33,9 @@ export async function listAgents(repo: string): Promise<AgentDefinition[]> {
     if (!res.ok) {
       return [];
     }
-    const data = (await res.json()) as { agents?: AgentDefinition[] };
+    const body = (await res.json()) as { agents?: AgentDefinition[] };
 
-    return data.agents ?? [];
+    return body.agents ?? [];
   } catch {
     return [];
   }
@@ -59,9 +59,9 @@ export async function listOrgAgents(): Promise<AgentDefinition[]> {
     if (!res.ok) {
       return [];
     }
-    const data = (await res.json()) as { agents?: AgentDefinition[] };
+    const body = (await res.json()) as { agents?: AgentDefinition[] };
 
-    return data.agents ?? [];
+    return body.agents ?? [];
   } catch {
     return [];
   }
@@ -106,19 +106,19 @@ export async function fetchAgentUsage(): Promise<AgentUsage | null> {
     if (!res.ok) {
       return null;
     }
-    const data = (await res.json()) as {
+    const body = (await res.json()) as {
       usage?: Array<{ name: string; used_by: AgentUsageRef[] }>;
       applied?: AgentApplyStatus[];
     };
     const applied: Record<string, AgentApplyStatus[]> = {};
 
-    for (const status of data.applied ?? []) {
+    for (const status of body.applied ?? []) {
       (applied[status.name] ??= []).push(status);
     }
 
     return {
       refs: Object.fromEntries(
-        (data.usage ?? []).map((entry) => [entry.name, entry.used_by]),
+        (body.usage ?? []).map((entry) => [entry.name, entry.used_by]),
       ),
       applied,
     };
@@ -202,27 +202,27 @@ export async function saveOrgAgent(
 }
 
 async function mapWriteResponse(res: Response): Promise<AgentSaveResult> {
-  const data = await res.json().catch(() => ({}) as Record<string, unknown>);
+  const body = await res.json().catch(() => ({}) as Record<string, unknown>);
 
   if (res.ok) {
-    return { status: "ok", agent: data.agent as AgentDefinition };
+    return { status: "ok", agent: body.agent as AgentDefinition };
   }
 
-  if (res.status === 403 && data.error === "two_key_required") {
-    return { status: "two_key_required", detail: String(data.detail ?? "") };
+  if (res.status === 403 && body.error === "two_key_required") {
+    return { status: "two_key_required", detail: String(body.detail ?? "") };
   }
 
-  if (res.status === 403 && data.error === "codeowners_check_failed") {
+  if (res.status === 403 && body.error === "codeowners_check_failed") {
     return {
       status: "codeowners_failed",
-      code: String(data.code ?? "unknown"),
-      detail: String(data.detail ?? ""),
+      code: String(body.code ?? "unknown"),
+      detail: String(body.detail ?? ""),
     };
   }
 
   return {
     status: "error",
-    message: String(data.error ?? `HTTP ${res.status}`),
+    message: String(body.error ?? `HTTP ${res.status}`),
   };
 }
 
@@ -254,10 +254,10 @@ export async function deleteAgent(
   if (res.ok) {
     return { status: "ok", agent: { name } as AgentDefinition };
   }
-  const data = await res.json().catch(() => ({}) as Record<string, unknown>);
+  const body = await res.json().catch(() => ({}) as Record<string, unknown>);
 
   return {
     status: "error",
-    message: String(data.error ?? `HTTP ${res.status}`),
+    message: String(body.error ?? `HTTP ${res.status}`),
   };
 }

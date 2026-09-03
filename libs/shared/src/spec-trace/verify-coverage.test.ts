@@ -81,17 +81,17 @@ describe.skipIf(!reachable)("verifyCoverageLink (live Dgraph)", () => {
         }`,
         { $repo: repo, $sx: statementXid },
       );
-      const data = res.data as {
+      const written = res.data as {
         coverage?: { uid: string }[];
         codechunks?: { uid: string }[];
         testchunks?: { uid: string }[];
         statements?: { uid: string }[];
       };
       const uids = [
-        ...(data.coverage ?? []),
-        ...(data.codechunks ?? []),
-        ...(data.testchunks ?? []),
-        ...(data.statements ?? []),
+        ...(written.coverage ?? []),
+        ...(written.codechunks ?? []),
+        ...(written.testchunks ?? []),
+        ...(written.statements ?? []),
       ].map((node) => node.uid);
 
       if (uids.length) {

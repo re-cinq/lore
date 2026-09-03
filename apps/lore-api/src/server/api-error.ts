@@ -23,13 +23,13 @@ import Boom from "@hapi/boom";
 
 export function apiError(
   statusCode: number,
-  data: Record<string, unknown> = {},
+  details: Record<string, unknown> = {},
 ): (message: string) => Boom.Boom {
   return (message) => {
     const boom = new Boom.Boom(message, { statusCode });
 
     boom.output.payload = {
-      ...data,
+      ...details,
       error: message,
     } as unknown as Boom.Payload;
 

@@ -106,9 +106,9 @@ function readJson<T>(filePath: string, fallback: T): T {
   }
 }
 
-function writeJson(filePath: string, data: unknown): void {
+function writeJson(filePath: string, value: unknown): void {
   ensureDir(dirname(filePath));
-  writeFileSync(filePath, JSON.stringify(data, null, 2) + "\n", "utf-8");
+  writeFileSync(filePath, JSON.stringify(value, null, 2) + "\n", "utf-8");
 }
 
 // ── Audit log ────────────────────────────────────────────────────────

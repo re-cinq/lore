@@ -5,19 +5,19 @@ import { useState } from "react";
 import type { ClusterInstallInfo } from "@/lib/api/cluster-agents";
 
 export interface ConnectClusterPanelProps {
-  info: ClusterInstallInfo;
+  install: ClusterInstallInfo;
 }
 
 /** The ready-to-paste connect command for the values the operator chose. */
 export function buildConnectCommand(
-  info: ClusterInstallInfo,
+  install: ClusterInstallInfo,
   name: string,
   tags: string,
 ): string {
   return [
-    `export LORE_API_URL='${info.api_url}'`,
-    `export EVENT_ROUTER_URL='${info.event_router_url}'`,
-    `export LORE_CLUSTER_AGENT_REGISTRATION_TOKEN='${info.registration_token}'`,
+    `export LORE_API_URL='${install.api_url}'`,
+    `export EVENT_ROUTER_URL='${install.event_router_url}'`,
+    `export LORE_CLUSTER_AGENT_REGISTRATION_TOKEN='${install.registration_token}'`,
     `scripts/install-satellite.sh --name '${name}' --tags '${tags}'`,
   ].join("\n");
 }
@@ -30,33 +30,33 @@ export function buildConnectCommand(
  * The command embeds the registration token; the panel says so.
  */
 export default function ConnectClusterPanel({
-  info,
+  install,
 }: ConnectClusterPanelProps) {
   const [name, setName] = useState("my-cluster");
   const [tags, setTags] = useState("node:agent,node:validate");
   const [copied, setCopied] = useState(false);
 
-  if (!info.available) {
+  if (!install.available) {
     return (
       <details className="connect-cluster">
         <summary>Connect a cluster</summary>
         <Alert variant="secondary">
-          Not available: {info.reason ?? "install info is not configured"}. Set{" "}
-          <code>cluster_agent_registration_token</code> in{" "}
+          Not available: {install.reason ?? "install info is not configured"}.
+          Set <code>cluster_agent_registration_token</code> in{" "}
           <code>secrets.tfvars</code> and apply, then redeploy lore-api.
         </Alert>
       </details>
     );
   }
 
-  const command = buildConnectCommand(info, name, tags);
+  const command = buildConnectCommand(install, name, tags);
 
   return (
     <details className="connect-cluster">
       <summary>Connect a cluster</summary>
       <p className="meta">
         Point <code>kubectl</code> at the target cluster, check out{" "}
-        <a href={info.repo_url}>the repo</a>, and run this from its root. The
+        <a href={install.repo_url}>the repo</a>, and run this from its root. The
         command embeds the registration token — treat it as a credential. Also
         needed in the env: <code>GHCR_USERNAME</code>/<code>GHCR_TOKEN</code>{" "}
         and <code>CLAUDE_CODE_OAUTH_TOKEN</code> or{" "}

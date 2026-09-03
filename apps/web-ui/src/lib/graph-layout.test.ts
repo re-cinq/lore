@@ -68,7 +68,7 @@ describe("connectedComponents", () => {
 
     const sorted = comps
       .map((c) => [...c].sort())
-      .sort((x, y) => x[0].localeCompare(y[0]));
+      .sort((a, b) => a[0].localeCompare(b[0]));
 
     expect(sorted).toEqual([
       ["a", "b"],

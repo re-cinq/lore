@@ -37,9 +37,10 @@ const BASH_COMMAND_SUMMARY_CHARS = 120;
  *  mined for paths — too noisy to be worth the false positives. */
 const FILE_PATH_KEYS = ["file_path", "path", "notebook_path"] as const;
 
-const str = (x: unknown): string | null => (typeof x === "string" ? x : null);
+const str = (value: unknown): string | null =>
+  typeof value === "string" ? value : null;
 
-const num = (x: unknown): number => (typeof x === "number" ? x : 0);
+const num = (value: unknown): number => (typeof value === "number" ? value : 0);
 
 const cap = (text: string): string => text.slice(0, SUMMARY_MAX_CHARS);
 

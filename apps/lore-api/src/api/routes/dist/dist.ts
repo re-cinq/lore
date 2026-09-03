@@ -39,10 +39,10 @@ export function distRoute(): ServerRoute {
 
       enforceTrue(artifact, apiError(404), "unknown artifact");
 
-      let data: Buffer;
+      let binary: Buffer;
 
       try {
-        data = await readFile(join(distDir(), artifact));
+        binary = await readFile(join(distDir(), artifact));
       } catch (err) {
         console.warn(`[dist] artifact read failed: ${errorMessage(err)}`);
 
@@ -52,7 +52,7 @@ export function distRoute(): ServerRoute {
       const isText = artifact.endsWith(".txt");
 
       return h
-        .response(data)
+        .response(binary)
         .type(isText ? "text/plain; charset=utf-8" : "application/octet-stream")
         .header("Content-Disposition", `attachment; filename="${artifact === "checksums.txt" ? "checksums.txt" : "lore-code-trace"}"`);
     },

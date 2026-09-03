@@ -74,11 +74,13 @@ describe.skipIf(!reachable)("replaceEdgeWithFacets (live Dgraph)", () => {
         `query q($r: string){ cov(func: eq(Coverage.repo,$r)){uid} f(func: eq(File.repo,$r)){uid} }`,
         { $r: createdRepo },
       );
-      const data = res.data as {
+      const written = res.data as {
         cov?: { uid: string }[];
         f?: { uid: string }[];
       };
-      const uids = [...(data.cov ?? []), ...(data.f ?? [])].map((n) => n.uid);
+      const uids = [...(written.cov ?? []), ...(written.f ?? [])].map(
+        (n) => n.uid,
+      );
 
       if (uids.length) {
         await txn.mutate({
@@ -117,7 +119,7 @@ describe.skipIf(!reachable)("replaceEdgeWithFacets (live Dgraph)", () => {
       { uid: fileUid, facets: { ranges: "12-18,30-40" } },
     ]);
 
-    const data = (await readGraph(
+    const graph = (await readGraph(
       `query q($uid: string) {
         cov(func: uid($uid)) {
           Coverage.covers @facets(ranges) { uid File.path }
@@ -125,7 +127,7 @@ describe.skipIf(!reachable)("replaceEdgeWithFacets (live Dgraph)", () => {
       }`,
       { $uid: coverageUid },
     )) as { cov?: { "Coverage.covers"?: Record<string, unknown>[] }[] };
-    const covers = data.cov?.[0]?.["Coverage.covers"] ?? [];
+    const covers = graph.cov?.[0]?.["Coverage.covers"] ?? [];
 
     expect(covers).toHaveLength(1);
     expect(covers[0]).toMatchObject({

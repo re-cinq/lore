@@ -91,7 +91,7 @@ const yesNo = (fd: FormData, name: string): boolean => fd.get(name) === "yes";
 const text = (fd: FormData, name: string): string =>
   ((fd.get(name) as string) || "").trim();
 const sameArray = (a: string[] = [], b: string[] = []): boolean =>
-  a.length === b.length && a.every((x, i) => x === b[i]);
+  a.length === b.length && a.every((value, i) => value === b[i]);
 
 /** Attach a nested block only when something inside it changed — an empty block would read as "clear these settings". */
 function attachIfAny(

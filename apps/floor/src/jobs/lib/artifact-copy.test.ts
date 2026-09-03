@@ -79,7 +79,7 @@ describe("fallbackCopy", () => {
 describe("generateArtifactCopy", () => {
   it("returns model-written copy when the LLM succeeds", async () => {
     const llm = vi.fn().mockResolvedValue({
-      data: {
+      parsed: {
         title: "Reconcile dark-factory research doc with the settings resolver",
         body: "## What changed\n...",
       },
@@ -96,7 +96,7 @@ describe("generateArtifactCopy", () => {
   it("trims whitespace from the model title", async () => {
     const llm = vi
       .fn()
-      .mockResolvedValue({ data: { title: "  Tidy title  ", body: "b" } });
+      .mockResolvedValue({ parsed: { title: "  Tidy title  ", body: "b" } });
 
     expect((await generateArtifactCopy(input, llm)).title).toBe("Tidy title");
   });
@@ -112,13 +112,13 @@ describe("generateArtifactCopy", () => {
   it("falls back when the model returns an empty title", async () => {
     const llm = vi
       .fn()
-      .mockResolvedValue({ data: { title: "   ", body: "b" } });
+      .mockResolvedValue({ parsed: { title: "   ", body: "b" } });
 
     expect((await generateArtifactCopy(input, llm)).source).toBe("fallback");
   });
 
   it("falls back when the model omits the title entirely", async () => {
-    const llm = vi.fn().mockResolvedValue({ data: { body: "b" } });
+    const llm = vi.fn().mockResolvedValue({ parsed: { body: "b" } });
 
     expect((await generateArtifactCopy(input, llm)).source).toBe("fallback");
   });
@@ -126,7 +126,7 @@ describe("generateArtifactCopy", () => {
   it("falls back when the model returns an empty body", async () => {
     const llm = vi
       .fn()
-      .mockResolvedValue({ data: { title: "Good title", body: "" } });
+      .mockResolvedValue({ parsed: { title: "Good title", body: "" } });
 
     expect((await generateArtifactCopy(input, llm)).source).toBe("fallback");
   });

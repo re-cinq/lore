@@ -16,7 +16,7 @@ vi.mock("@/lib/station-conversation", () => ({
 const { loadFeaturePoll } = await import("./feature-poll");
 
 /** The one call the loader makes for the round's state. */
-function answerStatus(data: {
+function answerStatus(payload: {
   feature?: unknown;
   latest_iteration?: unknown;
   last_ready_iteration?: unknown;
@@ -26,11 +26,11 @@ function answerStatus(data: {
   getFeatureStatus.mockResolvedValue({
     status: "ok",
     data: {
-      feature: data.feature ?? { id: "f1" },
-      latest_iteration: data.latest_iteration ?? null,
-      last_ready_iteration: data.last_ready_iteration ?? null,
-      assembly_line_id: data.assembly_line_id ?? null,
-      assembly_run_id: data.assembly_run_id ?? null,
+      feature: payload.feature ?? { id: "f1" },
+      latest_iteration: payload.latest_iteration ?? null,
+      last_ready_iteration: payload.last_ready_iteration ?? null,
+      assembly_line_id: payload.assembly_line_id ?? null,
+      assembly_run_id: payload.assembly_run_id ?? null,
     },
   });
 }

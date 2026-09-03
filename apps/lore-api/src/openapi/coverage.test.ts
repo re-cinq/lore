@@ -154,13 +154,14 @@ describe("OpenAPI document is structurally valid 3.1", () => {
 });
 
 describe("Features responses are declaratively described", () => {
-  const featureOps = Object.entries(document.paths).flatMap(([path, item]) =>
-    Object.entries(item as Record<string, { tags: string[] }>)
-      .filter(([, op]) => op.tags?.[0] === "Features")
-      .map(([method, op]) => ({
-        label: `${method.toUpperCase()} ${path}`,
-        op,
-      })),
+  const featureOps = Object.entries(document.paths).flatMap(
+    ([path, pathItem]) =>
+      Object.entries(pathItem as Record<string, { tags: string[] }>)
+        .filter(([, op]) => op.tags?.[0] === "Features")
+        .map(([method, op]) => ({
+          label: `${method.toUpperCase()} ${path}`,
+          op,
+        })),
   );
 
   it("finds the Features surface at all", () => {

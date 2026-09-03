@@ -51,7 +51,7 @@ interface Template {
 export type FetchStatus = "ok" | "empty" | "error" | "no-match" | "disabled";
 
 export interface FetchResult {
-  items: SourceItem[];
+  sources: SourceItem[];
   status: FetchStatus;
 }
 
@@ -171,7 +171,7 @@ function mkItem(text: string, extra: Partial<SourceItem> = {}): SourceItem {
 function addUniqueGraphLines(
   graphResults: Awaited<ReturnType<typeof queryLiveGraph>>,
   seen: Set<string>,
-  items: SourceItem[],
+  sources: SourceItem[],
 ): void {
   for (const r of graphResults) {
     const line = `${r.entity} (${r.entity_type}) --${r.relation}--> ${r.related_entity} (${r.related_type})`;
@@ -180,7 +180,7 @@ function addUniqueGraphLines(
       continue;
     }
     seen.add(line);
-    items.push(mkItem(line, { content_type: "graph" }));
+    sources.push(mkItem(line, { content_type: "graph" }));
   }
 }
 
@@ -224,17 +224,17 @@ function toIso(value: unknown): string | undefined {
   }
 }
 
-/** Pack items into a token budget: keep whole items, truncate the overflow item, drop the rest. `maxPerDocTokens` caps any single document so a mega-doc can't crowd out smaller ones. */
+/** Pack sources into a token budget: keep whole sources, truncate the overflow source, drop the rest. `maxPerDocTokens` caps any single document so a mega-doc can't crowd out smaller ones. */
 export function fitItemsToBudget(
-  items: SourceItem[],
+  sources: SourceItem[],
   budgetTokens: number,
   maxPerDocTokens?: number,
-): { items: SourceItem[]; truncated: boolean } {
+): { kept: SourceItem[]; truncated: boolean } {
   const kept: SourceItem[] = [];
   let used = 0;
   let truncated = false;
 
-  for (const it of items) {
+  for (const it of sources) {
     const remaining = budgetTokens - used;
 
     if (remaining <= 0) {
@@ -261,7 +261,7 @@ export function fitItemsToBudget(
     }
   }
 
-  return { items: kept, truncated };
+  return { kept, truncated };
 }
 
 // Common words dropped from the keyword leg so a paragraph-length query matches on its distinctive terms, not filler.
@@ -345,11 +345,14 @@ export function extractKeyTerms(query: string, max = 12): string[] {
   return out;
 }
 
-/** Filter out items already emitted in an earlier section (keyed by source path, else text) — keeps a document in its highest-priority section only. */
-export function dropSeen(items: SourceItem[], seen: Set<string>): SourceItem[] {
+/** Filter out sources already emitted in an earlier section (keyed by source path, else text) — keeps a document in its highest-priority section only. */
+export function dropSeen(
+  sources: SourceItem[],
+  seen: Set<string>,
+): SourceItem[] {
   const kept: SourceItem[] = [];
 
-  for (const it of items) {
+  for (const it of sources) {
     const key = it.source_path || it.text;
 
     if (seen.has(key)) {
@@ -363,14 +366,14 @@ export function dropSeen(items: SourceItem[], seen: Set<string>): SourceItem[] {
 }
 
 /** Rescale item scores so the top result is 1.0 — RRF/ts_rank raw scores are tiny (~0.02) and unreadable as relevance. No-op with no positive score. */
-function normalizeScores(items: SourceItem[]): SourceItem[] {
-  const max = Math.max(0, ...items.map((i) => i.score ?? 0));
+function normalizeScores(sources: SourceItem[]): SourceItem[] {
+  const max = Math.max(0, ...sources.map((s) => s.score ?? 0));
 
   if (max <= 0) {
-    return items;
+    return sources;
   }
 
-  return items.map((i) =>
+  return sources.map((i) =>
     i.score != null ? { ...i, score: i.score / max } : i,
   );
 }
@@ -383,7 +386,7 @@ const COUPLING_SIGNAL_SCORE: Record<string, number> = {
   normal: 0.1,
 };
 
-/** Project a spec-traceability GraphContextBlock into context items — the deterministic "what spec rules + tests govern this code" signal vector search can't produce. */
+/** Project a spec-traceability GraphContextBlock into context sources — the deterministic "what spec rules + tests govern this code" signal vector search can't produce. */
 export function formatCouplingItems(block: GraphContextBlock): SourceItem[] {
   return block.statements.map((s) => {
     const head = `[${s.signal}] ${s.specPath}${s.section ? ` › ${s.section}` : ""} — ${s.statementText}`;
@@ -408,16 +411,16 @@ export async function fetchCouplingSource(
   repo?: string,
 ): Promise<FetchResult> {
   if (!dgraph || !repo) {
-    return { items: [], status: "disabled" };
+    return { sources: [], status: "disabled" };
   }
 
   try {
     const block = await fetchGraphContext(dgraph, repo);
-    const items = formatCouplingItems(block);
+    const sources = formatCouplingItems(block);
 
-    return { items, status: items.length > 0 ? "ok" : "empty" };
+    return { sources, status: sources.length > 0 ? "ok" : "empty" };
   } catch {
-    return { items: [], status: "error" };
+    return { sources: [], status: "error" };
   }
 }
 
@@ -522,54 +525,54 @@ export const fetchers: Record<string, SourceFetcher> = {
   // Repo conventions: docs + specs (ADRs are their own section); hybrid ranking avoids floating unrelated web-ui specs on term overlap alone.
   async repo(pool, query, repo) {
     if (!repo) {
-      return { items: [], status: "empty" };
+      return { sources: [], status: "empty" };
     }
 
     try {
-      const items = await hybridChunkItems(pool, query, repo, {
+      const sources = await hybridChunkItems(pool, query, repo, {
         contentTypes: ["doc", "spec"],
         limit: 5,
       });
 
-      return { items, status: items.length > 0 ? "ok" : "empty" };
+      return { sources, status: sources.length > 0 ? "ok" : "empty" };
     } catch {
-      return { items: [], status: "error" };
+      return { sources: [], status: "error" };
     }
   },
 
   // Source code the task touches — previously NEVER retrieved, so implementation tasks got zero of the files they edit.
   async code(pool, query, repo) {
     if (!repo) {
-      return { items: [], status: "empty" };
+      return { sources: [], status: "empty" };
     }
 
     try {
-      const items = await hybridChunkItems(pool, query, repo, {
+      const sources = await hybridChunkItems(pool, query, repo, {
         contentTypes: ["code"],
         limit: 6,
       });
 
-      return { items, status: items.length > 0 ? "ok" : "empty" };
+      return { sources, status: sources.length > 0 ? "ok" : "empty" };
     } catch {
-      return { items: [], status: "error" };
+      return { sources: [], status: "error" };
     }
   },
 
   // ADRs ranked by relevance (hybrid vector+keyword) to the query.
   async adrs(pool, query, repo) {
     if (!repo) {
-      return { items: [], status: "empty" };
+      return { sources: [], status: "empty" };
     }
 
     try {
-      const items = await hybridChunkItems(pool, query, repo, {
+      const sources = await hybridChunkItems(pool, query, repo, {
         contentTypes: ["adr"],
         limit: 10,
       });
 
-      return { items, status: items.length > 0 ? "ok" : "empty" };
+      return { sources, status: sources.length > 0 ? "ok" : "empty" };
     } catch {
-      return { items: [], status: "error" };
+      return { sources: [], status: "error" };
     }
   },
 
@@ -581,7 +584,7 @@ export const fetchers: Record<string, SourceFetcher> = {
       });
 
       if (results.length === 0) {
-        return { items: [], status: "empty" };
+        return { sources: [], status: "empty" };
       }
 
       const factIds = results
@@ -607,7 +610,7 @@ export const fetchers: Record<string, SourceFetcher> = {
         }
       }
 
-      const items = results.map((r) => {
+      const sources = results.map((r) => {
         const tag = r.confidence ? ` [${r.confidence}]` : "";
         const conflict = r.id && conflictSet.has(r.id) ? " [CONFLICT]" : "";
 
@@ -620,9 +623,9 @@ export const fetchers: Record<string, SourceFetcher> = {
         );
       });
 
-      return { items, status: "ok" };
+      return { sources, status: "ok" };
     } catch {
-      return { items: [], status: "error" };
+      return { sources: [], status: "error" };
     }
   },
 
@@ -633,7 +636,7 @@ export const fetchers: Record<string, SourceFetcher> = {
         .split(/\s+/)
         .filter((w) => w.length > 3);
       const seen = new Set<string>();
-      const items: SourceItem[] = [];
+      const sources: SourceItem[] = [];
 
       for (const word of words.slice(0, 3)) {
         const graphResults = await queryLiveGraph(pool, {
@@ -641,12 +644,12 @@ export const fetchers: Record<string, SourceFetcher> = {
           repo,
         });
 
-        addUniqueGraphLines(graphResults, seen, items);
+        addUniqueGraphLines(graphResults, seen, sources);
       }
 
-      return { items, status: items.length > 0 ? "ok" : "empty" };
+      return { sources, status: sources.length > 0 ? "ok" : "empty" };
     } catch {
-      return { items: [], status: "error" };
+      return { sources: [], status: "error" };
     }
   },
 
@@ -659,11 +662,11 @@ export const fetchers: Record<string, SourceFetcher> = {
       const episodeResults = results.filter((r) => r.source === "episode");
 
       if (episodeResults.length === 0) {
-        return { items: [], status: "empty" };
+        return { sources: [], status: "empty" };
       }
 
       return {
-        items: episodeResults.map((r) =>
+        sources: episodeResults.map((r) =>
           mkItem(`**${r.key}**: ${r.value}`, {
             source_path: r.key,
             content_type: "episode",
@@ -672,14 +675,14 @@ export const fetchers: Record<string, SourceFetcher> = {
         status: "ok",
       };
     } catch {
-      return { items: [], status: "error" };
+      return { sources: [], status: "error" };
     }
   },
 
   async rules(pool, query, repo) {
     // Load .claude/rules/*.md files whose filename keyword-matches the query.
     if (!repo) {
-      return { items: [], status: "empty" };
+      return { sources: [], status: "empty" };
     }
 
     try {
@@ -692,7 +695,7 @@ export const fetchers: Record<string, SourceFetcher> = {
       );
 
       if (rows.length === 0) {
-        return { items: [], status: "empty" };
+        return { sources: [], status: "empty" };
       }
 
       const queryWords = query
@@ -712,23 +715,23 @@ export const fetchers: Record<string, SourceFetcher> = {
 
       // No keyword match is distinct from "no rules exist" — surface it in the trace.
       if (matched.length === 0) {
-        return { items: [], status: "no-match" };
+        return { sources: [], status: "no-match" };
       }
 
       return {
-        items: matched.map((r) =>
+        sources: matched.map((r) =>
           mkItem(r.content, { source_path: r.file_path, content_type: "rule" }),
         ),
         status: "ok",
       };
     } catch {
-      return { items: [], status: "error" };
+      return { sources: [], status: "error" };
     }
   },
 
   async cross_repo(pool, query, repo) {
     if (!repo) {
-      return { items: [], status: "empty" };
+      return { sources: [], status: "empty" };
     }
 
     try {
@@ -758,7 +761,7 @@ export const fetchers: Record<string, SourceFetcher> = {
       );
 
       if (rows.length === 0) {
-        return { items: [], status: "empty" };
+        return { sources: [], status: "empty" };
       }
       // Only portable, high-transfer-score content from other repos passes through.
       const scored = rows
@@ -769,11 +772,11 @@ export const fetchers: Record<string, SourceFetcher> = {
         .filter((r) => r.transferScore >= 0.5);
 
       if (scored.length === 0) {
-        return { items: [], status: "empty" };
+        return { sources: [], status: "empty" };
       }
 
       return {
-        items: scored.map((r) =>
+        sources: scored.map((r) =>
           mkItem(r.content, {
             source_path: r.file_path,
             repo: r.repo,
@@ -784,13 +787,13 @@ export const fetchers: Record<string, SourceFetcher> = {
         status: "ok",
       };
     } catch {
-      return { items: [], status: "error" };
+      return { sources: [], status: "error" };
     }
   },
 
   async incidents(pool, _query, repo) {
     if (!repo) {
-      return { items: [], status: "empty" };
+      return { sources: [], status: "empty" };
     }
 
     try {
@@ -804,7 +807,7 @@ export const fetchers: Record<string, SourceFetcher> = {
         !Array.isArray(settings.incidents) ||
         settings.incidents.length === 0
       ) {
-        return { items: [], status: "empty" };
+        return { sources: [], status: "empty" };
       }
       const cutoff = Date.now() - 30 * 86400000;
       const recent = settings.incidents.filter(
@@ -812,11 +815,11 @@ export const fetchers: Record<string, SourceFetcher> = {
       );
 
       if (recent.length === 0) {
-        return { items: [], status: "empty" };
+        return { sources: [], status: "empty" };
       }
 
       return {
-        items: recent.map((i) =>
+        sources: recent.map((i) =>
           mkItem(
             `- **${i.severity || "unknown"}**: ${i.title}${i.resolved ? " (resolved)" : ""} — ${i.date}${i.url ? ` [link](${i.url})` : ""}`,
             { content_type: "incident" },
@@ -825,7 +828,7 @@ export const fetchers: Record<string, SourceFetcher> = {
         status: "ok",
       };
     } catch {
-      return { items: [], status: "error" };
+      return { sources: [], status: "error" };
     }
   },
 };
@@ -952,10 +955,10 @@ function fitSection(
 
   return {
     allocatedBudget,
-    finalTokens: fit.items.reduce((sum, i) => sum + i.tokens, 0),
+    finalTokens: fit.kept.reduce((sum, i) => sum + i.tokens, 0),
     truncated: fit.truncated,
-    included: fit.items.length > 0,
-    keptItems: fit.items,
+    included: fit.kept.length > 0,
+    keptItems: fit.kept,
   };
 }
 
@@ -979,7 +982,7 @@ async function fetchSectionSource(
     return fetcher(ctx.pool, ctx.query, ctx.repo, ctx.agentId);
   }
 
-  return { items: [], status: "error" };
+  return { sources: [], status: "error" };
 }
 
 export interface AssembleOptions {
@@ -1059,7 +1062,7 @@ export async function assembleContext(
           agentId,
         });
       } catch {
-        res = { items: [], status: "error" };
+        res = { sources: [], status: "error" };
       }
       timings[section.source] = Date.now() - t0;
 
@@ -1070,7 +1073,7 @@ export async function assembleContext(
   // Allocate the token budget by priority (lower number = larger share), highest first, deducting as we go.
   const nonEmptyWeight =
     fetched
-      .filter((f) => f.res.items.length > 0)
+      .filter((f) => f.res.sources.length > 0)
       .reduce((sum, f) => sum + (6 - f.section.priority), 0) || 1;
   const ordered = [...fetched].sort(
     (a, b) => a.section.priority - b.section.priority,
@@ -1083,7 +1086,7 @@ export async function assembleContext(
   const seenAcrossSections = new Set<string>();
 
   for (const { section, res } of ordered) {
-    const deduped = dropSeen(dedupeItems(res.items), seenAcrossSections);
+    const deduped = dropSeen(dedupeItems(res.sources), seenAcrossSections);
     const rawTokens = deduped.reduce((sum, i) => sum + i.tokens, 0);
 
     const fit = fitSection(deduped, res.status, section, {
@@ -1098,7 +1101,7 @@ export async function assembleContext(
         header: section.header,
         source: section.source,
         priority: section.priority,
-        items: fit.keptItems,
+        documents: fit.keptItems,
         truncated: fit.truncated,
       });
     }
@@ -1144,7 +1147,7 @@ export async function assembleContext(
 
   const sections = serialized.map((s) => ({
     header: s.header,
-    tokens: s.items.reduce((sum, i) => sum + i.tokens, 0),
+    tokens: s.documents.reduce((sum, i) => sum + i.tokens, 0),
     truncated: s.truncated,
   }));
 

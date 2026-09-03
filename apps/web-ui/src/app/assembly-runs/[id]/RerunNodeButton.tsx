@@ -31,15 +31,15 @@ export function RerunNodeButton({
           iteration: String(resumeIteration),
         }),
       });
-      const data = (await res.json()) as { id?: string; error?: string };
+      const body = (await res.json()) as { id?: string; error?: string };
 
-      if (!res.ok || !data.id) {
-        setError(data.error ?? `retry failed (${res.status})`);
+      if (!res.ok || !body.id) {
+        setError(body.error ?? `retry failed (${res.status})`);
         setPending(false);
 
         return;
       }
-      window.location.assign(`/assembly-runs/${data.id}`);
+      window.location.assign(`/assembly-runs/${body.id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
       setPending(false);

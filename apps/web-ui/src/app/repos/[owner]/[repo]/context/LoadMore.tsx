@@ -62,11 +62,11 @@ export default function LoadMore({
       if (!res.ok) {
         return;
       }
-      const data = (await res.json()) as ContextPage;
+      const page = (await res.json()) as ContextPage;
 
-      setChunks((prev) => [...prev, ...data.chunks]);
+      setChunks((prev) => [...prev, ...page.chunks]);
       setOffset((prev) => prev + CONTEXT_PAGE_SIZE);
-      setMore(data.hasMore);
+      setMore(page.hasMore);
     } finally {
       setLoading(false);
     }

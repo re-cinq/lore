@@ -46,11 +46,11 @@ export class KubePruner implements PruneCluster {
   }
 
   async listAgents(): Promise<PrunableAgent[]> {
-    return (await this.list(AGENT_PLURAL)).map((item) => ({
-      name: item.metadata?.name ?? "",
-      phase: item.status?.phase,
-      createdAt: createdAt(item),
-      stationRef: item.spec?.stationRef,
+    return (await this.list(AGENT_PLURAL)).map((resource) => ({
+      name: resource.metadata?.name ?? "",
+      phase: resource.status?.phase,
+      createdAt: createdAt(resource),
+      stationRef: resource.spec?.stationRef,
     }));
   }
 
@@ -75,14 +75,14 @@ export class KubePruner implements PruneCluster {
   }
 }
 
-const toRecipe = (item: CustomObjectItem): PrunableRecipe => ({
-  name: item.metadata?.name ?? "",
-  createdAt: createdAt(item),
+const toRecipe = (resource: CustomObjectItem): PrunableRecipe => ({
+  name: resource.metadata?.name ?? "",
+  createdAt: createdAt(resource),
 });
 
 /** An object reported without a creation stamp reads as brand new, so the age gate keeps it rather than deleting whatever the parse failed to understand. */
-function createdAt(item: CustomObjectItem): Date {
-  const stamp = item.metadata?.creationTimestamp;
+function createdAt(resource: CustomObjectItem): Date {
+  const stamp = resource.metadata?.creationTimestamp;
   const parsed = stamp ? new Date(stamp) : null;
 
   return parsed && !Number.isNaN(parsed.getTime()) ? parsed : new Date();

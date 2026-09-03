@@ -77,17 +77,17 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
         }`,
         { $repo: repo },
       );
-      const data = res.data as {
+      const written = res.data as {
         specs?: { uid: string }[];
         root?: { uid: string }[];
         blocks?: { uid: string }[];
         features?: { uid: string }[];
       };
       const uids = [
-        ...(data.specs ?? []),
-        ...(data.root ?? []),
-        ...(data.blocks ?? []),
-        ...(data.features ?? []),
+        ...(written.specs ?? []),
+        ...(written.root ?? []),
+        ...(written.blocks ?? []),
+        ...(written.features ?? []),
       ].map((node) => node.uid);
 
       if (uids.length) {
@@ -122,7 +122,7 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
 
     await projectSpecFile({ repo, filePath, content }, dgraphClient);
 
-    const data = (await readGraph(
+    const graph = (await readGraph(
       `query q($xid: string) {
         node(func: eq(Spec.xid, $xid)) {
           Spec.xid Spec.repo Spec.file_path Spec.content_hash
@@ -131,7 +131,7 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
       { $xid: expectedXid },
     )) as { node?: Record<string, unknown>[] };
 
-    expect(data.node?.[0]).toMatchObject({
+    expect(graph.node?.[0]).toMatchObject({
       "Spec.xid": expectedXid,
       "Spec.repo": repo,
       "Spec.file_path": filePath,
@@ -158,7 +158,7 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
       dgraphClient,
     );
 
-    const data = (await readGraph(
+    const graph = (await readGraph(
       `query q($fx: string) {
         feature(func: eq(Feature.xid, $fx)) {
           Feature.path
@@ -174,7 +174,7 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
         specs?: Array<{ "Spec.file_path"?: string }>;
       }>;
     };
-    const feature = data.feature?.[0];
+    const feature = graph.feature?.[0];
 
     expect(feature).toMatchObject({
       "Feature.path": "specs/5-lore-agent",
@@ -197,7 +197,7 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
       dgraphClient,
     );
 
-    const data = (await readGraph(
+    const graph = (await readGraph(
       `query q($repo: string){
         stmts(func: eq(Statement.repo, $repo)) { Statement.repo }
         acs(func: eq(AcceptanceCriterion.repo, $repo)) { AcceptanceCriterion.repo }
@@ -205,8 +205,8 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
       { $repo: repo },
     )) as { stmts?: unknown[]; acs?: unknown[] };
 
-    expect(data.stmts?.length).toBeGreaterThanOrEqual(1);
-    expect(data.acs?.length).toBeGreaterThanOrEqual(1);
+    expect(graph.stmts?.length).toBeGreaterThanOrEqual(1);
+    expect(graph.acs?.length).toBeGreaterThanOrEqual(1);
   });
 
   it("stores the spec's H1 heading as Spec.title for sentence-link spec resolution", async () => {
@@ -219,12 +219,12 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
 
     await projectSpecFile({ repo, filePath, content }, dgraphClient);
 
-    const data = (await readGraph(
+    const graph = (await readGraph(
       `query q($xid: string) { node(func: eq(Spec.xid, $xid)) { Spec.title } }`,
       { $xid: `${repo}|${filePath}` },
     )) as { node?: Record<string, unknown>[] };
 
-    expect(data.node?.[0]).toMatchObject({
+    expect(graph.node?.[0]).toMatchObject({
       "Spec.title": "Feature Specification: Lore Agent Service",
     });
   });
@@ -251,7 +251,7 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
 
     await projectSpecFile({ repo, filePath, content }, dgraphClient);
 
-    const data = (await readGraph(
+    const graph = (await readGraph(
       `query q($xid: string) {
         spec(func: eq(Spec.xid, $xid)) {
           uid
@@ -262,7 +262,7 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
       }`,
       { $xid: `${repo}|${filePath}` },
     )) as { spec?: { stmts?: Record<string, unknown>[] }[] };
-    const statements = data.spec?.[0]?.stmts ?? [];
+    const statements = graph.spec?.[0]?.stmts ?? [];
     const sortedByOrdinal = [...statements].sort(
       (left, right) =>
         (left["Statement.ordinal"] as number) -
@@ -289,7 +289,7 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
       embed: async () => vector,
     });
 
-    const data = (await readGraph(
+    const graph = (await readGraph(
       `query q($xid: string) {
         spec(func: eq(Spec.xid, $xid)) {
           stmts: ~Statement.spec { Statement.embedding }
@@ -305,11 +305,11 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
     };
 
     expect(
-      parseEmbedding(data.spec?.[0]?.stmts?.[0]?.["Statement.embedding"]),
+      parseEmbedding(graph.spec?.[0]?.stmts?.[0]?.["Statement.embedding"]),
     ).toEqual(vector);
     expect(
       parseEmbedding(
-        data.spec?.[0]?.acs?.[0]?.["AcceptanceCriterion.embedding"],
+        graph.spec?.[0]?.acs?.[0]?.["AcceptanceCriterion.embedding"],
       ),
     ).toEqual(vector);
   });
@@ -329,7 +329,7 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
 
     await projectSpecFile({ repo, filePath, content }, dgraphClient);
 
-    const data = (await readGraph(
+    const graph = (await readGraph(
       `query q($sx: string) {
         stmt(func: eq(Statement.xid, $sx)) {
           Statement.xid
@@ -341,7 +341,7 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
       }`,
       { $sx: `${repo}|${filePath}|0` },
     )) as { stmt?: { "Statement.validated_by"?: Record<string, unknown>[] }[] };
-    const testChunks = data.stmt?.[0]?.["Statement.validated_by"] ?? [];
+    const testChunks = graph.stmt?.[0]?.["Statement.validated_by"] ?? [];
 
     expect(testChunks).toHaveLength(1);
     expect(testChunks[0]).toMatchObject({
@@ -364,7 +364,7 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
 
     await projectSpecFile({ repo, filePath, content }, dgraphClient);
 
-    const data = (await readGraph(
+    const graph = (await readGraph(
       `query q($file: string, $repo: string) {
         tc(func: eq(TestChunk.file_path, $file)) @filter(eq(TestChunk.repo, $repo)) {
           TestChunk.xid TestChunk.file_path
@@ -373,7 +373,7 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
       { $file: "src/x.test.ts", $repo: repo },
     )) as { tc?: Record<string, unknown>[] };
 
-    expect(data.tc).toEqual([
+    expect(graph.tc).toEqual([
       {
         "TestChunk.xid": `${repo}|src/x.test.ts`,
         "TestChunk.file_path": "src/x.test.ts",
@@ -396,7 +396,7 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
 
     await projectSpecFile({ repo, filePath, content }, dgraphClient);
 
-    const data = (await readGraph(
+    const graph = (await readGraph(
       `query q($sx: string) {
         stmt(func: eq(Statement.xid, $sx)) {
           Statement.implemented_by {
@@ -408,7 +408,7 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
     )) as {
       stmt?: { "Statement.implemented_by"?: Record<string, unknown>[] }[];
     };
-    const codeChunks = data.stmt?.[0]?.["Statement.implemented_by"] ?? [];
+    const codeChunks = graph.stmt?.[0]?.["Statement.implemented_by"] ?? [];
 
     expect(codeChunks).toHaveLength(1);
     expect(codeChunks[0]).toMatchObject({
@@ -497,14 +497,14 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
       .update(stmt.text)
       .digest("hex");
 
-    const data = (await readGraph(
+    const graph = (await readGraph(
       `query q($xid: string) {
         stmt(func: eq(Statement.xid, $xid)) { Statement.text Statement.text_hash }
       }`,
       { $xid: `${repo}|${filePath}|0` },
     )) as { stmt?: Array<Record<string, unknown>> };
 
-    expect(data.stmt?.[0]).toMatchObject({
+    expect(graph.stmt?.[0]).toMatchObject({
       "Statement.text": stmt.text,
       "Statement.text_hash": expectedTextHash,
     });
@@ -527,7 +527,7 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
 
     await projectSpecFile({ repo, filePath, content }, dgraphClient);
 
-    const data = (await readGraph(
+    const graph = (await readGraph(
       `query q($xid: string) {
         stmt(func: eq(Statement.xid, $xid)) {
           Statement.kind Statement.testability Statement.category
@@ -536,7 +536,7 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
       { $xid: `${repo}|${filePath}|0` },
     )) as { stmt?: Record<string, unknown>[] };
 
-    expect(data.stmt?.[0]).toMatchObject({
+    expect(graph.stmt?.[0]).toMatchObject({
       "Statement.kind": segments[0].kind,
       "Statement.testability": classification.testability,
       "Statement.category": classification.category,
@@ -562,7 +562,7 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
 
     await projectSpecFile({ repo, filePath, content }, dgraphClient);
 
-    const data = (await readGraph(
+    const graph = (await readGraph(
       `query q($xid: string) {
         spec(func: eq(Spec.xid, $xid)) {
           Spec.sections {
@@ -581,7 +581,7 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
         }[];
       }[];
     };
-    const sections = data.spec?.[0]?.["Spec.sections"] ?? [];
+    const sections = graph.spec?.[0]?.["Spec.sections"] ?? [];
 
     expect(sections).toHaveLength(1);
     const [section] = sections;
@@ -610,7 +610,7 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
     await projectSpecFile({ repo, filePath, content: withTwo }, dgraphClient);
     await projectSpecFile({ repo, filePath, content: withOne }, dgraphClient);
 
-    const data = (await readGraph(
+    const graph = (await readGraph(
       `query q($xid: string) {
         spec(func: eq(Spec.xid, $xid)) {
           stmts: ~Statement.spec { Statement.xid Statement.ordinal }
@@ -618,7 +618,7 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
       }`,
       { $xid: `${repo}|${filePath}` },
     )) as { spec?: { stmts?: Record<string, unknown>[] }[] };
-    const stmts = data.spec?.[0]?.stmts ?? [];
+    const stmts = graph.spec?.[0]?.stmts ?? [];
 
     expect(stmts).toHaveLength(1);
     expect(stmts[0]).toMatchObject({
@@ -639,7 +639,7 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
     await projectSpecFile({ repo, filePath, content: withTwo }, dgraphClient);
     await projectSpecFile({ repo, filePath, content: withOne }, dgraphClient);
 
-    const data = (await readGraph(
+    const graph = (await readGraph(
       `query q($xid: string) {
         spec(func: eq(Spec.xid, $xid)) {
           viaReverse: ~Section.spec { Section.xid }
@@ -654,10 +654,10 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
       }[];
     };
 
-    expect(data.spec?.[0]?.viaReverse).toEqual([
+    expect(graph.spec?.[0]?.viaReverse).toEqual([
       { "Section.xid": `${repo}|${filePath}|0` },
     ]);
-    expect(data.spec?.[0]?.viaForward).toEqual([
+    expect(graph.spec?.[0]?.viaForward).toEqual([
       { "Section.xid": `${repo}|${filePath}|0` },
     ]);
   });
@@ -674,7 +674,7 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
     await projectSpecFile({ repo, filePath, content: withTwo }, dgraphClient);
     await projectSpecFile({ repo, filePath, content: withOne }, dgraphClient);
 
-    const data = (await readGraph(
+    const graph = (await readGraph(
       `query q($xid: string) {
         spec(func: eq(Spec.xid, $xid)) {
           viaReverse: ~AcceptanceCriterion.spec { AcceptanceCriterion.text }
@@ -689,10 +689,10 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
       }[];
     };
 
-    expect(data.spec?.[0]?.viaReverse).toEqual([
+    expect(graph.spec?.[0]?.viaReverse).toEqual([
       { "AcceptanceCriterion.text": "The first criterion." },
     ]);
-    expect(data.spec?.[0]?.viaForward).toEqual([
+    expect(graph.spec?.[0]?.viaForward).toEqual([
       { "AcceptanceCriterion.text": "The first criterion." },
     ]);
   });
@@ -709,7 +709,7 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
 
     await projectSpecFile({ repo, filePath, content }, dgraphClient);
 
-    const data = (await readGraph(
+    const graph = (await readGraph(
       `query q($xid: string) {
         spec(func: eq(Spec.xid, $xid)) {
           blocks: ~Block.spec {
@@ -719,7 +719,7 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
       }`,
       { $xid: `${repo}|${filePath}` },
     )) as { spec?: { blocks?: Record<string, unknown>[] }[] };
-    const blocks = [...(data.spec?.[0]?.blocks ?? [])].sort(
+    const blocks = [...(graph.spec?.[0]?.blocks ?? [])].sort(
       (left, right) =>
         (left["Block.ordinal"] as number) - (right["Block.ordinal"] as number),
     );
@@ -875,7 +875,7 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
     await projectSpecFile({ repo, filePath, content: linkedToA }, dgraphClient);
     await projectSpecFile({ repo, filePath, content: linkedToB }, dgraphClient);
 
-    const data = (await readGraph(
+    const graph = (await readGraph(
       `query q($xid: string) {
         stmt(func: eq(Statement.xid, $xid)) {
           Statement.validated_by { TestChunk.file_path }
@@ -884,7 +884,7 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
       { $xid: `${repo}|${filePath}|0` },
     )) as { stmt?: { "Statement.validated_by"?: Record<string, unknown>[] }[] };
 
-    expect(data.stmt?.[0]?.["Statement.validated_by"]).toEqual([
+    expect(graph.stmt?.[0]?.["Statement.validated_by"]).toEqual([
       { "TestChunk.file_path": "src/b.test.ts" },
     ]);
   });
@@ -904,12 +904,12 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
       dgraphClient,
     );
 
-    const data = (await readGraph(
+    const graph = (await readGraph(
       `query q($xid: string) { tc(func: eq(TestChunk.xid, $xid)) { uid } }`,
       { $xid: `${repo}|src/sole.test.ts` },
     )) as { tc?: { uid: string }[] };
 
-    expect(data.tc ?? []).toEqual([]);
+    expect(graph.tc ?? []).toEqual([]);
   });
 
   it("keeps a TestChunk that another statement still links after one statement drops it", async () => {
@@ -928,12 +928,12 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
       dgraphClient,
     );
 
-    const data = (await readGraph(
+    const graph = (await readGraph(
       `query q($xid: string) { tc(func: eq(TestChunk.xid, $xid)) { TestChunk.xid } }`,
       { $xid: `${repo}|src/shared.test.ts` },
     )) as { tc?: Record<string, unknown>[] };
 
-    expect(data.tc).toEqual([
+    expect(graph.tc).toEqual([
       { "TestChunk.xid": `${repo}|src/shared.test.ts` },
     ]);
   });
@@ -976,12 +976,12 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
       dgraphClient,
     );
 
-    const data = (await readGraph(
+    const graph = (await readGraph(
       `query q($xid: string) { tc(func: eq(TestChunk.xid, $xid)) { TestChunk.xid } }`,
       { $xid: `${repo}|src/covered.test.ts` },
     )) as { tc?: Record<string, unknown>[] };
 
-    expect(data.tc).toEqual([
+    expect(graph.tc).toEqual([
       { "TestChunk.xid": `${repo}|src/covered.test.ts` },
     ]);
   });
@@ -998,7 +998,7 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
       embed: async () => null,
     });
 
-    const data = (await readGraph(
+    const graph = (await readGraph(
       `query q($xid: string) {
         spec(func: eq(Spec.xid, $xid)) {
           acs: ~AcceptanceCriterion.spec {
@@ -1015,7 +1015,7 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
       }[];
     };
 
-    const criterion = data.spec?.[0]?.acs?.[0];
+    const criterion = graph.spec?.[0]?.acs?.[0];
 
     expect(criterion?.["AcceptanceCriterion.validated_by"]).toEqual([
       { "TestChunk.file_path": "src/thing.test.ts" },
@@ -1044,14 +1044,14 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
       { embed: async () => null },
     );
 
-    const data = (await readGraph(
+    const graph = (await readGraph(
       `query q($xid: string) {
         stmt(func: eq(Statement.xid, $xid)) { Statement.decided_by { ADR.number ADR.file_path } }
       }`,
       { $xid: `${repo}|specs/x/spec.md|0` },
     )) as { stmt?: { "Statement.decided_by"?: Record<string, unknown>[] }[] };
 
-    expect(data.stmt?.[0]?.["Statement.decided_by"]).toEqual([
+    expect(graph.stmt?.[0]?.["Statement.decided_by"]).toEqual([
       { "ADR.number": 16, "ADR.file_path": "adrs/ADR-016-dark-factory.md" },
     ]);
   });

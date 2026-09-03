@@ -281,10 +281,10 @@ Instead: use lore_search_context for raw passages/exact wording from ingested do
               if (!r.ok) {
                 return r;
               }
-              const data = JSON.parse(r.body) as { text?: string };
+              const body = JSON.parse(r.body) as { text?: string };
 
               // A reachable backend returning empty context is a real result, not an outage — return as-is rather than serving a stale, mislabeled fallback.
-              return { ok: true as const, body: data.text ?? "" };
+              return { ok: true as const, body: body.text ?? "" };
             },
           );
 

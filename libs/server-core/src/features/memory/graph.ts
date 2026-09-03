@@ -322,8 +322,8 @@ function traverseGraph(
     chains.push(label);
   }
 
-  const expandNeighbors = (item: QueueItem): void => {
-    for (const { relType, neighborId } of adjacency.get(item.entityId) || []) {
+  const expandNeighbors = (node: QueueItem): void => {
+    for (const { relType, neighborId } of adjacency.get(node.entityId) || []) {
       if (visited.has(neighborId)) {
         continue;
       }
@@ -335,24 +335,24 @@ function traverseGraph(
         continue;
       }
 
-      const newChain = `${item.chain} \u2192 ${relType}:${formatEntity(neighbor)}`;
+      const newChain = `${node.chain} \u2192 ${relType}:${formatEntity(neighbor)}`;
 
       chains.push(newChain);
       queue.push({
         entityId: neighborId,
         chain: newChain,
-        hops: item.hops + 1,
+        hops: node.hops + 1,
       });
     }
   };
 
   while (queue.length > 0) {
-    const item = queue.shift()!;
+    const node = queue.shift()!;
 
-    if (item.hops >= depth) {
+    if (node.hops >= depth) {
       continue;
     }
-    expandNeighbors(item);
+    expandNeighbors(node);
   }
 
   return chains;

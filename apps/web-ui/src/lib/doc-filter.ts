@@ -24,30 +24,30 @@ export interface DocSearch<T> {
 }
 
 export function filterDocCards<T>(
-  items: T[],
-  statusOf: (item: T) => SpecStatusInfo | undefined,
+  cards: T[],
+  statusOf: (card: T) => SpecStatusInfo | undefined,
   filter: SpecStatusFilter,
   { query, textOf }: DocSearch<T> = {},
 ): DocFilterResult<T> {
   const needle = query?.trim().toLowerCase() ?? "";
   const matched =
     needle && textOf
-      ? items.filter((item) => textOf(item).toLowerCase().includes(needle))
-      : items;
+      ? cards.filter((card) => textOf(card).toLowerCase().includes(needle))
+      : cards;
   const counts: Partial<Record<SpecStatus, number>> = {};
 
-  for (const item of matched) {
-    const info = statusOf(item);
+  for (const card of matched) {
+    const status = statusOf(card);
 
-    if (info) {
-      counts[info.status] = (counts[info.status] ?? 0) + 1;
+    if (status) {
+      counts[status.status] = (counts[status.status] ?? 0) + 1;
     }
   }
 
   return {
     counts,
-    visible: matched.filter((item) =>
-      matchesSpecStatusFilter(statusOf(item), filter),
+    visible: matched.filter((card) =>
+      matchesSpecStatusFilter(statusOf(card), filter),
     ),
   };
 }
@@ -55,20 +55,20 @@ export function filterDocCards<T>(
 /** `path` keeps the input order (lists arrive path-sorted); `status` stable-sorts
  *  by lifecycle order (draft → … → retired), unstatused items last. */
 export function sortDocCards<T>(
-  items: T[],
+  cards: T[],
   order: DocSortOrder,
-  statusOf: (item: T) => SpecStatusInfo | undefined,
+  statusOf: (card: T) => SpecStatusInfo | undefined,
 ): T[] {
   if (order === "path") {
-    return items;
+    return cards;
   }
-  const rank = (item: T): number => {
-    const info = statusOf(item);
+  const rank = (card: T): number => {
+    const status = statusOf(card);
 
-    return info
-      ? SPEC_STATUS_ORDER.indexOf(info.status)
+    return status
+      ? SPEC_STATUS_ORDER.indexOf(status.status)
       : SPEC_STATUS_ORDER.length;
   };
 
-  return [...items].sort((a, b) => rank(a) - rank(b));
+  return [...cards].sort((a, b) => rank(a) - rank(b));
 }

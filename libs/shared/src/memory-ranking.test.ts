@@ -84,25 +84,25 @@ describe("diversify", () => {
   });
 
   it("slices the total output to limit across all sources", () => {
-    const items: MemorySearchResult[] = [
+    const results: MemorySearchResult[] = [
       { key: "a1", value: "v", score: 0.9, agent_id: "a", source: "memory" },
       { key: "b1", value: "v", score: 0.8, agent_id: "b", source: "fact" },
       { key: "c1", value: "v", score: 0.7, agent_id: "c", source: "episode" },
     ];
 
-    expect(diversify(items, 2, 3).map((result) => result.key)).toEqual([
+    expect(diversify(results, 2, 3).map((result) => result.key)).toEqual([
       "a1",
       "b1",
     ]);
   });
 
-  it("keeps all items when each source is under the cap", () => {
-    const items: MemorySearchResult[] = [
+  it("keeps all results when each source is under the cap", () => {
+    const results: MemorySearchResult[] = [
       { key: "a1", value: "v", score: 0.9, agent_id: "a", source: "memory" },
       { key: "a2", value: "v", score: 0.8, agent_id: "a", source: "memory" },
     ];
 
-    expect(diversify(items, 10, 3).map((result) => result.key)).toEqual([
+    expect(diversify(results, 10, 3).map((result) => result.key)).toEqual([
       "a1",
       "a2",
     ]);

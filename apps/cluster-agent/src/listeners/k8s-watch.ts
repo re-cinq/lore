@@ -102,9 +102,9 @@ export class AgentWatchInput implements EventInput {
         .watch(
           watchPath(),
           { resourceVersion, allowWatchBookmarks: true },
-          (type: string, obj: AgentCr) => {
+          (type: string, cr: AgentCr) => {
             if (type === "ADDED" || type === "MODIFIED") {
-              this.observe(obj, deps);
+              this.observe(cr, deps);
             }
           },
           (err: unknown) => (err ? reject(err) : resolve()),

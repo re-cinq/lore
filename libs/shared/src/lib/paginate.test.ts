@@ -23,8 +23,8 @@ describe("forEachPage", () => {
     ]);
     const seen: string[][] = [];
 
-    await forEachPage(source.fetch, async (items) => {
-      seen.push(items);
+    await forEachPage(source.fetch, async (page) => {
+      seen.push(page);
     });
 
     expect(seen).toEqual([["a", "b"], ["c"]]);

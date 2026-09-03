@@ -162,7 +162,7 @@ The tool retrieves from all available sources:
   for the keyword leg, so common filler words don't dominate ranking. ([validated by `context-assembly.test.ts:119`](libs/shared/src/project/knowledge/context-assembly.test.ts#L119), [`context-assembly.test.ts:132`](libs/shared/src/project/knowledge/context-assembly.test.ts#L132))
 - FR-2.11: **Normalized relevance.** Item scores are rescaled so the top result
   is `1.00` and the rest are proportional fractions — raw RRF/`ts_rank` scores are
-  tiny (~0.02) and unreadable as a relevance signal. ([validated by `context-assembly.test.ts:348`](libs/shared/src/project/knowledge/context-assembly.test.ts#L348))
+  tiny (~0.02) and unreadable as a relevance signal. ([validated by `context-assembly.test.ts:351`](libs/shared/src/project/knowledge/context-assembly.test.ts#L351))
 - FR-2.12: **No cross-section duplication.** A document is emitted in its
   highest-priority section only — the same item never appears in two sections
   (e.g. an episode in both Agent Memory and Recent Episodes). ([validated by `context-assembly.test.ts:148`](libs/shared/src/project/knowledge/context-assembly.test.ts#L148))
@@ -176,7 +176,7 @@ The tool retrieves from all available sources:
   `adrs`, `rules`) resolve the repo's chunk schema — its provisioned team schema,
   else `org_shared` — before querying, matching where reindex actually wrote the
   repo's chunks; the `cross_repo` source instead UNIONs every provisioned chunk
-  schema plus `org_shared`, since linked repos may live in any team schema. ([validated by `reads from the repo's provisioned team schema instead of org_shared`](libs/shared/src/project/knowledge/context-assembly.test.ts#L255), [`retrieves chunks bound to the repo + content types (keyword path when no embedding)`](libs/shared/src/project/knowledge/context-assembly.test.ts#L218), [`cross_repo unions linked-repo matches across every provisioned chunk schema`](libs/shared/src/project/knowledge/context-assembly.test.ts#L306), [`cross_repo without linked repos searches other repos across all schemas`](libs/shared/src/project/knowledge/context-assembly.test.ts#L334), [`resolves the repo's team schema when it is provisioned`](libs/shared/src/project/chunks/chunk-schema.test.ts#L68))
+  schema plus `org_shared`, since linked repos may live in any team schema. ([validated by `reads from the repo's provisioned team schema instead of org_shared`](libs/shared/src/project/knowledge/context-assembly.test.ts#L255), [`retrieves chunks bound to the repo + content types (keyword path when no embedding)`](libs/shared/src/project/knowledge/context-assembly.test.ts#L218), [`cross_repo unions linked-repo matches across every provisioned chunk schema`](libs/shared/src/project/knowledge/context-assembly.test.ts#L306), [`cross_repo without linked repos searches other repos across all schemas`](libs/shared/src/project/knowledge/context-assembly.test.ts#L337), [`resolves the repo's team schema when it is provisioned`](libs/shared/src/project/chunks/chunk-schema.test.ts#L68))
 
 ### FR-3: Template System
 

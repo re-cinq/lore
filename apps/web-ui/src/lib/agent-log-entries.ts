@@ -98,17 +98,17 @@ export function toolResultText(content: unknown): string {
 
   if (Array.isArray(content)) {
     return content
-      .map((item) => {
-        if (!isRecord(item)) {
+      .map((block) => {
+        if (!isRecord(block)) {
           return "";
         }
 
-        if (typeof item.text === "string") {
-          return item.text;
+        if (typeof block.text === "string") {
+          return block.text;
         }
 
-        if (typeof item.tool_name === "string") {
-          return `[${item.tool_name}]`;
+        if (typeof block.tool_name === "string") {
+          return `[${block.tool_name}]`;
         }
 
         return "";
@@ -694,9 +694,9 @@ function toWindow(name: string, value: unknown): RateLimitWindow | null {
 
 /** Every window the event reports: `unifiedWindows` map when present, else the single window the top-level fields describe. */
 export function rateLimitWindows(
-  info: Record<string, unknown>,
+  rateLimit: Record<string, unknown>,
 ): RateLimitWindow[] {
-  const unified = info.unifiedWindows;
+  const unified = rateLimit.unifiedWindows;
 
   if (isRecord(unified)) {
     return Object.entries(unified)
@@ -705,8 +705,8 @@ export function rateLimitWindows(
   }
 
   const single =
-    typeof info.rateLimitType === "string"
-      ? toWindow(info.rateLimitType, info)
+    typeof rateLimit.rateLimitType === "string"
+      ? toWindow(rateLimit.rateLimitType, rateLimit)
       : null;
 
   return single === null ? [] : [single];

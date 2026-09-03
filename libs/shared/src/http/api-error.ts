@@ -31,16 +31,16 @@ import Boom from "@hapi/boom";
 
 export function apiError(
   statusCode: number,
-  data: Record<string, unknown> = {},
+  details: Record<string, unknown> = {},
 ): (message: string) => Boom.Boom {
   return (message) => {
     const boom = new Boom.Boom(message, { statusCode });
 
-    // `data` merges UNDER the message: a refusal often carries more than prose
-    // (the run already in flight, the block that fired), and a stray `error` key
-    // in it must not shadow the reason the guard fired.
+    // The details merge UNDER the message: a refusal often carries more than
+    // prose (the run already in flight, the block that fired), and a stray
+    // `error` key in them must not shadow the reason the guard fired.
     boom.output.payload = {
-      ...data,
+      ...details,
       error: message,
     } as unknown as Boom.Payload;
 
