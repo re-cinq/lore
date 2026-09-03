@@ -1483,7 +1483,10 @@ spec:
     disk budget and exceeding it evicts the pod mid-review; CI already runs
     the suite. Review from the source tree and the diff alone.
 
-    Post specific review comments on the PR using gh pr review.
+    Post specific review comments on the PR using gh pr review. Comment
+    only on problems worth acting on — no praise or commentary comments,
+    and flag as must-fix only real defects (correctness, security, data
+    loss), not style or doc hygiene.
     Then output exactly one of:
     - REVIEW_RESULT:APPROVED
     - REVIEW_RESULT:CHANGES_REQUESTED:<specific actionable feedback>

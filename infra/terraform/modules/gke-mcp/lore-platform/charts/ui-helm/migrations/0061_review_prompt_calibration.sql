@@ -56,3 +56,17 @@ blocking. Same schema as the full review:$lore_new$),
        updated_at = now()
  WHERE name = 'code-review-recheck'
    AND prompt LIKE '%wrong) then the verdict. Same schema as the full review:%';
+
+-- The legacy `review` task type posts its comments itself (gh pr review) and
+-- had no problems-only rule at all — same calibration, phrased for its flow.
+UPDATE lore.agent_definitions
+   SET prompt = replace(replace(prompt, E'\r\n', E'\n'),
+'Post specific review comments on the PR using gh pr review.',
+$lore_new$Post specific review comments on the PR using gh pr review. Comment
+only on problems worth acting on — no praise or commentary comments,
+and flag as must-fix only real defects (correctness, security, data
+loss), not style or doc hygiene.$lore_new$),
+       updated_at = now()
+ WHERE name = 'review'
+   AND prompt LIKE '%Post specific review comments on the PR using gh pr review.%'
+   AND prompt NOT LIKE '%problems worth acting on%';
