@@ -313,12 +313,13 @@ export function agentStderrError(output?: string): string | null {
   }
 
   for (let i = failedAt; i >= 0; i--) {
-    if (lines[i].startsWith(AGENT_STDERR_PREFIX)) {
-      const text = lines[i].slice(AGENT_STDERR_PREFIX.length).trim();
+    if (!lines[i].startsWith(AGENT_STDERR_PREFIX)) {
+      continue;
+    }
+    const text = lines[i].slice(AGENT_STDERR_PREFIX.length).trim();
 
-      if (text.length > 0) {
-        return text.substring(0, 300);
-      }
+    if (text.length > 0) {
+      return text.substring(0, 300);
     }
   }
 

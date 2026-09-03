@@ -32,10 +32,11 @@ export function formatSpecDriftReport(drifted: DriftedStatement[]): string {
   for (const [specPath, list] of bySpec) {
     lines.push(`### \`${specPath}\``);
     lines.push("");
-
-    for (const finding of list) {
-      lines.push(`- **${finding.reason}** — _${finding.statementText}_`);
-    }
+    lines.push(
+      ...list.map(
+        (finding) => `- **${finding.reason}** — _${finding.statementText}_`,
+      ),
+    );
     lines.push("");
   }
   lines.push("---");

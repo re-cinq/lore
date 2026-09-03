@@ -53,23 +53,25 @@ const num = (x: unknown): number => (typeof x === "number" ? x : 0);
 // idea under a different key (confirmed against a real `gemini` CLI run — its
 // stream-json result has no `modelUsage`/`usage`, only `stats`). Fall back to
 // a flat `model`, then to "unknown".
-function resultModel(ev: Record<string, unknown>): string {
-  const modelUsage = ev.modelUsage;
-
-  if (isRecord(modelUsage)) {
-    const keys = Object.keys(modelUsage);
-
-    if (keys.length > 0) {
-      return keys[0];
-    }
+function firstModelKey(perModelUsage: unknown): string | null {
+  if (!isRecord(perModelUsage)) {
+    return null;
   }
+  const keys = Object.keys(perModelUsage);
 
-  if (isRecord(ev.stats) && isRecord(ev.stats.models)) {
-    const keys = Object.keys(ev.stats.models);
+  return keys.length > 0 ? keys[0] : null;
+}
 
-    if (keys.length > 0) {
-      return keys[0];
-    }
+function resultModel(ev: Record<string, unknown>): string {
+  const fromModelUsage = firstModelKey(ev.modelUsage);
+
+  if (fromModelUsage !== null) {
+    return fromModelUsage;
+  }
+  const fromStats = isRecord(ev.stats) ? firstModelKey(ev.stats.models) : null;
+
+  if (fromStats !== null) {
+    return fromStats;
   }
 
   return typeof ev.model === "string" ? ev.model : "unknown";
@@ -315,16 +317,22 @@ export function parseAgentSink(
     if (!projectRunEvents || runEvents.length >= MAX_RUN_EVENTS_PER_BATCH) {
       continue;
     }
-
-    for (const runEvent of rowsFromEnvelope(envelope)) {
-      if (runEvents.length >= MAX_RUN_EVENTS_PER_BATCH) {
-        break;
-      }
-      runEvents.push(runEvent);
-    }
+    collectRunEventsUpToCap(runEvents, envelope);
   }
 
   return { costRows, runEvents, fileEvents, turns, turnsDropped, turnsCapped };
+}
+
+function collectRunEventsUpToCap(
+  runEvents: AgentRunEventInsert[],
+  envelope: unknown,
+): void {
+  for (const runEvent of rowsFromEnvelope(envelope)) {
+    if (runEvents.length >= MAX_RUN_EVENTS_PER_BATCH) {
+      return;
+    }
+    runEvents.push(runEvent);
+  }
 }
 
 /** The cost projection alone (skips blank, unparseable, and non-`result` lines,

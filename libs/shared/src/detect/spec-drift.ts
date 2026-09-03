@@ -108,19 +108,12 @@ export async function specDriftJob(opts: SpecDriftOptions): Promise<string> {
       // Graph-primary: when the spec is projected into the trace graph, its
       // per-statement violated/drifted flags are the authoritative signal —
       // deterministic and free of the symbol-membership false positives.
-      if (graphEnabled) {
-        const graph = await detectGraphDrift(project, spec.filePath);
+      const graph = graphEnabled
+        ? await detectGraphDrift(project, spec.filePath)
+        : null;
 
-        if (graph?.available) {
-          console.log(
-            `[job] spec-drift: ${repo}:${spec.filePath} — graph: ${graph.statements.length} drifted statement(s)`,
-          );
-
-          if (graph.drifted) {
-            await fileDrift(graphTaskCopy(spec.filePath, graph.statements));
-          }
-          continue; // graph is authoritative for this spec
-        }
+      if (await applyGraphDrift(graph, repo, spec.filePath, fileDrift)) {
+        continue; // graph is authoritative for this spec
       }
 
       // Heuristic fallback (spec not projected / no graph): de-noised symbol
@@ -169,6 +162,29 @@ interface DriftTaskCopy {
 }
 
 type FileOutcome = "filed" | "skipped" | "deferred";
+
+/** Act on a graph-primary drift verdict (log, file when drifted); true when
+ * the graph was authoritative for this spec so the heuristic must be skipped. */
+async function applyGraphDrift(
+  graph: Awaited<ReturnType<typeof detectGraphDrift>> | null,
+  repo: string,
+  specFilePath: string,
+  fileDrift: (copy: DriftTaskCopy) => Promise<void>,
+): Promise<boolean> {
+  if (!graph?.available) {
+    return false;
+  }
+
+  console.log(
+    `[job] spec-drift: ${repo}:${specFilePath} — graph: ${graph.statements.length} drifted statement(s)`,
+  );
+
+  if (graph.drifted) {
+    await fileDrift(graphTaskCopy(specFilePath, graph.statements));
+  }
+
+  return true;
+}
 
 /** Fetch the trace doc and decide drift from it; undefined on read failure. */
 async function detectGraphDrift(project: Project, specPath: string) {

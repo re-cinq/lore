@@ -92,9 +92,20 @@ function ingestedCheck(
   };
 }
 
+function githubFileStatus(exists: boolean | null): CheckStatus {
+  if (exists === true) {
+    return "pass";
+  }
+
+  if (exists === false) {
+    return "fail";
+  }
+
+  return "unknown";
+}
+
 function githubFileCheck(path: string, exists: boolean | null): Check {
-  const status: CheckStatus =
-    exists === true ? "pass" : exists === false ? "fail" : "unknown";
+  const status = githubFileStatus(exists);
   const purpose = GH_FILE_PURPOSE[path];
   const check: Check = {
     id: `gh:${path}`,
@@ -122,6 +133,102 @@ function githubFileCheck(path: string, exists: boolean | null): Check {
   return check;
 }
 
+function onboardedDetail(
+  onboarded: boolean,
+  onboardedAt: string | null,
+): string {
+  if (!onboarded) {
+    return "repo not registered";
+  }
+
+  if (onboardedAt) {
+    return `since ${onboardedAt.slice(0, 10)}`;
+  }
+
+  return "registered in Lore";
+}
+
+function unknownWebhookDetail(reason: string | undefined): string {
+  if (reason === "app_no_webhook_permission") {
+    return "GitHub App lacks the Webhooks permission";
+  }
+
+  if (reason === "webhook_host_not_configured") {
+    return "webhook host not configured";
+  }
+
+  return "could not read the webhook";
+}
+
+function webhookCheckRow(w: WebhookCheck): Check {
+  const WEBHOOK: Record<
+    WebhookCheck["state"],
+    { status: CheckStatus; detail: string; fixable: boolean }
+  > = {
+    configured: {
+      status: "pass",
+      detail: "delivering to the Floor",
+      fixable: false,
+    },
+    missing: {
+      status: "fail",
+      detail: "no webhook — GitHub events are not delivered",
+      fixable: true,
+    },
+    wrong_url: {
+      status: "warn",
+      detail: `points at ${w.url ?? "an old host"} — repoint to the Floor`,
+      fixable: true,
+    },
+    inactive: {
+      status: "warn",
+      detail: "webhook is disabled",
+      fixable: true,
+    },
+    narrow_events: {
+      status: "warn",
+      detail: "missing event types (PRs / checks / reviews)",
+      fixable: true,
+    },
+    delivery_failing: {
+      status: "warn",
+      detail: `last delivery ${w.lastCode ?? "failed"} — secret mismatch; re-set up`,
+      fixable: true,
+    },
+    unknown: {
+      status: "unknown",
+      detail: unknownWebhookDetail(w.reason),
+      fixable: false,
+    },
+  };
+  const m = WEBHOOK[w.state] ?? WEBHOOK.unknown;
+  const check: Check = {
+    id: "webhook",
+    label: "GitHub webhook → Floor",
+    status: m.status,
+    detail: m.detail,
+  };
+
+  if (m.fixable) {
+    check.action = { kind: "setup-webhook", text: "set up" };
+  }
+
+  // Show the URL to set by hand whenever it's known and not already in place —
+  // covers manual setup and the App-lacks-permission case where the button can't help.
+  // The signing secret rides alongside (fetched only in this not-configured case).
+  if (w.canonicalUrl && w.state !== "configured") {
+    check.copy = { value: w.canonicalUrl, label: "set this URL" };
+  }
+
+  const manualSetupShown = Boolean(w.canonicalUrl) && w.state !== "configured";
+
+  if (manualSetupShown && w.secret) {
+    check.secret = { value: w.secret, label: "and this secret" };
+  }
+
+  return check;
+}
+
 export function computeEnrollmentChecks(rawInput: EnrollmentInput): Check[] {
   const input = { ...rawInput, now: rawInput.now ?? Date.now() };
   const checks: Check[] = [];
@@ -130,11 +237,7 @@ export function computeEnrollmentChecks(rawInput: EnrollmentInput): Check[] {
     id: "onboarded",
     label: "Onboarded",
     status: input.onboarded ? "pass" : "fail",
-    detail: input.onboarded
-      ? input.onboardedAt
-        ? `since ${input.onboardedAt.slice(0, 10)}`
-        : "registered in Lore"
-      : "repo not registered",
+    detail: onboardedDetail(input.onboarded, input.onboardedAt),
   });
 
   if (input.onboardingPrUrl) {
@@ -172,75 +275,7 @@ export function computeEnrollmentChecks(rawInput: EnrollmentInput): Check[] {
   }
 
   if (input.webhook) {
-    const w = input.webhook;
-    const WEBHOOK: Record<
-      WebhookCheck["state"],
-      { status: CheckStatus; detail: string; fixable: boolean }
-    > = {
-      configured: {
-        status: "pass",
-        detail: "delivering to the Floor",
-        fixable: false,
-      },
-      missing: {
-        status: "fail",
-        detail: "no webhook — GitHub events are not delivered",
-        fixable: true,
-      },
-      wrong_url: {
-        status: "warn",
-        detail: `points at ${w.url ?? "an old host"} — repoint to the Floor`,
-        fixable: true,
-      },
-      inactive: {
-        status: "warn",
-        detail: "webhook is disabled",
-        fixable: true,
-      },
-      narrow_events: {
-        status: "warn",
-        detail: "missing event types (PRs / checks / reviews)",
-        fixable: true,
-      },
-      delivery_failing: {
-        status: "warn",
-        detail: `last delivery ${w.lastCode ?? "failed"} — secret mismatch; re-set up`,
-        fixable: true,
-      },
-      unknown: {
-        status: "unknown",
-        detail:
-          w.reason === "app_no_webhook_permission"
-            ? "GitHub App lacks the Webhooks permission"
-            : w.reason === "webhook_host_not_configured"
-              ? "webhook host not configured"
-              : "could not read the webhook",
-        fixable: false,
-      },
-    };
-    const m = WEBHOOK[w.state] ?? WEBHOOK.unknown;
-    const check: Check = {
-      id: "webhook",
-      label: "GitHub webhook → Floor",
-      status: m.status,
-      detail: m.detail,
-    };
-
-    if (m.fixable) {
-      check.action = { kind: "setup-webhook", text: "set up" };
-    }
-
-    // Show the URL to set by hand whenever it's known and not already in place —
-    // covers manual setup and the App-lacks-permission case where the button can't help.
-    // The signing secret rides alongside (fetched only in this not-configured case).
-    if (w.canonicalUrl && w.state !== "configured") {
-      check.copy = { value: w.canonicalUrl, label: "set this URL" };
-
-      if (w.secret) {
-        check.secret = { value: w.secret, label: "and this secret" };
-      }
-    }
-    checks.push(check);
+    checks.push(webhookCheckRow(input.webhook));
   }
 
   const { developerCount, lastActivity } = input.localMcp;

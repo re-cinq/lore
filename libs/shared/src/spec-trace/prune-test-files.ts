@@ -78,19 +78,22 @@ async function queryFileSubtree(
       // writes it, so querying its reverse was dead code.
       if (chunk.covOut) {
         coverageUids.add(chunk.covOut.uid);
-
-        for (const covered of chunk.covOut.covered ?? []) {
-          coveredUids.add(covered.uid);
-        }
+        (chunk.covOut.covered ?? []).forEach((coveredRef) =>
+          coveredUids.add(coveredRef.uid),
+        );
       }
-
-      for (const owner of chunk.stmts ?? []) {
-        statementEdges.push([owner.uid, chunk.uid]);
-      }
-
-      for (const owner of chunk.acs ?? []) {
-        criterionEdges.push([owner.uid, chunk.uid]);
-      }
+      statementEdges.push(
+        ...(chunk.stmts ?? []).map((owner): [string, string] => [
+          owner.uid,
+          chunk.uid,
+        ]),
+      );
+      criterionEdges.push(
+        ...(chunk.acs ?? []).map((owner): [string, string] => [
+          owner.uid,
+          chunk.uid,
+        ]),
+      );
     }
 
     return {

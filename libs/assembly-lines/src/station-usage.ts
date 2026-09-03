@@ -31,19 +31,20 @@ export function stationUsage(
   definitions: ReadonlyMap<string, AssemblyLine>,
 ): Map<string, StationUsageRef[]> {
   const usage = new Map<string, StationUsageRef[]>();
+  const blueprintNodes = [...definitions].flatMap(([blueprint, definition]) =>
+    definition.nodes.map((node) => ({ blueprint, node })),
+  );
 
-  for (const [blueprint, definition] of definitions) {
-    for (const node of definition.nodes) {
-      const { station, inherited } = resolveNodeStation(node, blueprint);
+  for (const { blueprint, node } of blueprintNodes) {
+    const { station, inherited } = resolveNodeStation(node, blueprint);
 
-      if (station === null) {
-        continue;
-      }
-      const refs = usage.get(station) ?? [];
-
-      refs.push({ blueprint, nodeId: node.id, inherited });
-      usage.set(station, refs);
+    if (station === null) {
+      continue;
     }
+    const refs = usage.get(station) ?? [];
+
+    refs.push({ blueprint, nodeId: node.id, inherited });
+    usage.set(station, refs);
   }
 
   return usage;

@@ -87,13 +87,7 @@ export async function consolidationJob(): Promise<string> {
         continue;
       }
 
-      // Store each pattern as a memory
-      for (const pattern of patterns) {
-        const key = `consolidated/${repo.replace(/\//g, "-")}/${Date.now()}`;
-
-        await memoryLifecycle().insertConsolidatedMemory(key, pattern);
-        consolidated++;
-      }
+      consolidated += await storeConsolidatedPatterns(repo, patterns);
     } catch {
       // Best effort — don't crash the job
     }
@@ -106,4 +100,26 @@ export async function consolidationJob(): Promise<string> {
   }
 
   return `Consolidated ${consolidated} patterns from ${recentFacts.length} facts`;
+}
+
+/** Store each extracted pattern as a memory; best effort — a partial store
+ *  still counts what landed. */
+async function storeConsolidatedPatterns(
+  repo: string,
+  patterns: string[],
+): Promise<number> {
+  let stored = 0;
+
+  try {
+    for (const pattern of patterns) {
+      const key = `consolidated/${repo.replace(/\//g, "-")}/${Date.now()}`;
+
+      await memoryLifecycle().insertConsolidatedMemory(key, pattern);
+      stored++;
+    }
+  } catch {
+    // Best effort — don't crash the job
+  }
+
+  return stored;
 }

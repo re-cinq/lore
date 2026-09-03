@@ -101,12 +101,12 @@ export class InMemoryAssemblyRuns implements AssemblyRunsPort {
     // holding the id of the work already happening. The Pg adapter reaches the
     // same answer from a unique-violation; here the check IS the enforcement,
     // which is sound because the double is single-threaded.
-    if (input.subjectKey) {
-      const open = await this.findOpenBySubject(input.repo, input.subjectKey);
+    const open = input.subjectKey
+      ? await this.findOpenBySubject(input.repo, input.subjectKey)
+      : null;
 
-      if (open) {
-        return open.id;
-      }
+    if (open) {
+      return open.id;
     }
 
     const resumeFrom = input.resumeFrom;

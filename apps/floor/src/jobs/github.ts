@@ -80,13 +80,8 @@ export const issuesLabeled: EventHandler = async (params) => {
       dispatch_default_type?: string;
     };
 
-    if (parsed.dispatch_label) {
-      dispatchLabel = parsed.dispatch_label;
-    }
-
-    if (parsed.dispatch_default_type) {
-      dispatchDefaultType = parsed.dispatch_default_type;
-    }
+    dispatchLabel = parsed.dispatch_label || dispatchLabel;
+    dispatchDefaultType = parsed.dispatch_default_type || dispatchDefaultType;
   }
 
   if (label !== dispatchLabel) {

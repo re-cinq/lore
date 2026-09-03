@@ -43,7 +43,7 @@ describe("the escalation line", () => {
   });
 
   it("reaches the exit whichever way each step goes", () => {
-    for (const answer of ["success", "failed"] as StageOutcome[]) {
+    const walkAnsweringEveryStep = (answer: StageOutcome): NodeVisit[] => {
       const visits: NodeVisit[] = [];
 
       for (let step = 0; step < 20; step++) {
@@ -54,15 +54,20 @@ describe("the escalation line", () => {
         }
         expect(t.kind).toBe("launch");
 
-        if (t.kind !== "launch") {
-          return;
+        if (t.kind === "launch") {
+          visits.push({
+            nodeId: t.nodeId,
+            iteration: t.iteration,
+            outcome: answer,
+          });
         }
-        visits.push({
-          nodeId: t.nodeId,
-          iteration: t.iteration,
-          outcome: answer,
-        });
       }
+
+      return visits;
+    };
+
+    for (const answer of ["success", "failed"] as StageOutcome[]) {
+      const visits = walkAnsweringEveryStep(answer);
 
       expect(visits.map((v) => v.nodeId)).toEqual(["file-issue", "notify"]);
     }

@@ -50,6 +50,20 @@ function hrefFor(
     : undefined;
 }
 
+function scanMatchGroup(
+  groups: RegExpExecArray["groups"],
+): "file" | "issue" | "uuid" {
+  if (groups?.file) {
+    return "file";
+  }
+
+  if (groups?.issue) {
+    return "issue";
+  }
+
+  return "uuid";
+}
+
 function scanPlain(text: string, ctx: RefContext): Segment[] {
   const out: Segment[] = [];
   const re = new RegExp(SCAN_SRC, "gi");
@@ -60,11 +74,7 @@ function scanPlain(text: string, ctx: RefContext): Segment[] {
     if (m.index > last) {
       out.push({ text: text.slice(last, m.index) });
     }
-    const group: "file" | "issue" | "uuid" = m.groups?.file
-      ? "file"
-      : m.groups?.issue
-        ? "issue"
-        : "uuid";
+    const group = scanMatchGroup(m.groups);
     const href = hrefFor(m[0], group, ctx);
 
     out.push(href ? { text: m[0], href } : { text: m[0] });

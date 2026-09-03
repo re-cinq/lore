@@ -123,9 +123,9 @@ export class AgentEventBus {
         continue;
       }
 
-      for (const subscriber of [...subscribers]) {
-        this.enqueue(assemblyRunId, subscribers, subscriber, batch);
-      }
+      [...subscribers].forEach((subscriber) =>
+        this.enqueue(assemblyRunId, subscribers, subscriber, batch),
+      );
     }
   }
 
@@ -138,20 +138,29 @@ export class AgentEventBus {
     subscriber.buffer.push(batch);
     subscriber.buffered += batch.length;
 
-    if (!(subscriber.buffered > MAX_BUFFERED_EVENTS)) {
-      if (subscriber.draining) {
-        return;
-      }
-      subscriber.draining = true;
-
-      try {
-        this.drain(subscriber);
-      } finally {
-        subscriber.draining = false;
-      }
+    if (subscriber.buffered > MAX_BUFFERED_EVENTS) {
+      this.evictOverflowed(assemblyRunId, subscribers, subscriber);
 
       return;
     }
+
+    if (subscriber.draining) {
+      return;
+    }
+    subscriber.draining = true;
+
+    try {
+      this.drain(subscriber);
+    } finally {
+      subscriber.draining = false;
+    }
+  }
+
+  private evictOverflowed(
+    assemblyRunId: string,
+    subscribers: Set<Subscriber>,
+    subscriber: Subscriber,
+  ): void {
     this.remove(assemblyRunId, subscribers, subscriber);
     subscriber.buffer = [];
     subscriber.buffered = 0;

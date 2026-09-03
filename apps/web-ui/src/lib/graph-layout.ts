@@ -187,6 +187,31 @@ export interface ContainmentOptions {
   epsilon?: number;
 }
 
+/** The overshoot correction: cancel the outward component, ease back in with a
+ *  capped pull, and damp the remaining speed the further the node has strayed. */
+function containOverflowVelocity(
+  velocity: { vx: number; vy: number },
+  unit: { ux: number; uy: number },
+  over: number,
+  knobs: { returnPull: number; maxReturn: number; dampScale: number },
+): { vx: number; vy: number } {
+  let vx = velocity.vx;
+  let vy = velocity.vy;
+  const outward = vx * unit.ux + vy * unit.uy;
+
+  if (outward > 0) {
+    vx -= outward * unit.ux;
+    vy -= outward * unit.uy;
+  }
+  const ret = Math.min(knobs.maxReturn, over * knobs.returnPull);
+
+  vx -= ret * unit.ux;
+  vy -= ret * unit.uy;
+  const damp = 1 / (1 + over / knobs.dampScale);
+
+  return { vx: vx * damp, vy: vy * damp };
+}
+
 /**
  * Replace a node's velocity with one that keeps it inside the radius border. A
  * node past `radius` has its outward velocity component cancelled (so it can't
@@ -214,23 +239,15 @@ export function containedVelocity(
   const dist = Math.hypot(dx, dy);
 
   if (dist > radius && dist > 0) {
-    const ux = dx / dist;
-    const uy = dy / dist;
-    const over = dist - radius;
-    const outward = vx * ux + vy * uy;
+    const contained = containOverflowVelocity(
+      { vx, vy },
+      { ux: dx / dist, uy: dy / dist },
+      dist - radius,
+      { returnPull, maxReturn, dampScale },
+    );
 
-    if (outward > 0) {
-      vx -= outward * ux;
-      vy -= outward * uy;
-    }
-    const ret = Math.min(maxReturn, over * returnPull);
-
-    vx -= ret * ux;
-    vy -= ret * uy;
-    const damp = 1 / (1 + over / dampScale);
-
-    vx *= damp;
-    vy *= damp;
+    vx = contained.vx;
+    vy = contained.vy;
   }
 
   if (Math.abs(vx) < epsilon) {
@@ -377,6 +394,31 @@ const orient = (a: Point, b: Point, c: Point): number =>
  * with a missing endpoint are ignored. O(E²): intended for one-off measurement,
  * not a per-tick call.
  */
+interface CrossingSegment {
+  s: string;
+  t: string;
+  a: Point;
+  b: Point;
+}
+
+function segmentsCross(A: CrossingSegment, B: CrossingSegment): boolean {
+  const aTouchesB = A.s === B.s || A.s === B.t;
+  const tTouchesB = A.t === B.s || A.t === B.t;
+
+  if (aTouchesB || tTouchesB) {
+    return false;
+  }
+  const d1 = orient(B.a, B.b, A.a);
+  const d2 = orient(B.a, B.b, A.b);
+  const d3 = orient(A.a, A.b, B.a);
+  const d4 = orient(A.a, A.b, B.b);
+
+  const aStraddlesB = d1 * d2 < 0;
+  const bStraddlesA = d3 * d4 < 0;
+
+  return aStraddlesB && bStraddlesA;
+}
+
 export function countCrossings(
   edges: CrossingEdge[],
   pos: Map<string, Point>,
@@ -388,36 +430,16 @@ export function countCrossings(
       a: pos.get(e.source),
       b: pos.get(e.target),
     }))
-    .filter(
-      (x): x is { s: string; t: string; a: Point; b: Point } => !!x.a && !!x.b,
-    );
+    .filter((x): x is CrossingSegment => !!x.a && !!x.b);
   let crossings = 0;
 
-  for (let i = 0; i < segs.length; i += 1) {
+  segs.forEach((first, i) => {
     for (let j = i + 1; j < segs.length; j += 1) {
-      const A = segs[i];
-      const B = segs[j];
-
-      const aTouchesB = A.s === B.s || A.s === B.t;
-      const tTouchesB = A.t === B.s || A.t === B.t;
-      const sharesEndpoint = aTouchesB || tTouchesB;
-
-      if (sharesEndpoint) {
-        continue;
-      }
-      const d1 = orient(B.a, B.b, A.a);
-      const d2 = orient(B.a, B.b, A.b);
-      const d3 = orient(A.a, A.b, B.a);
-      const d4 = orient(A.a, A.b, B.b);
-
-      const aStraddlesB = d1 * d2 < 0;
-      const bStraddlesA = d3 * d4 < 0;
-
-      if (aStraddlesB && bStraddlesA) {
+      if (segmentsCross(first, segs[j])) {
         crossings += 1;
       }
     }
-  }
+  });
 
   return crossings;
 }

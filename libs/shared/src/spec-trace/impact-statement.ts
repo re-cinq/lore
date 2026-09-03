@@ -125,17 +125,23 @@ export function mergeStatements(
       existing.changedFile = stmt.changedFile;
     }
     existing.changeKind ??= stmt.changeKind;
-
-    for (const test of stmt.tests) {
-      if (
-        !existing.tests.some(
-          (t) => t.file === test.file && t.name === test.name,
-        )
-      ) {
-        existing.tests.push(test);
-      }
-    }
+    addMissingTests(existing.tests, stmt.tests);
   }
 
   return [...byXid.values()].map(({ xid: _xid, ...rest }) => rest);
+}
+
+function addMissingTests(
+  existingTests: ImpactStatement["tests"],
+  incomingTests: ImpactStatement["tests"],
+): void {
+  for (const test of incomingTests) {
+    const alreadyListed = existingTests.some(
+      (t) => t.file === test.file && t.name === test.name,
+    );
+
+    if (!alreadyListed) {
+      existingTests.push(test);
+    }
+  }
 }

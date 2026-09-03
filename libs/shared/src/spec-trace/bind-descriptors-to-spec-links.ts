@@ -40,24 +40,21 @@ interface LinkIndexEntry {
 
 /** Flatten every spec's statements into `(test path, line) → statement anchor` entries. */
 function buildLinkIndex(specs: SpecSource[]): LinkIndexEntry[] {
-  const entries: LinkIndexEntry[] = [];
-
-  for (const spec of specs) {
-    for (const { statement, testLinks } of linksForStatements(spec.content)) {
-      for (const link of testLinks) {
-        if (link.line === null) {
-          continue;
-        }
-        entries.push({
-          path: resolveLinkPath(link.path, spec.path),
-          line: link.line,
-          anchor: `${spec.path}#${statement.ordinal}`,
-        });
-      }
-    }
-  }
-
-  return entries;
+  return specs.flatMap((spec) =>
+    linksForStatements(spec.content).flatMap(({ statement, testLinks }) =>
+      testLinks.flatMap((link) =>
+        link.line === null
+          ? []
+          : [
+              {
+                path: resolveLinkPath(link.path, spec.path),
+                line: link.line,
+                anchor: `${spec.path}#${statement.ordinal}`,
+              },
+            ],
+      ),
+    ),
+  );
 }
 
 export function bindDescriptorsToSpecLinks(

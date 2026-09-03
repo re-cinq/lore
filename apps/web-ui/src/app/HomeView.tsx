@@ -73,6 +73,18 @@ function ingestBadge(
   return null;
 }
 
+function ingestionSummary(repo: Repo): string {
+  if (repo.last_ingested_at) {
+    return `Last ingested ${new Date(repo.last_ingested_at).toLocaleDateString()}`;
+  }
+
+  if (repo.onboarding_pr_merged) {
+    return "Onboarded, awaiting ingestion";
+  }
+
+  return "Onboarding PR pending";
+}
+
 /**
  * Presentational view for the repositories overview. Pure render — the
  * repo list and per-repo ingest-workflow status are resolved by the
@@ -146,13 +158,7 @@ export default function HomeView({
                 ) : null;
               })()}
             </div>
-            <div className="meta">
-              {r.last_ingested_at
-                ? `Last ingested ${new Date(r.last_ingested_at).toLocaleDateString()}`
-                : r.onboarding_pr_merged
-                  ? "Onboarded, awaiting ingestion"
-                  : "Onboarding PR pending"}
-            </div>
+            <div className="meta">{ingestionSummary(r)}</div>
           </Link>
         ))}
         {repos.length === 0 && (

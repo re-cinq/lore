@@ -94,21 +94,24 @@ function normalizeAliases(value: unknown): unknown {
   };
 }
 
+// A PRESENT label is left exactly as written, valid or not: rejecting an
+// unknown label is deliberate, and a fallback here would swallow the typo
+// this parser exists to catch. Only a finding with no label at all — which
+// is what the other schema emits — is given one, from `category` when that
+// happens to be a label, else `issue`, since a finding worth reporting is
+// never silently downgraded to a nit.
+function findingLabel(finding: Record<string, unknown>): unknown {
+  if (finding.label !== undefined) {
+    return finding.label;
+  }
+
+  return includes(LABELS, finding.category) ? finding.category : "issue";
+}
+
 function normalizeFinding(finding: Record<string, unknown>): unknown {
   const str = (v: unknown): string | undefined =>
     typeof v === "string" && v.length > 0 ? v : undefined;
-  // A PRESENT label is left exactly as written, valid or not: rejecting an
-  // unknown label is deliberate, and a fallback here would swallow the typo
-  // this parser exists to catch. Only a finding with no label at all — which
-  // is what the other schema emits — is given one, from `category` when that
-  // happens to be a label, else `issue`, since a finding worth reporting is
-  // never silently downgraded to a nit.
-  const label =
-    finding.label !== undefined
-      ? finding.label
-      : includes(LABELS, finding.category)
-        ? finding.category
-        : "issue";
+  const label = findingLabel(finding);
   const joined = [str(finding.summary), str(finding.failure_scenario)]
     .filter((part): part is string => part !== undefined)
     .join("\n\n");
@@ -162,6 +165,12 @@ function safeParseJson(text: string): unknown {
  * after it, which a regex has no way to look past reliably once the string
  * itself may contain further quotes.
  */
+const WHITESPACE_ESCAPES: Record<string, string> = {
+  "\n": "\\n",
+  "\r": "\\r",
+  "\t": "\\t",
+};
+
 function repairUnescapedStringContent(text: string): string {
   let result = "";
   let inString = false;
@@ -170,9 +179,7 @@ function repairUnescapedStringContent(text: string): string {
     const ch = text[i];
 
     if (!inString) {
-      if (ch === '"') {
-        inString = true;
-      }
+      inString = ch === '"';
       result += ch;
       continue;
     }
@@ -185,17 +192,18 @@ function repairUnescapedStringContent(text: string): string {
     }
 
     if (ch === "\n" || ch === "\r" || ch === "\t") {
-      result += ch === "\n" ? "\\n" : ch === "\r" ? "\\r" : "\\t";
+      result += WHITESPACE_ESCAPES[ch];
+      continue;
+    }
+
+    if (ch === '"' && closesAString(text, i + 1)) {
+      inString = false;
+      result += ch;
+
       continue;
     }
 
     if (ch === '"') {
-      if (closesAString(text, i + 1)) {
-        inString = false;
-        result += ch;
-
-        continue;
-      }
       result += '\\"';
 
       continue;

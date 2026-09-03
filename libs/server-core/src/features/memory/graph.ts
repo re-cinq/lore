@@ -258,15 +258,9 @@ function entityMatchesQuery(entity: GraphEntity, lowerQuery: string): boolean {
     return true;
   }
 
-  if (entity.aliases) {
-    for (const alias of entity.aliases) {
-      if (alias.toLowerCase().includes(lowerQuery)) {
-        return true;
-      }
-    }
-  }
-
-  return false;
+  return (entity.aliases ?? []).some((alias) =>
+    alias.toLowerCase().includes(lowerQuery),
+  );
 }
 
 function formatEntity(entity: GraphEntity): string {
@@ -336,16 +330,8 @@ function traverseGraph(
     chains.push(label);
   }
 
-  while (queue.length > 0) {
-    const item = queue.shift()!;
-
-    if (item.hops >= depth) {
-      continue;
-    }
-
-    const neighbors = adjacency.get(item.entityId) || [];
-
-    for (const { relType, neighborId } of neighbors) {
+  const expandNeighbors = (item: QueueItem): void => {
+    for (const { relType, neighborId } of adjacency.get(item.entityId) || []) {
       if (visited.has(neighborId)) {
         continue;
       }
@@ -366,6 +352,15 @@ function traverseGraph(
         hops: item.hops + 1,
       });
     }
+  };
+
+  while (queue.length > 0) {
+    const item = queue.shift()!;
+
+    if (item.hops >= depth) {
+      continue;
+    }
+    expandNeighbors(item);
   }
 
   return chains;

@@ -17,13 +17,16 @@ export async function buildContextBundle(
   }
 
   if (context?.spec_file) {
-    for (const file of [".specify/spec.md", ".specify/constitution.md"]) {
-      if (existsSync(file)) {
-        const content = readFileSync(file, "utf8");
-        const label = file.includes("spec") ? "Spec" : "Constitution";
+    const presentSpecFiles = [
+      ".specify/spec.md",
+      ".specify/constitution.md",
+    ].filter((file) => existsSync(file));
 
-        parts.push(`## ${label}\n${content}`);
-      }
+    for (const file of presentSpecFiles) {
+      const content = readFileSync(file, "utf8");
+      const label = file.includes("spec") ? "Spec" : "Constitution";
+
+      parts.push(`## ${label}\n${content}`);
     }
   }
 

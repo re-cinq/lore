@@ -79,6 +79,18 @@ export default function NodeLogPanel({
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [resp]);
 
+  const renderLogContent = () => {
+    if (!resp?.logs) {
+      return "(no output yet)";
+    }
+
+    if (showRaw) {
+      return resp.logs;
+    }
+
+    return <LogEntriesView entries={entries} />;
+  };
+
   return (
     <CollapsibleCard
       title={label}
@@ -101,13 +113,7 @@ export default function NodeLogPanel({
 
       {!error && resp?.available && (
         <div className={styles.terminal}>
-          {!resp.logs ? (
-            "(no output yet)"
-          ) : showRaw ? (
-            resp.logs
-          ) : (
-            <LogEntriesView entries={entries} />
-          )}
+          {renderLogContent()}
           <div ref={bottomRef} />
         </div>
       )}

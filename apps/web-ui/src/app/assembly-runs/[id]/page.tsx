@@ -36,15 +36,14 @@ export default async function AssemblyLineResolverPage({
   }
 
   const run = await fetchAssemblyRun(id);
+  // The id may be a TASK id rather than a run id — the old links pointed here.
+  const taskResult = run ? null : await getTask(id);
+
+  if (!run && taskResult?.status === "ok") {
+    redirect(`/tasks/${id}`);
+  }
 
   if (!run) {
-    // The id may be a TASK id rather than a run id — the old links pointed here.
-    const taskResult = await getTask(id);
-
-    if (taskResult.status === "ok") {
-      redirect(`/tasks/${id}`);
-    }
-
     return <p>Not found.</p>;
   }
 

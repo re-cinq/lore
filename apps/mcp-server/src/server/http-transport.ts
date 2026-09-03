@@ -89,13 +89,12 @@ function newSession(
 ): StreamableHTTPServerTransport {
   // Map keeps insertion order, so the first key is the oldest session — evict it
   // (closing frees its McpServer) rather than let a leak grow the map unbounded.
-  if (sessions.size >= MAX_SESSIONS) {
-    const oldest = sessions.keys().next().value;
+  const oldest =
+    sessions.size >= MAX_SESSIONS ? sessions.keys().next().value : undefined;
 
-    if (oldest) {
-      void sessions.get(oldest)?.close();
-      sessions.delete(oldest);
-    }
+  if (oldest) {
+    void sessions.get(oldest)?.close();
+    sessions.delete(oldest);
   }
   const transport = new StreamableHTTPServerTransport({
     sessionIdGenerator: () => randomUUID(),
@@ -199,12 +198,13 @@ export function startHttpGateway(opts: HttpGatewayOptions): Server {
     const body = await readJsonBody(req);
     let transport = sessionId ? sessions.get(sessionId) : undefined;
 
-    if (!transport) {
-      if (!isInitializeRequest(body)) {
-        jsonRpcError(res, 400, "No valid session — send initialize first");
+    if (!transport && !isInitializeRequest(body)) {
+      jsonRpcError(res, 400, "No valid session — send initialize first");
 
-        return;
-      }
+      return;
+    }
+
+    if (!transport) {
       transport = newSession(opts, sessions);
     }
     await transport.handleRequest(req, res, body);

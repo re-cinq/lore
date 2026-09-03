@@ -1,6 +1,6 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import { trace, type Tracer } from "@opentelemetry/api";
+import { trace, type Span, type Tracer } from "@opentelemetry/api";
 
 /**
  * The narrow Postgres surface {@link DbLeaseBackend} needs — `query` returning
@@ -82,6 +82,21 @@ export interface LeaseBackend {
   reapExpired(cutoff: Date): Promise<ExpiredLease[]>;
 }
 
+/** Stamp the acquire span and shape the result for a won upsert — a takeover
+ * when a previous (expired) holder existed, a fresh acquire otherwise. */
+function acquiredResult(
+  span: Span,
+  tookOverFrom: string | undefined,
+): AcquireResult {
+  span.setAttribute("outcome", tookOverFrom ? "takeover" : "acquired");
+
+  if (tookOverFrom) {
+    span.setAttribute("took_over_from", tookOverFrom);
+  }
+
+  return tookOverFrom ? { acquired: true, tookOverFrom } : { acquired: true };
+}
+
 export class DbLeaseBackend implements LeaseBackend {
   constructor(private readonly pool: LeasePool) {}
 
@@ -122,17 +137,10 @@ export class DbLeaseBackend implements LeaseBackend {
         );
 
         if ((result.rowCount ?? 0) > 0) {
-          const tookOverFrom = result.rows[0]?.previous_holder ?? undefined;
-
-          span.setAttribute("outcome", tookOverFrom ? "takeover" : "acquired");
-
-          if (tookOverFrom) {
-            span.setAttribute("took_over_from", tookOverFrom);
-          }
-
-          return tookOverFrom
-            ? { acquired: true, tookOverFrom }
-            : { acquired: true };
+          return acquiredResult(
+            span,
+            result.rows[0]?.previous_holder ?? undefined,
+          );
         }
 
         const cur = await this.pool.query<{ holder: string }>(

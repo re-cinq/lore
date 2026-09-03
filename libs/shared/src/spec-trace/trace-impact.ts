@@ -578,9 +578,11 @@ async function implementedByImpact(
       continue;
     }
 
-    for (const stmt of chunk.stmts ?? []) {
-      out.push(toImpactStatement(stmt, file, [], "file-link"));
-    }
+    out.push(
+      ...(chunk.stmts ?? []).map((stmt) =>
+        toImpactStatement(stmt, file, [], "file-link"),
+      ),
+    );
   }
 
   return out;
@@ -631,17 +633,19 @@ async function validatedByImpact(
       continue;
     }
 
-    for (const tc of cov.tc ?? []) {
-      const test = {
-        file: tc["TestChunk.file_path"] ?? "",
-        name: tc["TestChunk.test_name"] ?? "",
-        line: tc["TestChunk.start_line"] ?? 0,
-      };
+    out.push(
+      ...(cov.tc ?? []).flatMap((tc) => {
+        const test = {
+          file: tc["TestChunk.file_path"] ?? "",
+          name: tc["TestChunk.test_name"] ?? "",
+          line: tc["TestChunk.start_line"] ?? 0,
+        };
 
-      for (const stmt of tc.stmts ?? []) {
-        out.push(toImpactStatement(stmt, file, [test], "coverage"));
-      }
-    }
+        return (tc.stmts ?? []).map((stmt) =>
+          toImpactStatement(stmt, file, [test], "coverage"),
+        );
+      }),
+    );
   }
 
   return out;
@@ -693,46 +697,40 @@ async function orphanImpact(
   });
   const byXid = new Map<string, OrphanStatement>();
 
-  for (const cov of covs) {
-    if (!cov.file?.length) {
+  const candidateStmts = covs
+    .filter((cov) => Boolean(cov.file?.length))
+    .flatMap((cov) => cov.tc ?? [])
+    .flatMap((tc) => tc.stmts ?? []);
+
+  for (const stmt of candidateStmts) {
+    const intervals = (stmt.footprint ?? []).flatMap((ft) =>
+      (ft.cov?.covers ?? []).flatMap((f) =>
+        parseRanges(f["covers|ranges"] ?? "").map(([s, e]) => ({
+          file: f["File.path"] ?? "",
+          start: s,
+          end: e,
+        })),
+      ),
+    );
+    const isKilled = (iv: { file: string; start: number; end: number }) =>
+      iv.file === file &&
+      deleted.some(([ds, de]) => intervalsOverlap(iv.start, iv.end, ds, de));
+
+    if (!intervals.length || !intervals.every(isKilled)) {
       continue;
     }
+    const killed = intervals.find(isKilled)!;
+    const specPath = stmt.spec?.["Spec.file_path"] ?? "";
+    const xid =
+      stmt["Statement.xid"] ?? `${specPath}::${stmt["Statement.text"] ?? ""}`;
 
-    for (const tc of cov.tc ?? []) {
-      for (const stmt of tc.stmts ?? []) {
-        const intervals = (stmt.footprint ?? []).flatMap((ft) =>
-          (ft.cov?.covers ?? []).flatMap((f) =>
-            parseRanges(f["covers|ranges"] ?? "").map(([s, e]) => ({
-              file: f["File.path"] ?? "",
-              start: s,
-              end: e,
-            })),
-          ),
-        );
-        const isKilled = (iv: { file: string; start: number; end: number }) =>
-          iv.file === file &&
-          deleted.some(([ds, de]) =>
-            intervalsOverlap(iv.start, iv.end, ds, de),
-          );
-
-        if (!intervals.length || !intervals.every(isKilled)) {
-          continue;
-        }
-        const killed = intervals.find(isKilled)!;
-        const specPath = stmt.spec?.["Spec.file_path"] ?? "";
-        const xid =
-          stmt["Statement.xid"] ??
-          `${specPath}::${stmt["Statement.text"] ?? ""}`;
-
-        byXid.set(xid, {
-          specPath,
-          specTitle: stmt.spec?.["Spec.title"] ?? "",
-          statementText: stmt["Statement.text"] ?? "",
-          statementAnchor: specPath,
-          wasCoveredBy: `${killed.file}:${killed.start}-${killed.end}`,
-        });
-      }
-    }
+    byXid.set(xid, {
+      specPath,
+      specTitle: stmt.spec?.["Spec.title"] ?? "",
+      statementText: stmt["Statement.text"] ?? "",
+      statementAnchor: specPath,
+      wasCoveredBy: `${killed.file}:${killed.start}-${killed.end}`,
+    });
   }
 
   return [...byXid.values()];

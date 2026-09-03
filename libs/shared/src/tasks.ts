@@ -66,13 +66,12 @@ export function parseTasks(markdown: string): ParsedTask[] {
     const dependsOn: string[] = [];
 
     if (depsMatch) {
-      for (const dep of depsMatch[1].split(",")) {
-        const d = dep.trim();
-
-        if (d) {
-          dependsOn.push(d);
-        }
-      }
+      dependsOn.push(
+        ...depsMatch[1]
+          .split(",")
+          .map((dep) => dep.trim())
+          .filter((dep) => dep.length > 0),
+      );
       rest = rest.replace(DEPENDS_RE, "").trim();
     }
 
@@ -141,46 +140,58 @@ export function inferPhaseDependencies(tasks: ParsedTask[]): ParsedTask[] {
       prevPhaseNum !== null ? phases.get(prevPhaseNum)! : [];
     const prevPhaseIds = prevPhaseTasks.map((t) => t.specTaskId);
 
-    // Track last non-parallel task in this phase for sequential chaining
-    let lastSequentialId: string | null = null;
-
-    for (const task of phaseTasks) {
-      // Skip tasks that already have explicit dependencies
-      if (task.dependsOn.length > 0) {
-        result.push(task);
-
-        if (!task.parallelizable) {
-          lastSequentialId = task.specTaskId;
-        }
-        continue;
-      }
-
-      const inferredDeps: string[] = [];
-
-      // Cross-phase: depend on all tasks from previous phase
-      if (prevPhaseIds.length > 0) {
-        inferredDeps.push(...prevPhaseIds);
-      }
-
-      // Intra-phase: non-[P] tasks chain sequentially
-      if (!task.parallelizable && lastSequentialId) {
-        if (!inferredDeps.includes(lastSequentialId)) {
-          inferredDeps.push(lastSequentialId);
-        }
-      }
-
-      result.push({
-        ...task,
-        dependsOn: inferredDeps,
-      });
-
-      if (!task.parallelizable) {
-        lastSequentialId = task.specTaskId;
-      }
-    }
+    result.push(...enrichPhaseTasks(phaseTasks, prevPhaseIds));
   }
 
   return result;
+}
+
+/** The id the next sequential (non-[P]) task in the phase should chain after. */
+function nextSequentialId(
+  task: ParsedTask,
+  current: string | null,
+): string | null {
+  return task.parallelizable ? current : task.specTaskId;
+}
+
+function enrichPhaseTasks(
+  phaseTasks: ParsedTask[],
+  prevPhaseIds: string[],
+): ParsedTask[] {
+  const enriched: ParsedTask[] = [];
+  // Track last non-parallel task in this phase for sequential chaining
+  let lastSequentialId: string | null = null;
+
+  for (const task of phaseTasks) {
+    // Skip tasks that already have explicit dependencies
+    if (task.dependsOn.length > 0) {
+      enriched.push(task);
+      lastSequentialId = nextSequentialId(task, lastSequentialId);
+      continue;
+    }
+
+    const inferredDeps: string[] = [];
+
+    // Cross-phase: depend on all tasks from previous phase
+    if (prevPhaseIds.length > 0) {
+      inferredDeps.push(...prevPhaseIds);
+    }
+
+    // Intra-phase: non-[P] tasks chain sequentially
+    const sequentialDep = task.parallelizable ? null : lastSequentialId;
+
+    if (sequentialDep && !inferredDeps.includes(sequentialDep)) {
+      inferredDeps.push(sequentialDep);
+    }
+
+    enriched.push({
+      ...task,
+      dependsOn: inferredDeps,
+    });
+    lastSequentialId = nextSequentialId(task, lastSequentialId);
+  }
+
+  return enriched;
 }
 
 const FEATURE_REQUEST_BRANCH_PREFIX = "lore/feature-request/";

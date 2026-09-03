@@ -106,13 +106,13 @@ export default function FullTranscriptPanel({
 
           pages += 1;
 
-          for (const row of rows) {
+          rows.forEach((row) => {
             const parsed = parseAgentRunTurn(row);
 
             if (parsed !== null) {
               collected.push(parsed);
             }
-          }
+          });
 
           const hasMoreFlag = parseHasMore(body);
           const next = nextTurnsCursor(rows, hasMoreFlag);

@@ -58,15 +58,11 @@ export async function verifyCoverageLink(
     return "untested";
   }
 
-  const coveredFiles = new Set<string>();
-
-  for (const test of validatingTests) {
-    for (const file of test["TestChunk.coverage"]?.["Coverage.covers"] ?? []) {
-      if (file["File.path"]) {
-        coveredFiles.add(file["File.path"]);
-      }
-    }
-  }
+  const coveredFiles = new Set(
+    validatingTests
+      .flatMap((test) => test["TestChunk.coverage"]?.["Coverage.covers"] ?? [])
+      .flatMap((file) => (file["File.path"] ? [file["File.path"]] : [])),
+  );
 
   const implementsCovered = (statement.implemented ?? []).some(
     (chunk) =>

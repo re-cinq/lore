@@ -132,25 +132,21 @@ export function agentsPostRoute(getPool: () => Pool | null): ServerRoute {
             .code(400);
         }
 
-        let ceremony: Ceremony = { tier: "admin" };
+        const gate = imageFieldTouched(create)
+          ? await checkApproval(request, repo, ["image"], IMAGE_DETAIL)
+          : null;
 
-        if (imageFieldTouched(create)) {
-          const gate = await checkApproval(
-            request,
-            repo,
-            ["image"],
-            IMAGE_DETAIL,
-          );
-
-          if (!gate.ok) {
-            return h.response(gate.body).code(gate.code);
-          }
-          ceremony = {
-            tier: "two_key",
-            pr_ref: gate.evidence.prRef,
-            approver: gate.evidence.approver,
-          };
+        if (gate && !gate.ok) {
+          return h.response(gate.body).code(gate.code);
         }
+
+        const ceremony: Ceremony = gate?.ok
+          ? {
+              tier: "two_key",
+              pr_ref: gate.evidence.prRef,
+              approver: gate.evidence.approver,
+            }
+          : { tier: "admin" };
 
         const { pod_resources, ...fields } = create;
 
@@ -213,25 +209,21 @@ export function agentsPutRoute(getPool: () => Pool | null): ServerRoute {
             .code(400);
         }
 
-        let ceremony: Ceremony = { tier: "admin" };
+        const gate = imageFieldTouched(patch)
+          ? await checkApproval(request, repo, ["image"], IMAGE_DETAIL)
+          : null;
 
-        if (imageFieldTouched(patch)) {
-          const gate = await checkApproval(
-            request,
-            repo,
-            ["image"],
-            IMAGE_DETAIL,
-          );
-
-          if (!gate.ok) {
-            return h.response(gate.body).code(gate.code);
-          }
-          ceremony = {
-            tier: "two_key",
-            pr_ref: gate.evidence.prRef,
-            approver: gate.evidence.approver,
-          };
+        if (gate && !gate.ok) {
+          return h.response(gate.body).code(gate.code);
         }
+
+        const ceremony: Ceremony = gate?.ok
+          ? {
+              tier: "two_key",
+              pr_ref: gate.evidence.prRef,
+              approver: gate.evidence.approver,
+            }
+          : { tier: "admin" };
 
         const { pod_resources, ...fields } = patch;
         // The merge itself happens inside the upsert (atomic under the row

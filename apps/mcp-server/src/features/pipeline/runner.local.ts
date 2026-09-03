@@ -275,6 +275,238 @@ function isProcessAlive(pid: number): boolean {
 // Monitor — runs in background after task spawn
 // ---------------------------------------------------------------------------
 
+/**
+ * Spawns a Claude Code fix retry for a failed validation, waits for it, and
+ * re-validates. Returns null when the fix child never got a pid.
+ */
+async function attemptValidationFix(
+  task: LocalTask,
+  quickChecks: ReturnType<typeof detectTooling>["quickChecks"],
+  changedFiles: string[],
+  fixOutput: string,
+): Promise<Awaited<ReturnType<typeof runValidation>> | null> {
+  console.log(
+    `[lore] local-runner: validation failed, attempting fix retry for ${task.taskId}`,
+  );
+  fs.appendFileSync(
+    task.logFile,
+    `\n\n--- VALIDATION FAILED ---\n${fixOutput}\n`,
+  );
+
+  const fixPrompt = [
+    "Validation checks failed after your changes. Fix ONLY these errors.",
+    "Do not re-implement the original task. Only fix the validation errors.",
+    "",
+    fixOutput,
+  ].join("\n");
+
+  const config = readConfig();
+  const fixModel = config.model || "claude-sonnet-4-6";
+  const fixLogFd = fs.openSync(task.logFile, "a");
+  const fixErrFd = fs.openSync(errFileFor(task.logFile), "a");
+  const fixChild = spawn(
+    "claude",
+    [
+      "--print",
+      "--output-format",
+      "stream-json",
+      "--verbose",
+      "--dangerously-skip-permissions",
+      "--model",
+      fixModel,
+      "--",
+      fixPrompt,
+    ],
+    {
+      cwd: task.worktreePath,
+      detached: true,
+      stdio: ["ignore", fixLogFd, fixErrFd],
+      env: { ...process.env, HOME: os.homedir() },
+    },
+  );
+
+  fixChild.unref();
+  fs.closeSync(fixLogFd);
+  fs.closeSync(fixErrFd);
+
+  if (!fixChild.pid) {
+    return null;
+  }
+  await waitForExit(fixChild.pid);
+
+  // Re-validate after fix attempt
+  return runValidation(task.worktreePath, quickChecks, changedFiles);
+}
+
+/**
+ * Deterministic validation (Minions-inspired): lint/typecheck as mandatory
+ * pipeline stages before commit, with one fix retry. "failed" means the task
+ * was marked needs-human-help and its artifacts persisted.
+ */
+async function validateBeforeCommit(
+  task: LocalTask,
+  tasks: LocalTask[],
+  idx: number,
+  changedFiles: string[],
+): Promise<"passed" | "failed"> {
+  const tooling = detectTooling(task.worktreePath);
+
+  if (tooling.quickChecks.length === 0) {
+    return "passed";
+  }
+  console.log(
+    `[lore] local-runner: running ${tooling.language} validation (${tooling.quickChecks.map((s) => s.name).join(", ")})`,
+  );
+  const validation = await runValidation(
+    task.worktreePath,
+    tooling.quickChecks,
+    changedFiles,
+  );
+
+  if (validation.passed) {
+    return "passed";
+  }
+  const retryValidation = await attemptValidationFix(
+    task,
+    tooling.quickChecks,
+    changedFiles,
+    formatValidationOutput(validation),
+  );
+
+  if (!retryValidation) {
+    return "passed";
+  }
+
+  if (retryValidation.passed) {
+    console.log(`[lore] local-runner: fix retry succeeded for ${task.taskId}`);
+
+    return "passed";
+  }
+  const retryOutput = formatValidationOutput(retryValidation);
+
+  fs.appendFileSync(
+    task.logFile,
+    `\n\n--- RETRY VALIDATION FAILED ---\n${retryOutput}\n`,
+  );
+
+  if (idx >= 0) {
+    tasks[idx].status = "failed";
+    tasks[idx].error = `Validation failed after retry: ${retryValidation.steps
+      .filter((s) => !s.passed)
+      .map((s) => s.name)
+      .join(", ")}`;
+  }
+  await updateTaskViaAPI(task.taskId, "needs-human-help", {
+    failure_reason: retryOutput.substring(0, 2000),
+  });
+  // Status is written BEFORE the artifact round-trips: writeTasks
+  // rewrites the whole file from this monitor's snapshot, so
+  // holding it across slow network calls widens the lost-update
+  // window against a concurrently finishing task.
+  writeTasks(tasks);
+  // This early return used to skip the log upload entirely — the
+  // needs-human-help runs are exactly the ones whose transcript a
+  // human needs. Worktree cleanup stays skipped on purpose (kept
+  // for debugging).
+  await persistRunArtifacts(task);
+
+  return "failed";
+}
+
+/** Stages the worktree, then commits, pushes, and opens a PR — or marks the task completed when nothing staged. */
+async function commitAndOpenPr(
+  task: LocalTask,
+  tasks: LocalTask[],
+  idx: number,
+): Promise<void> {
+  execSync("git add -A", {
+    cwd: task.worktreePath,
+    stdio: "pipe",
+    timeout: 30000,
+  });
+
+  // After staging, check if there's anything worth committing.
+  // `git status --porcelain` above can include files that become
+  // ignored or stripped on add — verify the index actually has
+  // changes before we commit/push/open a PR (issue #250).
+  const stagedFiles = execSync("git diff --cached --name-only", {
+    cwd: task.worktreePath,
+    encoding: "utf-8",
+    timeout: 10000,
+  }).trim();
+
+  if (!stagedFiles && idx >= 0) {
+    tasks[idx].status = "completed";
+  }
+
+  if (!stagedFiles) {
+    console.log(
+      `[lore] local-runner: ${task.taskId} produced no staged changes — skipping PR`,
+    );
+    await updateTaskViaAPI(task.taskId, "completed", { no_changes: true });
+
+    return;
+  }
+  const branchTail = task.branch.split("/").pop() || task.taskId;
+
+  execSync(`git commit -m "lore: local — ${branchTail}"`, {
+    cwd: task.worktreePath,
+    stdio: "pipe",
+    timeout: 30000,
+  });
+
+  execSync(`git push origin ${task.branch}`, {
+    cwd: task.worktreePath,
+    stdio: "pipe",
+    timeout: 60000,
+  });
+
+  // Create PR via gh CLI (developer's auth)
+  const prTitle = `lore: local — ${branchTail}`;
+  const prBody = [
+    "Local task executed by Lore on developer machine.",
+    "",
+    `Task ID: ${task.taskId}`,
+  ].join("\n");
+  const prUrl = execSync(
+    `gh pr create --title "${prTitle}" --body "${prBody}" --head ${task.branch}`,
+    { cwd: task.worktreePath, encoding: "utf-8", timeout: 30000 },
+  ).trim();
+
+  if (idx >= 0) {
+    tasks[idx].status = "completed";
+    tasks[idx].prUrl = prUrl;
+  }
+
+  await updateTaskViaAPI(task.taskId, "pr-created", { pr_url: prUrl });
+}
+
+/** Validates then commits/PRs the worktree's uncommitted changes. */
+async function processWorktreeChanges(
+  task: LocalTask,
+  tasks: LocalTask[],
+  idx: number,
+  status: string,
+): Promise<"validation-failed" | "done"> {
+  const changedFiles = status
+    .split("\n")
+    .map((line) => line.substring(3).trim())
+    .filter(Boolean);
+  const validationVerdict = await validateBeforeCommit(
+    task,
+    tasks,
+    idx,
+    changedFiles,
+  );
+
+  if (validationVerdict === "failed") {
+    return "validation-failed";
+  }
+  await commitAndOpenPr(task, tasks, idx);
+
+  return "done";
+}
+
 async function monitorTask(task: LocalTask): Promise<void> {
   await waitForExit(task.pid);
 
@@ -289,194 +521,20 @@ async function monitorTask(task: LocalTask): Promise<void> {
       timeout: 10000,
     }).trim();
 
-    if (status) {
-      // ── Deterministic validation (Minions-inspired) ──
-      // Run lint/typecheck as mandatory pipeline stages before commit.
-      const changedFiles = status
-        .split("\n")
-        .map((line) => line.substring(3).trim())
-        .filter(Boolean);
-      const tooling = detectTooling(task.worktreePath);
+    const verdict = status
+      ? await processWorktreeChanges(task, tasks, idx, status)
+      : "no-changes";
 
-      if (tooling.quickChecks.length > 0) {
-        console.log(
-          `[lore] local-runner: running ${tooling.language} validation (${tooling.quickChecks.map((s) => s.name).join(", ")})`,
-        );
-        const validation = await runValidation(
-          task.worktreePath,
-          tooling.quickChecks,
-          changedFiles,
-        );
-
-        if (!validation.passed) {
-          // Attempt one retry: spawn Claude Code with fix prompt
-          const fixOutput = formatValidationOutput(validation);
-
-          console.log(
-            `[lore] local-runner: validation failed, attempting fix retry for ${task.taskId}`,
-          );
-          fs.appendFileSync(
-            task.logFile,
-            `\n\n--- VALIDATION FAILED ---\n${fixOutput}\n`,
-          );
-
-          const fixPrompt = [
-            "Validation checks failed after your changes. Fix ONLY these errors.",
-            "Do not re-implement the original task. Only fix the validation errors.",
-            "",
-            fixOutput,
-          ].join("\n");
-
-          const config = readConfig();
-          const fixModel = config.model || "claude-sonnet-4-6";
-          const fixLogFd = fs.openSync(task.logFile, "a");
-          const fixErrFd = fs.openSync(errFileFor(task.logFile), "a");
-          const fixChild = spawn(
-            "claude",
-            [
-              "--print",
-              "--output-format",
-              "stream-json",
-              "--verbose",
-              "--dangerously-skip-permissions",
-              "--model",
-              fixModel,
-              "--",
-              fixPrompt,
-            ],
-            {
-              cwd: task.worktreePath,
-              detached: true,
-              stdio: ["ignore", fixLogFd, fixErrFd],
-              env: { ...process.env, HOME: os.homedir() },
-            },
-          );
-
-          fixChild.unref();
-          fs.closeSync(fixLogFd);
-          fs.closeSync(fixErrFd);
-
-          if (fixChild.pid) {
-            await waitForExit(fixChild.pid);
-
-            // Re-validate after fix attempt
-            const retryValidation = await runValidation(
-              task.worktreePath,
-              tooling.quickChecks,
-              changedFiles,
-            );
-
-            if (retryValidation.passed) {
-              console.log(
-                `[lore] local-runner: fix retry succeeded for ${task.taskId}`,
-              );
-            }
-
-            if (!retryValidation.passed) {
-              const retryOutput = formatValidationOutput(retryValidation);
-
-              fs.appendFileSync(
-                task.logFile,
-                `\n\n--- RETRY VALIDATION FAILED ---\n${retryOutput}\n`,
-              );
-
-              if (idx >= 0) {
-                tasks[idx].status = "failed";
-                tasks[idx].error =
-                  `Validation failed after retry: ${retryValidation.steps
-                    .filter((s) => !s.passed)
-                    .map((s) => s.name)
-                    .join(", ")}`;
-              }
-              await updateTaskViaAPI(task.taskId, "needs-human-help", {
-                failure_reason: retryOutput.substring(0, 2000),
-              });
-              // Status is written BEFORE the artifact round-trips: writeTasks
-              // rewrites the whole file from this monitor's snapshot, so
-              // holding it across slow network calls widens the lost-update
-              // window against a concurrently finishing task.
-              writeTasks(tasks);
-              // This early return used to skip the log upload entirely — the
-              // needs-human-help runs are exactly the ones whose transcript a
-              // human needs. Worktree cleanup stays skipped on purpose (kept
-              // for debugging).
-              await persistRunArtifacts(task);
-
-              return;
-            }
-          }
-        }
-      }
-
-      // Stage, commit, push, create PR
-      execSync("git add -A", {
-        cwd: task.worktreePath,
-        stdio: "pipe",
-        timeout: 30000,
-      });
-
-      // After staging, check if there's anything worth committing.
-      // `git status --porcelain` above can include files that become
-      // ignored or stripped on add — verify the index actually has
-      // changes before we commit/push/open a PR (issue #250).
-      const stagedFiles = execSync("git diff --cached --name-only", {
-        cwd: task.worktreePath,
-        encoding: "utf-8",
-        timeout: 10000,
-      }).trim();
-
-      if (!stagedFiles) {
-        console.log(
-          `[lore] local-runner: ${task.taskId} produced no staged changes — skipping PR`,
-        );
-
-        if (idx >= 0) {
-          tasks[idx].status = "completed";
-        }
-        await updateTaskViaAPI(task.taskId, "completed", { no_changes: true });
-      }
-
-      if (stagedFiles) {
-        const branchTail = task.branch.split("/").pop() || task.taskId;
-
-        execSync(`git commit -m "lore: local \u2014 ${branchTail}"`, {
-          cwd: task.worktreePath,
-          stdio: "pipe",
-          timeout: 30000,
-        });
-
-        execSync(`git push origin ${task.branch}`, {
-          cwd: task.worktreePath,
-          stdio: "pipe",
-          timeout: 60000,
-        });
-
-        // Create PR via gh CLI (developer's auth)
-        const prTitle = `lore: local \u2014 ${branchTail}`;
-        const prBody = [
-          "Local task executed by Lore on developer machine.",
-          "",
-          `Task ID: ${task.taskId}`,
-        ].join("\n");
-        const prUrl = execSync(
-          `gh pr create --title "${prTitle}" --body "${prBody}" --head ${task.branch}`,
-          { cwd: task.worktreePath, encoding: "utf-8", timeout: 30000 },
-        ).trim();
-
-        if (idx >= 0) {
-          tasks[idx].status = "completed";
-          tasks[idx].prUrl = prUrl;
-        }
-
-        await updateTaskViaAPI(task.taskId, "pr-created", { pr_url: prUrl });
-      }
+    if (verdict === "validation-failed") {
+      return;
     }
 
-    if (!status) {
+    if (verdict === "no-changes" && idx >= 0) {
+      tasks[idx].status = "completed";
+    }
+
+    if (verdict === "no-changes") {
       // No changes — mark completed without PR
-      if (idx >= 0) {
-        tasks[idx].status = "completed";
-      }
       await updateTaskViaAPI(task.taskId, "completed", { no_changes: true });
     }
 
@@ -1034,6 +1092,58 @@ const STALE_THRESHOLD_MS = 30 * 60 * 1000; // 30 minutes
  *
  * In both cases the orphaned git worktree is cleaned up (best effort).
  */
+/** Removes an orphaned worktree by resolving its main repo from the .git file. */
+function removeOrphanedWorktree(worktreePath: string): void {
+  if (!fs.existsSync(worktreePath)) {
+    return;
+  }
+  const gitFile = path.join(worktreePath, ".git");
+
+  if (!fs.existsSync(gitFile)) {
+    return;
+  }
+  const gitContent = fs.readFileSync(gitFile, "utf-8");
+  const mainRepo = gitContent.match(/gitdir:\s*(.+)\/\.git\/worktrees/)?.[1];
+
+  if (!mainRepo) {
+    return;
+  }
+  execSync(`git worktree remove "${worktreePath}" --force`, {
+    cwd: mainRepo,
+    stdio: "pipe",
+    timeout: 10000,
+  });
+}
+
+/** Re-queues a stale local task for GKE (best effort). */
+async function requeueStaleTask(task: LocalTask): Promise<void> {
+  const apiUrl = getApiUrl();
+  const token = getToken();
+
+  if (!(apiUrl && token)) {
+    return;
+  }
+
+  try {
+    await fetch(`${apiUrl}/api/task`, {
+      signal: AbortSignal.timeout(30_000),
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        task_id: task.taskId,
+        action: "requeue",
+      }),
+    });
+    task.error = "Stale — re-queued for GKE";
+    console.log(`[lore] Stale local task ${task.taskId} re-queued for GKE`);
+  } catch {
+    /* best effort */
+  }
+}
+
 export async function cleanupStaleTasks(): Promise<void> {
   const tasks = readTasks();
   let changed = false;
@@ -1055,55 +1165,14 @@ export async function cleanupStaleTasks(): Promise<void> {
 
     // Clean up orphaned worktree (best effort)
     try {
-      if (fs.existsSync(task.worktreePath)) {
-        const gitFile = path.join(task.worktreePath, ".git");
-
-        if (fs.existsSync(gitFile)) {
-          const gitContent = fs.readFileSync(gitFile, "utf-8");
-          const mainRepo = gitContent.match(
-            /gitdir:\s*(.+)\/\.git\/worktrees/,
-          )?.[1];
-
-          if (mainRepo) {
-            execSync(`git worktree remove "${task.worktreePath}" --force`, {
-              cwd: mainRepo,
-              stdio: "pipe",
-              timeout: 10000,
-            });
-          }
-        }
-      }
+      removeOrphanedWorktree(task.worktreePath);
     } catch {
       /* best effort */
     }
 
     // Re-queue for GKE if stale (> 30 min — likely machine slept)
     if (ageMs > STALE_THRESHOLD_MS) {
-      const apiUrl = getApiUrl();
-      const token = getToken();
-
-      if (apiUrl && token) {
-        try {
-          await fetch(`${apiUrl}/api/task`, {
-            signal: AbortSignal.timeout(30_000),
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${token}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              task_id: task.taskId,
-              action: "requeue",
-            }),
-          });
-          task.error = "Stale — re-queued for GKE";
-          console.log(
-            `[lore] Stale local task ${task.taskId} re-queued for GKE`,
-          );
-        } catch {
-          /* best effort */
-        }
-      }
+      await requeueStaleTask(task);
     }
   }
 

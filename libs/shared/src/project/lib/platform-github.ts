@@ -744,7 +744,7 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
         break;
       }
 
-      for (const n of page.nodes) {
+      page.nodes.forEach((n) => {
         // The accepted cap (a 100+-comment thread is out of scope) — but say so
         // when it actually bites, or a failed databaseId join reads as "no
         // thread" instead of "comment past the cap".
@@ -761,7 +761,7 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
             databaseId: c.databaseId,
           })),
         });
-      }
+      });
       hasNextPage = page.pageInfo.hasNextPage;
       cursor = page.pageInfo.endCursor;
     }

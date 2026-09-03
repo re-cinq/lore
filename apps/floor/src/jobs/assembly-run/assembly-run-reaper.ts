@@ -37,7 +37,11 @@ import {
   type AgentNodeStatus,
 } from "@re-cinq/lore-assembly-lines";
 import { resolveRunGraph } from "@re-cinq/lore-assembly-lines";
-import type { StationRunRecord } from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
+import type {
+  AssemblyRunRecord,
+  StationRunRecord,
+} from "@re-cinq/lore-shared/project/assembly-runs/assembly-runs-port.js";
+import type { RunGraphNode } from "@re-cinq/lore-shared/project/assembly-runs/run-graph.js";
 import { advanceLine, finishLine } from "./advance.js";
 import { agentCrVisible } from "./cr-visibility.js";
 import { finishNodeTerminal, normalizeAgentStatus } from "./node-terminal.js";
@@ -224,6 +228,204 @@ export function decideNodeRecovery(input: {
   return { kind: "wait" };
 }
 
+interface GraphlessSweepContext {
+  deps: AssemblyLineReaperDeps;
+  offlineAgents: Set<string>;
+  queueWaitMs: number;
+  nowMs: number;
+  whyUnclaimed: (requiredTags: string[]) => string;
+}
+
+/** Single-CR run record (FR6.8). Two things can strand it, and they need
+ *  different answers: FIRST the queue (a single CR's visit is a claimable row
+ *  now, so it can sit unclaimed exactly like a line's node), THEN the
+ *  crash-orphan sweep off the backing task's terminal status. */
+async function reapGraphlessRun(
+  row: AssemblyRunRecord,
+  ctx: GraphlessSweepContext,
+): Promise<"queue-timeout" | "requeued" | "swept" | null> {
+  const singleCrNodes = await ctx.deps.assemblyRuns.listStationRuns(row.id);
+  const singleCrOpen = singleCrNodes.find((n) => n.outcome === null);
+
+  // Only two queue arms: a `claimed` row that stops reporting is the WATCHER's
+  // to settle (it hears the terminal event), and owning its timeout here as
+  // well would race it.
+  const queueOutcome = singleCrOpen
+    ? await settleUnclaimedSingleCr(row, singleCrOpen, ctx)
+    : null;
+
+  if (queueOutcome !== null) {
+    return queueOutcome;
+  }
+
+  return sweepTerminalSingleCr(row, singleCrOpen, ctx.deps);
+}
+
+async function settleUnclaimedSingleCr(
+  row: AssemblyRunRecord,
+  singleCrOpen: StationRunRecord,
+  ctx: GraphlessSweepContext,
+): Promise<"queue-timeout" | "requeued" | null> {
+  const { deps, offlineAgents, queueWaitMs, nowMs, whyUnclaimed } = ctx;
+  // With no graph there is no node budget and no walk to notice — the queue
+  // wait is the only bound.
+  const recovery = decideNodeRecovery({
+    claimantOffline:
+      singleCrOpen.clusterAgentId !== null &&
+      offlineAgents.has(singleCrOpen.clusterAgentId),
+    node: singleCrOpen,
+    timeoutMinutes: undefined,
+    status: null,
+    nodeType: "agent",
+    crVisible: false,
+    queueWaitMs,
+    nowMs,
+  });
+
+  if (recovery.kind === "queue-timeout") {
+    await deps.assemblyRuns.finishStationRunOnce(
+      singleCrOpen.id,
+      "failed",
+      undefined,
+      {
+        failureClass: "unclaimed",
+        // Naming the tags is the point, exactly as on the graph arm.
+        failureDetail: whyUnclaimed(singleCrOpen.requiredTags),
+      },
+    );
+    await finishLine(
+      row,
+      "error",
+      whyUnclaimed(singleCrOpen.requiredTags),
+      deps,
+    );
+
+    return "queue-timeout";
+  }
+
+  if (recovery.kind === "requeue-offline") {
+    await deps.assemblyRuns.requeueStationRun(singleCrOpen.id);
+    await deps.audit?.({
+      event_type: "cluster_agent_offline",
+      payload: {
+        cluster_agent_id: singleCrOpen.clusterAgentId,
+        station_run_id: singleCrOpen.stationRunId,
+        assembly_run_id: row.id,
+        node_id: singleCrOpen.nodeId,
+        elapsed_since_claim_ms: singleCrOpen.claimedAt
+          ? nowMs - singleCrOpen.claimedAt.getTime()
+          : null,
+      },
+    });
+
+    return "requeued";
+  }
+
+  return null;
+}
+
+/** The crash case: normally the agent-watcher closes the row, but a crash
+ *  between the task's post-handler status write and that close (or a dropped
+ *  terminal event past the reconcile window) leaves it open forever. If the
+ *  backing task is terminal, close from its status; else leave it (the task is
+ *  still in-flight). */
+async function sweepTerminalSingleCr(
+  row: AssemblyRunRecord,
+  singleCrOpen: StationRunRecord | undefined,
+  deps: AssemblyLineReaperDeps,
+): Promise<"swept" | null> {
+  if (!row.taskId) {
+    return null;
+  }
+  const taskStatus = await deps.taskStatus(row.taskId);
+  const terminal =
+    taskStatus !== null &&
+    !["running", "queued", "pending"].includes(taskStatus);
+
+  if (!terminal) {
+    return null;
+  }
+
+  // The visit before the run, so a closed run never shows a station still
+  // executing.
+  if (singleCrOpen) {
+    await deps.assemblyRuns.finishStationRunOnce(
+      singleCrOpen.id,
+      stationOutcomeForRunOutcome(runOutcomeFromTaskStatus(taskStatus)),
+    );
+  }
+  // finishLine (not finish) so the single-CR row's token is reclaimed and,
+  // though single-CR rows carry no job_run_id, every terminal close routes
+  // through one path.
+  await finishLine(row, runOutcomeFromTaskStatus(taskStatus), undefined, deps);
+
+  return "swept";
+}
+
+/** finishLine so the detect fan-out's args.job_run_id is settled (failed) — a
+ *  bare finish would leave the pre-created job_run row running forever. */
+async function failLongQueuedLine(
+  row: AssemblyRunRecord,
+  deps: AssemblyLineReaperDeps,
+  nowMs: number,
+): Promise<number> {
+  if (nowMs - row.createdAt.getTime() <= QUEUED_LIMIT_MINUTES * MINUTE_MS) {
+    return 0;
+  }
+  await finishLine(row, "error", "assembly_line.start never completed", deps);
+
+  return 1;
+}
+
+/** A dropped event lands here instead — it owes the PR the same review and
+ *  check the event path would have posted, off the same resolved outcome; it
+ *  owes the next node the artifacts this one produced (THIS is the only door
+ *  that will ever read this output); and it owes operators the same alerts,
+ *  or whether the account-dry alarm fired would depend on which door the event
+ *  came through (#1456, both axes). */
+async function settleResolvedNode(
+  params: {
+    row: AssemblyRunRecord;
+    node: RunGraphNode;
+    openNode: StationRunRecord;
+    terminalStatus: AgentNodeStatus;
+  },
+  deps: AssemblyLineReaperDeps,
+): Promise<void> {
+  const { row, node, openNode, terminalStatus } = params;
+  const status = normalizeAgentStatus(terminalStatus);
+  const result = await deliverTerminalArtifacts(
+    row,
+    node,
+    terminalStatus,
+    deps,
+  );
+
+  if (result.outcome === "failed" && deps.alertBilling) {
+    await deps.alertBilling(row.repo, node.type, status);
+  }
+
+  if (result.outcome === "failed" && deps.alertAgentConfig) {
+    await deps.alertAgentConfig(row.repo, node.type, status);
+  }
+
+  if (result.failureClass) {
+    deps.llmGate?.trip(result.failureClass, result.failureDetail);
+  }
+
+  await finishNodeTerminal(
+    {
+      row,
+      node,
+      nodeId: openNode.nodeId,
+      iteration: openNode.iteration,
+      result,
+      output: status.output,
+    },
+    deps,
+  );
+}
+
 /** One sweep over every open line; per-line failures are logged and skipped so a
  *  single bad row never wedges the tick. */
 export async function assemblyLineReaperJob(
@@ -264,122 +466,22 @@ export async function assemblyLineReaperJob(
       const graph = await resolveRunGraph(row, deps.definitions);
 
       if (!graph) {
-        // Single-CR run record (FR6.8). Two things can strand it, and they need
-        // different answers.
-        const singleCrNodes = await deps.assemblyRuns.listStationRuns(row.id);
-        const singleCrOpen = singleCrNodes.find((n) => n.outcome === null);
+        const graphlessOutcome = await reapGraphlessRun(row, {
+          deps,
+          offlineAgents,
+          queueWaitMs,
+          nowMs,
+          whyUnclaimed,
+        });
 
-        // FIRST, the queue. A single CR's visit is a claimable row now, so it
-        // can sit unclaimed exactly like a line's node — and with no graph there
-        // is no node budget and no walk to notice. Only these two arms: a
-        // `claimed` row that stops reporting is the WATCHER's to settle (it hears
-        // the terminal event), and owning its timeout here as well would race it.
-        if (singleCrOpen) {
-          const recovery = decideNodeRecovery({
-            claimantOffline:
-              singleCrOpen.clusterAgentId !== null &&
-              offlineAgents.has(singleCrOpen.clusterAgentId),
-            node: singleCrOpen,
-            timeoutMinutes: undefined,
-            status: null,
-            nodeType: "agent",
-            crVisible: false,
-            queueWaitMs,
-            nowMs,
-          });
-
-          if (recovery.kind === "queue-timeout") {
-            await deps.assemblyRuns.finishStationRunOnce(
-              singleCrOpen.id,
-              "failed",
-              undefined,
-              {
-                failureClass: "unclaimed",
-                // Naming the tags is the point, exactly as on the graph arm.
-                failureDetail: whyUnclaimed(singleCrOpen.requiredTags),
-              },
-            );
-            await finishLine(
-              row,
-              "error",
-              whyUnclaimed(singleCrOpen.requiredTags),
-              deps,
-            );
-            queueTimedOut++;
-            continue;
-          }
-
-          if (recovery.kind === "requeue-offline") {
-            await deps.assemblyRuns.requeueStationRun(singleCrOpen.id);
-            await deps.audit?.({
-              event_type: "cluster_agent_offline",
-              payload: {
-                cluster_agent_id: singleCrOpen.clusterAgentId,
-                station_run_id: singleCrOpen.stationRunId,
-                assembly_run_id: row.id,
-                node_id: singleCrOpen.nodeId,
-                elapsed_since_claim_ms: singleCrOpen.claimedAt
-                  ? nowMs - singleCrOpen.claimedAt.getTime()
-                  : null,
-              },
-            });
-            requeued++;
-            continue;
-          }
-        }
-
-        // THEN the crash case: normally the agent-watcher closes the row, but a
-        // crash between the task's post-handler status write and that close (or a
-        // dropped terminal event past the reconcile window) leaves it open
-        // forever. If the backing task is terminal, close from its status; else
-        // leave it (the task is still in-flight).
-        if (row.taskId) {
-          const taskStatus = await deps.taskStatus(row.taskId);
-          const terminal =
-            taskStatus !== null &&
-            !["running", "queued", "pending"].includes(taskStatus);
-
-          if (terminal) {
-            // The visit before the run, so a closed run never shows a station
-            // still executing.
-            if (singleCrOpen) {
-              await deps.assemblyRuns.finishStationRunOnce(
-                singleCrOpen.id,
-                stationOutcomeForRunOutcome(
-                  runOutcomeFromTaskStatus(taskStatus),
-                ),
-              );
-            }
-            // finishLine (not finish) so the single-CR row's token is reclaimed
-            // and, though single-CR rows carry no job_run_id, every terminal close
-            // routes through one path.
-            await finishLine(
-              row,
-              runOutcomeFromTaskStatus(taskStatus),
-              undefined,
-              deps,
-            );
-            sweptSingleCr++;
-          }
-        }
+        queueTimedOut += graphlessOutcome === "queue-timeout" ? 1 : 0;
+        requeued += graphlessOutcome === "requeued" ? 1 : 0;
+        sweptSingleCr += graphlessOutcome === "swept" ? 1 : 0;
         continue;
       }
 
       if (row.status === "queued") {
-        if (
-          nowMs - row.createdAt.getTime() >
-          QUEUED_LIMIT_MINUTES * MINUTE_MS
-        ) {
-          // finishLine so the detect fan-out's args.job_run_id is settled (failed)
-          // — a bare finish would leave the pre-created job_run row running forever.
-          await finishLine(
-            row,
-            "error",
-            "assembly_line.start never completed",
-            deps,
-          );
-          failedQueued++;
-        }
+        failedQueued += await failLongQueuedLine(row, deps, nowMs);
         continue;
       }
 
@@ -430,49 +532,8 @@ export async function assemblyLineReaperJob(
       });
 
       if (recovery.kind === "resolve") {
-        // A dropped event lands here instead — it owes the PR the same review and
-        // check the event path would have posted, off the same resolved outcome.
-        const status = normalizeAgentStatus(recovery.status);
-        // ...and it owes the next node the artifacts this one produced. A dropped
-        // event means THIS is the only door that will ever read this output, so an
-        // artifact delivered on the event path and not here is a difference nobody
-        // could predict from the run.
-        const result = await deliverTerminalArtifacts(
-          row,
-          node,
-          recovery.status,
-          deps,
-        );
-
-        // ...and it owes operators the same alert. A billing outage recovered
-        // through this slower door raised nothing at all before, so whether the
-        // account-dry alarm fired depended on which door the event came through.
-        if (result.outcome === "failed" && deps.alertBilling) {
-          await deps.alertBilling(row.repo, node.type, status);
-        }
-
-        // The same is true of the missing-settings alarm (an unreachable
-        // skills_source downs every Claude-agent node on the CLUSTER). Raising
-        // only the billing one here left the config outage visible on the event
-        // door and silent on this one — the door asymmetry #1456 closed for
-        // billing, reopened on the other axis.
-        if (result.outcome === "failed" && deps.alertAgentConfig) {
-          await deps.alertAgentConfig(row.repo, node.type, status);
-        }
-
-        if (result.failureClass) {
-          deps.llmGate?.trip(result.failureClass, result.failureDetail);
-        }
-
-        await finishNodeTerminal(
-          {
-            row,
-            node,
-            nodeId: openNode.nodeId,
-            iteration: openNode.iteration,
-            result,
-            output: status.output,
-          },
+        await settleResolvedNode(
+          { row, node, openNode, terminalStatus: recovery.status },
           deps,
         );
         resolved++;

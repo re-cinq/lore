@@ -276,7 +276,8 @@ export class PostgresMemoryStore implements MemoryStore {
       params,
     );
 
-    const countParams = repo ? [repo] : agentId ? [agentId] : [];
+    const scopeKey = repo || agentId;
+    const countParams = scopeKey ? [scopeKey] : [];
     const countResult = await this.pool.query(
       `SELECT count(*)::int as total FROM memory.memories
        WHERE ${filter} is_deleted = FALSE

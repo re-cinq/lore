@@ -117,7 +117,7 @@ function definitionGraph(definition: AssemblyLineDefinition): VisibleGraph {
       continue;
     }
 
-    for (const to of targets) {
+    targets.forEach((to) => {
       const ons = outgoing
         .filter((edge) => edge.to === to)
         .map((edge) => edge.on);
@@ -127,7 +127,7 @@ function definitionGraph(definition: AssemblyLineDefinition): VisibleGraph {
         to,
         tone: ons.length === 1 ? outcomeTone(ons[0]) : "neutral",
       });
-    }
+    });
   }
 
   const nodes = definition.nodes.map((node) => ({

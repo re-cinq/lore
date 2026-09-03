@@ -128,11 +128,13 @@ export default function RunVisualizationPanel({
             signal: AbortSignal.timeout(15_000),
           });
 
+          if (!res.ok && cancelled) {
+            return;
+          }
+
           if (!res.ok) {
-            if (!cancelled) {
-              setStreamUnavailable(true);
-              setConnection("offline");
-            }
+            setStreamUnavailable(true);
+            setConnection("offline");
 
             return;
           }
@@ -144,14 +146,14 @@ export default function RunVisualizationPanel({
             return;
           }
 
-          for (const row of rows) {
+          rows.forEach((row) => {
             const parsed = parseRunStreamRow(row);
 
             if (parsed !== null) {
               dispatch(parsed);
               collected.push(parsed);
             }
-          }
+          });
 
           const next = nextPageCursor(
             rows.filter(
@@ -397,6 +399,15 @@ export default function RunVisualizationPanel({
     // lineOutcomeFromVisits, so a code-review line that closes `finished` with a
     // failed review still reports the run result as failed on its terminal.
     const anyFailed = rows.some((n) => (n.outcome ?? "").includes("failed"));
+    let runResult: RunData["result"] = null;
+
+    if (anyFailed) {
+      runResult = "failed";
+    }
+
+    if (!anyFailed && isTerminalRunStatus(runStatus)) {
+      runResult = "completed";
+    }
 
     return {
       // A node participated once it left idle (live stream) or has a walk row.
@@ -407,11 +418,7 @@ export default function RunVisualizationPanel({
       verdicts: Object.fromEntries(rows.map((n) => [n.nodeId, n.outcome])),
       statuses: Object.fromEntries(entries.map(([id, s]) => [id, s.status])),
       taken: takenEdges,
-      result: anyFailed
-        ? "failed"
-        : isTerminalRunStatus(runStatus)
-          ? "completed"
-          : null,
+      result: runResult,
     };
   }, [
     replayActive,

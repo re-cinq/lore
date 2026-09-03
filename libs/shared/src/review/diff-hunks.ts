@@ -41,10 +41,12 @@ export function commentablePositions(diff: string): CommentablePositions {
       continue;
     }
 
-    if (line.startsWith("--- ") || line.startsWith("diff --git")) {
-      if (line.startsWith("diff --git")) {
-        path = null;
-      }
+    if (line.startsWith("diff --git")) {
+      path = null;
+      continue;
+    }
+
+    if (line.startsWith("--- ")) {
       continue;
     }
     const hunk = line.match(HUNK);

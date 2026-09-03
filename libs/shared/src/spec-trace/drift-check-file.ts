@@ -192,6 +192,24 @@ async function applySeverity(
   );
 }
 
+async function applyDriftSeverity(
+  dgraph: DgraphClientPort,
+  node: AffectedNode,
+  severitySource: number[] | undefined,
+): Promise<void> {
+  if (!severitySource) {
+    return;
+  }
+  const nodeVector = parseEmbedding(node.embedding);
+
+  if (!nodeVector) {
+    return;
+  }
+  const severity = 1 - cosineSimilarity(severitySource, nodeVector);
+
+  await applySeverity(dgraph, node.uid, node.nodeType, severity);
+}
+
 /** Flips every Statement/AcceptanceCriterion affected by a chunk to drifted with the given reason. */
 async function driftChunkStatements(
   dgraph: DgraphClientPort,
@@ -202,16 +220,7 @@ async function driftChunkStatements(
 ): Promise<void> {
   for (const node of collectAffectedNodes(chunk)) {
     await applyDrift(dgraph, node.uid, driftReason, node.nodeType);
-
-    if (severitySource) {
-      const nodeVector = parseEmbedding(node.embedding);
-
-      if (nodeVector) {
-        const severity = 1 - cosineSimilarity(severitySource, nodeVector);
-
-        await applySeverity(dgraph, node.uid, node.nodeType, severity);
-      }
-    }
+    await applyDriftSeverity(dgraph, node, severitySource);
     const { specPath, ordinal } = nodeRefFromXid(node.xid);
 
     drifted.push({

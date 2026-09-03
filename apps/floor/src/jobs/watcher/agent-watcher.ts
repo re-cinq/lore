@@ -349,6 +349,106 @@ export async function processAgentTerminal(
   }
 }
 
+/** Close out a succeeded task that pushed nothing: complete it and route the
+ *  result through its GitHub Issue (comment an existing one, best-effort create
+ *  one otherwise). */
+async function completeNoChangeTask(
+  ctx: AgentContext,
+  taskUrl: ReturnType<typeof taskPageUrl>,
+  logsRef: string,
+): Promise<void> {
+  const { taskId, taskType, targetRepo, description, output } = ctx;
+
+  // feature-planning posts its result straight to the features API (ADR-027).
+  if (taskType === "feature-planning") {
+    try {
+      await taskStore().setStatus(taskId, "completed");
+      await taskStore().recordEvent(taskId, "running", "completed", {
+        feature_planning: true,
+      });
+    } catch (err) {
+      console.error(
+        `[agent-watcher] feature-planning completion failed for ${taskId}: ${errorMessage(err)}`,
+      );
+    }
+
+    return;
+  }
+
+  try {
+    let { issue_number, target_repo } = await getIssueNumber(taskId);
+
+    if (!target_repo) {
+      target_repo = targetRepo;
+    }
+
+    const existingIssue = issue_number;
+
+    if (!existingIssue) {
+      try {
+        const copy = await generateArtifactCopy({
+          kind: "issue",
+          taskType,
+          description,
+          agentOutput: output,
+          repo: target_repo,
+        });
+        const body = output
+          ? `${tailOutput(output)}\n\n---\n*Lore-Task: ${taskId}*`
+          : `${copy.body}\n\nTask completed (no output). ${logsRef}.`;
+        const issue = await (
+          await projectFor(target_repo)
+        ).issues.create(copy.title, body, ["lore-managed", taskType]);
+
+        issue_number = issue.number;
+        await pipeline().taskQueue.setColumns(taskId, {
+          issue_number: issue.number,
+          issue_url: issue.url,
+        });
+      } catch {
+        /* best effort */
+      }
+    }
+
+    if (existingIssue) {
+      const body = output
+        ? `## Result\n\n${tailOutput(output)}`
+        : `Task completed (no code changes). ${logsRef} for full output.`;
+
+      await projectFor(target_repo)
+        .then((p) => p.issues.comment(existingIssue, body))
+        .catch(() => {});
+    }
+    await taskStore().setStatus(taskId, "completed", { log_url: taskUrl });
+    await taskStore().recordEvent(taskId, "running", "completed", {
+      no_changes: true,
+      issue_number,
+    });
+
+    if (issue_number) {
+      await notifyTaskUpdate(
+        taskId,
+        target_repo,
+        "completed",
+        `https://github.com/${target_repo}/issues/${issue_number}`,
+      );
+    }
+    writeEpisode(
+      { memory: memoryLifecycle() },
+      `Task ${taskType} on ${target_repo} completed (no changes)\nDescription: ${description.substring(0, 500)}\nOutput: ${output.substring(0, 2000)}`,
+      "ci",
+      `${target_repo}/${taskId}`,
+    ).catch(() => {});
+    console.log(
+      `[agent-watcher] Task ${taskId} completed → issue #${issue_number || "none"}`,
+    );
+  } catch (err) {
+    console.error(
+      `[agent-watcher] Failed to complete no-change task ${taskId}: ${errorMessage(err)}`,
+    );
+  }
+}
+
 /** Succeeded, non-review, no PR yet: compute the changed-file count and either close
  *  out a no-changes task (issue) or open a PR (+ CI gate, auto-review fan-out). */
 async function handleSucceededChanges(ctx: AgentContext): Promise<void> {
@@ -371,94 +471,7 @@ async function handleSucceededChanges(ctx: AgentContext): Promise<void> {
   }
 
   if (changedFiles === 0) {
-    // feature-planning posts its result straight to the features API (ADR-027).
-    if (taskType === "feature-planning") {
-      try {
-        await taskStore().setStatus(taskId, "completed");
-        await taskStore().recordEvent(taskId, "running", "completed", {
-          feature_planning: true,
-        });
-      } catch (err) {
-        console.error(
-          `[agent-watcher] feature-planning completion failed for ${taskId}: ${errorMessage(err)}`,
-        );
-      }
-
-      return;
-    }
-
-    try {
-      let { issue_number, target_repo } = await getIssueNumber(taskId);
-
-      if (!target_repo) {
-        target_repo = targetRepo;
-      }
-
-      const existingIssue = issue_number;
-
-      if (!existingIssue) {
-        try {
-          const copy = await generateArtifactCopy({
-            kind: "issue",
-            taskType,
-            description,
-            agentOutput: output,
-            repo: target_repo,
-          });
-          const body = output
-            ? `${tailOutput(output)}\n\n---\n*Lore-Task: ${taskId}*`
-            : `${copy.body}\n\nTask completed (no output). ${logsRef}.`;
-          const issue = await (
-            await projectFor(target_repo)
-          ).issues.create(copy.title, body, ["lore-managed", taskType]);
-
-          issue_number = issue.number;
-          await pipeline().taskQueue.setColumns(taskId, {
-            issue_number: issue.number,
-            issue_url: issue.url,
-          });
-        } catch {
-          /* best effort */
-        }
-      }
-
-      if (existingIssue) {
-        const body = output
-          ? `## Result\n\n${tailOutput(output)}`
-          : `Task completed (no code changes). ${logsRef} for full output.`;
-
-        await projectFor(target_repo)
-          .then((p) => p.issues.comment(existingIssue, body))
-          .catch(() => {});
-      }
-      await taskStore().setStatus(taskId, "completed", { log_url: taskUrl });
-      await taskStore().recordEvent(taskId, "running", "completed", {
-        no_changes: true,
-        issue_number,
-      });
-
-      if (issue_number) {
-        await notifyTaskUpdate(
-          taskId,
-          target_repo,
-          "completed",
-          `https://github.com/${target_repo}/issues/${issue_number}`,
-        );
-      }
-      writeEpisode(
-        { memory: memoryLifecycle() },
-        `Task ${taskType} on ${target_repo} completed (no changes)\nDescription: ${description.substring(0, 500)}\nOutput: ${output.substring(0, 2000)}`,
-        "ci",
-        `${target_repo}/${taskId}`,
-      ).catch(() => {});
-      console.log(
-        `[agent-watcher] Task ${taskId} completed → issue #${issue_number || "none"}`,
-      );
-    } catch (err) {
-      console.error(
-        `[agent-watcher] Failed to complete no-change task ${taskId}: ${errorMessage(err)}`,
-      );
-    }
+    await completeNoChangeTask(ctx, taskUrl, logsRef);
 
     return;
   }
@@ -757,6 +770,65 @@ async function requeueTransientInfraFailure(
   );
 }
 
+async function completeApprovedReview(
+  taskId: string,
+  parentTaskId: string,
+): Promise<void> {
+  await taskStore().setStatus(parentTaskId, "completed");
+  await taskStore().recordEvent(parentTaskId, "review", "completed", {
+    review_result: "approved",
+    review_task_id: taskId,
+  });
+  const { issue_number, target_repo } = await getIssueNumber(parentTaskId);
+
+  if (issue_number) {
+    await projectFor(target_repo)
+      .then((p) =>
+        p.issues.comment(
+          issue_number,
+          "Agent review: **approved**. PR is ready for human merge.",
+        ),
+      )
+      .catch(() => {});
+  }
+  await taskStore().setStatus(taskId, "completed");
+  console.log(
+    `[agent-watcher] Review approved for parent task ${parentTaskId}`,
+  );
+}
+
+async function escalateReviewToHuman(
+  taskId: string,
+  parentTaskId: string,
+  parent: PipelineTask,
+  iteration: number,
+): Promise<void> {
+  await taskStore().recordEvent(parentTaskId, "review", "review", {
+    review_result: "needs-human-review",
+    iterations: iteration,
+  });
+
+  if (parent.issue_number) {
+    await projectFor(parent.target_repo)
+      .then((p) =>
+        p.issues.comment(
+          parent.issue_number!,
+          `Agent review: changes requested (iteration ${iteration}/2). Escalating to human review.`,
+        ),
+      )
+      .catch(() => {});
+    await projectFor(parent.target_repo)
+      .then((p) =>
+        p.issues.addLabel(parent.issue_number!, "needs-human-review"),
+      )
+      .catch(() => {});
+  }
+  await taskStore().setStatus(taskId, "completed");
+  console.log(
+    `[agent-watcher] Review escalated to human for ${parentTaskId} (iteration ${iteration})`,
+  );
+}
+
 /** A review Agent's verdict drives the iteration-capped fix loop on the parent task. */
 async function handleReviewVerdict(
   ctx: AgentContext,
@@ -781,27 +853,7 @@ async function handleReviewVerdict(
   }
 
   if (reviewResult === "approved") {
-    await taskStore().setStatus(parentTaskId, "completed");
-    await taskStore().recordEvent(parentTaskId, "review", "completed", {
-      review_result: "approved",
-      review_task_id: taskId,
-    });
-    const { issue_number, target_repo } = await getIssueNumber(parentTaskId);
-
-    if (issue_number) {
-      await projectFor(target_repo)
-        .then((p) =>
-          p.issues.comment(
-            issue_number,
-            "Agent review: **approved**. PR is ready for human merge.",
-          ),
-        )
-        .catch(() => {});
-    }
-    await taskStore().setStatus(taskId, "completed");
-    console.log(
-      `[agent-watcher] Review approved for parent task ${parentTaskId}`,
-    );
+    await completeApprovedReview(taskId, parentTaskId);
 
     return;
   }
@@ -818,30 +870,7 @@ async function handleReviewVerdict(
   });
 
   if (iteration >= 2) {
-    await taskStore().recordEvent(parentTaskId, "review", "review", {
-      review_result: "needs-human-review",
-      iterations: iteration,
-    });
-
-    if (parent.issue_number) {
-      await projectFor(parent.target_repo)
-        .then((p) =>
-          p.issues.comment(
-            parent.issue_number!,
-            `Agent review: changes requested (iteration ${iteration}/2). Escalating to human review.`,
-          ),
-        )
-        .catch(() => {});
-      await projectFor(parent.target_repo)
-        .then((p) =>
-          p.issues.addLabel(parent.issue_number!, "needs-human-review"),
-        )
-        .catch(() => {});
-    }
-    await taskStore().setStatus(taskId, "completed");
-    console.log(
-      `[agent-watcher] Review escalated to human for ${parentTaskId} (iteration ${iteration})`,
-    );
+    await escalateReviewToHuman(taskId, parentTaskId, parent, iteration);
 
     return;
   }

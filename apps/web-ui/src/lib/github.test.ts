@@ -165,11 +165,9 @@ function configureApp() {
 }
 
 function resetRest() {
-  for (const group of Object.values(rest)) {
-    for (const fn of Object.values(group)) {
-      fn.mockReset();
-    }
-  }
+  Object.values(rest).forEach((group) => {
+    Object.values(group).forEach((fn) => fn.mockReset());
+  });
 }
 
 describe("getRepoFileContent", () => {

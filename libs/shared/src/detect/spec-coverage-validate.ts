@@ -129,6 +129,47 @@ function isIndexLagShaped(
   return Math.max(...stamps) < new Date(specIngestedAt).getTime();
 }
 
+function brokenLinksForStatement(
+  specPath: string,
+  statementText: string,
+  testLinks: TestLinkRef[],
+  chunks: ChunkLineRange[],
+  specIngestedAt?: string | Date | null,
+): BrokenLink[] {
+  const out: BrokenLink[] = [];
+
+  for (const link of testLinks) {
+    // Chunk file_paths are repo-root-relative; a `../` href is relative to
+    // the spec's directory (GitHub-render semantics), so canonicalize before
+    // matching — a raw `../` path can never equal a chunk path.
+    const resolved: TestLinkRef = {
+      ...link,
+      path: resolveLinkPath(link.path, specPath),
+    };
+    const r = resolveTestLink(resolved, chunks, specIngestedAt);
+
+    if (!r.ok) {
+      out.push({
+        spec_path: specPath,
+        statement_text: statementText,
+        link: resolved,
+        reason: r.reason,
+      });
+    }
+  }
+
+  for (const link of findMisplacedCoverageLinks(statementText)) {
+    out.push({
+      spec_path: specPath,
+      statement_text: statementText,
+      link: { ...link, path: resolveLinkPath(link.path, specPath) },
+      reason: "non-trailing-link",
+    });
+  }
+
+  return out;
+}
+
 export function collectBrokenLinks(
   specPath: string,
   content: string,
@@ -138,34 +179,15 @@ export function collectBrokenLinks(
   const out: BrokenLink[] = [];
 
   for (const { statement, testLinks } of linksForStatements(content)) {
-    for (const link of testLinks) {
-      // Chunk file_paths are repo-root-relative; a `../` href is relative to
-      // the spec's directory (GitHub-render semantics), so canonicalize before
-      // matching — a raw `../` path can never equal a chunk path.
-      const resolved: TestLinkRef = {
-        ...link,
-        path: resolveLinkPath(link.path, specPath),
-      };
-      const r = resolveTestLink(resolved, chunks, specIngestedAt);
-
-      if (!r.ok) {
-        out.push({
-          spec_path: specPath,
-          statement_text: statement.text,
-          link: resolved,
-          reason: r.reason,
-        });
-      }
-    }
-
-    for (const link of findMisplacedCoverageLinks(statement.text)) {
-      out.push({
-        spec_path: specPath,
-        statement_text: statement.text,
-        link: { ...link, path: resolveLinkPath(link.path, specPath) },
-        reason: "non-trailing-link",
-      });
-    }
+    out.push(
+      ...brokenLinksForStatement(
+        specPath,
+        statement.text,
+        testLinks,
+        chunks,
+        specIngestedAt,
+      ),
+    );
   }
 
   return out;
@@ -173,6 +195,29 @@ export function collectBrokenLinks(
 
 /** GitHub rejects issue bodies over 65,536 chars; leave headroom for the footer. */
 const MAX_ISSUE_BODY = 60_000;
+
+function sectionBulletsWithinBudget(
+  list: BrokenLink[],
+  startBudget: number,
+): { bullets: string[]; sectionBudget: number; elided: number } {
+  const bullets: string[] = [];
+  let sectionBudget = startBudget;
+  let elided = 0;
+
+  for (const b of list) {
+    const where = `\`${b.link.path}${b.link.line ? `:${b.link.line}` : ""}\``;
+    const bullet = `- **${b.reason}** ${where} — referenced by: _${truncate(b.statement_text, 80)}_`;
+
+    if (sectionBudget + bullet.length > MAX_ISSUE_BODY) {
+      elided += 1;
+      continue;
+    }
+    bullets.push(bullet);
+    sectionBudget += bullet.length + 1;
+  }
+
+  return { bullets, sectionBudget, elided };
+}
 
 export function formatBrokenLinksReport(broken: BrokenLink[]): string {
   if (broken.length === 0) {
@@ -206,28 +251,20 @@ export function formatBrokenLinksReport(broken: BrokenLink[]): string {
       continue;
     }
 
-    const bullets: string[] = [];
-    let sectionBudget = budget + heading.length + 2;
+    const section = sectionBulletsWithinBudget(
+      list,
+      budget + heading.length + 2,
+    );
 
-    for (const b of list) {
-      const where = `\`${b.link.path}${b.link.line ? `:${b.link.line}` : ""}\``;
-      const bullet = `- **${b.reason}** ${where} — referenced by: _${truncate(b.statement_text, 80)}_`;
-
-      if (sectionBudget + bullet.length > MAX_ISSUE_BODY) {
-        elided += 1;
-        continue;
-      }
-      bullets.push(bullet);
-      sectionBudget += bullet.length + 1;
-    }
+    elided += section.elided;
 
     // Every bullet was elided — a dangling empty heading would misread as a
     // clean spec, so skip the section entirely.
-    if (bullets.length === 0) {
+    if (section.bullets.length === 0) {
       continue;
     }
-    lines.push(heading, "", ...bullets, "");
-    budget = sectionBudget + 1;
+    lines.push(heading, "", ...section.bullets, "");
+    budget = section.sectionBudget + 1;
   }
 
   if (elided > 0) {
@@ -354,47 +391,7 @@ export async function validateSpecCoverageJob(
   let reportsOpened = 0;
 
   if (broken.length > 0) {
-    // Dedup: skip filing when an open spec-link-rot issue already exists (this
-    // job runs daily AND on every ingest). A read failure leaves openIssues empty
-    // and we fall through to file — surfacing the rot beats silence.
-    try {
-      const openIssues = await project.issues
-        .list({ state: "open" })
-        .catch((err) => {
-          console.error(
-            `[job] spec-coverage-validate: open-issue read failed for ${repo}:`,
-            err,
-          );
-
-          return [] as Awaited<ReturnType<typeof project.issues.list>>;
-        });
-
-      const alreadyReported = hasOpenLinkRotIssue(openIssues);
-
-      if (alreadyReported) {
-        console.log(
-          `[job] spec-coverage-validate: ${repo} — ${broken.length} broken links, open spec-link-rot issue exists, skipping`,
-        );
-      }
-
-      if (!alreadyReported) {
-        const issue = await project.issues.create(
-          "Broken test links in spec.md",
-          formatBrokenLinksReport(broken),
-          [LINK_ROT_LABEL, "lore-managed"],
-        );
-
-        reportsOpened++;
-        console.log(
-          `[job] spec-coverage-validate: ${repo} — ${broken.length} broken links → issue ${issue.url}`,
-        );
-      }
-    } catch (err) {
-      console.error(
-        `[job] spec-coverage-validate: failed to file report for ${repo}:`,
-        err,
-      );
-    }
+    reportsOpened = await fileLinkRotReport(project, repo, broken);
   }
 
   const summary = `Checked ${totalSpecs} specs in ${repo} — ${broken.length} broken links, ${reportsOpened} reports opened`;
@@ -402,4 +399,54 @@ export async function validateSpecCoverageJob(
   console.log(`[job] spec-coverage-validate: ${summary}`);
 
   return summary;
+}
+
+/** File a spec-link-rot issue unless an open one already exists (this job runs
+ * daily AND on every ingest). A read failure leaves openIssues empty and we
+ * fall through to file — surfacing the rot beats silence. Returns the number
+ * of reports opened (0 or 1). */
+async function fileLinkRotReport(
+  project: Project,
+  repo: string,
+  broken: BrokenLink[],
+): Promise<number> {
+  try {
+    const openIssues = await project.issues
+      .list({ state: "open" })
+      .catch((err) => {
+        console.error(
+          `[job] spec-coverage-validate: open-issue read failed for ${repo}:`,
+          err,
+        );
+
+        return [] as Awaited<ReturnType<typeof project.issues.list>>;
+      });
+
+    if (hasOpenLinkRotIssue(openIssues)) {
+      console.log(
+        `[job] spec-coverage-validate: ${repo} — ${broken.length} broken links, open spec-link-rot issue exists, skipping`,
+      );
+
+      return 0;
+    }
+
+    const issue = await project.issues.create(
+      "Broken test links in spec.md",
+      formatBrokenLinksReport(broken),
+      [LINK_ROT_LABEL, "lore-managed"],
+    );
+
+    console.log(
+      `[job] spec-coverage-validate: ${repo} — ${broken.length} broken links → issue ${issue.url}`,
+    );
+
+    return 1;
+  } catch (err) {
+    console.error(
+      `[job] spec-coverage-validate: failed to file report for ${repo}:`,
+      err,
+    );
+
+    return 0;
+  }
 }

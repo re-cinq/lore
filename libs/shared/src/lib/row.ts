@@ -119,10 +119,13 @@ export function acceptEitherSpelling<T>(
   for (const [field, column] of Object.entries<string>(columns) as Array<
     [keyof T & string, string]
   >) {
-    const key = column in raw ? column : field in raw ? field : undefined;
+    if (column in raw) {
+      row[column] = raw[column];
+      continue;
+    }
 
-    if (key !== undefined) {
-      row[column] = raw[key];
+    if (field in raw) {
+      row[column] = raw[field];
     }
   }
 

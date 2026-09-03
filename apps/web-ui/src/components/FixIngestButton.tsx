@@ -36,6 +36,22 @@ export function FixWorkflowButton({
       : `${opened}, ${result.failed.length} failed`;
   };
 
+  const renderButtonText = () => {
+    if (pending) {
+      return "opening PRs…";
+    }
+
+    if (done !== null) {
+      return doneLabel(done);
+    }
+
+    return (
+      <>
+        <Icon name="warning" size={13} inline /> {label} ({repos.length})
+      </>
+    );
+  };
+
   return (
     <button
       type="button"
@@ -51,15 +67,7 @@ export function FixWorkflowButton({
           : title
       }
     >
-      {pending ? (
-        "opening PRs…"
-      ) : done !== null ? (
-        doneLabel(done)
-      ) : (
-        <>
-          <Icon name="warning" size={13} inline /> {label} ({repos.length})
-        </>
-      )}
+      {renderButtonText()}
     </button>
   );
 }

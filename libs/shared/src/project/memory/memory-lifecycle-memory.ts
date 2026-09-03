@@ -293,19 +293,15 @@ export class InMemoryMemoryLifecycle implements MemoryLifecyclePort {
     factIds: string[],
     memoryIds: string[],
   ): Promise<void> {
-    if (factIds.length > 0) {
-      for (const f of this.facts) {
-        if (factIds.includes(f.id)) {
-          f.half_life_days = Math.min((f.half_life_days ?? 30) + 5, 365);
-        }
+    for (const f of this.facts) {
+      if (factIds.includes(f.id)) {
+        f.half_life_days = Math.min((f.half_life_days ?? 30) + 5, 365);
       }
     }
 
-    if (memoryIds.length > 0) {
-      for (const m of this.memories) {
-        if (memoryIds.includes(m.id)) {
-          m.half_life_days = Math.min((m.half_life_days ?? 60) + 5, 365);
-        }
+    for (const m of this.memories) {
+      if (memoryIds.includes(m.id)) {
+        m.half_life_days = Math.min((m.half_life_days ?? 60) + 5, 365);
       }
     }
   }
@@ -314,19 +310,15 @@ export class InMemoryMemoryLifecycle implements MemoryLifecyclePort {
     factIds: string[],
     memoryIds: string[],
   ): Promise<void> {
-    if (factIds.length > 0) {
-      for (const f of this.facts) {
-        if (factIds.includes(f.id)) {
-          f.half_life_days = Math.max(7, (f.half_life_days ?? 30) - 3);
-        }
+    for (const f of this.facts) {
+      if (factIds.includes(f.id)) {
+        f.half_life_days = Math.max(7, (f.half_life_days ?? 30) - 3);
       }
     }
 
-    if (memoryIds.length > 0) {
-      for (const m of this.memories) {
-        if (memoryIds.includes(m.id)) {
-          m.half_life_days = Math.max(7, (m.half_life_days ?? 60) - 3);
-        }
+    for (const m of this.memories) {
+      if (memoryIds.includes(m.id)) {
+        m.half_life_days = Math.max(7, (m.half_life_days ?? 60) - 3);
       }
     }
   }

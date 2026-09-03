@@ -122,8 +122,15 @@ export function registerMemoryTools(server: McpServer) {
     },
     async ({ key, agent_id, version }) => {
       try {
-        const ver =
-          version === "all" ? "all" : version ? Number(version) : undefined;
+        let ver: "all" | number | undefined;
+
+        if (version === "all") {
+          ver = "all";
+        }
+
+        if (version && version !== "all") {
+          ver = Number(version);
+        }
 
         const proxied = await withReadCache(
           {

@@ -27,22 +27,9 @@ export function allPathsMatch(
     return false;
   }
 
-  for (const path of changedPaths) {
-    let matched = false;
-
-    for (const pattern of allowlist) {
-      if (minimatch(path, pattern, MATCH_OPTIONS)) {
-        matched = true;
-        break;
-      }
-    }
-
-    if (!matched) {
-      return false;
-    }
-  }
-
-  return true;
+  return changedPaths.every((path) =>
+    allowlist.some((pattern) => minimatch(path, pattern, MATCH_OPTIONS)),
+  );
 }
 
 /**

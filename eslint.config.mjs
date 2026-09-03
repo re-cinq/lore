@@ -103,8 +103,9 @@ export default tseslint.config(
       // a signature into a typed options interface), not a codemod, and
       // turning them red would block unrelated work. Promotion condition for
       // all five: error when the queue hits zero. Queue sizes at introduction
-      // (2026-09-03): max-comment-lines 5630, max-lines-per-function 1301,
-      // complexity 592, no-vague-names 295, max-params 76.
+      // (2026-09-03, after the nesting sweep): max-comment-lines 5644,
+      // max-lines-per-function 1334, complexity 582, no-vague-names 291,
+      // max-params 81.
       "max-params": ["warn", { max: 4 }],
       "lore/max-comment-lines": ["warn", { max: 1 }],
       "lore/no-vague-names": "warn",

@@ -60,15 +60,11 @@ export function decideIssueWork(
     };
   }
   const known = new Set(repoLabels);
-  const unknown = new Set<string>();
-
-  for (const story of decomposition.stories) {
-    for (const label of proposedLabels(story)) {
-      if (!known.has(label)) {
-        unknown.add(label);
-      }
-    }
-  }
+  const unknown = new Set(
+    decomposition.stories
+      .flatMap((story) => proposedLabels(story))
+      .filter((label) => !known.has(label)),
+  );
 
   if (unknown.size > 0) {
     const named = [...unknown]

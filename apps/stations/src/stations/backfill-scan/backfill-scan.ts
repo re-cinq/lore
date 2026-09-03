@@ -28,30 +28,54 @@ export interface BackfillScanDeps {
   startBackfill(repo: string, specPath: string): Promise<string>;
 }
 
+interface RepoScanOutcome {
+  started: number;
+  heldBack: number;
+  failed: boolean;
+}
+
+/** Scan one repo, catching its own failure so one unreadable repo cannot cost
+ * every other repo its run. Counts already accrued survive a mid-repo failure. */
+async function scanRepoForBackfill(
+  deps: BackfillScanDeps,
+  repo: string,
+): Promise<RepoScanOutcome> {
+  let started = 0;
+  let heldBack = 0;
+
+  try {
+    const specs = await deps.specsFor(repo);
+    const take = specs.slice(0, BACKFILL_SPECS_PER_REPO);
+
+    heldBack = specs.length - take.length;
+
+    for (const specPath of take) {
+      await deps.startBackfill(repo, specPath);
+      started++;
+    }
+
+    return { started, heldBack, failed: false };
+  } catch (err) {
+    console.error(
+      `[station] backfill-scan: could not scan ${repo}:`,
+      (err as Error).message,
+    );
+
+    return { started, heldBack, failed: true };
+  }
+}
+
 export async function scanForBackfill(deps: BackfillScanDeps): Promise<string> {
   let started = 0;
   let heldBack = 0;
   let failed = 0;
 
   for (const repo of await deps.repos()) {
-    // Per repo, so one unreadable repo cannot cost every other repo its run.
-    try {
-      const specs = await deps.specsFor(repo);
-      const take = specs.slice(0, BACKFILL_SPECS_PER_REPO);
+    const outcome = await scanRepoForBackfill(deps, repo);
 
-      heldBack += specs.length - take.length;
-
-      for (const specPath of take) {
-        await deps.startBackfill(repo, specPath);
-        started++;
-      }
-    } catch (err) {
-      failed++;
-      console.error(
-        `[station] backfill-scan: could not scan ${repo}:`,
-        (err as Error).message,
-      );
-    }
+    started += outcome.started;
+    heldBack += outcome.heldBack;
+    failed += outcome.failed ? 1 : 0;
   }
 
   const parts = [`started ${started} spec unit(s)`];

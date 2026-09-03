@@ -58,10 +58,7 @@ export function loadTaskTypes(configPath?: string): void {
       );
 
       taskTypes.clear();
-
-      for (const [name, cfg] of Object.entries(types)) {
-        taskTypes.set(name, cfg);
-      }
+      Object.entries(types).forEach(([name, cfg]) => taskTypes.set(name, cfg));
 
       console.log(`[floor] Loaded ${taskTypes.size} task types from ${p}`);
 

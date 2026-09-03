@@ -47,6 +47,26 @@ export function reportWindow(now: Date): { starting_at: string } {
   };
 }
 
+function bucketPageUrl(
+  endpoint: string,
+  baseParams: Record<string, string>,
+  groupBy: string,
+  page: string | null,
+): URL {
+  const url = new URL(`${ADMIN_BASE}/${endpoint}`);
+
+  for (const [key, value] of Object.entries(baseParams)) {
+    url.searchParams.set(key, value);
+  }
+  url.searchParams.append("group_by[]", groupBy);
+
+  if (page) {
+    url.searchParams.set("page", page);
+  }
+
+  return url;
+}
+
 async function fetchAllBuckets(
   endpoint: string,
   baseParams: Record<string, string>,
@@ -57,16 +77,7 @@ async function fetchAllBuckets(
   let page: string | null = null;
 
   do {
-    const url = new URL(`${ADMIN_BASE}/${endpoint}`);
-
-    for (const [key, value] of Object.entries(baseParams)) {
-      url.searchParams.set(key, value);
-    }
-    url.searchParams.append("group_by[]", groupBy);
-
-    if (page) {
-      url.searchParams.set("page", page);
-    }
+    const url = bucketPageUrl(endpoint, baseParams, groupBy, page);
 
     const res = await fetch(url, {
       signal: AbortSignal.timeout(30_000),

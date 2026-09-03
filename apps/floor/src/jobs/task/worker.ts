@@ -296,17 +296,11 @@ async function processTask(task: PipelineTask): Promise<void> {
       // dark-factory pod. Hardcoding "main" 422'd on repos still on
       // master/develop. The pod uses this for `git diff origin/<base>`
       // to detect "did anything actually change?"
-      let darkFactoryBaseBranch: string | undefined;
-
-      if (darkFactoryAssemblyLine) {
-        try {
-          darkFactoryBaseBranch = await project.repo.defaultBranch();
-        } catch (err) {
-          console.warn(
-            `[floor] default-branch lookup failed for ${targetRepo}: ${errorMessage(err)}`,
-          );
-        }
-      }
+      const darkFactoryBaseBranch = await lookupDarkFactoryBaseBranch(
+        project,
+        targetRepo,
+        darkFactoryAssemblyLine,
+      );
       // BYO execution container (ADR-025): resolve the image from the
       // settings hierarchy (default → per-repo → per-task-type). Unset →
       // the platform default, which equals the controller's default, so
@@ -351,6 +345,26 @@ async function processTask(task: PipelineTask): Promise<void> {
       await project.issues.addLabel(issueNumber, "lore-failed").catch(() => {});
     }
     console.error(`[floor] Task ${task.id} failed: ${failureReason}`);
+  }
+}
+
+async function lookupDarkFactoryBaseBranch(
+  project: Project,
+  targetRepo: string,
+  darkFactoryAssemblyLine: string | undefined,
+): Promise<string | undefined> {
+  if (!darkFactoryAssemblyLine) {
+    return undefined;
+  }
+
+  try {
+    return await project.repo.defaultBranch();
+  } catch (err) {
+    console.warn(
+      `[floor] default-branch lookup failed for ${targetRepo}: ${errorMessage(err)}`,
+    );
+
+    return undefined;
   }
 }
 

@@ -144,7 +144,7 @@ export function conversationEntries(
       JSON.stringify(turn.envelope),
     );
 
-    for (const entry of entries) {
+    entries.forEach((entry) => {
       const last = timed[timed.length - 1];
       const merged = mergedDelta(last?.entry, entry);
 
@@ -152,15 +152,17 @@ export function conversationEntries(
       // is one utterance, and it started when its first fragment did.
       if (merged !== null && last !== undefined) {
         timed[timed.length - 1] = { at: last.at, entry: merged };
-        continue;
+
+        return;
       }
 
       if (supersedesPrevious(last?.entry, entry)) {
         timed[timed.length - 1] = { at: turn.createdAt, entry };
-        continue;
+
+        return;
       }
       timed.push({ at: turn.createdAt, entry });
-    }
+    });
   }
 
   return timed;

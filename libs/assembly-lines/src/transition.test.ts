@@ -318,30 +318,37 @@ describe("getNextTransition", () => {
 // parity run covered every builtin YAML). This keeps a live guarantee: an
 // all-success walk of every builtin definition routes node-by-node to finish.
 describe("getNextTransition walks every builtin assembly line to finish on success", () => {
+  const walkAnsweringSuccess = (line: AssemblyLine): NodeVisit[] => {
+    const visits: NodeVisit[] = [];
+
+    for (let step = 0; step < 50; step++) {
+      const t = getNextTransition(line, visits);
+
+      if (t.kind === "finish") {
+        break;
+      }
+      expect(t.kind, `${line.name} step ${step}`).toBe("launch");
+
+      if (t.kind === "launch") {
+        visits.push({
+          nodeId: t.nodeId,
+          iteration: t.iteration,
+          outcome: "success",
+        });
+      }
+    }
+
+    return visits;
+  };
+
   it("routes each builtin definition's success path to the exit", async () => {
     const builtins = await loadBuiltinAssemblyLines();
 
     expect(builtins.size).toBeGreaterThan(0);
 
     for (const line of builtins.values()) {
-      const visits: NodeVisit[] = [];
+      const visits = walkAnsweringSuccess(line);
 
-      for (let step = 0; step < 50; step++) {
-        const t = getNextTransition(line, visits);
-
-        if (t.kind === "finish") {
-          break;
-        }
-        expect(t.kind, `${line.name} step ${step}`).toBe("launch");
-
-        if (t.kind === "launch") {
-          visits.push({
-            nodeId: t.nodeId,
-            iteration: t.iteration,
-            outcome: "success",
-          });
-        }
-      }
       expect(getNextTransition(line, visits), line.name).toEqual({
         kind: "finish",
       });

@@ -209,6 +209,24 @@ export interface CatalogTarget {
   getAgentDefinition(name: string): Promise<AgentDefinition | null>;
 }
 
+type CrdOwnership =
+  { writable: true } | { writable: false; managedBy: string | undefined };
+
+/** A live CR labeled by neither the sync loop nor the UI belongs to someone else. */
+async function checkCrdOwnership(
+  catalog: CatalogTarget,
+  crdName: string,
+): Promise<CrdOwnership> {
+  const live = await catalog.getAgentDefinition(crdName);
+  const managedBy = live?.metadata?.labels?.["app.kubernetes.io/managed-by"];
+  const foreign =
+    live !== null &&
+    managedBy !== SYNC_MANAGED_BY &&
+    managedBy !== UI_MANAGED_BY;
+
+  return foreign ? { writable: false, managedBy } : { writable: true };
+}
+
 export interface CatalogSyncTickDeps {
   apiUrl: string;
   identity: () => ClusterAgentIdentity;
@@ -339,24 +357,18 @@ export async function catalogSyncOnce(
       // does not exist yet. The seed label stays the chart's until cutover,
       // and an UNLABELED live CR is a human's — never clobbered, never
       // validated, never REFUSED-logged on their behalf.
-      if (!deps.ownSeeded) {
-        const live = await deps.catalog.getAgentDefinition(crdName);
-        const managedBy =
-          live?.metadata?.labels?.["app.kubernetes.io/managed-by"];
+      const ownership = deps.ownSeeded
+        ? { writable: true as const }
+        : await checkCrdOwnership(deps.catalog, crdName);
 
-        if (
-          live !== null &&
-          managedBy !== SYNC_MANAGED_BY &&
-          managedBy !== UI_MANAGED_BY
-        ) {
-          skippedNames.push(`${crdName} (${managedBy ?? "unlabeled"})`);
-          report(
-            entry,
-            "skipped",
-            `owned by ${managedBy ?? "an unlabeled writer"}`,
-          );
-          continue;
-        }
+      if (!ownership.writable) {
+        skippedNames.push(`${crdName} (${ownership.managedBy ?? "unlabeled"})`);
+        report(
+          entry,
+          "skipped",
+          `owned by ${ownership.managedBy ?? "an unlabeled writer"}`,
+        );
+        continue;
       }
 
       if (entry.definition === null) {

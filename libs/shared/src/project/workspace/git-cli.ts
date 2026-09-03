@@ -39,16 +39,16 @@ export class GitCli implements GitPort {
     // Reuse an existing clone (the /tmp cache) — fetch + checkout instead of
     // re-cloning, so a second run against the same cache dir is cheap and keeps
     // any local state. Only clone when the dir has no .git.
-    if (existsSync(join(destDir, ".git"))) {
-      this.git([...this.authArgs(), "fetch", "origin"], destDir);
-
-      if (opts?.ref) {
-        this.git(["checkout", opts.ref], destDir);
-      }
+    if (!existsSync(join(destDir, ".git"))) {
+      await this.clone(repo, destDir, opts);
 
       return;
     }
-    await this.clone(repo, destDir, opts);
+    this.git([...this.authArgs(), "fetch", "origin"], destDir);
+
+    if (opts?.ref) {
+      this.git(["checkout", opts.ref], destDir);
+    }
   }
 
   async ensureCheckout(

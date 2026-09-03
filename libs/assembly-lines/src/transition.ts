@@ -136,38 +136,40 @@ export function getNextTransition(
       };
     }
 
-    if (chosen.iteration_max !== undefined || visited.has(chosen.to)) {
-      // A retry is the one move that cannot help here: the balance, the
-      // credential or the permission has to change first, so running the node
-      // again buys a second identical failure minutes later and then reports the
-      // EDGE BUDGET as the cause. Refuse the retry and say what actually died.
-      // Only the back-edge is suppressed — a `failed` edge that routes FORWARD
-      // (to a retrospective, to exit) still routes, or a permanent failure would
-      // silently skip the work a line does on its way out.
-      if (isPermanentNodeFailure(visit)) {
-        return {
-          kind: "fail",
-          outcome: "error",
-          reason: `AssemblyLine ${assemblyLine.name}: ${nodeFailureReason(visit)}`,
-        };
-      }
-      const key = `${chosen.from}->${chosen.to}`;
-      const count = (backEdgeCounts.get(key) ?? 0) + 1;
-
-      if (chosen.iteration_max !== undefined && count > chosen.iteration_max) {
-        // The budget is HOW the run ended; the visit is WHY. "edge
-        // validate->implement exceeded iteration_max 1" was true of the walk
-        // and silent about the cause — say what the station actually reported.
-        return {
-          kind: "fail",
-          outcome: "iteration_max",
-          reason: `AssemblyLine ${assemblyLine.name}: ${nodeFailureReason(visit)} — the ${key} retry budget (${chosen.iteration_max}) is spent`,
-        };
-      }
-      backEdgeCounts.set(key, count);
-      iteration = (highestIteration.get(chosen.to) ?? 0) + 1;
+    if (chosen.iteration_max === undefined && !visited.has(chosen.to)) {
+      currentId = chosen.to;
+      continue;
     }
 
+    // A retry is the one move that cannot help here: the balance, the
+    // credential or the permission has to change first, so running the node
+    // again buys a second identical failure minutes later and then reports the
+    // EDGE BUDGET as the cause. Refuse the retry and say what actually died.
+    // Only the back-edge is suppressed — a `failed` edge that routes FORWARD
+    // (to a retrospective, to exit) still routes, or a permanent failure would
+    // silently skip the work a line does on its way out.
+    if (isPermanentNodeFailure(visit)) {
+      return {
+        kind: "fail",
+        outcome: "error",
+        reason: `AssemblyLine ${assemblyLine.name}: ${nodeFailureReason(visit)}`,
+      };
+    }
+    const key = `${chosen.from}->${chosen.to}`;
+    const count = (backEdgeCounts.get(key) ?? 0) + 1;
+
+    if (chosen.iteration_max !== undefined && count > chosen.iteration_max) {
+      // The budget is HOW the run ended; the visit is WHY. "edge
+      // validate->implement exceeded iteration_max 1" was true of the walk
+      // and silent about the cause — say what the station actually reported.
+      return {
+        kind: "fail",
+        outcome: "iteration_max",
+        reason: `AssemblyLine ${assemblyLine.name}: ${nodeFailureReason(visit)} — the ${key} retry budget (${chosen.iteration_max}) is spent`,
+      };
+    }
+    backEdgeCounts.set(key, count);
+    iteration = (highestIteration.get(chosen.to) ?? 0) + 1;
     currentId = chosen.to;
   }
 

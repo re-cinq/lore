@@ -237,6 +237,44 @@ export function writeMemoryFile(
 
 // ── Read ─────────────────────────────────────────────────────────────
 
+/** The record as a MemoryEntry, or null when it is absent, deleted, or expired. */
+function activeMemoryEntry(
+  key: string,
+  record: MemoryRecord | undefined,
+): MemoryEntry | null {
+  if (!record || record.is_deleted || isExpired(record)) {
+    return null;
+  }
+
+  return {
+    key,
+    value: record.value,
+    version: record.version,
+    created_at: record.created_at,
+    ttl_seconds: record.ttl_seconds,
+    is_deleted: record.is_deleted,
+    expires_at: record.expires_at,
+  };
+}
+
+/** Full version history sorted by version descending (newest first). */
+function versionHistoryDescending(
+  agentId: string,
+  key: string,
+): VersionRecord[] | null {
+  const versions = readJson<Record<string, VersionRecord[]>>(
+    versionsPath(agentId),
+    {},
+  );
+  const history = versions[key];
+
+  if (!history || history.length === 0) {
+    return null;
+  }
+
+  return [...history].sort((a, b) => b.version - a.version);
+}
+
 export function readMemoryFile(
   key: string,
   agentId?: string,
@@ -253,20 +291,8 @@ export function readMemoryFile(
     metadata: { version: version ?? "latest" },
   });
 
-  // Return full version history
   if (version === "all") {
-    const versions = readJson<Record<string, VersionRecord[]>>(
-      versionsPath(id),
-      {},
-    );
-    const history = versions[key];
-
-    if (!history || history.length === 0) {
-      return null;
-    }
-
-    // Return sorted by version descending (newest first)
-    return [...history].sort((a, b) => b.version - a.version);
+    return versionHistoryDescending(id, key);
   }
 
   // Return latest version
@@ -275,21 +301,8 @@ export function readMemoryFile(
       memoriesPath(id),
       {},
     );
-    const record = memories[key];
 
-    if (!record || record.is_deleted || isExpired(record)) {
-      return null;
-    }
-
-    return {
-      key,
-      value: record.value,
-      version: record.version,
-      created_at: record.created_at,
-      ttl_seconds: record.ttl_seconds,
-      is_deleted: record.is_deleted,
-      expires_at: record.expires_at,
-    };
+    return activeMemoryEntry(key, memories[key]);
   }
 
   // Return a specific version
@@ -458,40 +471,13 @@ export function sharedReadFile(
 
   // Return a specific key
   if (key !== undefined) {
-    const record = memories[key];
-
-    if (!record || record.is_deleted || isExpired(record)) {
-      return null;
-    }
-
-    return {
-      key,
-      value: record.value,
-      version: record.version,
-      created_at: record.created_at,
-      ttl_seconds: record.ttl_seconds,
-      is_deleted: record.is_deleted,
-      expires_at: record.expires_at,
-    };
+    return activeMemoryEntry(key, memories[key]);
   }
 
   // Return all active entries in the pool
-  const entries: MemoryEntry[] = [];
-
-  for (const [k, record] of Object.entries(memories)) {
-    if (record.is_deleted || isExpired(record)) {
-      continue;
-    }
-    entries.push({
-      key: k,
-      value: record.value,
-      version: record.version,
-      created_at: record.created_at,
-      ttl_seconds: record.ttl_seconds,
-      is_deleted: record.is_deleted,
-      expires_at: record.expires_at,
-    });
-  }
+  const entries = Object.entries(memories)
+    .map(([poolKey, record]) => activeMemoryEntry(poolKey, record))
+    .filter((entry): entry is MemoryEntry => entry !== null);
 
   return entries.length > 0 ? entries : null;
 }

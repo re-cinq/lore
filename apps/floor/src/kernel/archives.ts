@@ -27,17 +27,28 @@ let jobRunLogsSingleton: ArchivePort | undefined;
  */
 export function conversationArchive(): ArchivePort | null {
   if (conversationSingleton === undefined) {
-    const bucket = process.env.LORE_AGENT_EVENTS_BUCKET;
-    const dir = process.env.LORE_ARCHIVE_DIR;
-
-    conversationSingleton = bucket
-      ? new GcsArchive(bucket)
-      : dir
-        ? new FileArchive(dir)
-        : null;
+    conversationSingleton = resolveConversationArchive(
+      process.env.LORE_AGENT_EVENTS_BUCKET,
+      process.env.LORE_ARCHIVE_DIR,
+    );
   }
 
   return conversationSingleton;
+}
+
+function resolveConversationArchive(
+  bucket: string | undefined,
+  dir: string | undefined,
+): ArchivePort | null {
+  if (bucket) {
+    return new GcsArchive(bucket);
+  }
+
+  if (dir) {
+    return new FileArchive(dir);
+  }
+
+  return null;
 }
 
 /** Scheduler job-run logs (redacted before save, CMEK-encrypted at rest). */

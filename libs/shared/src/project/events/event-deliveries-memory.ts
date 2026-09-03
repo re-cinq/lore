@@ -145,13 +145,13 @@ export class InMemoryEventDeliveries implements EventDeliveriesPort {
           (d.status === "pending" || d.status === "failed") &&
           Date.parse(d.next_attempt_at) <= now,
       )
-      .sort((a, b) =>
-        a.next_attempt_at === b.next_attempt_at
-          ? Number(a.id) - Number(b.id)
-          : a.next_attempt_at < b.next_attempt_at
-            ? -1
-            : 1,
-      )
+      .sort((a, b) => {
+        if (a.next_attempt_at === b.next_attempt_at) {
+          return Number(a.id) - Number(b.id);
+        }
+
+        return a.next_attempt_at < b.next_attempt_at ? -1 : 1;
+      })
       .slice(0, limit);
 
     for (const d of runnable) {

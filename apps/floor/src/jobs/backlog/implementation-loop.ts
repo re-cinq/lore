@@ -107,16 +107,18 @@ async function tickRepo(repo: string, deps: LoopTickDeps): Promise<void> {
     break;
   }
 
-  if (!picked) {
-    // An empty backlog is a normal state and stays quiet; a backlog that EXISTS
-    // but cannot be picked is the state that ate a morning of diagnosis when it
-    // was silent — the loop must say what it is waiting for.
-    if (guarded.length > 0) {
-      console.log(
-        `[implementation-loop] ${repo}: no pick — ${guarded.length} eligible ticket(s), all awaiting an earlier task (${guarded.map((n) => `#${n}`).join(", ")})`,
-      );
-    }
+  // An empty backlog is a normal state and stays quiet; a backlog that EXISTS
+  // but cannot be picked is the state that ate a morning of diagnosis when it
+  // was silent — the loop must say what it is waiting for.
+  if (!picked && guarded.length > 0) {
+    console.log(
+      `[implementation-loop] ${repo}: no pick — ${guarded.length} eligible ticket(s), all awaiting an earlier task (${guarded.map((n) => `#${n}`).join(", ")})`,
+    );
 
+    return;
+  }
+
+  if (!picked) {
     return;
   }
   const branch = implementationLoopBranch(picked.number);

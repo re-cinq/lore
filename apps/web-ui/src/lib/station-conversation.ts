@@ -15,6 +15,28 @@ interface StreamEvent {
   message?: { content?: ContentBlock[] };
 }
 
+function assistantParts(content: ContentBlock[]): string[] {
+  const parts: string[] = [];
+
+  for (const block of content) {
+    if (block.type === "text" && block.text?.trim()) {
+      parts.push(clip(block.text, 300));
+      continue;
+    }
+
+    if (block.type === "thinking" && block.thinking?.trim()) {
+      parts.push(`thinking: ${clip(block.thinking, 240)}`);
+      continue;
+    }
+
+    if (block.type === "tool_use") {
+      parts.push(toolSummary(block));
+    }
+  }
+
+  return parts;
+}
+
 function renderEvent(event: StreamEvent): string | null {
   const content = event.message?.content;
 
@@ -23,23 +45,7 @@ function renderEvent(event: StreamEvent): string | null {
   }
 
   if (event.type === "assistant") {
-    const parts: string[] = [];
-
-    for (const block of content) {
-      if (block.type === "text" && block.text?.trim()) {
-        parts.push(clip(block.text, 300));
-        continue;
-      }
-
-      if (block.type === "thinking" && block.thinking?.trim()) {
-        parts.push(`thinking: ${clip(block.thinking, 240)}`);
-        continue;
-      }
-
-      if (block.type === "tool_use") {
-        parts.push(toolSummary(block));
-      }
-    }
+    const parts = assistantParts(content);
 
     return parts.length ? parts.join("\n") : null;
   }
@@ -60,6 +66,14 @@ function renderEvent(event: StreamEvent): string | null {
 
 const MARKER_RE = /^\[(runner|runner-cli|supervisor|agent)\b/;
 
+function renderJsonLine(trimmed: string): string | null {
+  try {
+    return renderEvent(JSON.parse(trimmed) as StreamEvent);
+  } catch {
+    return null;
+  }
+}
+
 export function formatStationConversation(
   rawLog: string,
   maxEvents = 30,
@@ -73,19 +87,13 @@ export function formatStationConversation(
       continue;
     }
 
+    const rendered = trimmed.startsWith("{") ? renderJsonLine(trimmed) : null;
+
+    if (rendered) {
+      out.push(rendered);
+    }
+
     if (trimmed.startsWith("{")) {
-      let event: StreamEvent;
-
-      try {
-        event = JSON.parse(trimmed) as StreamEvent;
-      } catch {
-        continue;
-      }
-      const rendered = renderEvent(event);
-
-      if (rendered) {
-        out.push(rendered);
-      }
       continue;
     }
 

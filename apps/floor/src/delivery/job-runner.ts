@@ -146,7 +146,7 @@ function isCliEntrypoint(): boolean {
   return argv1.endsWith("job-runner.js") || argv1.endsWith("job-runner.ts");
 }
 
-if (isCliEntrypoint()) {
+function runFromCli(): void {
   const jobName = process.argv[2];
 
   if (!jobName) {
@@ -160,4 +160,8 @@ if (isCliEntrypoint()) {
       process.exit(1);
     },
   );
+}
+
+if (isCliEntrypoint()) {
+  runFromCli();
 }

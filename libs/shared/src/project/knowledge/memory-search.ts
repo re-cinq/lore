@@ -39,21 +39,13 @@ export async function searchMemories(
   const agent = agentId ? resolveAgentId(agentId) : null;
 
   // Resolve pool name to pool_id when provided
-  let poolId: string | null = null;
+  const poolId = poolName ? await lookupPoolId(pool, poolName) : null;
 
-  if (poolName) {
-    const { rows } = await pool.query<{ id: string }>(
-      `SELECT id FROM memory.shared_pools WHERE name = $1`,
-      [poolName],
-    );
+  if (poolName && poolId === null) {
+    // Pool does not exist — return empty
+    await auditLog(pool, agent, query, 0);
 
-    if (rows.length === 0) {
-      // Pool does not exist — return empty
-      await auditLog(pool, agent, query, 0);
-
-      return [];
-    }
-    poolId = rows[0].id;
+    return [];
   }
 
   // Attempt to get query embedding from Vertex AI
@@ -94,21 +86,7 @@ export async function searchMemories(
 
   // Graph augmentation: enrich results with 1-hop graph neighbors
   if (graphAugmentEnabled && results.length > 0) {
-    await refreshEntityCache(pool);
-    const entities = detectEntities(results);
-
-    if (entities.length > 0) {
-      const graphResults = await graphAugment(pool, entities);
-      // Give graph results a lower score than the worst direct result
-      const minScore =
-        results.length > 0 ? results[results.length - 1].score * 0.5 : 0.001;
-      const graphWithScores = graphResults.map((r, i) => ({
-        ...r,
-        score: minScore * (1 - i * 0.05), // Decreasing scores
-      }));
-
-      results = [...results, ...graphWithScores].slice(0, limit);
-    }
+    results = await augmentWithGraphNeighbors(pool, results, limit);
   }
 
   // Fire-and-forget retrieval strengthening
@@ -341,6 +319,43 @@ let entityNameCache: Set<string> = new Set();
 let entityCacheUpdatedAt = 0;
 const ENTITY_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
+/** The id of the named shared pool, or null when no such pool exists. */
+async function lookupPoolId(
+  pool: PgPool,
+  poolName: string,
+): Promise<string | null> {
+  const { rows } = await pool.query<{ id: string }>(
+    `SELECT id FROM memory.shared_pools WHERE name = $1`,
+    [poolName],
+  );
+
+  return rows.length === 0 ? null : rows[0].id;
+}
+
+/** Append 1-hop graph neighbors below the worst direct result's score. */
+async function augmentWithGraphNeighbors(
+  pool: PgPool,
+  results: MemorySearchResult[],
+  limit: number,
+): Promise<MemorySearchResult[]> {
+  await refreshEntityCache(pool);
+  const entities = detectEntities(results);
+
+  if (entities.length === 0) {
+    return results;
+  }
+  const graphResults = await graphAugment(pool, entities);
+  // Give graph results a lower score than the worst direct result
+  const minScore =
+    results.length > 0 ? results[results.length - 1].score * 0.5 : 0.001;
+  const graphWithScores = graphResults.map((r, i) => ({
+    ...r,
+    score: minScore * (1 - i * 0.05), // Decreasing scores
+  }));
+
+  return [...results, ...graphWithScores].slice(0, limit);
+}
+
 async function refreshEntityCache(pool: PgPool): Promise<void> {
   if (
     Date.now() - entityCacheUpdatedAt < ENTITY_CACHE_TTL_MS &&
@@ -362,17 +377,15 @@ async function refreshEntityCache(pool: PgPool): Promise<void> {
 }
 
 function detectEntities(results: MemorySearchResult[]): string[] {
-  const found = new Set<string>();
+  const found = new Set<string>(
+    results.flatMap((r) => {
+      const text = `${r.key} ${r.value}`.toLowerCase();
 
-  for (const r of results) {
-    const text = `${r.key} ${r.value}`.toLowerCase();
-
-    for (const entity of entityNameCache) {
-      if (entity.length >= 3 && text.includes(entity)) {
-        found.add(entity);
-      }
-    }
-  }
+      return [...entityNameCache].filter(
+        (entity) => entity.length >= 3 && text.includes(entity),
+      );
+    }),
+  );
 
   return [...found].slice(0, 5); // Max 5 entities to augment
 }
@@ -408,27 +421,43 @@ async function graphAugment(
         [entity],
       );
 
-      for (const row of rows) {
-        const desc = `${row.source_name} (${row.source_type}) --${row.relation_type}--> ${row.target_name} (${row.target_type})`;
-
-        if (seen.has(desc)) {
-          continue;
-        }
-        seen.add(desc);
-        results.push({
-          key: entity,
-          value: desc,
-          score: 0, // Will be set by caller
-          agent_id: "graph",
-          source: "graph",
-        });
-      }
+      addUniqueEdgeResults(entity, rows, seen, results);
     } catch {
       // Skip this entity on error
     }
   }
 
   return results.slice(0, 10);
+}
+
+/** Append one graph result per edge description not already in `seen`. */
+function addUniqueEdgeResults(
+  entity: string,
+  rows: Array<{
+    source_name: string;
+    source_type: string;
+    relation_type: string;
+    target_name: string;
+    target_type: string;
+  }>,
+  seen: Set<string>,
+  results: MemorySearchResult[],
+): void {
+  for (const row of rows) {
+    const desc = `${row.source_name} (${row.source_type}) --${row.relation_type}--> ${row.target_name} (${row.target_type})`;
+
+    if (seen.has(desc)) {
+      continue;
+    }
+    seen.add(desc);
+    results.push({
+      key: entity,
+      value: desc,
+      score: 0, // Will be set by caller
+      agent_id: "graph",
+      source: "graph",
+    });
+  }
 }
 
 // ── Audit helper ────────────────────────────────────────────────────

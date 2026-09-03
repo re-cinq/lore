@@ -43,6 +43,33 @@ interface NodeRecord {
   fields: Record<string, unknown>;
 }
 
+// an outgoing edge — normalize to a sorted array of target xids
+function normalizeEdgeValue(value: unknown): unknown {
+  if (!Array.isArray(value)) {
+    return value;
+  }
+
+  return value
+    .map(
+      (target) => Object.values(target as Record<string, unknown>)[0] as string,
+    )
+    .sort();
+}
+
+function nodeRecordOf(
+  group: string,
+  node: Record<string, unknown>,
+): NodeRecord {
+  const xidKey = Object.keys(node).find((k) => k.endsWith(".xid"))!;
+  const fields: Record<string, unknown> = {};
+
+  for (const [pred, value] of Object.entries(node)) {
+    fields[pred] = normalizeEdgeValue(value);
+  }
+
+  return { key: `${group}|${node[xidKey] as string}`, fields };
+}
+
 // Spec-sentence acceptance link (testing-standards opt-in): the 3-level nesting
 // `describe(spec title) > describe(verbatim AC sentence) > it(label)` lets the
 // runner derive VALIDATED_BY structurally from the describe chain.
@@ -88,29 +115,10 @@ describe.skipIf(!reachable)("Spec Traceability Graph", () => {
       );
       const data = res.data as Record<string, Array<Record<string, unknown>>>;
 
-      const records: NodeRecord[] = [];
-
-      for (const [group, nodes] of Object.entries(data)) {
-        for (const node of nodes ?? []) {
-          const xidKey = Object.keys(node).find((k) => k.endsWith(".xid"))!;
-          const fields: Record<string, unknown> = {};
-
-          for (const [pred, value] of Object.entries(node)) {
-            // an outgoing edge — normalize to a sorted array of target xids
-            fields[pred] = Array.isArray(value)
-              ? value
-                  .map(
-                    (target) =>
-                      Object.values(
-                        target as Record<string, unknown>,
-                      )[0] as string,
-                  )
-                  .sort()
-              : value;
-          }
-          records.push({ key: `${group}|${node[xidKey] as string}`, fields });
-        }
-      }
+      const records: NodeRecord[] = Object.entries(data).flatMap(
+        ([group, nodes]) =>
+          (nodes ?? []).map((node) => nodeRecordOf(group, node)),
+      );
 
       return records.sort((a, b) => a.key.localeCompare(b.key));
     } finally {

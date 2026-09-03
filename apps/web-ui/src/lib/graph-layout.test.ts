@@ -252,13 +252,13 @@ describe("separateSmallComponents", () => {
     const mainNodes = placed.filter((n) => !smallIds.has(n.id));
     const smallNodes = placed.filter((n) => smallIds.has(n.id));
 
-    for (const small of smallNodes) {
-      for (const main of mainNodes) {
+    smallNodes.forEach((small) => {
+      mainNodes.forEach((main) => {
         expect(
           Math.hypot(small.x - main.x, small.y - main.y),
         ).toBeGreaterThanOrEqual(margin);
-      }
-    }
+      });
+    });
   });
 });
 

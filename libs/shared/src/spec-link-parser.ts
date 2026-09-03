@@ -107,12 +107,12 @@ function findTrailingParenSpan(
       continue;
     }
 
+    if (c === "(" && depth === 1) {
+      return { open: i, innerStart: i + 1, innerEnd: end - 1 };
+    }
+
     if (c === "(") {
       depth--;
-
-      if (depth === 0) {
-        return { open: i, innerStart: i + 1, innerEnd: end - 1 };
-      }
     }
   }
 

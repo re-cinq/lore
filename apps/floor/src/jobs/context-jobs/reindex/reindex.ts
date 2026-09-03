@@ -57,11 +57,13 @@ async function resolveSchema(repo: string): Promise<string> {
   try {
     const team = await settings().team(repo);
 
-    if (team && SCHEMA_RE.test(team)) {
-      // Verify schema exists in DB
-      if (await chunks().schemaExists(team)) {
-        return team;
-      }
+    if (!team || !SCHEMA_RE.test(team)) {
+      return "org_shared";
+    }
+
+    // Verify schema exists in DB
+    if (await chunks().schemaExists(team)) {
+      return team;
     }
   } catch (err) {
     console.error("[job] Schema resolution error:", err);
@@ -80,15 +82,55 @@ async function getChangedFiles(
     p.repo.listCommitsSince(since.toISOString()),
   );
 
-  const paths = new Set<string>();
+  const paths = new Set<string>(commits.flatMap((commit) => commit.files));
 
-  for (const commit of commits) {
-    for (const file of commit.files) {
-      paths.add(file);
+  return Array.from(paths);
+}
+
+async function adoptLegacyOrgSharedChunks(
+  schema: string,
+  fullName: string,
+): Promise<void> {
+  try {
+    const { moved, dropped } = await chunks().relocateLegacyChunks(
+      schema,
+      fullName,
+    );
+
+    if (dropped > 0) {
+      console.log(
+        `[job] Relocated ${moved} legacy org_shared chunks into ${schema} for ${fullName} (${dropped - moved} stale duplicates dropped)`,
+      );
+    }
+  } catch (err) {
+    console.error(
+      `[job] Legacy chunk relocation failed for ${fullName}: ${errorMessage(err)}`,
+    );
+  }
+}
+
+async function ingestRepoFiles(
+  filePaths: string[],
+  fullName: string,
+  schema: string,
+): Promise<number> {
+  let ingestedCount = 0;
+
+  for (const filePath of filePaths) {
+    try {
+      const ingested = await ingestFile(filePath, fullName, schema);
+
+      if (ingested) {
+        ingestedCount++;
+      }
+    } catch (err) {
+      console.error(
+        `[job] Error processing ${fullName}:${filePath}: ${errorMessage(err)}`,
+      );
     }
   }
 
-  return Array.from(paths);
+  return ingestedCount;
 }
 
 // ── Repo tree fetch (seed selection + verification pass) ────────────
@@ -309,22 +351,7 @@ export async function reindexJob(): Promise<string> {
       // rather than read as empty and trigger a full re-seed. No-op when
       // clean; non-fatal like the verification pass.
       if (schema !== "org_shared") {
-        try {
-          const { moved, dropped } = await chunks().relocateLegacyChunks(
-            schema,
-            repo.full_name,
-          );
-
-          if (dropped > 0) {
-            console.log(
-              `[job] Relocated ${moved} legacy org_shared chunks into ${schema} for ${repo.full_name} (${dropped - moved} stale duplicates dropped)`,
-            );
-          }
-        } catch (err) {
-          console.error(
-            `[job] Legacy chunk relocation failed for ${repo.full_name}: ${errorMessage(err)}`,
-          );
-        }
+        await adoptLegacyOrgSharedChunks(schema, repo.full_name);
       }
 
       // Determine which files to process
@@ -355,20 +382,11 @@ export async function reindexJob(): Promise<string> {
         console.log(
           `[job] Processing ${filePaths.length} files for ${repo.full_name}`,
         );
-
-        for (const filePath of filePaths) {
-          try {
-            const ingested = await ingestFile(filePath, repo.full_name, schema);
-
-            if (ingested) {
-              repoFileCount++;
-            }
-          } catch (err) {
-            console.error(
-              `[job] Error processing ${repo.full_name}:${filePath}: ${errorMessage(err)}`,
-            );
-          }
-        }
+        repoFileCount += await ingestRepoFiles(
+          filePaths,
+          repo.full_name,
+          schema,
+        );
       }
 
       // Chunker-upgrade heal: re-ingest code files whose stored chunks predate

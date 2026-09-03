@@ -92,6 +92,51 @@ function locateStatementLine(lines: string[], refs: SpecLinkRef[]): number {
   return 0;
 }
 
+/** One line-anchored implemented entry per linked line, cross-linked to the
+ * statement's other artifacts. */
+function addImplementedEntries(
+  index: SpecCodeIndex,
+  links: SpecLinkRef[],
+  entryBase: Omit<RangeEntry, "startLine" | "endLine" | "related">,
+  related: LinkTarget[],
+): void {
+  for (const link of links) {
+    if (link.line === null) {
+      continue;
+    }
+    addEntry(index, link.path, {
+      ...entryBase,
+      startLine: link.line,
+      endLine: link.line,
+      related,
+    });
+  }
+}
+
+function indexSpecStatements(index: SpecCodeIndex, spec: SpecSource): void {
+  const lines = spec.content.split(/\r?\n/);
+
+  for (const statement of segmentStatements(spec.content)) {
+    const codeLinks = parseCodeLinksInStatement(statement.text);
+    const testLinks = parseTestLinksInStatement(statement.text);
+
+    if (codeLinks.length === 0 && testLinks.length === 0) {
+      continue;
+    }
+
+    const entryBase = {
+      layer: "implemented" as const,
+      evidence: "human-linked" as const,
+      statementText: cleanStatementText(statement.text),
+      specPath: spec.path,
+      specLine: locateStatementLine(lines, [...codeLinks, ...testLinks]),
+    };
+
+    addImplementedEntries(index, codeLinks, entryBase, testLinks.map(toTarget));
+    addImplementedEntries(index, testLinks, entryBase, codeLinks.map(toTarget));
+  }
+}
+
 /** Parse local spec.md files into the implemented layer — inline code links
  * highlight the source line, inline test links highlight the test line, each
  * cross-linked to the statement's other artifacts. */
@@ -99,53 +144,7 @@ export function buildLocalIndex(specs: SpecSource[]): SpecCodeIndex {
   const index: SpecCodeIndex = new Map();
 
   for (const spec of specs) {
-    const lines = spec.content.split(/\r?\n/);
-
-    for (const statement of segmentStatements(spec.content)) {
-      const codeLinks = parseCodeLinksInStatement(statement.text);
-      const testLinks = parseTestLinksInStatement(statement.text);
-
-      if (codeLinks.length === 0 && testLinks.length === 0) {
-        continue;
-      }
-
-      const statementText = cleanStatementText(statement.text);
-      const specLine = locateStatementLine(lines, [...codeLinks, ...testLinks]);
-      const codeTargets = codeLinks.map(toTarget);
-      const testTargets = testLinks.map(toTarget);
-
-      for (const link of codeLinks) {
-        if (link.line === null) {
-          continue;
-        }
-        addEntry(index, link.path, {
-          startLine: link.line,
-          endLine: link.line,
-          layer: "implemented",
-          evidence: "human-linked",
-          statementText,
-          specPath: spec.path,
-          specLine,
-          related: testTargets,
-        });
-      }
-
-      for (const link of testLinks) {
-        if (link.line === null) {
-          continue;
-        }
-        addEntry(index, link.path, {
-          startLine: link.line,
-          endLine: link.line,
-          layer: "implemented",
-          evidence: "human-linked",
-          statementText,
-          specPath: spec.path,
-          specLine,
-          related: codeTargets,
-        });
-      }
-    }
+    indexSpecStatements(index, spec);
   }
 
   return index;
@@ -189,21 +188,32 @@ export function buildCoverageIndex(graph: SpecGraph): SpecCodeIndex {
       ? [{ label: test.label, path: test.path, line: test.line ?? null }]
       : [];
 
-    for (const interval of parseRangesFacet(file.detail)) {
-      addEntry(index, file.path, {
-        startLine: interval.startLine,
-        endLine: interval.endLine,
-        layer: "covered",
-        evidence: "execution-verified",
-        statementText: (stmt.detail ?? "").trim(),
-        specPath: stmt.path ?? "",
-        specLine: 0,
-        related,
-      });
-    }
+    addCoveredIntervals(index, file.path, file.detail, stmt, related);
   }
 
   return index;
+}
+
+/** One covered entry per interval the graph attributes to the statement. */
+function addCoveredIntervals(
+  index: SpecCodeIndex,
+  filePath: string,
+  fileDetail: string | undefined,
+  stmt: SpecGraphNode,
+  related: LinkTarget[],
+): void {
+  for (const interval of parseRangesFacet(fileDetail)) {
+    addEntry(index, filePath, {
+      startLine: interval.startLine,
+      endLine: interval.endLine,
+      layer: "covered",
+      evidence: "execution-verified",
+      statementText: (stmt.detail ?? "").trim(),
+      specPath: stmt.path ?? "",
+      specLine: 0,
+      related,
+    });
+  }
 }
 
 /** Merge with local precedence: a coverage entry is dropped when an inline
@@ -219,15 +229,23 @@ export function mergeIndexes(
   }
 
   for (const [path, entries] of coverage) {
-    const localEntries = local.get(path);
-
-    for (const entry of entries) {
-      if (localEntries?.some((e) => e.statementText === entry.statementText)) {
-        continue;
-      }
-      addEntry(merged, path, entry);
-    }
+    mergeCoverageEntries(merged, path, entries, local.get(path));
   }
 
   return merged;
+}
+
+/** Add the coverage entries not already stated inline for the same file. */
+function mergeCoverageEntries(
+  merged: SpecCodeIndex,
+  path: string,
+  entries: RangeEntry[],
+  localEntries: RangeEntry[] | undefined,
+): void {
+  for (const entry of entries) {
+    if (localEntries?.some((e) => e.statementText === entry.statementText)) {
+      continue;
+    }
+    addEntry(merged, path, entry);
+  }
 }

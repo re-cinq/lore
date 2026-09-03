@@ -55,10 +55,12 @@ function commentParams(comment: {
   };
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- GitHub webhook payload; shape varies by event type and is navigated defensively below
+type GitHubPayload = any;
+
 export function mapGitHubEvent(
   eventType: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- GitHub webhook payload; shape varies by event type and is navigated defensively below
-  payload: any,
+  payload: GitHubPayload,
   deliveryId: string,
 ): EventInput[] {
   const repo: string | undefined = payload?.repository?.full_name;
@@ -69,146 +71,195 @@ export function mapGitHubEvent(
   const key = githubDedupeKey(deliveryId);
 
   if (eventType === "pull_request") {
-    const pr = payload.pull_request;
-    const prNumber: number | undefined = pr?.number;
-
-    if (!prNumber) {
-      return [];
-    }
-
-    if (payload.action === "closed") {
-      // Emit for merged AND unmerged closes: specPrMerge guards on `merged`, while
-      // code-review's onClose must finish its line on any close.
-      return [
-        {
-          eventName: "github.pull_request.closed",
-          source: "github",
-          params: {
-            repo,
-            pr_number: prNumber,
-            merged: pr.merged === true,
-            branch: pr.head?.ref ?? "",
-            merge_commit_sha: pr.merge_commit_sha ?? null,
-            labels: labelNames(pr.labels),
-          },
-          dedupeKey: key,
-        },
-      ];
-    }
-
-    if (PR_REVIEW_TRIGGER_ACTIONS.has(payload.action)) {
-      return [
-        {
-          eventName: `github.pull_request.${payload.action}`,
-          source: "github",
-          params: { repo, pr_number: prNumber },
-          dedupeKey: key,
-        },
-      ];
-    }
-
-    return [];
+    return mapPullRequest(payload, repo, key);
   }
 
   if (eventType === "pull_request_review") {
-    if (payload.action !== "submitted") {
-      return [];
-    }
-    const prNumber: number | undefined = payload.pull_request?.number;
-
-    if (!prNumber) {
-      return [];
-    }
-
-    return [
-      {
-        eventName: "github.pull_request_review.submitted",
-        source: "github",
-        params: {
-          repo,
-          pr_number: prNumber,
-          review_id: payload.review?.id ?? null,
-          review_state: payload.review?.state ?? "",
-          review_author: payload.review?.user?.login ?? "",
-          review_body: payload.review?.body ?? "",
-        },
-        dedupeKey: key,
-      },
-    ];
+    return mapPullRequestReview(payload, repo, key);
   }
 
   if (eventType === "check_run" || eventType === "check_suite") {
-    if (payload.action !== "completed") {
-      return [];
-    }
-    const prList: Array<{ number: number }> =
-      payload.check_run?.pull_requests ??
-      payload.check_suite?.pull_requests ??
-      [];
-
-    return prList
-      .filter((pr) => typeof pr?.number === "number")
-      .map((pr) => ({
-        eventName: `github.${eventType}.completed`,
-        source: "github" as const,
-        params: { repo, pr_number: pr.number },
-        dedupeKey: `${key}:${pr.number}`,
-      }));
+    return mapCheckCompleted(eventType, payload, repo, key);
   }
 
   if (eventType === "issue_comment") {
-    const prNumber: number | undefined = payload.issue?.number;
-
-    if (
-      payload.action !== "created" ||
-      !payload.issue?.pull_request ||
-      !prNumber
-    ) {
-      return [];
-    }
-
-    return [
-      {
-        eventName: "github.issue_comment.created",
-        source: "github",
-        params: {
-          repo,
-          pr_number: prNumber,
-          ...commentParams(payload.comment),
-        },
-        dedupeKey: key,
-      },
-    ];
+    return mapIssueComment(payload, repo, key);
   }
 
   if (eventType === "pull_request_review_comment") {
-    const prNumber: number | undefined = payload.pull_request?.number;
+    return mapReviewComment(payload, repo, key);
+  }
 
-    if (payload.action !== "created" || !prNumber) {
-      return [];
-    }
+  if (eventType === "issues") {
+    return mapIssueLabeled(payload, repo, key);
+  }
 
+  return [];
+}
+
+function mapPullRequest(
+  payload: GitHubPayload,
+  repo: string,
+  key: string,
+): EventInput[] {
+  const pr = payload.pull_request;
+  const prNumber: number | undefined = pr?.number;
+
+  if (!prNumber) {
+    return [];
+  }
+
+  if (payload.action === "closed") {
+    // Emit for merged AND unmerged closes: specPrMerge guards on `merged`, while
+    // code-review's onClose must finish its line on any close.
     return [
       {
-        eventName: "github.pull_request_review_comment.created",
+        eventName: "github.pull_request.closed",
         source: "github",
         params: {
           repo,
           pr_number: prNumber,
-          ...commentParams(payload.comment),
-          // The thread root a reply hangs off — the GitHub replies endpoint keys
-          // on it, and it is the triage's is-a-reply signal.
-          in_reply_to_id: payload.comment?.in_reply_to_id ?? null,
+          merged: pr.merged === true,
+          branch: pr.head?.ref ?? "",
+          merge_commit_sha: pr.merge_commit_sha ?? null,
+          labels: labelNames(pr.labels),
         },
         dedupeKey: key,
       },
     ];
   }
 
-  if (eventType !== "issues") {
+  if (PR_REVIEW_TRIGGER_ACTIONS.has(payload.action)) {
+    return [
+      {
+        eventName: `github.pull_request.${payload.action}`,
+        source: "github",
+        params: { repo, pr_number: prNumber },
+        dedupeKey: key,
+      },
+    ];
+  }
+
+  return [];
+}
+
+function mapPullRequestReview(
+  payload: GitHubPayload,
+  repo: string,
+  key: string,
+): EventInput[] {
+  if (payload.action !== "submitted") {
+    return [];
+  }
+  const prNumber: number | undefined = payload.pull_request?.number;
+
+  if (!prNumber) {
     return [];
   }
 
+  return [
+    {
+      eventName: "github.pull_request_review.submitted",
+      source: "github",
+      params: {
+        repo,
+        pr_number: prNumber,
+        review_id: payload.review?.id ?? null,
+        review_state: payload.review?.state ?? "",
+        review_author: payload.review?.user?.login ?? "",
+        review_body: payload.review?.body ?? "",
+      },
+      dedupeKey: key,
+    },
+  ];
+}
+
+function mapCheckCompleted(
+  eventType: string,
+  payload: GitHubPayload,
+  repo: string,
+  key: string,
+): EventInput[] {
+  if (payload.action !== "completed") {
+    return [];
+  }
+  const prList: Array<{ number: number }> =
+    payload.check_run?.pull_requests ??
+    payload.check_suite?.pull_requests ??
+    [];
+
+  return prList
+    .filter((pr) => typeof pr?.number === "number")
+    .map((pr) => ({
+      eventName: `github.${eventType}.completed`,
+      source: "github" as const,
+      params: { repo, pr_number: pr.number },
+      dedupeKey: `${key}:${pr.number}`,
+    }));
+}
+
+function mapIssueComment(
+  payload: GitHubPayload,
+  repo: string,
+  key: string,
+): EventInput[] {
+  const prNumber: number | undefined = payload.issue?.number;
+
+  if (
+    payload.action !== "created" ||
+    !payload.issue?.pull_request ||
+    !prNumber
+  ) {
+    return [];
+  }
+
+  return [
+    {
+      eventName: "github.issue_comment.created",
+      source: "github",
+      params: {
+        repo,
+        pr_number: prNumber,
+        ...commentParams(payload.comment),
+      },
+      dedupeKey: key,
+    },
+  ];
+}
+
+function mapReviewComment(
+  payload: GitHubPayload,
+  repo: string,
+  key: string,
+): EventInput[] {
+  const prNumber: number | undefined = payload.pull_request?.number;
+
+  if (payload.action !== "created" || !prNumber) {
+    return [];
+  }
+
+  return [
+    {
+      eventName: "github.pull_request_review_comment.created",
+      source: "github",
+      params: {
+        repo,
+        pr_number: prNumber,
+        ...commentParams(payload.comment),
+        // The thread root a reply hangs off — the GitHub replies endpoint keys
+        // on it, and it is the triage's is-a-reply signal.
+        in_reply_to_id: payload.comment?.in_reply_to_id ?? null,
+      },
+      dedupeKey: key,
+    },
+  ];
+}
+
+function mapIssueLabeled(
+  payload: GitHubPayload,
+  repo: string,
+  key: string,
+): EventInput[] {
   if (payload.action !== "labeled") {
     return [];
   }

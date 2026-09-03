@@ -199,11 +199,11 @@ function parseQuestion(raw: unknown, i: number): GapQuestion {
     kind,
   };
 
-  if (kind !== "choice") {
-    if (o.options !== undefined) {
-      question.options = lenientStringArray(o.options);
-    }
+  if (kind !== "choice" && o.options !== undefined) {
+    question.options = lenientStringArray(o.options);
+  }
 
+  if (kind !== "choice") {
     return question;
   }
 
@@ -254,24 +254,24 @@ function parseSection(raw: unknown, i: number): GapSection {
     section.content = content;
   }
 
-  if (o.mockups !== undefined && o.mockups !== null) {
-    const mockups = asArray(o.mockups, `sections[${i}].mockups`)
-      .map(parseMockup)
-      .filter((m): m is GapMockup => m !== null);
+  const mockups =
+    o.mockups !== undefined && o.mockups !== null
+      ? asArray(o.mockups, `sections[${i}].mockups`)
+          .map(parseMockup)
+          .filter((m): m is GapMockup => m !== null)
+      : [];
 
-    if (mockups.length) {
-      section.mockups = mockups;
-    }
+  if (mockups.length) {
+    section.mockups = mockups;
   }
 
-  if (o.questions !== undefined && o.questions !== null) {
-    const questions = asArray(o.questions, `sections[${i}].questions`).map(
-      parseQuestion,
-    );
+  const questions =
+    o.questions !== undefined && o.questions !== null
+      ? asArray(o.questions, `sections[${i}].questions`).map(parseQuestion)
+      : [];
 
-    if (questions.length) {
-      section.questions = questions;
-    }
+  if (questions.length) {
+    section.questions = questions;
   }
 
   return section;
@@ -298,6 +298,23 @@ function parseArchitecture(raw: unknown): GapArchitecture {
   };
 }
 
+/** Render an architecture payload as markdown: summary + one bullet per component. */
+function architectureContent(arch: GapArchitecture): string {
+  const lines = [arch.summary];
+
+  if (arch.components.length) {
+    lines.push(
+      "",
+      ...arch.components.map(
+        (c) =>
+          `- **${c.name}**: ${c.responsibility}${c.touchpoints.length ? ` _(${c.touchpoints.join(", ")})_` : ""}`,
+      ),
+    );
+  }
+
+  return lines.join("\n");
+}
+
 /** Build `sections` from a legacy architecture/user_flows/mockups/questions payload. */
 function deriveSectionsFromLegacy(o: Record<string, unknown>): GapSection[] {
   const sections: GapSection[] = [];
@@ -312,22 +329,11 @@ function deriveSectionsFromLegacy(o: Record<string, unknown>): GapSection[] {
 
   if (o.architecture !== undefined && o.architecture !== null) {
     const arch = parseArchitecture(o.architecture);
-    const lines = [arch.summary];
-
-    if (arch.components.length) {
-      lines.push(
-        "",
-        ...arch.components.map(
-          (c) =>
-            `- **${c.name}**: ${c.responsibility}${c.touchpoints.length ? ` _(${c.touchpoints.join(", ")})_` : ""}`,
-        ),
-      );
-    }
     const m = mockupsTagged("architecture");
 
     sections.push({
       title: "Architecture",
-      content: lines.join("\n"),
+      content: architectureContent(arch),
       ...(m ? { mockups: m } : {}),
     });
   }

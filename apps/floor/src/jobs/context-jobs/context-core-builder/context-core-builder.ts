@@ -71,17 +71,18 @@ async function evaluateNamespace(
   const configPath = join("evals", namespace, "promptfooconfig.yaml");
   const evalResult = await runPromptfooEval({ configPath });
 
-  if (!evalResult.ok) {
-    // Distinguish a genuinely-absent config from a crash/timeout — the old catch
-    // logged every failure (including real regressions the eval surfaced) as
-    // "no eval config, skipping".
-    if (evalResult.reason === "config-missing") {
-      console.log(
-        `[job] context-core: no eval config for ${namespace}, skipping`,
-      );
+  // Distinguish a genuinely-absent config from a crash/timeout — the old catch
+  // logged every failure (including real regressions the eval surfaced) as
+  // "no eval config, skipping".
+  if (!evalResult.ok && evalResult.reason === "config-missing") {
+    console.log(
+      `[job] context-core: no eval config for ${namespace}, skipping`,
+    );
 
-      return "unchanged";
-    }
+    return "unchanged";
+  }
+
+  if (!evalResult.ok) {
     console.error(
       `[job] context-core: eval did not produce a score for ${namespace} (${evalResult.reason})`,
       evalResult.reason === "exec-failed" ? evalResult.error : "",

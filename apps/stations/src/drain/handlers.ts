@@ -11,6 +11,7 @@ import type { EventHandler } from "@re-cinq/lore-shared/project/events/drain-loo
 import { runPublishedNode, parsePublishedNode } from "../kernel/run-node.js";
 import { STATIONS } from "../stations/registry.js";
 import {
+  eventTriggerNames,
   isSweepModule,
   type SweepStationModule,
 } from "../stations/lib/station.js";
@@ -63,20 +64,14 @@ export function buildStationHandlers(): Map<string, EventHandler> {
     [SERVICE_NODE_EVENT, runNode],
   ]);
 
-  for (const mod of Object.values(STATIONS)) {
-    if (!isSweepModule(mod)) {
-      continue;
-    }
+  const sweepBindings = Object.values(STATIONS)
+    .filter(isSweepModule)
+    .flatMap((mod) =>
+      eventTriggerNames(mod.manifest).map((eventName) => ({ mod, eventName })),
+    );
 
-    for (const trigger of mod.manifest.triggers) {
-      if (trigger.kind !== "event") {
-        continue;
-      }
-
-      for (const eventName of trigger.eventNames) {
-        handlers.set(eventName, runSweepFor(mod, eventName));
-      }
-    }
+  for (const { mod, eventName } of sweepBindings) {
+    handlers.set(eventName, runSweepFor(mod, eventName));
   }
 
   return handlers;

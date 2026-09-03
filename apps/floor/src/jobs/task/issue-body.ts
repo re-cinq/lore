@@ -94,10 +94,7 @@ export function composeIssueBody(
   if (isDriftTask(task)) {
     const detail = driftDetailBlock(task);
 
-    if (detail) {
-      sections.push(detail);
-    }
-    sections.push(DRIFT_ISSUE_GUIDANCE);
+    sections.push(...(detail ? [detail] : []), DRIFT_ISSUE_GUIDANCE);
   }
   const footer = `*Managed by [Lore](https://github.com/re-cinq/lore) · created by \`${task.created_by || "unknown"}\` · Lore-Task: ${loreTaskRef(task.id, uiUrl)}*`;
 

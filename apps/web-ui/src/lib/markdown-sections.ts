@@ -9,10 +9,11 @@ export function splitMarkdownSections(source: string): Section[] {
   let current: string[] | null = null;
 
   for (const line of source.split("\n")) {
+    if (HEADING_LINE.test(line) && current) {
+      sections.push(buildSection(current));
+    }
+
     if (HEADING_LINE.test(line)) {
-      if (current) {
-        sections.push(buildSection(current));
-      }
       current = [line];
       continue;
     }

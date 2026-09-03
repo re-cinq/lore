@@ -125,6 +125,37 @@ export interface TaskListRow {
   updated_at: string;
 }
 
+/** Throw when the repo's trust level forbids the task type; any other failure
+ * (missing row, read error) is non-fatal. */
+async function enforceRepoTrustForTaskType(
+  pool: PgPool,
+  repo: string,
+  taskType: string,
+): Promise<void> {
+  try {
+    const { rows: repoRows } = await pool.query(
+      `SELECT settings FROM lore.repos WHERE full_name = $1`,
+      [repo],
+    );
+
+    if (repoRows.length > 0) {
+      const settings = (repoRows[0].settings as {
+        trust?: { level?: string };
+      }) || { trust: undefined };
+
+      enforceTrustAllowsTaskType(settings.trust?.level, taskType, repo);
+    }
+  } catch (err) {
+    if (
+      err instanceof Error &&
+      err.message.includes("not allowed at trust level")
+    ) {
+      throw err;
+    }
+    // Non-trust errors are non-fatal
+  }
+}
+
 export async function createTask(
   pool: PgPool,
   input: CreateTaskInput,
@@ -140,28 +171,7 @@ export async function createTask(
   );
 
   if (repo) {
-    try {
-      const { rows: repoRows } = await pool.query(
-        `SELECT settings FROM lore.repos WHERE full_name = $1`,
-        [repo],
-      );
-
-      if (repoRows.length > 0) {
-        const settings = (repoRows[0].settings as {
-          trust?: { level?: string };
-        }) || { trust: undefined };
-
-        enforceTrustAllowsTaskType(settings.trust?.level, taskType, repo);
-      }
-    } catch (err) {
-      if (
-        err instanceof Error &&
-        err.message.includes("not allowed at trust level")
-      ) {
-        throw err;
-      }
-      // Non-trust errors are non-fatal
-    }
+    await enforceRepoTrustForTaskType(pool, repo, taskType);
   }
 
   const resolvedPriority =

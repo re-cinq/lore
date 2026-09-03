@@ -178,6 +178,17 @@ export function proxyMemory(
   return proxyToApi("/api/memory", { action, ...params });
 }
 
+function storeWhenCacheable(
+  policy: ReadCachePolicy,
+  body: string,
+  cacheIf?: (body: string) => boolean,
+): void {
+  if (cacheIf && !cacheIf(body)) {
+    return;
+  }
+  store(policy, body);
+}
+
 // Read-through cache wrapper for proxied reads. Fresh hit short-circuits the
 // network; on `ok` the response is stored; on `unreachable` a stale entry (if
 // any) is served instead of erroring. `label` prepends a cache marker (skip it
@@ -205,25 +216,25 @@ export async function withReadCache(
   const result = await doProxy();
 
   if (result.ok) {
-    if (!opts.cacheIf || opts.cacheIf(result.body)) {
-      store(policy, result.body);
-    }
+    storeWhenCacheable(policy, result.body, opts.cacheIf);
 
     return result;
   }
 
-  if (result.reason === "unreachable") {
-    const stale = readAny(policy);
-
-    if (stale) {
-      return {
-        ok: true,
-        body: label ? markStale(stale.body, stale.ageSeconds) : stale.body,
-      };
-    }
+  if (result.reason !== "unreachable") {
+    return result;
   }
 
-  return result;
+  const stale = readAny(policy);
+
+  if (!stale) {
+    return result;
+  }
+
+  return {
+    ok: true,
+    body: label ? markStale(stale.body, stale.ageSeconds) : stale.body,
+  };
 }
 
 // GET sibling of proxyToApi for read-only routes (e.g. /trace/*). Same

@@ -27,11 +27,15 @@ export interface SearchViewProps {
 }
 
 function sourceBadgeClass(source: SearchResult["source"]): string {
-  return source === "fact"
-    ? "op-search"
-    : source === "chunk"
-      ? "op-write"
-      : "op-read";
+  if (source === "fact") {
+    return "op-search";
+  }
+
+  if (source === "chunk") {
+    return "op-write";
+  }
+
+  return "op-read";
 }
 
 /**

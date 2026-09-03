@@ -257,21 +257,23 @@ export function parseAgentLog(raw: string): LogEntry[] {
   const entries: LogEntry[] = [];
 
   for (const line of raw.split("\n")) {
-    for (const entry of parseAgentLogLine(line)) {
+    parseAgentLogLine(line).forEach((entry) => {
       const previous = entries[entries.length - 1];
       const merged = mergedDelta(previous, entry);
 
       if (merged !== null) {
         entries[entries.length - 1] = merged;
-        continue;
+
+        return;
       }
 
       if (supersedesPrevious(previous, entry)) {
         entries[entries.length - 1] = entry;
-        continue;
+
+        return;
       }
       entries.push(entry);
-    }
+    });
   }
 
   return entries;
@@ -388,23 +390,7 @@ function classify(value: unknown, originalLine: string): LogEntry[] {
   }
 
   if (value.type === "message" && typeof value.content === "string") {
-    // A delta chunk keeps even whitespace-only content: it joins the previous
-    // chunk at fold time, and trimming it would glue the words around it.
-    if (value.delta === true && value.role !== "user") {
-      return value.content
-        ? [{ kind: "assistant-text", text: value.content, delta: true }]
-        : [];
-    }
-
-    if (!value.content.trim()) {
-      return [];
-    }
-
-    return [
-      value.role === "user"
-        ? { kind: "user-text", text: value.content }
-        : { kind: "assistant-text", text: value.content },
-    ];
+    return plainMessageEntries(value.role, value.content, value.delta === true);
   }
 
   if (value.type === "tool_use" && typeof value.tool_name === "string") {
@@ -578,6 +564,35 @@ function hookEntry(
   };
 }
 
+// A delta chunk keeps even whitespace-only content: it joins the previous
+// chunk at fold time, and trimming it would glue the words around it.
+function plainMessageEntries(
+  role: unknown,
+  content: string,
+  delta: boolean,
+): LogEntry[] {
+  if (delta && role !== "user") {
+    return content
+      ? [{ kind: "assistant-text", text: content, delta: true }]
+      : [];
+  }
+
+  if (!content.trim()) {
+    return [];
+  }
+
+  if (role === "user") {
+    return [{ kind: "user-text", text: content }];
+  }
+
+  return [{ kind: "assistant-text", text: content }];
+}
+
+/** The candidate unchanged when it is a non-blank string, else empty. */
+function trimmedBlockText(candidate: unknown): string {
+  return typeof candidate === "string" && candidate.trim() ? candidate : "";
+}
+
 function messageEntries(value: Record<string, unknown>): LogEntry[] {
   const message = value.message;
 
@@ -591,21 +606,28 @@ function messageEntries(value: Record<string, unknown>): LogEntry[] {
       continue;
     }
 
-    if (block.type === "thinking" && typeof block.thinking === "string") {
-      if (block.thinking.trim()) {
-        entries.push({ kind: "thinking", text: block.thinking });
-      }
+    const thinkingText = trimmedBlockText(block.thinking);
+    const blockText = trimmedBlockText(block.text);
+
+    if (block.type === "thinking" && thinkingText === "") {
       continue;
     }
 
-    if (block.type === "text" && typeof block.text === "string") {
-      if (block.text.trim()) {
-        entries.push(
-          value.type === "user"
-            ? { kind: "user-text", text: block.text }
-            : { kind: "assistant-text", text: block.text },
-        );
-      }
+    if (block.type === "thinking") {
+      entries.push({ kind: "thinking", text: thinkingText });
+      continue;
+    }
+
+    if (block.type === "text" && blockText === "") {
+      continue;
+    }
+
+    if (block.type === "text") {
+      entries.push(
+        value.type === "user"
+          ? { kind: "user-text", text: blockText }
+          : { kind: "assistant-text", text: blockText },
+      );
       continue;
     }
 

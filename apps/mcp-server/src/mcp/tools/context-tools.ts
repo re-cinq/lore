@@ -29,6 +29,87 @@ function readFileSafe(path: string): string | null {
   }
 }
 
+/** Hybrid vector+BM25 search over the team schema, falling back to org_shared when the team has no hits. */
+async function searchDbContext(
+  query: string,
+  team: string | undefined,
+  limit: number,
+): Promise<{ content: Array<{ type: "text"; text: string }> }> {
+  const schema = team || "org_shared";
+  let results = await hybridSearch(query, schema, limit);
+
+  if (results.length === 0 && team && team !== "org_shared") {
+    results = await hybridSearch(query, "org_shared", limit);
+  }
+
+  traceRetrieval({
+    query,
+    namespace: schema,
+    topScore: results[0]?.rrf_score || 0,
+    resultCount: results.length,
+  });
+
+  if (results.length === 0) {
+    return {
+      content: [{ type: "text" as const, text: `No results for "${query}".` }],
+    };
+  }
+  const text = results
+    .map((r) => `**Score:** ${r.rrf_score.toFixed(3)}\n\n${r.content}`)
+    .join("\n\n---\n\n");
+
+  return { content: [{ type: "text" as const, text }] };
+}
+
+interface ParagraphScan {
+  file: string;
+  raw: string;
+  lowerQuery: string;
+  limit: number;
+}
+
+function appendParagraphMatches(
+  results: { source: string; paragraph: string }[],
+  scan: ParagraphScan,
+): void {
+  for (const para of scan.raw.split(/\n{2,}/)) {
+    if (results.length >= scan.limit) {
+      return;
+    }
+
+    if (para.toLowerCase().includes(scan.lowerQuery)) {
+      results.push({
+        source: relative(CONTEXT_PATH, scan.file),
+        paragraph: para.trim(),
+      });
+    }
+  }
+}
+
+/** File-based fallback: substring-scans each file's paragraphs until `limit` matches. */
+function collectMatchingParagraphs(
+  files: string[],
+  lowerQuery: string,
+  limit: number,
+): { source: string; paragraph: string }[] {
+  const results: { source: string; paragraph: string }[] = [];
+
+  for (const file of files) {
+    const raw = readFileSafe(file);
+
+    if (!raw) {
+      continue;
+    }
+    appendParagraphMatches(results, { file, raw, lowerQuery, limit });
+
+    if (results.length >= limit) {
+      break;
+    }
+  }
+
+  return results;
+}
+
 export function registerContextTools(server: McpServer) {
   server.tool(
     "lore_search_context",
@@ -56,33 +137,7 @@ Use this when you want chunk-level evidence or the exact wording of a convention
       }
 
       if (await isDbAvailable()) {
-        const schema = team || "org_shared";
-        let results = await hybridSearch(query, schema, limit);
-
-        // If no results in team schema and we have a detected repo, also search org_shared
-        if (results.length === 0 && team && team !== "org_shared") {
-          results = await hybridSearch(query, "org_shared", limit);
-        }
-
-        traceRetrieval({
-          query,
-          namespace: schema,
-          topScore: results[0]?.rrf_score || 0,
-          resultCount: results.length,
-        });
-
-        if (results.length === 0) {
-          return {
-            content: [
-              { type: "text" as const, text: `No results for "${query}".` },
-            ],
-          };
-        }
-        const text = results
-          .map((r) => `**Score:** ${r.rrf_score.toFixed(3)}\n\n${r.content}`)
-          .join("\n\n---\n\n");
-
-        return { content: [{ type: "text" as const, text }] };
+        return searchDbContext(query, team, limit);
       }
 
       // File-based fallback
@@ -104,34 +159,11 @@ Use this when you want chunk-level evidence or the exact wording of a convention
         ? join(searchRoot, "**/*.md")
         : join(CONTEXT_PATH, "**/*.md");
       const files = globSync(pattern, { nodir: true });
-      const lowerQuery = query.toLowerCase();
-      const results: { source: string; paragraph: string }[] = [];
-
-      for (const file of files) {
-        const raw = readFileSafe(file);
-
-        if (!raw) {
-          continue;
-        }
-        const paragraphs = raw.split(/\n{2,}/);
-
-        for (const para of paragraphs) {
-          if (para.toLowerCase().includes(lowerQuery)) {
-            results.push({
-              source: relative(CONTEXT_PATH, file),
-              paragraph: para.trim(),
-            });
-
-            if (results.length >= limit) {
-              break;
-            }
-          }
-        }
-
-        if (results.length >= limit) {
-          break;
-        }
-      }
+      const results = collectMatchingParagraphs(
+        files,
+        query.toLowerCase(),
+        limit,
+      );
 
       // Trace the retrieval for observability + gap detection
       const topScore = results.length > 0 ? 1.0 : 0.0; // Phase 0: binary score. Phase 1: RRF score.

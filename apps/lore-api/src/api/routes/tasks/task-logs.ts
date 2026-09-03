@@ -174,79 +174,138 @@ async function readTurnSlice(
   offset: number,
   resume: TurnResume | null,
 ): Promise<TurnSlice> {
-  let consumed = resume?.consumed ?? 0;
+  const state: TurnScanState = {
+    consumed: resume?.consumed ?? 0,
+    boundaryId: resume?.afterId ?? "0",
+    boundaryChars: resume?.consumed ?? 0,
+    slice: "",
+    mustValidateResume: resume !== null && offset > resume.consumed,
+  };
   let afterId = resume?.afterId ?? "0";
-  let boundaryId = afterId;
-  let boundaryChars = consumed;
-  let slice = "";
   let sawTurns = resume !== null;
-  let mustValidateResume = resume !== null && offset > consumed;
 
   for (;;) {
     const page = await turns.listByTask(taskId, afterId, TURNS_PAGE_SIZE);
 
     sawTurns = sawTurns || page.length > 0;
 
-    if (mustValidateResume && page.length === 0) {
+    if (state.mustValidateResume && page.length === 0) {
+      return readTurnSlice(turns, taskId, offset, null);
+    }
+    const outcome = consumeTurnPage(state, page, offset);
+
+    if (outcome === "restart") {
       return readTurnSlice(turns, taskId, offset, null);
     }
 
-    for (const row of page) {
-      if (slice.length >= LOG_SLICE_MAX) {
-        return {
-          slice,
-          hasMore: true,
-          sawTurns,
-          cursor: `${taskId}:${boundaryId}:${boundaryChars}`,
-        };
-      }
-      const line = `${JSON.stringify(row.envelope)}\n`;
-
-      if (mustValidateResume) {
-        mustValidateResume = false;
-
-        if (consumed + line.length <= offset) {
-          return readTurnSlice(turns, taskId, offset, null);
-        }
-      }
-
-      if (consumed + line.length <= offset) {
-        consumed += line.length;
-        boundaryId = row.id;
-        boundaryChars = consumed;
-        continue;
-      }
-      const start = Math.max(0, offset - consumed);
-      const piece = line.substring(
-        start,
-        start + (LOG_SLICE_MAX - slice.length),
-      );
-
-      slice += piece;
-
-      if (start + piece.length < line.length) {
-        return {
-          slice,
-          hasMore: true,
-          sawTurns,
-          cursor: `${taskId}:${boundaryId}:${boundaryChars}`,
-        };
-      }
-      consumed += line.length;
-      boundaryId = row.id;
-      boundaryChars = consumed;
+    if (outcome === "sliced") {
+      return {
+        slice: state.slice,
+        hasMore: true,
+        sawTurns,
+        cursor: `${taskId}:${state.boundaryId}:${state.boundaryChars}`,
+      };
     }
 
     if (page.length < TURNS_PAGE_SIZE) {
       return {
-        slice,
+        slice: state.slice,
         hasMore: false,
         sawTurns,
-        cursor: `${taskId}:${boundaryId}:${boundaryChars}`,
+        cursor: `${taskId}:${state.boundaryId}:${state.boundaryChars}`,
       };
     }
     afterId = page.at(-1)?.id ?? afterId;
   }
+}
+
+interface TurnScanState {
+  consumed: number;
+  boundaryId: string;
+  boundaryChars: number;
+  slice: string;
+  mustValidateResume: boolean;
+}
+
+/**
+ * Folds one page of turns into the scan state. Returns "restart" when the
+ * resume cursor proves stale (rescan from row id 0), "sliced" when the slice
+ * budget is exhausted mid-page, and null to keep paging.
+ */
+function consumeTurnPage(
+  state: TurnScanState,
+  page: Awaited<ReturnType<AgentRunTurnsRepository["listByTask"]>>,
+  offset: number,
+): "restart" | "sliced" | null {
+  for (const row of page) {
+    if (state.slice.length >= LOG_SLICE_MAX) {
+      return "sliced";
+    }
+    const line = `${JSON.stringify(row.envelope)}\n`;
+    const lineEndsBeforeOffset = state.consumed + line.length <= offset;
+
+    if (state.mustValidateResume && lineEndsBeforeOffset) {
+      return "restart";
+    }
+    state.mustValidateResume = false;
+
+    if (lineEndsBeforeOffset) {
+      state.consumed += line.length;
+      state.boundaryId = row.id;
+      state.boundaryChars = state.consumed;
+      continue;
+    }
+    const start = Math.max(0, offset - state.consumed);
+    const piece = line.substring(
+      start,
+      start + (LOG_SLICE_MAX - state.slice.length),
+    );
+
+    state.slice += piece;
+
+    if (start + piece.length < line.length) {
+      return "sliced";
+    }
+    state.consumed += line.length;
+    state.boundaryId = row.id;
+    state.boundaryChars = state.consumed;
+  }
+
+  return null;
+}
+
+interface TurnStoreRead {
+  finished: boolean;
+  taskRepo: string | null;
+  turnSlice: TurnSlice;
+}
+
+/**
+ * Reads the task's status and its turn-store slice. A task row that no longer
+ * exists will never transition again, so it counts as settled — otherwise
+ * turns for a deleted task (the store keeps them: no FKs, by design) poll
+ * forever with complete: false.
+ */
+async function readFromTurnStore(
+  pool: Pool,
+  taskId: string,
+  offset: number,
+  rawCursor: string | undefined,
+): Promise<TurnStoreRead> {
+  const { rows } = await pool.query<{
+    status: string;
+    target_repo: string | null;
+  }>(`SELECT status, target_repo FROM pipeline.tasks WHERE id = $1`, [taskId]);
+  const task = rows[0];
+  const finished = task === undefined || !ACTIVE_STATUSES.has(task.status);
+  const turnSlice = await readTurnSlice(
+    new PgAgentRunTurns(pool),
+    taskId,
+    offset,
+    parseTurnCursor(rawCursor, taskId, offset),
+  );
+
+  return { finished, taskRepo: task?.target_repo ?? null, turnSlice };
 }
 
 export function taskLogsGetRoute(getPool: () => Pool | null): ServerRoute {
@@ -278,36 +337,23 @@ export function taskLogsGetRoute(getPool: () => Pool | null): ServerRoute {
         // Cluster runs stream to pipeline.agent_run_turns (the bucket object is
         // only ever written by the mcp local runner), so the turn store is read
         // first and GCS is the local-runner fallback.
-        if (pool) {
-          const { rows } = await pool.query<{
-            status: string;
-            target_repo: string | null;
-          }>(`SELECT status, target_repo FROM pipeline.tasks WHERE id = $1`, [
-            taskId,
-          ]);
-          const task = rows[0];
+        const stored = pool
+          ? await readFromTurnStore(pool, taskId, offset, query.cursor)
+          : null;
 
-          // A task row that no longer exists will never transition again, so it
-          // counts as settled — otherwise turns for a deleted task (the store
-          // keeps them: no FKs, by design) poll forever with complete: false.
-          finished = task === undefined || !ACTIVE_STATUSES.has(task.status);
-          const turnSlice = await readTurnSlice(
-            new PgAgentRunTurns(pool),
-            taskId,
-            offset,
-            parseTurnCursor(query.cursor, taskId, offset),
-          );
+        finished = stored?.finished ?? false;
 
-          if (turnSlice.sawTurns) {
-            return h.response({
-              logs: turnSlice.slice,
-              next_offset: offset + turnSlice.slice.length,
-              complete: finished && !turnSlice.hasMore,
-              cursor: turnSlice.cursor,
-            });
-          }
-          repo = repo ?? task?.target_repo ?? null;
+        if (stored?.turnSlice.sawTurns) {
+          const { turnSlice } = stored;
+
+          return h.response({
+            logs: turnSlice.slice,
+            next_offset: offset + turnSlice.slice.length,
+            complete: finished && !turnSlice.hasMore,
+            cursor: turnSlice.cursor,
+          });
         }
+        repo = repo ?? stored?.taskRepo ?? null;
 
         enforceTrue(repo || pool, apiError(503), DB_UNAVAILABLE);
 

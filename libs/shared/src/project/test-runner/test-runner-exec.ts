@@ -105,9 +105,7 @@ export class ExecTestRunner implements TestRunnerPort {
     for (const [file, ids] of byFile) {
       const run = resultByFile.get(file)!;
 
-      for (let i = 0; i < ids.length; i += 1) {
-        results.push(run);
-      }
+      results.push(...ids.map(() => run));
     }
     const passed = results.filter((r) => r.passed).length;
 

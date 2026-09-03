@@ -38,20 +38,21 @@ function* findEnvEntries(node: unknown): Generator<Rec> {
   }
   const rec = asRec(node);
 
-  if (rec) {
-    if (Array.isArray(rec.env)) {
-      for (const envEntry of rec.env) {
-        const entry = asRec(envEntry);
+  if (!rec) {
+    return;
+  }
+  const envEntries = Array.isArray(rec.env) ? rec.env : [];
 
-        if (entry) {
-          yield entry;
-        }
-      }
-    }
+  for (const envEntry of envEntries) {
+    const entry = asRec(envEntry);
 
-    for (const value of Object.values(rec)) {
-      yield* findEnvEntries(value);
+    if (entry) {
+      yield entry;
     }
+  }
+
+  for (const value of Object.values(rec)) {
+    yield* findEnvEntries(value);
   }
 }
 
@@ -65,14 +66,16 @@ function* findContainers(node: unknown): Generator<Rec> {
   }
   const rec = asRec(node);
 
-  if (rec) {
-    if (Array.isArray(rec.command) || Array.isArray(rec.args)) {
-      yield rec;
-    }
+  if (!rec) {
+    return;
+  }
 
-    for (const value of Object.values(rec)) {
-      yield* findContainers(value);
-    }
+  if (Array.isArray(rec.command) || Array.isArray(rec.args)) {
+    yield rec;
+  }
+
+  for (const value of Object.values(rec)) {
+    yield* findContainers(value);
   }
 }
 

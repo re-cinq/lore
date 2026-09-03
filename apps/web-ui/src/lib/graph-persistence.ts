@@ -75,19 +75,20 @@ export function applyGraphState(
   state: GraphState,
   nodes: PositionedNode[],
 ): void {
-  for (const node of nodes) {
+  nodes.forEach((node) => {
     const saved = state.positions[node.id];
 
-    if (saved) {
-      node.x = saved.x;
-      node.y = saved.y;
-
-      if (saved.pinned) {
-        node.fx = saved.x;
-        node.fy = saved.y;
-      }
+    if (!saved) {
+      return;
     }
-  }
+    node.x = saved.x;
+    node.y = saved.y;
+
+    if (saved.pinned) {
+      node.fx = saved.x;
+      node.fy = saved.y;
+    }
+  });
 }
 
 /** Serializes a captured `state` to a JSON string for persistence. */

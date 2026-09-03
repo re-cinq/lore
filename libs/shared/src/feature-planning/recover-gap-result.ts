@@ -46,33 +46,47 @@ export function gapResultFromTurns(
     if (!Array.isArray(content)) {
       continue;
     }
+    const artifact = lastArtifactWrite(
+      content as ToolUseBlock[],
+      artifactSuffix,
+    );
 
-    // Blocks scan newest-first too: one message can carry several Writes and
-    // the LAST one is the version the watch would have shipped.
-    const blocks = content as ToolUseBlock[];
+    if (artifact) {
+      return artifact.value;
+    }
+  }
 
-    for (let b = blocks.length - 1; b >= 0; b--) {
-      const block = blocks[b];
+  return null;
+}
 
-      if (block?.type !== "tool_use" || block.name !== "Write") {
-        continue;
-      }
-      const path = block.input?.file_path;
-      const body = block.input?.content;
+/** The last parseable Write to `artifactSuffix` among one message's blocks —
+ * scanned newest-first, since one message can carry several Writes and the
+ * LAST one is the version the watch would have shipped. */
+function lastArtifactWrite(
+  blocks: ToolUseBlock[],
+  artifactSuffix: string,
+): { value: unknown } | null {
+  for (let b = blocks.length - 1; b >= 0; b--) {
+    const block = blocks[b];
 
-      if (
-        typeof path !== "string" ||
-        !path.endsWith(artifactSuffix) ||
-        typeof body !== "string"
-      ) {
-        continue;
-      }
+    if (block?.type !== "tool_use" || block.name !== "Write") {
+      continue;
+    }
+    const path = block.input?.file_path;
+    const body = block.input?.content;
 
-      try {
-        return JSON.parse(body);
-      } catch {
-        continue;
-      }
+    if (
+      typeof path !== "string" ||
+      !path.endsWith(artifactSuffix) ||
+      typeof body !== "string"
+    ) {
+      continue;
+    }
+
+    try {
+      return { value: JSON.parse(body) };
+    } catch {
+      continue;
     }
   }
 

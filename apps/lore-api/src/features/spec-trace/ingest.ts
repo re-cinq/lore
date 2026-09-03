@@ -45,9 +45,7 @@ async function resolveSchema(pool: Pool, repo: string): Promise<string> {
         [team],
       );
 
-      if (schemas.length > 0) {
-        return team;
-      }
+      return schemas.length > 0 ? team : "org_shared";
     }
   } catch (err) {
     console.error("[ingest] Schema resolution error:", err);
@@ -57,6 +55,109 @@ async function resolveSchema(pool: Pool, repo: string): Promise<string> {
 }
 
 export type IngestFile = string | { path: string; content: string };
+
+interface GitHubFileTarget {
+  owner: string;
+  repoName: string;
+  filePath: string;
+  commit: string;
+}
+
+/** Fetches file content at the commit, falling back to HEAD when the commit is unknown to the repo. */
+async function fetchFileWithHeadFallback(
+  octokit: Awaited<ReturnType<typeof getOctokit>>,
+  target: GitHubFileTarget,
+): Promise<{ content: string | null; missing404: boolean }> {
+  for (const ref of [target.commit, "HEAD"]) {
+    try {
+      const { data } = await octokit.rest.repos.getContent({
+        owner: target.owner,
+        repo: target.repoName,
+        path: target.filePath,
+        ref,
+      });
+      const content =
+        "content" in data
+          ? Buffer.from(data.content, "base64").toString("utf-8")
+          : null;
+
+      return { content, missing404: false };
+    } catch (err) {
+      const status = (err as { status?: number }).status;
+      const commitUnknownToRepo =
+        status === 404 && ref === target.commit && target.commit !== "HEAD";
+
+      if (commitUnknownToRepo) {
+        continue;
+      }
+
+      if (status === 404) {
+        return { content: null, missing404: true };
+      }
+      throw err;
+    }
+  }
+
+  return { content: null, missing404: false };
+}
+
+interface IngestedFileTarget {
+  repo: string;
+  filePath: string;
+  commit: string;
+  contentType: string;
+}
+
+/** Inserts each chunk and its embedding (input capped at 8k chars as a safety net). */
+async function insertChunksWithEmbeddings(
+  pool: Pool,
+  schema: string,
+  target: IngestedFileTarget,
+  chunks: Awaited<ReturnType<typeof chunkFile>>,
+): Promise<{ firstChunkId: string | undefined; embedded: boolean }> {
+  let firstChunkId: string | undefined;
+  let embedded = false;
+
+  for (const chunk of chunks) {
+    const { rows } = await pool.query(
+      `INSERT INTO ${schema}.chunks (content, content_type, team, repo, file_path, metadata)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING id`,
+      [
+        chunk.content,
+        target.contentType,
+        schema,
+        target.repo,
+        target.filePath,
+        JSON.stringify(
+          buildIngestedChunkMetadata(chunk, {
+            filePath: target.filePath,
+            ingestedBy: "api",
+            commit: target.commit,
+          }),
+        ),
+      ],
+    );
+    const chunkId = rows[0]?.id;
+
+    if (!firstChunkId) {
+      firstChunkId = chunkId;
+    }
+    const embedding = await getQueryEmbedding(chunk.content.substring(0, 8000));
+
+    if (embedding && chunkId) {
+      const embeddingStr = `[${embedding.join(",")}]`;
+
+      await pool.query(
+        `UPDATE ${schema}.chunks SET embedding = $1::vector WHERE id = $2`,
+        [embeddingStr, chunkId],
+      );
+      embedded = true;
+    }
+  }
+
+  return { firstChunkId, embedded };
+}
 
 export async function ingestFiles(
   pool: Pool,
@@ -100,54 +201,30 @@ export async function ingestFiles(
 
     try {
       // Content provided directly needs no GitHub fetch.
-      let content: string | null =
+      const inlineContent =
         typeof fileEntry !== "string" && fileEntry.content
           ? fileEntry.content
           : null;
+      const fetched = inlineContent
+        ? null
+        : await fetchFileWithHeadFallback(octokit!, {
+            owner,
+            repoName,
+            filePath,
+            commit,
+          });
 
-      if (!content) {
-        // Fetch from GitHub — try the given ref, fall back to default branch
-        for (const ref of [commit, "HEAD"]) {
-          try {
-            const { data } = await octokit!.rest.repos.getContent({
-              owner,
-              repo: repoName,
-              path: filePath,
-              ref,
-            });
-
-            if ("content" in data) {
-              content = Buffer.from(data.content, "base64").toString("utf-8");
-            }
-            break; // success
-          } catch (err) {
-            if (
-              (err as { status?: number }).status === 404 &&
-              ref === commit &&
-              commit !== "HEAD"
-            ) {
-              // Commit doesn't exist in this repo — retry with HEAD
-              continue;
-            }
-
-            if ((err as { status?: number }).status === 404) {
-              // File genuinely doesn't exist — remove from chunks
-              await pool.query(
-                `DELETE FROM ${schema}.chunks WHERE file_path = $1 AND repo = $2`,
-                [filePath, repo],
-              );
-              results.push({ file: filePath, status: "deleted" });
-              deleted++;
-              break;
-            }
-            throw err;
-          }
-        }
-
-        if (!content && results[results.length - 1]?.status === "deleted") {
-          continue;
-        }
+      if (fetched?.missing404) {
+        // File genuinely doesn't exist — remove from chunks
+        await pool.query(
+          `DELETE FROM ${schema}.chunks WHERE file_path = $1 AND repo = $2`,
+          [filePath, repo],
+        );
+        results.push({ file: filePath, status: "deleted" });
+        deleted++;
+        continue;
       }
+      const content = inlineContent ?? fetched?.content ?? null;
 
       if (!content) {
         results.push({
@@ -177,52 +254,12 @@ export async function ingestFiles(
 
       // Chunk the file using AST-based chunking (code) or heading-based (docs)
       const chunks = await chunkFile(content, filePath, contentType);
-
-      let firstChunkId: string | undefined;
-      let embedded = false;
-
-      for (const chunk of chunks) {
-        const { rows } = await pool.query(
-          `INSERT INTO ${schema}.chunks (content, content_type, team, repo, file_path, metadata)
-           VALUES ($1, $2, $3, $4, $5, $6)
-           RETURNING id`,
-          [
-            chunk.content,
-            contentType,
-            schema,
-            repo,
-            filePath,
-            JSON.stringify(
-              buildIngestedChunkMetadata(chunk, {
-                filePath,
-                ingestedBy: "api",
-                commit,
-              }),
-            ),
-          ],
-        );
-
-        const chunkId = rows[0]?.id;
-
-        if (!firstChunkId) {
-          firstChunkId = chunkId;
-        }
-
-        // Generate and store embedding per chunk (cap input at 8k chars as safety net)
-        const embedding = await getQueryEmbedding(
-          chunk.content.substring(0, 8000),
-        );
-
-        if (embedding && chunkId) {
-          const embeddingStr = `[${embedding.join(",")}]`;
-
-          await pool.query(
-            `UPDATE ${schema}.chunks SET embedding = $1::vector WHERE id = $2`,
-            [embeddingStr, chunkId],
-          );
-          embedded = true;
-        }
-      }
+      const { firstChunkId, embedded } = await insertChunksWithEmbeddings(
+        pool,
+        schema,
+        { repo, filePath, commit, contentType },
+        chunks,
+      );
 
       results.push({
         file: filePath,

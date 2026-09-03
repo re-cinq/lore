@@ -52,12 +52,22 @@ function summary(doc: TraceDocument): string {
   lines.push("", "Needs attention:");
 
   for (const s of flagged) {
-    const tag = s.violated ? "violated" : s.drifted ? "drifted" : "untested";
-
-    lines.push(`- [${tag}] #${s.ordinal} ${s.text}`);
+    lines.push(`- [${attentionTag(s)}] #${s.ordinal} ${s.text}`);
   }
 
   return lines.join("\n");
+}
+
+function attentionTag(statement: TraceStatement): string {
+  if (statement.violated) {
+    return "violated";
+  }
+
+  if (statement.drifted) {
+    return "drifted";
+  }
+
+  return "untested";
 }
 
 /** Renders one link as `path:line — detail`, omitting the parts it lacks. */
@@ -90,11 +100,11 @@ function detail(statement: TraceStatement): string {
     if (links.length === 0) {
       continue;
     }
-    lines.push("", `${heading}:`);
-
-    for (const link of links) {
-      lines.push(`- ${linkLine(link)}`);
-    }
+    lines.push(
+      "",
+      `${heading}:`,
+      ...links.map((link) => `- ${linkLine(link)}`),
+    );
   }
 
   return lines.join("\n");

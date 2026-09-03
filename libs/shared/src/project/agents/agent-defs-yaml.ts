@@ -64,54 +64,8 @@ export class AgentDefsYaml implements AgentDefsPort {
 
     for (const p of paths) {
       try {
-        const { taskTypes, drift } = parseTaskTypesFile(
-          readFileSync(p, "utf-8"),
-        );
+        const map = this.definitionsFromFile(p);
 
-        // Same ConfigMap, same #866 risk as the Floor's reader — this fallback
-        // runs inside lore-api and mcp-server, which read their own copies.
-        warnOnDrift("[agent-defs]", p, drift);
-        const map = new Map<string, AgentDefinition>();
-
-        for (const [name, cfg] of Object.entries(taskTypes)) {
-          // The recipe extras (skills, disallowed_tools, watch, repo_workdir)
-          // ride the config object so the CRD builder sees the same shape from
-          // this fallback as from a DB row. Null when the entry declares none.
-          const config = {
-            ...(cfg.skills ? { skills: cfg.skills } : {}),
-            ...(cfg.disallowed_tools
-              ? { disallowed_tools: cfg.disallowed_tools }
-              : {}),
-            ...(cfg.watch ? { watch: cfg.watch } : {}),
-            ...(cfg.repo_workdir !== undefined
-              ? { repo_workdir: cfg.repo_workdir }
-              : {}),
-          };
-
-          map.set(name, {
-            name,
-            model: cfg.model ?? null,
-            timeout_minutes: cfg.timeout_minutes ?? null,
-            prompt: cfg.prompt_template ? cfg.prompt_template : null,
-            image: null,
-            execution_mode: cfg.execution_mode ?? "claude-code",
-            review_required: cfg.review_required ?? false,
-            project_id: null,
-            config: Object.keys(config).length > 0 ? config : null,
-          });
-        }
-        // feature-planning is NOT overridden: its prompt_template IS the canonical
-        // prompt now, and the recipe the pod runs is generated from it.
-        // feature-decompose still is: its canonical prompt is DECOMPOSITION_INSTRUCTIONS,
-        // matching the DB-seeded org default (migration 0020).
-        const fd = map.get("feature-decompose");
-
-        if (fd) {
-          map.set("feature-decompose", {
-            ...fd,
-            prompt: DECOMPOSITION_INSTRUCTIONS,
-          });
-        }
         this.cache = map;
 
         return map;
@@ -122,6 +76,57 @@ export class AgentDefsYaml implements AgentDefsPort {
     this.cache = new Map();
 
     return this.cache;
+  }
+
+  private definitionsFromFile(p: string): Map<string, AgentDefinition> {
+    const { taskTypes, drift } = parseTaskTypesFile(readFileSync(p, "utf-8"));
+
+    // Same ConfigMap, same #866 risk as the Floor's reader — this fallback
+    // runs inside lore-api and mcp-server, which read their own copies.
+    warnOnDrift("[agent-defs]", p, drift);
+    const map = new Map<string, AgentDefinition>();
+
+    for (const [name, cfg] of Object.entries(taskTypes)) {
+      // The recipe extras (skills, disallowed_tools, watch, repo_workdir)
+      // ride the config object so the CRD builder sees the same shape from
+      // this fallback as from a DB row. Null when the entry declares none.
+      const config = {
+        ...(cfg.skills ? { skills: cfg.skills } : {}),
+        ...(cfg.disallowed_tools
+          ? { disallowed_tools: cfg.disallowed_tools }
+          : {}),
+        ...(cfg.watch ? { watch: cfg.watch } : {}),
+        ...(cfg.repo_workdir !== undefined
+          ? { repo_workdir: cfg.repo_workdir }
+          : {}),
+      };
+
+      map.set(name, {
+        name,
+        model: cfg.model ?? null,
+        timeout_minutes: cfg.timeout_minutes ?? null,
+        prompt: cfg.prompt_template ? cfg.prompt_template : null,
+        image: null,
+        execution_mode: cfg.execution_mode ?? "claude-code",
+        review_required: cfg.review_required ?? false,
+        project_id: null,
+        config: Object.keys(config).length > 0 ? config : null,
+      });
+    }
+    // feature-planning is NOT overridden: its prompt_template IS the canonical
+    // prompt now, and the recipe the pod runs is generated from it.
+    // feature-decompose still is: its canonical prompt is DECOMPOSITION_INSTRUCTIONS,
+    // matching the DB-seeded org default (migration 0020).
+    const fd = map.get("feature-decompose");
+
+    if (fd) {
+      map.set("feature-decompose", {
+        ...fd,
+        prompt: DECOMPOSITION_INSTRUCTIONS,
+      });
+    }
+
+    return map;
   }
 
   async resolve(_repo: string, name: string): Promise<AgentDefinition | null> {

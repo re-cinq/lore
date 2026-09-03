@@ -151,14 +151,17 @@ async function main(): Promise<void> {
 
   if (proxy) {
     proxy.register(new AgentWatchInput());
+  }
 
-    // OFF unless asked for. This is the input that puts log VOLUME on
-    // `pipeline.events` — a dispatch queue built for handler fan-out, not bulk
-    // data — so it ships dark and is enabled per cluster after a pilot, rather
-    // than arriving with a deploy.
-    if (podLogStreamingEnabled(process.env)) {
-      proxy.register(new PodLogInput());
-    }
+  // OFF unless asked for. This is the input that puts log VOLUME on
+  // `pipeline.events` — a dispatch queue built for handler fan-out, not bulk
+  // data — so it ships dark and is enabled per cluster after a pilot, rather
+  // than arriving with a deploy.
+  if (proxy && podLogStreamingEnabled(process.env)) {
+    proxy.register(new PodLogInput());
+  }
+
+  if (proxy) {
     await proxy.start();
   }
 

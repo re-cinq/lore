@@ -160,6 +160,92 @@ export default function AssembledContextView({
   const canSubmit = query.trim().length > 0 && !loading;
   const trace = result?.trace;
 
+  const renderResult = () => {
+    if (!result) {
+      return null;
+    }
+
+    if (result.text === null && !trace) {
+      return (
+        <Alert variant="secondary">
+          No context assembled — the repo may not be onboarded or ingested yet.
+        </Alert>
+      );
+    }
+
+    if (!trace) {
+      /* Fallback when the trace is unavailable: plain assembled text. */
+      return (
+        <div className={styles.fallback}>
+          <Markdown markdown={result.text ?? ""} />
+        </div>
+      );
+    }
+
+    return (
+      <div>
+        {/* Inputs + budget summary */}
+        <div className={styles.summary}>
+          <div className={styles.summaryRow}>
+            <span className="badge badge-gray">template: {trace.template}</span>
+            <span className="badge badge-gray">
+              budget: {trace.effectiveBudget}
+            </span>
+            {trace.crossRepo && (
+              <span className="badge badge-blue">cross-repo</span>
+            )}
+            {trace.freshness.state !== "fresh" && (
+              <span className="badge badge-yellow">
+                {trace.freshness.state}
+              </span>
+            )}
+            <span className={`meta ${styles.spacer}`}>
+              {trace.timingsMs.total} ms
+            </span>
+          </div>
+          <p className={`meta ${styles.summaryMeta}`}>
+            {trace.budget.used} / {trace.budget.total} tokens used ·{" "}
+            {trace.budget.leftover} left
+          </p>
+          <Bar used={trace.budget.used} total={trace.budget.total} />
+        </div>
+
+        {/* Per-section trace */}
+        <h3 className={styles.sourcesTitle}>Sources</h3>
+        {trace.sections.map((s) => (
+          <TraceCard
+            key={`${s.header}-${s.source}`}
+            owner={owner}
+            repo={repo}
+            section={s}
+          />
+        ))}
+
+        {/* Final prompt as nested tag tree */}
+        <div className={styles.promptHead}>
+          <h3 className={styles.promptTitle}>Assembled prompt</h3>
+          <button
+            type="button"
+            className="btn btn-ghost"
+            onClick={() => setRaw((v) => !v)}
+          >
+            {raw ? "Rendered" : "Raw"}
+          </button>
+          <button
+            type="button"
+            className="btn btn-ghost"
+            onClick={() =>
+              void navigator.clipboard?.writeText(result.text ?? "")
+            }
+          >
+            Copy
+          </button>
+        </div>
+        <TagBox node={buildTagTree(trace)} raw={raw} />
+      </div>
+    );
+  };
+
   return (
     <div>
       <div className={styles.titleRow}>
@@ -234,83 +320,7 @@ export default function AssembledContextView({
       {loading && <Alert>Assembling context…</Alert>}
       {error && <p className={styles.error}>Context unavailable: {error}</p>}
 
-      {!loading &&
-        !error &&
-        result &&
-        (result.text === null && !trace ? (
-          <Alert variant="secondary">
-            No context assembled — the repo may not be onboarded or ingested
-            yet.
-          </Alert>
-        ) : trace ? (
-          <div>
-            {/* Inputs + budget summary */}
-            <div className={styles.summary}>
-              <div className={styles.summaryRow}>
-                <span className="badge badge-gray">
-                  template: {trace.template}
-                </span>
-                <span className="badge badge-gray">
-                  budget: {trace.effectiveBudget}
-                </span>
-                {trace.crossRepo && (
-                  <span className="badge badge-blue">cross-repo</span>
-                )}
-                {trace.freshness.state !== "fresh" && (
-                  <span className="badge badge-yellow">
-                    {trace.freshness.state}
-                  </span>
-                )}
-                <span className={`meta ${styles.spacer}`}>
-                  {trace.timingsMs.total} ms
-                </span>
-              </div>
-              <p className={`meta ${styles.summaryMeta}`}>
-                {trace.budget.used} / {trace.budget.total} tokens used ·{" "}
-                {trace.budget.leftover} left
-              </p>
-              <Bar used={trace.budget.used} total={trace.budget.total} />
-            </div>
-
-            {/* Per-section trace */}
-            <h3 className={styles.sourcesTitle}>Sources</h3>
-            {trace.sections.map((s) => (
-              <TraceCard
-                key={`${s.header}-${s.source}`}
-                owner={owner}
-                repo={repo}
-                section={s}
-              />
-            ))}
-
-            {/* Final prompt as nested tag tree */}
-            <div className={styles.promptHead}>
-              <h3 className={styles.promptTitle}>Assembled prompt</h3>
-              <button
-                type="button"
-                className="btn btn-ghost"
-                onClick={() => setRaw((v) => !v)}
-              >
-                {raw ? "Rendered" : "Raw"}
-              </button>
-              <button
-                type="button"
-                className="btn btn-ghost"
-                onClick={() =>
-                  void navigator.clipboard?.writeText(result.text ?? "")
-                }
-              >
-                Copy
-              </button>
-            </div>
-            <TagBox node={buildTagTree(trace)} raw={raw} />
-          </div>
-        ) : (
-          /* Fallback when the trace is unavailable: plain assembled text. */
-          <div className={styles.fallback}>
-            <Markdown markdown={result.text ?? ""} />
-          </div>
-        ))}
+      {!loading && !error && renderResult()}
     </div>
   );
 }

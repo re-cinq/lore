@@ -48,15 +48,16 @@ export async function evalRunnerJob(): Promise<string> {
 
     const evalResult = await runPromptfooEval({ configPath });
 
-    if (!evalResult.ok) {
-      if (evalResult.reason === "exec-failed") {
-        console.error(
-          `[job] eval-runner: eval failed for team ${team}:`,
-          evalResult.error,
-        );
+    if (!evalResult.ok && evalResult.reason === "exec-failed") {
+      console.error(
+        `[job] eval-runner: eval failed for team ${team}:`,
+        evalResult.error,
+      );
 
-        continue;
-      }
+      continue;
+    }
+
+    if (!evalResult.ok) {
       console.error(
         `[job] eval-runner: no usable stats for team ${team} (${evalResult.reason})`,
       );
@@ -99,22 +100,23 @@ export async function evalRunnerJob(): Promise<string> {
     // Check for regression vs previous run
     const prev = await evalRuns().recent(result.team, 1, 1);
 
-    if (prev.length > 0) {
-      const delta = result.passRate - prev[0].pass_rate;
+    if (prev.length === 0) {
+      continue;
+    }
+    const delta = result.passRate - prev[0].pass_rate;
 
-      if (delta < -REGRESSION_THRESHOLD) {
-        regressions++;
-        console.log(
-          `[job] eval-runner: REGRESSION in ${result.team}: ${(prev[0].pass_rate * 100).toFixed(1)}% → ${(result.passRate * 100).toFixed(1)}% (${(delta * 100).toFixed(1)}%)`,
-        );
+    if (delta < -REGRESSION_THRESHOLD) {
+      regressions++;
+      console.log(
+        `[job] eval-runner: REGRESSION in ${result.team}: ${(prev[0].pass_rate * 100).toFixed(1)}% → ${(result.passRate * 100).toFixed(1)}% (${(delta * 100).toFixed(1)}%)`,
+      );
 
-        await taskStore().create({
-          description: `Eval regression: ${result.team} dropped from ${(prev[0].pass_rate * 100).toFixed(1)}% to ${(result.passRate * 100).toFixed(1)}% (${(delta * 100).toFixed(1)}% regression)`,
-          taskType: "gap-fill",
-          targetRepo: result.team,
-          createdBy: "eval-runner",
-        });
-      }
+      await taskStore().create({
+        description: `Eval regression: ${result.team} dropped from ${(prev[0].pass_rate * 100).toFixed(1)}% to ${(result.passRate * 100).toFixed(1)}% (${(delta * 100).toFixed(1)}% regression)`,
+        taskType: "gap-fill",
+        targetRepo: result.team,
+        createdBy: "eval-runner",
+      });
     }
   }
 

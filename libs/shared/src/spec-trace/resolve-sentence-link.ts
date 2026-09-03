@@ -53,19 +53,29 @@ export async function resolveSentenceLink(
       continue;
     }
 
-    for (const stmt of spec.stmts ?? []) {
-      if (matchesNormalized(stmt["Statement.text"] ?? "", link.sentence)) {
-        matched.push({ uid: stmt.uid, nodeType: "Statement" });
-      }
-    }
-
-    for (const ac of spec.acs ?? []) {
-      if (
-        matchesNormalized(ac["AcceptanceCriterion.text"] ?? "", link.sentence)
-      ) {
-        matched.push({ uid: ac.uid, nodeType: "AcceptanceCriterion" });
-      }
-    }
+    matched.push(
+      ...(spec.stmts ?? [])
+        .filter((stmt) =>
+          matchesNormalized(stmt["Statement.text"] ?? "", link.sentence),
+        )
+        .map((stmt): SentenceMatch => ({
+          uid: stmt.uid,
+          nodeType: "Statement",
+        })),
+    );
+    matched.push(
+      ...(spec.acs ?? [])
+        .filter((ac) =>
+          matchesNormalized(
+            ac["AcceptanceCriterion.text"] ?? "",
+            link.sentence,
+          ),
+        )
+        .map((ac): SentenceMatch => ({
+          uid: ac.uid,
+          nodeType: "AcceptanceCriterion",
+        })),
+    );
   }
 
   return matched;

@@ -417,10 +417,11 @@ function linksOf(stmt: LinkableRow): TraceLinkRef[] {
   for (const a of stmt.db ?? []) {
     const path = a["ADR.file_path"];
     const num = a["ADR.number"];
+    const pathLabel = path ? basename(path) : a.uid;
 
     links.push({
       kind: "adr",
-      label: num !== undefined ? `ADR-${num}` : path ? basename(path) : a.uid,
+      label: num !== undefined ? `ADR-${num}` : pathLabel,
       path,
     });
   }

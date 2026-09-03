@@ -138,27 +138,15 @@ export function createNodeEventHandler(deps: NodeEventDeps): EventHandler {
     // So: hand the row to the reaper, which is already cluster-aware — it waits
     // the node's budget, requeues if the claimant dies, and times out honestly
     // if it does not. Nothing is fabricated from an output nobody read.
-    if (reported === null) {
-      const openRow = (
-        await deps.assemblyRuns.listStationRuns(assemblyLineId)
-      ).find(
-        (row) =>
-          row.nodeId === nodeId &&
-          row.outcome === null &&
-          (iteration === undefined || row.iteration === iteration),
-      );
-      const centralClusterAgentId =
-        (await deps.centralClusterAgentId?.()) ?? null;
+    const leftToReaper =
+      reported === null &&
+      (await claimUnreadableFromThisFloor(
+        { assemblyLineId, nodeId, iteration, agentName },
+        deps,
+      ));
 
-      if (openRow && !agentCrVisible(openRow, centralClusterAgentId)) {
-        console.warn(
-          `[assembly-run] ${assemblyLineId} node ${nodeId}: terminal status unreadable — ` +
-            `the Agent CR ${agentName} was claimed by cluster ${openRow.clusterAgentId ?? "(none)"}, ` +
-            `which this Floor cannot read; leaving the node open for the reaper`,
-        );
-
-        return;
-      }
+    if (leftToReaper) {
+      return;
     }
     // Unwrap the NDJSON envelope once, here: every text parser below (the outcome
     // precedence and the review findings alike) must read the agent text, not the
@@ -196,6 +184,42 @@ export function createNodeEventHandler(deps: NodeEventDeps): EventHandler {
       deps,
     );
   };
+}
+
+/** True when the terminal CR was claimed by a cluster this Floor cannot read —
+ *  the node stays open for the cluster-aware reaper, which waits the node's
+ *  budget, requeues if the claimant dies, and times out honestly if it does
+ *  not. Nothing is fabricated from an output nobody read. */
+async function claimUnreadableFromThisFloor(
+  params: {
+    assemblyLineId: string;
+    nodeId: string;
+    iteration: number | undefined;
+    agentName: string;
+  },
+  deps: NodeEventDeps,
+): Promise<boolean> {
+  const { assemblyLineId, nodeId, iteration, agentName } = params;
+  const openRow = (
+    await deps.assemblyRuns.listStationRuns(assemblyLineId)
+  ).find(
+    (row) =>
+      row.nodeId === nodeId &&
+      row.outcome === null &&
+      (iteration === undefined || row.iteration === iteration),
+  );
+  const centralClusterAgentId = (await deps.centralClusterAgentId?.()) ?? null;
+
+  if (!openRow || agentCrVisible(openRow, centralClusterAgentId)) {
+    return false;
+  }
+  console.warn(
+    `[assembly-run] ${assemblyLineId} node ${nodeId}: terminal status unreadable — ` +
+      `the Agent CR ${agentName} was claimed by cluster ${openRow.clusterAgentId ?? "(none)"}, ` +
+      `which this Floor cannot read; leaving the node open for the reaper`,
+  );
+
+  return true;
 }
 
 /**
@@ -238,21 +262,30 @@ export async function deliverTerminalArtifacts(
   // clone, so validate would diff an empty branch and lint the whole tree for
   // nothing (18 of 18 implementation-loop branches, 2026-08-30). Retryable —
   // an agent that forgot to push is exactly what the self-retry edge is for.
-  if (
-    isDeliveringRecipe(node.prompt_ref) &&
-    deps.deliveredChangeCount &&
-    row.branch
-  ) {
-    const changed = await deps.deliveredChangeCount(row.repo, row.branch);
+  return (await emptyDeliveryFailure(row, node, deps)) ?? result;
+}
 
-    if (changed === 0) {
-      return undelivered(
-        `the ${node.prompt_ref} node reported success but pushed nothing — ${row.branch} has no changes against the default branch`,
-      );
-    }
+async function emptyDeliveryFailure(
+  row: AssemblyRunRecord,
+  node: { type: string; prompt_ref?: string | null },
+  deps: Pick<NodeEventDeps, "deliveredChangeCount">,
+): Promise<NodeResult | null> {
+  if (
+    !isDeliveringRecipe(node.prompt_ref) ||
+    !deps.deliveredChangeCount ||
+    !row.branch
+  ) {
+    return null;
+  }
+  const changed = await deps.deliveredChangeCount(row.repo, row.branch);
+
+  if (changed !== 0) {
+    return null;
   }
 
-  return result;
+  return undelivered(
+    `the ${node.prompt_ref} node reported success but pushed nothing — ${row.branch} has no changes against the default branch`,
+  );
 }
 
 const undelivered = (detail: string): NodeResult => ({

@@ -208,16 +208,17 @@ function classifyCacheBreak(
   }
   const systemChanged = prev.systemHash !== newHash.system;
   const toolsChanged = prev.toolsHash !== newHash.tools;
+  const promptUnchanged = !(systemChanged || toolsChanged);
 
-  if (!(systemChanged || toolsChanged)) {
-    if (cacheCreationTokens > 0) {
-      // Hashes match but we paid to write again — prefix aged out
-      return {
-        status: "ttl-expired",
-        ageMinutes: Math.round((now - prev.lastCallAt) / 60_000),
-      };
-    }
+  if (promptUnchanged && cacheCreationTokens > 0) {
+    // Hashes match but we paid to write again — prefix aged out
+    return {
+      status: "ttl-expired",
+      ageMinutes: Math.round((now - prev.lastCallAt) / 60_000),
+    };
+  }
 
+  if (promptUnchanged) {
     return { status: "unknown-miss" };
   }
   const parts: string[] = [];

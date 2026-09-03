@@ -9,6 +9,18 @@ export interface ChunkMeta {
   commit?: string;
 }
 
+function lineRangeLabel(metadata: ChunkMeta): string {
+  if (metadata.start_line && metadata.end_line) {
+    return `L${metadata.start_line}–${metadata.end_line}`;
+  }
+
+  if (metadata.start_line) {
+    return `L${metadata.start_line}`;
+  }
+
+  return "";
+}
+
 /** Derive the one-line header shown above a chunk: for code, the symbol and
  * line range (`function foo · L10–42`); for prose, the section title. Empty
  * when there's nothing to show. */
@@ -24,14 +36,8 @@ export function chunkHeader(
     const symbol = [metadata.symbol_type, metadata.symbol_name]
       .filter(Boolean)
       .join(" ");
-    const lines =
-      metadata.start_line && metadata.end_line
-        ? `L${metadata.start_line}–${metadata.end_line}`
-        : metadata.start_line
-          ? `L${metadata.start_line}`
-          : "";
 
-    return [symbol, lines].filter(Boolean).join(" · ");
+    return [symbol, lineRangeLabel(metadata)].filter(Boolean).join(" · ");
   }
 
   return metadata.section_title ?? "";

@@ -100,6 +100,21 @@ const readable = (value: unknown): object =>
     ? value
     : {};
 
+function pushEntryDrift(
+  drift: string[],
+  entryLabel: string,
+  issues: Array<{ path: PropertyKey[]; message: string }>,
+): void {
+  for (const issue of issues) {
+    // `issue.path` is empty when the ENTRY itself is wrong (`general:` with
+    // no body parses as null), and "task_types.general:  — Expected object"
+    // names no field at all. The entry is the field in that case.
+    const field = issue.path.length > 0 ? issue.path.join(".") : "<entry>";
+
+    drift.push(`${entryLabel}: ${field} — ${issue.message}`);
+  }
+}
+
 function readSection<T>(
   section: string,
   raw: unknown,
@@ -114,14 +129,7 @@ function readSection<T>(
     const result = schema.safeParse(value);
 
     if (!result.success) {
-      for (const issue of result.error.issues) {
-        // `issue.path` is empty when the ENTRY itself is wrong (`general:` with
-        // no body parses as null), and "task_types.general:  — Expected object"
-        // names no field at all. The entry is the field in that case.
-        const field = issue.path.length > 0 ? issue.path.join(".") : "<entry>";
-
-        drift.push(`${section}.${name}: ${field} — ${issue.message}`);
-      }
+      pushEntryDrift(drift, `${section}.${name}`, result.error.issues);
     }
     // The entry is kept either way: a reader that drops what it cannot fully
     // validate is the stale-ConfigMap outage, not the fix for it.

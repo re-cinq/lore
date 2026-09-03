@@ -8,7 +8,7 @@
 
 import type { EventSubscription } from "@re-cinq/lore-shared/project/events/event-deliveries-port.js";
 import { STATIONS } from "../stations/registry.js";
-import { nodeTriggers } from "../stations/lib/station.js";
+import { eventTriggerNames, nodeTriggers } from "../stations/lib/station.js";
 import { SERVICE_NODE_EVENT } from "@re-cinq/lore-shared/project/events/service-node-event.js";
 
 /**
@@ -41,16 +41,12 @@ export function stationSubscriptions(): EventSubscription[] {
     ],
   ]);
 
-  for (const mod of Object.values(STATIONS)) {
-    for (const trigger of mod.manifest.triggers) {
-      if (trigger.kind !== "event") {
-        continue;
-      }
+  const triggeredEventNames = Object.values(STATIONS).flatMap((mod) =>
+    eventTriggerNames(mod.manifest),
+  );
 
-      for (const eventName of trigger.eventNames) {
-        byName.set(eventName, { eventName });
-      }
-    }
+  for (const eventName of triggeredEventNames) {
+    byName.set(eventName, { eventName });
   }
 
   return [...byName.values()];

@@ -102,6 +102,72 @@ async function proxiedText(
   }
 }
 
+function formatPendingTasksByRepo(tasks: RemoteTaskLite[]): string {
+  const byRepo = new Map<string, RemoteTaskLite[]>();
+
+  for (const t of tasks) {
+    const r = t.target_repo || "unknown";
+    const repoTasks = byRepo.get(r) ?? [];
+
+    repoTasks.push(t);
+    byRepo.set(r, repoTasks);
+  }
+  const sections: string[] = [];
+
+  for (const [r, repoTasks] of byRepo) {
+    const lines = repoTasks.map(
+      (t) =>
+        `  ${t.id.substring(0, 8)} ${t.task_type} ${t.issue_number ? "#" + t.issue_number + " " : ""}${(t.description || "").substring(0, 80)}`,
+    );
+
+    sections.push(`**${r}** (${repoTasks.length})\n${lines.join("\n")}`);
+  }
+
+  return sections.join("\n\n");
+}
+
+/** The pending-task list via the API, grouped by repo; null when the API is unavailable. */
+async function listPendingTasksViaApi(
+  filterRepo: string | undefined,
+): Promise<{ content: Array<{ type: "text"; text: string }> } | null> {
+  const apiUrl = process.env.LORE_API_URL || "";
+  const token = process.env.LORE_INGEST_TOKEN || "";
+
+  if (!(apiUrl && token)) {
+    return null;
+  }
+  const resp = await fetch(`${apiUrl}/api/tasks?status=pending&limit=50`, {
+    signal: AbortSignal.timeout(30_000),
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  if (!resp.ok) {
+    return null;
+  }
+  const data = (await resp.json()) as { tasks?: RemoteTaskLite[] };
+  const remoteTasks = data.tasks || [];
+  const tasks = filterRepo
+    ? remoteTasks.filter((t) => t.target_repo === filterRepo)
+    : remoteTasks;
+
+  if (tasks.length === 0) {
+    return {
+      content: [
+        {
+          type: "text" as const,
+          text: filterRepo
+            ? `No pending tasks for ${filterRepo}.`
+            : "No pending tasks.",
+        },
+      ],
+    };
+  }
+
+  return {
+    content: [{ type: "text" as const, text: formatPendingTasksByRepo(tasks) }],
+  };
+}
+
 export function registerPipelineTools(server: McpServer) {
   server.tool(
     "lore_create_pipeline_task",
@@ -880,66 +946,10 @@ export function registerPipelineTools(server: McpServer) {
     async ({ repo: filterRepo }) => {
       try {
         // Try API first for global view (all repos)
-        const apiUrl = process.env.LORE_API_URL || "";
-        const token = process.env.LORE_INGEST_TOKEN || "";
+        const apiListing = await listPendingTasksViaApi(filterRepo);
 
-        if (apiUrl && token) {
-          const resp = await fetch(
-            `${apiUrl}/api/tasks?status=pending&limit=50`,
-            {
-              signal: AbortSignal.timeout(30_000),
-              headers: { Authorization: `Bearer ${token}` },
-            },
-          );
-
-          if (resp.ok) {
-            const data = (await resp.json()) as { tasks?: RemoteTaskLite[] };
-            let tasks: RemoteTaskLite[] = data.tasks || [];
-
-            if (filterRepo) {
-              tasks = tasks.filter((t) => t.target_repo === filterRepo);
-            }
-
-            if (tasks.length === 0) {
-              return {
-                content: [
-                  {
-                    type: "text" as const,
-                    text: filterRepo
-                      ? `No pending tasks for ${filterRepo}.`
-                      : "No pending tasks.",
-                  },
-                ],
-              };
-            }
-            // Group by repo
-            const byRepo = new Map<string, RemoteTaskLite[]>();
-
-            for (const t of tasks) {
-              const r = t.target_repo || "unknown";
-
-              if (!byRepo.has(r)) {
-                byRepo.set(r, []);
-              }
-              byRepo.get(r)!.push(t);
-            }
-            const sections: string[] = [];
-
-            for (const [r, repoTasks] of byRepo) {
-              const lines = repoTasks.map(
-                (t) =>
-                  `  ${t.id.substring(0, 8)} ${t.task_type} ${t.issue_number ? "#" + t.issue_number + " " : ""}${(t.description || "").substring(0, 80)}`,
-              );
-
-              sections.push(
-                `**${r}** (${repoTasks.length})\n${lines.join("\n")}`,
-              );
-            }
-
-            return {
-              content: [{ type: "text" as const, text: sections.join("\n\n") }],
-            };
-          }
+        if (apiListing) {
+          return apiListing;
         }
         // Fallback to local pending file
         const { listPendingTasks } =

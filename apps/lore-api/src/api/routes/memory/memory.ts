@@ -197,12 +197,15 @@ export function memoryRoute(getPool: () => Pool | null): ServerRoute {
       const body = request.payload as MemoryBody;
 
       try {
-        const embedInput =
-          body.action === "write"
-            ? body.value
-            : body.action === "search"
-              ? body.query
-              : undefined;
+        let embedInput: string | undefined;
+
+        if (body.action === "write") {
+          embedInput = body.value;
+        }
+
+        if (body.action === "search") {
+          embedInput = body.query;
+        }
         const embedding = embedInput
           ? await getQueryEmbedding(embedInput)
           : null;
@@ -234,12 +237,15 @@ export function memoryRoute(getPool: () => Pool | null): ServerRoute {
             return h.response(written);
           }
           case "read": {
-            const v =
-              body.version === "all"
-                ? "all"
-                : body.version
-                  ? Number(body.version)
-                  : undefined;
+            let v: "all" | number | undefined;
+
+            if (body.version === "all") {
+              v = "all";
+            }
+
+            if (body.version && body.version !== "all") {
+              v = Number(body.version);
+            }
 
             return h.response(
               (isMemoryDbAvailable()

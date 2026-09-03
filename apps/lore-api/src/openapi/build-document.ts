@@ -533,6 +533,27 @@ function applyRequestBody(
 }
 
 /** Generate the OpenAPI document plus the per-route coverage classification. */
+/** Builds one Operation per method of the route into `paths`. */
+function addRouteOperations(
+  route: ServerRoute,
+  normPath: string,
+  coverage: Coverage,
+  schemas: Record<string, JsonSchema>,
+  paths: Record<string, Record<string, Operation>>,
+): void {
+  for (const method of methodsOf(route)) {
+    const operation = buildOperation(
+      route,
+      method,
+      normPath,
+      coverage,
+      schemas,
+    );
+
+    (paths[normPath] ??= {})[method.toLowerCase()] = operation;
+  }
+}
+
 export function generateOpenApi(
   routes: ServerRoute[],
   opts: GenerateOptions = {},
@@ -564,26 +585,14 @@ export function generateOpenApi(
     }
     const normPath = normalizePath(route.path);
 
-    for (const method of methodsOf(route)) {
-      const operation = buildOperation(
-        route,
-        method,
-        normPath,
-        coverage,
-        schemas,
-      );
-
-      (paths[normPath] ??= {})[method.toLowerCase()] = operation;
-    }
+    addRouteOperations(route, normPath, coverage, schemas, paths);
   }
 
-  const usedTags = new Set<string>();
-
-  for (const item of Object.values(paths)) {
-    for (const op of Object.values(item)) {
-      usedTags.add(op.tags[0]);
-    }
-  }
+  const usedTags = new Set<string>(
+    Object.values(paths).flatMap((pathItem) =>
+      Object.values(pathItem).map((op) => op.tags[0]),
+    ),
+  );
 
   const document: OpenApiDocument = {
     openapi: "3.1.0",

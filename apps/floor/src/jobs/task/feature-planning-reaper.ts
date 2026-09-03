@@ -97,44 +97,29 @@ export async function featurePlanningReaperJob(): Promise<string> {
       // open run" exemption this replaces hid the parked-on-author shape,
       // where the work is done and the round still reads `running`.
       const lostRound = lostArtifactRound(latest, latestRun, feature.status);
-
-      if (lostRound !== null) {
-        const stationRuns = await pipeline().assemblyRuns.listStationRuns(
-          lostRound.runId,
-        );
-        const decision = decideArtifactRecovery(
-          stationRuns,
+      const recoveredFromTranscript =
+        lostRound !== null &&
+        (await recoverLostRound(
+          project,
+          feature.id,
+          lostRound,
           latestRun?.graph ?? null,
           runOpen,
-        );
+        ));
 
-        if (
-          decision.kind === "recover" &&
-          (await recoverArtifact(
-            project,
-            feature.id,
-            lostRound.round,
-            lostRound.runId,
-            decision.agentCrName,
-          ))
-        ) {
-          recovered++;
-          console.log(
-            `[feature-planning-reaper] recovered round ${latest.iteration} for ${row.repo}/${row.id} from the run transcript`,
-          );
-          continue;
-        }
+      if (recoveredFromTranscript) {
+        recovered++;
+        console.log(
+          `[feature-planning-reaper] recovered round ${latest.iteration} for ${row.repo}/${row.id} from the run transcript`,
+        );
+        continue;
       }
 
-      // isActive probes the agent-cr backend this repo's round ran on — the
-      // legacy path for rounds that predate assembly-run execution.
-      const station = stationBackend();
-      const isActive =
-        latest?.status === "running" && latest.task_id
-          ? latestRun !== undefined
-            ? runOpen
-            : await station.isActive(latest.task_id)
-          : true;
+      const isActive = await roundStillActive(
+        latest,
+        latestRun !== undefined,
+        runOpen,
+      );
 
       const action = decidePlanningRecovery({
         iterations: feature.iterations,
@@ -175,6 +160,51 @@ export async function featurePlanningReaperJob(): Promise<string> {
   }
 
   return `Recovered ${orphaned} orphaned round(s), fixed ${transitioned} missed transition(s), replayed ${recovered} lost artifact(s) across ${rows.length} feature(s)`;
+}
+
+/** Run decideArtifactRecovery for a lost round and, when it says recover,
+ *  re-apply the artifact from the run transcript. */
+async function recoverLostRound(
+  project: Project,
+  featureId: string,
+  lostRound: NonNullable<ReturnType<typeof lostArtifactRound>>,
+  runGraph: Parameters<typeof decideArtifactRecovery>[1],
+  runOpen: boolean,
+): Promise<boolean> {
+  const stationRuns = await pipeline().assemblyRuns.listStationRuns(
+    lostRound.runId,
+  );
+  const decision = decideArtifactRecovery(stationRuns, runGraph, runOpen);
+
+  if (decision.kind !== "recover") {
+    return false;
+  }
+
+  return recoverArtifact(
+    project,
+    featureId,
+    lostRound.round,
+    lostRound.runId,
+    decision.agentCrName,
+  );
+}
+
+/** isActive probes the agent-cr backend this repo's round ran on — the legacy
+ *  path for rounds that predate assembly-run execution. */
+async function roundStillActive(
+  latest: FeatureWithIterations["iterations"][number] | undefined,
+  latestRunExists: boolean,
+  runOpen: boolean,
+): Promise<boolean> {
+  if (latest?.status !== "running" || !latest.task_id) {
+    return true;
+  }
+
+  if (latestRunExists) {
+    return runOpen;
+  }
+
+  return stationBackend().isActive(latest.task_id);
 }
 
 /** The round + run pair eligible for artifact recovery (#1298): a recent round

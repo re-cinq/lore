@@ -242,24 +242,28 @@ const TEST_CALL_ROOTS = new Set([
  * interpolations stripped; any other call after its callee path when that is
  * a plain identifier or member chain (`console.log(…)` → `console.log`),
  * undefined otherwise (IIFEs). */
+function testCallTitle(call: Parser.SyntaxNode): string | undefined {
+  const args = call.childForFieldName("arguments");
+  const firstString = args?.namedChildren.find(
+    (a) => a.type === "string" || a.type === "template_string",
+  );
+  const title = firstString?.text
+    .slice(1, -1)
+    .replace(/\$\{[^}]*\}/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  return title !== undefined && title.length > 0 ? title : undefined;
+}
+
 function callSymbolName(call: Parser.SyntaxNode): string | undefined {
   const callee = call.childForFieldName("function");
   const root = rootCalleeName(callee);
+  const isTestCall = root !== undefined && TEST_CALL_ROOTS.has(root);
+  const title = isTestCall ? testCallTitle(call) : undefined;
 
-  if (root !== undefined && TEST_CALL_ROOTS.has(root)) {
-    const args = call.childForFieldName("arguments");
-    const firstString = args?.namedChildren.find(
-      (a) => a.type === "string" || a.type === "template_string",
-    );
-    const title = firstString?.text
-      .slice(1, -1)
-      .replace(/\$\{[^}]*\}/g, "")
-      .replace(/\s+/g, " ")
-      .trim();
-
-    if (title !== undefined && title.length > 0) {
-      return title;
-    }
+  if (title !== undefined) {
+    return title;
   }
 
   const isPlainCallee =
@@ -307,9 +311,7 @@ function extractSymbolName(node: Parser.SyntaxNode): string | undefined {
   if (node.type === "export_statement") {
     const decl = node.childForFieldName("declaration") ?? node.namedChildren[0];
 
-    if (decl) {
-      return extractSymbolName(decl);
-    }
+    return decl ? extractSymbolName(decl) : undefined;
   }
 
   // Python decorated_definition wraps a function_definition or class_definition
@@ -318,9 +320,7 @@ function extractSymbolName(node: Parser.SyntaxNode): string | undefined {
       (c) => c.type === "function_definition" || c.type === "class_definition",
     );
 
-    if (def) {
-      return extractSymbolName(def);
-    }
+    return def ? extractSymbolName(def) : undefined;
   }
 
   return undefined;
@@ -330,9 +330,7 @@ function refineSymbolType(node: Parser.SyntaxNode, initial: string): string {
   if (node.type === "export_statement") {
     const decl = node.childForFieldName("declaration") ?? node.namedChildren[0];
 
-    if (decl) {
-      return inferSymbolType(decl.type);
-    }
+    return decl ? inferSymbolType(decl.type) : initial;
   }
 
   if (node.type === "decorated_definition") {
@@ -340,15 +338,44 @@ function refineSymbolType(node: Parser.SyntaxNode, initial: string): string {
       (c) => c.type === "function_definition" || c.type === "class_definition",
     );
 
-    if (def) {
-      return inferSymbolType(def.type);
-    }
+    return def ? inferSymbolType(def.type) : initial;
   }
 
   return initial;
 }
 
 // ── AST-based chunking ──────────────────────────────────────────────
+
+/** First line of the comment/docstring block leading a declaration, with
+ * leading blank lines trimmed; the declaration's own start row when none. */
+function leadingCommentStart(
+  lines: string[],
+  declStartRow: number,
+  prevEnd: number,
+): number {
+  let startLine = declStartRow;
+
+  for (let row = declStartRow - 1; row >= prevEnd; row--) {
+    const line = lines[row].trim();
+
+    const isSlashComment =
+      line.startsWith("//") || line.startsWith("/*") || line.startsWith("*");
+    const isDocstring =
+      line.startsWith("#") || line.startsWith('"""') || line.startsWith("'''");
+    const isCommentOrBlank = isSlashComment || isDocstring || line === "";
+
+    if (!isCommentOrBlank) {
+      break;
+    }
+    startLine = row;
+  }
+
+  while (startLine < declStartRow && lines[startLine].trim() === "") {
+    startLine++;
+  }
+
+  return startLine;
+}
 
 function chunkCodeAST(
   tree: Parser.Tree,
@@ -390,52 +417,27 @@ function chunkCodeAST(
 
   // Preamble: everything before first declaration (imports, comments, etc.)
   const firstDeclStart = decls[0].startRow;
+  const preamble =
+    firstDeclStart > 0
+      ? lines.slice(0, firstDeclStart).join("\n").trimEnd()
+      : "";
 
-  if (firstDeclStart > 0) {
-    const preamble = lines.slice(0, firstDeclStart).join("\n").trimEnd();
-
-    if (preamble.length > 0) {
-      chunks.push({
-        content: preamble,
-        metadata: {
-          chunk_index: chunkIndex++,
-          start_line: 1,
-          end_line: firstDeclStart,
-        },
-      });
-    }
+  if (preamble.length > 0) {
+    chunks.push({
+      content: preamble,
+      metadata: {
+        chunk_index: chunkIndex++,
+        start_line: 1,
+        end_line: firstDeclStart,
+      },
+    });
   }
 
   // Each declaration becomes a chunk. Include leading comments.
   for (let i = 0; i < decls.length; i++) {
     const decl = decls[i];
     const prevEnd = i > 0 ? decls[i - 1].endRow + 1 : firstDeclStart;
-
-    // Look for leading comments/docstrings between prevEnd and decl start
-    let startLine = decl.startRow;
-
-    for (let row = decl.startRow - 1; row >= prevEnd; row--) {
-      const line = lines[row].trim();
-
-      const isSlashComment =
-        line.startsWith("//") || line.startsWith("/*") || line.startsWith("*");
-      const isDocstring =
-        line.startsWith("#") ||
-        line.startsWith('"""') ||
-        line.startsWith("'''");
-      const isCommentOrBlank = isSlashComment || isDocstring || line === "";
-
-      if (!isCommentOrBlank) {
-        break;
-      }
-      startLine = row;
-    }
-
-    // Trim leading blank lines from the comment block
-    while (startLine < decl.startRow && lines[startLine].trim() === "") {
-      startLine++;
-    }
-
+    const startLine = leadingCommentStart(lines, decl.startRow, prevEnd);
     const chunkContent = lines.slice(startLine, decl.endRow + 1).join("\n");
     const symbol = symbolInfo(decl.node);
 
@@ -474,15 +476,14 @@ function chunkMarkdown(content: string): Chunk[] {
   let chunkIndex = 0;
 
   // Content before first ## heading
-  if (matches[0].index > 0) {
-    const preamble = content.slice(0, matches[0].index).trimEnd();
+  const preamble =
+    matches[0].index > 0 ? content.slice(0, matches[0].index).trimEnd() : "";
 
-    if (preamble.length > 0) {
-      chunks.push({
-        content: preamble,
-        metadata: { chunk_index: chunkIndex++ },
-      });
-    }
+  if (preamble.length > 0) {
+    chunks.push({
+      content: preamble,
+      metadata: { chunk_index: chunkIndex++ },
+    });
   }
 
   for (let i = 0; i < matches.length; i++) {

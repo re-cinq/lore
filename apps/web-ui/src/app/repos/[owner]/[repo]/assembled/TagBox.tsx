@@ -33,20 +33,24 @@ export default function TagBox({
 }) {
   const isLeaf = node.content !== undefined;
 
+  const renderBody = () => {
+    if (!isLeaf) {
+      return node.children?.map((child, i) => (
+        <TagBox key={i} node={child} raw={raw} depth={depth + 1} />
+      ));
+    }
+
+    if (raw) {
+      return <pre className={styles.raw}>{node.content}</pre>;
+    }
+
+    return <Markdown markdown={node.content ?? ""} />;
+  };
+
   return (
     <div className={`${styles.box} ${depth % 2 === 1 ? styles.alt : ""}`}>
       <TagChip tag={node.tag} attrs={node.attrs} />
-      {isLeaf ? (
-        raw ? (
-          <pre className={styles.raw}>{node.content}</pre>
-        ) : (
-          <Markdown markdown={node.content ?? ""} />
-        )
-      ) : (
-        node.children?.map((child, i) => (
-          <TagBox key={i} node={child} raw={raw} depth={depth + 1} />
-        ))
-      )}
+      {renderBody()}
     </div>
   );
 }

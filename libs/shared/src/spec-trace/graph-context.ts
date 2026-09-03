@@ -132,20 +132,7 @@ function distinct(
   statements: GraphContextStatement[],
   pick: (s: GraphContextStatement) => string[],
 ): string[] {
-  const seen = new Set<string>();
-  const out: string[] = [];
-
-  for (const stmt of statements) {
-    for (const value of pick(stmt)) {
-      if (seen.has(value)) {
-        continue;
-      }
-      seen.add(value);
-      out.push(value);
-    }
-  }
-
-  return out;
+  return [...new Set(statements.flatMap(pick))];
 }
 
 /** Default budget cap on ranked statements — a token-budget proxy for the assembled block. */

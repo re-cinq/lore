@@ -400,11 +400,12 @@ export async function deleteAdrSubtree(
 
       // Symmetric to the Statement back-edge above: an AcceptanceCriterion
       // owning this TraceLink would keep a dangling `trace_links` forward ref.
-      for (const ownerUid of uids(link.acOwners)) {
-        deletes.push(
-          `<${ownerUid}> <AcceptanceCriterion.trace_links> <${link.uid}> .`,
-        );
-      }
+      deletes.push(
+        ...uids(link.acOwners).map(
+          (ownerUid) =>
+            `<${ownerUid}> <AcceptanceCriterion.trace_links> <${link.uid}> .`,
+        ),
+      );
     }
     const rootUid = ((res.data?.root ?? []) as Array<Record<string, string>>)[0]
       ?.uid;

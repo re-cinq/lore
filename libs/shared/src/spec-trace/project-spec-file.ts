@@ -492,22 +492,21 @@ async function pruneOrphans(
       .filter((child) => !validXids.has(child[xidPredicate]))
       .map((child) => child.uid);
 
-    if (orphanUids.length) {
-      // `<uid> * * .` drops the orphan node's outgoing edges, but the Spec keeps a
-      // forward `[uid]` edge (Spec.sections / Spec.acceptance_criteria) that Dgraph
-      // set-unions on upsert, so a removed child lingers there as a dangling ref
-      // unless its forward edge is deleted too.
-      const deletes = orphanUids.map((uid) => `<${uid}> * * .`);
-
-      if (forwardEdge) {
-        deletes.push(
-          ...orphanUids.map(
-            (uid) => `<${specUid}> <${forwardEdge}> <${uid}> .`,
-          ),
-        );
-      }
-      await txn.mutate({ deleteNquads: deletes.join("\n"), commitNow: true });
+    if (orphanUids.length === 0) {
+      return;
     }
+    // `<uid> * * .` drops the orphan node's outgoing edges, but the Spec keeps a
+    // forward `[uid]` edge (Spec.sections / Spec.acceptance_criteria) that Dgraph
+    // set-unions on upsert, so a removed child lingers there as a dangling ref
+    // unless its forward edge is deleted too.
+    const deletes = orphanUids.map((uid) => `<${uid}> * * .`);
+
+    if (forwardEdge) {
+      deletes.push(
+        ...orphanUids.map((uid) => `<${specUid}> <${forwardEdge}> <${uid}> .`),
+      );
+    }
+    await txn.mutate({ deleteNquads: deletes.join("\n"), commitNow: true });
   });
 }
 

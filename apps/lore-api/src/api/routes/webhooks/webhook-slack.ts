@@ -33,6 +33,27 @@ export function verifySlackSignature(
   return sigBuf.length === expBuf.length && timingSafeEqual(sigBuf, expBuf);
 }
 
+/** The repo mapped to a Slack channel via `settings.slack_channel_id`, or "" when unmapped. */
+async function repoForSlackChannel(
+  pool: Pool | null,
+  channelId: string,
+): Promise<string> {
+  if (!pool) {
+    return "";
+  }
+
+  try {
+    const { rows } = await pool.query(
+      `SELECT full_name FROM lore.repos WHERE settings->>'slack_channel_id' = $1`,
+      [channelId],
+    );
+
+    return rows.length > 0 ? rows[0].full_name : "";
+  } catch {
+    return "";
+  }
+}
+
 export function slackWebhookRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "POST",
@@ -140,23 +161,7 @@ export function slackWebhookRoute(getPool: () => Pool | null): ServerRoute {
         description = words.slice(1).join(" ");
       }
 
-      let targetRepo = "";
-      const pool = getPool();
-
-      if (pool) {
-        try {
-          const { rows } = await pool.query(
-            `SELECT full_name FROM lore.repos WHERE settings->>'slack_channel_id' = $1`,
-            [channelId],
-          );
-
-          if (rows.length > 0) {
-            targetRepo = rows[0].full_name;
-          }
-        } catch {
-          /* fall through */
-        }
-      }
+      const targetRepo = await repoForSlackChannel(getPool(), channelId);
 
       if (!targetRepo) {
         return h.response({

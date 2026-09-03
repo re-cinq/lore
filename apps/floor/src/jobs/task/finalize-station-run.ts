@@ -82,24 +82,7 @@ export async function finalizeStationRun(opts: {
 
     // Keep the feature row consistent: a failed planning round must mark its
     // iteration failed (not leave it 'running') + drop the feature to awaiting-input.
-    if (
-      task.task_type === "feature-planning" &&
-      task.context_bundle?.feature_id &&
-      task.context_bundle?.iteration != null
-    ) {
-      await project.features
-        .setIterationResult(
-          task.context_bundle.feature_id as string,
-          task.context_bundle.iteration as number,
-          null,
-          "failed",
-        )
-        .catch(() => {});
-      await revertFeatureAfterFailure(
-        project,
-        task.context_bundle.feature_id as string,
-      );
-    }
+    await markFailedPlanningIteration(task, project);
     await setStatus(task.id, "failed", { failure_reason: reason });
     await insertEvent(task.id, "running", "failed", {
       reason: `station exit ${completion.exitCode}`,
@@ -109,17 +92,17 @@ export async function finalizeStationRun(opts: {
     return;
   }
 
+  // Non-planning, no file changes → no PR. Just close the task out.
+  if (task.task_type !== "feature-planning" && completion.changedFiles === 0) {
+    await setStatus(task.id, "completed");
+    await insertEvent(task.id, "running", "completed", {
+      changedFiles: completion.changedFiles,
+    });
+
+    return;
+  }
+
   if (task.task_type !== "feature-planning") {
-    // Non-planning, no file changes → no PR. Just close the task out.
-    if (completion.changedFiles === 0) {
-      await setStatus(task.id, "completed");
-      await insertEvent(task.id, "running", "completed", {
-        changedFiles: completion.changedFiles,
-      });
-
-      return;
-    }
-
     // The container pushed a branch — open the PR for it.
     const copy = await generateArtifactCopy({
       kind: "pr",
@@ -188,4 +171,29 @@ export async function finalizeStationRun(opts: {
   await insertEvent(task.id, "running", "failed", {
     reason: "planning posted no result",
   });
+}
+
+async function markFailedPlanningIteration(
+  task: PipelineTask,
+  project: Project,
+): Promise<void> {
+  if (
+    task.task_type !== "feature-planning" ||
+    !task.context_bundle?.feature_id ||
+    task.context_bundle?.iteration == null
+  ) {
+    return;
+  }
+  await project.features
+    .setIterationResult(
+      task.context_bundle.feature_id as string,
+      task.context_bundle.iteration as number,
+      null,
+      "failed",
+    )
+    .catch(() => {});
+  await revertFeatureAfterFailure(
+    project,
+    task.context_bundle.feature_id as string,
+  );
 }

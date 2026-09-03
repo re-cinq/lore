@@ -65,6 +65,56 @@ function readJsonFile(filePath: string): Record<string, unknown> | null {
  * array of globs, or the `{ packages: [...] }` object Yarn uses and that plenty
  * of npm-installed repos still carry.
  */
+// Vitest and Jest support --run/--bail for fast failure
+function fastFailTestCommand(testScript: string): string {
+  if (testScript.includes("vitest")) {
+    return "npm run test --silent -- --run";
+  }
+
+  if (testScript.includes("jest")) {
+    return "npm run test --silent -- --bail";
+  }
+
+  return "npm run test --silent";
+}
+
+// A WORKSPACES repo must COMPILE before it lints: a sibling's `dist/` is
+// what the others import, and an install does not produce it. Run
+// b219a4f1 (2026-08-30) died on exactly that — `npm ci` succeeded and
+// eslint then failed with `cannot import
+// @re-cinq/lore-shared/spec-status.js`, because this repo's own ESLint
+// plugin imports a workspace package's compiled output. Both implement
+// nodes succeeded and both validate nodes failed identically, so the retry
+// bought a second 40-minute implementation against a fault no
+// implementation could fix.
+//
+// The build it ALREADY has is moved, never duplicated — a second step
+// running the same command would compile the repo twice on every fresh
+// clone — and it carries a cold-clone budget, since compiling every
+// workspace from nothing is not the 60-second job a warm rebuild is.
+//
+// Gated on `workspaces`: a single-package repo's lint reads source, so
+// compiling first buys nothing and costs every validate the time.
+function promoteWorkspaceBuildFirst(
+  quick: ValidationStep[],
+  pkg: Record<string, unknown>,
+): void {
+  const buildAt = declaresWorkspaces(pkg)
+    ? quick.findIndex((step) => step.name === "build")
+    : -1;
+
+  if (buildAt < 0) {
+    return;
+  }
+  // Read before removing: destructuring the splice result would spread
+  // `undefined` if the index guard above ever stopped holding, and a step
+  // with no command reads as a check that passed.
+  const build = quick[buildAt];
+
+  quick.splice(buildAt, 1);
+  quick.unshift({ ...build, timeoutMs: 300_000 });
+}
+
 function declaresWorkspaces(pkg: Record<string, unknown>): boolean {
   const workspaces = pkg.workspaces;
 
@@ -177,15 +227,11 @@ function detectNode(repoRoot: string): RepoTooling | null {
 
   // Test (full check only — too slow for pre-flight)
   if (scripts.test) {
-    const testCmd = scripts.test as string;
-    // Vitest and Jest support --bail/--run for fast failure
-    const cmd = testCmd.includes("vitest")
-      ? "npm run test --silent -- --run"
-      : testCmd.includes("jest")
-        ? "npm run test --silent -- --bail"
-        : "npm run test --silent";
-
-    full.push({ name: "test", command: cmd, timeoutMs: 120_000 });
+    full.push({
+      name: "test",
+      command: fastFailTestCommand(scripts.test as string),
+      timeoutMs: 120_000,
+    });
   }
 
   // A validate station clones fresh, so node_modules is absent and every
@@ -195,36 +241,7 @@ function detectNode(repoRoot: string): RepoTooling | null {
     (quick.length > 0 || full.length > 0) &&
     !existsSync(join(repoRoot, "node_modules"))
   ) {
-    // A WORKSPACES repo must COMPILE before it lints: a sibling's `dist/` is
-    // what the others import, and an install does not produce it. Run
-    // b219a4f1 (2026-08-30) died on exactly that — `npm ci` succeeded and
-    // eslint then failed with `cannot import
-    // @re-cinq/lore-shared/spec-status.js`, because this repo's own ESLint
-    // plugin imports a workspace package's compiled output. Both implement
-    // nodes succeeded and both validate nodes failed identically, so the retry
-    // bought a second 40-minute implementation against a fault no
-    // implementation could fix.
-    //
-    // The build it ALREADY has is moved, never duplicated — a second step
-    // running the same command would compile the repo twice on every fresh
-    // clone — and it carries a cold-clone budget, since compiling every
-    // workspace from nothing is not the 60-second job a warm rebuild is.
-    //
-    // Gated on `workspaces`: a single-package repo's lint reads source, so
-    // compiling first buys nothing and costs every validate the time.
-    const buildAt = declaresWorkspaces(pkg)
-      ? quick.findIndex((step) => step.name === "build")
-      : -1;
-
-    if (buildAt >= 0) {
-      // Read before removing: destructuring the splice result would spread
-      // `undefined` if the index guard above ever stopped holding, and a step
-      // with no command reads as a check that passed.
-      const build = quick[buildAt];
-
-      quick.splice(buildAt, 1);
-      quick.unshift({ ...build, timeoutMs: 300_000 });
-    }
+    promoteWorkspaceBuildFirst(quick, pkg);
     quick.unshift({
       name: "install",
       command: existsSync(join(repoRoot, "package-lock.json"))
@@ -417,6 +434,25 @@ export const localValidationExec: ValidationExec = async (
  * (does NOT bail on first failure — collects all errors). Each command runs
  * through `exec` (local by default; relay-backed for BYO).
  */
+// undefined = skip: the step's file filter matched none of the changed files
+function resolveStepCommand(
+  step: ValidationStep,
+  changedFiles: string[] | undefined,
+): string | undefined {
+  if (!changedFiles || changedFiles.length === 0) {
+    return step.command;
+  }
+  const relevantFiles = filterFilesByStep(step.name, changedFiles);
+
+  if (relevantFiles.length === 0) {
+    return undefined;
+  }
+
+  return step.scopedCommand
+    ? step.scopedCommand.replaceAll("{files}", quoteFiles(relevantFiles))
+    : scopeCommandToFiles(step.name, step.command, relevantFiles);
+}
+
 export async function runValidation(
   repoRoot: string,
   steps: ValidationStep[],
@@ -431,24 +467,17 @@ export async function runValidation(
 
   for (const step of steps) {
     const start = Date.now();
-    let command = step.command;
-
     // For eslint/ruff, scope to changed files if available
-    if (changedFiles && changedFiles.length > 0) {
-      const relevantFiles = filterFilesByStep(step.name, changedFiles);
+    const command = resolveStepCommand(step, changedFiles);
 
-      if (relevantFiles.length === 0) {
-        results.push({
-          name: step.name,
-          passed: true,
-          output: "skipped (no matching files)",
-          durationMs: 0,
-        });
-        continue;
-      }
-      command = step.scopedCommand
-        ? step.scopedCommand.replaceAll("{files}", quoteFiles(relevantFiles))
-        : scopeCommandToFiles(step.name, step.command, relevantFiles);
+    if (command === undefined) {
+      results.push({
+        name: step.name,
+        passed: true,
+        output: "skipped (no matching files)",
+        durationMs: 0,
+      });
+      continue;
     }
 
     const { output, passed } = await exec(command, {

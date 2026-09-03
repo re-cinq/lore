@@ -42,6 +42,40 @@ const SEPARATOR = "\n\n---\n\n";
 const CHARS_PER_TOKEN = 4;
 
 /**
+ * Joins doc/adr/spec chunks whole until the next would overflow the char
+ * budget. Unbounded, this path returned ~3 MB for a repo — which, injected
+ * into an Agent CR's parameters, blew the 2 MiB apiserver limit (2026-07-17).
+ */
+async function joinedDocChunksWithinBudget(
+  pool: Pool,
+  repo: string,
+  maxTokens: number,
+): Promise<string | null> {
+  const schema = await resolveChunkSchemaForRepo(pool, repo);
+  const { rows } = await pool.query(
+    `SELECT content, content_type, file_path FROM ${schema}.chunks
+     WHERE repo = $1 AND content_type IN ('doc', 'adr', 'spec')
+     ORDER BY content_type, ingested_at DESC`,
+    [repo],
+  );
+  const maxChars = maxTokens * CHARS_PER_TOKEN;
+  const parts: string[] = [];
+  let used = 0;
+
+  for (const r of rows as Array<{ content: string }>) {
+    const cost = r.content.length + (parts.length > 0 ? SEPARATOR.length : 0);
+
+    if (parts.length > 0 && used + cost > maxChars) {
+      break;
+    }
+    parts.push(r.content);
+    used += cost;
+  }
+
+  return parts.length > 0 ? parts.join(SEPARATOR) : null;
+}
+
+/**
  * Assembled context. `text` is the block an agent is handed; `sections` and
  * `trace` appear only on the debug path, which is why both are optional.
  */
@@ -77,38 +111,12 @@ export function contextRoute(getPool: () => Pool | null): ServerRoute {
 
       try {
         if (!(query && pool)) {
-          const parts: string[] = [];
+          const text =
+            repo && pool
+              ? await joinedDocChunksWithinBudget(pool, repo, maxTokens)
+              : null;
 
-          if (repo && pool) {
-            const schema = await resolveChunkSchemaForRepo(pool, repo);
-            const { rows } = await pool.query(
-              `SELECT content, content_type, file_path FROM ${schema}.chunks
-               WHERE repo = $1 AND content_type IN ('doc', 'adr', 'spec')
-               ORDER BY content_type, ingested_at DESC`,
-              [repo],
-            );
-            // The join must honour the token budget too: whole chunks until the
-            // next would overflow the char budget. Unbounded, this path
-            // returned ~3 MB for a repo — which, injected into an Agent CR's
-            // parameters, blew the 2 MiB apiserver limit (2026-07-17).
-            const maxChars = maxTokens * CHARS_PER_TOKEN;
-            let used = 0;
-
-            for (const r of rows as Array<{ content: string }>) {
-              const cost =
-                r.content.length + (parts.length > 0 ? SEPARATOR.length : 0);
-
-              if (parts.length > 0 && used + cost > maxChars) {
-                break;
-              }
-              parts.push(r.content);
-              used += cost;
-            }
-          }
-
-          return h.response({
-            text: parts.length > 0 ? parts.join(SEPARATOR) : null,
-          });
+          return h.response({ text });
         }
 
         // Fail-soft: null when LORE_DGRAPH_HTTP is unset, so the coupling source

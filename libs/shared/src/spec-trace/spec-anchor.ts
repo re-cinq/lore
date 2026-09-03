@@ -39,7 +39,10 @@ export function parseSpecAnchor(spec: string | undefined): SpecAnchor | null {
 export function parseSpecAnchors(
   spec: string | string[] | undefined,
 ): SpecAnchor[] {
-  const raw = spec === undefined ? [] : Array.isArray(spec) ? spec : [spec];
+  if (spec === undefined) {
+    return [];
+  }
+  const raw = Array.isArray(spec) ? spec : [spec];
 
   return raw
     .map(parseSpecAnchor)

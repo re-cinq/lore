@@ -83,9 +83,11 @@ export async function testFileImpact(
       line: start,
     };
 
-    for (const stmt of chunk.stmts ?? []) {
-      out.push(toImpactStatement(stmt, file, [test], "test-link"));
-    }
+    out.push(
+      ...(chunk.stmts ?? []).map((stmt) =>
+        toImpactStatement(stmt, file, [test], "test-link"),
+      ),
+    );
   }
 
   return out;

@@ -49,6 +49,15 @@ interface CoverageRecord {
  * Coverage node attaches HAS_COVERAGE to the file-scoped TestChunk. Results with
  * no matching descriptor are dropped.
  */
+function recordCoveredRanges(
+  ranges: Map<string, CoveredChunk>,
+  covered: CoveredChunk[],
+): void {
+  for (const chunk of covered) {
+    ranges.set(`${chunk.file}:${chunk.startLine}:${chunk.endLine}`, chunk);
+  }
+}
+
 function coverageRecordsFor(report: TestReport): CoverageRecord[] {
   const descriptorById = new Map(
     report.tests.map((descriptor) => [descriptor.id, descriptor]),
@@ -65,9 +74,7 @@ function coverageRecordsFor(report: TestReport): CoverageRecord[] {
       byFile.get(descriptor.file) ??
       byFile.set(descriptor.file, new Map()).get(descriptor.file)!;
 
-    for (const chunk of result.covered) {
-      ranges.set(`${chunk.file}:${chunk.startLine}:${chunk.endLine}`, chunk);
-    }
+    recordCoveredRanges(ranges, result.covered);
   }
 
   return [...byFile].map(([file, ranges]) => ({
@@ -127,28 +134,38 @@ function groupStatementsByAnchor(
   const groups = new Map<string, StatementGroup>();
 
   for (const { descriptor, fileChunkUid } of entries) {
-    const failed = resultById.get(descriptor.id)?.passed === false;
-
     // A descriptor may carry several anchors (one test validating several
     // statements) — contribute its TestChunk to every anchored statement.
-    for (const anchor of parseSpecAnchors(descriptor.spec)) {
-      const xid = `${repo}|${anchor.specPath}|${anchor.ordinal}`;
-      const group = groups.get(xid) ?? {
-        xid,
-        validatingChunkUids: [],
-        failingTestNames: [],
-      };
-
-      group.validatingChunkUids.push(fileChunkUid);
-
-      if (failed) {
-        group.failingTestNames.push(descriptor.name);
-      }
-      groups.set(xid, group);
-    }
+    addDescriptorToAnchoredGroups(groups, repo, {
+      descriptor,
+      fileChunkUid,
+      failed: resultById.get(descriptor.id)?.passed === false,
+    });
   }
 
   return [...groups.values()];
+}
+
+function addDescriptorToAnchoredGroups(
+  groups: Map<string, StatementGroup>,
+  repo: string,
+  entry: { descriptor: TestDescriptor; fileChunkUid: string; failed: boolean },
+): void {
+  for (const anchor of parseSpecAnchors(entry.descriptor.spec)) {
+    const xid = `${repo}|${anchor.specPath}|${anchor.ordinal}`;
+    const group = groups.get(xid) ?? {
+      xid,
+      validatingChunkUids: [],
+      failingTestNames: [],
+    };
+
+    group.validatingChunkUids.push(entry.fileChunkUid);
+
+    if (entry.failed) {
+      group.failingTestNames.push(entry.descriptor.name);
+    }
+    groups.set(xid, group);
+  }
 }
 
 /**
@@ -218,23 +235,40 @@ async function groupStatementsBySentence(
       continue;
     }
 
-    for (const match of await resolveSentenceLink(dgraph, repo, link)) {
-      const group = groups.get(match.uid) ?? {
-        ...match,
-        validatingChunkUids: [],
-        failingTestNames: [],
-      };
-
-      group.validatingChunkUids.push(fileChunkUid);
-
-      if (resultById.get(descriptor.id)?.passed === false) {
-        group.failingTestNames.push(descriptor.name);
-      }
-      groups.set(match.uid, group);
-    }
+    addDescriptorToSentenceGroups(groups, {
+      matches: await resolveSentenceLink(dgraph, repo, link),
+      descriptor,
+      fileChunkUid,
+      failed: resultById.get(descriptor.id)?.passed === false,
+    });
   }
 
   return [...groups.values()];
+}
+
+function addDescriptorToSentenceGroups(
+  groups: Map<string, SentenceGroup>,
+  entry: {
+    matches: SentenceMatch[];
+    descriptor: TestDescriptor;
+    fileChunkUid: string;
+    failed: boolean;
+  },
+): void {
+  for (const match of entry.matches) {
+    const group = groups.get(match.uid) ?? {
+      ...match,
+      validatingChunkUids: [],
+      failingTestNames: [],
+    };
+
+    group.validatingChunkUids.push(entry.fileChunkUid);
+
+    if (entry.failed) {
+      group.failingTestNames.push(entry.descriptor.name);
+    }
+    groups.set(match.uid, group);
+  }
 }
 
 /**

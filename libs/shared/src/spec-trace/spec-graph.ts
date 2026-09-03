@@ -195,22 +195,7 @@ function emitOwnerLinks(
       detail: t["TestChunk.test_name"],
     });
     links.push({ source: ownerUid, target: t.uid, kind: "validated_by" });
-
-    // The File this test exercises, reached via its Coverage (HAS_COVERAGE → COVERS).
-    // One File node per path (deduped); the covered intervals are the `ranges` facet.
-    for (const f of t.cov?.covers ?? []) {
-      const fp = f["File.path"] ?? f.uid;
-      const fileId = `file|${fp}`;
-
-      nodes.set(fileId, {
-        id: fileId,
-        type: "File",
-        label: basename(fp),
-        path: fp,
-        detail: f["Coverage.covers|ranges"],
-      });
-      links.push({ source: t.uid, target: fileId, kind: "covers" });
-    }
+    emitCoveredFileNodes(t, nodes, links);
   }
 
   // implemented_by CodeChunks are aggregated to the same per-path File node for display.
@@ -234,6 +219,28 @@ function emitOwnerLinks(
 
     nodes.set(a.uid, { id: a.uid, type: "ADR", label: adrLabel(p), path: p });
     links.push({ source: ownerUid, target: a.uid, kind: "decided_by" });
+  }
+}
+
+// The File this test exercises, reached via its Coverage (HAS_COVERAGE → COVERS).
+// One File node per path (deduped); the covered intervals are the `ranges` facet.
+function emitCoveredFileNodes(
+  testChunk: NonNullable<OwnerLinks["vb"]>[number],
+  nodes: Map<string, SpecGraphNode>,
+  links: SpecGraphLink[],
+): void {
+  for (const f of testChunk.cov?.covers ?? []) {
+    const fp = f["File.path"] ?? f.uid;
+    const fileId = `file|${fp}`;
+
+    nodes.set(fileId, {
+      id: fileId,
+      type: "File",
+      label: basename(fp),
+      path: fp,
+      detail: f["Coverage.covers|ranges"],
+    });
+    links.push({ source: testChunk.uid, target: fileId, kind: "covers" });
   }
 }
 
@@ -270,32 +277,41 @@ export function flattenSpecGraph(data: GraphResult): SpecGraph {
       });
     }
 
-    for (const st of spec.stmts ?? []) {
-      nodes.set(st.uid, {
-        id: st.uid,
-        type: "Statement",
-        label: "",
-        path: specPath,
-        detail: (st["Statement.text"] ?? "").trim(),
-      });
-      links.push({ source: spec.uid, target: st.uid, kind: "in_spec" });
-      emitOwnerLinks(st.uid, st, nodes, links);
-    }
-
-    for (const ac of spec.acs ?? []) {
-      nodes.set(ac.uid, {
-        id: ac.uid,
-        type: "AcceptanceCriterion",
-        label: "",
-        path: specPath,
-        detail: (ac["AcceptanceCriterion.text"] ?? "").trim(),
-      });
-      links.push({ source: spec.uid, target: ac.uid, kind: "in_spec" });
-      emitOwnerLinks(ac.uid, ac, nodes, links);
-    }
+    emitSpecChildNodes(spec, specPath, nodes, links);
   }
 
   return { nodes: [...nodes.values()], links };
+}
+
+function emitSpecChildNodes(
+  spec: NonNullable<GraphResult["q"]>[number],
+  specPath: string,
+  nodes: Map<string, SpecGraphNode>,
+  links: SpecGraphLink[],
+): void {
+  for (const st of spec.stmts ?? []) {
+    nodes.set(st.uid, {
+      id: st.uid,
+      type: "Statement",
+      label: "",
+      path: specPath,
+      detail: (st["Statement.text"] ?? "").trim(),
+    });
+    links.push({ source: spec.uid, target: st.uid, kind: "in_spec" });
+    emitOwnerLinks(st.uid, st, nodes, links);
+  }
+
+  for (const ac of spec.acs ?? []) {
+    nodes.set(ac.uid, {
+      id: ac.uid,
+      type: "AcceptanceCriterion",
+      label: "",
+      path: specPath,
+      detail: (ac["AcceptanceCriterion.text"] ?? "").trim(),
+    });
+    links.push({ source: spec.uid, target: ac.uid, kind: "in_spec" });
+    emitOwnerLinks(ac.uid, ac, nodes, links);
+  }
 }
 
 const GRAPH_DQL = `query specGraph($repo: string) {

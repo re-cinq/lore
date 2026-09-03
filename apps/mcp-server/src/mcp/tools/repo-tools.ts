@@ -31,17 +31,17 @@ export function registerRepoTools(server: McpServer) {
           `/api/repos?limit=${pageSize}&offset=${offset}`,
         );
 
+        if (!proxied.ok && proxied.reason === "not_configured") {
+          return {
+            content: [{ type: "text" as const, text: NOT_CONFIGURED }],
+          };
+        }
+
+        if (!proxied.ok && proxied.reason === "denied") {
+          return deniedError("lore_list_repos", proxied.detail);
+        }
+
         if (!proxied.ok) {
-          if (proxied.reason === "not_configured") {
-            return {
-              content: [{ type: "text" as const, text: NOT_CONFIGURED }],
-            };
-          }
-
-          if (proxied.reason === "denied") {
-            return deniedError("lore_list_repos", proxied.detail);
-          }
-
           return unreachableError("lore_list_repos", proxied.detail);
         }
         const body = JSON.parse(proxied.body) as {

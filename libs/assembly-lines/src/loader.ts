@@ -305,16 +305,17 @@ function validateAssemblyLine(wf: AssemblyLine, source: string): void {
   // Reachability from entry (BFS).
   const reachable = new Set<string>([wf.entry]);
   const queue: string[] = [wf.entry];
-
-  while (queue.length > 0) {
-    const cur = queue.shift()!;
-
+  const discoverSuccessorsOf = (cur: string): void => {
     for (const e of wf.edges) {
       if (e.from === cur && !reachable.has(e.to)) {
         reachable.add(e.to);
         queue.push(e.to);
       }
     }
+  };
+
+  while (queue.length > 0) {
+    discoverSuccessorsOf(queue.shift()!);
   }
 
   for (const id of nodeIds) {
@@ -444,20 +445,36 @@ function detectCycles(wf: AssemblyLine, source: string): void {
     color.set(n.id, WHITE);
   }
 
+  // The rule exists so two AGENTS cannot argue indefinitely. A back-edge with a
+  // `wait` node at EITHER end is exempt: leaving one, the human has just
+  // decided; entering one, the human decides before anything else runs. Either
+  // way a person gates every pass, so the runaway this guards against cannot
+  // happen. Keyed strictly on the endpoints' types — a cycle between two agents
+  // is still bounded, so this cannot become a way to write an unbounded agent
+  // loop.
+  const assertBackEdgeBounded = (e: AssemblyLineEdge): void => {
+    const humanGated =
+      isHumanStation(typeOf.get(e.from)) || isHumanStation(typeOf.get(e.to));
+
+    if (!e.iteration_max && !humanGated) {
+      throw new AssemblyLineLoadError(
+        `back-edge ${e.from} → ${e.to} requires iteration_max`,
+        source,
+      );
+    }
+  };
+
   // Iterative DFS with explicit stack. Each frame holds the node id
   // and an index into its outgoing edge list — when we exhaust edges,
   // we pop and color the node BLACK. Symmetric with the BFS used for
   // reachability above, and won't blow the stack on deeply-nested
   // hand-authored YAML.
-  for (const start of wf.nodes) {
-    if (color.get(start.id) !== WHITE) {
-      continue;
-    }
+  const walkDfsFrom = (startId: string): void => {
     const stack: Array<{ id: string; edgeIndex: number }> = [
-      { id: start.id, edgeIndex: 0 },
+      { id: startId, edgeIndex: 0 },
     ];
 
-    color.set(start.id, GRAY);
+    color.set(startId, GRAY);
 
     while (stack.length > 0) {
       const frame = stack[stack.length - 1];
@@ -472,23 +489,7 @@ function detectCycles(wf: AssemblyLine, source: string): void {
       const c = color.get(e.to);
 
       if (c === GRAY) {
-        // The rule exists so two AGENTS cannot argue indefinitely. A back-edge with a
-        // `wait` node at EITHER end is exempt: leaving one, the human has just
-        // decided; entering one, the human decides before anything else runs. Either
-        // way a person gates every pass, so the runaway this guards against cannot
-        // happen. Keyed strictly on the endpoints' types — a cycle between two agents
-        // is still bounded, so this cannot become a way to write an unbounded agent
-        // loop.
-        const humanGated =
-          isHumanStation(typeOf.get(e.from)) ||
-          isHumanStation(typeOf.get(e.to));
-
-        if (!e.iteration_max && !humanGated) {
-          throw new AssemblyLineLoadError(
-            `back-edge ${e.from} → ${e.to} requires iteration_max`,
-            source,
-          );
-        }
+        assertBackEdgeBounded(e);
         continue;
       }
 
@@ -497,5 +498,12 @@ function detectCycles(wf: AssemblyLine, source: string): void {
         stack.push({ id: e.to, edgeIndex: 0 });
       }
     }
+  };
+
+  for (const start of wf.nodes) {
+    if (color.get(start.id) !== WHITE) {
+      continue;
+    }
+    walkDfsFrom(start.id);
   }
 }

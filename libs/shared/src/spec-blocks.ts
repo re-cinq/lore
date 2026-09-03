@@ -104,14 +104,16 @@ export function segmentBlocks(content: string): Block[] {
   let codeBuffer: string[] = [];
 
   for (const line of lines) {
+    if (inFence && /^```/.test(line)) {
+      codeBuffer.push(line);
+      emit("code", codeBuffer.join("\n"));
+      codeBuffer = [];
+      inFence = false;
+      continue;
+    }
+
     if (inFence) {
       codeBuffer.push(line);
-
-      if (/^```/.test(line)) {
-        emit("code", codeBuffer.join("\n"));
-        codeBuffer = [];
-        inFence = false;
-      }
       continue;
     }
 

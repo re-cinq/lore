@@ -286,6 +286,21 @@ function listScope(
   return { filter: "", params: [limit, offset] };
 }
 
+function countScopeParams(
+  repo: string | undefined,
+  agentId: string | undefined,
+): string[] {
+  if (repo) {
+    return [repo];
+  }
+
+  if (agentId) {
+    return [resolveAgentId(agentId)];
+  }
+
+  return [];
+}
+
 export async function listMemories(
   agentId?: string,
   limit: number = 50,
@@ -306,7 +321,7 @@ export async function listMemories(
     params,
   );
 
-  const countParams = repo ? [repo] : agentId ? [resolveAgentId(agentId)] : [];
+  const countParams = countScopeParams(repo, agentId);
   const countResult = await pool!.query(
     `SELECT count(*)::int as total FROM memory.memories
      WHERE ${filter} is_deleted = FALSE

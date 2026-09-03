@@ -207,11 +207,12 @@ export function validateCatalogEntry(
     // A needs_model station calls Anthropic (stationSpec renders the
     // anthropic key) — the silent-drop comment-triage failure, guarded here
     // the same way LLM recipes are.
-    if (def.config?.needs_model && checkFamilies && !keys.anthropic) {
-      return `station ${def.name} needs a model but this cluster holds no anthropic credential`;
-    }
+    const missingModelCredential =
+      def.config?.needs_model && checkFamilies && !keys.anthropic;
 
-    return null;
+    return missingModelCredential
+      ? `station ${def.name} needs a model but this cluster holds no anthropic credential`
+      : null;
   }
 
   if (!def.prompt) {

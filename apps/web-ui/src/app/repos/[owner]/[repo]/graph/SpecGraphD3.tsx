@@ -312,6 +312,32 @@ const HoverMarkdown = memo(function HoverMarkdown({ text }: { text: string }) {
   );
 });
 
+// Spec→Section/Statement (the expanded drill-down) gets more length so the
+// fanned-out children don't pile on top of each other.
+function linkDistance(kind: SimLink["kind"]): number {
+  if (kind === "in_feature") {
+    return 76;
+  }
+
+  if (kind === "in_section" || kind === "has_statement" || kind === "in_spec") {
+    return 62;
+  }
+
+  return 46;
+}
+
+function chargeBase(nodeType: SimNode["type"]): number {
+  if (nodeType === "Feature") {
+    return -320;
+  }
+
+  if (nodeType === "Spec") {
+    return -260;
+  }
+
+  return -200;
+}
+
 function bfsLevels(
   adj: Map<string, Set<string>>,
   startId: string,
@@ -323,14 +349,14 @@ function bfsLevels(
   for (let d = 1; d <= maxDepth; d += 1) {
     const next: string[] = [];
 
-    for (const id of frontier) {
-      for (const nb of adj.get(id) ?? []) {
+    frontier.forEach((id) => {
+      adj.get(id)?.forEach((nb) => {
         if (!level.has(nb)) {
           level.set(nb, d);
           next.push(nb);
         }
-      }
-    }
+      });
+    });
     frontier = next;
   }
 
@@ -511,11 +537,11 @@ export default function SpecGraphD3({
     );
     let treeRadius = 120;
 
-    for (const tree of localTrees) {
-      for (const p of tree.values()) {
+    localTrees.forEach((tree) => {
+      tree.forEach((p) => {
         treeRadius = Math.max(treeRadius, Math.hypot(p.x, p.y));
-      }
-    }
+      });
+    });
     const ringR = featureRingRadius(
       featureIds.length,
       treeRadius,
@@ -600,17 +626,7 @@ export default function SpecGraphD3({
     const linkForce = d3
       .forceLink<SimNode, SimLink>([])
       .id((d) => d.id)
-      // Spec→Section/Statement (the expanded drill-down) gets more length so the
-      // fanned-out children don't pile on top of each other.
-      .distance((l) =>
-        l.kind === "in_feature"
-          ? 76
-          : l.kind === "in_section" ||
-              l.kind === "has_statement" ||
-              l.kind === "in_spec"
-            ? 62
-            : 46,
-      )
+      .distance((l) => linkDistance(l.kind))
       // d3's standard 1/min(degree): a leaf (degree 1) is held firmly to its hub
       // so it can't drift off into a comet tail, while hub↔hub links stay loose.
       .strength(
@@ -630,12 +646,7 @@ export default function SpecGraphD3({
         "charge",
         d3
           .forceManyBody<SimNode>()
-          .strength((d) =>
-            crowdedCharge(
-              d.type === "Feature" ? -320 : d.type === "Spec" ? -260 : -200,
-              degOf(d),
-            ),
-          )
+          .strength((d) => crowdedCharge(chargeBase(d.type), degOf(d)))
           .distanceMin(12)
           // Localise repulsion to the bound's range so the central mass can't
           // fling peripheral nodes off to infinity.
@@ -839,18 +850,16 @@ export default function SpecGraphD3({
         ctx!.globalAlpha = op;
         ctx!.strokeStyle = edgeColor;
 
-        if (l.controlIds && l.controlIds.length > 2) {
-          const pts = l.controlIds
-            .map((id) => nodeById.get(id))
-            .filter((n): n is SimNode => !!n)
-            .map((n) => [n.x ?? 0, n.y ?? 0] as [number, number]);
+        const bundlePts = (l.controlIds ?? [])
+          .map((id) => nodeById.get(id))
+          .filter((n): n is SimNode => !!n)
+          .map((n) => [n.x ?? 0, n.y ?? 0] as [number, number]);
 
-          if (pts.length > 2) {
-            ctx!.beginPath();
-            bundleLine(pts);
-            ctx!.stroke();
-            continue;
-          }
+        if (bundlePts.length > 2) {
+          ctx!.beginPath();
+          bundleLine(bundlePts);
+          ctx!.stroke();
+          continue;
         }
         // Straight edge, clipped so it never crosses an open ring's interior.
         const pieces = visibleSegments(
@@ -860,11 +869,10 @@ export default function SpecGraphD3({
         );
 
         ctx!.beginPath();
-
-        for (const p of pieces) {
+        pieces.forEach((p) => {
           ctx!.moveTo(p.a.x, p.a.y);
           ctx!.lineTo(p.b.x, p.b.y);
-        }
+        });
         ctx!.stroke();
       }
 
@@ -903,11 +911,11 @@ export default function SpecGraphD3({
         ctx!.textAlign = "center";
         ctx!.textBaseline = "middle";
 
-        for (const badge of aggBadges) {
+        aggBadges.forEach((badge) => {
           const parent = nodeById.get(badge.parentId);
 
           if (!parent) {
-            continue;
+            return;
           }
           const screen = applyPoint(transform as ZoomTransform, {
             x: parent.x ?? 0,
@@ -922,7 +930,7 @@ export default function SpecGraphD3({
           ctx!.fill();
           ctx!.fillStyle = badgeTextColor;
           ctx!.fillText(String(badge.count), px, py + 0.5);
-        }
+        });
         ctx!.restore();
       }
     }
@@ -1029,11 +1037,11 @@ export default function SpecGraphD3({
     function applyRingState() {
       ringPinned = new Set<string>();
 
-      for (const exp of expanded.values()) {
-        for (const s of exp.statements) {
+      expanded.forEach((exp) => {
+        exp.statements.forEach((s) => {
           ringPinned.add(s.uid);
-        }
-      }
+        });
+      });
       nodeG
         .selectAll<SVGGElement, SimNode>("g")
         .style("display", (d) => (ringPinned.has(d.id) ? "none" : ""));
@@ -1299,16 +1307,8 @@ export default function SpecGraphD3({
       // spec), and fan their related test/code/ADR nodes radially OUTWARD at the
       // same angle — so every edge is a short spoke outside the ring, never a chord
       // crossing the (now clean) interior.
-      for (const [specId, exp] of expanded) {
-        const spec = nodeById.get(specId);
-
-        if (!spec) {
-          continue;
-        }
-        const cx = spec.x ?? 0;
-        const cy = spec.y ?? 0;
-
-        for (const s of exp.statements) {
+      function placeStatementSpokes(exp: ExpandData, cx: number, cy: number) {
+        exp.statements.forEach((s) => {
           const n = nodeById.get(s.uid);
 
           if (n) {
@@ -1319,9 +1319,9 @@ export default function SpecGraphD3({
           }
           let k = 0;
 
-          for (const nb of adj.get(s.uid) ?? []) {
+          adj.get(s.uid)?.forEach((nb) => {
             if (ringPinned.has(nb) || expanded.has(nb)) {
-              continue;
+              return;
             }
             const leaf = nodeById.get(nb);
 
@@ -1331,14 +1331,14 @@ export default function SpecGraphD3({
               !leaf ||
               (leaf.type !== "TestChunk" && leaf.type !== "CodeChunk")
             ) {
-              continue;
+              return;
             }
 
             // Only hard-place leaves owned by a single statement (clean radial
             // spokes). Shared chunks float; their edges are clipped to the ring
             // edge by visibleSegments.
             if ((adj.get(nb)?.size ?? 0) !== 1) {
-              continue;
+              return;
             }
             const r = exp.outerR1 + 32 + k * 34;
 
@@ -1347,9 +1347,18 @@ export default function SpecGraphD3({
             leaf.vx = 0;
             leaf.vy = 0;
             k += 1;
-          }
-        }
+          });
+        });
       }
+
+      expanded.forEach((exp, specId) => {
+        const spec = nodeById.get(specId);
+
+        if (!spec) {
+          return;
+        }
+        placeStatementSpokes(exp, spec.x ?? 0, spec.y ?? 0);
+      });
       ringDiscs = [];
 
       for (const [specId, exp] of expanded) {

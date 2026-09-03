@@ -34,16 +34,15 @@ async function declaredTaskTypes(): Promise<Set<string>> {
  */
 async function referencedPrompts(): Promise<Map<string, string[]>> {
   const refs = new Map<string, string[]>();
+  const agentNodeRefs = [...(await loadBuiltinAssemblyLines())].flatMap(
+    ([name, definition]) =>
+      definition.nodes
+        .filter((node) => node.type === "agent")
+        .map((node) => ({ name, ref: node.prompt_ref ?? node.type })),
+  );
 
-  for (const [name, definition] of await loadBuiltinAssemblyLines()) {
-    for (const node of definition.nodes) {
-      if (node.type !== "agent") {
-        continue;
-      }
-      const ref = node.prompt_ref ?? node.type;
-
-      refs.set(ref, [...(refs.get(ref) ?? []), name]);
-    }
+  for (const { name, ref } of agentNodeRefs) {
+    refs.set(ref, [...(refs.get(ref) ?? []), name]);
   }
 
   return refs;

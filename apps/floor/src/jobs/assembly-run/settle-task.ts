@@ -152,12 +152,12 @@ export async function settleTaskForLine(
     // failed round, and saying so here is the difference between the wizard
     // showing the cause and falling back to a canned guess. (A losing racer may
     // repeat this write; it is the same value, so it is idempotent.)
-    if (task.task_type === "feature-planning") {
-      const noResult = await settlePlanningRound(task, deps);
+    const planningNoResult =
+      task.task_type === "feature-planning" &&
+      (await settlePlanningRound(task, deps));
 
-      if (noResult && settlement.status === "completed") {
-        settlement = { status: "failed", failureReason: NO_RESULT_REASON };
-      }
+    if (planningNoResult && settlement.status === "completed") {
+      settlement = { status: "failed", failureReason: NO_RESULT_REASON };
     }
     // No spec-analysis objection arm here any more: an analysis that questions the
     // plan is an EDGE back to the author node (FR6.26), so the line parks on a

@@ -13,6 +13,18 @@ const LEADING_FRONTMATTER = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?/;
 const unquote = (value: string): string =>
   value.replace(/^["']|["']$/g, "").trim();
 
+function collectBlockListItems(lines: string[], startIndex: number): string[] {
+  const items: string[] = [];
+  let cursor = startIndex;
+
+  while (cursor < lines.length && /^\s*-\s+/.test(lines[cursor])) {
+    items.push(unquote(lines[cursor].replace(/^\s*-\s+/, "")));
+    cursor++;
+  }
+
+  return items;
+}
+
 export function parseFrontmatter(source: string): Frontmatter {
   const match = source.match(LEADING_FRONTMATTER);
 
@@ -36,17 +48,15 @@ export function parseFrontmatter(source: string): Frontmatter {
       continue;
     }
 
+    const blockItems = value === "" ? collectBlockListItems(lines, i + 1) : [];
+
+    if (value === "" && blockItems.length === 0) {
+      continue;
+    }
+
     if (value === "") {
-      const items: string[] = [];
-
-      while (i + 1 < lines.length && /^\s*-\s+/.test(lines[i + 1])) {
-        items.push(unquote(lines[i + 1].replace(/^\s*-\s+/, "")));
-        i++;
-      }
-
-      if (items.length > 0) {
-        meta[key] = items;
-      }
+      meta[key] = blockItems;
+      i += blockItems.length;
       continue;
     }
     meta[key] = unquote(value);

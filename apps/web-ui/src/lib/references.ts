@@ -48,6 +48,18 @@ function hrefFor(
   return `/assembly-runs/${match}`;
 }
 
+function matchGroup(m: RegExpExecArray): "file" | "issue" | "uuid" {
+  if (m.groups?.file) {
+    return "file";
+  }
+
+  if (m.groups?.issue) {
+    return "issue";
+  }
+
+  return "uuid";
+}
+
 function scanPlain(text: string, ctx: RefContext): Segment[] {
   const out: Segment[] = [];
   const re = new RegExp(SCAN_SRC, "gi");
@@ -58,13 +70,7 @@ function scanPlain(text: string, ctx: RefContext): Segment[] {
     if (m.index > last) {
       out.push({ text: text.slice(last, m.index) });
     }
-    const group: "file" | "issue" | "uuid" = m.groups?.file
-      ? "file"
-      : m.groups?.issue
-        ? "issue"
-        : "uuid";
-
-    out.push({ text: m[0], href: hrefFor(m[0], group, ctx) });
+    out.push({ text: m[0], href: hrefFor(m[0], matchGroup(m), ctx) });
     last = m.index + m[0].length;
   }
 

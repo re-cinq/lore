@@ -466,7 +466,7 @@ describe.skipIf(!reachable)("DgraphMemoryStore (live Dgraph)", () => {
     try {
       const uids = new Set<string>();
 
-      for (const name of names) {
+      const entityAndRelUids = async (name: string): Promise<string[]> => {
         const res = await txn.queryWithVars(
           `query q($name: string) {
             q(func: eq(Entity.name, $name)) {
@@ -477,19 +477,23 @@ describe.skipIf(!reachable)("DgraphMemoryStore (live Dgraph)", () => {
           }`,
           { $name: name },
         );
+        const entities = (res.data as { q?: Record<string, any>[] }).q ?? [];
 
-        for (const entity of (res.data as { q?: Record<string, any>[] }).q ??
-          []) {
-          uids.add(entity.uid);
+        return entities.flatMap((entity) => [
+          entity.uid,
+          ...(entity["Entity.out_rels"] ?? []).map(
+            (rel: { uid: string }) => rel.uid,
+          ),
+          ...(entity["Entity.in_rels"] ?? []).map(
+            (rel: { uid: string }) => rel.uid,
+          ),
+        ]);
+      };
 
-          for (const rel of entity["Entity.out_rels"] ?? []) {
-            uids.add(rel.uid);
-          }
+      for (const name of names) {
+        const found = await entityAndRelUids(name);
 
-          for (const rel of entity["Entity.in_rels"] ?? []) {
-            uids.add(rel.uid);
-          }
-        }
+        found.forEach((uid) => uids.add(uid));
       }
 
       if (uids.size) {

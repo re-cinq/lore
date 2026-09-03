@@ -179,9 +179,47 @@ function mkItem(text: string, extra: Partial<SourceItem> = {}): SourceItem {
   return { text, tokens: estimateTokens(text), ...extra };
 }
 
+/** Append one graph item per relation line not already in `seen`. */
+function addUniqueGraphLines(
+  graphResults: Awaited<ReturnType<typeof queryLiveGraph>>,
+  seen: Set<string>,
+  items: SourceItem[],
+): void {
+  for (const r of graphResults) {
+    const line = `${r.entity} (${r.entity_type}) --${r.relation}--> ${r.related_entity} (${r.related_type})`;
+
+    if (seen.has(line)) {
+      continue;
+    }
+    seen.add(line);
+    items.push(mkItem(line, { content_type: "graph" }));
+  }
+}
+
+/** Split search-result ids into memory refs and fact refs (outcome feedback). */
+function collectContextRefIds(
+  results: Awaited<ReturnType<typeof searchMemories>>,
+  memoryIds: string[],
+  factIds: string[],
+): void {
+  for (const r of results) {
+    if (!r.id) {
+      continue;
+    }
+
+    if (r.source === "memory") {
+      memoryIds.push(r.id);
+      continue;
+    }
+    factIds.push(r.id);
+  }
+}
+
 function toScore(value: unknown): number | undefined {
-  const n =
-    typeof value === "number" ? value : value != null ? Number(value) : NaN;
+  if (value == null) {
+    return undefined;
+  }
+  const n = typeof value === "number" ? value : Number(value);
 
   return Number.isFinite(n) ? n : undefined;
 }
@@ -654,15 +692,7 @@ export const fetchers: Record<string, SourceFetcher> = {
           false,
         );
 
-        for (const r of graphResults) {
-          const line = `${r.entity} (${r.entity_type}) --${r.relation}--> ${r.related_entity} (${r.related_type})`;
-
-          if (seen.has(line)) {
-            continue;
-          }
-          seen.add(line);
-          items.push(mkItem(line, { content_type: "graph" }));
-        }
+        addUniqueGraphLines(graphResults, seen, items);
       }
 
       return { items, status: items.length > 0 ? "ok" : "empty" };
@@ -984,6 +1014,31 @@ function fitSection(
   };
 }
 
+/** Route one section to its source. The coupling source reads the
+ * spec-traceability graph (Dgraph), not the Postgres pool — fail-soft
+ * `disabled` when no graph client is wired. */
+async function fetchSectionSource(
+  source: string,
+  fetcher: SourceFetcher | undefined,
+  ctx: {
+    pool: PgPool;
+    dgraph: DgraphClientPort | null;
+    query: string;
+    repo?: string;
+    agentId?: string;
+  },
+): Promise<FetchResult> {
+  if (source === "coupling") {
+    return fetchCouplingSource(ctx.dgraph, ctx.repo);
+  }
+
+  if (fetcher) {
+    return fetcher(ctx.pool, ctx.query, ctx.repo, ctx.agentId);
+  }
+
+  return { items: [], status: "error" };
+}
+
 export async function assembleContext(
   pool: PgPool,
   query: string,
@@ -1040,14 +1095,13 @@ export async function assembleContext(
       let res: FetchResult;
 
       try {
-        // The coupling source reads the spec-traceability graph (Dgraph), not the
-        // Postgres pool — fail-soft `disabled` when no graph client is wired.
-        res =
-          section.source === "coupling"
-            ? await fetchCouplingSource(dgraph ?? null, repo)
-            : fetcher
-              ? await fetcher(pool, query, repo, agentId)
-              : { items: [], status: "error" };
+        res = await fetchSectionSource(section.source, fetcher, {
+          pool,
+          dgraph: dgraph ?? null,
+          query,
+          repo,
+          agentId,
+        });
       } catch {
         res = { items: [], status: "error" };
       }
@@ -1127,17 +1181,7 @@ export async function assembleContext(
         false,
       );
 
-      for (const r of results) {
-        if (!r.id) {
-          continue;
-        }
-
-        if (r.source === "memory") {
-          collectedMemoryIds.push(r.id);
-          continue;
-        }
-        collectedFactIds.push(r.id);
-      }
+      collectContextRefIds(results, collectedMemoryIds, collectedFactIds);
     } catch {
       /* non-fatal */
     }

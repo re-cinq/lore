@@ -79,6 +79,21 @@ const LINE_COLUMNS = `id, graph, ${SUMMARY_TAIL}`;
  * `pool.connect()`, which the narrow {@link PgPool} does not expose. The event
  * columns mirror the shared `insertEvent` writer (`events.ts`).
  */
+/** Normalize the blueprint filter: absent → null, one name → a singleton list. */
+function blueprintNameList(
+  blueprintName: string | readonly string[] | undefined,
+): string[] | null {
+  if (blueprintName === undefined) {
+    return null;
+  }
+
+  if (typeof blueprintName === "string") {
+    return [blueprintName];
+  }
+
+  return [...blueprintName];
+}
+
 export class PgAssemblyRuns implements AssemblyRunsPort {
   constructor(private readonly pool: PgPool) {}
 
@@ -608,12 +623,7 @@ export class PgAssemblyRuns implements AssemblyRunsPort {
     columns: string,
     query: AssemblyRunQuery,
   ): Promise<unknown[]> {
-    const blueprints =
-      query.blueprintName === undefined
-        ? null
-        : typeof query.blueprintName === "string"
-          ? [query.blueprintName]
-          : [...query.blueprintName];
+    const blueprints = blueprintNameList(query.blueprintName);
     const { rows } = await this.pool.query(
       `SELECT ${columns}
          FROM pipeline.assembly_runs

@@ -248,6 +248,35 @@ function skippedSummary(kind: IngestKind, message: string): IngestGraphSummary {
   };
 }
 
+async function ingestTestsKind(
+  repo: string,
+  dgraph: NonNullable<IngestGraphPorts["dgraph"]>,
+  buildTestReport: IngestGraphPorts["buildTestReport"],
+): Promise<IngestGraphSummary> {
+  if (!buildTestReport) {
+    return skippedSummary(
+      "tests",
+      "test ingest runs locally / in CI only (trusted sandbox)",
+    );
+  }
+  const report = await buildTestReport();
+
+  await ingestSpecTrace(dgraph, repo, "test-report", report);
+  const count = Array.isArray((report as { tests?: unknown[] }).tests)
+    ? (report as { tests: unknown[] }).tests.length
+    : 0;
+
+  return {
+    kind: "tests",
+    projected: count,
+    skipped: 0,
+    failed: 0,
+    failedFiles: [],
+    status: "completed",
+    message: `tests: ingested ${count} test(s)`,
+  };
+}
+
 export async function runIngestGraph(
   params: IngestGraphParams,
   ports: IngestGraphPorts,
@@ -261,28 +290,7 @@ export async function runIngestGraph(
   }
 
   if (params.kind === "tests") {
-    if (!ports.buildTestReport) {
-      return skippedSummary(
-        "tests",
-        "test ingest runs locally / in CI only (trusted sandbox)",
-      );
-    }
-    const report = await ports.buildTestReport();
-
-    await ingestSpecTrace(ports.dgraph, params.repo, "test-report", report);
-    const count = Array.isArray((report as { tests?: unknown[] }).tests)
-      ? (report as { tests: unknown[] }).tests.length
-      : 0;
-
-    return {
-      kind: "tests",
-      projected: count,
-      skipped: 0,
-      failed: 0,
-      failedFiles: [],
-      status: "completed",
-      message: `tests: ingested ${count} test(s)`,
-    };
+    return ingestTestsKind(params.repo, ports.dgraph, ports.buildTestReport);
   }
 
   const def = registry[params.kind];

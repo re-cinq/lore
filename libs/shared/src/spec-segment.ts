@@ -101,6 +101,35 @@ function isTableRow(line: string): boolean {
   return t.startsWith("|") && t.endsWith("|") && t.length >= 2;
 }
 
+function indexOfNextNonSpace(text: string, from: number): number {
+  let index = from;
+
+  while (index < text.length && text[index] === " ") {
+    index++;
+  }
+
+  return index;
+}
+
+function pushTrimmedNonEmpty(out: string[], text: string): void {
+  const trimmed = text.trim();
+
+  if (trimmed) {
+    out.push(trimmed);
+  }
+}
+
+function endsInAbbreviationOrInitial(buf: string): boolean {
+  const trimmed = buf.trimEnd().replace(/[.?!]+$/, "");
+  const lastWord = trimmed.split(/\s+/).pop() || "";
+
+  if (ABBREVIATIONS.has(lastWord)) {
+    return true;
+  }
+
+  return /^[A-Z]$/.test(lastWord);
+}
+
 function splitSentences(text: string): string[] {
   const flat = text.replace(/\s+/g, " ").trim();
 
@@ -119,18 +148,10 @@ function splitSentences(text: string): string[] {
       continue;
     }
 
-    let j = i + 1;
-
-    while (j < flat.length && flat[j] === " ") {
-      j++;
-    }
+    const j = indexOfNextNonSpace(flat, i + 1);
 
     if (j >= flat.length) {
-      const tail = buf.trim();
-
-      if (tail) {
-        out.push(tail);
-      }
+      pushTrimmedNonEmpty(out, buf);
       buf = "";
       break;
     }
@@ -144,30 +165,44 @@ function splitSentences(text: string): string[] {
       continue;
     }
 
-    if (ch === ".") {
-      const trimmed = buf.trimEnd().replace(/[.?!]+$/, "");
-      const lastWord = trimmed.split(/\s+/).pop() || "";
-
-      if (ABBREVIATIONS.has(lastWord)) {
-        continue;
-      }
-
-      if (/^[A-Z]$/.test(lastWord)) {
-        continue;
-      }
+    if (ch === "." && endsInAbbreviationOrInitial(buf)) {
+      continue;
     }
 
     out.push(buf.trim());
     buf = "";
     i = j - 1;
   }
-  const tail = buf.trim();
-
-  if (tail) {
-    out.push(tail);
-  }
+  pushTrimmedNonEmpty(out, buf);
 
   return out;
+}
+
+function endsListItem(line: string): boolean {
+  if (line.trim() === "" || isListItem(line)) {
+    return true;
+  }
+
+  if (isHeading(line) || isTableRow(line)) {
+    return true;
+  }
+
+  return /^\s*```/.test(line);
+}
+
+function readListItemLines(
+  lines: string[],
+  startIndex: number,
+): { combined: string; endIndex: number } {
+  let combined = stripListMarker(lines[startIndex]);
+  let index = startIndex;
+
+  while (index + 1 < lines.length && !endsListItem(lines[index + 1])) {
+    combined += " " + lines[index + 1].trim();
+    index++;
+  }
+
+  return { combined: combined.replace(/\s+/g, " ").trim(), endIndex: index };
 }
 
 export function segmentStatements(content: string): Statement[] {
@@ -197,6 +232,19 @@ export function segmentStatements(content: string): Statement[] {
         line: startLine,
       });
     }
+  };
+
+  const pushListItemStatement = (text: string, line: number) => {
+    if (!text) {
+      return;
+    }
+    statements.push({
+      ordinal: ordinal++,
+      text,
+      kind: "list-item",
+      enclosingHeading: currentHeading,
+      line,
+    });
   };
 
   for (let i = 0; i < lines.length; i++) {
@@ -231,44 +279,10 @@ export function segmentStatements(content: string): Statement[] {
     if (isListItem(line)) {
       flushParagraph();
       const itemStartLine = i + 1;
-      let combined = stripListMarker(line);
+      const listItem = readListItemLines(lines, i);
 
-      while (i + 1 < lines.length) {
-        const next = lines[i + 1];
-
-        if (next.trim() === "") {
-          break;
-        }
-
-        if (isListItem(next)) {
-          break;
-        }
-
-        if (isHeading(next)) {
-          break;
-        }
-
-        if (isTableRow(next)) {
-          break;
-        }
-
-        if (/^\s*```/.test(next)) {
-          break;
-        }
-        combined += " " + next.trim();
-        i++;
-      }
-      combined = combined.replace(/\s+/g, " ").trim();
-
-      if (combined) {
-        statements.push({
-          ordinal: ordinal++,
-          text: combined,
-          kind: "list-item",
-          enclosingHeading: currentHeading,
-          line: itemStartLine,
-        });
-      }
+      i = listItem.endIndex;
+      pushListItemStatement(listItem.combined, itemStartLine);
       continue;
     }
 
@@ -375,11 +389,13 @@ export function classifyByHeuristic(
   }
   const heading = statement.enclosingHeading;
 
-  if (heading) {
-    for (const { match, category } of SECTION_RULES) {
-      if (match.test(heading)) {
-        return { testability: "untestable", category, matchedBySection: true };
-      }
+  if (!heading) {
+    return { testability: "testable", category: null, matchedBySection: false };
+  }
+
+  for (const { match, category } of SECTION_RULES) {
+    if (match.test(heading)) {
+      return { testability: "untestable", category, matchedBySection: true };
     }
   }
 

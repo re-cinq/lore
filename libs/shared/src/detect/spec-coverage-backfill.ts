@@ -497,8 +497,12 @@ const PR_BRANCH_PREFIX = "lore/spec-coverage-backfill";
 
 function toLine(metadata: Record<string, unknown> | null): number | null {
   const raw = metadata?.["start_line"];
-  const line =
-    typeof raw === "string" ? Number(raw) : typeof raw === "number" ? raw : NaN;
+
+  if (typeof raw !== "string" && typeof raw !== "number") {
+    return null;
+  }
+
+  const line = typeof raw === "string" ? Number(raw) : raw;
 
   return Number.isFinite(line) ? line : null;
 }

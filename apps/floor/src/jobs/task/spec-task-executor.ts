@@ -56,12 +56,12 @@ export async function specTaskExecutorJob(): Promise<string> {
 
   for (const task of readyTasks) {
     // Enforce concurrency limit per task group
-    if (task.task_group_id) {
-      const running = runningByGroup.get(task.task_group_id) || 0;
+    const runningInGroup = task.task_group_id
+      ? runningByGroup.get(task.task_group_id) || 0
+      : 0;
 
-      if (running >= MAX_CONCURRENT_PER_GROUP) {
-        continue;
-      }
+    if (runningInGroup >= MAX_CONCURRENT_PER_GROUP) {
+      continue;
     }
 
     // Atomic claim: set to running only if still pending
@@ -126,14 +126,7 @@ export async function specTaskExecutorJob(): Promise<string> {
 
       if (result.started) {
         dispatched++;
-
-        // Update concurrency counter
-        if (task.task_group_id) {
-          runningByGroup.set(
-            task.task_group_id,
-            (runningByGroup.get(task.task_group_id) || 0) + 1,
-          );
-        }
+        bumpGroupCounter(runningByGroup, task.task_group_id);
         console.log(
           `[spec-task-executor] Dispatched ${specTaskId} (${task.id}) → Agent CR`,
         );
@@ -156,4 +149,15 @@ export async function specTaskExecutorJob(): Promise<string> {
   return dispatched > 0
     ? `Dispatched ${dispatched}/${readyTasks.length} ready spec-tasks`
     : "No ready spec-tasks";
+}
+
+/** Update the per-group concurrency counter after a successful dispatch. */
+function bumpGroupCounter(
+  runningByGroup: Map<string, number>,
+  taskGroupId: string | null | undefined,
+): void {
+  if (!taskGroupId) {
+    return;
+  }
+  runningByGroup.set(taskGroupId, (runningByGroup.get(taskGroupId) || 0) + 1);
 }

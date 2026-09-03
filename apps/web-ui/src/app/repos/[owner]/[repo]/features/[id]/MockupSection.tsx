@@ -129,17 +129,22 @@ function MockupFigure({
   // no-script sandboxed frame; useMermaidSvg additionally refuses an output
   // carrying a script tag. Author-supplied raw svg/html markup — which mermaid
   // never vetted — still goes through DOMPurify.
-  const clean = isMermaid
-    ? isBrowser
-      ? (mermaidSvg ?? "")
-      : ""
-    : isBrowser
-      ? sanitizeMockupMarkup(
-          DOMPurify,
-          mockup.markup,
-          isHtml ? MOCKUP_HTML_CONFIG : MOCKUP_SVG_CONFIG,
-        )
-      : "";
+  const cleanMarkup = () => {
+    if (!isBrowser) {
+      return "";
+    }
+
+    if (isMermaid) {
+      return mermaidSvg ?? "";
+    }
+
+    return sanitizeMockupMarkup(
+      DOMPurify,
+      mockup.markup,
+      isHtml ? MOCKUP_HTML_CONFIG : MOCKUP_SVG_CONFIG,
+    );
+  };
+  const clean = cleanMarkup();
   const href = `data:text/plain;charset=utf-8,${encodeURIComponent(mockup.markup)}`;
 
   return (

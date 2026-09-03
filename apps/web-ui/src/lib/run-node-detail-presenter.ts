@@ -57,9 +57,7 @@ function uniqueFiles(state: NodeRunState | undefined): string[] {
   const files = new Set<string>();
 
   for (const event of state?.transcript ?? []) {
-    for (const path of event.filePaths) {
-      files.add(path);
-    }
+    event.filePaths.forEach((path) => files.add(path));
   }
 
   return [...files];
