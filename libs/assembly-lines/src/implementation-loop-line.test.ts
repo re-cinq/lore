@@ -167,4 +167,14 @@ describe("the implementation-loop line", () => {
       ]),
     ).toEqual({ kind: "finish" });
   });
+
+  it("routes no_new_test from dod to open-pr, so a trivial ticket proceeds to implementation without a red bar", () => {
+    // specs/implementation-loop#FR3-no-new-test
+    // A rename, a deletion, a documentation update — writing tests first would
+    // exercise the compiler rather than a behaviour. dod signals no_new_test and
+    // the line routes it to open-pr on the same path as success, letting tdd-round
+    // implement the mechanical change directly. routing it to retrospective (as
+    // changes_requested does) would be wrong: the ticket is CLEAR, not ambiguous.
+    expect(successorsOf("dod", "no_new_test")).toEqual(["open-pr"]);
+  });
 });

@@ -75,6 +75,12 @@ edges:
   - from: dod
     to: open-pr
     on: success
+  # A rename, deletion, or documentation update has no behaviour to test first;
+  # tests would exercise the compiler, not a behaviour. Route directly to open-pr,
+  # same as success — the ticket is CLEAR, not ambiguous.
+  - from: dod
+    to: open-pr
+    on: no_new_test
   - from: dod
     to: dod
     on: failed
