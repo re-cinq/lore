@@ -262,8 +262,8 @@ const LABELED_TYPES = new Set<SpecGraphNode["type"]>([
 const LEVEL_OPACITY = [1, 0.85, 0.5, 0.28];
 const FADED = 0.07;
 
-const idOf = (x: string | number | SimNode): string =>
-  typeof x === "object" ? x.id : String(x);
+const idOf = (node: string | number | SimNode): string =>
+  typeof node === "object" ? node.id : String(node);
 
 function nodeLinks(
   node: SpecGraphNode,
@@ -364,12 +364,12 @@ function bfsLevels(
 }
 
 export default function SpecGraphD3({
-  data,
+  graph,
   repo,
   searchQuery = "",
   resetSignal = 0,
 }: {
-  data: SpecGraph;
+  graph: SpecGraph;
   repo: string;
   searchQuery?: string;
   resetSignal?: number;
@@ -408,7 +408,7 @@ export default function SpecGraphD3({
 
     svg.selectAll("*").remove();
 
-    if (data.nodes.length === 0) {
+    if (graph.nodes.length === 0) {
       return;
     }
 
@@ -436,35 +436,36 @@ export default function SpecGraphD3({
 
     sizeCanvas();
 
-    const nodes: SimNode[] = data.nodes.map((n) => ({ ...n }));
-    const links: SimLink[] = data.links.map((l) => ({
+    const nodes: SimNode[] = graph.nodes.map((n) => ({ ...n }));
+    const links: SimLink[] = graph.links.map((l) => ({
       source: l.source,
       target: l.target,
       kind: l.kind,
     }));
     // Per-node degree feeds the anti-crowding rules in the force setup below
     // (see lib/graph-crowding). Computed once from the raw link list.
-    const degree = nodeDegrees(data.links);
-    const degOf = (x: string | number | SimNode) => degree.get(idOf(x)) ?? 1;
+    const degree = nodeDegrees(graph.links);
+    const degOf = (node: string | number | SimNode) =>
+      degree.get(idOf(node)) ?? 1;
     const expanded = new Map<string, ExpandData>(); // spec id → its two-ring layout
     let adj = new Map<string, Set<string>>();
     let nodeById = new Map<string, SimNode>();
     let ringPinned = new Set<string>(); // statement ids pinned onto an outer ring
 
     // Aggregation: collapse single-owner canvas leaves into per-parent badges.
-    // Computed once from the data (position-independent); applied only while the
+    // Computed once from the graph (position-independent); applied only while the
     // view is zoomed out past LOD_THRESHOLD.
     const { hidden: aggHidden, badges: aggBadges } = aggregateLeaves(
-      data.nodes,
-      data.links,
+      graph.nodes,
+      graph.links,
       LEAF_CANVAS_TYPES,
     );
 
     // Bundling forest: containment tree plus a tree-home for each leaf under its
     // first owning statement, so cross-spec leaf edges route through the hierarchy.
-    const forest = buildContainmentForest(data.links, CONTAINMENT_KINDS);
+    const forest = buildContainmentForest(graph.links, CONTAINMENT_KINDS);
 
-    for (const l of data.links) {
+    for (const l of graph.links) {
       if (OWNERSHIP_KINDS.has(l.kind) && !forest.has(l.target)) {
         forest.set(l.target, l.source);
       }
@@ -516,7 +517,7 @@ export default function SpecGraphD3({
     // around a viewport circle, and ring the leftover small components outside —
     // so the hierarchy reads as separate circular trees, not one hairball. A
     // forceX/forceY (below) holds each seeded position during relax.
-    const boundR = boundingRadius(data.nodes.length, data.links.length);
+    const boundR = boundingRadius(graph.nodes.length, graph.links.length);
     const viewportCenter = { x: width / 2, y: height / 2 };
     const childrenOf = new Map<string, string[]>();
 
@@ -526,7 +527,7 @@ export default function SpecGraphD3({
       );
     }
 
-    const featureIds = data.nodes
+    const featureIds = graph.nodes
       .filter((n) => n.type === "Feature")
       .map((n) => n.id);
     // Build each feature tree once at the origin to measure its radius, then place
@@ -569,8 +570,8 @@ export default function SpecGraphD3({
     // (not the node's array index) bounds the radius, so a straggler can never fling
     // out past the rim — the bug that left small components sitting among them.
     const components = connectedComponents(
-      data.nodes.map((n) => n.id),
-      data.links,
+      graph.nodes.map((n) => n.id),
+      graph.links,
     );
     const smallComponents = components.filter(
       (c) => c.length < SMALL_COMPONENT_MAX && !c.some((id) => seed.has(id)),
@@ -578,7 +579,7 @@ export default function SpecGraphD3({
     const smallIds = new Set(smallComponents.flat());
     let strayIndex = 0;
 
-    for (const node of data.nodes) {
+    for (const node of graph.nodes) {
       if (seed.has(node.id) || smallIds.has(node.id)) {
         continue;
       }
@@ -1420,7 +1421,7 @@ export default function SpecGraphD3({
       resize.disconnect();
       sim.stop();
     };
-  }, [data, repo, resetSignal]);
+  }, [graph, repo, resetSignal]);
 
   // Live search: re-apply the filter without rebuilding the simulation. Runs on
   // mount (restoring the empty-query full view) and on every query change.

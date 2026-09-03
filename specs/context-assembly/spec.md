@@ -149,20 +149,20 @@ The tool retrieves from all available sources:
   (`ts_rank`) leg — the same hybrid that powers `search_context` — so a
   natural-language query surfaces semantically-relevant chunks, not just keyword
   overlap. Degrades to keyword-only (`ts_rank`/`websearch_to_tsquery`) when no
-  query embedding is available. ([validated by `context-assembly.test.ts:181`](libs/server-core/src/features/context/context-assembly.test.ts#L181), [`uses a vector+keyword RRF query when an embedding is available`](libs/shared/src/project/knowledge/context-assembly.test.ts#L272))
+  query embedding is available. ([validated by `context-assembly.test.ts:181`](libs/server-core/src/features/context/context-assembly.test.ts#L181), [`uses a vector+keyword RRF query when an embedding is available`](libs/shared/src/project/knowledge/context-assembly.test.ts#L276))
 - FR-2.8: **No cross-section duplication.** The `repo`/Conventions source pulls
   only `doc`/`spec` (never `adr`, which is its own section), and chunks sharing a
   `file_path` are de-duplicated, keeping the highest-scoring copy. ([validated by `context-assembly.test.ts:206`](libs/server-core/src/features/context/context-assembly.test.ts#L206), [`context-assembly-format.test.ts:23`](libs/shared/src/project/knowledge/context-assembly-format.test.ts#L23), [`context-assembly-format.test.ts:35`](libs/shared/src/project/knowledge/context-assembly-format.test.ts#L35))
 - FR-2.9: **Code retrieval.** A dedicated `code` source retrieves
   `content_type='code'` chunks via the same hybrid ranking, so implementation and
   review tasks receive the actual source files they edit (previously code was
-  never retrieved — the `repo` source excluded it). ([validated by `context-assembly.test.ts:231`](libs/server-core/src/features/context/context-assembly.test.ts#L231), [`context-assembly.test.ts:214`](libs/shared/src/project/knowledge/context-assembly.test.ts#L214))
+  never retrieved — the `repo` source excluded it). ([validated by `context-assembly.test.ts:231`](libs/server-core/src/features/context/context-assembly.test.ts#L231), [`context-assembly.test.ts:185`](libs/shared/src/project/knowledge/context-assembly.test.ts#L185))
 - FR-2.10: **Keyword leg searches distinctive terms.** A paragraph-length query
   is reduced to its distinctive terms (stopwords + ≤2-char words dropped, capped)
   for the keyword leg, so common filler words don't dominate ranking. ([validated by `context-assembly.test.ts:119`](libs/shared/src/project/knowledge/context-assembly.test.ts#L119), [`context-assembly.test.ts:132`](libs/shared/src/project/knowledge/context-assembly.test.ts#L132))
 - FR-2.11: **Normalized relevance.** Item scores are rescaled so the top result
   is `1.00` and the rest are proportional fractions — raw RRF/`ts_rank` scores are
-  tiny (~0.02) and unreadable as a relevance signal. ([validated by `context-assembly.test.ts:339`](libs/shared/src/project/knowledge/context-assembly.test.ts#L339))
+  tiny (~0.02) and unreadable as a relevance signal. ([validated by `context-assembly.test.ts:329`](libs/shared/src/project/knowledge/context-assembly.test.ts#L329))
 - FR-2.12: **No cross-section duplication.** A document is emitted in its
   highest-priority section only — the same item never appears in two sections
   (e.g. an episode in both Agent Memory and Recent Episodes). ([validated by `context-assembly.test.ts:148`](libs/shared/src/project/knowledge/context-assembly.test.ts#L148))
@@ -176,7 +176,7 @@ The tool retrieves from all available sources:
   `adrs`, `rules`) resolve the repo's chunk schema — its provisioned team schema,
   else `org_shared` — before querying, matching where reindex actually wrote the
   repo's chunks; the `cross_repo` source instead UNIONs every provisioned chunk
-  schema plus `org_shared`, since linked repos may live in any team schema. ([validated by `reads from the repo's provisioned team schema instead of org_shared`](libs/shared/src/project/knowledge/context-assembly.test.ts#L249), [`retrieves chunks bound to the repo + content types (keyword path when no embedding)`](libs/shared/src/project/knowledge/context-assembly.test.ts#L214), [`cross_repo unions linked-repo matches across every provisioned chunk schema`](libs/shared/src/project/knowledge/context-assembly.test.ts#L294), [`cross_repo without linked repos searches other repos across all schemas`](libs/shared/src/project/knowledge/context-assembly.test.ts#L325), [`resolves the repo's team schema when it is provisioned`](libs/shared/src/project/chunks/chunk-schema.test.ts#L68))
+  schema plus `org_shared`, since linked repos may live in any team schema. ([validated by `reads from the repo's provisioned team schema instead of org_shared`](libs/shared/src/project/knowledge/context-assembly.test.ts#L253), [`retrieves chunks bound to the repo + content types (keyword path when no embedding)`](libs/shared/src/project/knowledge/context-assembly.test.ts#L218), [`cross_repo unions linked-repo matches across every provisioned chunk schema`](libs/shared/src/project/knowledge/context-assembly.test.ts#L298), [`cross_repo without linked repos searches other repos across all schemas`](libs/shared/src/project/knowledge/context-assembly.test.ts#L343), [`resolves the repo's team schema when it is provisioned`](libs/shared/src/project/chunks/chunk-schema.test.ts#L68))
 
 ### FR-3: Template System
 
@@ -211,7 +211,7 @@ The tool retrieves from all available sources:
 - FR-4.5: **Per-document cap.** When a section has more than one document,
   no single document may exceed half the section budget — so one mega-doc
   (e.g. CLAUDE.md) cannot crowd out several smaller, more-relevant chunks. A
-  lone document keeps the whole budget. ([validated by `context-assembly.test.ts:169`](libs/shared/src/project/knowledge/context-assembly.test.ts#L169), [`context-assembly.test.ts:181`](libs/shared/src/project/knowledge/context-assembly.test.ts#L181))
+  lone document keeps the whole budget. ([validated by `context-assembly.test.ts:169`](libs/shared/src/project/knowledge/context-assembly.test.ts#L169), [`context-assembly.test.ts:169`](libs/shared/src/project/knowledge/context-assembly.test.ts#L169))
 
 ### FR-5: Output Format
 

@@ -318,7 +318,7 @@ export class AnthropicProvider implements LlmProvider {
         Error,
         `No tool_use block in response (stop_reason: ${response.stop_reason})`,
       );
-      const data = toolUseBlock.input as T;
+      const parsed = toolUseBlock.input as T;
       const inputTokens = response.usage.input_tokens;
       const outputTokens = response.usage.output_tokens;
       const cacheCreationTokens =
@@ -351,7 +351,7 @@ export class AnthropicProvider implements LlmProvider {
       );
 
       return {
-        parsed: data,
+        parsed,
         inputTokens,
         outputTokens,
         cacheCreationTokens,

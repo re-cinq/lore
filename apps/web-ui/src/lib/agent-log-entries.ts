@@ -430,15 +430,18 @@ function classify(value: unknown, originalLine: string): LogEntry[] {
   }
 
   if (value.type === "rate_limit_event") {
-    const info = isRecord(value.rate_limit_info) ? value.rate_limit_info : {};
-    const windows = rateLimitWindows(info);
+    const rateLimit = isRecord(value.rate_limit_info)
+      ? value.rate_limit_info
+      : {};
+    const windows = rateLimitWindows(rateLimit);
 
     // No readable window keeps its bytes rather than rendering a confidently empty sentence.
     return windows.length > 0
       ? [
           {
             kind: "rate-limit",
-            status: typeof info.status === "string" ? info.status : "",
+            status:
+              typeof rateLimit.status === "string" ? rateLimit.status : "",
             windows,
           },
         ]

@@ -45,19 +45,19 @@ describe("formatCouplingItems", () => {
   };
 
   it("formats each statement with its signal, ADRs, and tests; violated outscores untested", () => {
-    const items = formatCouplingItems(block) as Array<{
+    const sources = formatCouplingItems(block) as Array<{
       text: string;
       source_path?: string;
       score?: number;
     }>;
 
-    expect(items).toHaveLength(2);
-    expect(items[0].text).toContain("[violated]");
-    expect(items[0].text).toContain("must do X");
-    expect(items[0].text).toContain("ADR-016");
-    expect(items[0].text).toContain("a.test.ts");
-    expect(items[0].source_path).toBe("specs/a/spec.md");
-    expect(items[0].score ?? 0).toBeGreaterThan(items[1].score ?? 0);
+    expect(sources).toHaveLength(2);
+    expect(sources[0].text).toContain("[violated]");
+    expect(sources[0].text).toContain("must do X");
+    expect(sources[0].text).toContain("ADR-016");
+    expect(sources[0].text).toContain("a.test.ts");
+    expect(sources[0].source_path).toBe("specs/a/spec.md");
+    expect(sources[0].score ?? 0).toBeGreaterThan(sources[1].score ?? 0);
   });
 
   it("returns an empty list for an empty block", () => {
@@ -80,7 +80,7 @@ describe("fetchCouplingSource", () => {
     });
   });
 
-  it("projects coupled statements from the graph into items", async () => {
+  it("projects coupled statements from the graph into sources", async () => {
     const port = {
       newTxn: () => ({
         queryWithVars: async () => ({
@@ -145,7 +145,7 @@ describe("extractKeyTerms", () => {
 describe("dropSeen (cross-section dedup)", () => {
   const it_ = (path: string) => ({ text: path, tokens: 1, source_path: path });
 
-  it("drops items already emitted in an earlier section, keeping the first", () => {
+  it("drops sources already emitted in an earlier section, keeping the first", () => {
     const seen = new Set<string>();
     const first = dropSeen([it_("a"), it_("b")] as never, seen);
     const second = dropSeen([it_("b"), it_("c")] as never, seen);
@@ -159,7 +159,7 @@ describe("dropSeen (cross-section dedup)", () => {
   });
 });
 
-const item = (tokens: number, path: string) => ({
+const source = (tokens: number, path: string) => ({
   text: "x".repeat(tokens * 4),
   tokens,
   source_path: path,
@@ -167,9 +167,13 @@ const item = (tokens: number, path: string) => ({
 
 describe("fitItemsToBudget per-document cap", () => {
   it("caps a single oversized document so smaller documents still fit", () => {
-    const items = [item(1000, "big.md"), item(100, "a.md"), item(100, "b.md")];
+    const sources = [
+      source(1000, "big.md"),
+      source(100, "a.md"),
+      source(100, "b.md"),
+    ];
 
-    const { kept, truncated } = fitItemsToBudget(items as never, 1000, 400);
+    const { kept, truncated } = fitItemsToBudget(sources as never, 1000, 400);
 
     expect(
       (kept as Array<{ source_path: string }>).map((i) => i.source_path),
@@ -179,9 +183,9 @@ describe("fitItemsToBudget per-document cap", () => {
   });
 
   it("without a cap, one big document fills the budget and crowds out the rest", () => {
-    const items = [item(1000, "big.md"), item(100, "a.md")];
+    const sources = [source(1000, "big.md"), source(100, "a.md")];
 
-    const { kept } = fitItemsToBudget(items as never, 1000);
+    const { kept } = fitItemsToBudget(sources as never, 1000);
 
     expect(
       (kept as Array<{ source_path: string }>).map((i) => i.source_path),
@@ -227,7 +231,7 @@ describe("hybridChunkItems", () => {
       },
     );
 
-    const items = await hybridChunkItems(
+    const sources = await hybridChunkItems(
       pool,
       "settings form parser",
       "re-cinq/lore",
@@ -239,11 +243,11 @@ describe("hybridChunkItems", () => {
     expect(calls[1].text).toContain("FROM org_shared.chunks");
     expect(calls[1].params?.[0]).toBe("re-cinq/lore");
     expect(calls[1].params).toContainEqual(["code"]);
-    expect(items[0]).toMatchObject({
+    expect(sources[0]).toMatchObject({
       source_path: "web-ui/src/lib/settings-form.ts",
       content_type: "code",
     });
-    expect(items[0].text).toContain("parseSettingsForm");
+    expect(sources[0].text).toContain("parseSettingsForm");
   });
 
   it("reads from the repo's provisioned team schema instead of org_shared", async () => {
@@ -357,7 +361,7 @@ describe("hybridChunkItems", () => {
       }),
     };
 
-    const items = (await hybridChunkItems(
+    const sources = (await hybridChunkItems(
       pool as unknown as Parameters<typeof hybridChunkItems>[0],
       "q",
       "re-cinq/lore",
@@ -365,7 +369,7 @@ describe("hybridChunkItems", () => {
       6,
     )) as Array<{ score?: number }>;
 
-    expect(items[0].score).toBeCloseTo(1.0);
-    expect(items[1].score).toBeCloseTo(0.5);
+    expect(sources[0].score).toBeCloseTo(1.0);
+    expect(sources[1].score).toBeCloseTo(0.5);
   });
 });

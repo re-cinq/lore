@@ -171,7 +171,7 @@ function mkItem(text: string, extra: Partial<SourceItem> = {}): SourceItem {
 function addUniqueGraphLines(
   graphResults: Awaited<ReturnType<typeof queryLiveGraph>>,
   seen: Set<string>,
-  items: SourceItem[],
+  sources: SourceItem[],
 ): void {
   for (const r of graphResults) {
     const line = `${r.entity} (${r.entity_type}) --${r.relation}--> ${r.related_entity} (${r.related_type})`;
@@ -180,7 +180,7 @@ function addUniqueGraphLines(
       continue;
     }
     seen.add(line);
-    items.push(mkItem(line, { content_type: "graph" }));
+    sources.push(mkItem(line, { content_type: "graph" }));
   }
 }
 
@@ -224,9 +224,9 @@ function toIso(value: unknown): string | undefined {
   }
 }
 
-/** Pack items into a token budget: keep whole items, truncate the overflow item, drop the rest. `maxPerDocTokens` caps any single document so a mega-doc can't crowd out smaller ones. */
+/** Pack sources into a token budget: keep whole sources, truncate the overflow item, drop the rest. `maxPerDocTokens` caps any single document so a mega-doc can't crowd out smaller ones. */
 export function fitItemsToBudget(
-  items: SourceItem[],
+  sources: SourceItem[],
   budgetTokens: number,
   maxPerDocTokens?: number,
 ): { kept: SourceItem[]; truncated: boolean } {
@@ -234,7 +234,7 @@ export function fitItemsToBudget(
   let used = 0;
   let truncated = false;
 
-  for (const it of items) {
+  for (const it of sources) {
     const remaining = budgetTokens - used;
 
     if (remaining <= 0) {
@@ -345,11 +345,14 @@ export function extractKeyTerms(query: string, max = 12): string[] {
   return out;
 }
 
-/** Filter out items already emitted in an earlier section (keyed by source path, else text) — keeps a document in its highest-priority section only. */
-export function dropSeen(items: SourceItem[], seen: Set<string>): SourceItem[] {
+/** Filter out sources already emitted in an earlier section (keyed by source path, else text) — keeps a document in its highest-priority section only. */
+export function dropSeen(
+  sources: SourceItem[],
+  seen: Set<string>,
+): SourceItem[] {
   const kept: SourceItem[] = [];
 
-  for (const it of items) {
+  for (const it of sources) {
     const key = it.source_path || it.text;
 
     if (seen.has(key)) {
@@ -363,14 +366,14 @@ export function dropSeen(items: SourceItem[], seen: Set<string>): SourceItem[] {
 }
 
 /** Rescale item scores so the top result is 1.0 — RRF/ts_rank raw scores are tiny (~0.02) and unreadable as relevance. No-op with no positive score. */
-function normalizeScores(items: SourceItem[]): SourceItem[] {
-  const max = Math.max(0, ...items.map((i) => i.score ?? 0));
+function normalizeScores(sources: SourceItem[]): SourceItem[] {
+  const max = Math.max(0, ...sources.map((s) => s.score ?? 0));
 
   if (max <= 0) {
-    return items;
+    return sources;
   }
 
-  return items.map((i) =>
+  return sources.map((i) =>
     i.score != null ? { ...i, score: i.score / max } : i,
   );
 }
@@ -383,7 +386,7 @@ const COUPLING_SIGNAL_SCORE: Record<string, number> = {
   normal: 0.1,
 };
 
-/** Project a spec-traceability GraphContextBlock into context items — the deterministic "what spec rules + tests govern this code" signal vector search can't produce. */
+/** Project a spec-traceability GraphContextBlock into context sources — the deterministic "what spec rules + tests govern this code" signal vector search can't produce. */
 export function formatCouplingItems(block: GraphContextBlock): SourceItem[] {
   return block.statements.map((s) => {
     const head = `[${s.signal}] ${s.specPath}${s.section ? ` › ${s.section}` : ""} — ${s.statementText}`;
