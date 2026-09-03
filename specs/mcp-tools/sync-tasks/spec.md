@@ -82,13 +82,13 @@ guard messages, or the error message. Never throws.
 
 A task with no matching existing row is inserted and counted as created. ([validated by `inserts a new task and counts it as created`](apps/mcp-server/src/features/pipeline/tasks-db.test.ts#L25))
 
-A task that already exists is updated in place and not counted as created. ([validated by `tasks-db.test.ts:43`](apps/mcp-server/src/features/pipeline/tasks-db.test.ts#L43))
+A task that already exists is updated in place and not counted as created. ([validated by `tasks-db.test.ts:45`](apps/mcp-server/src/features/pipeline/tasks-db.test.ts#L45))
 
-A ticked checkbox is persisted with status `completed`. ([validated by `tasks-db.test.ts:59`](apps/mcp-server/src/features/pipeline/tasks-db.test.ts#L59))
+A ticked checkbox is persisted with status `completed`. ([validated by `tasks-db.test.ts:63`](apps/mcp-server/src/features/pipeline/tasks-db.test.ts#L63))
 
-A supplied task-group id is threaded into the grouped insert statement. ([validated by `tasks-db.test.ts:73`](apps/mcp-server/src/features/pipeline/tasks-db.test.ts#L73))
+A supplied task-group id is threaded into the grouped insert statement. ([validated by `tasks-db.test.ts:77`](apps/mcp-server/src/features/pipeline/tasks-db.test.ts#L77))
 
-Across a mixed batch only the previously-unseen tasks count toward `created`. ([validated by `tasks-db.test.ts:94`](apps/mcp-server/src/features/pipeline/tasks-db.test.ts#L94))
+Across a mixed batch only the previously-unseen tasks count toward `created`. ([validated by `tasks-db.test.ts:96`](apps/mcp-server/src/features/pipeline/tasks-db.test.ts#L96))
 
 The markdown is parsed into structured tasks with id, description, completion, parallel and dependency markers. ([validated by `tasks.test.ts:5`](libs/server-core/src/features/pipeline/tasks.test.ts#L5))
 

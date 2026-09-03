@@ -511,7 +511,7 @@ cooperation. ([validated by `session-tracker.test.ts:193`](libs/server-core/src/
 - FR-12.5: After every pipeline task completion (PR, no-changes,
   failure), an episode is automatically written. For high-signal
   events (PRs, failures), Haiku extracts a lesson and stores it
-  as `auto-curation/{ref}` memory. ([validated by `episode-writer.test.ts:81`](libs/shared/src/episode-writer.test.ts#L81))
+  as `auto-curation/{ref}` memory. ([validated by `episode-writer.test.ts:89`](libs/shared/src/episode-writer.test.ts#L89))
 
 ### FR-13: Autonomous Review Loop (Phase 1, opt-in)
 
@@ -524,9 +524,9 @@ ai-agent-subsystem per ADR-031). ([validated by `code-review.test.ts:91`](apps/f
   retired the loretask-watcher). ([validated by `should-auto-review.test.ts:5`](apps/floor/src/jobs/review/should-auto-review.test.ts#L5), [`code-review.test.ts:91`](apps/floor/src/jobs/review/code-review.test.ts#L100))
 - FR-13.2: The review agent reads spec + conventions and posts ONE formal PR
   review — inline comments per finding plus a summary, carrying the verdict as its
-  GitHub review event (`APPROVE` / `REQUEST_CHANGES`, always on, no longer a neutral comment). ([validated by `post-review.test.ts:78`](apps/floor/src/jobs/review/post-review.test.ts#L78), [`post-review.test.ts:178`](apps/floor/src/jobs/review/post-review.test.ts#L178))
+  GitHub review event (`APPROVE` / `REQUEST_CHANGES`, always on, no longer a neutral comment). ([validated by `post-review.test.ts:78`](apps/floor/src/jobs/review/post-review.test.ts#L78), [`post-review.test.ts:181`](apps/floor/src/jobs/review/post-review.test.ts#L181))
 - FR-13.3: On a formal `APPROVE` the PR becomes eligible for (auto-)merge once the
-  remaining gates pass; auto-merge reads the bot's latest review, so a later push's re-check verdict supersedes the earlier one. ([validated by `post-review.test.ts:178`](apps/floor/src/jobs/review/post-review.test.ts#L178), [`auto-merge.test.ts:32`](apps/floor/src/jobs/merge/auto-merge.test.ts#L32))
+  remaining gates pass; auto-merge reads the bot's latest review, so a later push's re-check verdict supersedes the earlier one. ([validated by `post-review.test.ts:181`](apps/floor/src/jobs/review/post-review.test.ts#L181), [`auto-merge.test.ts:32`](apps/floor/src/jobs/merge/auto-merge.test.ts#L32))
 - FR-13.4: When changes are requested, a follow-up round is started on the same
   branch carrying the feedback (the code-review-reply path). ([validated by `code-review.test.ts:113`](apps/floor/src/jobs/review/code-review.test.ts#L122))
 - FR-13.5: After further iterations the loop escalates to human review via a
@@ -604,7 +604,7 @@ API calls to reduce token cost (ADR-015, added 2026-04-17). ([validated by `prom
   break:ttl(Nm)`. ([validated by `prompt-cache.test.ts:117`](libs/shared/src/llm/prompt-cache.test.ts#L117), [`prompt-cache.test.ts:123`](libs/shared/src/llm/prompt-cache.test.ts#L123))
 - FR-16.5: `response.usage.cache_creation_input_tokens` and
   `cache_read_input_tokens` feed cost accounting (1.25× writes,
-  0.1× reads). ([validated by `anthropic-provider.test.ts:74`](libs/shared/src/llm/anthropic-provider.test.ts#L74), [`anthropic-provider.test.ts:82`](libs/shared/src/llm/anthropic-provider.test.ts#L82), [`anthropic-provider.test.ts:90`](libs/shared/src/llm/anthropic-provider.test.ts#L90))
+  0.1× reads). ([validated by `anthropic-provider.test.ts:74`](libs/shared/src/llm/anthropic-provider.test.ts#L74), [`anthropic-provider.test.ts:101`](libs/shared/src/llm/anthropic-provider.test.ts#L101), [`anthropic-provider.test.ts:128`](libs/shared/src/llm/anthropic-provider.test.ts#L128))
 - Decision: MCP-server raw fetch call sites (fact extraction, graph
   extraction) have static prefixes below Haiku's 2048-token cache
   minimum — caching is not applied there.
@@ -613,7 +613,7 @@ API calls to reduce token cost (ADR-015, added 2026-04-17). ([validated by `prom
   call is not silently billed at Haiku's price; an unrecognized model
   falls back to the Haiku-tier rate rather than throwing. Every model
   offered in the agent-definitions `KNOWN_MODELS` picker has its own
-  `MODEL_PRICING` entry, so none of them silently falls back. ([validated by `anthropic-provider.test.ts:94`](libs/shared/src/llm/anthropic-provider.test.ts#L94), [`anthropic-provider.test.ts:105`](libs/shared/src/llm/anthropic-provider.test.ts#L105), [`anthropic-provider.test.ts:116`](libs/shared/src/llm/anthropic-provider.test.ts#L116))
+  `MODEL_PRICING` entry, so none of them silently falls back. ([validated by `anthropic-provider.test.ts:139`](libs/shared/src/llm/anthropic-provider.test.ts#L139), [`anthropic-provider.test.ts:158`](libs/shared/src/llm/anthropic-provider.test.ts#L158), [`anthropic-provider.test.ts:177`](libs/shared/src/llm/anthropic-provider.test.ts#L177))
 
 ### FR-17: Per-Template Context Budgets (Phase 1)
 
@@ -644,7 +644,7 @@ non-terminal states and resolve them without manual intervention. ([validated by
   detection and the state write, the write is a no-op. ([validated by `task-store-pg.test.ts:68`](libs/shared/src/project/tasks/task-store-pg.test.ts#L68))
 - FR-18.4: A failure episode is written for each stuck task so the
   auto-curation pipeline can surface patterns (e.g. a task type that
-  consistently times out). ([validated by `episode-writer.test.ts:81`](libs/shared/src/episode-writer.test.ts#L81), [`episode-writer.test.ts:13`](libs/shared/src/episode-writer.test.ts#L13))
+  consistently times out). ([validated by `episode-writer.test.ts:89`](libs/shared/src/episode-writer.test.ts#L89), [`episode-writer.test.ts:13`](libs/shared/src/episode-writer.test.ts#L13))
 
 ### FR-19: Task Detail UI (Phase 1)
 
@@ -1129,7 +1129,7 @@ share one persistence surface instead of inline SQL. ([validated by `task-queue.
   deletes a feature scoped to its repo (returning whether a row was
   removed); the facade stamps the bound repo on every call, and the pure
   helpers gate finalizing to a settled planning state and return the gap
-  of the highest-numbered ready iteration (null when none). ([validated by `features-pg.test.ts:47`](libs/shared/src/project/features/features-pg.test.ts#L47), [`features-pg.test.ts:57`](libs/shared/src/project/features/features-pg.test.ts#L57), [`features-pg.test.ts:93`](libs/shared/src/project/features/features-pg.test.ts#L93), [`features-pg.test.ts:110`](libs/shared/src/project/features/features-pg.test.ts#L110), [`features-pg.test.ts:137`](libs/shared/src/project/features/features-pg.test.ts#L137), [`features-pg.test.ts:146`](libs/shared/src/project/features/features-pg.test.ts#L146), [`features-pg.test.ts:166`](libs/shared/src/project/features/features-pg.test.ts#L166), [`features-pg.test.ts:176`](libs/shared/src/project/features/features-pg.test.ts#L176), [`features.test.ts:45`](libs/shared/src/project/features/features.test.ts#L45), [`features.test.ts:52`](libs/shared/src/project/features/features.test.ts#L52), [`features.test.ts:62`](libs/shared/src/project/features/features.test.ts#L62), [`features.test.ts:72`](libs/shared/src/project/features/features.test.ts#L72), [`features-port.test.ts:28`](libs/shared/src/project/features/features-port.test.ts#L35), [`features-port.test.ts:34`](libs/shared/src/project/features/features-port.test.ts#L41), [`features-port.test.ts:48`](libs/shared/src/project/features/features-port.test.ts#L54), [`features-port.test.ts:58`](libs/shared/src/project/features/features-port.test.ts#L64), [`features-port.test.ts:68`](libs/shared/src/project/features/features-port.test.ts#L74))
+  of the highest-numbered ready iteration (null when none). ([validated by `features-pg.test.ts:47`](libs/shared/src/project/features/features-pg.test.ts#L47), [`features-pg.test.ts:57`](libs/shared/src/project/features/features-pg.test.ts#L57), [`features-pg.test.ts:93`](libs/shared/src/project/features/features-pg.test.ts#L93), [`features-pg.test.ts:110`](libs/shared/src/project/features/features-pg.test.ts#L110), [`features-pg.test.ts:134`](libs/shared/src/project/features/features-pg.test.ts#L134), [`features-pg.test.ts:143`](libs/shared/src/project/features/features-pg.test.ts#L143), [`features-pg.test.ts:163`](libs/shared/src/project/features/features-pg.test.ts#L163), [`features-pg.test.ts:173`](libs/shared/src/project/features/features-pg.test.ts#L173), [`features.test.ts:45`](libs/shared/src/project/features/features.test.ts#L45), [`features.test.ts:52`](libs/shared/src/project/features/features.test.ts#L52), [`features.test.ts:62`](libs/shared/src/project/features/features.test.ts#L62), [`features.test.ts:72`](libs/shared/src/project/features/features.test.ts#L72), [`features-port.test.ts:28`](libs/shared/src/project/features/features-port.test.ts#L35), [`features-port.test.ts:34`](libs/shared/src/project/features/features-port.test.ts#L41), [`features-port.test.ts:48`](libs/shared/src/project/features/features-port.test.ts#L54), [`features-port.test.ts:58`](libs/shared/src/project/features/features-port.test.ts#L64), [`features-port.test.ts:68`](libs/shared/src/project/features/features-port.test.ts#L74))
 - FR-20.9: Feature planning recovery orphans a running round older than
   the window (even while the runtime reports active), leaves a recent
   active round alone, no-ops when a ready round already moved the feature
@@ -1173,7 +1173,7 @@ share one persistence surface instead of inline SQL. ([validated by `task-queue.
   ([validated by `repo-files.test.ts:54`](libs/shared/src/project/repo/repo-files.test.ts#L55), [`repo-files.test.ts:60`](libs/shared/src/project/repo/repo-files.test.ts#L61), [`repo-files.test.ts:66`](libs/shared/src/project/repo/repo-files.test.ts#L67))
 - FR-20.15: The `PullRequests` port lists only the repo's PRs, merges by
   number with the requested method, and exposes PR reads bound to the
-  repo and number. ([validated by `pull-requests.test.ts:93`](libs/shared/src/project/pulls/pull-requests.test.ts#L94), [`pull-requests.test.ts:117`](libs/shared/src/project/pulls/pull-requests.test.ts#L130), [`pull-requests.test.ts:126`](libs/shared/src/project/pulls/pull-requests.test.ts#L139))
+  repo and number. ([validated by `pull-requests.test.ts:99`](libs/shared/src/project/pulls/pull-requests.test.ts#L99), [`pull-requests.test.ts:135`](libs/shared/src/project/pulls/pull-requests.test.ts#L135), [`pull-requests.test.ts:144`](libs/shared/src/project/pulls/pull-requests.test.ts#L144))
 - FR-20.16: The `Issues` port returns the GitHubPort issues for the
   project's repo, creates an issue bound to the repo, and comments,
   closes, and labels by number bound to the repo. ([validated by `issues.test.ts:58`](libs/shared/src/project/issues/issues.test.ts#L59), [`issues.test.ts:102`](libs/shared/src/project/issues/issues.test.ts#L103), [`issues.test.ts:115`](libs/shared/src/project/issues/issues.test.ts#L116))

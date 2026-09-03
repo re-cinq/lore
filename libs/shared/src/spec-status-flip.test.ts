@@ -32,12 +32,13 @@ function fakeProject(files: Record<string, string | null>): {
     pulls: {
       open: async (
         branch: string,
-        title: string,
-        body: string,
-        _base: string | undefined,
-        labels: string[],
+        {
+          title,
+          body,
+          labels,
+        }: { title: string; body: string; labels?: string[] },
       ) => {
-        state.pulls.push({ branch, title, body, labels });
+        state.pulls.push({ branch, title, body, labels: labels ?? [] });
 
         return { url: `https://example.test/pr/${state.pulls.length}` };
       },

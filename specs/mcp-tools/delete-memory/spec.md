@@ -76,9 +76,9 @@ path), the proxied body, the `unreachableError` message, or
 ## Acceptance Criteria
 
 1. Deleting a key sets `is_deleted = TRUE` scoped to the agent and key and
-   returns `{ key, deleted: true }`. ([validated by `soft-deletes by agent and key, returns deleted true`](libs/server-core/src/features/memory/memory.test.ts#L164))
+   returns `{ key, deleted: true }`. ([validated by `soft-deletes by agent and key, returns deleted true`](libs/server-core/src/features/memory/memory.test.ts#L172))
 
-2. A delete writes a `delete` audit-log entry naming the deleted key. ([validated by `writes a delete audit-log entry for the key`](libs/server-core/src/features/memory/memory.test.ts#L180))
+2. A delete writes a `delete` audit-log entry naming the deleted key. ([validated by `writes a delete audit-log entry for the key`](libs/server-core/src/features/memory/memory.test.ts#L188))
 
 3. The proxy / file-fallback framing has no unit seam. *(untested: the
    proxy/file branches need `LORE_API_URL` or offline mode; the soft-delete core

@@ -49,12 +49,16 @@ async function leasesForEnv(
 }
 
 /** Builds a Project from a repo fullName + two DB connections; Project owns port init (every adapter is constructed here via dynamic import so no heavy dep loads statically). Boot-time composition root, called once per repo. */
+export interface ProjectOptions {
+  env?: NodeJS.ProcessEnv;
+  providers?: ProjectProviders;
+}
+
 export async function createProject(
   fullName: string,
   pgPool: PgPool,
   dgraphClient: DgraphClientPort,
-  env: NodeJS.ProcessEnv = process.env,
-  providers: ProjectProviders = {},
+  { env = process.env, providers = {} }: ProjectOptions = {},
 ): Promise<Project> {
   const ports = new Map<string, unknown>();
 

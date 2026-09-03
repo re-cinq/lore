@@ -42,10 +42,12 @@ describe("GET /api/graph", () => {
 
     expect(vi.mocked(queryLiveGraph).mock.calls[0]).toEqual([
       pool,
-      "auth-service",
-      "uses",
-      "o/r",
-      false,
+      {
+        entity: "auth-service",
+        relationType: "uses",
+        repo: "o/r",
+        includeInvalidated: false,
+      },
     ]);
     expect(res.result).toEqual(rows);
   });
@@ -57,10 +59,12 @@ describe("GET /api/graph", () => {
     await get(pool, "/api/graph?entity=x&include_invalidated=true");
     expect(vi.mocked(queryLiveGraph).mock.calls[0]).toEqual([
       pool,
-      "x",
-      undefined,
-      undefined,
-      true,
+      {
+        entity: "x",
+        relationType: undefined,
+        repo: undefined,
+        includeInvalidated: true,
+      },
     ]);
   });
 

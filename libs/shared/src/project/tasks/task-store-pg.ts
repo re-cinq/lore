@@ -95,7 +95,12 @@ export class PgTaskStore implements TaskStorePort {
     status: string,
     extra?: Record<string, unknown>,
   ): Promise<boolean> {
-    return setTaskStatusIf(this.pool, id, expectedStatus, status, extra);
+    return setTaskStatusIf(
+      this.pool,
+      id,
+      { expected: expectedStatus, status },
+      extra,
+    );
   }
 
   updateStatus(
@@ -112,7 +117,7 @@ export class PgTaskStore implements TaskStorePort {
     toStatus: string | null,
     meta?: Record<string, unknown>,
   ): Promise<void> {
-    return recordEvent(this.pool, id, fromStatus, toStatus, meta);
+    return recordEvent(this.pool, id, { from: fromStatus, to: toStatus }, meta);
   }
 
   cancel(id: string): Promise<{ task_id: string; status: string }> {

@@ -30,8 +30,7 @@ const SAMPLE_DIRS = ["src", "lib", "cmd", "internal", "app", "pkg"];
 async function sampleDirEntries(
   project: Awaited<ReturnType<typeof projectFor>>,
   fullName: string,
-  dir: string,
-  entries: string[],
+  { dir, entries }: { dir: string; entries: string[] },
   samples: Record<string, string>,
 ): Promise<void> {
   for (const entryName of entries) {
@@ -116,7 +115,7 @@ export async function fetchRepoContext(fullName: string): Promise<RepoContext> {
       continue;
     }
 
-    await sampleDirEntries(project, fullName, dir, entries, samples);
+    await sampleDirEntries(project, fullName, { dir, entries }, samples);
   }
 
   return { tree, files, samples };

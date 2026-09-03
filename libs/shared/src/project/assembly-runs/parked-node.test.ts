@@ -98,21 +98,17 @@ describe("parkedHumanNode", () => {
         "running",
         [node("await-spec-merge", 1, null)],
         graphWith(["push", "validate"], ["await-spec-merge", "pr_review"]),
-        "pr_review",
-        "merged",
+        { type: "pr_review", fallbackNodeId: "merged" },
       ),
     ).toEqual({ nodeId: "await-spec-merge", iteration: 1, outcome: null });
   });
 
   it("falls back to the given node id for a run stamped before clones existed", () => {
     expect(
-      parkedHumanNode(
-        "running",
-        [node("merged", 1, null)],
-        null,
-        "pr_review",
-        "merged",
-      ),
+      parkedHumanNode("running", [node("merged", 1, null)], null, {
+        type: "pr_review",
+        fallbackNodeId: "merged",
+      }),
     ).toEqual({ nodeId: "merged", iteration: 1, outcome: null });
   });
 
@@ -122,8 +118,7 @@ describe("parkedHumanNode", () => {
         "running",
         [node("author", 1, null)],
         graphWith(["author", "feature_review"], ["merged", "pr_review"]),
-        "pr_review",
-        "merged",
+        { type: "pr_review", fallbackNodeId: "merged" },
       ),
     ).toBeNull();
   });
@@ -137,8 +132,7 @@ describe("parkedHumanNode", () => {
           ["first-review", "pr_review"],
           ["second-review", "pr_review"],
         ),
-        "pr_review",
-        "merged",
+        { type: "pr_review", fallbackNodeId: "merged" },
       ),
     ).toMatchObject({ nodeId: "second-review" });
   });

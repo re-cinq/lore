@@ -72,50 +72,123 @@ describe("computeCost", () => {
   const HAIKU = "claude-haiku-4-5-20251001";
 
   it("charges cache-creation tokens at 1.25x the input rate", () => {
-    expect(computeCost(HAIKU, 0, 0, 1000, 0)).toBeCloseTo(
-      computeCost(HAIKU, 1000, 0, 0, 0) * 1.25,
+    expect(
+      computeCost(HAIKU, {
+        inputTokens: 0,
+        outputTokens: 0,
+        cacheCreationTokens: 1000,
+        cacheReadTokens: 0,
+      }),
+    ).toBeCloseTo(
+      computeCost(HAIKU, {
+        inputTokens: 1000,
+        outputTokens: 0,
+        cacheCreationTokens: 0,
+        cacheReadTokens: 0,
+      }) * 1.25,
       12,
     );
-    expect(computeCost(HAIKU, 0, 0, 1000, 0)).toBeCloseTo(0.001, 10);
+    expect(
+      computeCost(HAIKU, {
+        inputTokens: 0,
+        outputTokens: 0,
+        cacheCreationTokens: 1000,
+        cacheReadTokens: 0,
+      }),
+    ).toBeCloseTo(0.001, 10);
   });
 
   it("charges cache-read tokens at 0.1x the input rate", () => {
-    expect(computeCost(HAIKU, 0, 0, 0, 1000)).toBeCloseTo(
-      computeCost(HAIKU, 1000, 0, 0, 0) * 0.1,
+    expect(
+      computeCost(HAIKU, {
+        inputTokens: 0,
+        outputTokens: 0,
+        cacheCreationTokens: 0,
+        cacheReadTokens: 1000,
+      }),
+    ).toBeCloseTo(
+      computeCost(HAIKU, {
+        inputTokens: 1000,
+        outputTokens: 0,
+        cacheCreationTokens: 0,
+        cacheReadTokens: 0,
+      }) * 0.1,
       12,
     );
-    expect(computeCost(HAIKU, 0, 0, 0, 1000)).toBeCloseTo(0.00008, 10);
+    expect(
+      computeCost(HAIKU, {
+        inputTokens: 0,
+        outputTokens: 0,
+        cacheCreationTokens: 0,
+        cacheReadTokens: 1000,
+      }),
+    ).toBeCloseTo(0.00008, 10);
   });
 
   it("sums input, output, cache-write and cache-read for a full call", () => {
-    expect(computeCost(HAIKU, 1000, 500, 2000, 4000)).toBeCloseTo(0.00512, 8);
+    expect(
+      computeCost(HAIKU, {
+        inputTokens: 1000,
+        outputTokens: 500,
+        cacheCreationTokens: 2000,
+        cacheReadTokens: 4000,
+      }),
+    ).toBeCloseTo(0.00512, 8);
   });
 
   it("prices a different tier at its own rate, not haiku's", () => {
-    expect(computeCost("claude-sonnet-5", 1_000_000, 0, 0, 0)).toBeCloseTo(
-      2.0,
-      10,
-    );
-    expect(computeCost("claude-opus-5", 0, 1_000_000, 0, 0)).toBeCloseTo(
-      25.0,
-      10,
-    );
+    expect(
+      computeCost("claude-sonnet-5", {
+        inputTokens: 1_000_000,
+        outputTokens: 0,
+        cacheCreationTokens: 0,
+        cacheReadTokens: 0,
+      }),
+    ).toBeCloseTo(2.0, 10);
+    expect(
+      computeCost("claude-opus-5", {
+        inputTokens: 0,
+        outputTokens: 1_000_000,
+        cacheCreationTokens: 0,
+        cacheReadTokens: 0,
+      }),
+    ).toBeCloseTo(25.0, 10);
   });
 
   it("prices claude-fable-5 at its own rate, not the haiku fallback", () => {
-    expect(computeCost("claude-fable-5", 1_000_000, 0, 0, 0)).toBeCloseTo(
-      10.0,
-      10,
-    );
-    expect(computeCost("claude-fable-5", 0, 1_000_000, 0, 0)).toBeCloseTo(
-      50.0,
-      10,
-    );
+    expect(
+      computeCost("claude-fable-5", {
+        inputTokens: 1_000_000,
+        outputTokens: 0,
+        cacheCreationTokens: 0,
+        cacheReadTokens: 0,
+      }),
+    ).toBeCloseTo(10.0, 10);
+    expect(
+      computeCost("claude-fable-5", {
+        inputTokens: 0,
+        outputTokens: 1_000_000,
+        cacheCreationTokens: 0,
+        cacheReadTokens: 0,
+      }),
+    ).toBeCloseTo(50.0, 10);
   });
 
   it("falls back to the haiku rate for an unrecognized model", () => {
-    expect(computeCost("claude-some-future-tier", 1000, 500, 0, 0)).toBeCloseTo(
-      computeCost(HAIKU, 1000, 500, 0, 0),
+    expect(
+      computeCost("claude-some-future-tier", {
+        inputTokens: 1000,
+        outputTokens: 500,
+        cacheCreationTokens: 0,
+        cacheReadTokens: 0,
+      }),
+    ).toBeCloseTo(
+      computeCost(HAIKU, {
+        inputTokens: 1000,
+        outputTokens: 500,
+        cacheCreationTokens: 0,
+        cacheReadTokens: 0,
+      }),
       12,
     );
   });

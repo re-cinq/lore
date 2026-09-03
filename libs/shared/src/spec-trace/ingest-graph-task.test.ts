@@ -46,9 +46,7 @@ describe("selectIngestFiles", () => {
     ];
 
     expect(
-      selectIngestFiles(tree, "specs", undefined, undefined, [
-        "design/**/*.md",
-      ]),
+      selectIngestFiles(tree, "specs", { patterns: ["design/**/*.md"] }),
     ).toEqual(["design/decisions/x.md", "design/draft.md"]);
   });
 });
@@ -83,7 +81,14 @@ describe("chunkGlobsForKind", () => {
 
 describe("summarizeIngest", () => {
   it("reports completed when everything projected", () => {
-    expect(summarizeIngest("specs", 3, 3, 0, [])).toMatchObject({
+    expect(
+      summarizeIngest("specs", {
+        attempted: 3,
+        projected: 3,
+        skipped: 0,
+        failedFiles: [],
+      }),
+    ).toMatchObject({
       status: "completed",
       projected: 3,
       skipped: 0,
@@ -92,22 +97,39 @@ describe("summarizeIngest", () => {
   });
 
   it("reports completed when everything was an unchanged skip", () => {
-    expect(summarizeIngest("specs", 3, 0, 3, [])).toMatchObject({
+    expect(
+      summarizeIngest("specs", {
+        attempted: 3,
+        projected: 0,
+        skipped: 3,
+        failedFiles: [],
+      }),
+    ).toMatchObject({
       status: "completed",
       skipped: 3,
     });
   });
 
   it("reports failed only when every attempted file failed", () => {
-    expect(summarizeIngest("specs", 2, 0, 0, ["a.md", "b.md"]).status).toBe(
-      "failed",
-    );
+    expect(
+      summarizeIngest("specs", {
+        attempted: 2,
+        projected: 0,
+        skipped: 0,
+        failedFiles: ["a.md", "b.md"],
+      }).status,
+    ).toBe("failed");
   });
 
   it("stays completed on a partial failure", () => {
-    expect(summarizeIngest("specs", 3, 2, 0, ["c.md"]).status).toBe(
-      "completed",
-    );
+    expect(
+      summarizeIngest("specs", {
+        attempted: 3,
+        projected: 2,
+        skipped: 0,
+        failedFiles: ["c.md"],
+      }).status,
+    ).toBe("completed");
   });
 });
 
@@ -118,7 +140,7 @@ function fakeRegistry(): Record<string, IngestKindDef> {
     specs: {
       prefixes: ["specs/", ".specify/"],
       runsOn: "runner+local",
-      project: async (_repo, filePath, content) => {
+      project: async ({ filePath, content }) => {
         const key = `${filePath}:${content}`;
 
         if (seen.has(key)) {
@@ -142,7 +164,7 @@ describe("runIngestGraph", () => {
       specs: {
         prefixes: ["specs/"],
         runsOn: "runner+local",
-        project: async (_repo, _path, _content, _dgraph, embed) => {
+        project: async (_doc, _dgraph, { embed } = {}) => {
           embedsSeen.push(embed);
 
           return { projected: true };

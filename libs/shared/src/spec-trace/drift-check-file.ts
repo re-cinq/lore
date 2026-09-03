@@ -187,9 +187,11 @@ async function applyDriftSeverity(
 async function driftChunkStatements(
   dgraph: DgraphClientPort,
   chunk: GraphCodeChunk,
-  driftReason: string,
+  {
+    reason: driftReason,
+    severitySource,
+  }: { reason: string; severitySource?: number[] },
   drifted: DriftedStatement[],
-  severitySource?: number[],
 ): Promise<void> {
   for (const node of collectAffectedNodes(chunk)) {
     await applyDrift(dgraph, node.uid, driftReason, node.nodeType);
@@ -231,7 +233,12 @@ export async function driftCheckFile(
     );
 
     if (!replacement) {
-      await driftChunkStatements(dgraph, chunk, linkRotReason, drifted);
+      await driftChunkStatements(
+        dgraph,
+        chunk,
+        { reason: linkRotReason },
+        drifted,
+      );
       continue;
     }
 
@@ -259,9 +266,8 @@ export async function driftCheckFile(
     await driftChunkStatements(
       dgraph,
       chunk,
-      driftReason,
+      { reason: driftReason, severitySource: replacement.embedding },
       drifted,
-      replacement.embedding,
     );
   }
 

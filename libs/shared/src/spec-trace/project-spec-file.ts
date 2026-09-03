@@ -1,6 +1,7 @@
 /** Phase 1 projection unit: projects one spec file into the Dgraph traceability graph (Repo/Spec/Section/Statement/TestChunk/CodeChunk/AcceptanceCriterion/Block), gated by a `Spec.content_hash` freshness check. */
 
 import { createHash } from "node:crypto";
+import type { SourceDocument } from "./project-blocks.js";
 import {
   segmentStatements,
   parseTestLinksInStatement,
@@ -169,13 +170,18 @@ const lineScopedXid: ChunkXid = (repo, link) =>
   `${repo}|${link.path}|${link.line ?? link.label}`;
 
 /** Parses inline links in `text`, upserts one chunk node of `nodeType` per link, and returns their uids; shared by the file-scoped `validated_by` (TestChunk) and line-scoped `implemented_by` (CodeChunk) facets. */
+/** One linked-chunk facet: how its links are parsed out of a statement, the node type they become, how each is identified, and any extra fields it carries. */
+interface LinkedChunkKind {
+  parse: LinkParser;
+  nodeType: SpecTraceNodeType;
+  buildXid: ChunkXid;
+  extraFields?: ExtraChunkFields;
+}
+
 async function projectLinkedChunks(
   context: ProjectionContext,
   text: string,
-  parse: LinkParser,
-  nodeType: SpecTraceNodeType,
-  buildXid: ChunkXid,
-  extraFields: ExtraChunkFields = () => ({}),
+  { parse, nodeType, buildXid, extraFields = () => ({}) }: LinkedChunkKind,
 ): Promise<Array<{ uid: string }>> {
   const { dgraph, repo, filePath } = context;
   const edgeRefs: Array<{ uid: string }> = [];
@@ -220,24 +226,20 @@ async function projectLinkEdges(
   predicates: LinkPredicates,
 ): Promise<void> {
   const { dgraph } = context;
-  const validatedBy = await projectLinkedChunks(
-    context,
-    text,
-    parseTestLinksInStatement,
-    "TestChunk",
-    fileScopedXid,
-    (link) => ({
+  const validatedBy = await projectLinkedChunks(context, text, {
+    parse: parseTestLinksInStatement,
+    nodeType: "TestChunk",
+    buildXid: fileScopedXid,
+    extraFields: (link) => ({
       "TestChunk.test_name": link.label,
       "TestChunk.link_label": link.label,
     }),
-  );
-  const implementedBy = await projectLinkedChunks(
-    context,
-    text,
-    parseCodeLinksInStatement,
-    "CodeChunk",
-    lineScopedXid,
-  );
+  });
+  const implementedBy = await projectLinkedChunks(context, text, {
+    parse: parseCodeLinksInStatement,
+    nodeType: "CodeChunk",
+    buildXid: lineScopedXid,
+  });
 
   const previousLinks = await readLinkTargets(dgraph, ownerUid, predicates);
   const newValidated = validatedBy.map((ref) => ref.uid);
@@ -247,18 +249,14 @@ async function projectLinkEdges(
   await replaceEdge(dgraph, ownerUid, predicates.implementedBy, newImplemented);
 
   // A dropped chunk is deleted only if nothing else owns it (another link, or a Coverage row).
-  await gcOrphanChunks(
-    dgraph,
-    "TestChunk",
-    previousLinks.validated,
-    newValidated,
-  );
-  await gcOrphanChunks(
-    dgraph,
-    "CodeChunk",
-    previousLinks.implemented,
-    newImplemented,
-  );
+  await gcOrphanChunks(dgraph, "TestChunk", {
+    previous: previousLinks.validated,
+    current: newValidated,
+  });
+  await gcOrphanChunks(dgraph, "CodeChunk", {
+    previous: previousLinks.implemented,
+    current: newImplemented,
+  });
 }
 
 /** Upserts one Statement, its inline-link chunks, and its `Statement.section` edge when the segment sits under a heading. */
@@ -465,22 +463,23 @@ async function projectBlocks(
   const { dgraph, repo, filePath, specUid } = context;
   const validBlockXids = await projectDocumentBlocks(
     dgraph,
-    repo,
-    filePath,
-    content,
+    { repo, filePath, content },
     specUid,
   );
 
   await pruneOrphanBlocksByFile(dgraph, repo, filePath, validBlockXids);
 }
 
+/** Knobs on one projection: the embedder to use and whether to bypass the content-hash freshness gate. */
+export interface ProjectionOptions {
+  embed?: EmbedFn;
+  force?: boolean;
+}
+
 export async function projectSpecFile(
-  repo: string,
-  filePath: string,
-  content: string,
+  { repo, filePath, content }: SourceDocument,
   dgraph: DgraphClientPort,
-  embed: EmbedFn = getQueryEmbedding,
-  force = false,
+  { embed = getQueryEmbedding, force = false }: ProjectionOptions = {},
 ): Promise<{ projected: boolean }> {
   const contentHash = sha256(content);
 

@@ -152,12 +152,17 @@ export function boundedStationRunInput(input: {
 }
 
 /** Pure: the Agent dispatch spec for one agent-node — prompt resolved per node, model from the node else inherited. */
+/** Which visit of the node this spec is for; a first visit needs neither field. */
+export interface NodeVisit {
+  iteration?: number;
+  stationRunId?: string;
+}
+
 export function nodeAgentSpec(
   node: RunGraphNode,
   task: FloorAssemblyRunTask,
   prompt: string,
-  iteration = 1,
-  stationRunId?: string,
+  { iteration = 1, stationRunId }: NodeVisit = {},
 ): LoreTaskSpec {
   return {
     taskId: task.taskId,

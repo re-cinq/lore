@@ -43,8 +43,7 @@ export default function GlobalDocsView({
     docs,
     (doc) => statusOf(doc.repo, doc.filePath),
     filter,
-    query,
-    (doc) => `${doc.repo} ${doc.filePath}`,
+    { query, textOf: (doc) => `${doc.repo} ${doc.filePath}` },
   );
 
   const byRepo = new Map<string, string[]>();

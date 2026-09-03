@@ -218,12 +218,17 @@ export function specSlugFromBranch(branch: string): string | null {
  * key is spec_task_id + spec_slug + target_repo. Relocated from mcp-server so the
  * Floor spec-PR-merge event handler and the mcp pipeline tools share one writer.
  */
+/** The spec whose tasks.md is being synced, and the group its tasks land in. */
+export interface SpecTaskSource {
+  repo: string;
+  specSlug: string;
+  taskGroupId?: string;
+}
+
 export async function syncTasksToDb(
   pool: PgPool,
-  repo: string,
-  specSlug: string,
+  { repo, specSlug, taskGroupId }: SpecTaskSource,
   tasks: ParsedTask[],
-  taskGroupId?: string,
 ): Promise<{ synced: number; created: number }> {
   let created = 0;
 

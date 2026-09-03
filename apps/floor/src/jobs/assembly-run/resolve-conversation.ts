@@ -80,17 +80,18 @@ const NO_SUCH_LINE = "00000000-0000-0000-0000-000000000000";
  * thread key the run cannot satisfy — the last is logged, because a definition
  * naming an arg the run does not carry is a wiring bug, not a fresh conversation.
  */
+/** The visit being launched and what came before it. `priorOutcome` is REQUIRED, deliberately: with a default, the production wiring passed a shorter lambda and TypeScript accepted it, so every retry silently inherited the failed attempt's context while the unit tests stayed green. */
+export interface ConversationVisit {
+  iteration: number;
+  /** Outcome of this node's most recent visit — how a retry is told from a round. */
+  priorOutcome: string | null;
+}
+
 export async function resolveConversation(
   node: RunGraphNode,
   task: FloorAssemblyRunTask,
-  iteration: number,
+  { iteration, priorOutcome }: ConversationVisit,
   deps: ResolveConversationDeps,
-  /** Outcome of this node's most recent visit — how a retry is told from a round.
-   *  REQUIRED, deliberately: with a default, the production wiring passed a
-   *  three-parameter lambda and TypeScript accepted it (fewer params is assignable),
-   *  so every retry silently inherited the failed attempt's context while the unit
-   *  tests — which call this directly — stayed green. */
-  priorOutcome: string | null,
 ): Promise<LoreTaskSpec["conversation"] | undefined> {
   if (!node.continues || !mayContinue(priorOutcome)) {
     return undefined;

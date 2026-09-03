@@ -87,7 +87,7 @@ describe("POST /api/episode", () => {
 
     vi.mocked(extractAndUpdateGraph).mockImplementation(
       async (...args: any[]) => {
-        const llm = args[5];
+        const llm = args[3];
 
         if (llm) {
           await llm("prompt");

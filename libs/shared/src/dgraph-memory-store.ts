@@ -266,8 +266,7 @@ export class DgraphMemoryStore implements MemoryStore {
         await this.invalidateContradictions(
           input.agentId,
           input.embedding,
-          xid,
-          factUid,
+          { xid, uid: factUid },
           now,
         );
       }
@@ -280,8 +279,7 @@ export class DgraphMemoryStore implements MemoryStore {
   private async invalidateContradictions(
     agentId: string,
     embedding: number[],
-    newXid: string,
-    newUid: string | undefined,
+    { xid: newXid, uid: newUid }: { xid: string; uid: string | undefined },
     now: string,
   ): Promise<void> {
     const candidates = await this.withTxn(async (txn) => {

@@ -142,12 +142,17 @@ export interface CacheBreakAnalysis {
 }
 
 /** Classifies a cache miss; call AFTER the LLM call returns so cache_read_tokens is visible. Reads/writes module-level state keyed by jobName. */
+/** What this call observed once the response came back. */
+interface CacheObservation {
+  isHit: boolean;
+  cacheCreationTokens: number;
+  now: number;
+}
+
 function classifyCacheBreak(
   prev: CacheState | undefined,
   newHash: PrefixHash,
-  isHit: boolean,
-  cacheCreationTokens: number,
-  now: number,
+  { isHit, cacheCreationTokens, now }: CacheObservation,
 ): CacheBreakAnalysis {
   if (isHit) {
     return { status: "hit" };
@@ -194,13 +199,11 @@ export function analyzeCacheBreak(
   const prev = cacheStateByJob.get(key);
   const now = Date.now();
   const isHit = cacheReadTokens > 0;
-  const analysis = classifyCacheBreak(
-    prev,
-    newHash,
+  const analysis = classifyCacheBreak(prev, newHash, {
     isHit,
     cacheCreationTokens,
     now,
-  );
+  });
 
   cacheStateByJob.set(key, {
     systemHash: newHash.system,

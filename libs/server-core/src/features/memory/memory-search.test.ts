@@ -19,12 +19,9 @@ describe("searchMemories", () => {
   it("returns empty when the named pool does not exist", async () => {
     const pool = poolWithNoSuchPool();
 
-    const results = await searchMemories(
-      pool,
-      "deploy gotcha",
-      undefined,
-      "ghost-pool",
-    );
+    const results = await searchMemories(pool, "deploy gotcha", {
+      poolName: "ghost-pool",
+    });
 
     expect(results).toEqual([]);
   });
@@ -32,7 +29,7 @@ describe("searchMemories", () => {
   it("resolves the pool by name before searching", async () => {
     const pool = poolWithNoSuchPool();
 
-    await searchMemories(pool, "deploy gotcha", undefined, "ghost-pool");
+    await searchMemories(pool, "deploy gotcha", { poolName: "ghost-pool" });
 
     expect(pool.calls[0]).toMatchObject({
       params: ["ghost-pool"],

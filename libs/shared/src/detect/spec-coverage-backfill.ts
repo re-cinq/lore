@@ -581,8 +581,7 @@ export async function specCoverageBackfillJob(
       const summary = await runBackfillForSpec(
         project,
         repo,
-        specPath,
-        chunks,
+        { path: specPath, chunks },
         codeChunks,
       );
 
@@ -633,8 +632,10 @@ interface SpecBackfillSummary {
 async function runBackfillForSpec(
   project: Project,
   repo: string,
-  specPath: string,
-  chunks: SpecChunkWithEmbedding[],
+  {
+    path: specPath,
+    chunks,
+  }: { path: string; chunks: SpecChunkWithEmbedding[] },
   codeChunks: TestChunk[],
 ): Promise<SpecBackfillSummary> {
   const content = reassembleSpec(
@@ -735,10 +736,11 @@ async function runBackfillForSpec(
       newContent,
       `lore: backfill suggested test links for ${specPath}`,
     );
-    const pr = await project.pulls.open(branch, title, body, undefined, [
-      "lore-managed",
-      "spec-coverage-backfill",
-    ]);
+    const pr = await project.pulls.open(branch, {
+      title,
+      body,
+      labels: ["lore-managed", "spec-coverage-backfill"],
+    });
 
     return { suggestions: applied, prUrl: pr.url };
   } catch (err) {

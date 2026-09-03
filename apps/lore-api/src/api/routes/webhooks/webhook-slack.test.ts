@@ -178,14 +178,14 @@ describe("POST /api/webhook/slack", () => {
     );
 
     expect(text(res.result)).toContain("Priority: `immediate`");
-    expect(createTask).toHaveBeenCalledWith(
-      "add caching",
-      "implementation",
-      "o/r",
-      "slack:bob",
-      { slack_channel_id: "C1", slack_user: "bob" },
-      "immediate",
-    );
+    expect(createTask).toHaveBeenCalledWith({
+      description: "add caching",
+      taskType: "implementation",
+      targetRepo: "o/r",
+      createdBy: "slack:bob",
+      contextBundle: { slack_channel_id: "C1", slack_user: "bob" },
+      priority: "immediate",
+    });
   });
 
   it("creates a normal-priority task and reports the backlog", async () => {
@@ -227,14 +227,14 @@ describe("POST /api/webhook/slack", () => {
       pool,
     );
 
-    expect(createTask).toHaveBeenCalledWith(
-      "retry",
-      "general",
-      "o/r",
-      "slack:bob",
-      { slack_channel_id: "C1", slack_user: "bob" },
-      "normal",
-    );
+    expect(createTask).toHaveBeenCalledWith({
+      description: "retry",
+      taskType: "general",
+      targetRepo: "o/r",
+      createdBy: "slack:bob",
+      contextBundle: { slack_channel_id: "C1", slack_user: "bob" },
+      priority: "normal",
+    });
     expect(text(res.result)).toContain("Type: `general`");
   });
 
@@ -249,14 +249,14 @@ describe("POST /api/webhook/slack", () => {
       pool,
     );
 
-    expect(createTask).toHaveBeenCalledWith(
-      "fix the login bug",
-      "general",
-      "o/r",
-      "slack:bob",
-      { slack_channel_id: "C1", slack_user: "bob" },
-      "immediate",
-    );
+    expect(createTask).toHaveBeenCalledWith({
+      description: "fix the login bug",
+      taskType: "general",
+      targetRepo: "o/r",
+      createdBy: "slack:bob",
+      contextBundle: { slack_channel_id: "C1", slack_user: "bob" },
+      priority: "immediate",
+    });
     expect(text(res.result)).toContain("Priority: `immediate`");
   });
 });

@@ -114,13 +114,10 @@ describe("PgFeatures.setIterationResult", () => {
       draft_spec_markdown: "# x",
     };
 
-    await new PgFeatures(pool).setIterationResult(
-      "octo/repo",
-      "f1",
-      1,
+    await new PgFeatures(pool).setIterationResult("octo/repo", "f1", 1, {
       gap,
-      "ready",
-    );
+      status: "ready",
+    });
     expect(calls[0].text).toContain("UPDATE lore.feature_iterations");
     expect(calls[0].text).toContain("repo = $5");
     expect(calls[0].params).toEqual([

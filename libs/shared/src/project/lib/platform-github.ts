@@ -1,4 +1,6 @@
 import type { Octokit } from "octokit";
+import type { FileChange } from "./github-port.js";
+import type { PullDraft } from "../pulls/pull-requests-port.js";
 import { withoutBlindRetryOnCreates } from "./octokit-retry-policy.js";
 import { enforceTrue } from "../../lib/enforce.js";
 import type {
@@ -410,9 +412,7 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
   async commitFile(
     repo: string,
     branch: string,
-    path: string,
-    content: string,
-    message: string,
+    { path, content, message }: FileChange,
   ): Promise<void> {
     const ok = await this.octo();
     const [owner, name] = split(repo);
@@ -617,11 +617,13 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
   async open(
     repo: string,
     branch: string,
-    title: string,
-    body: string,
-    base?: string,
-    labels: string[] = ["agent-generated"],
-    draft = false,
+    {
+      title,
+      body,
+      base,
+      labels = ["agent-generated"],
+      draft = false,
+    }: PullDraft,
   ): Promise<PullRef> {
     const ok = await this.octo();
     const [owner, name] = split(repo);

@@ -359,13 +359,19 @@ describe("PlatformGitHub review threads (GraphQL)", () => {
   });
 
   it("open creates a draft pull request when asked for one", async () => {
-    await gh().open("re-cinq/lore", "topic", "T", "B", "main", [], true);
+    await gh().open("re-cinq/lore", "topic", {
+      title: "T",
+      body: "B",
+      base: "main",
+      labels: [],
+      draft: true,
+    });
 
     expect(state.createCall).toMatchObject({ draft: true });
   });
 
   it("open creates a ready pull request by default", async () => {
-    await gh().open("re-cinq/lore", "topic", "T", "B");
+    await gh().open("re-cinq/lore", "topic", { title: "T", body: "B" });
 
     expect(state.createCall?.draft).toBeFalsy();
   });

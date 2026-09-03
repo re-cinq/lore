@@ -153,7 +153,10 @@ export async function ingestCoverageReport(
       fileTargets,
     );
     // Delete the File nodes this coverage dropped that no other coverage still owns.
-    await gcOrphanChunks(dgraph, "File", previousCovers, fileUids);
+    await gcOrphanChunks(dgraph, "File", {
+      previous: previousCovers,
+      current: fileUids,
+    });
     coversEdges += fileUids.length;
 
     // Connect the Coverage node and its covered Files to the Repo root so neither

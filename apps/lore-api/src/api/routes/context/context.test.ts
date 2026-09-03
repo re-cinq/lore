@@ -51,14 +51,15 @@ describe("GET /api/context", () => {
     expect(vi.mocked(assembleContext).mock.calls[0]).toEqual([
       pool,
       "hi",
-      "default",
-      8000,
-      undefined,
-      undefined,
-      false,
-      undefined,
-      true,
-      null,
+      {
+        templateName: "default",
+        maxTokens: 8000,
+        repo: undefined,
+        agentId: undefined,
+        crossRepo: false,
+        debug: true,
+        dgraph: null,
+      },
     ]);
     expect(res.result).toEqual({
       text: "ctx",
@@ -78,9 +79,11 @@ describe("GET /api/context", () => {
     );
     const call = vi.mocked(assembleContext).mock.calls[0];
 
-    expect(call[3]).toBe(16000);
-    expect(call[5]).toBe("a-1");
-    expect(call[6]).toBe(true);
+    expect(call[2]).toMatchObject({
+      maxTokens: 16000,
+      agentId: "a-1",
+      crossRepo: true,
+    });
   });
 
   it("keeps the 8000 default when max_tokens is absent or invalid", async () => {
@@ -89,7 +92,7 @@ describe("GET /api/context", () => {
       sections: [],
     } as any);
     await get(makePool(), "/api/context?query=hi&max_tokens=abc");
-    expect(vi.mocked(assembleContext).mock.calls[0][3]).toBe(8000);
+    expect(vi.mocked(assembleContext).mock.calls[0][2]?.maxTokens).toBe(8000);
   });
 
   it("falls back to 8000 when max_tokens exceeds the 128000 server cap", async () => {
@@ -98,7 +101,7 @@ describe("GET /api/context", () => {
       sections: [],
     } as any);
     await get(makePool(), "/api/context?query=hi&max_tokens=1000000");
-    expect(vi.mocked(assembleContext).mock.calls[0][3]).toBe(8000);
+    expect(vi.mocked(assembleContext).mock.calls[0][2]?.maxTokens).toBe(8000);
   });
 
   it("enables cross_repo from repo settings when the param is not set", async () => {
@@ -112,7 +115,7 @@ describe("GET /api/context", () => {
       rows: [{ settings: { cross_repo: true } }],
     });
     await get(pool, "/api/context?query=hi&repo=o/r");
-    expect(vi.mocked(assembleContext).mock.calls[0][6]).toBe(true);
+    expect(vi.mocked(assembleContext).mock.calls[0][2]?.crossRepo).toBe(true);
   });
 
   it("nulls text when assembleContext returns empty text", async () => {

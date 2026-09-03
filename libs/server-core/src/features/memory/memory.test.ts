@@ -62,7 +62,11 @@ describe("writeMemory", () => {
 
     setMemoryPool(pool);
 
-    const result = await writeMemory("auth-pattern", "use JWT", "agent-7");
+    const result = await writeMemory({
+      key: "auth-pattern",
+      value: "use JWT",
+      agentId: "agent-7",
+    });
 
     expect(result).toEqual({
       key: "auth-pattern",
@@ -89,7 +93,11 @@ describe("writeMemory", () => {
 
     setMemoryPool(pool);
 
-    const result = await writeMemory("auth-pattern", "use JWT", "agent-7");
+    const result = await writeMemory({
+      key: "auth-pattern",
+      value: "use JWT",
+      agentId: "agent-7",
+    });
 
     expect(result.version).toBe(3);
     const update = pool.calls.find((c) =>
@@ -384,7 +392,11 @@ describe("writeMemory transactional write", () => {
 
     setMemoryPool(pool);
 
-    const result = await writeMemory("tx-key", "tx-value", "agent-tx");
+    const result = await writeMemory({
+      key: "tx-key",
+      value: "tx-value",
+      agentId: "agent-tx",
+    });
 
     expect(result).toEqual({
       key: "tx-key",
@@ -411,9 +423,9 @@ describe("writeMemory transactional write", () => {
 
     setMemoryPool(pool);
 
-    await expect(writeMemory("tx-key", "tx-value", "agent-tx")).rejects.toThrow(
-      'relation "memory.memory_versions" does not exist',
-    );
+    await expect(
+      writeMemory({ key: "tx-key", value: "tx-value", agentId: "agent-tx" }),
+    ).rejects.toThrow('relation "memory.memory_versions" does not exist');
 
     const sqls = pool.clientCalls.map((c) => c.sql);
 
@@ -456,9 +468,9 @@ describe("writeMemory transactional write", () => {
 
     setMemoryPool(pool);
 
-    await expect(writeMemory("tx-key", "tx-value", "agent-tx")).rejects.toThrow(
-      'relation "memory.memory_versions" does not exist',
-    );
+    await expect(
+      writeMemory({ key: "tx-key", value: "tx-value", agentId: "agent-tx" }),
+    ).rejects.toThrow('relation "memory.memory_versions" does not exist');
 
     const sqls = clientCalls.map((c) => c.sql);
 
@@ -530,12 +542,11 @@ describe("sharedWrite transactional write", () => {
 
     setMemoryPool(pool);
 
-    const result = await sharedWrite(
-      "team-pool",
-      "shared-key",
-      "shared-value",
-      "agent-sh",
-    );
+    const result = await sharedWrite("team-pool", {
+      key: "shared-key",
+      value: "shared-value",
+      agentId: "agent-sh",
+    });
 
     expect(result).toEqual({
       key: "shared-key",
@@ -572,7 +583,11 @@ describe("sharedWrite transactional write", () => {
     setMemoryPool(pool);
 
     await expect(
-      sharedWrite("team-pool", "shared-key", "shared-value", "agent-sh"),
+      sharedWrite("team-pool", {
+        key: "shared-key",
+        value: "shared-value",
+        agentId: "agent-sh",
+      }),
     ).rejects.toThrow('relation "memory.memory_versions" does not exist');
 
     const sqls = pool.clientCalls.map((c) => c.sql);
@@ -597,12 +612,11 @@ describe("sharedWrite transactional write", () => {
 
     setMemoryPool(pool);
 
-    const result = await sharedWrite(
-      "team-pool",
-      "shared-key",
-      "shared-value",
-      "agent-sh",
-    );
+    const result = await sharedWrite("team-pool", {
+      key: "shared-key",
+      value: "shared-value",
+      agentId: "agent-sh",
+    });
 
     expect(result).toEqual({
       key: "shared-key",
@@ -633,7 +647,12 @@ describe("writeMemory ttl parameterization", () => {
 
     setMemoryPool(pool);
 
-    await writeMemory("ttl-key", "ttl-value", "agent-ttl", 3600);
+    await writeMemory({
+      key: "ttl-key",
+      value: "ttl-value",
+      agentId: "agent-ttl",
+      ttl: 3600,
+    });
 
     const insert = pool.calls.find((c) =>
       /INSERT INTO memory\.memories/.test(c.sql),
@@ -666,7 +685,12 @@ describe("writeMemory ttl parameterization", () => {
 
     setMemoryPool(pool);
 
-    await writeMemory("ttl-key", "ttl-value", "agent-ttl", 3600);
+    await writeMemory({
+      key: "ttl-key",
+      value: "ttl-value",
+      agentId: "agent-ttl",
+      ttl: 3600,
+    });
 
     const update = pool.calls.find((c) =>
       /UPDATE memory\.memories/.test(c.sql),
@@ -699,7 +723,11 @@ describe("writeMemory ttl parameterization", () => {
 
     setMemoryPool(pool);
 
-    await writeMemory("ttl-key", "ttl-value", "agent-ttl");
+    await writeMemory({
+      key: "ttl-key",
+      value: "ttl-value",
+      agentId: "agent-ttl",
+    });
 
     const insert = pool.calls.find((c) =>
       /INSERT INTO memory\.memories/.test(c.sql),

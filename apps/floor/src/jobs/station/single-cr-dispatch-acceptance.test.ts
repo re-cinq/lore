@@ -35,16 +35,16 @@ const spec = (taskType: string): LoreTaskSpec => ({
 
 function harness(settings: Record<string, unknown> | null = null) {
   const runs = new InMemoryAssemblyRuns();
-  const backend = new AgentCrStationBackend(
-    {
+  const backend = new AgentCrStationBackend({
+    assemblyLine: {
       launch: async () => ({ ref: "assembly-line", launched: true }),
       isActive: async () => true,
     },
-    new Set(["implementation", "general", "gap-fill"]),
-    runs,
-    { listByLabel: async () => [] },
-    async () => settings,
-  );
+    assemblyLineNames: new Set(["implementation", "general", "gap-fill"]),
+    assemblyRuns: runs,
+    agents: { listByLabel: async () => [] },
+    repoSettings: async () => settings,
+  });
 
   return { runs, backend };
 }

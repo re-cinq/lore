@@ -349,9 +349,11 @@ async function completeNoChangeTask(
     }
     writeEpisode(
       { memory: memoryLifecycle() },
-      `Task ${taskType} on ${target_repo} completed (no changes)\nDescription: ${description.substring(0, 500)}\nOutput: ${output.substring(0, 2000)}`,
-      "ci",
-      `${target_repo}/${taskId}`,
+      {
+        content: `Task ${taskType} on ${target_repo} completed (no changes)\nDescription: ${description.substring(0, 500)}\nOutput: ${output.substring(0, 2000)}`,
+        source: "ci",
+        ref: `${target_repo}/${taskId}`,
+      },
     ).catch(() => {});
     console.log(
       `[agent-watcher] Task ${taskId} completed → issue #${issue_number || "none"}`,
@@ -408,11 +410,10 @@ async function handleSucceededChanges(ctx: AgentContext): Promise<void> {
       uiUrl: process.env.LORE_UI_URL,
     });
     const prProject = await projectFor(targetRepo);
-    const pr = await prProject.pulls.open(
-      branch,
-      copy.title,
-      `${body}${footer}`,
-    );
+    const pr = await prProject.pulls.open(branch, {
+      title: copy.title,
+      body: `${body}${footer}`,
+    });
 
     await taskStore().setStatus(taskId, "pr-created", {
       pr_url: pr.url,
@@ -456,11 +457,13 @@ async function handleSucceededChanges(ctx: AgentContext): Promise<void> {
     await notifyTaskUpdate(taskId, targetRepo, "pr", pr.url);
     writeEpisodeWithCuration(
       { memory: memoryLifecycle() },
-      `Task ${taskType} on ${targetRepo}: created PR ${pr.url}\nChanged files: ${changedFiles}\nDescription: ${description.substring(0, 500)}`,
-      "ci",
-      `${targetRepo}/${taskId}`,
-      "agent-watcher",
-      taskId,
+      {
+        content: `Task ${taskType} on ${targetRepo}: created PR ${pr.url}\nChanged files: ${changedFiles}\nDescription: ${description.substring(0, 500)}`,
+        source: "ci",
+        ref: `${targetRepo}/${taskId}`,
+        agentId: "agent-watcher",
+        taskId,
+      },
     ).catch(() => {});
 
     // Deterministic CI gate (D3): fire auto-merge only once CI is green; a red/running CI defers to the webhook re-trigger.
@@ -585,13 +588,11 @@ async function handleFailure(ctx: AgentContext, reason: string): Promise<void> {
     isTransientInfraFailure(reason) &&
     infraRetries < MAX_INFRA_RETRIES
   ) {
-    await requeueTransientInfraFailure(
-      ctx,
-      failedTask,
+    await requeueTransientInfraFailure(ctx, failedTask, {
       reason,
       taskUrl,
       infraRetries,
-    );
+    });
 
     return;
   }
@@ -617,23 +618,29 @@ async function handleFailure(ctx: AgentContext, reason: string): Promise<void> {
     );
     writeEpisodeWithCuration(
       { memory: memoryLifecycle() },
-      `Task failed on ${targetRepo}: ${taskType}\n\nDescription: ${description}\n\nFailure: ${reason}\n\nOutput:\n${output.slice(-2000)}`,
-      "ci",
-      `${targetRepo}/${taskId}`,
-      "agent-watcher",
-      taskId,
+      {
+        content: `Task failed on ${targetRepo}: ${taskType}\n\nDescription: ${description}\n\nFailure: ${reason}\n\nOutput:\n${output.slice(-2000)}`,
+        source: "ci",
+        ref: `${targetRepo}/${taskId}`,
+        agentId: "agent-watcher",
+        taskId,
+      },
     ).catch(() => {});
     console.log(`[agent-watcher] Task ${taskId} failed: ${reason}`);
   }
 }
 
 /** Bounded re-queue of a transient-infra failure, carrying the retry count forward and keeping the Issue thread. */
+interface TransientInfraFailure {
+  reason: string;
+  taskUrl: string | undefined;
+  infraRetries: number;
+}
+
 async function requeueTransientInfraFailure(
   ctx: AgentContext,
   failedTask: PipelineTask,
-  reason: string,
-  taskUrl: string | undefined,
-  infraRetries: number,
+  { reason, taskUrl, infraRetries }: TransientInfraFailure,
 ): Promise<void> {
   const { taskId, taskType, targetRepo, description } = ctx;
   const bundle = failedTask.context_bundle ?? {};

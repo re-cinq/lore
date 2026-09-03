@@ -26,14 +26,24 @@ export interface MemorySearchResult {
 
 // ── Main entry point ────────────────────────────────────────────────
 
+export interface MemorySearchOptions {
+  agentId?: string;
+  poolName?: string;
+  limit?: number;
+  includeInvalidated?: boolean;
+  graphAugment?: boolean;
+}
+
 export async function searchMemories(
   pool: PgPool,
   query: string,
-  agentId?: string,
-  poolName?: string,
-  limit: number = 10,
-  includeInvalidated: boolean = false,
-  graphAugmentEnabled: boolean = false,
+  {
+    agentId,
+    poolName,
+    limit = 10,
+    includeInvalidated = false,
+    graphAugment: graphAugmentEnabled = false,
+  }: MemorySearchOptions = {},
 ): Promise<MemorySearchResult[]> {
   const searchStartTime = Date.now();
   const agent = agentId ? resolveAgentId(agentId) : null;
@@ -43,7 +53,7 @@ export async function searchMemories(
 
   if (poolName && poolId === null) {
     // Pool does not exist — return empty
-    await auditLog(pool, agent, query, 0);
+    await auditLog(pool, { agentId: agent, query, resultCount: 0 });
 
     return [];
   }
@@ -95,7 +105,12 @@ export async function searchMemories(
   // Audit log with latency
   const latencyMs = Date.now() - searchStartTime;
 
-  await auditLog(pool, agent, query, results.length, latencyMs);
+  await auditLog(pool, {
+    agentId: agent,
+    query,
+    resultCount: results.length,
+    latencyMs,
+  });
 
   return results;
 }
@@ -462,12 +477,16 @@ function addUniqueEdgeResults(
 
 // ── Audit helper ────────────────────────────────────────────────────
 
+interface SearchAudit {
+  agentId: string | null;
+  query: string;
+  resultCount: number;
+  latencyMs?: number;
+}
+
 async function auditLog(
   pool: PgPool,
-  agentId: string | null,
-  query: string,
-  resultCount: number,
-  latencyMs?: number,
+  { agentId, query, resultCount, latencyMs }: SearchAudit,
 ): Promise<void> {
   try {
     await pool.query(

@@ -223,8 +223,7 @@ function containOverflowVelocity(
 export function containedVelocity(
   point: Point,
   velocity: { vx: number; vy: number },
-  center: Point,
-  radius: number,
+  { center, radius }: { center: Point; radius: number },
   {
     returnPull = 0.1,
     maxReturn = 6,

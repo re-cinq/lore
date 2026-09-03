@@ -28,19 +28,31 @@ const SINGLE_CR_NODE_ID = "agent";
 /** Run rows a single-CR re-dispatch may converge on rather than opening a second. */
 const OPEN_STATUSES = ["queued", "running"];
 
+export interface AgentCrStationBackendDeps {
+  assemblyLine: StationBackend;
+  assemblyLineNames: ReadonlySet<string>;
+  assemblyRuns: Pick<
+    AssemblyRunsPort,
+    "start" | "listForTask" | "ensureStationRun"
+  >;
+  agents: AgentLister;
+  repoSettings: (repo: string) => Promise<Record<string, unknown> | null>;
+}
+
 export class AgentCrStationBackend implements StationBackend {
-  constructor(
-    private readonly assemblyLine: StationBackend,
-    private readonly assemblyLineNames: ReadonlySet<string>,
-    private readonly assemblyRuns: Pick<
-      AssemblyRunsPort,
-      "start" | "listForTask" | "ensureStationRun"
-    >,
-    private readonly agents: AgentLister,
-    private readonly repoSettings: (
-      repo: string,
-    ) => Promise<Record<string, unknown> | null>,
-  ) {}
+  private readonly assemblyLine: StationBackend;
+  private readonly assemblyLineNames: ReadonlySet<string>;
+  private readonly assemblyRuns: AgentCrStationBackendDeps["assemblyRuns"];
+  private readonly agents: AgentLister;
+  private readonly repoSettings: AgentCrStationBackendDeps["repoSettings"];
+
+  constructor(deps: AgentCrStationBackendDeps) {
+    this.assemblyLine = deps.assemblyLine;
+    this.assemblyLineNames = deps.assemblyLineNames;
+    this.assemblyRuns = deps.assemblyRuns;
+    this.agents = deps.agents;
+    this.repoSettings = deps.repoSettings;
+  }
 
   async launch(spec: LoreTaskSpec): Promise<StationLaunchResult> {
     if (shouldUseAssemblyLine(spec.taskType, this.assemblyLineNames)) {

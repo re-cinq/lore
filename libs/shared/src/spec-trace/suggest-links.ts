@@ -26,13 +26,22 @@ function toVecLiteral(embedding: unknown): string | undefined {
 const ANN_OVERFETCH = 10;
 
 /** ANN over one node type's embedding predicate, over-fetched then filtered to same-`repo` nodes; `suggestCandidates` calls it once per CodeChunk/TestChunk and merges. */
+/** The two predicates that name one node type's vector and identity. */
+interface NodeTypePredicates {
+  embedding: string;
+  xid: string;
+}
+
+interface NearestQuery {
+  vecLiteral: string;
+  k: number;
+  repo: string;
+}
+
 async function nearestByVector(
   dgraph: DgraphClientPort,
-  embeddingPredicate: string,
-  xidPredicate: string,
-  vecLiteral: string,
-  k: number,
-  repo: string,
+  { embedding: embeddingPredicate, xid: xidPredicate }: NodeTypePredicates,
+  { vecLiteral, k, repo }: NearestQuery,
 ): Promise<string[]> {
   const repoPredicate = `${embeddingPredicate.split(".")[0]}.repo`;
 
@@ -114,19 +123,13 @@ export async function suggestCandidates(
   const [codeXids, testXids] = await Promise.all([
     nearestByVector(
       dgraph,
-      "CodeChunk.embedding",
-      "CodeChunk.xid",
-      vecLiteral,
-      k,
-      repo,
+      { embedding: "CodeChunk.embedding", xid: "CodeChunk.xid" },
+      { vecLiteral, k, repo },
     ),
     nearestByVector(
       dgraph,
-      "TestChunk.embedding",
-      "TestChunk.xid",
-      vecLiteral,
-      k,
-      repo,
+      { embedding: "TestChunk.embedding", xid: "TestChunk.xid" },
+      { vecLiteral, k, repo },
     ),
   ]);
 

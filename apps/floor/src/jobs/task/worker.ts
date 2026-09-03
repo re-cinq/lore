@@ -219,17 +219,17 @@ async function processTask(task: PipelineTask): Promise<void> {
     const taskType = task.task_type;
 
     if (taskType === "onboard") {
-      await handleOnboard(task, targetRepo, branchName, model, issueNumber);
+      await handleOnboard({ task, targetRepo, branchName, model, issueNumber });
     }
 
     if (taskType === "feature-request") {
-      await handleFeatureRequest(
+      await handleFeatureRequest({
         task,
         targetRepo,
         branchName,
         model,
         issueNumber,
-      );
+      });
     }
 
     if (taskType !== "onboard" && taskType !== "feature-request") {
@@ -263,18 +263,23 @@ async function processTask(task: PipelineTask): Promise<void> {
         task.task_type,
       );
 
-      await handleClaudeCodeTask(
+      await handleClaudeCodeTask({
         task,
         targetRepo,
         branchName,
         model,
-        issueNumber,
         repoOverrides,
-        darkFactoryAssemblyLine,
-        darkFactoryBaseBranch,
-        executionImage,
+        ...(darkFactoryAssemblyLine
+          ? {
+              darkFactory: {
+                assemblyLine: darkFactoryAssemblyLine,
+                baseBranch: darkFactoryBaseBranch,
+              },
+            }
+          : {}),
+        image: executionImage,
         agentDef,
-      );
+      });
     }
   } catch (err) {
     const failureReason: string = errorMessage(err);

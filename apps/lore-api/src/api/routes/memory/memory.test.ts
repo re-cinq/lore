@@ -191,14 +191,14 @@ describe("POST /api/memory", () => {
     vi.mocked(getQueryEmbedding).mockResolvedValue(null as any);
     vi.mocked(writeMemory).mockResolvedValue({ id: 1 } as any);
     await post({ action: "write", key: "k", value: "v" });
-    expect(writeMemory).toHaveBeenCalledWith(
-      "k",
-      "v",
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-    );
+    expect(writeMemory).toHaveBeenCalledWith({
+      key: "k",
+      value: "v",
+      agentId: undefined,
+      ttl: undefined,
+      embedding: undefined,
+      repo: undefined,
+    });
   });
 
   it("returns 400 when read is missing key", async () => {
@@ -229,11 +229,13 @@ describe("POST /api/memory", () => {
 
     expect(vi.mocked(searchMemories).mock.calls[0].slice(1)).toEqual([
       "q",
-      undefined,
-      undefined,
-      5,
-      true,
-      true,
+      {
+        agentId: undefined,
+        poolName: undefined,
+        limit: 5,
+        includeInvalidated: true,
+        graphAugment: true,
+      },
     ]);
   });
 
@@ -242,10 +244,10 @@ describe("POST /api/memory", () => {
     vi.mocked(searchMemories).mockResolvedValue([] as never);
     await post({ action: "search", query: "q" });
 
-    expect(vi.mocked(searchMemories).mock.calls[0].slice(5)).toEqual([
-      false,
-      false,
-    ]);
+    expect(vi.mocked(searchMemories).mock.calls[0][2]).toMatchObject({
+      includeInvalidated: false,
+      graphAugment: false,
+    });
   });
 
   it("searches via file fallback", async () => {

@@ -173,11 +173,13 @@ export interface SpecPrPorts {
     list(): Promise<PullRef[]>;
     open(
       branch: string,
-      title: string,
-      body: string,
-      base?: string,
-      labels?: string[],
-      draft?: boolean,
+      pr: {
+        title: string;
+        body: string;
+        base?: string;
+        labels?: string[];
+        draft?: boolean;
+      },
     ): Promise<PullRef>;
   };
   assemblyRuns: {
@@ -232,14 +234,11 @@ export async function stampLinePr(
   });
   const pr =
     (await existingPrFor(branch, ports.pulls)) ??
-    (await ports.pulls.open(
-      branch,
+    (await ports.pulls.open(branch, {
       title,
-      prBody(branch, feature, row),
-      undefined,
-      undefined,
-      decidePrDraft(row.args),
-    ));
+      body: prBody(branch, feature, row),
+      draft: decidePrDraft(row.args),
+    }));
 
   await ports.assemblyRuns.mergeArgs(row.id, {
     pr_number: pr.number,

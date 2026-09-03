@@ -114,7 +114,7 @@ describe.skipIf(!reachable)("projectAdrFile (live Dgraph)", () => {
       "We do the thing.",
     ].join("\n");
 
-    await projectAdrFile(repo, filePath, content, dgraphClient);
+    await projectAdrFile({ repo, filePath, content }, dgraphClient);
     const recomputed = await recomputeFile(repo, filePath, dgraphClient);
 
     expect(recomputed).toBe(content);
@@ -127,7 +127,7 @@ describe.skipIf(!reachable)("projectAdrFile (live Dgraph)", () => {
     const filePath = "adrs/0020-x.md";
     const content = ["# ADR-020", "", "## Status", "", "Accepted"].join("\n");
 
-    await projectAdrFile(repo, filePath, content, dgraphClient);
+    await projectAdrFile({ repo, filePath, content }, dgraphClient);
 
     const txn = dgraphClient.newTxn();
     const res = await txn.queryWithVars(
@@ -152,8 +152,14 @@ describe.skipIf(!reachable)("projectAdrFile (live Dgraph)", () => {
     const filePath = "adrs/0001-gate.md";
     const content = ["# ADR-001", "", "## Status", "", "Accepted"].join("\n");
 
-    const first = await projectAdrFile(repo, filePath, content, dgraphClient);
-    const second = await projectAdrFile(repo, filePath, content, dgraphClient);
+    const first = await projectAdrFile(
+      { repo, filePath, content },
+      dgraphClient,
+    );
+    const second = await projectAdrFile(
+      { repo, filePath, content },
+      dgraphClient,
+    );
 
     expect(first).toEqual({ projected: true });
     expect(second).toEqual({ projected: false });
@@ -179,8 +185,14 @@ describe.skipIf(!reachable)("projectAdrFile (live Dgraph)", () => {
       "\n",
     );
 
-    await projectAdrFile(repo, filePath, longContent, dgraphClient);
-    await projectAdrFile(repo, filePath, shortContent, dgraphClient);
+    await projectAdrFile(
+      { repo, filePath, content: longContent },
+      dgraphClient,
+    );
+    await projectAdrFile(
+      { repo, filePath, content: shortContent },
+      dgraphClient,
+    );
     const recomputed = await recomputeFile(repo, filePath, dgraphClient);
 
     expect(recomputed).toBe(shortContent);

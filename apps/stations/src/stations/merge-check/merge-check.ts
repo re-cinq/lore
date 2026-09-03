@@ -71,10 +71,8 @@ export async function syncSpecTasksFromMerge(task: {
   const taskGroupId = crypto.randomUUID();
   const { created } = await syncTasksToDb(
     getPool(),
-    task.target_repo,
-    specSlug,
+    { repo: task.target_repo, specSlug, taskGroupId },
     withDeps,
-    taskGroupId,
   );
 
   console.log(
@@ -287,11 +285,13 @@ async function handleRejectedTask(task: MergeableTask): Promise<void> {
   });
   await writeEpisodeWithCuration(
     { memory: memoryLifecycle() },
-    `Task ${task.task_type} on ${task.target_repo}: PR #${task.pr_number} was closed without merge (rejected).\nDescription: ${task.description.substring(0, 200)}`,
-    "ci",
-    `${task.target_repo}/${task.id}`,
-    "merge-check",
-    task.id,
+    {
+      content: `Task ${task.task_type} on ${task.target_repo}: PR #${task.pr_number} was closed without merge (rejected).\nDescription: ${task.description.substring(0, 200)}`,
+      source: "ci",
+      ref: `${task.target_repo}/${task.id}`,
+      agentId: "merge-check",
+      taskId: task.id,
+    },
   );
   await applyOutcomeFeedback(task.id, "penalize");
 }

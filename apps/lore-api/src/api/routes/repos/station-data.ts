@@ -242,7 +242,7 @@ export function stationDataRoutes(): ServerRoute[] {
           const p = await projectFor(repoOf(request.params));
 
           return h.response(
-            await p.pulls.open(branch, title, body, base, labels),
+            await p.pulls.open(branch, { title, body, base, labels }),
           );
         } catch (err) {
           return fail(h, err);

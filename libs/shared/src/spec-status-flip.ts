@@ -143,10 +143,11 @@ export async function openSpecStatusFlipPr(
     newContent,
     `lore: mark ${specPath} ${newLabel}`,
   );
-  const pr = await project.pulls.open(branch, title, body, undefined, [
-    "lore-managed",
-    jobLabel,
-  ]);
+  const pr = await project.pulls.open(branch, {
+    title,
+    body,
+    labels: ["lore-managed", jobLabel],
+  });
 
   return { prUrl: pr.url, skipped: false, status: target };
 }

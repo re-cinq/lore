@@ -36,8 +36,7 @@ describe("healStaleChunkerFiles", () => {
 
     const healed = await healStaleChunkerFiles(
       chunks,
-      SCHEMA,
-      REPO,
+      { schema: SCHEMA, repo: REPO },
       new Set(),
       async (filePath) => {
         ingested.push(filePath);
@@ -58,8 +57,7 @@ describe("healStaleChunkerFiles", () => {
 
     const healed = await healStaleChunkerFiles(
       chunks,
-      SCHEMA,
-      REPO,
+      { schema: SCHEMA, repo: REPO },
       new Set(["src/stale.test.ts"]),
       async (filePath) => {
         ingested.push(filePath);
@@ -82,8 +80,7 @@ describe("healStaleChunkerFiles", () => {
 
     const healed = await healStaleChunkerFiles(
       chunks,
-      SCHEMA,
-      REPO,
+      { schema: SCHEMA, repo: REPO },
       new Set(),
       (filePath) =>
         filePath === "src/bad.ts"
@@ -101,8 +98,7 @@ describe("healStaleChunkerFiles", () => {
 
     const healed = await healStaleChunkerFiles(
       chunks,
-      SCHEMA,
-      REPO,
+      { schema: SCHEMA, repo: REPO },
       new Set(),
       async () => false,
     );

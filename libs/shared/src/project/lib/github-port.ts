@@ -46,6 +46,13 @@ export interface CheckRunInput {
   detailsUrl?: string;
 }
 
+/** One file written in one commit. */
+export interface FileChange {
+  path: string;
+  content: string;
+  message: string;
+}
+
 export interface GitHubPort {
   readonly name: string;
   isConfigured(): boolean;
@@ -91,13 +98,7 @@ export interface GitHubPort {
    *  createBranch, which force-resets an existing branch. */
   branchExists?(repo: string, branch: string): Promise<boolean>;
   createBranch(repo: string, branch: string, base?: string): Promise<void>;
-  commitFile(
-    repo: string,
-    branch: string,
-    path: string,
-    content: string,
-    message: string,
-  ): Promise<void>;
+  commitFile(repo: string, branch: string, change: FileChange): Promise<void>;
   /** Create or update a check run for `input.headSha`, keyed by check name. */
   upsertCheckRun(repo: string, input: CheckRunInput): Promise<void>;
 }

@@ -180,7 +180,7 @@ export const specPrMerge: EventHandler = async (params) => {
   const taskGroupId = randomUUID();
 
   // syncTasksToDb is a shared, multi-app helper that takes the pool directly.
-  await syncTasksToDb(getPool(), repo, specSlug, withDeps, taskGroupId);
+  await syncTasksToDb(getPool(), { repo, specSlug, taskGroupId }, withDeps);
 
   await pipeline()
     .taskQueue.markFeatureRequestMergedOnBranch(repo, branch)

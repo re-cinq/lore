@@ -1,6 +1,7 @@
 // Google Gemini provider: raw `fetch` (mirrors `openai-provider.ts`, no `@google/generative-ai` dep); structured output uses `responseMimeType: "application/json"` since Gemini has no `tool_choice`-equivalent forced-tool-call primitive.
 
 import { enforceTrue } from "../lib/enforce.js";
+import type { LlmCallOutcome } from "./call-outcome.js";
 import type { UsagePort } from "../project/usage/usage-port.js";
 import type { ModelPricing } from "./model-pricing.js";
 import type {
@@ -86,10 +87,7 @@ export class GeminiProvider implements LlmProvider {
   private async logCall(
     req: { taskId?: string; jobName?: string },
     model: string,
-    inputTokens: number,
-    outputTokens: number,
-    costUsd: number,
-    durationMs: number,
+    { inputTokens, outputTokens, costUsd, durationMs }: LlmCallOutcome,
   ): Promise<void> {
     if (!this.opts.usage) {
       return;
@@ -191,14 +189,12 @@ export class GeminiProvider implements LlmProvider {
       const outputTokens = response.usageMetadata?.candidatesTokenCount ?? 0;
       const costUsd = computeGeminiCost(model, inputTokens, outputTokens);
 
-      await this.logCall(
-        req,
-        model,
+      await this.logCall(req, model, {
         inputTokens,
         outputTokens,
         costUsd,
         durationMs,
-      );
+      });
       console.log(
         `[llm] call: ${model} ${inputTokens}+${outputTokens} tokens $${costUsd.toFixed(4)} ${durationMs}ms`,
       );
@@ -243,14 +239,12 @@ export class GeminiProvider implements LlmProvider {
       const outputTokens = response.usageMetadata?.candidatesTokenCount ?? 0;
       const costUsd = computeGeminiCost(model, inputTokens, outputTokens);
 
-      await this.logCall(
-        req,
-        model,
+      await this.logCall(req, model, {
         inputTokens,
         outputTokens,
         costUsd,
         durationMs,
-      );
+      });
       console.log(
         `[llm] tool call: ${model} ${inputTokens}+${outputTokens} tokens $${costUsd.toFixed(4)} ${durationMs}ms`,
       );

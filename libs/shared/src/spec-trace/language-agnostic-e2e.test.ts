@@ -136,7 +136,10 @@ describe.skipIf(!reachable)(
         "## Overview\n\n" +
         "- The widget emits a click. ([validated by](spec/widget_spec.rb#L5), [impl](src/widget.rb#L10))\n";
 
-      await projectSpecFile(repo, specPath, content, dgraphClient);
+      await projectSpecFile(
+        { repo, filePath: specPath, content },
+        dgraphClient,
+      );
 
       const projected = (await readGraph(
         `query q($sx: string){

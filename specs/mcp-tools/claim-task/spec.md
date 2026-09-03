@@ -75,13 +75,13 @@ Never throws.
 ## Acceptance Criteria
 
 A pending task is locked, flipped to `running` with the claiming agent, and the
-transaction commits returning true. ([validated by `returns true and records the claim event when a pending task is claimed`](apps/mcp-server/src/features/pipeline/tasks-db.test.ts#L143))
+transaction commits returning true. ([validated by `returns true and records the claim event when a pending task is claimed`](apps/mcp-server/src/features/pipeline/tasks-db.test.ts#L146))
 
 When the row is already locked or absent the handler rolls back and returns
-false. ([validated by `returns false and records no event when the row is already claimed`](apps/mcp-server/src/features/pipeline/tasks-db.test.ts#L159))
+false. ([validated by `returns false and records no event when the row is already claimed`](apps/mcp-server/src/features/pipeline/tasks-db.test.ts#L162))
 
 A failure recording the claim event does not abort the claim; the transaction
-still commits. ([validated by `still returns true when the event-recording insert throws`](apps/mcp-server/src/features/pipeline/tasks-db.test.ts#L170))
+still commits. ([validated by `still returns true when the event-recording insert throws`](apps/mcp-server/src/features/pipeline/tasks-db.test.ts#L173))
 
 The resolved agent id is posted with the task id and a successful claim is
 confirmed by name. ([validated by `lore_claim_task posts the resolved agent id and confirms the claim`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L387))

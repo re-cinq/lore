@@ -53,9 +53,7 @@ describe("extractAndUpdateGraph edge invalidation", () => {
     await extractAndUpdateGraph(
       pool,
       "text",
-      "octo/repo",
-      "ep-1",
-      "mem-1",
+      { repo: "octo/repo", sourceEpisodeId: "ep-1", sourceMemoryId: "mem-1" },
       llmCall,
     );
 
@@ -101,9 +99,7 @@ describe("extractAndUpdateGraph edge invalidation", () => {
     await extractAndUpdateGraph(
       pool,
       "text",
-      "octo/repo",
-      "ep-1",
-      "mem-1",
+      { repo: "octo/repo", sourceEpisodeId: "ep-1", sourceMemoryId: "mem-1" },
       llmCall,
     );
 

@@ -24,19 +24,13 @@ export class PgKnowledge implements KnowledgePort {
     repo: string,
     query: string,
   ): Promise<AssembledContext> {
-    const result = await runAssembleContext(
-      this.pool,
-      query,
-      "default",
-      undefined,
-      repo,
-    );
+    const result = await runAssembleContext(this.pool, query, { repo });
 
     return { text: result.text };
   }
 
   queryLiveGraph(repo: string, term?: string): Promise<LiveGraphResult[]> {
-    return queryLiveGraph(this.pool, term, undefined, repo, false);
+    return queryLiveGraph(this.pool, { entity: term, repo });
   }
 
   queryTrace(): Promise<string> {

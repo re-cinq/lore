@@ -30,8 +30,7 @@ export function blobUrl(
   repo: string,
   branch: string,
   filePath: string,
-  start?: number,
-  end?: number,
+  { start, end }: { start?: number; end?: number } = {},
 ): string {
   if (!repo.includes("/")) {
     return "";
