@@ -176,14 +176,14 @@ export function slackWebhookRoute(getPool: () => Pool | null): ServerRoute {
       };
 
       try {
-        const taskResult = await createTask(
+        const taskResult = await createTask({
           description,
           taskType,
           targetRepo,
-          `slack:${userName}`,
+          createdBy: `slack:${userName}`,
           contextBundle,
           priority,
-        );
+        });
         const priorityLabel =
           priority === "immediate" ? " | Priority: `immediate`" : "";
 

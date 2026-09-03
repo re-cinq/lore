@@ -67,8 +67,7 @@ export async function prReadyCheckSweep(
         run.status,
         await deps.listStationRuns(run.id),
         run.graph,
-        AWAIT_STATION_TYPE,
-        AWAIT_NODE,
+        { type: AWAIT_STATION_TYPE, fallbackNodeId: AWAIT_NODE },
       );
 
       if (!parked) {
@@ -201,6 +200,9 @@ export async function prReadyCheckJob(): Promise<string> {
     // report landed — a router blip used to lose the resume outright and the
     // parked node waited for the reaper.
     report: (target, outcome, args) =>
-      reportToParkedNode(queuedReporter(eventProxy()), target, outcome, args),
+      reportToParkedNode(queuedReporter(eventProxy()), target, {
+        outcome,
+        args,
+      }),
   });
 }

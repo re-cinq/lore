@@ -98,6 +98,16 @@ export interface PullStats {
   created_at: string;
 }
 
+/** Everything a pull request needs at creation beyond its branch. */
+export interface PullDraft {
+  title: string;
+  body: string;
+  base?: string;
+  labels?: string[];
+  /** Open as a draft — both review entry points gate on draft !== true, letting a line push repeatedly before review. */
+  draft?: boolean;
+}
+
 export interface PullRequestsPort {
   list(repo: string): Promise<PullRef[]>;
   get(repo: string, number: number): Promise<PullRef | null>;
@@ -123,16 +133,7 @@ export interface PullRequestsPort {
   ): Promise<void>;
   addLabel(repo: string, number: number, label: string): Promise<void>;
   merge(repo: string, number: number, method?: MergeMethod): Promise<void>;
-  open(
-    repo: string,
-    branch: string,
-    title: string,
-    body: string,
-    base?: string,
-    labels?: string[],
-    /** Open as a draft — both review entry points gate on draft !== true, letting a line push repeatedly before review. */
-    draft?: boolean,
-  ): Promise<PullRef>;
+  open(repo: string, branch: string, pr: PullDraft): Promise<PullRef>;
   /** Rewrite an open pull request's title and/or body. */
   update(
     repo: string,

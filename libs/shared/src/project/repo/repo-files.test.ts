@@ -44,7 +44,7 @@ function fakeGitHub(writes: string[] = []): GitHubPort {
     createBranch: async (_repo, branch, base) => {
       writes.push(`branch:${branch}:${base ?? "main"}`);
     },
-    commitFile: async (_repo, branch, path) => {
+    commitFile: async (_repo, branch, { path }) => {
       writes.push(`commit:${branch}:${path}`);
     },
     upsertCheckRun: async () => {},

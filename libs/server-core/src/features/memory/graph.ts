@@ -87,13 +87,22 @@ async function upsertEntity(
 
 // ── Edge upsert with temporal invalidation ─────────────────────────
 
+/** Where a graph write came from: the episode or memory whose text produced it. */
+export interface GraphProvenance {
+  sourceEpisodeId: string | null;
+  sourceMemoryId: string | null;
+}
+
+interface EdgeKey {
+  sourceId: string;
+  targetId: string;
+  relationType: string;
+}
+
 async function upsertEdge(
   pool: PgPool,
-  sourceId: string,
-  targetId: string,
-  relationType: string,
-  sourceEpisodeId: string | null,
-  sourceMemoryId: string | null,
+  { sourceId, targetId, relationType }: EdgeKey,
+  { sourceEpisodeId, sourceMemoryId }: GraphProvenance,
 ): Promise<void> {
   // Check if this exact edge already exists and is valid
   const { rows: existing } = await pool.query(
@@ -127,9 +136,7 @@ async function upsertEdge(
 export async function extractAndUpdateGraph(
   pool: PgPool,
   text: string,
-  repo: string | null,
-  sourceEpisodeId: string | null,
-  sourceMemoryId: string | null,
+  { repo, ...provenance }: GraphProvenance & { repo: string | null },
   llmCall: (prompt: string) => Promise<string>,
 ): Promise<void> {
   try {
@@ -165,11 +172,8 @@ export async function extractAndUpdateGraph(
       try {
         await upsertEdge(
           pool,
-          sourceId,
-          targetId,
-          edge.relation,
-          sourceEpisodeId,
-          sourceMemoryId,
+          { sourceId, targetId, relationType: edge.relation },
+          provenance,
         );
         edgeCount++;
       } catch (err) {

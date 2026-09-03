@@ -70,9 +70,11 @@ export function episodeRoute(getPool: () => Pool | null): ServerRoute {
           extractAndUpdateGraph(
             pool!,
             safeContent,
-            ref || null,
-            rows[0].id,
-            null,
+            {
+              repo: ref || null,
+              sourceEpisodeId: rows[0].id,
+              sourceMemoryId: null,
+            },
             gLlm,
           ).catch(() => {});
         }

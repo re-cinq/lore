@@ -18,7 +18,7 @@ const NO_OP_DGRAPH = {
 export function projectFor(repo: string): Promise<Project> {
   const dgraph = createDgraphClient(process.env) ?? NO_OP_DGRAPH;
 
-  return createProject(repo, getPool(), dgraph, process.env, {
-    pipeline: pipelineRepositories(),
+  return createProject(repo, getPool(), dgraph, {
+    providers: { pipeline: pipelineRepositories() },
   });
 }

@@ -53,7 +53,7 @@ export class Workspace {
     );
     await this.git.push(this.dir, branch);
 
-    return this.pulls.open(this.repo, branch, title, body, base);
+    return this.pulls.open(this.repo, branch, { title, body, base });
   }
 
   dispose(): Promise<void> {

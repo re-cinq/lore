@@ -85,14 +85,14 @@ const createPlanningTask: StartPlanningDeps["createPlanningTask"] = async ({
   description,
   args,
 }) => {
-  const task = await createTask(
+  const task = await createTask({
     description,
-    "feature-planning",
-    repo,
-    "ui",
-    args,
-    "immediate",
-  );
+    taskType: "feature-planning",
+    targetRepo: repo,
+    createdBy: "ui",
+    contextBundle: args,
+    priority: "immediate",
+  });
 
   return task.task_id as string;
 };
@@ -327,12 +327,10 @@ export function featuresRoutes(getPool: () => Pool | null): ServerRoute[] {
                   basisIteration,
                 ),
               report: (target, outcome, args) =>
-                reportToParkedNode(
-                  eventReporterFor(getPool()),
-                  target,
+                reportToParkedNode(eventReporterFor(getPool()), target, {
                   outcome,
                   args,
-                ),
+                }),
             },
           );
 
@@ -450,11 +448,9 @@ export function featuresRoutes(getPool: () => Pool | null): ServerRoute[] {
               "no plan is waiting to be accepted — this feature's line is not parked on the author",
             );
 
-            await reportToParkedNode(
-              eventReporterFor(getPool()),
-              parked,
-              "success",
-              {
+            await reportToParkedNode(eventReporterFor(getPool()), parked, {
+              outcome: "success",
+              args: {
                 // Tail nodes read args.description as "the accepted plan"; without
                 // this the shallow merge leaves the last refine's brief there (#1470).
                 description: composePlanningPrompt({
@@ -468,7 +464,7 @@ export function featuresRoutes(getPool: () => Pool | null): ServerRoute[] {
                 round_feedback: null,
                 resume_from_iteration: null,
               },
-            );
+            });
 
             return h.response(runIdBothSpellings(parked.lineId)).code(202);
           }),

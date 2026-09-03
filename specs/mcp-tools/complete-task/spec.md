@@ -73,18 +73,18 @@ throws.
 
 ## Acceptance Criteria
 
-A non-existent task id yields `completed: false` with no unblocked entries. ([validated by `returns completed false when the task does not exist`](apps/mcp-server/src/features/pipeline/tasks-db.test.ts#L182))
+A non-existent task id yields `completed: false` with no unblocked entries. ([validated by `returns completed false when the task does not exist`](apps/mcp-server/src/features/pipeline/tasks-db.test.ts#L185))
 
-A task that is not in `running` state is not completed. ([validated by `returns completed false when the task is not running`](apps/mcp-server/src/features/pipeline/tasks-db.test.ts#L194))
+A task that is not in `running` state is not completed. ([validated by `returns completed false when the task is not running`](apps/mcp-server/src/features/pipeline/tasks-db.test.ts#L197))
 
 A running task is marked completed and reports no unblocked dependents when none
-qualify. ([validated by `marks a running task completed and records the transition, no slug scan`](apps/mcp-server/src/features/pipeline/tasks-db.test.ts#L209))
+qualify. ([validated by `marks a running task completed and records the transition, no slug scan`](apps/mcp-server/src/features/pipeline/tasks-db.test.ts#L212))
 
 Newly unblocked dependents are returned as `spec_task_id: description`
-descriptors. ([validated by `returns formatted descriptors for newly unblocked same-spec dependents`](apps/mcp-server/src/features/pipeline/tasks-db.test.ts#L232))
+descriptors. ([validated by `returns formatted descriptors for newly unblocked same-spec dependents`](apps/mcp-server/src/features/pipeline/tasks-db.test.ts#L235))
 
 When the completed task carries no `spec_slug`/`spec_task_id` the dependents
-query is skipped. ([validated by `marks a running task completed and records the transition, no slug scan`](apps/mcp-server/src/features/pipeline/tasks-db.test.ts#L209))
+query is skipped. ([validated by `marks a running task completed and records the transition, no slug scan`](apps/mcp-server/src/features/pipeline/tasks-db.test.ts#L212))
 
 Newly unblocked dependents are appended to the completion message as a bullet
 list. ([validated by `lore_complete_task lists the newly unblocked dependents`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L409))

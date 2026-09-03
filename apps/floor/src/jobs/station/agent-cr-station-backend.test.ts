@@ -55,13 +55,13 @@ function makeBackend(
 ) {
   const runs = new InMemoryAssemblyRuns();
   const assemblyLine = new FakeAssemblyLine();
-  const backend = new AgentCrStationBackend(
+  const backend = new AgentCrStationBackend({
     assemblyLine,
     assemblyLineNames,
-    runs,
+    assemblyRuns: runs,
     agents,
-    async () => settings,
-  );
+    repoSettings: async () => settings,
+  });
 
   return { backend, assemblyLine, runs, agents };
 }

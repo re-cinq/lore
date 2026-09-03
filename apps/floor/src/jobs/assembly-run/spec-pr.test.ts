@@ -44,11 +44,7 @@ class FakePulls {
 
   async open(
     branch: string,
-    title: string,
-    body: string,
-    base?: string,
-    labels?: string[],
-    draft?: boolean,
+    { title, body, draft }: { title: string; body: string; draft?: boolean },
   ): Promise<PullRef> {
     this.opened.push({ branch, title, body, draft });
 

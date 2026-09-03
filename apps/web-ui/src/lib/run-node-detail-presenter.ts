@@ -94,12 +94,16 @@ function erroredSteps(state: NodeRunState | undefined): FailedStep[] {
   return steps;
 }
 
+interface NodeStanding {
+  tone: NodeStatusTone;
+  terminal: boolean;
+  duration: string;
+}
+
 function whyText(
   input: NodeDetailInput,
   type: string | undefined,
-  tone: NodeStatusTone,
-  terminal: boolean,
-  duration: string,
+  { tone, terminal, duration }: NodeStanding,
 ): string {
   const noun = type ? `the ${type} node` : "this step";
 
@@ -156,13 +160,11 @@ export function describeNode(input: NodeDetailInput): NodeDetail {
   return {
     tone: visual.tone,
     statusLabel,
-    why: whyText(
-      input,
-      node?.type,
-      visual.tone,
+    why: whyText(input, node?.type, {
+      tone: visual.tone,
       terminal,
-      formatDuration(durationSeconds),
-    ),
+      duration: formatDuration(durationSeconds),
+    }),
     // Only a failed node lists errored steps: a succeeded node can carry errored
     // tool calls it retried past, which are not the reason for anything.
     failures: visual.tone === "err" ? erroredSteps(input.state) : [],

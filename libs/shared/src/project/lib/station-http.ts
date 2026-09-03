@@ -1,4 +1,6 @@
 import { enforceTrue } from "../../lib/enforce.js";
+import type { FileChange } from "./github-port.js";
+import type { PullDraft } from "../pulls/pull-requests-port.js";
 import { Project } from "./project.js";
 import { ChunksHttp } from "../chunks/chunks-http.js";
 import type { IssueRef, IssueFilter } from "./github-port.js";
@@ -115,9 +117,7 @@ class GitHubHttp {
   async commitFile(
     _repo: string,
     branch: string,
-    path: string,
-    content: string,
-    message: string,
+    { path, content, message }: FileChange,
   ): Promise<void> {
     await this.http.post("/commit", { branch, path, content, message });
   }
@@ -129,10 +129,7 @@ class PullsHttp {
   async open(
     _repo: string,
     branch: string,
-    title: string,
-    body: string,
-    base?: string,
-    labels?: string[],
+    { title, body, base, labels }: PullDraft,
   ): Promise<PullRef> {
     return this.http.post<PullRef>("/pulls", {
       branch,

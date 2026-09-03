@@ -15,10 +15,12 @@ describe("writeEpisode", () => {
 
     await writeEpisode(
       { memory },
-      `deploy token ghp_${"a".repeat(36)}`,
-      "ci",
-      "re-cinq/lore/1",
-      "agent",
+      {
+        content: `deploy token ghp_${"a".repeat(36)}`,
+        source: "ci",
+        ref: "re-cinq/lore/1",
+        agentId: "agent",
+      },
     );
     expect(memory.episodes[0].content).toContain("[REDACTED:api-key]");
     expect(memory.episodes[0].content).not.toContain("ghp_");
@@ -27,12 +29,15 @@ describe("writeEpisode", () => {
   it("returns the episode id then null on a duplicate", async () => {
     const deps: WriteEpisodeDeps = { memory: new InMemoryMemoryLifecycle() };
 
-    expect(await writeEpisode(deps, "same body", "ci", "r", "agent")).toBe(
-      "episode-1",
-    );
-    expect(
-      await writeEpisode(deps, "same body", "ci", "r", "agent"),
-    ).toBeNull();
+    const episode = {
+      content: "same body",
+      source: "ci",
+      ref: "r",
+      agentId: "agent",
+    };
+
+    expect(await writeEpisode(deps, episode)).toBe("episode-1");
+    expect(await writeEpisode(deps, episode)).toBeNull();
   });
 
   it("returns null instead of throwing when the store fails", async () => {
@@ -43,7 +48,10 @@ describe("writeEpisode", () => {
     } as unknown as MemoryLifecyclePort;
 
     expect(
-      await writeEpisode({ memory }, "body", "ci", "r", "agent"),
+      await writeEpisode(
+        { memory },
+        { content: "body", source: "ci", ref: "r", agentId: "agent" },
+      ),
     ).toBeNull();
   });
 });
@@ -81,14 +89,13 @@ describe("writeEpisodeWithCuration", () => {
   it("upserts a sanitized auto-curation memory for a real lesson", async () => {
     const d = deps("Always rebuild shared before the agent build.");
 
-    await writeEpisodeWithCuration(
-      d.deps,
-      "outcome",
-      "ci",
-      "re-cinq/lore#42",
-      "merge-check",
-      "t1",
-    );
+    await writeEpisodeWithCuration(d.deps, {
+      content: "outcome",
+      source: "ci",
+      ref: "re-cinq/lore#42",
+      agentId: "merge-check",
+      taskId: "t1",
+    });
     expect(curated(d.memory, "auto-curation/re-cinq/lore_42")).toMatchObject({
       agent_id: "merge-check",
       value: "Always rebuild shared before the agent build.",
@@ -99,14 +106,13 @@ describe("writeEpisodeWithCuration", () => {
     delete process.env.ANTHROPIC_API_KEY;
     const d = deps("A lesson.");
 
-    await writeEpisodeWithCuration(
-      d.deps,
-      "outcome",
-      "ci",
-      "r",
-      "merge-check",
-      "t1",
-    );
+    await writeEpisodeWithCuration(d.deps, {
+      content: "outcome",
+      source: "ci",
+      ref: "r",
+      agentId: "merge-check",
+      taskId: "t1",
+    });
     expect(d.fake.calls).toHaveLength(0);
     expect(d.memory.memories).toHaveLength(0);
     expect(d.memory.episodes).toHaveLength(1);
@@ -115,48 +121,44 @@ describe("writeEpisodeWithCuration", () => {
   it("skips curation for a duplicate episode (no new id)", async () => {
     const d = deps("A real lesson learned.");
 
-    await writeEpisodeWithCuration(
-      d.deps,
-      "same",
-      "ci",
-      "r",
-      "merge-check",
-      "t1",
-    );
-    await writeEpisodeWithCuration(
-      d.deps,
-      "same",
-      "ci",
-      "r",
-      "merge-check",
-      "t1",
-    );
+    await writeEpisodeWithCuration(d.deps, {
+      content: "same",
+      source: "ci",
+      ref: "r",
+      agentId: "merge-check",
+      taskId: "t1",
+    });
+    await writeEpisodeWithCuration(d.deps, {
+      content: "same",
+      source: "ci",
+      ref: "r",
+      agentId: "merge-check",
+      taskId: "t1",
+    });
     expect(d.fake.calls).toHaveLength(1);
   });
 
   it("does not store a SKIP or too-short lesson", async () => {
     const skip = deps("SKIP");
 
-    await writeEpisodeWithCuration(
-      skip.deps,
-      "outcome",
-      "ci",
-      "r1",
-      "merge-check",
-      "t1",
-    );
+    await writeEpisodeWithCuration(skip.deps, {
+      content: "outcome",
+      source: "ci",
+      ref: "r1",
+      agentId: "merge-check",
+      taskId: "t1",
+    });
     expect(skip.memory.memories).toHaveLength(0);
 
     const short = deps("nope");
 
-    await writeEpisodeWithCuration(
-      short.deps,
-      "outcome",
-      "ci",
-      "r2",
-      "merge-check",
-      "t1",
-    );
+    await writeEpisodeWithCuration(short.deps, {
+      content: "outcome",
+      source: "ci",
+      ref: "r2",
+      agentId: "merge-check",
+      taskId: "t1",
+    });
     expect(short.memory.memories).toHaveLength(0);
   });
 });

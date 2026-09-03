@@ -41,7 +41,12 @@ describe("resolveConversation", () => {
     await store.attachArchive("round-4", "k/round-4", 10);
 
     expect(
-      await resolveConversation(node(), task, 1, deps(store), null),
+      await resolveConversation(
+        node(),
+        task,
+        { iteration: 1, priorOutcome: null },
+        deps(store),
+      ),
     ).toEqual({
       source: "http://floor:8080/api/agent-conversations",
       id: "round-4",
@@ -55,9 +60,8 @@ describe("resolveConversation", () => {
     const result = await resolveConversation(
       node(),
       task,
-      1,
+      { iteration: 1, priorOutcome: null },
       deps(store),
-      null,
     );
 
     expect(result).toMatchObject({ id: "", pin: "new-id" });
@@ -78,9 +82,8 @@ describe("resolveConversation", () => {
     const result = await resolveConversation(
       node(),
       task,
-      1,
+      { iteration: 1, priorOutcome: null },
       deps(store),
-      null,
     );
 
     expect(result?.pin).not.toBe(result?.id);
@@ -94,9 +97,8 @@ describe("resolveConversation", () => {
       await resolveConversation(
         node({ continues: undefined }),
         task,
-        1,
+        { iteration: 1, priorOutcome: null },
         deps(new InMemoryConversations()),
-        null,
       ),
     ).toBeUndefined();
   });
@@ -107,7 +109,12 @@ describe("resolveConversation", () => {
     const store = new InMemoryConversations();
 
     expect(
-      await resolveConversation(node(), task, 2, deps(store), "failed"),
+      await resolveConversation(
+        node(),
+        task,
+        { iteration: 2, priorOutcome: "failed" },
+        deps(store),
+      ),
     ).toBeUndefined();
     // And reserves nothing, so a retry leaves no orphan id behind.
     expect(store.rows).toEqual([]);
@@ -118,7 +125,12 @@ describe("resolveConversation", () => {
     const bare = { ...task, args: {} };
 
     expect(
-      await resolveConversation(node(), bare, 1, deps(store), null),
+      await resolveConversation(
+        node(),
+        bare,
+        { iteration: 1, priorOutcome: null },
+        deps(store),
+      ),
     ).toBeUndefined();
     expect(store.rows).toEqual([]);
   });
@@ -134,7 +146,14 @@ describe("resolveConversation", () => {
     await store.attachArchive("mine", "k/mine", 10);
 
     expect(
-      (await resolveConversation(node(), task, 1, deps(store), null))?.id,
+      (
+        await resolveConversation(
+          node(),
+          task,
+          { iteration: 1, priorOutcome: null },
+          deps(store),
+        )
+      )?.id,
     ).toBe("");
   });
 });
@@ -174,9 +193,8 @@ describe("resolveConversation rewind", () => {
       await resolveConversation(
         node(),
         rewinding,
-        1,
+        { iteration: 1, priorOutcome: null },
         withLines(store, { "task-round-2": ["line-2"] }),
-        null,
       ),
     ).toMatchObject({ id: "round-2" });
   });
@@ -201,9 +219,8 @@ describe("resolveConversation rewind", () => {
       await resolveConversation(
         node(),
         rewinding,
-        1,
+        { iteration: 1, priorOutcome: null },
         withLines(store, { "task-round-2": ["line-2"] }),
-        null,
       ),
     ).toMatchObject({ id: "" });
   });
@@ -215,9 +232,8 @@ describe("resolveConversation rewind", () => {
       await resolveConversation(
         node(),
         rewinding,
-        1,
+        { iteration: 1, priorOutcome: null },
         withLines(store, {}),
-        null,
       ),
     ).toMatchObject({ id: "" });
   });
@@ -238,7 +254,12 @@ describe("resolveConversation rewind", () => {
     await store.attachArchive("round-4", "k/round-4.tgz", 10);
 
     expect(
-      await resolveConversation(node(), task, 1, withLines(store, {}), null),
+      await resolveConversation(
+        node(),
+        task,
+        { iteration: 1, priorOutcome: null },
+        withLines(store, {}),
+      ),
     ).toMatchObject({ id: "round-4" });
   });
 });
@@ -273,7 +294,14 @@ describe("a line whose rounds are revisits of one node", () => {
     await savedRound(store, 1);
 
     expect(
-      (await resolveConversation(node(), task, 2, deps(store), null))?.id,
+      (
+        await resolveConversation(
+          node(),
+          task,
+          { iteration: 2, priorOutcome: null },
+          deps(store),
+        )
+      )?.id,
     ).toBe("round-1");
   });
 
@@ -283,7 +311,14 @@ describe("a line whose rounds are revisits of one node", () => {
     await savedRound(store, 2);
 
     expect(
-      (await resolveConversation(node(), task, 2, deps(store), null))?.id,
+      (
+        await resolveConversation(
+          node(),
+          task,
+          { iteration: 2, priorOutcome: null },
+          deps(store),
+        )
+      )?.id,
     ).toBe("");
   });
 
@@ -302,7 +337,14 @@ describe("a line whose rounds are revisits of one node", () => {
     };
 
     expect(
-      (await resolveConversation(node(), rewound, 4, deps(store), null))?.id,
+      (
+        await resolveConversation(
+          node(),
+          rewound,
+          { iteration: 4, priorOutcome: null },
+          deps(store),
+        )
+      )?.id,
     ).toBe("round-1");
   });
 
@@ -319,7 +361,14 @@ describe("a line whose rounds are revisits of one node", () => {
     };
 
     expect(
-      (await resolveConversation(node(), rewound, 4, deps(store), null))?.id,
+      (
+        await resolveConversation(
+          node(),
+          rewound,
+          { iteration: 4, priorOutcome: null },
+          deps(store),
+        )
+      )?.id,
     ).toBe("");
   });
 });
@@ -352,12 +401,11 @@ describe("a rewind target whose task ran more than one line", () => {
       await resolveConversation(
         node(),
         rewinding,
-        1,
+        { iteration: 1, priorOutcome: null },
         {
           ...deps(store),
           linesForTask: async () => ["line-4", "line-2"],
         },
-        null,
       ),
     ).toMatchObject({ id: "round-4" });
   });

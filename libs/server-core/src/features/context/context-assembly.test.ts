@@ -73,8 +73,10 @@ describe("assembleContext", () => {
     const result = await assembleContext(
       mockPool as unknown as Parameters<typeof assembleContext>[0],
       "test query",
-      "default",
-      8000,
+      {
+        templateName: "default",
+        maxTokens: 8000,
+      },
     );
 
     expect(result.text).toBe("");
@@ -105,9 +107,11 @@ describe("assembleContext", () => {
     const result = await assembleContext(
       mockPool as unknown as Parameters<typeof assembleContext>[0],
       "test query",
-      "default",
-      8000,
-      "owner/repo",
+      {
+        templateName: "default",
+        maxTokens: 8000,
+        repo: "owner/repo",
+      },
     );
 
     expect(result.text).toContain("Conventions");
@@ -130,9 +134,11 @@ describe("assembleContext", () => {
     const result = await assembleContext(
       mockPool as unknown as Parameters<typeof assembleContext>[0],
       "test",
-      "default",
-      2000,
-      "owner/repo",
+      {
+        templateName: "default",
+        maxTokens: 2000,
+        repo: "owner/repo",
+      },
     );
     const totalChars = result.text.length;
 
@@ -166,9 +172,11 @@ describe("assembleContext — traceable XML output", () => {
     const result = await assembleContext(
       mockPool as unknown as Parameters<typeof assembleContext>[0],
       "dark factory",
-      "implementation",
-      8000,
-      "o/r",
+      {
+        templateName: "implementation",
+        maxTokens: 8000,
+        repo: "o/r",
+      },
     );
 
     expect(result.text).toContain('<context query="dark factory"');
@@ -195,9 +203,11 @@ describe("assembleContext — traceable XML output", () => {
     await assembleContext(
       mockPool as unknown as Parameters<typeof assembleContext>[0],
       "auth middleware",
-      "implementation",
-      8000,
-      "o/r",
+      {
+        templateName: "implementation",
+        maxTokens: 8000,
+        repo: "o/r",
+      },
     );
     expect(adrSql).toContain("ts_rank");
     expect(adrSql).toContain("websearch_to_tsquery");
@@ -220,9 +230,11 @@ describe("assembleContext — traceable XML output", () => {
     await assembleContext(
       mockPool as unknown as Parameters<typeof assembleContext>[0],
       "x",
-      "implementation",
-      8000,
-      "o/r",
+      {
+        templateName: "implementation",
+        maxTokens: 8000,
+        repo: "o/r",
+      },
     );
     expect(repoTypes).toEqual(["doc", "spec"]);
     expect(repoTypes).not.toContain("adr");
@@ -255,9 +267,11 @@ describe("assembleContext — traceable XML output", () => {
     const result = await assembleContext(
       mockPool as unknown as Parameters<typeof assembleContext>[0],
       "settings form",
-      "implementation",
-      8000,
-      "o/r",
+      {
+        templateName: "implementation",
+        maxTokens: 8000,
+        repo: "o/r",
+      },
     );
 
     expect(codeTypes).toEqual(["code"]);
@@ -270,13 +284,14 @@ describe("assembleContext — traceable XML output", () => {
     const result = await assembleContext(
       mockPool as unknown as Parameters<typeof assembleContext>[0],
       "x",
-      "implementation",
-      8000,
-      "o/r",
-      undefined,
-      false,
-      false,
-      true,
+      {
+        templateName: "implementation",
+        maxTokens: 8000,
+        repo: "o/r",
+        crossRepo: false,
+        includeIds: false,
+        debug: true,
+      },
     );
 
     expect(result.trace).toBeDefined();

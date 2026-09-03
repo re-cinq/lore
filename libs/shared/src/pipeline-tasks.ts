@@ -199,10 +199,15 @@ export async function createTask(
       ])
       .catch(() => {});
   }
-  await recordEvent(pool, task.id, null, "pending", {
-    created_by: createdBy,
-    priority: resolvedPriority,
-  });
+  await recordEvent(
+    pool,
+    task.id,
+    { from: null, to: "pending" },
+    {
+      created_by: createdBy,
+      priority: resolvedPriority,
+    },
+  );
 
   return {
     task_id: task.id,
@@ -334,8 +339,7 @@ export async function setTaskStatus(
 export async function setTaskStatusIf(
   pool: PgPool,
   taskId: string,
-  expectedStatus: string,
-  status: string,
+  { expected: expectedStatus, status }: { expected: string; status: string },
   extra: Record<string, unknown> = {},
 ): Promise<boolean> {
   const setClauses = ["status = $1", "updated_at = now()"];
@@ -364,11 +368,15 @@ export async function setTaskStatusIf(
   return rows.length > 0;
 }
 
+export interface StatusTransition {
+  from: string | null;
+  to: string | null;
+}
+
 export async function recordEvent(
   pool: PgPool,
   taskId: string,
-  fromStatus: string | null,
-  toStatus: string | null,
+  { from: fromStatus, to: toStatus }: StatusTransition,
   meta?: Record<string, unknown>,
 ): Promise<void> {
   try {
@@ -400,7 +408,7 @@ export async function updateTaskStatus(
   const oldStatus = rows[0].status as string;
 
   await setTaskStatus(pool, taskId, newStatus);
-  await recordEvent(pool, taskId, oldStatus, newStatus, meta);
+  await recordEvent(pool, taskId, { from: oldStatus, to: newStatus }, meta);
 }
 
 export async function cancelTask(
@@ -438,10 +446,15 @@ export async function escalateTask(
     `UPDATE pipeline.tasks SET priority = 'immediate', updated_at = now() WHERE id = $1`,
     [taskId],
   );
-  await recordEvent(pool, taskId, task.status, task.status, {
-    action: "run-now",
-    previous_priority: task.priority,
-  });
+  await recordEvent(
+    pool,
+    taskId,
+    { from: task.status, to: task.status },
+    {
+      action: "run-now",
+      previous_priority: task.priority,
+    },
+  );
 
   return { task_id: taskId, priority: "immediate" };
 }
@@ -477,10 +490,15 @@ export async function reviseTask(
   );
   const revisionTaskId = rows[0].id;
 
-  await recordEvent(pool, taskId, task.status, "revision-requested", {
-    feedback,
-    revision_task_id: revisionTaskId,
-  });
+  await recordEvent(
+    pool,
+    taskId,
+    { from: task.status, to: "revision-requested" },
+    {
+      feedback,
+      revision_task_id: revisionTaskId,
+    },
+  );
   await pool.query(
     `UPDATE pipeline.tasks SET status = 'revision-requested', updated_at = now() WHERE id = $1`,
     [taskId],

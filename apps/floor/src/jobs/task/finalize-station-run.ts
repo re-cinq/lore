@@ -96,13 +96,12 @@ export async function finalizeStationRun(opts: {
       issueNumber: task.issue_number ?? undefined,
       taskId: task.id,
     });
-    const pr = await project.pulls.open(
-      branch,
-      copy.title,
-      `${copy.body}${footer}`,
-      await project.repo.defaultBranch(),
-      ["needs-review"],
-    );
+    const pr = await project.pulls.open(branch, {
+      title: copy.title,
+      body: `${copy.body}${footer}`,
+      base: await project.repo.defaultBranch(),
+      labels: ["needs-review"],
+    });
 
     await setStatus(task.id, "pr-created", {
       pr_url: pr.url,

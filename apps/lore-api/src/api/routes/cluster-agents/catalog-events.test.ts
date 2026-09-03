@@ -48,17 +48,19 @@ describe("handleCatalogEvents", () => {
   it("rejects 401 without a bearer token", async () => {
     const { deps, agent } = await harness(new Map());
 
-    expect(
-      await handleCatalogEvents(deps, undefined, agent.id, undefined),
-    ).toEqual({ code: 401, body: { error: "unauthorized" } });
+    expect(await handleCatalogEvents(deps, undefined, agent.id)).toEqual({
+      code: 401,
+      body: { error: "unauthorized" },
+    });
   });
 
   it("rejects 403 when the token holder claims another agent's id", async () => {
     const { deps } = await harness(new Map());
 
-    expect(
-      await handleCatalogEvents(deps, TOKEN, "someone-else", undefined),
-    ).toEqual({ code: 403, body: { error: "forbidden" } });
+    expect(await handleCatalogEvents(deps, TOKEN, "someone-else")).toEqual({
+      code: 403,
+      body: { error: "forbidden" },
+    });
   });
 
   it("a never-resynced agent gets the full snapshot with resolved definitions and the cursor to ack", async () => {
@@ -69,7 +71,7 @@ describe("handleCatalogEvents", () => {
     events.setEntries([{ name: "implementation", projectId: null }]);
     events.append("implementation", null, "upsert");
 
-    const result = await handleCatalogEvents(deps, TOKEN, agent.id, undefined);
+    const result = await handleCatalogEvents(deps, TOKEN, agent.id);
 
     expect(result).toEqual({
       code: 200,
@@ -97,13 +99,9 @@ describe("handleCatalogEvents", () => {
     events.append("deleted-thing", null, "delete");
     await agents.advanceCatalogCursor(agent.id, "1");
 
-    const result = await handleCatalogEvents(
-      deps,
-      TOKEN,
-      agent.id,
-      undefined,
-      true,
-    );
+    const result = await handleCatalogEvents(deps, TOKEN, agent.id, {
+      snapshot: true,
+    });
 
     expect(result).toEqual({
       code: 200,
@@ -132,24 +130,16 @@ describe("handleCatalogEvents", () => {
     await agents.advanceCatalogCursor(agent.id, "0");
     events.append("implementation", null, "upsert");
 
-    const first = await handleCatalogEvents(deps, TOKEN, agent.id, undefined);
-    const replayed = await handleCatalogEvents(
-      deps,
-      TOKEN,
-      agent.id,
-      undefined,
-    );
+    const first = await handleCatalogEvents(deps, TOKEN, agent.id);
+    const replayed = await handleCatalogEvents(deps, TOKEN, agent.id);
 
     expect(first).toEqual(replayed);
     enforceTrue(first.code === 200, Error, "expected 200");
 
     events.append("review", null, "upsert");
-    const afterAck = await handleCatalogEvents(
-      deps,
-      TOKEN,
-      agent.id,
-      first.body.cursor,
-    );
+    const afterAck = await handleCatalogEvents(deps, TOKEN, agent.id, {
+      ack: first.body.cursor,
+    });
 
     expect(afterAck).toEqual({
       code: 200,
@@ -169,7 +159,7 @@ describe("handleCatalogEvents", () => {
     await agents.advanceCatalogCursor(agent.id, "0");
     events.append("implementation", "p-1", "delete");
 
-    const result = await handleCatalogEvents(deps, TOKEN, agent.id, undefined);
+    const result = await handleCatalogEvents(deps, TOKEN, agent.id);
 
     expect(result).toEqual({
       code: 200,
@@ -193,7 +183,7 @@ describe("handleCatalogEvents", () => {
     events.append("implementation", null, "upsert");
     events.append("implementation", null, "upsert");
 
-    const result = await handleCatalogEvents(deps, TOKEN, agent.id, undefined);
+    const result = await handleCatalogEvents(deps, TOKEN, agent.id);
 
     enforceTrue(result.code === 200, Error, "expected 200");
     expect(result.body.entries).toHaveLength(1);
@@ -205,11 +195,9 @@ describe("handleCatalogEvents", () => {
 
     await agents.advanceCatalogCursor(agent.id, "5");
 
-    expect(await handleCatalogEvents(deps, TOKEN, agent.id, undefined)).toEqual(
-      {
-        code: 200,
-        body: { mode: "tail", cursor: "5", entries: [] },
-      },
-    );
+    expect(await handleCatalogEvents(deps, TOKEN, agent.id)).toEqual({
+      code: 200,
+      body: { mode: "tail", cursor: "5", entries: [] },
+    });
   });
 });

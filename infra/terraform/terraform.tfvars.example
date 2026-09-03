@@ -61,5 +61,14 @@ enable_anthropic_admin_key = false
 # fails run pods on their secretKeyRef.
 enable_gemini = false
 
+# Cloud Billing budget for this project, stated per week (see budget.tf: Google
+# only resets budgets monthly, so it is applied as weekly * 52 / 12, with a
+# forecast rule that fires the moment the run rate exceeds the weekly pace).
+# Alerts only, never a spend cap. Applying needs Billing Account Costs Manager.
+enable_gcp_budget       = false
+gcp_billing_account     = "012345-6789AB-CDEF01"
+gcp_budget_weekly_usd   = 1000
+gcp_budget_alert_emails = []
+
 # --- Misc ---
 log_retention_days = 30

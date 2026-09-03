@@ -79,8 +79,7 @@ export function specTasksSyncRoute(getPool: () => Pool | null): ServerRoute {
         }
         const { synced, created } = await syncTasksToDb(
           pool,
-          repo,
-          spec_slug,
+          { repo, specSlug: spec_slug },
           parsed,
         );
 

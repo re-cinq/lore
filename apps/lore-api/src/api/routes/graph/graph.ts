@@ -55,13 +55,12 @@ export function graphRoute(getPool: () => Pool | null): ServerRoute {
       } = request.query as unknown as GraphQuery;
 
       try {
-        const results = await queryLiveGraph(
-          pool,
+        const results = await queryLiveGraph(pool, {
           entity,
           relationType,
           repo,
           includeInvalidated,
-        );
+        });
 
         return h.response(results);
       } catch (err) {

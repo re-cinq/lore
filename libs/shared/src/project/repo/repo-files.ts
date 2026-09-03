@@ -54,7 +54,11 @@ export class RepoFiles {
     content: string,
     message: string,
   ): Promise<void> {
-    return this.github.commitFile(this.repo, branch, path, content, message);
+    return this.github.commitFile(this.repo, branch, {
+      path,
+      content,
+      message,
+    });
   }
 
   upsertCheckRun(input: CheckRunInput): Promise<void> {

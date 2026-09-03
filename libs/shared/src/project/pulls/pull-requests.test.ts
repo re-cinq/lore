@@ -11,16 +11,21 @@ import type {
  * asked for so we assert the repo is bound and the method passes through.
  */
 
-function fakePulls(
-  pulls: PullRef[],
-  merged: Array<{ number: number; method?: MergeMethod }>,
-  resolutions: string[] = [],
-  updates: Array<{
+/** The write-side calls the fake records, each into the array the test hands it. */
+interface RecordedWrites {
+  resolutions?: string[];
+  updates?: Array<{
     repo: string;
     number: number;
     fields: { title?: string; body?: string };
-  }> = [],
-  readied: Array<{ repo: string; number: number }> = [],
+  }>;
+  readied?: Array<{ repo: string; number: number }>;
+}
+
+function fakePulls(
+  pulls: PullRef[],
+  merged: Array<{ number: number; method?: MergeMethod }>,
+  { resolutions = [], updates = [], readied = [] }: RecordedWrites = {},
 ): PullRequestsPort {
   return {
     list: async (repo) => pulls.filter((p) => p.repo === repo),
@@ -40,7 +45,7 @@ function fakePulls(
     merge: async (_repo, number, method) => {
       merged.push({ number, method });
     },
-    open: async (repo, branch, title) => ({
+    open: async (repo, branch, { title }) => ({
       repo,
       number: 100,
       title,
@@ -157,7 +162,10 @@ describe("PullRequests", () => {
 describe("PullRequests review threads", () => {
   it("delegates listReviewThreads repo-bound and resolveReviewThread by node id", async () => {
     const resolutions: string[] = [];
-    const pr = new PullRequests("re-cinq/lore", fakePulls([], [], resolutions));
+    const pr = new PullRequests(
+      "re-cinq/lore",
+      fakePulls([], [], { resolutions }),
+    );
 
     expect(await pr.listReviewThreads(7)).toEqual([
       {
@@ -182,7 +190,7 @@ describe("PullRequests review threads", () => {
     const readied: Array<{ repo: string; number: number }> = [];
     const pr = new PullRequests(
       "re-cinq/lore",
-      fakePulls([], [], [], updates, readied),
+      fakePulls([], [], { updates, readied }),
     );
 
     await pr.update(7, { body: "rewritten" });

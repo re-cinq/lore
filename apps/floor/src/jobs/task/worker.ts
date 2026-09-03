@@ -219,17 +219,17 @@ async function processTask(task: PipelineTask): Promise<void> {
     const taskType = task.task_type;
 
     if (taskType === "onboard") {
-      await handleOnboard(task, targetRepo, branchName, model, issueNumber);
+      await handleOnboard({ task, targetRepo, branchName, model, issueNumber });
     }
 
     if (taskType === "feature-request") {
-      await handleFeatureRequest(
+      await handleFeatureRequest({
         task,
         targetRepo,
         branchName,
         model,
         issueNumber,
-      );
+      });
     }
 
     if (taskType !== "onboard" && taskType !== "feature-request") {

@@ -169,7 +169,12 @@ export function buildCoverageIndex(graph: SpecGraph): SpecCodeIndex {
       ? [{ label: test.label, path: test.path, line: test.line ?? null }]
       : [];
 
-    addCoveredIntervals(index, file.path, file.detail, stmt, related);
+    addCoveredIntervals(
+      index,
+      { path: file.path, detail: file.detail },
+      stmt,
+      related,
+    );
   }
 
   return index;
@@ -178,13 +183,12 @@ export function buildCoverageIndex(graph: SpecGraph): SpecCodeIndex {
 /** One covered entry per interval the graph attributes to the statement. */
 function addCoveredIntervals(
   index: SpecCodeIndex,
-  filePath: string,
-  fileDetail: string | undefined,
+  file: { path: string; detail: string | undefined },
   stmt: SpecGraphNode,
   related: LinkTarget[],
 ): void {
-  for (const interval of parseRangesFacet(fileDetail)) {
-    addEntry(index, filePath, {
+  for (const interval of parseRangesFacet(file.detail)) {
+    addEntry(index, file.path, {
       startLine: interval.startLine,
       endLine: interval.endLine,
       layer: "covered",

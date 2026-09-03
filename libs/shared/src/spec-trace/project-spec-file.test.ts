@@ -120,7 +120,7 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
     const expectedHash = createHash("sha256").update(content).digest("hex");
     const expectedXid = `${repo}|${filePath}`;
 
-    await projectSpecFile(repo, filePath, content, dgraphClient);
+    await projectSpecFile({ repo, filePath, content }, dgraphClient);
 
     const data = (await readGraph(
       `query q($xid: string) {
@@ -146,15 +146,15 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
     const content = "# F\n\nA point.\n";
 
     await projectSpecFile(
-      repo,
-      "specs/5-lore-agent/spec.md",
-      content,
+      { repo, filePath: "specs/5-lore-agent/spec.md", content },
       dgraphClient,
     );
     await projectSpecFile(
-      repo,
-      "specs/5-lore-agent/plan.md",
-      `${content}extra`,
+      {
+        repo,
+        filePath: "specs/5-lore-agent/plan.md",
+        content: `${content}extra`,
+      },
       dgraphClient,
     );
 
@@ -192,7 +192,10 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
     const content =
       "# S\n\n## Overview\n\nThe widget MUST work.\n\n## Acceptance Criteria\n\n1. A criterion holds.\n";
 
-    await projectSpecFile(repo, "specs/x/spec.md", content, dgraphClient);
+    await projectSpecFile(
+      { repo, filePath: "specs/x/spec.md", content },
+      dgraphClient,
+    );
 
     const data = (await readGraph(
       `query q($repo: string){
@@ -214,7 +217,7 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
     const content =
       "# Feature Specification: Lore Agent Service\n\n## Overview\n\nA point.\n";
 
-    await projectSpecFile(repo, filePath, content, dgraphClient);
+    await projectSpecFile({ repo, filePath, content }, dgraphClient);
 
     const data = (await readGraph(
       `query q($xid: string) { node(func: eq(Spec.xid, $xid)) { Spec.title } }`,
@@ -246,7 +249,7 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
         .digest("hex"),
     }));
 
-    await projectSpecFile(repo, filePath, content, dgraphClient);
+    await projectSpecFile({ repo, filePath, content }, dgraphClient);
 
     const data = (await readGraph(
       `query q($xid: string) {
@@ -282,13 +285,9 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
     vector[1] = 0.25;
     vector[2] = 0.125;
 
-    await projectSpecFile(
-      repo,
-      filePath,
-      content,
-      dgraphClient,
-      async () => vector,
-    );
+    await projectSpecFile({ repo, filePath, content }, dgraphClient, {
+      embed: async () => vector,
+    });
 
     const data = (await readGraph(
       `query q($xid: string) {
@@ -328,7 +327,7 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
     const [link] = parseTestLinksInStatement(segments[0].text);
     const expectedXid = `${repo}|${link.path}`;
 
-    await projectSpecFile(repo, filePath, content, dgraphClient);
+    await projectSpecFile({ repo, filePath, content }, dgraphClient);
 
     const data = (await readGraph(
       `query q($sx: string) {
@@ -363,7 +362,7 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
     const content =
       "## Overview\n\n- First ([validated by](src/x.test.ts#L42))\n- Second ([validated by](src/x.test.ts#L99))\n";
 
-    await projectSpecFile(repo, filePath, content, dgraphClient);
+    await projectSpecFile({ repo, filePath, content }, dgraphClient);
 
     const data = (await readGraph(
       `query q($file: string, $repo: string) {
@@ -395,7 +394,7 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
     const [link] = parseCodeLinksInStatement(segments[0].text);
     const expectedXid = `${repo}|${link.path}|${link.line ?? link.label}`;
 
-    await projectSpecFile(repo, filePath, content, dgraphClient);
+    await projectSpecFile({ repo, filePath, content }, dgraphClient);
 
     const data = (await readGraph(
       `query q($sx: string) {
@@ -427,11 +426,17 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
     const filePath = "specs/example/spec.md";
     const content = "## Overview\n\n- A point\n";
 
-    const first = await projectSpecFile(repo, filePath, content, dgraphClient);
+    const first = await projectSpecFile(
+      { repo, filePath, content },
+      dgraphClient,
+    );
 
     expect(first).toEqual({ projected: true });
 
-    const second = await projectSpecFile(repo, filePath, content, dgraphClient);
+    const second = await projectSpecFile(
+      { repo, filePath, content },
+      dgraphClient,
+    );
 
     expect(second).toEqual({ projected: false });
   });
@@ -444,32 +449,25 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
     const content = "## Overview\n\n- A point\n";
 
     const first = await projectSpecFile(
-      repo,
-      filePath,
-      content,
+      { repo, filePath, content },
       dgraphClient,
-      async () => null,
+      { embed: async () => null },
     );
 
     expect(first).toEqual({ projected: true });
 
     const unchanged = await projectSpecFile(
-      repo,
-      filePath,
-      content,
+      { repo, filePath, content },
       dgraphClient,
-      async () => null,
+      { embed: async () => null },
     );
 
     expect(unchanged).toEqual({ projected: false });
 
     const forced = await projectSpecFile(
-      repo,
-      filePath,
-      content,
+      { repo, filePath, content },
       dgraphClient,
-      async () => null,
-      true,
+      { embed: async () => null, force: true },
     );
 
     expect(forced).toEqual({ projected: true });
@@ -482,17 +480,13 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
     const filePath = "specs/example/spec.md";
 
     await projectSpecFile(
-      repo,
-      filePath,
-      "## Overview\n\n- A point\n",
+      { repo, filePath, content: "## Overview\n\n- A point\n" },
       dgraphClient,
     );
 
     const reworded = "## Overview\n\n- A reworded point\n";
     const second = await projectSpecFile(
-      repo,
-      filePath,
-      reworded,
+      { repo, filePath, content: reworded },
       dgraphClient,
     );
 
@@ -531,7 +525,7 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
 
     expect(classification.testability).toBe("untestable");
 
-    await projectSpecFile(repo, filePath, content, dgraphClient);
+    await projectSpecFile({ repo, filePath, content }, dgraphClient);
 
     const data = (await readGraph(
       `query q($xid: string) {
@@ -566,7 +560,7 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
       .map((segment) => `${repo}|${filePath}|${segment.ordinal}`)
       .sort();
 
-    await projectSpecFile(repo, filePath, content, dgraphClient);
+    await projectSpecFile({ repo, filePath, content }, dgraphClient);
 
     const data = (await readGraph(
       `query q($xid: string) {
@@ -613,8 +607,8 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
 
     expect(segmentStatements(withOne)).toHaveLength(1);
 
-    await projectSpecFile(repo, filePath, withTwo, dgraphClient);
-    await projectSpecFile(repo, filePath, withOne, dgraphClient);
+    await projectSpecFile({ repo, filePath, content: withTwo }, dgraphClient);
+    await projectSpecFile({ repo, filePath, content: withOne }, dgraphClient);
 
     const data = (await readGraph(
       `query q($xid: string) {
@@ -642,8 +636,8 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
       "## Alpha\n\nAlpha statement.\n\n## Beta\n\nBeta statement.\n";
     const withOne = "## Alpha\n\nAlpha statement.\n";
 
-    await projectSpecFile(repo, filePath, withTwo, dgraphClient);
-    await projectSpecFile(repo, filePath, withOne, dgraphClient);
+    await projectSpecFile({ repo, filePath, content: withTwo }, dgraphClient);
+    await projectSpecFile({ repo, filePath, content: withOne }, dgraphClient);
 
     const data = (await readGraph(
       `query q($xid: string) {
@@ -677,8 +671,8 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
       "## Acceptance Criteria\n\n- The first criterion.\n- The second criterion.\n";
     const withOne = "## Acceptance Criteria\n\n- The first criterion.\n";
 
-    await projectSpecFile(repo, filePath, withTwo, dgraphClient);
-    await projectSpecFile(repo, filePath, withOne, dgraphClient);
+    await projectSpecFile({ repo, filePath, content: withTwo }, dgraphClient);
+    await projectSpecFile({ repo, filePath, content: withOne }, dgraphClient);
 
     const data = (await readGraph(
       `query q($xid: string) {
@@ -713,7 +707,7 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
 
     expect(expectedBlocks).toHaveLength(3);
 
-    await projectSpecFile(repo, filePath, content, dgraphClient);
+    await projectSpecFile({ repo, filePath, content }, dgraphClient);
 
     const data = (await readGraph(
       `query q($xid: string) {
@@ -781,7 +775,7 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
           (right["AcceptanceCriterion.ordinal"] as number),
       );
 
-    await projectSpecFile(repo, filePath, content, dgraphClient);
+    await projectSpecFile({ repo, filePath, content }, dgraphClient);
 
     const acData = (await readGraph(
       `query q($xid: string) {
@@ -838,7 +832,7 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
       "```",
     ].join("\n");
 
-    await projectSpecFile(repo, filePath, content, dgraphClient);
+    await projectSpecFile({ repo, filePath, content }, dgraphClient);
     const recomputed = await recomputeFile(repo, filePath, dgraphClient);
 
     expect(recomputed).toBe(content);
@@ -854,8 +848,14 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
     );
     const shortContent = "# Title";
 
-    await projectSpecFile(repo, filePath, longContent, dgraphClient);
-    await projectSpecFile(repo, filePath, shortContent, dgraphClient);
+    await projectSpecFile(
+      { repo, filePath, content: longContent },
+      dgraphClient,
+    );
+    await projectSpecFile(
+      { repo, filePath, content: shortContent },
+      dgraphClient,
+    );
 
     const recomputed = await recomputeFile(repo, filePath, dgraphClient);
 
@@ -872,8 +872,8 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
     const linkedToB =
       "## Overview\n\n- Returns the value ([validated by](src/b.test.ts#L2))\n";
 
-    await projectSpecFile(repo, filePath, linkedToA, dgraphClient);
-    await projectSpecFile(repo, filePath, linkedToB, dgraphClient);
+    await projectSpecFile({ repo, filePath, content: linkedToA }, dgraphClient);
+    await projectSpecFile({ repo, filePath, content: linkedToB }, dgraphClient);
 
     const data = (await readGraph(
       `query q($xid: string) {
@@ -898,8 +898,11 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
       "## Overview\n\n- Returns the value ([validated by](src/sole.test.ts#L1))\n";
     const withoutLink = "## Overview\n\n- Returns the value\n";
 
-    await projectSpecFile(repo, filePath, withLink, dgraphClient);
-    await projectSpecFile(repo, filePath, withoutLink, dgraphClient);
+    await projectSpecFile({ repo, filePath, content: withLink }, dgraphClient);
+    await projectSpecFile(
+      { repo, filePath, content: withoutLink },
+      dgraphClient,
+    );
 
     const data = (await readGraph(
       `query q($xid: string) { tc(func: eq(TestChunk.xid, $xid)) { uid } }`,
@@ -919,8 +922,11 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
     const firstDropsLink =
       "## Overview\n\n- First point\n- Second point ([validated by](src/shared.test.ts#L1))\n";
 
-    await projectSpecFile(repo, filePath, bothLink, dgraphClient);
-    await projectSpecFile(repo, filePath, firstDropsLink, dgraphClient);
+    await projectSpecFile({ repo, filePath, content: bothLink }, dgraphClient);
+    await projectSpecFile(
+      { repo, filePath, content: firstDropsLink },
+      dgraphClient,
+    );
 
     const data = (await readGraph(
       `query q($xid: string) { tc(func: eq(TestChunk.xid, $xid)) { TestChunk.xid } }`,
@@ -941,7 +947,7 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
       "## Overview\n\n- A point ([validated by](src/covered.test.ts#L1))\n";
     const withoutLink = "## Overview\n\n- A point\n";
 
-    await projectSpecFile(repo, filePath, withLink, dgraphClient);
+    await projectSpecFile({ repo, filePath, content: withLink }, dgraphClient);
 
     const testChunkUid = await readGraph(
       `query q($xid: string) { tc(func: eq(TestChunk.xid, $xid)) { uid } }`,
@@ -965,7 +971,10 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
       await txn.discard().catch(() => {});
     }
 
-    await projectSpecFile(repo, filePath, withoutLink, dgraphClient);
+    await projectSpecFile(
+      { repo, filePath, content: withoutLink },
+      dgraphClient,
+    );
 
     const data = (await readGraph(
       `query q($xid: string) { tc(func: eq(TestChunk.xid, $xid)) { TestChunk.xid } }`,
@@ -985,13 +994,9 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
     const content =
       "# Title\n\n## Acceptance Criteria\n\nThe thing happens. ([validated by `it works`](src/thing.test.ts#L42))\n";
 
-    await projectSpecFile(
-      repo,
-      filePath,
-      content,
-      dgraphClient,
-      async () => null,
-    );
+    await projectSpecFile({ repo, filePath, content }, dgraphClient, {
+      embed: async () => null,
+    });
 
     const data = (await readGraph(
       `query q($xid: string) {
@@ -1022,17 +1027,21 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
 
     createdRepo = repo;
     await projectAdrFile(
-      repo,
-      "adrs/ADR-016-dark-factory.md",
-      "# ADR-016\n\n## Status\n\nAccepted",
+      {
+        repo,
+        filePath: "adrs/ADR-016-dark-factory.md",
+        content: "# ADR-016\n\n## Status\n\nAccepted",
+      },
       dgraphClient,
     );
     await projectSpecFile(
-      repo,
-      "specs/x/spec.md",
-      "## Overview\n\nPer ADR-016, we do the thing.",
+      {
+        repo,
+        filePath: "specs/x/spec.md",
+        content: "## Overview\n\nPer ADR-016, we do the thing.",
+      },
       dgraphClient,
-      async () => null,
+      { embed: async () => null },
     );
 
     const data = (await readGraph(

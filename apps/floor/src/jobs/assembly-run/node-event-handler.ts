@@ -383,22 +383,24 @@ export async function productionNodeEventDeps(): Promise<NodeEventDeps> {
 
       await writeEpisode(
         { memory: memoryLifecycle() },
-        [
-          `Assembly run ${run.blueprintName} on ${run.repo} ${outcome}.`,
-          `Branch: ${run.branch ?? "(none)"}`,
-          reason ? `Reason: ${reason}` : "",
-        ]
-          .filter((l) => l.length > 0)
-          .join("\n"),
-        "assembly-run",
-        `${run.repo}/${run.id}`,
+        {
+          content: [
+            `Assembly run ${run.blueprintName} on ${run.repo} ${outcome}.`,
+            `Branch: ${run.branch ?? "(none)"}`,
+            reason ? `Reason: ${reason}` : "",
+          ]
+            .filter((l) => l.length > 0)
+            .join("\n"),
+          source: "assembly-run",
+          ref: `${run.repo}/${run.id}`,
+        },
       );
     },
     resolveConversation: (node, task, iteration, priorOutcome) =>
       resolveConversation(
         node,
         task,
-        iteration,
+        { iteration, priorOutcome },
         {
           conversations: conversations(),
           // The URL the POD must reach — the same sink host it already posts telemetry to, not the Floor's own view of itself.
@@ -410,7 +412,6 @@ export async function productionNodeEventDeps(): Promise<NodeEventDeps> {
               (line) => line.id,
             ),
         },
-        priorOutcome,
       ),
     settleTask: (row, outcome, reason) =>
       settleTaskForLine(row, outcome, reason, {

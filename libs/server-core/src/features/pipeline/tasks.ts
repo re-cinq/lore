@@ -35,10 +35,15 @@ export async function claimTask(
 
   if (claimed) {
     try {
-      await recordTaskEvent(pool, taskId, "pending", "running", {
-        agent_id: agentId,
-        claimed_by: "lore_claim_task",
-      });
+      await recordTaskEvent(
+        pool,
+        taskId,
+        { from: "pending", to: "running" },
+        {
+          agent_id: agentId,
+          claimed_by: "lore_claim_task",
+        },
+      );
     } catch {
       /* event recording must not block */
     }
@@ -53,7 +58,12 @@ export async function completeTask(pool: PgPool, taskId: string) {
 
   if (result.completed) {
     try {
-      await recordTaskEvent(pool, taskId, "running", "completed", {});
+      await recordTaskEvent(
+        pool,
+        taskId,
+        { from: "running", to: "completed" },
+        {},
+      );
     } catch {
       /* event recording must not block */
     }

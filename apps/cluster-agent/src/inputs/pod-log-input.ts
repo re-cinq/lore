@@ -44,6 +44,12 @@ interface Follower {
   timer: NodeJS.Timeout;
 }
 
+/** The cluster connection and namespace one stream is opened against. */
+interface NamespaceHandle {
+  kc: KubeConfig;
+  namespace: string;
+}
+
 export class PodLogInput implements EventInput {
   readonly name = "pod-logs";
   private running = false;
@@ -97,7 +103,7 @@ export class PodLogInput implements EventInput {
           page as FollowableAgent[],
           new Set(this.followers.keys()),
         )) {
-          await this.followOne(kc, namespace, core, agent, emit);
+          await this.followOne({ kc, namespace }, core, agent, emit);
         }
       });
     } catch (err) {
@@ -112,12 +118,12 @@ export class PodLogInput implements EventInput {
 
   /** Find the pod for one agent and open its stream. */
   private async followOne(
-    kc: KubeConfig,
-    namespace: string,
+    cluster: NamespaceHandle,
     core: CoreV1Api,
     agent: { agentCrName: string; jobName: string },
     emit: Emit,
   ): Promise<void> {
+    const { namespace } = cluster;
     const pods = await core.listNamespacedPod({
       namespace,
       labelSelector: podSelectorForJob(agent.jobName),
@@ -130,8 +136,7 @@ export class PodLogInput implements EventInput {
       return;
     }
     this.follow(
-      kc,
-      namespace,
+      cluster,
       { ...agent, podName: chosen.podName },
       chosen.containerName,
       emit,
@@ -140,8 +145,7 @@ export class PodLogInput implements EventInput {
 
   /** Open one pod's stream and emit its chunks until it ends or we stop. */
   private follow(
-    kc: KubeConfig,
-    namespace: string,
+    { kc, namespace }: NamespaceHandle,
     target: PodLogTarget,
     containerName: string,
     emit: Emit,

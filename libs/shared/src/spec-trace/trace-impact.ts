@@ -684,7 +684,8 @@ export async function computeImpact(
     const lookupRanges = file.baseRanges ?? file.ranges;
     const found = [
       ...(await implementedByImpact(dgraph, repo, file.path, lookupRanges)),
-      ...(await testFileImpact(dgraph, repo, file.path, lookupRanges, {
+      ...(await testFileImpact(dgraph, repo, file.path, {
+        ranges: lookupRanges,
         fileLevel: !aligned,
       })),
       // Coverage facets and orphan footprints are line-precise with no file-level fallback, so an unaligned file cannot use them.

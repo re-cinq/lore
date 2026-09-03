@@ -29,9 +29,11 @@ describe("syncTasksToDb", () => {
       .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [] });
 
-    const result = await syncTasksToDb(pool, "re-cinq/lore", "auth", [
-      parsed({ specTaskId: "T001" }),
-    ]);
+    const result = await syncTasksToDb(
+      pool,
+      { repo: "re-cinq/lore", specSlug: "auth" },
+      [parsed({ specTaskId: "T001" })],
+    );
 
     expect(result).toEqual({ synced: 1, created: 1 });
     const insertSql = pool.query.mock.calls[1][0];
@@ -47,9 +49,11 @@ describe("syncTasksToDb", () => {
       .mockResolvedValueOnce({ rows: [{ id: "uuid-1", status: "pending" }] })
       .mockResolvedValueOnce({ rows: [] });
 
-    const result = await syncTasksToDb(pool, "re-cinq/lore", "auth", [
-      parsed({ specTaskId: "T001" }),
-    ]);
+    const result = await syncTasksToDb(
+      pool,
+      { repo: "re-cinq/lore", specSlug: "auth" },
+      [parsed({ specTaskId: "T001" })],
+    );
 
     expect(result).toEqual({ synced: 1, created: 0 });
     expect(pool.query.mock.calls[1][0]).toContain("UPDATE pipeline.tasks");
@@ -63,7 +67,7 @@ describe("syncTasksToDb", () => {
       .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [] });
 
-    await syncTasksToDb(pool, "re-cinq/lore", "auth", [
+    await syncTasksToDb(pool, { repo: "re-cinq/lore", specSlug: "auth" }, [
       parsed({ specTaskId: "T002", completed: true }),
     ]);
 
@@ -79,10 +83,8 @@ describe("syncTasksToDb", () => {
 
     await syncTasksToDb(
       pool,
-      "re-cinq/lore",
-      "auth",
+      { repo: "re-cinq/lore", specSlug: "auth", taskGroupId: "group-9" },
       [parsed({ specTaskId: "T001" })],
-      "group-9",
     );
 
     const insertSql = pool.query.mock.calls[1][0];
@@ -100,10 +102,11 @@ describe("syncTasksToDb", () => {
       .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [] });
 
-    const result = await syncTasksToDb(pool, "re-cinq/lore", "auth", [
-      parsed({ specTaskId: "T001" }),
-      parsed({ specTaskId: "T002" }),
-    ]);
+    const result = await syncTasksToDb(
+      pool,
+      { repo: "re-cinq/lore", specSlug: "auth" },
+      [parsed({ specTaskId: "T001" }), parsed({ specTaskId: "T002" })],
+    );
 
     expect(result).toEqual({ synced: 2, created: 1 });
   });

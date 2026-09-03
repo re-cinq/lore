@@ -41,7 +41,7 @@ describe("searchMemories", () => {
   it("passes $3 = true and the ($3::boolean OR f.valid_to IS NULL) gate when include_invalidated is true", async () => {
     const pool = scriptedPool();
 
-    await searchMemories(pool, "deploy", undefined, undefined, 10, true);
+    await searchMemories(pool, "deploy", { includeInvalidated: true });
 
     const factCall = pool.calls.find(factKeywordQuery)!;
 
@@ -52,7 +52,7 @@ describe("searchMemories", () => {
   it("passes $3 = false to restrict facts to valid rows when include_invalidated is false", async () => {
     const pool = scriptedPool();
 
-    await searchMemories(pool, "deploy", undefined, undefined, 10, false);
+    await searchMemories(pool, "deploy", { includeInvalidated: false });
 
     const factCall = pool.calls.find(factKeywordQuery)!;
 
@@ -94,15 +94,9 @@ describe("searchMemories", () => {
       return [];
     });
 
-    const results = await searchMemories(
-      pool,
-      "deploy",
-      undefined,
-      undefined,
-      10,
-      false,
-      true,
-    );
+    const results = await searchMemories(pool, "deploy", {
+      graphAugment: true,
+    });
 
     expect(pool.calls.some(edgesQuery)).toBe(true);
     expect(results.some((r) => r.source === "graph")).toBe(true);
@@ -124,15 +118,7 @@ describe("searchMemories", () => {
         : [],
     );
 
-    await searchMemories(
-      pool,
-      "deploy",
-      undefined,
-      undefined,
-      10,
-      false,
-      false,
-    );
+    await searchMemories(pool, "deploy", { graphAugment: false });
 
     expect(pool.calls.some(edgesQuery)).toBe(false);
   });

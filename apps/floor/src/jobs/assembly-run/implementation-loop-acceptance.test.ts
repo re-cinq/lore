@@ -102,7 +102,9 @@ describe("implementation-loop acceptance: one ticket, cluster-free, walked throu
     const h = loopHarness();
     const id = await parkedOnPr(h);
 
-    await h.resume(id, "await-pr", "changes_requested", { reason: "ci_red" });
+    await h.resume(id, "await-pr", "changes_requested", {
+      args: { reason: "ci_red" },
+    });
     await h.completeAgentNode(id, "fix-ci", { outcome: "success" });
 
     expect(h.visits().at(-1)).toEqual(["await-pr", null]);
@@ -128,7 +130,9 @@ describe("implementation-loop acceptance: one ticket, cluster-free, walked throu
     const h = loopHarness();
     const id = await parkedOnPr(h);
 
-    await h.resume(id, "await-pr", "failed", { reason: "unresolved_threads" });
+    await h.resume(id, "await-pr", "failed", {
+      args: { reason: "unresolved_threads" },
+    });
     await retrospectiveReported(h, id);
 
     expect(h.labeled).toEqual([{ issue: 77, label: "lore:blocked" }]);

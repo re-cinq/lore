@@ -96,13 +96,9 @@ describe.skipIf(!reachable)("resolveSentenceLink (live Dgraph)", () => {
     const content =
       "# Feature Specification: Widget Service\n\n## Requirements\n\n1. Onboarding a new repo produces a\n   PR within 5 minutes\n";
 
-    await projectSpecFile(
-      repo,
-      filePath,
-      content,
-      dgraphClient,
-      async () => null,
-    );
+    await projectSpecFile({ repo, filePath, content }, dgraphClient, {
+      embed: async () => null,
+    });
 
     const matched = await resolveSentenceLink(dgraphClient, repo, {
       spec: "Widget Service",
@@ -120,11 +116,14 @@ describe.skipIf(!reachable)("resolveSentenceLink (live Dgraph)", () => {
 
     createdRepo = repo;
     await projectSpecFile(
-      repo,
-      "specs/example/spec.md",
-      "# Feature Specification: Widget Service\n\n## Requirements\n\n1. A real criterion.\n",
+      {
+        repo,
+        filePath: "specs/example/spec.md",
+        content:
+          "# Feature Specification: Widget Service\n\n## Requirements\n\n1. A real criterion.\n",
+      },
       dgraphClient,
-      async () => null,
+      { embed: async () => null },
     );
 
     const matched = await resolveSentenceLink(dgraphClient, repo, {
@@ -143,11 +142,14 @@ describe.skipIf(!reachable)("resolveSentenceLink (live Dgraph)", () => {
     const filePath = "specs/example/spec.md";
 
     await projectSpecFile(
-      repo,
-      filePath,
-      "# Feature Specification: Widget Service\n\n## Acceptance Criteria\n\n1. Rollback completes within one minute\n",
+      {
+        repo,
+        filePath,
+        content:
+          "# Feature Specification: Widget Service\n\n## Acceptance Criteria\n\n1. Rollback completes within one minute\n",
+      },
       dgraphClient,
-      async () => null,
+      { embed: async () => null },
     );
 
     const matched = await resolveSentenceLink(dgraphClient, repo, {

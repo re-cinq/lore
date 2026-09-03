@@ -29,6 +29,13 @@ terraform {
 provider "google" {
   project = var.project_id
   region  = var.region
+
+  # Billing-account-scoped APIs (billingbudgets) have no project to bill quota
+  # to, and local Application Default Credentials carry none, so a budget apply
+  # 403s with SERVICE_DISABLED unless the calls name this project as the quota
+  # project.
+  user_project_override = true
+  billing_project       = var.project_id
 }
 
 data "google_container_cluster" "cluster" {

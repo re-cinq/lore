@@ -84,7 +84,7 @@ async function upsertMemoryWithVersion(
        WHERE id = $6`,
       [value, version, embeddingParam, ttlSeconds, ttlSeconds, memoryId],
     );
-    await insertVersionRecord(db, memoryId, version, value, embeddingParam);
+    await insertVersionRecord(db, { memoryId, version, value, embeddingParam });
 
     return { memoryId, version };
   }
@@ -99,18 +99,22 @@ async function upsertMemoryWithVersion(
   );
   const memoryId = result.rows[0].id as string;
 
-  await insertVersionRecord(db, memoryId, version, value, embeddingParam);
+  await insertVersionRecord(db, { memoryId, version, value, embeddingParam });
 
   return { memoryId, version };
 }
 
 // A memories row is never written without its version record (#1154).
+interface VersionRecord {
+  memoryId: string;
+  version: number;
+  value: string;
+  embeddingParam: string | null;
+}
+
 async function insertVersionRecord(
   db: Pick<PgPool, "query">,
-  memoryId: string,
-  version: number,
-  value: string,
-  embeddingParam: string | null,
+  { memoryId, version, value, embeddingParam }: VersionRecord,
 ): Promise<void> {
   await db.query(
     `INSERT INTO memory.memory_versions (memory_id, version, value, embedding)
@@ -119,14 +123,23 @@ async function insertVersionRecord(
   );
 }
 
-export async function writeMemory(
-  key: string,
-  value: string,
-  agentId?: string,
-  ttl?: number,
-  embedding?: number[],
-  repo?: string,
-): Promise<WriteResult> {
+export interface MemoryWriteInput {
+  key: string;
+  value: string;
+  agentId?: string;
+  ttl?: number;
+  embedding?: number[];
+  repo?: string;
+}
+
+export async function writeMemory({
+  key,
+  value,
+  agentId,
+  ttl,
+  embedding,
+  repo,
+}: MemoryWriteInput): Promise<WriteResult> {
   const agent = resolveAgentId(agentId);
 
   // The memories row and its version row must land together — prod ran for months with sequential writes leaving version-less memories behind (#1154); hasConnect feature-detects connect(), a pool without it keeps the plain sequential path.
@@ -324,10 +337,7 @@ export async function listMemories(
 
 export async function sharedWrite(
   poolName: string,
-  key: string,
-  value: string,
-  agentId?: string,
-  embedding?: number[],
+  { key, value, agentId, embedding }: Omit<MemoryWriteInput, "ttl" | "repo">,
 ): Promise<WriteResult> {
   const agent = resolveAgentId(agentId);
   const embeddingParam = embedding ? `[${embedding.join(",")}]` : null;

@@ -117,19 +117,19 @@ describe("InMemoryFeatures iteration writes", () => {
     const gap: GapResult = { gaps: [] } as unknown as GapResult;
 
     await features.attachIterationTask("other/repo", feature.id, 1, "task-1");
-    await features.setIterationResult(
-      "other/repo",
-      feature.id,
-      1,
+    await features.setIterationResult("other/repo", feature.id, 1, {
       gap,
-      "ready",
-    );
+      status: "ready",
+    });
     expect(
       (await features.get("a/b", feature.id))?.iterations[0],
     ).toMatchObject({ task_id: null, status: "running", gap_result: null });
 
     await features.attachIterationTask("a/b", feature.id, 1, "task-1");
-    await features.setIterationResult("a/b", feature.id, 1, gap, "ready");
+    await features.setIterationResult("a/b", feature.id, 1, {
+      gap,
+      status: "ready",
+    });
     expect(
       (await features.get("a/b", feature.id))?.iterations[0],
     ).toMatchObject({ task_id: "task-1", status: "ready", gap_result: gap });

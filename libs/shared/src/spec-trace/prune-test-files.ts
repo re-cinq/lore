@@ -108,8 +108,16 @@ export async function pruneTestFiles(
     // GC before delete, excluding doomed nodes as owners, so a still-referenced CodeChunk/File survives.
     const excluded = new Set([...doomed.coverageUids, ...doomed.chunkUids]);
 
-    await gcOrphanChunks(dgraph, "CodeChunk", doomed.coveredUids, [], excluded);
-    await gcOrphanChunks(dgraph, "File", doomed.coveredUids, [], excluded);
+    await gcOrphanChunks(dgraph, "CodeChunk", {
+      previous: doomed.coveredUids,
+      current: [],
+      excludeOwners: excluded,
+    });
+    await gcOrphanChunks(dgraph, "File", {
+      previous: doomed.coveredUids,
+      current: [],
+      excludeOwners: excluded,
+    });
 
     // Re-query uids before the atomic delete mutation — Dgraph only detects write-write conflicts, so this is the staleness guard.
     const target = await queryFileSubtree(dgraph, repo, filePath);

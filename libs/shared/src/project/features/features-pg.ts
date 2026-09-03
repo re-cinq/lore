@@ -2,7 +2,7 @@ import { selectList } from "../../lib/row.js";
 import { FEATURE_COLUMNS } from "../../models/feature.js";
 import { FEATURE_ITERATION_COLUMNS } from "../../models/feature-iteration.js";
 import type { PgPool } from "../../memory-store.js";
-import type { GapResult } from "../../feature-planning/gap-result.js";
+import type { IterationResult } from "./features-port.js";
 import {
   PATCH_COLUMNS,
   slugifyFeatureTitle,
@@ -11,7 +11,6 @@ import {
   type FeatureIteration,
   type FeatureWithIterations,
   type FeatureStatus,
-  type IterationStatus,
   type FeaturePatch,
   type CreateFeatureInput,
 } from "./features-port.js";
@@ -155,8 +154,7 @@ export class PgFeatures implements FeaturesPort {
     repo: string,
     id: string,
     iteration: number,
-    gap: GapResult | null,
-    status: IterationStatus,
+    { gap, status }: IterationResult,
   ): Promise<void> {
     // Scope the write to the owning repo (feature_iterations has no repo column;
     // join through lore.features) so a write-token holder cannot overwrite

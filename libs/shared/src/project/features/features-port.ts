@@ -13,6 +13,12 @@ export type FeatureStatus =
 
 export type IterationStatus = "running" | "ready" | "failed";
 
+/** What a finished round leaves behind: its validated gap result (null when it produced none) and the status that follows from it. */
+export interface IterationResult {
+  gap: GapResult | null;
+  status: IterationStatus;
+}
+
 export interface Feature {
   id: string;
   repo: string;
@@ -105,8 +111,7 @@ export interface FeaturesPort {
     repo: string,
     id: string,
     iteration: number,
-    gap: GapResult | null,
-    status: IterationStatus,
+    result: IterationResult,
   ): Promise<void>;
   /** Move the feature to a new status, optionally patching draft/PR/Issue fields. */
   transitionStatus(

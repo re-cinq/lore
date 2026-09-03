@@ -23,13 +23,10 @@ export function decideMergeResume(
   nodes: readonly ParkedNode[],
   graph: RunGraph | null,
 ): ParkedTarget | null {
-  const parked = parkedHumanNode(
-    status,
-    nodes,
-    graph,
-    MERGED_STATION_TYPE,
-    MERGED_NODE,
-  );
+  const parked = parkedHumanNode(status, nodes, graph, {
+    type: MERGED_STATION_TYPE,
+    fallbackNodeId: MERGED_NODE,
+  });
 
   return parked
     ? { lineId, nodeId: parked.nodeId, iteration: parked.iteration }
@@ -64,7 +61,7 @@ export interface DecomposeResumeDeps {
 export function eventReport(
   reporter: EventReporter,
 ): DecomposeResumeDeps["report"] {
-  return (target, outcome) => reportToParkedNode(reporter, target, outcome);
+  return (target, outcome) => reportToParkedNode(reporter, target, { outcome });
 }
 
 /** Reports the merge to whichever open line for this PR is parked on its `merged` node; called for every merged task since a merged PR isn't labelled "spec PR" — safe because only a line actually parked on `merged` qualifies. */

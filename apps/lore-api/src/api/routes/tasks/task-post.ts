@@ -63,12 +63,16 @@ const ALLOWED_STATUSES = [
 ];
 
 /** Status update from the local runner (no action field, has task_id + status). */
+interface RunnerStatusUpdate {
+  status: string;
+  prUrl: string | undefined;
+  error: string | undefined;
+}
+
 async function updateTaskStatus(
   pool: Pool,
   taskId: string,
-  status: string,
-  prUrl: string | undefined,
-  error: string | undefined,
+  { status, prUrl, error }: RunnerStatusUpdate,
 ) {
   enforceTrue(
     ALLOWED_STATUSES.includes(status),
@@ -177,13 +181,11 @@ export function taskPostRoute(getPool: () => Pool | null): ServerRoute {
         // Status update from local runner (no action field, has task_id + status)
         if (!parsed.action && parsed.task_id && parsed.status) {
           return h.response(
-            await updateTaskStatus(
-              pool,
-              parsed.task_id,
-              parsed.status,
-              parsed.pr_url,
-              parsed.error,
-            ),
+            await updateTaskStatus(pool, parsed.task_id, {
+              status: parsed.status,
+              prUrl: parsed.pr_url,
+              error: parsed.error,
+            }),
           );
         }
 
@@ -215,15 +217,15 @@ export function taskPostRoute(getPool: () => Pool | null): ServerRoute {
         const resolvedType = validTypes.includes(task_type || "")
           ? task_type
           : "general";
-        const result = await createTask(
+        const result = await createTask({
           description,
-          resolvedType,
-          target_repo,
-          created_by || "remote-mcp",
-          (context as Record<string, unknown>) || undefined,
-          priority || "normal",
-          group_id || undefined,
-        );
+          taskType: resolvedType,
+          targetRepo: target_repo,
+          createdBy: created_by || "remote-mcp",
+          contextBundle: (context as Record<string, unknown>) || undefined,
+          priority: priority || "normal",
+          taskGroupId: group_id || undefined,
+        });
 
         return h.response(result);
       } catch (err) {

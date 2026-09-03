@@ -97,11 +97,13 @@ function isIndexLagShaped(
 }
 
 function brokenLinksForStatement(
-  specPath: string,
+  {
+    path: specPath,
+    ingestedAt: specIngestedAt,
+  }: { path: string; ingestedAt?: string | Date | null },
   statementText: string,
   testLinks: TestLinkRef[],
   chunks: ChunkLineRange[],
-  specIngestedAt?: string | Date | null,
 ): BrokenLink[] {
   const out: BrokenLink[] = [];
 
@@ -146,11 +148,10 @@ export function collectBrokenLinks(
   for (const { statement, testLinks } of linksForStatements(content)) {
     out.push(
       ...brokenLinksForStatement(
-        specPath,
+        { path: specPath, ingestedAt: specIngestedAt },
         statement.text,
         testLinks,
         chunks,
-        specIngestedAt,
       ),
     );
   }

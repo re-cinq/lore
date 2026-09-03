@@ -82,13 +82,10 @@ export default function ChunkBody({
     : [rehypeRaw, [rehypeSanitize, markdownSanitizeSchema], rehypeHighlight];
 
   const headerLabel = chunkHeader(contentType, metadata);
-  const ghHref = blobUrl(
-    repo,
-    branch,
-    filePath,
-    isCode ? metadata?.start_line : undefined,
-    isCode ? metadata?.end_line : undefined,
-  );
+  const ghHref = blobUrl(repo, branch, filePath, {
+    start: isCode ? metadata?.start_line : undefined,
+    end: isCode ? metadata?.end_line : undefined,
+  });
 
   return (
     <div>

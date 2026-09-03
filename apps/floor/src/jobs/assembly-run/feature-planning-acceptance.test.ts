@@ -56,7 +56,7 @@ describe("feature-planning acceptance (real start/node/resume handlers, scripted
     const id = await parkedOnAuthor(h);
 
     await h.resume(id, "author", "changes_requested", {
-      round_feedback: "tighten the scope to the mcp adapter",
+      args: { round_feedback: "tighten the scope to the mcp adapter" },
     });
 
     expect(h.enqueued.map((s) => s.name)).toEqual([

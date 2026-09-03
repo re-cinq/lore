@@ -377,8 +377,7 @@ export async function advanceLine(
 async function settleJobRun(
   jobRunId: string,
   assemblyRun: AssemblyRunRecord,
-  outcome: string,
-  reason: string | undefined,
+  { outcome, reason }: { outcome: string; reason: string | undefined },
   deps: AdvanceDeps,
 ): Promise<void> {
   if (outcome === "completed") {
@@ -409,7 +408,7 @@ export async function finishLine(
 
   // Settled BEFORE closing the row: after the row closes, advanceLine's retry early-returns on the terminal row, orphaning the job_run open forever.
   if (typeof jobRunId === "string" && jobRunId.length > 0) {
-    await settleJobRun(jobRunId, assemblyRun, outcome, reason, deps);
+    await settleJobRun(jobRunId, assemblyRun, { outcome, reason }, deps);
   }
 
   const closedNow = await deps.assemblyRuns.finish(

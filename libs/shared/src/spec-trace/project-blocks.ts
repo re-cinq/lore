@@ -5,11 +5,15 @@ import type { DgraphClientPort } from "./deps.js";
 import { upsertByXid, withTxn } from "./dgraph-upsert.js";
 
 /** Upserts one Block per source block of `content`, always setting `Block.file_path` (+ the `Block.spec` edge when `specUid` is given); returns the valid Block xids for the caller's pruning sweep. */
+export interface SourceDocument {
+  repo: string;
+  filePath: string;
+  content: string;
+}
+
 export async function projectDocumentBlocks(
   dgraph: DgraphClientPort,
-  repo: string,
-  filePath: string,
-  content: string,
+  { repo, filePath, content }: SourceDocument,
   specUid?: string,
 ): Promise<Set<string>> {
   const blocks = segmentBlocks(content);

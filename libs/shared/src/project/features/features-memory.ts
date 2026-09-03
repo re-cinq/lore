@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { enforceTrue } from "../../lib/enforce.js";
-import type { GapResult } from "../../feature-planning/gap-result.js";
+import type { IterationResult } from "./features-port.js";
 import {
   PATCH_COLUMNS,
   slugifyFeatureTitle,
@@ -9,7 +9,6 @@ import {
   type FeatureIteration,
   type FeatureWithIterations,
   type FeatureStatus,
-  type IterationStatus,
   type CreateFeatureInput,
   type FeaturePatch,
 } from "./features-port.js";
@@ -136,8 +135,7 @@ export class InMemoryFeatures implements FeaturesPort {
     repo: string,
     id: string,
     iteration: number,
-    gap: GapResult | null,
-    status: IterationStatus,
+    { gap, status }: IterationResult,
   ): Promise<void> {
     const row = this.findIteration(repo, id, iteration);
 

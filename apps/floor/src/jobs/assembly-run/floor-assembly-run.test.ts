@@ -67,7 +67,7 @@ describe("nodeAgentSpec", () => {
       cloneNode({ id: "review", type: "agent" }),
       task,
       "p",
-      2,
+      { iteration: 2 },
     );
 
     expect(spec.name).toBe("a1b2c3d4e5f6-review-2");
@@ -215,8 +215,7 @@ describe("station-run id label", () => {
       cloneNode({ id: "implement", type: "agent" }),
       task,
       "p",
-      1,
-      "3f6c1c9a-run",
+      { iteration: 1, stationRunId: "3f6c1c9a-run" },
     );
     const station = nodeStationSpec(
       cloneNode({ id: "wrap", type: "retrospective" }),

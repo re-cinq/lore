@@ -77,9 +77,9 @@ bearer token, and the response is printed as JSON. ([validated by `proxies to GE
 An unconfigured API yields the not-configured message rather than a
 PostgreSQL message. ([validated by `reports a missing API configuration instead of a PostgreSQL message`](apps/mcp-server/src/mcp/tools/memory-tools.test.ts#L125))
 
-Stats returns fact/memory/search counters keyed to the resolved agent. ([validated by `memory.test.ts:299`](libs/server-core/src/features/memory/memory.test.ts#L299))
+Stats returns fact/memory/search counters keyed to the resolved agent. ([validated by `memory.test.ts:307`](libs/server-core/src/features/memory/memory.test.ts#L307))
 
-Health returns memory and snapshot counts keyed to the resolved agent. ([validated by `memory.test.ts:275`](libs/server-core/src/features/memory/memory.test.ts#L275))
+Health returns memory and snapshot counts keyed to the resolved agent. ([validated by `memory.test.ts:283`](libs/server-core/src/features/memory/memory.test.ts#L283))
 
 ## Out of Scope
 

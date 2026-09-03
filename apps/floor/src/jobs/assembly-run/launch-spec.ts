@@ -229,8 +229,7 @@ export function nodeLaunchSpec(
           node,
           { ...task, description: dispatch.content },
           dispatch.prompt ?? "",
-          iteration,
-          stationRunId,
+          { iteration, stationRunId },
         )
       : nodeStationSpec(node, task, iteration, stationRunId);
 
