@@ -33,6 +33,11 @@ resources:
     cpu: "50m"
     memory: 256Mi
 
+# Annotations for the lore-stations KSA. Terraform sets the Workload Identity
+# annotation here when enable_gcp_billing_export is on; empty otherwise.
+serviceAccount:
+  annotations: {}
+
 env:
   LORE_DB_HOST: lore-db-rw.lore-db.svc.cluster.local
   LORE_DB_PORT: "5432"
@@ -97,4 +102,12 @@ courierJobs:
   - name: anthropic-cost-sync
     schedule: "0 7 * * *"
     path: /api/stations/anthropic-cost-sync
+  # Daily like the Anthropic sync, an hour after it: Google's billing export
+  # closes days at UTC midnight and restates stragglers later, so one pull
+  # after the day settles is enough and the 31-day window self-heals the rest.
+  # Skips (never fails) until LORE_GCP_BILLING_PROJECT/_DATASET are set by
+  # terraform (enable_gcp_billing_export) and the console-side export exists.
+  - name: gcp-cost-sync
+    schedule: "0 8 * * *"
+    path: /api/stations/gcp-cost-sync
 

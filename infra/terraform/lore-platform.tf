@@ -276,7 +276,14 @@ resource "helm_release" "lore_platform" {
     # that is the point of the service form: a station beside the data asks the
     # data instead of paying for an HTTP seam per method.
     "lore-stations" = {
-      env = {
+      # Workload Identity for the gcp-cost-sync station's BigQuery read; the
+      # KSA annotation is what makes the metadata server answer as the GSA.
+      serviceAccount = {
+        annotations = var.enable_gcp_billing_export ? {
+          "iam.gke.io/gcp-service-account" = google_service_account.lore_stations[0].email
+        } : {}
+      }
+      env = merge({
         LORE_DB_HOST = "lore-db-rw.lore-db.svc.cluster.local"
         LORE_DB_PORT = "5432"
         LORE_DB_NAME = "lore"
@@ -294,7 +301,13 @@ resource "helm_release" "lore_platform" {
         # external URL would leave the cluster and come back through the
         # ingress for a call between two pods in it.
         LORE_API_URL = local.lore_api_in_cluster
-      }
+        }, var.enable_gcp_billing_export ? {
+        # Where the gcp-cost-sync station finds the Cloud Billing export.
+        # Unset (flag off) → the sync reports a skip and /spend keeps showing
+        # the estimate only.
+        LORE_GCP_BILLING_PROJECT = var.project_id
+        LORE_GCP_BILLING_DATASET = google_bigquery_dataset.billing_export[0].dataset_id
+      } : {})
       # The anthropic-cost-sync station's org admin key (moved here from lore-api
       # in #1522). Its OWN namespace secret — secrets are namespace-scoped, so
       # the lore-api `lore-anthropic-key` is out of reach here. es_stations_anthropic_key

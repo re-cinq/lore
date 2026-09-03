@@ -301,6 +301,26 @@ const SpendWindowSchema = z.object({
     unbilled_days: z.number(),
   }),
   budget: BudgetSchema,
+  /**
+   * Google's own billing, interval-scoped, from `pipeline.gcp_cost_daily`
+   * (written daily by the gcp-cost-sync station reading the Cloud Billing
+   * BigQuery export). The authoritative counterpart to the compute ESTIMATE
+   * below — reported beside it, never reconciled with it, for the same
+   * reason the Anthropic billed figures sit beside the metered ones. Costs
+   * are net of credits: the invoice total, not the list price.
+   */
+  gcp: z.object({
+    available: z.boolean(),
+    total_usd: z.number(),
+    as_of: z.string().nullable(),
+    /** The last day the export has actually closed — `MAX(bucket_date)` over
+     *  the whole table, since Google's export lags a day or more. */
+    billed_through: z.string().nullable(),
+    by_service: z.array(
+      z.object({ service: z.string(), cost_usd: z.number() }),
+    ),
+    daily: z.array(z.object({ bucket_date: z.string(), cost_usd: z.number() })),
+  }),
   compute: z.object({
     rates: z.object({
       cpu_hour_usd: z.number(),
@@ -544,6 +564,46 @@ export function spendWindowRoute(
         [fromTs, toTs, billedTotal?.billed_through ?? null],
       );
 
+      // GCP billed figures under the same rules as the Anthropic ones: totals
+      // FILTERed to the interval, the two stamps over the whole table, and
+      // `optionalTableRows` because both the migration and the console-side
+      // billing export arrive on their own schedules. Cost is stored gross
+      // with credits beside it; everything reported here is their sum — the
+      // net the invoice actually charges.
+      const gcpTotalRows = await optionalTableRows<{
+        billed_usd: number;
+        as_of: string | null;
+        billed_through: string | null;
+      }>(
+        pool,
+        `SELECT
+           COALESCE(SUM(cost_usd + credits_usd)
+             FILTER (WHERE bucket_date >= $1::date AND bucket_date <= $2::date),
+             0)::float8 AS billed_usd,
+           MAX(fetched_at) AS as_of,
+           MAX(bucket_date)::text AS billed_through
+         FROM pipeline.gcp_cost_daily`,
+        [interval.from, interval.to],
+      );
+      const gcpByService = await optionalTableRows(
+        pool,
+        `SELECT service, SUM(cost_usd + credits_usd)::float8 AS cost_usd
+           FROM pipeline.gcp_cost_daily
+          WHERE bucket_date >= $1::date AND bucket_date <= $2::date
+          GROUP BY service ORDER BY cost_usd DESC`,
+        [interval.from, interval.to],
+      );
+      const gcpDaily = await optionalTableRows(
+        pool,
+        `SELECT bucket_date::text AS bucket_date,
+                SUM(cost_usd + credits_usd)::float8 AS cost_usd
+           FROM pipeline.gcp_cost_daily
+          WHERE bucket_date >= $1::date AND bucket_date <= $2::date
+          GROUP BY bucket_date ORDER BY bucket_date DESC`,
+        [interval.from, interval.to],
+      );
+      const gcpTotal = gcpTotalRows[0];
+
       // Pod-hours: rows whose run overlaps the interval, clipped to it. Only
       // rows that named an Agent CR were pods; service-node rows cost nothing.
       // A row with no finished_at is NOT treated as still running: stale rows
@@ -681,6 +741,16 @@ export function spendWindowRoute(
             unbilled_days: unbilledRows[0]?.days ?? 0,
           },
           budget,
+          gcp: {
+            // The same `as_of` rule the Anthropic half uses: only the stamp
+            // distinguishes "synced and spent nothing" from "never synced".
+            available: !!gcpTotal?.as_of,
+            total_usd: gcpTotal?.billed_usd ?? 0,
+            as_of: gcpTotal?.as_of ?? null,
+            billed_through: gcpTotal?.billed_through ?? null,
+            by_service: gcpByService,
+            daily: gcpDaily,
+          },
           compute: {
             rates: {
               cpu_hour_usd: rates.cpuHourUsd,

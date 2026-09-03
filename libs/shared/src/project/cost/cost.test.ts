@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { PgCost } from "./cost-pg.js";
-import { InMemoryCost } from "./cost-memory.js";
-import type { AnthropicCostDailyRow } from "./cost-port.js";
+import { PgCost, PgGcpCost } from "./cost-pg.js";
+import { InMemoryCost, InMemoryGcpCost } from "./cost-memory.js";
+import type { AnthropicCostDailyRow, GcpCostDailyRow } from "./cost-port.js";
 import type { PgPool } from "../../memory-store.js";
 
 function fakePool(): {
@@ -87,6 +87,67 @@ describe("InMemoryCost double", () => {
     expect(cost.rows).toEqual([
       sampleRow(),
       { ...sampleRow(), model: "claude-haiku-4-8" },
+    ]);
+  });
+});
+
+function sampleGcpRow(): GcpCostDailyRow {
+  return {
+    bucketDate: "2026-09-01",
+    service: "Kubernetes Engine",
+    costUsd: 14.62,
+    creditsUsd: -1.31,
+  };
+}
+
+describe("PgGcpCost adapter", () => {
+  it("upserts into pipeline.gcp_cost_daily keyed on (bucket_date, service)", async () => {
+    const { pool, calls } = fakePool();
+
+    await new PgGcpCost(pool).upsertGcpDaily(sampleGcpRow());
+
+    expect(calls[0]?.text).toContain("INSERT INTO pipeline.gcp_cost_daily");
+    expect(calls[0]?.text).toContain(
+      "ON CONFLICT (bucket_date, service) DO UPDATE SET",
+    );
+    expect(calls[0]?.params).toEqual([
+      "2026-09-01",
+      "Kubernetes Engine",
+      14.62,
+      -1.31,
+    ]);
+  });
+});
+
+describe("InMemoryGcpCost double", () => {
+  it("appends a new row for an unseen (bucketDate, service) pair", async () => {
+    const cost = new InMemoryGcpCost();
+
+    await cost.upsertGcpDaily(sampleGcpRow());
+
+    expect(cost.rows).toEqual([sampleGcpRow()]);
+  });
+
+  it("replaces the existing row sharing the same (bucketDate, service) key", async () => {
+    const cost = new InMemoryGcpCost();
+
+    await cost.upsertGcpDaily(sampleGcpRow());
+
+    await cost.upsertGcpDaily({ ...sampleGcpRow(), costUsd: 20.01 });
+
+    expect(cost.rows).toEqual([{ ...sampleGcpRow(), costUsd: 20.01 }]);
+  });
+
+  it("keeps separate rows for the same date across different services", async () => {
+    const cost = new InMemoryGcpCost();
+
+    await cost.upsertGcpDaily(sampleGcpRow());
+
+    await cost.upsertGcpDaily({ ...sampleGcpRow(), service: "Networking" });
+
+    expect(cost.rows).toEqual([
+      sampleGcpRow(),
+      { ...sampleGcpRow(), service: "Networking" },
     ]);
   });
 });

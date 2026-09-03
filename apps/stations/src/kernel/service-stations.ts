@@ -22,6 +22,7 @@ const SERVED: readonly StationPortName[] = [
   "repoFor",
   "memoryLifecycle",
   "cost",
+  "gcpCost",
 ];
 
 import type { StationHost } from "../stations/index.js";

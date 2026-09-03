@@ -7,7 +7,10 @@ import { createPipelineRepositories } from "@re-cinq/lore-shared/project/pipelin
 import type { PipelineRepositories } from "@re-cinq/lore-shared";
 import { PgTaskStore } from "@re-cinq/lore-shared/project/tasks/task-store-pg.js";
 import { PgSettings } from "@re-cinq/lore-shared/project/settings/settings-pg.js";
-import { PgCost } from "@re-cinq/lore-shared/project/cost/cost-pg.js";
+import {
+  PgCost,
+  PgGcpCost,
+} from "@re-cinq/lore-shared/project/cost/cost-pg.js";
 import { PgUsage } from "@re-cinq/lore-shared/project/usage/usage-pg.js";
 import { PgEventDeliveries } from "@re-cinq/lore-shared/project/events/event-deliveries-pg.js";
 import type { EventDeliveriesPort } from "@re-cinq/lore-shared/project/events/event-deliveries-port.js";
@@ -49,6 +52,12 @@ export const memoryLifecycle = (): PgMemoryLifecycle =>
  *  decomposition) and, like every producer, go through the router (ADR-044). */
 /** pipeline.anthropic_cost_daily — the cost import's write surface. */
 export const cost = (): PgCost => (costSingleton ??= new PgCost(getPool()));
+
+let gcpCostSingleton: PgGcpCost | undefined;
+
+/** pipeline.gcp_cost_daily — the GCP billing import's write surface. */
+export const gcpCost = (): PgGcpCost =>
+  (gcpCostSingleton ??= new PgGcpCost(getPool()));
 
 let usageSingleton: PgUsage | undefined;
 

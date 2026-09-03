@@ -1,4 +1,9 @@
-import type { CostPort, AnthropicCostDailyRow } from "./cost-port.js";
+import type {
+  CostPort,
+  AnthropicCostDailyRow,
+  GcpCostPort,
+  GcpCostDailyRow,
+} from "./cost-port.js";
 
 /**
  * In-memory {@link CostPort}: models the table's upsert semantics so a test
@@ -13,6 +18,29 @@ export class InMemoryCost implements CostPort {
     const index = this.rows.findIndex(
       (existing) =>
         existing.bucketDate === row.bucketDate && existing.model === row.model,
+    );
+
+    if (index === -1) {
+      this.rows.push({ ...row });
+
+      return;
+    }
+    this.rows[index] = { ...row };
+  }
+}
+
+/**
+ * In-memory {@link GcpCostPort}, mirroring
+ * `ON CONFLICT (bucket_date, service) DO UPDATE` the same way.
+ */
+export class InMemoryGcpCost implements GcpCostPort {
+  readonly rows: GcpCostDailyRow[] = [];
+
+  async upsertGcpDaily(row: GcpCostDailyRow): Promise<void> {
+    const index = this.rows.findIndex(
+      (existing) =>
+        existing.bucketDate === row.bucketDate &&
+        existing.service === row.service,
     );
 
     if (index === -1) {

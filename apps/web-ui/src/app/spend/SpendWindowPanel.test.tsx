@@ -42,6 +42,14 @@ const WINDOW: SpendWindow = {
     unbilled_days: 0,
   },
   budget: null,
+  gcp: {
+    available: false,
+    total_usd: 0,
+    as_of: null,
+    billed_through: null,
+    by_service: [],
+    daily: [],
+  },
   compute: {
     rates: { cpu_hour_usd: 0.022, mem_gib_hour_usd: 0.003 },
     assumed_profile: { cpu: "1", memory: "4Gi" },

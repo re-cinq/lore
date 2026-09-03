@@ -153,7 +153,7 @@ function BudgetOutlookNote({ budget }: { budget: NonNullable<BudgetRow> }) {
 }
 
 export default function SpendView({ spend, recordAction }: SpendViewProps) {
-  const { interval, llm, billed, budget, compute } = spend;
+  const { interval, llm, billed, budget, gcp, compute } = spend;
 
   return (
     <div>
@@ -214,6 +214,23 @@ export default function SpendView({ spend, recordAction }: SpendViewProps) {
             + {usd(compute.live_usd_per_hour)}/h burning now
           </div>
         </div>
+        {/* Google's actual invoice for the interval, net of credits, synced
+            daily from the Cloud Billing BigQuery export. Beside the estimate
+            rather than replacing it: the export lags a day or more, so the
+            estimate stays the only figure that covers "now". Absent (like the
+            Anthropic billed card) until the sync has ever run. */}
+        {gcp.available && (
+          <div className={`spec-card ${styles.card}`}>
+            <div className="meta">Google Cloud (billed)</div>
+            <div className={styles.figure}>{usd(gcp.total_usd)}</div>
+            <div className={`meta ${styles.subnote}`}>
+              {gcp.billed_through
+                ? `billed through ${day(gcp.billed_through)}`
+                : "no closed day in this interval yet"}{" "}
+              — net of credits
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Below the interval figures, so the numbers it depends on are read
@@ -549,6 +566,46 @@ export default function SpendView({ spend, recordAction }: SpendViewProps) {
         </>
       )}
 
+      {gcp.available && (
+        <>
+          <h2>GCP Billed by Service</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>Service</th>
+                <th>Billed Cost</th>
+              </tr>
+            </thead>
+            <tbody>
+              {gcp.by_service.map((r) => (
+                <tr key={r.service}>
+                  <td>{r.service}</td>
+                  <td>{usd(r.cost_usd)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+
+          <h2>GCP Daily Billed</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Billed Cost</th>
+              </tr>
+            </thead>
+            <tbody>
+              {gcp.daily.map((r) => (
+                <tr key={r.bucket_date}>
+                  <td>{day(r.bucket_date)}</td>
+                  <td>{usd(r.cost_usd)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
+      )}
+
       <h2>Pods Running Now</h2>
       {compute.live_pods.length === 0 ? (
         <p className="meta">No run pods are live right now.</p>
@@ -610,7 +667,10 @@ export default function SpendView({ spend, recordAction }: SpendViewProps) {
         {compute.rates.cpu_hour_usd}/cpu-h, ${compute.rates.mem_gib_hour_usd}
         /GiB-h); interval pod-hours assume a {compute.assumed_profile.cpu} cpu /{" "}
         {compute.assumed_profile.memory} pod. Google&apos;s invoice lags a day
-        and is the truth.
+        and is the truth
+        {gcp.available
+          ? " — the Google Cloud (billed) figures above are that invoice."
+          : "."}
       </p>
     </div>
   );

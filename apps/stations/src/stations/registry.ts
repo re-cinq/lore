@@ -26,6 +26,7 @@ import { commentTriage } from "./comment-triage/manifest.js";
 import { ingest } from "./ingest/manifest.js";
 import { issues } from "./issues/manifest.js";
 import { featureReview } from "./feature-review/manifest.js";
+import { gcpCostSync } from "./gcp-cost-sync/manifest.js";
 import { prReadyCheck } from "./pr-ready-check/manifest.js";
 import { prReview } from "./pr-review/manifest.js";
 import { escalationStep } from "./escalation-step/manifest.js";
@@ -39,6 +40,7 @@ export const STATION_NAMES = [
   "detect",
   "escalation-step",
   "feature-review",
+  "gcp-cost-sync",
   "importance-decay",
   "ingest",
   "issues",
@@ -61,6 +63,7 @@ export const STATIONS: Record<StationName, StationModule> = {
   detect,
   "escalation-step": escalationStep,
   "feature-review": featureReview,
+  "gcp-cost-sync": gcpCostSync,
   "importance-decay": importanceDecayStation,
   ingest,
   issues,
