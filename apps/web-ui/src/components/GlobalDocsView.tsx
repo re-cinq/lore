@@ -73,12 +73,12 @@ export default function GlobalDocsView({
           <h2 className={styles.repoName}>{repo}</h2>
           <ul className={styles.docList}>
             {paths.map((filePath) => {
-              const info = statusOf(repo, filePath);
+              const status = statusOf(repo, filePath);
 
               return (
                 <li key={filePath} className={styles.docItem}>
                   <Link href={hrefFor(kind, repo, filePath)}>{filePath}</Link>
-                  {info && <SpecStatusPill status={info} />}
+                  {status && <SpecStatusPill status={status} />}
                 </li>
               );
             })}
