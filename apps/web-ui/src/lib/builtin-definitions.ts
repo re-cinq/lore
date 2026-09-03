@@ -23,7 +23,7 @@ export const codeReviewDefinition: AssemblyLineDefinition = {
   edges: [
     { from: "review", to: "done", on: "success" },
     { from: "review", to: "done", on: "changes_requested" },
-    { from: "review", to: "done", on: "failed" },
+    { from: "review", to: "review", on: "failed", iteration_max: 1 },
   ],
 };
 
@@ -41,7 +41,7 @@ export const codeReviewRecheckDefinition: AssemblyLineDefinition = {
   edges: [
     { from: "recheck", to: "done", on: "success" },
     { from: "recheck", to: "done", on: "changes_requested" },
-    { from: "recheck", to: "done", on: "failed" },
+    { from: "recheck", to: "recheck", on: "failed", iteration_max: 1 },
   ],
 };
 

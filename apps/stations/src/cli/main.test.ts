@@ -150,6 +150,7 @@ describe("runStation LLM usage tracking", () => {
       usage: {
         logLlmCall: async () => ({ correlated: true }),
         processedCounts: async () => ({ today: 0, total: 0 }),
+        modelsUsed: async () => [],
       },
     });
 
