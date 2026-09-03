@@ -33,10 +33,7 @@ const STATUS_COLORS: Record<PRStatus, string> = {
   closed: "var(--border-hover)",
 };
 
-/**
- * Pure PR-status card. Presentational (data down): PRStatusPanel owns the poll
- * and threads the resolved details / error in as props.
- */
+/** Pure PR-status card; Panel owns poll, threads details/error down. */
 export default function PRStatusCard({
   details,
   error,

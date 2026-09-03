@@ -11,12 +11,7 @@ export interface ContextFiltersProps {
   q?: string;
 }
 
-/**
- * Keyword search box + data-driven content-type chips. The search box and chips
- * navigate client-side (SearchForm / FilterChip) so each shows a loading state
- * while its results load; the chip set is data-driven and preserves the active
- * query. Pure render.
- */
+/** Keyword search + content-type chips; both navigate client-side with loading state. */
 export default function ContextFilters({
   basePath,
   types,

@@ -18,16 +18,7 @@ const byIdAscending = (a: AgentRunEventRow, b: AgentRunEventRow): number => {
   return left > right ? 1 : 0;
 };
 
-/**
- * In-memory {@link AgentRunEventsRepository} — the behavioral spec for the
- * port. It reproduces the Pg adapter's observable contract without Postgres:
- * write-time correlation (last registered node wins, as the adapter's
- * `ORDER BY node.id DESC LIMIT 1` does), string-encoded ids compared
- * numerically, ascending capped reads, and horizon pruning.
- *
- * Seed the correlation table with {@link registerNode}; inject `now` to drive
- * `pruneOld` deterministically.
- */
+/** In-memory {@link AgentRunEventsRepository} with Pg-equivalent contract: write-time correlation (last node wins), ascending id capped reads, horizon pruning. Seed with registerNode; inject now for deterministic pruneOld. */
 export class InMemoryAgentRunEvents implements AgentRunEventsRepository {
   readonly rows: AgentRunEventRow[] = [];
   private readonly nodes: AgentRunEventNodeRef[] = [];
@@ -45,9 +36,7 @@ export class InMemoryAgentRunEvents implements AgentRunEventsRepository {
   async insertBatch(
     rows: readonly AgentRunEventInsert[],
   ): Promise<AgentRunEventRow[]> {
-    // The Pg adapter returns id-ascending (`.sort(byIdAscending)`); sorting
-    // here too keeps that part of the contract explicit rather than a
-    // coincidence of sequential nextId assignment.
+    // Sort to keep id-ascending contract explicit, not sequential-assignment coincidence.
     return rows.map((row) => this.persist(row)).sort(byIdAscending);
   }
 
@@ -78,8 +67,7 @@ export class InMemoryAgentRunEvents implements AgentRunEventsRepository {
   }
 
   private persist(insert: AgentRunEventInsert): AgentRunEventRow {
-    // Stated beats inferred, and beats it WHOLE — never one field from each, which
-    // would pin the row to a run while guessing which visit produced it.
+    // Stated beats inferred WHOLE — never one field from each.
     const carried = insert.carried ?? undefined;
     const inferred = carried ? undefined : this.correlate(insert.agentCrName);
     const node = carried ?? inferred;
@@ -114,10 +102,7 @@ export class InMemoryAgentRunEvents implements AgentRunEventsRepository {
       return undefined;
     }
 
-    // CR names are unique per line (a revisited node's iteration gets its own
-    // -<n> suffix), so multiple matches only occur when two DIFFERENT lines
-    // collide on their 12-hex id prefix + node id + iteration; the newest node
-    // row wins then, mirroring the Pg adapter's `ORDER BY node.id DESC LIMIT 1`.
+    // CR names unique per line; multiple matches only on collisions of 12-hex prefix + node id + iteration; newest node wins (mirrors Pg ORDER BY node.id DESC LIMIT 1).
     const matches = this.nodes.filter(
       (node) => node.agentCrName === agentCrName,
     );

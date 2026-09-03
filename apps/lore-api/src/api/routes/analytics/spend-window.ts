@@ -61,8 +61,7 @@ async function remainingBudget(
      FROM pipeline.anthropic_cost_daily`,
     [anchoredAt],
   );
-  // `created_at >= $1::timestamptz` compares MOMENTS not days (day-granularity always understated what's left); bound is a param, not a subquery, so an absent anthropic_cost_daily can't take this half down too; LEFT JOIN excludes satellite-cluster calls (ran on a colleague's own credential, priced in llm_calls but never billed to this account) while keeping direct-API and home/central runs.
-  // Only spend that bills THIS account draws these credits: since 2026-09-02 the review family runs on Gemini (bills Google), and counting it drew the balance down on money Anthropic never charged — the patterns are the shared vendor declaration, so page and classifier cannot drift.
+  // Computed spend strictly after billed_through, only Anthropic-charged calls (Gemini calls since 2026-09-02 excluded).
   const [computed] = await optionalTableRows<{ cost_usd: number }>(
     pool,
     `SELECT COALESCE(SUM(lc.cost_usd), 0)::float8 AS cost_usd
@@ -136,12 +135,6 @@ const SpendWindowSchema = z.object({
         output_tokens: z.number(),
       }),
     ),
-    /**
-     * Metered spend folded by the account each model bills. The one figure that
-     * says which invoice a line of work lands on — the review family moved to
-     * Gemini on 2026-09-02, so "LLM spend" and "spend against the Anthropic
-     * balance" stopped being the same number.
-     */
     by_vendor: z.array(
       z.object({
         vendor: z.string(),

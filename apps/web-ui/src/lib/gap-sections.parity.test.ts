@@ -1,18 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { sectionsOf as mirrorSectionsOf } from "./gap-sections";
 import type { GapResult } from "./feature-types";
-// web-ui can't import the @re-cinq/lore-shared PACKAGE (workspace + Docker isolation,
-// heavy deps), so sectionsOf is hand-duplicated. This CI-only test (runs in a full
-// checkout) imports shared's PURE gap-result.ts by file path — never the package — to
-// keep the two in lockstep for the shape they both actually serve: the new `sections[]`
-// result. The legacy architecture/user_flows branch is a best-effort compat shim for
-// pre-refactor rows and is intentionally NOT asserted (shared renders it richer:
-// component touchpoints + an orphan-mockup "Diagrams" section).
 import { sectionsOf as canonicalSectionsOf } from "../../../../libs/shared/src/feature-planning/gap-result";
 
-// shared's sectionsOf is intentionally permissive (GapResult | Record | null); widen its
-// param to `unknown` so the same fixtures feed both implementations without a nominal clash
-// between the two GapResult declarations.
 const canonical = canonicalSectionsOf as (
   gap: unknown,
 ) => ReturnType<typeof canonicalSectionsOf>;

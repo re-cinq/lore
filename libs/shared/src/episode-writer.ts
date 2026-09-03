@@ -1,11 +1,4 @@
-/**
- * Episode writer — shared utility for automatic episode capture
- * and optional LLM-driven curation (lesson extraction).
- *
- * Used by the agent watcher (PR, no-changes, failure) and worker
- * (feature-request, onboard) to passively capture task outcomes
- * as searchable episodes with fact extraction.
- */
+/** Episode writer: auto-capture task outcomes (watcher + worker) with optional lesson extraction via LLM. */
 
 import { createHash } from "node:crypto";
 import { redactSecrets } from "./redact.js";
@@ -18,11 +11,7 @@ export interface WriteEpisodeDeps {
 
 export type CurationDeps = WriteEpisodeDeps;
 
-/**
- * Write an episode to memory.episodes. Fire-and-forget — never throws.
- * Deduplicates via content_hash.
- */
-/** One episode to record: what happened, which surface saw it, and what it is about. */
+/** Write episode to memory.episodes; fire-and-forget, never throws, deduplicates via content_hash. */
 export interface EpisodeInput {
   content: string;
   source: string;
@@ -57,10 +46,7 @@ export async function writeEpisode(
   }
 }
 
-/**
- * Write an episode and optionally extract a "lesson learned" via Haiku.
- * The lesson is stored as a memory entry for future search.
- */
+/** Write episode and extract optional "lesson learned" via Haiku, stored for future search. */
 export async function writeEpisodeWithCuration(
   deps: CurationDeps,
   {

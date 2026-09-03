@@ -3,9 +3,7 @@ import { recordTopUpAction } from "./actions";
 import SpendWindowPanel from "./SpendWindowPanel";
 import styles from "./SpendView.module.css";
 
-// One interval-scoped view: every figure on the page comes from
-// /api/spend-window for the interval the panel selects. The server's only
-// contributions are the static chrome and the top-up server action.
+// Interval-scoped view; server provides static chrome and top-up action
 export default function SpendPage() {
   return (
     <div>

@@ -118,7 +118,6 @@ const findingsText = (verdict: string) =>
   ].join("\n");
 
 describe("normalizeAgentStatus", () => {
-  // Byte-for-byte what Agent CR 129235d4-ea2-implement recorded on 2026-08-28.
   const bootCrash = [
     '{"kind":"lifecycle","phase":"agent","status":"started"}',
     "[agent] Error: Settings file not found: /agent/.claude/settings.json",
@@ -148,9 +147,6 @@ describe("normalizeAgentStatus", () => {
   });
 
   it("classifies the boot crash as permanent config, not as retryable infra", () => {
-    // The whole chain, at the boundary where it actually runs: run 129235d4
-    // burned a 25-minute implement retry because the Job's BackoffLimitExceeded
-    // was the only string that reached the classifier.
     expect(
       stationNodeOutcome(
         { type: "agent" },
@@ -502,19 +498,12 @@ describe("reviewNodeResultOverride", () => {
   });
 
   it("fails the node when the verdict says changes_requested and nothing was posted", () => {
-    // The #1401 shape: the model emitted a REVIEW_FINDINGS block whose `body`
-    // carried unescaped quotes, so JSON.parse died and nothing reached the PR —
-    // while REVIEW_RESULT parsed fine. A review that reached a non-approving
-    // verdict and published nothing has not approved anything.
     const result = reviewNodeResultOverride(
       "no_findings",
       "```REVIEW_FINDINGS\n{ bad json }\n```\nREVIEW_RESULT:CHANGES_REQUESTED:doc mismatch",
       { outcome: "success" },
     );
 
-    // The reason is the point. Recorded bare, this renders as `node "recheck"
-    // failed` — indistinguishable from an evicted pod or a dry account, and it
-    // sent two reviewers hunting an infrastructure outage that was not there.
     expect(result).toMatchObject({
       outcome: "failed",
       failureClass: "unknown",
@@ -1112,10 +1101,6 @@ describe("postReplyFromNode resolve mutation failure", () => {
 
 describe("a review node whose failure the caller already diagnosed", () => {
   it("keeps the reaper's infra timeout instead of relabelling it a contract bug", () => {
-    // The reaper synthesizes {infra, "timed out after 15 minutes"} and passes no
-    // output at all. Rewriting that to `unknown` + "never got far enough to judge
-    // the diff" sent operators hunting a recipe bug for a dead pod — the 2026-08-24
-    // misdiagnosis this override exists to prevent, pointed the other way.
     const timedOut = {
       outcome: "failed" as const,
       failureClass: "infra" as const,

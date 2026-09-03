@@ -21,21 +21,9 @@ import { zodResponse } from "../../../server/plugins/zod-response.js";
 import { zodValidate } from "../../../server/plugins/zod-validate.js";
 import { DB_UNAVAILABLE } from "../common-schemas.js";
 
-/**
- * POST /api/cluster-agents/register — a cluster-agent joins the registry
- * (FR1 of specs/running-stations-in-any-k8s-cluster).
- *
- * Auth is the pre-shared registration token, NOT the bearer-scope strategy:
- * the caller is a cluster that has no scoped token yet — the whole point of
- * the call is to receive one. Identity takeover is blocked by the decision
- * gate: a known name re-registers only by presenting its current per-agent
- * token in `current_token`; the registration token alone is rejected 409.
- *
- * The plaintext per-agent token exists once, in this response.
- */
+/** Cluster registration: joins the registry and receives a per-agent token (FR1). */
 
-/** Anyone holding the registration token can write cluster_info; a byte
- *  budget keeps a compromised token from growing the registry unbounded. */
+/** Byte budget prevents a compromised token from unbounded registry growth. */
 const CLUSTER_INFO_MAX_BYTES = 16 * 1024;
 
 const RegisterBody = z.object({
@@ -99,14 +87,7 @@ export async function handleRegister(
     };
   }
 
-  // A re-registration by the identity holder KEEPS its token. Minting a new one
-  // was a restart hazard, not a security measure: the credential is also what
-  // this cluster's already-running pods present to the Floor's telemetry sink
-  // (published into `agent-secrets` at registration and read by a pod exactly
-  // once, at creation), so every rollout silently 401'd every in-flight run for
-  // the rest of its life. Nor did the rotation buy recovery: a token that does
-  // NOT match is rejected 409 either way, so the only case that rotated is the
-  // one that needed no new token at all.
+  // Re-registering KEEPS its token: rotating would 401 running pods already holding the credential (#1587).
   const issued =
     decision.kind === "create"
       ? mintAgentToken()
@@ -123,8 +104,7 @@ export async function handleRegister(
       : await deps.repository.refresh(decision.id, input);
 
   if (agent === null) {
-    // Lost a concurrent first registration of the same name after findByName
-    // saw it free — same answer as any other taken name.
+    // Lost a concurrent registration — same as a taken name.
     return {
       code: 409,
       body: { error: "name is registered to a live identity" },

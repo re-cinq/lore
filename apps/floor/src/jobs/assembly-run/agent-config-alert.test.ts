@@ -5,9 +5,6 @@ import {
 } from "./agent-config-alert.js";
 import { BillingAlertThrottle } from "./billing-alert.js";
 
-// A raw stderr line, never wrapped in a result line — claude crashes before
-// producing one, so the terminal error text `normalizeAgentStatus` lifts is
-// null and only the raw output carries this.
 const settingsMissingStatus = {
   output:
     '{"kind":"lifecycle","phase":"agent","status":"started"}\n' +
@@ -77,8 +74,6 @@ describe("maybeAlertAgentConfig", () => {
         ports,
       ),
     ).toBe(true);
-    // A second node stranded by the same misconfiguration in the same window
-    // is suppressed by the throttle.
     expect(
       await maybeAlertAgentConfig(
         "re-cinq/other",

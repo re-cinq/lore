@@ -1,6 +1,4 @@
-// Renders a Station's raw container log — interleaved runner markers and the
-// claude CLI's stream-json events — into a compact, human-readable transcript of
-// the model's conversation for the planning wizard's live view. Pure.
+// Renders Station log (runner markers + stream-json) into human-readable transcript.
 
 import { clip, toolSummary, toolResultText } from "./agent-log-entries";
 

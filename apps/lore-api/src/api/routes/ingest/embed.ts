@@ -5,12 +5,7 @@ import type { ServerRoute } from "@hapi/hapi";
 import { bearerScope } from "../../../server/plugins/bearer-scope.js";
 import { zodValidate } from "../../../server/plugins/zod-validate.js";
 
-/**
- * The station pods' embedding proxy (specs/ingest-station FR4): run pods carry
- * no GCP credentials (D6/D7), so statement embeddings route through the API,
- * which already holds Vertex access for search. Read scope — embedding leaks
- * nothing a read token can't already fetch.
- */
+/** Station pods' embedding proxy (no GCP creds in pods; read scope). */
 
 type EmbedFn = (text: string) => Promise<number[] | null>;
 

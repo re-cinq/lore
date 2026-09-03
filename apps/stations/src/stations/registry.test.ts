@@ -1,10 +1,3 @@
-// The guards that replace six hand-maintained lists.
-//
-// A station name had to be spelled identically in three registries, the NodeType
-// enum, task-types.yaml and the generated catalog, with no cross-check between
-// any two — so a type with no runner reached a pod and died there with `unknown
-// station type`. These assert the invariants that make that unrepresentable.
-
 import { describe, it, expect } from "vitest";
 import { readdirSync } from "node:fs";
 import { NODE_TYPES } from "@re-cinq/lore-assembly-lines";
@@ -14,7 +7,6 @@ import { nodeTriggers, isNodeModule } from "./lib/station.js";
 
 const STATION_DIR = import.meta.dirname;
 
-/** Folders that are stations. `lib` holds shared helpers, not a station. */
 const stationFolders = (): string[] =>
   readdirSync(STATION_DIR, { withFileTypes: true })
     .filter((e) => e.isDirectory())
@@ -49,8 +41,6 @@ describe("the station registry", () => {
 });
 
 describe("the registry covers the node types a blueprint can name", () => {
-  /** `agent` runs Claude in a pod and human stations have a person for a worker;
-   *  neither has a station module, by design. */
   const DISPATCHABLE = NODE_TYPES.filter(
     (t) => t !== "agent" && t !== "feature_review" && t !== "pr_review",
   );
@@ -123,14 +113,6 @@ describe("declared triggers are usable as declared", () => {
 });
 
 describe("what may run in the pooled service", () => {
-  /**
-   * The pooled service holds the GitHub App private key, the database password
-   * and a model credential. A station that executes code it did not write or
-   * reads a working tree it did not produce must not share that process — it
-   * runs in its own pod, where a compromise reaches one run's scoped token and
-   * nothing else. (An enum-constrained model call is not on that list; see the
-   * comment-triage test below.)
-   */
   const MUST_BE_ISOLATED = {
     validate: "runs the target repo's own lint and typecheck commands",
     ingest: "reads a cloned working tree and alone holds graph-store egress",
@@ -148,13 +130,6 @@ describe("what may run in the pooled service", () => {
   );
 
   it("pools comment-triage — its one model call is enum-constrained, not agentic", () => {
-    // The pod this once required bought no isolation the output schema had not
-    // already provided: the call has no tools and no workspace, and its result
-    // is parsed against the closed review/address/answer/ignore enum — the only
-    // thing hostile comment text can steer is WHICH follow-up starts, which the
-    // commenter controls anyway by writing the words. What the pod did buy was
-    // ~19 minutes of schedule/pull/boot ceremony per fraction-of-a-cent call
-    // (527 pods, 164 pod-hours in one month).
     const triggers = nodeTriggers(STATIONS["comment-triage"].manifest);
 
     expect(triggers.map((t) => t.runtime)).toEqual(["service"]);
@@ -173,10 +148,6 @@ describe("what may run in the pooled service", () => {
 
 describe("human stations are registered like any other", () => {
   it("declares a manifest for every human station type the loader knows", () => {
-    // HUMAN_STATION_TYPES lives in libs/assembly-lines, which cannot import this
-    // app — so the two are a parallel list, and this is what stops them drifting.
-    // A human station missing here is the quietest gap there is: the run parks
-    // on it and nothing tells anyone whose move it is.
     const declared = new Set(
       Object.values(STATIONS).flatMap((mod) =>
         mod.manifest.triggers

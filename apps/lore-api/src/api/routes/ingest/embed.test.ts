@@ -18,11 +18,6 @@ const post = (body: unknown) =>
     payload: JSON.stringify(body),
   });
 
-/**
- * POST /api/embed — the station pods' embedding proxy (specs/ingest-station
- * FR4): run pods have no GCP ADC, so statement embeddings route through the
- * API, which already holds Vertex access for search. Read scope.
- */
 describe("POST /api/embed", () => {
   useRateLimitSafeClock();
   beforeEach(() => {

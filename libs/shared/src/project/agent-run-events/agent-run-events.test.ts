@@ -59,8 +59,6 @@ describe("InMemoryAgentRunEvents insertBatch", () => {
   });
 
   it("takes the identity the event carried over the agent_cr_name lookup", async () => {
-    // The carried identity is STATED by the producer; the join only guesses. When
-    // both are available the stated one wins, or carrying it buys nothing.
     const repo = new InMemoryAgentRunEvents();
 
     repo.registerNode({
@@ -91,8 +89,6 @@ describe("InMemoryAgentRunEvents insertBatch", () => {
   });
 
   it("keeps a carried identity that matches no node row at all", async () => {
-    // The whole point: attribution no longer depends on a node row being
-    // findable by name. A copied or re-created node row cannot strand the event.
     const repo = new InMemoryAgentRunEvents();
 
     const [row] = await repo.insertBatch([
@@ -374,10 +370,6 @@ describe("PgAgentRunEvents adapter", () => {
   });
 
   it("insertBatch prefers the carried identity and skips the lookup for that row", async () => {
-    // SQL text, because a scripted pool answers any statement: the guard clause is
-    // the whole behaviour. The lateral is narrowed to rows that carry NO identity,
-    // so a stated row does no lookup work at all — and cannot silently take the
-    // guess if the two ever disagree.
     const { pool, calls } = fakePool([[]]);
 
     await new PgAgentRunEvents(pool).insertBatch([
@@ -441,9 +433,6 @@ describe("PgAgentRunEvents adapter", () => {
   });
 
   it("insertBatch correlates the station run id, so telemetry keys on an id not a name", async () => {
-    // The correlation used to end at (line, node, iteration) and every reader
-    // re-derived which visit that was from a CR NAME. The station run id names
-    // the visit outright.
     const { pool, calls } = fakePool([[]]);
 
     await new PgAgentRunEvents(pool).insertBatch([
@@ -542,8 +531,6 @@ describe("PgAgentRunEvents adapter", () => {
 
 describe("InMemoryAgentRunEvents cross-line CR-name collision", () => {
   it("attributes the event to the newest node row when two lines collide on agent_cr_name (#907)", async () => {
-    // Two DIFFERENT assembly lines whose uuids share their 12-hex prefix run
-    // the same node at the same iteration, producing identical CR names.
     const repo = new InMemoryAgentRunEvents();
 
     repo.registerNode({

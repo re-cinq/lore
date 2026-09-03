@@ -8,21 +8,6 @@ import type { ResolvedAgentDefinition } from "@re-cinq/lore-shared/models/agent-
 import { buildServer } from "../server/build-server.js";
 import { restoreEnv } from "./restore-env.js";
 
-/**
- * The catalog fan-out end to end, against a migrated Postgres: a definition
- * written through the production write path (PgAgentDefs, the same adapter the
- * /agents route uses) must reach a registered cluster-agent through the
- * catalog-events route — snapshot on first contact, ack-advanced tail after,
- * delete as a null definition — and the served entry must render a CRD pair
- * under its project-qualified name.
- *
- * The unit suites prove each half against doubles; what only this tier can
- * prove is the SQL the doubles stand in for — the CTE that appends the event
- * in the same statement as the write (migration 0053), the seed rows and their
- * events (0054), the snapshot/tail reads, the GREATEST cursor advance, and the
- * (name, project_id) re-resolve. The claim suite next door exists for the same
- * reason and this one follows its shape.
- */
 const REGISTRATION_TOKEN = "test-registration-token";
 const REPO = "test/catalog-repo";
 const TASK_TYPE = "catalog-itest-implementation";
@@ -124,7 +109,6 @@ describe("the catalog-events fan-out, against real Postgres", () => {
     expect(snapshot.mode).toBe("snapshot");
     const byName = new Map(snapshot.entries.map((e) => [e.name, e]));
 
-    // The seed migration's rows are present and resolve to full definitions.
     expect(byName.get("implementation")?.definition).toMatchObject({
       name: "implementation",
       execution_mode: "claude-code",
@@ -137,7 +121,6 @@ describe("the catalog-events fan-out, against real Postgres", () => {
 
   it("a write through the production adapter reaches an acked agent as one tail entry, and its served definition renders a qualified CRD pair", async () => {
     const agent = await register("catalog-itest-tail");
-    // Land in tail mode by acking the snapshot, exactly as the sync loop does.
     const snapshot = await poll(agent);
     const drained = await poll(agent, snapshot.cursor);
 
@@ -168,7 +151,6 @@ describe("the catalog-events fan-out, against real Postgres", () => {
       config: { skills: ["lore-pr"] },
     });
 
-    // The served shape is exactly what the sync loop hands the CRD builder.
     const definition = entry.definition;
 
     expect(definition).not.toBeNull();
@@ -181,7 +163,6 @@ describe("the catalog-events fan-out, against real Postgres", () => {
       expect(pair.station.spec?.agentDefRef).toBe(qualified);
     }
 
-    // The same tail is re-served until acked; after the ack it is empty.
     expect(await poll(agent, drained.cursor)).toEqual(tail);
     expect((await poll(agent, tail.cursor)).entries).toEqual([]);
   });

@@ -46,7 +46,7 @@ closed, then draft win first; otherwise any failed check yields `checks-failing`
 and any requested-changes review yields `changes-requested` (both over an
 approval); `approved` requires an approval and every check concluded
 success/skipped, so a still-running (null-conclusion) check keeps it `open`, and
-an approval with no checks configured is `approved`. ([validated by `github-client.test.ts:20`](apps/lore-api/src/platform/github-client.test.ts#L20), [`github-client.test.ts:27`](apps/lore-api/src/platform/github-client.test.ts#L27), [`github-client.test.ts:37`](apps/lore-api/src/platform/github-client.test.ts#L37), [`github-client.test.ts:41`](apps/lore-api/src/platform/github-client.test.ts#L41), [`github-client.test.ts:47`](apps/lore-api/src/platform/github-client.test.ts#L47), [`github-client.test.ts:59`](apps/lore-api/src/platform/github-client.test.ts#L59))
+an approval with no checks configured is `approved`. ([validated by `github-client.test.ts:20`](apps/lore-api/src/platform/github-client.test.ts#L20), [`github-client.test.ts:26`](apps/lore-api/src/platform/github-client.test.ts#L26), [`github-client.test.ts:36`](apps/lore-api/src/platform/github-client.test.ts#L36), [`github-client.test.ts:40`](apps/lore-api/src/platform/github-client.test.ts#L40), [`github-client.test.ts:46`](apps/lore-api/src/platform/github-client.test.ts#L46), [`github-client.test.ts:58`](apps/lore-api/src/platform/github-client.test.ts#L58))
 
 ### Repo detection
 
@@ -63,7 +63,7 @@ drift on repos bootstrapped before it entered the baseline scripts: the four
 `half_life_days`) and the three `memory.memories` decay columns are added
 `if not exists`, the `confidence` CHECK constraint guards the four tiers
 (`verified`/`observed`/`inferred`/`stale`), and both `memory.fact_conflicts` and
-`pipeline.audit_log` are created `if not exists`. ([validated by `migrations.test.ts:36`](apps/lore-api/src/migrations.test.ts#L36), [`migrations.test.ts:51`](apps/lore-api/src/migrations.test.ts#L51), [`migrations.test.ts:65`](apps/lore-api/src/migrations.test.ts#L65), [`migrations.test.ts:71`](apps/lore-api/src/migrations.test.ts#L71), [`migrations.test.ts:75`](apps/lore-api/src/migrations.test.ts#L75))
+`pipeline.audit_log` are created `if not exists`. ([validated by `migrations.test.ts:36`](apps/lore-api/src/migrations.test.ts#L31), [`migrations.test.ts:46`](apps/lore-api/src/migrations.test.ts#L46), [`migrations.test.ts:60`](apps/lore-api/src/migrations.test.ts#L60), [`migrations.test.ts:66`](apps/lore-api/src/migrations.test.ts#L66), [`migrations.test.ts:70`](apps/lore-api/src/migrations.test.ts#L70))
 
 ### Context-core store
 
@@ -85,7 +85,7 @@ and the `InMemoryResearch` double retains every recorded attempt for assertion. 
 
 `makeGraphLlmCall` returns undefined when `ANTHROPIC_API_KEY` is unset, and
 otherwise returns a caller that routes the prompt through the `Llm` singleton
-under the `graph-extraction` job name. ([validated by `helpers.test.ts:17`](apps/lore-api/src/api/routes/helpers.test.ts#L17), [`helpers.test.ts:22`](apps/lore-api/src/api/routes/helpers.test.ts#L22))
+under the `graph-extraction` job name. ([validated by `helpers.test.ts:17`](apps/lore-api/src/api/routes/helpers.test.ts#L13), [`helpers.test.ts:18`](apps/lore-api/src/api/routes/helpers.test.ts#L18))
 
 `triggerAgentSpecTrace` is a no-op that resolves to undefined when there is no DB
 pool. ([validated by `spec-trace-trigger.test.ts:37`](apps/lore-api/src/api/routes/spec-trace-trigger.test.ts#L37))

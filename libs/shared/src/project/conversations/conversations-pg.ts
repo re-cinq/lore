@@ -74,22 +74,14 @@ export class PgConversations implements ConversationsPort {
     thread: ConversationThread,
     opts: { exclude?: ExecutionRef; from?: ExecutionRef } = {},
   ): Promise<ConversationRecord | null> {
-    // `object_key IS NOT NULL` is the load-bearing clause: a reserved id whose run
-    // never uploaded cannot be resumed, and offering it would send the next pod
-    // after an object that does not exist — a fetch that fails silently by design.
+    // object_key IS NOT NULL is load-bearing: reserved ids require an uploaded archive (migration 0038).
     const result = await this.pool.query<ConversationDbRow>(
       `SELECT ${SELECT_COLUMNS}
          FROM pipeline.agent_conversations
         WHERE key_kind = $1 AND key_value = $2 AND node_id = $3
           AND object_key IS NOT NULL
-          -- COALESCE(iteration, 1) is deliberate: rows written before migration 0038
-          -- carry NULL, and a line then ran exactly one execution — so a legacy row IS
-          -- iteration 1. Matching it against every iteration instead would hide round 1
-          -- from every later round of a merged line.
-          -- Exclude / select a NODE EXECUTION, not a line: on a line whose rounds
-          -- are revisits they all share the id, so matching by line alone would
-          -- exclude a run's own siblings (killing continuity) or resume the wrong
-          -- round. A null iteration in the ref means "any execution on that line".
+          -- COALESCE(iteration, 1) required (migration 0038): match node execution not line.
+          -- Null iteration in ref means "any execution on that line".
           AND NOT (
             $4::uuid IS NOT NULL
             AND assembly_line_id = $4::uuid

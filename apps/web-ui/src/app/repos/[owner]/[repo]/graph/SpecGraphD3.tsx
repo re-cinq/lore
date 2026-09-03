@@ -49,25 +49,23 @@ import {
 import { featureStatusColor } from "../features/feature-status";
 import { cssToken, resolveColor } from "@/lib/theme-token-resolve";
 
-const RING_CLEARANCE = 24; // keep non-ring nodes this far outside every open ring
-const ANCHOR_SEPARATION = 80; // min center distance between Spec/ADR nodes (and off rings)
+const RING_CLEARANCE = 24;
+const ANCHOR_SEPARATION = 80;
 
-// Below this zoom scale, single-owner leaves collapse into per-parent count
-// badges (semantic zoom); at or above it they expand back to individual dots.
+// Below this zoom, leaves collapse into per-parent count badges (semantic zoom); above they expand back.
 const LOD_THRESHOLD = 0.5;
 // curveBundle straightening: 1 = fully bundled to the hierarchy spine, 0 = straight.
 const BUNDLE_BETA = 0.85;
 const HIT_SLOP = 4; // forgiveness (px) around a canvas leaf's radius when clicking
 
-// The containment tree (Feature ⊃ Spec ⊃ Statement/AC) the bundler routes along.
+// Containment tree (Feature ⊃ Spec ⊃ Statement/AC) the bundler routes along.
 const CONTAINMENT_KINDS = new Set([
   "in_feature",
   "in_spec",
   "in_section",
   "has_statement",
 ]);
-// Ownership edges that anchor an otherwise tree-less leaf under its first owning
-// Statement/AC, so cross-spec leaf edges have a hierarchy to bundle through.
+// Ownership edges anchor tree-less leaf under owning Statement/AC so cross-spec edges have bundling hierarchy.
 const OWNERSHIP_KINDS = new Set([
   "validated_by",
   "implemented_by",
@@ -80,14 +78,11 @@ const LEAF_CANVAS_TYPES = new Set<SpecGraphNode["type"]>([
   "File",
 ]);
 
-// Radial-tree-per-feature layout: each Feature is a tree centre, its subtree
-// fans out one RING_GAP per hierarchy level. Feature centres are spread on a
-// circle of radius boundR·FEATURE_SPREAD around the viewport; small disconnected
-// components (< SMALL_COMPONENT_MAX nodes) ring the outside at boundR·RIM_FACTOR.
-const RING_GAP = 100; // radius added per hierarchy level — also widens sibling spacing (more circumference)
-const FEATURE_SPREAD = 0.6; // feature-tree centres sit on a circle of this × boundR around the viewport
-const RIM_MARGIN = 780; // gap between the main graph's outer edge and the small-component rim
-const SMALL_COMPONENT_MAX = 5; // components with fewer nodes are exiled to the rim around the main circle
+// Radial-tree layout: Feature tree-centres spread on circle of boundR·FEATURE_SPREAD; small components on rim.
+const RING_GAP = 100;
+const FEATURE_SPREAD = 0.6;
+const RIM_MARGIN = 780;
+const SMALL_COMPONENT_MAX = 5;
 
 type SimNode = SpecGraphNode & d3.SimulationNodeDatum;
 type SimLink = d3.SimulationLinkDatum<SimNode> & {
@@ -98,9 +93,7 @@ type SimLink = d3.SimulationLinkDatum<SimNode> & {
 const TESTED_FILL = "var(--success)";
 const UNTESTED_FILL = "var(--danger)";
 
-// A spec's expansion: two concentric rings drawn around it — the inner ring is
-// its Sections (sized by statement count, tinted by coverage), the outer ring is
-// the individual Statements (green = tested, red = untested) grouped per section.
+// Spec's expansion: inner ring (sections by count & coverage), outer ring (statements green/red by test status).
 interface SectionArc {
   uid: string;
   heading: string;
@@ -229,13 +222,7 @@ const RADIUS: Record<SpecGraphNode["type"], number> = {
   ADR: 13,
 };
 
-// Persistent feature lifecycle status → node color (ADR-027): a Feature node
-// backed by a lore.features row is colored by its status (via the single-source
-// palette in feature-status.ts) instead of the flat Feature pink, so
-// drafts/in-flight/shipped features read at a glance.
-
-// The live projection can emit a type outside the declared union; default rather
-// than index to undefined (which would NaN a radius or blank a fill).
+// Feature node color by lifecycle status (ADR-027): single-source palette from feature-status.ts.
 const radiusOf = (type: SpecGraphNode["type"]): number => RADIUS[type] ?? 11;
 const colorOf = (type: SpecGraphNode["type"]): string =>
   COLORS[type] ?? "var(--chart-neutral)";
@@ -247,9 +234,7 @@ const nodeColor = (node: SpecGraphNode): string =>
 const isLeafCanvas = (type: SpecGraphNode["type"]): boolean =>
   LEAF_CANVAS_TYPES.has(type);
 
-// Only the structural nodes carry a persistent label; the numerous leaf
-// artefacts (File/TestChunk/CodeChunk) have long path labels that pile into
-// visual junk, so they're shown on hover/selection instead.
+// Structural nodes only get persistent labels; leaves show long paths on hover/selection.
 const LABELED_TYPES = new Set<SpecGraphNode["type"]>([
   "Feature",
   "Spec",
@@ -257,8 +242,7 @@ const LABELED_TYPES = new Set<SpecGraphNode["type"]>([
   "ADR",
 ]);
 
-// Focus + context: opacity by graph distance from the selected node, fading with
-// depth (level 0 = selected, then 1/2/3 hops); past 3 hops is dimmed.
+// Focus + context: opacity by graph distance from selected node (0=selected, 1-3 hops, 3+ dimmed).
 const LEVEL_OPACITY = [1, 0.85, 0.5, 0.28];
 const FADED = 0.07;
 
@@ -297,8 +281,7 @@ function nodeLinks(
   return out;
 }
 
-// Memoized so the markdown only re-parses when the text changes, not on every
-// cursor move while the tooltip follows the pointer.
+// Memoized: re-parse markdown only on text change, not on every cursor move.
 const HoverMarkdown = memo(function HoverMarkdown({ text }: { text: string }) {
   return (
     <div className="md-popover">
@@ -312,8 +295,7 @@ const HoverMarkdown = memo(function HoverMarkdown({ text }: { text: string }) {
   );
 });
 
-// Spec→Section/Statement (the expanded drill-down) gets more length so the
-// fanned-out children don't pile on top of each other.
+// Spec→Section/Statement drill-down gets more length so children don't pile.
 function linkDistance(kind: SimLink["kind"]): number {
   if (kind === "in_feature") {
     return 76;
@@ -382,12 +364,10 @@ export default function SpecGraphD3({
     x: number;
     y: number;
   } | null>(null);
-  // Edge-crossing count (layout-quality metric), recomputed when the layout
-  // settles. -1 = too many edges to count cheaply, null = not measured yet.
+  // Edge-crossing count (layout-quality metric): -1 = too many, null = not measured.
   const [crossings, setCrossings] = useState<number | null>(null);
   const selectedIdRef = useRef<string | null>(null);
-  // Set inside the main effect so the search-only effect can re-run the live
-  // filter without rebuilding the whole simulation.
+  // Defined in main effect so search-only effect can re-run filter without rebuild.
   const filterRef = useRef<(q: string) => void>(() => {});
 
   useEffect(() => {
@@ -412,12 +392,9 @@ export default function SpecGraphD3({
       return;
     }
 
-    // Canvas draws with CSS-pixel coordinates; the backing store is scaled up by
-    // the device pixel ratio so edges/dots stay crisp on HiDPI screens.
+    // Canvas uses CSS pixels; backing store scaled up by DPR for crispness on HiDPI.
     const dpr = window.devicePixelRatio || 1;
-    // Canvas fillStyle/strokeStyle and d3.interpolateRgb need literal colors
-    // (they cannot resolve var() strings), so theme tokens are resolved once
-    // per render here; SVG attributes keep the raw var() references.
+    // Canvas needs literal colors (not var() strings); tokens resolved per render, SVG keeps var() refs.
     const tokenStyles = getComputedStyle(el);
     const lookup = (name: string) => tokenStyles.getPropertyValue(name);
     const surfaceColor = cssToken(lookup, "--bg-surface", "#ffffff");
@@ -442,8 +419,7 @@ export default function SpecGraphD3({
       target: l.target,
       kind: l.kind,
     }));
-    // Per-node degree feeds the anti-crowding rules in the force setup below
-    // (see lib/graph-crowding). Computed once from the raw link list.
+    // Per-node degree feeds anti-crowding rules in force setup; computed once from link list.
     const degree = nodeDegrees(graph.links);
     const degOf = (node: string | number | SimNode) =>
       degree.get(idOf(node)) ?? 1;
@@ -452,17 +428,14 @@ export default function SpecGraphD3({
     let nodeById = new Map<string, SimNode>();
     let ringPinned = new Set<string>(); // statement ids pinned onto an outer ring
 
-    // Aggregation: collapse single-owner canvas leaves into per-parent badges.
-    // Computed once from the graph (position-independent); applied only while the
-    // view is zoomed out past LOD_THRESHOLD.
+    // Aggregation: collapse single-owner canvas leaves into per-parent badges (applied when zoomed out).
     const { hidden: aggHidden, badges: aggBadges } = aggregateLeaves(
       graph.nodes,
       graph.links,
       LEAF_CANVAS_TYPES,
     );
 
-    // Bundling forest: containment tree plus a tree-home for each leaf under its
-    // first owning statement, so cross-spec leaf edges route through the hierarchy.
+    // Bundling forest: containment tree + tree-home for each leaf so cross-spec edges route through hierarchy.
     const forest = buildContainmentForest(graph.links, CONTAINMENT_KINDS);
 
     for (const l of graph.links) {
@@ -471,8 +444,7 @@ export default function SpecGraphD3({
       }
     }
 
-    // Cross-cutting edges precompute their bundle spine once; containment edges
-    // stay straight (the skeleton) and are drawn clipped against the rings.
+    // Cross-cutting edges precompute bundle spine; containment edges stay straight.
     for (const l of links) {
       if (!CONTAINMENT_KINDS.has(l.kind)) {
         l.controlIds = bundleControlIds(
@@ -483,9 +455,7 @@ export default function SpecGraphD3({
       }
     }
 
-    // Persist the layout to localStorage so a reload restores the previous topology
-    // (node positions, pins, which specs were expanded). Best-effort — storage may
-    // be unavailable or hold a stale/corrupt blob, both handled by returning early.
+    // Persist layout to localStorage for topology restoration; best-effort (handles storage failure).
     const STORAGE_KEY = `lore.graph:${repo}`;
     const saveState = () => {
       try {
@@ -512,11 +482,7 @@ export default function SpecGraphD3({
       // unavailable/corrupt storage — start from a fresh force layout
     }
 
-    // Radial-tree-per-feature layout. Invert the bundling `forest` (containment +
-    // leaf ownership) into children lists, lay out one radial tree per Feature
-    // around a viewport circle, and ring the leftover small components outside —
-    // so the hierarchy reads as separate circular trees, not one hairball. A
-    // forceX/forceY (below) holds each seeded position during relax.
+    // Radial-tree-per-feature layout: invert forest into children lists, ring small components outside.
     const boundR = boundingRadius(graph.nodes.length, graph.links.length);
     const viewportCenter = { x: width / 2, y: height / 2 };
     const childrenOf = new Map<string, string[]>();
@@ -530,9 +496,7 @@ export default function SpecGraphD3({
     const featureIds = graph.nodes
       .filter((n) => n.type === "Feature")
       .map((n) => n.id);
-    // Build each feature tree once at the origin to measure its radius, then place
-    // it on a ring scaled (featureRingRadius) so the trees don't overlap — the
-    // dominant edge-crossing reduction (measured ≈ -62% on the 43-feature graph).
+    // Build each feature tree at origin to measure radius, then place on ring to prevent overlap.
     const localTrees = featureIds.map((id) =>
       radialTree(id, childrenOf, { center: { x: 0, y: 0 }, ringGap: RING_GAP }),
     );
@@ -565,10 +529,7 @@ export default function SpecGraphD3({
       }
     });
 
-    // Anything no feature tree reached (e.g. a spec with no feature) is part of
-    // the main graph: seed it as a compact spiral near the centre. A LOCAL counter
-    // (not the node's array index) bounds the radius, so a straggler can never fling
-    // out past the rim — the bug that left small components sitting among them.
+    // Unreached nodes: seed as spiral near center with LOCAL counter to bound radius.
     const components = connectedComponents(
       graph.nodes.map((n) => n.id),
       graph.links,
@@ -593,9 +554,7 @@ export default function SpecGraphD3({
       strayIndex += 1;
     }
 
-    // Add the small components LAST, on a rim beyond the extent of every node
-    // already placed (feature trees + strays) — so they always ring the OUTSIDE
-    // of the whole main graph, not just the feature trees.
+    // Add small components last on rim beyond main graph extent, so they ring the outside.
     let mainExtent = 0;
 
     for (const p of seed.values()) {
@@ -628,38 +587,29 @@ export default function SpecGraphD3({
       .forceLink<SimNode, SimLink>([])
       .id((d) => d.id)
       .distance((l) => linkDistance(l.kind))
-      // d3's standard 1/min(degree): a leaf (degree 1) is held firmly to its hub
-      // so it can't drift off into a comet tail, while hub↔hub links stay loose.
+      // d3's standard 1/min(degree): leaves held firm, hub-hub links loose.
       .strength(
         (l) => 1 / Math.max(1, Math.min(degOf(l.source), degOf(l.target))),
       );
     const sim = d3
       .forceSimulation<SimNode>([])
-      // Heavier friction than the 0.4 default so the competing placement/charge
-      // forces settle instead of overshooting and shivering.
+      // Heavier friction (0.7 vs 0.4 default) so forces settle without overshooting.
       .velocityDecay(0.7)
       .force("link", linkForce)
-      // Degree-scaled repulsion, softened for the seeded radial layout: it only
-      // nudges neighbours apart, it doesn't arrange the graph — the seed +
-      // forceX/forceY do. distanceMin caps the close-range spike that otherwise
-      // erupts when a re-heat brings two nodes near-coincident.
+      // Degree-scaled repulsion (softened): nudges neighbors apart; seed/forceX/Y arrange graph.
       .force(
         "charge",
         d3
           .forceManyBody<SimNode>()
           .strength((d) => crowdedCharge(chargeBase(d.type), degOf(d)))
           .distanceMin(12)
-          // Localise repulsion to the bound's range so the central mass can't
-          // fling peripheral nodes off to infinity.
+          // Localize repulsion to bound's range so central mass doesn't fling peripheral nodes.
           .distanceMax(boundR),
       )
-      // Radial anchoring: forceX/forceY pull each node to its seeded position
-      // (tree-per-feature centre + rim), holding the circular shape while collide
-      // resolves overlaps. Symmetric — no axis is privileged.
+      // Radial anchoring: forceX/Y pull each node to seeded position, hold circular shape.
       .force("x", d3.forceX<SimNode>((d) => seedOf(d).x).strength(0.22))
       .force("y", d3.forceY<SimNode>((d) => seedOf(d).y).strength(0.22))
-      // Anti-crowding rule #3: degree-scaled collision radius — busy nodes (and
-      // their labels) reserve hard personal space and cannot pile up.
+      // Anti-crowding rule #3: degree-scaled collision radius prevents piling.
       .force(
         "collide",
         d3
@@ -668,11 +618,7 @@ export default function SpecGraphD3({
           )
           .strength(1),
       )
-      // Spacing pass: Spec/ADR "anchor" nodes are kept clear of each other AND of
-      // the open rings (resolveSpacing, gap = ANCHOR_SEPARATION); every other node
-      // is just kept off the rings (resolveExclusion). Ring-owned nodes (the spec
-      // itself, its pinned statements) and user-dragged nodes (fx/fy set) are exempt
-      // so a dragged node never snaps back. Uses the unit-tested resolvers.
+      // Spacing pass: anchors kept clear of each other & rings (resolveSpacing); others just off rings.
       .force("spacing", () => {
         const discs: Disc[] = [];
 
@@ -723,11 +669,7 @@ export default function SpecGraphD3({
           n.vy = 0;
         }
       })
-      // Hard separation: keep every small-component node strictly OUTSIDE the main
-      // graph. separateSmallComponents measures the main graph's CURRENT radius
-      // (it grows as the layout relaxes) and pushes any small node that has drifted
-      // inside back out beyond it — so a fixed seed margin can't be eaten by
-      // expansion. Dragged nodes (fx/fy set) are exempt. Unit-tested.
+      // Hard separation: keep small-component nodes outside main graph, measured dynamically.
       .force("separate", () => {
         if (smallIds.size === 0) {
           return;
@@ -755,16 +697,13 @@ export default function SpecGraphD3({
       });
 
     const container = svg.append("g");
-    const ringG = container.append("g"); // section/statement rings, under the nodes
-    const nodeG = container.append("g"); // structural nodes only (leaves live on canvas)
+    const ringG = container.append("g");
+    const nodeG = container.append("g");
 
-    // Open-ring discs (one per expanded spec), rebuilt each tick. Edge paths are
-    // clipped against these via the unit-tested `visibleSegments`, so no edge is
-    // ever drawn inside a ring — it attaches to the ring's edge instead.
+    // Open-ring discs (one per expanded spec), rebuilt each tick; edges clipped via visibleSegments.
     let ringDiscs: Disc[] = [];
 
-    // Current view transform (mirrored from d3.zoom) — drives both the SVG group
-    // and the canvas draw, and inverts pointer coords for canvas hit-testing.
+    // View transform (mirrored from d3.zoom): drives SVG + canvas draw, inverts pointer for hit-testing.
     let transform = d3.zoomIdentity;
     // Focus + search visual state, shared by the SVG skeleton and the canvas draw.
     let focusLevels: Map<string, number> | null = null;
@@ -804,8 +743,7 @@ export default function SpecGraphD3({
       return 0.6 * (LEVEL_OPACITY[Math.max(ls, lt)] ?? FADED);
     };
 
-    // Leaf nodes currently drawn on the canvas (and thus eligible for click
-    // hit-testing) — excludes the single-owner leaves collapsed into badges.
+    // Leaf nodes on canvas (click-eligible), excludes single-owner leaves in badges.
     const aggregating = () => shouldAggregate(transform.k, LOD_THRESHOLD);
     const visibleLeaf = (n: SimNode) =>
       isLeafCanvas(n.type) && !(aggregating() && aggHidden.has(n.id));
@@ -902,8 +840,7 @@ export default function SpecGraphD3({
       }
       ctx!.restore();
 
-      // Screen-space pass: count badges over each collapsed parent, sized in CSS
-      // pixels (not world units) so they stay readable while zoomed out.
+      // Screen-space pass: count badges over collapsed parents (CSS pixels, zoom-readable).
       if (collapsing) {
         ctx!.save();
         ctx!.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -946,8 +883,7 @@ export default function SpecGraphD3({
       });
 
     svg.call(zoom).on("dblclick.zoom", null).style("cursor", "grab");
-    // Start (and reset) at identity — d3.zoom stores its transform on the node, so
-    // a re-run (e.g. the Reset button bumping resetSignal) must clear it explicitly.
+    // Start at identity (d3.zoom stores on node); re-run via resetSignal must clear explicitly.
     svg.call(zoom.transform, d3.zoomIdentity);
     transform = d3.zoomIdentity;
     selectedIdRef.current = null;
@@ -962,8 +898,7 @@ export default function SpecGraphD3({
         r: radiusOf(n.type),
       }));
 
-    // The SVG covers the canvas, so canvas leaves can't receive DOM events — a
-    // background click instead inverts the pointer and hit-tests the leaf dots.
+    // SVG covers canvas: background click inverts pointer, hit-tests leaf dots.
     svg.on("click", (event: PointerEvent) => {
       const [px, py] = d3.pointer(event, el);
       const world = invertPoint(transform as ZoomTransform, { x: px, y: py });
@@ -1004,8 +939,7 @@ export default function SpecGraphD3({
       }
     }
 
-    // Apply the current focus/search state to the SVG skeleton, then repaint the
-    // canvas (edges + leaves) which reads the same nodeOpacity/edgeOpacity.
+    // Apply focus/search state to SVG, repaint canvas (edges + leaves) reading nodeOpacity/edgeOpacity.
     function applyVisualState() {
       nodeG
         .selectAll<SVGGElement, SimNode>("g")
@@ -1026,15 +960,13 @@ export default function SpecGraphD3({
       applyVisualState();
     }
 
-    // Live search filter: an empty query falls back to the current focus state
-    // (selection highlight, or everything visible).
+    // Live search filter: empty query falls back to current focus (selection or everything visible).
     function applyFilter(query: string) {
       searchTerm = query;
       applyVisualState();
     }
 
-    // Hide the force-nodes that the rings now represent: a pinned statement is
-    // drawn as an outer-ring arc instead of a skeleton node.
+    // Hide force-nodes that rings represent (statements drawn as outer-ring arcs instead).
     function applyRingState() {
       ringPinned = new Set<string>();
 
@@ -1141,8 +1073,7 @@ export default function SpecGraphD3({
 
         return;
       }
-      // Pin the spec so the ring stays put — the simulation restart would otherwise
-      // drift it, and the second double-click (to collapse) would miss.
+      // Pin spec to prevent ring drift on sim restart, so double-click collapse still hits.
       d.fx = d.x;
       d.fy = d.y;
       const res = await fetch(
@@ -1165,8 +1096,7 @@ export default function SpecGraphD3({
       saveState();
     }
 
-    // Layout-quality probe: count straight-segment edge crossings at the settled
-    // positions and surface it in the UI. O(E²), so skip very dense graphs.
+    // Layout-quality probe: count edge crossings at settled positions (O(E²), skip dense graphs).
     const CROSSINGS_EDGE_CAP = 2500;
 
     function measureCrossings() {
@@ -1227,11 +1157,7 @@ export default function SpecGraphD3({
             .call(
               d3
                 .drag<SVGGElement, SimNode>()
-                // Elastic drag: gently re-heat so link springs tug the dragged
-                // node's neighbours along, while the seed forces (forceX/forceY)
-                // pull everything back toward its home — springy, not explosive.
-                // The earlier eruption was the layered layout's strong forces +
-                // tight spacing; the radial seed + distanceMin keep this stable.
+                // Elastic drag: link springs tug neighbors while seed forces pull back toward home.
                 .on("start", (event, d) => {
                   if (!event.active) {
                     sim.alphaTarget(0.1).restart();
@@ -1275,11 +1201,7 @@ export default function SpecGraphD3({
       applyRingState();
       filterRef.current = applyFilter;
 
-      // Pre-warm a fresh layout headless so the first painted frame is already
-      // relaxed: sim.tick() advances the layout without firing the 'tick'
-      // renderer. Restored layouts are already settled. Either way we then start
-      // at alpha 0 — one render at the settled positions, no visible reshuffle
-      // (user gestures: drag/expand/resize re-energise the sim as before).
+      // Pre-warm fresh layouts headless, start at alpha 0 for settled positions on first paint.
       if (!restoredFromStorage) {
         const warm = settleTicks(nodes.length);
 
@@ -1301,13 +1223,9 @@ export default function SpecGraphD3({
       measureCrossings();
     }
 
-    // One frame: ring-spoke placement, SVG transforms, and the canvas draw.
-    // Driven by the simulation tick, and called directly during a manual drag.
+    // One frame: ring-spoke placement, SVG transforms, canvas draw (driven by sim tick or manual drag).
     function renderFrame() {
-      // Pin each expanded spec's statements onto its outer ring (which tracks the
-      // spec), and fan their related test/code/ADR nodes radially OUTWARD at the
-      // same angle — so every edge is a short spoke outside the ring, never a chord
-      // crossing the (now clean) interior.
+      // Pin statements on outer ring, fan related nodes radially outward: short spokes never chords.
       function placeStatementSpokes(exp: ExpandData, cx: number, cy: number) {
         exp.statements.forEach((s) => {
           const n = nodeById.get(s.uid);
@@ -1326,8 +1244,7 @@ export default function SpecGraphD3({
             }
             const leaf = nodeById.get(nb);
 
-            // Only test/code chunks get spoked onto the ring. ADRs are anchors —
-            // they go through the spacing force (kept apart + off rings), never spoked.
+            // Only test/code chunks get spoked onto ring; ADRs are anchors (spacing force, never spoked).
             if (
               !leaf ||
               (leaf.type !== "TestChunk" && leaf.type !== "CodeChunk")
@@ -1335,9 +1252,7 @@ export default function SpecGraphD3({
               return;
             }
 
-            // Only hard-place leaves owned by a single statement (clean radial
-            // spokes). Shared chunks float; their edges are clipped to the ring
-            // edge by visibleSegments.
+            // Only hard-place leaves with single owner (clean radial spokes); shared chunks float.
             if ((adj.get(nb)?.size ?? 0) !== 1) {
               return;
             }
@@ -1385,8 +1300,7 @@ export default function SpecGraphD3({
 
     update();
 
-    // Re-open the rings that were expanded last session, and persist whenever the
-    // layout cools so the next reload restores this exact topology.
+    // Restore expanded rings from last session and persist on layout cool for topology preservation.
     for (const id of savedExpanded) {
       const spec = nodeById.get(id);
 
@@ -1403,8 +1317,7 @@ export default function SpecGraphD3({
       const w = el.clientWidth || width;
       const h = el.clientHeight || height;
 
-      // Ignore sub-pixel / spurious resize callbacks — re-heating the sim on
-      // every one keeps it perpetually shivering.
+      // Ignore spurious resize: re-heating sim on every callback keeps it shivering.
       if (Math.abs(w - width) < 2 && Math.abs(h - height) < 2) {
         return;
       }
@@ -1423,8 +1336,7 @@ export default function SpecGraphD3({
     };
   }, [graph, repo, resetSignal]);
 
-  // Live search: re-apply the filter without rebuilding the simulation. Runs on
-  // mount (restoring the empty-query full view) and on every query change.
+  // Live search: re-apply filter without rebuild on query change.
   useEffect(() => {
     filterRef.current(searchQuery);
   }, [searchQuery]);

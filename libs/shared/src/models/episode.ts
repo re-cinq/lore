@@ -1,14 +1,7 @@
 import { z } from "zod";
 import type { ColumnMap } from "../lib/row.js";
 
-/**
- * `memory.episodes` — a raw text blob ingested for passive fact extraction.
- *
- * DDL: `scripts/infra/setup-memory-schema.sh`. `contentHash` carries the
- * idempotency: `(agentId, contentHash)` is unique, so re-ingesting the same
- * conversation turn is a no-op rather than a duplicate. `embedding` is excluded
- * as on the other memory models.
- */
+/** Raw text blob for passive fact extraction; (agentId, contentHash) is unique for idempotency. */
 
 export const EpisodeSchema = z.object({
   id: z.string(),

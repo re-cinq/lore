@@ -98,11 +98,11 @@ A `team` scopes the search to that team subtree. ([validated by `scopes the sear
 
 An unknown team yields a path-not-found error. ([validated by `returns a path-not-found error for an unknown team`](apps/mcp-server/src/mcp/tools/context-tools.test.ts#L112))
 
-`hybridSearch` searches a provisioned team schema directly. ([validated by `searches a provisioned team schema directly`](libs/server-core/src/platform/db.test.ts#L30))
+`hybridSearch` searches a provisioned team schema directly. ([validated by `searches a provisioned team schema directly`](libs/server-core/src/platform/db.test.ts#L29))
 
-`hybridSearch` falls back to `org_shared` for an unprovisioned schema. ([validated by `falls back to org_shared for an unprovisioned schema`](libs/server-core/src/platform/db.test.ts#L47))
+`hybridSearch` falls back to `org_shared` for an unprovisioned schema. ([validated by `falls back to org_shared for an unprovisioned schema`](libs/server-core/src/platform/db.test.ts#L46))
 
-`hybridSearch` falls back to `org_shared` for an injection-shaped schema name without an existence check. ([validated by `falls back to org_shared for an injection-shaped schema without an existence check`](libs/server-core/src/platform/db.test.ts#L60))
+`hybridSearch` falls back to `org_shared` for an injection-shaped schema name without an existence check. ([validated by `falls back to org_shared for an injection-shaped schema without an existence check`](libs/server-core/src/platform/db.test.ts#L59))
 
 The DB branch's ranking quality is exercised only against live Postgres + Vertex
 embeddings. *(untested beyond schema resolution: the RRF result-formatting is

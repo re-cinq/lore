@@ -49,26 +49,21 @@ export default async function FeatureDetailPage({
     decomp.status === "ok" ? (decomp.data.tasks as DecompTaskRow[]) : [],
   );
 
-  // The planning round's time budget (the feature-planning agent's timeout), resolved
-  // once for the wizard's elapsed/total timer. Defaults to 15 if unresolved.
+  // feature-planning agent timeout for wizard's elapsed/total timer (defaults 15).
   const planningTimeoutMinutes =
     (await listAgents(fullName)).find((a) => a.name === "feature-planning")
       ?.timeout_minutes ?? 15;
 
   const definition = await getAssemblyLineDefinition("feature-planning");
 
-  // The line this feature is on, so the card above draws where the walk actually
-  // is rather than everything it could ever do. lore-api resolved which line the
-  // feature hangs on (from round 2 a resumed round mints no task of its own), so
-  // the id comes from the status endpoint rather than from the latest round.
+  // Which line the feature is on, resolved by lore-api; the id comes from status endpoint.
   const status = await getFeatureStatus(fullName, id);
   const run =
     status.status === "ok"
       ? await fetchFeatureRunById(runIdOf(status.data))
       : null;
 
-  // Above the feature's own state, because when this fires the feature's state is
-  // a symptom. Healthy is the overwhelmingly common answer and renders nothing.
+  // Platform status above feature state: when it fires, the feature's state is a symptom.
   const platform = await getPlatformLlmStatus();
 
   return (

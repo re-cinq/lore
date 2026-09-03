@@ -1,8 +1,4 @@
-// Presentational (data-down) card for one spec FOLDER on a repo list page,
-// sourced from the spec-traceability graph (the source of truth) via the /trace
-// API. Shows the spec's document title, description, spec.md's own coverage, and
-// a link to every file in the folder. Types mirror the API JSON — web-ui is not a
-// workspace member, so it cannot import @re-cinq/lore-shared.
+// Spec folder card: data from /trace API; types inline (web-ui not a workspace member).
 import Link from "next/link";
 import styles from "./SpecCard.module.scss";
 import SpecStatusPill from "@/components/SpecStatusPill";

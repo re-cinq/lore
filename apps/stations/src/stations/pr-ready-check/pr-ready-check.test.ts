@@ -93,7 +93,6 @@ describe("prReadyCheckSweep", () => {
   });
 
   it("reports nothing when a CI-running repo has no checks yet for the head sha", async () => {
-    // The push-to-first-check window. Resuming here passed a build nobody ran.
     const d = deps({
       ciConclusion: async () => "none",
       hasCiHistory: async () => true,

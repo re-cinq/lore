@@ -2,11 +2,6 @@ import { describe, it, expect } from "vitest";
 import { RepoFiles } from "./repo-files.js";
 import type { GitHubPort } from "../lib/github-port.js";
 
-/**
- * project.repo reads files over the API and performs API-based branch/commit
- * writes (no clone), bound to the repo and passing the ref through.
- */
-
 function fakeGitHub(writes: string[] = []): GitHubPort {
   const files: Record<string, string> = {
     "CLAUDE.md": "# Lore",

@@ -15,11 +15,6 @@ import { onboardRepo } from "./repo-onboard.js";
 
 type Row = Record<string, unknown>;
 
-/**
- * A pool whose single client answers by matching the SQL, not by call order —
- * onboarding runs its guard reads and both writes on one connection, and an
- * order-indexed double would mis-answer the moment a statement is added.
- */
 function poolWith({
   repoRows = [] as Row[],
   taskRows = [] as Row[],
@@ -127,9 +122,6 @@ describe("onboardRepo", () => {
 
     await onboardRepo(pool, "o/r");
 
-    // A second connection for the task would deadlock the pool under
-    // concurrency, and a task committed outside this transaction would survive
-    // a rollback and block every retry as "in flight".
     expect(pool.connect).toHaveBeenCalledTimes(1);
     expect(vi.mocked(createPipelineTask).mock.calls[0][0]).toBe(client);
     expect(sqlIssued(query).at(-1)).toBe("COMMIT");

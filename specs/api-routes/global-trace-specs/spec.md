@@ -73,21 +73,21 @@ The handler ignores `_pool` — the cross-repo list lives in Dgraph.
 ## Acceptance Criteria
 
 With Dgraph unconfigured, the route fails soft to `200 { specs: [] }` — never a
-500. ([validated by `returns 200 with an empty specs list when Dgraph is not configured`](apps/lore-api/src/api/routes/trace/trace.test.ts#L71))
+500. ([validated by `returns 200 with an empty specs list when Dgraph is not configured`](apps/lore-api/src/api/routes/trace/trace.test.ts#L66))
 
 A request without a bearer token is rejected with 401 before the handler runs.
-([validated by `returns 401 without a bearer token`](apps/lore-api/src/api/routes/trace/trace.test.ts#L78))
+([validated by `returns 401 without a bearer token`](apps/lore-api/src/api/routes/trace/trace.test.ts#L73))
 
 With a Dgraph client present, the route returns `200 { specs }` from
 `listAllSpecDocuments`, each entry carrying its lifecycle `status` pill (`null`
-when the document has none). ([validated by `trace-specs.test.ts:45`](apps/lore-api/src/api/routes/trace/trace-specs.test.ts#L45))
+when the document has none). ([validated by `trace-specs.test.ts:45`](apps/lore-api/src/api/routes/trace/trace-specs.test.ts#L41))
 
-A thrown Dgraph read is caught and returned as `500 { error: <message> }`. ([validated by `trace-specs.test.ts:62`](apps/lore-api/src/api/routes/trace/trace-specs.test.ts#L62))
+A thrown Dgraph read is caught and returned as `500 { error: <message> }`. ([validated by `trace-specs.test.ts:62`](apps/lore-api/src/api/routes/trace/trace-specs.test.ts#L58))
 
 `GET /api/trace/adrs` mirrors both branches for ADRs: with a Dgraph client
 present it returns `200 { adrs }` from `listAllAdrDocuments` with the same
 per-entry `status` pill, and a thrown
-Dgraph read is caught and returned as `500 { error: <message> }`. ([validated by `trace-adrs.test.ts:44`](apps/lore-api/src/api/routes/trace/trace-adrs.test.ts#L44), [`trace-adrs.test.ts:61`](apps/lore-api/src/api/routes/trace/trace-adrs.test.ts#L61))
+Dgraph read is caught and returned as `500 { error: <message> }`. ([validated by `trace-adrs.test.ts:44`](apps/lore-api/src/api/routes/trace/trace-adrs.test.ts#L41), [`trace-adrs.test.ts:58`](apps/lore-api/src/api/routes/trace/trace-adrs.test.ts#L58))
 
 The live cross-repo DQL contents of `listAllSpecDocuments` are exercised only
 against a populated Dgraph. *(untested: the query itself needs `LORE_DGRAPH_HTTP`

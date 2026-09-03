@@ -1,12 +1,7 @@
 import { describe, it, expect } from "vitest";
-// web-ui cannot import the @re-cinq/lore-shared PACKAGE (workspace + Docker
-// isolation), so this policy is hand-duplicated. Following references.parity:
-// import shared's PURE module by FILE PATH — never the package — so the mirror
-// cannot drift behaviourally without failing here.
 import { withoutBlindRetryOnCreates as mirror } from "./octokit-retry-policy";
 import { withoutBlindRetryOnCreates as canonical } from "../../../../libs/shared/src/project/lib/octokit-retry-policy";
 
-/** A client that records what the hook did to each request's options. */
 function recordingClient() {
   const handlers: Array<
     (o: { method?: string; request?: Record<string, unknown> }) => void
@@ -19,7 +14,6 @@ function recordingClient() {
           handlers.push(h),
       },
     },
-    /** Options as the hook leaves them for one method. */
     optionsFor(method: string) {
       const options: { method?: string; request?: Record<string, unknown> } = {
         method,

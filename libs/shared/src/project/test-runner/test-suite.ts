@@ -2,11 +2,7 @@ import type { TestDescriptor, RunResult } from "../../test-report.js";
 import type { TestRunnerPort, TestRunReport } from "./test-runner-port.js";
 import { executionRefusal } from "../lib/trust.js";
 
-/**
- * project.tests — test discovery/run/report, trust-gated. On the shared GKE
- * server (LORE_DB_HOST set) every operation refuses before touching the port;
- * in a trusted sandbox it delegates to the ExecTestRunner.
- */
+/** Test discovery/run/report; trust-gated (refused on shared GKE server). */
 export class TestSuite {
   constructor(
     private readonly runner: TestRunnerPort,

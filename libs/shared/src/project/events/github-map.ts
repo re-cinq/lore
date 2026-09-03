@@ -1,10 +1,4 @@
-/**
- * Pure GitHub-webhook → event mapping (layer 1). Given the raw webhook
- * (eventType header + parsed payload + the X-GitHub-Delivery id), produce zero or
- * more `EventInput`s. Mirrors the action allow-lists the mcp-server handler used.
- * A check event fans out to one event per backing PR. No IO; the listener does
- * HMAC + insert.
- */
+/** GitHub webhook → event mapping: produces zero or more EventInputs per check/PR/review. */
 
 import type { EventInsert as EventInput } from "../../events.js";
 import { githubDedupeKey } from "./dedupe.js";
@@ -110,8 +104,7 @@ function mapPullRequest(
   }
 
   if (payload.action === "closed") {
-    // Emit for merged AND unmerged closes: specPrMerge guards on `merged`, while
-    // code-review's onClose must finish its line on any close.
+    // Emit for merged AND unmerged: specPrMerge guards on `merged`, code-review's onClose finishes on any.
     return [
       {
         eventName: "github.pull_request.closed",
@@ -246,8 +239,7 @@ function mapReviewComment(
         repo,
         pr_number: prNumber,
         ...commentParams(payload.comment),
-        // The thread root a reply hangs off — the GitHub replies endpoint keys
-        // on it, and it is the triage's is-a-reply signal.
+        // Thread root for reply hanging; GitHub replies endpoint keys on it.
         in_reply_to_id: payload.comment?.in_reply_to_id ?? null,
       },
       dedupeKey: key,

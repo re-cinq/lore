@@ -371,9 +371,6 @@ describe.each(IMPLEMENTATIONS)(
     });
 
     it("finish closes a visit still open under the run, and leaves a reported one alone", async () => {
-      // The reaper sweeps only OPEN runs, so a visit left open when its run
-      // went terminal was stranded forever — and the spend page prices an
-      // unfinished visit at its two-hour cap, billing phantom pod-hours.
       const { port, repo } = make();
       const id = await port.start({ blueprintName: "code-review", repo });
 
@@ -402,7 +399,6 @@ describe.each(IMPLEMENTATIONS)(
       });
       expect(stuck?.finishedAt).not.toBeNull();
       expect(stuck?.failureDetail).toMatch(/never reported an outcome/);
-      // The visit that DID report keeps its own verdict.
       expect(finished).toMatchObject({ outcome: "success" });
     });
 

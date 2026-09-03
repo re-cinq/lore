@@ -1,10 +1,4 @@
-/**
- * Light OpenTelemetry helpers — trace/metric emitters built on the
- * `@opentelemetry/api` surface only. These are no-ops until an SDK is
- * registered globally (the heavy `initOtel` lives in the remote app's boot,
- * in its `otel-init.ts`). Both the local MCP adapter and the remote API import
- * these helpers; neither pulls the heavy `@opentelemetry/sdk-node`.
- */
+/** Light OpenTelemetry helpers; trace/metric emitters built on @opentelemetry/api (no-ops until SDK registered). */
 
 import { trace, metrics } from "@opentelemetry/api";
 

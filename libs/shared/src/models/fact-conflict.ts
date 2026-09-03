@@ -1,13 +1,7 @@
 import { z } from "zod";
 import type { ColumnMap } from "../lib/row.js";
 
-/**
- * `memory.fact_conflicts` — a recorded contradiction between two facts.
- *
- * DDL: `scripts/infra/setup-memory-schema.sh`. Written BEFORE the old fact is
- * invalidated, so a disagreement is surfaced rather than silently resolved:
- * context assembly prefixes `[CONFLICT]` on a fact with a recent one.
- */
+/** A recorded contradiction between two facts; written before old fact invalidated; context prefixes [CONFLICT]. */
 
 export const FactConflictSchema = z.object({
   id: z.string(),

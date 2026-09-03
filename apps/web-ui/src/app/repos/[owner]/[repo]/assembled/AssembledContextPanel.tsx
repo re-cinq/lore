@@ -7,11 +7,7 @@ import AssembledContextView, {
 
 const TEMPLATES = ["default", "implementation", "review", "research"];
 
-/**
- * Container for the assembled-context preview. Owns query/template/fetch state
- * and recomputes the live context block via the repo-scoped proxy route, then
- * hands the data down to the pure `AssembledContextView`.
- */
+/** Assembled context container; fetches via repo-scoped proxy, hands data to view. */
 export default function AssembledContextPanel({
   owner,
   repo,

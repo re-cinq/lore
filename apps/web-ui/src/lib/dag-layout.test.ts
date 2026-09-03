@@ -188,9 +188,6 @@ describe("layoutAssemblyLine", () => {
     );
   });
 
-  // The loader rejects unreachable nodes and dangling edge targets, but this
-  // mirror types a definition the page may also receive hand-written, so the
-  // layout must degrade rather than throw.
   it("lays out an unreachable node and empties the path of a dangling edge", () => {
     const malformed: AssemblyLineDefinition = {
       ...twoNodeLine,

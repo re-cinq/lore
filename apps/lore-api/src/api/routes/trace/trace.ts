@@ -8,23 +8,12 @@ import { projectFor } from "../../../platform/project-boot.js";
 import { bearerScope } from "../../../server/plugins/bearer-scope.js";
 import { zodValidate } from "../../../server/plugins/zod-validate.js";
 
-// `kind` keeps its Set check (404 unknown, not 400); only the free-form `path`
-// query is bounded here.
+// kind: Set check (404 unknown); path: bounded to 1024 chars.
 const TraceQuery = z.object({ path: z.string().max(1024).optional() });
 
 type TraceQuery = z.infer<typeof TraceQuery>;
 
-/**
- * GET /api/repos/:owner/:repo/trace/{specs|adrs|document|source|graph|ring} —
- * the spec-traceability graph as source of truth, served through `project.trace`
- * (the shared Project facade, NOT direct DB queries). web-ui consumes this
- * instead of reading Postgres chunks / Dgraph directly.
- *   - specs|adrs            → { specs|adrs: string[] } document paths
- *   - document?path=<file>  → TraceDocument (ordered sections+statements+coverage)
- *   - source?path=<file>    → { source: string|null } byte-exact reassembly
- *   - graph                 → SpecGraph ({nodes, links}) force-graph
- *   - ring?path=<file>      → SpecRing (sections + per-statement coverage)
- */
+// GET /trace/{kind} — spec-traceability graph served via project.trace (shared facade).
 const TRACE_KINDS = new Set([
   "specs",
   "spec-summaries",
@@ -36,11 +25,7 @@ const TRACE_KINDS = new Set([
   "ring",
 ]);
 
-/**
- * One route, many kinds (`/trace/{kind}`), so the contract is the union of what
- * each kind answers. Declaring it as such is honest: the alternative is one
- * route pretending to a single shape it does not have.
- */
+// Union of all /trace/{kind} responses; one route, many contract shapes.
 const TraceReadSchema = z.record(z.unknown());
 
 export function traceRoute(): ServerRoute {
@@ -87,8 +72,7 @@ export function traceRoute(): ServerRoute {
         }
 
         if (kind === "graph") {
-          // Make persistent lore.features the source of truth for Feature nodes
-          // (ADR-027). Tolerate a not-yet-migrated lore.features (42P01).
+          // lore.features is source of truth for Feature nodes (ADR-027); tolerate 42P01.
           const project = await projectFor(
             `${request.params.owner}/${request.params.repo}`,
           );
@@ -127,8 +111,7 @@ export function traceRoute(): ServerRoute {
 
         return h.response({ source: await trace.source(filePath) });
       } catch (err) {
-        // A guard's refusal already carries its status; only an unexpected failure
-        // is this block's to shape.
+        // Guard's refusal carries its status; only unexpected failure needs shaping.
         rethrowBoom(err);
 
         return h

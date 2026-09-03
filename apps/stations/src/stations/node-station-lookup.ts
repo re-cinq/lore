@@ -1,12 +1,4 @@
-/**
- * Resolve the station a blueprint's node type dispatches to.
- *
- * A blueprint names a node TYPE (`github_action`); a station is filed under its
- * folder NAME (`github-action`). The two coincide for six of the eight and
- * differ by an underscore for the rest — which is the near-miss that made the
- * old parallel lists fail at runtime instead of at compile time. Resolving
- * through the manifest means the mapping is declared once, by the station.
- */
+/** Resolve the station a blueprint's node type dispatches to. */
 
 import { STATIONS } from "./registry.js";
 import {

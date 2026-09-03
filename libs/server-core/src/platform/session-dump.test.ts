@@ -8,12 +8,6 @@ import {
   getSessionLog,
 } from "./session-tracker.js";
 
-// Exercises the REAL session-tracker exports, so `sessionLog` is module-shared
-// state that persists across tests in this file. We never assume the buffer is
-// empty: the dump test segregates by a unique tool-name prefix and filters, and
-// the ring-buffer test pushes >MAX_ENTRIES fresh entries so any prior rows are
-// shifted out — both assertions hold regardless of test order or leftover state.
-
 interface DumpedSession {
   startTime: string;
   endTime: string;

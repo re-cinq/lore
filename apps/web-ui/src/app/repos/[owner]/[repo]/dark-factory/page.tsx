@@ -55,8 +55,7 @@ export default async function DarkFactoryPage({
   const trustLevel =
     (settings.trust as { level?: string } | undefined)?.level ?? "unset";
 
-  // Both reads are best-effort at the API: a legacy cluster without
-  // pipeline.audit_log answers an empty list rather than failing the console.
+  // Reads are best-effort; legacy clusters without audit_log return empty list, not failure
   const [taskResult, auditResult] = await Promise.all([
     getRepoTasks(fullName, 15),
     getAuditLog(fullName, DF_EVENT_TYPES),

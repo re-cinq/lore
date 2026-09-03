@@ -1,7 +1,4 @@
-// Minimal YAML-lite frontmatter parser covering exactly the shapes the ADR
-// corpus uses (scalars, quoted scalars, flow lists, block lists) — no yaml
-// dependency. Only a block opening the document counts; a later `---` is a
-// horizontal rule.
+// Minimal YAML-lite frontmatter parser for ADR corpus (no yaml dependency).
 
 export interface Frontmatter {
   meta: Record<string, string | string[]>;

@@ -1,9 +1,4 @@
-/**
- * GitHub webhook read + ensure via the Lore GitHub App (the App carries the
- * Webhooks permission + we hold LORE_WEBHOOK_SECRET, so management lives here, not
- * in the web-ui). `ensureRepoWebhook` is idempotent: it repoints/updates the Floor
- * hook if present, else creates it, then pings to trigger a fresh delivery.
- */
+/** GitHub webhook management via Lore GitHub App; ensureRepoWebhook is idempotent (create/repoint/update + ping). */
 
 import { getOctokit } from "../../platform/github-client.js";
 import type { RepoHook } from "./webhook-status.js";

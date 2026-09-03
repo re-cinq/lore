@@ -3,11 +3,6 @@ import { TaskList } from "./task-list.js";
 import type { PipelineTask } from "../../types.js";
 import type { TaskStorePort, TaskAction } from "./task-store-port.js";
 
-/**
- * project.tasks.pendingTasks() returns Task wrappers bound to the repo, and a
- * transition re-reads the row. The fake is a tiny in-memory store.
- */
-
 function row(id: string, status: string, repo = "re-cinq/lore"): PipelineTask {
   return {
     id,

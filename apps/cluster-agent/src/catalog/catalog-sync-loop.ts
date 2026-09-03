@@ -131,8 +131,7 @@ export type CatalogSyncOutcome =
       deleted: number;
       /** CRs another writer owns (label named per entry), left untouched. */
       skipped: string[];
-      /** Entries the render contract or the apiserver refused permanently —
-       *  acked past, each with its reason, so they surface instead of loop. */
+      /** Entries render contract/apiserver refused permanently (with reasons, surfaced instead of looping). */
       refused: string[];
     }
   | { kind: "empty" }

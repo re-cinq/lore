@@ -1,18 +1,4 @@
-/**
- * What each cluster DID with each catalog entry — the question the ack cursor
- * cannot answer.
- *
- * The cursor says how far a cluster has read; this says whether the entry it
- * read was applied, refused (and why), skipped as another writer's, or deleted.
- * Without it a refusal lives only in one pod's stdout and dies with the pod:
- * on 2026-09-01 a cluster refused an entry for two hours with no record
- * anywhere, and a satellite refusing every recipe overnight would leave
- * nothing behind at all.
- *
- * CURRENT state per (cluster, definition), never a history — a later success
- * must erase the refusal it replaces, because a page still showing a fixed
- * problem is worse than one showing nothing.
- */
+// What each cluster DID with each catalog entry (applied/refused/skipped/deleted); latest verdict erases prior refusal.
 
 export type CatalogApplyState = "applied" | "refused" | "skipped" | "deleted";
 

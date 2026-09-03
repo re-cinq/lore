@@ -11,7 +11,6 @@ const anEvent = (name: string): EventInsert => ({
 const refusal = (status: number): Error =>
   Object.assign(new Error(`event insert failed: ${status}`), { status });
 
-/** A sink that records what it was handed and fails on demand. */
 function fakeSink(failures: Array<Error | null> = []): Sink & {
   delivered: ProxyMessage[];
 } {
@@ -30,19 +29,16 @@ function fakeSink(failures: Array<Error | null> = []): Sink & {
   };
 }
 
-/** A sink that never resolves, so the queue backs up. */
 function wedgedSink(): Sink {
   return { deliver: () => new Promise<void>(() => {}) };
 }
 
-/** Whether a promise has settled, without waiting on it. */
 async function settled(promise: Promise<unknown>): Promise<boolean> {
   const pending = Symbol("pending");
 
   return (await Promise.race([promise, Promise.resolve(pending)])) !== pending;
 }
 
-/** Let the drain loop run its queued microtasks. */
 const tick = (): Promise<void> =>
   new Promise((resolve) => setImmediate(resolve));
 

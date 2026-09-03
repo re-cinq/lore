@@ -1,11 +1,4 @@
-// Parse references (source file paths, issue numbers, task UUIDs) out of plain
-// text so the dashboard can render them as links. Behaviour mirrors
-// shared/src/references.ts — duplicated here because web-ui does not depend on
-// the shared package; `references.parity.test.ts` holds the two in lockstep.
-// Intentional delta: task UUIDs always link to the relative internal
-// /assembly-runs page (shared needs an absolute `uiUrl` and omits the href
-// without one), and web-ui renders segments itself so `linkifyMarkdown` has no
-// mirror here.
+// Parse refs (file paths, issues, UUIDs) from plain text; mirrors shared/src/references.ts (web-ui duplication); task UUIDs link to /assembly-runs.
 
 export interface RefContext {
   repo: string;
@@ -22,9 +15,7 @@ const FILE_SRC =
 const ISSUE_SRC = "#(\\d+)";
 const UUID_SRC = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
 
-// Spans to leave verbatim: inline code, existing markdown links, bare URLs.
-// Link targets may contain one balanced paren pair (wiki-style urls, paths);
-// the disjoint alternatives keep the pattern backtracking-safe.
+// Protect from linkification: inline code, markdown links, bare URLs; link targets support one balanced paren pair.
 const PROTECT_SRC =
   "`[^`]+`|\\[[^\\]]*\\]\\((?:[^()]|\\([^()]*\\))*\\)|https?:\\/\\/[^\\s)]+";
 

@@ -32,15 +32,12 @@ async function onboardRepo(
 
     const result = await createOnboardTask(fullName);
 
-    // Already onboarded / PR still open / task in flight: report it instead of
-    // filing a duplicate task, which would open its own Issue and race its own
-    // PR against the one already in progress.
+    // Report existing onboard/PR/task instead of filing duplicate (avoid race).
     if (!result.ok) {
       return { error: result.message, fullName };
     }
   } catch (err) {
-    // pg errors carry infrastructure detail (hosts, users) that an onboarding
-    // form must not disclose — log the real error, return a generic message.
+    // PG errors carry infrastructure detail; log real error, return generic message.
     console.error(`[onboard] onboarding ${fullName} failed:`, err);
 
     return {

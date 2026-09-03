@@ -1,11 +1,7 @@
 import type { NotifyChannel } from "../../dark-factory-settings.js";
 import type { NotifyLevel, NotifyResult } from "./notify-port.js";
 
-/**
- * Channel-filtering decision, relocated verbatim from agent/src/lib/notify.ts
- * (decideNotify). Pure — the caller dispatches the actual Slack send when
- * fire === true. agent keeps a re-export during migration.
- */
+/** Channel-filtering decision (relocated from agent/src/lib/notify.ts). */
 export interface NotifySettings {
   channels: NotifyChannel[];
 }

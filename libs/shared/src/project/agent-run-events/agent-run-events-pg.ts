@@ -53,16 +53,7 @@ function byIdAscending(a: AgentRunEventRow, b: AgentRunEventRow): number {
   return BigInt(a.id) < BigInt(b.id) ? -1 : 1;
 }
 
-/**
- * Postgres-backed {@link AgentRunEventsRepository}.
- *
- * The batch crosses as ONE jsonb parameter expanded by `jsonb_to_recordset`
- * rather than a string-built VALUES list: the row count varies per POST, and
- * `file_paths` / `payload` carry agent-controlled text that must never reach
- * the statement text. Correlation rides a `LEFT JOIN LATERAL` so a row whose
- * `agent_cr_name` matches no node still inserts (with the correlated columns
- * null) instead of being filtered out by an inner join.
- */
+/** Postgres-backed {@link AgentRunEventsRepository}. Batch as ONE jsonb parameter via jsonb_to_recordset (varies row count, agent-controlled text never in statement). Correlation via LEFT JOIN LATERAL for resilience. */
 export class PgAgentRunEvents implements AgentRunEventsRepository {
   constructor(private readonly pool: PgPool) {}
 

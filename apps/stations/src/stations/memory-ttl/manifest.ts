@@ -1,12 +1,6 @@
 import type { SweepStationModule } from "../lib/station.js";
 
-/**
- * Delete memories whose TTL has passed.
- *
- * A single data operation on a schedule, so it runs beside the data rather than
- * in a pod of its own. The host supplies the port; this package is shared with a
- * pod that has none.
- */
+/** Delete memories whose TTL has passed. */
 export const memoryTtl: SweepStationModule = {
   manifest: {
     name: "memory-ttl",

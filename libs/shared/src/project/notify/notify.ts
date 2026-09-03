@@ -5,10 +5,7 @@ import type {
   NotifyOptions,
 } from "./notify-port.js";
 
-/**
- * project.notify — repo-bound notification dispatch. Channel filtering and the
- * Slack send live behind the port (the adapter reuses decideNotify).
- */
+/** Repo-bound notification dispatch; channel filtering and Slack send live behind the port. */
 export class Notify {
   constructor(
     private readonly repo: string,

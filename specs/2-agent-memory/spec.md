@@ -76,7 +76,7 @@ available to agents — the authoritative interface.
   If `extract_facts=true`, fact extraction runs asynchronously and
   does not block the response. An upsert overwrites the value on a
   `(agent, key, version=1)` collision; an append bumps the version and
-  concatenates on an `(agent, key)` collision. ([validated by `memory.test.ts:33`](libs/shared/src/project/memory/memory.test.ts#L33), [`memory-store-bridge.test.ts:45`](libs/shared/src/project/memory/memory-store-bridge.test.ts#L45), [`memory-lifecycle.test.ts:124`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L124), [`memory-lifecycle.test.ts:375`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L375), [`memory-lifecycle.test.ts:139`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L139), [`memory-lifecycle.test.ts:385`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L385))
+  concatenates on an `(agent, key)` collision. ([validated by `memory.test.ts:33`](libs/shared/src/project/memory/memory.test.ts#L33), [`memory-store-bridge.test.ts:40`](libs/shared/src/project/memory/memory-store-bridge.test.ts#L40), [`memory-lifecycle.test.ts:124`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L124), [`memory-lifecycle.test.ts:375`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L375), [`memory-lifecycle.test.ts:139`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L139), [`memory-lifecycle.test.ts:385`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L385))
 
 - `writeMemory` (the `lore_write_memory` path) writes the memories row and its
   version row atomically: when the pool provides a client (`connect()`), the
@@ -115,13 +115,13 @@ available to agents — the authoritative interface.
   and extracted facts using Reciprocal Rank Fusion. Results include
   confidence annotations and similarity scores. ([validated by `memory-ranking.test.ts:11`](libs/shared/src/memory-ranking.test.ts#L11))
   - `include_invalidated=true` enables historical queries (facts
-    superseded by later contradictions are included). ([validated by `memory-search.test.ts:41`](libs/shared/src/project/knowledge/memory-search.test.ts#L41), [`memory-search.test.ts:52`](libs/shared/src/project/knowledge/memory-search.test.ts#L52))
-  - `graph_augment=true` enriches results with related graph entities. ([validated by `memory-search.test.ts:63`](libs/shared/src/project/knowledge/memory-search.test.ts#L63), [`memory-search.test.ts:105`](libs/shared/src/project/knowledge/memory-search.test.ts#L105))
+    superseded by later contradictions are included). ([validated by `memory-search.test.ts:41`](libs/shared/src/project/knowledge/memory-search.test.ts#L32), [`memory-search.test.ts:43`](libs/shared/src/project/knowledge/memory-search.test.ts#L43))
+  - `graph_augment=true` enriches results with related graph entities. ([validated by `memory-search.test.ts:63`](libs/shared/src/project/knowledge/memory-search.test.ts#L54), [`memory-search.test.ts:96`](libs/shared/src/project/knowledge/memory-search.test.ts#L96))
   - Results are capped at 3 per (agent_id + source) combo to prevent
     verbose sessions from dominating (session diversification); sources already under the cap are returned intact. ([validated by `memory-ranking.test.ts:53`](libs/shared/src/memory-ranking.test.ts#L53), [validated by `keeps all items when each source is under the cap`](libs/shared/src/memory-ranking.test.ts#L99))
   - Every search call asynchronously increments `retrieval_count`,
     updates `last_retrieved_at`, and extends `half_life_days` (+2,
-    cap 365) on returned facts and memories. ([validated by `memory-search.test.ts:128`](libs/shared/src/project/knowledge/memory-search.test.ts#L128))
+    cap 365) on returned facts and memories. ([validated by `memory-search.test.ts:128`](libs/shared/src/project/knowledge/memory-search.test.ts#L119))
 
 ### Episode Ingestion
 
@@ -130,7 +130,7 @@ available to agents — the authoritative interface.
   extraction runs asynchronously. Knowledge graph entities and edges
   are extracted and upserted. Superseded facts are auto-invalidated
   (cosine similarity >= 0.92). Does not require the agent to
-  structure the input — unstructured prose is fine. ([validated by `episode.test.ts:84`](apps/lore-api/src/api/routes/memory/episode.test.ts#L84), [`facts.test.ts:30`](libs/server-core/src/features/memory/facts.test.ts#L30), [`graph.test.ts:47`](libs/server-core/src/features/memory/graph.test.ts#L47))
+  structure the input — unstructured prose is fine. ([validated by `episode.test.ts:84`](apps/lore-api/src/api/routes/memory/episode.test.ts#L84), [`facts.test.ts:29`](libs/server-core/src/features/memory/facts.test.ts#L29), [`graph.test.ts:47`](libs/server-core/src/features/memory/graph.test.ts#L47))
 
 ### Knowledge Graph
 
@@ -236,7 +236,7 @@ Mirrors each write to `memories`, preserving full history queryable via
 - `inferred` — for memory-sourced extractions. ([validated by `facts-extraction.test.ts:111`](libs/server-core/src/features/memory/facts-extraction.test.ts#L111))
 - Decision: `verified` is the human-confirmed tier, set manually (no automated code path).
 - `stale` — automatically applied after 30 days of zero retrieval.
-  Stale facts revive to `observed` on next retrieval. ([validated by `memory-lifecycle.test.ts:188`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L188), [`memory-search.test.ts:128`](libs/shared/src/project/knowledge/memory-search.test.ts#L128))
+  Stale facts revive to `observed` on next retrieval. ([validated by `memory-lifecycle.test.ts:188`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L188), [`memory-search.test.ts:119`](libs/shared/src/project/knowledge/memory-search.test.ts#L119))
 
 ### episodes
 
@@ -292,7 +292,7 @@ each extracted fact gets an independent embedding for fine-grained search. ([val
 The LLM's raw output is parsed into individual facts: a JSON array
 (unwrapping ```` ```json ```` code fences), falling back to newline /
 numbered-list splitting for non-JSON, with empty strings filtered out
-and a cap of 10 facts. ([validated by `facts.test.ts:39`](libs/server-core/src/features/memory/facts.test.ts#L39), [`facts.test.ts:45`](libs/server-core/src/features/memory/facts.test.ts#L45), [`facts.test.ts:51`](libs/server-core/src/features/memory/facts.test.ts#L51), [`facts.test.ts:65`](libs/server-core/src/features/memory/facts.test.ts#L65))
+and a cap of 10 facts. ([validated by `facts.test.ts:39`](libs/server-core/src/features/memory/facts.test.ts#L38), [`facts.test.ts:44`](libs/server-core/src/features/memory/facts.test.ts#L44), [`facts.test.ts:50`](libs/server-core/src/features/memory/facts.test.ts#L50), [`facts.test.ts:64`](libs/server-core/src/features/memory/facts.test.ts#L64))
 
 ## Memory Lifecycle (Background Jobs)
 
@@ -333,18 +333,18 @@ Groups recent valid facts (7-day lookback, newest-first) by repo. ([validated by
 
 Haiku extracts 1–3 higher-level patterns per repo (a minimum of 5 facts is
 required to trigger), stored as `consolidated/{repo}/{timestamp}` memories —
-turning noisy raw facts into actionable insights. ([validated by `memory-lifecycle.test.ts:17`](apps/floor/src/jobs/memory/memory-lifecycle/memory-lifecycle.test.ts#L17), [`memory-lifecycle.test.ts:99`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L99))
+turning noisy raw facts into actionable insights. ([validated by `memory-lifecycle.test.ts:17`](apps/floor/src/jobs/memory/memory-lifecycle/memory-lifecycle.test.ts#L5), [`memory-lifecycle.test.ts:99`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L99))
 
 Only `PATTERN:`-prefixed lines from the LLM response are kept (short
 patterns filtered out; a `NONE` response yields no patterns), and each
-consolidated memory is inserted once, deduped on its key. ([validated by `memory-lifecycle.test.ts:17`](apps/floor/src/jobs/memory/memory-lifecycle/memory-lifecycle.test.ts#L17), [`memory-lifecycle.test.ts:31`](apps/floor/src/jobs/memory/memory-lifecycle/memory-lifecycle.test.ts#L31), [`memory-lifecycle.test.ts:35`](apps/floor/src/jobs/memory/memory-lifecycle/memory-lifecycle.test.ts#L35), [`memory-lifecycle.test.ts:99`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L99), [`memory-lifecycle.test.ts:345`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L345))
+consolidated memory is inserted once, deduped on its key. ([validated by `memory-lifecycle.test.ts:17`](apps/floor/src/jobs/memory/memory-lifecycle/memory-lifecycle.test.ts#L5), [`memory-lifecycle.test.ts:19`](apps/floor/src/jobs/memory/memory-lifecycle/memory-lifecycle.test.ts#L19), [`memory-lifecycle.test.ts:23`](apps/floor/src/jobs/memory/memory-lifecycle/memory-lifecycle.test.ts#L23), [`memory-lifecycle.test.ts:99`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L99), [`memory-lifecycle.test.ts:345`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L345))
 
 ## Passive Memory Capture (Session Layer)
 
 The MCP server tracks all tool calls in a 500-entry ring buffer
 (`session-tracker.ts`), dumping to `~/.lore/last-session.json` on session exit;
 a stop hook POSTs to `/api/session-summary` for automatic episode + fact
-extraction, with no agent cooperation needed. ([validated by `session-dump.test.ts:31`](libs/server-core/src/platform/session-dump.test.ts#L31), [`session-dump.test.ts:56`](libs/server-core/src/platform/session-dump.test.ts#L56), [`session-summary.test.ts:71`](apps/lore-api/src/api/routes/memory/session-summary.test.ts#L71))
+extraction, with no agent cooperation needed. ([validated by `session-dump.test.ts:31`](libs/server-core/src/platform/session-dump.test.ts#L25), [`session-dump.test.ts:50`](libs/server-core/src/platform/session-dump.test.ts#L50), [`session-summary.test.ts:71`](apps/lore-api/src/api/routes/memory/session-summary.test.ts#L71))
 
 After every task completion (PR created, no-changes, failure), an episode is
 automatically written via `episode-writer.ts`, and for high-signal events Haiku
@@ -421,7 +421,7 @@ Decision: the following capabilities were added beyond the original spec:
 - Agent-level eviction (500-memory cap) prevents unbounded growth. ([validated by `memory-lifecycle.test.ts:63`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L63), [`memory-lifecycle.test.ts:87`](libs/shared/src/project/memory/memory-lifecycle.test.ts#L87))
 - Agent/repo isolation by default: agent A cannot read agent B's private
   memories without explicit pool sharing, and a read bound to one repo never
-  returns another repo's memory (listings filtered to the bound scope). ([validated by `memory.test.ts:51`](libs/shared/src/project/memory/memory.test.ts#L51), [`memory-store-bridge.test.ts:54`](libs/shared/src/project/memory/memory-store-bridge.test.ts#L54))
+  returns another repo's memory (listings filtered to the bound scope). ([validated by `memory.test.ts:51`](libs/shared/src/project/memory/memory.test.ts#L51), [`memory-store-bridge.test.ts:49`](libs/shared/src/project/memory/memory-store-bridge.test.ts#L49))
 - All memory writes pass through `sanitizeContent()` / `redactSecrets()`
   to strip API keys, JWTs, private keys, connection strings, and
   bearer tokens before storage. ([validated by `redact.test.ts:5`](libs/shared/src/redact.test.ts#L5), [`episode-writer.test.ts:13`](libs/shared/src/episode-writer.test.ts#L13))

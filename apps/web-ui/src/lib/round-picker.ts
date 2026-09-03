@@ -1,9 +1,4 @@
-// Which round a new round continues from.
-//
-// Planning history is a TREE, not a line: a round that went wrong can be dropped and
-// the next one forked from an earlier round instead. That is only possible because
-// each round saved its own transcript rather than overwriting the previous one, so
-// round 2 is still there to continue after rounds 3 and 4 ran.
+// Round continuation: planning history is a tree (rounds can fork from earlier rounds after failures); each round saves its own transcript.
 
 import type { FeatureIterationRow } from "./feature-types";
 
@@ -14,14 +9,7 @@ export interface RoundOption {
   parent: number | null;
 }
 
-/**
- * The rounds an author may continue from, newest first.
- *
- * Only rounds that produced a result: continuing from a failed round means
- * continuing from nothing, which would look like a rewind that silently did nothing.
- * An empty list means there is nothing to rewind to yet — the caller shows no picker
- * rather than an empty one.
- */
+/** Rounds an author may rewind to, newest first; only rounds with results; empty list means no rewind yet. */
 export function rewindOptions(
   iterations: FeatureIterationRow[],
 ): RoundOption[] {
@@ -41,11 +29,7 @@ export function rewindOptions(
     .reverse();
 }
 
-/**
- * How a round's lineage reads, or null when it simply followed the one before it.
- * Without this the history is a list pretending to be a tree — round 5 looks like a
- * refinement of round 4 when it actually descends from round 2.
- */
+/** Lineage reading for a round, or null if it simply followed the previous one; distinguishes descents from earlier rounds. */
 export function lineageLabel(option: RoundOption): string | null {
   return option.parent === null || option.parent === option.iteration - 1
     ? null

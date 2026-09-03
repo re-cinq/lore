@@ -1,10 +1,4 @@
 import { describe, it, expect } from "vitest";
-// web-ui can't import the @re-cinq/lore-shared PACKAGE (workspace + Docker
-// isolation), so the dark-factory resolver/defaults are hand-duplicated. This
-// CI-only test (runs in a full checkout) imports shared's PURE
-// dark-factory-settings.ts by file path — never the package — to keep the
-// mirror in lockstep: the settings UI must display exactly the resolved
-// values the Floor enforces.
 import {
   resolveDarkFactorySettings as mirror,
   DEFAULT_AUTO_MERGE_PATHS as mirrorPaths,
@@ -17,8 +11,6 @@ import {
   DEFAULT_EXECUTION_IMAGE as canonicalImage,
 } from "../../../../libs/shared/src/dark-factory-settings";
 
-// The resolver's input space, generated rather than hand-listed: every default
-// branches on `enabled`, so each field is exercised set and unset under both.
 const PARTIALS: Array<DarkFactorySettings | null | undefined> = [
   null,
   undefined,

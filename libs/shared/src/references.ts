@@ -1,8 +1,4 @@
-/**
- * Turn references that humans care about — source file paths, issue numbers,
- * and Lore task UUIDs — into links. Spans that are already code, links, or URLs
- * are left untouched so we never double-link or corrupt markdown.
- */
+/** Convert file paths, issues, task UUIDs into links; protect existing code/links/URLs. */
 export interface RefContext {
   /** "owner/name" */
   repo: string;
@@ -22,9 +18,7 @@ const FILE_SRC =
 const ISSUE_SRC = "#(\\d+)";
 const UUID_SRC = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
 
-// Spans to leave verbatim: inline code, existing markdown links, bare URLs.
-// Link targets may contain one balanced paren pair (wiki-style urls, paths);
-// the disjoint alternatives keep the pattern backtracking-safe.
+// Protect inline code, links, URLs; balanced parens for wiki-style URLs.
 const PROTECT_SRC =
   "`[^`]+`|\\[[^\\]]*\\]\\((?:[^()]|\\([^()]*\\))*\\)|https?:\\/\\/[^\\s)]+";
 

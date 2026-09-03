@@ -127,8 +127,6 @@ async function advance(ms: number) {
 
 beforeEach(() => {
   vi.useFakeTimers();
-  // The default discovery response keeps an attached run-1 attached (the
-  // attached-run re-check hits this endpoint on every tick).
   vi.stubGlobal(
     "fetch",
     vi.fn().mockResolvedValue({
@@ -366,7 +364,6 @@ describe("event-triggered refreshes", () => {
     });
     await flush();
 
-    // Walk the reconnect ladder: five retries with backoff, then give-up.
     for (const delayMs of [1_000, 2_000, 4_000, 8_000, 16_000]) {
       await act(async () => {
         FakeEventSource.instances.at(-1)?.onerror?.(new Event("error"));

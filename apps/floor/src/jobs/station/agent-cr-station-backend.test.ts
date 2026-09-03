@@ -23,7 +23,6 @@ class FakeAssemblyLine implements StationBackend {
   }
 }
 
-/** The cluster's CRs, as the liveness probe sees them. */
 class FakeAgents {
   readonly probed: string[] = [];
   constructor(private readonly agents: AgentCr[] = []) {}
@@ -66,7 +65,6 @@ function makeBackend(
   return { backend, assemblyLine, runs, agents };
 }
 
-/** The one open run row for a task, with its node rows. */
 async function openRun(runs: InMemoryAssemblyRuns, taskId: string) {
   const run = (await runs.listForTask(taskId))[0];
 
@@ -82,9 +80,6 @@ describe("shouldUseAssemblyLine", () => {
   });
 
   it("routes gap-fill to the assembly line and runbook to single-Agent (no runbook.yaml)", () => {
-    // Pins the post-migration split: gap-fill.yaml exists so gap-fill runs the
-    // Floor-side line (per-node Agent CRs); runbook has no assembly line so it
-    // stays a single Agent. A future stray runbook.yaml is then a conscious choice.
     expect(shouldUseAssemblyLine("gap-fill", assemblyLineNames)).toBe(true);
     expect(shouldUseAssemblyLine("runbook", assemblyLineNames)).toBe(false);
   });
@@ -124,9 +119,6 @@ describe("AgentCrStationBackend", () => {
   });
 
   it("arms the row with the dispatch spec, named as the CR the row records", async () => {
-    // The claim hands this object straight to the claiming cluster's launcher,
-    // and both the watch's terminal report and the reconcile pass correlate by
-    // that name — so the row and the spec must not be able to disagree.
     const { backend, runs } = makeBackend();
 
     await backend.launch(spec("runbook"));
@@ -172,9 +164,6 @@ describe("AgentCrStationBackend", () => {
   });
 
   it("converges a crash-recovery re-dispatch on one row rather than minting a second", async () => {
-    // findRecoverable re-claims a mid-dispatch single-CR task. Under the push
-    // path the re-launch hit the same CR name and 409'd; under the claim path
-    // the guard has to be the row's own unique key.
     const { backend, runs } = makeBackend();
 
     await backend.launch(spec("runbook"));
@@ -187,8 +176,6 @@ describe("AgentCrStationBackend", () => {
   });
 
   it("does not re-arm a row another cluster already claimed", async () => {
-    // A re-dispatch after the claim must not rewrite the spec out from under the
-    // pod being built from it.
     const { backend, runs } = makeBackend();
 
     await backend.launch(spec("runbook"));

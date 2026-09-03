@@ -1,13 +1,6 @@
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { apiError } from "../../../server/api-error.js";
-/**
- * `GET /dist/lore-code-trace/<os>-<arch>` (+ `/checksums.txt`) — serves the
- * portable test-ingestion binary that ships baked into this image. Onboarded
- * repos' CI downloads it from the host they already have (`LORE_INGEST_URL`),
- * so the binary always matches the deployed ingestion contract. Public (no auth):
- * the artifact is a generic, secret-free tool. A strict allowlist (not path
- * joining of arbitrary input) makes traversal structurally impossible.
- */
+/** Serves portable lore-code-trace binary from strict allowlist; always matches deployed contract. */
 
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";

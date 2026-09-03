@@ -8,10 +8,6 @@ const NODE_LABEL = "lore.re-cinq.com/node-id";
 const ITER_LABEL = "lore.re-cinq.com/node-iteration";
 
 describe("mapAgentToEvent reads both CR-label spellings", () => {
-  // Agent CRs created by the previous image outlive a rollout by up to a node's
-  // whole timeout. A CR whose run-id label goes unread is not a labelled node CR
-  // to this Floor — so it falls through to the single-agent path, which creates a
-  // PR per node. That failure only ever happens mid-rollout.
   const labelled = (runLabel: string) => ({
     metadata: {
       name: "a1b2c3d4-review",
@@ -32,10 +28,6 @@ describe("mapAgentToEvent reads both CR-label spellings", () => {
   });
 
   it("maps a CR carrying the assembly-run-id label the writer flip will stamp", () => {
-    // Imported, not spelled out: this label is still live code, so the test must
-    // follow it if it moves. The legacy one above stays a literal on purpose —
-    // it is a frozen wire value that CRs in the cluster already carry, and
-    // pinning it by hand is what stops a rename from quietly redefining history.
     expect(mapAgentToEvent(labelled(ASSEMBLY_RUN_ID_LABEL))?.eventName).toBe(
       "kubernetes.agent_node.succeeded",
     );
@@ -124,8 +116,6 @@ describe("mapAgentToEvent for assembly-line node CRs", () => {
   });
 
   it("dedupes two node CRs of one line separately (the swallowed-second-node regression)", () => {
-    // Both node CRs share the synthetic task-id label; under the legacy
-    // task-keyed dedupe the second node's terminal event vanished.
     const first = mapAgentToEvent({
       metadata: {
         name: "a1b2c3d4-review",

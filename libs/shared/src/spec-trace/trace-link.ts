@@ -1,18 +1,4 @@
-/**
- * spec-traceability-graph Phase 4 — reified TraceLink edge-evidence model.
- *
- * A TraceLink is a node sitting on the edge between a Statement (or
- * AcceptanceCriterion) and its target, carrying the link's `kind` and the
- * `evidence` tier that justifies it. {@link upsertTraceLink} writes one such
- * node idempotently (keyed on a deterministic xid) and links it back from the
- * statement via `Statement.trace_links`, leaving the direct
- * validated_by/implemented_by edge intact.
- *
- * This layer is ADDITIVE: the direct `Statement.validated_by` /
- * `implemented_by` edges remain authoritative and are not rerouted through
- * TraceLink. Evidence is monotonic-up — re-derivation only ever raises a
- * link's tier (via {@link highestTier}), never downgrades it.
- */
+/** Reified TraceLink edge-evidence model; direct edges remain authoritative, evidence monotonic-up (Phase 4). */
 
 import type { DgraphClientPort } from "./deps.js";
 import { upsertByXid, withTxn } from "./dgraph-upsert.js";
@@ -41,11 +27,7 @@ function tailOf(xid: string, repo: string): string {
   return xid.startsWith(`${repo}|`) ? xid.slice(repo.length + 1) : xid;
 }
 
-/**
- * Upserts a reified TraceLink keyed on a deterministic xid. Evidence is
- * monotonic-up: an existing link's tier is only ever raised, never lowered,
- * so re-derivation cannot downgrade a higher-tier provenance.
- */
+/** Upsert TraceLink with deterministic xid; evidence only ever raises tier, never lowers. */
 export async function upsertTraceLink(
   dgraph: DgraphClientPort,
   args: UpsertTraceLinkArgs,

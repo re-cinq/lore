@@ -8,9 +8,6 @@ const usd = (n: number) =>
 
 const num = (n: number) => Number(n).toLocaleString();
 
-/** Mirrors the view's own `day`, for the reason stated there: parsing a
- *  `YYYY-MM-DD` string as a Date makes it UTC midnight, which is the previous
- *  day for every viewer west of Greenwich. */
 const day = (isoDay: string) => {
   const [year, month, dayOfMonth] = isoDay.split("-");
 
@@ -26,7 +23,6 @@ const tableByHeading = (heading: string): HTMLElement => {
   return table;
 };
 
-// The no-admin-key case (billed unavailable) with full Lore-computed data.
 const loreOnly: SpendWindow = {
   interval: { from: "2026-08-26", to: "2026-09-02" },
   llm: {
@@ -106,7 +102,6 @@ const loreOnly: SpendWindow = {
   },
 };
 
-// Same data plus a configured admin key (the optional billed sections light up).
 const withAdminKey: SpendWindow = {
   ...loreOnly,
   billed: {
@@ -131,7 +126,6 @@ const withAdminKey: SpendWindow = {
   },
 };
 
-// Same data plus a synced billing export (the optional GCP sections light up).
 const withGcpBilling: SpendWindow = {
   ...loreOnly,
   gcp: {
@@ -197,7 +191,6 @@ describe("SpendView", () => {
         screen.getByRole("heading", { name, level: 2 }),
       ).toBeInTheDocument();
     }
-    // The merge's whole point: nothing on the page is month-to-date any more.
     expect(screen.queryByText(/Month to Date|MTD|This Month/)).toBeNull();
   });
 
@@ -231,9 +224,7 @@ describe("SpendView", () => {
     expect(
       screen.getByText("agent-job-run1-tdd-round-abc"),
     ).toBeInTheDocument();
-    // Twice: the LLM table and the pod-hours table each carry the line.
     expect(screen.getAllByText("implementation-loop")).toHaveLength(2);
-    // The estimate is labeled as one, with the rates it assumed.
     expect(
       screen.getByText(
         (_, element) =>
@@ -268,7 +259,6 @@ describe("SpendView", () => {
 
     expect(within(daily).getByText(day("2026-09-01"))).toBeInTheDocument();
     expect(within(daily).getByText(usd(30.5))).toBeInTheDocument();
-    // The estimate's disclaimer now points at the invoice it defers to.
     expect(
       screen.getByText(
         (_, element) =>
@@ -306,7 +296,7 @@ describe("SpendView", () => {
     expect(within(table).getByText("(non-token)")).toBeInTheDocument();
     expect(within(table).getByText(usd(31.73))).toBeInTheDocument();
     expect(within(table).getByText(num(597948))).toBeInTheDocument();
-    expect(within(table).getAllByRole("row")).toHaveLength(3); // header + 2
+    expect(within(table).getAllByRole("row")).toHaveLength(3);
   });
 
   it("renders cost-by-kind rows attributing spend to reviews vs tasks", () => {
@@ -352,11 +342,6 @@ describe("SpendView", () => {
     expect(
       screen.queryByRole("heading", { name: "Anthropic Daily Billed" }),
     ).not.toBeInTheDocument();
-    // No em-dash placeholders anywhere Lore data reaches — the Anthropic
-    // sections are absent rather than degraded, which is the point of this
-    // test. The balance card is the one exception and is not one of these: no
-    // amount of Lore data can fill it, because Anthropic publishes no credit
-    // balance, so an unrecorded one has nothing to degrade FROM.
     const balance = screen.getByRole("heading", { name: "Balance", level: 2 })
       .nextElementSibling as HTMLElement;
     const placeholders = screen.queryAllByText("—");
@@ -369,13 +354,6 @@ describe("SpendView", () => {
     render(<SpendView spend={withAdminKey} />);
     expect(screen.getByText("Billed cost (Anthropic)")).toBeInTheDocument();
     expect(screen.getByText(usd(1234.5))).toBeInTheDocument();
-    // Asserted by SHAPE, not by rebuilding the string the way the view does:
-    // a mirrored helper would agree with any format change and catch nothing.
-    // Hardcoding the rendered text is no good either — the stamp is a real
-    // instant shown in local time, so `10:00Z` reads 10:00 on CI (UTC) and
-    // 12:00 in Amsterdam, and the assertion would only hold in one timezone.
-    // The month and year survive any real offset, and the slash is the tell
-    // that someone reverted to `toLocaleString`.
     const asOf = screen.getByText(/^as of /).textContent ?? "";
 
     expect(asOf).toMatch(/^as of \d{2}-\d{2}-\d{4} \d{2}:\d{2}$/);
@@ -393,7 +371,6 @@ describe("SpendView", () => {
 
   it("shows empty-state rows for every table when there is no data", () => {
     render(<SpendView spend={empty} />);
-    // assembly line + model + kind + daily + pod-hours
     expect(screen.getAllByText("No data")).toHaveLength(5);
     expect(screen.getByText("No run-attributed spend")).toBeInTheDocument();
     expect(screen.getByText("No task-attributed spend")).toBeInTheDocument();
@@ -422,9 +399,6 @@ describe("SpendView", () => {
   });
 
   it("names the last billed day and the whole span when two days are unbilled", () => {
-    // The reported case: the sync stamped 8/19 but its buckets ended at 8/18,
-    // so 8/19 AND 8/20 were unbilled while the card claimed only today's
-    // spend was missing — understating the gap by a full day's spend.
     render(<SpendView spend={unbilled(withAdminKey, 47.74, 2)} />);
 
     const note = screen.getByText(/billed through/);
@@ -435,10 +409,6 @@ describe("SpendView", () => {
   });
 
   it("dates the billed-through day in local time, not the UTC instant", () => {
-    // `new Date("2026-09-01")` is UTC midnight, which renders as 31-08 for
-    // every viewer west of Greenwich: an off-by-one day inside the fix for an
-    // off-by-one day. Formatted from the string's parts, so no Date is built
-    // and no timezone can shift it.
     render(<SpendView spend={unbilled(withAdminKey, 1.95, 1)} />);
 
     expect(screen.getByText(/billed through/).textContent).toContain(
@@ -476,8 +446,6 @@ describe("SpendView", () => {
       .nextElementSibling as HTMLElement;
 
   it("renders the remaining balance below the interval figures", () => {
-    // Position is deliberate: the balance is spend subtracted from what was
-    // recorded, so it reads better after those figures than before them.
     render(<SpendView spend={{ ...loreOnly, budget }} />);
 
     expect(within(balanceCard()).getByText(usd(187.5))).toBeTruthy();
@@ -494,8 +462,6 @@ describe("SpendView", () => {
   });
 
   it("shows an em dash and a prompt when no balance has been recorded", () => {
-    // Never "$0.00": an unrecorded balance and an exhausted one are different
-    // facts, and only one of them is a number.
     render(<SpendView spend={loreOnly} />);
 
     const card = balanceCard();
@@ -531,8 +497,6 @@ describe("budgetOutlook", () => {
   };
 
   it("averages spend over the days elapsed since the anchor, inclusive", () => {
-    // 8/01 through 8/10 is ten days, not nine: the anchor day itself counts,
-    // otherwise a balance recorded this morning divides by zero.
     expect(budgetOutlook(budget, new Date(2026, 7, 10))).toEqual({
       burnPerDay: 30,
       daysLeft: 6,
@@ -546,8 +510,6 @@ describe("budgetOutlook", () => {
   });
 
   it("returns null when nothing has been spent yet", () => {
-    // No rate to project from. A zero burn would divide into infinity days,
-    // which renders as a confident promise nobody made.
     expect(
       budgetOutlook({ ...budget, spent_since_usd: 0 }, new Date(2026, 7, 10)),
     ).toBeNull();
@@ -608,11 +570,6 @@ describe("SpendView top-up form", () => {
 });
 
 describe("SpendView runout wording", () => {
-  // The runway is burn rate over the window from the anchor to NOW, so with a
-  // fixed anchor and a real clock the expected sentence changes by one day every
-  // day: these assertions went red on main at a date rollover, with no code
-  // change (#1475). Freezing the clock makes the window the fixture, not the
-  // calendar.
   const NOW = new Date("2026-08-21T00:00:00Z");
 
   beforeAll(() => {
@@ -634,9 +591,6 @@ describe("SpendView runout wording", () => {
   });
 
   it("says a day, not 1 days, on the last day of runway", () => {
-    // Caught by rendering the component and reading it, not by an assertion —
-    // every figure was correct and the sentence was still wrong. This is the
-    // line someone reads on the day it matters most.
     render(<SpendView spend={withDaysLeft(561, 39)} />);
 
     expect(screen.getByText(/about a day left/)).toBeTruthy();
@@ -662,8 +616,6 @@ describe("SpendView anchor precision", () => {
   });
 
   it("shows no clock when the balance anchors to the start of its day", () => {
-    // Printing "00:00" would dress a deliberate approximation up as a
-    // measurement: a day without a known time counts the WHOLE day.
     render(<SpendView spend={at("2026-08-01T00:00:00Z")} />);
 
     const note = screen.getByText(/recorded/);
@@ -673,16 +625,12 @@ describe("SpendView anchor precision", () => {
   });
 
   it("shows the clock when the balance anchors to a known moment", () => {
-    // An opening entered at 14:30 on an already-spending day: the precision is
-    // real, so it is stated rather than implied.
     render(<SpendView spend={at("2026-08-01T14:30:00Z")} />);
 
     expect(screen.getByText(/14:30 UTC/)).toBeTruthy();
   });
 
   it("measures elapsed days from the anchor's day, not from its clock", () => {
-    // The outlook divides by whole days; an afternoon anchor must not parse to
-    // NaN, which is what splitting an ISO instant on "-" used to produce.
     expect(
       budgetOutlook(at("2026-08-01T14:30:00Z").budget, new Date(2026, 7, 10)),
     ).toEqual(
@@ -695,21 +643,15 @@ describe("SpendView top-up legend", () => {
   const recordAction = async () => ({});
 
   it("states that a blank date counts from the start of today", () => {
-    // The wording this replaces said "defaults to today", which a reader could
-    // equally take as "defaults to now" — and those anchor the arithmetic at
-    // opposite ends of a day's spend.
     render(<SpendView spend={loreOnly} recordAction={recordAction} />);
 
     expect(
       screen.getByText(/Leave both blank to count from the start of today/),
     ).toBeTruthy();
-    // The wording it replaces, which read equally as "defaults to now".
     expect(screen.queryByText(/defaults to today/)).toBeNull();
   });
 
   it("explains which entry moves the counting window", () => {
-    // Counter-intuitive enough to have been got wrong during this feature's
-    // own review, so it is stated on the form rather than inferred.
     render(<SpendView spend={loreOnly} recordAction={recordAction} />);
 
     const legend = screen.getByText(/Which entry moves the window/)
@@ -780,8 +722,6 @@ describe("SpendView cost-per-run and vendor split", () => {
     render(<SpendView spend={loreOnly} />);
     const table = tableByHeading("LLM by Assembly Line");
 
-    // 15 runs of implementation-loop at $27.47 — the figure that says whether
-    // a model switch paid off, which the total alone hides.
     expect(within(table).getByText(usd(27.47 / 15))).toBeInTheDocument();
   });
 

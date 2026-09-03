@@ -1,14 +1,8 @@
 import type { Pool } from "pg";
 import { errorMessage } from "@re-cinq/lore-shared";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
-/**
- * Incremental file ingestion module.
- *
- * Fetches file content from GitHub, classifies it, upserts into the
- * appropriate schema's chunks table, and generates Vertex AI embeddings.
- * Called by the /api/ingest HTTP endpoint when GitHub Actions pushes.
- */
 
+/** Incremental file ingestion: fetches content from GitHub, classifies, upserts chunks, generates embeddings. */
 import {
   getOctokit,
   isAppConfigured as isConfigured,

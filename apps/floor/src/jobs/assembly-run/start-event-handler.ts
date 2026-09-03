@@ -1,10 +1,4 @@
-// Handler for `assembly_line.start` (layer 3): the sole executor entry for assembly
-// lines. `project.assemblyRuns.start()` inserted the row (queued) + this event
-// atomically; the loop claims it here. The handler validates, marks the row
-// running, and launches the ENTRY node's Agent CR — the walk then advances on
-// `kubernetes.agent_node.*` events (spec 6-dark-factory FR6.7/FR6.9), with the
-// assembly-line reaper as the liveness bound. Detection lines ride the same
-// machinery (their detect node is a station CR like any other).
+// Handler for assembly_line.start event: sole executor entry; validates and launches entry node (spec 6-dark-factory FR6.7/FR6.9).
 
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import type {
@@ -22,18 +16,15 @@ export interface StartEventHandlerDeps {
   assemblyRuns: AssemblyRunsPort;
   /** The loaded builtin assembly line YAMLs — routing reads definition presence. */
   definitions: () => Promise<ReadonlyMap<string, AssemblyLine>>;
-  /** Launch the line's entry node (advanceLine). The walk then advances on
-   *  `kubernetes.agent_node.*` events — no background promise. */
+  /** Launch entry node; walk advances on kubernetes.agent_node.* events (no background promise). */
   advance: (assemblyLineId: string) => Promise<void>;
-  /** User-facing failure notification for the config-error close below — the only
-   *  line closure that bypasses finishLine's seam. Optional, mirrors AdvanceDeps. */
+  /** User-facing failure notification for config-error close; only closure bypassing finishLine's seam. */
   notifyFailure?: (
     row: AssemblyRunRecord,
     outcome: string,
     reason?: string,
   ) => Promise<void>;
-  /** Reopen the settled task behind a FORK (reopenTaskForFork) — settle-task's
-   *  start-side twin. Optional seam like notifyFailure; never throws. */
+  /** Reopen settled task for FORK; optional seam like notifyFailure; never throws. */
   reopenTask?: (row: { id: string; taskId: string | null }) => Promise<void>;
 }
 
@@ -48,10 +39,7 @@ export function createStartEventHandler(
       Error,
       "assembly_run.start event params missing assemblyRunId",
     );
-    // Branch/args/description ride in the row itself — the walk reads them via
-    // taskFromAssemblyRun, so the event only needs identity + routing fields. (The
-    // pre-rename `definitionName` fallback was deleted 2026-08-18, #1272, one
-    // retention window after the writer flip.)
+    // Branch/args/description in row; event only needs identity + routing (old definitionName fallback deleted 2026-08-18 #1272).
     const blueprintName = String(params.blueprintName ?? "");
     const taskId = typeof params.taskId === "string" ? params.taskId : null;
 
@@ -73,15 +61,7 @@ export function createStartEventHandler(
       return;
     }
 
-    // A task-backed row without a builtin definition is a single-CR run record
-    // (onboard / review / runbook — total coverage): mark it running and return;
-    // the agent-watcher finishes it when the task's one CR goes terminal.
-    //
-    // Caveat: a task-backed start with a typo'd/unknown blueprintName is
-    // indistinguishable from a legit single-CR here and becomes a silently
-    // forever-running row (no CR was launched for it). Only reachable outside
-    // AgentCrStationBackend (manual insert / future producer bug) — log it so
-    // the silent failure leaves a breadcrumb.
+    // Task-backed row without builtin definition = single-CR record; typos become silent failures (log for breadcrumb).
     if (taskId) {
       console.warn(
         `[assembly-line-start] task-backed row ${assemblyLineId} has no builtin definition "${blueprintName}" — treating as single-CR (verify a CR was launched for task ${taskId})`,
@@ -91,8 +71,7 @@ export function createStartEventHandler(
       return;
     }
 
-    // Task-less + unknown definition is a config error, not a transient failure —
-    // close the row and resolve so the loop never retries a line that can't exist.
+    // Unknown definition without task = config error (not transient); close row.
     const reason = `no assembly line defined for task type "${blueprintName}"`;
     const row = await deps.assemblyRuns.getById(assemblyLineId);
     const closedNow = await deps.assemblyRuns.finish(
@@ -117,16 +96,7 @@ export function createStartEventHandler(
   };
 }
 
-/** The definition arm: record WHICH blueprint this run executes, once (FR6.38,
- *  and specs/fork-rerun-from-node FR4). This is the only place holding both the
- *  row id and a RESOLVED blueprint — `start` is called by lore-api and by
- *  choreographies that deliberately ship no definitions — so it is where the
- *  hash AND the graph the run will walk get recorded. Everything downstream
- *  reads the clone instead of re-reading the file. It then launches the entry
- *  node — the walk advances on `kubernetes.agent_node.*` events; a Floor
- *  restart loses nothing because the state is the node rows. A throw propagates
- *  so the event loop retries transient launch failures (advance is idempotent
- *  end to end). */
+/** Record resolved blueprint hash and snapshot graph; walk state persists in node rows (FR6.38, specs/fork-rerun-from-node FR4). */
 async function startResolvedBlueprint(
   params: {
     assemblyLineId: string;
@@ -147,11 +117,7 @@ async function startResolvedBlueprint(
   );
   await deps.assemblyRuns.markRunning(assemblyLineId);
 
-  // A FORK resumes work whose task the source's terminal walk already
-  // settled — reopen it before the walk launches, so the task-keyed
-  // surfaces (the implementation-loop page's current ticket) see the
-  // resumption instead of the source's verdict. Plain starts carry a null
-  // `resumedFrom` and skip this.
+  // FORK: reopen task before walk so task-keyed surfaces show resumption not verdict.
   if (resumedFrom != null && taskId && deps.reopenTask) {
     await deps.reopenTask({ id: assemblyLineId, taskId });
   }
@@ -159,8 +125,7 @@ async function startResolvedBlueprint(
   await deps.advance(assemblyLineId);
 }
 
-/** Composed production handler for the registry. Deps are resolved lazily so
- *  importing the registry never forces the DB pool or the K8s client. */
+/** Composed production handler; deps resolved lazily to avoid forcing DB pool or K8s client. */
 export const assemblyLineStart: EventHandler = async (params) => {
   const [
     { pipeline },
@@ -187,9 +152,7 @@ export const assemblyLineStart: EventHandler = async (params) => {
 
   await handler(params);
 
-  // Publish the in_progress PR check as soon as the line starts, so a required
-  // `lore/code-review` check blocks merge for the whole review window (not just
-  // from the first node-terminal). Best-effort — never fails the start.
+  // Publish check immediately so lore/code-review blocks merge for the whole window (best-effort).
   await publishStartCheck(
     String(params.assemblyRunId ?? params.assemblyLineId ?? ""),
   );
@@ -212,10 +175,7 @@ async function publishStartCheck(assemblyLineId: string): Promise<void> {
     if (!row || !(Number(row.args.pr_number) > 0)) {
       return;
     }
-    // Node rows only decide TERMINAL conclusions, so skip the query on the
-    // normal (queued/running) start path — but a redelivered start event can
-    // land after the line finished, and publishing with empty nodes there would
-    // overwrite a correct `neutral` (changes_requested) check with `success`.
+    // Skip node query on normal starts; include after finish to avoid overwriting correct checks.
     const nodes =
       row.status === "queued" || row.status === "running"
         ? []

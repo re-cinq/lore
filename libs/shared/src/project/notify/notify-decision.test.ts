@@ -1,11 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { decideNotify } from "./notify-decision.js";
 
-/**
- * decideNotify (relocated from agent) — channel filtering, byte-for-byte the
- * same rules. Real inputs, no mocks.
- */
-
 describe("decideNotify", () => {
   it("fires for any level when channels include all", () => {
     expect(decideNotify("pr_open", { channels: ["all"] })).toEqual({

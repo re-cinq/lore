@@ -172,21 +172,14 @@ async function dispatchByTaskType(
   return dispatchAgentCr(input);
 }
 
-/**
- * Every other task type dispatches an Agent CR. A dark-mode repo with an
- * assembly line for the type runs the Floor-side graph instead — one Agent CR
- * per node — and feature-planning/finalize always do, regardless of the repo's
- * dark-factory setting (ADR-028).
- */
+/** Dark-mode repos and feature-planning/finalize run the Floor-side graph, one Agent CR per node (ADR-028). */
 async function dispatchAgentCr(input: DispatchInput): Promise<void> {
   const { task, targetRepo, project, repoSettings } = input;
   const assemblyLine =
     input.isFeaturePlanningType || input.darkFactoryEnabled
       ? task.task_type
       : undefined;
-  // The real default branch, not "main": hardcoding it 422'd on repos still on
-  // master/develop. The pod uses it for `git diff origin/<base>` to answer
-  // "did anything actually change?".
+  // The real default branch, never a hardcoded "main": that 422'd on master/develop repos.
   const baseBranch = await lookupDarkFactoryBaseBranch(
     project,
     targetRepo,
@@ -200,9 +193,7 @@ async function dispatchAgentCr(input: DispatchInput): Promise<void> {
     model: input.model,
     repoOverrides: input.repoOverrides,
     ...(assemblyLine ? { darkFactory: { assemblyLine, baseBranch } } : {}),
-    // BYO execution container (ADR-025): resolved from the settings hierarchy
-    // (default → per-repo → per-task-type). Unset means the platform default,
-    // which equals the controller's, so unconfigured repos see no change.
+    // BYO execution container (ADR-025): default → per-repo → per-task-type; unset means the controller's default.
     image: resolveExecutionImage(
       repoSettings as Parameters<typeof resolveExecutionImage>[0],
       task.task_type,
@@ -262,8 +253,7 @@ async function resolveTaskPlan(
   project: Awaited<ReturnType<typeof projectFor>>,
 ) {
   const repoSettings = await readRepoSettings(targetRepo);
-  // Resolved through the single project.agentDefs seam (project → org → yaml);
-  // an unavailable port falls back to the yaml loader downstream.
+  // Resolved project → org → yaml through the one project.agentDefs seam.
   const agentDef = await project.agentDefs
     .resolve(task.task_type)
     .catch(() => null);
@@ -376,14 +366,7 @@ async function lookupDarkFactoryBaseBranch(
   }
 }
 
-/**
- * Resolve the GitHub Issue for a task: an existing one (webhook-dispatched), a
- * newly created one, or none. Dark-factory gate (T019, FR3.2): when dark mode is
- * enabled, Issue creation is deferred per the repo's `create_issue` setting and
- * the task's approval requirement (a `with_issue: true` per-task override forces
- * it). General tasks skip the upfront Issue (the watcher creates it with the
- * result). Returns the resolved issue number (or null).
- */
+/** Existing, new, or no Issue: dark mode defers creation per `create_issue` unless `with_issue: true` forces it (FR3.2). */
 async function ensureIssue(
   task: PipelineTask,
   targetRepo: string,
@@ -462,11 +445,7 @@ async function createTaskIssue(
   }
 }
 
-/**
- * Approval gate (FR3.2): when the repo requires approval for this task type, park
- * the task at `awaiting_approval` and prompt on the Issue. Returns true if the task
- * was parked (the caller must not proceed), false to continue processing.
- */
+/** Parks the task at `awaiting_approval` and returns true when the repo gates this type (FR3.2). */
 async function awaitApprovalIfRequired(
   task: PipelineTask,
   targetRepo: string,

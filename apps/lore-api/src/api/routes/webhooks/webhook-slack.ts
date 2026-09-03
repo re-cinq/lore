@@ -13,10 +13,7 @@ import { createTask } from "@re-cinq/lore-server-core/features/pipeline/pipeline
 import { rawBody } from "../../../server/raw-body.js";
 
 /** Constant-time HMAC compare for the Slack `v0=…` signature. */
-/**
- * Slack renders whatever this returns in the channel, so the body is Slack's
- * message format rather than ours — `response_type` plus text or blocks.
- */
+// Slack renders this body as-is (response_type + text or blocks format).
 const SlackAckSchema = z.object({
   response_type: z.string().optional(),
   text: z.string().optional(),
@@ -78,8 +75,7 @@ function authenticateSlack(
   body: string,
   h: ResponseToolkit,
 ): ResponseObject | null {
-  // Plain-string error bodies: pin text/plain (hapi would default a string to
-  // text/html) to match the legacy node:http `res.end("…")` responses.
+  // Plain-string error bodies use text/plain (hapi defaults to text/html).
   const slackSecret = process.env.LORE_SLACK_SIGNING_SECRET;
 
   if (!slackSecret) {
@@ -225,8 +221,7 @@ export function slackWebhookRoute(getPool: () => Pool | null): ServerRoute {
       const params = new URLSearchParams(body);
 
       if (params.get("type") === "url_verification") {
-        // hapi returns 204 for an empty payload; Slack expects 200 even for an
-        // empty challenge, so pin the code.
+        // hapi 204 on empty payload; Slack expects 200 for empty challenge.
         return h
           .response(params.get("challenge") || "")
           .type("text/plain")

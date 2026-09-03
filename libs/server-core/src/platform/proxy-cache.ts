@@ -1,15 +1,4 @@
-/**
- * Local read-through cache for the stdio proxy (Option A).
- *
- * Active only in local mode (the laptop adapter). Successful read responses
- * proxied to the GKE backend are cached under ~/.lore/cache/entries/ keyed by
- * tool + canonical args + repo, with a per-tool TTL. Fresh hits skip the
- * network; when the backend is unreachable an expired entry is served
- * stale-but-labeled. Mutations are never cached and invalidate related reads.
- *
- * The cache is derived data, never authority. See
- * specs/local-read-cache/spec.md.
- */
+/** Local read-through cache for stdio proxy (derived data, never authority; see local-read-cache spec). */
 
 import {
   readFileSync,
@@ -60,9 +49,7 @@ function entriesDir(): string {
   return join(baseDir(), "entries");
 }
 
-// The tool prefixes the filename (sanitized; tool names carry no ".") so
-// invalidate can filter by name without opening every entry. A sanitization
-// collision only over-invalidates, which is safe.
+// Tool prefixes filename (sanitized) so invalidate can filter by name without opening entries.
 function fileToolPrefix(tool: string): string {
   return tool.replace(/[^a-zA-Z0-9_-]/g, "_");
 }
@@ -147,9 +134,7 @@ export function buildKey(
   args: Record<string, unknown>,
   repo?: string,
 ): string {
-  // NUL (\x00) separates the fields: it cannot appear inside a tool name or in
-  // JSON-escaped canonical output, so no arg value can forge a cross-field
-  // collision. Written as an escape (not a raw byte) so the file stays text.
+  // NUL (\x00) separator prevents collisions; written as escape to keep file text.
   return createHash("sha256")
     .update(`${tool}\x00${canonical(args)}\x00${repo || ""}`)
     .digest("hex");
@@ -245,8 +230,7 @@ export function invalidate(tools: string[], repo?: string): void {
     }
     const path = join(entriesDir(), file);
 
-    // Only entries scoped to a specific repo need a read to confirm the match;
-    // the common unscoped invalidate unlinks straight off the filename.
+    // Scoped entries need a read to confirm repo match; unscoped entries unlink straight off filename.
     if (
       repo !== undefined &&
       readJson<CacheEntry | null>(path, null)?.repo !== repo

@@ -1,11 +1,4 @@
-// The whole delivery surface over HTTP — what a subscriber that holds no pool
-// uses. Extends the reporter rather than restating `insert`, for the reason the
-// queue client gives: a subscriber is a producer too, and two implementations of
-// one call is how they come to disagree.
-//
-// The atomicity of `claim` is unchanged and lives server-side inside one
-// FOR UPDATE SKIP LOCKED statement, so two replicas of one subscriber still
-// receive disjoint batches.
+// HTTP delivery surface for pool-less subscribers; extends HttpEventReporter to avoid duplicating insert.
 
 import { HttpEventReporter } from "./event-reporter-http.js";
 import type {
@@ -33,8 +26,7 @@ export class HttpEventDeliveries
       throw new Error(`${path} failed: ${res.status}`);
     }
 
-    // 204 is the ack/fail/dead answer: nothing to read, and calling .json() on
-    // an empty body would throw where the call actually succeeded.
+    // 204 is the ack/fail/dead answer: no body to .json() on.
     return res.status === 204 ? (undefined as T) : ((await res.json()) as T);
   }
 

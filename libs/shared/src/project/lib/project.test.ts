@@ -3,13 +3,6 @@ import { createProject } from "./project-factory.js";
 import { Project } from "./project.js";
 import type { PgPool, DgraphClientPort } from "../../memory-store.js";
 
-/**
- * Project wiring — built from a fullName + the two DB connections, createProject
- * initializes its own ports (adapters dynamically imported). We drive it with a
- * fake PgPool (the memory-store fake-pool style) and a fake Dgraph client; no
- * live database.
- */
-
 function fakePool(
   capture: Array<{ text: string; params?: unknown[] }>,
   rows: unknown[] = [],

@@ -17,12 +17,7 @@ export interface OnboardViewProps {
   ) => Promise<OnboardState>;
 }
 
-/**
- * Presentational view for self-service repo onboarding. Pure render — the
- * onboarded-repo list is resolved by the container (`page.tsx`) and passed
- * down; the only mutation (onboard a repo) is handed in as `onboardRepoAction`
- * and fired back up via the form, keeping this component free of data access.
- */
+/** Onboarding view; pure render with onboardRepoAction callback (no data access). */
 export default function OnboardView({
   onboarded,
   onboardRepoAction,

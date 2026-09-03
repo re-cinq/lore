@@ -20,9 +20,7 @@ async function readRerunForm(
   const form = await req.formData();
   const runId = String(form.get("run_id") ?? "");
   const nodeId = String(form.get("node_id") ?? "");
-  // An empty optional field is ABSENT, not zero: the browser submits `""` for an
-  // untouched input, and `Number("")` is 0, which the positive-integer check
-  // below would then refuse with a 400.
+  // Empty field → undefined not 0: Number("") is 0 but should fail positive-integer check.
   const iterationField = String(form.get("iteration") ?? "").trim();
   const iteration = iterationField === "" ? undefined : Number(iterationField);
 
@@ -138,8 +136,7 @@ export async function POST(req: Request) {
       return line;
     }
 
-    // The fork runs against the SOURCE run's repo, so the check is on that repo
-    // rather than on anything the form claimed.
+    // Fork runs against SOURCE run's repo, not form input (access check is on source repo).
     if (!(await userCanAccessRepo(session.accessToken, line.repo))) {
       return NextResponse.json(
         { error: "Access denied — you do not have access to this repo" },

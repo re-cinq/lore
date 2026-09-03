@@ -108,9 +108,7 @@ export default function FeatureDetailView({
   const onCreateDraft = (title: string, prompt: string) =>
     startTransition(() => split(title, prompt));
   const base = `/repos/${owner}/${repo}`;
-  // One graph per page. While a node is working, the wizard's RunningCard draws
-  // the same line from its own 4s poll; this card is rendered on the server, so
-  // leaving both up would put a frozen twin above a live graph.
+  // Only show live graph below to avoid frozen server-rendered twin when node is working.
   const phase = featurePhaseOf({ run, feature });
   const liveGraphBelow =
     run !== null &&
@@ -144,12 +142,7 @@ export default function FeatureDetailView({
         </CollapsibleCard>
       )}
 
-      {/* The wizard stays mounted for as long as the LIFECYCLE is moving, which
-          includes an open spec PR: the line is parked on `merged`, and merging it
-          resumes the walk into decomposition. Gating on `isPlanningActive` unmounted
-          it the moment the PR was stamped, so the awaiting-merge and decomposing
-          views were unreachable on a fresh page load. The wizard decides WHEN the
-          settled view takes over, because only the line knows. */}
+      {/* Wizard stays mounted while lifecycle moves (including merged spec PR awaiting); only the line knows when to hand off. */}
       {isLifecycleActive(feature.status) ? (
         <PlanningWizard
           owner={owner}

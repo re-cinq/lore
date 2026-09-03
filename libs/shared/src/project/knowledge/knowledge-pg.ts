@@ -9,14 +9,7 @@ import {
   type DocRef,
 } from "./knowledge-port.js";
 
-/**
- * KnowledgePort over Postgres. queryLiveGraph is relocated from
- * mcp-server/src/graph.ts; listSpecs/listAdrs read the repo's team-schema chunks
- * (resolved via the shared chunk-schema module, so an unprovisioned team falls
- * back to org_shared instead of querying a missing schema).
- * assembleContext is the heavy template module — wired once it is relocated;
- * queryTrace mirrors the current spec-traceability stub.
- */
+/** KnowledgePort over Postgres with team-schema chunk resolution. */
 export class PgKnowledge implements KnowledgePort {
   constructor(private readonly pool: PgPool) {}
 

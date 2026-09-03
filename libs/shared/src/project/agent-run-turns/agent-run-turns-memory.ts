@@ -8,20 +8,7 @@ import {
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
-/**
- * In-memory {@link AgentRunTurnsRepository} — the behavioral spec for the
- * port. It reproduces the Pg adapter's observable contract without Postgres:
- * write-time correlation (newest registered node wins, as the adapter's
- * `ORDER BY node.id DESC LIMIT 1` does), string-encoded ids compared
- * numerically, ascending capped reads, and horizon pruning. The envelope
- * arrives as JSON text and comes back parsed, exactly as `jsonb` does.
- * A non-null `dedupKey` already stored skips its row (#1389) — `insertBatch`
- * returns only the rows the call actually inserted — and pruning a row frees
- * its key, exactly as deleting the indexed row does in Postgres.
- *
- * Seed the correlation table with {@link registerNode}; inject `now` to drive
- * `pruneOld` deterministically.
- */
+/** In-memory {@link AgentRunTurnsRepository} with Pg-equivalent contract: write-time correlation (newest node wins), ascending id capped reads, horizon pruning, envelope JSON roundtrip. Non-null dedupKey already stored skips row (#1389). Seed with registerNode; inject now for deterministic pruneOld. */
 export class InMemoryAgentRunTurns implements AgentRunTurnsRepository {
   readonly rows: AgentRunTurnRow[] = [];
   private readonly nodes: AgentRunTurnNodeRef[] = [];

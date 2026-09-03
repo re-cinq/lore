@@ -36,8 +36,7 @@ export type TaskDetailEvent = TaskRuntimeEvent;
 /** One per-attempt run row (pipeline.assembly_runs) backing this task. */
 export type TaskRunRow = components["schemas"]["TaskRunList"]["runs"][number];
 
-/** With exactly one attempt the run page IS the detail — return its href.
- *  Zero or several attempts keep the lifecycle shell with its runs list. */
+/** Single attempt: run page is the detail; multiple: keep lifecycle shell with runs list. */
 export function soleRunHref(runs: TaskRunRow[]): string | null {
   return runs.length === 1 ? `/assembly-runs/${runs[0].id}` : null;
 }

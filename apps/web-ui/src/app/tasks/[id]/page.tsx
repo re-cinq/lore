@@ -19,8 +19,7 @@ async function submitFeedback(formData: FormData) {
     return;
   }
 
-  // One call: lore-api queues the revision on the same branch, records the
-  // request on this task, and parks it at revision-requested.
+  // lore-api queues revision on same branch.
   await reviseTask(taskId, feedback);
 
   redirect(`/tasks/${taskId}`);
@@ -45,9 +44,7 @@ export default async function TaskDetailPage({
     );
   }
 
-  // The task's per-attempt run rows (pipeline.assembly_runs.task_id is non-unique
-  // — a retry mints a fresh row) so the detail can link to each attempt's timeline.
-  // queryAllowMissing: empty on pre-0025 DBs.
+  // Per-attempt run rows for retry linking (pipeline.assembly_runs.task_id is non-unique).
   const runResult = await getTaskRuns(id);
   const runs = (runResult.status === "ok"
     ? runResult.data.runs

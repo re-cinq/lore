@@ -45,15 +45,13 @@ export function timeAgo(iso: string | null, now: Date = new Date()): string {
       return `${n} ${unit}${n === 1 ? "" : "s"} ago`;
     }
   }
-  // Reachable by construction: the early return handled < 60s, the loop
-  // handled >= 1h, so what is left is always minutes.
+  // Early return handled < 60s, loop handled >= 1h, so remaining is always minutes.
   const minutes = Math.floor(seconds / 60);
 
   return `${minutes} minute${minutes === 1 ? "" : "s"} ago`;
 }
 
-/** Pure view (DDAU): data down as `loop`, the toggle back up through the bound
- *  server action. No I/O here — the container fetches, the action writes. */
+/** Pure view (DDAU): data down as `loop`, toggle up via bound server action. */
 export default function ImplementationLoopView({
   loop,
   toggle,
@@ -215,8 +213,7 @@ function TicketRow({ ticket }: { ticket: LoopTicket }) {
   );
 }
 
-/** Tone per node state; anything unrecognised renders as failed-red so a new
- *  outcome is loud rather than invisible. */
+/** Tone per node state: unrecognised renders as failed-red so new outcomes are loud. */
 const DOT_STATES = new Set([
   "success",
   "running",

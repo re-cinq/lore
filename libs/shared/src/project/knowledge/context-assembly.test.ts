@@ -126,7 +126,7 @@ describe("extractKeyTerms", () => {
     expect(terms).toContain("parseSettingsForm");
     expect(terms).not.toContain("the");
     expect(terms).not.toContain("and");
-    expect(terms).not.toContain("ui"); // 2 chars
+    expect(terms).not.toContain("ui");
   });
 
   it("de-duplicates and caps the number of terms", () => {
@@ -193,8 +193,6 @@ describe("fitItemsToBudget per-document cap", () => {
   });
 });
 
-/** Results are consumed in order per query; the last one is sticky (the
- *  chunks.test.ts fakePool style). */
 function fakePool(...results: Array<{ rows: any[] }>): {
   pool: Parameters<typeof hybridChunkItems>[0];
   calls: Array<{ text: string; params?: unknown[] }>;

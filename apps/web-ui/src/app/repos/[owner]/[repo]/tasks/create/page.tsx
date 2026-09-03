@@ -17,11 +17,7 @@ async function createTask(formData: FormData) {
 
   const resolvedPriority = priority === "immediate" ? "immediate" : "normal";
 
-  // lore-api returns the id of the task it just created. The previous code
-  // inserted, then read back the NEWEST task in the whole table to learn which
-  // one was its own — so two concurrent submissions, from any repo by any user,
-  // and this page attached its pending event to a stranger's task and sent the
-  // author to that task's page.
+  // lore-api returns the task id directly (race condition risk eliminated).
   const created = await queueTask({
     description,
     taskType,
@@ -31,8 +27,7 @@ async function createTask(formData: FormData) {
   });
 
   revalidatePath(`/repos/${targetRepo}/tasks`);
-  // Land on the task detail (Run Now / Cancel live there); fall back to the repo
-  // tab when the submission failed.
+  // Land on task detail on success, or repo tasks tab on failure.
   redirect(
     created.status === "ok"
       ? `/tasks/${created.data.task_id}`

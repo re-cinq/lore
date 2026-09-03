@@ -73,7 +73,7 @@ describe("decideIssueCreate", () => {
       decideIssueCreate({
         approvalNeeded: false,
         overrides: undefined,
-        settings: { ...opt }, // create_issue defaults to on_gate
+        settings: { ...opt },
       }),
     ).toEqual({
       create: false,
@@ -83,11 +83,6 @@ describe("decideIssueCreate", () => {
 });
 
 describe("Opt-out posture matrix (US6 — T045)", () => {
-  // For every public decision helper, assert that the absence of
-  // dark_factory settings (or explicit enabled:false) yields the same
-  // legacy behavior as today's flow. This is the regression net for
-  // FR4.1: existing repos see no behavior change at migration.
-
   for (const label of ["no settings", "enabled:false"] as const) {
     const settings = label === "no settings" ? undefined : { enabled: false };
 
@@ -117,7 +112,7 @@ describe("Opt-out posture matrix (US6 — T045)", () => {
         overrides: undefined,
         settings,
       }).create,
-    ).toBe(false); // on_gate is the dark-mode default
+    ).toBe(false);
     expect(decideReviewMode({ overrides: undefined, settings })).toBe(
       "trust_based",
     );

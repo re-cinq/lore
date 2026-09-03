@@ -18,7 +18,6 @@ const check = (conclusion: string | null, status = "completed"): PrCheck => ({
 
 describe("deriveComputedStatus", () => {
   it("is 'open', not 'approved', when a check is still running despite an approval", () => {
-    // The reported bug: a null conclusion (in-progress) used to count as passing.
     expect(
       deriveComputedStatus({}, [check(null, "in_progress")], [approved]),
     ).toBe("open");

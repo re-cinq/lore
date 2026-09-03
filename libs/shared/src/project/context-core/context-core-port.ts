@@ -1,9 +1,4 @@
-/**
- * One row in `pipeline.context_core_history` — the per-namespace record of a
- * nightly context-core eval run. The context-core builder writes one of these
- * on every namespace it evaluates (promoted / rejected-regression / no-change)
- * and reads back the latest `production` row to compute the score delta.
- */
+/** One row in `pipeline.context_core_history`: per-namespace record of a nightly context-core eval run. */
 export interface ContextCoreRecord {
   version: string;
   namespace: string;
@@ -11,12 +6,7 @@ export interface ContextCoreRecord {
   status: string;
 }
 
-/**
- * The append surface for `pipeline.context_core_history`, plus the
- * latest-production read the builder uses as its baseline. Carved out of the
- * Floor's context-core-builder so the score history reaches the table through
- * the Project facade rather than a bespoke `query()`.
- */
+/** The append surface for `pipeline.context_core_history` plus latest-production read. */
 export interface ContextCorePort {
   /** The most recent `production` score for a namespace, or null if none yet. */
   latest(namespace: string): Promise<number | null>;

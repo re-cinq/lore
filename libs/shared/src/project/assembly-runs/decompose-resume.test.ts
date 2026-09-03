@@ -1,10 +1,3 @@
-// Resuming decomposition when a spec PR merges.
-//
-// This replaces `decideDecomposeKick`, which minted a `feature-decompose` task only
-// for a `feature-finalize` task. Once finalize became a RESUME of the planning line
-// the owning task became `feature-planning`, the predicate stopped matching, and no
-// feature planned on the merged line was ever decomposed — silently.
-
 import { describe, it, expect } from "vitest";
 import { InMemoryAssemblyRuns } from "./assembly-runs-memory.js";
 import type { ParkedTarget } from "./parked-node.js";
@@ -22,7 +15,6 @@ const node = (nodeId: string, iteration: number, outcome: string | null) => ({
   outcome,
 });
 
-/** A run stamped before clones existed — the id-based fallback path. */
 const GRAPHLESS = null;
 
 describe("decideMergeResume", () => {
@@ -38,8 +30,6 @@ describe("decideMergeResume", () => {
   });
 
   it("targets a RENAMED wait node by its pr_review type from the run's graph", () => {
-    // The join that must survive a blueprint rename — a hardcoded id is how the
-    // pr_merged signal silently died (FR6.32).
     expect(
       decideMergeResume(
         "line-1",
@@ -70,8 +60,6 @@ describe("decideMergeResume", () => {
   });
 
   it("ignores a line parked on the author rather than the merge", () => {
-    // The same definition parks twice. Reporting a merge into the author's node
-    // would tell the walk the plan was accepted.
     expect(
       decideMergeResume(
         "line-1",
@@ -83,7 +71,6 @@ describe("decideMergeResume", () => {
   });
 
   it("ignores a merged node that already reported", () => {
-    // A re-delivered webhook, or the merge-check cron seeing the same PR twice.
     expect(
       decideMergeResume(
         "line-1",
@@ -106,7 +93,6 @@ describe("decideMergeResume", () => {
   });
 });
 
-/** Records the events a resume would insert, standing in for the pool. */
 function recorder() {
   const events: (ParkedTarget & { outcome: string })[] = [];
   const report = async (target: ParkedTarget, outcome: string) => {
@@ -162,8 +148,6 @@ describe("resumeDecomposition", () => {
   });
 
   it("does nothing when the PR's line is not parked on the merge", async () => {
-    // An implementation line's PR merging must not report into it — it has no
-    // merged node, and inventing one would advance a walk that never asked to wait.
     const lines = new InMemoryAssemblyRuns();
     const id = await lines.start({
       blueprintName: "implementation",
@@ -189,8 +173,6 @@ describe("resumeDecomposition", () => {
   });
 
   it("reports once even when the PR has several open lines", async () => {
-    // A PR can carry a code-review line alongside the planning one; only the parked
-    // merged node is a resume target.
     const { lines, id } = await lineParkedOnMerge(42);
     const reviewId = await lines.start({
       blueprintName: "code-review",
@@ -213,15 +195,6 @@ describe("resumeDecomposition", () => {
   });
 });
 
-// WHICH closed-PR events reach the resume at all.
-//
-// The resume had exactly one caller — handleMergedTask, reached only for tasks the
-// mergeable sweep returns (`status IN ('pr-created','review') AND pr_number IS NOT
-// NULL`). A feature-planning task is `running` and carries no PR: the push node
-// stamps the LINE's args, not the task row. So no spec PR could ever reach the
-// resume, on any deployment, webhook or cron. The fix is to read the merge where it
-// actually arrives — the closed-PR event, which names the repo and the number that
-// `findOpenByPr` matches on.
 describe("decideResumeFromClosedPr", () => {
   it("resumes for a merged PR, naming the repo and number findOpenByPr matches on", () => {
     expect(

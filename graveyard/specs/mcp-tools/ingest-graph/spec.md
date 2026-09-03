@@ -39,9 +39,9 @@ Handler: [`mcp-server/src/api/routes/ingest-graph.ts`](../../../apps/mcp-server/
 
 ## Acceptance Criteria
 
-The endpoint inserts an `internal.ingest.spec_trace` event for the `specs` kind and creates no task. ([validated by `inserts a spec-trace event for the specs kind and creates no task`](apps/lore-api/src/api/routes/ingest/ingest-graph.test.ts#L40))
+The endpoint inserts an `internal.ingest.spec_trace` event for the `specs` kind and creates no task. ([validated by `inserts a spec-trace event for the specs kind and creates no task`](apps/lore-api/src/api/routes/ingest/ingest-graph.test.ts#L34))
 
-The endpoint rejects the `tests` kind with `400` (test projection is CI-only). ([validated by `rejects the tests kind with 400 (test projection is CI-only)`](apps/lore-api/src/api/routes/ingest/ingest-graph.test.ts#L49))
+The endpoint rejects the `tests` kind with `400` (test projection is CI-only). ([validated by `rejects the tests kind with 400 (test projection is CI-only)`](apps/lore-api/src/api/routes/ingest/ingest-graph.test.ts#L43))
 
 ## Out of Scope
 

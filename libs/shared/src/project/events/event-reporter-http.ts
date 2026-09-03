@@ -1,37 +1,14 @@
-// Reporting an event to the event-router over HTTP.
-//
-// `pipeline.events` has exactly one writer — the event-router — so every other
-// producer reports through this instead of holding a pool. That is what lets a
-// producer run somewhere the database does not reach: a cluster-agent in a
-// satellite cluster, whose Kubernetes API is only visible from inside it.
-//
-// Deliberately NOT swallowed. An event that fails to land loses the work it was
-// meant to start, and a caller that reports success anyway turns that into
-// silence — which is how a resume behind a 202 went missing before. The caller
-// decides what to do with the throw; this never decides for it.
+// Event reporting over HTTP: pool-less producers in unreachable locations; errors NOT swallowed.
 
 import type { EventInsert } from "../../events.js";
 import type { EventQueueRepository } from "./event-queue-port.js";
 
-/** Long enough for a router under load, short enough that a wedged peer cannot
- *  hold the producer's loop open indefinitely. Matches the proxy client. */
+/** Timeout long enough for router load, short enough to release wedged producers. */
 const TIMEOUT_MS = 15_000;
 
-/**
- * The producer half of {@link EventQueueRepository}, over HTTP.
- *
- * Only `insert` — the consume side belongs to whoever drains the queue, and a
- * producer that could claim its own events would be a different thing.
- * {@link HttpEventQueue} extends this for the drainer that needs both.
- */
+/** Producer half of EventQueueRepository over HTTP; HttpEventQueue extends for drainer. */
 export class HttpEventReporter implements Pick<EventQueueRepository, "insert"> {
-  /**
-   * `token` may be a FUNCTION rather than a string, for a producer whose
-   * credential changes while it runs. A satellite cluster-agent is the case
-   * that needs it: it authenticates with the per-agent token it received at
-   * registration (FR5), and a re-registration rotates that token — a value
-   * captured at construction would 401 every report from then on.
-   */
+  /** Token may be function for rotating credentials (satellite cluster-agent, FR5). */
   constructor(
     private readonly baseUrl: string,
     private readonly token?: string | (() => string | undefined),
@@ -49,7 +26,7 @@ export class HttpEventReporter implements Pick<EventQueueRepository, "insert"> {
     return h;
   }
 
-  /** One POST to the router, with the deadline every call shares. */
+  /** POST to router with shared deadline. */
   protected post(path: string, body?: unknown): Promise<Response> {
     return this.fetchImpl(`${this.baseUrl}${path}`, {
       method: "POST",
@@ -63,8 +40,7 @@ export class HttpEventReporter implements Pick<EventQueueRepository, "insert"> {
     const res = await this.post("/api/events", input);
 
     if (!res.ok) {
-      // The status rides on the error so a caller can tell a rotated token
-      // (401 — re-register) from a blip (retry as-is).
+      // Status on error so caller can tell rotated token (401, re-register) from blip.
       throw Object.assign(new Error(`event insert failed: ${res.status}`), {
         status: res.status,
       });

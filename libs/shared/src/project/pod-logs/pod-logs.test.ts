@@ -32,8 +32,6 @@ describe("InMemoryPodLogs", () => {
   });
 
   it("keeps the same seq from a different pod, since seq is per pod not per job", async () => {
-    // A retried node runs a second pod under the same Job. Both start at seq 1,
-    // and collapsing them would silently discard the retry's output.
     const store = new InMemoryPodLogs();
 
     await store.appendBatch([chunk(1, "attempt one\n", "pod-1")]);
@@ -43,10 +41,6 @@ describe("InMemoryPodLogs", () => {
   });
 
   it("keeps each pod's chunks together instead of interleaving two attempts by seq", async () => {
-    // Ordering by seq ALONE reads pod-1 seq1, pod-2 seq1, pod-1 seq2 … — two
-    // attempts shuffled into each other, which is worse than either alone.
-    // Pods are ordered by when they first appear, so a retry reads after the
-    // attempt it replaced rather than alphabetically by pod name.
     const store = new InMemoryPodLogs();
 
     await store.appendBatch([
@@ -102,9 +96,6 @@ describe("storedPodLogArchive", () => {
   });
 
   it("keeps blank lines inside the tail, which in a stack trace are content", async () => {
-    // Filtering every falsy line to drop the trailing newline's empty element
-    // also strips the blank lines WITHIN the log, silently reflowing a stack
-    // trace or a diff into something that never appeared on stdout.
     const store = new InMemoryPodLogs();
 
     await store.appendBatch([chunk(1, "Error: boom\n\n  at frame\n")]);

@@ -1,20 +1,5 @@
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
-/**
- * One step of the merge line.
- *
- * These were nine consecutive statements inside `handleMergedTask`, guarded by
- * five try/catch blocks and three unguarded awaits — so a throw in the middle
- * skipped every step after it. `promoteTrust` failing meant `resume-planning`
- * never ran, which strands a feature's planning line forever, and nothing said
- * so.
- *
- * As steps of a line, each one's outcome is a recorded visit and the blueprint
- * routes `failed` FORWARD, so a failure is data rather than a silent skip. That
- * is why nothing here catches: the line is the error handling.
- *
- * Every dependency is injected, so each step is testable without a database, a
- * GitHub App, or a model.
- */
+/** One step of the merge line: failures route forward via assembly-line graph. */
 
 export interface MergeStepTask {
   id: string;

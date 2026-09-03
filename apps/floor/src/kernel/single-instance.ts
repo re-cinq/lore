@@ -1,19 +1,4 @@
-// Only one Floor may drain `pipeline.events`.
-//
-// The event loop claims rows with FOR UPDATE SKIP LOCKED, so two Floors do not
-// corrupt a single row — they split the stream. That is worse than a crash and much
-// harder to see: each instance handles some events with whatever code IT loaded, so a
-// stale process silently processes a resume with last week's rules while the log of
-// the instance you are watching stays clean. It cost this project hours twice and
-// failed one assembly line with a divergence error minutes after the new rule was
-// confirmed present in the loaded artifact.
-//
-// The port guard on :8080 does not cover this: a second Floor that never binds a
-// health server, or binds a different port, drains events perfectly happily.
-//
-// The lock is a Postgres SESSION-level advisory lock, so it is released by the server
-// the moment the holder's connection dies — no heartbeat, no reaper, and a killed
-// Floor never leaves the next one locked out.
+// Only one Floor may drain pipeline.events; enforced by Postgres SESSION-level advisory lock.
 
 export interface SingleInstanceDeps {
   /** True when this process now holds the lock. Must NOT block. */
@@ -22,17 +7,7 @@ export interface SingleInstanceDeps {
   log: (message: string) => void;
 }
 
-/**
- * Block until this process is the only Floor draining events.
- *
- * Waits rather than exits: during a rolling update the outgoing pod still holds the
- * lock for a few seconds, and exiting would crash-loop the new pod against its own
- * predecessor. Waiting makes the handover a pause instead of a restart storm.
- *
- * The "waiting" line is logged ONCE. It is the message that explains an otherwise
- * silent startup, so it has to be findable — and repeating it every tick would bury
- * a slow handover in noise.
- */
+/** Block until sole Floor; waits instead of exiting (rolling update handover, no crash-loop). */
 export async function awaitSoleInstance(
   deps: SingleInstanceDeps,
   opts: { intervalMs?: number } = {},
@@ -56,31 +31,10 @@ export async function awaitSoleInstance(
   }
 }
 
-/** The advisory-lock key for "the Floor draining pipeline.events". An arbitrary but
- *  FIXED number — any two processes using a different one would both think they were
- *  alone, which is the failure this exists to prevent. */
+/** Arbitrary but FIXED advisory-lock key to prevent processes thinking they're alone. */
 export const FLOOR_EVENT_LOCK_KEY = 8_140_311;
 
-/**
- * The production wait: a Postgres session-level advisory lock on a DEDICATED client.
- *
- * The client is never released back to the pool — the lock lives exactly as long as
- * its connection, which is what makes a killed Floor release it with no cleanup. A
- * pooled client would hand the lock to whichever job borrowed it next.
- */
-/**
- * Watch the connection the lock lives on.
- *
- * The client is checked out of the pool and never released, so the pool's own error
- * handler — which covers IDLE clients — never sees it. When Postgres restarted, the
- * client emitted an unhandled `error` and the process died: seven crash-restarts
- * until systemd's start limit gave up and left the Floor dead. A database blip must
- * not be a permanent outage.
- *
- * Exiting IS the correct response, because the lock died with the connection and this
- * process no longer holds the right to drain — it just has to be a deliberate exit
- * the supervisor can restart, not an unhandled event.
- */
+/** Session-level advisory lock on dedicated client; released when connection dies. */
 export function guardLockConnection(
   client: { on(event: "error", handler: (err: Error) => void): unknown },
   deps: { log: (message: string) => void; exit: (code: number) => void },

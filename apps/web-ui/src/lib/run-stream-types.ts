@@ -1,18 +1,4 @@
-// Hand mirror of AgentRunEventRow from
-// libs/shared/src/project/agent-run-events/agent-run-events-port.ts. web-ui is
-// excluded from the npm workspace and built in an isolated Docker context, so it
-// cannot import @re-cinq/lore-shared; scripts/type-drift/run-stream-types.drift.ts
-// makes drift from the canonical type a compile-time failure.
-//
-// The one deliberate divergence: `createdAt` is a Date on the port and a string
-// here, because this side only ever sees the JSON projection of the row. The
-// drift guard is therefore keys-only, never structural.
-//
-// DECISION (#1419): structural, not debt. The Floor serves this shape and the
-// Floor generates no OpenAPI document — no generator, no zodResponse call — so
-// there is nothing for a generated type to come from. Revisit if the Floor gains
-// a document, or if #1347 moves this read to lore-api.
-
+// Mirrors AgentRunEventRow (isolated build + drift detection); createdAt divergence is structural (revisit per #1419).
 export type AgentRunEventType =
   | "init"
   | "message"
@@ -72,13 +58,7 @@ function stringList(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((v) => typeof v === "string") : [];
 }
 
-/**
- * Parse one SSE `data:` payload into the mirrored row. Returns null — never
- * throws — for malformed JSON, a non-object body, a missing identity field, or
- * an `eventType` this client does not know. Dropping unknown event types
- * silently is the forward-compatibility contract: the Floor may add an eighth
- * stream-json kind without breaking a deployed browser tab.
- */
+/** Parse SSE payload; returns null on error; silently drops unknown event types for forward-compatibility. */
 export function parseRunStreamEvent(raw: string): RunStreamEvent | null {
   try {
     return parseRunStreamRow(JSON.parse(raw));
@@ -87,11 +67,7 @@ export function parseRunStreamEvent(raw: string): RunStreamEvent | null {
   }
 }
 
-/**
- * The same validation over an already-decoded row. The REST history endpoint
- * hands back parsed JSON objects, so re-stringifying them just to feed
- * parseRunStreamEvent would be the only alternative. Same rules, same nulls.
- */
+/** Validates an already-decoded row without re-stringifying. */
 export function parseRunStreamRow(value: unknown): RunStreamEvent | null {
   const body = record(value);
   const id = str(body.id);

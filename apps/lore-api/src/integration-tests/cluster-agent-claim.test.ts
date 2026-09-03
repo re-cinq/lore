@@ -6,24 +6,6 @@ import type { LoreTaskSpec } from "@re-cinq/lore-shared";
 import { buildServer } from "../server/build-server.js";
 import { restoreEnv } from "./restore-env.js";
 
-/**
- * Register, then claim, against a migrated Postgres.
- *
- * The claim is a single `FOR UPDATE SKIP LOCKED` CTE with three preconditions
- * (`status = 'queued'`, `dispatch_spec IS NOT NULL`, `required_tags <@ tags`)
- * and it is the ONE query that decides whether a run ever becomes a pod. The
- * route's own tests answer it from a fake port, which proves the authZ and
- * nothing about the SQL — and the `<@` containment in particular is the kind of
- * operator that reads right and is backwards.
- *
- * This matters more since dispatch went pull-only for every task type: a
- * runbook, an onboard and a review used to be pushed straight at a cluster, so
- * this query was not in their path at all. Now nothing runs without it.
- *
- * Both halves are the real thing: the rows are written through `PgAssemblyRuns`
- * exactly as the Floor's launch seam writes them, and the claim goes through the
- * HTTP route with the per-agent token registration actually minted.
- */
 const REGISTRATION_TOKEN = "test-registration-token";
 const REPO = "test/claim-repo";
 
@@ -40,7 +22,6 @@ describe("the cluster-agent claim, against real Postgres", () => {
   const registered: string[] = [];
   const runIds: string[] = [];
 
-  /** Register a cluster the way a booting cluster-agent does. */
   async function register(name: string, tags: string[]): Promise<Registered> {
     const res = await server.inject({
       method: "POST",
@@ -57,7 +38,6 @@ describe("the cluster-agent claim, against real Postgres", () => {
     return body;
   }
 
-  /** One queued, armed visit — what the Floor's launch seam leaves behind. */
   async function enqueue(
     requiredTags: string[],
     spec: Partial<LoreTaskSpec> = {},
@@ -117,7 +97,6 @@ describe("the cluster-agent claim, against real Postgres", () => {
   });
 
   afterAll(async () => {
-    // The claim scan is global, so this suite's rows must not outlive it.
     await pool.query(
       "DELETE FROM pipeline.station_runs WHERE assembly_run_id = ANY($1::uuid[])",
       [runIds],
@@ -189,14 +168,10 @@ describe("the cluster-agent claim, against real Postgres", () => {
   });
 
   it("does not hand a run to an agent missing one of its required tags", async () => {
-    // `required_tags <@ agent_tags` — containment, in that direction. Reversed,
-    // a cluster advertising one tag would claim everything.
     const agent = await register("integration-narrow", ["node:agent"]);
 
     await enqueue(["node:agent", "gpu"]);
 
-    // Drain whatever else the global queue holds; the assertion below is about
-    // what this agent was ALLOWED to take, not about the queue being empty.
     let claimed = await claim(agent);
 
     while (claimed.statusCode === 200) {
@@ -204,7 +179,6 @@ describe("the cluster-agent claim, against real Postgres", () => {
     }
 
     expect(claimed.statusCode).toBe(204);
-    // Nothing this suite queued with `gpu` may appear among what it was given.
     const { rows } = await pool.query<{ id: string }>(
       "SELECT id::text FROM pipeline.station_runs WHERE cluster_agent_id = $1",
       [agent.id],
@@ -221,10 +195,6 @@ describe("the cluster-agent claim, against real Postgres", () => {
   });
 
   it("does not hand out a queued row that has not been armed yet", async () => {
-    // The assembly-line walk still writes the row and arms it in two statements,
-    // so a crash between them leaves a queued visit with no spec. Claiming it
-    // would consume the visit and hand a cluster nothing to launch — the run
-    // would then wait out the queue bound with its row already marked claimed.
     const agent = await register("integration-unarmed", ["unarmed-tag"]);
     const runId = await runs.start({
       blueprintName: "runbook",
@@ -239,7 +209,6 @@ describe("the cluster-agent claim, against real Postgres", () => {
       iteration: 1,
       status: "queued",
       requiredTags: ["unarmed-tag"],
-      // No dispatchSpec — the state between the walk's two writes.
     });
 
     expect(await claim(agent)).toMatchObject({ statusCode: 204 });

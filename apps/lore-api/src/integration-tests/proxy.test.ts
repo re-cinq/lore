@@ -5,19 +5,6 @@ import { buildServer } from "../server/build-server.js";
 import { restoreEnv } from "./restore-env.js";
 import { proxyToApi, proxyGetApi } from "@re-cinq/lore-server-core/proxy.js";
 
-// Proxy seam introduced by the local/remote split (ADR-032). The lean
-// mcp-server holds no database — every data operation leaves it through the
-// server-core proxy client (`proxyToApi` / `proxyGetApi`, the exact functions
-// mcp-server's tool modules import from "@re-cinq/lore-server-core/proxy.js")
-// over HTTP to the remote lore-api, which authenticates the bearer and serves
-// from Postgres.
-//
-// These tests stand up the REAL lore-api server (buildServer — the same factory
-// production boots, hapi in front of the legacy dispatcher) against the test DB
-// and drive the REAL proxy client at it. That boundary is invisible to both unit
-// suites: mcp-server's has no server to talk to, lore-api's never goes through
-// the proxy.
-
 const TOKEN = "test-proxy-token";
 const TEST_REPO = "test/proxy-repo";
 
@@ -45,8 +32,6 @@ describe("mcp-server proxy <-> lore-api round-trip", () => {
     await server.start();
     port = server.info.port;
 
-    // Point the proxy client at the real server, as install.sh configures the
-    // local MCP adapter against the remote API.
     process.env.LORE_API_URL = `http://127.0.0.1:${port}`;
     process.env.LORE_INGEST_TOKEN = TOKEN;
 
@@ -82,8 +67,6 @@ describe("mcp-server proxy <-> lore-api round-trip", () => {
   });
 
   it("proxies a GET read to lore-api and parses the DB response", async () => {
-    // Like mcp-server's repo-list tool: proxyGetApi("/api/repos") then read the
-    // paged { repos, total } envelope.
     const result = await proxyGetApi("/api/repos");
 
     expect(result.ok).toBe(true);
@@ -114,13 +97,6 @@ describe("mcp-server proxy <-> lore-api round-trip", () => {
 
     expect(rows[0].priority).toBe("immediate");
   });
-
-  // No server-side 401/403 ("denied") case here on purpose: the proxy client
-  // sends LORE_INGEST_TOKEN and lore-api treats that same var as its full-access
-  // legacy token. In production they are separate processes; in one test process
-  // they are one variable, so the client can never present a token the server
-  // rejects. The 403 -> reason:"denied" mapping is covered by a unit test of the
-  // proxy client with a mocked fetch, not here.
 
   it("returns not_configured when no API URL is set", async () => {
     delete process.env.LORE_API_URL;

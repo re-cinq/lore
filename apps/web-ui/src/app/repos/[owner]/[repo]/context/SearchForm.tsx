@@ -12,11 +12,7 @@ export interface SearchFormProps {
   q?: string;
 }
 
-/**
- * Keyword search box for the context list. Submitting navigates client-side via
- * the router inside a transition so the button can show a pending state while
- * the new results load. Preserves the active type filter in the URL.
- */
+/** Keyword search box; client-side nav via router transition preserves active type filter. */
 export default function SearchForm({
   basePath,
   activeType,

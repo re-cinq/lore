@@ -3,23 +3,8 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 
-// Floor is organized as 3 EVENT-BUS LAYERS under src/ (ADR-015): `listeners/`
-// (producers → pipeline.events), `main-loop/` (the drain loop + internal
-// processes: store/loop/reaper/retry/registry + scheduling + lease), and `jobs/`
-// (the tasks/jobs — the work each event triggers). The layers may cross-reference
-// (the registry in main-loop wires jobs handlers; a cron handler calls the
-// listeners' reconcile), so this is an organizing model, not a strict acyclic
-// stack. The invariants below still hold and are what's enforced. Special
-// citizens: `src/index.ts` is the application entry (the `dist/index.js` the
-// container runs), may import anything; `kernel/` is the shared substrate (DB
-// pool, config, repositories, the CodePlatform port) imported by all, importing
-// nothing above it; `delivery/` holds the entry points (job-runner, gen-catalog,
-// health) — the `dist/delivery/*` deploy contract, imported by nothing but the
-// root entry; `composition/` wires impls.
-
 const SRC = fileURLToPath(new URL(".", import.meta.url));
 
-/** Dissolved horizontal layers — no import may resolve into one again. */
 const DEAD_LAYERS = ["adapters", "application", "data", "ports"];
 
 function tsFiles(dir: string): string[] {
@@ -41,7 +26,6 @@ function tsFiles(dir: string): string[] {
   return out;
 }
 
-/** Relative import + dynamic-import + vi.mock specifiers in a source file. */
 function relImports(src: string): string[] {
   const specs: string[] = [];
 
@@ -62,14 +46,12 @@ function relImports(src: string): string[] {
   return specs;
 }
 
-/** Top-level domain folder a file (or a resolved import target) belongs to. */
 function domainOf(abs: string): string {
   return path.relative(SRC, abs).split(path.sep)[0];
 }
 
 const files = tsFiles(SRC);
 
-/** Collect the offense strings across every relative import of every source file. */
 function offendingImports(
   sources: string[],
   offense: (file: string, spec: string) => string | null,
@@ -130,10 +112,6 @@ describe("floor domain boundaries", () => {
     expect(bad).toEqual([]);
   });
 
-  // jobs/lib/ holds the cross-cutting job services (episode-writer / artifact-copy /
-  // audit) that every job domain uses. Keeping it a LEAF — reaching only kernel/ and
-  // shared, never back into a sibling job domain — is what stops it becoming a second
-  // junk-drawer that re-tangles the domains it was meant to untangle.
   const libPrefix = path.join(SRC, "jobs", "lib") + path.sep;
 
   it("jobs/lib/ is a leaf — imports only kernel/ and shared, never a sibling job domain", () => {

@@ -12,9 +12,7 @@ export function detectCurrentRepo(): string | null {
       encoding: "utf-8",
       timeout: 5000,
     }).trim();
-    // Parse SSH or HTTPS remote URLs
-    // git@github.com:owner/repo.git → owner/repo
-    // https://github.com/owner/repo.git → owner/repo
+    // Parse SSH or HTTPS remote URLs to extract owner/repo.
     const match = remote.match(/[:/]([^/]+\/[^/]+?)(?:\.git)?$/);
 
     if (match) {

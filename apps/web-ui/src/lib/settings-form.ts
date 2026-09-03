@@ -47,13 +47,7 @@ function withoutUndefined(
   return updates;
 }
 
-// ── Privileged (dark_factory + task_overrides) → gated mcp API ──────────────
-//
-// Only CHANGED fields are emitted. The two-key gate flags privileged fields by
-// presence, so re-sending an unchanged value (e.g. execution.image) would demand
-// a CODEOWNERS PR on every save. The save action diffs the form against the
-// current resolved settings and sends just the delta. An empty result means "no
-// privileged change" → skip the gated call entirely.
+// Privileged settings (dark_factory + task_overrides) → gated mcp API; only changed fields emitted.
 
 export interface PrivilegedPatch {
   dark_factory?: Record<string, unknown>;

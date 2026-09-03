@@ -45,8 +45,6 @@ describe("POST /api/webhook/github", () => {
 
     expect(res.statusCode).toBe(202);
     expect(res.result).toMatchObject({ captured: 1 });
-    // The dedupe key is the delivery id: GitHub redelivers on any non-2xx, and
-    // without it a retried delivery would run the whole reaction twice.
     expect(vi.mocked(insertEventList).mock.calls[0]).toEqual([
       [
         {
@@ -109,7 +107,7 @@ describe("POST /api/webhook/github", () => {
 
   it("returns 202 capturing nothing for a validly-signed event that maps to no work", async () => {
     process.env.LORE_WEBHOOK_SECRET = SECRET;
-    const body = JSON.stringify({ zen: "Keep it simple" }); // no repository.full_name → []
+    const body = JSON.stringify({ zen: "Keep it simple" });
     const res = await buildServer({ getJobStatus: () => ({}) }).inject({
       method: "POST",
       url: "/api/webhook/github",

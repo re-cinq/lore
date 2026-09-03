@@ -31,8 +31,7 @@ export interface SpecTraceDispatchDeps {
   insertEvent?: (input: EventInput) => Promise<void>;
   /** Starts the ingest-station line — the ONLY execution path (FR6). */
   startLine?: (input: AssemblyRunStartInput) => Promise<string>;
-  /** The scheduling event's id — payload kinds hand their body off by
-   *  reference through it (FR3), never inline through station_input. */
+  /** Event id: payload kinds pass body by reference (FR3), never inline. */
   eventId?: string;
 }
 

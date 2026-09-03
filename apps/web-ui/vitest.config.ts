@@ -16,11 +16,7 @@ export default defineConfig({
       provider: "v8",
       include: ["src/**"],
       exclude: [
-        // IO / config glue — not unit-testable without a live DB / auth / GitHub.
-        // The container/presentational split keeps render logic in *View.tsx
-        // (covered) and confines IO to these files and the page.tsx containers.
-        // Generated types only — no runtime code to cover, and a 0% file would
-        // drag the thresholds down for nothing.
+        // IO glue (not unit-testable without live DB/auth/GitHub).
         "src/lib/api/schema.d.ts",
         "src/lib/db.ts",
         "src/lib/trace-api.ts",
@@ -36,31 +32,19 @@ export default defineConfig({
         "src/middleware.ts",
         // Next.js API route handlers (server endpoints → DB/GitHub IO).
         "src/app/api/**",
-        // App Router containers (data fetching only → return <XView .../>) + layouts
-        // + the next-auth session provider wrapper.
+        // App Router containers + layouts + next-auth session provider.
         "src/app/**/page.tsx",
         "src/app/**/layout.tsx",
         "src/app/SessionWrapper.tsx",
-        // D3/SVG visualization shells: imperative canvas rendering + fetch IO, not
-        // unit-testable in jsdom. Their pure geometry/state/grouping logic lives in
-        // the covered src/lib/* modules (ring-exclusion, segment-clip, anchor-spacing,
-        // graph-persistence, spec-grouping).
+        // D3/SVG visualization shells (imperative canvas, not jsdom-testable; pure logic in src/lib/*).
         "src/app/repos/[owner]/[repo]/graph/SpecGraphD3.tsx",
         "src/app/repos/[owner]/[repo]/graph/TestPreview.tsx",
         "src/app/repos/[owner]/[repo]/graph/IngestButtons.tsx",
-        // Feature-planning UI shells: the polling wizard, the sandboxed-iframe
-        // mockup renderer, and the schema-driven gap renderer are interactive /
-        // IO render shells like the graph components above. Their pure logic is
-        // covered in feature-status.ts + lib/feature-api.ts.
+        // Feature-planning UI shells (interactive/IO like graph shells; pure logic in feature-status.ts).
         "src/app/repos/[owner]/[repo]/features/**/*.tsx",
-        // Infinite-scroll pager: an IntersectionObserver + fetch shell (browser
-        // APIs absent in jsdom), like the graph/feature shells above. The query
-        // it pages is covered in events/pagination.ts; the row markup in
-        // EventsView/EventRow tests.
+        // Infinite-scroll pager (IntersectionObserver + fetch shell; query logic in events/pagination.ts).
         "src/app/repos/[owner]/[repo]/events/InfiniteEvents.tsx",
-        // Per-attempt pod-log panel: a fetch + polling shell (setInterval,
-        // expand on toggle) like the shells above. Its pure logic (URL, poll
-        // gate, unavailable messages) is covered in node-pod-logs-presenter.ts.
+        // Pod-log panel (fetch + polling shell; pure logic in node-pod-logs-presenter.ts).
         "src/app/assembly-runs/[id]/NodeLogPanel.tsx",
         // Type shapes + constants mirroring the /trace API JSON (no logic).
         "src/lib/spec-graph.ts",

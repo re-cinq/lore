@@ -24,7 +24,6 @@ describe("PRStatusBadge", () => {
     expect(pill).toHaveClass("status-pill");
   });
 
-  // Every key in STATUS_COLORS maps to its own --pill-color.
   const knownStatuses: Array<[string, string]> = [
     ["draft", "var(--text-muted)"],
     ["open", "var(--info)"],

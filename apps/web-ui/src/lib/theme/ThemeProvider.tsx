@@ -49,8 +49,7 @@ function applyToDom(family: ThemeFamily, resolved: ResolvedScheme): void {
 }
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  // Seed from what the inline script already wrote, so the first client render
-  // matches the DOM (no flash, no icon swap, no hydration mismatch).
+  // Seed from inline script to avoid flash/hydration mismatch.
   const [family, setFamilyState] = useState<ThemeFamily>(() =>
     typeof window !== "undefined"
       ? (window.__loreFamily ??

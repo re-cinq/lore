@@ -5,7 +5,6 @@ import RunningCard from "./RunningCard";
 import { featurePlanningDefinition } from "@/lib/definition-fixtures";
 import type { FeatureRunPayload } from "@/lib/feature-run";
 
-/** The panel opens an SSE stream for a live run; jsdom has no EventSource. */
 class SilentEventSource {
   onerror: ((e: Event) => void) | null = null;
   constructor(readonly url: string) {}
@@ -74,11 +73,7 @@ describe("RunningCard", () => {
       );
     });
 
-    // Node labels are split across SVG <text>/<tspan>, so assert on the graph's
-    // own data attributes rather than on rendered text.
     expect(document.querySelector('[data-node="analyze"]')).toBeTruthy();
-    // analyze -> author, the real first edge. This asserted "analyze->done" while
-    // the hand-transcribed mirror claimed the line was two nodes long.
     expect(
       document.querySelector('[data-edge="analyze->author"]'),
     ).toBeTruthy();
@@ -112,10 +107,6 @@ describe("RunningCard", () => {
 });
 
 describe("the card during the spec phase", () => {
-  // Accepting a plan used to leave a row of DEAD BUTTONS — "Refine again" disabled
-  // beside a primary relabelled "Creating the spec PR…" — and the run graph vanished,
-  // because the graph only ever rendered while a planning ROUND was running. The
-  // spec work runs on the same line and deserves the same card.
   it("announces the spec phase instead of a planning round", () => {
     render(
       <RunningCard
@@ -139,12 +130,6 @@ describe("the card during the spec phase", () => {
   });
 });
 
-// What the card says about TIME and SPEND while a node runs.
-//
-// The budget it showed was the feature-planning AGENT DEFINITION's timeout — a
-// number nothing enforces, and one number for a line whose nodes have separate
-// budgets, so the spec phase counted against the planning round's clock. The real
-// bar is the reaper's: the node's own `timeout_minutes` plus its grace.
 describe("the time budget", () => {
   const at = (nodeId: string) => ({
     ...run,
@@ -163,8 +148,6 @@ describe("the time budget", () => {
       />,
     );
 
-    // feature-planning declares no per-node timeout, so the reaper's own default
-    // (60) plus its 2-minute grace is what actually kills the pod.
     expect(screen.getByRole("timer")).toHaveTextContent("/ 62:00");
   });
 

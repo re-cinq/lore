@@ -17,11 +17,6 @@ const impact = (body: unknown, headers: Record<string, string>) =>
     payload: JSON.stringify(body),
   });
 
-/**
- * POST /api/repos/:o/:r/impact — the deterministic pre-merge spec-impact query.
- * With LORE_DGRAPH_HTTP unset (the shared-server default), the route fail-softs
- * to `status:"unavailable"` + 200 so the advisory Action skips cleanly.
- */
 describe("POST /api/repos/:owner/:repo/impact", () => {
   useRateLimitSafeClock();
   beforeEach(() => {
@@ -73,7 +68,6 @@ describe("POST /api/repos/:owner/:repo/impact", () => {
   });
 
   it("returns 400 on an unparseable body", async () => {
-    // ADR-034: hapi parses the payload, so malformed JSON is a native 400.
     const res = await buildServer(() => makePool() as any).inject({
       method: "POST",
       url: "/api/repos/o/r/impact",

@@ -12,11 +12,7 @@ import type {
   CodeChunkFull,
 } from "./chunks-port.js";
 
-/**
- * Schema names are string-interpolated into the table name, so they are an
- * injection surface. Only `[a-z][a-z0-9_]+` names — the same gate the reindex
- * job applies upstream — are allowed near the interpolation.
- */
+/** Schema names are string-interpolated into the table name: only `[a-z][a-z0-9_]+` names allowed to prevent injection. */
 const SCHEMA_RE = /^[a-z][a-z0-9_]+$/;
 
 function enforceSchema(schema: string): void {
@@ -27,13 +23,7 @@ function enforceSchema(schema: string): void {
   );
 }
 
-/**
- * Postgres-backed {@link ChunksPort}. SQL is lifted byte-for-byte from the
- * Floor reindex / context-core-builder jobs. Every `${schema}` query validates
- * the schema name first; only `distinctTeams`/`countChunksByTeam` still read
- * the fixed `org_shared.chunks` table — every repo-scoped detection read
- * resolves the repo's schema like the coverage reads do.
- */
+/** Postgres-backed {@link ChunksPort}: every `${schema}` query validates the schema name first. */
 export class PgChunks implements ChunksPort {
   constructor(private readonly pool: PgPool) {}
 

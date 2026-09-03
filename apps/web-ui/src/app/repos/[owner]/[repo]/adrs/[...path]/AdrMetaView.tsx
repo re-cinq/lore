@@ -1,7 +1,4 @@
-// Presentational metadata header for one ADR, rendered from its parsed YAML
-// frontmatter (parseFrontmatter in the container): status pill, decision date,
-// domain chips, and cross-links — `relates` to the owning spec's detail page,
-// `amends` to the amended ADR's detail page.
+// ADR metadata from frontmatter: status, date, domain chips, relates/amends cross-links.
 import Link from "next/link";
 import styles from "./AdrMetaView.module.scss";
 import SpecStatusPill from "@/components/SpecStatusPill";

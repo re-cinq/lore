@@ -378,10 +378,6 @@ describe("fileTouches read/write intent", () => {
 });
 
 describe("replayTo is replayable-from-zero", () => {
-  // A run that loops back through validate on a review's changes_requested:
-  // implement -> validate -> push -> review -> address -> validate (iteration 2).
-  // The loop is what makes the rewind meaningful — a node's status and iteration
-  // both move forward and must come back to exactly where they were.
   const stream: RunStreamEvent[] = [
     event({ id: "1", nodeId: "implement", iteration: 1, eventType: "init" }),
     event({ id: "2", nodeId: "implement", iteration: 1, eventType: "result" }),

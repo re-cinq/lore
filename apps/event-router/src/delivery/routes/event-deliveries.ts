@@ -1,15 +1,4 @@
-/**
- * The delivery side of the bus, over HTTP.
- *
- * The queue's routes let ONE drainer consume `pipeline.events`. These let any
- * number of subscribers consume their own copy: a subscriber registers what it
- * wants, then claims, acks, fails and dead-letters only its own deliveries.
- *
- * As with the queue routes, no route here writes an event — producing and
- * consuming are different privileges even when one process does both — and the
- * atomicity is not here either: `claim` is one FOR UPDATE SKIP LOCKED statement
- * server-side, so two replicas of a subscriber still get disjoint batches.
- */
+/** HTTP delivery routes: multiple subscribers each consume their own copy, disjoint batches via FOR UPDATE SKIP LOCKED. */
 
 import type { ServerRoute } from "@hapi/hapi";
 import type { EventDeliveriesPort } from "@re-cinq/lore-shared/project/events/event-deliveries-port.js";
@@ -29,9 +18,7 @@ import { parseBody } from "@re-cinq/lore-shared/http/json-body.js";
 import { enforceBearer } from "@re-cinq/lore-shared/http/bearer.js";
 
 export interface EventDeliveryRoutesDeps {
-  /** A THUNK, for the reason the queue routes give: routes are built before the
-   *  pool exists, and resolving here would make `buildServer` demand a database
-   *  just to describe itself. */
+  /** Thunk: routes built before pool exists, resolving here would couple buildServer to DB. */
   deliveries: () => EventDeliveriesPort;
   bearerToken?: string;
 }
@@ -76,10 +63,7 @@ export function eventDeliveryRoutes(
 
         return h
           .response({
-            // The exclusion is READ, not just parsed: a busy serial family is
-            // held back at claim time so its waiting rows stay `pending`.
-            // Dropping it here handed the caller the very rows it asked to be
-            // spared, which is the concurrent execution the exclusion prevents.
+            // Exclusion is READ: claim time holds busy serial family so waiting rows stay pending.
             deliveries: await deps
               .deliveries()
               .claim(subscriber, limit, excludeEventNames ?? []),
@@ -118,9 +102,7 @@ export function eventDeliveryRoutes(
       },
     },
     {
-      // Its own route, not a flag on fail: whether a delivery has run out of
-      // attempts is the SUBSCRIBER's judgement, and folding the two together
-      // would move that decision to a service that does not know its budget.
+      // Own route, not a fail flag: subscriber judges delivery budget, not the service.
       method: "POST",
       path: "/api/deliveries/{id}/dead",
       options: NO_BODY,
@@ -134,8 +116,7 @@ export function eventDeliveryRoutes(
       },
     },
     {
-      // No body: each row is judged against its OWN visibility timeout, so there
-      // is no global one for a caller to pass.
+      // No body: each row has its own visibility timeout, no global one for caller.
       method: "POST",
       path: "/api/deliveries/reap",
       options: NO_BODY,

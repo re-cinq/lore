@@ -15,11 +15,7 @@ import {
   type CreateFeatureInput,
 } from "./features-port.js";
 
-/**
- * Postgres-backed {@link FeaturesPort} over `lore.features` +
- * `lore.feature_iterations`. JSONB columns (`user_answers`, `gap_result`) are
- * returned already-parsed by node-pg, so reads map straight to the value types.
- */
+/** Postgres-backed FeaturesPort: JSONB columns pre-parsed by node-pg. */
 export class PgFeatures implements FeaturesPort {
   constructor(private readonly pool: PgPool) {}
 
@@ -156,9 +152,7 @@ export class PgFeatures implements FeaturesPort {
     iteration: number,
     { gap, status }: IterationResult,
   ): Promise<void> {
-    // Scope the write to the owning repo (feature_iterations has no repo column;
-    // join through lore.features) so a write-token holder cannot overwrite
-    // another repo's iteration by forging a global feature UUID.
+    // Scope write to owning repo so write-token holder cannot overwrite another repo's iteration.
     await this.pool.query(
       `UPDATE lore.feature_iterations fi
           SET gap_result = $1, status = $2, updated_at = now()

@@ -60,9 +60,6 @@ describe("decidePrReady", () => {
   });
 
   it("waits when a repo that runs CI reports no checks yet", () => {
-    // The window between a push and GitHub registering the first check run for
-    // the new head sha. `none` there is "not started", not "nothing to run" —
-    // reading it as green resumed the line on a build nobody had verified.
     expect(
       decidePrReady({
         ci: "none",
@@ -101,9 +98,6 @@ describe("decidePrReady", () => {
 });
 
 describe("the two blocked reasons resume differently", () => {
-  // Only `outcome` routes — selectEdge matches on it alone and `reason` reaches
-  // the run's args without steering anything. So a red build and an unanswered
-  // reviewer MUST carry different outcomes or the line cannot tell them apart.
   it("red CI resumes changes_requested, which the line routes to fix-ci", () => {
     expect(
       decidePrReady({

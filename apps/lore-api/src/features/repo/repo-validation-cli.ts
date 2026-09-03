@@ -1,21 +1,7 @@
 #!/usr/bin/env node
-/**
- * CLI wrapper for repo-validation — called by entrypoint.sh in K8s Job pods.
- *
- * Usage:
- *   node /validation.js --quick --repo /workspace/repo [--files "file1.ts file2.ts"]
- *   node /validation.js --full  --repo /workspace/repo
- *
- * Exit codes:
- *   0 = all checks passed (or no checks detected)
- *   1 = one or more checks failed
- *
- * Outputs JSON to stdout with the validation result.
- */
+/** CLI wrapper for repo-validation — validates code via lint/typecheck; outputs JSON to stdout. */
 
-// Subpath (not the barrel) so the claude-runner image can esbuild-bundle this
-// CLI into a self-contained /validation.js — repo-validation.ts has no heavy
-// deps, the barrel would drag in dgraph/tree-sitter/etc.
+// Subpath import for esbuild bundling into /validation.js without heavy deps (dgraph/tree-sitter)
 import {
   detectTooling,
   runValidation,

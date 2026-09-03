@@ -39,12 +39,7 @@ function documentAttrs(
   return attrs;
 }
 
-/**
- * Build the nested tag tree the `TagBox` renders, straight from the trace — the
- * same `context → section → document` nesting the XML serializer emits, so the
- * visual tree and the raw XML stay in lockstep. Only INCLUDED sections appear
- * (the per-section trace cards explain the omitted ones).
- */
+/** Build nested tag tree for TagBox from trace; included sections only (cards explain omitted). */
 export function buildTagTree(trace: AssemblyTrace): TagNode {
   const sections = trace.sections
     .filter((s) => s.included)

@@ -6,11 +6,7 @@ import type {
 } from "../../spec-trace/assemble-trace-document.js";
 import type { SpecGraph, SpecRing } from "../../spec-trace/spec-graph.js";
 
-/**
- * project.trace — the spec-traceability graph view for one repo. Reconstructs
- * documents (ordered sections + statements + links + coverage) from the graph
- * rather than the Postgres chunk store; the graph is the source of truth.
- */
+/** Spec-traceability graph view; graph is source of truth, not Postgres chunk store. */
 export class TraceView {
   constructor(
     private readonly fullName: string,

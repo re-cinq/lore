@@ -9,11 +9,7 @@ import type {
   AuditLogInsert,
 } from "./memory-lifecycle-port.js";
 
-/**
- * Postgres-backed {@link MemoryLifecyclePort}. Each method carries the exact
- * `memory.*` statement from its origin Floor job so the runner reaches the
- * lifecycle SQL through the Project facade instead of a job-local `query()`.
- */
+/** Postgres-backed {@link MemoryLifecyclePort}. */
 export class PgMemoryLifecycle implements MemoryLifecyclePort {
   constructor(private readonly pool: PgPool) {}
 
@@ -132,11 +128,7 @@ export class PgMemoryLifecycle implements MemoryLifecyclePort {
     minAgeDays: number,
   ): Promise<number> {
     const { rows } = await this.pool.query(
-      // A fact carries no agent of its own — `memory.facts` has no agent_id
-      // column. It belongs to whichever agent owns the memory or episode it was
-      // extracted from, which is the same join the over-cap COUNT above groups
-      // by. Filtering on a bare `agent_id` here reads correctly and raises
-      // 42703 against the real schema.
+      // Fact has no agent_id; resolve via memory_id or episode_id.
       `WITH oldest AS (
          SELECT f.id
          FROM memory.facts f

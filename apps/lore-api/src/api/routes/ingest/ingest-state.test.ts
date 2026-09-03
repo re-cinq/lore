@@ -2,9 +2,6 @@ import { describe, it, expect } from "vitest";
 import Hapi from "@hapi/hapi";
 import { ingestStateRoute } from "./ingest-state.js";
 
-/** The CI-side half of the incremental handshake: what commit did Lore last
- *  ingest for this repo+kind, so the runner can diff against it. */
-
 function poolWith(
   rows: unknown[],
   issued: Array<{ sql: string; params: unknown[] }> = [],
@@ -79,9 +76,6 @@ describe("GET /api/repos/{owner}/{repo}/ingest-state", () => {
   });
 
   it("survives an unmigrated cluster by answering null instead of 500", async () => {
-    // pipeline.ingest_state arrives with migration 0059; a deployment that
-    // predates it must read as "never ingested", which triggers a full ingest —
-    // the correct behaviour for a cluster with no recorded state.
     const pool = {
       query: async () =>
         Promise.reject(

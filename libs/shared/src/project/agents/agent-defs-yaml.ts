@@ -11,12 +11,7 @@ import {
 } from "./agent-defs-port.js";
 import { DECOMPOSITION_INSTRUCTIONS } from "../../feature-planning/decomposition-instructions.js";
 
-/**
- * Read-only AgentDefsPort over task-types.yaml — the offline/bootstrap fallback
- * (no DB, no API). Maps each task type's prompt_template/model/timeout into an
- * org-level AgentDefinition. Writes throw: definitions are only mutable with a
- * database behind the port.
- */
+// Read-only AgentDefsPort over task-types.yaml (offline/bootstrap fallback); writes throw.
 
 const READ_ONLY = "agent definitions are read-only without a database";
 
@@ -33,9 +28,7 @@ export class AgentDefsYaml implements AgentDefsPort {
       return this.cache;
     }
 
-    // Union of the candidate paths used by both existing loaders (mcp-server's
-    // pipeline-config and floor's config) so the base resolves regardless of the
-    // runtime cwd: <cwd>/scripts is the one the mcp-server (repo-root cwd) uses.
+    // Union of candidate paths from both loaders; <cwd>/scripts is the mcp-server path.
     const paths: string[] = [];
 
     if (this.configPath) {
@@ -81,15 +74,12 @@ export class AgentDefsYaml implements AgentDefsPort {
   private definitionsFromFile(p: string): Map<string, AgentDefinition> {
     const { taskTypes, drift } = parseTaskTypesFile(readFileSync(p, "utf-8"));
 
-    // Same ConfigMap, same #866 risk as the Floor's reader — this fallback
-    // runs inside lore-api and mcp-server, which read their own copies.
+    // Same ConfigMap risk as Floor reader (#866); fallback runs in lore-api and mcp-server.
     warnOnDrift("[agent-defs]", p, drift);
     const map = new Map<string, AgentDefinition>();
 
     for (const [name, cfg] of Object.entries(taskTypes)) {
-      // The recipe extras (skills, disallowed_tools, watch, repo_workdir)
-      // ride the config object so the CRD builder sees the same shape from
-      // this fallback as from a DB row. Null when the entry declares none.
+      // Recipe extras (skills, disallowed_tools, watch, repo_workdir) ride config so CRD builder sees same shape from fallback/DB.
       const config = {
         ...(cfg.skills ? { skills: cfg.skills } : {}),
         ...(cfg.disallowed_tools
@@ -113,10 +103,7 @@ export class AgentDefsYaml implements AgentDefsPort {
         config: Object.keys(config).length > 0 ? config : null,
       });
     }
-    // feature-planning is NOT overridden: its prompt_template IS the canonical
-    // prompt now, and the recipe the pod runs is generated from it.
-    // feature-decompose still is: its canonical prompt is DECOMPOSITION_INSTRUCTIONS,
-    // matching the DB-seeded org default (migration 0020).
+    // feature-planning uses canonical prompt_template; feature-decompose overridden to DECOMPOSITION_INSTRUCTIONS.
     const fd = map.get("feature-decompose");
 
     if (fd) {

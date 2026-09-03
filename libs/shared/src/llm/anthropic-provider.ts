@@ -1,14 +1,6 @@
 import { enforceTrue } from "../lib/enforce.js";
 import type { LlmCallOutcome } from "./call-outcome.js";
-/**
- * Anthropic provider — the proven `callLLM`/`callLLMWithTool` logic (relocated
- * from agent/src/platform/anthropic.ts) wrapped behind {@link LlmProvider}.
- * Prompt caching, cost computation, retries and `pipeline.llm_calls` logging are
- * preserved; cost logging goes through an injected {@link UsagePort} (via
- * `Llm.configure`) so every row rides the 0032-aware routing SQL — a caller
- * passing an assembly-line id as `taskId` lands on `assembly_run_id` instead
- * of being FK-rejected. Port absent → logging is skipped.
- */
+/** Anthropic provider; proven logic with caching/cost/retries; logging via injected UsagePort (routing-aware, assembly_run_id not FK-rejected). */
 
 import Anthropic from "@anthropic-ai/sdk";
 import type { UsagePort } from "../project/usage/usage-port.js";
@@ -30,11 +22,7 @@ import type { ModelPricing } from "./model-pricing.js";
 const DEFAULT_MODEL = "claude-haiku-4-5-20251001";
 const DEFAULT_MAX_TOKENS = 8192;
 
-// $/token, derived from the published $/1M rates. Cache writes are always
-// 1.25x the input rate and cache reads 0.1x, regardless of tier — Anthropic
-// prices caching as a multiplier on whichever model served the call.
-// Reverify against shared/live-sources.md -> Pricing when adding a new tier;
-// these numbers drift.
+// $/token from published $/1M rates; cache 1.25x write/0.1x read multipliers; reverify vs shared/live-sources.md when adding tier.
 const MODEL_PRICING: Record<string, ModelPricing> = {
   "claude-fable-5": {
     inputPerToken: 10.0 / 1_000_000,
@@ -62,9 +50,7 @@ const MODEL_PRICING: Record<string, ModelPricing> = {
   },
 };
 
-// An unrecognized model (a new tier not yet added above, or a dated snapshot
-// id) still needs an approximate cost rather than a thrown error — the
-// cheapest current tier is the least-wrong default for logging purposes.
+// Unrecognized model (new tier or dated snapshot) uses cheapest tier for logging (least-wrong default cost).
 const FALLBACK_PRICING = MODEL_PRICING["claude-haiku-4-5-20251001"];
 
 function pricingFor(model: string): ModelPricing {

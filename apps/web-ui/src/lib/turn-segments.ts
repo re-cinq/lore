@@ -1,20 +1,8 @@
-// Grouping stored turns into the node visits they belong to. Shared by both
-// transcript surfaces — the task page's log viewer and the run page's full
-// transcript panel — because "a node revisited at iteration 2 is a new visit"
-// is one rule, not one per page.
-//
-// The segment carries its turns rather than a pre-joined blob: the NDJSON
-// projection and the per-turn timed projection are both derivable from them,
-// and storing either alongside the turns would be the same knowledge twice.
+// Groups turns into node visits; shared by both transcript surfaces (task + run pages).
 
 import type { AgentRunTurn } from "@/lib/run-turn-types";
 
-/**
- * One run of consecutive turns from the same node visit. A task's turns span
- * every node of its assembly line (and every retry), so rendering them as one
- * undifferentiated stream would interleave several session-inits and result
- * footers; the segment boundary is where the heading goes.
- */
+/** Consecutive turns from one node visit (segment boundary where heading goes). */
 export interface TurnSegment {
   nodeId: string | null;
   iteration: number | null;
@@ -55,8 +43,7 @@ export function segmentLabel(segment: TurnSegment): string | null {
     : `${segment.nodeId} · iteration ${segment.iteration}`;
 }
 
-/** The segment as the NDJSON blob `parseAgentLog` consumes — one envelope per
- *  line, in the order the turns were stored. */
+/** Segment as NDJSON blob (one envelope per line). */
 export function segmentRawLog(segment: TurnSegment): string {
   return segment.turns.map((turn) => JSON.stringify(turn.envelope)).join("\n");
 }

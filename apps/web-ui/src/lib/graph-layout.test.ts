@@ -278,7 +278,6 @@ describe("separateSmallComponents", () => {
 
 describe("featureRingRadius", () => {
   it("grows the ring so many trees don't overlap", () => {
-    // 20 trees of radius 300 need a circle big enough to seat them ~2.2·r apart
     expect(featureRingRadius(20, 300, 660)).toBeCloseTo(
       (20 * 2.2 * 300) / (2 * Math.PI),
     );
@@ -341,7 +340,6 @@ describe("countCrossings", () => {
   });
 
   it("sums crossings across several edges", () => {
-    // a-b and c-d cross; e-f sits apart and crosses neither.
     const p = new Map([
       ["a", { x: 0, y: 0 }],
       ["b", { x: 10, y: 10 }],

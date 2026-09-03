@@ -5,12 +5,7 @@ import type {
   GcpCostDailyRow,
 } from "./cost-port.js";
 
-/**
- * In-memory {@link CostPort}: models the table's upsert semantics so a test
- * can assert them. Each write replaces the existing row sharing the same
- * `(bucketDate, model)` key, or appends a new one — mirroring
- * `ON CONFLICT (bucket_date, model) DO UPDATE`.
- */
+/** In-memory CostPort: models upsert semantics per (bucketDate, model) key. */
 export class InMemoryCost implements CostPort {
   readonly rows: AnthropicCostDailyRow[] = [];
 
@@ -29,10 +24,7 @@ export class InMemoryCost implements CostPort {
   }
 }
 
-/**
- * In-memory {@link GcpCostPort}, mirroring
- * `ON CONFLICT (bucket_date, service) DO UPDATE` the same way.
- */
+/** In-memory GcpCostPort: models upsert semantics per (bucketDate, service) key. */
 export class InMemoryGcpCost implements GcpCostPort {
   readonly rows: GcpCostDailyRow[] = [];
 

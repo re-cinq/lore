@@ -17,9 +17,7 @@ export default async function RepoSpecDetail({
   const filePath = path.map(decodeURIComponent).join("/");
   const specsLink = `/repos/${owner}/${repo}/specs`;
 
-  // Graph is the source of truth: the byte-exact markdown SOURCE renders as a
-  // normal document (framed per section), and the statement overlay (tested
-  // underline + hover node details) comes from the structured document.
+  // Graph is source of truth: source renders markdown, doc provides statement overlay.
   const [source, doc] = await Promise.all([
     fetchTraceSource(fullName, filePath),
     fetchTraceDocument(fullName, filePath),

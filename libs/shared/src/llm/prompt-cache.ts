@@ -127,11 +127,7 @@ interface CacheState {
 const cacheStateByJob = new Map<string, CacheState>();
 
 export type CacheStatus =
-  | "hit" // cache_read > 0
-  | "first-call" // no prior state for this jobName
-  | "prompt-changed" // hashes differ vs last call
-  | "ttl-expired" // hashes match but no read — prefix was evicted
-  | "unknown-miss"; // catch-all
+  "hit" | "first-call" | "prompt-changed" | "ttl-expired" | "unknown-miss";
 
 export interface CacheBreakAnalysis {
   status: CacheStatus;

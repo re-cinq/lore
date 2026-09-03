@@ -22,8 +22,7 @@ export default async function SearchPage({
     .sort((a, b) => a.full_name.localeCompare(b.full_name));
 
   if (q) {
-    // One call for both the memory and the fact hits: lore-api runs the same
-    // two ranked searches and returns them as one list.
+    // One call for both memory and facts: lore-api runs both ranked searches and returns them as one list
     const memoryHits = await searchMemory(q);
     const memoryResults = (memoryHits.status === "ok"
       ? memoryHits.data.results

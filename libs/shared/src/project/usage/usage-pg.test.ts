@@ -42,7 +42,6 @@ describe("PgUsage adapter", () => {
       1500,
       "success",
       null,
-      // $11/$12 — the carried identity, null when the producer stated none.
       null,
       null,
     ]);
@@ -200,8 +199,6 @@ describe("PgUsage adapter", () => {
       durationMs: 10,
     });
 
-    // The lateral clause is still emitted; a null CR simply resolves no node
-    // and COALESCE falls back to al.id (verified against Postgres, not here).
     expect(calls[0]?.text).toContain("n.agent_cr_name = g.cr");
     expect(calls[0]?.params?.[1]).toBeNull();
   });

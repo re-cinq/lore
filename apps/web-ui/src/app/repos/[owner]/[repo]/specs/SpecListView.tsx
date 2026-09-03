@@ -1,12 +1,6 @@
 "use client";
 
-// Presentational (data-down) list of a repo's specs, sourced from the
-// spec-traceability graph via the /trace API. The per-file summaries are grouped
-// into one card per spec folder (groupSpecSummaries): the card is titled from
-// spec.md and links to every file in the folder. Lifecycle statuses are parsed
-// from the graph's byte-exact spec.md sources (fetchDocStatusesFromGraph;
-// statuses prop, keyed by file path) and drive the filter chips — the graph is
-// the source of truth for list and statuses alike.
+// Spec list from /trace API: cards grouped by folder, statuses from graph (source of truth).
 import { useState } from "react";
 import SpecCard from "./SpecCard";
 import DocListControls from "@/components/DocListControls";

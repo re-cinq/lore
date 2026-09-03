@@ -32,12 +32,7 @@ function basename(filePath: string): string {
   return filePath.split("/").pop() || filePath;
 }
 
-/**
- * Per-file context detail: the full (untruncated) chunks of one file path,
- * each rendered richly via `ChunkBody`. Shared by the per-repo detail route
- * (one group) and the global detail route (one group per repo, with a
- * "view in repo →" link). Pure render.
- */
+/** Per-file context detail: full chunks rendered richly via ChunkBody (per-repo or global). */
 export default function ContextFileView({
   filePath,
   contextLink,

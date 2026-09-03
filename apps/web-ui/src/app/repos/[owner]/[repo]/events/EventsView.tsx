@@ -12,11 +12,7 @@ export interface EventsViewProps {
   hasMore: boolean;
 }
 
-/**
- * Presentational view for a repo's full event stream. Pure render — the
- * container (`page.tsx`) runs the query and hands the first page down;
- * InfiniteEvents appends the rest as the sentinel row scrolls into view.
- */
+/** Presentational view for repo's event stream; container runs query, InfiniteEvents appends rest on scroll. */
 export default function EventsView({
   owner,
   repo,

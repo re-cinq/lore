@@ -10,22 +10,7 @@ import { zodResponse } from "../../../server/plugins/zod-response.js";
 import { zodValidate } from "../../../server/plugins/zod-validate.js";
 import { DB_UNAVAILABLE } from "../common-schemas.js";
 
-/**
- * PUT /api/cluster-agents/{id}/paused — the operator's stop switch
- * (FR9 of specs/running-stations-in-any-k8s-cluster).
- *
- * Pausing takes a cluster out of the rotation WITHOUT taking it down: it keeps
- * heartbeating, stays `active`, and finishes whatever it already claimed — the
- * claim endpoint simply answers 204 while it is paused. That is the difference
- * from the two things operators did before: scaling the deployment to zero
- * (which the reaper reads as death five minutes later and requeues its live
- * work) and re-registering with tags nothing matches (a trick, and it loses the
- * cluster's real tags).
- *
- * Unlike its register/claim/heartbeat siblings this route serves the UI, so
- * auth is the normal scoped-token strategy rather than a per-agent token — the
- * cluster being paused is precisely NOT the caller.
- */
+/** Stop-switch: pauses a cluster without taking it down; stays active and finishes claimed work (FR9). */
 
 const PauseBody = z.object({ paused: z.boolean() });
 

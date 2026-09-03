@@ -54,7 +54,6 @@ async function harness() {
     deps: {
       tasks,
       featuresFor: async () => ({ features }),
-      // Legacy shape: one line per round, so the round number lives on the task.
       roundOf: async () => undefined,
     },
   };
@@ -83,9 +82,6 @@ describe("deliverPlanningResult", () => {
       outcome: "failed",
       error: "the agent produced no result.json (missing)",
     });
-    // A failed ATTEMPT is not a failed ROUND: the node has an iteration_max
-    // back-edge, and the retry routinely succeeds. Recording failure here showed the
-    // author "round failed" with a Retry button while a retry was already running.
     expect((await features.get(id))?.iterations[0]).toMatchObject({
       status: "running",
     });
@@ -99,8 +95,6 @@ describe("deliverPlanningResult", () => {
     );
 
     expect(result.outcome).toBe("failed");
-    // Same rule: the line's terminal settlement is the single owner of "this round
-    // failed", so it cannot disagree with itself.
     expect((await features.get(id))?.iterations[0]).toMatchObject({
       status: "running",
     });
@@ -179,11 +173,6 @@ describe("deliverPlanningResults", () => {
 });
 
 describe("a round that resumed a parked line", () => {
-  // A resumed round mints no task (FR6.22), so every round after the first reports
-  // against the feature's ORIGINATING task — whose context_bundle says iteration 1.
-  // Reading the round number from there wrote round 2's result onto round 1 and left
-  // round 2 with nothing, which the terminal settlement then reported as a failed
-  // round. The author saw "round 2 failed" beside a plan that had visibly updated.
   async function line(argsIteration: number | undefined) {
     const features = new Features(REPO, new InMemoryFeatures());
     const feature = await features.create({ title: "T", prompt: "p" });
@@ -230,7 +219,6 @@ describe("a round that resumed a parked line", () => {
   });
 
   it("falls back to the task's round when no line carries one", async () => {
-    // The legacy shape: one line per round, each with its own task.
     const { features, id, deps } = await line(undefined);
 
     expect(await deliverPlanningResult(fileEvent(), deps)).toEqual({

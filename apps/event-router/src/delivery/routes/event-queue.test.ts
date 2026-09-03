@@ -19,7 +19,6 @@ function server(): Hapi.Server {
 const auth = { authorization: `Bearer ${TOKEN}` };
 
 beforeEach(() => {
-  // See the round-trip suite: a real clock makes `reapStuck(0)` racy.
   queue = new InMemoryEventQueue([], () => clock);
   clock = 1_000_000;
 });

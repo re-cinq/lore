@@ -1,9 +1,7 @@
 import styles from "./GraphView.module.css";
 import type { components } from "@/lib/api/schema";
 
-// Aliases over the /api/graph-browse contract. None of these is a table row:
-// `Entity` carries an edge-count subquery and `Edge` is a three-way join that
-// reads names rather than ids, so the route states them and this reads them.
+// Aliases over /api/graph-browse; Entity/Edge include subqueries, route states them.
 
 type Browse = components["schemas"]["GraphBrowse"];
 
@@ -25,11 +23,7 @@ export interface GraphViewProps {
   edges: Edge[];
 }
 
-/**
- * Presentational view for the knowledge graph explorer. Pure render — the
- * container (`page.tsx`) runs the queries against `memory.*` and passes the
- * resolved view-model down.
- */
+/** Knowledge graph explorer; pure render with memory.* queries from container. */
 export default function GraphView({
   entity,
   type,

@@ -1,12 +1,4 @@
-/**
- * Parser + resolver for the per-repo test-command manifest — the optional
- * `.lore/test-commands.yml` file (or `lore.repos.settings.test_commands`)
- * that declares the project's own `list`/`run` commands so Lore discovers
- * tests and per-test coverage through the repo's runner instead of
- * guessing. Supports a polyglot array (one entry per package) and lets
- * settings win over the file. See
- * `specs/project-test-interface/contracts/test-commands.md`.
- */
+/** Per-repo test-command manifest (.lore/test-commands.yml or settings); declares list/run for test discovery. */
 
 export type CoverageFormat = "lcov" | "cobertura" | "json";
 
@@ -26,11 +18,7 @@ export function parseTestCommandManifest(raw: unknown): TestCommandManifest[] {
     .filter((entry): entry is TestCommandManifest => entry !== null);
 }
 
-/**
- * Resolve the manifest from its two declaration sites. Repo settings
- * (`lore.repos.settings.test_commands`) win over the `.lore/test-commands.yml`
- * file; returns null when neither declares one (fallback to pattern detection).
- */
+/** Resolve manifest from settings (win) or .lore/test-commands.yml file; null → pattern detection fallback. */
 export function resolveTestCommandManifest(sources: {
   settings?: unknown;
   file?: unknown;
@@ -53,10 +41,7 @@ export function isManifestDeclared(sources: {
 export type TestInterfaceCheck =
   { status: "configured" } | { status: "scaffold"; files: string[] };
 
-/**
- * Onboard-time decision: a repo with no declared test-command manifest gets
- * both interface files scaffolded; otherwise it is already configured.
- */
+/** Onboard-time: scaffold interface files if no manifest declared; otherwise already configured. */
 export function decideTestInterfaceCheck(sources: {
   manifestFileDeclared: boolean;
   settingsTestCommands?: unknown;
@@ -86,14 +71,7 @@ const COVERAGE_FORMATS: readonly CoverageFormat[] = [
   "json",
 ];
 
-/**
- * Normalize one raw entry, or drop it (return null) when it is unusable. The
- * only irreducible requirement is a non-empty `run` — a whole-suite entry that
- * runs whole (no per-test `list`, no `{selector}`, no coverage) is honest, not
- * malformed, so one such entry must never take a valid sibling down with it.
- * `list`/`coverage_format` are optional; an unknown coverage_format is ignored
- * rather than dropping the runnable entry.
- */
+/** Normalize entry; non-empty `run` is irreducible; `list` and `coverage_format` optional. */
 function normalizeEntry(raw: unknown): TestCommandManifest | null {
   const entry = (raw ?? {}) as Record<string, unknown>;
 

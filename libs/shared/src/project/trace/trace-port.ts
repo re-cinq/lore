@@ -5,11 +5,7 @@ import type {
 } from "../../spec-trace/assemble-trace-document.js";
 import type { SpecGraph, SpecRing } from "../../spec-trace/spec-graph.js";
 
-/**
- * The seam between the Project facade and the spec-traceability graph
- * (Dgraph). The graph is the source of truth: documents are reconstructed from
- * ordered nodes, not the Postgres chunk store.
- */
+/** Seam between Project facade and spec-traceability graph (Dgraph, source of truth). */
 export interface TracePort {
   /** Spec document paths the graph holds for the repo. */
   listSpecs(repo: string): Promise<string[]>;

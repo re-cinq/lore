@@ -1,19 +1,4 @@
-/**
- * Pure Agent-CR → event mapping (layer 1). The k8s watch hands each observed CR
- * here; only terminal phases (Succeeded/Failed) produce an event, keyed on
- * task-id + phase so repeated MODIFIED notifications and re-list catch-ups
- * collapse to one row. No `@kubernetes/client-node` import here — keeps the
- * mapper unit-testable; the label is the CR contract, and the label NAMES are
- * the shared CR contract (agent-cr-labels).
- *
- * The event carries the CR's status (`params.status`, the same
- * `AgentNodeStatus` shape `statusFromAgentCr` builds for the central
- * cluster-agent's own status route) so a consumer never has to read the CR
- * back out of Kubernetes to learn what it said — the read that only ever
- * reaches the CENTRAL cluster and returns nothing for a satellite-claimed CR.
- * This is what makes the notification path (cluster-agent → event-router →
- * Floor) cluster-agnostic end to end, not just for delivery.
- */
+/** Agent CR → event mapping: terminal phases only, keyed per CR name/task; status passthrough avoids re-fetch. */
 
 import type { EventInsert } from "../../events.js";
 import { k8sDedupeKey, k8sAgentNodeDedupeKey } from "./dedupe.js";
@@ -61,21 +46,14 @@ export function mapAgentToEvent(agent: AgentLike): EventInsert | null {
   const nodeId = labels[NODE_ID_LABEL];
   const iteration = Number(labels[NODE_ITERATION_LABEL] ?? "1");
   const agentName = agent.metadata?.name ?? null;
-  // The full status the watch already holds (phase is confirmed non-null
-  // above, so this is a plain passthrough — no `statusFromAgentCr` needed),
-  // so a consumer never re-fetches it from a cluster it may not be able to
-  // reach.
+  // Full status the watch holds: passthrough so consumer never re-fetches.
   const status = {
     phase,
     output: agent.status?.output,
     failureReason: agent.status?.failureReason,
   };
 
-  // An assembly-line NODE CR: its own event family, deduped per CR name (all
-  // node CRs of one line share the task-id label — a task-keyed dedupe would
-  // swallow every node after the first). CR names embed the iteration, so the
-  // per-name dedupe key is per-iteration; the iteration also rides the params so
-  // the handler CASes the exact revisit's row. The transition handler consumes these.
+  // Assembly-line NODE CR: own event family, deduped per CR name (task-keyed dedupe swallows later nodes).
   if (assemblyLineId && nodeId && agentName) {
     return {
       eventName: `kubernetes.agent_node.${action}`,

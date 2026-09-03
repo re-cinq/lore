@@ -1,7 +1,4 @@
 // @vitest-environment node
-//
-// feature-run reaches assembly-runs, which now reads through the
-// server-only lore-api client.
 
 import { describe, it, expect, vi } from "vitest";
 
@@ -15,9 +12,6 @@ import { featurePlanningDefinition } from "./definition-fixtures";
 const planningRun: AssemblyRun = {
   id: "ae7918b1-4baa-41fc-8b34-deb1be4cddf9",
   blueprintName: "feature-planning",
-  // A real run carries its clone, stamped at start — so the wizard can draw the
-  // whole graph before a single node row exists. That used to come from a
-  // name lookup against a transcription of the yaml.
   graph: {
     name: featurePlanningDefinition.name,
     entry: featurePlanningDefinition.entry,
@@ -68,9 +62,6 @@ describe("toFeatureRunPayload", () => {
         name: "feature-planning",
         entry: "analyze",
         exit: "done",
-        // The graph the RUN recorded. This assertion used to read
-        // `[{ from: "analyze", to: "done" }]` — the hand-transcribed 2-node shape
-        // that had not matched the definition for months.
         nodes: [
           { id: "analyze", type: "agent" },
           {
@@ -97,9 +88,6 @@ describe("toFeatureRunPayload", () => {
   });
 
   it("marks a run with no recorded graph synthetic", () => {
-    // "Unknown definition" stopped being the interesting case once runs carry
-    // their own graph: what matters now is a run stamped before clones existed,
-    // whose blueprint is not recoverable from the row.
     const custom = {
       ...planningRun,
       blueprintName: "bespoke-line",

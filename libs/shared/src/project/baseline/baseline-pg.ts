@@ -10,12 +10,7 @@ interface BaselineStatsRow {
   median_ttm: string | null;
 }
 
-/**
- * Postgres-backed {@link BaselinePort}: one INSERT into
- * `pipeline.dark_factory_baseline` plus the windowed SELECT over
- * `pipeline.tasks`. Relocated from the Floor's `repositories/baseline` and
- * `repositories/tasks` so the snapshot job reaches both through the facade.
- */
+/** Postgres-backed {@link BaselinePort}: one INSERT into `pipeline.dark_factory_baseline` plus windowed SELECT over `pipeline.tasks`. */
 export class PgBaseline implements BaselinePort {
   constructor(private readonly pool: PgPool) {}
 

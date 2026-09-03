@@ -2,10 +2,6 @@ import { describe, it, expect, afterEach } from "vitest";
 import { Llm, FakeLlm } from "@re-cinq/lore-shared";
 import { makeGraphLlmCall } from "./helpers.js";
 
-// The two post-ingest producers (triggerAgentSpecTrace /
-// triggerAgentSpecCoverageValidate) are covered via the routes.js re-export in
-// spec-trace-trigger.test.ts and spec-coverage-validate-trigger.test.ts; this
-// file covers the remaining export, the graph-extraction LLM caller.
 const originalEnv = { ...process.env };
 
 describe("makeGraphLlmCall", () => {

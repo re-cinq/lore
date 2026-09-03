@@ -1,8 +1,4 @@
-/**
- * GitHub API client for the web-ui.
- * Uses GitHub App authentication (same credentials as MCP server).
- * Only implements getPRDetails needed for PR state visibility.
- */
+/** GitHub API client for web-ui (GitHub App auth, PR state visibility). */
 
 import { Octokit } from "octokit";
 import { withoutBlindRetryOnCreates } from "./octokit-retry-policy";
@@ -107,12 +103,7 @@ export function computeStatus(
 
 export type RepoAccess = "ok" | "not-found" | "unknown";
 
-/**
- * Pre-flight probe: can the GitHub App see this repo? 404 is definitive
- * (wrong owner/name, or the App is not installed there — installation-scoped
- * auth surfaces both as 404); an unconfigured App or a transient error is
- * "unknown" so callers can fail soft — mirrors {@link checkRepoFiles}.
- */
+/** Probe: can App see this repo? Definitive 404 or unknown. */
 export async function checkRepoAccess(repo: string): Promise<RepoAccess> {
   if (!isGitHubConfigured()) {
     return "unknown";
@@ -135,11 +126,7 @@ export interface RepoMeta {
   html_url: string;
 }
 
-/**
- * Check whether each path exists on the repo's default branch.
- * Returns a map of path -> true (exists) / false (404) / null (unknown:
- * App not configured, no repo access, or transient error). Fail-soft.
- */
+/** Check if paths exist on repo's default branch; fail-soft. */
 export async function checkRepoFiles(
   repo: string,
   paths: string[],
@@ -170,15 +157,7 @@ export async function checkRepoFiles(
   return result;
 }
 
-/**
- * Fetch the decoded UTF-8 content of a file on the repo's default branch.
- * Returns null only when the file is genuinely absent (404) or the App
- * isn't configured. Transient/permission failures (rate limits, 403, 5xx)
- * are rethrown so callers can fail soft rather than mistake a hiccup for an
- * absent file — mirrors {@link checkRepoFiles} (404 = absent, other =
- * unknown). Returning null for, say, a secondary rate limit would falsely
- * flag every repo's lore-ingest workflow as missing.
- */
+/** Fetch decoded UTF-8 file content from repo's default branch; null on 404 or unconfigured. */
 export async function getRepoFileContent(
   repo: string,
   path: string,
@@ -216,12 +195,7 @@ export async function getRepoFileContent(
 const isAlreadyExists = (e: unknown): boolean =>
   (e as { status?: number }).status === 422;
 
-/**
- * Open (or reuse) a PR that installs one canonical workflow file on `repo`.
- * Idempotent: re-uses a stable branch and the existing open PR if a prior run
- * already opened one. Returns the PR url+number, or null if the App isn't
- * configured.
- */
+/** Open or reuse PR that installs workflow file on repo (idempotent). */
 async function openWorkflowPR(
   repo: string,
   {

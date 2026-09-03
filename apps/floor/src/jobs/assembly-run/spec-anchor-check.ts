@@ -1,17 +1,4 @@
-/**
- * Deterministic spec-anchor rot check at the ready flip (#1747).
- *
- * The pr-ready recipe asks the agent to re-verify every `#Lnn` link on the
- * statements its branch touched — and prompt discipline alone failed exactly
- * where it was needed: bowman-ui #9 shipped a fresh `([validated by …])`
- * anchor pointing at a comment line. This is the mechanical half: when a
- * loop PR leaves draft, every anchor in the branch's changed markdown is
- * resolved against the branch head, and anything landing nowhere — a missing
- * file, a line past the end, a blank line, a comment — is posted back as one
- * PR comment. Visibility, not a gate: the flip already happened, and a rotten
- * link is a paperwork defect a reviewer must see, not a reason to strand the
- * run.
- */
+/** Spec-anchor rot check at ready flip (#1747): verify #Lnn links in touched statements; post rot as PR comment (visibility only). */
 
 // posix explicitly: these are GitHub API paths, forward-slash on every OS.
 import { dirname, normalize } from "node:path/posix";
@@ -38,9 +25,7 @@ function commentReason(target: string, trimmed: string): boolean {
   return false;
 }
 
-/** Repo-root path for an anchor target: doc-relative when that file exists,
- *  else root-relative — specs carry both styles, sometimes mixed in one
- *  parenthetical list. `null` when neither resolves. */
+/** Anchor target path: doc-relative or root-relative (null if neither resolves). */
 function targetCandidates(specPath: string, target: string): string[] {
   return [
     normalize(`${dirname(specPath)}/${target}`),
@@ -138,9 +123,7 @@ export interface RottenAnchorReportInput {
   repo: { read(path: string, ref?: string): Promise<string | null> };
 }
 
-/** The PR comment body listing this branch's rotten anchors, or null when the
- *  changed markdown is clean (or there is none). Targets are read once each,
- *  at the branch head, through the same API the flip already uses. */
+/** PR comment body listing rotten anchors, or null if markdown clean. */
 export async function rottenAnchorReport(
   input: RottenAnchorReportInput,
 ): Promise<string | null> {

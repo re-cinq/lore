@@ -2,12 +2,6 @@ import { describe, it, expect } from "vitest";
 import { Agents } from "./agents.js";
 import type { AgentRunnerPort } from "./agent-runner-port.js";
 
-/**
- * project.agents — the run() trust gate only (an Agent is one ephemeral run;
- * only LOCAL execution is refused on the shared server). Definition CRUD lives on
- * project.agentDefs / AgentDefs — see agent-defs.test.ts.
- */
-
 function fakeRunner(): AgentRunnerPort {
   return {
     run: async (repo, taskId, opts) => ({

@@ -14,11 +14,7 @@ export interface FilterChipProps {
   children: React.ReactNode;
 }
 
-/**
- * A content-type filter chip. Wraps next/link so navigation is client-side, and
- * shows an inline spinner via useLinkStatus while the navigation it triggered is
- * in flight — the loading feedback for the filter row.
- */
+/** Content-type chip with inline spinner showing navigation-in-flight status. */
 export default function FilterChip({
   href,
   active,

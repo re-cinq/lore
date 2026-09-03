@@ -28,14 +28,12 @@ describe("SpecListView", () => {
 
     render(<SpecListView owner="re-cinq" repo="lore" specs={specs} />);
 
-    // One card per folder (specs/auth collapses plan.md + spec.md), titled from spec.md, sorted by folder key.
     const titles = screen
       .queryAllByRole("heading")
       .map((node) => node.textContent);
 
     expect(titles).toEqual(["Specify spec", "Auth spec"]);
 
-    // Every file in a folder links to its own encoded detail page (spec.md first).
     const hrefs = screen
       .queryAllByRole("link")
       .map((node) => node.getAttribute("href"));

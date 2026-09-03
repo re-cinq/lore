@@ -23,9 +23,6 @@ const inject = (pool: unknown, headers?: Record<string, string>) =>
     headers,
   });
 
-// /healthz is a native hapi route (Phase 2), driven through buildServer. The
-// handler keeps its own bearer check so authenticated callers get db + task
-// stats; the route itself stays public (auth: false).
 describe("GET /healthz", () => {
   useRateLimitSafeClock();
   beforeEach(() => {

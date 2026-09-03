@@ -1,13 +1,4 @@
-// The Postgres composition of the pipeline bundle.
-//
-// Kept out of the package barrel like every other `*-pg.ts`: importing it pulls
-// eight adapters and `pg` with them, which the light runtimes (mcp-server,
-// web-ui) must never take on. Reach it by subpath.
-//
-// Takes the pool as an argument and memoizes NOTHING. Both apps' pools are
-// module singletons that throw until their `initPool()` has run, so whoever owns
-// the deferral owns it — a singleton in here would pick one process's pool and
-// silently hand it to a test that built another.
+// Postgres adapters; kept out of package barrel (subpath-only) to avoid pulling pg into light runtimes; takes pool arg, memoizes nothing.
 
 import { PgTaskQueue } from "../tasks/task-queue-pg.js";
 import { PgEventQueue } from "../events/event-queue-pg.js";

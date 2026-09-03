@@ -1,7 +1,4 @@
-// Pure ranking helpers behind the file-attention heatmap. The reducer records a
-// per-path read/write tally; this module turns that tally into a sorted,
-// weighted ranking and trims the paths for display. No React, no IO — a
-// container passes the tally down and renders what these return.
+// Pure ranking helpers for file-attention heatmap; turns tally into weighted ranking.
 
 /** One path's read/write tally, as the reducer accumulates it. */
 export interface TouchCounts {
@@ -25,11 +22,7 @@ const WRITE_TOOLS: ReadonlySet<string> = new Set([
   "NotebookEdit",
 ]);
 
-/**
- * Classify a tool as touching a file by reading it or writing it. Tools whose
- * `filePaths` are not file attention — Bash, MCP calls, anything unrecognized —
- * return null so the heatmap counts only reads and edits, never shell noise.
- */
+/** Classify tool as touching file (read/write) or not. */
 export function touchKind(tool: string | null): "read" | "write" | null {
   if (tool === null) {
     return null;
@@ -42,10 +35,7 @@ export function touchKind(tool: string | null): "read" | "write" | null {
   return WRITE_TOOLS.has(tool) ? "write" : null;
 }
 
-/**
- * Rank the tally by total touches, weight each file against the busiest, and cut
- * to `topN` when given. Ties break by path so the order is deterministic.
- */
+/** Rank tally by touches, weight against busiest, optionally cut to topN. */
 export function aggregateFileTouches(
   touches: Record<string, TouchCounts>,
   topN?: number,
@@ -81,10 +71,7 @@ export function stripWorkspacePrefix(path: string): string {
   return path.replace(/^\/workspace\//, "");
 }
 
-/**
- * Shorten a long path from the middle, keeping the head and the filename tail —
- * the two informative ends — with an ellipsis between them.
- */
+/** Shorten path from middle, keeping head and filename tail. */
 export function truncateMiddle(path: string, max: number): string {
   if (path.length <= max) {
     return path;

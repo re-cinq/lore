@@ -1,14 +1,4 @@
-/**
- * spec-traceability-graph — sentence-link resolver. Turns a parsed
- * {@link SentenceLink} (from a `<spec> | <sentence> | <label>` test name) into
- * the uids of the Statement/AcceptanceCriterion nodes it links: the `<spec>`
- * segment substring-matches a Spec.title, and `<sentence>` substring-matches a
- * Statement/AcceptanceCriterion under that spec, both under
- * {@link normalizeForMatch} (shallow: lowercase, whitespace-free, link-parens
- * stripped). Scoped to the matched spec(s); returns every node that matches (the
- * caller links them all and logs a 0/over-match). Talks only to the injected
- * DgraphClientPort.
- */
+/** Sentence-link resolver; substring-matches spec.title and statement/AC text; scoped to matched spec(s). */
 
 import type { DgraphClientPort } from "./deps.js";
 import { withTxn } from "./dgraph-upsert.js";

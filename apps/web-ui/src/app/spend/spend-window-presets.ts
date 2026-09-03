@@ -1,7 +1,4 @@
-// The interval selector's pure half: preset → inclusive YYYY-MM-DD bounds.
-// Kept out of the panel so the date arithmetic is testable without a DOM and
-// the panel cannot drift from what the API's own validation expects.
-
+// Pure interval selector: preset → YYYY-MM-DD bounds, testable without DOM
 export type SpendPreset = "today" | "7d" | "30d" | "mtd";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -26,8 +23,7 @@ export function presetInterval(
   }
 }
 
-/** The query string for an interval — one place, so the panel and any deep
- *  link agree on the parameter names the API validates. */
+/** Query string for interval; single source of truth for parameter names. */
 export function spendWindowQuery(interval: {
   from: string;
   to: string;

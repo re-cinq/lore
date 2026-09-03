@@ -8,13 +8,7 @@ export interface PauseClusterButtonProps {
   toggle: (paused: boolean) => Promise<void>;
 }
 
-/**
- * The operator's stop switch for one cluster (FR9 of
- * specs/running-stations-in-any-k8s-cluster).
- *
- * Client only for `useTransition`; the write itself is the bound server action
- * the page hands down, so the browser never names which cluster it is pausing.
- */
+/** Cluster pause switch: client useTransition with bound server action (FR9). */
 export default function PauseClusterButton({
   paused,
   toggle,

@@ -1,10 +1,6 @@
 import type { PrivilegedPatch } from "./settings-form";
 
-// Server-to-server client for the mcp-server's two-key-gated dark-factory
-// settings endpoint. Privileged fields (dark_factory.enabled, auto_merge.paths,
-// require_* downgrades, execution.image — per-repo and per-task-type) cannot be
-// written directly to the DB; they must pass `twoKeyFieldsTouched` + the
-// CODEOWNERS-approval ceremony, which only the mcp route enforces.
+// Privileged fields require two-key gate + CODEOWNERS-approval ceremony.
 
 export type PrivilegedSaveResult =
   | { status: "ok"; applied: unknown; ceremony: unknown }
@@ -13,11 +9,7 @@ export type PrivilegedSaveResult =
   | { status: "unconfigured" }
   | { status: "error"; message: string };
 
-/**
- * Flattens the {dark_factory, task_overrides} patch into the request body the
- * gated route expects: dark_factory fields live at the top level, task_overrides
- * is a sibling key.
- */
+/** Flatten patch into request body for gated route. */
 export function privilegedRequestBody(
   patch: PrivilegedPatch,
 ): Record<string, unknown> {

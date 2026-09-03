@@ -54,7 +54,6 @@ describe("buildTagTree", () => {
 
     expect(root.tag).toBe("context");
     expect(root.attrs).toContainEqual(["budget", "8000"]);
-    // only the included section appears
     expect(root.children).toHaveLength(1);
     expect(root.children![0].tag).toBe("section");
     expect(root.children![0].children).toHaveLength(2);

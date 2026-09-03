@@ -22,13 +22,10 @@ const HOME_REPO_LIMIT = 100;
 export default async function HomePage() {
   // Query repos with activity summary, bounded to the most recently onboarded.
   const repoList = reposOrThrow(await listRepos());
-  // Deliberately ONE page: this list is sliced to the most recently onboarded
-  // few, so it never needed the whole set (unlike the pickers, which do).
+  // ONE page only: most recently onboarded repos (unlike pickers).
   const repos: Repo[] = repoList.repos.slice(0, HOME_REPO_LIMIT);
 
-  // Per-repo ingest-workflow alignment, TTL-cached so steady-state renders
-  // make zero GitHub calls (#1027). Skipped entirely when the GitHub App
-  // isn't configured so we never false-flag every repo as missing.
+  // Per-repo ingest-workflow: TTL-cached, zero GitHub calls (#1027) when App unconfigured.
   let ingestStatus = new Map<string, IngestWorkflowStatus>();
 
   if (isGitHubConfigured()) {
@@ -40,9 +37,7 @@ export default async function HomePage() {
         ),
     );
   }
-  // Same treatment for the spec-impact workflow. A stale one is not cosmetic:
-  // the backend suppresses a v1 client's findings, so the check is off until the
-  // repo updates.
+  // Spec-impact workflow: stale suppresses v1 findings, check off until repo updates.
   let impactStatus = new Map<string, IngestWorkflowStatus>();
 
   if (isGitHubConfigured()) {

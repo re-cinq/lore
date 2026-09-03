@@ -16,8 +16,6 @@ afterEach(() => {
 
 describe("FileArchive", () => {
   it("round-trips gzip bytes unchanged", async () => {
-    // The reason this class exists: a conversation archive is gzip, and every byte
-    // above 0x7F is lost to U+FFFD if it goes through a utf-8 round trip.
     const archive = new FileArchive(root);
     const bytes = new Uint8Array([0x1f, 0x8b, 0x08, 0x00, 0xff, 0xfe, 0x80]);
 
@@ -56,8 +54,6 @@ describe("FileArchive", () => {
   });
 
   it("refuses a key that would escape the archive root", async () => {
-    // Keys are composed from ids that reach the Floor over HTTP, so a traversing
-    // key must not become a write anywhere on the disk.
     const archive = new FileArchive(root);
 
     await expect(

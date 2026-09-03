@@ -12,8 +12,7 @@ import { resolveHref } from "@/lib/github-links";
 import readme from "../ReadmeBox.module.css";
 import styles from "./SpecDetails.module.css";
 
-// Re-exported so existing importers (and tests) of SpecDetails keep working
-// after the helper moved to the shared github-links module.
+// Re-exported for backward compatibility (helper moved to github-links module).
 export { resolveHref };
 
 export type StatementState = "tested" | "untested" | "narrative";
@@ -31,34 +30,8 @@ export interface StatementInfo {
   drifted?: boolean;
 }
 
-/**
- * v3 SpecDetails renders the spec markdown and wraps each statement
- * in `<mark>` with a state class derived from the author's inline
- * test links. The author's `[label](path#Lline)` markdown links
- * inside the trailing parenthetical of a statement keep their normal
- * `<a>` rendering; the visual "this is a test link" cue comes from
- * the surrounding statement wrap, not from special anchor styling.
- *
- * Statements that cross inline formatting (bold / inline code) won't
- * match exactly against a single text node and silently fall back to
- * "no wrap" — the rehype walker must not throw. The author can still
- * see the test link as a plain anchor; the CoverageBar at the top of
- * the page still counts it because the page handler computed state
- * from the raw markdown, not from the rendered HTML.
- */
-/** A v3 statement may end with a trailing markdown test-link paren that
- * react-markdown breaks into an `<a>` element — so the raw statement text
- * won't be a contiguous text node. Strip the trailing paren so the matcher
- * can still find the prefix as a plain text node. Markdown links contain
- * `()` themselves, so a naive regex misses a parenthesized link target —
- * mirror the shared parser's `findTrailingParenSpan`
- * (libs/shared/src/spec-link-parser.ts): walk backward past trailing
- * whitespace/periods counting paren depth, and strip only a parenthetical
- * that holds at least one markdown link (a prose paren renders as plain
- * text and must stay in the matcher). Accepted unguarded runtime copy:
- * runtime code cannot ride the parity-test pattern (that needs a test-file
- * relative import), so lockstep with the shared scanner is held only by
- * the behavioral fixtures in SpecDetails.test.tsx. */
+/** v3: wraps statements in <mark> by test-link state; inline formatting falls back gracefully. */
+/** Strip trailing paren when react-markdown breaks test-link into `<a>` element. */
 function matcherText(statementText: string): string {
   let end = statementText.length;
 
@@ -98,12 +71,7 @@ function matcherText(statementText: string): string {
   return statementText.trim();
 }
 
-/** Reduce a statement's markdown to the plain text react-markdown renders:
- * links collapse to their label and emphasis markers vanish — but ONLY
- * outside code spans. Markdown does not process link/emphasis syntax inside
- * backticks, so a code span's content is kept verbatim (e.g. a literal
- * `([label](path#Lline))` example). Used to match a statement whose inline
- * code / bold splits the rendered output across several HAST nodes. */
+/** Markdown to plain text: collapse links, strip emphasis outside code, keep code spans verbatim. */
 function plainText(statementText: string): string {
   return matcherText(statementText)
     .split(/(`[^`]*`)/)
@@ -120,8 +88,7 @@ function plainText(statementText: string): string {
     .trim();
 }
 
-/** Concatenate the rendered text of a HAST node and its descendants,
- * whitespace-collapsed — the string a reader actually sees. */
+/** Rendered text of HAST node and descendants, whitespace-collapsed. */
 function renderedText(node: ElementContent | RootContent): string {
   if (node.type === "text") {
     return node.value;
@@ -134,9 +101,7 @@ function renderedText(node: ElementContent | RootContent): string {
   return "";
 }
 
-/** The per-statement, graph-and-state facets that decide how a `<mark>` is
- * tagged. Bundled so a new facet (evidence count, severity, …) adds one field
- * here instead of another positional arg at every call site. */
+/** Per-statement facets (ordinal, state, drifted) bundled to avoid positional args at call sites. */
 interface MarkMeta {
   ordinal: number;
   state: StatementState;
@@ -186,10 +151,7 @@ function buildHighlighter(
     };
   }
 
-  /** Fallback for statements whose inline code / bold splits the rendered
-   * text across multiple HAST children: when a block element's full rendered
-   * text begins with a statement's plain text, wrap that element's children
-   * in a single `<mark>`. Returns true when it claimed the element. */
+  /** Fallback: wrap element's children when its rendered text matches a statement (split by code/bold). */
   function tryBlockMatch(node: Element): boolean {
     if (node.tagName !== "p" && node.tagName !== "li") {
       return false;
@@ -288,8 +250,7 @@ function buildHighlighter(
       node.children = next;
     }
 
-    // Fallback only when the contiguous-text-node match found nothing here:
-    // a statement fragmented by inline code / bold gets a whole-element wrap.
+    // Fallback: whole-element wrap when contiguous-text-node match finds nothing (e.g. fragmented by inline code).
     if (!changed) {
       tryBlockMatch(node);
     }
@@ -297,9 +258,7 @@ function buildHighlighter(
 
   return function plugin() {
     return function transformer(tree: Root) {
-      // react-markdown re-runs this transform on every render against a fresh
-      // tree; the shared matcher state must start empty each time or a second
-      // render finds every statement already claimed and wraps nothing.
+      // react-markdown re-runs on every render with fresh tree; clear matcher state to avoid re-claimed statements.
       used.clear();
       const rootChildren: RootContent[] = [];
       let rootChanged = false;
@@ -332,10 +291,7 @@ function buildHighlighter(
   };
 }
 
-/** Presentational inner content of the hover tooltip: the optional drift
- * notice followed by the state-specific block (narrative / untested / tested).
- * SpecDetails owns the positioning wrapper + `role="tooltip"`; this renders
- * only the children. Needs `repo`/`branch` to resolve test-link hrefs. */
+/** Tooltip inner content: drift notice + state block (narrative/untested/tested); needs repo/branch for links. */
 function StatementPopover({
   statement,
   repo,
@@ -497,8 +453,7 @@ export default function SpecDetails({
     : [rehypeRaw, sanitize];
   const hovered = hover ? statementsByOrdinal.get(hover.ordinal) : null;
 
-  // Rewrite repo-relative markdown links (test links, ADR/doc refs) to GitHub
-  // so they resolve and open in a new tab instead of a dead in-app href.
+  // Rewrite markdown links to GitHub: open externally instead of in-app.
   const mdComponents = useMemo(
     () => ({
       a(props: React.ComponentPropsWithoutRef<"a"> & { node?: unknown }) {

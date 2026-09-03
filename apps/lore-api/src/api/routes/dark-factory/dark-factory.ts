@@ -38,12 +38,7 @@ type Ceremony = {
   pr_url?: string;
 };
 
-/**
- * The dark-factory settings surface. The READ is the fully resolved block — the
- * model's own resolved projection, so the published contract and the resolver
- * cannot disagree about which knobs exist. The WRITE echoes what it applied plus
- * the ceremony that authorised it (ADR-016's two-key gate).
- */
+/** The WRITE echoes what it applied plus the two-key ceremony that authorised it (ADR-016). */
 const DarkFactoryAppliedSchema = z.object({
   ok: z.literal(true),
   applied: ResolvedDarkFactorySettingsSchema,
@@ -54,28 +49,9 @@ const DarkFactoryAppliedSchema = z.object({
   }),
 });
 
-/**
- * GET reads, PUT writes, and each declares its own shape.
- *
- * This was ONE `method: "*"` route, so the generator — which stamps a contract
- * per route and applies it to every verb that route serves — could only declare
- * the union of the two, leaving a generated client to narrow "resolved settings
- * or applied change" on a verb that only ever answers one of them.
- *
- * The wildcard route stays as a FALLBACK, and only for the 405: hapi answers an
- * unmatched verb on a matched path with 404, and "you may not DELETE this" is a
- * better answer than "there is nothing here". It declares no contract, so it
- * contributes no operation to the document.
- *
- * Each route takes the handler for its own verb. Re-dispatching on
- * `request.method` under three routes that each serve one verb would leave two
- * arms dead on every request and the 405 arm unreachable from the two that
- * matter — the split is what makes the dispatch unnecessary. The 405 no longer
- * waits on the pool either: refusing a verb needs no database.
- */
+/** One route per verb so each declares its own contract; the wildcard route exists only to answer 405 instead of hapi's 404. */
 export function darkFactoryRoute(getPool: () => Pool | null): ServerRoute[] {
-  /** Both real verbs need the pool — the GET reads settings through a project
-   *  bound to it — so the one guard is stated once and each verb receives it. */
+  /** Both real verbs need the pool, so the guard is stated once. */
   const withPool =
     (
       serve: (
@@ -144,8 +120,7 @@ async function handleGet(
 
     return h.response(settings);
   } catch (err) {
-    // A guard's refusal already carries its status; only an unexpected failure
-    // is this block's to shape.
+    // A guard's refusal already carries its status; only an unexpected failure is shaped here.
     rethrowBoom(err);
 
     console.error("[dark-factory] GET settings failed:", err);
@@ -181,8 +156,7 @@ function parseSettingsBody(
   body: unknown,
 ): SettingsPatch | { error: { error: string; issues: unknown } } {
   try {
-    // Optional sibling: per-task-type overrides. `execution.image` here is
-    // two-key gated like dark_factory.execution.image (ADR-025).
+    // task_overrides[*].execution.image is two-key gated like dark_factory.execution.image (ADR-025).
     const rawTo = (body as { task_overrides?: unknown } | null)?.task_overrides;
 
     return {
@@ -227,8 +201,7 @@ async function handlePut(
   pool: Pool,
   repo: string,
 ): Promise<ResponseObject> {
-  // hapi parses the payload natively (ADR-034); malformed JSON is a 400 and an
-  // oversized body a 413 before we get here. Empty body → {} (no-op patch).
+  // hapi already rejected malformed (400) and oversized (413) bodies (ADR-034); empty body is a no-op patch.
   const parsed = parseSettingsBody(request.payload ?? {});
 
   if ("error" in parsed) {
@@ -295,8 +268,7 @@ async function writeSettings(write: SettingsWrite): Promise<ResponseObject> {
 
     settings.dark_factory = next;
 
-    // Per-task-type overrides: deep-merge each touched type (and its nested
-    // `execution`) over the existing entry, leaving untouched types intact.
+    // Deep-merge each touched task type over its existing entry; untouched types stay intact.
     if (toPatch) {
       const nextTo: Record<string, Record<string, unknown>> = { ...prevTo };
 

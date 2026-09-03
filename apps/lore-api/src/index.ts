@@ -10,8 +10,7 @@ import { loadTaskTypes } from "@re-cinq/lore-server-core/features/pipeline/pipel
 import { loadDefaultTemplates } from "@re-cinq/lore-server-core/features/context/context-assembly.js";
 import { startHttpServer } from "./server/http-server.js";
 
-// Shared mutable state: the DB pool is created in main() and read lazily by the
-// route handlers via getPool() (they fail soft with 503 when it is null).
+// Shared mutable state: the DB pool is created in main() and read lazily by route handlers via getPool().
 const state: { pool: Pool | null } = { pool: null };
 const getPool = () => state.pool;
 

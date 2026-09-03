@@ -40,7 +40,6 @@ describe("POST /api/ingest", () => {
   });
 
   it("returns 503 when pool is null", async () => {
-    // A valid body (validation runs before the handler's pool guard now — ADR-034).
     const res = await post({ files: ["a.ts"], repo: "o/r" }, null);
 
     expect(res.statusCode).toBe(503);

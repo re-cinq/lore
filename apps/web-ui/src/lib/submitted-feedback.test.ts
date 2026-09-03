@@ -3,8 +3,6 @@ import { submittedFeedback } from "./submitted-feedback";
 
 describe("submittedFeedback", () => {
   it("recovers what the author typed for each section", () => {
-    // The wizard clears the form on submit, so after a failed round this is the only
-    // way back to the words — they are on the iteration row, but nothing rendered them.
     expect(
       submittedFeedback({
         sections: {
@@ -60,7 +58,6 @@ describe("submittedFeedback", () => {
   });
 
   it("returns nothing for a round the author submitted no input for", () => {
-    // Round one has no feedback — there was nothing to react to yet.
     expect(submittedFeedback(null)).toEqual([]);
     expect(
       submittedFeedback({ sections: {}, questions: {}, free_form: "" }),

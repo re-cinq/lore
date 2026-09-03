@@ -60,9 +60,7 @@ export default function LlmCallsTable({
                     : "—"}
                 </td>
                 <td className="meta">
-                  {/* `pipeline.llm_calls.created_at` has a DEFAULT but no NOT
-                      NULL, so the column permits null and the generated type
-                      says so. Every row written by the runner carries one. */}
+                  {/* created_at permits null but every row from runner carries one */}
                   {c.created_at ? <TimeAgo date={c.created_at} /> : "—"}
                 </td>
               </tr>

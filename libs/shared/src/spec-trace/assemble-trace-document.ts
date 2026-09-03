@@ -1,12 +1,4 @@
-/**
- * spec-traceability-graph — graph-as-source-of-truth document view. Turns a
- * Dgraph query of one Spec's ordered Sections + Statements (with their
- * validated_by/implemented_by/decided_by links) into a structured, ordinal-
- * ordered document the UI renders directly — section + statement metadata, what
- * each statement links to, and the document's coverage — with NO Postgres chunk
- * store and NO markdown re-parse. Pure: the I/O wrapper ({@link fetchTraceDocument})
- * runs the query; this function is the deterministic projection of its result.
- */
+/** Graph-as-source-of-truth spec document view (deterministic projection, no markdown re-parse). */
 
 export type StatementState = "tested" | "untested" | "narrative";
 export type TraceLinkKind = "test" | "code" | "adr";
@@ -256,14 +248,7 @@ export interface GlobalDocEntry {
   status: DocStatusPill | null;
 }
 
-/**
- * Attaches each document's status pill by reassembling its source from the
- * Block layer. One graph query per doc, run in parallel — measured at ~194ms
- * for 113 specs, so it stays inside the list call rather than making the
- * browser issue one HTTP request per document (which would put a single page
- * render over the API's 200/min shared `default` rate-limit bucket).
- * Only spec.md carries a `| Status |` row; other spec paths resolve to null.
- */
+/** Attach status pill from Block layer; parallelized (~194ms for 113 specs). */
 async function withStatuses(
   docs: Array<{ repo: string; filePath: string }>,
   kind: DocKind,
@@ -339,11 +324,7 @@ export interface SpecSummary {
   status: DocStatusPill | null;
 }
 
-/**
- * Lists each spec in the repo as a card summary (title/description/coverage).
- * Reuses the per-document assembler — currently one query per spec (N+1); a
- * single per-spec aggregation DQL is a future optimization.
- */
+/** List spec card summaries (N+1 queries; future: single aggregation DQL). */
 export async function listSpecSummaries(
   repo: string,
   dgraph: DgraphClientPort,

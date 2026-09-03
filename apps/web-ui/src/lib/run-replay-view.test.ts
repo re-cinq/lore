@@ -106,9 +106,6 @@ describe("completedRowsAt", () => {
   });
 
   it("excludes a row when the node state is idle at a higher iteration", () => {
-    // Reachable: the reducer stamps `iteration` on every event but a
-    // non-lifecycle event leaves status idle, so a node whose init never
-    // replayed can sit idle past a row's iteration having completed nothing.
     const rows = [row({ iteration: 1, outcome: "failed" })];
     const states = { implement: nodeState({ status: "idle", iteration: 2 }) };
 
@@ -132,9 +129,6 @@ describe("replayRunData", () => {
   });
 
   it("reads the verdict from the walk row, not the result event, once the result applies", () => {
-    // The #927 case at a cursor: the review pod exited 0 (replayed status
-    // succeeded) but the recorded verdict is failed — the badge source must be
-    // the row the moment the node completes at the cursor.
     const replay = replayRunData(
       codeReviewDefinition,
       [row({ nodeId: "review", iteration: 1, outcome: "failed" })],

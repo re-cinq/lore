@@ -1,12 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 
-// Static guard on migration 0035's content (the live apply + fixture run
-// against a throwaway Postgres in .github/workflows/migrations.yml). Catches
-// a reordering that could delete before copying, loss of the dedupe guard,
-// re-introduction of the generated search_tsv column into the INSERT list,
-// or removal of the insufficient_privilege skip.
-
 const sql = readFileSync(
   new URL(
     "../../../../../infra/terraform/modules/gke-mcp/lore-platform/charts/ui-helm/migrations/0035_migrate_legacy_org_shared_chunks.sql",

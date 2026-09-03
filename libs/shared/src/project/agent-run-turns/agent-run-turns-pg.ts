@@ -38,20 +38,7 @@ function toRow(row: AgentRunTurnDbRow): AgentRunTurnRow {
   };
 }
 
-/**
- * Postgres-backed {@link AgentRunTurnsRepository}.
- *
- * The batch crosses as ONE jsonb parameter expanded by `jsonb_to_recordset`
- * rather than a string-built VALUES list: the row count varies per POST, and a
- * turn envelope is verbatim agent-controlled text that must never reach the
- * statement text. The envelope itself is bound as TEXT and cast in the
- * statement, so the ingest path hands through the raw line it already holds
- * instead of round-tripping it through a JS object.
- *
- * Correlation rides a `LEFT JOIN LATERAL` so a turn whose `agent_cr_name`
- * matches no node still inserts (with the correlated columns null) instead of
- * being filtered out by an inner join.
- */
+/** Postgres-backed {@link AgentRunTurnsRepository}. Batch as ONE jsonb parameter via jsonb_to_recordset (varies row count, agent-controlled text never in statement). Envelope as TEXT cast in statement (no roundtrip). Correlation via LEFT JOIN LATERAL for resilience. */
 export class PgAgentRunTurns implements AgentRunTurnsRepository {
   constructor(private readonly pool: PgPool) {}
 
@@ -157,8 +144,7 @@ export class PgAgentRunTurns implements AgentRunTurnsRepository {
     return rows[0]?.count ?? 0;
   }
 
-  /** The two reads differ only in which correlation column scopes them; the
-   *  column name is a literal from this file, never caller input. */
+  /** The two reads differ only in which correlation column scopes them; column name is a literal from this file, never caller input. */
   private async page(
     scopeColumn: "assembly_line_id" | "task_id",
     scopeValue: string,

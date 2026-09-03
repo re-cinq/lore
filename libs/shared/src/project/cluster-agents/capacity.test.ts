@@ -30,10 +30,6 @@ describe("mayClaim", () => {
   });
 
   it("allows an OFFLINE agent, because the claim itself proves it is alive", () => {
-    // Deliberately narrower than capacityFor's notion of available. `offline`
-    // is the reaper's verdict on silence; an agent that turns up and claims has
-    // just disproved it, and its heartbeat flips the row back. Refusing these
-    // would turn a network blip into a cluster that can never re-enter service.
     expect(
       mayClaim(agent("central", CENTRAL_TAGS, { status: "offline" })),
     ).toBe(true);

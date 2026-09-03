@@ -8,7 +8,6 @@ vi.mock("@re-cinq/lore-shared", async (importOriginal) => ({
 import { hybridSearch, setPool } from "./db.js";
 import type { Pool } from "pg";
 
-/** Results are consumed in order per query; the last one is sticky. */
 function fakePool(...results: Array<{ rows: any[] }>): {
   pool: Pool;
   calls: Array<{ text: string; params?: unknown[] }>;

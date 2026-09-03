@@ -20,12 +20,7 @@ export interface RepoConfigWriter {
   setRepoSecret(repo: string, name: string, value: string): Promise<void>;
 }
 
-/**
- * SettingsPort.resolve over lore.repos.settings — reads the JSONB row and runs
- * the EXISTING resolveDarkFactorySettings (no resolution logic reimplemented).
- * Repo var/secret WRITES are GitHub-config, delegated to the injected writer
- * (the platform-github adapter; omitted for the org-wide read-only singleton).
- */
+/** Reads lore.repos.settings JSONB; delegates var/secret writes to GitHub adapter. */
 export class PgSettings implements SettingsPort {
   constructor(
     private readonly pool: PgPool,

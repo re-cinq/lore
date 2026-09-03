@@ -1,9 +1,4 @@
-/**
- * Pure dedupe-key derivations, one per producer source. Producers insert with
- * `ON CONFLICT (dedupe_key) DO NOTHING`, so the key is the at-most-once contract:
- * a GitHub redelivery, a repeated k8s MODIFIED, a scheduler restart replay, or a
- * double post-ingest all collapse to a single event row.
- */
+/** Dedupe-key derivations per producer: at-most-once contract via ON CONFLICT (dedupe_key) DO NOTHING. */
 
 /** Floor a timestamp to the minute, e.g. 2026-06-29T10:15:42.123Z -> 2026-06-29T10:15Z. */
 function flooredMinute(at: Date): string {
@@ -20,9 +15,7 @@ export function k8sDedupeKey(taskId: string, phase: string): string {
   return `k8s:${taskId}:${phase}`;
 }
 
-/** Assembly-line node CRs dedupe per CR NAME, not per task: every node CR of one
- *  line shares the synthetic task-id label, so a task-keyed dedupe would swallow
- *  the second node's terminal event. CR names are per-attempt-unique. */
+/** Assembly-line node CRs dedupe per CR NAME, not per task: per-attempt-unique. */
 export function k8sAgentNodeDedupeKey(
   agentName: string,
   phase: string,

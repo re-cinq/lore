@@ -24,8 +24,8 @@ of files, and nothing followed the OS light/dark preference.
 
 A token-driven theming system with **three theme families**, each with
 **light + dark variants and OS auto-switching**, its own font, and its own
-icon set ([token parity per family](apps/web-ui/src/app/theme-tokens.test.ts#L70), [icon set per family](apps/web-ui/src/components/Icon.test.tsx#L55)). The current dark-only look is
-replaced ([now light + dark per family](apps/web-ui/src/app/theme-tokens.test.ts#L70)).
+icon set ([token parity per family](apps/web-ui/src/app/theme-tokens.test.ts#L66), [icon set per family](apps/web-ui/src/components/Icon.test.tsx#L55)). The current dark-only look is
+replaced ([now light + dark per family](apps/web-ui/src/app/theme-tokens.test.ts#L66)).
 
 - **Elegant** — Figma-like. `Inter` font, rounded corners, soft shadows, and a
   subtle frosted-glass feel (translucent + `backdrop-filter` blur) on elevated
@@ -50,10 +50,10 @@ Icon.tsx    → renders Lucide (elegant) or Pixelarticons (retro) by family
 ```
 
 Two independent axes, persisted separately in `localStorage`
-(`lore-theme-family`, `lore-color-scheme`) ([family persists](apps/web-ui/src/lib/theme/ThemeProvider.test.tsx#L216), [scheme persists](apps/web-ui/src/lib/theme/ThemeProvider.test.tsx#L234)). The `auto` scheme resolves to
-light/dark via `prefers-color-scheme` and updates live on OS change ([live flip to dark](apps/web-ui/src/lib/theme/ThemeProvider.test.tsx#L269), [and back to light](apps/web-ui/src/lib/theme/ThemeProvider.test.tsx#L294)). The
+(`lore-theme-family`, `lore-color-scheme`) ([family persists](apps/web-ui/src/lib/theme/ThemeProvider.test.tsx#L211), [scheme persists](apps/web-ui/src/lib/theme/ThemeProvider.test.tsx#L229)). The `auto` scheme resolves to
+light/dark via `prefers-color-scheme` and updates live on OS change ([live flip to dark](apps/web-ui/src/lib/theme/ThemeProvider.test.tsx#L264), [and back to light](apps/web-ui/src/lib/theme/ThemeProvider.test.tsx#L289)). The
 resolved scheme is what reaches the DOM, so CSS never matches `auto`, and an explicit `light`/`dark` scheme overrides the
-OS preference ([auto resolves to dark](apps/web-ui/src/lib/theme/ThemeProvider.test.tsx#L172), [and to light](apps/web-ui/src/lib/theme/ThemeProvider.test.tsx#L186), [explicit scheme overrides OS](apps/web-ui/src/lib/theme/ThemeProvider.test.tsx#L200)).
+OS preference ([auto resolves to dark](apps/web-ui/src/lib/theme/ThemeProvider.test.tsx#L167), [and to light](apps/web-ui/src/lib/theme/ThemeProvider.test.tsx#L181), [explicit scheme overrides OS](apps/web-ui/src/lib/theme/ThemeProvider.test.tsx#L195)).
 
 ### What Changed
 
@@ -66,25 +66,25 @@ OS preference ([auto resolves to dark](apps/web-ui/src/lib/theme/ThemeProvider.t
 - `fonts.ts` — Inter + IBM Plex Mono (`next/font/google`) and self-hosted
   GohuFont (`next/font/local`) as CSS variables.
 - `theme-script.ts` — `THEME_SCRIPT` blocking IIFE (FOUC prevention; also seeds
-  `window.__loreFamily` so client icon render matches first paint). ([validated by `ThemeProvider.test.tsx:88`](apps/web-ui/src/lib/theme/ThemeProvider.test.tsx#L88))
+  `window.__loreFamily` so client icon render matches first paint). ([validated by `ThemeProvider.test.tsx:88`](apps/web-ui/src/lib/theme/ThemeProvider.test.tsx#L84))
 - `ThemeProvider.tsx` — context + `useTheme()`; reflects state→DOM; subscribes
   to the media query only while `auto`, tearing the listener down on unmount and
-  when leaving `auto`, and re-subscribing on return to `auto`. ([subscribes while auto](apps/web-ui/src/lib/theme/ThemeProvider.test.tsx#L269), [not otherwise](apps/web-ui/src/lib/theme/ThemeProvider.test.tsx#L254), [unsubscribes on unmount](apps/web-ui/src/lib/theme/ThemeProvider.test.tsx#L315), [re-subscribes on return to auto](apps/web-ui/src/lib/theme/ThemeProvider.test.tsx#L337))
+  when leaving `auto`, and re-subscribing on return to `auto`. ([subscribes while auto](apps/web-ui/src/lib/theme/ThemeProvider.test.tsx#L264), [not otherwise](apps/web-ui/src/lib/theme/ThemeProvider.test.tsx#L249), [unsubscribes on unmount](apps/web-ui/src/lib/theme/ThemeProvider.test.tsx#L310), [re-subscribes on return to auto](apps/web-ui/src/lib/theme/ThemeProvider.test.tsx#L332))
 
 On mount the provider seeds the family from `window.__loreFamily`, falling back
 to the `data-theme-family` attribute and then to the default `elegant`, and
 seeds the scheme from `localStorage`, defaulting to `auto` when the stored value
 is missing or unrecognized; it then writes both data attributes plus the
-`window.__loreFamily` global to the DOM. ([family from attribute](apps/web-ui/src/lib/theme/ThemeProvider.test.tsx#L103), [family default elegant](apps/web-ui/src/lib/theme/ThemeProvider.test.tsx#L116), [scheme from localStorage](apps/web-ui/src/lib/theme/ThemeProvider.test.tsx#L128), [scheme default auto](apps/web-ui/src/lib/theme/ThemeProvider.test.tsx#L141), [writes attributes + global](apps/web-ui/src/lib/theme/ThemeProvider.test.tsx#L156))
+`window.__loreFamily` global to the DOM. ([family from attribute](apps/web-ui/src/lib/theme/ThemeProvider.test.tsx#L98), [family default elegant](apps/web-ui/src/lib/theme/ThemeProvider.test.tsx#L111), [scheme from localStorage](apps/web-ui/src/lib/theme/ThemeProvider.test.tsx#L123), [scheme default auto](apps/web-ui/src/lib/theme/ThemeProvider.test.tsx#L136), [writes attributes + global](apps/web-ui/src/lib/theme/ThemeProvider.test.tsx#L151))
 
-`useTheme()` throws a descriptive error when called outside a `ThemeProvider`. ([validated by `ThemeProvider.test.tsx:365`](apps/web-ui/src/lib/theme/ThemeProvider.test.tsx#L365))
+`useTheme()` throws a descriptive error when called outside a `ThemeProvider`. ([validated by `ThemeProvider.test.tsx:365`](apps/web-ui/src/lib/theme/ThemeProvider.test.tsx#L358))
 
-**New — `web-ui/src/app/theme.css`** — the token source of truth ([validated by `theme-tokens.test.ts:59`](apps/web-ui/src/app/theme-tokens.test.ts#L70)). Family-level
+**New — `web-ui/src/app/theme.css`** — the token source of truth ([validated by `theme-tokens.test.ts:59`](apps/web-ui/src/app/theme-tokens.test.ts#L66)). Family-level
 blocks hold shape/type/glass tokens (`--radius*`, `--fs-*` type scale,
 `--glass-blur`); four `[data-theme-family][data-color-scheme]` blocks hold
 colors (`--bg*`, `--border*`, `--text*`, `--accent*`, status `--success/warning/
 danger/info` + `-bg`, `--shadow*`, `--glass-bg/border`, `--color-scheme`).
-`prefers-reduced-transparency` and a `@supports` fallback drop glass to opaque ([token blocks per family×scheme](apps/web-ui/src/app/theme-tokens.test.ts#L76)).
+`prefers-reduced-transparency` and a `@supports` fallback drop glass to opaque ([token blocks per family×scheme](apps/web-ui/src/app/theme-tokens.test.ts#L72)).
 
 **New — `web-ui/src/components/`** — `icon-map.ts` (semantic `IconName` →
 per-family Iconify name, offline via `@iconify-json/*`), `Icon.tsx`,
@@ -138,9 +138,9 @@ set. ([validated by `Icon.test.tsx:78`](apps/web-ui/src/components/Icon.test.tsx
 
 ### Type Scale
 
-`--fs-xs … --fs-xl` defined per family ([micro-label size per family](apps/web-ui/src/app/theme-tokens.test.ts#L101)). Retro pins every body size to 14px
+`--fs-xs … --fs-xl` defined per family ([micro-label size per family](apps/web-ui/src/app/theme-tokens.test.ts#L97)). Retro pins every body size to 14px
 because GohuFont is a bitmap crisp only at its native 14px grid; Elegant is
-xs 12 / base 16 / xl 25 ([retro pins body sizes to 14px](apps/web-ui/src/app/theme-tokens.test.ts#L90)). No font-size literal remains in `src/`.
+xs 12 / base 16 / xl 25 ([retro pins body sizes to 14px](apps/web-ui/src/app/theme-tokens.test.ts#L86)). No font-size literal remains in `src/`.
 
 ## Out of Scope
 
@@ -171,7 +171,7 @@ xs 12 / base 16 / xl 25 ([retro pins body sizes to 14px](apps/web-ui/src/app/the
   hues). `SpecGraphD3` resolves tokens to literals per render for canvas and
   `d3.interpolateRgb` (which cannot consume `var()`); SVG keeps raw `var()`
   references. The lifecycle palette in `feature-status.ts` now returns token
-  strings. ([validated by `feature-status.test.ts:10`](apps/web-ui/src/app/repos/[owner]/[repo]/features/feature-status.test.ts#L10), [chart tokens per family](apps/web-ui/src/app/theme-tokens.test.ts#L76), [canvas literal resolution](apps/web-ui/src/lib/theme-token-resolve.test.ts#L23))
+  strings. ([validated by `feature-status.test.ts:10`](apps/web-ui/src/app/repos/[owner]/[repo]/features/feature-status.test.ts#L10), [chart tokens per family](apps/web-ui/src/app/theme-tokens.test.ts#L72), [canvas literal resolution](apps/web-ui/src/lib/theme-token-resolve.test.ts#L23))
 - **2026-08-05 — Classic (Chicago) family.** Added a third theme family,
   `chicago` — a Windows-98 look (per [98.css](https://jdan.github.io/98.css/)):
   silver `#c0c0c0` beveled surfaces, navy `#000080` title bars, Tahoma / MS Sans

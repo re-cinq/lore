@@ -6,8 +6,6 @@ import {
 } from "./chunk-schema.js";
 import type { PgPool } from "../../memory-store.js";
 
-/** Results are consumed in order per query; the last one is sticky (the
- *  chunks.test.ts fakePool style). */
 function fakePool(...results: Array<{ rows: any[] }>): {
   pool: PgPool;
   calls: Array<{ text: string; params?: unknown[] }>;

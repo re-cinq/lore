@@ -45,7 +45,6 @@ describe("decideTaskReopen", () => {
     expect(decideTaskReopen("failed")).toBe("running");
     expect(decideTaskReopen("cancelled")).toBe("running");
     expect(decideTaskReopen("completed")).toBe("running");
-    // A human retrying from the run page IS the help the task waited for.
     expect(decideTaskReopen("needs-human-help")).toBe("running");
   });
 
@@ -71,8 +70,6 @@ describe("reopenTaskForFork", () => {
     await reopenTaskForFork({ id: "run-fork", taskId: "task-9" }, { tasks });
 
     expect(calls.setStatus).toEqual([
-      // failure_reason cleared with the flip — a running task must not wear
-      // the source attempt's failure text.
       { expected: "failed", status: "running", failure_reason: null },
     ]);
     expect(calls.events).toEqual([{ from: "failed", to: "running" }]);

@@ -1,11 +1,4 @@
-/**
- * Progressive trust: the ladder a repo climbs as its Lore-authored PRs merge.
- *
- * Extracted from `promoteTrust` in merge-check.ts (#1354), where the policy —
- * which level is next, when to promote, what to reset — was tangled with
- * settings IO and could not be tested without a database. The ladder is a
- * product rule read in several places; the decision belongs on its own.
- */
+/** Progressive trust ladder as repos merge Lore-authored PRs (#1354). */
 
 /** Ascending order. A repo at `full` has nowhere left to climb. */
 export const TRUST_LEVELS = [
@@ -38,8 +31,7 @@ const DEFAULT_THRESHOLD = 3;
 export function nextTrust(trust: TrustState | undefined): TrustDecision {
   const level = trust?.level as TrustLevel | undefined;
 
-  // No level recorded, or nothing above `full`: the counter would climb forever
-  // with nothing to spend it on, so the caller writes nothing at all.
+  // No level recorded or already at `full`: hold until promotion is possible.
   if (!level || level === "full") {
     return {
       hold: true,
@@ -56,9 +48,7 @@ export function nextTrust(trust: TrustState | undefined): TrustDecision {
     return { hold: false, level, successfulTasks: banked, promoted: false };
   }
 
-  // `Math.min` guards a level that is somehow last-but-unknown: indexOf returns
-  // -1 for an unrecognised level, and -1 + 1 = 0 lands on `docs` rather than
-  // throwing — a demotion, but a survivable one.
+  // Math.min guards unrecognised level: indexOf(-1) + 1 = 0 demotes safely.
   const nextIndex = Math.min(
     TRUST_LEVELS.indexOf(level) + 1,
     TRUST_LEVELS.length - 1,

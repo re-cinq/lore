@@ -2,10 +2,6 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
-// Attribute-selector quotes normalized on read. Every lookup below is a raw
-// `indexOf` for a single-quoted selector, but prettier rewrites CSS attribute
-// selectors to double quotes — so one formatting pass over theme.css turned each
-// lookup into -1 and failed the whole suite over a change that altered no token.
 const css = readFileSync(
   fileURLToPath(new URL("./theme.css", import.meta.url)),
   "utf-8",

@@ -92,7 +92,6 @@ describe("PgAssemblyRuns adapter", () => {
 
     expect(calls[0]?.text).toContain("status = 'running'");
     expect(calls[0]?.text).toContain("started_at = now()");
-    // Never resurrect a finished/failed row (retried start event race).
     expect(calls[0]?.text).toContain("status IN ('queued', 'running')");
     expect(calls[0]?.params).toEqual(["al-1"]);
   });
@@ -247,8 +246,6 @@ describe("PgAssemblyRuns adapter", () => {
     expect(calls[0]?.text).toContain("WHERE repo = $2");
     expect(calls[0]?.text).toContain("(args->>'pr_number')::int = $3");
     expect(calls[0]?.text).toContain("status IN ('queued', 'running')");
-    // $4 null = every definition; a caller owning only part of a PR's lifecycle
-    // passes its own family instead.
     expect(calls[0]?.params).toEqual(["pr_closed", "re-cinq/lore", 42, null]);
   });
 
@@ -340,9 +337,6 @@ describe("InMemoryAssemblyRuns double", () => {
   });
 
   it("stampBlueprint never overwrites a graph already stamped", async () => {
-    // Same write-once rule the hash carries, and for the same reason: the stored
-    // graph names what this run's station rows were produced by, so a redelivered
-    // start that loaded a since-edited blueprint must not re-point it.
     const assemblyRuns = new InMemoryAssemblyRuns();
     const first = { name: "a", entry: "x", exit: "x", nodes: [], edges: [] };
     const second = { name: "b", entry: "y", exit: "y", nodes: [], edges: [] };
@@ -371,8 +365,6 @@ describe("InMemoryAssemblyRuns double", () => {
   });
 
   it("list returns only the runs of the named blueprint, newest first", async () => {
-    // Distinct timestamps on purpose: "newest first" is ordered by createdAt, and
-    // rows minted inside one millisecond have no newest among them to assert.
     let minute = 0;
     const assemblyRuns = new InMemoryAssemblyRuns(
       () => new Date(Date.UTC(2026, 7, 14, 12, minute++)),
@@ -726,11 +718,6 @@ describe("InMemoryAssemblyRuns double", () => {
     expect(found.map((r) => r.id)).toEqual([open]);
   });
 
-  // A merged spec PR closes the code-review line for that PR — and used to close the
-  // FEATURE-PLANNING line parked on `merged` for the same PR, killing the feature one
-  // step before decomposition. The port's doc asserted "only code-review lines carry
-  // pr_number in args", which stopped being true when the push node began stamping it
-  // on the planning line.
   it("finishOpenByPr leaves a line outside the named definitions alone", async () => {
     const assemblyRuns = new InMemoryAssemblyRuns();
     const review = await assemblyRuns.start({
@@ -858,8 +845,6 @@ describe("AssemblyRuns facade", () => {
   });
 });
 
-// ── Event-driven walk reads/writes (FR6.8 successors): the transition machinery
-//    derives the walk state from node rows, so duplicates must converge structurally.
 describe("InMemoryAssemblyRuns node-transition primitives", () => {
   async function lineWithId(port: InMemoryAssemblyRuns) {
     return port.start({ blueprintName: "implementation", repo: "o/r" });
@@ -984,13 +969,9 @@ describe("PgAssemblyRuns node-transition primitives", () => {
     expect(result).toEqual({ nodeRowId: "42", created: true });
     const sql = calls[0]?.text ?? "";
 
-    // DO UPDATE (not DO NOTHING) so the row is returned even when a concurrent
-    // insert won the conflict; xmax=0 distinguishes create from converged dup.
     expect(sql).toContain("ON CONFLICT (assembly_run_id, node_id, iteration)");
     expect(sql).toContain("DO UPDATE");
     expect(sql).toContain("(xmax = 0) AS created");
-    // The visit's recorded input rides the same insert; null when none was
-    // given. Status defaults to the push-era 'running'; tags default empty.
     expect(calls[0]?.params).toEqual([
       "al-1",
       "review",
@@ -1037,8 +1018,6 @@ describe("PgAssemblyRuns node-transition primitives", () => {
 
     expect(sql).toContain("outcome IS NULL");
     expect(sql).toContain("RETURNING id");
-    // The failure columns ride the same CAS: a success writes NULLs into them, so
-    // a row can never claim an outcome and a stale cause at the same time.
     expect(calls[0]?.params).toEqual(["success", "sha-1", "42", null, null]);
   });
 
@@ -1120,9 +1099,6 @@ describe("finish is first-writer-wins", () => {
   });
 });
 
-// ── Definition hashing (specs/fork-rerun-from-node FR4): the stamp names the
-//    graph a line's node rows were produced by, so a fork can refuse to replay
-//    them against a definition that has since changed.
 describe("stampBlueprint", () => {
   it("issues a write-once UPDATE guarded on a null hash (Pg)", async () => {
     const { pool, calls } = fakePool();
@@ -1131,7 +1107,6 @@ describe("stampBlueprint", () => {
 
     expect(calls[0]?.text).toContain("SET blueprint_hash = $2");
     expect(calls[0]?.text).toContain("blueprint_hash IS NULL");
-    // Third bind is the clone; null when the caller resolved no graph.
     expect(calls[0]?.params).toEqual(["al-1", "hash-1", null]);
   });
 
@@ -1163,8 +1138,6 @@ describe("stampBlueprint", () => {
   });
 });
 
-// ── Fork-and-rerun (specs/fork-rerun-from-node FR1–FR3): the double is the
-//    behavioural spec — the Pg adapter's resume CTE has to match it row for row.
 describe("InMemoryAssemblyRuns resumeFrom", () => {
   const HASH = "hash-implementation";
 
@@ -1505,7 +1478,6 @@ describe("PgAssemblyRuns resumeFrom", () => {
     expect(sql).toContain("WHERE n.assembly_run_id = $7");
     expect(sql).toContain("AND n.id <= $9::bigint");
     expect(sql).toContain("ORDER BY n.id");
-    // cutoff is the LATEST completed "review" row — id 12, not the line's last row
     expect(calls[2]?.params?.[8]).toBe("12");
   });
 
@@ -1529,13 +1501,8 @@ describe("PgAssemblyRuns resumeFrom", () => {
       "review",
       "12",
       2,
-      // The source's clone rides along: a fork replays its rows, so it must walk
-      // the same graph. Null here because this fixture's source predates the column.
       null,
-      // The source's subject too — a fork re-runs the same work, so it takes over
-      // the guard. Null because this fixture's source declared no subject.
       null,
-      // No iteration named: the fork cut at the node's latest completed row.
       null,
     ]);
   });
@@ -1566,15 +1533,7 @@ describe("PgAssemblyRuns resumeFrom", () => {
     await new PgAssemblyRuns(pool).start(resumeInput());
     const sql = calls[2]?.text ?? "";
 
-    // `failure_class` / `failure_detail` are dropped with `agent_cr_name`: all
-    // three classify the ATTEMPT that is over. Copying the verdict would fail
-    // the fork on its first advance, because `getNextTransition` replays the copied
-    // prefix and refuses a retry on a permanent failure — so a fork taken to
-    // rerun an `anthropic-credit` failure would die of the failure it exists to
-    // get past.
     expect(sql).toContain("n.node_id, n.iteration, n.outcome, NULL,");
-    // `input` DOES ride along, unlike the three above: what a visit was given is
-    // history the fork inherits, not a verdict about an attempt that is over.
     expect(sql).toContain(
       "NULL, NULL, n.input, n.commit_sha, n.started_at, n.finished_at",
     );
@@ -1696,8 +1655,6 @@ describe("plain start agrees across the adapter and the double", () => {
 
 describe("AssemblyRunsPort mergeArgs", () => {
   it("adds a produced artifact to the line without disturbing what start() set", async () => {
-    // How one node's output reaches the next: args are the line's shared channel,
-    // and a node that produces a plan merges it in for the node that consumes it.
     const lines = new InMemoryAssemblyRuns();
     const id = await lines.start({
       blueprintName: "feature-finalize",
@@ -1733,8 +1690,6 @@ describe("AssemblyRunsPort mergeArgs", () => {
   });
 
   it("overwrites a key a re-run replaces, so a stale objection cannot survive", async () => {
-    // The upstream node re-runs after an objection; its NEW output must win, or the
-    // consumer would read the plan that was already rejected.
     const lines = new InMemoryAssemblyRuns();
     const id = await lines.start({
       blueprintName: "feature-finalize",

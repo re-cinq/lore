@@ -1,11 +1,4 @@
-/**
- * spec-traceability-graph — `path#ordinal` spec anchors carried on a
- * {@link TestDescriptor}'s `spec`. A descriptor may carry one anchor (a string)
- * or several (one test validating several statements — `string[]`);
- * {@link parseSpecAnchors} normalizes either into a list, dropping unparseable
- * entries. Extracted from `ingest-test-report.ts` so the parsing is pure and
- * unit-tested without a live Dgraph.
- */
+/** `path#ordinal` spec anchors (pure, unit-tested). */
 
 /** A parsed `path#ordinal` spec anchor. */
 export interface SpecAnchor {
@@ -13,10 +6,7 @@ export interface SpecAnchor {
   ordinal: number;
 }
 
-/**
- * Parse a `path#ordinal` anchor. Returns null for a missing anchor, a blank
- * path, or a non-integer ordinal.
- */
+/** Parse a `path#ordinal` anchor; returns null if invalid. */
 export function parseSpecAnchor(spec: string | undefined): SpecAnchor | null {
   if (!spec?.includes("#")) {
     return null;
@@ -31,11 +21,7 @@ export function parseSpecAnchor(spec: string | undefined): SpecAnchor | null {
   return { specPath, ordinal };
 }
 
-/**
- * Parse a descriptor's `spec` — one anchor (string), many (`string[]`), or
- * none (undefined) — into a list of {@link SpecAnchor}, dropping any entry that
- * does not parse.
- */
+/** Parse a descriptor's `spec` into a list of SpecAnchors, dropping invalid entries. */
 export function parseSpecAnchors(
   spec: string | string[] | undefined,
 ): SpecAnchor[] {

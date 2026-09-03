@@ -13,12 +13,7 @@ export interface SeedDoc {
   contentType: "spec" | "adr" | string;
 }
 
-/**
- * In-memory {@link KnowledgePort}: the behavioral spec of the Pg adapter's own
- * logic (the doc listings). assembleContext and queryTrace are canned — the Pg
- * adapter only delegates to the heavy retrieval modules there, so the double
- * returns seeded text rather than re-specifying retrieval.
- */
+/** In-memory {@link KnowledgePort}: behavioral spec double for the Pg adapter. */
 export class InMemoryKnowledge implements KnowledgePort {
   private readonly docs: SeedDoc[];
   private readonly graph: LiveGraphResult[];
@@ -52,9 +47,7 @@ export class InMemoryKnowledge implements KnowledgePort {
       return [...this.graph];
     }
 
-    // Approximates the entity branch as a case-insensitive EXACT name match
-    // over the seeded result rows (the Pg query also walks the incoming leg,
-    // repo-scopes, orders by valid_from, and limits — seed accordingly).
+    // Case-insensitive EXACT name match over seeded rows (Pg query also walks incoming leg, repo-scopes, orders by valid_from, limits).
     return this.graph.filter(
       (r) => r.entity.toLowerCase() === term.toLowerCase(),
     );

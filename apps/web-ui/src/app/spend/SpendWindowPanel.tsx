@@ -1,10 +1,6 @@
 "use client";
 
-// The spend page's one container — the Panel suffix is the sanctioned place
-// for this IO (lore/no-io-in-view): it owns the selected interval, fetches
-// /api/spend-window for it, and hands the whole response to the pure SpendView
-// (DDAU). Pure date arithmetic lives in spend-window-presets.ts.
-
+// Container: owns interval, fetches /api/spend-window, hands response to pure SpendView (DDAU)
 import { useEffect, useState } from "react";
 import {
   presetInterval,
@@ -34,9 +30,7 @@ export default function SpendWindowPanel({
   const [spend, setSpend] = useState<SpendWindow | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // The one fetch this component owns, re-run per selected interval. Every
-  // setState sits past an await and behind the cancelled guard, so an interval
-  // change mid-flight cannot land a stale window over a fresh one.
+  // Fetch per interval with cancelled guard to prevent stale data landing mid-flight
   useEffect(() => {
     let cancelled = false;
 

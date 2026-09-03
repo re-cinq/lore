@@ -3,12 +3,6 @@ import { PgCatalogEvents } from "./catalog-events-pg.js";
 import { InMemoryCatalogEvents } from "./catalog-events-memory.js";
 import type { PgPool } from "../../memory-store.js";
 
-/**
- * The catalog change log both ways: the InMemory double as the behavioral spec
- * (cursor filtering, batch cap, snapshot cursor pairing) and the Pg adapter's
- * SQL/binding through the house fake-pool stub.
- */
-
 type Row = Record<string, unknown>;
 
 function fakePool(

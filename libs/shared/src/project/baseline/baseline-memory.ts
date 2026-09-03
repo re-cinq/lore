@@ -12,11 +12,7 @@ export interface TaskRecord {
   pr_url?: string | null;
 }
 
-/**
- * In-memory {@link BaselinePort}: keeps every inserted snapshot row and
- * computes the same windowed counters from seeded task rows. The double for
- * the baseline snapshot job so it stays testable without a live pipeline.
- */
+/** In-memory {@link BaselinePort}: keeps every inserted snapshot row and computes windowed counters from seeded task rows. */
 export class InMemoryBaseline implements BaselinePort {
   readonly rows: BaselineRow[] = [];
 
