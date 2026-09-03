@@ -119,7 +119,7 @@ export LORE_CLUSTER_AGENT_REGISTRATION_TOKEN="${LORE_CLUSTER_AGENT_REGISTRATION_
 export LORE_CLUSTER_AGENT_NAME="${LORE_CLUSTER_AGENT_NAME:-central}"
 #     Every tag, as the umbrella chart's central agent carries: on a laptop this
 #     is the only cluster, so anything it cannot claim runs nowhere.
-export LORE_CLUSTER_AGENT_TAGS="${LORE_CLUSTER_AGENT_TAGS:-node:agent,node:validate,node:gate,node:retrospective,node:github_action,node:detect,node:ingest,node:comment-triage}"
+export LORE_CLUSTER_AGENT_TAGS="${LORE_CLUSTER_AGENT_TAGS:-node:agent,node:validate,node:gate,node:retrospective,node:github_action,node:detect,node:ingest}"
 
 # Station execution. Tasks run as Agent CRs on the ai-agent-subsystem (agent-cr),
 # which needs a Kubernetes cluster. The default `inprocess` keeps the lightweight

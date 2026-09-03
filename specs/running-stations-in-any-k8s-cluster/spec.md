@@ -475,8 +475,8 @@ execution node.
   default: a satellite reports its terminal outcome and nothing live, which
   is the honest state for a cluster with nowhere to report to. ([validated by `agent-catalog.test.ts:247`](apps/floor/src/jobs/agent/agent-catalog.test.ts#L247))
 - The installer's default tags advertise `node:agent` only *(2026-08-28)*.
-  Every seeded station recipe (`def-validate`, `def-gate`, `def-detect`,
-  `def-comment-triage`) mounts `LORE_INGEST_TOKEN`, which FR5 keeps on the
+  Every seeded station recipe (`def-validate`, `def-gate`, `def-detect`)
+  mounts `LORE_INGEST_TOKEN`, which FR5 keeps on the
   central cluster, so a satellite advertising `node:validate` claims the node
   and dies at init with `CreateContainerConfigError` — the claim and the run
   are wasted (found live on run 595d2b0b: `implement` succeeded on the
@@ -532,7 +532,7 @@ that.
   optional and chart-managed: `github.token` (a PAT) or the
   `github.app.appId`/`privateKey`/`installationId` triple, mirroring the
   `llm` credential pattern. Absent, registration/claim/heartbeat and
-  tag-only stations (`validate`, `gate`, `detect`, `comment-triage`) work
+  tag-only stations (`validate`, `gate`, `detect`) work
   normally; a claimed run needing a git push fails "GitHub not configured"
   after launch, naming exactly the missing piece.
 
