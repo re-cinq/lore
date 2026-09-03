@@ -67,70 +67,116 @@ export function reportedStatus(status: unknown): AgentNodeStatus | null {
 
 export function createNodeEventHandler(deps: NodeEventDeps): EventHandler {
   return async (params) => {
-    const assemblyLineId = String(
-      params.assemblyRunId ?? params.assemblyLineId ?? "",
-    );
-    const nodeId = String(params.nodeId ?? "");
-    const agentName = String(params.agentName ?? "");
-    const iteration =
-      typeof params.iteration === "number" ? params.iteration : undefined;
+    const event = readNodeEvent(params);
+    const target = await resolveEventTarget(event, deps);
 
-    enforceTrue(
-      assemblyLineId.length > 0 && nodeId.length > 0 && agentName.length > 0,
-      Error,
-      "kubernetes.agent_node event params missing assemblyLineId/nodeId/agentName",
-    );
-
-    const row = await deps.assemblyRuns.getById(assemblyLineId);
-
-    if (!row || row.status !== "running") {
+    if (!target) {
       return;
     }
-
-    const graph = await resolveRunGraph(row, deps.definitions);
-    const node = graph?.nodes.find((n) => n.id === nodeId);
-
-    if (!node) {
-      return;
-    }
-
     const reported = reportedStatus(params.status);
 
     // Only an older cluster-agent's event (no status) needs a cluster interrogated; an unreachable CR would otherwise read as "agent produced nothing" (2026-08-27 regression). Hand off to the cluster-aware reaper instead of fabricating an outcome.
     const leftToReaper =
-      reported === null &&
-      (await claimUnreadableFromThisFloor(
-        { assemblyLineId, nodeId, iteration, agentName },
-        deps,
-      ));
+      reported === null && (await claimUnreadableFromThisFloor(event, deps));
 
     if (leftToReaper) {
       return;
     }
     // Unwrap the NDJSON envelope once: every text parser below must read the agent text, not the stream carrying it.
     const rawStatus = reported ??
-      (await deps.readAgentStatus(agentName)) ?? {
+      (await deps.readAgentStatus(event.agentName)) ?? {
         phase: String(params.phase ?? ""),
       };
     const status = normalizeAgentStatus(rawStatus);
     // Merged BEFORE the walk moves — the artifact sink is a separate racing HTTP post, so without this the next station could miss an arg its predecessor already produced (a re-merge is a no-op).
-    const result = await deliverTerminalArtifacts(row, node, rawStatus, deps);
+    const result = await deliverTerminalArtifacts(
+      target.row,
+      target.node,
+      rawStatus,
+      deps,
+    );
 
-    // An account-out-of-credits failure downs every LLM node at once; a missing skills_source strands every Claude-agent node on the CLUSTER — both surfaced once to operators before the per-line failure notice.
-    if (result.outcome === "failed" && deps.alertBilling) {
-      await deps.alertBilling(row.repo, node.type, status);
-    }
-
-    if (result.outcome === "failed" && deps.alertAgentConfig) {
-      await deps.alertAgentConfig(row.repo, node.type, status);
-    }
+    await alertOnFailure(target, result, status, deps);
     tripGateOnAccountOutage(result, deps);
 
     await finishNodeTerminal(
-      { row, node, nodeId, iteration, result, output: status.output },
+      {
+        row: target.row,
+        node: target.node,
+        nodeId: event.nodeId,
+        iteration: event.iteration,
+        result,
+        output: status.output,
+      },
       deps,
     );
   };
+}
+
+/** The three ids every agent_node event must carry, plus which visit it reports. */
+interface NodeEvent {
+  assemblyLineId: string;
+  nodeId: string;
+  agentName: string;
+  iteration: number | undefined;
+}
+
+function readNodeEvent(params: Record<string, unknown>): NodeEvent {
+  const text = (value: unknown): string =>
+    value === undefined ? "" : String(value);
+  const event = {
+    assemblyLineId: text(params.assemblyRunId) || text(params.assemblyLineId),
+    nodeId: text(params.nodeId),
+    agentName: text(params.agentName),
+    iteration:
+      typeof params.iteration === "number" ? params.iteration : undefined,
+  };
+
+  enforceTrue(
+    event.assemblyLineId.length > 0 &&
+      event.nodeId.length > 0 &&
+      event.agentName.length > 0,
+    Error,
+    "kubernetes.agent_node event params missing assemblyLineId/nodeId/agentName",
+  );
+
+  return event;
+}
+
+/** The run and node the event is about, or null when there is nothing to advance — the run is gone or finished, or its graph no longer has that node. */
+async function resolveEventTarget(
+  event: NodeEvent,
+  deps: NodeEventDeps,
+): Promise<{ row: AssemblyRunRecord; node: RunGraphNode } | null> {
+  const row = await deps.assemblyRuns.getById(event.assemblyLineId);
+
+  if (!row || row.status !== "running") {
+    return null;
+  }
+  const graph = await resolveRunGraph(row, deps.definitions);
+  const node = graph?.nodes.find((n) => n.id === event.nodeId);
+
+  return node ? { row, node } : null;
+}
+
+/** An account-out-of-credits failure downs every LLM node at once, and a missing skills_source strands every Claude-agent node on the CLUSTER — both are surfaced once to operators, ahead of the per-line failure notice. */
+async function alertOnFailure(
+  target: { row: AssemblyRunRecord; node: RunGraphNode },
+  result: { outcome: string },
+  status: ReturnType<typeof normalizeAgentStatus>,
+  deps: NodeEventDeps,
+): Promise<void> {
+  if (result.outcome !== "failed") {
+    return;
+  }
+
+  if (deps.alertBilling) {
+    await deps.alertBilling(target.row.repo, target.node.type, status);
+  }
+
+  if (deps.alertAgentConfig) {
+    await deps.alertAgentConfig(target.row.repo, target.node.type, status);
+  }
 }
 
 /** True when the terminal CR was claimed by a cluster this Floor cannot read — the node stays open for the cluster-aware reaper rather than fabricating an outcome. */
