@@ -28,6 +28,7 @@ const WINDOW: SpendWindow = {
     daily: [{ bucket_date: "2026-09-01", calls: 42, cost_usd: 81.3 }],
     by_task_type: [{ task_type: "implementation", tasks: 3, cost_usd: 60 }],
     by_cluster: [{ cluster: null, calls: 42, cost_usd: 81.4 }],
+    by_vendor: [{ vendor: "anthropic", calls: 42, cost_usd: 81.4 }],
   },
   billed: {
     available: false,
