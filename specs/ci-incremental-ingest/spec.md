@@ -51,7 +51,7 @@ already owns the dgraph egress and the Vertex embed path.
   CAS after it (a failed projection must never move the pointer past work
   that did not land; projection is idempotent xid upserts, so the loser of
   the rare mid-flight race redoes harmless work).
-  ([validated by refuses a stale base with a 409 naming the current commit, and projects nothing](apps/lore-api/src/api/routes/ingest/ingest-delta.test.ts#L192), [`ingest-delta.test.ts:113`](apps/lore-api/src/api/routes/ingest/ingest-delta.test.ts#L113), [`ingest-delta.test.ts:280`](apps/lore-api/src/api/routes/ingest/ingest-delta.test.ts#L280))
+  ([validated by refuses a stale base with a 409 naming the current commit, and projects nothing](apps/lore-api/src/api/routes/ingest/ingest-delta.test.ts#L192), [`ingest-delta.test.ts:113`](apps/lore-api/src/api/routes/ingest/ingest-delta.test.ts#L113), [`ingest-delta.test.ts:286`](apps/lore-api/src/api/routes/ingest/ingest-delta.test.ts#L286))
 
 - **FR3 — the delta is JSON posted straight to lore-api, projected in-process.**
   `POST /api/repos/{owner}/{repo}/ingest` (write scope) takes the kind, the
@@ -65,7 +65,7 @@ already owns the dgraph egress and the Vertex embed path.
   Unknown kinds and malformed commits are 400s; a deployment without
   `LORE_DGRAPH_HTTP` refuses with a 503 naming the missing configuration
   instead of pretending to ingest.
-  ([validated by projects changed docs, prunes deleted ones, and advances the state](apps/lore-api/src/api/routes/ingest/ingest-delta.test.ts#L113), [`ingest-delta.test.ts:147`](apps/lore-api/src/api/routes/ingest/ingest-delta.test.ts#L147), [`ingest-delta.test.ts:165`](apps/lore-api/src/api/routes/ingest/ingest-delta.test.ts#L165), [`ingest-delta.test.ts:213`](apps/lore-api/src/api/routes/ingest/ingest-delta.test.ts#L213), [`ingest-delta.test.ts:244`](apps/lore-api/src/api/routes/ingest/ingest-delta.test.ts#L244), [`ingest-delta.test.ts:267`](apps/lore-api/src/api/routes/ingest/ingest-delta.test.ts#L267))
+  ([validated by projects changed docs, prunes deleted ones, and advances the state](apps/lore-api/src/api/routes/ingest/ingest-delta.test.ts#L113), [`ingest-delta.test.ts:147`](apps/lore-api/src/api/routes/ingest/ingest-delta.test.ts#L147), [`ingest-delta.test.ts:165`](apps/lore-api/src/api/routes/ingest/ingest-delta.test.ts#L165), [`ingest-delta.test.ts:213`](apps/lore-api/src/api/routes/ingest/ingest-delta.test.ts#L213), [`ingest-delta.test.ts:250`](apps/lore-api/src/api/routes/ingest/ingest-delta.test.ts#L250), [`ingest-delta.test.ts:273`](apps/lore-api/src/api/routes/ingest/ingest-delta.test.ts#L273))
 
 - **FR4 — deletions ride in the payload and prune their graph subtrees.** An
   incremental report carries only CHANGED tests, so absence stops meaning
