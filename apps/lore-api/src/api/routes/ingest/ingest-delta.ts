@@ -194,21 +194,22 @@ export function ingestDeltaRoute(
 
       // Refuse a stale base BEFORE projecting: two merges raced, this delta
       // was diffed from a commit the state has moved past, and applying it
-      // could skip the other merge's changes forever. Only the final chunk
-      // checks — earlier chunks' projection is idempotent either way.
-      if (finalChunk) {
-        const current = await storedCommit(pool, repo, body.kind);
+      // could skip the other merge's changes forever. EVERY chunk checks, not
+      // just the final one — a delayed chunk from a superseded run would
+      // otherwise overwrite newer graph state with stale content that no CAS
+      // at the end can undo.
+      //
+      // Strict equality, null included: a null stored state under a non-null
+      // claimed base means the recorded state is gone (fresh or re-migrated
+      // cluster) and this delta may miss earlier changes — the refusal makes
+      // CI re-fetch, see null, and send a full ingest.
+      const current = await storedCommit(pool, repo, body.kind);
 
-        // Strict equality, null included: a null stored state under a
-        // non-null claimed base means the recorded state is gone (fresh or
-        // re-migrated cluster) and this delta may miss earlier changes — the
-        // refusal makes CI re-fetch, see null, and send a full ingest.
-        enforceTrue(
-          current === body.base_commit,
-          apiError(409, { current }),
-          `stale base ${body.base_commit ?? "(none)"} — the stored commit has moved; re-fetch ingest-state and re-diff`,
-        );
-      }
+      enforceTrue(
+        current === body.base_commit,
+        apiError(409, { current }),
+        `stale base ${body.base_commit ?? "(none)"} — the stored commit has moved; re-fetch ingest-state and re-diff`,
+      );
 
       let projected = 0;
       let deleted = 0;

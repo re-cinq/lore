@@ -226,7 +226,11 @@ describe("POST /api/repos/{owner}/{repo}/ingest", () => {
     expect(JSON.parse(first.payload)).toMatchObject({
       state: "pending-chunks",
     });
-    expect(issued.some((q) => /ingest_state/.test(q.sql))).toBe(false);
+    // Every chunk CAS-checks the base (a delayed stale chunk must refuse, not
+    // overwrite newer graph state), but only the final chunk WRITES the state.
+    expect(
+      issued.some((q) => /INSERT INTO pipeline\.ingest_state/.test(q.sql)),
+    ).toBe(false);
 
     const last = await post(server, {
       kind: "test-report",
@@ -238,7 +242,9 @@ describe("POST /api/repos/{owner}/{repo}/ingest", () => {
     });
 
     expect(JSON.parse(last.payload)).toMatchObject({ state: "advanced" });
-    expect(issued.some((q) => /ingest_state/.test(q.sql))).toBe(true);
+    expect(
+      issued.some((q) => /INSERT INTO pipeline\.ingest_state/.test(q.sql)),
+    ).toBe(true);
   });
 
   it("rejects an unknown kind and a malformed commit as 400s", async () => {

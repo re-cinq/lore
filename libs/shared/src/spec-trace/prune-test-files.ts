@@ -37,7 +37,6 @@ interface DoomedChunkRow {
   uid: string;
   stmts?: UidRef[];
   acs?: UidRef[];
-  covIn?: Array<{ uid: string; covered?: UidRef[] }>;
   covOut?: { uid: string; covered?: UidRef[] };
 }
 
@@ -54,7 +53,6 @@ async function queryFileSubtree(
           uid
           stmts: ~Statement.validated_by { uid }
           acs: ~AcceptanceCriterion.validated_by { uid }
-          covIn: ~Coverage.test { uid covered: Coverage.covers { uid } }
           covOut: TestChunk.coverage { uid covered: Coverage.covers { uid } }
         }
         suites(func: eq(TestSuite.repo, $repo))
@@ -75,16 +73,13 @@ async function queryFileSubtree(
     const criterionEdges: Array<[string, string]> = [];
 
     for (const chunk of chunks) {
-      const coverages = [...(chunk.covIn ?? [])];
-
+      // `TestChunk.coverage` is the ONLY live edge between a chunk and its
+      // Coverage node — `Coverage.test` is declared in the schema but nothing
+      // writes it, so querying its reverse was dead code.
       if (chunk.covOut) {
-        coverages.push(chunk.covOut);
-      }
+        coverageUids.add(chunk.covOut.uid);
 
-      for (const coverage of coverages) {
-        coverageUids.add(coverage.uid);
-
-        for (const covered of coverage.covered ?? []) {
+        for (const covered of chunk.covOut.covered ?? []) {
           coveredUids.add(covered.uid);
         }
       }
