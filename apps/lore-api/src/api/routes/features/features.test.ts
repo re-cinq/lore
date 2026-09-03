@@ -37,7 +37,6 @@ function fakeFeatures(overrides: Record<string, unknown> = {}) {
   };
 }
 
-/** No line for the feature's first task → every round takes the legacy path. */
 function fakeAssemblyLines(overrides: Record<string, unknown> = {}) {
   return {
     listForTask: vi.fn().mockResolvedValue([]),
@@ -145,10 +144,7 @@ describe("features routes", () => {
     expect(createTask).not.toHaveBeenCalled();
   });
 
-  it("refuses to accept a spec-ready feature whose line is not parked on the author", async () => {
-    // There is no second way in. A feature with no parked author node is refused
-    // rather than started fresh — minting a run per press is the duplicate this
-    // endpoint used to accept without a murmur (#1366).
+  it("refuses to accept a spec-ready feature whose line is not parked on the author, rather than starting a fresh run per press (#1366)", async () => {
     useProject(
       fakeFeatures({
         get: vi.fn().mockResolvedValue({
@@ -167,8 +163,6 @@ describe("features routes", () => {
   });
 
   it("reports a later round to the node its line is parked on, minting no task", async () => {
-    // The merged line: the author IS the station, so the round is an outcome
-    // reported to the parked node — not a new line per round with nothing between.
     const pool = makePool();
 
     pool.query.mockResolvedValue({ rows: [{ id: "1" }] });
@@ -208,7 +202,6 @@ describe("features routes", () => {
       assembly_line_id: "line-1",
       task_id: null,
     });
-    // A task here would start a SECOND line for the same feature.
     expect(createTask).not.toHaveBeenCalled();
 
     const insert = pool.query.mock.calls.find((c) =>
@@ -217,11 +210,10 @@ describe("features routes", () => {
 
     expect(insert).toBeDefined();
     expect(JSON.stringify(insert)).toContain("assembly_run.resume");
-    // The author asked for changes: the edge back to another round.
     expect(JSON.stringify(insert)).toContain("changes_requested");
   });
 
-  it("rewinds to the round the author chose, carrying its draft", async () => {
+  it("rewinds to the round the author chose, carrying its draft and recording which round it forked from", async () => {
     const pool = makePool();
 
     pool.query.mockResolvedValue({ rows: [{ id: "1" }] });
@@ -272,8 +264,6 @@ describe("features routes", () => {
     });
 
     expect(res.statusCode).toBe(202);
-    // The new round records where it forked from — without it the history is a
-    // list pretending to be a tree.
     expect(features.appendIteration).toHaveBeenCalledWith("f1", null, 1);
     const insert = pool.query.mock.calls.find((c) =>
       String(c[0]).includes("events"),
@@ -418,8 +408,6 @@ describe("features routes", () => {
 });
 
 describe("resume_from_iteration is a REWIND, not the ordinary basis", () => {
-  // This block lives outside the suite above, so it needs its own auth fixture —
-  // without it every request 401s and the assertions read as "no event emitted".
   useRateLimitSafeClock();
   beforeEach(() => {
     process.env.LORE_INGEST_TOKEN = LEGACY_TOKEN;
@@ -475,12 +463,8 @@ describe("resume_from_iteration is a REWIND, not the ordinary basis", () => {
     const insert = pool.query.mock.calls.find((c) =>
       String(c[0]).includes("pipeline.events"),
     );
-    // params[2] is the jsonb payload, a JSON STRING — parse it rather than matching
-    // text, or every assertion has to know how the driver escaped it.
     const params = (insert?.[1] ?? []) as string[];
 
-    // A 4xx would otherwise read as "no event emitted", which sent me chasing the
-    // wrong layer for twenty minutes.
     enforceTrue(
       Boolean(params[2]),
       Error,
@@ -492,11 +476,7 @@ describe("resume_from_iteration is a REWIND, not the ordinary basis", () => {
     };
   };
 
-  it("sends null for an ordinary round, so the run continues the newest conversation", async () => {
-    // Sending the ordinary basis here makes EVERY round claim to be a rewind. The
-    // resolver then honours it literally — and the rewind contract says an explicit
-    // choice that resolves to nothing must start fresh, so a round whose basis never
-    // archived silently loses the whole conversation.
+  it("sends null for an ordinary round, so the run continues the newest conversation instead of claiming a rewind that would start it fresh", async () => {
     expect(
       (await post({ user_answers: { free_form: "go" } })).args,
     ).toMatchObject({ resume_from_iteration: null });
@@ -617,10 +597,7 @@ describe("accepting the plan resumes the parked node", () => {
       ],
     };
 
-    it("returns the feature without every round's gap payload", async () => {
-      // The whole point of a separate route: GET .../features/:id carries every
-      // round's gap_result — mockup markup plus a stylesheet each — which must not
-      // be re-sent every 4 seconds.
+    it("returns the feature without every round's gap payload, which the 4-second poll must not re-send", async () => {
       useProject(fakeFeatures({ get: vi.fn().mockResolvedValue(feature) }));
       const res = await req("GET", `${base}/f1/status`);
 
@@ -636,9 +613,7 @@ describe("accepting the plan resumes the parked node", () => {
       expect(body.last_ready_iteration).toMatchObject({ iteration: 1 });
     });
 
-    it("resolves the newest run working the feature, whatever line it is", async () => {
-      // Not "the planning line": a feature's finalize run is a different task AND a
-      // different blueprint, so resolving by either hid the run the page must draw.
+    it("resolves the newest run working the feature whatever its blueprint, since a finalize run is neither the planning line nor its task", async () => {
       useProject(
         fakeFeatures({ get: vi.fn().mockResolvedValue(feature) }),
         fakeAssemblyLines({
@@ -654,10 +629,7 @@ describe("accepting the plan resumes the parked node", () => {
       expect(body.assembly_line_id).toBe("line-1");
     });
 
-    it("carries the run id under both spellings while the rename is in flight", async () => {
-      // The expand half: a reader already on assembly_run_id and one still on
-      // assembly_line_id must both work off ONE response, because lore-api and
-      // web-ui roll as separate images. Same value, never one or the other.
+    it("carries the run id under both spellings while the rename is in flight, since lore-api and web-ui roll as separate images", async () => {
       useProject(
         fakeFeatures({ get: vi.fn().mockResolvedValue(feature) }),
         fakeAssemblyLines({
@@ -716,9 +688,7 @@ describe("accepting the plan resumes the parked node", () => {
       expect(JSON.parse(res.payload)).toEqual({ tasks });
     });
 
-    it("404s for a feature id that does not exist", async () => {
-      // An unknown id is not an empty tree — reporting {tasks: []} for a typo
-      // would look like success.
+    it("404s for a feature id that does not exist, rather than reporting the empty tree a typo would read as success", async () => {
       vi.mocked(projectFor).mockResolvedValue({
         features: fakeFeatures({ get: vi.fn().mockResolvedValue(null) }),
         assemblyRuns: fakeAssemblyLines(),
@@ -731,7 +701,6 @@ describe("accepting the plan resumes the parked node", () => {
     });
 
     it("returns an empty list for a feature never decomposed", async () => {
-      // Honest empty rather than a 404: the feature exists, its tree does not yet.
       vi.mocked(projectFor).mockResolvedValue({
         features: fakeFeatures({
           get: vi.fn().mockResolvedValue({ id: "f1", iterations: [] }),
@@ -769,10 +738,7 @@ describe("finalize refuses to start a second run for one feature", () => {
     iterations: [],
   };
 
-  it("answers 409 naming the run already working the feature, and mints no task", async () => {
-    // The second press. Reporting an outcome to the author node is what UN-PARKS
-    // it, so the press that follows an accept finds nothing to report to — the
-    // guard is the graph's own state, not a status column that lags 18 minutes.
+  it("answers 409 naming the run already working the feature, and mints no task, guarding on the graph's own state rather than a lagging status column", async () => {
     useProject(
       fakeFeatures({ get: vi.fn().mockResolvedValue(specReady) }),
       fakeAssemblyLines({
@@ -793,9 +759,6 @@ describe("finalize refuses to start a second run for one feature", () => {
 
     const res = await req("POST", `${base}/f1/finalize`, {});
 
-    // The id is the point. A bare 409 would be correct and useless: the caller
-    // pressed the button because it wanted to see work happening, so the refusal
-    // has to say where that work is.
     expect(res.statusCode).toBe(409);
     expect(res.result).toMatchObject({
       assembly_run_id: "run-live",
@@ -838,11 +801,10 @@ describe("finalize refuses to start a second run for one feature", () => {
       assembly_run_id: "run-live",
       assembly_line_id: "run-live",
     });
-    // A task here would start a SECOND line for the same feature.
     expect(createTask).not.toHaveBeenCalled();
   });
 
-  it("asks about THIS feature's subject, not some other feature's", async () => {
+  it("asks about THIS feature's subject, spelled exactly as the Floor stamps it at launch", async () => {
     const listForSubject = vi.fn().mockResolvedValue([]);
 
     useProject(
@@ -852,9 +814,6 @@ describe("finalize refuses to start a second run for one feature", () => {
 
     await req("POST", `${base}/f1/finalize`, {});
 
-    // The Floor stamps this exact string in AssemblyLineStationBackend.launch. If
-    // the two ever spell it differently the lookup silently matches nothing, which
-    // looks identical to "nothing is parked" — the bug it exists to prevent.
     expect(listForSubject).toHaveBeenCalledWith("feature:f1");
   });
 });
@@ -869,10 +828,7 @@ describe("the dispatch finds the line by SUBJECT, not by the first round's task"
     process.env = { ...originalEnv };
   });
 
-  it("resumes the live line of a feature whose failed round 1 owns a finished line", async () => {
-    // Round 1 failed, so round 2 legally minted a NEW task and line via the legacy
-    // path. Resolving through the FIRST round's task finds only the finished line
-    // and takes legacy forever — feature 414aac54 wedged exactly here (#1462).
+  it("resumes the live line of a feature whose failed round 1 owns a finished line, instead of resolving through round 1's task and taking legacy forever (#1462)", async () => {
     const pool = makePool();
 
     pool.query.mockResolvedValue({ rows: [{ id: "1" }] });
@@ -925,8 +881,6 @@ describe("the dispatch finds the line by SUBJECT, not by the first round's task"
       task_id: null,
     });
     expect(createTask).not.toHaveBeenCalled();
-    // The same string the Floor stamps at launch — a second spelling would match
-    // nothing and read as "no line", which is this bug wearing another key.
     expect(listForSubject).toHaveBeenCalledWith("feature:f1");
   });
 });
@@ -1020,7 +974,6 @@ describe("accepting the plan delivers the accepted plan to the tail nodes", () =
     expect(description).toContain("run stations anywhere");
     expect(description).toContain("<CurrentDraftSpec>");
     expect(description).toContain("PULL MODEL");
-    // The accept carries no author feedback: nothing to comment with.
     expect(description).not.toContain("<UserComment");
   });
 

@@ -102,10 +102,13 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
         });
       }
     } catch {
+      keepCleanupFromMaskingTheAssertion();
     } finally {
       await txn.discard().catch(() => {});
     }
   }
+
+  function keepCleanupFromMaskingTheAssertion(): void {}
 
   async function deleteStatementNode(statementXid: string): Promise<void> {
     const txn = dgraphClient.newTxn();
@@ -127,6 +130,7 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
         });
       }
     } catch {
+      keepCleanupFromMaskingTheAssertion();
     } finally {
       await txn.discard().catch(() => {});
     }
