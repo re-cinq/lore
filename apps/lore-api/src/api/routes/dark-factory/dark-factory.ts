@@ -1,5 +1,5 @@
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
-import type { Pool } from "pg";
+import type { Pool, PoolClient } from "pg";
 import { rethrowBoom, apiError } from "../../../server/api-error.js";
 import type {
   Request,
@@ -19,6 +19,7 @@ import {
   captureBaselineForRepo,
   shouldCaptureBaseline,
 } from "../../../features/dark-factory/baseline-capture.js";
+import type { DarkFactoryState } from "../../../features/dark-factory/baseline-capture.js";
 import { projectFor } from "../../../platform/project-boot.js";
 import { z } from "zod";
 import { ResolvedDarkFactorySettingsSchema } from "@re-cinq/lore-shared/models/dark-factory-settings.js";
@@ -169,6 +170,57 @@ function mergedTaskOverride(
   return merged;
 }
 
+/** Both halves of a settings PUT: the dark_factory patch and the optional per-task-type siblings. */
+interface SettingsPatch {
+  patch: DarkFactorySettings;
+  toPatch: TaskOverridesPatch | undefined;
+}
+
+/** Reads the body, or says why it cannot. Zod's issue list is passed through untouched — a caller fixing a rejected patch needs the field, not a summary. */
+function parseSettingsBody(
+  body: unknown,
+): SettingsPatch | { error: { error: string; issues: unknown } } {
+  try {
+    // Optional sibling: per-task-type overrides. `execution.image` here is
+    // two-key gated like dark_factory.execution.image (ADR-025).
+    const rawTo = (body as { task_overrides?: unknown } | null)?.task_overrides;
+
+    return {
+      patch: parseDarkFactorySettings(body),
+      toPatch: rawTo !== undefined ? parseTaskOverrides(rawTo) : undefined,
+    };
+  } catch (err) {
+    const issues =
+      typeof err === "object" && err !== null && "issues" in err
+        ? (err as { issues: unknown }).issues
+        : (err as Error).message;
+
+    return { error: { error: "invalid_settings", issues } };
+  }
+}
+
+/** Shallow-merge, except the two nested blocks a caller patches one key of at a time. Stored settings are JSONB, so `prev` is the loose shape the column actually holds. */
+function mergedDarkFactory(
+  prev: DarkFactoryState,
+  patch: DarkFactorySettings,
+): DarkFactoryState {
+  const next: DarkFactoryState = { ...prev, ...patch };
+
+  if (patch.auto_merge) {
+    next.auto_merge = { ...nested(prev.auto_merge), ...patch.auto_merge };
+  }
+
+  if (patch.execution) {
+    next.execution = { ...nested(prev.execution), ...patch.execution };
+  }
+
+  return next;
+}
+
+function nested(value: unknown): Record<string, unknown> {
+  return (value ?? {}) as Record<string, unknown>;
+}
+
 async function handlePut(
   request: Request,
   h: ResponseToolkit,
@@ -177,29 +229,14 @@ async function handlePut(
 ): Promise<ResponseObject> {
   // hapi parses the payload natively (ADR-034); malformed JSON is a 400 and an
   // oversized body a 413 before we get here. Empty body → {} (no-op patch).
-  const body = request.payload ?? {};
+  const parsed = parseSettingsBody(request.payload ?? {});
 
-  let patch: DarkFactorySettings;
-  let toPatch: TaskOverridesPatch | undefined;
-
-  try {
-    patch = parseDarkFactorySettings(body);
-    // Optional sibling: per-task-type overrides. `execution.image` here is
-    // two-key gated like dark_factory.execution.image (ADR-025).
-    const rawTo = (body as { task_overrides?: unknown } | null)?.task_overrides;
-
-    toPatch = rawTo !== undefined ? parseTaskOverrides(rawTo) : undefined;
-  } catch (err) {
-    const issues =
-      typeof err === "object" && err !== null && "issues" in err
-        ? (err as { issues: unknown }).issues
-        : (err as Error).message;
-
-    return h.response({ error: "invalid_settings", issues }).code(400);
+  if ("error" in parsed) {
+    return h.response(parsed.error).code(400);
   }
 
   // Two-key check (FR3.9): privileged fields require an approval-PR header.
-  const twoKey = twoKeyFieldsTouched(patch, toPatch);
+  const twoKey = twoKeyFieldsTouched(parsed.patch, parsed.toPatch);
   const gate =
     twoKey.length > 0
       ? await checkApproval(
@@ -214,7 +251,6 @@ async function handlePut(
   if (gate && !gate.ok) {
     return h.response(gate.body).code(gate.code);
   }
-
   const ceremony: Ceremony = gate?.ok
     ? {
         tier: "two_key",
@@ -224,7 +260,20 @@ async function handlePut(
       }
     : { tier: "admin" };
 
-  // Read current, merge patch, write back. lore.repos.settings is JSONB.
+  return await writeSettings({ pool, repo, h, twoKey, ceremony, ...parsed });
+}
+
+interface SettingsWrite extends SettingsPatch {
+  pool: Pool;
+  repo: string;
+  h: ResponseToolkit;
+  twoKey: string[];
+  ceremony: Ceremony;
+}
+
+/** Read current, merge patch, write back, audit — under one row lock, because two concurrent PUTs to the same repo would otherwise each write a merge of the state they read. lore.repos.settings is JSONB. */
+async function writeSettings(write: SettingsWrite): Promise<ResponseObject> {
+  const { pool, repo, h, patch, toPatch } = write;
   const client = await pool.connect();
 
   try {
@@ -240,22 +289,14 @@ async function handlePut(
       return h.response({ error: "repo not onboarded", repo }).code(404);
     }
     const settings = rows[0].settings ?? {};
-    const prev = settings.dark_factory ?? {};
-    const next = { ...prev, ...patch };
+    const prev: DarkFactoryState = settings.dark_factory ?? {};
+    const prevTo = settings.task_overrides ?? {};
+    const next = mergedDarkFactory(prev, patch);
 
-    if (patch.auto_merge) {
-      next.auto_merge = { ...(prev.auto_merge ?? {}), ...patch.auto_merge };
-    }
-
-    if (patch.execution) {
-      next.execution = { ...(prev.execution ?? {}), ...patch.execution };
-    }
     settings.dark_factory = next;
 
     // Per-task-type overrides: deep-merge each touched type (and its nested
     // `execution`) over the existing entry, leaving untouched types intact.
-    const prevTo = settings.task_overrides ?? {};
-
     if (toPatch) {
       const nextTo: Record<string, Record<string, unknown>> = { ...prevTo };
 
@@ -269,54 +310,17 @@ async function handlePut(
       `UPDATE lore.repos SET settings = $1 WHERE full_name = $2`,
       [settings, repo],
     );
-
-    // Audit log entry per FR3.9.
-    const auditPayload = {
-      field_paths_changed: [
-        ...Object.keys(patch),
-        ...(toPatch
-          ? Object.keys(toPatch).map((t) => `task_overrides.${t}`)
-          : []),
-      ],
-      two_key_fields: twoKey,
+    await auditChange(client, write, {
       prev: { dark_factory: prev, task_overrides: prevTo },
       next: {
         dark_factory: next,
         task_overrides: settings.task_overrides ?? prevTo,
       },
-      ceremony,
-    };
-
-    await client
-      .query(
-        `INSERT INTO pipeline.audit_log (event_type, repo, payload) VALUES ('dark_factory_setting_changed', $1, $2)`,
-        [repo, JSON.stringify(auditPayload)],
-      )
-      .catch(() => {
-        // Audit log is best-effort; do not block the settings update.
-      });
-
+    });
     await client.query("COMMIT");
+    await captureBaselineIfEnabling(repo, pool, prev, next);
 
-    // The pre-enablement snapshot SC1/SC4/SC6 measure against (#1353). Taken
-    // here because this write is the only moment that knows dark mode is being
-    // turned ON: a schedule cannot guarantee the window is pre-enablement, and
-    // one taken afterwards compares the repo against itself.
-    //
-    // After COMMIT and best-effort: the settings change is the user's request
-    // and a failed snapshot must not roll it back or 500 the response.
-    if (shouldCaptureBaseline(prev, next)) {
-      await captureBaselineForRepo(repo, new PgBaseline(pool))
-        .then((summary) => console.log(`[dark-factory] ${summary}`))
-        .catch((err: unknown) =>
-          console.error(
-            `[dark-factory] baseline capture failed for ${repo}:`,
-            err,
-          ),
-        );
-    }
-
-    return h.response({ ok: true, applied: next, ceremony });
+    return h.response({ ok: true, applied: next, ceremony: write.ceremony });
   } catch (err) {
     await client.query("ROLLBACK").catch(() => {});
     console.error("[dark-factory] PUT settings failed:", err);
@@ -325,4 +329,44 @@ async function handlePut(
   } finally {
     client.release();
   }
+}
+
+/** The FR3.9 audit entry. Best-effort: a settings change the caller authorized must not fail because its own record could not be written. */
+async function auditChange(
+  client: PoolClient,
+  write: SettingsWrite,
+  states: { prev: unknown; next: unknown },
+): Promise<void> {
+  const payload = {
+    field_paths_changed: [
+      ...Object.keys(write.patch),
+      ...Object.keys(write.toPatch ?? {}).map((t) => `task_overrides.${t}`),
+    ],
+    two_key_fields: write.twoKey,
+    ...states,
+    ceremony: write.ceremony,
+  };
+
+  const insert = `INSERT INTO pipeline.audit_log (event_type, repo, payload) VALUES ('dark_factory_setting_changed', $1, $2)`;
+
+  await client
+    .query(insert, [write.repo, JSON.stringify(payload)])
+    .catch(() => {});
+}
+
+/** The pre-enablement snapshot SC1/SC4/SC6 measure against (#1353), taken here because this write is the only moment that knows dark mode is being turned ON — a snapshot taken later compares the repo against itself. After COMMIT and best-effort: a failed snapshot must neither roll the change back nor 500 it. */
+async function captureBaselineIfEnabling(
+  repo: string,
+  pool: Pool,
+  prev: DarkFactoryState,
+  next: DarkFactoryState,
+): Promise<void> {
+  if (!shouldCaptureBaseline(prev, next)) {
+    return;
+  }
+  await captureBaselineForRepo(repo, new PgBaseline(pool))
+    .then((summary) => console.log(`[dark-factory] ${summary}`))
+    .catch((err: unknown) =>
+      console.error(`[dark-factory] baseline capture failed for ${repo}:`, err),
+    );
 }
