@@ -153,6 +153,9 @@ async function tickRepo(repo: string, deps: LoopTickDeps): Promise<void> {
         // merge. A `Refs #N` only links it; the issue stayed open and eligible
         // to be picked again on the next tick.
         issue_number: picked.number,
+        // What the DRAFT is titled after. `lore: <branch>` told a reviewer
+        // nothing; the pr-ready node renames it once it has read the branch.
+        issue_title: picked.title,
         ...(resume.resume ? resume.lineArgs : {}),
       },
     },

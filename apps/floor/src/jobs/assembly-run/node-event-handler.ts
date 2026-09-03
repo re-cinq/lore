@@ -361,7 +361,7 @@ export async function productionNodeEventDeps(): Promise<NodeEventDeps> {
     { cleanupPerTaskToken },
     { settleTaskForLine },
     { resolveConversation },
-    { readyPrBody, stampLinePr },
+    { readyPrBody, readyPrTitle, stampLinePr },
   ] = await Promise.all([
     import("../../kernel/queues.js"),
     import("@re-cinq/lore-assembly-lines"),
@@ -478,9 +478,17 @@ export async function productionNodeEventDeps(): Promise<NodeEventDeps> {
       // The node's extras carry the coverage verdict that picks Closes vs Refs.
       // Null means the node wrote no prose, and the PR keeps its old body.
       const body = readyPrBody(row, result.extras);
+      // The draft opened under the TICKET's title, written before any code
+      // existed. The pr-ready node has read the finished branch, so it renames
+      // the PR after the work; a node that reported no title leaves the
+      // ticket title standing rather than blanking it.
+      const title = readyPrTitle(result.extras);
 
-      if (body !== null) {
-        await project.pulls.update(number, { body });
+      if (body !== null || title !== null) {
+        await project.pulls.update(number, {
+          ...(body !== null ? { body } : {}),
+          ...(title !== null ? { title } : {}),
+        });
       }
       await project.pulls.markReady(number);
 

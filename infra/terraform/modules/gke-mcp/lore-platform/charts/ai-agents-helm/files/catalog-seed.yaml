@@ -1016,6 +1016,15 @@ spec:
     Lore reads it from your workspace, not from the branch, and a committed
     copy becomes permanent litter in the repository under review.
 
+    THEN TITLE IT. One line, imperative, under 70 characters, naming what
+    this branch DID — not the ticket, not the branch, no `fix:` prefix. The
+    pull request opened under the ticket's title before any code existed;
+    you have read the finished branch, so you get to rename it. You report
+    it in `"Lore-Pr-Title"` on the final line below and Lore renames the
+    pull request when it takes it out of draft. Do not repeat it as a
+    heading in `.lore/pr-body.md` — a description that opens by restating
+    its own title wastes the first line a reviewer reads.
+
     THEN JUDGE COVERAGE. Re-read the ticket (title and body) against the
     branch: does this PR resolve everything the ticket reports, or only part
     of it? Part is an honest and common answer — say which part in the
@@ -1066,10 +1075,11 @@ spec:
     Print exactly one of these as the last line of your final message:
     - Every acceptance test is green, `.lore/pr-body.md` is written in the
       workspace (uncommitted), and the `.lore/dod.md` removal plus any link
-      fixes are committed and pushed. Set
+      fixes are committed and pushed. Set `"Lore-Pr-Title"` to the title
+      you wrote above, and
       `"Lore-Issue-Coverage"` to `"full"` when the branch resolves everything
       the ticket reports, `"partial"` when it resolves only part:
-      LORE_NODE_RESULT: {"outcome":"success","extras":{"Lore-Pr-Ready":"green","Lore-Issue-Coverage":"full"}}
+      LORE_NODE_RESULT: {"outcome":"success","extras":{"Lore-Pr-Ready":"green","Lore-Pr-Title":"<the title>","Lore-Issue-Coverage":"full"}}
     - Something is still red:
       LORE_NODE_RESULT: {"outcome":"failed","extras":{"Lore-Pr-Blocked":"<one line: what failed>"}}
 
