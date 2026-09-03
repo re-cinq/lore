@@ -14,9 +14,9 @@ export default function PRStatusBadgePanel({ taskId }: { taskId: string }) {
       signal: AbortSignal.timeout(15_000),
     })
       .then((r) => r.json())
-      .then((data) => {
-        if (data.computed_status) {
-          setStatus(data.computed_status);
+      .then((prStatus) => {
+        if (prStatus.computed_status) {
+          setStatus(prStatus.computed_status);
         }
       })
       .catch(() => {

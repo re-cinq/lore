@@ -131,9 +131,9 @@ describe("sseFrame", () => {
   });
 
   it("serializes createdAt as an ISO string in the data payload", () => {
-    const data = sseFrame(row("42")).split("\n")[2]?.slice("data: ".length);
+    const payload = sseFrame(row("42")).split("\n")[2]?.slice("data: ".length);
 
-    expect(JSON.parse(data ?? "{}")).toMatchObject({
+    expect(JSON.parse(payload ?? "{}")).toMatchObject({
       id: "42",
       assemblyLineId: "line-1",
       createdAt: "2026-07-20T10:00:00.000Z",

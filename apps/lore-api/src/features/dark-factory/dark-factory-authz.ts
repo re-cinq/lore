@@ -201,10 +201,10 @@ async function fetchCodeowners(opts: {
         repo: opts.repo,
         path: filepath,
       });
-      const data = r.data;
+      const pull = r.data;
 
-      if ("content" in data && data.encoding === "base64") {
-        const text = Buffer.from(data.content, "base64").toString("utf-8");
+      if ("content" in pull && pull.encoding === "base64") {
+        const text = Buffer.from(pull.content, "base64").toString("utf-8");
 
         return parseCodeowners(text);
       }

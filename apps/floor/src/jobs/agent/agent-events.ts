@@ -34,7 +34,7 @@ export interface LlmCallRow {
   durationMs: number;
 }
 
-const num = (x: unknown): number => (typeof x === "number" ? x : 0);
+const num = (value: unknown): number => (typeof value === "number" ? value : 0);
 
 // Primary model: first key of `modelUsage` (Claude Code) or `stats.models` (Gemini, confirmed against a real CLI run), else flat `model`, else "unknown".
 function firstModelKey(perModelUsage: unknown): string | null {
@@ -152,7 +152,8 @@ export interface AgentFileEvent {
   reason: string | null;
 }
 
-const str = (x: unknown): string | null => (typeof x === "string" ? x : null);
+const str = (value: unknown): string | null =>
+  typeof value === "string" ? value : null;
 
 /** Project a `kind:"file"` envelope; null for any other line, a nameless artifact, or one with no task attribution (skip-don't-throw, same rule the cost projection uses). */
 function fileEventFromEnvelope(envelope: unknown): AgentFileEvent | null {

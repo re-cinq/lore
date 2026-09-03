@@ -31,7 +31,7 @@ export default function SpecCard({
     <div className={styles.card}>
       <h3 className={styles.title}>
         {title}
-        {status && <SpecStatusPill info={status} />}
+        {status && <SpecStatusPill status={status} />}
       </h3>
       {description && <p className={styles.note}>{description}</p>}
       {coverage && coverage.testable > 0 && (

@@ -1109,7 +1109,7 @@ export async function fetchPendingTasks(
     if (!resp.ok) {
       return [];
     }
-    const data = (await resp.json()) as {
+    const body = (await resp.json()) as {
       tasks?: Array<{
         id: string;
         description?: string;
@@ -1119,7 +1119,7 @@ export async function fetchPendingTasks(
         issue_number?: number;
       }>;
     };
-    const tasks: PendingTask[] = (data.tasks || [])
+    const tasks: PendingTask[] = (body.tasks || [])
       .filter(
         (t) => repos.includes(t.target_repo) && taskTypes.includes(t.task_type),
       )

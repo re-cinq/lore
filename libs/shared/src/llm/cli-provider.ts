@@ -63,7 +63,7 @@ export class CliProvider implements LlmProvider {
       req.prompt,
     );
 
-    return { data: JSON.parse(await this.run(prompt)) as T, ...ZERO_USAGE };
+    return { parsed: JSON.parse(await this.run(prompt)) as T, ...ZERO_USAGE };
   }
 
   private combine(systemPrompt: string | undefined, prompt: string): string {

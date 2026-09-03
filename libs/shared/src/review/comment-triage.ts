@@ -65,7 +65,7 @@ const TOOL_SCHEMA = {
 export async function classifyComment(
   ctx: CommentContext,
 ): Promise<TriageDecision> {
-  const { data, ...usage } = await Llm.instance.completeWithTool<{
+  const { parsed, ...usage } = await Llm.instance.completeWithTool<{
     action?: string;
     reason?: string;
   }>({
@@ -79,8 +79,8 @@ export async function classifyComment(
   });
 
   return {
-    action: isAction(data?.action) ? data.action : "ignore",
-    reason: data?.reason ?? "",
+    action: isAction(parsed?.action) ? parsed.action : "ignore",
+    reason: parsed?.reason ?? "",
     usage,
   };
 }

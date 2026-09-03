@@ -97,8 +97,8 @@ describe.skipIf(!reachable)("recomputeFile (live Dgraph)", () => {
         }`,
         { $repo: repo },
       );
-      const data = res.data as { blocks?: { uid: string }[] };
-      const uids = (data.blocks ?? []).map((node) => node.uid);
+      const written = res.data as { blocks?: { uid: string }[] };
+      const uids = (written.blocks ?? []).map((node) => node.uid);
 
       if (uids.length) {
         await txn.mutate({

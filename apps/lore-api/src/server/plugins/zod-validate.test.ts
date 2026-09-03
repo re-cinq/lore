@@ -15,9 +15,9 @@ describe("zodValidate", () => {
   const schema = z.object({ name: z.string(), count: z.coerce.number() });
 
   it("returns typed coerced data for a valid value", async () => {
-    const data = await zodValidate(schema)({ name: "ci", count: "3" });
+    const parsed = await zodValidate(schema)({ name: "ci", count: "3" });
 
-    expect(data).toEqual({ name: "ci", count: 3 });
+    expect(parsed).toEqual({ name: "ci", count: 3 });
   });
 
   it("throws with the offending field named for an invalid value", async () => {

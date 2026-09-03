@@ -12,9 +12,9 @@ const num = (n: number) => Number(n).toLocaleString();
  *  `YYYY-MM-DD` string as a Date makes it UTC midnight, which is the previous
  *  day for every viewer west of Greenwich. */
 const day = (isoDay: string) => {
-  const [y, m, d] = isoDay.split("-");
+  const [year, month, dayOfMonth] = isoDay.split("-");
 
-  return `${d}-${m}-${y}`;
+  return `${dayOfMonth}-${month}-${year}`;
 };
 
 const tableByHeading = (heading: string): HTMLElement => {

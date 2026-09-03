@@ -4,14 +4,14 @@ import Boom from "@hapi/boom";
 
 export function apiError(
   statusCode: number,
-  data: Record<string, unknown> = {},
+  details: Record<string, unknown> = {},
 ): (message: string) => Boom.Boom {
   return (message) => {
     const boom = new Boom.Boom(message, { statusCode });
 
-    // `data` merges UNDER the message so a stray `error` key can't shadow the guard's reason.
+    // The details merge UNDER the message so a stray `error` key can't shadow the guard's reason.
     boom.output.payload = {
-      ...data,
+      ...details,
       error: message,
     } as unknown as Boom.Payload;
 

@@ -40,7 +40,7 @@ export class FakeLlm implements LlmProvider {
   async completeWithTool<T>(req: LlmToolRequest): Promise<LlmToolResult<T>> {
     this.calls.push(req);
 
-    return { data: this.canned.data as T, ...this.usage() };
+    return { parsed: this.canned.data as T, ...this.usage() };
   }
 
   private usage(): LlmUsage {

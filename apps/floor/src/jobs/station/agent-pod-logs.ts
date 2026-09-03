@@ -49,34 +49,34 @@ export async function readAgentLogs(
   opts: { tailLines?: number } = {},
   archive?: PodLogArchive,
 ): Promise<AgentLogsResult> {
-  const info = await source.agentInfo(agentName);
+  const agent = await source.agentInfo(agentName);
 
-  if (!info) {
+  if (!agent) {
     return unavailable("no-agent", null);
   }
 
-  const jobName = info.jobName;
+  const jobName = agent.jobName;
 
   if (!jobName) {
-    return unavailable("no-job", info.phase);
+    return unavailable("no-job", agent.phase);
   }
 
   try {
     const pod = pickLatestPod(await source.podsForJob(jobName));
 
     if (!pod) {
-      return archivedOrNoPod(jobName, info.phase, opts, archive);
+      return archivedOrNoPod(jobName, agent.phase, opts, archive);
     }
 
     return {
       available: true,
       logs: await source.podLog(pod.name, opts.tailLines),
-      phase: info.phase,
+      phase: agent.phase,
       podName: pod.name,
     };
   } catch (err) {
     if (isNotFound(err)) {
-      return archivedOrNoPod(jobName, info.phase, opts, archive);
+      return archivedOrNoPod(jobName, agent.phase, opts, archive);
     }
     throw err;
   }

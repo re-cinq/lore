@@ -250,7 +250,7 @@ export class GeminiProvider implements LlmProvider {
       );
 
       return {
-        data: JSON.parse(text) as T,
+        parsed: JSON.parse(text) as T,
         model,
         inputTokens,
         outputTokens,

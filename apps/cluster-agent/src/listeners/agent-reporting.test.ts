@@ -105,9 +105,9 @@ describe("forEachAgentPage", () => {
         { items: [{ metadata: { name: "b" } }] },
       ]),
       "ai-agents",
-      async (items) => {
-        for (const item of items) {
-          seen.push((item as { metadata: { name: string } }).metadata.name);
+      async (page) => {
+        for (const agent of page) {
+          seen.push((agent as { metadata: { name: string } }).metadata.name);
         }
       },
     );
@@ -131,9 +131,9 @@ describe("forEachAgentPage", () => {
         }) as AgentLister["listNamespacedCustomObject"],
       },
       "ai-agents",
-      async (items) => {
-        for (const item of items) {
-          seen.push((item as { metadata: { name: string } }).metadata.name);
+      async (page) => {
+        for (const agent of page) {
+          seen.push((agent as { metadata: { name: string } }).metadata.name);
         }
       },
     );

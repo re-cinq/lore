@@ -309,15 +309,15 @@ export function catalogChartYaml(
   // Guard the mcp_servers block behind .Values.loreMcpUrl: unset (default, pre-gateway clusters), the block is omitted so no CRD carries an empty-`url` MCP entry.
   const guarded = body.replace(
     /^( *)mcp_servers:\n((?:\1 .*\n)*)/gm,
-    (_m, indent: string, items: string) =>
-      `{{- if .Values.loreMcpUrl }}\n${indent}mcp_servers:\n${items}{{- end }}\n`,
+    (_m, indent: string, entries: string) =>
+      `{{- if .Values.loreMcpUrl }}\n${indent}mcp_servers:\n${entries}{{- end }}\n`,
   );
 
   // Same guard for skills: `skills: [...]` beside `skills_source: null` is not inert — the init fetches nothing, reports SUCCESS, and the container dies on the missing settings.json.
   const skillsGuarded = guarded.replace(
     /^( *)skills:\n((?:\1 .*\n)*)\1skills_source: (.*)\n/gm,
-    (_m, indent: string, items: string, source: string) =>
-      `{{- if .Values.loreSkillsUrl }}\n${indent}skills:\n${items}${indent}skills_source: ${source}\n{{- end }}\n`,
+    (_m, indent: string, entries: string, source: string) =>
+      `{{- if .Values.loreSkillsUrl }}\n${indent}skills:\n${entries}${indent}skills_source: ${source}\n{{- end }}\n`,
   );
 
   // Guard the http telemetry sink behind .Values.agentEventsUrl: a satellite cluster has no bus-wide credential for it (ADR-024/FR5) and leaves the URL unset, so an unguarded sink is a hard CreateContainerConfigError on every satellite pod (found live, 2026-08-26).

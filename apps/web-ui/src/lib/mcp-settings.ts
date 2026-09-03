@@ -67,30 +67,30 @@ export async function putPrivilegedSettings(
     return { status: "error", message: (err as Error).message };
   }
 
-  const data = await res.json().catch(() => ({}));
+  const body = await res.json().catch(() => ({}));
 
   if (res.ok) {
-    return { status: "ok", applied: data.applied, ceremony: data.ceremony };
+    return { status: "ok", applied: body.applied, ceremony: body.ceremony };
   }
 
-  if (res.status === 403 && data.error === "two_key_required") {
+  if (res.status === 403 && body.error === "two_key_required") {
     return {
       status: "two_key_required",
-      fieldPaths: data.field_paths ?? [],
-      detail: data.detail ?? "",
+      fieldPaths: body.field_paths ?? [],
+      detail: body.detail ?? "",
     };
   }
 
-  if (res.status === 403 && data.error === "codeowners_check_failed") {
+  if (res.status === 403 && body.error === "codeowners_check_failed") {
     return {
       status: "codeowners_failed",
-      code: data.code ?? "unknown",
-      detail: data.detail ?? "",
+      code: body.code ?? "unknown",
+      detail: body.detail ?? "",
     };
   }
 
   return {
     status: "error",
-    message: data.error || data.detail || `HTTP ${res.status}`,
+    message: body.error || body.detail || `HTTP ${res.status}`,
   };
 }

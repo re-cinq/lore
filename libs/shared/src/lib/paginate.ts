@@ -26,8 +26,8 @@ export async function collectPages<T>(
 ): Promise<T[]> {
   const all: T[] = [];
 
-  await forEachPage(fetchPage, async (items) => {
-    all.push(...items);
+  await forEachPage(fetchPage, async (page) => {
+    all.push(...page);
   });
 
   return all;

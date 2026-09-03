@@ -17,13 +17,13 @@ function ownerRepo(repo: string): [string, string] {
 export async function listRepoWebhooks(repo: string): Promise<RepoHook[]> {
   const octokit = await getOctokit();
   const [owner, name] = ownerRepo(repo);
-  const { data } = await octokit.rest.repos.listWebhooks({
+  const { data: hooks } = await octokit.rest.repos.listWebhooks({
     owner,
     repo: name,
     per_page: 100,
   });
 
-  return data as unknown as RepoHook[];
+  return hooks as unknown as RepoHook[];
 }
 
 export async function ensureRepoWebhook(

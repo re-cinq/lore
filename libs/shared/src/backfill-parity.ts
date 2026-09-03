@@ -19,8 +19,8 @@ export function jaccard(a: string[], b: string[]): number {
   } // both empty → 1: two empty result sets are vacuously identical (opposite of meanTopkJaccard's fail-safe 0)
   let intersection = 0;
 
-  for (const x of setA) {
-    if (setB.has(x)) {
+  for (const key of setA) {
+    if (setB.has(key)) {
       intersection++;
     }
   }

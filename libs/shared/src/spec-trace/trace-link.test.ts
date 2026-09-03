@@ -67,7 +67,7 @@ describe.skipIf(!reachable)("upsertTraceLink (live Dgraph)", () => {
         }`,
         { $repo: repo },
       );
-      const data = res.data as {
+      const written = res.data as {
         tracelinks?: { uid: string }[];
         testchunks?: { uid: string }[];
         codechunks?: { uid: string }[];
@@ -75,11 +75,11 @@ describe.skipIf(!reachable)("upsertTraceLink (live Dgraph)", () => {
         files?: { uid: string }[];
       };
       const uids = [
-        ...(data.tracelinks ?? []),
-        ...(data.testchunks ?? []),
-        ...(data.codechunks ?? []),
-        ...(data.coverages ?? []),
-        ...(data.files ?? []),
+        ...(written.tracelinks ?? []),
+        ...(written.testchunks ?? []),
+        ...(written.codechunks ?? []),
+        ...(written.coverages ?? []),
+        ...(written.files ?? []),
       ].map((node) => node.uid);
 
       if (uids.length) {
@@ -105,8 +105,8 @@ describe.skipIf(!reachable)("upsertTraceLink (live Dgraph)", () => {
         }`,
         { $sx: statementXid },
       );
-      const data = res.data as { stmts?: { uid: string }[] };
-      const uids = (data.stmts ?? []).map((node) => node.uid);
+      const written = res.data as { stmts?: { uid: string }[] };
+      const uids = (written.stmts ?? []).map((node) => node.uid);
 
       if (uids.length) {
         await txn.mutate({
@@ -175,7 +175,7 @@ describe.skipIf(!reachable)("upsertTraceLink (live Dgraph)", () => {
       evidence: "human-linked",
     });
 
-    const data = (await readGraph(
+    const graph = (await readGraph(
       `query q($sx: string) {
         stmt(func: eq(Statement.xid, $sx)) {
           Statement.trace_links {
@@ -186,7 +186,7 @@ describe.skipIf(!reachable)("upsertTraceLink (live Dgraph)", () => {
       { $sx: statementXid },
     )) as { stmt?: Record<string, unknown>[] };
 
-    expect(data.stmt?.[0]?.["Statement.trace_links"]).toEqual([
+    expect(graph.stmt?.[0]?.["Statement.trace_links"]).toEqual([
       {
         "TraceLink.kind": "validated_by",
         "TraceLink.evidence": "human-linked",
@@ -234,7 +234,7 @@ describe.skipIf(!reachable)("upsertTraceLink (live Dgraph)", () => {
       evidence: "human-linked",
     });
 
-    const data = (await readGraph(
+    const graph = (await readGraph(
       `query q($x: string) {
         target(func: eq(TestChunk.xid, $x)) {
           links: ~TraceLink.target { TraceLink.kind }
@@ -244,7 +244,7 @@ describe.skipIf(!reachable)("upsertTraceLink (live Dgraph)", () => {
     )) as { target?: Array<{ links?: Array<{ "TraceLink.kind"?: string }> }> };
 
     expect(
-      (data.target?.[0]?.links ?? []).map((l) => l["TraceLink.kind"]),
+      (graph.target?.[0]?.links ?? []).map((l) => l["TraceLink.kind"]),
     ).toEqual(["validated_by"]);
   });
 
@@ -282,7 +282,7 @@ describe.skipIf(!reachable)("upsertTraceLink (live Dgraph)", () => {
 
     await projectTraceLinks(dgraphClient, repo, statementXid);
 
-    const data = (await readGraph(
+    const graph = (await readGraph(
       `query q($sx: string) {
         stmt(func: eq(Statement.xid, $sx)) {
           Statement.trace_links {
@@ -293,7 +293,7 @@ describe.skipIf(!reachable)("upsertTraceLink (live Dgraph)", () => {
       { $sx: statementXid },
     )) as { stmt?: Record<string, unknown>[] };
 
-    expect(data.stmt?.[0]?.["Statement.trace_links"]).toEqual([
+    expect(graph.stmt?.[0]?.["Statement.trace_links"]).toEqual([
       {
         "TraceLink.kind": "validated_by",
         "TraceLink.evidence": "human-linked",
@@ -376,7 +376,7 @@ describe.skipIf(!reachable)("upsertTraceLink (live Dgraph)", () => {
 
     await projectTraceLinks(dgraphClient, repo, statementXid);
 
-    const data = (await readGraph(
+    const graph = (await readGraph(
       `query q($sx: string){
         stmt(func: eq(Statement.xid, $sx)){
           Statement.trace_links @filter(eq(TraceLink.kind, "validated_by")) {
@@ -387,7 +387,7 @@ describe.skipIf(!reachable)("upsertTraceLink (live Dgraph)", () => {
       { $sx: statementXid },
     )) as { stmt?: Record<string, unknown>[] };
 
-    expect(data.stmt?.[0]?.["Statement.trace_links"]).toContainEqual({
+    expect(graph.stmt?.[0]?.["Statement.trace_links"]).toContainEqual({
       "TraceLink.evidence": "execution-verified",
     });
   });
@@ -437,7 +437,7 @@ describe.skipIf(!reachable)("upsertTraceLink (live Dgraph)", () => {
 
     await projectTraceLinks(dgraphClient, repo, statementXid);
 
-    const data = (await readGraph(
+    const graph = (await readGraph(
       `query q($sx: string){
         stmt(func: eq(Statement.xid, $sx)){
           Statement.trace_links @filter(eq(TraceLink.kind, "validated_by")) {
@@ -448,7 +448,7 @@ describe.skipIf(!reachable)("upsertTraceLink (live Dgraph)", () => {
       { $sx: statementXid },
     )) as { stmt?: Record<string, unknown>[] };
 
-    expect(data.stmt?.[0]?.["Statement.trace_links"]).toEqual([
+    expect(graph.stmt?.[0]?.["Statement.trace_links"]).toEqual([
       { "TraceLink.evidence": "generated-provenance" },
     ]);
   });

@@ -98,17 +98,17 @@ export function toolResultText(content: unknown): string {
 
   if (Array.isArray(content)) {
     return content
-      .map((item) => {
-        if (!isRecord(item)) {
+      .map((block) => {
+        if (!isRecord(block)) {
           return "";
         }
 
-        if (typeof item.text === "string") {
-          return item.text;
+        if (typeof block.text === "string") {
+          return block.text;
         }
 
-        if (typeof item.tool_name === "string") {
-          return `[${item.tool_name}]`;
+        if (typeof block.tool_name === "string") {
+          return `[${block.tool_name}]`;
         }
 
         return "";
@@ -430,15 +430,18 @@ function classify(value: unknown, originalLine: string): LogEntry[] {
   }
 
   if (value.type === "rate_limit_event") {
-    const info = isRecord(value.rate_limit_info) ? value.rate_limit_info : {};
-    const windows = rateLimitWindows(info);
+    const rateLimit = isRecord(value.rate_limit_info)
+      ? value.rate_limit_info
+      : {};
+    const windows = rateLimitWindows(rateLimit);
 
     // No readable window keeps its bytes rather than rendering a confidently empty sentence.
     return windows.length > 0
       ? [
           {
             kind: "rate-limit",
-            status: typeof info.status === "string" ? info.status : "",
+            status:
+              typeof rateLimit.status === "string" ? rateLimit.status : "",
             windows,
           },
         ]
@@ -622,9 +625,9 @@ function toWindow(name: string, value: unknown): RateLimitWindow | null {
 
 /** Every window the event reports: `unifiedWindows` map when present, else the single window the top-level fields describe. */
 export function rateLimitWindows(
-  info: Record<string, unknown>,
+  rateLimit: Record<string, unknown>,
 ): RateLimitWindow[] {
-  const unified = info.unifiedWindows;
+  const unified = rateLimit.unifiedWindows;
 
   if (isRecord(unified)) {
     return Object.entries(unified)
@@ -633,8 +636,8 @@ export function rateLimitWindows(
   }
 
   const single =
-    typeof info.rateLimitType === "string"
-      ? toWindow(info.rateLimitType, info)
+    typeof rateLimit.rateLimitType === "string"
+      ? toWindow(rateLimit.rateLimitType, rateLimit)
       : null;
 
   return single === null ? [] : [single];

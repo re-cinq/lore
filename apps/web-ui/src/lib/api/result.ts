@@ -7,19 +7,19 @@ export type ApiResult<T = unknown> =
 
 /** Response → result; an unparseable body is an empty object, not a throw — a 502 from a proxy is HTML either way. */
 export async function toApiResult<T>(res: Response): Promise<ApiResult<T>> {
-  const data = await res.json().catch(() => ({}));
+  const body = await res.json().catch(() => ({}));
 
   if (!res.ok) {
     return {
       status: "error",
-      message: (data as { error?: string }).error ?? `HTTP ${res.status}`,
+      message: (body as { error?: string }).error ?? `HTTP ${res.status}`,
       code: res.status,
       // Whole parsed body — a refusal often says more than its message (e.g. onboard guard names the blocking task).
-      body: data,
+      body: body,
     };
   }
 
-  return { status: "ok", data: data as T };
+  return { status: "ok", data: body as T };
 }
 
 /** Throws when the result did not succeed — an ignored `ApiResult` return would swallow every 4xx/5xx as a silent no-op refresh. Local, not `enforceTrue` from @re-cinq/lore-shared: web-ui isn't an npm workspace member. */

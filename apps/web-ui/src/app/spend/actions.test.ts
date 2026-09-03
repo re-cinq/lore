@@ -14,13 +14,13 @@ vi.mock("next/cache", () => ({
 import { recordTopUpAction } from "./actions";
 
 const form = (fields: Record<string, string>) => {
-  const data = new FormData();
+  const form = new FormData();
 
   for (const [key, value] of Object.entries(fields)) {
-    data.set(key, value);
+    form.set(key, value);
   }
 
-  return data;
+  return form;
 };
 
 beforeEach(() => {

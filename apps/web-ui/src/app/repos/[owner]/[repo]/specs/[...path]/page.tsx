@@ -31,7 +31,7 @@ export default async function RepoSpecDetail({
     <div>
       <p className={`meta ${styles.breadcrumb}`}>
         <Link href={specsLink}>← Specs</Link>
-        {status && <SpecStatusPill info={status} />}
+        {status && <SpecStatusPill status={status} />}
       </p>
       {source ? (
         <SpecDocument

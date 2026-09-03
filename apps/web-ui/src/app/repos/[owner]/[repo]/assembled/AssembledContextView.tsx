@@ -105,28 +105,30 @@ function TraceCard({
             {section.items.length === 1 ? "" : "s"}
           </summary>
           <ul className={styles.docList}>
-            {section.items.map((item, i) => (
+            {section.items.map((document, i) => (
               <li key={i} className={styles.docItem}>
-                {item.content_type && (
-                  <span className={badgeClassForType(item.content_type)}>
-                    {labelForType(item.content_type)}
+                {document.content_type && (
+                  <span className={badgeClassForType(document.content_type)}>
+                    {labelForType(document.content_type)}
                   </span>
                 )}
-                {item.source_path ? (
+                {document.source_path ? (
                   <a
-                    href={`/repos/${owner}/${repo}/context/${encodeURIComponent(item.source_path)}`}
+                    href={`/repos/${owner}/${repo}/context/${encodeURIComponent(document.source_path)}`}
                   >
-                    {item.source_path}
+                    {document.source_path}
                   </a>
                 ) : (
-                  <span className="meta">{item.text.slice(0, 60)}…</span>
+                  <span className="meta">{document.text.slice(0, 60)}…</span>
                 )}
-                <span className="meta">{item.tokens} tok</span>
-                {typeof item.score === "number" && (
-                  <span className="meta">rel {item.score.toFixed(2)}</span>
+                <span className="meta">{document.tokens} tok</span>
+                {typeof document.score === "number" && (
+                  <span className="meta">rel {document.score.toFixed(2)}</span>
                 )}
-                {item.ingested_at && (
-                  <span className="meta">{item.ingested_at.slice(0, 10)}</span>
+                {document.ingested_at && (
+                  <span className="meta">
+                    {document.ingested_at.slice(0, 10)}
+                  </span>
                 )}
               </li>
             ))}

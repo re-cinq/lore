@@ -70,15 +70,15 @@ async function fetchFileWithHeadFallback(
 ): Promise<{ content: string | null; missing404: boolean }> {
   for (const ref of [target.commit, "HEAD"]) {
     try {
-      const { data } = await octokit.rest.repos.getContent({
+      const { data: entry } = await octokit.rest.repos.getContent({
         owner: target.owner,
         repo: target.repoName,
         path: target.filePath,
         ref,
       });
       const content =
-        "content" in data
-          ? Buffer.from(data.content, "base64").toString("utf-8")
+        "content" in entry
+          ? Buffer.from(entry.content, "base64").toString("utf-8")
           : null;
 
       return { content, missing404: false };

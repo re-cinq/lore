@@ -132,13 +132,13 @@ function distinct(
 export const DEFAULT_LIMIT = 12;
 
 export function assembleGraphContext(
-  data: GraphContextResult,
+  graph: GraphContextResult,
   opts: { limit?: number } = {},
 ): GraphContextBlock {
   const limit = opts.limit ?? DEFAULT_LIMIT;
   const byXid = new Map<string, GraphContextStatement>();
 
-  for (const row of data.q ?? []) {
+  for (const row of graph.q ?? []) {
     const stmt = toStatement(row);
 
     if (!byXid.has(stmt.xid)) {

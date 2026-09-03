@@ -215,8 +215,8 @@ describe.skipIf(!reachable)("computeImpact coupling (live Dgraph)", () => {
         }`,
         { $repo: repo },
       );
-      const data = res.data as Record<string, { uid: string }[]>;
-      const uids = Object.values(data)
+      const written = res.data as Record<string, { uid: string }[]>;
+      const uids = Object.values(written)
         .flat()
         .map((n) => n.uid);
 
@@ -502,8 +502,8 @@ describe.skipIf(!reachable)("spec-only PR (live Dgraph)", () => {
         }`,
         { $repo: createdRepo },
       );
-      const data = res.data as Record<string, { uid: string }[]>;
-      const uids = Object.values(data)
+      const written = res.data as Record<string, { uid: string }[]>;
+      const uids = Object.values(written)
         .flat()
         .map((n) => n.uid);
 
@@ -804,8 +804,8 @@ describe.skipIf(!reachable)(
         }`,
           { $repo: repo },
         );
-        const data = res.data as Record<string, { uid: string }[]>;
-        const uids = Object.values(data)
+        const written = res.data as Record<string, { uid: string }[]>;
+        const uids = Object.values(written)
           .flat()
           .map((n) => n.uid);
 

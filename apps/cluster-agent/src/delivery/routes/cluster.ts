@@ -117,13 +117,13 @@ export function clusterRoutes(opts: ClusterRoutesDeps): ServerRoute[] {
       options: { auth: false },
       handler: async (request, h) => {
         guard(request.headers);
-        const info = await opts.deps().pods.agentInfo(request.params.name);
+        const pod = await opts.deps().pods.agentInfo(request.params.name);
 
         return h
           .response({
-            found: info !== null,
-            phase: info?.phase ?? null,
-            jobName: info?.jobName ?? null,
+            found: pod !== null,
+            phase: pod?.phase ?? null,
+            jobName: pod?.jobName ?? null,
           })
           .code(200);
       },

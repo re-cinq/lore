@@ -55,7 +55,7 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
   async listIssues(repo: string, filter?: IssueFilter): Promise<IssueRef[]> {
     const ok = await this.octo();
     const [owner, name] = split(repo);
-    const data = await ok.paginate(ok.rest.issues.listForRepo, {
+    const issues = await ok.paginate(ok.rest.issues.listForRepo, {
       owner,
       repo: name,
       state: filter?.state ?? "open",
@@ -63,7 +63,7 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
       per_page: 100,
     });
 
-    return data
+    return issues
       .filter((i) => !i.pull_request)
       .map((i) => ({
         repo,
@@ -88,15 +88,19 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
     const [owner, name] = split(repo);
 
     try {
-      const { data } = await ok.rest.repos.getContent({
+      const { data: content } = await ok.rest.repos.getContent({
         owner,
         repo: name,
         path,
         ...(ref ? { ref } : {}),
       });
 
-      if (!Array.isArray(data) && data.type === "file" && data.content) {
-        return Buffer.from(data.content, "base64").toString("utf-8");
+      if (
+        !Array.isArray(content) &&
+        content.type === "file" &&
+        content.content
+      ) {
+        return Buffer.from(content.content, "base64").toString("utf-8");
       }
 
       return null;
@@ -110,13 +114,13 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
     const [owner, name] = split(repo);
 
     try {
-      const { data } = await ok.rest.repos.getContent({
+      const { data: entries } = await ok.rest.repos.getContent({
         owner,
         repo: name,
         path,
       });
 
-      return Array.isArray(data) ? data.map((e) => e.name) : [];
+      return Array.isArray(entries) ? entries.map((e) => e.name) : [];
     } catch {
       return [];
     }
@@ -127,7 +131,7 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
     const [owner, name] = split(repo);
     const branch = ref ?? (await this.defaultBranch(repo));
     // getTree is unpaginated (truncated past ~100k entries); a truncated tree must throw, not return — a partial list reads as mass deletion to the reindex prune pass.
-    const { data } = await ok.rest.git.getTree({
+    const { data: tree } = await ok.rest.git.getTree({
       owner,
       repo: name,
       tree_sha: branch,
@@ -135,12 +139,12 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
     });
 
     enforceTrue(
-      !data.truncated,
+      !tree.truncated,
       Error,
       `Recursive tree fetch for ${repo} was truncated by GitHub — refusing to return a partial file list`,
     );
 
-    return (data.tree ?? [])
+    return (tree.tree ?? [])
       .filter((e) => e.type === "blob" && typeof e.path === "string")
       .map((e) => e.path as string);
   }
@@ -188,7 +192,7 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
     const [owner, name] = split(repo);
 
     try {
-      const { data } = await ok.rest.issues.get({
+      const { data: issue } = await ok.rest.issues.get({
         owner,
         repo: name,
         issue_number: number,
@@ -196,13 +200,13 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
 
       return {
         repo,
-        number: data.number,
-        title: data.title,
-        state: data.state as IssueState,
-        labels: data.labels
+        number: issue.number,
+        title: issue.title,
+        state: issue.state as IssueState,
+        labels: issue.labels
           .map((l) => (typeof l === "string" ? l : (l.name ?? "")))
           .filter(Boolean),
-        url: data.html_url,
+        url: issue.html_url,
       };
     } catch {
       return null;
@@ -212,13 +216,13 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
   async getIssueLabels(repo: string, number: number): Promise<string[]> {
     const ok = await this.octo();
     const [owner, name] = split(repo);
-    const { data } = await ok.rest.issues.get({
+    const { data: issue } = await ok.rest.issues.get({
       owner,
       repo: name,
       issue_number: number,
     });
 
-    return data.labels
+    return issue.labels
       .map((l) => (typeof l === "string" ? l : (l.name ?? "")))
       .filter(Boolean);
   }
@@ -231,7 +235,7 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
   ): Promise<IssueRef> {
     const ok = await this.octo();
     const [owner, name] = split(repo);
-    const { data } = await ok.rest.issues.create({
+    const { data: created } = await ok.rest.issues.create({
       owner,
       repo: name,
       title,
@@ -241,11 +245,11 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
 
     return {
       repo,
-      number: data.number,
+      number: created.number,
       title,
       state: "open",
       labels,
-      url: data.html_url,
+      url: created.html_url,
     };
   }
 
@@ -420,15 +424,15 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
 
     for (const ref of [branch, "main"]) {
       try {
-        const { data } = await ok.rest.repos.getContent({
+        const { data: existing } = await ok.rest.repos.getContent({
           owner,
           repo: name,
           path,
           ref,
         });
 
-        if (!Array.isArray(data) && "sha" in data) {
-          sha = data.sha;
+        if (!Array.isArray(existing) && "sha" in existing) {
+          sha = existing.sha;
           break;
         }
       } catch {
@@ -449,13 +453,13 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
   async upsertCheckRun(repo: string, input: CheckRunInput): Promise<void> {
     const ok = await this.octo();
     const [owner, name] = split(repo);
-    const { data } = await ok.rest.checks.listForRef({
+    const { data: checks } = await ok.rest.checks.listForRef({
       owner,
       repo: name,
       ref: input.headSha,
       check_name: input.name,
     });
-    const existing = data.check_runs[0];
+    const existing = checks.check_runs[0];
     const output = { title: input.title, summary: input.summary };
     const fields = {
       status: input.status,
@@ -488,14 +492,14 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
   async list(repo: string): Promise<PullRef[]> {
     const ok = await this.octo();
     const [owner, name] = split(repo);
-    const data = await ok.paginate(ok.rest.pulls.list, {
+    const pulls = await ok.paginate(ok.rest.pulls.list, {
       owner,
       repo: name,
       state: "open",
       per_page: 100,
     });
 
-    return data.map((pr) => toPullRef(repo, pr));
+    return pulls.map((pr) => toPullRef(repo, pr));
   }
 
   async get(repo: string, number: number): Promise<PullRef | null> {
@@ -503,13 +507,13 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
     const [owner, name] = split(repo);
 
     try {
-      const { data } = await ok.rest.pulls.get({
+      const { data: pull } = await ok.rest.pulls.get({
         owner,
         repo: name,
         pull_number: number,
       });
 
-      return toPullRef(repo, data);
+      return toPullRef(repo, pull);
     } catch {
       return null;
     }
@@ -627,7 +631,7 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
   ): Promise<PullRef> {
     const ok = await this.octo();
     const [owner, name] = split(repo);
-    const { data } = await ok.rest.pulls.create({
+    const { data: created } = await ok.rest.pulls.create({
       owner,
       repo: name,
       title,
@@ -641,37 +645,37 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
       await ok.rest.issues.addLabels({
         owner,
         repo: name,
-        issue_number: data.number,
+        issue_number: created.number,
         labels,
       });
     }
 
-    return toPullRef(repo, data);
+    return toPullRef(repo, created);
   }
 
   async getDiff(repo: string, number: number): Promise<string> {
     const ok = await this.octo();
     const [owner, name] = split(repo);
-    const { data } = await ok.rest.pulls.get({
+    const { data: diff } = await ok.rest.pulls.get({
       owner,
       repo: name,
       pull_number: number,
       mediaType: { format: "diff" },
     });
 
-    return data as unknown as string;
+    return diff as unknown as string;
   }
 
   async listReviews(repo: string, number: number): Promise<PullReview[]> {
     const ok = await this.octo();
     const [owner, name] = split(repo);
-    const data = await ok.paginate(ok.rest.pulls.listReviews, {
+    const reviews = await ok.paginate(ok.rest.pulls.listReviews, {
       owner,
       repo: name,
       pull_number: number,
     });
 
-    return data.map((r) => ({
+    return reviews.map((r) => ({
       id: r.id,
       state: r.state,
       body: r.body ?? "",
@@ -683,13 +687,13 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
   async listComments(repo: string, number: number): Promise<ReviewComment[]> {
     const ok = await this.octo();
     const [owner, name] = split(repo);
-    const data = await ok.paginate(ok.rest.pulls.listReviewComments, {
+    const comments = await ok.paginate(ok.rest.pulls.listReviewComments, {
       owner,
       repo: name,
       pull_number: number,
     });
 
-    return data.map((c) => ({
+    return comments.map((c) => ({
       id: c.id,
       path: c.path,
       line: c.line ?? c.original_line ?? null,
@@ -711,7 +715,7 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
     let hasNextPage = true;
 
     while (hasNextPage) {
-      const data: ReviewThreadsResponse = await ok.graphql(
+      const response: ReviewThreadsResponse = await ok.graphql(
         `query ($owner: String!, $name: String!, $number: Int!, $cursor: String) {
           repository(owner: $owner, name: $name) {
             pullRequest(number: $number) {
@@ -732,7 +736,7 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
         }`,
         { owner, name, number, cursor },
       );
-      const page = data.repository?.pullRequest?.reviewThreads;
+      const page = response.repository?.pullRequest?.reviewThreads;
 
       if (!page) {
         break;
@@ -829,13 +833,13 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
   ): Promise<IssueComment[]> {
     const ok = await this.octo();
     const [owner, name] = split(repo);
-    const data = await ok.paginate(ok.rest.issues.listComments, {
+    const comments = await ok.paginate(ok.rest.issues.listComments, {
       owner,
       repo: name,
       issue_number: number,
     });
 
-    return data
+    return comments
       .filter(
         (c) =>
           !c.body?.startsWith("PR created:") &&
@@ -852,13 +856,13 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
   async listCommits(repo: string, number: number): Promise<PullCommit[]> {
     const ok = await this.octo();
     const [owner, name] = split(repo);
-    const data = await ok.paginate(ok.rest.pulls.listCommits, {
+    const commits = await ok.paginate(ok.rest.pulls.listCommits, {
       owner,
       repo: name,
       pull_number: number,
     });
 
-    return data.map((c) => ({
+    return commits.map((c) => ({
       sha: c.sha,
       message: c.commit.message,
       date: c.commit.committer?.date ?? "",
@@ -868,43 +872,43 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
   async isMerged(repo: string, number: number): Promise<boolean> {
     const ok = await this.octo();
     const [owner, name] = split(repo);
-    const { data } = await ok.rest.pulls.get({
+    const { data: pull } = await ok.rest.pulls.get({
       owner,
       repo: name,
       pull_number: number,
     });
 
-    return data.merged;
+    return pull.merged;
   }
 
   async isClosed(repo: string, number: number): Promise<boolean> {
     const ok = await this.octo();
     const [owner, name] = split(repo);
-    const { data } = await ok.rest.pulls.get({
+    const { data: pull } = await ok.rest.pulls.get({
       owner,
       repo: name,
       pull_number: number,
     });
 
-    return data.state === "closed" && !data.merged;
+    return pull.state === "closed" && !pull.merged;
   }
 
   async getStats(repo: string, number: number): Promise<PullStats> {
     const ok = await this.octo();
     const [owner, name] = split(repo);
-    const { data } = await ok.rest.pulls.get({
+    const { data: pull } = await ok.rest.pulls.get({
       owner,
       repo: name,
       pull_number: number,
     });
 
     return {
-      files_changed: data.changed_files,
-      additions: data.additions,
-      deletions: data.deletions,
-      comments: data.comments + data.review_comments,
-      merged_at: data.merged_at,
-      created_at: data.created_at,
+      files_changed: pull.changed_files,
+      additions: pull.additions,
+      deletions: pull.deletions,
+      comments: pull.comments + pull.review_comments,
+      merged_at: pull.merged_at,
+      created_at: pull.created_at,
     };
   }
 
@@ -915,13 +919,15 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
   ): Promise<number> {
     const ok = await this.octo();
     const [owner, name] = split(repo);
-    const { data } = await ok.rest.repos.compareCommitsWithBasehead({
-      owner,
-      repo: name,
-      basehead: `${base}...${head}`,
-    });
+    const { data: comparison } = await ok.rest.repos.compareCommitsWithBasehead(
+      {
+        owner,
+        repo: name,
+        basehead: `${base}...${head}`,
+      },
+    );
 
-    return data.files?.length ?? 0;
+    return comparison.files?.length ?? 0;
   }
 
   /** All check runs for a ref, paginated once — source for both ciConclusion and the raw listChecks the auto-merge gate reads. */
@@ -1096,9 +1102,9 @@ export class PlatformGitHub implements GitHubPort, PullRequestsPort {
   private async defaultBranch(repo: string): Promise<string> {
     const ok = await this.octo();
     const [owner, name] = split(repo);
-    const { data } = await ok.rest.repos.get({ owner, repo: name });
+    const { data: repository } = await ok.rest.repos.get({ owner, repo: name });
 
-    return data.default_branch;
+    return repository.default_branch;
   }
 }
 

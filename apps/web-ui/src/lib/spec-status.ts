@@ -94,7 +94,7 @@ export function parseSpecStatus(markdown: string): SpecStatusInfo | null {
   return null;
 }
 
-/** Bucket a bare status value (an ADR frontmatter `status:`) into pill info. */
+/** Bucket a bare status value (an ADR frontmatter `status:`) into pill status. */
 export function statusInfoFromValue(value: string): SpecStatusInfo | null {
   const bucket = BUCKETS.find((b) => b.re.test(value.toLowerCase()));
 
@@ -111,8 +111,8 @@ export function statusInfoFromValue(value: string): SpecStatusInfo | null {
 export type SpecStatusFilter = "all" | SpecStatus;
 
 export function matchesSpecStatusFilter(
-  info: SpecStatusInfo | undefined,
+  status: SpecStatusInfo | undefined,
   filter: SpecStatusFilter,
 ): boolean {
-  return filter === "all" || info?.status === filter;
+  return filter === "all" || status?.status === filter;
 }

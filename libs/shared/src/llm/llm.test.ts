@@ -15,7 +15,7 @@ const stub: LlmProvider = {
     model: "stub",
   }),
   completeWithTool: async <T>() => ({
-    data: undefined as T,
+    parsed: undefined as T,
     inputTokens: 0,
     outputTokens: 0,
     cacheCreationTokens: 0,

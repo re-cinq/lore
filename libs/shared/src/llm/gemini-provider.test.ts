@@ -76,7 +76,7 @@ describe("GeminiProvider", () => {
         properties: { ok: { type: "boolean" } },
       },
     });
-    expect(result.data).toEqual({ ok: true });
+    expect(result.parsed).toEqual({ ok: true });
     expect(result.model).toBe("gemini-2.5-pro");
   });
 

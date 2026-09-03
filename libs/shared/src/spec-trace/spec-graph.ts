@@ -223,11 +223,11 @@ function emitCoveredFileNodes(
 }
 
 /** Pure: Dgraph query result → de-duplicated nodes + links. */
-export function flattenSpecGraph(data: GraphResult): SpecGraph {
+export function flattenSpecGraph(graph: GraphResult): SpecGraph {
   const nodes = new Map<string, SpecGraphNode>();
   const links: SpecGraphLink[] = [];
 
-  for (const spec of data.q ?? []) {
+  for (const spec of graph.q ?? []) {
     const specPath = spec["Spec.file_path"] ?? spec.uid;
 
     nodes.set(spec.uid, {
@@ -324,13 +324,13 @@ export async function fetchSpecGraph(
   repo: string,
   dgraph: DgraphClientPort,
 ): Promise<SpecGraph> {
-  const data = await withTxn(dgraph, async (txn) => {
+  const graph = await withTxn(dgraph, async (txn) => {
     const res = await txn.queryWithVars(GRAPH_DQL, { $repo: repo });
 
     return (res.data ?? {}) as GraphResult;
   });
 
-  return flattenSpecGraph(data);
+  return flattenSpecGraph(graph);
 }
 
 export interface RingSection {
@@ -366,8 +366,8 @@ interface RingResult {
 }
 
 /** Pure: a spec's two-ring structure — sections (inner) + per-statement coverage (outer). */
-export function flattenSpecRing(data: RingResult): SpecRing {
-  const spec = data.q?.[0];
+export function flattenSpecRing(graph: RingResult): SpecRing {
+  const spec = graph.q?.[0];
 
   if (!spec) {
     return { sections: [], statements: [] };
@@ -432,7 +432,7 @@ export async function fetchSpecRing(
   specPath: string,
   dgraph: DgraphClientPort,
 ): Promise<SpecRing> {
-  const data = await withTxn(dgraph, async (txn) => {
+  const graph = await withTxn(dgraph, async (txn) => {
     const res = await txn.queryWithVars(RING_DQL, {
       $xid: `${repo}|${specPath}`,
     });
@@ -440,5 +440,5 @@ export async function fetchSpecRing(
     return (res.data ?? {}) as RingResult;
   });
 
-  return flattenSpecRing(data);
+  return flattenSpecRing(graph);
 }

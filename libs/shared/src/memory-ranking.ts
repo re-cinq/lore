@@ -21,18 +21,18 @@ export interface RankedItem {
 
 export const RRF_K = 60;
 
-function fusionKey(item: RankedItem): string {
-  return `${item.agent_id}::${item.source}::${item.key}::${item.value}`;
+function fusionKey(ranked: RankedItem): string {
+  return `${ranked.agent_id}::${ranked.source}::${ranked.key}::${ranked.value}`;
 }
 
 export function rrfMerge(lists: RankedItem[][]): MemorySearchResult[] {
   const fused = new Map<string, MemorySearchResult>();
 
   for (const list of lists) {
-    list.forEach((item, index) => {
+    list.forEach((ranked, index) => {
       const rank = index + 1;
       const contribution = 1 / (RRF_K + rank);
-      const dedupeKey = fusionKey(item);
+      const dedupeKey = fusionKey(ranked);
       const existing = fused.get(dedupeKey);
 
       if (existing) {
@@ -41,12 +41,12 @@ export function rrfMerge(lists: RankedItem[][]): MemorySearchResult[] {
         return;
       }
       fused.set(dedupeKey, {
-        key: item.key,
-        value: item.value,
-        agent_id: item.agent_id,
-        source: item.source,
-        id: item.id,
-        confidence: item.confidence,
+        key: ranked.key,
+        value: ranked.value,
+        agent_id: ranked.agent_id,
+        source: ranked.source,
+        id: ranked.id,
+        confidence: ranked.confidence,
         score: contribution,
       });
     });

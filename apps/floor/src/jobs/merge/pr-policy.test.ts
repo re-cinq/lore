@@ -21,8 +21,8 @@ const task = (over: Partial<TaskPrInfo>): TaskPrInfo => ({
   ...over,
 });
 
-const prInfoReader = (info: TaskPrInfo): PrInfoReader => ({
-  prInfo: async () => info,
+const prInfoReader = (prInfo: TaskPrInfo): PrInfoReader => ({
+  prInfo: async () => prInfo,
 });
 
 const repoSettingsReader = (
@@ -75,11 +75,11 @@ function pullsFor(stub: PullsStub): (repo: string) => Promise<PullRequests> {
 }
 
 const deps = (
-  info: TaskPrInfo,
+  prInfo: TaskPrInfo,
   stub: PullsStub,
   levels: Record<string, TrustLevel> = {},
 ): PrPolicyDeps => ({
-  tasks: prInfoReader(info),
+  tasks: prInfoReader(prInfo),
   repos: repoSettingsReader(levels),
   pullsFor: pullsFor(stub),
 });

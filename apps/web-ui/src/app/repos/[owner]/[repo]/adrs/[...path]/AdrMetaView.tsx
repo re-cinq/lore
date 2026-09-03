@@ -33,7 +33,7 @@ export default function AdrMetaView({
 
   return (
     <div className={styles.header}>
-      {statusInfo && <SpecStatusPill info={statusInfo} />}
+      {statusInfo && <SpecStatusPill status={statusInfo} />}
       {date && <span className={`meta ${styles.field}`}>{date}</span>}
       {domains.map((domain) => (
         <span key={domain} className={styles.domain}>

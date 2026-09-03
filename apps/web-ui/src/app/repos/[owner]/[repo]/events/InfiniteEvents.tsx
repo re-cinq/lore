@@ -68,11 +68,11 @@ export default function InfiniteEvents({
 
           return;
         }
-        const data = (await res.json()) as EventsPage;
+        const page = (await res.json()) as EventsPage;
 
-        setEvents((prev) => [...prev, ...data.events]);
+        setEvents((prev) => [...prev, ...page.events]);
         setOffset((prev) => prev + EVENTS_PAGE_SIZE);
-        setMore(data.hasMore);
+        setMore(page.hasMore);
       } catch {
         setFailed(true);
       } finally {

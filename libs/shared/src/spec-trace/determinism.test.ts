@@ -92,9 +92,12 @@ describe.skipIf(!reachable)("Spec Traceability Graph", () => {
         }`,
         { $repo: repo },
       );
-      const data = res.data as Record<string, Array<Record<string, unknown>>>;
+      const written = res.data as Record<
+        string,
+        Array<Record<string, unknown>>
+      >;
 
-      const records: NodeRecord[] = Object.entries(data).flatMap(
+      const records: NodeRecord[] = Object.entries(written).flatMap(
         ([group, nodes]) =>
           (nodes ?? []).map((node) => nodeRecordOf(group, node)),
       );
@@ -123,8 +126,8 @@ describe.skipIf(!reachable)("Spec Traceability Graph", () => {
         }`,
         { $repo: repo },
       );
-      const data = res.data as Record<string, { uid: string }[]>;
-      const uids = Object.values(data)
+      const written = res.data as Record<string, { uid: string }[]>;
+      const uids = Object.values(written)
         .flat()
         .map((node) => node.uid);
 

@@ -53,8 +53,8 @@ describe("forEachAgentPage", () => {
     ]);
     const seen: unknown[] = [];
 
-    await forEachAgentPage(cluster, async (items) => {
-      seen.push(...items);
+    await forEachAgentPage(cluster, async (page) => {
+      seen.push(...page);
     });
 
     expect(seen).toEqual([1, 2, 3, 4]);

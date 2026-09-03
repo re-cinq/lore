@@ -70,17 +70,17 @@ describe.skipIf(!reachable)("driftCheckFile (live Dgraph)", () => {
         }`,
         { $repo: repo },
       );
-      const data = res.data as {
+      const written = res.data as {
         testchunks?: { uid: string }[];
         codechunks?: { uid: string }[];
         coverages?: { uid: string }[];
         testsuites?: { uid: string }[];
       };
       const uids = [
-        ...(data.testchunks ?? []),
-        ...(data.codechunks ?? []),
-        ...(data.coverages ?? []),
-        ...(data.testsuites ?? []),
+        ...(written.testchunks ?? []),
+        ...(written.codechunks ?? []),
+        ...(written.coverages ?? []),
+        ...(written.testsuites ?? []),
       ].map((node) => node.uid);
 
       if (uids.length) {
@@ -106,8 +106,8 @@ describe.skipIf(!reachable)("driftCheckFile (live Dgraph)", () => {
         }`,
         { $sx: statementXid },
       );
-      const data = res.data as { stmts?: { uid: string }[] };
-      const uids = (data.stmts ?? []).map((node) => node.uid);
+      const written = res.data as { stmts?: { uid: string }[] };
+      const uids = (written.stmts ?? []).map((node) => node.uid);
 
       if (uids.length) {
         await txn.mutate({
@@ -132,8 +132,8 @@ describe.skipIf(!reachable)("driftCheckFile (live Dgraph)", () => {
         }`,
         { $ax: acXid },
       );
-      const data = res.data as { acs?: { uid: string }[] };
-      const uids = (data.acs ?? []).map((node) => node.uid);
+      const written = res.data as { acs?: { uid: string }[] };
+      const uids = (written.acs ?? []).map((node) => node.uid);
 
       if (uids.length) {
         await txn.mutate({

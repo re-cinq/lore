@@ -122,8 +122,8 @@ describe.skipIf(!reachable)("whole-file pruning (live Dgraph)", () => {
         }`,
         { $repo: repo },
       );
-      const data = res.data as Record<string, { uid: string }[] | undefined>;
-      const uids = Object.values(data)
+      const written = res.data as Record<string, { uid: string }[] | undefined>;
+      const uids = Object.values(written)
         .flatMap((nodes) => nodes ?? [])
         .map((node) => node.uid);
 
@@ -152,7 +152,7 @@ describe.skipIf(!reachable)("whole-file pruning (live Dgraph)", () => {
     repo: string,
     filePath: string,
   ): Promise<Record<string, number>> {
-    const data = (await readGraph(
+    const graph = (await readGraph(
       `query q($xid: string, $fp: string, $repo: string) {
         spec(func: eq(Spec.xid, $xid)) { uid }
         blocks(func: eq(Block.file_path, $fp)) @filter(eq(Block.repo, $repo)) { uid }
@@ -161,8 +161,8 @@ describe.skipIf(!reachable)("whole-file pruning (live Dgraph)", () => {
     )) as { spec?: unknown[]; blocks?: unknown[] };
 
     return {
-      spec: data.spec?.length ?? 0,
-      blocks: data.blocks?.length ?? 0,
+      spec: graph.spec?.length ?? 0,
+      blocks: graph.blocks?.length ?? 0,
     };
   }
 
@@ -228,7 +228,7 @@ describe.skipIf(!reachable)("whole-file pruning (live Dgraph)", () => {
 
     await deleteSpecSubtree(dgraphClient, repo, deadPath);
 
-    const data = (await readGraph(
+    const graph = (await readGraph(
       `query q($shared: string, $solo: string) {
         shared(func: eq(TestChunk.xid, $shared)) { uid }
         solo(func: eq(TestChunk.xid, $solo)) { uid }
@@ -239,8 +239,8 @@ describe.skipIf(!reachable)("whole-file pruning (live Dgraph)", () => {
       },
     )) as { shared?: unknown[]; solo?: unknown[] };
 
-    expect(data.shared?.length).toBe(1);
-    expect(data.solo?.length ?? 0).toBe(0);
+    expect(graph.shared?.length).toBe(1);
+    expect(graph.solo?.length ?? 0).toBe(0);
   });
 
   it("GCs the Feature when its last spec is pruned and keeps it while a sibling remains", async () => {
@@ -308,7 +308,7 @@ describe.skipIf(!reachable)("whole-file pruning (live Dgraph)", () => {
 
     await deleteAdrSubtree(dgraphClient, repo, adrPath);
 
-    const data = (await readGraph(
+    const graph = (await readGraph(
       `query q($xid: string, $fp: string, $repo: string) {
         adr(func: eq(ADR.xid, $xid)) { uid }
         blocks(func: eq(Block.file_path, $fp)) @filter(eq(Block.repo, $repo)) { uid }
@@ -321,9 +321,9 @@ describe.skipIf(!reachable)("whole-file pruning (live Dgraph)", () => {
       root?: Array<{ adrs?: unknown[] }>;
     };
 
-    expect(data.adr?.length ?? 0).toBe(0);
-    expect(data.blocks?.length ?? 0).toBe(0);
-    expect(data.root?.[0]?.adrs?.length ?? 0).toBe(0);
+    expect(graph.adr?.length ?? 0).toBe(0);
+    expect(graph.blocks?.length ?? 0).toBe(0);
+    expect(graph.root?.[0]?.adrs?.length ?? 0).toBe(0);
   });
 
   it("listGraphDocPaths returns the file paths of a repo's Specs and ADRs", async () => {
@@ -377,12 +377,12 @@ describe.skipIf(!reachable)("whole-file pruning (live Dgraph)", () => {
   }
 
   async function countTestChunks(repo: string, file: string): Promise<number> {
-    const data = (await readGraph(
+    const graph = (await readGraph(
       `query q($x: string) { chunk(func: eq(TestChunk.xid, $x)) { uid } }`,
       { $x: `${repo}|${file}` },
     )) as { chunk?: unknown[] };
 
-    return data.chunk?.length ?? 0;
+    return graph.chunk?.length ?? 0;
   }
 
   it("a failure before any node delete leaves the spec listed and a re-run completes the cleanup", async () => {
@@ -498,7 +498,7 @@ describe.skipIf(!reachable)("whole-file pruning (live Dgraph)", () => {
 
     await deleteAdrSubtree(dgraphClient, repo, adrPath);
 
-    const data = (await readGraph(
+    const graph = (await readGraph(
       `query q($xid: string, $fp: string, $repo: string) {
         adr(func: eq(ADR.xid, $xid)) { uid }
         blocks(func: eq(Block.file_path, $fp)) @filter(eq(Block.repo, $repo)) { uid }
@@ -507,8 +507,8 @@ describe.skipIf(!reachable)("whole-file pruning (live Dgraph)", () => {
     )) as { adr?: unknown[]; blocks?: unknown[] };
 
     expect({
-      adr: data.adr?.length ?? 0,
-      blocks: data.blocks?.length ?? 0,
+      adr: graph.adr?.length ?? 0,
+      blocks: graph.blocks?.length ?? 0,
     }).toEqual({ adr: 0, blocks: 0 });
     expect(await listGraphDocPaths(dgraphClient, "ADR", repo)).toEqual([]);
   });
@@ -561,7 +561,7 @@ describe.skipIf(!reachable)("whole-file pruning (live Dgraph)", () => {
 
     await deleteAdrSubtree(dgraphClient, repo, adrPath);
 
-    const data = (await readGraph(
+    const graph = (await readGraph(
       `query q($ax: string, $lx: string) {
         ac(func: eq(AcceptanceCriterion.xid, $ax)) { uid links: AcceptanceCriterion.trace_links { uid } }
         link(func: eq(TraceLink.xid, $lx)) { uid }
@@ -570,9 +570,9 @@ describe.skipIf(!reachable)("whole-file pruning (live Dgraph)", () => {
     )) as { ac?: Array<{ links?: unknown[] }>; link?: unknown[] };
 
     expect({
-      link: data.link?.length ?? 0,
-      ac: data.ac?.length,
-      acLinks: data.ac?.[0]?.links ?? [],
+      link: graph.link?.length ?? 0,
+      ac: graph.ac?.length,
+      acLinks: graph.ac?.[0]?.links ?? [],
     }).toEqual({ link: 0, ac: 1, acLinks: [] });
   });
 

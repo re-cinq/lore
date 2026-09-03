@@ -242,7 +242,7 @@ describe("assembleTraceDocument", () => {
   });
 
   it("sets title to the spec H1 'Feature Specification: LoreTask CRD' over the first section heading", () => {
-    const data = {
+    const graph = {
       q: [
         {
           uid: "0x1",
@@ -254,7 +254,7 @@ describe("assembleTraceDocument", () => {
       ],
     };
 
-    expect(assembleTraceDocument(data).title).toBe(
+    expect(assembleTraceDocument(graph).title).toBe(
       "Feature Specification: LoreTask CRD",
     );
   });

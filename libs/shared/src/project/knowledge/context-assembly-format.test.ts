@@ -7,7 +7,7 @@ import {
   type SourceItem,
 } from "./context-assembly-format.js";
 
-const item = (over: Partial<SourceItem> = {}): SourceItem => ({
+const source = (over: Partial<SourceItem> = {}): SourceItem => ({
   text: "body",
   tokens: 1,
   ...over,
@@ -20,29 +20,29 @@ describe("escapeXmlAttr", () => {
 });
 
 describe("dedupeItems", () => {
-  it("keeps one item per source_path, retaining the higher score", () => {
-    const items = [
-      item({ source_path: "adrs/A.md", score: 0.2 }),
-      item({ source_path: "adrs/A.md", score: 0.9 }),
-      item({ source_path: "adrs/B.md", score: 0.5 }),
+  it("keeps one source per source_path, retaining the higher score", () => {
+    const sources = [
+      source({ source_path: "adrs/A.md", score: 0.2 }),
+      source({ source_path: "adrs/A.md", score: 0.9 }),
+      source({ source_path: "adrs/B.md", score: 0.5 }),
     ];
-    const result = dedupeItems(items);
+    const result = dedupeItems(sources);
 
     expect(result).toHaveLength(2);
     expect(result.find((i) => i.source_path === "adrs/A.md")?.score).toBe(0.9);
   });
 
   it("keeps items without a source_path untouched", () => {
-    const items = [item({ text: "x" }), item({ text: "y" })];
+    const sources = [source({ text: "x" }), source({ text: "y" })];
 
-    expect(dedupeItems(items)).toHaveLength(2);
+    expect(dedupeItems(sources)).toHaveLength(2);
   });
 });
 
 describe("serializeDocument", () => {
   it("renders provenance as attributes and contains markdown without heading collision", () => {
     const out = serializeDocument(
-      item({
+      source({
         text: "## Consequences\n\nbody",
         source_path: "adrs/ADR-016-dark-factory.md",
         content_type: "adr",
@@ -57,7 +57,7 @@ describe("serializeDocument", () => {
   });
 
   it("marks a truncated document with a truncated attribute", () => {
-    const out = serializeDocument(item({ source_path: "x.md", tokens: 5 }), {
+    const out = serializeDocument(source({ source_path: "x.md", tokens: 5 }), {
       truncated: true,
     });
 
@@ -75,8 +75,8 @@ describe("serializeContext", () => {
           source: "adrs",
           priority: 1,
           truncated: false,
-          items: [
-            item({
+          documents: [
+            source({
               source_path: "adrs/ADR-016.md",
               content_type: "adr",
               tokens: 3,

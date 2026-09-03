@@ -31,7 +31,8 @@ export interface LlmToolRequest extends LlmCompleteRequest {
 }
 
 export interface LlmToolResult<T> extends LlmUsage {
-  data: T;
+  /** The structured value the tool call parsed out of the model's reply. */
+  parsed: T;
 }
 
 export interface LlmProvider {

@@ -137,8 +137,8 @@ async function listPendingTasksViaApi(
   if (!resp.ok) {
     return null;
   }
-  const data = (await resp.json()) as { tasks?: RemoteTaskLite[] };
-  const remoteTasks = data.tasks || [];
+  const body = (await resp.json()) as { tasks?: RemoteTaskLite[] };
+  const remoteTasks = body.tasks || [];
   const tasks = filterRepo
     ? remoteTasks.filter((t) => t.target_repo === filterRepo)
     : remoteTasks;
