@@ -148,10 +148,21 @@ export function createNodeEventHandler(deps: NodeEventDeps): EventHandler {
           row.outcome === null &&
           (iteration === undefined || row.iteration === iteration),
       );
+
+      // No open row means the node was already settled (e.g. on a prior
+      // delivery). There is nothing left to act on — and falling through to
+      // readAgentStatus would interrogate the central cluster for a CR that
+      // may live on a satellite, converting the resulting null into a phantom
+      // { phase: "Succeeded" } that re-settles a node the satellite already
+      // correctly resolved.
+      if (!openRow) {
+        return;
+      }
+
       const centralClusterAgentId =
         (await deps.centralClusterAgentId?.()) ?? null;
 
-      if (openRow && !agentCrVisible(openRow, centralClusterAgentId)) {
+      if (!agentCrVisible(openRow, centralClusterAgentId)) {
         console.warn(
           `[assembly-run] ${assemblyLineId} node ${nodeId}: terminal status unreadable — ` +
             `the Agent CR ${agentName} was claimed by cluster ${openRow.clusterAgentId ?? "(none)"}, ` +

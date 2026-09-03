@@ -339,7 +339,11 @@ pull, so recovery splits by who holds the claim:
 - The same restriction binds the **terminal-event door**, not only the reaper:
   it MUST NOT read a satellite-claimed run's CR back, and MUST NOT treat the
   null it would get as an empty output — this is the fallback path, taken
-  only when the event carries no status of its own. ([validated by `code-review-acceptance.test.ts:26`](apps/floor/src/jobs/assembly-run/code-review-acceptance.test.ts#L26), [`code-review-acceptance.test.ts:38`](apps/floor/src/jobs/assembly-run/code-review-acceptance.test.ts#L38), [`code-review-acceptance.test.ts:53`](apps/floor/src/jobs/assembly-run/code-review-acceptance.test.ts#L53))
+  only when the event carries no status of its own. This holds even for a
+  duplicate delivery that arrives after the satellite-run node is already
+  settled: the open-row check is null, the guard cannot fire, and the
+  handler must return early rather than falling through to the central read.
+  ([validated by `code-review-acceptance.test.ts:26`](apps/floor/src/jobs/assembly-run/code-review-acceptance.test.ts#L26), [`code-review-acceptance.test.ts:38`](apps/floor/src/jobs/assembly-run/code-review-acceptance.test.ts#L38), [`code-review-acceptance.test.ts:53`](apps/floor/src/jobs/assembly-run/code-review-acceptance.test.ts#L53), [`node-event-handler.test.ts:432`](apps/floor/src/jobs/assembly-run/node-event-handler.test.ts#L432))
 - The follow-up this restriction always pointed at: the terminal event MAY
   carry the CR's status directly (`params.status`, reported by cluster-agent
   at the source — the same `AgentNodeStatus` `statusFromAgentCr` builds for
@@ -767,7 +771,10 @@ config flag.
 - FR4: killing a satellite mid-run requeues its claim within the offline
   threshold (5 min) plus two reaper cycles (one to mark offline, one to
   requeue), with a `cluster_agent_offline` audit entry; a satellite-claimed
-  run in progress is never relaunched by the central reaper's CR-status arm.
+  run in progress is never relaunched by the central reaper's CR-status arm;
+  a duplicate terminal event for a satellite-run node that is already settled
+  does not trigger a central CR read even when the line is still running.
+  ([validated by `assembly-run-reaper.test.ts:1022`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L1022), [`assembly-run-reaper.test.ts:783`](apps/floor/src/jobs/assembly-run/assembly-run-reaper.test.ts#L783), [`node-event-handler.test.ts:432`](apps/floor/src/jobs/assembly-run/node-event-handler.test.ts#L432))
 - FR5: an event posted with a valid per-agent token lands; the same event
   after token rotation is rejected; no satellite manifest contains
   `LORE_INGEST_TOKEN`.
