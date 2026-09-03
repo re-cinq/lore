@@ -549,4 +549,5 @@ The code-review assembly line is the sole reviewer (ADR-012 amendment): a **deep
 - renders the Approved header and a zero tally for no findings. ([validated by](libs/shared/src/review/review-summary.test.ts#L6))
 - counts blocking issues as must-fix, nits, and the rest as consider. ([validated by](libs/shared/src/review/review-summary.test.ts#L14))
 - includes the agent summary line under the header when present. ([validated by](libs/shared/src/review/review-summary.test.ts#L37))
+- names no reviewer when the model is unknown: the budget-skip notice discloses the reviewer that would have run, and a run whose model nothing resolved omits that line rather than printing an empty one. ([validated by](libs/shared/src/review/review-summary.test.ts#L82))
 
