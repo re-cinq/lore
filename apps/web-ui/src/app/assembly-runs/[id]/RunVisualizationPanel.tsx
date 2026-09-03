@@ -1,14 +1,7 @@
 "use client";
 
 // The live-run container: owns every piece of mutable state and IO here so RunGraphView below stays a pure function of props (DDAU / lore/no-io-in-view).
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useReducer,
-  useRef,
-  useState,
-} from "react";
+import { useCallback, useEffect, useMemo, useReducer, useState } from "react";
 import Link from "next/link";
 import type { AssemblyLineDefinition } from "@/lib/assembly-line-definition";
 import type { AssemblyRunNode } from "@/lib/assembly-runs";
@@ -16,11 +9,12 @@ import {
   initialRunState,
   reduceRunEvent,
   replayTo,
+  type NodeRunState,
 } from "@/lib/run-event-reducer";
 import { takenEdgeKeys } from "@/lib/run-taken-edges";
 import { latestRowByNode, replayRunData } from "@/lib/run-replay-view";
 import { deriveVisibleGraph, type RunData } from "@/lib/graph-view-model";
-import { parseRunStreamRow, type RunStreamEvent } from "@/lib/run-stream-types";
+import type { RunStreamEvent } from "@/lib/run-stream-types";
 import { stepViews } from "@/lib/step-presenter";
 import FileHeatmapView from "./FileHeatmapView";
 import FullTranscriptPanel from "./FullTranscriptPanel";
@@ -34,18 +28,12 @@ import { RerunNodeButton } from "./RerunNodeButton";
 import { retryResumeSource } from "./retry-resume";
 import styles from "./RunVisualizationPanel.module.css";
 import {
-  HISTORY_POLL_MS,
   connectionLabel,
   cursorForEventId,
-  historyUrl,
-  nextPageCursor,
-  resolveChipState,
-  resolveStreamMode,
   scrubberPositionLabel,
   isTerminalRunStatus,
-  type ConnectionState,
 } from "./run-stream-presenter";
-import { useRunEventStream } from "./useRunEventStream";
+import { useRunStream } from "./use-run-history";
 
 export interface RunVisualizationPanelProps {
   runId: string;
@@ -59,8 +47,67 @@ export interface RunVisualizationPanelProps {
   agentEditHrefs?: Record<string, string>;
 }
 
-interface HistoryPage {
-  events?: unknown[];
+/** The timeline's right edge is `now` — without a clock a stalled node's last tick would look identical to a live one. Ticks once a second while the run is live. */
+function useNowTicker(live: boolean): string {
+  const [now, setNow] = useState(() => new Date().toISOString());
+
+  useEffect(() => {
+    if (!live) {
+      return;
+    }
+
+    const id = setInterval(() => setNow(new Date().toISOString()), 1000);
+
+    return () => clearInterval(id);
+  }, [live]);
+
+  return now;
+}
+
+/** Run data exists once the walk visited a node (persisted row or left-idle live stream); "Show possible outcomes" flips to definition view without disturbing it. */
+function participated(state: NodeRunState): boolean {
+  return state.status !== "idle" || state.transcript.length > 0;
+}
+
+/** A run reports failed the moment any node did, and completed only once it is terminal with none — an unfinished run has no result yet. */
+function runResult(anyFailed: boolean, runStatus: string): RunData["result"] {
+  if (anyFailed) {
+    return "failed";
+  }
+
+  return isTerminalRunStatus(runStatus) ? "completed" : null;
+}
+
+/** The graph's view of a live or finished run: which nodes ran, what each was told, and whether the run as a whole succeeded. */
+function buildRunData({
+  nodes,
+  nodeStates,
+  latestRows,
+  takenEdges,
+  runStatus,
+}: {
+  nodes: readonly AssemblyRunNode[];
+  nodeStates: Readonly<Record<string, NodeRunState>>;
+  latestRows: Map<string, AssemblyRunNode>;
+  takenEdges: RunData["taken"];
+  runStatus: string;
+}): RunData {
+  const entries = Object.entries(nodeStates);
+  // Verdict is the walk row's recorded outcome (must come from rows, not reducer state — replayed events never carry the verdict).
+  const rows = [...latestRows.values()];
+  // Mirrors the Floor's lineOutcomeFromVisits: any failed node outcome fails the run result, even on a `finished` terminal.
+  const anyFailed = rows.some((n) => (n.outcome ?? "").includes("failed"));
+
+  return {
+    executed: new Set([
+      ...nodes.map((n) => n.nodeId),
+      ...entries.filter(([, s]) => participated(s)).map(([id]) => id),
+    ]),
+    verdicts: Object.fromEntries(rows.map((n) => [n.nodeId, n.outcome])),
+    statuses: Object.fromEntries(entries.map(([id, s]) => [id, s.status])),
+    taken: takenEdges,
+    result: runResult(anyFailed, runStatus),
+  };
 }
 
 export default function RunVisualizationPanel({
@@ -73,202 +120,26 @@ export default function RunVisualizationPanel({
   reason,
   agentEditHrefs,
 }: RunVisualizationPanelProps) {
-  // The timeline's right edge is `now` — without a clock a stalled node's last tick would look identical to a live one. Ticks once a second while live.
   const runIsLive = !isTerminalRunStatus(runStatus);
-  const [now, setNow] = useState(() => new Date().toISOString());
-
-  useEffect(() => {
-    if (!runIsLive) {
-      return;
-    }
-
-    const id = setInterval(() => setNow(new Date().toISOString()), 1000);
-
-    return () => clearInterval(id);
-  }, [runIsLive]);
-
+  const now = useNowTicker(runIsLive);
   const [state, dispatch] = useReducer(reduceRunEvent, undefined, () =>
     initialRunState(definition, nodes),
   );
-  // Comparing to runId (not a boolean) makes a stale "history loaded" gate impossible by construction.
-  const [historyLoadedFor, setHistoryLoadedFor] = useState<string | null>(null);
-  // Ordered persisted events, retained only to drive the replay scrubber on a terminal run; a live run never scrubs.
-  const [historyEvents, setHistoryEvents] = useState<RunStreamEvent[]>([]);
-  // null = latest (the whole history / live end); a number = a scrub cursor.
   const [replayCursor, setReplayCursor] = useState<number | null>(null);
-  const [streamUnavailable, setStreamUnavailable] = useState(false);
-  const [connection, setConnection] = useState<ConnectionState>("connecting");
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [showAllFiles, setShowAllFiles] = useState(false);
-
-  // Runs once per run; a rejection degrades to the seeded graph plus an Offline chip rather than an unhandled rejection or a blank page.
-  useEffect(() => {
-    let cancelled = false;
-
-    async function foldHistory() {
-      let cursor = "0";
-      const collected: RunStreamEvent[] = [];
-
-      try {
-        for (;;) {
-          const res = await fetch(historyUrl(runId, cursor), {
-            signal: AbortSignal.timeout(15_000),
-          });
-
-          if (!res.ok && cancelled) {
-            return;
-          }
-
-          if (!res.ok) {
-            setStreamUnavailable(true);
-            setConnection("offline");
-
-            return;
-          }
-
-          const body = (await res.json()) as HistoryPage;
-          const rows = Array.isArray(body.events) ? body.events : [];
-
-          if (cancelled) {
-            return;
-          }
-
-          rows.forEach((row) => {
-            const parsed = parseRunStreamRow(row);
-
-            if (parsed !== null) {
-              dispatch(parsed);
-              collected.push(parsed);
-            }
-          });
-
-          const next = nextPageCursor(
-            rows.filter(
-              (row): row is { id: string } =>
-                typeof (row as { id?: unknown })?.id === "string",
-            ),
-          );
-
-          if (next === null) {
-            break;
-          }
-          cursor = next;
-        }
-
-        if (!cancelled) {
-          setHistoryEvents(collected);
-          setHistoryLoadedFor(runId);
-        }
-      } catch {
-        if (!cancelled) {
-          setConnection("offline");
-        }
-      }
-    }
-
-    void foldHistory();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [runId]);
-
-  const mode = resolveStreamMode({
-    runStatus,
-    eventSourceAvailable: typeof EventSource !== "undefined",
-    streamUnavailable,
-  });
-
   const onEvent = useCallback((event: RunStreamEvent) => dispatch(event), []);
+  const { historyEvents, chipState } = useRunStream({
+    runId,
+    runStatus,
+    runIsLive,
+    lastEventId: state.lastEventId ?? "0",
+    dispatch: onEvent,
+  });
   const toggleShowAllFiles = useCallback(
     () => setShowAllFiles((shown) => !shown),
     [],
   );
-  // "offline" means the hook gave up for good (STREAM_MAX_ATTEMPTS); flips mode to history-only, disabling the hook and handing off to the poll below.
-  const onConnectionChange = useCallback((next: ConnectionState) => {
-    setConnection(next);
-
-    if (next === "offline") {
-      setStreamUnavailable(true);
-    }
-  }, []);
-
-  useRunEventStream({
-    runId,
-    afterId: state.lastEventId ?? "0",
-    enabled: mode === "live" && historyLoadedFor === runId,
-    onEvent,
-    onConnectionChange,
-  });
-
-  // Degraded path for a live run without a stream: polls from the reducer's cursor, kept in a ref so a poll result never restarts the interval.
-  const lastEventIdRef = useRef(state.lastEventId ?? "0");
-
-  useEffect(() => {
-    lastEventIdRef.current = state.lastEventId ?? "0";
-  }, [state.lastEventId]);
-
-  const streamFallbackPollActive =
-    runIsLive && mode === "history-only" && historyLoadedFor === runId;
-
-  useEffect(() => {
-    if (!streamFallbackPollActive) {
-      return;
-    }
-
-    let cancelled = false;
-    let inFlight = false;
-
-    async function poll() {
-      if (inFlight) {
-        return;
-      }
-
-      inFlight = true;
-
-      try {
-        const res = await fetch(historyUrl(runId, lastEventIdRef.current), {
-          signal: AbortSignal.timeout(15_000),
-        });
-
-        if (!res.ok || cancelled) {
-          return;
-        }
-
-        const body = (await res.json()) as HistoryPage;
-        const rows = Array.isArray(body.events) ? body.events : [];
-
-        if (cancelled) {
-          return;
-        }
-
-        for (const row of rows) {
-          const parsed = parseRunStreamRow(row);
-
-          if (parsed !== null) {
-            dispatch(parsed);
-          }
-        }
-      } catch {
-        // The next tick retries; the chip already reads Polling.
-      } finally {
-        inFlight = false;
-      }
-    }
-
-    const id = setInterval(() => void poll(), HISTORY_POLL_MS);
-
-    return () => {
-      cancelled = true;
-      clearInterval(id);
-    };
-  }, [streamFallbackPollActive, runId]);
-
-  const chipState = resolveChipState({
-    mode,
-    connection,
-    fallbackPollActive: streamFallbackPollActive,
-  });
 
   // A terminal run renders state AS OF the scrub cursor by folding history through the SAME reducer live mode uses, based on the all-idle state (never the visit-row seed).
   const replayState = useMemo(
@@ -328,15 +199,10 @@ export default function RunVisualizationPanel({
     [definition, nodes],
   );
 
-  // Run data exists once the walk visited a node (persisted row or left-idle live stream); "Show possible outcomes" flips to definition view without disturbing it.
-  const participated = (s: {
-    status: string;
-    transcript: readonly unknown[];
-  }): boolean => s.status !== "idle" || s.transcript.length > 0;
+  const [showOutcomes, setShowOutcomes] = useState(false);
   const hasRunData =
     nodes.length > 0 ||
     Object.values(displayState.nodeStates).some(participated);
-  const [showOutcomes, setShowOutcomes] = useState(false);
   const graphMode = hasRunData && !showOutcomes ? "run" : "definition";
   const latestRows = useMemo(() => latestRowByNode(nodes), [nodes]);
   // Fork source for "retry this node" — null hides the button (live run, unvisited node, entry node, or an unnameable prefix; see retry-resume.ts).
@@ -350,46 +216,28 @@ export default function RunVisualizationPanel({
   // Mid-scrub only — the cursor sits strictly before the history's end, so the slider's right end stays byte-identical to Back to live.
   const replayActive =
     !runIsLive && replayCursor !== null && replayCursor < historyEvents.length;
-  const runData = useMemo<RunData>(() => {
-    // Mid-replay, walk rows are gated behind the replayed reducer state — a verdict shows only once the cursor applies that result event.
-    if (replayActive) {
-      return replayRunData(definition, nodes, displayState.nodeStates);
-    }
-
-    const entries = Object.entries(displayState.nodeStates);
-    // Verdict is the walk row's recorded outcome (must come from rows, not reducer state — replayed events never carry the verdict).
-    const rows = [...latestRows.values()];
-    // Mirrors the Floor's lineOutcomeFromVisits: any failed node outcome fails the run result, even on a `finished` terminal.
-    const anyFailed = rows.some((n) => (n.outcome ?? "").includes("failed"));
-    let runResult: RunData["result"] = null;
-
-    if (anyFailed) {
-      runResult = "failed";
-    }
-
-    if (!anyFailed && isTerminalRunStatus(runStatus)) {
-      runResult = "completed";
-    }
-
-    return {
-      executed: new Set([
-        ...nodes.map((n) => n.nodeId),
-        ...entries.filter(([, s]) => participated(s)).map(([id]) => id),
-      ]),
-      verdicts: Object.fromEntries(rows.map((n) => [n.nodeId, n.outcome])),
-      statuses: Object.fromEntries(entries.map(([id, s]) => [id, s.status])),
-      taken: takenEdges,
-      result: runResult,
-    };
-  }, [
-    replayActive,
-    definition,
-    nodes,
-    latestRows,
-    displayState.nodeStates,
-    takenEdges,
-    runStatus,
-  ]);
+  const runData = useMemo<RunData>(
+    () =>
+      replayActive
+        ? // Mid-replay, walk rows are gated behind the replayed reducer state — a verdict shows only once the cursor applies that result event.
+          replayRunData(definition, nodes, displayState.nodeStates)
+        : buildRunData({
+            nodes,
+            nodeStates: displayState.nodeStates,
+            latestRows,
+            takenEdges,
+            runStatus,
+          }),
+    [
+      replayActive,
+      definition,
+      nodes,
+      latestRows,
+      displayState.nodeStates,
+      takenEdges,
+      runStatus,
+    ],
+  );
   const visibleGraph = useMemo(
     () =>
       deriveVisibleGraph(definition, hasRunData ? runData : null, graphMode),
@@ -423,83 +271,33 @@ export default function RunVisualizationPanel({
         </button>
       ) : null}
       {scrubberVisible ? (
-        <div className={styles.replayControls}>
-          <ReplayScrubberView
-            eventCount={historyEvents.length}
-            cursor={replayCursor ?? historyEvents.length}
-            label={replayPosition.label}
-            timestamp={replayPosition.timestamp}
-            onCursorChange={onCursorChange}
-          />
-          <button
-            type="button"
-            className={styles.backToLive}
-            onClick={onBackToLive}
-          >
-            Back to live
-          </button>
-        </div>
+        <ReplayControls
+          eventCount={historyEvents.length}
+          cursor={replayCursor ?? historyEvents.length}
+          position={replayPosition}
+          onCursorChange={onCursorChange}
+          onBackToLive={onBackToLive}
+        />
       ) : null}
       {selectedNodeId ? (
-        <section
-          className={styles.inspector}
-          aria-label={`${selectedNodeId} inspector`}
-        >
-          <RunNodeDetail
-            nodeId={selectedNodeId}
-            state={selected ?? undefined}
-            row={latestRows.get(selectedNodeId)}
-            definition={definition}
-            reason={reason}
-            repo={repo}
-            attempts={selectedAttempts}
-            actions={
-              retrySource !== null ||
-              agentEditHrefs?.[selectedNodeId] !== undefined ? (
-                <>
-                  {agentEditHrefs?.[selectedNodeId] !== undefined ? (
-                    // Inside a <summary>: without stopPropagation the card would also toggle shut behind the navigation.
-                    <Link
-                      className="btn-secondary"
-                      href={agentEditHrefs?.[selectedNodeId] ?? ""}
-                      onClick={(event) => event.stopPropagation()}
-                    >
-                      Edit agent
-                    </Link>
-                  ) : null}
-                  {retrySource !== null ? (
-                    <RerunNodeButton
-                      runId={runId}
-                      resumeNodeId={retrySource.nodeId}
-                      resumeIteration={retrySource.iteration}
-                    />
-                  ) : null}
-                </>
-              ) : undefined
-            }
-          />
-          <NodeInputCard inputs={nodeInputs} />
-          {selectedRows
-            .filter((row) => row.agentCrName)
-            .map((row) => (
-              <NodeLogPanel
-                key={row.agentCrName as string}
-                assemblyLineId={runId}
-                agentCrName={row.agentCrName as string}
-                label={`Pod logs · attempt ${row.iteration}`}
-              />
-            ))}
-        </section>
+        <NodeInspector
+          nodeId={selectedNodeId}
+          runId={runId}
+          repo={repo}
+          reason={reason}
+          definition={definition}
+          state={selected ?? undefined}
+          row={latestRows.get(selectedNodeId)}
+          rows={selectedRows}
+          attempts={selectedAttempts}
+          inputs={nodeInputs}
+          retrySource={retrySource}
+          agentEditHref={agentEditHrefs?.[selectedNodeId]}
+        />
       ) : null}
-      {!selectedNodeId && visibleGraph.nodes.length > 0 ? (
-        <p className={styles.hint}>
-          Select a node in the graph to inspect its detail, transcript, and pod
-          logs.
-        </p>
-      ) : null}
-      {!selectedNodeId && visibleGraph.nodes.length === 0 ? (
-        <p className={styles.hint}>No node executions recorded.</p>
-      ) : null}
+      {selectedNodeId ? null : (
+        <SelectionHint nodeCount={visibleGraph.nodes.length} />
+      )}
       {selectedNodeId ? (
         // Keyed on the run so a run change resets the loaded transcript by construction, not by a flag someone has to remember to clear.
         <FullTranscriptPanel
@@ -520,5 +318,128 @@ export default function RunVisualizationPanel({
         onToggleShowAll={toggleShowAllFiles}
       />
     </section>
+  );
+}
+
+/** Everything the panel shows about ONE selected node: its detail card, what the visit was given, and a pod-log panel per attempt that produced a CR. */
+function NodeInspector({
+  nodeId,
+  runId,
+  repo,
+  reason,
+  definition,
+  state,
+  row,
+  rows,
+  attempts,
+  inputs,
+  retrySource,
+  agentEditHref,
+}: {
+  nodeId: string;
+  runId: string;
+  repo: string;
+  reason: string | null;
+  definition: AssemblyLineDefinition | null;
+  state: Parameters<typeof RunNodeDetail>[0]["state"];
+  row: Parameters<typeof RunNodeDetail>[0]["row"];
+  rows: readonly AssemblyRunNode[];
+  attempts: Parameters<typeof RunNodeDetail>[0]["attempts"];
+  inputs: Parameters<typeof NodeInputCard>[0]["inputs"];
+  retrySource: { nodeId: string; iteration: number } | null;
+  agentEditHref?: string;
+}) {
+  const actions =
+    retrySource !== null || agentEditHref !== undefined ? (
+      <>
+        {agentEditHref !== undefined ? (
+          // Inside a <summary>: without stopPropagation the card would also toggle shut behind the navigation.
+          <Link
+            className="btn-secondary"
+            href={agentEditHref}
+            onClick={(event) => event.stopPropagation()}
+          >
+            Edit agent
+          </Link>
+        ) : null}
+        {retrySource !== null ? (
+          <RerunNodeButton
+            runId={runId}
+            resumeNodeId={retrySource.nodeId}
+            resumeIteration={retrySource.iteration}
+          />
+        ) : null}
+      </>
+    ) : undefined;
+
+  return (
+    <section className={styles.inspector} aria-label={`${nodeId} inspector`}>
+      <RunNodeDetail
+        nodeId={nodeId}
+        state={state}
+        row={row}
+        definition={definition}
+        reason={reason}
+        repo={repo}
+        attempts={attempts}
+        actions={actions}
+      />
+      <NodeInputCard inputs={inputs} />
+      {rows
+        .filter((attempt) => attempt.agentCrName)
+        .map((attempt) => (
+          <NodeLogPanel
+            key={attempt.agentCrName as string}
+            assemblyLineId={runId}
+            agentCrName={attempt.agentCrName as string}
+            label={`Pod logs · attempt ${attempt.iteration}`}
+          />
+        ))}
+    </section>
+  );
+}
+
+/** Scrub back through a finished run's events, and the way back to its end. */
+function ReplayControls({
+  eventCount,
+  cursor,
+  position,
+  onCursorChange,
+  onBackToLive,
+}: {
+  eventCount: number;
+  cursor: number;
+  position: { label: string; timestamp: string | null };
+  onCursorChange: (cursor: number) => void;
+  onBackToLive: () => void;
+}) {
+  return (
+    <div className={styles.replayControls}>
+      <ReplayScrubberView
+        eventCount={eventCount}
+        cursor={cursor}
+        label={position.label}
+        timestamp={position.timestamp}
+        onCursorChange={onCursorChange}
+      />
+      <button
+        type="button"
+        className={styles.backToLive}
+        onClick={onBackToLive}
+      >
+        Back to live
+      </button>
+    </div>
+  );
+}
+
+/** What to say when nothing is selected: how to inspect a node, or that there is nothing to inspect. */
+function SelectionHint({ nodeCount }: { nodeCount: number }) {
+  return (
+    <p className={styles.hint}>
+      {nodeCount > 0
+        ? "Select a node in the graph to inspect its detail, transcript, and pod logs."
+        : "No node executions recorded."}
+    </p>
   );
 }

@@ -23,6 +23,185 @@ function scopeNote(orgScope: boolean, inherited: boolean): string {
   return "This is a project agent for this repo, overriding the organisation default.";
 }
 
+/** Name is immutable after creation — it is the key the three precedence layers resolve by — so an existing agent shows it disabled and carries it in a hidden field. */
+function NameField({
+  isNew,
+  name,
+}: {
+  isNew: boolean;
+  name: string;
+}): React.ReactElement {
+  if (isNew) {
+    return <input name="name_input" placeholder="my-agent" required />;
+  }
+
+  return (
+    <>
+      <input type="hidden" name="name" value={name} />
+      <input value={name} disabled />
+    </>
+  );
+}
+
+/** A known model or a typed-in id. The custom box only exists while `Custom…` is selected, so a stale id can never be submitted alongside a picked one. */
+function ModelField({
+  selection,
+  onSelect,
+  customModel,
+}: {
+  selection: string;
+  onSelect: (value: string) => void;
+  customModel: string;
+}): React.ReactElement {
+  return (
+    <>
+      <select
+        name="model_select"
+        value={selection}
+        onChange={(e) => onSelect(e.target.value)}
+      >
+        <option value="">(inherit)</option>
+        {KNOWN_MODELS.map((m) => (
+          <option key={m.id} value={m.id}>
+            {m.label}
+          </option>
+        ))}
+        <option value="__custom__">Custom…</option>
+      </select>
+      {selection === "__custom__" && (
+        <input
+          name="model_custom"
+          defaultValue={customModel}
+          placeholder="model id (e.g. claude-opus-4-8)"
+        />
+      )}
+    </>
+  );
+}
+
+/** One row of the requests/limits grid. Blank inherits the platform default, which is what the placeholder shows. */
+function ResourceRow({
+  label,
+  prefix,
+  values,
+  placeholders,
+}: {
+  label: string;
+  prefix: string;
+  values: PodResources["requests"];
+  placeholders: [string, string, string];
+}): React.ReactElement {
+  const fields: [string, string | undefined, string][] = [
+    ["cpu", values?.cpu, placeholders[0]],
+    ["memory", values?.memory, placeholders[1]],
+    ["ephemeral", values?.["ephemeral-storage"], placeholders[2]],
+  ];
+
+  return (
+    <>
+      <span className={styles.resourceHeading}>{label}</span>
+      {fields.map(([field, value, placeholder]) => (
+        <input
+          key={field}
+          name={`res_${prefix}_${field}`}
+          defaultValue={value ?? ""}
+          placeholder={placeholder}
+        />
+      ))}
+    </>
+  );
+}
+
+function PodResourceFields({
+  podResources,
+}: {
+  podResources: PodResources;
+}): React.ReactElement {
+  return (
+    <>
+      <label>Pod resources</label>
+      <div className={styles.resourceGrid}>
+        <span />
+        <span className={styles.resourceHeading}>CPU</span>
+        <span className={styles.resourceHeading}>Memory</span>
+        <span className={styles.resourceHeading}>Ephemeral storage</span>
+        <ResourceRow
+          label="Requests"
+          prefix="requests"
+          values={podResources.requests}
+          placeholders={["250m", "512Mi", "2Gi"]}
+        />
+        <ResourceRow
+          label="Limits"
+          prefix="limits"
+          values={podResources.limits}
+          placeholders={["1", "1Gi", "4Gi"]}
+        />
+      </div>
+      <span className={styles.formNote}>
+        Kubernetes quantities (e.g. <code>500m</code>, <code>4Gi</code>). Blank
+        inherits the platform defaults shown as placeholders; the values are
+        stored on this definition, so they survive releases.
+      </span>
+    </>
+  );
+}
+
+/** Repo-scoped only: the API refuses an org-wide image change, because the two-key ceremony that authorizes one is repo-scoped. */
+function ImageFields({
+  image,
+  defaultImage,
+}: {
+  image: string | null | undefined;
+  defaultImage?: string;
+}): React.ReactElement {
+  return (
+    <>
+      <label>Execution image (security-gated)</label>
+      <input
+        name="image"
+        defaultValue={image ?? ""}
+        placeholder={image ?? defaultImage ?? "(inherit default runner image)"}
+      />
+      <span className={styles.formNote}>
+        Inherits the default runner image
+        {defaultImage ? (
+          <>
+            {" "}
+            (<code>{defaultImage}</code>)
+          </>
+        ) : null}{" "}
+        when blank. Changing it requires a CODEOWNERS-approved{" "}
+        <code>dark-factory-approval</code> PR — reference it below.
+      </span>
+
+      <label>Approval PR (only when changing the image)</label>
+      <input name="approval_pr" placeholder="re-cinq/lore#123" />
+    </>
+  );
+}
+
+/** Every field's starting value, resolved once. A blank field means "inherit the layer below", so the stored value becomes the PLACEHOLDER and the input itself stays empty — prefilling would silently promote an inherited value into an override on the next save. */
+function agentFormValues(agent: AgentDefinition | null, isNew: boolean) {
+  const startCustom = !!agent?.model && !KNOWN_IDS.includes(agent.model);
+
+  return {
+    name: agent?.name ?? "",
+    executionMode: agent?.execution_mode ?? "claude-code",
+    reviewRequired: agent?.review_required ? "1" : "0",
+    timeoutMinutes: agent?.timeout_minutes ?? "",
+    prompt: isNew ? "" : (agent?.prompt ?? ""),
+    promptPlaceholder: agent?.prompt ?? "(inherit base prompt)",
+    startCustom,
+    customModel: startCustom ? (agent?.model ?? "") : "",
+    initialSelection: startCustom ? "__custom__" : (agent?.model ?? ""),
+    // An org row carries no project_id; editing one forks a project agent rather than changing the org default in place.
+    inherited: !isNew && (agent?.project_id == null || agent.project_id === ""),
+    podResources: ((agent?.config as { pod_resources?: PodResources })
+      ?.pod_resources ?? {}) as PodResources,
+  };
+}
+
 /** Agent create/edit form; org editing forks to project agent (upserts via saveAgent). */
 export default function AgentForm({
   repo,
@@ -42,65 +221,35 @@ export default function AgentForm({
   orgScope?: boolean;
 }) {
   const [state, formAction] = useActionState(action, {});
-  const startCustom = !!agent?.model && !KNOWN_IDS.includes(agent.model);
-  const [modelSel, setModelSel] = useState(
-    startCustom ? "__custom__" : (agent?.model ?? ""),
-  );
-  const inherited =
-    !isNew && (agent?.project_id == null || agent.project_id === "");
-  const podResources = ((agent?.config as { pod_resources?: PodResources })
-    ?.pod_resources ?? {}) as PodResources;
+  const values = agentFormValues(agent, isNew);
+  const [modelSel, setModelSel] = useState(values.initialSelection);
 
   return (
     <form action={formAction} className="task-form">
       <input type="hidden" name="repo" value={repo} />
       <input type="hidden" name="is_new" value={isNew ? "1" : "0"} />
-      <input
-        type="hidden"
-        name="execution_mode"
-        value={agent?.execution_mode ?? "claude-code"}
-      />
+      <input type="hidden" name="execution_mode" value={values.executionMode} />
       <input
         type="hidden"
         name="review_required"
-        value={agent?.review_required ? "1" : "0"}
+        value={values.reviewRequired}
       />
 
       {!isNew && (
-        <p className={styles.formNote}>{scopeNote(orgScope, inherited)}</p>
+        <p className={styles.formNote}>
+          {scopeNote(orgScope, values.inherited)}
+        </p>
       )}
 
       <label>Name</label>
-      {isNew ? (
-        <input name="name_input" placeholder="my-agent" required />
-      ) : (
-        <>
-          <input type="hidden" name="name" value={agent?.name ?? ""} />
-          <input value={agent?.name ?? ""} disabled />
-        </>
-      )}
+      <NameField isNew={isNew} name={values.name} />
 
       <label>Model</label>
-      <select
-        name="model_select"
-        value={modelSel}
-        onChange={(e) => setModelSel(e.target.value)}
-      >
-        <option value="">(inherit)</option>
-        {KNOWN_MODELS.map((m) => (
-          <option key={m.id} value={m.id}>
-            {m.label}
-          </option>
-        ))}
-        <option value="__custom__">Custom…</option>
-      </select>
-      {modelSel === "__custom__" && (
-        <input
-          name="model_custom"
-          defaultValue={startCustom ? (agent?.model ?? "") : ""}
-          placeholder="model id (e.g. claude-opus-4-8)"
-        />
-      )}
+      <ModelField
+        selection={modelSel}
+        onSelect={setModelSel}
+        customModel={values.customModel}
+      />
 
       <label>Timeout (minutes)</label>
       <input
@@ -108,7 +257,7 @@ export default function AgentForm({
         type="number"
         min={1}
         max={1440}
-        defaultValue={agent?.timeout_minutes ?? ""}
+        defaultValue={values.timeoutMinutes}
         placeholder="(inherit)"
       />
 
@@ -116,80 +265,14 @@ export default function AgentForm({
       <textarea
         name="prompt"
         rows={6}
-        defaultValue={isNew ? "" : (agent?.prompt ?? "")}
-        placeholder={agent?.prompt ?? "(inherit base prompt)"}
+        defaultValue={values.prompt}
+        placeholder={values.promptPlaceholder}
       />
 
-      <label>Pod resources</label>
-      <div className={styles.resourceGrid}>
-        <span />
-        <span className={styles.resourceHeading}>CPU</span>
-        <span className={styles.resourceHeading}>Memory</span>
-        <span className={styles.resourceHeading}>Ephemeral storage</span>
-        <span className={styles.resourceHeading}>Requests</span>
-        <input
-          name="res_requests_cpu"
-          defaultValue={podResources.requests?.cpu ?? ""}
-          placeholder="250m"
-        />
-        <input
-          name="res_requests_memory"
-          defaultValue={podResources.requests?.memory ?? ""}
-          placeholder="512Mi"
-        />
-        <input
-          name="res_requests_ephemeral"
-          defaultValue={podResources.requests?.["ephemeral-storage"] ?? ""}
-          placeholder="2Gi"
-        />
-        <span className={styles.resourceHeading}>Limits</span>
-        <input
-          name="res_limits_cpu"
-          defaultValue={podResources.limits?.cpu ?? ""}
-          placeholder="1"
-        />
-        <input
-          name="res_limits_memory"
-          defaultValue={podResources.limits?.memory ?? ""}
-          placeholder="1Gi"
-        />
-        <input
-          name="res_limits_ephemeral"
-          defaultValue={podResources.limits?.["ephemeral-storage"] ?? ""}
-          placeholder="4Gi"
-        />
-      </div>
-      <span className={styles.formNote}>
-        Kubernetes quantities (e.g. <code>500m</code>, <code>4Gi</code>). Blank
-        inherits the platform defaults shown as placeholders; the values are
-        stored on this definition, so they survive releases.
-      </span>
+      <PodResourceFields podResources={values.podResources} />
 
       {!orgScope && (
-        <>
-          <label>Execution image (security-gated)</label>
-          <input
-            name="image"
-            defaultValue={agent?.image ?? ""}
-            placeholder={
-              agent?.image ?? defaultImage ?? "(inherit default runner image)"
-            }
-          />
-          <span className={styles.formNote}>
-            Inherits the default runner image
-            {defaultImage ? (
-              <>
-                {" "}
-                (<code>{defaultImage}</code>)
-              </>
-            ) : null}{" "}
-            when blank. Changing it requires a CODEOWNERS-approved{" "}
-            <code>dark-factory-approval</code> PR — reference it below.
-          </span>
-
-          <label>Approval PR (only when changing the image)</label>
-          <input name="approval_pr" placeholder="re-cinq/lore#123" />
-        </>
+        <ImageFields image={agent?.image} defaultImage={defaultImage} />
       )}
 
       <div className={styles.formActions}>
