@@ -1,0 +1,93 @@
+-- 0065_review_prompt_calibration: calibrate the code-review prompts after the
+-- 2026-09-03 finding-quality audit (61 findings cross-checked on real PRs).
+--
+-- Three changes, applied to the REVIEW_FINDINGS instruction paragraph:
+--   1. No praise/commentary findings — only problems worth acting on (the
+--      Gemini reviewer posted 7 praise comments across 15 PRs; nobody reads
+--      applause).
+--   2. `"decoration":"blocking"` reserved for real defects (correctness,
+--      security, data loss) — doc/spec hygiene and speculative hardening were
+--      being stamped "blocking" (severity inflation, e.g. PR #1752's
+--      Windows-path hardening on Linux-only Floor code).
+--   3. One root cause = ONE finding — PR #1741 got the same stale-tag note
+--      fanned out 11 times.
+--
+-- resolveAgentConfig prefers a lore.agent_definitions row's prompt over the
+-- task-types.yaml template (the #1736 lesson), so the yaml edit in this branch
+-- never reaches an environment whose rows were already seeded — this migration
+-- rewrites the rows. Idempotent and edit-preserving: replace() swaps only the
+-- exact old paragraph, so a hand-edited prompt without that text is untouched,
+-- and a re-run finds nothing left to replace. The live rows carry CRLF line
+-- endings (UI-seeded), so newlines are normalized to LF first — that is what
+-- lets one LF-quoted paragraph match every row.
+--
+-- Same rollout shape as 0057: every UPDATE returns the rows it actually
+-- rewrote and emits ONE catalog event each, so the cluster-agents re-render
+-- the definition. Without that the new prompt sits in the table while every
+-- pod keeps running the old one — the rewrite would be invisible where it
+-- matters. An untouched (hand-edited or already-migrated) row emits nothing.
+
+WITH updated AS (
+UPDATE lore.agent_definitions
+   SET prompt = replace(replace(prompt, E'\r\n', E'\n'),
+$lore_old$Emit a fenced REVIEW_FINDINGS block (one finding per point) then the
+verdict. Be liberal with concrete `suggestion` fixes. Each `subject` is
+ONE short imperative line. Labels: issue | suggestion | nit | question |
+praise | thought | chore. Add `"decoration":"blocking"` to a must-fix
+issue. `suggestion` is the replacement text for that exact line(s).$lore_old$,
+$lore_new$Emit a fenced REVIEW_FINDINGS block (one finding per point) then the
+verdict. Be liberal with concrete `suggestion` fixes. Each `subject` is
+ONE short imperative line. Labels: issue | suggestion | nit | question.
+Report only problems worth acting on — never praise, commentary, or
+restatements of what the diff does; a clean area gets silence.
+Reserve `"decoration":"blocking"` for real defects in the changed code:
+correctness, security, or data loss. Convention/doc/spec hygiene, style,
+and speculative hardening against situations this code cannot reach are
+`suggestion` or `nit`, never blocking.
+When one root cause repeats across files, emit ONE finding and list the
+other occurrences in its subject — not one finding per site.
+`suggestion` is the replacement text for that exact line(s).$lore_new$),
+       updated_at = now()
+ WHERE name = 'code-review'
+   AND prompt LIKE '%praise | thought | chore%'
+RETURNING project_id
+)
+INSERT INTO lore.catalog_events (name, project_id, op)
+SELECT 'code-review', project_id, 'upsert' FROM updated;
+
+WITH updated AS (
+UPDATE lore.agent_definitions
+   SET prompt = replace(replace(prompt, E'\r\n', E'\n'),
+$lore_old$Emit a fenced REVIEW_FINDINGS block (it MAY be empty when nothing new is
+wrong) then the verdict. Same schema as the full review:$lore_old$,
+$lore_new$Emit a fenced REVIEW_FINDINGS block (it MAY be empty when nothing new is
+wrong) then the verdict. Report only problems worth acting on — never
+praise or commentary. Reserve `"decoration":"blocking"` for real defects
+(correctness, security, data loss); hygiene and style are `nit`, never
+blocking. Same schema as the full review:$lore_new$),
+       updated_at = now()
+ WHERE name = 'code-review-recheck'
+   AND prompt LIKE '%wrong) then the verdict. Same schema as the full review:%'
+RETURNING project_id
+)
+INSERT INTO lore.catalog_events (name, project_id, op)
+SELECT 'code-review-recheck', project_id, 'upsert' FROM updated;
+
+-- The legacy `review` task type posts its comments itself (gh pr review) and
+-- had no problems-only rule at all — same calibration, phrased for its flow.
+WITH updated AS (
+UPDATE lore.agent_definitions
+   SET prompt = replace(replace(prompt, E'\r\n', E'\n'),
+'Post specific review comments on the PR using gh pr review.',
+$lore_new$Post specific review comments on the PR using gh pr review. Comment
+only on problems worth acting on — no praise or commentary comments,
+and flag as must-fix only real defects (correctness, security, data
+loss), not style or doc hygiene.$lore_new$),
+       updated_at = now()
+ WHERE name = 'review'
+   AND prompt LIKE '%Post specific review comments on the PR using gh pr review.%'
+   AND prompt NOT LIKE '%problems worth acting on%'
+RETURNING project_id
+)
+INSERT INTO lore.catalog_events (name, project_id, op)
+SELECT 'review', project_id, 'upsert' FROM updated;
