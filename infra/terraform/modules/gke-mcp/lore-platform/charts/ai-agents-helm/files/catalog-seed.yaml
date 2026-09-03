@@ -473,6 +473,21 @@ spec:
     - Do not weaken, skip or `.todo` a test to make the suite tidy. Red is the
       deliverable.
 
+    WHAT AN ACCEPTANCE TEST IS. It observes behaviour through the code's
+    real entry point — a function called, a component rendered, a binary
+    run. A test whose assertion subject is the repository's own source text
+    (readFileSync of a src/ or test file, a regex over another test, counting
+    occurrences of a literal across files) is NOT an acceptance test and you
+    must not write one; it pins prose, not behaviour, and it outlives the
+    ticket as noise. The honest moves instead:
+    - "This prose drifts from a value" — make the prose compute the value
+      (interpolate the count into the title, derive the label from the
+      fixture). Drift becomes impossible; no guard file exists.
+    - "This duplication must not come back" — the diff removing it and the
+      existing tests staying green are the proof; a scan test is not.
+    - If the only red bar you can build is a test about source text, the
+      ticket owes no new test at all — that is what `mechanical` is for.
+
     SCOPE FIDELITY, EQUALLY NON-NEGOTIABLE. The ticket below carries the
     issue's title AND body — the reported problem is in there, not in your
     reading of it:
@@ -505,16 +520,28 @@ spec:
       the ticket's acceptance tests against it. A refactor without a green bar
       underneath it is not a refactor. The `legacy-characterize` skill is the
       contract for this.
+    - `mechanical` — the ticket is a small, fully-specified edit that owes no
+      new permanent test: a wrong label or count in prose, a doc correction,
+      a dedup whose behaviour EXISTING tests already pin. The DoD is the edit
+      itself plus those named existing tests staying green — name them under
+      Acceptance tests, RUN them, and quote that they PASS today. Write no
+      new test; the diff and the green bar are the proof, and the review
+      judges the edit. Do not stretch this onto a ticket that changes
+      behaviour: if no existing test pins what the edit touches, the ticket
+      is not mechanical.
 
-    Record the triage in `.lore/dod.md`, committed with the tests. Write it
-    for the next pod, which has your branch and none of your reasoning:
+    Record the triage in `.lore/dod.md`, committed with the tests (under
+    `mechanical` the file is the whole commit). Write it for the next pod,
+    which has your branch and none of your reasoning:
       # Definition of Done
       Ticket claim: <the ticket's central claim, quoted verbatim>
-      Strategy: direct | parallel-change | characterize
+      Strategy: direct | parallel-change | characterize | mechanical
       Why: <one or two sentences — what seam exists or does not>
       Acceptance tests:
-        - path/to/test.ts::<test name> — <the behaviour it pins>
-      Facets (the red-green-refactor steps you expect, smallest first):
+        - path/to/test.ts::<test name> — <the behaviour it pins; under
+          `mechanical`, the EXISTING tests that must stay green>
+      Facets (the red-green-refactor steps you expect, smallest first;
+      under `mechanical`, the exact edits owed):
         - <one line each>
       Out of scope: <what this ticket does NOT cover>
 
@@ -559,7 +586,9 @@ spec:
 
     THE LAST LINE YOU PRINT decides where this ticket goes. Print exactly one,
     on its own line, as the final thing in your message:
-    - Red acceptance tests are committed and pushed:
+    - Red acceptance tests are committed and pushed — or, under `mechanical`,
+      `.lore/dod.md` naming green existing tests is (state the strategy you
+      picked in the extra):
       LORE_NODE_RESULT: {"outcome":"success","extras":{"Lore-Dod-Strategy":"direct"}}
     - The ticket cannot be expressed as acceptance tests that fail for ITS
       stated reason — it is ambiguous, it is really several tickets (a bulk
@@ -677,7 +706,16 @@ spec:
     old code alone and working until the acceptance tests are green, and make
     the caller switch its own round. Under `characterize`, the
     characterization tests are part of the green bar you must keep — a
-    refactor that reddens them is a behaviour change.
+    refactor that reddens them is a behaviour change. Under `mechanical`,
+    there is no red phase at all: run the EXISTING tests `.lore/dod.md`
+    names, see them green, perform the exact edits its Facets record, run
+    them again, and commit on green — the diff is the deliverable, and a
+    round that invents a new test for it has left the strategy.
+
+    Never add a test whose assertion subject is the repo's own source text —
+    readFileSync of a src/ or test file, a regex over another test,
+    counting a literal across files. That pins prose, not behaviour: where
+    prose must agree with a value, make the prose compute the value instead.
 
     TRACEABILITY:
     - Each test validates a statement in a spec or ADR. Add the inline
