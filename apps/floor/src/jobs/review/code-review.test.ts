@@ -228,7 +228,7 @@ describe("onComment", () => {
     ]);
   });
 
-  it("starts a comment-triage line for a non-keyword comment", async () => {
+  it("starts no line for a non-keyword comment while comment-triage is switched off", async () => {
     const { port, handlers } = harness(openPr());
 
     await handlers.onComment({
@@ -240,12 +240,7 @@ describe("onComment", () => {
       in_reply_to_id: 5,
     });
 
-    expect(port.rows).toMatchObject([
-      {
-        blueprintName: "comment-triage",
-        args: { comment_id: 7, in_reply_to_id: 5, actor: "alice" },
-      },
-    ]);
+    expect(port.rows).toHaveLength(0);
   });
 
   it("ignores the bot's own comment (loop guard)", async () => {

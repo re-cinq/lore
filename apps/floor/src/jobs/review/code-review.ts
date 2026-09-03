@@ -8,8 +8,9 @@
  * - fast `code-review-recheck` on every later push (`onTrigger` routes to it once
  *   the PR has been reviewed), so the formal verdict tracks the fix
  * - explicit `@lore review` comment (`onComment` keyword fast-path) forces a deep pass
- * - every other human comment → the Haiku `comment-triage` line, which classifies
- *   and routes (`onCommentTriaged`): review / address-and-commit / answer / ignore
+ * - every other human comment is ignored while the Haiku `comment-triage` line
+ *   is switched off (2026-09-03); `onCommentTriaged` still routes a finished
+ *   triage line's action so re-enabling the start is a one-line change
  * - a formal "request changes" review → address (`onReviewSubmitted`)
  *
  * Both reviews emit structured findings and the Floor submits a formal
@@ -396,29 +397,21 @@ export function createCodeReviewHandlers(deps: CodeReviewDeps): {
       return;
     }
 
-    // Explicit keyword bypasses the triage — deterministic re-review.
-    if (isReviewRequest(p.comment_body)) {
-      await startReview(
-        project,
-        {
-          repo: p.repo,
-          prNumber: p.pr_number,
-          autoReview,
-          forced: true,
-          actor: p.comment_author,
-        },
-        deps.uiUrl(),
-      );
-
+    // The Haiku `comment-triage` line is switched off (2026-09-03): only the explicit keyword drives a comment, so a plain reply publishes no `lore/comment-triage` check.
+    if (!isReviewRequest(p.comment_body)) {
       return;
     }
-    // Everything else → the Haiku triage line, which classifies + routes.
-    const ctx = commentContext(p, pr!);
-
-    await project.assemblyRuns.start("comment-triage", {
-      branch: pr!.branch,
-      args: { ...ctx, mode: "triage", description: triageDescription(ctx) },
-    });
+    await startReview(
+      project,
+      {
+        repo: p.repo,
+        prNumber: p.pr_number,
+        autoReview,
+        forced: true,
+        actor: p.comment_author,
+      },
+      deps.uiUrl(),
+    );
   };
 
   const onReviewSubmitted: EventHandler = async (params) => {
@@ -512,23 +505,6 @@ export function createCodeReviewHandlers(deps: CodeReviewDeps): {
   };
 
   return { onTrigger, onComment, onReviewSubmitted, onCommentTriaged, onClose };
-}
-
-function commentContext(p: CommentParams, pr: PullRef): CommentContext {
-  return {
-    repo: p.repo,
-    pr_number: p.pr_number,
-    branch: pr.branch,
-    head_sha: pr.headSha,
-    comment_id: p.comment_id,
-    comment_body: p.comment_body,
-    in_reply_to_id: p.in_reply_to_id ?? null,
-    actor: p.comment_author,
-  };
-}
-
-function triageDescription(ctx: CommentContext): string {
-  return `Triage a human comment on pull request #${ctx.pr_number} in ${ctx.repo}: ${ctx.comment_body}`;
 }
 
 const handlers = createCodeReviewHandlers({
