@@ -1,6 +1,7 @@
 // The event-driven walk's liveness bound (spec 6-dark-factory FR6): sweeps dropped/dead-lettered transitions and stalled queue/claim/timeout states every minute for both graph and single-CR runs; never owns a claimed single-CR's execution timeout — the watcher settles that from the terminal event.
 
 import { nodeTimeoutMinutes, stationBudgetFor } from "./node-timeout.js";
+import type { NodeResult } from "@re-cinq/lore-assembly-lines";
 import {
   capacityFor,
   unclaimedDetail,
@@ -334,194 +335,256 @@ async function settleResolvedNode(
   );
 }
 
-/** One sweep over every open line; per-line failures are logged and skipped so a single bad row never wedges the tick. */
-export async function assemblyLineReaperJob(
+/** What one sweep of one open line did, so the tick can tally without the loop knowing how any of it works. */
+type ReapOutcome =
+  | "queue-timeout"
+  | "requeued"
+  | "swept"
+  | "resolved"
+  | "timeout"
+  | "failed-queued"
+  | "advanced"
+  | null;
+
+interface ReapContext extends GraphlessSweepContext {
+  centralClusterAgentId: string | null;
+}
+
+/** The node the reaper found open, with everything the recovery decision needed to reach its verdict. */
+interface OpenNodeContext {
+  row: AssemblyRunRecord;
+  node: RunGraphNode;
+  openNode: StationRunRecord;
+  budgetMinutes: number | undefined;
+}
+
+/** One open line: no graph means the single-CR sweep, a still-queued line may have missed its start, an open node gets a recovery verdict, and none of the above means the walk simply stopped and is re-advanced. */
+async function reapOpenRun(
+  row: AssemblyRunRecord,
+  ctx: ReapContext,
+): Promise<ReapOutcome> {
+  // Same rule the walk follows (FR6.38): reaping against a since-edited graph would resolve a node the run never had.
+  const graph = await resolveRunGraph(row, ctx.deps.definitions);
+
+  if (!graph) {
+    return await reapGraphlessRun(row, ctx);
+  }
+
+  if (row.status === "queued") {
+    const failed = await failLongQueuedLine(row, ctx.deps, ctx.nowMs);
+
+    return failed > 0 ? "failed-queued" : null;
+  }
+  const nodes = await ctx.deps.assemblyRuns.listStationRuns(row.id);
+  const openNode = nodes.find((n) => n.outcome === null);
+
+  if (!openNode) {
+    await advanceLine(row.id, ctx.deps);
+
+    return "advanced";
+  }
+  const node = graph.nodes.find((n) => n.id === openNode.nodeId);
+
+  return node ? await recoverOpenNode({ row, node, openNode }, ctx) : null;
+}
+
+/** Reads the node's live state — CR status, claimant health, applicable budget — and applies whatever `decideNodeRecovery` makes of it. */
+async function recoverOpenNode(
+  found: {
+    row: AssemblyRunRecord;
+    node: RunGraphNode;
+    openNode: StationRunRecord;
+  },
+  ctx: ReapContext,
+): Promise<ReapOutcome> {
+  const { row, node, openNode } = found;
+  const crVisible = agentCrVisible(openNode, ctx.centralClusterAgentId);
+  // Never read CR status for a row this Floor cannot see — a satellite's CR read answers null, which would requeue (double-launch) work it's running.
+  const status =
+    crVisible && openNode.agentCrName
+      ? await ctx.deps.readAgentStatus(openNode.agentCrName)
+      : null;
+  // The station's own budget (not the global sixty) when the YAML is silent, resolved ONCE so the failure message names the budget actually applied.
+  const budgetMinutes = nodeTimeoutMinutes({
+    yaml: node.timeout_minutes,
+    manifest: stationBudgetFor(node.type),
+  });
+  const recovery = decideNodeRecovery({
+    claimantOffline:
+      openNode.clusterAgentId !== null &&
+      ctx.offlineAgents.has(openNode.clusterAgentId),
+    node: openNode,
+    timeoutMinutes: budgetMinutes,
+    status,
+    nodeType: node.type,
+    crVisible,
+    queueWaitMs: ctx.queueWaitMs,
+    nowMs: ctx.nowMs,
+  });
+
+  return await applyRecovery(
+    recovery,
+    { row, node, openNode, budgetMinutes },
+    ctx,
+  );
+}
+
+/** Carries out one recovery verdict. Every branch ends the node or puts its row back on the shelf; nothing here decides, it only acts. */
+async function applyRecovery(
+  recovery: ReturnType<typeof decideNodeRecovery>,
+  found: OpenNodeContext,
+  ctx: ReapContext,
+): Promise<ReapOutcome> {
+  const { row, node, openNode, budgetMinutes } = found;
+
+  if (recovery.kind === "resolve") {
+    await settleResolvedNode(
+      { row, node, openNode, terminalStatus: recovery.status },
+      ctx.deps,
+    );
+
+    return "resolved";
+  }
+
+  if (recovery.kind === "timeout") {
+    await failOpenNode(found, ctx, {
+      outcome: "failed",
+      failureClass: "infra",
+      // A node whose pod stopped reporting died of infrastructure, not the work — say so instead of a bare `failed` with no story.
+      failureDetail: `${nodeKind(node)} node timed out after ${budgetMinutes ?? DEFAULT_TIMEOUT_MINUTES} minutes without reporting`,
+    });
+    console.warn(
+      `[assembly-run-reaper] node ${openNode.nodeId} of ${row.id} timed out (${nodeKind(node)}-timeout)`,
+    );
+
+    return "timeout";
+  }
+
+  if (recovery.kind === "queue-timeout") {
+    await failOpenNode(found, ctx, {
+      outcome: "failed",
+      // `unclaimed`, not `infra`: nothing ran, so this class is what makes the walk refuse the retry.
+      failureClass: "unclaimed",
+      // Naming the tags is the point: a line stalled on missing `gpu` capacity must say so, not report a generic timeout.
+      failureDetail: ctx.whyUnclaimed(openNode.requiredTags),
+    });
+    console.warn(
+      `[assembly-run-reaper] node ${openNode.nodeId} of ${row.id} sat queued past ${ctx.queueWaitMs / MINUTE_MS}m unclaimed`,
+    );
+
+    return "queue-timeout";
+  }
+
+  if (recovery.kind === "requeue-offline") {
+    return await requeueOffline(found, ctx);
+  }
+
+  if (recovery.kind === "requeue") {
+    // Crash between claim and CR create: reset the SAME row to `queued` so another claim takes it — the armed dispatch spec rides the row, no second builder.
+    await ctx.deps.assemblyRuns.requeueStationRun(openNode.id);
+    console.warn(
+      `[assembly-run-reaper] requeued node ${openNode.nodeId} of ${row.id} — its claim produced no CR within the startup grace`,
+    );
+
+    return "requeued";
+  }
+
+  return null;
+}
+
+function nodeKind(node: RunGraphNode): string {
+  return node.type === "agent" ? "agent" : "station";
+}
+
+async function failOpenNode(
+  found: OpenNodeContext,
+  ctx: ReapContext,
+  result: NodeResult,
+): Promise<void> {
+  await finishNodeTerminal(
+    {
+      row: found.row,
+      node: found.node,
+      nodeId: found.openNode.nodeId,
+      iteration: found.openNode.iteration,
+      result,
+    },
+    ctx.deps,
+  );
+}
+
+/** Same row back on the shelf; the audit entry makes a flapping cluster diagnosable without database access (FR7 renders it). */
+async function requeueOffline(
+  found: OpenNodeContext,
+  ctx: ReapContext,
+): Promise<ReapOutcome> {
+  const { row, openNode } = found;
+
+  await ctx.deps.assemblyRuns.requeueStationRun(openNode.id);
+  await ctx.deps.audit?.({
+    event_type: "cluster_agent_offline",
+    payload: {
+      cluster_agent_id: openNode.clusterAgentId,
+      station_run_id: openNode.stationRunId,
+      assembly_run_id: row.id,
+      node_id: openNode.nodeId,
+      elapsed_since_claim_ms: openNode.claimedAt
+        ? ctx.nowMs - openNode.claimedAt.getTime()
+        : null,
+    },
+  });
+
+  return "requeued";
+}
+
+/** Everything one tick reads once and every line then shares: the clock, the queue budget, which clusters are dead, and the capacity picture that explains an unclaimed node. */
+async function buildReapContext(
   deps: AssemblyLineReaperDeps,
-): Promise<string> {
-  const open = await deps.assemblyRuns.listOpen();
+): Promise<ReapContext> {
   const nowMs = (deps.now?.() ?? new Date()).getTime();
   const queueWaitMs = deps.queueWaitMs ?? stationQueueWaitMs();
-  const centralClusterAgentId = await deps.centralClusterAgentId();
   const offlineAgents =
     (await deps.offlineClusterAgents?.(
       new Date(nowMs - OFFLINE_THRESHOLD_MS),
     )) ?? new Set<string>();
   // AFTER the offline sweep, which mutates what this reads — reading first would misreport a cluster that just died as "capable ... it may be wedged".
   const clusterAgents = (await deps.listClusterAgents?.()) ?? [];
-  const whyUnclaimed = (requiredTags: string[]): string =>
-    unclaimedDetail({
-      requiredTags,
-      waitMinutes: queueWaitMs / MINUTE_MS,
-      verdict: capacityFor(requiredTags, clusterAgents),
-    });
-  let resolved = 0;
-  let requeued = 0;
-  let timedOut = 0;
-  let queueTimedOut = 0;
-  let failedQueued = 0;
-  let advanced = 0;
-  let sweptSingleCr = 0;
+
+  return {
+    deps,
+    nowMs,
+    queueWaitMs,
+    offlineAgents,
+    centralClusterAgentId: await deps.centralClusterAgentId(),
+    whyUnclaimed: (requiredTags: string[]): string =>
+      unclaimedDetail({
+        requiredTags,
+        waitMinutes: queueWaitMs / MINUTE_MS,
+        verdict: capacityFor(requiredTags, clusterAgents),
+      }),
+  };
+}
+
+/** One sweep over every open line; per-line failures are logged and skipped so a single bad row never wedges the tick. */
+export async function assemblyLineReaperJob(
+  deps: AssemblyLineReaperDeps,
+): Promise<string> {
+  const open = await deps.assemblyRuns.listOpen();
+  const ctx = await buildReapContext(deps);
+  const tally = new Map<ReapOutcome, number>();
 
   for (const row of open) {
     try {
-      // Same rule the walk follows (FR6.38): reaping against a since-edited graph would resolve a node the run never had.
-      const graph = await resolveRunGraph(row, deps.definitions);
+      const outcome = await reapOpenRun(row, ctx);
 
-      if (!graph) {
-        const graphlessOutcome = await reapGraphlessRun(row, {
-          deps,
-          offlineAgents,
-          queueWaitMs,
-          nowMs,
-          whyUnclaimed,
-        });
-
-        queueTimedOut += graphlessOutcome === "queue-timeout" ? 1 : 0;
-        requeued += graphlessOutcome === "requeued" ? 1 : 0;
-        sweptSingleCr += graphlessOutcome === "swept" ? 1 : 0;
-        continue;
-      }
-
-      if (row.status === "queued") {
-        failedQueued += await failLongQueuedLine(row, deps, nowMs);
-        continue;
-      }
-
-      const nodes = await deps.assemblyRuns.listStationRuns(row.id);
-      const openNode = nodes.find((n) => n.outcome === null);
-
-      if (!openNode) {
-        await advanceLine(row.id, deps);
-        advanced++;
-        continue;
-      }
-
-      const node = graph.nodes.find((n) => n.id === openNode.nodeId);
-
-      if (!node) {
-        continue;
-      }
-
-      const crVisible = agentCrVisible(openNode, centralClusterAgentId);
-      // Never read CR status for a row this Floor cannot see — a satellite's CR read answers null, which would requeue (double-launch) work it's running.
-      const status =
-        crVisible && openNode.agentCrName
-          ? await deps.readAgentStatus(openNode.agentCrName)
-          : null;
-      const claimantOffline =
-        openNode.clusterAgentId !== null &&
-        offlineAgents.has(openNode.clusterAgentId);
-      // The station's own budget (not the global sixty) when the YAML is silent, resolved ONCE so the failure message names the budget actually applied.
-      const budgetMinutes = nodeTimeoutMinutes({
-        yaml: node.timeout_minutes,
-        manifest: stationBudgetFor(node.type),
-      });
-      const recovery = decideNodeRecovery({
-        claimantOffline,
-        node: openNode,
-        timeoutMinutes: budgetMinutes,
-        status,
-        nodeType: node.type,
-        crVisible,
-        queueWaitMs,
-        nowMs,
-      });
-
-      if (recovery.kind === "resolve") {
-        await settleResolvedNode(
-          { row, node, openNode, terminalStatus: recovery.status },
-          deps,
-        );
-        resolved++;
-
-        continue;
-      }
-
-      if (recovery.kind === "timeout") {
-        const budget = budgetMinutes ?? DEFAULT_TIMEOUT_MINUTES;
-
-        await finishNodeTerminal(
-          {
-            row,
-            node,
-            nodeId: openNode.nodeId,
-            iteration: openNode.iteration,
-            // A node whose pod stopped reporting died of infrastructure, not the work — say so instead of a bare `failed` with no story.
-            result: {
-              outcome: "failed",
-              failureClass: "infra",
-              failureDetail: `${node.type === "agent" ? "agent" : "station"} node timed out after ${budget} minutes without reporting`,
-            },
-          },
-          deps,
-        );
-        timedOut++;
-        console.warn(
-          `[assembly-run-reaper] node ${openNode.nodeId} of ${row.id} timed out (${node.type === "agent" ? "agent" : "station"}-timeout)`,
-        );
-
-        continue;
-      }
-
-      if (recovery.kind === "queue-timeout") {
-        await finishNodeTerminal(
-          {
-            row,
-            node,
-            nodeId: openNode.nodeId,
-            iteration: openNode.iteration,
-            // Naming the tags is the point: a line stalled on missing `gpu` capacity must say so, not report a generic timeout.
-            result: {
-              outcome: "failed",
-              // `unclaimed`, not `infra`: nothing ran, so this class is what makes the walk refuse the retry.
-              failureClass: "unclaimed",
-              failureDetail: whyUnclaimed(openNode.requiredTags),
-            },
-          },
-          deps,
-        );
-        queueTimedOut++;
-        console.warn(
-          `[assembly-run-reaper] node ${openNode.nodeId} of ${row.id} sat queued past ${queueWaitMs / MINUTE_MS}m unclaimed`,
-        );
-
-        continue;
-      }
-
-      if (recovery.kind === "requeue-offline") {
-        // Same row back on the shelf; the audit entry makes a flapping cluster diagnosable without database access (FR7 renders it).
-        await deps.assemblyRuns.requeueStationRun(openNode.id);
-        await deps.audit?.({
-          event_type: "cluster_agent_offline",
-          payload: {
-            cluster_agent_id: openNode.clusterAgentId,
-            station_run_id: openNode.stationRunId,
-            assembly_run_id: row.id,
-            node_id: openNode.nodeId,
-            elapsed_since_claim_ms: openNode.claimedAt
-              ? nowMs - openNode.claimedAt.getTime()
-              : null,
-          },
-        });
-        requeued++;
-
-        continue;
-      }
-
-      if (recovery.kind === "requeue") {
-        // Crash between claim and CR create: reset the SAME row to `queued` so another claim takes it — the armed dispatch spec rides the row, no second builder.
-        await deps.assemblyRuns.requeueStationRun(openNode.id);
-        requeued++;
-        console.warn(
-          `[assembly-run-reaper] requeued node ${openNode.nodeId} of ${row.id} — its claim produced no CR within the startup grace`,
-        );
-      }
+      tally.set(outcome, (tally.get(outcome) ?? 0) + 1);
     } catch (err) {
       console.error(
         `[assembly-run-reaper] ${row.blueprintName}/${row.id}: ${(err as Error).message}`,
       );
     }
   }
+  const count = (outcome: ReapOutcome): number => tally.get(outcome) ?? 0;
 
-  return `resolved ${resolved}, requeued ${requeued}, timed out ${timedOut}, queue-timed-out ${queueTimedOut}, failed-queued ${failedQueued}, re-advanced ${advanced}, swept-single-cr ${sweptSingleCr} across ${open.length} open line(s)`;
+  return `resolved ${count("resolved")}, requeued ${count("requeued")}, timed out ${count("timeout")}, queue-timed-out ${count("queue-timeout")}, failed-queued ${count("failed-queued")}, re-advanced ${count("advanced")}, swept-single-cr ${count("swept")} across ${open.length} open line(s)`;
 }
