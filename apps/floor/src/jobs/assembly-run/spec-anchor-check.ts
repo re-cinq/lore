@@ -13,7 +13,8 @@
  * run.
  */
 
-import { dirname, normalize } from "node:path";
+// posix explicitly: these are GitHub API paths, forward-slash on every OS.
+import { dirname, normalize } from "node:path/posix";
 
 export interface RottenAnchor {
   specPath: string;
