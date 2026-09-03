@@ -1,4 +1,4 @@
--- 0061_review_prompt_calibration: calibrate the code-review prompts after the
+-- 0065_review_prompt_calibration: calibrate the code-review prompts after the
 -- 2026-09-03 finding-quality audit (61 findings cross-checked on real PRs).
 --
 -- Three changes, applied to the REVIEW_FINDINGS instruction paragraph:
@@ -20,7 +20,14 @@
 -- and a re-run finds nothing left to replace. The live rows carry CRLF line
 -- endings (UI-seeded), so newlines are normalized to LF first — that is what
 -- lets one LF-quoted paragraph match every row.
+--
+-- Same rollout shape as 0057: every UPDATE returns the rows it actually
+-- rewrote and emits ONE catalog event each, so the cluster-agents re-render
+-- the definition. Without that the new prompt sits in the table while every
+-- pod keeps running the old one — the rewrite would be invisible where it
+-- matters. An untouched (hand-edited or already-migrated) row emits nothing.
 
+WITH updated AS (
 UPDATE lore.agent_definitions
    SET prompt = replace(replace(prompt, E'\r\n', E'\n'),
 $lore_old$Emit a fenced REVIEW_FINDINGS block (one finding per point) then the
@@ -42,8 +49,13 @@ other occurrences in its subject — not one finding per site.
 `suggestion` is the replacement text for that exact line(s).$lore_new$),
        updated_at = now()
  WHERE name = 'code-review'
-   AND prompt LIKE '%praise | thought | chore%';
+   AND prompt LIKE '%praise | thought | chore%'
+RETURNING project_id
+)
+INSERT INTO lore.catalog_events (name, project_id, op)
+SELECT 'code-review', project_id, 'upsert' FROM updated;
 
+WITH updated AS (
 UPDATE lore.agent_definitions
    SET prompt = replace(replace(prompt, E'\r\n', E'\n'),
 $lore_old$Emit a fenced REVIEW_FINDINGS block (it MAY be empty when nothing new is
@@ -55,10 +67,15 @@ praise or commentary. Reserve `"decoration":"blocking"` for real defects
 blocking. Same schema as the full review:$lore_new$),
        updated_at = now()
  WHERE name = 'code-review-recheck'
-   AND prompt LIKE '%wrong) then the verdict. Same schema as the full review:%';
+   AND prompt LIKE '%wrong) then the verdict. Same schema as the full review:%'
+RETURNING project_id
+)
+INSERT INTO lore.catalog_events (name, project_id, op)
+SELECT 'code-review-recheck', project_id, 'upsert' FROM updated;
 
 -- The legacy `review` task type posts its comments itself (gh pr review) and
 -- had no problems-only rule at all — same calibration, phrased for its flow.
+WITH updated AS (
 UPDATE lore.agent_definitions
    SET prompt = replace(replace(prompt, E'\r\n', E'\n'),
 'Post specific review comments on the PR using gh pr review.',
@@ -69,4 +86,8 @@ loss), not style or doc hygiene.$lore_new$),
        updated_at = now()
  WHERE name = 'review'
    AND prompt LIKE '%Post specific review comments on the PR using gh pr review.%'
-   AND prompt NOT LIKE '%problems worth acting on%';
+   AND prompt NOT LIKE '%problems worth acting on%'
+RETURNING project_id
+)
+INSERT INTO lore.catalog_events (name, project_id, op)
+SELECT 'review', project_id, 'upsert' FROM updated;
