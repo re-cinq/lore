@@ -243,15 +243,31 @@ export class PgAssemblyRuns implements AssemblyRunsPort {
 
   async finish(id: string, outcome: string, reason?: string): Promise<boolean> {
     // First writer decides — duplicate/late finishers never overwrite a terminal row; RETURNING reports the win for once-only side effects.
+    // Closing the run also closes any visit still open under it, in the SAME statement: the reaper sweeps OPEN runs only, so a visit left open when its run went terminal was never revisited (86 rows stranded since 2026-08-21, each billing phantom pod-hours at the spend page's 2h cap). Gated on `won`, COALESCE-guarded so a visit that DID report keeps its outcome.
     const { rows } = await this.pool.query(
-      `UPDATE pipeline.assembly_runs
-         SET status = CASE WHEN $1 = 'error' THEN 'failed' ELSE 'finished' END,
-             outcome = $1,
-             reason = $2,
-             finished_at = now()
-       WHERE id = $3
-         AND status IN ('queued', 'running')
-       RETURNING id`,
+      `WITH won AS (
+         UPDATE pipeline.assembly_runs
+            SET status = CASE WHEN $1 = 'error' THEN 'failed' ELSE 'finished' END,
+                outcome = $1,
+                reason = $2,
+                finished_at = now()
+          WHERE id = $3
+            AND status IN ('queued', 'running')
+          RETURNING id
+       ), stranded AS (
+         UPDATE pipeline.station_runs
+            SET finished_at = now(),
+                outcome = COALESCE(outcome, 'failed'),
+                failure_class = COALESCE(failure_class, 'unknown'),
+                failure_detail = COALESCE(
+                  failure_detail,
+                  'the run finished while this visit was still open — the visit never reported an outcome'
+                )
+          WHERE assembly_run_id IN (SELECT id FROM won)
+            AND finished_at IS NULL
+          RETURNING 1
+       )
+       SELECT id FROM won`,
       [outcome, reason ?? null, id],
     );
 

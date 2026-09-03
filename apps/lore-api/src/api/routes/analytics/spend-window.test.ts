@@ -437,7 +437,31 @@ describe("GET /api/analytics/spend-window", () => {
     expect(anchored[0].sql).toContain("pipeline.anthropic_cost_daily");
     expect(anchored[1].sql).toContain("pipeline.llm_calls");
     expect(anchored[1].sql).toContain("cluster_agent_id IS NULL");
-    expect(anchored[1].params).toEqual(["2026-08-01T00:00:00Z", "2026-09-01"]);
+    // The two halves meet at billed_through and must not overlap: billed
+    // covers up to and including it, computed starts strictly after. The third
+    // param is the non-Anthropic vendor exclusion below.
+    expect(anchored[1].params.slice(0, 2)).toEqual([
+      "2026-08-01T00:00:00Z",
+      "2026-09-01",
+    ]);
+  });
+
+  it("keeps Gemini spend out of the Anthropic balance and the unbilled remainder", async () => {
+    // Since 2026-09-02 the review family bills Google, not Anthropic. Counting
+    // it drew the recorded credits down on money Anthropic never charged — and
+    // the unbilled line under the billed card is the same arithmetic.
+    const issued: Issued[] = [];
+
+    await get(await serverWith(BASE_ROWS, {}, issued));
+
+    const excluding = issued.filter(({ sql }) => sql.includes("NOT LIKE ALL"));
+
+    expect(excluding).toHaveLength(2);
+
+    for (const { sql, params } of excluding) {
+      expect(sql).toContain("pipeline.llm_calls");
+      expect(params.at(-1)).toContain("gemini%");
+    }
   });
 
   it("excludes corrections from the budget anchor but not from the total", async () => {

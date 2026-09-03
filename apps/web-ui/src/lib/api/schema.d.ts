@@ -3295,6 +3295,11 @@ export interface components {
           input_tokens: number;
           output_tokens: number;
         }[];
+        by_vendor: {
+          vendor: string;
+          calls: number;
+          cost_usd: number;
+        }[];
         by_kind: {
           kind: string;
           calls: number;

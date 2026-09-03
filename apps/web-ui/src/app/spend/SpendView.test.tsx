@@ -58,6 +58,10 @@ const loreOnly: SpendWindow = {
       { task_type: "implementation", tasks: 30, cost_usd: 222.22 },
     ],
     by_cluster: [],
+    by_vendor: [
+      { vendor: "anthropic", calls: 82, cost_usd: 24.02 },
+      { vendor: "gemini", calls: 3, cost_usd: 13.68 },
+    ],
   },
   billed: {
     available: false,
@@ -768,5 +772,44 @@ describe("SpendView cost by cluster", () => {
         "No cluster-attributed spend",
       ),
     ).toBeInTheDocument();
+  });
+});
+
+describe("SpendView cost-per-run and vendor split", () => {
+  it("shows what one run of each assembly line costs", () => {
+    render(<SpendView spend={loreOnly} />);
+    const table = tableByHeading("LLM by Assembly Line");
+
+    // 15 runs of implementation-loop at $27.47 — the figure that says whether
+    // a model switch paid off, which the total alone hides.
+    expect(within(table).getByText(usd(27.47 / 15))).toBeInTheDocument();
+  });
+
+  it("splits metered spend by the account each vendor bills, and says only Anthropic draws the balance", () => {
+    render(<SpendView spend={loreOnly} />);
+    const table = tableByHeading("Cost by Vendor");
+
+    expect(within(table).getByText("anthropic")).toBeInTheDocument();
+    expect(within(table).getByText(usd(24.02))).toBeInTheDocument();
+    expect(within(table).getByText("gemini")).toBeInTheDocument();
+    expect(within(table).getByText(usd(13.68))).toBeInTheDocument();
+    expect(
+      screen.getByText(/Only Anthropic spend draws the balance above/),
+    ).toBeInTheDocument();
+  });
+
+  it("omits the vendor note when every call billed Anthropic", () => {
+    const anthropicOnly = {
+      ...loreOnly,
+      llm: {
+        ...loreOnly.llm,
+        by_vendor: [{ vendor: "anthropic", calls: 85, cost_usd: 37.7 }],
+      },
+    };
+
+    render(<SpendView spend={anthropicOnly} />);
+    expect(
+      screen.queryByText(/Only Anthropic spend draws the balance above/),
+    ).not.toBeInTheDocument();
   });
 });
