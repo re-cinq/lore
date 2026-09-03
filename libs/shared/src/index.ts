@@ -103,6 +103,11 @@ export {
   type SpecTraceOutcome,
 } from "./spec-trace/ingest-spec-trace.js";
 export {
+  deleteSpecSubtree,
+  deleteAdrSubtree,
+} from "./spec-trace/prune-removed-docs.js";
+export { pruneTestFiles } from "./spec-trace/prune-test-files.js";
+export {
   assembleTraceDocument,
   fetchTraceDocument,
   listSpecDocuments,

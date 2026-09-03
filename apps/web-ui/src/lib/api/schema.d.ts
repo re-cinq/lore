@@ -894,6 +894,40 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/repos/{owner}/{repo}/ingest-state": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** GET /api/repos/{owner}/{repo}/ingest-state */
+    get: operations["get_api_repos_owner_repo_ingest-state"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/repos/{owner}/{repo}/ingest": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** POST /api/repos/{owner}/{repo}/ingest */
+    post: operations["post_api_repos_owner_repo_ingest"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/repos/{owner}/{repo}/events/{id}/payload": {
     parameters: {
       query?: never;
@@ -2687,6 +2721,20 @@ export interface components {
     };
     IngestTriggered: {
       triggered: string[];
+    };
+    IngestState: {
+      kind: string;
+      commit: string | null;
+    };
+    IngestDeltaResult: {
+      kind: string;
+      commit: string;
+      /** @enum {string} */
+      state: "advanced" | "pending-chunks";
+      projected: number;
+      deleted: number;
+      test_chunks: number;
+      pruned_test_files: number;
     };
     EventPayload: {
       [key: string]: unknown;
@@ -5649,6 +5697,80 @@ export interface operations {
       400: components["responses"]["BadRequest"];
       401: components["responses"]["Unauthorized"];
       403: components["responses"]["Forbidden"];
+      413: components["responses"]["PayloadTooLarge"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  "get_api_repos_owner_repo_ingest-state": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        owner: string;
+        repo: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description The last commit ingested for a repo and kind */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["IngestState"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      429: components["responses"]["RateLimited"];
+      503: components["responses"]["ServiceUnavailable"];
+    };
+  };
+  post_api_repos_owner_repo_ingest: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        owner: string;
+        repo: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          kind: string;
+          commit: string;
+          base_commit: string | null;
+          seq?: number;
+          total?: number;
+          files?: {
+            path: string;
+            content: string;
+          }[];
+          deleted?: string[];
+          report?: unknown;
+        };
+      };
+    };
+    responses: {
+      /** @description What one incremental ingest delta changed in the graph */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["IngestDeltaResult"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthorized"];
+      403: components["responses"]["Forbidden"];
+      409: components["responses"]["Conflict"];
       413: components["responses"]["PayloadTooLarge"];
       429: components["responses"]["RateLimited"];
       503: components["responses"]["ServiceUnavailable"];
