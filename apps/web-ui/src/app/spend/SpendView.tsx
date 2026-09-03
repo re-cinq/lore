@@ -109,123 +109,46 @@ function BudgetOutlookNote({ budget }: { budget: NonNullable<BudgetRow> }) {
   );
 }
 
+/** The row a table shows instead of nothing. Rendering it from the table body keeps every table's empty state one decision rather than nine. */
+function EmptyRow({
+  when,
+  colSpan,
+  message,
+}: {
+  when: boolean;
+  colSpan: number;
+  message: string;
+}) {
+  if (!when) {
+    return null;
+  }
+
+  return (
+    <tr>
+      <td colSpan={colSpan} className={`meta ${styles.center}`}>
+        {message}
+      </td>
+    </tr>
+  );
+}
+
 export default function SpendView({ spend, recordAction }: SpendViewProps) {
   const { interval, llm, billed, budget, gcp, compute } = spend;
 
   return (
     <div>
-      <div className={styles.cards}>
-        <div className={`spec-card ${styles.card}`}>
-          <div className="meta">
-            Lore-computed cost {day(interval.from)} → {day(interval.to)}
-          </div>
-          <div className={styles.figureInfo}>{usd(llm.total_usd)}</div>
-          <div className={`meta ${styles.subnote}`}>
-            estimate from token counts
-          </div>
-        </div>
-        <div className={`spec-card ${styles.card}`}>
-          <div className="meta">API calls</div>
-          <div className={styles.figure}>{num(llm.calls)}</div>
-        </div>
-        <div className={`spec-card ${styles.card}`}>
-          <div className="meta">Input tokens</div>
-          <div className={styles.figure}>{num(llm.input_tokens)}</div>
-        </div>
-        <div className={`spec-card ${styles.card}`}>
-          <div className="meta">Output tokens</div>
-          <div className={styles.figure}>{num(llm.output_tokens)}</div>
-        </div>
-        {billed.available && (
-          <div className={`spec-card ${styles.card}`}>
-            <div className="meta">Billed cost (Anthropic)</div>
-            <div className={styles.figure}>{usd(billed.total_usd)}</div>
-            <div className={`meta ${styles.subnote}`}>
-              as of {stamp(billed.as_of as string)}
-            </div>
-            {/* Anthropic report lags; surface unbilled amount separately and labeled */}
-            {billed.unbilled_usd > 0 && (
-              <div className={`meta ${styles.subnote}`}>
-                {billed.billed_through
-                  ? `billed through ${day(billed.billed_through)}`
-                  : "not yet billed"}{" "}
-                — + {usd(billed.unbilled_usd)}{" "}
-                {billed.unbilled_days === 1
-                  ? "today"
-                  : `over ${num(billed.unbilled_days)} days since`}{" "}
-                (Lore-computed)
-              </div>
-            )}
-          </div>
-        )}
-        <div className={`spec-card ${styles.card}`}>
-          <div className="meta">Kubernetes (estimated)</div>
-          <div className={styles.figureInfo}>{usd(compute.est_total_usd)}</div>
-          <div className={`meta ${styles.subnote}`}>
-            + {usd(compute.live_usd_per_hour)}/h burning now
-          </div>
-        </div>
-        {/* GCP invoice synced from BigQuery export; lags a day+, so estimate still needed */}
-        {gcp.available && (
-          <div className={`spec-card ${styles.card}`}>
-            <div className="meta">Google Cloud (billed)</div>
-            <div className={styles.figure}>{usd(gcp.total_usd)}</div>
-            <div className={`meta ${styles.subnote}`}>
-              {gcp.billed_through
-                ? `billed through ${day(gcp.billed_through)}`
-                : "no closed day in this interval yet"}{" "}
-              — net of credits
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Balance: not scoped to interval (money persists); subtract spend from recorded amount */}
-      <h2>Balance</h2>
-      <div className={styles.cards}>
-        {budget ? (
-          <div className={`spec-card ${styles.balanceCard}`}>
-            <div className="meta">Credits remaining</div>
-            <div
-              className={
-                budget.remaining_usd < 0 ? styles.figureOver : styles.figureInfo
-              }
-            >
-              {usd(budget.remaining_usd)}
-            </div>
-            {/* Clock only if anchor carries it; day-recorded entries don't show 00:00 */}
-            <div className={`meta ${styles.subnote}`}>
-              {usd(budget.ledger_total_usd)} recorded −{" "}
-              {usd(budget.spent_since_usd)} spent since{" "}
-              {day(anchorDay(budget.anchored_at))}
-              {anchorTime(budget.anchored_at)
-                ? `, ${anchorTime(budget.anchored_at)} UTC`
-                : ""}
-            </div>
-            <BudgetOutlookNote budget={budget} />
-          </div>
-        ) : (
-          <div className={`spec-card ${styles.balanceCard}`}>
-            <div className="meta">Credits remaining</div>
-            {/* No $0.00: unrecorded balance ≠ exhausted; use em dash */}
-            <div className={styles.figure}>—</div>
-            <div className={`meta ${styles.subnote}`}>
-              No balance recorded yet. Anthropic publishes usage and cost but
-              not a credit balance, so the starting figure has to be entered
-              once.
-            </div>
-          </div>
-        )}
-      </div>
-      {llm.by_cluster.some((r) => r.cluster !== null) && (
-        <p className={`meta ${styles.subnote}`}>
-          Cluster spend shown below is excluded from this balance: a satellite
-          runs on its own credential and does not draw these credits.
-        </p>
-      )}
-      {recordAction && (
-        <RecordTopUp first={!budget} recordAction={recordAction} />
-      )}
+      <SummaryCards
+        interval={interval}
+        llm={llm}
+        billed={billed}
+        gcp={gcp}
+        compute={compute}
+      />
+      <BalanceSection
+        budget={budget}
+        hasClusterSpend={llm.by_cluster.some((r) => r.cluster !== null)}
+        recordAction={recordAction}
+      />
 
       <h2>LLM by Assembly Line</h2>
       <table>
@@ -247,13 +170,11 @@ export default function SpendView({ spend, recordAction }: SpendViewProps) {
               <td>{r.runs > 0 ? usd(r.usd / r.runs) : "—"}</td>
             </tr>
           ))}
-          {llm.by_blueprint.length === 0 && (
-            <tr>
-              <td colSpan={4} className={`meta ${styles.center}`}>
-                No data
-              </td>
-            </tr>
-          )}
+          <EmptyRow
+            when={llm.by_blueprint.length === 0}
+            colSpan={4}
+            message="No data"
+          />
         </tbody>
       </table>
 
@@ -276,13 +197,11 @@ export default function SpendView({ spend, recordAction }: SpendViewProps) {
               <td>{usd(r.cost_usd)}</td>
             </tr>
           ))}
-          {llm.by_vendor.length === 0 && (
-            <tr>
-              <td colSpan={3} className={`meta ${styles.center}`}>
-                No data
-              </td>
-            </tr>
-          )}
+          <EmptyRow
+            when={llm.by_vendor.length === 0}
+            colSpan={3}
+            message="No data"
+          />
         </tbody>
       </table>
       {/* Only Anthropic draws recorded credits; others bill their own vendor */}
@@ -316,13 +235,11 @@ export default function SpendView({ spend, recordAction }: SpendViewProps) {
               <td className={styles.mono}>{num(r.output_tokens)}</td>
             </tr>
           ))}
-          {llm.by_model.length === 0 && (
-            <tr>
-              <td colSpan={5} className={`meta ${styles.center}`}>
-                No data
-              </td>
-            </tr>
-          )}
+          <EmptyRow
+            when={llm.by_model.length === 0}
+            colSpan={5}
+            message="No data"
+          />
         </tbody>
       </table>
 
@@ -343,13 +260,11 @@ export default function SpendView({ spend, recordAction }: SpendViewProps) {
               <td>{usd(r.cost_usd)}</td>
             </tr>
           ))}
-          {llm.by_kind.length === 0 && (
-            <tr>
-              <td colSpan={3} className={`meta ${styles.center}`}>
-                No data
-              </td>
-            </tr>
-          )}
+          <EmptyRow
+            when={llm.by_kind.length === 0}
+            colSpan={3}
+            message="No data"
+          />
         </tbody>
       </table>
 
@@ -370,13 +285,11 @@ export default function SpendView({ spend, recordAction }: SpendViewProps) {
               <td>{usd(r.cost_usd)}</td>
             </tr>
           ))}
-          {llm.daily.length === 0 && (
-            <tr>
-              <td colSpan={3} className={`meta ${styles.center}`}>
-                No data
-              </td>
-            </tr>
-          )}
+          <EmptyRow
+            when={llm.daily.length === 0}
+            colSpan={3}
+            message="No data"
+          />
         </tbody>
       </table>
 
@@ -395,13 +308,11 @@ export default function SpendView({ spend, recordAction }: SpendViewProps) {
               <td>{usd(r.usd)}</td>
             </tr>
           ))}
-          {llm.by_repo.length === 0 && (
-            <tr>
-              <td colSpan={2} className={`meta ${styles.center}`}>
-                No run-attributed spend
-              </td>
-            </tr>
-          )}
+          <EmptyRow
+            when={llm.by_repo.length === 0}
+            colSpan={2}
+            message="No run-attributed spend"
+          />
         </tbody>
       </table>
 
@@ -424,13 +335,11 @@ export default function SpendView({ spend, recordAction }: SpendViewProps) {
               <td>{usd(r.cost_usd)}</td>
             </tr>
           ))}
-          {llm.by_task_type.length === 0 && (
-            <tr>
-              <td colSpan={3} className={`meta ${styles.center}`}>
-                No task-attributed spend
-              </td>
-            </tr>
-          )}
+          <EmptyRow
+            when={llm.by_task_type.length === 0}
+            colSpan={3}
+            message="No task-attributed spend"
+          />
         </tbody>
       </table>
 
@@ -481,13 +390,11 @@ export default function SpendView({ spend, recordAction }: SpendViewProps) {
                 <td>{usd(r.cost_usd)}</td>
               </tr>
             ))}
-          {llm.by_cluster.length === 0 && (
-            <tr>
-              <td colSpan={3} className={`meta ${styles.center}`}>
-                No cluster-attributed spend
-              </td>
-            </tr>
-          )}
+          <EmptyRow
+            when={llm.by_cluster.length === 0}
+            colSpan={3}
+            message="No cluster-attributed spend"
+          />
         </tbody>
       </table>
 
@@ -624,13 +531,11 @@ export default function SpendView({ spend, recordAction }: SpendViewProps) {
               <td>{usd(r.est_usd)}</td>
             </tr>
           ))}
-          {compute.pod_hours.length === 0 && (
-            <tr>
-              <td colSpan={4} className={`meta ${styles.center}`}>
-                No data
-              </td>
-            </tr>
-          )}
+          <EmptyRow
+            when={compute.pod_hours.length === 0}
+            colSpan={4}
+            message="No data"
+          />
         </tbody>
       </table>
       <p className={`meta ${styles.subnote}`}>
@@ -644,5 +549,150 @@ export default function SpendView({ spend, recordAction }: SpendViewProps) {
           : "."}
       </p>
     </div>
+  );
+}
+
+/** The headline figures: what Lore computed from token counts, what each vendor actually billed, and what the pods cost. A billed card appears only once that vendor has synced. */
+function SummaryCards({
+  interval,
+  llm,
+  billed,
+  gcp,
+  compute,
+}: {
+  interval: SpendWindow["interval"];
+  llm: SpendWindow["llm"];
+  billed: SpendWindow["billed"];
+  gcp: SpendWindow["gcp"];
+  compute: SpendWindow["compute"];
+}) {
+  return (
+    <div className={styles.cards}>
+      <div className={`spec-card ${styles.card}`}>
+        <div className="meta">
+          Lore-computed cost {day(interval.from)} → {day(interval.to)}
+        </div>
+        <div className={styles.figureInfo}>{usd(llm.total_usd)}</div>
+        <div className={`meta ${styles.subnote}`}>
+          estimate from token counts
+        </div>
+      </div>
+      <div className={`spec-card ${styles.card}`}>
+        <div className="meta">API calls</div>
+        <div className={styles.figure}>{num(llm.calls)}</div>
+      </div>
+      <div className={`spec-card ${styles.card}`}>
+        <div className="meta">Input tokens</div>
+        <div className={styles.figure}>{num(llm.input_tokens)}</div>
+      </div>
+      <div className={`spec-card ${styles.card}`}>
+        <div className="meta">Output tokens</div>
+        <div className={styles.figure}>{num(llm.output_tokens)}</div>
+      </div>
+      {billed.available && (
+        <div className={`spec-card ${styles.card}`}>
+          <div className="meta">Billed cost (Anthropic)</div>
+          <div className={styles.figure}>{usd(billed.total_usd)}</div>
+          <div className={`meta ${styles.subnote}`}>
+            as of {stamp(billed.as_of as string)}
+          </div>
+          {/* Anthropic report lags; surface unbilled amount separately and labeled */}
+          {billed.unbilled_usd > 0 && (
+            <div className={`meta ${styles.subnote}`}>
+              {billed.billed_through
+                ? `billed through ${day(billed.billed_through)}`
+                : "not yet billed"}{" "}
+              — + {usd(billed.unbilled_usd)}{" "}
+              {billed.unbilled_days === 1
+                ? "today"
+                : `over ${num(billed.unbilled_days)} days since`}{" "}
+              (Lore-computed)
+            </div>
+          )}
+        </div>
+      )}
+      <div className={`spec-card ${styles.card}`}>
+        <div className="meta">Kubernetes (estimated)</div>
+        <div className={styles.figureInfo}>{usd(compute.est_total_usd)}</div>
+        <div className={`meta ${styles.subnote}`}>
+          + {usd(compute.live_usd_per_hour)}/h burning now
+        </div>
+      </div>
+      {/* GCP invoice synced from BigQuery export; lags a day+, so estimate still needed */}
+      {gcp.available && (
+        <div className={`spec-card ${styles.card}`}>
+          <div className="meta">Google Cloud (billed)</div>
+          <div className={styles.figure}>{usd(gcp.total_usd)}</div>
+          <div className={`meta ${styles.subnote}`}>
+            {gcp.billed_through
+              ? `billed through ${day(gcp.billed_through)}`
+              : "no closed day in this interval yet"}{" "}
+            — net of credits
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** What is left of the recorded credits. Not interval-scoped: money persists, so this subtracts spend since the anchor from the amount on record. */
+function BalanceSection({
+  budget,
+  hasClusterSpend,
+  recordAction,
+}: {
+  budget: SpendWindow["budget"];
+  hasClusterSpend: boolean;
+  recordAction?: SpendViewProps["recordAction"];
+}) {
+  return (
+    <>
+      {/* Balance: not scoped to interval (money persists); subtract spend from recorded amount */}
+      <h2>Balance</h2>
+      <div className={styles.cards}>
+        {budget ? (
+          <div className={`spec-card ${styles.balanceCard}`}>
+            <div className="meta">Credits remaining</div>
+            <div
+              className={
+                budget.remaining_usd < 0 ? styles.figureOver : styles.figureInfo
+              }
+            >
+              {usd(budget.remaining_usd)}
+            </div>
+            {/* Clock only if anchor carries it; day-recorded entries don't show 00:00 */}
+            <div className={`meta ${styles.subnote}`}>
+              {usd(budget.ledger_total_usd)} recorded −{" "}
+              {usd(budget.spent_since_usd)} spent since{" "}
+              {day(anchorDay(budget.anchored_at))}
+              {anchorTime(budget.anchored_at)
+                ? `, ${anchorTime(budget.anchored_at)} UTC`
+                : ""}
+            </div>
+            <BudgetOutlookNote budget={budget} />
+          </div>
+        ) : (
+          <div className={`spec-card ${styles.balanceCard}`}>
+            <div className="meta">Credits remaining</div>
+            {/* No $0.00: unrecorded balance ≠ exhausted; use em dash */}
+            <div className={styles.figure}>—</div>
+            <div className={`meta ${styles.subnote}`}>
+              No balance recorded yet. Anthropic publishes usage and cost but
+              not a credit balance, so the starting figure has to be entered
+              once.
+            </div>
+          </div>
+        )}
+      </div>
+      {hasClusterSpend && (
+        <p className={`meta ${styles.subnote}`}>
+          Cluster spend shown below is excluded from this balance: a satellite
+          runs on its own credential and does not draw these credits.
+        </p>
+      )}
+      {recordAction && (
+        <RecordTopUp first={!budget} recordAction={recordAction} />
+      )}
+    </>
   );
 }
