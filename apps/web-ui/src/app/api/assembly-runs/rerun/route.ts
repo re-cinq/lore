@@ -20,9 +20,11 @@ async function readRerunForm(
   const form = await req.formData();
   const runId = String(form.get("run_id") ?? "");
   const nodeId = String(form.get("node_id") ?? "");
-  const iterationField = form.get("iteration");
-  const iteration =
-    iterationField === null ? undefined : Number(iterationField);
+  // An empty optional field is ABSENT, not zero: the browser submits `""` for an
+  // untouched input, and `Number("")` is 0, which the positive-integer check
+  // below would then refuse with a 400.
+  const iterationField = String(form.get("iteration") ?? "").trim();
+  const iteration = iterationField === "" ? undefined : Number(iterationField);
 
   if (!runId || !nodeId) {
     return NextResponse.json(
@@ -117,7 +119,7 @@ export async function POST(req: Request) {
     }
     const rerun = await readRerunForm(req);
 
-    if (rerun instanceof NextResponse) {
+    if (rerun instanceof Response) {
       return rerun;
     }
     const apiUrl = process.env.LORE_API_URL;
@@ -132,7 +134,7 @@ export async function POST(req: Request) {
     const headers = { Authorization: `Bearer ${token}` };
     const line = await readSourceRun(apiUrl, headers, rerun.runId);
 
-    if (line instanceof NextResponse) {
+    if (line instanceof Response) {
       return line;
     }
 
