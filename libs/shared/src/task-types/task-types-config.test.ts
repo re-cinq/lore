@@ -183,6 +183,33 @@ describe("the implementation-tdd recipe", () => {
     expect(dod).toContain("redefined the ticket");
   });
 
+  it("bans acceptance tests whose subject is the repository's own source text", () => {
+    // Bowman-ui #8/#9/#10: a title-accuracy file readFileSync-ing another test,
+    // a regex self-guard, a literal-scan "duplication" test — all meta-tests
+    // manufactured to satisfy "red is the deliverable" on tickets that owed no
+    // new test (#1743).
+    const parsed = parseTaskTypesFile(COMMITTED);
+    const dod = parsed.taskTypes["acceptance-dod"]?.prompt_template ?? "";
+    const round = parsed.taskTypes["tdd-round"]?.prompt_template ?? "";
+
+    expect(dod).toContain("real entry point");
+    expect(dod).toContain("own source text");
+    expect(dod).toContain("compute the value");
+    expect(round).toContain("own source text");
+  });
+
+  it("offers a mechanical strategy so a trivial ticket owes no new permanent test", () => {
+    // The contract's only exits were "red tests" or "park for a human", so a
+    // two-string label fix got a junk meta-test manufactured for it (#1744).
+    const parsed = parseTaskTypesFile(COMMITTED);
+    const dod = parsed.taskTypes["acceptance-dod"]?.prompt_template ?? "";
+    const round = parsed.taskTypes["tdd-round"]?.prompt_template ?? "";
+
+    expect(dod).toContain("`mechanical`");
+    expect(dod).toContain("EXISTING tests");
+    expect(round).toContain("`mechanical`");
+  });
+
   it("has pr-ready report issue coverage, and leaves the footer to the Floor", () => {
     const parsed = parseTaskTypesFile(COMMITTED);
     const ready = parsed.taskTypes["pr-ready"]?.prompt_template ?? "";
