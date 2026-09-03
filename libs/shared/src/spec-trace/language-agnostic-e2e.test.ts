@@ -76,8 +76,8 @@ describe.skipIf(!reachable)(
         }`,
           { $repo: repo },
         );
-        const data = res.data as Record<string, { uid: string }[]>;
-        const uids = Object.values(data)
+        const written = res.data as Record<string, { uid: string }[]>;
+        const uids = Object.values(written)
           .flat()
           .map((node) => node.uid);
 

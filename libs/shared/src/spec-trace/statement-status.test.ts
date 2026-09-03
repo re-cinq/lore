@@ -49,8 +49,8 @@ describe.skipIf(!reachable)("deriveStatementStatus (live Dgraph)", () => {
         }`,
         { $sx: statementXid },
       );
-      const data = res.data as { stmts?: { uid: string }[] };
-      const uids = (data.stmts ?? []).map((node) => node.uid);
+      const written = res.data as { stmts?: { uid: string }[] };
+      const uids = (written.stmts ?? []).map((node) => node.uid);
 
       if (uids.length) {
         await txn.mutate({
@@ -78,8 +78,8 @@ describe.skipIf(!reachable)("deriveStatementStatus (live Dgraph)", () => {
         }`,
         { $repo: repo },
       );
-      const data = res.data as { nodes?: { uid: string }[] };
-      const uids = (data.nodes ?? []).map((node) => node.uid);
+      const written = res.data as { nodes?: { uid: string }[] };
+      const uids = (written.nodes ?? []).map((node) => node.uid);
 
       if (uids.length) {
         await txn.mutate({

@@ -319,7 +319,7 @@ export async function fetchTraceDocument(
   filePath: string,
   dgraph: DgraphClientPort,
 ): Promise<TraceDocument> {
-  const data = await withTxn(dgraph, async (txn) => {
+  const graph = await withTxn(dgraph, async (txn) => {
     const res = await txn.queryWithVars(TRACE_DOC_DQL, {
       $xid: `${repo}|${filePath}`,
     });
@@ -327,7 +327,7 @@ export async function fetchTraceDocument(
     return (res.data ?? {}) as TraceDocumentResult;
   });
 
-  return assembleTraceDocument(data);
+  return assembleTraceDocument(graph);
 }
 
 /** Card summary of one spec for list pages: title + description + coverage, keyed by path. */
@@ -458,9 +458,9 @@ function docTitle(specTitle: string | undefined, cardTitle: string): string {
 }
 
 export function assembleTraceDocument(
-  data: TraceDocumentResult,
+  graph: TraceDocumentResult,
 ): TraceDocument {
-  const spec = data.q?.[0];
+  const spec = graph.q?.[0];
 
   if (!spec) {
     return {

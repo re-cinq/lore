@@ -66,17 +66,17 @@ describe.skipIf(!reachable)("ingestSpecTrace (live Dgraph)", () => {
         }`,
         { $repo: repo },
       );
-      const data = res.data as {
+      const written = res.data as {
         testchunks?: { uid: string }[];
         codechunks?: { uid: string }[];
         coverages?: { uid: string }[];
         testsuites?: { uid: string }[];
       };
       const uids = [
-        ...(data.testchunks ?? []),
-        ...(data.codechunks ?? []),
-        ...(data.coverages ?? []),
-        ...(data.testsuites ?? []),
+        ...(written.testchunks ?? []),
+        ...(written.codechunks ?? []),
+        ...(written.coverages ?? []),
+        ...(written.testsuites ?? []),
       ].map((node) => node.uid);
 
       if (uids.length) {
@@ -118,7 +118,7 @@ describe.skipIf(!reachable)("ingestSpecTrace (live Dgraph)", () => {
       results: [],
     });
 
-    const data = (await readGraph(
+    const graph = (await readGraph(
       `query q($xid: string) {
         tc(func: eq(TestChunk.xid, $xid)) {
           TestChunk.xid TestChunk.repo TestChunk.test_name TestChunk.file_path
@@ -127,7 +127,7 @@ describe.skipIf(!reachable)("ingestSpecTrace (live Dgraph)", () => {
       { $xid: `${repo}|t1` },
     )) as { tc?: Record<string, unknown>[] };
 
-    expect(data.tc?.[0]).toMatchObject({
+    expect(graph.tc?.[0]).toMatchObject({
       "TestChunk.xid": `${repo}|t1`,
       "TestChunk.repo": repo,
       "TestChunk.test_name": "renders",
@@ -150,7 +150,7 @@ describe.skipIf(!reachable)("ingestSpecTrace (live Dgraph)", () => {
       ],
     });
 
-    const data = (await readGraph(
+    const graph = (await readGraph(
       `query q($repo: string) {
         cov(func: eq(Coverage.repo, $repo)) {
           Coverage.covers { File.xid }
@@ -159,7 +159,7 @@ describe.skipIf(!reachable)("ingestSpecTrace (live Dgraph)", () => {
       { $repo: repo },
     )) as { cov?: Record<string, unknown>[] };
 
-    expect(data.cov?.[0]?.["Coverage.covers"]).toEqual([
+    expect(graph.cov?.[0]?.["Coverage.covers"]).toEqual([
       { "File.xid": `${repo}|src/widget.ts` },
     ]);
   });

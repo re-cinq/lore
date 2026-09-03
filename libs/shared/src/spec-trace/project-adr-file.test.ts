@@ -60,15 +60,15 @@ describe.skipIf(!reachable)("projectAdrFile (live Dgraph)", () => {
         }`,
         { $repo: repo },
       );
-      const data = res.data as {
+      const written = res.data as {
         blocks?: { uid: string }[];
         adrs?: { uid: string }[];
         root?: { uid: string }[];
       };
       const uids = [
-        ...(data.blocks ?? []),
-        ...(data.adrs ?? []),
-        ...(data.root ?? []),
+        ...(written.blocks ?? []),
+        ...(written.adrs ?? []),
+        ...(written.root ?? []),
       ].map((node) => node.uid);
 
       if (uids.length) {
@@ -136,13 +136,13 @@ describe.skipIf(!reachable)("projectAdrFile (live Dgraph)", () => {
     );
 
     await txn.discard().catch(() => {});
-    const data = res.data as {
+    const written = res.data as {
       root?: Array<{ adrs?: Array<{ "ADR.file_path"?: string }> }>;
     };
 
-    expect((data.root?.[0]?.adrs ?? []).map((a) => a["ADR.file_path"])).toEqual(
-      [filePath],
-    );
+    expect(
+      (written.root?.[0]?.adrs ?? []).map((a) => a["ADR.file_path"]),
+    ).toEqual([filePath]);
   });
 
   it("returns projected true then false on an unchanged re-projection (content_hash gate)", async () => {

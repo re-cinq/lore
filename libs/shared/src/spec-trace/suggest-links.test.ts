@@ -69,15 +69,15 @@ describe.skipIf(!reachable)("suggestCandidates (live Dgraph)", () => {
         }`,
         { $repo: repo, $sx: statementXid },
       );
-      const data = res.data as {
+      const written = res.data as {
         chunks?: { uid: string }[];
         testChunks?: { uid: string }[];
         statements?: { uid: string }[];
       };
       const uids = [
-        ...(data.chunks ?? []),
-        ...(data.testChunks ?? []),
-        ...(data.statements ?? []),
+        ...(written.chunks ?? []),
+        ...(written.testChunks ?? []),
+        ...(written.statements ?? []),
       ].map((node) => node.uid);
 
       if (uids.length) {

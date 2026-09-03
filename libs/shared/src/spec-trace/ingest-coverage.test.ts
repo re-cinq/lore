@@ -67,7 +67,7 @@ describe.skipIf(!reachable)("ingestCoverageReport (live Dgraph)", () => {
         }`,
         { $repo: repo },
       );
-      const data = res.data as {
+      const written = res.data as {
         coverage?: { uid: string }[];
         codechunks?: { uid: string }[];
         testchunks?: { uid: string }[];
@@ -75,11 +75,11 @@ describe.skipIf(!reachable)("ingestCoverageReport (live Dgraph)", () => {
         root?: { uid: string }[];
       };
       const uids = [
-        ...(data.coverage ?? []),
-        ...(data.codechunks ?? []),
-        ...(data.testchunks ?? []),
-        ...(data.files ?? []),
-        ...(data.root ?? []),
+        ...(written.coverage ?? []),
+        ...(written.codechunks ?? []),
+        ...(written.testchunks ?? []),
+        ...(written.files ?? []),
+        ...(written.root ?? []),
       ].map((node) => node.uid);
 
       if (uids.length) {
@@ -120,7 +120,7 @@ describe.skipIf(!reachable)("ingestCoverageReport (live Dgraph)", () => {
       ],
     );
 
-    const data = (await readGraph(
+    const graph = (await readGraph(
       `query q($repo: string){
         root(func: eq(Repo.xid, $repo)){
           cov: Repo.coverage { Coverage.repo }
@@ -135,8 +135,8 @@ describe.skipIf(!reachable)("ingestCoverageReport (live Dgraph)", () => {
       }>;
     };
 
-    expect(data.root?.[0]?.cov).toHaveLength(1);
-    expect((data.root?.[0]?.files ?? []).map((f) => f["File.path"])).toEqual([
+    expect(graph.root?.[0]?.cov).toHaveLength(1);
+    expect((graph.root?.[0]?.files ?? []).map((f) => f["File.path"])).toEqual([
       "src/a.ts",
     ]);
   });
@@ -153,7 +153,7 @@ describe.skipIf(!reachable)("ingestCoverageReport (live Dgraph)", () => {
       [{ testFile: "test/widget.test.ts", testName: "renders", covered: [] }],
     );
 
-    const data = (await readGraph(
+    const graph = (await readGraph(
       `query q($xid: string) {
         cov(func: eq(Coverage.xid, $xid)) {
           Coverage.xid Coverage.repo Coverage.tool Coverage.commit
@@ -162,7 +162,7 @@ describe.skipIf(!reachable)("ingestCoverageReport (live Dgraph)", () => {
       { $xid: expectedXid },
     )) as { cov?: Record<string, unknown>[] };
 
-    expect(data.cov?.[0]).toMatchObject({
+    expect(graph.cov?.[0]).toMatchObject({
       "Coverage.xid": expectedXid,
       "Coverage.repo": repo,
       "Coverage.tool": "lcov",
@@ -192,7 +192,7 @@ describe.skipIf(!reachable)("ingestCoverageReport (live Dgraph)", () => {
 
     expect(result).toMatchObject({ coversEdges: 1, unmatched: 0 });
 
-    const data = (await readGraph(
+    const graph = (await readGraph(
       `query q($xid: string) {
         cov(func: eq(Coverage.xid, $xid)) {
           Coverage.covers @facets(ranges) { File.xid File.path }
@@ -201,7 +201,7 @@ describe.skipIf(!reachable)("ingestCoverageReport (live Dgraph)", () => {
       { $xid: `${repo}|t.test.ts|renders` },
     )) as { cov?: { "Coverage.covers"?: Record<string, unknown>[] }[] };
 
-    expect(data.cov?.[0]?.["Coverage.covers"]).toEqual([
+    expect(graph.cov?.[0]?.["Coverage.covers"]).toEqual([
       {
         "File.xid": `${repo}|src/widget.ts`,
         "File.path": "src/widget.ts",
@@ -281,12 +281,12 @@ describe.skipIf(!reachable)("ingestCoverageReport (live Dgraph)", () => {
       [{ testFile: "a.test.ts", testName: "a", covered: [] }],
     );
 
-    const data = (await readGraph(
+    const graph = (await readGraph(
       `query q($xid: string) { f(func: eq(File.xid, $xid)) { File.xid } }`,
       { $xid: `${repo}|shared.ts` },
     )) as { f?: Record<string, unknown>[] };
 
-    expect(data.f).toEqual([{ "File.xid": `${repo}|shared.ts` }]);
+    expect(graph.f).toEqual([{ "File.xid": `${repo}|shared.ts` }]);
   });
 
   it("links the matching TestChunk to the Coverage node via HAS_COVERAGE", async () => {
@@ -318,7 +318,7 @@ describe.skipIf(!reachable)("ingestCoverageReport (live Dgraph)", () => {
       [{ testFile: "t.test.ts", testName: "renders", covered: [] }],
     );
 
-    const data = (await readGraph(
+    const graph = (await readGraph(
       `query q($xid: string) {
         tc(func: eq(TestChunk.xid, $xid)) {
           TestChunk.coverage { Coverage.xid }
@@ -327,7 +327,7 @@ describe.skipIf(!reachable)("ingestCoverageReport (live Dgraph)", () => {
       { $xid: `${repo}|tc1` },
     )) as { tc?: { "TestChunk.coverage"?: { "Coverage.xid": string } }[] };
 
-    expect(data.tc?.[0]?.["TestChunk.coverage"]).toEqual({
+    expect(graph.tc?.[0]?.["TestChunk.coverage"]).toEqual({
       "Coverage.xid": `${repo}|t.test.ts|renders`,
     });
   });

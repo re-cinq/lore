@@ -67,11 +67,11 @@ describe.skipIf(!reachable)("resolveSentenceLink (live Dgraph)", () => {
         `query q($r: string) { specs(func: eq(Spec.repo, $r)) { uid } blocks(func: eq(Block.repo, $r)) { uid } }`,
         { $r: createdRepo },
       );
-      const data = res.data as {
+      const written = res.data as {
         specs?: { uid: string }[];
         blocks?: { uid: string }[];
       };
-      const uids = [...(data.specs ?? []), ...(data.blocks ?? [])].map(
+      const uids = [...(written.specs ?? []), ...(written.blocks ?? [])].map(
         (n) => n.uid,
       );
 

@@ -121,7 +121,7 @@ describe.skipIf(!reachable)(
 
       await pruneTestFiles(dgraphClient, repo, ["src/a.test.ts"]);
 
-      const data = (await readGraph(
+      const graph = (await readGraph(
         `query q($repo: string) {
         chunks(func: eq(TestChunk.repo, $repo)) { TestChunk.file_path }
         suites(func: eq(TestSuite.repo, $repo)) { TestSuite.name }
@@ -135,12 +135,12 @@ describe.skipIf(!reachable)(
         suites?: Array<{ "TestSuite.name": string }>;
         root?: Array<{ kept?: Array<{ "TestChunk.file_path": string }> }>;
       };
-      const files = (data.chunks ?? []).map((c) => c["TestChunk.file_path"]);
+      const files = (graph.chunks ?? []).map((c) => c["TestChunk.file_path"]);
 
       expect(files.some((f) => f === "src/a.test.ts")).toBe(false);
       expect(files.some((f) => f === "src/b.test.ts")).toBe(true);
-      expect(data.suites ?? []).toEqual([]);
-      const kept = (data.root?.[0]?.kept ?? []).map(
+      expect(graph.suites ?? []).toEqual([]);
+      const kept = (graph.root?.[0]?.kept ?? []).map(
         (c) => c["TestChunk.file_path"],
       );
 
@@ -156,7 +156,7 @@ describe.skipIf(!reachable)(
 
       await pruneTestFiles(dgraphClient, repo, ["src/a.test.ts"]);
 
-      const data = (await readGraph(
+      const graph = (await readGraph(
         `query q($repo: string) {
         cov(func: eq(Coverage.repo, $repo)) { Coverage.xid }
         code(func: eq(CodeChunk.repo, $repo)) { CodeChunk.file_path }
@@ -166,11 +166,15 @@ describe.skipIf(!reachable)(
         cov?: Array<{ "Coverage.xid": string }>;
         code?: Array<{ "CodeChunk.file_path": string }>;
       };
-      const covXids = (data.cov ?? []).map((c) => c["Coverage.xid"]);
+      const covXids = (graph.cov ?? []).map((c) => c["Coverage.xid"]);
 
-      expect(covXids.some((x) => x.includes("src/a.test.ts"))).toBe(false);
-      expect(covXids.some((x) => x.includes("src/b.test.ts"))).toBe(true);
-      expect(data.code ?? []).toEqual([]);
+      expect(covXids.some((graph) => graph.includes("src/a.test.ts"))).toBe(
+        false,
+      );
+      expect(covXids.some((graph) => graph.includes("src/b.test.ts"))).toBe(
+        true,
+      );
+      expect(graph.code ?? []).toEqual([]);
     });
 
     it("leaves no dangling Repo.coverage edge to a pruned Coverage node (delete-nquads drops only outgoing edges)", async () => {
@@ -181,7 +185,7 @@ describe.skipIf(!reachable)(
 
       await pruneTestFiles(dgraphClient, repo, ["src/a.test.ts"]);
 
-      const data = (await readGraph(
+      const graph = (await readGraph(
         `query q($repo: string) {
         root(func: eq(Repo.xid, $repo)) { edges: count(Repo.coverage) }
         cov(func: eq(Coverage.repo, $repo)) { uid }
@@ -192,7 +196,7 @@ describe.skipIf(!reachable)(
         cov?: Array<{ uid: string }>;
       };
 
-      expect(data.root?.[0]?.edges ?? 0).toBe((data.cov ?? []).length);
+      expect(graph.root?.[0]?.edges ?? 0).toBe((graph.cov ?? []).length);
     });
 
     it("keeps a statement the pruned test validated, dropping only the validated_by edge", async () => {
@@ -210,7 +214,7 @@ describe.skipIf(!reachable)(
 
       await pruneTestFiles(dgraphClient, repo, ["src/a.test.ts"]);
 
-      const data = (await readGraph(
+      const graph = (await readGraph(
         `query q($repo: string) {
         stmts(func: eq(Statement.repo, $repo)) {
           Statement.text
@@ -222,9 +226,9 @@ describe.skipIf(!reachable)(
         stmts?: Array<{ "Statement.text"?: string; links?: number }>;
       };
 
-      expect(data.stmts?.length).toBeGreaterThanOrEqual(1);
+      expect(graph.stmts?.length).toBeGreaterThanOrEqual(1);
 
-      for (const stmt of data.stmts ?? []) {
+      for (const stmt of graph.stmts ?? []) {
         expect(stmt.links ?? 0).toBe(0);
       }
     });
@@ -237,14 +241,14 @@ describe.skipIf(!reachable)(
 
       await pruneTestFiles(dgraphClient, repo, ["src/never-existed.test.ts"]);
 
-      const data = (await readGraph(
+      const graph = (await readGraph(
         `query q($repo: string) {
         chunks(func: eq(TestChunk.repo, $repo)) { uid }
       }`,
         { $repo: repo },
       )) as { chunks?: Array<{ uid: string }> };
 
-      expect((data.chunks ?? []).length).toBeGreaterThanOrEqual(4);
+      expect((graph.chunks ?? []).length).toBeGreaterThanOrEqual(4);
     });
   },
 );
