@@ -224,7 +224,7 @@ function toIso(value: unknown): string | undefined {
   }
 }
 
-/** Pack sources into a token budget: keep whole sources, truncate the overflow item, drop the rest. `maxPerDocTokens` caps any single document so a mega-doc can't crowd out smaller ones. */
+/** Pack sources into a token budget: keep whole sources, truncate the overflow source, drop the rest. `maxPerDocTokens` caps any single document so a mega-doc can't crowd out smaller ones. */
 export function fitItemsToBudget(
   sources: SourceItem[],
   budgetTokens: number,

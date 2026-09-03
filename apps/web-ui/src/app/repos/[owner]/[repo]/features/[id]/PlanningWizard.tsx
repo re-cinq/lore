@@ -95,7 +95,7 @@ export default function PlanningWizard({
 
   // The poll updates THIS component, but the draft spec renders from the server's
   // copy of the feature (FeatureDetailView reads feature.draft_spec_md). Without a
-  // refresh, a round that just landed leaves the page showing pre-round poll until
+  // refresh, a round that just landed leaves the page showing pre-round data until
   // the reader thinks to reload. Once per iteration — refresh() re-renders the
   // parent, which would otherwise re-trigger this on every poll.
   useEffect(() => {

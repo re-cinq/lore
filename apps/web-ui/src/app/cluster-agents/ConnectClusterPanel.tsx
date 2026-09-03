@@ -26,7 +26,7 @@ export function buildConnectCommand(
  * Connect-a-cluster panel (#1572): renders the copy-paste install command
  * with the central URLs and registration token filled in, so registering a
  * cluster is "run this". Client component only for the two inputs and the
- * clipboard — the install install arrives as a prop from the page container.
+ * clipboard — the install info arrives as a prop from the page container.
  * The command embeds the registration token; the panel says so.
  */
 export default function ConnectClusterPanel({
@@ -41,8 +41,8 @@ export default function ConnectClusterPanel({
       <details className="connect-cluster">
         <summary>Connect a cluster</summary>
         <Alert variant="secondary">
-          Not available: {install.reason ?? "install install is not configured"}
-          . Set <code>cluster_agent_registration_token</code> in{" "}
+          Not available: {install.reason ?? "install info is not configured"}.
+          Set <code>cluster_agent_registration_token</code> in{" "}
           <code>secrets.tfvars</code> and apply, then redeploy lore-api.
         </Alert>
       </details>
