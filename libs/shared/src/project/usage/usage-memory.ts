@@ -103,4 +103,14 @@ export class InMemoryUsage implements UsagePort {
 
     return { today, total: this.rows.length };
   }
+
+  async modelsUsed(stationRunId: string): Promise<string[]> {
+    return [
+      ...new Set(
+        this.rows
+          .filter((r) => r.station_run_id === stationRunId && r.model !== "")
+          .map((r) => r.model),
+      ),
+    ].sort();
+  }
 }

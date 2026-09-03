@@ -56,7 +56,11 @@ describe("createImplementationLoopTickHandler", () => {
           github_issue_number: 7,
           github_issue_url: "https://gh/acme/widgets/issues/7",
           branch: "lore/implementation-loop/issue-7",
-          line_args: { pr_draft: true, issue_number: 7 },
+          line_args: {
+            pr_draft: true,
+            issue_number: 7,
+            issue_title: "Ticket 7",
+          },
         },
       },
     ]);
@@ -180,6 +184,18 @@ describe("the ticket's branch", () => {
 
     expect(d.minted[0].contextBundle).toMatchObject({
       line_args: { issue_number: 7 },
+    });
+  });
+
+  it("seeds the ticket title so the draft PR is not titled after its branch", async () => {
+    // `lore: lore/implementation-loop/issue-1744` told a reader nothing; the
+    // ticket's own title is the only meaningful thing known when the draft opens.
+    const d = deps();
+
+    await createImplementationLoopTickHandler(d.deps)({});
+
+    expect(d.minted[0].contextBundle).toMatchObject({
+      line_args: { issue_title: "Ticket 7" },
     });
   });
 

@@ -89,15 +89,15 @@ here; method is resolved inside the handler)
 
 ## Output
 
-- `503 { error: "database not available" }` — null pool ([validated by `tokens.test.ts:41`](apps/lore-api/src/api/routes/tokens/tokens.test.ts#L46)).
-- `200 { tokens: [...] }` — GET ([validated by `tokens.test.ts:47`](apps/lore-api/src/api/routes/tokens/tokens.test.ts#L52)).
-- `200 { ok: true }` — revoke ([validated by `tokens.test.ts:80`](apps/lore-api/src/api/routes/tokens/tokens.test.ts#L85)).
-- `400 { error: "name required" }` — create without name ([validated by `tokens.test.ts:92`](apps/lore-api/src/api/routes/tokens/tokens.test.ts#L97)).
+- `503 { error: "database not available" }` — null pool ([validated by `tokens.test.ts:46`](apps/lore-api/src/api/routes/tokens/tokens.test.ts#L46)).
+- `200 { tokens: [...] }` — GET ([validated by `tokens.test.ts:52`](apps/lore-api/src/api/routes/tokens/tokens.test.ts#L52)).
+- `200 { ok: true }` — revoke ([validated by `tokens.test.ts:85`](apps/lore-api/src/api/routes/tokens/tokens.test.ts#L85)).
+- `400 { error: "name required" }` — create without name ([validated by `tokens.test.ts:97`](apps/lore-api/src/api/routes/tokens/tokens.test.ts#L97)).
 - `201 { …, token: "lore_<64 hex>", expires_at }` — create; invalid scopes
-  filtered, `expires_in_days` → ISO timestamp ([validated by `tokens.test.ts:98`](apps/lore-api/src/api/routes/tokens/tokens.test.ts#L103)).
-- `201` with `expires_at: null` — create without `expires_in_days` ([validated by `tokens.test.ts:119`](apps/lore-api/src/api/routes/tokens/tokens.test.ts#L124)).
-- `500 { error: <message> }` — insert throws ([validated by `tokens.test.ts:128`](apps/lore-api/src/api/routes/tokens/tokens.test.ts#L133)).
-- `405 { error: "method not allowed" }` — unsupported / absent method ([validated by `tokens.test.ts:137`](apps/lore-api/src/api/routes/tokens/tokens.test.ts#L142)).
+  filtered, `expires_in_days` → ISO timestamp ([validated by `tokens.test.ts:103`](apps/lore-api/src/api/routes/tokens/tokens.test.ts#L103)).
+- `201` with `expires_at: null` — create without `expires_in_days` ([validated by `tokens.test.ts:124`](apps/lore-api/src/api/routes/tokens/tokens.test.ts#L124)).
+- `500 { error: <message> }` — insert throws ([validated by `tokens.test.ts:133`](apps/lore-api/src/api/routes/tokens/tokens.test.ts#L133)).
+- `405 { error: "method not allowed" }` — unsupported / absent method ([validated by `tokens.test.ts:142`](apps/lore-api/src/api/routes/tokens/tokens.test.ts#L142)).
 
 Verbatim strings: `"database not available"`, `"name required"`, `"method not
 allowed"`, the `"lore_"` token prefix, the `created_by` literal `"admin"`.
@@ -118,28 +118,28 @@ allowed"`, the `"lore_"` token prefix, the `created_by` literal `"admin"`.
 
 ## Acceptance Criteria
 
-A null pool returns `503 { error: "database not available" }`. ([validated by `tokens.test.ts:41`](apps/lore-api/src/api/routes/tokens/tokens.test.ts#L46))
+A null pool returns `503 { error: "database not available" }`. ([validated by `tokens.test.ts:46`](apps/lore-api/src/api/routes/tokens/tokens.test.ts#L46))
 
-GET returns only metadata rows for non-revoked tokens, never a secret, alongside `total`/`limit`/`offset` paging metadata (defaulting to limit 20, offset 0). ([validated by `tokens.test.ts:47`](apps/lore-api/src/api/routes/tokens/tokens.test.ts#L52))
+GET returns only metadata rows for non-revoked tokens, never a secret, alongside `total`/`limit`/`offset` paging metadata (defaulting to limit 20, offset 0). ([validated by `tokens.test.ts:52`](apps/lore-api/src/api/routes/tokens/tokens.test.ts#L52))
 
-GET clamps an over-max `limit` to 100 and applies the given `offset`. ([validated by `tokens.test.ts:64`](apps/lore-api/src/api/routes/tokens/tokens.test.ts#L69))
+GET clamps an over-max `limit` to 100 and applies the given `offset`. ([validated by `tokens.test.ts:69`](apps/lore-api/src/api/routes/tokens/tokens.test.ts#L69))
 
-GET rejects a negative `offset` with 400. ([validated by `tokens.test.ts:74`](apps/lore-api/src/api/routes/tokens/tokens.test.ts#L79))
+GET rejects a negative `offset` with 400. ([validated by `tokens.test.ts:79`](apps/lore-api/src/api/routes/tokens/tokens.test.ts#L79))
 
 `{ action: "revoke", token_id }` marks the token revoked and returns `{ ok: true }`.
-([validated by `tokens.test.ts:80`](apps/lore-api/src/api/routes/tokens/tokens.test.ts#L85))
+([validated by `tokens.test.ts:85`](apps/lore-api/src/api/routes/tokens/tokens.test.ts#L85))
 
-Creating without a `name` returns `400 { error: "name required" }`. ([validated by `tokens.test.ts:92`](apps/lore-api/src/api/routes/tokens/tokens.test.ts#L97))
+Creating without a `name` returns `400 { error: "name required" }`. ([validated by `tokens.test.ts:97`](apps/lore-api/src/api/routes/tokens/tokens.test.ts#L97))
 
 Creation returns a one-time `lore_`-prefixed 64-hex token, filters out invalid
-scopes, and computes an ISO expiry from `expires_in_days`. ([validated by `tokens.test.ts:98`](apps/lore-api/src/api/routes/tokens/tokens.test.ts#L103))
+scopes, and computes an ISO expiry from `expires_in_days`. ([validated by `tokens.test.ts:103`](apps/lore-api/src/api/routes/tokens/tokens.test.ts#L103))
 
-Creation without `expires_in_days` yields `expires_at: null`. ([validated by `tokens.test.ts:119`](apps/lore-api/src/api/routes/tokens/tokens.test.ts#L124))
+Creation without `expires_in_days` yields `expires_at: null`. ([validated by `tokens.test.ts:124`](apps/lore-api/src/api/routes/tokens/tokens.test.ts#L124))
 
-An insert failure surfaces as `500 { error: <message> }`. ([validated by `tokens.test.ts:128`](apps/lore-api/src/api/routes/tokens/tokens.test.ts#L133))
+An insert failure surfaces as `500 { error: <message> }`. ([validated by `tokens.test.ts:133`](apps/lore-api/src/api/routes/tokens/tokens.test.ts#L133))
 
 Any non-GET/POST verb (including an absent method) returns `405 { error: "method
-not allowed" }`. ([validated by `tokens.test.ts:137`](apps/lore-api/src/api/routes/tokens/tokens.test.ts#L142))
+not allowed" }`. ([validated by `tokens.test.ts:142`](apps/lore-api/src/api/routes/tokens/tokens.test.ts#L142))
 
 The route requires `admin` scope; the dispatcher 403s a read-scoped token before
 the handler runs. ([validated by `auth.test.ts:108`](apps/lore-api/src/api/routes/auth.test.ts#L108) and `returns 403 when

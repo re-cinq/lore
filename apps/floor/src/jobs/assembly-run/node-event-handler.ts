@@ -14,6 +14,8 @@ import { finishNodeTerminal, normalizeAgentStatus } from "./node-terminal.js";
 import { isDeliveringRecipe } from "@re-cinq/lore-shared/task-types/delivering-recipes.js";
 import { agentCrVisible } from "./cr-visibility.js";
 import { notifyLineFailure } from "./notify-failure.js";
+import { rottenAnchorReport } from "./spec-anchor-check.js";
+import type { RottenAnchorReportInput } from "./spec-anchor-check.js";
 import { BillingAlertThrottle, maybeAlertBilling } from "./billing-alert.js";
 import { maybeAlertAgentConfig } from "./agent-config-alert.js";
 import { llmDispatchGate } from "./llm-dispatch-gate.js";
@@ -287,6 +289,36 @@ function contextFromRow(row: AssemblyRunRecord): CommentContext {
 export { advanceLine };
 
 /** Resolved lazily so importing the registry never forces the DB pool or K8s client; shared by the node-event handler, the start handler's advance, and the reaper tick. */
+/** Deterministic paperwork check (#1747): anchors in this branch's changed markdown must land on citable lines. Best-effort — a rotten link is a comment for the reviewer, never a failed flip. */
+async function reportRottenAnchors(
+  prNumber: number,
+  branch: string | null | undefined,
+  project: Pick<RottenAnchorReportInput, "pulls" | "repo"> & {
+    issues: { comment(issueNumber: number, body: string): Promise<unknown> };
+  },
+): Promise<void> {
+  if (!branch) {
+    return;
+  }
+
+  try {
+    const report = await rottenAnchorReport({
+      prNumber,
+      branch,
+      pulls: project.pulls,
+      repo: project.repo,
+    });
+
+    if (report) {
+      await project.issues.comment(prNumber, report);
+    }
+  } catch (err) {
+    console.warn(
+      `[spec-anchor-check] PR #${prNumber}: ${(err as Error).message}`,
+    );
+  }
+}
+
 export async function productionNodeEventDeps(): Promise<NodeEventDeps> {
   const [
     {
@@ -303,7 +335,7 @@ export async function productionNodeEventDeps(): Promise<NodeEventDeps> {
     { cleanupPerTaskToken },
     { settleTaskForLine },
     { resolveConversation },
-    { readyPrBody, stampLinePr },
+    { readyPrBody, readyPrTitle, stampLinePr },
   ] = await Promise.all([
     import("../../kernel/queues.js"),
     import("@re-cinq/lore-assembly-lines"),
@@ -404,11 +436,21 @@ export async function productionNodeEventDeps(): Promise<NodeEventDeps> {
       }
       // readyPrBody rebuilds the Closes/Lore-Task footer (rewriting with prose alone destroyed it); null means no prose was produced, so the PR keeps its old body.
       const body = readyPrBody(row, result.extras);
+      // The draft opened under the TICKET's title, written before any code
+      // existed. The pr-ready node has read the finished branch, so it renames
+      // the PR after the work; a node that reported no title leaves the
+      // ticket title standing rather than blanking it.
+      const title = readyPrTitle(result.extras);
 
-      if (body !== null) {
-        await project.pulls.update(number, { body });
+      if (body !== null || title !== null) {
+        await project.pulls.update(number, {
+          ...(body !== null ? { body } : {}),
+          ...(title !== null ? { title } : {}),
+        });
       }
       await project.pulls.markReady(number);
+
+      await reportRottenAnchors(number, row.branch, project);
     },
     readAgentStatus: (name) => cluster.getStatus(name),
     // Same compare the watcher uses for a single-CR task: an implement that pushed nothing is not done.

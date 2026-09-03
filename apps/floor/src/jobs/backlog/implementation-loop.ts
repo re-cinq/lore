@@ -123,6 +123,9 @@ async function tickRepo(repo: string, deps: LoopTickDeps): Promise<void> {
         pr_draft: true,
         // Rides onto the run's args so the PR footer can close the ticket on merge.
         issue_number: picked.number,
+        // What the DRAFT is titled after. `lore: <branch>` told a reviewer
+        // nothing; the pr-ready node renames it once it has read the branch.
+        issue_title: picked.title,
         ...(resume.resume ? resume.lineArgs : {}),
       },
     },

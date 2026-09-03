@@ -498,7 +498,18 @@ task_types:
       `.lore/dod.md`'s strategy, say so and say why — that is the single most
       useful sentence in the description. Do not write closing-keyword lines
       (`Closes`/`Refs #N`) or `Lore-Task:` trailers — Lore appends that footer
-      itself when it updates the pull request.
+      itself when it updates the pull request. And do NOT commit `.lore/pr-body.md`:
+      Lore reads it from your workspace, not from the branch, and a committed
+      copy becomes permanent litter in the repository under review.
+
+      THEN TITLE IT. One line, imperative, under 70 characters, naming what
+      this branch DID — not the ticket, not the branch, no `fix:` prefix. The
+      pull request opened under the ticket's title before any code existed;
+      you have read the finished branch, so you get to rename it. You report
+      it in `"Lore-Pr-Title"` on the final line below and Lore renames the
+      pull request when it takes it out of draft. Do not repeat it as a
+      heading in `.lore/pr-body.md` — a description that opens by restating
+      its own title wastes the first line a reviewer reads.
 
       THEN JUDGE COVERAGE. Re-read the ticket (title and body) against the
       branch: does this PR resolve everything the ticket reports, or only part
@@ -515,6 +526,13 @@ task_types:
         `([validated by name](path#Lnn))` link on the statements this branch
         touched. Rounds insert tests and shift the lines below them; a stale
         #Lnn is a broken claim.
+      - An anchor must land on the line of the assertion or `it()` it
+        validates — never a comment or blank line. Open each target line and
+        read it; Lore re-checks this mechanically when the PR leaves draft and
+        posts every anchor landing nowhere as a PR comment.
+      - When this branch REPLACED or removed a test, rewrite the sentence in
+        the spec that describes it — a correction appended after a now-false
+        description leaves the false description standing.
       - If this branch completes what a `specs/<name>/spec.md` describes, its
         `| Status |` header row must already say so. Fix it here if a round
         missed it.
@@ -541,11 +559,13 @@ task_types:
         code review.
 
       Print exactly one of these as the last line of your final message:
-      - Every acceptance test is green, `.lore/pr-body.md` is written,
-        `.lore/dod.md` is removed, and all of it is pushed. Set
+      - Every acceptance test is green, `.lore/pr-body.md` is written in the
+        workspace (uncommitted), and the `.lore/dod.md` removal plus any link
+        fixes are committed and pushed. Set `"Lore-Pr-Title"` to the title
+        you wrote above, and
         `"Lore-Issue-Coverage"` to `"full"` when the branch resolves everything
         the ticket reports, `"partial"` when it resolves only part:
-        LORE_NODE_RESULT: {"outcome":"success","extras":{"Lore-Pr-Ready":"green","Lore-Issue-Coverage":"full"}}
+        LORE_NODE_RESULT: {"outcome":"success","extras":{"Lore-Pr-Ready":"green","Lore-Pr-Title":"<the title>","Lore-Issue-Coverage":"full"}}
       - Something is still red:
         LORE_NODE_RESULT: {"outcome":"failed","extras":{"Lore-Pr-Blocked":"<one line: what failed>"}}
 
@@ -678,7 +698,10 @@ task_types:
       disk budget and exceeding it evicts the pod mid-review; CI already runs
       the suite. Review from the source tree and the diff alone.
 
-      Post specific review comments on the PR using gh pr review.
+      Post specific review comments on the PR using gh pr review. Comment
+      only on problems worth acting on — no praise or commentary comments,
+      and flag as must-fix only real defects (correctness, security, data
+      loss), not style or doc hygiene.
       Then output exactly one of:
       - REVIEW_RESULT:APPROVED
       - REVIEW_RESULT:CHANGES_REQUESTED:<specific actionable feedback>
@@ -739,9 +762,16 @@ task_types:
 
       Emit a fenced REVIEW_FINDINGS block (one finding per point) then the
       verdict. Be liberal with concrete `suggestion` fixes. Each `subject` is
-      ONE short imperative line. Labels: issue | suggestion | nit | question |
-      praise | thought | chore. Add `"decoration":"blocking"` to a must-fix
-      issue. `suggestion` is the replacement text for that exact line(s).
+      ONE short imperative line. Labels: issue | suggestion | nit | question.
+      Report only problems worth acting on — never praise, commentary, or
+      restatements of what the diff does; a clean area gets silence.
+      Reserve `"decoration":"blocking"` for real defects in the changed code:
+      correctness, security, or data loss. Convention/doc/spec hygiene, style,
+      and speculative hardening against situations this code cannot reach are
+      `suggestion` or `nit`, never blocking.
+      When one root cause repeats across files, emit ONE finding and list the
+      other occurrences in its subject — not one finding per site.
+      `suggestion` is the replacement text for that exact line(s).
 
       ```REVIEW_FINDINGS
       {
@@ -803,7 +833,10 @@ task_types:
       diff alone.
 
       Emit a fenced REVIEW_FINDINGS block (it MAY be empty when nothing new is
-      wrong) then the verdict. Same schema as the full review:
+      wrong) then the verdict. Report only problems worth acting on — never
+      praise or commentary. Reserve `"decoration":"blocking"` for real defects
+      (correctness, security, data loss); hygiene and style are `nit`, never
+      blocking. Same schema as the full review:
 
       ```REVIEW_FINDINGS
       {

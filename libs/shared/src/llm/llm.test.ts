@@ -47,6 +47,7 @@ describe("Llm singleton", () => {
       usage: {
         logLlmCall: async () => ({ correlated: true }),
         processedCounts: async () => ({ today: 0, total: 0 }),
+        modelsUsed: async () => [],
       },
     });
     expect(Llm.usageConfigured).toBe(true);
