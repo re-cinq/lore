@@ -69,11 +69,10 @@ export function reposOrThrow<T>(result: ApiResult<T>): T {
 }
 
 /** The onboarding result lore-api answers with when the guard clears. */
-export interface OnboardResult {
-  repo_id: string;
-  task_id: string;
-  status: string;
-}
+export type OnboardResult = Extract<
+  components["schemas"]["OnboardResult"],
+  { repo_id: string }
+>;
 
 /** The 409 body when the guard refuses: which block fired, and the task holding the repo when that is the reason. */
 export interface OnboardBlockedBody {

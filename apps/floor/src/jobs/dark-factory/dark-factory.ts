@@ -1,5 +1,6 @@
 import { settings as settingsRepo } from "../../kernel/queues.js";
 import { requiresApproval } from "@re-cinq/lore-shared";
+import type { DarkFactoryTaskOverrides } from "@re-cinq/lore-shared/models/dark-factory-settings.js";
 // Canonical types + resolver moved to @re-cinq/lore-shared so all consumers share one source.
 import {
   resolveDarkFactorySettings,
@@ -21,11 +22,7 @@ export {
 /** Per-repo dark-factory configuration as stored under `lore.repos.settings.dark_factory`. Alias of the canonical type. */
 export type DarkFactoryRepoSettings = DarkFactorySettings;
 
-export interface DarkFactoryTaskOverrides {
-  human_review?: "required";
-  with_issue?: boolean;
-  notify_on_completion?: boolean;
-}
+export type { DarkFactoryTaskOverrides };
 
 export interface IssueGateDecision {
   create: boolean;

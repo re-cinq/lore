@@ -1,4 +1,5 @@
-/** Structured metadata the ingester stores on each chunk (JSONB). */
+// The ingester's chunk-metadata JSONB shape (libs/shared chunker.ts `Chunk["metadata"]`), not a table row — web-ui has no dependency on libs/shared to derive it from.
+// eslint-disable-next-line lore/no-row-types-outside-models
 export interface ChunkMeta {
   symbol_name?: string;
   symbol_type?: string;

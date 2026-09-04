@@ -1,5 +1,7 @@
 /** Pure helpers for deriving a title/summary from a spec's markdown and reassembling a spec from stored chunks; canonical home, imported by the spec-coverage API (mcp-server) via @re-cinq/lore-shared. */
 
+import type { Chunk } from "./models/chunk.js";
+
 const TITLE_PREFIX_RE =
   /^(?:feature\s+specification|spec(?:ification)?)\s*:\s*/i;
 
@@ -74,11 +76,10 @@ export function extractSummary(content: string, maxLength = 280): string {
   return "";
 }
 
-interface SpecChunk {
-  content: string;
+type SpecChunk = Pick<Chunk, "content"> & {
   ingested_at: string | Date;
   chunk_index?: number | null;
-}
+};
 
 /** Joins a spec's chunks in `metadata.chunk_index` order (falling back to ingest order for legacy chunks, sorted last), de-duplicating identical content since re-ingests insert new rows rather than upserting. */
 export function reassembleSpec(chunks: SpecChunk[]): string {

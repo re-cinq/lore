@@ -161,12 +161,16 @@ interface OpenParams {
   repo: string;
   pr_number: number;
 }
+// The `pipeline.events` args for a github.issue_comment/pull_request_review_comment row (github-map.ts), GitHub-shaped.
+// eslint-disable-next-line lore/no-row-types-outside-models
 interface CommentParams extends OpenParams {
   comment_id: number;
   comment_author: string;
   comment_body: string;
   in_reply_to_id?: number | null;
 }
+// The `pipeline.events` args for a github.pull_request_review.submitted row (github-map.ts), GitHub-shaped.
+// eslint-disable-next-line lore/no-row-types-outside-models
 interface ReviewSubmittedParams extends OpenParams {
   review_id?: number | null;
   review_state?: string;
@@ -194,7 +198,8 @@ export function reviewFeedback(
   return trimmed ? `${trimmed}\n\n${inline}` : inline;
 }
 
-/** The thread context threaded from a comment into the triage + follow-up lines. */
+// The thread context threaded through pipeline.events "context" args (comment-triage → follow-up line), GitHub-shaped.
+// eslint-disable-next-line lore/no-row-types-outside-models
 export interface CommentContext {
   repo: string;
   pr_number: number;

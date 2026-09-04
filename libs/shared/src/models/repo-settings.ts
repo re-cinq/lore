@@ -17,13 +17,19 @@ export const TaskOverrideSchema = z
   })
   .passthrough();
 
+/** Progressive trust ladder state (#1354): merges banked at the current level, promoted on `auto_promote_threshold`. */
+export const TrustSettingsSchema = z
+  .object({
+    level: TrustLevelSchema.optional(),
+    successful_tasks: z.number().optional(),
+    auto_promote_threshold: z.number().optional(),
+  })
+  .passthrough();
+
 export const RepoSettingsSchema = z
   .object({
     dark_factory: DarkFactorySettingsSchema.optional(),
-    trust: z
-      .object({ level: TrustLevelSchema.optional() })
-      .passthrough()
-      .optional(),
+    trust: TrustSettingsSchema.optional(),
     task_types: z.array(z.string()).optional(),
     task_overrides: z.record(TaskOverrideSchema).optional(),
     auto_review: z.boolean().optional(),
@@ -44,3 +50,4 @@ export const RepoSettingsSchema = z
 
 export type TaskOverride = z.infer<typeof TaskOverrideSchema>;
 export type RepoSettings = z.infer<typeof RepoSettingsSchema>;
+export type TrustSettings = z.infer<typeof TrustSettingsSchema>;

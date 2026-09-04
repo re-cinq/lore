@@ -53,12 +53,11 @@ export interface FindOpenLikeInput {
   statuses: readonly string[];
 }
 
-/** A spec-drift dedup row — status + age + the issue it opened (if any). */
-export interface DriftTaskRow {
-  status: string;
+/** A spec-drift dedup row — status + age + the issue it opened (if any); status pinned to the pipeline.tasks model. */
+export type DriftTaskRow = Pick<PipelineTask, "status"> & {
   created_at: string | Date;
   issue_number: number | null;
-}
+};
 
 export interface TaskTransitionMeta {
   agentId?: string;

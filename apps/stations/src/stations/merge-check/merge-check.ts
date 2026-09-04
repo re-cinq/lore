@@ -11,7 +11,7 @@ import { startMergeLine } from "./start-merge-line.js";
 import {} from "@re-cinq/lore-shared/project/assembly-runs/decompose-resume.js";
 import { projectFor } from "../../kernel/project-boot.js";
 import { writeEpisodeWithCuration } from "@re-cinq/lore-shared";
-import { nextTrust } from "../lib/trust-ladder.js";
+import { nextTrust, type TrustState } from "../lib/trust-ladder.js";
 import {
   parseTasks,
   inferPhaseDependencies,
@@ -67,13 +67,6 @@ export async function syncSpecTasksFromMerge(task: {
   console.log(
     `[job] merge-check: synced ${created}/${withDeps.length} spec-tasks for ${specSlug} (group ${taskGroupId})`,
   );
-}
-
-interface RepoTrust {
-  level?: string;
-  auto_promote_threshold?: number;
-  successful_tasks?: number;
-  [key: string]: unknown;
 }
 
 /** Extracts owner/repo and PR number from a github.com pull URL, or null when the URL is not one. */
@@ -363,7 +356,7 @@ export async function promoteTrust(targetRepo: string): Promise<void> {
     if (!repoSettings) {
       return;
     }
-    const trust = repoSettings.trust as RepoTrust | undefined;
+    const trust = repoSettings.trust as TrustState | undefined;
     const decision = nextTrust(trust);
 
     if (decision.hold) {

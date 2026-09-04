@@ -3,19 +3,16 @@
 import type { ConsoleTask, ConsoleAuditEvent } from "./derive-console";
 import type { DarkFactorySettings } from "@/lib/dark-factory-resolve";
 
-export interface RawTaskRow {
+// Untyped endpoints: ConsoleTask/ConsoleAuditEvent's fields, timestamp widened for iso().
+export type RawTaskRow = Omit<ConsoleTask, "id" | "created_at"> & {
   id: string | number;
-  task_type: string;
-  status: string;
-  pr_url: string | null;
   created_at: string | Date;
-}
+};
 
-export interface RawAuditRow {
-  event_type: string;
-  payload?: Record<string, unknown> | null;
+export type RawAuditRow = Omit<ConsoleAuditEvent, "payload" | "created_at"> & {
+  payload?: ConsoleAuditEvent["payload"] | null;
   created_at: string | Date;
-}
+};
 
 const iso = (value: string | Date): string => new Date(value).toISOString();
 

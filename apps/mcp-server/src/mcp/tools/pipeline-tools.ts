@@ -2,7 +2,8 @@ import { errorMessage } from "@re-cinq/lore-shared";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
-/** Loose shape of a pipeline task as returned by the Lore API / pg rows. */
+// Lore's own /api/tasks wire response (mirrors pipeline.tasks columns).
+// eslint-disable-next-line lore/no-row-types-outside-models
 type RemoteTaskLite = {
   id: string;
   target_repo?: string;

@@ -1,6 +1,7 @@
 import type { PgPool } from "../../memory-store.js";
 
-// Live knowledge-graph read over memory.entities + memory.edges, relocated from mcp-server/graph.ts; returns rows in the same snake_case shape lore_query_graph + context-assembly already consume.
+// A computed self-join projection over memory.entities + memory.edges (entity/related_entity/direction are query-time aliases) — not one table's row; returns the snake_case shape lore_query_graph + context-assembly already consume.
+// eslint-disable-next-line lore/no-row-types-outside-models
 export interface LiveGraphResult {
   entity: string;
   entity_type: string;

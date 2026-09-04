@@ -30,6 +30,8 @@ function versionsPath(agentId: string): string {
 
 // ── Types ────────────────────────────────────────────────────────────
 
+// The on-disk memories.json record; snake_case mirrors memory.ts's raw pg-row output, this backend's parity contract.
+// eslint-disable-next-line lore/no-row-types-outside-models
 export interface MemoryRecord {
   value: string;
   version: number;
@@ -52,6 +54,8 @@ export interface WriteResult {
   created_at: string;
 }
 
+// The read/search wire response; snake_case matches memory.ts's raw pg-row output, this backend's parity contract.
+// eslint-disable-next-line lore/no-row-types-outside-models
 export interface MemoryEntry {
   key: string;
   value: string;
@@ -63,6 +67,7 @@ export interface MemoryEntry {
 }
 
 // What a LISTING answers — the pool path's projection, field for field: no `value` (a page of full values is a page of whole documents), `repo`/`has_facts` stated as the null/false this store can honestly answer.
+// eslint-disable-next-line lore/no-row-types-outside-models
 export interface MemoryListEntry {
   key: string;
   agent_id: string;
@@ -113,6 +118,8 @@ function writeJson(filePath: string, value: unknown): void {
 
 // ── Audit log ────────────────────────────────────────────────────────
 
+// The audit.jsonl entry shape; snake_case mirrors memory.audit_log's raw pg-row output (models/memory-audit-entry.ts).
+// eslint-disable-next-line lore/no-row-types-outside-models
 interface AuditEntry {
   id: string;
   agent_id: string;
@@ -471,6 +478,8 @@ export function sharedReadFile(
 
 // ── Snapshots (T028) ─────────────────────────────────────────────────
 
+// The on-disk snapshot file shape; snake_case mirrors memory.snapshots' raw pg-row output (models/snapshot.ts).
+// eslint-disable-next-line lore/no-row-types-outside-models
 export interface SnapshotRecord {
   snapshot_id: string;
   agent_id: string;

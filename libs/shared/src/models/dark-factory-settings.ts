@@ -37,6 +37,17 @@ export const DarkFactorySettingsSchema = z.object({
   execution: DarkFactoryExecutionSchema.optional(),
 });
 
+/** `pipeline.tasks.dark_factory_overrides` — per-task knobs a caller sets at creation time; JSONB storage, so keys stay snake_case here too. */
+export const DarkFactoryTaskOverridesSchema = z.object({
+  human_review: z.literal("required").optional(),
+  with_issue: z.boolean().optional(),
+  notify_on_completion: z.boolean().optional(),
+});
+
+export type DarkFactoryTaskOverrides = z.infer<
+  typeof DarkFactoryTaskOverridesSchema
+>;
+
 /** The same block after `resolveDarkFactorySettings` has filled every default. */
 export const ResolvedDarkFactorySettingsSchema = z.object({
   enabled: z.boolean(),

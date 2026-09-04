@@ -14,9 +14,7 @@ export default async function GapsPage() {
     limit: 20,
   });
   const zeroResultSearches: ZeroResultSearchRow[] =
-    searches.status === "ok"
-      ? (searches.data.entries as unknown as ZeroResultSearchRow[])
-      : [];
+    searches.status === "ok" ? searches.data.entries : [];
 
   const memories = await listMemories("klaus-gap-detection", 10);
   const gapMemories = (memories.status === "ok"

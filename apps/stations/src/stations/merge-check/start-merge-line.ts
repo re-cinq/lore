@@ -1,10 +1,11 @@
 /** Start the merge line for a task whose PR has merged. */
 
-export interface MergeLineTask {
-  id: string;
-  target_repo: string;
-  pr_number: number;
-}
+import type { MergeableTask } from "@re-cinq/lore-shared/project/tasks/task-queue-port.js";
+
+export type MergeLineTask = Pick<
+  MergeableTask,
+  "id" | "target_repo" | "pr_number"
+>;
 
 export interface StartMergeLineDeps {
   countBySubject(repo: string, subjectKey: string): Promise<number>;

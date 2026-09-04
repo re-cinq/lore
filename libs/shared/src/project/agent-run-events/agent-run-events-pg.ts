@@ -1,4 +1,7 @@
 import type { PgPool } from "../../memory-store.js";
+import { AGENT_RUN_EVENT_COLUMNS } from "../../models/agent-run-event.js";
+import type { AgentRunEventSchema } from "../../models/agent-run-event.js";
+import type { WireOf } from "../../lib/wire-schema.js";
 import type {
   AgentRunEventInsert,
   AgentRunEventRow,
@@ -7,24 +10,16 @@ import type {
 } from "./agent-run-events-port.js";
 import type { CarriedRunIdentity } from "../run-identity/carried-run-identity.js";
 
-/** The shape `pipeline.agent_run_events` hands back from `RETURNING *`. */
-interface AgentRunEventDbRow {
+/** The shape `RETURNING *`/`SELECT` hands back, before {@link toRow} narrows `event_type` and defaults the nullable columns. */
+type AgentRunEventDbRow = Omit<
+  WireOf<typeof AgentRunEventSchema.shape, typeof AGENT_RUN_EVENT_COLUMNS>,
+  "id" | "event_type" | "file_paths" | "payload"
+> & {
   id: string | number;
-  task_id: string;
-  agent_cr_name: string | null;
-  assembly_line_id: string | null;
-  station_run_id: string | null;
-  node_id: string | null;
-  iteration: number | null;
   event_type: string;
-  tool_name: string | null;
-  tool_use_id: string | null;
-  is_error: boolean;
   file_paths: string[] | null;
-  summary: string | null;
   payload: Record<string, unknown> | null;
-  created_at: Date;
-}
+};
 
 const SELECT_COLUMNS = `id, task_id, agent_cr_name, assembly_line_id, station_run_id, node_id,
          iteration, event_type, tool_name, tool_use_id, is_error,

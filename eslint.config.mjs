@@ -72,11 +72,13 @@ export default tseslint.config(
       "lore/require-spec-link": "error",
       // Repo-WIDE on purpose. A table restated in a port, an adapter or a route
       // is the same defect as one restated in a view, and scoping this to
-      // web-ui would guard the tier least likely to reach a database. Starts at
-      // `warn`: the existing copies are a decision per type (model it, derive
-      // it, or keep it as a genuine projection), not a codemod. See #1418
-      // and #1421 for the surveys.
-      "lore/no-row-types-outside-models": "warn",
+      // web-ui would guard the tier least likely to reach a database. Error
+      // since 2026-09-04: the 70-copy queue was decided one type at a time
+      // (model it, derive it, or keep a genuine projection). Where a shape is
+      // a THIRD PARTY's — GitHub's, an MCP tool's arg names, an on-disk config
+      // — it keeps an inline disable naming whose shape it is, because the
+      // rule cannot tell those from a transcribed column. See #1418 and #1421.
+      "lore/no-row-types-outside-models": "error",
       // error since 2026-09-04. The 22-suite queue split exactly as the first
       // draft of this note guessed: 16 suites whose subject is an artifact
       // rather than a module (boundaries, migrations, CSS tokens) now pass
@@ -108,11 +110,12 @@ export default tseslint.config(
       // (2026-09-03, after the nesting sweep): max-comment-lines 5644,
       // max-lines-per-function 1334, complexity 582, no-vague-names 291,
       // max-params 81. max-comment-lines, max-params and complexity reached
-      // zero on 2026-09-04 and are errors; max-lines-per-function is ratcheted
-      // to 100 the same day. Only no-vague-names is still a warn queue.
+      // zero on 2026-09-04, followed by no-vague-names and
+      // no-row-types-outside-models, and all are errors; max-lines-per-function
+      // is ratcheted to 100 the same day. No warn queue remains in this block.
       "max-params": ["error", { max: 4 }],
       "lore/max-comment-lines": ["error", { max: 1 }],
-      "lore/no-vague-names": "warn",
+      "lore/no-vague-names": "error",
       // Enforced at 100 as of 2026-09-04: a RATCHET, not the target. 100 is
       // the strictest bound the repo currently meets, so it is the strictest
       // one that can be red without blocking unrelated work; the target is

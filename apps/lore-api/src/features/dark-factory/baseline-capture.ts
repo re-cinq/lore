@@ -14,6 +14,8 @@ export function shouldCaptureBaseline(
   return next.enabled === true && prev.enabled !== true;
 }
 
+// What this capture writes into dark_factory_baseline's open `counters` JSONB (model keeps it open by design; this is one producer's shape).
+// eslint-disable-next-line lore/no-row-types-outside-models
 interface RepoCounters {
   // Median Job pods per impl task; static baseline until OTEL-side capture (flagged by _job_pods_source).
   job_pods_per_impl_task_p50: number;

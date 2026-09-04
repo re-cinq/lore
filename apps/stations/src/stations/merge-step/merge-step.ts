@@ -1,14 +1,16 @@
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
+import type { MergeableTask } from "@re-cinq/lore-shared/project/tasks/task-queue-port.js";
 /** One step of the merge line: failures route forward via assembly-line graph. */
 
-export interface MergeStepTask {
-  id: string;
-  target_repo: string;
-  pr_number: number;
-  issue_number: number | null;
-  task_type: string;
-  description: string;
-}
+export type MergeStepTask = Pick<
+  MergeableTask,
+  | "id"
+  | "target_repo"
+  | "pr_number"
+  | "issue_number"
+  | "task_type"
+  | "description"
+>;
 
 export interface MergeStepDeps {
   task(taskId: string): Promise<MergeStepTask | null>;

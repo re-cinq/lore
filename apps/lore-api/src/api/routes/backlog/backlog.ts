@@ -1,6 +1,12 @@
 import type { Pool } from "pg";
 import type { ServerRoute } from "@hapi/hapi";
 import type { IssueRef } from "@re-cinq/lore-shared";
+import type { WireOf } from "@re-cinq/lore-shared/lib/wire-schema.js";
+import { pickColumns, selectList } from "@re-cinq/lore-shared/lib/row.js";
+import {
+  PipelineTaskSchema,
+  PIPELINE_TASK_COLUMNS,
+} from "@re-cinq/lore-shared/models/pipeline-task.js";
 import {
   orderBacklog,
   PRIORITY_LABELS,
@@ -30,15 +36,29 @@ const repoOf = (p: Record<string, string>) => `${p.owner}/${p.repo}`;
 /** Display cap for the recently-addressed list. */
 const RECENT_LIMIT = 10;
 
-interface LoopTaskRow {
-  id: string;
-  created_at: string | Date;
-  status: string;
-  description: string;
-  issue_number: number | null;
-  issue_url: string | null;
-  pr_url: string | null;
-}
+// The implementation-loop task fields the backlog view reads, picked from the pipeline.tasks wire contract.
+const LOOP_TASK_FIELDS = [
+  "id",
+  "createdAt",
+  "status",
+  "description",
+  "issueNumber",
+  "issueUrl",
+  "prUrl",
+] as const;
+
+const LOOP_TASK_COLUMNS = pickColumns(PIPELINE_TASK_COLUMNS, LOOP_TASK_FIELDS);
+
+type LoopTaskRow = Pick<
+  WireOf<typeof PipelineTaskSchema.shape, typeof PIPELINE_TASK_COLUMNS>,
+  | "id"
+  | "created_at"
+  | "status"
+  | "description"
+  | "issue_number"
+  | "issue_url"
+  | "pr_url"
+>;
 
 const priorityOf = (issue: IssueRef | undefined): string | null =>
   issue?.labels.find((l) =>
@@ -222,7 +242,7 @@ function readBacklogRoute(getPool: () => Pool | null): ServerRoute {
       const enabled = resolveEnabled(rows[0].settings);
       // 2x the display cap: filtering out the open rows must still leave a full recent list.
       const { rows: taskRows } = await pool.query<LoopTaskRow>(
-        `SELECT id, created_at, status, description, issue_number, issue_url, pr_url
+        `SELECT ${selectList(LOOP_TASK_COLUMNS)}
            FROM pipeline.tasks
           WHERE target_repo = $1 AND task_type = 'implementation-loop'
           ORDER BY created_at DESC

@@ -8047,6 +8047,12 @@
                                 "implementation",
                                 "full"
                               ]
+                            },
+                            "successful_tasks": {
+                              "type": "number"
+                            },
+                            "auto_promote_threshold": {
+                              "type": "number"
                             }
                           },
                           "additionalProperties": true
@@ -8284,6 +8290,12 @@
                       "level": {
                         "type": "string",
                         "enum": ["docs", "tests", "implementation", "full"]
+                      },
+                      "successful_tasks": {
+                        "type": "number"
+                      },
+                      "auto_promote_threshold": {
+                        "type": "number"
                       }
                     },
                     "additionalProperties": true

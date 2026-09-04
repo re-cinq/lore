@@ -5,6 +5,11 @@ import { z } from "zod";
 import type { Pool } from "pg";
 import type { ServerRoute } from "@hapi/hapi";
 import { parseTrailers } from "@re-cinq/lore-shared";
+import type { WireOf } from "@re-cinq/lore-shared/lib/wire-schema.js";
+import {
+  PipelineTaskSchema,
+  PIPELINE_TASK_COLUMNS,
+} from "@re-cinq/lore-shared/models/pipeline-task.js";
 import { getOctokit } from "../../../platform/github-client.js";
 import { bearerScope } from "../../../server/plugins/bearer-scope.js";
 
@@ -186,14 +191,16 @@ export function timelineRoute(getPool: () => Pool | null): ServerRoute {
   };
 }
 
-interface TimelineTaskRow {
-  target_repo: string | null;
-  target_branch: string | null;
-  pr_number: number | null;
-  pr_url: string | null;
-  status: string;
-  created_at: Date;
-}
+// The pipeline.tasks fields the timeline is built around, picked from its wire contract.
+type TimelineTaskRow = Pick<
+  WireOf<typeof PipelineTaskSchema.shape, typeof PIPELINE_TASK_COLUMNS>,
+  | "target_repo"
+  | "target_branch"
+  | "pr_number"
+  | "pr_url"
+  | "status"
+  | "created_at"
+>;
 
 /** The task row the timeline is built around. A failed read is reported as 503-shaped `internal` by the caller's enforce, never as "no such task". */
 async function readTaskRow(

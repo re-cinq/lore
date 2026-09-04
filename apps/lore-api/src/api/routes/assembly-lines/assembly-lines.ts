@@ -39,12 +39,11 @@ const ENRICH_SELECT = `
               AND lc.task_id = r.task_id)
     ) cost ON true`;
 
-interface RunEnrichment {
-  pr_url: string | null;
-  task_pr_number: number | null;
-  created_by: string | null;
-  cost_usd: number | null;
-}
+// The four ENRICH_SELECT columns, picked from the RunRowSchema wire contract declared below.
+type RunEnrichment = Pick<
+  z.infer<typeof RunRowSchema>,
+  "pr_url" | "task_pr_number" | "created_by" | "cost_usd"
+>;
 
 async function enrichmentById(
   pool: Pool,

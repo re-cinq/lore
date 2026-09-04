@@ -18,6 +18,8 @@ export interface ReadCachePolicy {
   ttlSeconds: number;
 }
 
+// The on-disk ~/.lore/cache/config.json shape (user-editable), not a database table.
+// eslint-disable-next-line lore/no-row-types-outside-models
 interface CacheConfig {
   enabled: boolean;
   max_entries: number;

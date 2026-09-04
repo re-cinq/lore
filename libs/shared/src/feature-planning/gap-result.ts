@@ -44,6 +44,8 @@ export interface GapSection {
   questions?: GapQuestion[];
 }
 
+// The feature-planning Station's own wire contract (ADR-027), not a table row.
+// eslint-disable-next-line lore/no-row-types-outside-models
 export interface GapResult {
   sections: GapSection[];
   /** CSS lifted from the planned repository so a mockup wears that project's colours, not the dashboard's. */

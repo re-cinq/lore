@@ -5,6 +5,7 @@ import {
   backoffDelay,
   runPollLoop,
 } from "@re-cinq/lore-shared/lib/poll-loop.js";
+import type { ClaimResponse } from "@re-cinq/lore-shared/project/cluster-agents/claim-response.js";
 import type { ClusterAgentIdentity } from "./identity-store.js";
 import { secondsEnvMs } from "./intervals.js";
 
@@ -20,18 +21,7 @@ export function claimIntervalMs(env: NodeJS.ProcessEnv): number {
   );
 }
 
-/** The claim response body (200). `spec` is the complete dispatch spec the Floor's launch seam enqueued. */
-export interface ClaimResponse {
-  station_run_id: string;
-  /** String-encoded bigint — a JS number would silently lose precision past 2^53. */
-  node_row_id: string;
-  assembly_run_id: string;
-  node_id: string;
-  iteration: number;
-  /** Null for a row enqueued without a CR name armed yet — the spec's own name is the fallback then. */
-  agent_cr_name: string | null;
-  spec: LoreTaskSpec;
-}
+export type { ClaimResponse };
 
 export type ClaimOutcome =
   | { kind: "claimed"; stationRunId: string; crName: string }

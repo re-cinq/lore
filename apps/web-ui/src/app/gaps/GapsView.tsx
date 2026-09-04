@@ -1,12 +1,12 @@
 import { Alert } from "@/components/Alert";
 import { TimeAgo } from "@/components/TimeAgo";
+import type { MemoryAuditEntry } from "@/lib/api/activity";
 import styles from "./GapsView.module.css";
 
-export interface ZeroResultSearchRow {
-  memory_key: string;
-  metadata: Record<string, string>;
-  created_at: string;
-}
+export type ZeroResultSearchRow = Pick<
+  MemoryAuditEntry,
+  "memory_key" | "metadata" | "created_at"
+>;
 
 export interface GapMemoryRow {
   key: string;

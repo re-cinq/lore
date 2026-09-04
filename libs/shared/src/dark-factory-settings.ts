@@ -5,6 +5,8 @@ export type ReviewMode = "trust_based" | "always" | "never";
 export type CreateIssueMode = "never" | "on_gate" | "always";
 export type NotifyChannel = "escalation" | "watched" | "all";
 
+// Held to models/dark-factory-settings.ts's DarkFactoryAutoMergeSchema by a compile-time assertion, same as PipelineTask.
+// eslint-disable-next-line lore/no-row-types-outside-models
 export interface DarkFactoryAutoMerge {
   paths?: string[];
   min_trust?: TrustLevel;

@@ -7,24 +7,17 @@ import { zodResponse } from "../../../server/plugins/zod-response.js";
 
 const DEFAULT_REPO_URL = "https://github.com/re-cinq/lore";
 
-export interface InstallInfo {
-  available: boolean;
-  /** What is missing when `available` is false — the UI renders this. */
-  reason: string | null;
-  api_url: string | null;
-  event_router_url: string | null;
-  registration_token: string | null;
-  repo_url: string;
-}
-
 const InstallInfoResponse = z.object({
   available: z.boolean(),
+  /** What is missing when `available` is false — the UI renders this. */
   reason: z.string().nullable(),
   api_url: z.string().nullable(),
   event_router_url: z.string().nullable(),
   registration_token: z.string().nullable(),
   repo_url: z.string(),
 });
+
+export type InstallInfo = z.infer<typeof InstallInfoResponse>;
 
 interface InstallEnv {
   LORE_API_URL?: string;

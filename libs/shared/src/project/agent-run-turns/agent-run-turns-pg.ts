@@ -1,4 +1,7 @@
 import type { PgPool } from "../../memory-store.js";
+import { AGENT_RUN_TURN_COLUMNS } from "../../models/agent-run-turn.js";
+import type { AgentRunTurnSchema } from "../../models/agent-run-turn.js";
+import type { WireOf } from "../../lib/wire-schema.js";
 import type { CarriedRunIdentity } from "../run-identity/carried-run-identity.js";
 import {
   compareTurnIdAscending,
@@ -7,19 +10,11 @@ import {
   type AgentRunTurnsRepository,
 } from "./agent-run-turns-port.js";
 
-/** The shape `pipeline.agent_run_turns` hands back from `RETURNING *`. */
-interface AgentRunTurnDbRow {
-  id: string | number;
-  task_id: string | null;
-  agent_cr_name: string | null;
-  assembly_line_id: string | null;
-  station_run_id: string | null;
-  node_id: string | null;
-  iteration: number | null;
-  event_type: string | null;
-  envelope: Record<string, unknown>;
-  created_at: Date;
-}
+/** The shape `RETURNING *`/`SELECT` hands back; `id` widens past the model since a small bigint can come back as a number. */
+type AgentRunTurnDbRow = Omit<
+  WireOf<typeof AgentRunTurnSchema.shape, typeof AGENT_RUN_TURN_COLUMNS>,
+  "id"
+> & { id: string | number };
 
 const SELECT_COLUMNS = `id, task_id, agent_cr_name, assembly_line_id, station_run_id, node_id,
          iteration, event_type, envelope, created_at`;
