@@ -112,7 +112,8 @@ export default tseslint.config(
       // max-params 81. max-comment-lines, max-params and complexity reached
       // zero on 2026-09-04, followed by no-vague-names and
       // no-row-types-outside-models, and all are errors; max-lines-per-function
-      // is ratcheted to 100 the same day. No warn queue remains in this block.
+      // is ratcheted to 100 the same day. `max-lines` below is the one open
+      // queue, added after the others closed.
       "max-params": ["error", { max: 4 }],
       "lore/max-comment-lines": ["error", { max: 1 }],
       "lore/no-vague-names": "error",
@@ -131,6 +132,16 @@ export default tseslint.config(
         { max: 100, skipBlankLines: true, skipComments: true },
       ],
       complexity: ["error", 6],
+      // A module that needs 300 lines to state its job is usually holding more
+      // than one. Counting matches max-lines-per-function so the two agree, and
+      // tests are exempt below. Starts at `warn` with a 75-file queue: splitting
+      // a file moves an import path, so every one ripples into its callers, and
+      // the five over 900 lines are a boundary decision rather than an
+      // extraction. Promote to error when the queue reaches zero.
+      "max-lines": [
+        "warn",
+        { max: 300, skipBlankLines: true, skipComments: true },
+      ],
     },
   },
 
@@ -262,6 +273,10 @@ export default tseslint.config(
       // by complexity and the nesting rules.
       "max-lines-per-function": "off",
       "max-nested-callbacks": "off",
+      // A suite grows a case at a time and its length is the count of things
+      // checked, not a module doing too much. Splitting one scatters assertions
+      // about one subject across files for no reading gain.
+      "max-lines": "off",
     },
   },
 
