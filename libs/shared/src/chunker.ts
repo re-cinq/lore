@@ -5,6 +5,7 @@ import { readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { createHash } from "node:crypto";
 import { join, extname } from "node:path";
+import { chunkCodeAST } from "./chunker-ast.js";
 
 export interface Chunk {
   content: string;
@@ -61,7 +62,8 @@ const JS_DECLARATIONS = new Set([
   "variable_declaration",
   "expression_statement",
 ]);
-const DECLARATION_TYPES: Record<string, Set<string>> = {
+
+export const DECLARATION_TYPES: Record<string, Set<string>> = {
   ".ts": TS_DECLARATIONS,
   ".tsx": TS_DECLARATIONS,
   ".js": JS_DECLARATIONS,
@@ -81,7 +83,7 @@ const DECLARATION_TYPES: Record<string, Set<string>> = {
 };
 
 /** A single chunk spanning the whole file — the shared fallback when a chunker finds no internal boundaries. */
-function wholeFileChunk(
+export function wholeFileChunk(
   content: string,
   extra?: Partial<Chunk["metadata"]>,
 ): Chunk[] {
@@ -89,7 +91,7 @@ function wholeFileChunk(
 }
 
 /** Line count of the file's real content — a trailing newline terminates the last line rather than opening a phantom empty one. */
-function lineCount(content: string): number {
+export function lineCount(content: string): number {
   return content.replace(/\n$/, "").split("\n").length;
 }
 
@@ -139,291 +141,6 @@ async function loadGrammar(ext: string): Promise<Parser.Language | null> {
 
     return null;
   }
-}
-
-// ── Symbol extraction helpers ────────────────────────────────────────
-
-/** Ordered rule table for `inferSymbolType`: first matching predicate wins. */
-const SYMBOL_TYPE_RULES: [(nodeType: string) => boolean, string][] = [
-  [(t) => t.includes("function") || t === "method_declaration", "function"],
-  [(t) => t.includes("class"), "class"],
-  [(t) => t.includes("method"), "method"],
-  [(t) => t.includes("interface"), "interface"],
-  [(t) => t.includes("type_alias") || t === "type_declaration", "type"],
-  [(t) => t.includes("enum"), "type"],
-  [(t) => t === "export_statement", "export"],
-  // decorated_definition could be a class too, refined by refineSymbolType.
-  [(t) => t === "decorated_definition", "function"],
-];
-
-function inferSymbolType(nodeType: string): string {
-  const rule = SYMBOL_TYPE_RULES.find(([matches]) => matches(nodeType));
-
-  return rule ? rule[1] : "export";
-}
-
-/** Base identifier of a possibly chained or curried callee — `describe` in `describe.each([...])('title', …)`. */
-function rootCalleeName(callee: Parser.SyntaxNode | null): string | undefined {
-  let node = callee;
-
-  while (node) {
-    if (node.type === "identifier") {
-      return node.text;
-    }
-
-    if (node.type === "member_expression") {
-      node = node.childForFieldName("object");
-      continue;
-    }
-
-    if (node.type === "call_expression") {
-      node = node.childForFieldName("function");
-      continue;
-    }
-
-    return undefined;
-  }
-
-  return undefined;
-}
-
-/** Test-runner macros whose first string argument names the block — the one call family whose title is a meaningful symbol name. */
-const TEST_CALL_ROOTS = new Set([
-  "describe",
-  "it",
-  "test",
-  "suite",
-  "xdescribe",
-  "xit",
-  "xtest",
-  "fdescribe",
-  "fit",
-  "ftest",
-]);
-
-/** Name a test-macro call after its first string argument, or any other call after its plain-identifier/member-chain callee path; undefined otherwise (IIFEs). */
-function testCallTitle(call: Parser.SyntaxNode): string | undefined {
-  const args = call.childForFieldName("arguments");
-  const firstString = args?.namedChildren.find(
-    (a) => a.type === "string" || a.type === "template_string",
-  );
-  const title = firstString?.text
-    .slice(1, -1)
-    .replace(/\$\{[^}]*\}/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
-
-  return title !== undefined && title.length > 0 ? title : undefined;
-}
-
-function isTestMacroRoot(root: string | undefined): root is string {
-  return root !== undefined && TEST_CALL_ROOTS.has(root);
-}
-
-/** Plain-identifier or member-chain callee text (e.g. `foo` or `foo.bar`); undefined for anything else, including IIFEs. */
-function plainCalleeText(callee: Parser.SyntaxNode | null): string | undefined {
-  const isPlainCallee =
-    callee?.type === "identifier" || callee?.type === "member_expression";
-
-  return isPlainCallee ? callee.text : undefined;
-}
-
-function callSymbolName(call: Parser.SyntaxNode): string | undefined {
-  const callee = call.childForFieldName("function");
-  const root = rootCalleeName(callee);
-  const title = isTestMacroRoot(root) ? testCallTitle(call) : undefined;
-
-  return title ?? plainCalleeText(callee);
-}
-
-interface SymbolInfo {
-  name?: string;
-  type?: string;
-}
-
-/** Symbol metadata for a top-level node: a statement wrapping a call gets `type: "call"`; other expression statements carry no symbol fields. */
-function symbolInfo(node: Parser.SyntaxNode): SymbolInfo {
-  if (node.type !== "expression_statement") {
-    const rawType = inferSymbolType(node.type);
-
-    return {
-      name: extractSymbolName(node),
-      type: refineSymbolType(node, rawType),
-    };
-  }
-
-  const call = node.namedChildren.find((c) => c.type === "call_expression");
-
-  if (!call) {
-    return {};
-  }
-
-  return { name: callSymbolName(call), type: "call" };
-}
-
-/** Unwraps an `export_statement` to its declaration or a `decorated_definition` to its wrapped function/class; undefined for any other node. */
-function innerDeclarationNode(
-  node: Parser.SyntaxNode,
-): Parser.SyntaxNode | undefined {
-  if (node.type === "export_statement") {
-    return node.childForFieldName("declaration") ?? node.namedChildren[0];
-  }
-
-  if (node.type === "decorated_definition") {
-    return node.namedChildren.find(
-      (c) => c.type === "function_definition" || c.type === "class_definition",
-    );
-  }
-
-  return undefined;
-}
-
-function extractSymbolName(node: Parser.SyntaxNode): string | undefined {
-  const nameNode = node.childForFieldName("name");
-
-  if (nameNode) {
-    return nameNode.text;
-  }
-
-  const inner = innerDeclarationNode(node);
-
-  return inner ? extractSymbolName(inner) : undefined;
-}
-
-function refineSymbolType(node: Parser.SyntaxNode, initial: string): string {
-  const inner = innerDeclarationNode(node);
-
-  return inner ? inferSymbolType(inner.type) : initial;
-}
-
-// ── AST-based chunking ──────────────────────────────────────────────
-
-/** Prefixes marking a comment or docstring line, across the slash-comment and Python-docstring styles this chunker sees. */
-const COMMENT_LINE_PREFIXES = ["//", "/*", "*", "#", '"""', "'''"];
-
-function isCommentOrBlankLine(line: string): boolean {
-  return (
-    line === "" ||
-    COMMENT_LINE_PREFIXES.some((prefix) => line.startsWith(prefix))
-  );
-}
-
-/** First line of the comment/docstring block leading a declaration, trimmed of leading blanks; the declaration's own start row when none. */
-function leadingCommentStart(
-  lines: string[],
-  declStartRow: number,
-  prevEnd: number,
-): number {
-  let startLine = declStartRow;
-
-  for (let row = declStartRow - 1; row >= prevEnd; row--) {
-    if (!isCommentOrBlankLine(lines[row].trim())) {
-      break;
-    }
-    startLine = row;
-  }
-
-  while (startLine < declStartRow && lines[startLine].trim() === "") {
-    startLine++;
-  }
-
-  return startLine;
-}
-
-interface DeclInfo {
-  node: Parser.SyntaxNode;
-  startRow: number;
-  endRow: number;
-}
-
-/** Top-level declaration nodes matching this extension's declaration types, in source order. */
-function collectTopLevelDecls(
-  root: Parser.SyntaxNode,
-  declTypes: Set<string>,
-): DeclInfo[] {
-  const decls: DeclInfo[] = [];
-
-  for (const child of root.namedChildren) {
-    if (declTypes.has(child.type)) {
-      decls.push({
-        node: child,
-        startRow: child.startPosition.row,
-        endRow: child.endPosition.row,
-      });
-    }
-  }
-
-  return decls;
-}
-
-/** Chunk for everything before the first declaration (imports, comments, etc.); null when there is none. */
-function preambleChunk(lines: string[], firstDeclStart: number): Chunk | null {
-  const preamble =
-    firstDeclStart > 0
-      ? lines.slice(0, firstDeclStart).join("\n").trimEnd()
-      : "";
-
-  if (preamble.length === 0) {
-    return null;
-  }
-
-  return {
-    content: preamble,
-    metadata: { chunk_index: 0, start_line: 1, end_line: firstDeclStart },
-  };
-}
-
-/** Chunk for one declaration, including its leading comments. */
-function declChunk(
-  lines: string[],
-  decl: DeclInfo,
-  prevEnd: number,
-  chunkIndex: number,
-): Chunk {
-  const startLine = leadingCommentStart(lines, decl.startRow, prevEnd);
-  const chunkContent = lines.slice(startLine, decl.endRow + 1).join("\n");
-  const symbol = symbolInfo(decl.node);
-
-  return {
-    content: chunkContent,
-    metadata: {
-      symbol_name: symbol.name,
-      symbol_type: symbol.type,
-      start_line: startLine + 1,
-      end_line: decl.endRow + 1,
-      chunk_index: chunkIndex,
-    },
-  };
-}
-
-function chunkCodeAST(
-  tree: Parser.Tree,
-  content: string,
-  ext: string,
-): Chunk[] {
-  const lines = content.split("\n");
-  const declTypes = DECLARATION_TYPES[ext] ?? new Set<string>();
-  const decls = collectTopLevelDecls(tree.rootNode, declTypes);
-
-  if (decls.length === 0) {
-    return wholeFileChunk(content, {
-      start_line: 1,
-      end_line: lineCount(content),
-    });
-  }
-
-  const firstDeclStart = decls[0].startRow;
-  const preamble = preambleChunk(lines, firstDeclStart);
-  const chunks: Chunk[] = preamble ? [preamble] : [];
-  let chunkIndex = chunks.length;
-
-  for (let i = 0; i < decls.length; i++) {
-    const prevEnd = i > 0 ? decls[i - 1].endRow + 1 : firstDeclStart;
-
-    chunks.push(declChunk(lines, decls[i], prevEnd, chunkIndex++));
-  }
-
-  return chunks;
 }
 
 // ── Markdown heading-based chunking ─────────────────────────────────

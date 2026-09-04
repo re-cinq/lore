@@ -1,27 +1,23 @@
 // Pull-based catalog sync (claim loop's fan-out sibling): polls catalog-events, applies entries idempotently (at-least-once delivery), gates the claim loop's start on the first full snapshot.
 
-import { errorMessage } from "@re-cinq/lore-shared";
 import {
   backoffDelay,
   runPollLoop,
 } from "@re-cinq/lore-shared/lib/poll-loop.js";
-import {
-  agentDefToCrds,
-  catalogCrdName,
-  SYNC_MANAGED_BY,
-  UI_MANAGED_BY,
-  validateCatalogEntry,
-  type CatalogCrdOptions,
-} from "@re-cinq/lore-shared/project/agents/agent-crd.js";
+import type { CatalogCrdOptions } from "@re-cinq/lore-shared/project/agents/agent-crd.js";
 import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
-import { isPermanentApplyError } from "../kernel/k8s-errors.js";
-import type { ResolvedAgentDefinition } from "@re-cinq/lore-shared/models/agent-definition.js";
-import type { CatalogApplyReport } from "@re-cinq/lore-shared/project/agents/catalog-status-port.js";
-import type { AgentDefinition, Station } from "@re-cinq/agent-contracts";
-import type { ClusterAgentIdentity } from "../claim/identity-store.js";
 import { secondsEnvMs } from "../claim/intervals.js";
+import {
+  applyBatchEntries,
+  type CatalogSyncTickDeps,
+} from "./catalog-batch-apply.js";
+import { fetchCatalogBatch, reportStatus } from "./catalog-events-http.js";
+import type { ResolvedAgentDefinition } from "@re-cinq/lore-shared/models/agent-definition.js";
 
-const SYNC_TIMEOUT_MS = 30_000;
+export type {
+  CatalogSyncTickDeps,
+  CatalogTarget,
+} from "./catalog-batch-apply.js";
 
 export const SYNC_BASE_INTERVAL_S_DEFAULT = 30;
 export const SYNC_MAX_IDLE_DELAY_MS = 300_000;
@@ -131,7 +127,7 @@ export function enforceCatalogProfile(env: NodeJS.ProcessEnv): void {
 }
 
 /** The catalog-events response body (200). */
-interface CatalogEventsResponse {
+export interface CatalogEventsResponse {
   mode: "snapshot" | "tail";
   cursor: string;
   entries: Array<{
@@ -167,275 +163,6 @@ export function nextSyncDelay(
   }
 
   return backoffDelay(baseMs, idleTicks, maxIdleMs);
-}
-
-/** The three catalog operations a sync needs: applyPair/deletePair plus the read the seed-ownership guard makes. */
-export interface CatalogTarget {
-  applyPair(pair: {
-    agentDefinition: AgentDefinition;
-    station: Station;
-  }): Promise<void>;
-  deletePair(name: string): Promise<void>;
-  getAgentDefinition(name: string): Promise<AgentDefinition | null>;
-}
-
-type CrdOwnership =
-  { writable: true } | { writable: false; managedBy: string | undefined };
-
-function managedByLabelOf(live: AgentDefinition): string | undefined {
-  return live.metadata?.labels?.["app.kubernetes.io/managed-by"];
-}
-
-/** A live CR labeled by neither the sync loop nor the UI belongs to someone else. */
-async function checkCrdOwnership(
-  catalog: CatalogTarget,
-  crdName: string,
-): Promise<CrdOwnership> {
-  const live = await catalog.getAgentDefinition(crdName);
-
-  if (live === null) {
-    return { writable: true };
-  }
-  const managedBy = managedByLabelOf(live);
-
-  if (managedBy === SYNC_MANAGED_BY || managedBy === UI_MANAGED_BY) {
-    return { writable: true };
-  }
-
-  return { writable: false, managedBy };
-}
-
-export interface CatalogSyncTickDeps {
-  apiUrl: string;
-  identity: () => ClusterAgentIdentity;
-  catalog: CatalogTarget;
-  crdOptions: CatalogCrdOptions;
-  // Transition guard: skips seed-labeled CRs until LORE_CATALOG_SYNC_OWN_SEEDED=1 at cutover, else two writers would flap.
-  ownSeeded: boolean;
-  fetchFn?: typeof fetch;
-}
-
-/** One poll: fetch the unapplied batch, land every entry, remember the cursor to ack next call. Never throws. `snapshot` forces a full boot resync, repairing a lost or differently-rendered apply (#1727). */
-type FetchOutcome =
-  | { kind: "batch"; body: CatalogEventsResponse }
-  | { kind: "refused"; outcome: CatalogSyncOutcome };
-
-function catalogEventsQuery(
-  ack: string | undefined,
-  snapshot: boolean,
-): string {
-  const params = new URLSearchParams();
-
-  if (ack !== undefined) {
-    params.set("ack", ack);
-  }
-
-  if (snapshot) {
-    params.set("snapshot", "1");
-  }
-
-  return params.size > 0 ? `?${params.toString()}` : "";
-}
-
-async function requestCatalogEvents(
-  fetchFn: typeof fetch | undefined,
-  url: string,
-  token: string,
-): Promise<Response | FetchOutcome> {
-  try {
-    return await (fetchFn ?? fetch)(url, {
-      method: "GET",
-      headers: { authorization: `Bearer ${token}` },
-      signal: AbortSignal.timeout(SYNC_TIMEOUT_MS),
-    });
-  } catch (err) {
-    return refusedFetch(`catalog-events fetch failed: ${errorMessage(err)}`);
-  }
-}
-
-function isFetchOutcome(value: Response | FetchOutcome): value is FetchOutcome {
-  return "kind" in value;
-}
-
-/** Ask for the next batch of catalog events. Every way this can fail — unreachable, unauthorized, refused, unparseable — comes back as an outcome the caller reports without advancing the ack. */
-async function fetchCatalogBatch(
-  deps: CatalogSyncTickDeps,
-  ack: string | undefined,
-  snapshot: boolean,
-): Promise<FetchOutcome> {
-  const { id, token } = deps.identity();
-  const url = `${deps.apiUrl}/api/cluster-agents/${id}/catalog-events${catalogEventsQuery(ack, snapshot)}`;
-  const res = await requestCatalogEvents(deps.fetchFn, url, token);
-
-  if (isFetchOutcome(res)) {
-    return res;
-  }
-
-  if (res.status === 401 || res.status === 403) {
-    return { kind: "refused", outcome: { kind: "unauthorized" } };
-  }
-
-  if (!res.ok) {
-    return refusedFetch(`catalog-events refused (HTTP ${res.status})`);
-  }
-
-  try {
-    return { kind: "batch", body: (await res.json()) as CatalogEventsResponse };
-  } catch (err) {
-    return refusedFetch(
-      `catalog-events response parse failed: ${errorMessage(err)}`,
-    );
-  }
-}
-
-function refusedFetch(message: string): FetchOutcome {
-  return { kind: "refused", outcome: { kind: "error", message } };
-}
-
-/** What one entry did. `transient` is the only verdict that stops the batch: the ack stays put so the whole batch re-serves. */
-type EntryVerdict =
-  | { state: "applied" | "deleted" }
-  | { state: "skipped" | "refused"; detail: string; reason: string }
-  | { state: "transient"; message: string };
-
-// Ownership check FIRST, for deletes too — a null-definition event must never remove a seed-owned or hand-applied CR.
-async function resolveCrdOwnership(
-  deps: CatalogSyncTickDeps,
-  crdName: string,
-): Promise<CrdOwnership> {
-  return deps.ownSeeded
-    ? { writable: true as const }
-    : checkCrdOwnership(deps.catalog, crdName);
-}
-
-function skippedVerdict(
-  crdName: string,
-  managedBy: string | undefined,
-): EntryVerdict {
-  const owner = managedBy ?? "an unlabeled writer";
-
-  return {
-    state: "skipped",
-    detail: `${crdName} (${managedBy ?? "unlabeled"})`,
-    reason: `owned by ${owner}`,
-  };
-}
-
-// A 400/422 can never succeed, so it refuses; anything else is transient and keeps the ack so the batch re-serves.
-function classifyApplyError(err: unknown, crdName: string): EntryVerdict {
-  if (isPermanentApplyError(err)) {
-    const reason = `${errorMessage(err)} (pair may be half-applied — Station half lands first)`;
-
-    return { state: "refused", detail: `${crdName}: ${reason}`, reason };
-  }
-
-  return {
-    state: "transient",
-    message: `catalog entry ${crdName} failed to land: ${errorMessage(err)}`,
-  };
-}
-
-/** Land one catalog entry as a CRD pair. */
-async function applyCatalogEntry(
-  deps: CatalogSyncTickDeps,
-  entry: CatalogEventsResponse["entries"][number],
-  crdName: string,
-): Promise<EntryVerdict> {
-  try {
-    const ownership = await resolveCrdOwnership(deps, crdName);
-
-    if (!ownership.writable) {
-      return skippedVerdict(crdName, ownership.managedBy);
-    }
-
-    if (entry.definition === null) {
-      await deps.catalog.deletePair(crdName);
-
-      return { state: "deleted" };
-    }
-    // Refusal is permanent for this (row, cluster) pair, so the loop acks past it — re-serving head-of-line blocked the tail for 2h on 2026-09-01.
-    const refusal = validateCatalogEntry(entry.definition, deps.crdOptions);
-
-    if (refusal !== null) {
-      return {
-        state: "refused",
-        detail: `${crdName}: ${refusal}`,
-        reason: refusal,
-      };
-    }
-    await deps.catalog.applyPair(
-      agentDefToCrds(entry.definition, deps.crdOptions),
-    );
-
-    return { state: "applied" };
-  } catch (err) {
-    return classifyApplyError(err, crdName);
-  }
-}
-
-interface BatchTally {
-  applied: number;
-  deleted: number;
-  skipped: string[];
-  refused: string[];
-  // Structured verdicts for the status report — a log line dies with the pod (2026-09-01).
-  reports: CatalogApplyReport[];
-}
-
-type BatchApplyResult =
-  { kind: "ok"; tally: BatchTally } | { kind: "transient"; message: string };
-
-function recordVerdict(
-  tally: BatchTally,
-  entry: CatalogEventsResponse["entries"][number],
-  verdict: Exclude<EntryVerdict, { state: "transient" }>,
-): void {
-  if (verdict.state === "applied") {
-    tally.applied += 1;
-  }
-
-  if (verdict.state === "deleted") {
-    tally.deleted += 1;
-  }
-
-  if (verdict.state === "skipped") {
-    tally.skipped.push(verdict.detail);
-  }
-
-  if (verdict.state === "refused") {
-    tally.refused.push(verdict.detail);
-  }
-  tally.reports.push({
-    name: entry.name,
-    projectId: entry.project_id,
-    state: verdict.state,
-    reason: "reason" in verdict ? verdict.reason : null,
-  });
-}
-
-async function applyBatchEntries(
-  deps: CatalogSyncTickDeps,
-  entries: CatalogEventsResponse["entries"],
-): Promise<BatchApplyResult> {
-  const tally: BatchTally = {
-    applied: 0,
-    deleted: 0,
-    skipped: [],
-    refused: [],
-    reports: [],
-  };
-
-  for (const entry of entries) {
-    const crdName = catalogCrdName(entry.name, entry.project_id);
-    const verdict = await applyCatalogEntry(deps, entry, crdName);
-
-    if (verdict.state === "transient") {
-      return { kind: "transient", message: verdict.message };
-    }
-    recordVerdict(tally, entry, verdict);
-  }
-
-  return { kind: "ok", tally };
 }
 
 export async function catalogSyncOnce(
@@ -474,50 +201,6 @@ export async function catalogSyncOnce(
     },
     ack: body.cursor,
   };
-}
-
-/** POST the batch's verdicts. Never throws: visibility must not cost delivery. */
-async function reportStatus(
-  deps: CatalogSyncTickDeps,
-  reports: CatalogApplyReport[],
-): Promise<void> {
-  if (reports.length === 0) {
-    return;
-  }
-  const fetchFn = deps.fetchFn ?? fetch;
-  const { id, token } = deps.identity();
-
-  try {
-    const res = await fetchFn(
-      `${deps.apiUrl}/api/cluster-agents/${id}/catalog-status`,
-      {
-        method: "POST",
-        headers: {
-          authorization: `Bearer ${token}`,
-          "content-type": "application/json",
-        },
-        body: JSON.stringify({
-          reports: reports.map((r) => ({
-            name: r.name,
-            project_id: r.projectId,
-            state: r.state,
-            reason: r.reason,
-          })),
-        }),
-        signal: AbortSignal.timeout(SYNC_TIMEOUT_MS),
-      },
-    );
-
-    if (!res.ok) {
-      console.warn(
-        `[cluster-agent] catalog status report refused (HTTP ${res.status}) — this cluster's verdicts will look stale until the next batch`,
-      );
-    }
-  } catch (err) {
-    console.warn(
-      `[cluster-agent] catalog status report failed: ${errorMessage(err)}`,
-    );
-  }
 }
 
 export interface CatalogSyncLoopDeps {

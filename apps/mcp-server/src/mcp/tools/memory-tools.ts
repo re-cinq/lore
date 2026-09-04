@@ -1,6 +1,5 @@
 import { errorMessage } from "@re-cinq/lore-shared";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { z } from "zod";
 import { resolveAgentId } from "@re-cinq/lore-server-core/platform/agent-id.js";
 import {
   writeMemoryFile,
@@ -10,19 +9,19 @@ import {
   searchMemoryFile,
 } from "@re-cinq/lore-server-core/features/memory/memory-file.js";
 import { detectCurrentRepo } from "@re-cinq/lore-server-core/features/repo/repo-detect.js";
-import {
-  trackLatency,
-  proxyMemory,
-  proxyToApi,
-  proxyGetApi,
-  withReadCache,
-  unreachableError,
-  deniedError,
-  notConfiguredError,
-  textResult,
-  type ProxyResult,
-} from "./deps.js";
+import { proxyMemory, withReadCache, textResult } from "./deps.js";
 import { invalidate as invalidateCache } from "@re-cinq/lore-server-core/platform/proxy-cache.js";
+import {
+  WRITE_MEMORY_INPUT,
+  READ_MEMORY_INPUT,
+  DELETE_MEMORY_INPUT,
+  LIST_MEMORIES_INPUT,
+  SEARCH_MEMORY_INPUT,
+} from "./memory-tools-schemas.js";
+import { registerGraphEpisodeTools } from "./graph-episode-tools.js";
+import { interpretMemoryProxy } from "./interpret-memory-proxy.js";
+
+export { interpretMemoryProxy } from "./interpret-memory-proxy.js";
 
 // Reads whose results a memory/episode write can change; over-invalidating is safe, it only forces the next read to re-fetch.
 const MEMORY_DERIVED_READS = [
@@ -31,165 +30,6 @@ const MEMORY_DERIVED_READS = [
   "lore_list_memories",
   "lore_assemble_context",
 ];
-const EPISODE_DERIVED_READS = [
-  "lore_search_memory",
-  "lore_query_graph",
-  "lore_assemble_context",
-];
-
-/** The ok/unreachable/denied handling shared by every proxied tool; null means the caller should fall back. */
-function interpretMemoryProxy(
-  toolName: string,
-  proxied: ProxyResult,
-  onOk?: () => void,
-): { content: Array<{ type: "text"; text: string }> } | null {
-  if (proxied.ok) {
-    onOk?.();
-
-    return textResult(proxied.body);
-  }
-
-  if (proxied.reason === "unreachable") {
-    return unreachableError(toolName, proxied.detail);
-  }
-
-  if (proxied.reason === "denied") {
-    return deniedError(toolName, proxied.detail);
-  }
-
-  return null;
-}
-
-// Tool input schemas live as data beside their tool: a zod object is a contract, not a step in registering one.
-const WRITE_MEMORY_INPUT = {
-  key: z
-    .string()
-    .describe(
-      "Caller-chosen retrieval key; slash-namespaced by convention, e.g. 'session-summary/2026-03-30'.",
-    ),
-  value: z.string(),
-  agent_id: z.string().optional(),
-  ttl: z
-    .number()
-    .optional()
-    .describe("Time-to-live in seconds. Omit for no expiry."),
-  extract_facts: z
-    .boolean()
-    .optional()
-    .describe(
-      "When true, the API fires async fact extraction from value (fire-and-forget; does not block the write).",
-    ),
-};
-
-const READ_MEMORY_INPUT = {
-  key: z.string().describe("Exact memory key; no wildcards or fuzzy matching."),
-  agent_id: z.string().optional(),
-  version: z
-    .string()
-    .optional()
-    .describe(
-      '"all" for full history newest-first, or a numeric string for one specific version. Omit for the latest non-deleted version.',
-    ),
-};
-
-const DELETE_MEMORY_INPUT = {
-  key: z.string().describe("Exact memory key to soft-delete."),
-  agent_id: z.string().optional(),
-};
-
-const LIST_MEMORIES_INPUT = {
-  agent_id: z
-    .string()
-    .optional()
-    .describe(
-      "Agent scope when no repo is detected (ignored when repo is detected).",
-    ),
-  limit: z.number().default(50),
-  offset: z
-    .number()
-    .default(0)
-    .describe(
-      "Rows to skip for pagination (DB path only; not forwarded over proxy).",
-    ),
-};
-
-const SEARCH_MEMORY_INPUT = {
-  query: z.string(),
-  agent_id: z
-    .string()
-    .optional()
-    .describe("Scope to one agent. Omit for org-wide search."),
-  pool: z
-    .string()
-    .optional()
-    .describe(
-      "Restrict to a named shared pool; non-existent pool name returns empty.",
-    ),
-  limit: z.number().default(10),
-  include_invalidated: z
-    .boolean()
-    .default(false)
-    .describe("When true, also return superseded/historical facts."),
-  graph_augment: z
-    .boolean()
-    .default(false)
-    .describe(
-      "When true, enrich results with 1-hop knowledge-graph neighbors.",
-    ),
-};
-
-const WRITE_EPISODE_INPUT = {
-  content: z
-    .string()
-    .min(1)
-    .max(50000)
-    .describe(
-      "Raw text to ingest; deduplicated by content hash. 1–50000 chars.",
-    ),
-  source: z
-    .string()
-    .default("manual")
-    .describe('Provenance tag, e.g. "session", "pr-review", "ci".'),
-  ref: z
-    .string()
-    .optional()
-    .describe(
-      'External reference, e.g. "owner/repo#42". The owner/repo prefix scopes graph entities.',
-    ),
-  agent_id: z.string().optional(),
-};
-
-const QUERY_GRAPH_INPUT = {
-  entity: z
-    .string()
-    .optional()
-    .describe(
-      "Entity name (case-insensitive); matched against both edge endpoints. Omit to browse recent edges.",
-    ),
-  relation_type: z
-    .string()
-    .optional()
-    .describe(
-      'Filter to one relation type, e.g. "uses", "owns", "depends-on", "replaced-by", "part-of", "implements".',
-    ),
-  repo: z
-    .string()
-    .optional()
-    .describe(
-      'Scope to a specific repo, e.g. "re-cinq/lore". Repo-less edges excluded when set.',
-    ),
-  include_invalidated: z
-    .boolean()
-    .default(false)
-    .describe("When true, also include historically-invalidated edges."),
-};
-
-const AGENT_STATS_INPUT = {
-  agent_id: z
-    .string()
-    .optional()
-    .describe("Agent to inspect. Omit for the ambient agent."),
-};
 
 export function registerMemoryTools(server: McpServer) {
   registerWriteMemoryTool(server);
@@ -197,9 +37,7 @@ export function registerMemoryTools(server: McpServer) {
   registerDeleteMemoryTool(server);
   registerListMemoriesTool(server);
   registerSearchMemoryTool(server);
-  registerWriteEpisodeTool(server);
-  registerQueryGraphTool(server);
-  registerAgentStatsTool(server);
+  registerGraphEpisodeTools(server);
 }
 
 function registerWriteMemoryTool(server: McpServer) {
@@ -397,144 +235,6 @@ function registerSearchMemoryTool(server: McpServer) {
         return textResult(JSON.stringify(results, null, 2));
       } catch (err) {
         return textResult(`Error searching memories: ${errorMessage(err)}`);
-      }
-    },
-  );
-}
-
-function registerWriteEpisodeTool(server: McpServer) {
-  server.tool(
-    "lore_write_episode",
-    `Ingests one raw uncurated text blob as a deduplicated episode; returns {status: "ok", episode_id, source, ref} or {status: "duplicate"} when already ingested. Content is secret-redacted; facts and graph entities/edges are extracted asynchronously. Use for bulk/passive capture where you do not want to choose a key and do not need the text individually addressable. Instead: lore_write_memory for a curated nugget you want to retrieve by a specific key. No file fallback — requires DB or API.`,
-    WRITE_EPISODE_INPUT,
-    async ({ content, source, ref, agent_id }) => {
-      try {
-        // Proxy to GKE
-        const proxied = await proxyToApi("/api/episode", {
-          content,
-          source,
-          ref,
-          agent_id: agent_id || resolveAgentId(),
-        });
-        const handled = interpretMemoryProxy(
-          "lore_write_episode",
-          proxied,
-          () => invalidateCache(EPISODE_DERIVED_READS),
-        );
-
-        if (handled) {
-          return handled;
-        }
-
-        return textResult(
-          "Episodes require PostgreSQL or LORE_API_URL. Neither is configured.",
-        );
-      } catch (err) {
-        return textResult(`Error writing episode: ${errorMessage(err)}`);
-      }
-    },
-  );
-}
-
-interface GraphQueryArgs {
-  entity?: string;
-  relation_type?: string;
-  repo?: string;
-  include_invalidated?: boolean;
-}
-
-function buildGraphQueryParams(args: GraphQueryArgs): URLSearchParams {
-  const params = new URLSearchParams();
-
-  if (args.entity) {
-    params.set("entity", args.entity);
-  }
-
-  if (args.relation_type) {
-    params.set("relation_type", args.relation_type);
-  }
-
-  if (args.repo) {
-    params.set("repo", args.repo);
-  }
-
-  if (args.include_invalidated) {
-    params.set("include_invalidated", "true");
-  }
-
-  return params;
-}
-
-function registerQueryGraphTool(server: McpServer) {
-  server.tool(
-    "lore_query_graph",
-    `Reads the live knowledge graph and returns typed relationship edges {entity, entity_type, relation, related_entity, related_type, direction, valid_from} for one entity, or recent edges when no entity given. Use when you want structured relationships (uses/owns/depends-on/replaced-by), not prose. Graph is populated asynchronously by lore_write_episode — no writes here. Instead: lore_search_memory for learnings and facts in prose form; lore_search_context for raw document passages; lore_assemble_context for the token-budgeted startup bundle.`,
-    QUERY_GRAPH_INPUT,
-    async ({ entity, relation_type, repo, include_invalidated }) => {
-      return trackLatency("lore_query_graph", async () => {
-        try {
-          // Local stdio mode proxies the read to the GKE server over LORE_API_URL (mirrors lore_assemble_context) instead of requiring a direct DB.
-          const params = buildGraphQueryParams({
-            entity,
-            relation_type,
-            repo,
-            include_invalidated,
-          });
-          const proxied = await withReadCache(
-            {
-              tool: "lore_query_graph",
-              args: { entity, relation_type, repo, include_invalidated },
-              repo: repo || undefined,
-              ttlSeconds: 600,
-            },
-            () => proxyGetApi(`/api/graph?${params.toString()}`),
-          );
-          const handled = interpretMemoryProxy("lore_query_graph", proxied);
-
-          if (handled) {
-            return handled;
-          }
-
-          return textResult(
-            "Knowledge graph requires PostgreSQL (LORE_DB_HOST) or a configured LORE_API_URL.",
-          );
-        } catch (err) {
-          return textResult(`Error querying graph: ${errorMessage(err)}`);
-        }
-      });
-    },
-  );
-}
-
-function registerAgentStatsTool(server: McpServer) {
-  server.tool(
-    "lore_agent_stats",
-    `Returns an agent's combined health and learning statistics as JSON (memory_count, total_facts, active_facts, invalidated_facts, total_searches, recent_episodes, etc.). Use to gauge how much an agent has learned and how active it is. Instead: lore_my_usage for per-developer LLM token spend.`,
-    AGENT_STATS_INPUT,
-    async ({ agent_id }) => {
-      try {
-        const params = new URLSearchParams({
-          agent_id: resolveAgentId(agent_id),
-        });
-        const proxied = await proxyGetApi(`/api/agent-stats?${params}`);
-
-        if (proxied.ok) {
-          return textResult(JSON.stringify(JSON.parse(proxied.body), null, 2));
-        }
-
-        if (proxied.reason === "not_configured") {
-          return notConfiguredError("fetching agent stats");
-        }
-
-        if (proxied.reason === "denied") {
-          return deniedError("lore_agent_stats", proxied.detail);
-        }
-
-        return textResult(
-          `Could not fetch agent stats from the Lore API: ${proxied.detail}`,
-        );
-      } catch (err) {
-        return textResult(`Error fetching agent stats: ${errorMessage(err)}`);
       }
     },
   );

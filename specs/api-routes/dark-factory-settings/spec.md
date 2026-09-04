@@ -34,7 +34,7 @@ in; method resolved inside)
 - **Auth (key 1)**: `admin` scope. `getRequiredScope` matches the
   `SCOPE_OVERRIDES` entry before the generic prefix map, so this route demands
   `admin` (not the `read` a bare `/api/repos/...` prefix would imply)
-  ([override](../../../apps/lore-api/src/api/routes/dark-factory/dark-factory.ts#L36)). Enforced by the
+  ([override](../../../apps/lore-api/src/api/routes/dark-factory/dark-factory.ts#L35)). Enforced by the
   dispatcher before the handler.
 - **Auth (key 2)**: the two-key ceremony, applied *inside* the handler only when
   `twoKeyFieldsTouched(patch)` is non-empty (PUT). Driven by the
@@ -150,7 +150,7 @@ the header `X-Lore-Approval-PR`.
 ## Dependencies & side effects
 
 - Handler: `handleDarkFactorySettingsRoute`
-  ([code](../../../apps/lore-api/src/api/routes/dark-factory/dark-factory.ts#L19)).
+  ([code](../../../apps/lore-api/src/api/routes/dark-factory/dark-factory.ts#L13)).
 - `projectFor(repo).settings.resolveOrNull()` (GET read path).
 - `parseDarkFactorySettings` / `twoKeyFieldsTouched` from
   `features/dark-factory/dark-factory-settings.ts`.

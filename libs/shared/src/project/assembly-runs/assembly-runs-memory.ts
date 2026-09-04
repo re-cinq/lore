@@ -1,9 +1,13 @@
-import type { StationRunInput } from "../../models/station-run.js";
 import { enforceTrue } from "../../lib/enforce.js";
 import { randomUUID } from "node:crypto";
 import { resolveResumePrefix } from "./resume.js";
 import { RUN_START_EVENT } from "./run-events.js";
 import type { RunGraph } from "./run-graph.js";
+import {
+  StationRunStore,
+  type SeedAssemblyLineNode,
+} from "./assembly-runs-memory-station-runs.js";
+import { AssemblyRunQueryStore } from "./assembly-runs-memory-queries.js";
 import type {
   AssemblyRunQuery,
   AssemblyRunsPort,
@@ -18,44 +22,13 @@ import type {
   ClosedRunRef,
 } from "./assembly-runs-port.js";
 
+export type { SeedAssemblyLineNode } from "./assembly-runs-memory-station-runs.js";
+
 export interface SeedAssemblyLineEvent {
   eventName: string;
   source: string;
   params: Record<string, unknown>;
   dedupeKey: string;
-}
-
-export interface SeedAssemblyLineNode {
-  id: string;
-  stationRunId: string;
-  assemblyRunId: string;
-  nodeId: string;
-  iteration: number;
-  agentCrName: string | null;
-  input: StationRunInput | null;
-  /** Optional (pre-flip test seeds); readers default to push-era meaning (running, no claim, no tags). */
-  status?: "queued" | "claimed" | "running";
-  clusterAgentId?: string | null;
-  requiredTags?: string[];
-  claimedAt?: Date | null;
-  outcome: string | null;
-  failureClass: string | null;
-  failureDetail: string | null;
-  commitSha: string | null;
-  startedAt: Date;
-  finishedAt: Date | null;
-}
-
-/** The graph-less projection the two open-run reads hand back. */
-function toOpenSummary(row: AssemblyRunRecord): OpenRunSummary {
-  return {
-    id: row.id,
-    status: row.status as "queued" | "running",
-    repo: row.repo,
-    branch: row.branch,
-    subjectKey: row.subjectKey,
-    createdAt: row.createdAt,
-  };
 }
 
 /** Fork's subjectKey prefers the caller's override, falling back to source's. */
@@ -84,41 +57,6 @@ function inheritFromSource(
   };
 }
 
-function matchesRepoAndKind(
-  row: AssemblyRunRecord,
-  query: AssemblyRunQuery,
-  blueprints: Set<string> | null,
-  statuses: Set<string> | null,
-): boolean {
-  return (
-    (query.repo === undefined || row.repo === query.repo) &&
-    (blueprints === null || blueprints.has(row.blueprintName)) &&
-    (statuses === null || statuses.has(row.status))
-  );
-}
-
-function matchesTaskAndTiming(
-  row: AssemblyRunRecord,
-  query: AssemblyRunQuery,
-): boolean {
-  return (
-    (query.taskId === undefined || row.taskId === query.taskId) &&
-    (query.prNumber === undefined ||
-      Number(row.args.pr_number) === query.prNumber) &&
-    (query.createdAfter === undefined || row.createdAt >= query.createdAfter)
-  );
-}
-
-/** Marks one open node row stranded by its run finishing without it — a visit that DID report keeps its own outcome (the `??` fallbacks only fill what's still unset). */
-function strandNode(node: SeedAssemblyLineNode, now: Date): void {
-  node.finishedAt = now;
-  node.outcome = node.outcome ?? "failed";
-  node.failureClass = node.failureClass ?? "unknown";
-  node.failureDetail =
-    node.failureDetail ??
-    "the run finished while this visit was still open — the visit never reported an outcome";
-}
-
 /** Extracted from newRow so its many `??` defaults don't inflate that function's complexity. */
 function resumeRefs(input: AssemblyRunStartInput): {
   resumedFromRunId: string | null;
@@ -133,11 +71,24 @@ function resumeRefs(input: AssemblyRunStartInput): {
 /** In-memory AssemblyRunsPort — the behavioral spec of the Pg adapter; clock is injectable for deterministic ordering in tests. */
 export class InMemoryAssemblyRuns implements AssemblyRunsPort {
   rows: AssemblyRunRecord[] = [];
-  nodes: SeedAssemblyLineNode[] = [];
-  private readonly dispatchSpecs = new Map<string, unknown>();
   events: SeedAssemblyLineEvent[] = [];
+  private readonly stationRuns: StationRunStore;
+  private readonly queries: AssemblyRunQueryStore;
 
-  constructor(public clock: () => Date = () => new Date()) {}
+  constructor(public clock: () => Date = () => new Date()) {
+    this.stationRuns = new StationRunStore(() => this.clock());
+    this.queries = new AssemblyRunQueryStore(
+      this.rows,
+      () => this.clock(),
+      (runId, clusterAgentId) =>
+        this.stationRuns.hasOpenClaimByAgent(runId, clusterAgentId),
+    );
+  }
+
+  /** Delegates to the station-run store — kept as a field for callers/tests that read `port.nodes` directly. */
+  get nodes(): SeedAssemblyLineNode[] {
+    return this.stationRuns.nodes;
+  }
 
   /** Validates a resumeFrom fork before minting anything, so a rejected resume leaves no half-created line (mirrors the Pg one-CTE shape). Returns the source row (if any) and the inherited node prefix. */
   private async resolveFork(input: AssemblyRunStartInput): Promise<{
@@ -157,27 +108,6 @@ export class InMemoryAssemblyRuns implements AssemblyRunsPort {
     ).prefix;
 
     return { source, inherited };
-  }
-
-  /** Copies a fork's inherited node rows into THIS run's own identity space (own station_run_id, no source CR name / verdict — see inline notes below). */
-  private seedInheritedNodes(
-    inherited: StationRunRecord[],
-    assemblyRunId: string,
-  ): void {
-    for (const node of inherited) {
-      this.nodes.push({
-        ...node,
-        id: String(this.nodes.length + 1),
-        // Copied row is of THIS run, so it gets its own identity — sharing a station_run_id would merge telemetry.
-        stationRunId: randomUUID(),
-        assemblyRunId,
-        // Copied rows never carry the source's CR name — run-viz/cost joins resolve by newest node row, so an echoed name would steal late-arriving source rows.
-        agentCrName: null,
-        // Nor its verdict — getNextTransition replays the copied prefix and would fail the fork on an inherited permanent-failure visit on first advance.
-        failureClass: null,
-        failureDetail: null,
-      });
-    }
   }
 
   private recordStartEvent(
@@ -236,7 +166,7 @@ export class InMemoryAssemblyRuns implements AssemblyRunsPort {
 
     this.applyForkFields(row, source, inherited);
     this.rows.push(row);
-    this.seedInheritedNodes(inherited, id);
+    this.stationRuns.seedInheritedNodes(inherited, id);
     this.recordStartEvent(id, input, row);
 
     return id;
@@ -270,17 +200,6 @@ export class InMemoryAssemblyRuns implements AssemblyRunsPort {
     row.graph = graph ?? null;
   }
 
-  /** A visit still open under a finishing run is stranded: the reaper sweeps only OPEN runs, so nothing would ever close it, and the spend page bills an unfinished visit at its cap. A visit that DID report keeps its own outcome. */
-  private strandOpenNodes(assemblyRunId: string): void {
-    const now = this.clock();
-
-    for (const node of this.nodes) {
-      if (node.assemblyRunId === assemblyRunId && node.finishedAt === null) {
-        strandNode(node, now);
-      }
-    }
-  }
-
   async finish(id: string, outcome: string, reason?: string): Promise<boolean> {
     const row = this.mustFind(id);
 
@@ -293,275 +212,82 @@ export class InMemoryAssemblyRuns implements AssemblyRunsPort {
     row.outcome = outcome;
     row.reason = reason ?? null;
     row.finishedAt = this.clock();
-    this.strandOpenNodes(id);
+    this.stationRuns.strandOpenNodes(id);
 
     return true;
   }
 
-  private async recordNodeStart(input: StationRunStartInput): Promise<string> {
-    const id = String(this.nodes.length + 1);
-
-    if (input.dispatchSpec !== undefined) {
-      this.dispatchSpecs.set(id, input.dispatchSpec);
-    }
-    this.nodes.push({
-      id,
-      stationRunId: randomUUID(),
-      assemblyRunId: input.assemblyRunId,
-      nodeId: input.nodeId,
-      iteration: input.iteration,
-      agentCrName: input.agentCrName ?? null,
-      input: input.input ?? null,
-      status: input.status ?? "running",
-      clusterAgentId: null,
-      requiredTags: input.requiredTags ?? [],
-      claimedAt: null,
-      outcome: null,
-      failureClass: null,
-      failureDetail: null,
-      commitSha: null,
-      startedAt: this.clock(),
-      finishedAt: null,
-    });
-
-    return id;
-  }
-
-  private async recordNodeFinish(
-    nodeRowId: string,
-    outcome: string,
-    commitSha?: string,
-    failure?: StationRunFailure,
-  ): Promise<void> {
-    const node = this.nodes.find((n) => n.id === nodeRowId);
-
-    enforceTrue(node, Error, `no assembly line node row "${nodeRowId}"`);
-    node.outcome = outcome;
-    node.commitSha = commitSha ?? null;
-    node.failureClass = failure?.failureClass ?? null;
-    node.failureDetail = failure?.failureDetail ?? null;
-    node.finishedAt = this.clock();
-  }
-
-  async ensureStationRun(
+  ensureStationRun(
     input: StationRunStartInput,
   ): Promise<{ nodeRowId: string; stationRunId: string; created: boolean }> {
-    const existing = this.nodes.find(
-      (n) =>
-        n.assemblyRunId === input.assemblyRunId &&
-        n.nodeId === input.nodeId &&
-        n.iteration === input.iteration,
-    );
-
-    // Converged duplicate returns the existing station run id — minting a fresh one would give the same pod two names.
-    if (existing) {
-      return {
-        nodeRowId: existing.id,
-        stationRunId: existing.stationRunId,
-        created: false,
-      };
-    }
-    const nodeRowId = await this.recordNodeStart(input);
-    const created = this.nodes.find((n) => n.id === nodeRowId);
-
-    enforceTrue(created, Error, `station run row "${nodeRowId}" vanished`);
-
-    return { nodeRowId, stationRunId: created.stationRunId, created: true };
+    return this.stationRuns.ensureStationRun(input);
   }
 
-  async enqueueStationRunDispatch(
+  enqueueStationRunDispatch(
     nodeRowId: string,
     dispatchSpec: unknown,
   ): Promise<void> {
-    const node = this.nodes.find((n) => n.id === nodeRowId);
-
-    // "queued" as well as open (mirrors Pg WHERE) — a claimed row already has its spec; re-arming it would describe a different pod than the one being built.
-    if (node && node.outcome === null && node.status === "queued") {
-      this.dispatchSpecs.set(nodeRowId, dispatchSpec);
-    }
+    return this.stationRuns.enqueueStationRunDispatch(nodeRowId, dispatchSpec);
   }
 
-  async claimNextStationRun(claimant: {
+  claimNextStationRun(claimant: {
     clusterAgentId: string;
     tags: string[];
   }): Promise<ClaimedStationRun | null> {
-    const next = this.nodes.find(
-      (n) =>
-        n.status === "queued" &&
-        n.outcome === null &&
-        this.dispatchSpecs.has(n.id) &&
-        (n.requiredTags ?? []).every((tag) => claimant.tags.includes(tag)),
-    );
-
-    if (!next) {
-      return null;
-    }
-    next.status = "claimed";
-    next.clusterAgentId = claimant.clusterAgentId;
-    next.claimedAt = this.clock();
-
-    return {
-      nodeRowId: next.id,
-      stationRunId: next.stationRunId,
-      assemblyRunId: next.assemblyRunId,
-      nodeId: next.nodeId,
-      iteration: next.iteration,
-      agentCrName: next.agentCrName,
-      dispatchSpec: this.dispatchSpecs.get(next.id) ?? null,
-    };
+    return this.stationRuns.claimNextStationRun(claimant);
   }
 
-  async requeueStationRun(nodeRowId: string): Promise<boolean> {
-    const node = this.nodes.find((n) => n.id === nodeRowId);
-
-    if (!node || node.outcome !== null) {
-      return false;
-    }
-    node.status = "queued";
-    node.clusterAgentId = null;
-    node.claimedAt = null;
-    // Queue clock restarts with the visit (mirrors Pg) — the reaper bounds a queued visit by startedAt, so keeping the original enqueue would fail it as never-claimed.
-    node.startedAt = this.clock();
-
-    return true;
+  requeueStationRun(nodeRowId: string): Promise<boolean> {
+    return this.stationRuns.requeueStationRun(nodeRowId);
   }
 
-  async finishStationRunOnce(
+  finishStationRunOnce(
     nodeRowId: string,
     outcome: string,
     commitSha?: string,
     failure?: StationRunFailure,
   ): Promise<boolean> {
-    const node = this.nodes.find((n) => n.id === nodeRowId);
-
-    if (!node || node.outcome !== null) {
-      return false;
-    }
-
-    await this.recordNodeFinish(nodeRowId, outcome, commitSha, failure);
-
-    return true;
-  }
-
-  async countOpenClaimsByAgent(): Promise<Record<string, number>> {
-    const counts: Record<string, number> = {};
-
-    for (const n of this.nodes) {
-      if (n.outcome === null && (n.clusterAgentId ?? null) !== null) {
-        counts[n.clusterAgentId as string] =
-          (counts[n.clusterAgentId as string] ?? 0) + 1;
-      }
-    }
-
-    return counts;
-  }
-
-  async listStationRuns(assemblyRunId: string): Promise<StationRunRecord[]> {
-    // Numeric-string ids (mints "1","2",… like Pg's BIGINT) — compare with numeric collation; plain Number() would NaN on a non-numeric id and no-op the sort.
-    return this.nodes
-      .filter((n) => n.assemblyRunId === assemblyRunId)
-      .sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true }))
-      .map((n) => ({
-        ...n,
-        status: n.status ?? "running",
-        clusterAgentId: n.clusterAgentId ?? null,
-        requiredTags: n.requiredTags ?? [],
-        claimedAt: n.claimedAt ?? null,
-      }));
-  }
-
-  private hasOpenClaimByAgent(runId: string, clusterAgentId: string): boolean {
-    return this.nodes.some(
-      (node) =>
-        node.assemblyRunId === runId &&
-        node.clusterAgentId === clusterAgentId &&
-        node.outcome === null,
+    return this.stationRuns.finishStationRunOnce(
+      nodeRowId,
+      outcome,
+      commitSha,
+      failure,
     );
   }
 
-  private matchesSubjectAndClaim(
-    row: AssemblyRunRecord,
-    query: AssemblyRunQuery,
-  ): boolean {
-    return (
-      (query.subjectKey === undefined || row.subjectKey === query.subjectKey) &&
-      (query.clusterAgentId === undefined ||
-        this.hasOpenClaimByAgent(row.id, query.clusterAgentId))
-    );
+  countOpenClaimsByAgent(): Promise<Record<string, number>> {
+    return this.stationRuns.countOpenClaimsByAgent();
   }
 
-  private matchesRunQuery(
-    row: AssemblyRunRecord,
-    query: AssemblyRunQuery,
-    blueprints: Set<string> | null,
-    statuses: Set<string> | null,
-  ): boolean {
-    return (
-      matchesRepoAndKind(row, query, blueprints, statuses) &&
-      matchesTaskAndTiming(row, query) &&
-      this.matchesSubjectAndClaim(row, query)
-    );
+  listStationRuns(assemblyRunId: string): Promise<StationRunRecord[]> {
+    return this.stationRuns.listStationRuns(assemblyRunId);
   }
 
-  async list(query: AssemblyRunQuery): Promise<AssemblyRunRecord[]> {
-    const blueprints =
-      query.blueprintName === undefined
-        ? null
-        : new Set(
-            typeof query.blueprintName === "string"
-              ? [query.blueprintName]
-              : query.blueprintName,
-          );
-    const statuses = query.status ? new Set(query.status) : null;
-
-    return this.rows
-      .filter((row) => this.matchesRunQuery(row, query, blueprints, statuses))
-      .sort(
-        // Newest first, id tiebreak for stability (not chronology) — same-millisecond runs come back in a fixed but arbitrary order, as in Postgres.
-        (a, b) =>
-          b.createdAt.getTime() - a.createdAt.getTime() ||
-          b.id.localeCompare(a.id),
-      )
-      .slice(0, query.limit ?? 50);
+  list(query: AssemblyRunQuery): Promise<AssemblyRunRecord[]> {
+    return Promise.resolve(this.queries.list(query));
   }
 
-  async listSummaries(query: AssemblyRunQuery): Promise<AssemblyRunSummary[]> {
-    // Same selection, graph dropped — the double must answer the narrower shape like Postgres, or tests would see a clone the deployed read never ships.
-    return (await this.list(query)).map(
-      ({ graph: _graph, ...summary }) => summary,
-    );
+  listSummaries(query: AssemblyRunQuery): Promise<AssemblyRunSummary[]> {
+    return Promise.resolve(this.queries.listSummaries(query));
   }
 
-  async listOpen(): Promise<AssemblyRunRecord[]> {
-    return this.rows
-      .filter((r) => r.status === "queued" || r.status === "running")
-      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+  listOpen(): Promise<AssemblyRunRecord[]> {
+    return Promise.resolve(this.queries.listOpen());
   }
 
-  async findOpenOnBranch(
-    repo: string,
-    branch: string,
-  ): Promise<OpenRunSummary[]> {
-    return (await this.listOpen())
-      .filter((r) => r.repo === repo && r.branch === branch)
-      .map(toOpenSummary);
+  findOpenOnBranch(repo: string, branch: string): Promise<OpenRunSummary[]> {
+    return Promise.resolve(this.queries.findOpenOnBranch(repo, branch));
   }
 
-  async findOpenBySubject(
+  findOpenBySubject(
     repo: string,
     subjectKey: string,
   ): Promise<OpenRunSummary | null> {
-    const open = (await this.listOpen()).find(
-      (r) => r.repo === repo && r.subjectKey === subjectKey,
-    );
-
-    return open ? toOpenSummary(open) : null;
+    return Promise.resolve(this.queries.findOpenBySubject(repo, subjectKey));
   }
 
-  async countBySubject(repo: string, subjectKey: string): Promise<number> {
-    return this.rows.filter(
-      (r) => r.repo === repo && r.subjectKey === subjectKey,
-    ).length;
+  countBySubject(repo: string, subjectKey: string): Promise<number> {
+    return Promise.resolve(this.queries.countBySubject(repo, subjectKey));
   }
 
   async mergeArgs(id: string, patch: Record<string, unknown>): Promise<void> {
@@ -576,61 +302,27 @@ export class InMemoryAssemblyRuns implements AssemblyRunsPort {
     return this.rows.find((r) => r.id === id) ?? null;
   }
 
-  async listForTask(taskId: string): Promise<AssemblyRunRecord[]> {
-    return this.rows
-      .filter((r) => r.taskId === taskId)
-      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  listForTask(taskId: string): Promise<AssemblyRunRecord[]> {
+    return Promise.resolve(this.queries.listForTask(taskId));
   }
 
-  async findOpenByPr(
-    repo: string,
-    prNumber: number,
-  ): Promise<AssemblyRunRecord[]> {
-    return this.rows
-      .filter((r) => this.matchesOpenPr(r, repo, prNumber))
-      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  findOpenByPr(repo: string, prNumber: number): Promise<AssemblyRunRecord[]> {
+    return Promise.resolve(this.queries.findOpenByPr(repo, prNumber));
   }
 
-  async finishOpenByPr(
+  finishOpenByPr(
     repo: string,
     prNumber: number,
     outcome: string,
     definitions?: readonly string[],
   ): Promise<ClosedRunRef[]> {
-    const open = this.rows.filter(
-      (r) =>
-        this.matchesOpenPr(r, repo, prNumber) &&
-        (!definitions || definitions.includes(r.blueprintName)),
-    );
-
-    for (const row of open) {
-      row.status = "finished";
-      row.outcome = outcome;
-      row.finishedAt = this.clock();
-    }
-
-    return open.map((row) => ({ id: row.id, taskId: row.taskId ?? null }));
-  }
-
-  async hasReviewedPr(repo: string, prNumber: number): Promise<boolean> {
-    return this.rows.some(
-      (r) =>
-        r.repo === repo &&
-        r.blueprintName === "code-review" &&
-        Number(r.args.pr_number) === prNumber,
+    return Promise.resolve(
+      this.queries.finishOpenByPr(repo, prNumber, outcome, definitions),
     );
   }
 
-  private matchesOpenPr(
-    row: AssemblyRunRecord,
-    repo: string,
-    prNumber: number,
-  ): boolean {
-    return (
-      row.repo === repo &&
-      Number(row.args.pr_number) === prNumber &&
-      (row.status === "queued" || row.status === "running")
-    );
+  hasReviewedPr(repo: string, prNumber: number): Promise<boolean> {
+    return Promise.resolve(this.queries.hasReviewedPr(repo, prNumber));
   }
 
   private newRow(id: string, input: AssemblyRunStartInput): AssemblyRunRecord {

@@ -1,5 +1,7 @@
 /** Canonical contract for the structured gap-analysis a feature-planning Station POSTs per round: ordered adaptive `sections`, each with optional content/mockups/questions. Hand-rolled validation (no Zod) for the Job pod bundle. See ADR-027. */
 
+import { deriveSectionsFromLegacy } from "./gap-result-legacy.js";
+
 export type SectionDirection = "keep" | "refine" | "redirect";
 export type FeaturePlanningStatus = "awaiting-input" | "spec-ready";
 export type GapQuestionKind = "text" | "choice";
@@ -54,26 +56,22 @@ export interface GapResult {
   draft_spec_markdown: string;
 }
 
-// Legacy (pre-dynamic-sections) shapes, kept only to normalize old stored results into `sections`.
-export interface ArchitectureComponent {
-  name: string;
-  responsibility: string;
-  touchpoints: string[];
-}
-export interface GapArchitecture {
-  summary: string;
-  components: ArchitectureComponent[];
-}
-export interface GapUserFlow {
-  name: string;
-  steps: string[];
-}
+// Legacy (pre-dynamic-sections) shapes + normalization live in gap-result-legacy.ts, re-exported for import-path back-compat.
+export {
+  deriveSectionsFromLegacy,
+  type ArchitectureComponent,
+  type GapArchitecture,
+  type GapUserFlow,
+} from "./gap-result-legacy.js";
 
 function fail(field: string, detail: string): never {
   throw new Error(`GapResult invalid: ${field} ${detail}`);
 }
 
-function asObject(value: unknown, field: string): Record<string, unknown> {
+export function asObject(
+  value: unknown,
+  field: string,
+): Record<string, unknown> {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     fail(field, "must be an object");
   }
@@ -81,7 +79,7 @@ function asObject(value: unknown, field: string): Record<string, unknown> {
   return value as Record<string, unknown>;
 }
 
-function asString(value: unknown, field: string): string {
+export function asString(value: unknown, field: string): string {
   if (typeof value !== "string") {
     fail(field, "must be a string");
   }
@@ -89,7 +87,7 @@ function asString(value: unknown, field: string): string {
   return value as string;
 }
 
-function asStringArray(value: unknown, field: string): string[] {
+export function asStringArray(value: unknown, field: string): string[] {
   if (!Array.isArray(value)) {
     fail(field, "must be an array");
   }
@@ -97,7 +95,7 @@ function asStringArray(value: unknown, field: string): string[] {
   return value.map((v, i) => asString(v, `${field}[${i}]`));
 }
 
-function asArray(value: unknown, field: string): unknown[] {
+export function asArray(value: unknown, field: string): unknown[] {
   if (!Array.isArray(value)) {
     fail(field, "must be an array");
   }
@@ -106,14 +104,14 @@ function asArray(value: unknown, field: string): unknown[] {
 }
 
 /** First non-empty string among the candidates, else "". Tolerates LLM field drift. */
-function firstString(...values: unknown[]): string {
+export function firstString(...values: unknown[]): string {
   const hit = values.find((v) => typeof v === "string" && v.length > 0);
 
   return typeof hit === "string" ? hit : "";
 }
 
 /** String entries of an array, or [] when absent/non-array. */
-function lenientStringArray(value: unknown): string[] {
+export function lenientStringArray(value: unknown): string[] {
   if (!Array.isArray(value)) {
     return [];
   }
@@ -160,7 +158,7 @@ function buildMockup(
 }
 
 /** A mockup as a `{title, format, markup}` object, tolerating a bare SVG string or a `svg`/`content` alias; `null` when the named format can't be rendered. */
-function parseMockup(raw: unknown, i: number): GapMockup | null {
+export function parseMockup(raw: unknown, i: number): GapMockup | null {
   if (typeof raw === "string") {
     return { title: `Mockup ${i + 1}`, format: "svg", markup: raw };
   }
@@ -198,7 +196,7 @@ function withChoiceOptions(
 }
 
 // Tolerate field drift: `text`/`prompt`, missing id/why, garbled kind (defaults to free-text).
-function parseQuestion(raw: unknown, i: number): GapQuestion {
+export function parseQuestion(raw: unknown, i: number): GapQuestion {
   const o = asObject(raw, `questions[${i}]`);
   const kind: GapQuestionKind = o.kind === "choice" ? "choice" : "text";
   const question: GapQuestion = {
@@ -291,135 +289,6 @@ function parseSection(raw: unknown, i: number): GapSection {
   return section;
 }
 
-function parseArchitecture(raw: unknown): GapArchitecture {
-  const o = asObject(raw, "architecture");
-
-  return {
-    summary: firstString(o.summary, o.description),
-    components: asArray(o.components, "architecture.components").map((c, i) => {
-      const co = asObject(c, `architecture.components[${i}]`);
-
-      return {
-        name: asString(co.name, `architecture.components[${i}].name`),
-        responsibility: firstString(
-          co.responsibility,
-          co.description,
-          co.summary,
-        ),
-        touchpoints: lenientStringArray(co.touchpoints),
-      };
-    }),
-  };
-}
-
-/** Render an architecture payload as markdown: summary + one bullet per component. */
-function architectureContent(arch: GapArchitecture): string {
-  const lines = [arch.summary];
-
-  if (arch.components.length) {
-    lines.push(
-      "",
-      ...arch.components.map(
-        (c) =>
-          `- **${c.name}**: ${c.responsibility}${c.touchpoints.length ? ` _(${c.touchpoints.join(", ")})_` : ""}`,
-      ),
-    );
-  }
-
-  return lines.join("\n");
-}
-
-type MockupsForSection = (key: string) => GapMockup[] | undefined;
-
-function deriveMockups(o: Record<string, unknown>): GapMockup[] {
-  return Array.isArray(o.mockups)
-    ? o.mockups.map(parseMockup).filter((m): m is GapMockup => m !== null)
-    : [];
-}
-
-function mockupsTaggedBy(mockups: GapMockup[]): MockupsForSection {
-  return (key) => {
-    const tagged = mockups.filter(
-      (mk) => (mk.section ?? "architecture") === key,
-    );
-
-    return tagged.length ? tagged : undefined;
-  };
-}
-
-function deriveArchitectureSection(
-  o: Record<string, unknown>,
-  mockupsTagged: MockupsForSection,
-): GapSection | null {
-  if (o.architecture === undefined || o.architecture === null) {
-    return null;
-  }
-  const arch = parseArchitecture(o.architecture);
-  const m = mockupsTagged("architecture");
-
-  return {
-    title: "Architecture",
-    content: architectureContent(arch),
-    ...(m ? { mockups: m } : {}),
-  };
-}
-
-function userFlowContent(flow: unknown, i: number): string {
-  const fo = asObject(flow, `user_flows[${i}]`);
-  const name = asString(fo.name, `user_flows[${i}].name`);
-  const steps = asStringArray(fo.steps, `user_flows[${i}].steps`);
-
-  return [`**${name}**`, ...steps.map((s, j) => `${j + 1}. ${s}`)].join("\n");
-}
-
-function deriveUserFlowsSection(
-  o: Record<string, unknown>,
-  mockupsTagged: MockupsForSection,
-): GapSection | null {
-  if (!Array.isArray(o.user_flows) || !o.user_flows.length) {
-    return null;
-  }
-  const content = o.user_flows.map(userFlowContent).join("\n\n");
-  const m = mockupsTagged("user_flows");
-
-  return {
-    title: "User flows",
-    content,
-    ...(m ? { mockups: m } : {}),
-  };
-}
-
-function orphanMockupsSection(mockups: GapMockup[]): GapSection | null {
-  const orphans = mockups.filter(
-    (mk) =>
-      !["architecture", "user_flows"].includes(mk.section ?? "architecture"),
-  );
-
-  return orphans.length ? { title: "Diagrams", mockups: orphans } : null;
-}
-
-function openQuestionsSection(o: Record<string, unknown>): GapSection | null {
-  if (!Array.isArray(o.questions) || !o.questions.length) {
-    return null;
-  }
-
-  return { title: "Open questions", questions: o.questions.map(parseQuestion) };
-}
-
-/** Build `sections` from a legacy architecture/user_flows/mockups/questions payload. */
-function deriveSectionsFromLegacy(o: Record<string, unknown>): GapSection[] {
-  const mockups = deriveMockups(o);
-  const mockupsTagged = mockupsTaggedBy(mockups);
-  const candidates = [
-    deriveArchitectureSection(o, mockupsTagged),
-    deriveUserFlowsSection(o, mockupsTagged),
-    orphanMockupsSection(mockups),
-    openQuestionsSection(o),
-  ];
-
-  return candidates.filter((s): s is GapSection => s !== null);
-}
-
 /** Validates an untrusted LLM-produced payload into a typed {@link GapResult} (new `sections[]` or legacy shape), throwing on violation. Does NOT sanitize markup — callers run {@link sanitizeSvg} first. */
 export function parseGapResult(raw: unknown): GapResult {
   const o = asObject(raw, "root");
@@ -444,59 +313,12 @@ export function parseGapResult(raw: unknown): GapResult {
   return result;
 }
 
-const SCRIPT_RE = /<script\b[^>]*>[\s\S]*?<\/script>/gi;
-const FOREIGN_OBJECT_RE = /<foreignObject\b[^>]*>[\s\S]*?<\/foreignObject>/gi;
-const EVENT_HANDLER_RE = /\s+on\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi;
-const HREF_RE = /\s+(?:xlink:)?href\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi;
-const SAFE_HREF_RE = /^(#|data:image\/)/i;
-
-/** Defense-in-depth sanitizer for LLM-generated mockup SVG: strips `<script>`/`<foreignObject>`, inline event handlers, and unsafe href/xlink:href values before persistence. */
-export function sanitizeSvg(markup: string): string {
-  return markup
-    .replace(SCRIPT_RE, "")
-    .replace(FOREIGN_OBJECT_RE, "")
-    .replace(EVENT_HANDLER_RE, "")
-    .replace(HREF_RE, (match, value: string) => {
-      const unquoted = value.replace(/^["']|["']$/g, "");
-
-      return SAFE_HREF_RE.test(unquoted) ? match : "";
-    });
-}
-
-const CSS_IMPORT_RE = /@import\s+[^;]*;?/gi;
-const CSS_URL_RE = /url\s*\([^)]*\)/gi;
-
-/** Strips `@import` and `url()` — the only things in agent-authored CSS that reach outside the sandboxed, network-less mockup frame. */
-export function sanitizeMockupCss(css: string): string {
-  return css.replace(CSS_IMPORT_RE, "").replace(CSS_URL_RE, "none");
-}
-
-/** Markup sanitisation by format — mermaid is source, not markup, so the SVG sanitizer must skip it. */
-function sanitizeMarkup(mockup: GapMockup): string {
-  return mockup.format === "mermaid"
-    ? mockup.markup
-    : sanitizeSvg(mockup.markup);
-}
-
-/** Sanitize every mockup's markup across all sections plus the shared stylesheet; returns a copy. */
-export function sanitizeGapResult(gap: GapResult): GapResult {
-  const sections = gap.sections.map((s) =>
-    s.mockups
-      ? {
-          ...s,
-          mockups: s.mockups.map((m) => ({ ...m, markup: sanitizeMarkup(m) })),
-        }
-      : s,
-  );
-
-  return gap.mockup_stylesheet
-    ? {
-        ...gap,
-        sections,
-        mockup_stylesheet: sanitizeMockupCss(gap.mockup_stylesheet),
-      }
-    : { ...gap, sections };
-}
+// Sanitizers for untrusted mockup markup/CSS live in gap-result-sanitize.ts, re-exported for import-path back-compat.
+export {
+  sanitizeSvg,
+  sanitizeMockupCss,
+  sanitizeGapResult,
+} from "./gap-result-sanitize.js";
 
 const PLANNING_PHASE_STATUSES: ReadonlySet<string> = new Set([
   "draft",

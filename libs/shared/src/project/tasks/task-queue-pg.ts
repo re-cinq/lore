@@ -2,7 +2,7 @@ import { selectList } from "../../lib/row.js";
 import { PIPELINE_TASK_COLUMNS } from "../../models/pipeline-task.js";
 import type { PgPool } from "../../memory-store.js";
 import type { PipelineTask } from "../../types.js";
-import { enforceSettableTaskColumns, unblockedBy } from "./task-queue-port.js";
+import { enforceSettableTaskColumns } from "./task-queue-port.js";
 import type {
   TaskQueueRepository,
   RecoverableTask,
@@ -17,13 +17,7 @@ import type {
   TaskContextRefs,
   InsertTaskInput,
 } from "./task-queue-port.js";
-
-type SpecTaskContextFields = { context_bundle: Record<string, unknown> | null };
-
-const specTaskIdOf = (task: SpecTaskContextFields): string | undefined =>
-  task.context_bundle?.spec_task_id as string | undefined;
-const specSlugOf = (task: SpecTaskContextFields): string | undefined =>
-  task.context_bundle?.spec_slug as string | undefined;
+import { PgSpecTaskQueries } from "./task-queue-pg-spec-tasks.js";
 
 function optionalTaskColumns(input: InsertTaskInput): [string, unknown][] {
   const candidates: [string, unknown][] = [
@@ -46,7 +40,11 @@ const insertedId = (rows: { id?: unknown }[]): string | null =>
 
 /** Postgres TaskQueueRepository; org-wide claim/sweep SQL from Floor jobs. */
 export class PgTaskQueue implements TaskQueueRepository {
-  constructor(private readonly pool: PgPool) {}
+  private readonly specTasks: PgSpecTaskQueries;
+
+  constructor(private readonly pool: PgPool) {
+    this.specTasks = new PgSpecTaskQueries(pool);
+  }
 
   async claimNextPending(): Promise<PipelineTask | null> {
     const { rows } = await this.pool.query<PipelineTask>(
@@ -93,107 +91,24 @@ export class PgTaskQueue implements TaskQueueRepository {
     return rows as StaleTask[];
   }
 
-  async findReadySpecTasks(repo?: string): Promise<ReadySpecTask[]> {
-    const { rows } = await this.pool.query<ReadySpecTask>(
-      `SELECT t.id, t.description, t.context_bundle, t.target_repo, t.task_group_id
-         FROM pipeline.tasks t
-        WHERE t.task_type = 'spec-task'
-          AND t.status = 'pending'
-          ${repo ? "AND t.target_repo = $1" : ""}
-          AND NOT EXISTS (
-            SELECT 1
-            FROM jsonb_array_elements_text(t.context_bundle->'depends_on') AS dep_id
-            WHERE NOT EXISTS (
-              SELECT 1 FROM pipeline.tasks d
-              WHERE d.target_repo = t.target_repo
-                AND d.task_type = 'spec-task'
-                AND d.context_bundle->>'spec_task_id' = dep_id
-                AND d.context_bundle->>'spec_slug' = t.context_bundle->>'spec_slug'
-                AND d.status IN ('completed', 'merged')
-            )
-          )
-        ORDER BY t.context_bundle->>'spec_task_id'`,
-      repo ? [repo] : [],
-    );
-
-    return rows as ReadySpecTask[];
+  findReadySpecTasks(repo?: string): Promise<ReadySpecTask[]> {
+    return this.specTasks.findReadySpecTasks(repo);
   }
 
-  async countRunningSpecTasksByGroup(): Promise<SpecGroupCount[]> {
-    const { rows } = await this.pool.query<SpecGroupCount>(
-      `SELECT task_group_id, COUNT(*) as cnt
-         FROM pipeline.tasks
-        WHERE task_type = 'spec-task'
-          AND status IN ('running', 'queued')
-          AND task_group_id IS NOT NULL
-        GROUP BY task_group_id`,
-    );
-
-    return rows as SpecGroupCount[];
+  countRunningSpecTasksByGroup(): Promise<SpecGroupCount[]> {
+    return this.specTasks.countRunningSpecTasksByGroup();
   }
 
-  async countUnmergedInGroup(groupId: string): Promise<number> {
-    const { rows } = await this.pool.query<{ cnt: string }>(
-      `SELECT COUNT(*) as cnt
-         FROM pipeline.tasks
-        WHERE task_group_id = $1
-          AND status <> 'merged'`,
-      [groupId],
-    );
-
-    return Number(rows[0]?.cnt ?? 0);
+  countUnmergedInGroup(groupId: string): Promise<number> {
+    return this.specTasks.countUnmergedInGroup(groupId);
   }
 
-  async claimSpecTask(
-    id: string,
-    agentId = "spec-task-executor",
-  ): Promise<boolean> {
-    const { rows } = await this.pool.query(
-      `UPDATE pipeline.tasks
-          SET status = 'running', agent_id = $2, updated_at = now()
-        WHERE id = $1 AND status = 'pending'
-      RETURNING id`,
-      [id, agentId],
-    );
-
-    return rows.length > 0;
+  claimSpecTask(id: string, agentId = "spec-task-executor"): Promise<boolean> {
+    return this.specTasks.claimSpecTask(id, agentId);
   }
 
-  async completeSpecTask(id: string): Promise<CompletedSpecTask> {
-    const { rows } = await this.pool.query(
-      `SELECT context_bundle, target_repo, status FROM pipeline.tasks WHERE id = $1`,
-      [id],
-    );
-    const task = rows[0] as
-      | {
-          context_bundle: Record<string, unknown> | null;
-          target_repo: string;
-          status: string;
-        }
-      | undefined;
-
-    if (!task || task.status !== "running") {
-      return { completed: false, unblocked: [] };
-    }
-
-    await this.pool.query(
-      `UPDATE pipeline.tasks SET status = 'completed', updated_at = now() WHERE id = $1`,
-      [id],
-    );
-
-    const specTaskId = specTaskIdOf(task);
-    const specSlug = specSlugOf(task);
-
-    if (!specTaskId || !specSlug) {
-      return { completed: true, unblocked: [] };
-    }
-
-    const ready = await this.findReadySpecTasks(task.target_repo);
-
-    return {
-      completed: true,
-      unblocked: unblockedBy(ready, specSlug, specTaskId),
-    };
+  completeSpecTask(id: string): Promise<CompletedSpecTask> {
+    return this.specTasks.completeSpecTask(id);
   }
 
   async awaitingApproval(): Promise<AwaitingApprovalTask[]> {
@@ -283,17 +198,8 @@ export class PgTaskQueue implements TaskQueueRepository {
     return rows as MergeableTask[];
   }
 
-  async hasSpecTasksForSlug(repo: string, slug: string): Promise<boolean> {
-    const { rows } = await this.pool.query(
-      `SELECT id FROM pipeline.tasks
-        WHERE task_type = 'spec-task'
-          AND target_repo = $1
-          AND context_bundle->>'spec_slug' = $2
-        LIMIT 1`,
-      [repo, slug],
-    );
-
-    return rows.length > 0;
+  hasSpecTasksForSlug(repo: string, slug: string): Promise<boolean> {
+    return this.specTasks.hasSpecTasksForSlug(repo, slug);
   }
 
   async contextRefs(taskId: string): Promise<TaskContextRefs | null> {

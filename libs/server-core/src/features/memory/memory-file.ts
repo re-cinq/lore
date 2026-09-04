@@ -13,14 +13,14 @@ import { resolveAgentId } from "../../platform/agent-id.js";
 
 // ── Paths ────────────────────────────────────────────────────────────
 
-const BASE_DIR = join(process.env.HOME || "/tmp", ".lore", "memory");
+export const BASE_DIR = join(process.env.HOME || "/tmp", ".lore", "memory");
 const AUDIT_FILE = join(BASE_DIR, "audit.jsonl");
 
-function agentDir(agentId: string): string {
+export function agentDir(agentId: string): string {
   return join(BASE_DIR, agentId);
 }
 
-function memoriesPath(agentId: string): string {
+export function memoriesPath(agentId: string): string {
   return join(agentDir(agentId), "memories.json");
 }
 
@@ -97,7 +97,7 @@ function ensureDir(dir: string): void {
   }
 }
 
-function readJson<T>(filePath: string, fallback: T): T {
+export function readJson<T>(filePath: string, fallback: T): T {
   try {
     if (!existsSync(filePath)) {
       return fallback;
@@ -111,7 +111,7 @@ function readJson<T>(filePath: string, fallback: T): T {
   }
 }
 
-function writeJson(filePath: string, value: unknown): void {
+export function writeJson(filePath: string, value: unknown): void {
   ensureDir(dirname(filePath));
   writeFileSync(filePath, JSON.stringify(value, null, 2) + "\n", "utf-8");
 }
@@ -130,7 +130,9 @@ interface AuditEntry {
   created_at: string;
 }
 
-function appendAudit(entry: Omit<AuditEntry, "id" | "created_at">): void {
+export function appendAudit(
+  entry: Omit<AuditEntry, "id" | "created_at">,
+): void {
   ensureDir(BASE_DIR);
   const full: AuditEntry = {
     id: randomUUID(),
@@ -147,7 +149,7 @@ function appendAudit(entry: Omit<AuditEntry, "id" | "created_at">): void {
 
 // ── Expiration helper ────────────────────────────────────────────────
 
-function isExpired(record: MemoryRecord): boolean {
+export function isExpired(record: MemoryRecord): boolean {
   if (!record.expires_at) {
     return false;
   }
@@ -232,7 +234,7 @@ export function writeMemoryFile(
 // ── Read ─────────────────────────────────────────────────────────────
 
 /** The record as a MemoryEntry, or null when it is absent, deleted, or expired. */
-function activeMemoryEntry(
+export function activeMemoryEntry(
   key: string,
   record: MemoryRecord | undefined,
 ): MemoryEntry | null {
@@ -355,301 +357,15 @@ export function deleteMemoryFile(
   return { key, deleted: true };
 }
 
-// ── List ─────────────────────────────────────────────────────────────
-
-export function listMemoriesFile(
-  agentId?: string,
-  limit: number = 50,
-  offset: number = 0,
-): { memories: MemoryListEntry[]; total: number } {
-  const id = resolveAgentId(agentId);
-  const memories = readJson<Record<string, MemoryRecord>>(memoriesPath(id), {});
-
-  // Filter out deleted and expired entries
-  const active: MemoryListEntry[] = [];
-
-  for (const [key, record] of Object.entries(memories)) {
-    if (record.is_deleted || isExpired(record)) {
-      continue;
-    }
-    active.push({
-      key,
-      agent_id: id,
-      repo: null,
-      version: record.version,
-      created_at: record.created_at,
-      ttl_seconds: record.ttl_seconds,
-      has_facts: false,
-    });
-  }
-
-  // Sort by created_at descending (newest first)
-  active.sort((a, b) => b.created_at.localeCompare(a.created_at));
-
-  const total = active.length;
-  const paged = active.slice(offset, offset + limit);
-
-  appendAudit({
-    agent_id: id,
-    operation: "list",
-    memory_key: null,
-    pool_name: null,
-    metadata: { limit, offset, total },
-  });
-
-  return { memories: paged, total };
-}
-
-// ── Shared Pools (T025) ──────────────────────────────────────────────
-
-function sharedPoolDir(pool: string): string {
-  return join(BASE_DIR, "shared", pool);
-}
-
-function sharedMemoriesPath(pool: string): string {
-  return join(sharedPoolDir(pool), "memories.json");
-}
-
-export interface SharedWriteResult {
-  pool: string;
-  key: string;
-  version: number;
-  agent_id: string;
-  created_at: string;
-}
-
-export function sharedWriteFile(
-  pool: string,
-  key: string,
-  value: string,
-  agentId?: string,
-): SharedWriteResult {
-  const id = resolveAgentId(agentId);
-  const now = new Date().toISOString();
-  const filePath = sharedMemoriesPath(pool);
-
-  const memories = readJson<Record<string, MemoryRecord>>(filePath, {});
-
-  const existing = memories[key];
-  const nextVersion =
-    existing && !existing.is_deleted ? existing.version + 1 : 1;
-
-  memories[key] = {
-    value,
-    version: nextVersion,
-    created_at: now,
-    ttl_seconds: null,
-    is_deleted: false,
-    expires_at: null,
-  };
-
-  writeJson(filePath, memories);
-
-  appendAudit({
-    agent_id: id,
-    operation: "shared_write",
-    memory_key: key,
-    pool_name: pool,
-    metadata: { version: nextVersion },
-  });
-
-  return { pool, key, version: nextVersion, agent_id: id, created_at: now };
-}
-
-export function sharedReadFile(
-  pool: string,
-  key?: string,
-): MemoryEntry | MemoryEntry[] | null {
-  const filePath = sharedMemoriesPath(pool);
-  const memories = readJson<Record<string, MemoryRecord>>(filePath, {});
-
-  // Return a specific key
-  if (key !== undefined) {
-    return activeMemoryEntry(key, memories[key]);
-  }
-
-  // Return all active entries in the pool
-  const entries = Object.entries(memories)
-    .map(([poolKey, record]) => activeMemoryEntry(poolKey, record))
-    .filter((entry): entry is MemoryEntry => entry !== null);
-
-  return entries.length > 0 ? entries : null;
-}
-
-// ── Snapshots (T028) ─────────────────────────────────────────────────
-
-// The on-disk snapshot file shape; snake_case mirrors memory.snapshots' raw pg-row output (models/snapshot.ts).
-// eslint-disable-next-line lore/no-row-types-outside-models
-export interface SnapshotRecord {
-  snapshot_id: string;
-  agent_id: string;
-  created_at: string;
-  memory_refs: Record<string, { value: string; version: number }>;
-}
-
-function snapshotsDir(agentId: string): string {
-  return join(agentDir(agentId), "snapshots");
-}
-
-export function createSnapshotFile(agentId?: string): {
-  snapshot_path: string;
-  memory_count: number;
-  created_at: string;
-} {
-  const id = resolveAgentId(agentId);
-  const now = new Date().toISOString();
-  const timestamp = now.replace(/[:.]/g, "-");
-  const snapshotPath = join(snapshotsDir(id), `${timestamp}.json`);
-
-  const memories = readJson<Record<string, MemoryRecord>>(memoriesPath(id), {});
-
-  // Collect all active (non-deleted, non-expired) memories
-  const memoryRefs: Record<string, { value: string; version: number }> = {};
-
-  for (const [key, record] of Object.entries(memories)) {
-    if (record.is_deleted || isExpired(record)) {
-      continue;
-    }
-    memoryRefs[key] = { value: record.value, version: record.version };
-  }
-
-  const snapshot: SnapshotRecord = {
-    snapshot_id: randomUUID(),
-    agent_id: id,
-    created_at: now,
-    memory_refs: memoryRefs,
-  };
-
-  writeJson(snapshotPath, snapshot);
-
-  appendAudit({
-    agent_id: id,
-    operation: "create_snapshot",
-    memory_key: null,
-    pool_name: null,
-    metadata: {
-      snapshot_path: snapshotPath,
-      memory_count: Object.keys(memoryRefs).length,
-    },
-  });
-
-  return {
-    snapshot_path: snapshotPath,
-    memory_count: Object.keys(memoryRefs).length,
-    created_at: now,
-  };
-}
-
-export function restoreSnapshotFile(snapshotPath: string): {
-  restored: boolean;
-  memory_count: number;
-} {
-  const snapshot = readJson<SnapshotRecord | null>(snapshotPath, null);
-
-  if (!snapshot) {
-    return { restored: false, memory_count: 0 };
-  }
-
-  const id = snapshot.agent_id;
-  const now = new Date().toISOString();
-
-  // Rebuild memories from snapshot refs
-  const restoredMemories: Record<string, MemoryRecord> = {};
-
-  for (const [key, ref] of Object.entries(snapshot.memory_refs)) {
-    restoredMemories[key] = {
-      value: ref.value,
-      version: ref.version,
-      created_at: now,
-      ttl_seconds: null,
-      is_deleted: false,
-      expires_at: null,
-    };
-  }
-
-  writeJson(memoriesPath(id), restoredMemories);
-
-  appendAudit({
-    agent_id: id,
-    operation: "restore_snapshot",
-    memory_key: null,
-    pool_name: null,
-    metadata: {
-      snapshot_path: snapshotPath,
-      memory_count: Object.keys(restoredMemories).length,
-    },
-  });
-
-  return { restored: true, memory_count: Object.keys(restoredMemories).length };
-}
-
-// ── Search (case-insensitive substring) ──────────────────────────────
-
-function isInactive(record: MemoryRecord): boolean {
-  return record.is_deleted || isExpired(record);
-}
-
-function matchesQuery(
-  key: string,
-  record: MemoryRecord,
-  lowerQuery: string,
-): boolean {
-  return (
-    key.toLowerCase().includes(lowerQuery) ||
-    record.value.toLowerCase().includes(lowerQuery)
-  );
-}
-
-function collectSearchResults(
-  memories: Record<string, MemoryRecord>,
-  agentId: string,
-  lowerQuery: string,
-  limit: number,
-): SearchResult[] {
-  const results: SearchResult[] = [];
-
-  for (const [key, record] of Object.entries(memories)) {
-    if (isInactive(record)) {
-      continue;
-    }
-
-    if (matchesQuery(key, record, lowerQuery)) {
-      results.push({
-        key,
-        value: record.value,
-        version: record.version,
-        score: 1.0,
-        agent_id: agentId,
-        created_at: record.created_at,
-        source: "memory",
-      });
-    }
-
-    if (results.length >= limit) {
-      break;
-    }
-  }
-
-  return results;
-}
-
-export function searchMemoryFile(
-  query: string,
-  agentId?: string,
-  limit: number = 10,
-): SearchResult[] {
-  const id = resolveAgentId(agentId);
-  const memories = readJson<Record<string, MemoryRecord>>(memoriesPath(id), {});
-  const lowerQuery = query.toLowerCase();
-  const results = collectSearchResults(memories, id, lowerQuery, limit);
-
-  appendAudit({
-    agent_id: id,
-    operation: "search",
-    memory_key: null,
-    pool_name: null,
-    metadata: { query, result_count: results.length },
-  });
-
-  return results;
-}
+// Pools/snapshots/list/search live in sibling files, re-exported for import-path back-compat.
+export {
+  sharedWriteFile,
+  sharedReadFile,
+  type SharedWriteResult,
+} from "./memory-file-pools.js";
+export {
+  createSnapshotFile,
+  restoreSnapshotFile,
+  type SnapshotRecord,
+} from "./memory-file-snapshots.js";
+export { listMemoriesFile, searchMemoryFile } from "./memory-file-query.js";

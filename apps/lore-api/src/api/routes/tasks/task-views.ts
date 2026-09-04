@@ -2,29 +2,24 @@ import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { apiError } from "../../../server/api-error.js";
 import type { Pool } from "pg";
 import type { ServerRoute } from "@hapi/hapi";
-import { z } from "zod";
-import { selectList, pickColumns } from "@re-cinq/lore-shared/lib/row.js";
-import { wireSchema } from "@re-cinq/lore-shared/lib/wire-schema.js";
-import {
-  PipelineTaskSchema,
-  PIPELINE_TASK_COLUMNS,
-} from "@re-cinq/lore-shared/models/pipeline-task.js";
-import {
-  TaskEventSchema,
-  TASK_EVENT_COLUMNS,
-} from "@re-cinq/lore-shared/models/task-event.js";
-import {
-  LlmCallSchema,
-  LLM_CALL_COLUMNS,
-} from "@re-cinq/lore-shared/models/llm-call.js";
-import {
-  AuditLogEntrySchema,
-  AUDIT_LOG_ENTRY_COLUMNS,
-} from "@re-cinq/lore-shared/models/audit-log-entry.js";
+import { selectList } from "@re-cinq/lore-shared/lib/row.js";
 import { zodResponse } from "../../../server/plugins/zod-response.js";
 import { bearerScope } from "../../../server/plugins/bearer-scope.js";
 import { zodValidate } from "../../../server/plugins/zod-validate.js";
-import { clampedLimit, DB_UNAVAILABLE } from "../common-schemas.js";
+import { DB_UNAVAILABLE } from "../common-schemas.js";
+import {
+  RepoTasksQuery,
+  AgentActivityQuery,
+  AuditLogQuery,
+  REPO_TASK_COLUMNS,
+  RepoTaskListSchema,
+  TaskStatsSchema,
+  AgentActivitySchema,
+  TASK_RUNTIME_LLM_COLUMNS,
+  TaskRuntimeSchema,
+  AuditLogPageSchema,
+} from "./task-views-schemas.js";
+import { TASK_EVENT_COLUMNS } from "@re-cinq/lore-shared/models/task-event.js";
 
 // Task-shaped reads dashboards need (ADR-032), distinct from `/api/tasks` (the MCP's task LIST) — these answer per-screen questions.
 
@@ -32,120 +27,6 @@ const UNDEFINED_TABLE = "42P01";
 
 const missingTable = (err: unknown) =>
   (err as { code?: string }).code === UNDEFINED_TABLE;
-
-const RepoTasksQuery = z.object({
-  repo: z.string().min(1).max(200),
-  limit: clampedLimit.default(15),
-});
-
-type RepoTasksQuery = z.infer<typeof RepoTasksQuery>;
-
-const AgentActivityQuery = z.object({
-  repo: z.string().max(200).optional(),
-});
-
-type AgentActivityQuery = z.infer<typeof AgentActivityQuery>;
-
-const AuditLogQuery = z.object({
-  repo: z.string().min(1).max(200),
-  /** Comma-separated: the caller names the decision types its panel renders. */
-  event_types: z.string().min(1).max(500),
-  limit: clampedLimit.default(25),
-});
-
-type AuditLogQuery = z.infer<typeof AuditLogQuery>;
-
-// Task dashboard's read models: stored fields come from the models, computed aggregates (counts, cost, roll-up) belong to no table and are stated here.
-const REPO_TASK_FIELDS = [
-  "id",
-  "description",
-  "taskType",
-  "status",
-  "agentId",
-  "prUrl",
-  "createdAt",
-] as const;
-const REPO_TASK_COLUMNS = pickColumns(PIPELINE_TASK_COLUMNS, REPO_TASK_FIELDS);
-
-const RepoTaskListSchema = z.object({
-  tasks: z.array(
-    wireSchema(
-      PipelineTaskSchema.pick({
-        id: true,
-        description: true,
-        taskType: true,
-        status: true,
-        agentId: true,
-        prUrl: true,
-        createdAt: true,
-      }),
-      REPO_TASK_COLUMNS,
-    ),
-  ),
-});
-
-const TaskStatsSchema = z.object({ total: z.number(), today: z.number() });
-
-/** One row per agent, unioned across tasks and memories. */
-const AgentActivitySchema = z.object({
-  agents: z.array(
-    z.object({
-      agent_id: z.string().nullable(),
-      task_count: z.number(),
-      cost_usd: z.number(),
-      created_by: z.string().nullable(),
-      reason_type: z.string().nullable(),
-      reason: z.string().nullable(),
-      memory_count: z.number(),
-      last_active: z.string().nullable(),
-    }),
-  ),
-});
-
-const TASK_RUNTIME_LLM_FIELDS = [
-  "model",
-  "inputTokens",
-  "outputTokens",
-  "durationMs",
-  "status",
-  "error",
-  "createdAt",
-] as const;
-const TASK_RUNTIME_LLM_COLUMNS = pickColumns(
-  LLM_CALL_COLUMNS,
-  TASK_RUNTIME_LLM_FIELDS,
-);
-
-const TaskRuntimeSchema = z.object({
-  events: z.array(wireSchema(TaskEventSchema, TASK_EVENT_COLUMNS)),
-  llm_calls: z.array(
-    wireSchema(
-      LlmCallSchema.pick({
-        model: true,
-        inputTokens: true,
-        outputTokens: true,
-        durationMs: true,
-        status: true,
-        error: true,
-        createdAt: true,
-      }),
-      LLM_CALL_COLUMNS,
-    ),
-  ),
-});
-
-const AuditLogPageSchema = z.object({
-  entries: z.array(
-    wireSchema(
-      AuditLogEntrySchema.pick({
-        eventType: true,
-        payload: true,
-        createdAt: true,
-      }),
-      AUDIT_LOG_ENTRY_COLUMNS,
-    ),
-  ),
-});
 
 export function taskViewRoutes(getPool: () => Pool | null): ServerRoute[] {
   return [

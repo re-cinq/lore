@@ -43,7 +43,7 @@ Re-runs a failed or escalated task by cloning it into a new pipeline task linked
    ([`POST /api/task`](../../api-routes/task-post/spec.md)) under the `task` scope.
 2. The route calls `retryTask(task_id)`
    ([handler wrapper](../../../libs/server-core/src/features/pipeline/pipeline.ts#L154)).
-3. **Shared CRUD** ([`retryTask`](../../../libs/shared/src/pipeline-tasks.ts#L90)):
+3. **Shared CRUD** ([`retryTask`](../../../libs/shared/src/pipeline-task-actions.ts#L14)):
    1. `getTask(pool, taskId)`; if `null`, throw `"Task not found"`.
    2. If `status ∉ {failed, needs-human-help}`, throw
       `"Cannot retry task in {status} state (must be failed or needs-human-help)"`.

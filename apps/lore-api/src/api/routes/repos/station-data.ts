@@ -3,14 +3,20 @@ import type { ServerRoute } from "@hapi/hapi";
 import { rethrowBoom, apiError } from "../../../server/api-error.js";
 import { z } from "zod";
 import { projectFor } from "../../../platform/project-boot.js";
-import { wireSchema } from "@re-cinq/lore-shared/lib/wire-schema.js";
-import {
-  PipelineTaskSchema,
-  PIPELINE_TASK_COLUMNS,
-} from "@re-cinq/lore-shared/models/pipeline-task.js";
 import { zodResponse } from "../../../server/plugins/zod-response.js";
 import { bearerScope } from "../../../server/plugins/bearer-scope.js";
 import { zodValidate } from "../../../server/plugins/zod-validate.js";
+import {
+  driftTasksRoute,
+  openLikeTasksRoute,
+  createRepoTaskRoute,
+} from "./station-task-routes.js";
+
+export {
+  driftTasksRoute,
+  openLikeTasksRoute,
+  createRepoTaskRoute,
+} from "./station-task-routes.js";
 
 const IssueBody = z.object({
   title: z.string(),
@@ -34,13 +40,6 @@ const PullBody = z.object({
   base: z.string().optional(),
   labels: z.array(z.string()).optional(),
 });
-const TaskBody = z.object({
-  description: z.string(),
-  taskType: z.string(),
-  createdBy: z.string().optional(),
-  contextBundle: z.record(z.unknown()).optional(),
-});
-
 // Data + write endpoints + bodies a station pod (its own image, no Postgres/GitHub App creds — ADR-031 D6/D7) reaches over HTTP via the shared Project facade; declared since an undeclared body is uncheckable across that image boundary.
 const IssueRefSchema = z.object({
   repo: z.string(),
@@ -71,25 +70,9 @@ const CiConclusionSchema = z.object({
   conclusion: z.enum(["success", "failure", "pending", "none"]),
 });
 
-/** What `tasks.create` answers with — the queued task's identity, not its row. */
-const StationTaskCreatedSchema = z.object({
-  task_id: z.string(),
-  task_type: z.string(),
-  status: z.string(),
-  priority: z.string(),
-  created_at: z.string(),
-});
+export const repoOf = (p: Record<string, string>) => `${p.owner}/${p.repo}`;
 
-/** The task rows a detector compares against — the wire shape, as stored. */
-const StationTaskListSchema = z.object({
-  tasks: z.array(
-    wireSchema(PipelineTaskSchema, PIPELINE_TASK_COLUMNS).partial(),
-  ),
-});
-
-const repoOf = (p: Record<string, string>) => `${p.owner}/${p.repo}`;
-
-const fail = (h: import("@hapi/hapi").ResponseToolkit, err: unknown) =>
+export const fail = (h: import("@hapi/hapi").ResponseToolkit, err: unknown) =>
   h
     .response({ error: err instanceof Error ? err.message : String(err) })
     .code(500);
@@ -303,106 +286,6 @@ function ciConclusionRoute(): ServerRoute {
         // A guard's refusal already carries its status; only an unexpected failure is this block's to shape.
         rethrowBoom(err);
 
-        return fail(h, err);
-      }
-    },
-  };
-}
-
-function driftTasksRoute(): ServerRoute {
-  return {
-    method: "GET",
-    path: "/api/repos/{owner}/{repo}/tasks/drift",
-    options: zodResponse(bearerScope("read"), StationTaskListSchema, {
-      name: "DriftTaskList",
-      description: "Tasks already open for a spec",
-    }),
-    handler: async (request, h) => {
-      try {
-        const q = request.query as Record<string, string | undefined>;
-
-        enforceTrue(
-          q.task_type && q.spec_path,
-          apiError(400),
-          "task_type + spec_path required",
-        );
-        const p = await projectFor(repoOf(request.params));
-
-        return h.response({
-          tasks: await p.tasks.driftTasksForSpec(q.task_type, q.spec_path),
-        });
-      } catch (err) {
-        // A guard's refusal already carries its status; only an unexpected failure is this block's to shape.
-        rethrowBoom(err);
-
-        return fail(h, err);
-      }
-    },
-  };
-}
-
-function openLikeTasksRoute(): ServerRoute {
-  return {
-    method: "GET",
-    path: "/api/repos/{owner}/{repo}/tasks/open-like",
-    options: zodResponse(bearerScope("read"), StationTaskListSchema, {
-      name: "OpenLikeTaskList",
-      description: "Open tasks matching a prefix",
-    }),
-    handler: async (request, h) => {
-      try {
-        const q = request.query as Record<string, string | undefined>;
-
-        enforceTrue(
-          q.task_type && q.description_prefix,
-          apiError(400),
-          "task_type + description_prefix required",
-        );
-        const statuses = (q.statuses ?? "").split(",").filter(Boolean);
-        const p = await projectFor(repoOf(request.params));
-
-        return h.response({
-          tasks: await p.tasks.findOpenLike({
-            taskType: q.task_type,
-            descriptionPrefix: q.description_prefix,
-            statuses,
-          }),
-        });
-      } catch (err) {
-        // A guard's refusal already carries its status; only an unexpected failure is this block's to shape.
-        rethrowBoom(err);
-
-        return fail(h, err);
-      }
-    },
-  };
-}
-
-function createRepoTaskRoute(): ServerRoute {
-  return {
-    method: "POST",
-    path: "/api/repos/{owner}/{repo}/tasks",
-    options: zodResponse(
-      {
-        ...bearerScope("task"),
-        validate: { payload: zodValidate(TaskBody) },
-      },
-      StationTaskCreatedSchema,
-      { name: "StationTaskCreated", description: "The task that was queued" },
-    ),
-    handler: async (request, h) => {
-      try {
-        const body = request.payload as z.infer<typeof TaskBody>;
-        const p = await projectFor(repoOf(request.params));
-        const created = await p.tasks.create({
-          description: body.description,
-          taskType: body.taskType,
-          createdBy: body.createdBy,
-          contextBundle: body.contextBundle,
-        });
-
-        return h.response(created);
-      } catch (err) {
         return fail(h, err);
       }
     },

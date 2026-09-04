@@ -6,16 +6,12 @@ import { parseAgentRunTurn, type AgentRunTurn } from "@/lib/run-turn-types";
 import {
   MAX_TURNS_LOADED,
   MAX_WALK_PAGES,
-  clockTime,
   conversationEntries,
-  envelopePretty,
   nextTurnsCursor,
   parseHasMore,
   serverReportsMore,
-  turnHeading,
   turnsForNode,
   turnsUrl,
-  type TimedLogEntry,
 } from "./turn-transcript-presenter";
 import {
   segmentLabel,
@@ -23,18 +19,20 @@ import {
   type TurnSegment,
 } from "@/lib/turn-segments";
 import CollapsibleCard from "@/components/CollapsibleCard";
-import { EntryLine } from "@/components/LogEntriesView";
-import LogFormatToggle from "@/components/LogFormatToggle";
 import styles from "./FullTranscriptPanel.module.css";
+import {
+  TranscriptCapped,
+  TranscriptEmpty,
+  TranscriptError,
+  TranscriptLoading,
+  TranscriptToggleRow,
+  TranscriptTurnsList,
+  type NodeSegmentView,
+} from "./TranscriptSections";
 
 export interface FullTranscriptPanelProps {
   runId: string;
   nodeId: string;
-}
-
-interface NodeSegmentView {
-  label: string | null;
-  entries: TimedLogEntry[];
 }
 
 function exceededWalkBudget(turnsLoaded: number, pages: number): boolean {
@@ -132,147 +130,6 @@ async function walkAllTurns(
     }
     cursor = next;
   }
-}
-
-// Loading… only once the card has actually been opened; a closed card shows nothing while resp is still null.
-function TranscriptLoading({ show }: { show: boolean }) {
-  if (!show) {
-    return null;
-  }
-
-  return <p className={`meta ${styles.placeholder}`}>Loading…</p>;
-}
-
-function TranscriptError({ error }: { error: string | null }) {
-  if (!error) {
-    return null;
-  }
-
-  return <p className={styles.error}>Failed to load turns: {error}</p>;
-}
-
-function TranscriptCapped({
-  show,
-  turnsLoaded,
-}: {
-  show: boolean;
-  turnsLoaded: number;
-}) {
-  if (!show) {
-    return null;
-  }
-
-  return (
-    <p className={`meta ${styles.notice}`}>
-      Loaded only the first {turnsLoaded} turns of this run.
-    </p>
-  );
-}
-
-function TranscriptEmpty({ show, nodeId }: { show: boolean; nodeId: string }) {
-  if (!show) {
-    return null;
-  }
-
-  return (
-    <p className={`meta ${styles.placeholder}`}>
-      No stored turns for {nodeId}. Turns older than the retention horizon are
-      pruned.
-    </p>
-  );
-}
-
-function TranscriptToggleRow({
-  show,
-  showRaw,
-  onChange,
-}: {
-  show: boolean;
-  showRaw: boolean;
-  onChange: (raw: boolean) => void;
-}) {
-  if (!show) {
-    return null;
-  }
-
-  return (
-    <div className={styles.toggleRow}>
-      <LogFormatToggle raw={showRaw} onChange={onChange} />
-    </div>
-  );
-}
-
-function RawTurnsList({ turns }: { turns: AgentRunTurn[] }) {
-  return (
-    <ol className={styles.turns}>
-      {turns.map((turn) => (
-        <li key={turn.id} className={styles.turn}>
-          <details>
-            <summary className={styles.turnSummary}>
-              <span className={styles.kind}>{turnHeading(turn)}</span>
-              {turn.iteration !== null && (
-                <span className={styles.iteration}>
-                  iteration {turn.iteration}
-                </span>
-              )}
-              <time dateTime={turn.createdAt}>
-                {new Date(turn.createdAt).toLocaleString()}
-              </time>
-            </summary>
-            <pre className={styles.envelope}>{envelopePretty(turn)}</pre>
-          </details>
-        </li>
-      ))}
-    </ol>
-  );
-}
-
-function SegmentedTurnsList({ segments }: { segments: NodeSegmentView[] }) {
-  return (
-    <ol className={styles.segments}>
-      {segments.map((segment, index) => (
-        <li key={index} className={styles.segment}>
-          {segment.label !== null && (
-            <div className={styles.segmentHeader}>{segment.label}</div>
-          )}
-          <ol className={styles.entries}>
-            {segment.entries.map((timed, i) => (
-              <li key={i} className={styles.entryRow}>
-                <time className={styles.entryTime} dateTime={timed.at}>
-                  {clockTime(timed.at)}
-                </time>
-                <div className={styles.entryBody}>
-                  <EntryLine entry={timed.entry} />
-                </div>
-              </li>
-            ))}
-          </ol>
-        </li>
-      ))}
-    </ol>
-  );
-}
-
-function TranscriptTurnsList({
-  show,
-  showRaw,
-  turns,
-  segments,
-}: {
-  show: boolean;
-  showRaw: boolean;
-  turns: AgentRunTurn[];
-  segments: NodeSegmentView[];
-}) {
-  if (!show) {
-    return null;
-  }
-
-  return showRaw ? (
-    <RawTurnsList turns={turns} />
-  ) : (
-    <SegmentedTurnsList segments={segments} />
-  );
 }
 
 export default function FullTranscriptPanel({
