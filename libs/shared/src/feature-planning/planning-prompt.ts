@@ -67,22 +67,70 @@ export function composeRoundFeedback(input: RoundFeedbackInput): string {
   return `<RoundFeedback round="${input.round}">\n${body}</RoundFeedback>`;
 }
 
+type SectionFeedback = { comment?: string; direction?: SectionDirection };
+
+function sectionFeedback(
+  section: GapSection,
+  answers: SectionAnswers | null,
+): SectionFeedback | undefined {
+  return answers?.sections?.[section.title];
+}
+
+function sectionComment(
+  feedback: SectionFeedback | undefined,
+): string | undefined {
+  return feedback?.comment?.trim();
+}
+
+function sectionDirection(
+  feedback: SectionFeedback | undefined,
+): SectionDirection {
+  return feedback?.direction ?? "refine";
+}
+
+function answeredQuestions(
+  section: GapSection,
+  feedback: SectionFeedback | undefined,
+  answers: SectionAnswers | null,
+): GapQuestion[] {
+  return (section.questions ?? []).filter(
+    (q) => feedback || answers?.questions?.[q.id]?.trim(),
+  );
+}
+
+function questionTag(
+  question: GapQuestion,
+  answers: SectionAnswers | null,
+): string {
+  const answer = answers?.questions?.[question.id]?.trim() || "(unanswered)";
+
+  return `<Question id="${question.id}">\n<Asked>${question.question}</Asked>\n<Answer>${answer}</Answer>\n</Question>`;
+}
+
+function renderFeedbackSection(
+  title: string,
+  direction: SectionDirection,
+  parts: string[],
+): string {
+  return parts.length
+    ? `<Section title="${title}" direction="${direction}">\n${parts.join("\n")}\n</Section>`
+    : `<Section title="${title}" direction="${direction}"/>`;
+}
+
 /** One section's feedback, or null when the author said nothing about it. */
 function feedbackBlock(
   section: GapSection,
   answers: SectionAnswers | null,
 ): string | null {
-  const feedback = answers?.sections?.[section.title];
-  const comment = feedback?.comment?.trim();
-  const answered = (section.questions ?? []).filter(
-    (q) => feedback || answers?.questions?.[q.id]?.trim(),
-  );
+  const feedback = sectionFeedback(section, answers);
+  const comment = sectionComment(feedback);
+  const answered = answeredQuestions(section, feedback, answers);
 
   if (!feedback && !answered.length) {
     return null;
   }
   const title = section.title.replace(/"/g, "'");
-  const direction = feedback?.direction ?? "refine";
+  const direction = sectionDirection(feedback);
   const parts: string[] = [];
 
   if (comment) {
@@ -90,16 +138,10 @@ function feedbackBlock(
   }
 
   for (const question of answered) {
-    const answer = answers?.questions?.[question.id]?.trim() || "(unanswered)";
-
-    parts.push(
-      `<Question id="${question.id}">\n<Asked>${question.question}</Asked>\n<Answer>${answer}</Answer>\n</Question>`,
-    );
+    parts.push(questionTag(question, answers));
   }
 
-  return parts.length
-    ? `<Section title="${title}" direction="${direction}">\n${parts.join("\n")}\n</Section>`
-    : `<Section title="${title}" direction="${direction}"/>`;
+  return renderFeedbackSection(title, direction, parts);
 }
 
 function currentDraftSpec(
@@ -165,13 +207,7 @@ function questionsBlock(
   questions: GapQuestion[],
   answers: SectionAnswers | null,
 ): string {
-  const body = questions
-    .map((q) => {
-      const answer = answers?.questions?.[q.id]?.trim() || "(unanswered)";
-
-      return `<Question id="${q.id}">\n<Asked>${q.question}</Asked>\n<Answer>${answer}</Answer>\n</Question>`;
-    })
-    .join("\n");
+  const body = questions.map((q) => questionTag(q, answers)).join("\n");
 
   return tag("Questions", body);
 }

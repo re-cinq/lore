@@ -76,6 +76,31 @@ function inheritFromSource(
   };
 }
 
+function matchesRepoAndKind(
+  row: AssemblyRunRecord,
+  query: AssemblyRunQuery,
+  blueprints: Set<string> | null,
+  statuses: Set<string> | null,
+): boolean {
+  return (
+    (query.repo === undefined || row.repo === query.repo) &&
+    (blueprints === null || blueprints.has(row.blueprintName)) &&
+    (statuses === null || statuses.has(row.status))
+  );
+}
+
+function matchesTaskAndTiming(
+  row: AssemblyRunRecord,
+  query: AssemblyRunQuery,
+): boolean {
+  return (
+    (query.taskId === undefined || row.taskId === query.taskId) &&
+    (query.prNumber === undefined ||
+      Number(row.args.pr_number) === query.prNumber) &&
+    (query.createdAfter === undefined || row.createdAt >= query.createdAfter)
+  );
+}
+
 /** In-memory AssemblyRunsPort — the behavioral spec of the Pg adapter; clock is injectable for deterministic ordering in tests. */
 export class InMemoryAssemblyRuns implements AssemblyRunsPort {
   rows: AssemblyRunRecord[] = [];
@@ -375,6 +400,39 @@ export class InMemoryAssemblyRuns implements AssemblyRunsPort {
       }));
   }
 
+  private hasOpenClaimByAgent(runId: string, clusterAgentId: string): boolean {
+    return this.nodes.some(
+      (node) =>
+        node.assemblyRunId === runId &&
+        node.clusterAgentId === clusterAgentId &&
+        node.outcome === null,
+    );
+  }
+
+  private matchesSubjectAndClaim(
+    row: AssemblyRunRecord,
+    query: AssemblyRunQuery,
+  ): boolean {
+    return (
+      (query.subjectKey === undefined || row.subjectKey === query.subjectKey) &&
+      (query.clusterAgentId === undefined ||
+        this.hasOpenClaimByAgent(row.id, query.clusterAgentId))
+    );
+  }
+
+  private matchesRunQuery(
+    row: AssemblyRunRecord,
+    query: AssemblyRunQuery,
+    blueprints: Set<string> | null,
+    statuses: Set<string> | null,
+  ): boolean {
+    return (
+      matchesRepoAndKind(row, query, blueprints, statuses) &&
+      matchesTaskAndTiming(row, query) &&
+      this.matchesSubjectAndClaim(row, query)
+    );
+  }
+
   async list(query: AssemblyRunQuery): Promise<AssemblyRunRecord[]> {
     const blueprints =
       query.blueprintName === undefined
@@ -386,36 +444,15 @@ export class InMemoryAssemblyRuns implements AssemblyRunsPort {
           );
     const statuses = query.status ? new Set(query.status) : null;
 
-    return (
-      this.rows
-        .filter(
-          (row) =>
-            (query.repo === undefined || row.repo === query.repo) &&
-            (blueprints === null || blueprints.has(row.blueprintName)) &&
-            (statuses === null || statuses.has(row.status)) &&
-            (query.taskId === undefined || row.taskId === query.taskId) &&
-            (query.prNumber === undefined ||
-              Number(row.args.pr_number) === query.prNumber) &&
-            (query.createdAfter === undefined ||
-              row.createdAt >= query.createdAfter) &&
-            (query.subjectKey === undefined ||
-              row.subjectKey === query.subjectKey) &&
-            (query.clusterAgentId === undefined ||
-              this.nodes.some(
-                (node) =>
-                  node.assemblyRunId === row.id &&
-                  node.clusterAgentId === query.clusterAgentId &&
-                  node.outcome === null,
-              )),
-        )
+    return this.rows
+      .filter((row) => this.matchesRunQuery(row, query, blueprints, statuses))
+      .sort(
         // Newest first, id tiebreak for stability (not chronology) — same-millisecond runs come back in a fixed but arbitrary order, as in Postgres.
-        .sort(
-          (a, b) =>
-            b.createdAt.getTime() - a.createdAt.getTime() ||
-            b.id.localeCompare(a.id),
-        )
-        .slice(0, query.limit ?? 50)
-    );
+        (a, b) =>
+          b.createdAt.getTime() - a.createdAt.getTime() ||
+          b.id.localeCompare(a.id),
+      )
+      .slice(0, query.limit ?? 50);
   }
 
   async listSummaries(query: AssemblyRunQuery): Promise<AssemblyRunSummary[]> {

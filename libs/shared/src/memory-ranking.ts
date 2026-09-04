@@ -126,6 +126,69 @@ export function diversify(
   return out;
 }
 
+function decayStrength(
+  memory: {
+    created_at: string;
+    last_retrieved_at?: string | null;
+    half_life_days?: number | null;
+  },
+  now: number,
+): number {
+  const halfLife = memory.half_life_days || 60;
+  const effectiveDate = memory.last_retrieved_at || memory.created_at;
+  const effectiveAgeDays = (now - new Date(effectiveDate).getTime()) / 86400000;
+
+  return Math.pow(0.5, effectiveAgeDays / halfLife);
+}
+
+function valueLengthAdjustment(value: string): number {
+  if (value.length < 50) {
+    return -2;
+  }
+
+  return value.length > 500 ? 1 : 0;
+}
+
+function keyPrefixAdjustment(key: string): number {
+  let adjustment = 0;
+
+  if (key.startsWith("auto-curation/")) {
+    adjustment -= 1;
+  }
+
+  if (key.startsWith("session-summary/")) {
+    adjustment -= 1;
+  }
+
+  return adjustment;
+}
+
+function keyTopicAdjustment(key: string): number {
+  let adjustment = 0;
+
+  if (key.includes("gotcha") || key.includes("decision")) {
+    adjustment += 2;
+  }
+
+  if (key.includes("convention") || key.includes("pattern")) {
+    adjustment += 2;
+  }
+
+  return adjustment;
+}
+
+function retrievalAdjustment(retrievals: number): number {
+  if (retrievals >= 20) {
+    return 2;
+  }
+
+  return retrievals >= 5 ? 1 : 0;
+}
+
+function confidenceAdjustment(confidence: string | null | undefined): number {
+  return confidence === "stale" ? -1 : 0;
+}
+
 export function scoreImportance(
   memory: {
     key: string;
@@ -138,50 +201,14 @@ export function scoreImportance(
   },
   now: number,
 ): number {
-  const halfLife = memory.half_life_days || 60;
-  const effectiveDate = memory.last_retrieved_at || memory.created_at;
-  const effectiveAgeDays = (now - new Date(effectiveDate).getTime()) / 86400000;
-  const strength = Math.pow(0.5, effectiveAgeDays / halfLife);
-  let score = Math.round(strength * 10);
-
-  const isShortValue = memory.value.length < 50;
-
-  if (isShortValue) {
-    score -= 2;
-  }
-
-  if (!isShortValue && memory.value.length > 500) {
-    score += 1;
-  }
-
-  if (memory.key.startsWith("auto-curation/")) {
-    score -= 1;
-  }
-
-  if (memory.key.startsWith("session-summary/")) {
-    score -= 1;
-  }
-
-  if (memory.key.includes("gotcha") || memory.key.includes("decision")) {
-    score += 2;
-  }
-
-  if (memory.key.includes("convention") || memory.key.includes("pattern")) {
-    score += 2;
-  }
-  const retrievals = memory.retrieval_count || 0;
-
-  if (retrievals >= 20) {
-    score += 2;
-  }
-
-  if (retrievals >= 5 && retrievals < 20) {
-    score += 1;
-  }
-
-  if (memory.confidence === "stale") {
-    score -= 1;
-  }
+  const strength = decayStrength(memory, now);
+  const score =
+    Math.round(strength * 10) +
+    valueLengthAdjustment(memory.value) +
+    keyPrefixAdjustment(memory.key) +
+    keyTopicAdjustment(memory.key) +
+    retrievalAdjustment(memory.retrieval_count || 0) +
+    confidenceAdjustment(memory.confidence);
 
   return Math.max(0, Math.min(10, score));
 }

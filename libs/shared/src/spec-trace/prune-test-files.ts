@@ -23,6 +23,57 @@ interface DoomedChunkRow {
   covOut?: { uid: string; covered?: UidRef[] };
 }
 
+/** `TestChunk.coverage` is the only live chunk→Coverage edge; `Coverage.test` is unwritten dead schema. */
+function collectChunkEdges(chunks: DoomedChunkRow[]): {
+  coverageUids: string[];
+  coveredUids: string[];
+  statementEdges: Array<[string, string]>;
+  criterionEdges: Array<[string, string]>;
+} {
+  const coverageUids = new Set<string>();
+  const coveredUids = new Set<string>();
+  const statementEdges: Array<[string, string]> = [];
+  const criterionEdges: Array<[string, string]> = [];
+
+  for (const chunk of chunks) {
+    if (chunk.covOut) {
+      coverageUids.add(chunk.covOut.uid);
+      (chunk.covOut.covered ?? []).forEach((coveredRef) =>
+        coveredUids.add(coveredRef.uid),
+      );
+    }
+    statementEdges.push(
+      ...(chunk.stmts ?? []).map((owner): [string, string] => [
+        owner.uid,
+        chunk.uid,
+      ]),
+    );
+    criterionEdges.push(
+      ...(chunk.acs ?? []).map((owner): [string, string] => [
+        owner.uid,
+        chunk.uid,
+      ]),
+    );
+  }
+
+  return {
+    coverageUids: [...coverageUids],
+    coveredUids: [...coveredUids],
+    statementEdges,
+    criterionEdges,
+  };
+}
+
+function parseFileSubtreeResponse(res: {
+  data: Record<string, Record<string, unknown>[]>;
+}): { chunks: DoomedChunkRow[]; suites: UidRef[]; rootUid: string | null } {
+  const chunks = (res.data.chunks ?? []) as unknown as DoomedChunkRow[];
+  const suites = (res.data.suites ?? []) as unknown as UidRef[];
+  const root = res.data.root as unknown as UidRef[] | undefined;
+
+  return { chunks, suites, rootUid: root?.[0]?.uid ?? null };
+}
+
 async function queryFileSubtree(
   dgraph: DgraphClientPort,
   repo: string,
@@ -44,48 +95,17 @@ async function queryFileSubtree(
       }`,
       { $repo: repo, $file: filePath },
     );
-    const chunks = (res.data?.chunks ?? []) as unknown as DoomedChunkRow[];
-    const suites = (res.data?.suites ?? []) as unknown as UidRef[];
+    const { chunks, suites, rootUid } = parseFileSubtreeResponse(res);
 
     if (chunks.length === 0 && suites.length === 0) {
       return null;
-    }
-    const coverageUids = new Set<string>();
-    const coveredUids = new Set<string>();
-    const statementEdges: Array<[string, string]> = [];
-    const criterionEdges: Array<[string, string]> = [];
-
-    for (const chunk of chunks) {
-      // `TestChunk.coverage` is the only live chunk→Coverage edge; `Coverage.test` is unwritten dead schema.
-      if (chunk.covOut) {
-        coverageUids.add(chunk.covOut.uid);
-        (chunk.covOut.covered ?? []).forEach((coveredRef) =>
-          coveredUids.add(coveredRef.uid),
-        );
-      }
-      statementEdges.push(
-        ...(chunk.stmts ?? []).map((owner): [string, string] => [
-          owner.uid,
-          chunk.uid,
-        ]),
-      );
-      criterionEdges.push(
-        ...(chunk.acs ?? []).map((owner): [string, string] => [
-          owner.uid,
-          chunk.uid,
-        ]),
-      );
     }
 
     return {
       chunkUids: chunks.map((c) => c.uid),
       suiteUids: suites.map((s) => s.uid),
-      coverageUids: [...coverageUids],
-      coveredUids: [...coveredUids],
-      statementEdges,
-      criterionEdges,
-      rootUid:
-        (res.data?.root?.[0] as unknown as UidRef | undefined)?.uid ?? null,
+      ...collectChunkEdges(chunks),
+      rootUid,
     };
   });
 }

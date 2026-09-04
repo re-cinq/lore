@@ -5,6 +5,7 @@ import type {
   AgentRunEventType,
   AgentRunEventsRepository,
 } from "./agent-run-events-port.js";
+import type { CarriedRunIdentity } from "../run-identity/carried-run-identity.js";
 
 /** The shape `pipeline.agent_run_events` hands back from `RETURNING *`. */
 interface AgentRunEventDbRow {
@@ -53,6 +54,44 @@ function byIdAscending(a: AgentRunEventRow, b: AgentRunEventRow): number {
   return BigInt(a.id) < BigInt(b.id) ? -1 : 1;
 }
 
+function carriedNodeFields(carried: CarriedRunIdentity | null | undefined) {
+  const identity: Partial<CarriedRunIdentity> = carried ?? {};
+
+  return {
+    assembly_run_id: identity.assemblyRunId ?? null,
+    node_id: identity.nodeId ?? null,
+    iteration: identity.iteration ?? null,
+    station_run_id: identity.stationRunId ?? null,
+  };
+}
+
+function toolFields(row: AgentRunEventInsert) {
+  return {
+    tool_name: row.toolName ?? null,
+    tool_use_id: row.toolUseId ?? null,
+    is_error: row.isError ?? false,
+  };
+}
+
+function contentFields(row: AgentRunEventInsert) {
+  return {
+    file_paths: [...(row.filePaths ?? [])],
+    summary: row.summary ?? null,
+    payload: row.payload ?? {},
+  };
+}
+
+function toInsertRow(row: AgentRunEventInsert) {
+  return {
+    task_id: row.taskId,
+    agent_cr_name: row.agentCrName,
+    ...carriedNodeFields(row.carried),
+    event_type: row.eventType,
+    ...toolFields(row),
+    ...contentFields(row),
+  };
+}
+
 /** Postgres-backed {@link AgentRunEventsRepository}. Batch as ONE jsonb parameter via jsonb_to_recordset (varies row count, agent-controlled text never in statement). Correlation via LEFT JOIN LATERAL for resilience. */
 export class PgAgentRunEvents implements AgentRunEventsRepository {
   constructor(private readonly pool: PgPool) {}
@@ -64,21 +103,7 @@ export class PgAgentRunEvents implements AgentRunEventsRepository {
       return [];
     }
 
-    const batch = rows.map((row) => ({
-      task_id: row.taskId,
-      agent_cr_name: row.agentCrName,
-      assembly_run_id: row.carried?.assemblyRunId ?? null,
-      node_id: row.carried?.nodeId ?? null,
-      iteration: row.carried?.iteration ?? null,
-      station_run_id: row.carried?.stationRunId ?? null,
-      event_type: row.eventType,
-      tool_name: row.toolName ?? null,
-      tool_use_id: row.toolUseId ?? null,
-      is_error: row.isError ?? false,
-      file_paths: [...(row.filePaths ?? [])],
-      summary: row.summary ?? null,
-      payload: row.payload ?? {},
-    }));
+    const batch = rows.map(toInsertRow);
 
     const { rows: inserted } = await this.pool.query<AgentRunEventDbRow>(
       `INSERT INTO pipeline.agent_run_events (

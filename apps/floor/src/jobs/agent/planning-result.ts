@@ -23,6 +23,71 @@ export type PlanningDelivery =
   | { outcome: "failed"; error: string }
   | { outcome: "skipped"; error: string };
 
+async function resolvePlanningTask(
+  fileEvent: AgentFileEvent,
+  deps: PlanningResultDeps,
+): Promise<PipelineTask | null> {
+  const task = await deps.tasks.getById(fileEvent.taskId);
+
+  if (!task || task.task_type !== "feature-planning") {
+    return null;
+  }
+
+  return task;
+}
+
+interface PlanningRoundIds {
+  featureId: string;
+  iteration: number;
+}
+
+/** The LINE owns the round number: a resumed round mints no task (FR6.22), so context_bundle's iteration is stale past round 1; the task's value is only the legacy fallback. */
+async function resolvePlanningRoundIds(
+  fileEvent: AgentFileEvent,
+  deps: PlanningResultDeps,
+  task: PipelineTask,
+): Promise<PlanningRoundIds | null> {
+  const featureId = task.context_bundle?.feature_id as string | undefined;
+  const iteration =
+    (await deps.roundOf(fileEvent.taskId)) ??
+    (task.context_bundle?.iteration as number | undefined);
+
+  if (!featureId || iteration == null) {
+    return null;
+  }
+
+  return { featureId, iteration };
+}
+
+type ParsedPlanningPayload =
+  { outcome: "ok"; payload: unknown } | { outcome: "failed"; error: string };
+
+function parsePlanningPayload(content: string | null): ParsedPlanningPayload {
+  try {
+    return { outcome: "ok", payload: JSON.parse(content ?? "") };
+  } catch (err) {
+    // Same rule as below: one owner for "this round failed".
+    return {
+      outcome: "failed",
+      error: `result.json is not valid JSON: ${err instanceof Error ? err.message : String(err)}`,
+    };
+  }
+}
+
+/** A failed ATTEMPT is not a failed ROUND — the analyze node's iteration_max retry can still produce a result, so settleTaskForLine remains the single owner of the round verdict. */
+function resolvePlanningOutcome(
+  fileEvent: AgentFileEvent,
+): ParsedPlanningPayload {
+  if (fileEvent.reason) {
+    return {
+      outcome: "failed",
+      error: `the agent produced no result.json (${fileEvent.reason})`,
+    };
+  }
+
+  return parsePlanningPayload(fileEvent.content);
+}
+
 /** Persist one planning artifact event; skips non-planning-result events and non-planning-round tasks (the sink carries every run's events, so most calls are a no-op by design). */
 export async function deliverPlanningResult(
   fileEvent: AgentFileEvent,
@@ -31,43 +96,25 @@ export async function deliverPlanningResult(
   if (fileEvent.event !== PLANNING_RESULT_EVENT) {
     return { outcome: "skipped", error: "not a planning result" };
   }
-  const task = await deps.tasks.getById(fileEvent.taskId);
+  const task = await resolvePlanningTask(fileEvent, deps);
 
-  if (!task || task.task_type !== "feature-planning") {
+  if (!task) {
     return { outcome: "skipped", error: "not a planning round" };
   }
-  const featureId = task.context_bundle?.feature_id as string | undefined;
-  // The LINE owns the round number: a resumed round mints no task (FR6.22), so context_bundle's iteration is stale past round 1; the task's value is only the legacy fallback.
-  const iteration =
-    (await deps.roundOf(fileEvent.taskId)) ??
-    (task.context_bundle?.iteration as number | undefined);
+  const ids = await resolvePlanningRoundIds(fileEvent, deps, task);
 
-  if (!featureId || iteration == null) {
+  if (!ids) {
     return { outcome: "skipped", error: "planning round has no feature id" };
   }
+  const { featureId, iteration } = ids;
   const { features } = await deps.featuresFor(task.target_repo ?? "");
+  const parsed = resolvePlanningOutcome(fileEvent);
 
-  // A failed ATTEMPT is not a failed ROUND — the analyze node's iteration_max retry can still produce a result, so settleTaskForLine remains the single owner of the round verdict.
-  if (fileEvent.reason) {
-    return {
-      outcome: "failed",
-      error: `the agent produced no result.json (${fileEvent.reason})`,
-    };
+  if (parsed.outcome === "failed") {
+    return parsed;
   }
 
-  let payload: unknown;
-
-  try {
-    payload = JSON.parse(fileEvent.content ?? "");
-  } catch (err) {
-    // Same rule as above: one owner for "this round failed".
-    return {
-      outcome: "failed",
-      error: `result.json is not valid JSON: ${err instanceof Error ? err.message : String(err)}`,
-    };
-  }
-
-  return applyGapResult(features, featureId, iteration, payload);
+  return applyGapResult(features, featureId, iteration, parsed.payload);
 }
 
 /** Deliver every planning artifact in one sink batch; never throws, since a delivery failure must not 500 the telemetry ingest that also carries unrelated cost/run-viz rows. Returns how many rounds it settled. */

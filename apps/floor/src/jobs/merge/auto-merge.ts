@@ -55,65 +55,72 @@ const TRUST_ORDER: Record<string, number> = {
   full: 4,
 };
 
-// Pure decision function: given a fully resolved policy and the PR's observable state, returns the outcome and rule trace, separated so the engine's network calls stay unit-testable apart from the policy logic.
-export function evaluateAutoMerge(
+function buildBaseRule(
   inputs: AutoMergePolicyInputs,
-): AutoMergeDecision {
-  const ciStatus: "success" | "failed" | "pending" = inputs.ciSucceeded
-    ? "success"
-    : "failed";
-  const botReview: "APPROVED" | "CHANGES_REQUESTED" | "PENDING" =
-    inputs.botApproved ? "APPROVED" : "CHANGES_REQUESTED";
-
-  const baseRule = {
+): AutoMergeDecision["rule"] {
+  return {
     path_match_count: inputs.changedPaths.filter(
       (p) => matchingPatterns(p, inputs.autoMerge.paths).length > 0,
     ).length,
     trust_level: inputs.trustLevel ?? null,
-    ci_status: ciStatus,
-    bot_review_state: botReview,
+    ci_status: inputs.ciSucceeded ? "success" : "failed",
+    bot_review_state: inputs.botApproved ? "APPROVED" : "CHANGES_REQUESTED",
     human_changes_requested: inputs.humanChangesRequested,
   };
+}
 
-  if (!inputs.darkFactoryEnabled) {
-    return { outcome: "deferred:dark_mode_off", rule: baseRule };
-  }
+interface AutoMergeGuard {
+  failed: boolean;
+  outcome: AutoMergeOutcome;
+}
 
-  // A zero-file PR would technically pass the path-allowlist check (vacuous truth) but GitHub's merge call would then 422 on an empty diff — surface the real reason in the audit log instead.
-  if (inputs.changedPaths.length === 0) {
-    return { outcome: "deferred:no_changes", rule: baseRule };
-  }
-
-  if (inputs.reviewInFlight) {
-    return { outcome: "deferred:review_in_flight", rule: baseRule };
-  }
-
-  if (inputs.humanChangesRequested) {
-    return { outcome: "deferred:human_review", rule: baseRule };
-  }
-
-  if (inputs.autoMerge.require_green_ci && !inputs.ciSucceeded) {
-    return { outcome: "deferred:ci_failed", rule: baseRule };
-  }
-
-  if (inputs.autoMerge.require_bot_approval && !inputs.botApproved) {
-    return { outcome: "deferred:bot_changes_requested", rule: baseRule };
-  }
-
-  if (!allPathsMatch(inputs.changedPaths, inputs.autoMerge.paths)) {
-    return { outcome: "deferred:path_outside_allowlist", rule: baseRule };
-  }
-
+/** Deferral guards in priority order — the first one that fails wins, exactly like the original if-chain. */
+function autoMergeGuards(inputs: AutoMergePolicyInputs): AutoMergeGuard[] {
   const minTrust = TRUST_ORDER[inputs.autoMerge.min_trust] ?? 1;
   const actualTrust = inputs.trustLevel
     ? (TRUST_ORDER[inputs.trustLevel] ?? 0)
     : 0;
 
-  if (actualTrust < minTrust) {
-    return { outcome: "deferred:trust_too_low", rule: baseRule };
+  return [
+    { failed: !inputs.darkFactoryEnabled, outcome: "deferred:dark_mode_off" },
+    // A zero-file PR would technically pass the path-allowlist check (vacuous truth) but GitHub's merge call would then 422 on an empty diff — surface the real reason in the audit log instead.
+    {
+      failed: inputs.changedPaths.length === 0,
+      outcome: "deferred:no_changes",
+    },
+    { failed: inputs.reviewInFlight, outcome: "deferred:review_in_flight" },
+    {
+      failed: inputs.humanChangesRequested,
+      outcome: "deferred:human_review",
+    },
+    {
+      failed: inputs.autoMerge.require_green_ci && !inputs.ciSucceeded,
+      outcome: "deferred:ci_failed",
+    },
+    {
+      failed: inputs.autoMerge.require_bot_approval && !inputs.botApproved,
+      outcome: "deferred:bot_changes_requested",
+    },
+    {
+      failed: !allPathsMatch(inputs.changedPaths, inputs.autoMerge.paths),
+      outcome: "deferred:path_outside_allowlist",
+    },
+    { failed: actualTrust < minTrust, outcome: "deferred:trust_too_low" },
+  ];
+}
+
+// Pure decision function: given a fully resolved policy and the PR's observable state, returns the outcome and rule trace, separated so the engine's network calls stay unit-testable apart from the policy logic.
+export function evaluateAutoMerge(
+  inputs: AutoMergePolicyInputs,
+): AutoMergeDecision {
+  const rule = buildBaseRule(inputs);
+  const failedGuard = autoMergeGuards(inputs).find((guard) => guard.failed);
+
+  if (failedGuard) {
+    return { outcome: failedGuard.outcome, rule };
   }
 
-  return { outcome: "merged", rule: baseRule };
+  return { outcome: "merged", rule };
 }
 
 export interface AutoMergeJobInputs {

@@ -282,96 +282,141 @@ async function projectSuiteChain(
   return parentUid;
 }
 
+/** Per-report accumulators an ingested descriptor folds into: the file-scoped TestChunk cache plus the Repo-root edge sets. */
+interface DescriptorIngestState {
+  fileChunkUidByFile: Map<string, string>;
+  repoTestChunkUids: Set<string>;
+  repoSuiteUids: Set<string>;
+}
+
+/** Upserts one descriptor's per-`it` + file-scoped TestChunks (caching the latter per file) and folds both into the Repo-root edge sets. */
+async function ingestDescriptorChunk(
+  dgraph: DgraphClientPort,
+  repo: string,
+  descriptor: TestDescriptor,
+  state: DescriptorIngestState,
+): Promise<DescriptorChunk> {
+  const innermostSuiteUid = await projectSuiteChain(dgraph, repo, descriptor);
+
+  if (innermostSuiteUid) {
+    state.repoSuiteUids.add(innermostSuiteUid);
+  }
+  const testChunkUid = await upsertByXid(
+    dgraph,
+    "TestChunk",
+    `${repo}|${descriptor.id}`,
+    {
+      "TestChunk.repo": repo,
+      "TestChunk.test_name": descriptor.name,
+      "TestChunk.file_path": descriptor.file,
+      ...(descriptor.startLine !== undefined
+        ? { "TestChunk.start_line": descriptor.startLine }
+        : {}),
+      ...(descriptor.endLine !== undefined
+        ? { "TestChunk.end_line": descriptor.endLine }
+        : {}),
+      ...(innermostSuiteUid
+        ? { "TestChunk.suite": { uid: innermostSuiteUid } }
+        : {}),
+    },
+  );
+  // The file-scoped TestChunk that owns coverage — `validated_by` targets this so the chain reconverges.
+  let fileChunkUid = state.fileChunkUidByFile.get(descriptor.file);
+
+  if (fileChunkUid === undefined) {
+    fileChunkUid = await upsertByXid(
+      dgraph,
+      "TestChunk",
+      fileScopedTestChunkXid(repo, descriptor.file),
+      {
+        "TestChunk.repo": repo,
+        "TestChunk.file_path": descriptor.file,
+        // test_name = file so the file-level coverage record attaches HAS_COVERAGE to this same node.
+        "TestChunk.test_name": descriptor.file,
+      },
+    );
+    state.fileChunkUidByFile.set(descriptor.file, fileChunkUid);
+  }
+  state.repoTestChunkUids.add(testChunkUid).add(fileChunkUid);
+
+  return { descriptor, testChunkUid, fileChunkUid };
+}
+
+/** Attach every TestChunk + leaf TestSuite to the Repo root so the test layer is reachable; set-union dedups across re-ingests. */
+async function attachTestLayerToRepo(
+  dgraph: DgraphClientPort,
+  repo: string,
+  state: DescriptorIngestState,
+): Promise<void> {
+  await upsertByXid(dgraph, "Repo", repo, {
+    ...(state.repoTestChunkUids.size
+      ? {
+          "Repo.test_chunks": [...state.repoTestChunkUids].map((uid) => ({
+            uid,
+          })),
+        }
+      : {}),
+    ...(state.repoSuiteUids.size
+      ? {
+          "Repo.test_suites": [...state.repoSuiteUids].map((uid) => ({
+            uid,
+          })),
+        }
+      : {}),
+  });
+}
+
+/** Writes every group via `writeGroup`, returning how many of them came back violated. */
+async function writeGroupsCountingViolations<T>(
+  groups: T[],
+  writeGroup: (group: T) => Promise<boolean>,
+): Promise<number> {
+  let violated = 0;
+
+  for (const group of groups) {
+    if (await writeGroup(group)) {
+      violated += 1;
+    }
+  }
+
+  return violated;
+}
+
 export async function ingestTestReport(
   dgraph: DgraphClientPort,
   repo: string,
   report: TestReport,
 ): Promise<IngestTestReportResult> {
-  let violated = 0;
   const resultById = new Map(
     report.results.map((result) => [result.id, result]),
   );
+  const state: DescriptorIngestState = {
+    fileChunkUidByFile: new Map(),
+    repoTestChunkUids: new Set(),
+    repoSuiteUids: new Set(),
+  };
   const entries: DescriptorChunk[] = [];
-  const fileChunkUidByFile = new Map<string, string>();
-  const repoTestChunkUids = new Set<string>();
-  const repoSuiteUids = new Set<string>();
 
   for (const descriptor of report.tests) {
-    const innermostSuiteUid = await projectSuiteChain(dgraph, repo, descriptor);
-
-    if (innermostSuiteUid) {
-      repoSuiteUids.add(innermostSuiteUid);
-    }
-    const testChunkUid = await upsertByXid(
-      dgraph,
-      "TestChunk",
-      `${repo}|${descriptor.id}`,
-      {
-        "TestChunk.repo": repo,
-        "TestChunk.test_name": descriptor.name,
-        "TestChunk.file_path": descriptor.file,
-        ...(descriptor.startLine !== undefined
-          ? { "TestChunk.start_line": descriptor.startLine }
-          : {}),
-        ...(descriptor.endLine !== undefined
-          ? { "TestChunk.end_line": descriptor.endLine }
-          : {}),
-        ...(innermostSuiteUid
-          ? { "TestChunk.suite": { uid: innermostSuiteUid } }
-          : {}),
-      },
-    );
-    // The file-scoped TestChunk that owns coverage — `validated_by` targets this so the chain reconverges.
-    let fileChunkUid = fileChunkUidByFile.get(descriptor.file);
-
-    if (fileChunkUid === undefined) {
-      fileChunkUid = await upsertByXid(
-        dgraph,
-        "TestChunk",
-        fileScopedTestChunkXid(repo, descriptor.file),
-        {
-          "TestChunk.repo": repo,
-          "TestChunk.file_path": descriptor.file,
-          // test_name = file so the file-level coverage record attaches HAS_COVERAGE to this same node.
-          "TestChunk.test_name": descriptor.file,
-        },
-      );
-      fileChunkUidByFile.set(descriptor.file, fileChunkUid);
-    }
-    repoTestChunkUids.add(testChunkUid).add(fileChunkUid);
-    entries.push({ descriptor, testChunkUid, fileChunkUid });
+    entries.push(await ingestDescriptorChunk(dgraph, repo, descriptor, state));
   }
-
-  // Attach every TestChunk + leaf TestSuite to the Repo root so the test layer is reachable; set-union dedups across re-ingests.
-  await upsertByXid(dgraph, "Repo", repo, {
-    ...(repoTestChunkUids.size
-      ? { "Repo.test_chunks": [...repoTestChunkUids].map((uid) => ({ uid })) }
-      : {}),
-    ...(repoSuiteUids.size
-      ? { "Repo.test_suites": [...repoSuiteUids].map((uid) => ({ uid })) }
-      : {}),
-  });
+  await attachTestLayerToRepo(dgraph, repo, state);
 
   const statementGroups = groupStatementsByAnchor(repo, entries, resultById);
-
-  for (const group of statementGroups) {
-    if (await writeStatementGroup(dgraph, group)) {
-      violated += 1;
-    }
-  }
   const sentenceGroups = await groupStatementsBySentence(
     dgraph,
     repo,
     entries,
     resultById,
   );
-
-  for (const group of sentenceGroups) {
-    if (await writeSentenceGroup(dgraph, group)) {
-      violated += 1;
-    }
-  }
   const validatedBy = statementGroups.length + sentenceGroups.length;
+  const violated =
+    (await writeGroupsCountingViolations(statementGroups, (group) =>
+      writeStatementGroup(dgraph, group),
+    )) +
+    (await writeGroupsCountingViolations(sentenceGroups, (group) =>
+      writeSentenceGroup(dgraph, group),
+    ));
 
   const cov = await ingestCoverageReport(
     dgraph,

@@ -117,30 +117,38 @@ function secretKeysOf(opts: CatalogCrdOptions): Record<string, string> {
   };
 }
 
-/** Render contract: why this entry must NOT be applied here, or null when it may. Called before render so a bad row degrades to a refused entry (previous CR stays live) instead of an unbootable pod (2026-09-01 incident class); reasons are permanent for this (row, cluster) pair. */
-export function validateCatalogEntry(
+function invalidCrdName(name: string): string | null {
+  return !K8S_NAME.test(name) || name.length > 253
+    ? `"${name}" is not a valid Kubernetes resource name`
+    : null;
+}
+
+/** needs_model station calls Anthropic (stationSpec renders the key) — guards the silent-drop comment-triage failure. */
+function validateStationEntry(
   def: ResolvedAgentDefinition,
-  opts: CatalogCrdOptions,
+  keys: Record<string, string>,
+  checkFamilies: boolean,
 ): string | null {
-  const name = catalogCrdName(def.name, def.project_id);
-  const keys = secretKeysOf(opts);
-  // Empty map = bare cluster rendering no secret refs on purpose; any configured key makes credential coverage checkable.
-  const checkFamilies = Object.keys(keys).length > 0;
+  const missingModelCredential =
+    def.config?.needs_model && checkFamilies && !keys.anthropic;
 
-  if (!K8S_NAME.test(name) || name.length > 253) {
-    return `"${name}" is not a valid Kubernetes resource name`;
-  }
+  return missingModelCredential
+    ? `station ${def.name} needs a model but this cluster holds no anthropic credential`
+    : null;
+}
 
-  if (def.execution_mode === "station") {
-    // needs_model station calls Anthropic (stationSpec renders the key) — guards the silent-drop comment-triage failure.
-    const missingModelCredential =
-      def.config?.needs_model && checkFamilies && !keys.anthropic;
+function missingModelCredentialMessage(
+  def: ResolvedAgentDefinition,
+  family: string,
+): string {
+  return `this cluster holds no credential for the "${family}" family (model "${def.model ?? "(default)"}") — configure modelSecretKeys and seed the key before pointing a recipe at it`;
+}
 
-    return missingModelCredential
-      ? `station ${def.name} needs a model but this cluster holds no anthropic credential`
-      : null;
-  }
-
+function validateLlmEntry(
+  def: ResolvedAgentDefinition,
+  keys: Record<string, string>,
+  checkFamilies: boolean,
+): string | null {
   if (!def.prompt) {
     return `recipe ${def.name} has no prompt — the subsystem rejects a promptless AgentDefinition at admission`;
   }
@@ -152,11 +160,29 @@ export function validateCatalogEntry(
     return `model "${def.model}" belongs to no known credential family (anthropic/gemini/openai)`;
   }
 
-  if (checkFamilies && !keys[family]) {
-    return `this cluster holds no credential for the "${family}" family (model "${def.model ?? "(default)"}") — configure modelSecretKeys and seed the key before pointing a recipe at it`;
+  return checkFamilies && !keys[family]
+    ? missingModelCredentialMessage(def, family)
+    : null;
+}
+
+/** Render contract: why this entry must NOT be applied here, or null when it may. Called before render so a bad row degrades to a refused entry (previous CR stays live) instead of an unbootable pod (2026-09-01 incident class); reasons are permanent for this (row, cluster) pair. */
+export function validateCatalogEntry(
+  def: ResolvedAgentDefinition,
+  opts: CatalogCrdOptions,
+): string | null {
+  const name = catalogCrdName(def.name, def.project_id);
+  const keys = secretKeysOf(opts);
+  // Empty map = bare cluster rendering no secret refs on purpose; any configured key makes credential coverage checkable.
+  const checkFamilies = Object.keys(keys).length > 0;
+  const nameError = invalidCrdName(name);
+
+  if (nameError) {
+    return nameError;
   }
 
-  return null;
+  return def.execution_mode === "station"
+    ? validateStationEntry(def, keys, checkFamilies)
+    : validateLlmEntry(def, keys, checkFamilies);
 }
 
 function sinksFor(
@@ -288,6 +314,74 @@ function stationSpec(
   };
 }
 
+/** Template labels survive the per-task Station clone + controller's label merge — the only marker a NetworkPolicy can key on that still matches pt-* pods. */
+function templateLabels(def: ResolvedAgentDefinition) {
+  const labels = def.config?.pod_labels;
+
+  return labels && Object.keys(labels).length > 0
+    ? { metadata: { labels: { ...labels } } }
+    : {};
+}
+
+function containerImage(
+  def: ResolvedAgentDefinition,
+  opts: CatalogCrdOptions,
+  isStation: boolean,
+): string {
+  if (def.image) {
+    return def.image;
+  }
+
+  return isStation ? (opts.stationImage ?? BASE_IMAGE) : BASE_IMAGE;
+}
+
+function containerWorkingDir(
+  def: ResolvedAgentDefinition,
+  isStation: boolean,
+): { workingDir?: string } {
+  if (isStation || def.config?.repo_workdir === false) {
+    return {};
+  }
+
+  return { workingDir: REPO_WORKDIR };
+}
+
+function agentContainer(
+  def: ResolvedAgentDefinition,
+  opts: CatalogCrdOptions,
+  isStation: boolean,
+) {
+  return {
+    name: "agent",
+    image: containerImage(def, opts, isStation),
+    ...containerWorkingDir(def, isStation),
+    resources: mergePodResources(def.config?.pod_resources),
+  };
+}
+
+function stationCrd(
+  def: ResolvedAgentDefinition,
+  opts: CatalogCrdOptions,
+  name: string,
+  isStation: boolean,
+): Station {
+  return {
+    apiVersion: API_VERSION,
+    kind: "Station",
+    metadata: { name, labels: { ...SYNC_LABELS } },
+    spec: {
+      agentDefRef: name,
+      deadlineMinutes: def.timeout_minutes ?? (isStation ? 15 : 30),
+      template: {
+        ...templateLabels(def),
+        spec: {
+          containers: [agentContainer(def, opts, isStation)],
+        },
+      },
+    },
+  };
+}
+
 /** Resolved catalog row → AgentDefinition+Station CR pair; execution_mode:'station' rows render the exec-vendor shape on lore-station image, others render the LLM shape on the base image. */
 export function agentDefToCrds(
   def: ResolvedAgentDefinition,
@@ -303,35 +397,6 @@ export function agentDefToCrds(
       metadata: { name, labels: { ...SYNC_LABELS } },
       spec: isStation ? stationSpec(def, opts) : llmSpec(def, opts),
     },
-    station: {
-      apiVersion: API_VERSION,
-      kind: "Station",
-      metadata: { name, labels: { ...SYNC_LABELS } },
-      spec: {
-        agentDefRef: name,
-        deadlineMinutes: def.timeout_minutes ?? (isStation ? 15 : 30),
-        template: {
-          // Template labels survive the per-task Station clone + controller's label merge — the only marker a NetworkPolicy can key on that still matches pt-* pods.
-          ...(def.config?.pod_labels &&
-          Object.keys(def.config.pod_labels).length > 0
-            ? { metadata: { labels: { ...def.config.pod_labels } } }
-            : {}),
-          spec: {
-            containers: [
-              {
-                name: "agent",
-                image:
-                  def.image ??
-                  (isStation ? (opts.stationImage ?? BASE_IMAGE) : BASE_IMAGE),
-                ...(isStation || def.config?.repo_workdir === false
-                  ? {}
-                  : { workingDir: REPO_WORKDIR }),
-                resources: mergePodResources(def.config?.pod_resources),
-              },
-            ],
-          },
-        },
-      },
-    },
+    station: stationCrd(def, opts, name, isStation),
   };
 }

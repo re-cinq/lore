@@ -112,6 +112,107 @@ function hasEslintConfig(repoRoot: string): boolean {
   return isFlatConfig || isLegacyConfig;
 }
 
+// Lint: 120s not 30 — scoping is best-effort and unscoped `eslint .` on a monorepo measures ~37s warm, minutes cold in a one-CPU pod.
+function addLintStep(
+  quick: ValidationStep[],
+  scripts: Record<string, string>,
+  repoRoot: string,
+): void {
+  const lintScript = scripts.lint;
+
+  if (lintScript) {
+    const scopedCommand = scopedLintCommand(lintScript);
+
+    quick.push({
+      name: "lint",
+      command: "npm run lint --silent",
+      ...(scopedCommand ? { scopedCommand } : {}),
+      timeoutMs: 120_000,
+    });
+
+    return;
+  }
+
+  if (hasEslintConfig(repoRoot)) {
+    quick.push({
+      name: "eslint",
+      command: "npx eslint --quiet .",
+      timeoutMs: 120_000,
+    });
+  }
+}
+
+function addTypecheckStep(
+  quick: ValidationStep[],
+  scripts: Record<string, string>,
+  repoRoot: string,
+): void {
+  if (scripts.typecheck) {
+    quick.push({
+      name: "typecheck",
+      command: "npm run typecheck --silent",
+      timeoutMs: 60_000,
+    });
+
+    return;
+  }
+
+  if (existsSync(join(repoRoot, "tsconfig.json"))) {
+    quick.push({ name: "tsc", command: "npx tsc --noEmit", timeoutMs: 60_000 });
+  }
+}
+
+// Build is a quick check — it catches import errors.
+function addBuildStep(
+  quick: ValidationStep[],
+  scripts: Record<string, string>,
+): void {
+  if (scripts.build) {
+    quick.push({
+      name: "build",
+      command: "npm run build --silent",
+      timeoutMs: 60_000,
+    });
+  }
+}
+
+// Test is a full check only — too slow for pre-flight.
+function addTestStep(
+  full: ValidationStep[],
+  scripts: Record<string, string>,
+): void {
+  if (scripts.test) {
+    full.push({
+      name: "test",
+      command: fastFailTestCommand(scripts.test as string),
+      timeoutMs: 120_000,
+    });
+  }
+}
+
+// A validate station clones fresh (no node_modules) — install first, but only when there's something to check afterwards.
+function addInstallStepIfNeeded(
+  quick: ValidationStep[],
+  full: ValidationStep[],
+  pkg: Record<string, unknown>,
+  repoRoot: string,
+): void {
+  if (
+    (quick.length === 0 && full.length === 0) ||
+    existsSync(join(repoRoot, "node_modules"))
+  ) {
+    return;
+  }
+  promoteWorkspaceBuildFirst(quick, pkg);
+  quick.unshift({
+    name: "install",
+    command: existsSync(join(repoRoot, "package-lock.json"))
+      ? "npm ci --no-audit --no-fund"
+      : "npm install --no-audit --no-fund",
+    timeoutMs: 300_000,
+  });
+}
+
 function detectNode(repoRoot: string): RepoTooling | null {
   const pkgPath = join(repoRoot, "package.json");
   const pkg = readJsonFile(pkgPath);
@@ -124,77 +225,12 @@ function detectNode(repoRoot: string): RepoTooling | null {
   const quick: ValidationStep[] = [];
   const full: ValidationStep[] = [];
 
-  // Lint: 120s not 30 — scoping is best-effort and unscoped `eslint .` on a monorepo measures ~37s warm, minutes cold in a one-CPU pod.
-  const lintScript = scripts.lint;
+  addLintStep(quick, scripts, repoRoot);
+  addTypecheckStep(quick, scripts, repoRoot);
+  addBuildStep(quick, scripts);
+  addTestStep(full, scripts);
+  addInstallStepIfNeeded(quick, full, pkg, repoRoot);
 
-  if (lintScript) {
-    const scopedCommand = scopedLintCommand(lintScript);
-
-    quick.push({
-      name: "lint",
-      command: "npm run lint --silent",
-      ...(scopedCommand ? { scopedCommand } : {}),
-      timeoutMs: 120_000,
-    });
-  }
-
-  if (!lintScript && hasEslintConfig(repoRoot)) {
-    quick.push({
-      name: "eslint",
-      command: "npx eslint --quiet .",
-      timeoutMs: 120_000,
-    });
-  }
-
-  // Typecheck
-  const typecheckScript = scripts.typecheck;
-
-  if (typecheckScript) {
-    quick.push({
-      name: "typecheck",
-      command: "npm run typecheck --silent",
-      timeoutMs: 60_000,
-    });
-  }
-
-  if (!typecheckScript && existsSync(join(repoRoot, "tsconfig.json"))) {
-    quick.push({ name: "tsc", command: "npx tsc --noEmit", timeoutMs: 60_000 });
-  }
-
-  // Build (quick check — catches import errors)
-  if (scripts.build) {
-    quick.push({
-      name: "build",
-      command: "npm run build --silent",
-      timeoutMs: 60_000,
-    });
-  }
-
-  // Test (full check only — too slow for pre-flight)
-  if (scripts.test) {
-    full.push({
-      name: "test",
-      command: fastFailTestCommand(scripts.test as string),
-      timeoutMs: 120_000,
-    });
-  }
-
-  // A validate station clones fresh (no node_modules) — install first, but only when there's something to check afterwards.
-  if (
-    (quick.length > 0 || full.length > 0) &&
-    !existsSync(join(repoRoot, "node_modules"))
-  ) {
-    promoteWorkspaceBuildFirst(quick, pkg);
-    quick.unshift({
-      name: "install",
-      command: existsSync(join(repoRoot, "package-lock.json"))
-        ? "npm ci --no-audit --no-fund"
-        : "npm install --no-audit --no-fund",
-      timeoutMs: 300_000,
-    });
-  }
-
-  // Full checks include quick checks + test
   return {
     language: "node",
     quickChecks: quick,
@@ -221,6 +257,64 @@ function detectGo(repoRoot: string): RepoTooling | null {
   };
 }
 
+// Read pyproject.toml as text to check for tool presence; a missing/unreadable file just means no declared tools.
+function readPyprojectText(repoRoot: string, hasPyproject: boolean): string {
+  if (!hasPyproject) {
+    return "";
+  }
+
+  try {
+    return readFileSync(join(repoRoot, "pyproject.toml"), "utf-8");
+  } catch {
+    return "";
+  }
+}
+
+// Ruff (fast linter)
+function addRuffStep(
+  quick: ValidationStep[],
+  pyproject: string,
+  repoRoot: string,
+): void {
+  if (
+    pyproject.includes("[tool.ruff]") ||
+    existsSync(join(repoRoot, "ruff.toml"))
+  ) {
+    quick.push({ name: "ruff", command: "ruff check .", timeoutMs: 15_000 });
+  }
+}
+
+function addMypyStep(
+  quick: ValidationStep[],
+  pyproject: string,
+  repoRoot: string,
+): void {
+  if (
+    pyproject.includes("[tool.mypy]") ||
+    existsSync(join(repoRoot, "mypy.ini"))
+  ) {
+    quick.push({ name: "mypy", command: "mypy .", timeoutMs: 60_000 });
+  }
+}
+
+// Pytest is a full check only.
+function addPytestStep(
+  full: ValidationStep[],
+  pyproject: string,
+  repoRoot: string,
+): void {
+  if (
+    pyproject.includes("[tool.pytest]") ||
+    existsSync(join(repoRoot, "pytest.ini"))
+  ) {
+    full.push({
+      name: "pytest",
+      command: "pytest --tb=short -q",
+      timeoutMs: 120_000,
+    });
+  }
+}
+
 function detectPython(repoRoot: string): RepoTooling | null {
   const hasPyproject = existsSync(join(repoRoot, "pyproject.toml"));
   const hasSetupCfg = existsSync(join(repoRoot, "setup.cfg"));
@@ -232,45 +326,11 @@ function detectPython(repoRoot: string): RepoTooling | null {
 
   const quick: ValidationStep[] = [];
   const full: ValidationStep[] = [];
+  const pyproject = readPyprojectText(repoRoot, hasPyproject);
 
-  // Read pyproject.toml as text to check for tool presence
-  let pyproject = "";
-
-  if (hasPyproject) {
-    try {
-      pyproject = readFileSync(join(repoRoot, "pyproject.toml"), "utf-8");
-    } catch {
-      /* */
-    }
-  }
-
-  // Ruff (fast linter)
-  if (
-    pyproject.includes("[tool.ruff]") ||
-    existsSync(join(repoRoot, "ruff.toml"))
-  ) {
-    quick.push({ name: "ruff", command: "ruff check .", timeoutMs: 15_000 });
-  }
-
-  // Mypy
-  if (
-    pyproject.includes("[tool.mypy]") ||
-    existsSync(join(repoRoot, "mypy.ini"))
-  ) {
-    quick.push({ name: "mypy", command: "mypy .", timeoutMs: 60_000 });
-  }
-
-  // Pytest (full only)
-  if (
-    pyproject.includes("[tool.pytest]") ||
-    existsSync(join(repoRoot, "pytest.ini"))
-  ) {
-    full.push({
-      name: "pytest",
-      command: "pytest --tb=short -q",
-      timeoutMs: 120_000,
-    });
-  }
+  addRuffStep(quick, pyproject, repoRoot);
+  addMypyStep(quick, pyproject, repoRoot);
+  addPytestStep(full, pyproject, repoRoot);
 
   if (quick.length === 0 && full.length === 0) {
     return null;
