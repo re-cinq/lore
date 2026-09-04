@@ -631,6 +631,7 @@ function restoreExpandedRings(
   }
 }
 
+// eslint-disable-next-line max-lines-per-function -- imperative d3 canvas renderer: one effect owning the simulation, the draw loop and the hit testing, which is also why vitest.config excludes it from coverage. Splitting it needs its own piece of work, not a sweep.
 export default function SpecGraphD3({
   graph,
   repo,
@@ -656,6 +657,7 @@ export default function SpecGraphD3({
   // Defined in main effect so search-only effect can re-run filter without rebuild.
   const filterRef = useRef<(q: string) => void>(() => {});
 
+  // eslint-disable-next-line max-lines-per-function -- the renderer itself: simulation, draw loop and hit testing over one shared canvas context. See the note on the component.
   useEffect(() => {
     const targets = resolveRenderTargets(ref.current, canvasRef.current);
 
