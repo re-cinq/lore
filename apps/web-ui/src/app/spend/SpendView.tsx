@@ -431,6 +431,15 @@ function LlmBreakdowns({ llm }: { llm: SpendWindow["llm"] }) {
         ]}
       />
 
+      <LlmBreakdownsBySlice llm={llm} />
+    </>
+  );
+}
+
+/** The cuts that answer "where did it go": by kind of work, by day, by repo, by task type, and by cluster. */
+function LlmBreakdownsBySlice({ llm }: { llm: SpendWindow["llm"] }) {
+  return (
+    <>
       <CostTable
         title="Cost by Kind"
         columns={["Kind", "Calls", "Cost"]}
@@ -472,6 +481,21 @@ function LlmBreakdowns({ llm }: { llm: SpendWindow["llm"] }) {
         ]}
       />
 
+      <ClusterBreakdown byCluster={llm.by_cluster} />
+    </>
+  );
+}
+
+/** The null bucket is spend on the home account; every other row is a registered cluster running on its own credential. */
+function ClusterBreakdown({
+  byCluster,
+}: {
+  byCluster: SpendWindow["llm"]["by_cluster"];
+}) {
+  const llm = { by_cluster: byCluster };
+
+  return (
+    <>
       <h2>Cost by Cluster</h2>
       <table>
         <thead>
