@@ -13,7 +13,36 @@ import { invalidate as invalidateCache } from "@re-cinq/lore-server-core/platfor
 const NOT_CONFIGURED =
   "Repo management requires LORE_API_URL + LORE_INGEST_TOKEN. Run install.sh to configure.";
 
+// Tool input schemas live as data beside their tool: a zod object is a contract, not a step in registering one.
+const ONBOARD_REPO_INPUT = {
+  full_name: z
+    .string()
+    .describe('"owner/repo" format; both segments must be non-empty.'),
+  reonboard: z
+    .boolean()
+    .optional()
+    .describe(
+      "Repair pass over an already-onboarded repo: regenerates only the scaffolding it is missing. Still refused while an onboard task is in flight or its onboarding PR is open.",
+    ),
+};
+
+const INGEST_FILES_INPUT = {
+  files: z.array(z.string()).describe("Repo-relative file paths to ingest."),
+  repo: z
+    .string()
+    .optional()
+    .describe(
+      '"owner/repo" format. Auto-detected from cwd git remote when omitted.',
+    ),
+};
+
 export function registerRepoTools(server: McpServer) {
+  registerListReposTool(server);
+  registerOnboardRepoTool(server);
+  registerIngestFilesTool(server);
+}
+
+function registerListReposTool(server: McpServer) {
   server.tool(
     "lore_list_repos",
     `Lists every repo onboarded into Lore as JSON ({ repos, total }) with per-repo metadata and pipeline task count. Pages through all repos automatically. Instead: to add a repo use lore_onboard_repo; to list pipeline tasks use lore_list_pipeline_tasks.`,
@@ -77,21 +106,13 @@ export function registerRepoTools(server: McpServer) {
       };
     },
   );
+}
 
+function registerOnboardRepoTool(server: McpServer) {
   server.tool(
     "lore_onboard_repo",
     `Registers a new GitHub repo with Lore and spawns an onboard pipeline task that authors CLAUDE.md/AGENTS.md/PR-template and opens a PR asynchronously; returns { repo_id, task_id, status }. Refuses (HTTP 409) when the repo is already onboarded, still has its onboarding PR open, or already has an onboard task in flight — pass reonboard to regenerate missing scaffolding for an onboarded repo. Instead: to list repos use lore_list_repos; to push files into an already-onboarded repo use lore_ingest_files.`,
-    {
-      full_name: z
-        .string()
-        .describe('"owner/repo" format; both segments must be non-empty.'),
-      reonboard: z
-        .boolean()
-        .optional()
-        .describe(
-          "Repair pass over an already-onboarded repo: regenerates only the scaffolding it is missing. Still refused while an onboard task is in flight or its onboarding PR is open.",
-        ),
-    },
+    ONBOARD_REPO_INPUT,
     async ({ full_name, reonboard }) => {
       const proxied = await proxyToApi("/api/onboard", {
         repo: full_name,
@@ -118,21 +139,13 @@ export function registerRepoTools(server: McpServer) {
       return unreachableError("lore_onboard_repo", proxied.detail);
     },
   );
+}
 
+function registerIngestFilesTool(server: McpServer) {
   server.tool(
     "lore_ingest_files",
     `Fetches specific repo files from GitHub, embeds them, and writes them into Lore's context store immediately so they are searchable without waiting for nightly ingestion. Returns "Ingested N files into Lore for <repo>. M errors." Use after merging a new ADR or updated CLAUDE.md to make it searchable now. Instead: to onboard a new repo use lore_onboard_repo; to search existing content use lore_search_context or lore_assemble_context.`,
-    {
-      files: z
-        .array(z.string())
-        .describe("Repo-relative file paths to ingest."),
-      repo: z
-        .string()
-        .optional()
-        .describe(
-          '"owner/repo" format. Auto-detected from cwd git remote when omitted.',
-        ),
-    },
+    INGEST_FILES_INPUT,
     async ({ files, repo }) => {
       try {
         const resolvedRepo = repo || detectCurrentRepo();

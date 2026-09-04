@@ -110,21 +110,64 @@ function collectMatchingParagraphs(
   return results;
 }
 
+// Tool input schemas live as data beside their tool: a zod object is a contract, not a step in registering one.
+const SEARCH_CONTEXT_INPUT = {
+  query: z.string().describe("Natural-language search query."),
+  team: z
+    .string()
+    .optional()
+    .describe(
+      "Team schema name to scope the search (e.g. 'platform'). Omit to search org_shared; unknown teams fall back to org_shared on the DB path or return an error on the file path.",
+    ),
+  limit: z.number().default(8).describe("Maximum passages to return."),
+};
+
+const ASSEMBLE_CONTEXT_INPUT = {
+  query: z
+    .string()
+    .describe(
+      "Natural-language description of the context needed. Drives retrieval and ranking across all sources.",
+    ),
+  template: z
+    .string()
+    .default("default")
+    .describe(
+      "Section-ordering profile. Recognized values: 'default' | 'review' | 'implementation' | 'research'. Unrecognized values silently fall back to 'default'. Note: template choice does NOT raise the token budget — max_tokens always defaults to 8000 regardless of template, so pass max_tokens explicitly for research queries.",
+    ),
+  max_tokens: z
+    .number()
+    .min(2000)
+    .default(8000)
+    .describe(
+      "Token budget for the assembled block; floor 2000. Raise to ~16000 for research-heavy queries. Defaults to 8000.",
+    ),
+  repo: z
+    .string()
+    .optional()
+    .describe("'owner/repo'. Auto-detected from the git remote when omitted."),
+  agent_id: z
+    .string()
+    .optional()
+    .describe("Overrides the ambient agent id used to scope memories/facts."),
+  cross_repo: z
+    .boolean()
+    .default(false)
+    .describe(
+      "When true, also pulls context from linked repos in the org. Falls back to the repo's settings.cross_repo when false.",
+    ),
+};
+
 export function registerContextTools(server: McpServer) {
+  registerSearchContextTool(server);
+  registerAssembleContextTool(server);
+}
+
+function registerSearchContextTool(server: McpServer) {
   server.tool(
     "lore_search_context",
     `Searches the repo/org ingested-document corpus (CLAUDE.md, ADRs, team docs, specs) and returns raw matching passages as source-scored snippets. Uses hybrid vector+BM25 retrieval when a DB is available; falls back to case-insensitive substring scan of local .md files otherwise.
 Use this when you want chunk-level evidence or the exact wording of a convention/ADR. For a ONE token-budgeted bundle combining all sources (conventions, ADRs, memories, facts, graph) call lore_assemble_context — that is the mandatory first call. For past learnings, decisions, and extracted facts from prior sessions call lore_search_memory. For entity relationships call lore_query_graph.`,
-    {
-      query: z.string().describe("Natural-language search query."),
-      team: z
-        .string()
-        .optional()
-        .describe(
-          "Team schema name to scope the search (e.g. 'platform'). Omit to search org_shared; unknown teams fall back to org_shared on the DB path or return an error on the file path.",
-        ),
-      limit: z.number().default(8).describe("Maximum passages to return."),
-    },
+    SEARCH_CONTEXT_INPUT,
     async ({ query, team, limit }) => {
       // Auto-detects repo from git remote when no team is specified, to scope DB search to its context namespace.
       const detectedRepo = !team ? detectCurrentRepo() : null;
@@ -187,49 +230,14 @@ Use this when you want chunk-level evidence or the exact wording of a convention
       return { content: [{ type: "text" as const, text }] };
     },
   );
+}
 
+function registerAssembleContextTool(server: McpServer) {
   server.tool(
     "lore_assemble_context",
     `Assembles ONE token-budgeted, template-ordered context block by pulling from every source at once (repo conventions/docs, ADRs, memories, facts, episodes, graph relationships) and returning a single provenance-tagged text block. This is the mandatory first call when starting any task — use it before the narrower retrieval tools.
 Instead: use lore_search_context for raw passages/exact wording from ingested docs; use lore_search_memory for past learnings, decisions, and extracted facts from prior sessions; use lore_query_graph for entity relationships. Those three are the building blocks this tool already combines.`,
-    {
-      query: z
-        .string()
-        .describe(
-          "Natural-language description of the context needed. Drives retrieval and ranking across all sources.",
-        ),
-      template: z
-        .string()
-        .default("default")
-        .describe(
-          "Section-ordering profile. Recognized values: 'default' | 'review' | 'implementation' | 'research'. Unrecognized values silently fall back to 'default'. Note: template choice does NOT raise the token budget — max_tokens always defaults to 8000 regardless of template, so pass max_tokens explicitly for research queries.",
-        ),
-      max_tokens: z
-        .number()
-        .min(2000)
-        .default(8000)
-        .describe(
-          "Token budget for the assembled block; floor 2000. Raise to ~16000 for research-heavy queries. Defaults to 8000.",
-        ),
-      repo: z
-        .string()
-        .optional()
-        .describe(
-          "'owner/repo'. Auto-detected from the git remote when omitted.",
-        ),
-      agent_id: z
-        .string()
-        .optional()
-        .describe(
-          "Overrides the ambient agent id used to scope memories/facts.",
-        ),
-      cross_repo: z
-        .boolean()
-        .default(false)
-        .describe(
-          "When true, also pulls context from linked repos in the org. Falls back to the repo's settings.cross_repo when false.",
-        ),
-    },
+    ASSEMBLE_CONTEXT_INPUT,
     async ({ query, template, max_tokens, repo, agent_id, cross_repo }) => {
       return trackLatency("lore_assemble_context", async () => {
         try {
