@@ -76,6 +76,57 @@ function useMermaidSvg(mockup: GapMockup, index: number): string | null {
   return svg;
 }
 
+function mockupTitle(mockup: GapMockup, index: number): string {
+  return mockup.title || `Mockup ${index + 1}`;
+}
+
+function frameHeight(
+  isMermaid: boolean,
+  mermaidSvg: string | null,
+  mockup: GapMockup,
+): number {
+  const fromMermaid =
+    isMermaid && mermaidSvg ? mermaidFrameHeight(mermaidSvg) : null;
+
+  return fromMermaid ?? mockupHeight(mockup);
+}
+
+function MockupFrame({
+  isMermaid,
+  mermaidSvg,
+  clean,
+  stylesheet,
+  mockup,
+  index,
+}: {
+  isMermaid: boolean;
+  mermaidSvg: string | null;
+  clean: string;
+  stylesheet?: string;
+  mockup: GapMockup;
+  index: number;
+}) {
+  if (isMermaid && mermaidSvg === null) {
+    return <div className="meta">rendering diagram…</div>;
+  }
+
+  return (
+    <iframe
+      // No allow-scripts/same-origin; frame cannot measure itself, so html mockup declares height.
+      sandbox=""
+      srcDoc={mockupFrameSrcdoc(clean, stylesheet)}
+      title={mockupTitle(mockup, index)}
+      height={frameHeight(isMermaid, mermaidSvg, mockup)}
+      style={{
+        width: "100%",
+        border: "1px solid var(--border)",
+        borderRadius: "var(--radius)",
+        display: "block",
+      }}
+    />
+  );
+}
+
 function MockupFigure({
   mockup,
   index,
@@ -125,32 +176,19 @@ function MockupFigure({
           gap: 8,
         }}
       >
-        <span>{mockup.title || `Mockup ${index + 1}`}</span>
+        <span>{mockupTitle(mockup, index)}</span>
         <a href={href} download={downloadName(mockup, index)} className="meta">
           download ↓
         </a>
       </figcaption>
-      {isMermaid && mermaidSvg === null ? (
-        <div className="meta">rendering diagram…</div>
-      ) : (
-        <iframe
-          // No allow-scripts/same-origin; frame cannot measure itself, so html mockup declares height.
-          sandbox=""
-          srcDoc={mockupFrameSrcdoc(clean, stylesheet)}
-          title={mockup.title || `Mockup ${index + 1}`}
-          // Rendered mermaid knows its real height; frame cannot measure itself.
-          height={
-            (isMermaid && mermaidSvg ? mermaidFrameHeight(mermaidSvg) : null) ??
-            mockupHeight(mockup)
-          }
-          style={{
-            width: "100%",
-            border: "1px solid var(--border)",
-            borderRadius: "var(--radius)",
-            display: "block",
-          }}
-        />
-      )}
+      <MockupFrame
+        isMermaid={isMermaid}
+        mermaidSvg={mermaidSvg}
+        clean={clean}
+        stylesheet={stylesheet}
+        mockup={mockup}
+        index={index}
+      />
     </figure>
   );
 }

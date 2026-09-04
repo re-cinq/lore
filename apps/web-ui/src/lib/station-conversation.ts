@@ -13,26 +13,54 @@ interface StreamEvent {
   message?: { content?: ContentBlock[] };
 }
 
-function assistantParts(content: ContentBlock[]): string[] {
-  const parts: string[] = [];
+function renderText(
+  block: Extract<ContentBlock, { type: "text" }>,
+): string | null {
+  return block.text?.trim() ? clip(block.text, 300) : null;
+}
 
-  for (const block of content) {
-    if (block.type === "text" && block.text?.trim()) {
-      parts.push(clip(block.text, 300));
-      continue;
-    }
+function renderThinking(
+  block: Extract<ContentBlock, { type: "thinking" }>,
+): string | null {
+  return block.thinking?.trim()
+    ? `thinking: ${clip(block.thinking, 240)}`
+    : null;
+}
 
-    if (block.type === "thinking" && block.thinking?.trim()) {
-      parts.push(`thinking: ${clip(block.thinking, 240)}`);
-      continue;
-    }
-
-    if (block.type === "tool_use") {
-      parts.push(toolSummary(block));
-    }
+function renderContentPart(block: ContentBlock): string | null {
+  switch (block.type) {
+    case "text":
+      return renderText(block);
+    case "thinking":
+      return renderThinking(block);
+    case "tool_use":
+      return toolSummary(block);
+    default:
+      return null;
   }
+}
 
-  return parts;
+function assistantParts(content: ContentBlock[]): string[] {
+  return content
+    .map(renderContentPart)
+    .filter((part): part is string => part !== null);
+}
+
+function renderAssistantEvent(content: ContentBlock[]): string | null {
+  const parts = assistantParts(content);
+
+  return parts.length ? parts.join("\n") : null;
+}
+
+function renderUserEvent(content: ContentBlock[]): string | null {
+  const results = content
+    .filter(
+      (b): b is Extract<ContentBlock, { type: "tool_result" }> =>
+        b.type === "tool_result",
+    )
+    .map((b) => `← ${clip(toolResultText(b.content), 120)}`);
+
+  return results.length ? results.join("\n") : null;
 }
 
 function renderEvent(event: StreamEvent): string | null {
@@ -43,20 +71,11 @@ function renderEvent(event: StreamEvent): string | null {
   }
 
   if (event.type === "assistant") {
-    const parts = assistantParts(content);
-
-    return parts.length ? parts.join("\n") : null;
+    return renderAssistantEvent(content);
   }
 
   if (event.type === "user") {
-    const results = content
-      .filter(
-        (b): b is Extract<ContentBlock, { type: "tool_result" }> =>
-          b.type === "tool_result",
-      )
-      .map((b) => `← ${clip(toolResultText(b.content), 120)}`);
-
-    return results.length ? results.join("\n") : null;
+    return renderUserEvent(content);
   }
 
   return null; // system / result / thinking_tokens events are noise
@@ -72,33 +91,24 @@ function renderJsonLine(trimmed: string): string | null {
   }
 }
 
+function renderLine(trimmed: string): string | null {
+  if (trimmed.startsWith("{")) {
+    return renderJsonLine(trimmed);
+  }
+
+  return MARKER_RE.test(trimmed) ? trimmed : null;
+}
+
 export function formatStationConversation(
   rawLog: string,
   maxEvents = 30,
 ): string {
-  const out: string[] = [];
-
-  for (const line of rawLog.split("\n")) {
-    const trimmed = line.trim();
-
-    if (!trimmed) {
-      continue;
-    }
-
-    const rendered = trimmed.startsWith("{") ? renderJsonLine(trimmed) : null;
-
-    if (rendered) {
-      out.push(rendered);
-    }
-
-    if (trimmed.startsWith("{")) {
-      continue;
-    }
-
-    if (MARKER_RE.test(trimmed)) {
-      out.push(trimmed);
-    }
-  }
+  const out = rawLog
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((trimmed) => trimmed.length > 0)
+    .map(renderLine)
+    .filter((rendered): rendered is string => rendered !== null);
 
   return out.slice(-maxEvents).join("\n");
 }

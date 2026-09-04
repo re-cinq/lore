@@ -7,6 +7,39 @@ import { statusInfoFromValue } from "@/lib/spec-status";
 const scalar = (value: string | string[] | undefined): string | undefined =>
   typeof value === "string" ? value : undefined;
 
+function resolveStatusInfo(status: string | undefined) {
+  return status ? statusInfoFromValue(status) : null;
+}
+
+function domainsOf(meta: Record<string, string | string[]>): string[] {
+  return Array.isArray(meta.domains) ? meta.domains : [];
+}
+
+/** Every field absent. Takes `unknown` because it only asks whether a value is there, and the status field is a resolved object rather than a string. */
+function isEmptyMeta(fields: readonly unknown[]): boolean {
+  return fields.every((field) => !field);
+}
+
+function CrossLinkField({
+  label,
+  href,
+  value,
+}: {
+  label: string;
+  href: string;
+  value: string | undefined;
+}) {
+  if (!value) {
+    return null;
+  }
+
+  return (
+    <span className={`meta ${styles.field}`}>
+      {label}: <Link href={href}>{value}</Link>
+    </span>
+  );
+}
+
 export default function AdrMetaView({
   owner,
   repo,
@@ -16,15 +49,13 @@ export default function AdrMetaView({
   repo: string;
   meta: Record<string, string | string[]>;
 }) {
-  const status = scalar(meta.status);
-  const statusInfo = status ? statusInfoFromValue(status) : null;
+  const statusInfo = resolveStatusInfo(scalar(meta.status));
   const date = scalar(meta.date);
-  const domains = Array.isArray(meta.domains) ? meta.domains : [];
+  const domains = domainsOf(meta);
   const relates = scalar(meta.relates);
   const amends = scalar(meta.amends);
-  const renderable = [statusInfo, date, relates, amends, ...domains];
 
-  if (renderable.every((field) => !field)) {
+  if (isEmptyMeta([statusInfo, date, relates, amends, ...domains])) {
     return null;
   }
 
@@ -37,26 +68,16 @@ export default function AdrMetaView({
           {domain}
         </span>
       ))}
-      {relates && (
-        <span className={`meta ${styles.field}`}>
-          relates:{" "}
-          <Link
-            href={`/repos/${owner}/${repo}/specs/${encodeURIComponent(relates)}`}
-          >
-            {relates}
-          </Link>
-        </span>
-      )}
-      {amends && (
-        <span className={`meta ${styles.field}`}>
-          amends:{" "}
-          <Link
-            href={`/repos/${owner}/${repo}/adrs/${encodeURIComponent(amends)}`}
-          >
-            {amends}
-          </Link>
-        </span>
-      )}
+      <CrossLinkField
+        label="relates"
+        value={relates}
+        href={`/repos/${owner}/${repo}/specs/${encodeURIComponent(relates ?? "")}`}
+      />
+      <CrossLinkField
+        label="amends"
+        value={amends}
+        href={`/repos/${owner}/${repo}/adrs/${encodeURIComponent(amends ?? "")}`}
+      />
     </div>
   );
 }

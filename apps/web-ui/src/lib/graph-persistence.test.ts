@@ -32,6 +32,14 @@ describe("captureGraphState", () => {
       expanded: [],
     });
   });
+
+  it("defaults a node with no x/y/fx/fy to the origin", () => {
+    expect(captureGraphState([{ id: "a" }], [])).toEqual({
+      version: 1,
+      positions: { a: { x: 0, y: 0, pinned: false } },
+      expanded: [],
+    });
+  });
 });
 
 describe("applyGraphState", () => {
@@ -61,6 +69,13 @@ describe("applyGraphState", () => {
       nodes,
     );
     expect(nodes[0]).toMatchObject({ id: "a", x: 10, y: 20, fx: 10, fy: 20 });
+  });
+
+  it("leaves a node with no saved position untouched", () => {
+    const nodes = [{ id: "unsaved", x: 5, y: 5 }];
+
+    applyGraphState({ version: 1, positions: {}, expanded: [] }, nodes);
+    expect(nodes[0]).toEqual({ id: "unsaved", x: 5, y: 5 });
   });
 });
 

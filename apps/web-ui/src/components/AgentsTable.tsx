@@ -36,6 +36,61 @@ const KIND_LABEL: Record<AgentKind, string> = {
   task: "Task",
 };
 
+// Task agents are ephemeral audit rows, so they stay behind the toggle until asked for.
+function visibleAgents(
+  agents: AgentRow[],
+  showTaskAgents: boolean,
+): AgentRow[] {
+  return showTaskAgents ? agents : agents.filter((a) => a.kind === "local");
+}
+
+// The Why column exists only when some agent has a reason to show.
+function hasReasonColumn(agents: AgentRow[]): boolean {
+  return agents.some((a) => a.reason != null || a.reason_type != null);
+}
+
+function agentColumns(hasWhy: boolean): string[] {
+  return [
+    "Agent",
+    "Type",
+    "Created by",
+    ...(hasWhy ? ["Why"] : []),
+    "Tasks",
+    "Cost",
+    "Memories",
+    "Last Active",
+  ];
+}
+
+function TaskAgentsToggle({
+  taskAgentCount,
+  showTaskAgents,
+  onToggle,
+}: {
+  taskAgentCount: number;
+  showTaskAgents: boolean;
+  onToggle: () => void;
+}) {
+  if (taskAgentCount === 0) {
+    return null;
+  }
+
+  const label = showTaskAgents
+    ? "Hide task agents"
+    : `Show task agents (audit) — ${taskAgentCount} hidden`;
+
+  return (
+    <button
+      type="button"
+      className={`badge ${styles.toggle}`}
+      aria-pressed={showTaskAgents}
+      onClick={onToggle}
+    >
+      {label}
+    </button>
+  );
+}
+
 /** Shared sessions/agents table for `/agents` and the per-repo Agents tab; pure presentation, the container tags each row's `kind` via `classifyAgent`. */
 export default function AgentsTable({
   agents,
@@ -45,39 +100,19 @@ export default function AgentsTable({
 }: AgentsTableProps) {
   const [showTaskAgents, setShowTaskAgents] = useState(false);
   const taskAgentCount = agents.filter((a) => a.kind === "task").length;
-  // Task agents are ephemeral audit rows, so they stay behind the toggle until asked for.
-  const visible = showTaskAgents
-    ? agents
-    : agents.filter((a) => a.kind === "local");
-  // The Why column exists only when some agent has a reason to show.
-  const hasWhy = agents.some((a) => a.reason != null || a.reason_type != null);
+  const visible = visibleAgents(agents, showTaskAgents);
+  const hasWhy = hasReasonColumn(agents);
 
   return (
     <div>
       {!embedded && <AgentsTableHeading title={title} intro={intro} />}
-      {taskAgentCount > 0 && (
-        <button
-          type="button"
-          className={`badge ${styles.toggle}`}
-          aria-pressed={showTaskAgents}
-          onClick={() => setShowTaskAgents((v) => !v)}
-        >
-          {showTaskAgents
-            ? "Hide task agents"
-            : `Show task agents (audit) — ${taskAgentCount} hidden`}
-        </button>
-      )}
+      <TaskAgentsToggle
+        taskAgentCount={taskAgentCount}
+        showTaskAgents={showTaskAgents}
+        onToggle={() => setShowTaskAgents((v) => !v)}
+      />
       <DataTable
-        columns={[
-          "Agent",
-          "Type",
-          "Created by",
-          ...(hasWhy ? ["Why"] : []),
-          "Tasks",
-          "Cost",
-          "Memories",
-          "Last Active",
-        ]}
+        columns={agentColumns(hasWhy)}
         rows={visible}
         rowKey={(a, index) => a.agent_id ?? `unattributed-${index}`}
         empty={

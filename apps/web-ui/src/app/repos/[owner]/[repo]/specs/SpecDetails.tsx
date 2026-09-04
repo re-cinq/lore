@@ -30,19 +30,19 @@ export interface StatementInfo {
   drifted?: boolean;
 }
 
-/** v3: wraps statements in <mark> by test-link state; inline formatting falls back gracefully. */
-/** Strip trailing paren when react-markdown breaks test-link into `<a>` element. */
-function matcherText(statementText: string): string {
+/** Index just past the statement's real content, skipping trailing whitespace/periods. */
+function trailingContentEnd(statementText: string): number {
   let end = statementText.length;
 
   while (end > 0 && /[\s.]/.test(statementText[end - 1])) {
     end--;
   }
 
-  if (end === 0 || statementText[end - 1] !== ")") {
-    return statementText.trim();
-  }
+  return end;
+}
 
+/** Index of the `(` that opens the trailing parenthetical ending at `end`, or null when unbalanced. */
+function trailingParenStart(statementText: string, end: number): number | null {
   let depth = 1;
 
   for (let i = end - 2; i >= 0; i--) {
@@ -61,14 +61,33 @@ function matcherText(statementText: string): string {
     if (depth > 0) {
       continue;
     }
-    const inner = statementText.slice(i + 1, end - 1);
 
-    return /\[[^\]]+\]\([^)]+\)/.test(inner)
-      ? statementText.slice(0, i).trim()
-      : statementText.trim();
+    return i;
   }
 
-  return statementText.trim();
+  return null;
+}
+
+/** v3: wraps statements in <mark> by test-link state; inline formatting falls back gracefully. */
+/** Strip trailing paren when react-markdown breaks test-link into `<a>` element. */
+function matcherText(statementText: string): string {
+  const end = trailingContentEnd(statementText);
+
+  if (end === 0 || statementText[end - 1] !== ")") {
+    return statementText.trim();
+  }
+
+  const start = trailingParenStart(statementText, end);
+
+  if (start === null) {
+    return statementText.trim();
+  }
+
+  const inner = statementText.slice(start + 1, end - 1);
+
+  return /\[[^\]]+\]\([^)]+\)/.test(inner)
+    ? statementText.slice(0, start).trim()
+    : statementText.trim();
 }
 
 /** Markdown to plain text: collapse links, strip emphasis outside code, keep code spans verbatim. */
@@ -199,19 +218,30 @@ function makeMark(text: string, meta: MarkMeta): Element {
   };
 }
 
+function isMatchableBlock(node: Element): boolean {
+  return node.tagName === "p" || node.tagName === "li";
+}
+
+function hasNoChildren(node: Element): boolean {
+  return !node.children || node.children.length === 0;
+}
+
+function isBlockMatchCandidate(
+  state: HighlightState,
+  s: HighlightState["ordered"][number],
+): boolean {
+  return !state.used.has(s.ordinal) && !!s.plain;
+}
+
 /** Fallback: wrap element's children when its rendered text matches a statement (split by code/bold). */
 function tryBlockMatch(state: HighlightState, node: Element): boolean {
-  if (node.tagName !== "p" && node.tagName !== "li") {
-    return false;
-  }
-
-  if (!node.children || node.children.length === 0) {
+  if (!isMatchableBlock(node) || hasNoChildren(node)) {
     return false;
   }
   const rendered = renderedText(node).replace(/\s+/g, " ").trim();
 
   for (const s of state.ordered) {
-    if (state.used.has(s.ordinal) || !s.plain) {
+    if (!isBlockMatchCandidate(state, s)) {
       continue;
     }
 
@@ -233,6 +263,32 @@ function tryBlockMatch(state: HighlightState, node: Element): boolean {
   return false;
 }
 
+function splitAroundMatch(
+  state: HighlightState,
+  node: Text,
+  idx: number,
+  s: HighlightState["ordered"][number],
+): ElementContent[] {
+  state.used.add(s.ordinal);
+  const before = node.value.slice(0, idx);
+  const after = node.value.slice(idx + s.matcher.length);
+  const parts: ElementContent[] = [];
+
+  if (before) {
+    parts.push({ type: "text", value: before });
+  }
+  parts.push(makeMark(s.matcher, s));
+
+  if (after) {
+    const tail = { type: "text", value: after } as Text;
+    const recursed = processTextNode(state, tail);
+
+    parts.push(...(recursed ?? [tail]));
+  }
+
+  return parts;
+}
+
 function processTextNode(
   state: HighlightState,
   node: Text,
@@ -246,24 +302,8 @@ function processTextNode(
     if (idx < 0) {
       continue;
     }
-    state.used.add(s.ordinal);
-    const before = node.value.slice(0, idx);
-    const after = node.value.slice(idx + s.matcher.length);
-    const parts: ElementContent[] = [];
 
-    if (before) {
-      parts.push({ type: "text", value: before });
-    }
-    parts.push(makeMark(s.matcher, s));
-
-    if (after) {
-      const tail = { type: "text", value: after } as Text;
-      const recursed = processTextNode(state, tail);
-
-      parts.push(...(recursed ?? [tail]));
-    }
-
-    return parts;
+    return splitAroundMatch(state, node, idx, s);
   }
 
   return null;
@@ -391,18 +431,25 @@ function StatementPopover({
   );
 }
 
-export default function SpecDetails({
-  content,
-  statements = [],
-  repo,
-  branch = "main",
-}: {
+interface SpecDetailsProps {
   content: string;
   statements?: StatementInfo[];
   /** owner/name of the spec's repo, used to resolve relative links to GitHub. */
   repo: string;
   branch?: string;
-}) {
+}
+
+function resolveSpecDetailsProps(props: SpecDetailsProps) {
+  return {
+    content: props.content,
+    statements: props.statements ?? [],
+    repo: props.repo,
+    branch: props.branch ?? "main",
+  };
+}
+
+export default function SpecDetails(props: SpecDetailsProps) {
+  const { content, statements, repo, branch } = resolveSpecDetailsProps(props);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const { hover, onMouseOver, onMouseLeave } = useStatementHover(wrapperRef);
   const statementsByOrdinal = useMemo(() => {
@@ -470,6 +517,20 @@ export default function SpecDetails({
   );
 }
 
+/** Tooltip anchor for `target`, measured against the wrapper so the popover sits with the text rather than the viewport. */
+function tooltipPosition(
+  target: HTMLElement,
+  wrapperRef: React.RefObject<HTMLDivElement | null>,
+): { left: number; top: number } {
+  const rect = target.getBoundingClientRect();
+  const wrapperRect = wrapperRef.current?.getBoundingClientRect();
+
+  return {
+    left: rect.left - (wrapperRect?.left ?? 0),
+    top: rect.bottom - (wrapperRect?.top ?? 0) + 6,
+  };
+}
+
 /** Which highlighted statement the pointer is over, and where to put its tooltip — measured against the wrapper, so the popover sits with the text rather than the viewport. */
 function useStatementHover(wrapperRef: React.RefObject<HTMLDivElement | null>) {
   const [hover, setHover] = useState<{
@@ -495,10 +556,7 @@ function useStatementHover(wrapperRef: React.RefObject<HTMLDivElement | null>) {
     if (!Number.isFinite(ordinal)) {
       return;
     }
-    const rect = target.getBoundingClientRect();
-    const wrapperRect = wrapperRef.current?.getBoundingClientRect();
-    const left = rect.left - (wrapperRect?.left ?? 0);
-    const top = rect.bottom - (wrapperRect?.top ?? 0) + 6;
+    const { left, top } = tooltipPosition(target, wrapperRef);
 
     setHover({ ordinal, x: left, y: top });
   }

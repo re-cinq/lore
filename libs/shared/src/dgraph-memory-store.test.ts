@@ -109,6 +109,10 @@ describe.skipIf(!reachable)("DgraphMemoryStore (live Dgraph)", () => {
     }
   });
 
+  function firstRow<T>(rows: T[] | undefined): T | undefined {
+    return rows?.[0];
+  }
+
   async function deleteAgentConflicts(agent: string): Promise<void> {
     const txn = dgraphClient.newTxn();
 
@@ -180,19 +184,19 @@ describe.skipIf(!reachable)("DgraphMemoryStore (live Dgraph)", () => {
           }`,
           { $agent: agent, $xid: first.id },
         );
-        const firstFact = (res.data as { firstFact?: Record<string, any>[] })
-          .firstFact?.[0];
+        const rows = (res.data as { firstFact?: Record<string, any>[] })
+          .firstFact;
+        const firstFact = firstRow(rows);
+        const conflicts = firstFact?.["~FactConflict.old_fact"];
 
         expect(firstFact?.["Fact.active"]).toBe(false);
-        expect(firstFact?.["~FactConflict.old_fact"]).toContainEqual(
+        expect(conflicts).toContainEqual(
           expect.objectContaining({
             "FactConflict.similarity": expect.any(Number),
           }),
         );
         expect(
-          firstFact?.["~FactConflict.old_fact"]?.[0]?.[
-            "FactConflict.similarity"
-          ],
+          firstRow<Record<string, any>>(conflicts)?.["FactConflict.similarity"],
         ).toBeGreaterThanOrEqual(0.92);
       } finally {
         await txn.discard().catch(() => {});

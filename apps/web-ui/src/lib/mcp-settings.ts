@@ -24,6 +24,76 @@ export function isEmptyPatch(patch: PrivilegedPatch): boolean {
   return !patch.dark_factory && !patch.task_overrides;
 }
 
+function buildHeaders(
+  token: string,
+  approvalPr?: string,
+): Record<string, string> {
+  const headers: Record<string, string> = {
+    "content-type": "application/json",
+    authorization: `Bearer ${token}`,
+  };
+
+  if (approvalPr) {
+    headers["x-lore-approval-pr"] = approvalPr;
+  }
+
+  return headers;
+}
+
+interface GatedResponseBody {
+  applied?: unknown;
+  ceremony?: unknown;
+  error?: string;
+  field_paths?: string[];
+  code?: string;
+  detail?: string;
+}
+
+function twoKeyRequiredResult(body: GatedResponseBody): PrivilegedSaveResult {
+  return {
+    status: "two_key_required",
+    fieldPaths: body.field_paths ?? [],
+    detail: body.detail ?? "",
+  };
+}
+
+function codeownersFailedResult(body: GatedResponseBody): PrivilegedSaveResult {
+  return {
+    status: "codeowners_failed",
+    code: body.code ?? "unknown",
+    detail: body.detail ?? "",
+  };
+}
+
+function errorResult(
+  body: GatedResponseBody,
+  status: number,
+): PrivilegedSaveResult {
+  return {
+    status: "error",
+    message: body.error || body.detail || `HTTP ${status}`,
+  };
+}
+
+function classifyResponse(
+  res: Response,
+  body: GatedResponseBody,
+): PrivilegedSaveResult {
+  if (res.ok) {
+    return { status: "ok", applied: body.applied, ceremony: body.ceremony };
+  }
+
+  if (res.status === 403 && body.error === "two_key_required") {
+    return twoKeyRequiredResult(body);
+  }
+
+  if (res.status === 403 && body.error === "codeowners_check_failed") {
+    return codeownersFailedResult(body);
+  }
+
+  return errorResult(body, res.status);
+}
+
 export async function putPrivilegedSettings(
   repo: string,
   patch: PrivilegedPatch,
@@ -36,15 +106,7 @@ export async function putPrivilegedSettings(
     return { status: "unconfigured" };
   }
 
-  const headers: Record<string, string> = {
-    "content-type": "application/json",
-    authorization: `Bearer ${token}`,
-  };
-
-  if (approvalPr) {
-    headers["x-lore-approval-pr"] = approvalPr;
-  }
-
+  const headers = buildHeaders(token, approvalPr);
   let res: Response;
 
   try {
@@ -61,28 +123,5 @@ export async function putPrivilegedSettings(
 
   const body = await res.json().catch(() => ({}));
 
-  if (res.ok) {
-    return { status: "ok", applied: body.applied, ceremony: body.ceremony };
-  }
-
-  if (res.status === 403 && body.error === "two_key_required") {
-    return {
-      status: "two_key_required",
-      fieldPaths: body.field_paths ?? [],
-      detail: body.detail ?? "",
-    };
-  }
-
-  if (res.status === 403 && body.error === "codeowners_check_failed") {
-    return {
-      status: "codeowners_failed",
-      code: body.code ?? "unknown",
-      detail: body.detail ?? "",
-    };
-  }
-
-  return {
-    status: "error",
-    message: body.error || body.detail || `HTTP ${res.status}`,
-  };
+  return classifyResponse(res, body);
 }

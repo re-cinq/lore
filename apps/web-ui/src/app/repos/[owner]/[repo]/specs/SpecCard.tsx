@@ -15,6 +15,45 @@ export interface SpecCardProps {
   detailsHref?: string;
 }
 
+function CoverageNote({
+  coverage,
+}: {
+  coverage?: { testable: number; covered: number; ratio: number };
+}) {
+  if (!coverage || coverage.testable === 0) {
+    return null;
+  }
+
+  return (
+    <p className={styles.note}>
+      Coverage: {coverage.covered} / {coverage.testable} (
+      {Math.round(coverage.ratio * 100)}%)
+    </p>
+  );
+}
+
+function FilesOrDetails({
+  files,
+  detailsHref,
+}: {
+  files?: Array<{ label: string; href: string }>;
+  detailsHref?: string;
+}) {
+  if (files) {
+    return (
+      <div className={styles.files}>
+        {files.map((f) => (
+          <Link key={f.href} href={f.href} className={styles.fileChip}>
+            {f.label}
+          </Link>
+        ))}
+      </div>
+    );
+  }
+
+  return detailsHref ? <Link href={detailsHref}>Details</Link> : null;
+}
+
 export default function SpecCard({
   title,
   description,
@@ -30,23 +69,8 @@ export default function SpecCard({
         {status && <SpecStatusPill status={status} />}
       </h3>
       {description && <p className={styles.note}>{description}</p>}
-      {coverage && coverage.testable > 0 && (
-        <p className={styles.note}>
-          Coverage: {coverage.covered} / {coverage.testable} (
-          {Math.round(coverage.ratio * 100)}%)
-        </p>
-      )}
-      {files ? (
-        <div className={styles.files}>
-          {files.map((f) => (
-            <Link key={f.href} href={f.href} className={styles.fileChip}>
-              {f.label}
-            </Link>
-          ))}
-        </div>
-      ) : (
-        detailsHref && <Link href={detailsHref}>Details</Link>
-      )}
+      <CoverageNote coverage={coverage} />
+      <FilesOrDetails files={files} detailsHref={detailsHref} />
     </div>
   );
 }

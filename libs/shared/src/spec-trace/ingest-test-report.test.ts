@@ -6,6 +6,7 @@ import { randomUUID } from "node:crypto";
 import * as dgraph from "dgraph-js-http";
 import { ingestTestReport } from "./ingest-test-report.js";
 import { projectSpecFile } from "./project-spec-file.js";
+import { makeDeleteRepoNodes } from "./test-helpers/delete-repo-nodes.js";
 
 const DGRAPH_HTTP = process.env.DGRAPH_HTTP ?? "http://localhost:8081";
 const APPLIER = join(
@@ -54,59 +55,17 @@ describe.skipIf(!reachable)("ingestTestReport (live Dgraph)", () => {
     }
   }
 
-  async function deleteRepoNodes(repo: string): Promise<void> {
-    const txn = dgraphClient.newTxn();
-
-    try {
-      const res = await txn.queryWithVars(
-        `query nodes($repo: string) {
-          testchunks(func: eq(TestChunk.repo, $repo)) { uid }
-          codechunks(func: eq(CodeChunk.repo, $repo)) { uid }
-          coverages(func: eq(Coverage.repo, $repo)) { uid }
-          testsuites(func: eq(TestSuite.repo, $repo)) { uid }
-          specs(func: eq(Spec.repo, $repo)) { uid }
-          statements(func: eq(Statement.repo, $repo)) { uid }
-          blocks(func: eq(Block.repo, $repo)) { uid }
-          files(func: eq(File.repo, $repo)) { uid }
-          root(func: eq(Repo.xid, $repo)) { uid }
-        }`,
-        { $repo: repo },
-      );
-      const written = res.data as {
-        testchunks?: { uid: string }[];
-        codechunks?: { uid: string }[];
-        coverages?: { uid: string }[];
-        testsuites?: { uid: string }[];
-        specs?: { uid: string }[];
-        statements?: { uid: string }[];
-        blocks?: { uid: string }[];
-        files?: { uid: string }[];
-        root?: { uid: string }[];
-      };
-      const uids = [
-        ...(written.testchunks ?? []),
-        ...(written.codechunks ?? []),
-        ...(written.coverages ?? []),
-        ...(written.testsuites ?? []),
-        ...(written.specs ?? []),
-        ...(written.statements ?? []),
-        ...(written.blocks ?? []),
-        ...(written.files ?? []),
-        ...(written.root ?? []),
-      ].map((node) => node.uid);
-
-      if (uids.length) {
-        await txn.mutate({
-          deleteNquads: uids.map((uid) => `<${uid}> * * .`).join("\n"),
-          commitNow: true,
-        });
-      }
-    } catch {
-      keepCleanupFromMaskingTheAssertion();
-    } finally {
-      await txn.discard().catch(() => {});
-    }
-  }
+  const deleteRepoNodes = makeDeleteRepoNodes(dgraphClient, [
+    { alias: "testchunks", type: "TestChunk" },
+    { alias: "codechunks", type: "CodeChunk" },
+    { alias: "coverages", type: "Coverage" },
+    { alias: "testsuites", type: "TestSuite" },
+    { alias: "specs", type: "Spec" },
+    { alias: "statements", type: "Statement" },
+    { alias: "blocks", type: "Block" },
+    { alias: "files", type: "File" },
+    { alias: "root", type: "Repo", field: "xid" },
+  ]);
 
   function keepCleanupFromMaskingTheAssertion(): void {}
 

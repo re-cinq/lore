@@ -16,6 +16,70 @@ import styles from "./ChunkBody.module.css";
 /** Non-code types render as markdown prose (pull_request/rule/etc). */
 const CODE_TYPE = "code";
 
+function codeFence(content: string, filePath: string): string {
+  const fence = fenceFor(content);
+
+  return `${fence}${languageForPath(filePath)}\n${content}\n${fence}`;
+}
+
+function markdownFor(
+  isCode: boolean,
+  content: string,
+  filePath: string,
+): string {
+  return isCode ? codeFence(content, filePath) : content;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function rehypePluginsFor(isCode: boolean): any[] {
+  return isCode
+    ? [rehypeHighlight]
+    : [rehypeRaw, [rehypeSanitize, markdownSanitizeSchema], rehypeHighlight];
+}
+
+function codeLineRange(
+  isCode: boolean,
+  metadata: ChunkMeta | undefined,
+): { start?: number; end?: number } {
+  if (!isCode || !metadata) {
+    return {};
+  }
+
+  return { start: metadata.start_line, end: metadata.end_line };
+}
+
+function wrapperClass(preview: boolean): string {
+  return `${readme.readme}${preview ? ` ${styles.previewBox}` : ""}`;
+}
+
+function ChunkHeader({
+  headerLabel,
+  ghHref,
+}: {
+  headerLabel: string;
+  ghHref: string;
+}) {
+  if (!headerLabel && !ghHref) {
+    return null;
+  }
+
+  return (
+    <div className={styles.chunkHeader}>
+      {headerLabel && <span className={styles.headerLabel}>{headerLabel}</span>}
+      {ghHref && (
+        <a
+          className={styles.headerLink}
+          href={ghHref}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          View on GitHub ↗
+        </a>
+      )}
+    </div>
+  );
+}
+
 export interface ChunkBodyProps {
   content: string;
   contentType: string;
@@ -63,44 +127,20 @@ export default function ChunkBody({
     [repo, branch],
   );
 
-  const fence = isCode ? fenceFor(content) : "";
-  const markdown = isCode
-    ? `${fence}${languageForPath(filePath)}\n${content}\n${fence}`
-    : content;
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const rehypePlugins: any[] = isCode
-    ? [rehypeHighlight]
-    : [rehypeRaw, [rehypeSanitize, markdownSanitizeSchema], rehypeHighlight];
-
+  const markdown = markdownFor(isCode, content, filePath);
+  const rehypePlugins = rehypePluginsFor(isCode);
   const headerLabel = chunkHeader(contentType, metadata);
-  const ghHref = blobUrl(repo, branch, filePath, {
-    start: isCode ? metadata?.start_line : undefined,
-    end: isCode ? metadata?.end_line : undefined,
-  });
+  const ghHref = blobUrl(
+    repo,
+    branch,
+    filePath,
+    codeLineRange(isCode, metadata),
+  );
 
   return (
     <div>
-      {!preview && (headerLabel || ghHref) && (
-        <div className={styles.chunkHeader}>
-          {headerLabel && (
-            <span className={styles.headerLabel}>{headerLabel}</span>
-          )}
-          {ghHref && (
-            <a
-              className={styles.headerLink}
-              href={ghHref}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              View on GitHub ↗
-            </a>
-          )}
-        </div>
-      )}
-      <div
-        className={`${readme.readme}${preview ? ` ${styles.previewBox}` : ""}`}
-      >
+      {!preview && <ChunkHeader headerLabel={headerLabel} ghHref={ghHref} />}
+      <div className={wrapperClass(preview)}>
         <ReactMarkdown
           remarkPlugins={[remarkGfm]}
           rehypePlugins={rehypePlugins}

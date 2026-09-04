@@ -84,11 +84,31 @@ function SettingsHelp() {
   );
 }
 
+function textFieldDefaults(settings: RepoSettingsShape) {
+  return {
+    taskTypes: (settings.task_types ?? []).join(", "),
+    dispatchDefaultType: settings.dispatch_default_type ?? "",
+    slackChannelId: settings.slack_channel_id ?? "",
+    dispatchLabel: settings.dispatch_label ?? "",
+  };
+}
+
+function selectFieldDefaults(settings: RepoSettingsShape) {
+  return {
+    trustLevel: settings.trust?.level ?? "implementation",
+    autoReview: settings.auto_review ? "yes" : "no",
+  };
+}
+
 /** Routing and trust: who owns the repo, what it is allowed to run, and how much of it happens without asking. */
 function GeneralFields({
   team,
   settings,
 }: Pick<SettingsViewProps, "team" | "settings">) {
+  const { taskTypes, dispatchDefaultType, slackChannelId, dispatchLabel } =
+    textFieldDefaults(settings);
+  const { trustLevel, autoReview } = selectFieldDefaults(settings);
+
   return (
     <>
       <h3 className={styles.section}>General</h3>
@@ -103,36 +123,33 @@ function GeneralFields({
       <label>Allowed Task Types (comma-separated)</label>
       <input
         name="task_types"
-        defaultValue={(settings.task_types ?? []).join(", ")}
+        defaultValue={taskTypes}
         placeholder="general, runbook, implementation"
       />
 
       <label>Default Dispatch Task Type</label>
       <input
         name="dispatch_default_type"
-        defaultValue={settings.dispatch_default_type ?? ""}
+        defaultValue={dispatchDefaultType}
         placeholder="general"
       />
 
       <label>Slack Channel ID</label>
       <input
         name="slack_channel_id"
-        defaultValue={settings.slack_channel_id ?? ""}
+        defaultValue={slackChannelId}
         placeholder="C0123456789"
       />
 
       <label>Dispatch Label</label>
       <input
         name="dispatch_label"
-        defaultValue={settings.dispatch_label ?? ""}
+        defaultValue={dispatchLabel}
         placeholder="lore (default)"
       />
 
       <label>Trust Level</label>
-      <select
-        name="trust_level"
-        defaultValue={settings.trust?.level ?? "implementation"}
-      >
+      <select name="trust_level" defaultValue={trustLevel}>
         <option value="docs">Docs only (gap-fill, runbook)</option>
         <option value="tests">Tests (+ review)</option>
         <option value="implementation">Implementation (default)</option>
@@ -140,10 +157,7 @@ function GeneralFields({
       </select>
 
       <label>Auto-review PRs</label>
-      <select
-        name="auto_review"
-        defaultValue={settings.auto_review ? "yes" : "no"}
-      >
+      <select name="auto_review" defaultValue={autoReview}>
         <option value="no">No</option>
         <option value="yes">Yes</option>
       </select>

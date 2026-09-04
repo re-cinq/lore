@@ -117,7 +117,7 @@ context it did, via the web-ui **Assembled** tab.
   ([validated by `tag-tree.test.ts:52`](apps/web-ui/src/app/repos/[owner]/[repo]/assembled/tag-tree.test.ts#L52), [`tag-tree.test.ts:62`](apps/web-ui/src/app/repos/[owner]/[repo]/assembled/tag-tree.test.ts#L62))
 - The debug view renders an included source card and an omitted one with its
   reason, links every contributing document to its context detail page, and shows
-  the prompt as the tag tree. ([validated by `AssembledContextView.test.tsx:135`](apps/web-ui/src/app/repos/[owner]/[repo]/assembled/AssembledContextView.test.tsx#L135), [`AssembledContextView.test.tsx:172`](apps/web-ui/src/app/repos/[owner]/[repo]/assembled/AssembledContextView.test.tsx#L172), [`AssembledContextView.test.tsx:181`](apps/web-ui/src/app/repos/[owner]/[repo]/assembled/AssembledContextView.test.tsx#L181))
+  the prompt as the tag tree. ([validated by `AssembledContextView.test.tsx:135`](apps/web-ui/src/app/repos/[owner]/[repo]/assembled/AssembledContextView.test.tsx#L135), [`AssembledContextView.test.tsx:172`](apps/web-ui/src/app/repos/[owner]/[repo]/assembled/AssembledContextView.test.tsx#L172), [`AssembledContextView.test.tsx:181`](apps/web-ui/src/app/repos/[owner]/[repo]/assembled/AssembledContextView.test.tsx#L181), [`AssembledContextView.test.tsx:207`](apps/web-ui/src/app/repos/[owner]/[repo]/assembled/AssembledContextView.test.tsx#L207), [`AssembledContextView.test.tsx:220`](apps/web-ui/src/app/repos/[owner]/[repo]/assembled/AssembledContextView.test.tsx#L220), [`AssembledContextView.test.tsx:233`](apps/web-ui/src/app/repos/[owner]/[repo]/assembled/AssembledContextView.test.tsx#L233))
 
 ## Functional Requirements
 

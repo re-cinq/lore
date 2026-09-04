@@ -23,6 +23,16 @@ export async function GET(
   }
 }
 
+function buildSettingsPatch(body: {
+  team?: string | null;
+  settings?: Record<string, unknown>;
+}): { team?: string | null; settings?: Record<string, unknown> } {
+  return {
+    ...(body.team !== undefined ? { team: body.team || null } : {}),
+    ...(body.settings !== undefined ? { settings: body.settings } : {}),
+  };
+}
+
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ owner: string; repo: string }> },
@@ -33,10 +43,7 @@ export async function POST(
     const body = await request.json();
 
     // lore-api owns the write incl. the privileged-field refusal; a 403 means the caller hit a dark-factory field needing the CODEOWNER approval PR.
-    const written = await putRepoSettings(fullName, {
-      ...(body.team !== undefined ? { team: body.team || null } : {}),
-      ...(body.settings !== undefined ? { settings: body.settings } : {}),
-    });
+    const written = await putRepoSettings(fullName, buildSettingsPatch(body));
 
     if (written.status !== "ok") {
       return upstreamError("Settings", written);

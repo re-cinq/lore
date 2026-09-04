@@ -5,6 +5,7 @@ import { findRepoRoot } from "../lib/repo-root.js";
 import { randomUUID } from "node:crypto";
 import * as dgraph from "dgraph-js-http";
 import { upsertTraceLink, projectTraceLinks } from "./trace-link.js";
+import { makeDeleteRepoNodes } from "./test-helpers/delete-repo-nodes.js";
 
 const DGRAPH_HTTP = process.env.DGRAPH_HTTP ?? "http://localhost:8081";
 const APPLIER = join(
@@ -53,47 +54,13 @@ describe.skipIf(!reachable)("upsertTraceLink (live Dgraph)", () => {
     }
   }
 
-  async function deleteRepoNodes(repo: string): Promise<void> {
-    const txn = dgraphClient.newTxn();
-
-    try {
-      const res = await txn.queryWithVars(
-        `query nodes($repo: string) {
-          tracelinks(func: eq(TraceLink.repo, $repo)) { uid }
-          testchunks(func: eq(TestChunk.repo, $repo)) { uid }
-          codechunks(func: eq(CodeChunk.repo, $repo)) { uid }
-          coverages(func: eq(Coverage.repo, $repo)) { uid }
-          files(func: eq(File.repo, $repo)) { uid }
-        }`,
-        { $repo: repo },
-      );
-      const written = res.data as {
-        tracelinks?: { uid: string }[];
-        testchunks?: { uid: string }[];
-        codechunks?: { uid: string }[];
-        coverages?: { uid: string }[];
-        files?: { uid: string }[];
-      };
-      const uids = [
-        ...(written.tracelinks ?? []),
-        ...(written.testchunks ?? []),
-        ...(written.codechunks ?? []),
-        ...(written.coverages ?? []),
-        ...(written.files ?? []),
-      ].map((node) => node.uid);
-
-      if (uids.length) {
-        await txn.mutate({
-          deleteNquads: uids.map((uid) => `<${uid}> * * .`).join("\n"),
-          commitNow: true,
-        });
-      }
-    } catch {
-      void 0;
-    } finally {
-      await txn.discard().catch(() => {});
-    }
-  }
+  const deleteRepoNodes = makeDeleteRepoNodes(dgraphClient, [
+    { alias: "tracelinks", type: "TraceLink" },
+    { alias: "testchunks", type: "TestChunk" },
+    { alias: "codechunks", type: "CodeChunk" },
+    { alias: "coverages", type: "Coverage" },
+    { alias: "files", type: "File" },
+  ]);
 
   async function deleteStatementNode(statementXid: string): Promise<void> {
     const txn = dgraphClient.newTxn();

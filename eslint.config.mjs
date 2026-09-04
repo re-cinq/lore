@@ -107,8 +107,9 @@ export default tseslint.config(
       // all five: error when the queue hits zero. Queue sizes at introduction
       // (2026-09-03, after the nesting sweep): max-comment-lines 5644,
       // max-lines-per-function 1334, complexity 582, no-vague-names 291,
-      // max-params 81. max-comment-lines and max-params reached zero on
-      // 2026-09-04 and are promoted; two queues remain.
+      // max-params 81. max-comment-lines, max-params and complexity reached
+      // zero on 2026-09-04 and are errors; max-lines-per-function is ratcheted
+      // to 100 the same day. Only no-vague-names is still a warn queue.
       "max-params": ["error", { max: 4 }],
       "lore/max-comment-lines": ["error", { max: 1 }],
       "lore/no-vague-names": "warn",
@@ -126,7 +127,7 @@ export default tseslint.config(
         "error",
         { max: 100, skipBlankLines: true, skipComments: true },
       ],
-      complexity: ["warn", 6],
+      complexity: ["error", 6],
     },
   },
 

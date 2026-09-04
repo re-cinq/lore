@@ -52,4 +52,46 @@ describe("EnrollmentSection", () => {
       screen.queryByRole("button", { name: "create a PR with this file" }),
     ).not.toBeInTheDocument();
   });
+
+  it("renders the setup-webhook button, copy value, and secret reveal for a webhook row", () => {
+    const setupWebhookAction = vi.fn().mockResolvedValue(undefined);
+    const webhookCheck: Check = {
+      id: "webhook",
+      label: "Webhook delivering",
+      status: "warn",
+      action: { kind: "setup-webhook", text: "set up" },
+      copy: { value: "https://lore/api/webhook/github", label: "set this URL" },
+      secret: { value: "shhh-secret", label: "and this secret" },
+    };
+
+    render(
+      <EnrollmentSection
+        checks={[webhookCheck]}
+        setupWebhookAction={setupWebhookAction}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: "set up" })).toBeInTheDocument();
+    expect(
+      screen.getByText("https://lore/api/webhook/github"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("set this URL:")).toBeInTheDocument();
+    expect(screen.getByText("and this secret:")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Reveal" })).toBeInTheDocument();
+  });
+
+  it("omits the setup-webhook button when no handler is provided", () => {
+    const webhookCheck: Check = {
+      id: "webhook",
+      label: "Webhook delivering",
+      status: "warn",
+      action: { kind: "setup-webhook", text: "set up" },
+    };
+
+    render(<EnrollmentSection checks={[webhookCheck]} />);
+
+    expect(
+      screen.queryByRole("button", { name: "set up" }),
+    ).not.toBeInTheDocument();
+  });
 });

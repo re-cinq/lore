@@ -19,6 +19,47 @@ interface EventsPage {
   hasMore: boolean;
 }
 
+function canStartObserving(
+  node: HTMLTableRowElement | null,
+  more: boolean,
+  loading: boolean,
+  failed: boolean,
+): boolean {
+  return !!node && more && !loading && !failed;
+}
+
+function PagerCell({
+  loading,
+  failed,
+  onRetry,
+}: {
+  loading: boolean;
+  failed: boolean;
+  onRetry: () => void;
+}) {
+  if (loading) {
+    return (
+      <>
+        <span className={`route-loading-spinner ${styles.spinner}`} />
+        Loading more…
+      </>
+    );
+  }
+
+  if (failed) {
+    return (
+      <>
+        Couldn&apos;t load more events.{" "}
+        <button type="button" className="btn-secondary" onClick={onRetry}>
+          Retry
+        </button>
+      </>
+    );
+  }
+
+  return null;
+}
+
 /** Infinite-scroll events pager: first page server-side, appends on sentinel scroll, pauses on failure. */
 export default function InfiniteEvents({
   owner,
@@ -35,10 +76,8 @@ export default function InfiniteEvents({
 
   useEffect(() => {
     const node = sentinel.current;
-    const isIdle = !loading && !failed;
-    const canObserve = !!node && more && isIdle;
 
-    if (!canObserve) {
+    if (!node || !canStartObserving(node, more, loading, failed)) {
       return;
     }
 
@@ -86,22 +125,11 @@ export default function InfiniteEvents({
       {more && (
         <tr ref={sentinel}>
           <td colSpan={4} className={`meta ${styles.pagerCell}`}>
-            {loading && (
-              <span className={`route-loading-spinner ${styles.spinner}`} />
-            )}
-            {loading && "Loading more…"}
-            {failed && (
-              <>
-                Couldn&apos;t load more events.{" "}
-                <button
-                  type="button"
-                  className="btn-secondary"
-                  onClick={() => setFailed(false)}
-                >
-                  Retry
-                </button>
-              </>
-            )}
+            <PagerCell
+              loading={loading}
+              failed={failed}
+              onRetry={() => setFailed(false)}
+            />
           </td>
         </tr>
       )}

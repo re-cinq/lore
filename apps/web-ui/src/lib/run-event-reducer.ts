@@ -52,30 +52,46 @@ function seedStatus(outcome: string | null): NodeRunStatus {
   return outcome.includes("failed") ? "failed" : "succeeded";
 }
 
-/** Initial run state: every definition node idle, then each visited node set from its newest row. */
-export function initialRunState(
+function idleNodeStates(
   def: AssemblyLineDefinition | null,
-  visitRows: readonly AssemblyRunNode[],
-): RunLiveState {
+): Record<string, NodeRunState> {
   const nodeStates: Record<string, NodeRunState> = {};
 
   for (const node of def?.nodes ?? []) {
     nodeStates[node.id] = IDLE;
   }
 
+  return nodeStates;
+}
+
+/** Sets `row`'s node to its seeded state, unless a newer-iteration row already won. */
+function applyVisitRow(
+  nodeStates: Record<string, NodeRunState>,
+  row: AssemblyRunNode,
+): void {
+  const seen = nodeStates[row.nodeId];
+
+  if (seen && seen.iteration > row.iteration) {
+    return;
+  }
+
+  nodeStates[row.nodeId] = {
+    status: seedStatus(row.outcome),
+    iteration: row.iteration,
+    transcript: [],
+    droppedCount: 0,
+  };
+}
+
+/** Initial run state: every definition node idle, then each visited node set from its newest row. */
+export function initialRunState(
+  def: AssemblyLineDefinition | null,
+  visitRows: readonly AssemblyRunNode[],
+): RunLiveState {
+  const nodeStates = idleNodeStates(def);
+
   for (const row of visitRows) {
-    const seen = nodeStates[row.nodeId];
-
-    if (seen && seen.iteration > row.iteration) {
-      continue;
-    }
-
-    nodeStates[row.nodeId] = {
-      status: seedStatus(row.outcome),
-      iteration: row.iteration,
-      transcript: [],
-      droppedCount: 0,
-    };
+    applyVisitRow(nodeStates, row);
   }
 
   return {
@@ -148,6 +164,32 @@ function isNewer(id: string, cursor: string | null): boolean {
   return id.length === cursor.length ? id > cursor : id.length > cursor.length;
 }
 
+function isLifecycleEvent(event: RunStreamEvent): boolean {
+  return event.eventType === "init" || event.eventType === "result";
+}
+
+/** Appends `event` to the timeline when it's a lifecycle event; otherwise returns `timeline` unchanged. */
+function appendTimeline(
+  timeline: TimelineEntry[],
+  event: RunStreamEvent,
+  nodeId: string,
+): TimelineEntry[] {
+  if (!isLifecycleEvent(event)) {
+    return timeline;
+  }
+
+  return [
+    ...timeline,
+    {
+      id: event.id,
+      nodeId,
+      iteration: event.iteration,
+      eventType: event.eventType,
+      createdAt: event.createdAt,
+    },
+  ];
+}
+
 /** Apply one event; returns state unchanged (by identity) for id at/behind cursor (SSE reconnect replay = no-op). */
 export function reduceRunEvent(
   state: RunLiveState,
@@ -161,15 +203,14 @@ export function reduceRunEvent(
     return { ...state, lastEventId: event.id };
   }
 
-  const node = state.nodeStates[event.nodeId] ?? IDLE;
-  const isLifecycle =
-    event.eventType === "init" || event.eventType === "result";
+  const nodeId = event.nodeId;
+  const node = state.nodeStates[nodeId] ?? IDLE;
 
   return {
     lastEventId: event.id,
     nodeStates: {
       ...state.nodeStates,
-      [event.nodeId]: {
+      [nodeId]: {
         status: nextStatus(event, node.status),
         iteration: event.iteration ?? node.iteration,
         ...appendCapped(node, event),
@@ -180,18 +221,7 @@ export function reduceRunEvent(
       event.filePaths,
       event.toolName,
     ),
-    timeline: isLifecycle
-      ? [
-          ...state.timeline,
-          {
-            id: event.id,
-            nodeId: event.nodeId,
-            iteration: event.iteration,
-            eventType: event.eventType,
-            createdAt: event.createdAt,
-          },
-        ]
-      : state.timeline,
+    timeline: appendTimeline(state.timeline, event, nodeId),
   };
 }
 

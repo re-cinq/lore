@@ -94,4 +94,54 @@ describe("deriveDarkFactoryConsole projections", () => {
       "Graph ingest: 102 validated_by, 3 violated",
     ]);
   });
+
+  it("falls back to the raw event type for an unrecognized kind", () => {
+    const model = deriveDarkFactoryConsole({
+      ...baseInput,
+      decisions: [
+        {
+          event_type: "something_else",
+          payload: {},
+          created_at: "2026-06-11T11:00:00Z",
+        },
+      ],
+    });
+
+    expect(model.decisions[0]?.summary).toBe("something_else");
+  });
+
+  it("falls back to placeholder values when payload fields are missing", () => {
+    const model = deriveDarkFactoryConsole({
+      ...baseInput,
+      decisions: [
+        {
+          event_type: "auto_merge_decision",
+          payload: {},
+          created_at: "2026-06-11T11:00:00Z",
+        },
+        {
+          event_type: "escalation_issued",
+          payload: {},
+          created_at: "2026-06-11T10:00:00Z",
+        },
+        {
+          event_type: "lease_expired",
+          payload: {},
+          created_at: "2026-06-11T09:00:00Z",
+        },
+        {
+          event_type: "spec_trace_ingest",
+          payload: {},
+          created_at: "2026-06-11T08:00:00Z",
+        },
+      ],
+    });
+
+    expect(model.decisions.map((d) => d.summary)).toEqual([
+      "Auto-merge: unknown",
+      "Escalation: needs-human-help",
+      "Lease takeover (prev unknown)",
+      "Graph ingest: 0 validated_by, 0 violated",
+    ]);
+  });
 });

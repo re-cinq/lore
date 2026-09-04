@@ -110,21 +110,35 @@ export async function fetchAgentUsage(): Promise<AgentUsage | null> {
       usage?: Array<{ name: string; used_by: AgentUsageRef[] }>;
       applied?: AgentApplyStatus[];
     };
-    const applied: Record<string, AgentApplyStatus[]> = {};
 
-    for (const status of body.applied ?? []) {
-      (applied[status.name] ??= []).push(status);
-    }
-
-    return {
-      refs: Object.fromEntries(
-        (body.usage ?? []).map((entry) => [entry.name, entry.used_by]),
-      ),
-      applied,
-    };
+    return buildAgentUsage(body);
   } catch {
     return null;
   }
+}
+
+function buildAgentUsage(body: {
+  usage?: Array<{ name: string; used_by: AgentUsageRef[] }>;
+  applied?: AgentApplyStatus[];
+}): AgentUsage {
+  return {
+    refs: Object.fromEntries(
+      (body.usage ?? []).map((entry) => [entry.name, entry.used_by]),
+    ),
+    applied: groupAppliedByName(body.applied ?? []),
+  };
+}
+
+function groupAppliedByName(
+  statuses: AgentApplyStatus[],
+): Record<string, AgentApplyStatus[]> {
+  const applied: Record<string, AgentApplyStatus[]> = {};
+
+  for (const status of statuses) {
+    (applied[status.name] ??= []).push(status);
+  }
+
+  return applied;
 }
 
 export async function saveAgent(
@@ -208,22 +222,41 @@ async function mapWriteResponse(res: Response): Promise<AgentSaveResult> {
     return { status: "ok", agent: body.agent as AgentDefinition };
   }
 
-  if (res.status === 403 && body.error === "two_key_required") {
-    return { status: "two_key_required", detail: String(body.detail ?? "") };
+  return mapErrorBody(res.status, body);
+}
+
+function mapErrorBody(
+  status: number,
+  body: Record<string, unknown>,
+): AgentSaveResult {
+  if (status !== 403) {
+    return genericSaveError(status, body);
   }
 
-  if (res.status === 403 && body.error === "codeowners_check_failed") {
+  if (body.error === "two_key_required") {
+    return { status: "two_key_required", detail: stringField(body.detail) };
+  }
+
+  if (body.error === "codeowners_check_failed") {
     return {
       status: "codeowners_failed",
-      code: String(body.code ?? "unknown"),
-      detail: String(body.detail ?? ""),
+      code: stringField(body.code, "unknown"),
+      detail: stringField(body.detail),
     };
   }
 
-  return {
-    status: "error",
-    message: String(body.error ?? `HTTP ${res.status}`),
-  };
+  return genericSaveError(status, body);
+}
+
+function stringField(value: unknown, fallback = ""): string {
+  return String(value ?? fallback);
+}
+
+function genericSaveError(
+  status: number,
+  body: Record<string, unknown>,
+): AgentSaveResult {
+  return { status: "error", message: String(body.error ?? `HTTP ${status}`) };
 }
 
 export async function deleteAgent(

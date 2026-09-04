@@ -146,27 +146,44 @@ export function formatDuration(ms: number): string {
   return `${seconds}s`;
 }
 
+function supersedesThinkingTokens(previous: LogEntry | undefined): boolean {
+  return previous?.kind === "thinking-tokens";
+}
+
+function supersedesToolProgress(
+  previous: LogEntry | undefined,
+  next: Extract<LogEntry, { kind: "tool-progress" }>,
+): boolean {
+  return (
+    previous?.kind === "tool-progress" && previous.toolUseId === next.toolUseId
+  );
+}
+
+function supersedesHook(
+  previous: LogEntry | undefined,
+  next: LogEntry,
+): boolean {
+  return (
+    next.kind === "hook" &&
+    previous?.kind === "hook" &&
+    previous.hookId === next.hookId
+  );
+}
+
 /** Whether `next` replaces `previous`: thinking-tokens, hook_progress, and tool heartbeats all report running totals, not increments (adjacent-only, so concurrent hooks/calls stay interleaved). */
 export function supersedesPrevious(
   previous: LogEntry | undefined,
   next: LogEntry,
 ): boolean {
   if (next.kind === "thinking-tokens") {
-    return previous?.kind === "thinking-tokens";
+    return supersedesThinkingTokens(previous);
   }
 
   if (next.kind === "tool-progress") {
-    return (
-      previous?.kind === "tool-progress" &&
-      previous.toolUseId === next.toolUseId
-    );
+    return supersedesToolProgress(previous, next);
   }
 
-  return (
-    next.kind === "hook" &&
-    previous?.kind === "hook" &&
-    previous.hookId === next.hookId
-  );
+  return supersedesHook(previous, next);
 }
 
 /** Joins a gemini streaming chunk onto the prior assistant text (null if `next` starts its own entry) — gemini emits prose only as `delta:true` fragments, never a final message. */
@@ -321,6 +338,28 @@ function claudeStreamEntries(
   );
 }
 
+function sessionInitEntry(value: Record<string, unknown>): LogEntry[] {
+  return [
+    {
+      kind: "session-init",
+      model: typeof value.model === "string" ? value.model : "unknown model",
+      ...(typeof value.claude_code_version === "string"
+        ? { version: value.claude_code_version }
+        : {}),
+      detailsJson: JSON.stringify(value, null, 2),
+    },
+  ];
+}
+
+function thinkingTokensEntry(
+  value: Record<string, unknown>,
+): LogEntry[] | null {
+  return value.subtype === "thinking_tokens" &&
+    typeof value.estimated_tokens === "number"
+    ? [{ kind: "thinking-tokens", tokens: value.estimated_tokens }]
+    : null;
+}
+
 /** The session header and the thinking-token meter — the two `system` subtypes with a shape of their own. */
 function sessionEntries(value: Record<string, unknown>): LogEntry[] | null {
   if (value.type !== "system") {
@@ -328,22 +367,10 @@ function sessionEntries(value: Record<string, unknown>): LogEntry[] | null {
   }
 
   if (value.subtype === "init") {
-    return [
-      {
-        kind: "session-init",
-        model: typeof value.model === "string" ? value.model : "unknown model",
-        ...(typeof value.claude_code_version === "string"
-          ? { version: value.claude_code_version }
-          : {}),
-        detailsJson: JSON.stringify(value, null, 2),
-      },
-    ];
+    return sessionInitEntry(value);
   }
 
-  return value.subtype === "thinking_tokens" &&
-    typeof value.estimated_tokens === "number"
-    ? [{ kind: "thinking-tokens", tokens: value.estimated_tokens }]
-    : null;
+  return thinkingTokensEntry(value);
 }
 
 /** Any other `system` line: naming the subtype beats dumping raw bytes at the reader, and the whole event stays one click away. */
@@ -403,49 +430,72 @@ function geminiStreamEntries(
   return geminiToolEntries(value) ?? geminiOutcomeEntries(value);
 }
 
-function geminiToolEntries(value: Record<string, unknown>): LogEntry[] | null {
-  if (value.type === "tool_use" && typeof value.tool_name === "string") {
-    return [
-      {
-        kind: "tool-use",
-        summary: toolSummary({
-          name: value.tool_name,
-          ...(isRecord(value.parameters) ? { input: value.parameters } : {}),
-        }),
-      },
-    ];
+function geminiToolUseEntry(value: Record<string, unknown>): LogEntry[] | null {
+  if (value.type !== "tool_use" || typeof value.tool_name !== "string") {
+    return null;
   }
 
-  if (value.type === "tool_result" && typeof value.tool_id === "string") {
-    return [
-      {
-        kind: "tool-result",
-        text:
-          typeof value.output === "string"
-            ? value.output
-            : errorMessage(value.error),
-        isError: value.status === "error",
-      },
-    ];
-  }
-
-  return null;
+  return [
+    {
+      kind: "tool-use",
+      summary: toolSummary({
+        name: value.tool_name,
+        ...(isRecord(value.parameters) ? { input: value.parameters } : {}),
+      }),
+    },
+  ];
 }
 
-/** How a gemini run ends: an error mid-flight, or the terminal result line. */
-function geminiOutcomeEntries(
+function geminiToolResultEntry(
   value: Record<string, unknown>,
 ): LogEntry[] | null {
-  if (value.type === "error" && typeof value.message === "string") {
-    return [
-      {
-        kind: "agent-error",
-        severity: value.severity === "warning" ? "warning" : "error",
-        message: value.message,
-      },
-    ];
+  if (value.type !== "tool_result" || typeof value.tool_id !== "string") {
+    return null;
   }
 
+  return [
+    {
+      kind: "tool-result",
+      text:
+        typeof value.output === "string"
+          ? value.output
+          : errorMessage(value.error),
+      isError: value.status === "error",
+    },
+  ];
+}
+
+function geminiToolEntries(value: Record<string, unknown>): LogEntry[] | null {
+  return geminiToolUseEntry(value) ?? geminiToolResultEntry(value);
+}
+
+function geminiErrorEntry(value: Record<string, unknown>): LogEntry[] | null {
+  if (value.type !== "error" || typeof value.message !== "string") {
+    return null;
+  }
+
+  return [
+    {
+      kind: "agent-error",
+      severity: value.severity === "warning" ? "warning" : "error",
+      message: value.message,
+    },
+  ];
+}
+
+function durationField(value: unknown): { durationMs?: number } {
+  return typeof value === "number" ? { durationMs: value } : {};
+}
+
+function costField(value: unknown): { costUsd?: number } {
+  return typeof value === "number" ? { costUsd: value } : {};
+}
+
+function turnsField(value: unknown): { numTurns?: number } {
+  return typeof value === "number" ? { numTurns: value } : {};
+}
+
+function geminiResultEntry(value: Record<string, unknown>): LogEntry[] | null {
   if (value.type !== "result") {
     return null;
   }
@@ -458,17 +508,50 @@ function geminiOutcomeEntries(
           ? value.result
           : errorMessage(value.error),
       isError: value.is_error === true || value.status === "error",
-      ...(typeof value.duration_ms === "number"
-        ? { durationMs: value.duration_ms }
-        : {}),
-      ...(typeof value.total_cost_usd === "number"
-        ? { costUsd: value.total_cost_usd }
-        : {}),
-      ...(typeof value.num_turns === "number"
-        ? { numTurns: value.num_turns }
-        : {}),
+      ...durationField(value.duration_ms),
+      ...costField(value.total_cost_usd),
+      ...turnsField(value.num_turns),
     },
   ];
+}
+
+/** How a gemini run ends: an error mid-flight, or the terminal result line. */
+function geminiOutcomeEntries(
+  value: Record<string, unknown>,
+): LogEntry[] | null {
+  return geminiErrorEntry(value) ?? geminiResultEntry(value);
+}
+
+// Declared-artifact delivery — an event name is required, or the floor projection can't route it, so the bytes stay raw.
+function fileEntry(value: Record<string, unknown>): LogEntry[] | null {
+  if (value.kind !== "file" || typeof value.event !== "string") {
+    return null;
+  }
+
+  return [
+    {
+      kind: "file",
+      event: value.event,
+      path: typeof value.path === "string" ? value.path : "",
+      content: typeof value.content === "string" ? value.content : "",
+      ...(typeof value.reason === "string" ? { reason: value.reason } : {}),
+    },
+  ];
+}
+
+function stationLogEntry(value: Record<string, unknown>): LogEntry[] | null {
+  return value.type === "log" && typeof value.message === "string"
+    ? [{ kind: "station-log", text: value.message }]
+    : null;
+}
+
+function rateLimitEventEntries(
+  value: Record<string, unknown>,
+  originalLine: string,
+): LogEntry[] | null {
+  return value.type === "rate_limit_event"
+    ? rateLimitEntries(value, originalLine)
+    : null;
 }
 
 /** Lines the station emits around the agent: declared artifacts, its own log, and the vendor's rate-limit meter. */
@@ -476,26 +559,11 @@ function stationEntries(
   value: Record<string, unknown>,
   originalLine: string,
 ): LogEntry[] | null {
-  // Declared-artifact delivery — an event name is required, or the floor projection can't route it, so the bytes stay raw.
-  if (value.kind === "file" && typeof value.event === "string") {
-    return [
-      {
-        kind: "file",
-        event: value.event,
-        path: typeof value.path === "string" ? value.path : "",
-        content: typeof value.content === "string" ? value.content : "",
-        ...(typeof value.reason === "string" ? { reason: value.reason } : {}),
-      },
-    ];
-  }
-
-  if (value.type === "log" && typeof value.message === "string") {
-    return [{ kind: "station-log", text: value.message }];
-  }
-
-  return value.type === "rate_limit_event"
-    ? rateLimitEntries(value, originalLine)
-    : null;
+  return (
+    fileEntry(value) ??
+    stationLogEntry(value) ??
+    rateLimitEventEntries(value, originalLine)
+  );
 }
 
 function rateLimitEntries(
@@ -619,64 +687,73 @@ function trimmedBlockText(candidate: unknown): string {
   return typeof candidate === "string" && candidate.trim() ? candidate : "";
 }
 
+function thinkingBlockEntry(block: Record<string, unknown>): LogEntry | null {
+  const text = trimmedBlockText(block.thinking);
+
+  return text ? { kind: "thinking", text } : null;
+}
+
+function textBlockEntry(
+  block: Record<string, unknown>,
+  role: unknown,
+): LogEntry | null {
+  const text = trimmedBlockText(block.text);
+
+  if (!text) {
+    return null;
+  }
+
+  return role === "user"
+    ? { kind: "user-text", text }
+    : { kind: "assistant-text", text };
+}
+
+function toolUseBlockEntry(block: Record<string, unknown>): LogEntry {
+  return {
+    kind: "tool-use",
+    summary: toolSummary(
+      block as { name?: string; input?: Record<string, unknown> },
+    ),
+  };
+}
+
+function toolResultBlockEntry(block: Record<string, unknown>): LogEntry {
+  return {
+    kind: "tool-result",
+    text: toolResultText(block.content),
+    isError: block.is_error === true,
+  };
+}
+
+function blockEntry(block: unknown, role: unknown): LogEntry | null {
+  if (!isRecord(block)) {
+    return null;
+  }
+
+  switch (block.type) {
+    case "thinking":
+      return thinkingBlockEntry(block);
+    case "text":
+      return textBlockEntry(block, role);
+    case "tool_use":
+      return toolUseBlockEntry(block);
+    case "tool_result":
+      return toolResultBlockEntry(block);
+    default:
+      return null;
+  }
+}
+
 function messageEntries(value: Record<string, unknown>): LogEntry[] {
   const message = value.message;
 
   if (!isRecord(message) || !Array.isArray(message.content)) {
     return [];
   }
-  const entries: LogEntry[] = [];
 
-  for (const block of message.content) {
-    if (!isRecord(block)) {
-      continue;
-    }
-
-    const thinkingText = trimmedBlockText(block.thinking);
-    const blockText = trimmedBlockText(block.text);
-
-    if (block.type === "thinking" && thinkingText === "") {
-      continue;
-    }
-
-    if (block.type === "thinking") {
-      entries.push({ kind: "thinking", text: thinkingText });
-      continue;
-    }
-
-    if (block.type === "text" && blockText === "") {
-      continue;
-    }
-
-    if (block.type === "text") {
-      entries.push(
-        value.type === "user"
-          ? { kind: "user-text", text: blockText }
-          : { kind: "assistant-text", text: blockText },
-      );
-      continue;
-    }
-
-    if (block.type === "tool_use") {
-      entries.push({
-        kind: "tool-use",
-        summary: toolSummary(
-          block as { name?: string; input?: Record<string, unknown> },
-        ),
-      });
-      continue;
-    }
-
-    if (block.type === "tool_result") {
-      entries.push({
-        kind: "tool-result",
-        text: toolResultText(block.content),
-        isError: block.is_error === true,
-      });
-    }
-  }
-
-  return entries;
+  return message.content
+    .map((block) => blockEntry(block, value.type))
+    .filter((entry): entry is LogEntry => entry !== null);
 }
 
 function toWindow(name: string, value: unknown): RateLimitWindow | null {

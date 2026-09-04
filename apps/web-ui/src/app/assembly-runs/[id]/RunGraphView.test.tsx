@@ -177,6 +177,40 @@ describe("RunGraphView interaction", () => {
     expect(onSelect).toHaveBeenCalledWith("review");
   });
 
+  it("calls onSelectNode when a node is focused and Enter is pressed", async () => {
+    const onSelect = vi.fn();
+
+    render(
+      <RunGraphView
+        graph={deriveVisibleGraph(codeReviewDefinition, failedReviewRun, "run")}
+        definition={codeReviewDefinition}
+        onSelectNode={onSelect}
+      />,
+    );
+
+    (document.querySelector('[data-node="review"]') as HTMLElement).focus();
+    await userEvent.keyboard("{Enter}");
+
+    expect(onSelect).toHaveBeenCalledWith("review");
+  });
+
+  it("does not call onSelectNode for a key other than Enter or Space", async () => {
+    const onSelect = vi.fn();
+
+    render(
+      <RunGraphView
+        graph={deriveVisibleGraph(codeReviewDefinition, failedReviewRun, "run")}
+        definition={codeReviewDefinition}
+        onSelectNode={onSelect}
+      />,
+    );
+
+    (document.querySelector('[data-node="review"]') as HTMLElement).focus();
+    await userEvent.keyboard("{a}");
+
+    expect(onSelect).not.toHaveBeenCalled();
+  });
+
   it("renders an empty-state message for a graph with no nodes", () => {
     const { getByText } = render(
       <RunGraphView

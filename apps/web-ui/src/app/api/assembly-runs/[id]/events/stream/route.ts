@@ -1,9 +1,9 @@
 export const dynamic = "force-dynamic";
+import {
+  authorizeAssemblyRunAccess,
+  isAssemblyRunAuthError,
+} from "@/lib/assembly-run-auth";
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth-options";
-import { fetchAssemblyRun } from "@/lib/assembly-runs";
-import { userCanAccessRepo } from "@/lib/user-repo-access";
 import { serverError } from "@/lib/api-error";
 
 // Session-authed SSE proxy to the Floor's /api/agent-events/stream/{id} (cookie→bearer token exchange). Keep upstream.body un-awaited (streamed, not buffered), req.signal forwarded, and no-transform/X-Accel-Buffering headers repeated per hop (spec FR4.8); Node runtime required, not edge.
@@ -14,37 +14,13 @@ export async function GET(
   const { id } = await params;
 
   try {
-    const session = (await getServerSession(authOptions)) as {
-      accessToken?: string;
-    } | null;
+    const auth = await authorizeAssemblyRunAccess(id);
 
-    if (!session?.accessToken) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (isAssemblyRunAuthError(auth)) {
+      return auth;
     }
 
-    const run = await fetchAssemblyRun(id);
-
-    if (!run) {
-      return NextResponse.json({ error: "Run not found" }, { status: 404 });
-    }
-
-    if (!(await userCanAccessRepo(session.accessToken, run.repo))) {
-      return NextResponse.json(
-        { error: "Access denied — you do not have access to this repo" },
-        { status: 403 },
-      );
-    }
-
-    const floorUrl = process.env.LORE_FLOOR_URL;
-    const token = process.env.LORE_INGEST_TOKEN;
-
-    if (!floorUrl || !token) {
-      return NextResponse.json(
-        { error: "LORE_FLOOR_URL/LORE_INGEST_TOKEN not configured" },
-        { status: 500 },
-      );
-    }
-
+    const { floorUrl, token } = auth;
     const after = new URL(req.url).searchParams.get("after");
     const query = after === null ? "" : `?after=${encodeURIComponent(after)}`;
     const lastEventId = req.headers.get("Last-Event-ID");

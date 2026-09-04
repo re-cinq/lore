@@ -193,6 +193,15 @@ describe("AgentsTable rows", () => {
     expect(screen.getByText("unknown")).toBeInTheDocument();
     expect(screen.getByText("—")).toBeInTheDocument();
   });
+
+  it("renders an em dash instead of a link for an ungrouped row with no agent_id", () => {
+    render(<AgentsTable agents={[local({ agent_id: null })]} />);
+
+    expect(
+      screen.queryByRole("link", { name: /agent/ }),
+    ).not.toBeInTheDocument();
+    expect(screen.getAllByText("—")).not.toHaveLength(0);
+  });
 });
 
 describe("AgentsTable empty states", () => {

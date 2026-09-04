@@ -13,6 +13,7 @@ import {
 } from "./prune-removed-docs.js";
 import { projectSpecFile } from "./project-spec-file.js";
 import { projectAdrFile } from "./project-adr-file.js";
+import { makeDeleteRepoNodes } from "./test-helpers/delete-repo-nodes.js";
 
 describe("selectPruneCandidates", () => {
   const inScope = (path: string) => path.startsWith("specs/");
@@ -103,42 +104,18 @@ describe.skipIf(!reachable)("whole-file pruning (live Dgraph)", () => {
     }
   }
 
-  async function deleteRepoNodes(repo: string): Promise<void> {
-    const txn = dgraphClient.newTxn();
-
-    try {
-      const res = await txn.queryWithVars(
-        `query nodes($repo: string) {
-          specs(func: eq(Spec.repo, $repo)) { uid }
-          adrs(func: eq(ADR.repo, $repo)) { uid }
-          root(func: eq(Repo.xid, $repo)) { uid }
-          blocks(func: eq(Block.repo, $repo)) { uid }
-          features(func: eq(Feature.repo, $repo)) { uid }
-          statements(func: eq(Statement.repo, $repo)) { uid }
-          acs(func: eq(AcceptanceCriterion.repo, $repo)) { uid }
-          links(func: eq(TraceLink.repo, $repo)) { uid }
-          chunks(func: eq(TestChunk.repo, $repo)) { uid }
-          codeChunks(func: eq(CodeChunk.repo, $repo)) { uid }
-        }`,
-        { $repo: repo },
-      );
-      const written = res.data as Record<string, { uid: string }[] | undefined>;
-      const uids = Object.values(written)
-        .flatMap((nodes) => nodes ?? [])
-        .map((node) => node.uid);
-
-      if (uids.length) {
-        await txn.mutate({
-          deleteNquads: uids.map((uid) => `<${uid}> * * .`).join("\n"),
-          commitNow: true,
-        });
-      }
-    } catch {
-      void 0;
-    } finally {
-      await txn.discard().catch(() => {});
-    }
-  }
+  const deleteRepoNodes = makeDeleteRepoNodes(dgraphClient, [
+    { alias: "specs", type: "Spec" },
+    { alias: "adrs", type: "ADR" },
+    { alias: "root", type: "Repo", field: "xid" },
+    { alias: "blocks", type: "Block" },
+    { alias: "features", type: "Feature" },
+    { alias: "statements", type: "Statement" },
+    { alias: "acs", type: "AcceptanceCriterion" },
+    { alias: "links", type: "TraceLink" },
+    { alias: "chunks", type: "TestChunk" },
+    { alias: "codeChunks", type: "CodeChunk" },
+  ]);
 
   let createdRepo = "";
 
@@ -291,6 +268,14 @@ describe.skipIf(!reachable)("whole-file pruning (live Dgraph)", () => {
     ).resolves.toBeUndefined();
   });
 
+  function len(arr: unknown[] | undefined): number {
+    return arr?.length ?? 0;
+  }
+
+  function firstUid(rows: Array<{ uid: string }> | undefined): string {
+    return rows?.[0]?.uid ?? "";
+  }
+
   it("deleteAdrSubtree removes the ADR, its blocks, and the Repo.adrs edge", async () => {
     const repo = `test-prune/${randomUUID()}`;
 
@@ -321,9 +306,9 @@ describe.skipIf(!reachable)("whole-file pruning (live Dgraph)", () => {
       root?: Array<{ adrs?: unknown[] }>;
     };
 
-    expect(graph.adr?.length ?? 0).toBe(0);
-    expect(graph.blocks?.length ?? 0).toBe(0);
-    expect(graph.root?.[0]?.adrs?.length ?? 0).toBe(0);
+    expect(len(graph.adr)).toBe(0);
+    expect(len(graph.blocks)).toBe(0);
+    expect(len(graph.root?.[0]?.adrs)).toBe(0);
   });
 
   it("listGraphDocPaths returns the file paths of a repo's Specs and ADRs", async () => {
@@ -528,7 +513,7 @@ describe.skipIf(!reachable)("whole-file pruning (live Dgraph)", () => {
       `query q($xid: string) { adr(func: eq(ADR.xid, $xid)) { uid } }`,
       { $xid: `${repo}|${adrPath}` },
     )) as { adr?: Array<{ uid: string }> };
-    const adrUid = adrData.adr?.[0]?.uid ?? "";
+    const adrUid = firstUid(adrData.adr);
 
     expect(adrUid).not.toBe("");
 
@@ -570,7 +555,7 @@ describe.skipIf(!reachable)("whole-file pruning (live Dgraph)", () => {
     )) as { ac?: Array<{ links?: unknown[] }>; link?: unknown[] };
 
     expect({
-      link: graph.link?.length ?? 0,
+      link: len(graph.link),
       ac: graph.ac?.length,
       acLinks: graph.ac?.[0]?.links ?? [],
     }).toEqual({ link: 0, ac: 1, acLinks: [] });

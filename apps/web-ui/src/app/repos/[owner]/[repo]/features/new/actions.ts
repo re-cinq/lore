@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { createFeature } from "@/lib/api/features";
+import { trimmedFormField, createFeatureErrorMessage } from "./action-input";
 
 // Mutations here (not in page); bound args encrypted into payload so repo comes from server.
 export interface CreateFeatureState {
@@ -13,8 +14,8 @@ export async function createFeatureAction(
   _prev: CreateFeatureState | null,
   formData: FormData,
 ): Promise<CreateFeatureState> {
-  const title = (formData.get("title") as string)?.trim();
-  const prompt = (formData.get("prompt") as string)?.trim();
+  const title = trimmedFormField(formData, "title");
+  const prompt = trimmedFormField(formData, "prompt");
 
   if (!title || !prompt) {
     return { error: "Title and prompt are required." };
@@ -25,10 +26,5 @@ export async function createFeatureAction(
     redirect(`/repos/${fullName}/features/${result.data.id}`);
   }
 
-  return {
-    error:
-      result.status === "unconfigured"
-        ? "Feature API is not configured (LORE_API_URL / token)."
-        : result.message,
-  };
+  return { error: createFeatureErrorMessage(result) };
 }

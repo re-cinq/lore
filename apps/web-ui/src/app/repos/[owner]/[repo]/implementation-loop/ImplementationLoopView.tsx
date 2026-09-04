@@ -18,6 +18,20 @@ const STATUS_TONE: Record<string, "success" | "danger" | "info" | "neutral"> = {
   cancelled: "neutral",
 };
 
+const TIME_AGO_UNITS: Array<[number, string]> = [
+  [60 * 60 * 24 * 365, "year"],
+  [60 * 60 * 24 * 30, "month"],
+  [60 * 60 * 24, "day"],
+  [60 * 60, "hour"],
+  [60, "minute"],
+];
+
+function formatTimeAgo(seconds: number, span: number, unit: string): string {
+  const n = Math.floor(seconds / span);
+
+  return `${n} ${unit}${n === 1 ? "" : "s"} ago`;
+}
+
 /** Relative time for the Status column; exported for its test. */
 export function timeAgo(iso: string | null, now: Date = new Date()): string {
   if (!iso) {
@@ -31,24 +45,9 @@ export function timeAgo(iso: string | null, now: Date = new Date()): string {
   if (seconds < 60) {
     return "just now";
   }
-  const table: Array<[number, string]> = [
-    [60 * 60 * 24 * 365, "year"],
-    [60 * 60 * 24 * 30, "month"],
-    [60 * 60 * 24, "day"],
-    [60 * 60, "hour"],
-  ];
+  const match = TIME_AGO_UNITS.find(([span]) => seconds >= span);
 
-  for (const [span, unit] of table) {
-    if (seconds >= span) {
-      const n = Math.floor(seconds / span);
-
-      return `${n} ${unit}${n === 1 ? "" : "s"} ago`;
-    }
-  }
-  // Early return handled < 60s, loop handled >= 1h, so remaining is always minutes.
-  const minutes = Math.floor(seconds / 60);
-
-  return `${minutes} minute${minutes === 1 ? "" : "s"} ago`;
+  return match ? formatTimeAgo(seconds, match[0], match[1]) : "";
 }
 
 /** Pure view (DDAU): data down as `loop`, toggle up via bound server action. */
@@ -144,71 +143,89 @@ function TicketTable({
   );
 }
 
-function TicketRow({ ticket }: { ticket: LoopTicket }) {
+function TicketStatusCell({ ticket }: { ticket: LoopTicket }) {
   const tone = STATUS_TONE[ticket.state] ?? "danger";
 
   return (
-    <tr data-testid="ticket-row">
-      <td>
+    <td>
+      <span
+        className={`${styles.statusBadge} ${styles[`tone_${tone}`]}`}
+        data-testid="ticket-status"
+      >
+        {ticket.state}
+      </span>
+      {ticket.created_at && (
         <span
-          className={`${styles.statusBadge} ${styles[`tone_${tone}`]}`}
-          data-testid="ticket-status"
+          className={styles.timeAgo}
+          title={ticket.created_at}
+          data-testid="ticket-time"
         >
-          {ticket.state}
+          {timeAgo(ticket.created_at)}
         </span>
-        {ticket.created_at && (
-          <span
-            className={styles.timeAgo}
-            title={ticket.created_at}
-            data-testid="ticket-time"
-          >
-            {timeAgo(ticket.created_at)}
-          </span>
-        )}
-      </td>
-      <td>
-        {ticket.issue_url ? (
-          <a href={ticket.issue_url} target="_blank" rel="noreferrer">
-            #{ticket.issue_number} {ticket.title}
-          </a>
-        ) : (
-          <span>
-            #{ticket.issue_number} {ticket.title}
-          </span>
-        )}
-        {ticket.priority && (
-          <span className={styles.priority}>{ticket.priority}</span>
-        )}
-        {ticket.error && (
-          <p
-            className={styles.errorLine}
-            title={ticket.error}
-            data-testid={`ticket-error-${ticket.issue_number}`}
-          >
-            {ticket.error}
-          </p>
-        )}
-      </td>
+      )}
+    </td>
+  );
+}
+
+function TicketTitleCell({ ticket }: { ticket: LoopTicket }) {
+  return (
+    <td>
+      {ticket.issue_url ? (
+        <a href={ticket.issue_url} target="_blank" rel="noreferrer">
+          #{ticket.issue_number} {ticket.title}
+        </a>
+      ) : (
+        <span>
+          #{ticket.issue_number} {ticket.title}
+        </span>
+      )}
+      {ticket.priority && (
+        <span className={styles.priority}>{ticket.priority}</span>
+      )}
+      {ticket.error && (
+        <p
+          className={styles.errorLine}
+          title={ticket.error}
+          data-testid={`ticket-error-${ticket.issue_number}`}
+        >
+          {ticket.error}
+        </p>
+      )}
+    </td>
+  );
+}
+
+function TicketActionsCell({ ticket }: { ticket: LoopTicket }) {
+  return (
+    <td className={styles.actionsCol}>
+      {ticket.run_id && (
+        <a href={`/assembly-runs/${ticket.run_id}`} className="button">
+          Run
+        </a>
+      )}
+      {ticket.pr_url && (
+        <a
+          href={ticket.pr_url}
+          target="_blank"
+          rel="noreferrer"
+          className="button"
+        >
+          PR
+        </a>
+      )}
+    </td>
+  );
+}
+
+function TicketRow({ ticket }: { ticket: LoopTicket }) {
+  return (
+    <tr data-testid="ticket-row">
+      <TicketStatusCell ticket={ticket} />
+      <TicketTitleCell ticket={ticket} />
       <td>
         <MiniPipeline ticket={ticket} />
       </td>
-      <td className={styles.actionsCol}>
-        {ticket.run_id && (
-          <a href={`/assembly-runs/${ticket.run_id}`} className="button">
-            Run
-          </a>
-        )}
-        {ticket.pr_url && (
-          <a
-            href={ticket.pr_url}
-            target="_blank"
-            rel="noreferrer"
-            className="button"
-          >
-            PR
-          </a>
-        )}
-      </td>
+      <TicketActionsCell ticket={ticket} />
     </tr>
   );
 }

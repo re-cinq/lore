@@ -65,21 +65,36 @@ function deriveActivation(
   };
 }
 
+type AuditPayload = ConsoleAuditEvent["payload"];
+
+function summarizeAutoMerge(payload: AuditPayload): string {
+  return `Auto-merge: ${payload.outcome ?? "unknown"}`;
+}
+
+function summarizeEscalation(payload: AuditPayload): string {
+  return `Escalation: ${payload.reason ?? "needs-human-help"}`;
+}
+
+function summarizeLeaseExpired(payload: AuditPayload): string {
+  return `Lease takeover (prev ${payload.previous_holder ?? "unknown"})`;
+}
+
+function summarizeSpecTraceIngest(payload: AuditPayload): string {
+  return `Graph ingest: ${payload.validated_by ?? 0} validated_by, ${payload.violated ?? 0} violated`;
+}
+
+const SUMMARIZERS: Record<string, (payload: AuditPayload) => string> = {
+  auto_merge_decision: summarizeAutoMerge,
+  escalation_issued: summarizeEscalation,
+  lease_expired: summarizeLeaseExpired,
+  spec_trace_ingest: summarizeSpecTraceIngest,
+};
+
 function summarize(event: ConsoleAuditEvent): string {
   const payload = event.payload ?? {};
+  const summarizer = SUMMARIZERS[event.event_type];
 
-  switch (event.event_type) {
-    case "auto_merge_decision":
-      return `Auto-merge: ${payload.outcome ?? "unknown"}`;
-    case "escalation_issued":
-      return `Escalation: ${payload.reason ?? "needs-human-help"}`;
-    case "lease_expired":
-      return `Lease takeover (prev ${payload.previous_holder ?? "unknown"})`;
-    case "spec_trace_ingest":
-      return `Graph ingest: ${payload.validated_by ?? 0} validated_by, ${payload.violated ?? 0} violated`;
-    default:
-      return event.event_type;
-  }
+  return summarizer ? summarizer(payload) : event.event_type;
 }
 
 export function deriveDarkFactoryConsole(

@@ -32,19 +32,35 @@ function split(repo: string): [string, string] {
   return [owner, name];
 }
 
-async function octokit(): Promise<Octokit> {
-  const appId = process.env.GITHUB_APP_ID || "";
-  const privateKey = process.env.GITHUB_APP_PRIVATE_KEY || "";
-  const installationId = process.env.GITHUB_APP_INSTALLATION_ID || "";
+function readGithubAppEnv() {
+  return {
+    appId: process.env.GITHUB_APP_ID ?? "",
+    privateKey: process.env.GITHUB_APP_PRIVATE_KEY ?? "",
+    installationId: process.env.GITHUB_APP_INSTALLATION_ID ?? "",
+  };
+}
 
-  if (!appId || !privateKey || !installationId) {
+function hasGithubAppCredentials(
+  creds: ReturnType<typeof readGithubAppEnv>,
+): boolean {
+  return (
+    Boolean(creds.appId) &&
+    Boolean(creds.privateKey) &&
+    Boolean(creds.installationId)
+  );
+}
+
+async function octokit(): Promise<Octokit> {
+  const creds = readGithubAppEnv();
+
+  if (!hasGithubAppCredentials(creds)) {
     throw new Error("GitHub App credentials not configured");
   }
 
   return withoutBlindRetryOnCreates(
     new Octokit({
       authStrategy: createAppAuth,
-      auth: { appId, privateKey, installationId },
+      auth: creds,
     }),
   );
 }
@@ -57,36 +73,17 @@ export function isGitHubConfigured(): boolean {
   );
 }
 
-export function computeStatus(
-  pr: { merged: boolean; state: string; draft?: boolean },
-  checks: Array<{ conclusion: string | null }>,
+function hasFailingChecks(checks: Array<{ conclusion: string | null }>) {
+  return checks.some(
+    (c) => c.conclusion === "failure" || c.conclusion === "timed_out",
+  );
+}
+
+function isApprovedAndPassing(
   reviews: Array<{ state: string }>,
-): PRStatus {
-  if (pr.merged) {
-    return "merged";
-  }
-
-  if (pr.state === "closed") {
-    return "closed";
-  }
-
-  if (pr.draft) {
-    return "draft";
-  }
-
-  if (
-    checks.some(
-      (c) => c.conclusion === "failure" || c.conclusion === "timed_out",
-    )
-  ) {
-    return "checks-failing";
-  }
-
-  if (reviews.some((r) => r.state === "CHANGES_REQUESTED")) {
-    return "changes-requested";
-  }
-
-  if (
+  checks: Array<{ conclusion: string | null }>,
+) {
+  return (
     reviews.some((r) => r.state === "APPROVED") &&
     checks.every(
       (c) =>
@@ -94,11 +91,33 @@ export function computeStatus(
         c.conclusion === "skipped" ||
         c.conclusion === null,
     )
-  ) {
-    return "approved";
-  }
+  );
+}
 
-  return "open";
+/** First matching rule wins — same order as the old if-chain, expressed as data instead of branches. */
+function statusRules(
+  pr: { merged: boolean; state: string; draft?: boolean },
+  checks: Array<{ conclusion: string | null }>,
+  reviews: Array<{ state: string }>,
+): Array<[boolean, PRStatus]> {
+  return [
+    [pr.merged, "merged"],
+    [pr.state === "closed", "closed"],
+    [!!pr.draft, "draft"],
+    [hasFailingChecks(checks), "checks-failing"],
+    [reviews.some((r) => r.state === "CHANGES_REQUESTED"), "changes-requested"],
+    [isApprovedAndPassing(reviews, checks), "approved"],
+  ];
+}
+
+export function computeStatus(
+  pr: { merged: boolean; state: string; draft?: boolean },
+  checks: Array<{ conclusion: string | null }>,
+  reviews: Array<{ state: string }>,
+): PRStatus {
+  const match = statusRules(pr, checks, reviews).find(([cond]) => cond);
+
+  return match ? match[1] : "open";
 }
 
 export type RepoAccess = "ok" | "not-found" | "unknown";
@@ -158,6 +177,24 @@ export async function checkRepoFiles(
 }
 
 /** Fetch decoded UTF-8 file content from repo's default branch; null on 404 or unconfigured. */
+function isFileWithStringContent(
+  content: unknown,
+): content is { content: string } {
+  if (Array.isArray(content)) {
+    return false;
+  }
+  const c = content as { type?: string; content?: unknown };
+
+  return c.type === "file" && typeof c.content === "string";
+}
+
+function nullOnNotFound(e: unknown): null {
+  if ((e as { status?: number }).status === 404) {
+    return null;
+  }
+  throw e;
+}
+
 export async function getRepoFileContent(
   repo: string,
   path: string,
@@ -175,20 +212,13 @@ export async function getRepoFileContent(
       path,
     });
 
-    if (
-      Array.isArray(content) ||
-      content.type !== "file" ||
-      typeof content.content !== "string"
-    ) {
+    if (!isFileWithStringContent(content)) {
       return null;
     }
 
     return Buffer.from(content.content, "base64").toString("utf-8");
   } catch (e) {
-    if ((e as { status?: number }).status === 404) {
-      return null;
-    }
-    throw e;
+    return nullOnNotFound(e);
   }
 }
 

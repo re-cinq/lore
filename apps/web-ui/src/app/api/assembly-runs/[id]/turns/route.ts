@@ -1,9 +1,9 @@
 export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth-options";
-import { fetchAssemblyRun } from "@/lib/assembly-runs";
-import { userCanAccessRepo } from "@/lib/user-repo-access";
+import {
+  authorizeAssemblyRunAccess,
+  isAssemblyRunAuthError,
+} from "@/lib/assembly-run-auth";
 import { proxyUpstreamStatus, serverError } from "@/lib/api-error";
 
 // Sibling of ./events: proxies UNTRUNCATED turns to the Floor's /api/agent-turns/{id} (#1148) for the on-demand full-transcript view; same 401→404→403 auth ladder.
@@ -14,37 +14,13 @@ export async function GET(
   const { id } = await params;
 
   try {
-    const session = (await getServerSession(authOptions)) as {
-      accessToken?: string;
-    } | null;
+    const auth = await authorizeAssemblyRunAccess(id);
 
-    if (!session?.accessToken) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (isAssemblyRunAuthError(auth)) {
+      return auth;
     }
 
-    const run = await fetchAssemblyRun(id);
-
-    if (!run) {
-      return NextResponse.json({ error: "Run not found" }, { status: 404 });
-    }
-
-    if (!(await userCanAccessRepo(session.accessToken, run.repo))) {
-      return NextResponse.json(
-        { error: "Access denied — you do not have access to this repo" },
-        { status: 403 },
-      );
-    }
-
-    const floorUrl = process.env.LORE_FLOOR_URL;
-    const token = process.env.LORE_INGEST_TOKEN;
-
-    if (!floorUrl || !token) {
-      return NextResponse.json(
-        { error: "LORE_FLOOR_URL/LORE_INGEST_TOKEN not configured" },
-        { status: 500 },
-      );
-    }
-
+    const { floorUrl, token } = auth;
     const incoming = new URL(req.url).searchParams;
     const forwarded = new URLSearchParams();
 

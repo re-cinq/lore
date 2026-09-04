@@ -65,15 +65,30 @@ export default function AnalyticsView({
   );
 }
 
+const EMPTY_TASK_SUMMARY: TaskSummary = {
+  total: 0,
+  succeeded: 0,
+  failed: 0,
+  active: 0,
+};
+
+function summaryCards(
+  taskSummary: TaskSummary | null,
+): [string, number, string | undefined][] {
+  const summary = taskSummary ?? EMPTY_TASK_SUMMARY;
+
+  return [
+    ["Total Tasks", summary.total, undefined],
+    ["Succeeded", summary.succeeded, styles.statValueSuccess],
+    ["Failed", summary.failed, styles.statValueDanger],
+    ["Active", summary.active, styles.statValueWarning],
+  ];
+}
+
 function TaskSummaryCards({
   taskSummary,
 }: Pick<AnalyticsViewProps, "taskSummary">) {
-  const cards: [string, number, string | undefined][] = [
-    ["Total Tasks", taskSummary?.total ?? 0, undefined],
-    ["Succeeded", taskSummary?.succeeded ?? 0, styles.statValueSuccess],
-    ["Failed", taskSummary?.failed ?? 0, styles.statValueDanger],
-    ["Active", taskSummary?.active ?? 0, styles.statValueWarning],
-  ];
+  const cards = summaryCards(taskSummary);
 
   return (
     <>

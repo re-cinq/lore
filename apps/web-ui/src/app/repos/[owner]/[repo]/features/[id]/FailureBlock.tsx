@@ -4,6 +4,30 @@ import styles from "./FailureBlock.module.scss";
 import { submittedFeedback } from "@/lib/submitted-feedback";
 import { SubmitButton } from "@/components/SubmitButton";
 import type { SectionAnswers } from "@/lib/feature-types";
+import type { SubmittedLine } from "@/lib/submitted-feedback";
+
+function SubmittedList({ submitted }: { submitted: SubmittedLine[] }) {
+  if (submitted.length === 0) {
+    return null;
+  }
+
+  return (
+    <details className={styles.submitted} open>
+      <summary className="meta">Your input for this round — kept</summary>
+      <dl className={styles.submittedList}>
+        {submitted.map((line) => (
+          <div key={line.heading} className={styles.submittedItem}>
+            <dt className={`meta ${styles.submittedHeading}`}>
+              {line.heading}
+              {line.direction ? ` — ${line.direction}` : ""}
+            </dt>
+            {line.body && <dd className={styles.submittedBody}>{line.body}</dd>}
+          </div>
+        ))}
+      </dl>
+    </details>
+  );
+}
 
 export default function FailureBlock({
   iteration,
@@ -45,24 +69,7 @@ export default function FailureBlock({
           </a>
         </p>
       )}
-      {submitted.length > 0 && (
-        <details className={styles.submitted} open>
-          <summary className="meta">Your input for this round — kept</summary>
-          <dl className={styles.submittedList}>
-            {submitted.map((line) => (
-              <div key={line.heading} className={styles.submittedItem}>
-                <dt className={`meta ${styles.submittedHeading}`}>
-                  {line.heading}
-                  {line.direction ? ` — ${line.direction}` : ""}
-                </dt>
-                {line.body && (
-                  <dd className={styles.submittedBody}>{line.body}</dd>
-                )}
-              </div>
-            ))}
-          </dl>
-        </details>
-      )}
+      <SubmittedList submitted={submitted} />
       <SubmitButton
         type="button"
         pending={pending}

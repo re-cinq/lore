@@ -12,6 +12,39 @@ export type RepoEventRow =
 
 export type JobRunRow = components["schemas"]["JobRun"];
 
+function setTrimmedParam(
+  params: URLSearchParams,
+  key: string,
+  value?: string,
+): void {
+  const trimmed = value?.trim();
+
+  if (trimmed) {
+    params.set(key, trimmed);
+  }
+}
+
+function buildMemoryAuditParams(opts: {
+  agent?: string;
+  operation?: string;
+  zeroResults?: boolean;
+  limit?: number;
+  offset?: number;
+}): URLSearchParams {
+  const params = new URLSearchParams();
+
+  setTrimmedParam(params, "agent", opts.agent);
+  setTrimmedParam(params, "operation", opts.operation);
+
+  if (opts.zeroResults) {
+    params.set("zero_results", "true");
+  }
+  params.set("limit", String(opts.limit ?? 50));
+  params.set("offset", String(opts.offset ?? 0));
+
+  return params;
+}
+
 /** A page of memory-audit entries plus the unpaged total the pager needs. */
 export function getMemoryAudit(opts: {
   agent?: string;
@@ -20,23 +53,10 @@ export function getMemoryAudit(opts: {
   limit?: number;
   offset?: number;
 }): Promise<ApiResult<{ entries: MemoryAuditEntry[]; total: number }>> {
-  const params = new URLSearchParams();
-
-  if (opts.agent?.trim()) {
-    params.set("agent", opts.agent.trim());
-  }
-
-  if (opts.operation?.trim()) {
-    params.set("operation", opts.operation.trim());
-  }
-
-  if (opts.zeroResults) {
-    params.set("zero_results", "true");
-  }
-  params.set("limit", String(opts.limit ?? 50));
-  params.set("offset", String(opts.offset ?? 0));
-
-  return apiFetch("lore-api", `/api/memory-audit?${params}`);
+  return apiFetch(
+    "lore-api",
+    `/api/memory-audit?${buildMemoryAuditParams(opts)}`,
+  );
 }
 
 /** A repo's event-bus rows, newest first. */

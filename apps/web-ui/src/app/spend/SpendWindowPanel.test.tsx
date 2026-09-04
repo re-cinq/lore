@@ -188,6 +188,22 @@ describe("SpendWindowPanel", () => {
     );
   });
 
+  it("falls back to a status-coded message when the API refusal carries no error", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 500,
+        json: async () => ({}),
+      }),
+    );
+
+    render(<SpendWindowPanel />);
+    await settle();
+
+    expect(screen.getByText("spend-window returned 500")).toBeInTheDocument();
+  });
+
   it("a network failure renders its message inline instead of a blank section", async () => {
     vi.stubGlobal(
       "fetch",

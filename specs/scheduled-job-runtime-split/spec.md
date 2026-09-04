@@ -362,7 +362,7 @@ VALUES ('cron.spec_drift.tick', 'cron', '{"repo":"re-cinq/lore"}');
      in `specs/1-lore-platform/spec.md`): before counting the repo's chunks — so a newly
      team-resolved repo adopts its history instead of reading as empty and re-seeding — any rows
      the repo still holds in `org_shared.chunks` move into its resolved schema, non-fatally, and
-     the org_shared-resolved pass skips relocation entirely ([validated by `chunks.test.ts:672`](libs/shared/src/project/chunks/chunks.test.ts#L669), [`chunks.test.ts:732`](libs/shared/src/project/chunks/chunks.test.ts#L732), [`chunks.test.ts:743`](libs/shared/src/project/chunks/chunks.test.ts#L743))
+     the org_shared-resolved pass skips relocation entirely ([validated by `chunks.test.ts:672`](libs/shared/src/project/chunks/chunks.test.ts#L676), [`chunks.test.ts:732`](libs/shared/src/project/chunks/chunks.test.ts#L739), [`chunks.test.ts:743`](libs/shared/src/project/chunks/chunks.test.ts#L750))
    - Pruning leaves an audit trail: the verification pass returns the distinct pruned file
      paths (a hard DELETE has no other record of what vanished), and the reindex job writes a
      `reindex_prune` row to `pipeline.audit_log` per repo with the row count and the path list
@@ -375,7 +375,7 @@ VALUES ('cron.spec_drift.tick', 'cron', '{"repo":"re-cinq/lore"}');
      (classifyFile no longer supports its path) so the capped query converges instead of
      re-selecting the same wedged files nightly — so chunking fixes reach files that never
      change, with the per-run cap spreading the one-time re-embed across nights
-     ([validated by `chunks.test.ts:781`](libs/shared/src/project/chunks/chunks.test.ts#L778), [`chunks.test.ts:817`](libs/shared/src/project/chunks/chunks.test.ts#L817), [`reindex-heal.test.ts:27`](apps/floor/src/jobs/context-jobs/reindex/reindex-heal.test.ts#L27), [`reindex-heal.test.ts:52`](apps/floor/src/jobs/context-jobs/reindex/reindex-heal.test.ts#L52), [`reindex-heal.test.ts:73`](apps/floor/src/jobs/context-jobs/reindex/reindex-heal.test.ts#L73), [`reindex-heal.test.ts:94`](apps/floor/src/jobs/context-jobs/reindex/reindex-heal.test.ts#L94))
+     ([validated by `chunks.test.ts:781`](libs/shared/src/project/chunks/chunks.test.ts#L785), [`chunks.test.ts:817`](libs/shared/src/project/chunks/chunks.test.ts#L824), [`reindex-heal.test.ts:27`](apps/floor/src/jobs/context-jobs/reindex/reindex-heal.test.ts#L27), [`reindex-heal.test.ts:52`](apps/floor/src/jobs/context-jobs/reindex/reindex-heal.test.ts#L52), [`reindex-heal.test.ts:73`](apps/floor/src/jobs/context-jobs/reindex/reindex-heal.test.ts#L73), [`reindex-heal.test.ts:94`](apps/floor/src/jobs/context-jobs/reindex/reindex-heal.test.ts#L94))
    - Each pass ends with a never-ingested backfill sweep (issue #999): the repo tree is diffed
      against `chunkedFilePaths` — the distinct file paths holding ANY chunk regardless of owner or
      content type, so api/ui-ingested files are never re-ingested and re-owned — and the
@@ -384,7 +384,7 @@ VALUES ('cron.spec_drift.tick', 'cron', '{"repo":"re-cinq/lore"}');
      post-onboarding commits leaves pre-existing code files permanently unindexed) drains
      deterministically across nights, skipping files the changed-file loop already processed this
      run, logging past per-file ingest failures, and counting only files the ingest accepted
-     ([validated by `chunks.test.ts:846`](libs/shared/src/project/chunks/chunks.test.ts#L843), [`chunks.test.ts:865`](libs/shared/src/project/chunks/chunks.test.ts#L865), [`reindex-backfill.test.ts:24`](apps/floor/src/jobs/context-jobs/reindex/reindex-backfill.test.ts#L24), [`reindex-backfill.test.ts:58`](apps/floor/src/jobs/context-jobs/reindex/reindex-backfill.test.ts#L58), [`reindex-backfill.test.ts:80`](apps/floor/src/jobs/context-jobs/reindex/reindex-backfill.test.ts#L80), [`reindex-backfill.test.ts:106`](apps/floor/src/jobs/context-jobs/reindex/reindex-backfill.test.ts#L106), [`reindex-backfill.test.ts:125`](apps/floor/src/jobs/context-jobs/reindex/reindex-backfill.test.ts#L125))
+     ([validated by `chunks.test.ts:846`](libs/shared/src/project/chunks/chunks.test.ts#L850), [`chunks.test.ts:865`](libs/shared/src/project/chunks/chunks.test.ts#L872), [`reindex-backfill.test.ts:24`](apps/floor/src/jobs/context-jobs/reindex/reindex-backfill.test.ts#L24), [`reindex-backfill.test.ts:58`](apps/floor/src/jobs/context-jobs/reindex/reindex-backfill.test.ts#L58), [`reindex-backfill.test.ts:80`](apps/floor/src/jobs/context-jobs/reindex/reindex-backfill.test.ts#L80), [`reindex-backfill.test.ts:106`](apps/floor/src/jobs/context-jobs/reindex/reindex-backfill.test.ts#L106), [`reindex-backfill.test.ts:125`](apps/floor/src/jobs/context-jobs/reindex/reindex-backfill.test.ts#L125))
    - Each optional sweep is isolated: a pass that throws is logged under its own name and
      contributes zero, and the passes after it still run, so a repo keeps everything the
      earlier passes ingested rather than losing the night to one failing sweep

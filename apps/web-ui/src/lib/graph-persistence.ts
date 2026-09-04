@@ -26,6 +26,14 @@ export type GraphState = {
 /** Schema version stamped on every captured snapshot. */
 export const STATE_VERSION = 1;
 
+function nodePosition(node: PositionedNode): NodePosition {
+  return {
+    x: node.fx ?? node.x ?? 0,
+    y: node.fy ?? node.y ?? 0,
+    pinned: node.fx != null || node.fy != null,
+  };
+}
+
 /** Snapshot nodes and expandedIds; prefer fixed coords when pinned. */
 export function captureGraphState(
   nodes: PositionedNode[],
@@ -34,11 +42,7 @@ export function captureGraphState(
   const positions: Record<string, NodePosition> = {};
 
   for (const node of nodes) {
-    positions[node.id] = {
-      x: node.fx ?? node.x ?? 0,
-      y: node.fy ?? node.y ?? 0,
-      pinned: node.fx != null || node.fy != null,
-    };
+    positions[node.id] = nodePosition(node);
   }
 
   return {

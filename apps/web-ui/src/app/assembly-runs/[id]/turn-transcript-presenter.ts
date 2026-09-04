@@ -26,7 +26,20 @@ export function turnsUrl(runId: string, afterId: string): string {
     : `${base}&after=${encodeURIComponent(afterId)}`;
 }
 
-// Floor's `hasMore` is authoritative when present; absent (deploy skew, #1310 fallback), falls back to the short-page rule. Scans backwards for the last row with a string id so one bad row can't stall paging.
+// Scans backwards for the last row with a string id so one bad row can't stall paging.
+function lastStringId(page: readonly unknown[]): string | null {
+  for (let i = page.length - 1; i >= 0; i--) {
+    const id = (page[i] as { id?: unknown } | null)?.id;
+
+    if (typeof id === "string") {
+      return id;
+    }
+  }
+
+  return null;
+}
+
+// Floor's `hasMore` is authoritative when present; absent (deploy skew, #1310 fallback), falls back to the short-page rule.
 export function nextTurnsCursor(
   page: readonly unknown[],
   hasMore?: boolean,
@@ -39,15 +52,7 @@ export function nextTurnsCursor(
     return null;
   }
 
-  for (let i = page.length - 1; i >= 0; i--) {
-    const id = (page[i] as { id?: unknown } | null)?.id;
-
-    if (typeof id === "string") {
-      return id;
-    }
-  }
-
-  return null;
+  return lastStringId(page);
 }
 
 // The response's `hasMore` when boolean, else undefined — an absent/malformed flag must select the fallback rule, never a truthy string.

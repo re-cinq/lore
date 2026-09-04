@@ -16,6 +16,7 @@ import {
 import { projectSpecFile } from "./project-spec-file.js";
 import { projectAdrFile } from "./project-adr-file.js";
 import { recomputeFile } from "./recompute-spec-file.js";
+import { makeDeleteRepoNodes } from "./test-helpers/delete-repo-nodes.js";
 
 const DGRAPH_HTTP = process.env.DGRAPH_HTTP ?? "http://localhost:8081";
 const APPLIER = join(
@@ -64,44 +65,12 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
     }
   }
 
-  async function deleteRepoNodes(repo: string): Promise<void> {
-    const txn = dgraphClient.newTxn();
-
-    try {
-      const res = await txn.queryWithVars(
-        `query nodes($repo: string) {
-          specs(func: eq(Spec.repo, $repo)) { uid }
-          root(func: eq(Repo.xid, $repo)) { uid }
-          blocks(func: eq(Block.repo, $repo)) { uid }
-          features(func: eq(Feature.repo, $repo)) { uid }
-        }`,
-        { $repo: repo },
-      );
-      const written = res.data as {
-        specs?: { uid: string }[];
-        root?: { uid: string }[];
-        blocks?: { uid: string }[];
-        features?: { uid: string }[];
-      };
-      const uids = [
-        ...(written.specs ?? []),
-        ...(written.root ?? []),
-        ...(written.blocks ?? []),
-        ...(written.features ?? []),
-      ].map((node) => node.uid);
-
-      if (uids.length) {
-        await txn.mutate({
-          deleteNquads: uids.map((uid) => `<${uid}> * * .`).join("\n"),
-          commitNow: true,
-        });
-      }
-    } catch {
-      void 0;
-    } finally {
-      await txn.discard().catch(() => {});
-    }
-  }
+  const deleteRepoNodes = makeDeleteRepoNodes(dgraphClient, [
+    { alias: "specs", type: "Spec" },
+    { alias: "root", type: "Repo", field: "xid" },
+    { alias: "blocks", type: "Block" },
+    { alias: "features", type: "Feature" },
+  ]);
 
   let createdRepo = "";
 
@@ -272,6 +241,25 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
     expect(sortedByOrdinal).toMatchObject(expectedStatements);
   });
 
+  interface EmbeddingGraph {
+    spec?: {
+      stmts?: Record<string, unknown>[];
+      acs?: Record<string, unknown>[];
+    }[];
+  }
+
+  function statementEmbedding(graph: EmbeddingGraph): number[] | null {
+    return parseEmbedding(graph.spec?.[0]?.stmts?.[0]?.["Statement.embedding"]);
+  }
+
+  function acceptanceCriterionEmbedding(
+    graph: EmbeddingGraph,
+  ): number[] | null {
+    return parseEmbedding(
+      graph.spec?.[0]?.acs?.[0]?.["AcceptanceCriterion.embedding"],
+    );
+  }
+
   it("stores Statement and AcceptanceCriterion embeddings from the injected embedder, at the 768-dim Vertex text-embedding-005 size", async () => {
     const repo = `test-proj/${randomUUID()}`;
 
@@ -297,21 +285,10 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
         }
       }`,
       { $xid: `${repo}|${filePath}` },
-    )) as {
-      spec?: {
-        stmts?: Record<string, unknown>[];
-        acs?: Record<string, unknown>[];
-      }[];
-    };
+    )) as EmbeddingGraph;
 
-    expect(
-      parseEmbedding(graph.spec?.[0]?.stmts?.[0]?.["Statement.embedding"]),
-    ).toEqual(vector);
-    expect(
-      parseEmbedding(
-        graph.spec?.[0]?.acs?.[0]?.["AcceptanceCriterion.embedding"],
-      ),
-    ).toEqual(vector);
+    expect(statementEmbedding(graph)).toEqual(vector);
+    expect(acceptanceCriterionEmbedding(graph)).toEqual(vector);
   });
 
   it("links the Statement to a TestChunk via validated_by for an inline test link", async () => {
@@ -740,6 +717,28 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
     expect(blocks[0]["Block.level"]).toBe(2);
   });
 
+  function byOrdinal(
+    left: Record<string, unknown>,
+    right: Record<string, unknown>,
+  ): number {
+    return (
+      (left["AcceptanceCriterion.ordinal"] as number) -
+      (right["AcceptanceCriterion.ordinal"] as number)
+    );
+  }
+
+  function acceptanceCriteriaOf(acData: {
+    spec?: { "Spec.acceptance_criteria"?: Record<string, unknown>[] }[];
+  }): Record<string, unknown>[] {
+    return acData.spec?.[0]?.["Spec.acceptance_criteria"] ?? [];
+  }
+
+  function statementXidsOf(stmtData: {
+    spec?: { stmts?: Record<string, unknown>[] }[];
+  }): Record<string, unknown>[] {
+    return stmtData.spec?.[0]?.stmts ?? [];
+  }
+
   it("projects Acceptance Criteria items as AcceptanceCriterion nodes off the Spec and not as Statements", async () => {
     const repo = `test-proj/${randomUUID()}`;
 
@@ -769,11 +768,7 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
           .update(segment.text)
           .digest("hex"),
       }))
-      .sort(
-        (left, right) =>
-          (left["AcceptanceCriterion.ordinal"] as number) -
-          (right["AcceptanceCriterion.ordinal"] as number),
-      );
+      .sort(byOrdinal);
 
     await projectSpecFile({ repo, filePath, content }, dgraphClient);
 
@@ -790,13 +785,7 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
     )) as {
       spec?: { "Spec.acceptance_criteria"?: Record<string, unknown>[] }[];
     };
-    const criteria = (
-      acData.spec?.[0]?.["Spec.acceptance_criteria"] ?? []
-    ).sort(
-      (left, right) =>
-        (left["AcceptanceCriterion.ordinal"] as number) -
-        (right["AcceptanceCriterion.ordinal"] as number),
-    );
+    const criteria = acceptanceCriteriaOf(acData).sort(byOrdinal);
 
     expect(criteria).toMatchObject(expectedCriteria);
 
@@ -809,7 +798,7 @@ describe.skipIf(!reachable)("projectSpecFile (live Dgraph)", () => {
       { $xid: `${repo}|${filePath}` },
     )) as { spec?: { stmts?: Record<string, unknown>[] }[] };
 
-    expect(stmtData.spec?.[0]?.stmts ?? []).toEqual([]);
+    expect(statementXidsOf(stmtData)).toEqual([]);
   });
 
   it("recomputes the exact source of a multi-kind document from its projected Blocks", async () => {

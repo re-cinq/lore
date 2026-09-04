@@ -6,6 +6,7 @@ import { randomUUID } from "node:crypto";
 import * as dgraph from "dgraph-js-http";
 import { projectSpecFile } from "./project-spec-file.js";
 import { ingestCoverageReport } from "./ingest-coverage.js";
+import { makeDeleteRepoNodes } from "./test-helpers/delete-repo-nodes.js";
 
 const DGRAPH_HTTP = process.env.DGRAPH_HTTP ?? "http://localhost:8081";
 const APPLIER = join(
@@ -108,41 +109,17 @@ describe.skipIf(!reachable)("Spec Traceability Graph", () => {
     }
   }
 
-  async function deleteRepoNodes(repo: string): Promise<void> {
-    const txn = dgraphClient.newTxn();
-
-    try {
-      const res = await txn.queryWithVars(
-        `query nodes($repo: string) {
-          specs(func: eq(Spec.repo, $repo)) { uid }
-          root(func: eq(Repo.xid, $repo)) { uid }
-          blocks(func: eq(Block.repo, $repo)) { uid }
-          sections(func: eq(Section.repo, $repo)) { uid }
-          statements(func: eq(Statement.repo, $repo)) { uid }
-          acs(func: eq(AcceptanceCriterion.repo, $repo)) { uid }
-          codechunks(func: eq(CodeChunk.repo, $repo)) { uid }
-          testchunks(func: eq(TestChunk.repo, $repo)) { uid }
-          coverages(func: eq(Coverage.repo, $repo)) { uid }
-        }`,
-        { $repo: repo },
-      );
-      const written = res.data as Record<string, { uid: string }[]>;
-      const uids = Object.values(written)
-        .flat()
-        .map((node) => node.uid);
-
-      if (uids.length) {
-        await txn.mutate({
-          deleteNquads: uids.map((uid) => `<${uid}> * * .`).join("\n"),
-          commitNow: true,
-        });
-      }
-    } catch {
-      void 0;
-    } finally {
-      await txn.discard().catch(() => {});
-    }
-  }
+  const deleteRepoNodes = makeDeleteRepoNodes(dgraphClient, [
+    { alias: "specs", type: "Spec" },
+    { alias: "root", type: "Repo", field: "xid" },
+    { alias: "blocks", type: "Block" },
+    { alias: "sections", type: "Section" },
+    { alias: "statements", type: "Statement" },
+    { alias: "acs", type: "AcceptanceCriterion" },
+    { alias: "codechunks", type: "CodeChunk" },
+    { alias: "testchunks", type: "TestChunk" },
+    { alias: "coverages", type: "Coverage" },
+  ]);
 
   const specPath = "specs/example/spec.md";
   const content =

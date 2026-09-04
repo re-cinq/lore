@@ -15,6 +15,15 @@ export async function getAssemblyLineDefinition(
     return null;
   }
 
+  return fetchDefinition(floorUrl, token, name, revalidateSeconds);
+}
+
+async function fetchDefinition(
+  floorUrl: string,
+  token: string,
+  name: string,
+  revalidateSeconds: number,
+): Promise<AssemblyLineDefinition | null> {
   try {
     const res = await fetch(
       `${floorUrl}/api/assembly-line-definitions/${encodeURIComponent(name)}`,

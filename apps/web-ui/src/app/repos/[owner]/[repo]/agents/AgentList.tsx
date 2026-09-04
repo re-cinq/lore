@@ -8,6 +8,25 @@ import type {
 } from "@/lib/agents-api";
 import styles from "./agents.module.css";
 
+// Group per blueprint; dedupe (line, node) pairs; collapse duplicate refs.
+function groupRefsByLine(refs: AgentUsageRef[]): string {
+  const byLine = new Map<string, string[]>();
+
+  for (const ref of refs) {
+    const node = `${ref.node_id}${ref.inherited ? "" : " (station_ref)"}`;
+    const nodes = byLine.get(ref.blueprint) ?? [];
+
+    if (!nodes.includes(node)) {
+      nodes.push(node);
+    }
+    byLine.set(ref.blueprint, nodes);
+  }
+
+  return [...byLine]
+    .map(([blueprint, nodes]) => `${blueprint} · ${nodes.join(", ")}`)
+    .join("; ");
+}
+
 /** Where definition is dispatched from; three shapes: blueprint refs, single-agent, dormant-station. */
 function usageLine(
   def: AgentDefinition,
@@ -18,36 +37,26 @@ function usageLine(
     return { text: "—", dormant: false };
   }
   const own = refs[def.name];
-  const unreferenced = !(own && own.length > 0);
-
-  if (unreferenced && def.execution_mode === "station") {
-    return { text: "not referenced by any assembly line", dormant: true };
-  }
+  const unreferenced = !own || own.length === 0;
 
   if (unreferenced) {
-    return {
-      text: "no assembly line — runs as a single agent",
-      dormant: false,
-    };
+    return def.execution_mode === "station"
+      ? { text: "not referenced by any assembly line", dormant: true }
+      : { text: "no assembly line — runs as a single agent", dormant: false };
   }
 
-  // Group per blueprint; dedupe (line, node) pairs; collapse duplicate refs.
-  const byLine = new Map<string, string[]>();
+  return { text: `used by ${groupRefsByLine(own)}`, dormant: false };
+}
 
-  for (const ref of own) {
-    const node = `${ref.node_id}${ref.inherited ? "" : " (station_ref)"}`;
-    const nodes = byLine.get(ref.blueprint) ?? [];
+function dispatchLines(refs: AgentUsageRef[]): string {
+  return [...new Set(refs.map((ref) => ref.blueprint))].join(", ");
+}
 
-    if (!nodes.includes(node)) {
-      nodes.push(node);
-    }
-    byLine.set(ref.blueprint, nodes);
-  }
-  const lines = [...byLine]
-    .map(([blueprint, nodes]) => `${blueprint} · ${nodes.join(", ")}`)
-    .join("; ");
-
-  return { text: `used by ${lines}`, dormant: false };
+function ownRefs(
+  def: AgentDefinition,
+  refs: Record<string, AgentUsageRef[]> | null,
+): AgentUsageRef[] | null {
+  return refs ? (refs[def.name] ?? null) : null;
 }
 
 /** Mode cell: LLM recipes show dispatch lines (deduped), station/zero-LLM keep tags, single-agent fallback. */
@@ -62,10 +71,10 @@ function modeLabel(
   if (def.execution_mode === "graph-ingest") {
     return "zero-LLM";
   }
-  const own = refs?.[def.name];
+  const own = ownRefs(def, refs);
 
   if (own && own.length > 0) {
-    return [...new Set(own.map((ref) => ref.blueprint))].join(", ");
+    return dispatchLines(own);
   }
 
   return refs === null ? def.execution_mode : "single agent";
@@ -201,6 +210,43 @@ function editHref(base: string | null, name: string): string {
     : `/agents/edit/${encodeURIComponent(name)}`;
 }
 
+function ScopePill({ isProject }: { isProject: boolean }) {
+  return (
+    <span
+      className="status-pill"
+      style={
+        {
+          "--pill-color": isProject ? "var(--accent)" : "var(--text-muted)",
+        } as CSSProperties
+      }
+    >
+      {isProject ? "project" : "org"}
+    </span>
+  );
+}
+
+function EditCell({ href }: { href: string | null }) {
+  if (!href) {
+    return null;
+  }
+
+  return (
+    <td>
+      <Link className="btn-secondary" href={href}>
+        Edit
+      </Link>
+    </td>
+  );
+}
+
+function usageClass(dormant: boolean): string {
+  return `${styles.detail} ${dormant ? styles.detailDormant : ""}`;
+}
+
+function rolloutClass(bad: boolean): string {
+  return `${styles.detail} ${bad ? styles.detailBad : ""}`;
+}
+
 function AgentRow({
   agent,
   usage,
@@ -211,48 +257,36 @@ function AgentRow({
   editHref: string | null;
 }) {
   const isProject = agent.project_id != null && agent.project_id !== "";
-  const use = usageLine(agent, usage?.refs ?? null);
-  const rollout = rolloutCell(agent, usage?.applied ?? null);
+  const refs = usage === null ? null : usage.refs;
+  const applied = usage === null ? null : usage.applied;
+  const use = usageLine(agent, refs);
+  const mode = modeLabel(agent, refs);
+  const rollout = rolloutCell(agent, applied);
 
   return (
     <tr>
       <td className={styles.name}>{agent.name}</td>
       <td>
-        <span
-          className="status-pill"
-          style={
-            {
-              "--pill-color": isProject ? "var(--accent)" : "var(--text-muted)",
-            } as CSSProperties
-          }
-        >
-          {isProject ? "project" : "org"}
-        </span>
+        <ScopePill isProject={isProject} />
       </td>
       <td className={styles.detail}>{agent.model ?? "(inherit)"}</td>
       <td className={styles.detail}>{agent.timeout_minutes ?? "–"}m</td>
       <td className={styles.detail} data-testid={`mode-${agent.name}`}>
-        {modeLabel(agent, usage?.refs ?? null)}
+        {mode}
       </td>
       <td
-        className={`${styles.detail} ${use.dormant ? styles.detailDormant : ""}`}
+        className={usageClass(use.dormant)}
         data-testid={`usage-${agent.name}`}
       >
         {use.text}
       </td>
       <td
-        className={`${styles.detail} ${rollout.bad ? styles.detailBad : ""}`}
+        className={rolloutClass(rollout.bad)}
         data-testid={`rollout-${agent.name}`}
       >
         {rollout.text}
       </td>
-      {editHref && (
-        <td>
-          <Link className="btn-secondary" href={editHref}>
-            Edit
-          </Link>
-        </td>
-      )}
+      <EditCell href={editHref} />
     </tr>
   );
 }

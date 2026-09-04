@@ -8,10 +8,7 @@ import {
 } from "@/lib/api/features";
 import { fetchFeatureRunById } from "@/lib/feature-run";
 import { listAgents } from "@/lib/agents-api";
-import {
-  groupDecomposition,
-  type DecompTaskRow,
-} from "@/lib/decomposition-view";
+import { groupDecomposition } from "@/lib/decomposition-view";
 import type { FeatureWithIterations } from "@/lib/feature-types";
 import FeatureDetailView from "./FeatureDetailView";
 import PlatformOutageBanner from "./PlatformOutageBanner";
@@ -22,6 +19,7 @@ import {
   splitFeatureAction,
   deleteFeatureAction,
 } from "./actions";
+import { decompositionRows, planningTimeoutOf } from "./page-input";
 
 export default async function FeatureDetailPage({
   params,
@@ -45,14 +43,9 @@ export default async function FeatureDetailPage({
 
   // The story/task tree a merged spec decomposed into (ADR-029), if any.
   const decomp = await getFeatureDecomposition(fullName, id);
-  const decomposition = groupDecomposition(
-    decomp.status === "ok" ? (decomp.data.tasks as DecompTaskRow[]) : [],
-  );
+  const decomposition = groupDecomposition(decompositionRows(decomp));
 
-  // feature-planning agent timeout for wizard's elapsed/total timer (defaults 15).
-  const planningTimeoutMinutes =
-    (await listAgents(fullName)).find((a) => a.name === "feature-planning")
-      ?.timeout_minutes ?? 15;
+  const planningTimeoutMinutes = planningTimeoutOf(await listAgents(fullName));
 
   const definition = await getAssemblyLineDefinition("feature-planning");
 

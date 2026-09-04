@@ -36,6 +36,41 @@ function liveStationLog(taskId: string): string | null {
   }
 }
 
+type PollTask = { status: string; failure_reason: string | null };
+
+async function resolveTask(
+  taskId: string | null | undefined,
+): Promise<PollTask | null> {
+  if (!taskId) {
+    return null;
+  }
+  const row = await getTask(taskId);
+
+  if (row.status !== "ok") {
+    return null;
+  }
+  const taskRow = row.data as unknown as {
+    status: string;
+    failure_reason?: string | null;
+  };
+
+  return {
+    status: taskRow.status,
+    failure_reason: taskRow.failure_reason ?? null,
+  };
+}
+
+function liveOutputFor(
+  taskId: string | null | undefined,
+  taskStatus: string | undefined,
+): string | null {
+  if (!taskId || taskStatus !== "running") {
+    return null;
+  }
+
+  return liveStationLog(taskId);
+}
+
 /** Poll payload, or null when feature not found. */
 export async function loadFeaturePoll(
   fullName: string,
@@ -53,30 +88,13 @@ export async function loadFeaturePoll(
     latest_iteration: latestIteration,
     last_ready_iteration,
   } = status.data;
-  let task: { status: string; failure_reason: string | null } | null = null;
-
-  if (latestIteration?.task_id) {
-    const row = await getTask(latestIteration.task_id);
-
-    task =
-      row.status === "ok"
-        ? {
-            status: row.data.status,
-            failure_reason:
-              (row.data as unknown as { failure_reason?: string | null })
-                .failure_reason ?? null,
-          }
-        : null;
-  }
+  const task = await resolveTask(latestIteration?.task_id);
 
   return {
     feature,
     latestIteration,
     task,
-    liveOutput:
-      latestIteration?.task_id && task?.status === "running"
-        ? liveStationLog(latestIteration.task_id)
-        : null,
+    liveOutput: liveOutputFor(latestIteration?.task_id, task?.status),
     lastReady: last_ready_iteration,
     run: await fetchFeatureRunById(runIdOf(status.data), haveGraphForRun),
   };

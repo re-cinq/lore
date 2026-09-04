@@ -5,6 +5,7 @@ import { findRepoRoot } from "../lib/repo-root.js";
 import { randomUUID } from "node:crypto";
 import * as dgraph from "dgraph-js-http";
 import { ingestCoverageReport } from "./ingest-coverage.js";
+import { makeDeleteRepoNodes } from "./test-helpers/delete-repo-nodes.js";
 
 const DGRAPH_HTTP = process.env.DGRAPH_HTTP ?? "http://localhost:8081";
 const APPLIER = join(
@@ -53,47 +54,13 @@ describe.skipIf(!reachable)("ingestCoverageReport (live Dgraph)", () => {
     }
   }
 
-  async function deleteRepoNodes(repo: string): Promise<void> {
-    const txn = dgraphClient.newTxn();
-
-    try {
-      const res = await txn.queryWithVars(
-        `query nodes($repo: string) {
-          coverage(func: eq(Coverage.repo, $repo)) { uid }
-          codechunks(func: eq(CodeChunk.repo, $repo)) { uid }
-          testchunks(func: eq(TestChunk.repo, $repo)) { uid }
-          files(func: eq(File.repo, $repo)) { uid }
-          root(func: eq(Repo.xid, $repo)) { uid }
-        }`,
-        { $repo: repo },
-      );
-      const written = res.data as {
-        coverage?: { uid: string }[];
-        codechunks?: { uid: string }[];
-        testchunks?: { uid: string }[];
-        files?: { uid: string }[];
-        root?: { uid: string }[];
-      };
-      const uids = [
-        ...(written.coverage ?? []),
-        ...(written.codechunks ?? []),
-        ...(written.testchunks ?? []),
-        ...(written.files ?? []),
-        ...(written.root ?? []),
-      ].map((node) => node.uid);
-
-      if (uids.length) {
-        await txn.mutate({
-          deleteNquads: uids.map((uid) => `<${uid}> * * .`).join("\n"),
-          commitNow: true,
-        });
-      }
-    } catch {
-      void 0;
-    } finally {
-      await txn.discard().catch(() => {});
-    }
-  }
+  const deleteRepoNodes = makeDeleteRepoNodes(dgraphClient, [
+    { alias: "coverage", type: "Coverage" },
+    { alias: "codechunks", type: "CodeChunk" },
+    { alias: "testchunks", type: "TestChunk" },
+    { alias: "files", type: "File" },
+    { alias: "root", type: "Repo", field: "xid" },
+  ]);
 
   let createdRepo = "";
 
@@ -210,6 +177,14 @@ describe.skipIf(!reachable)("ingestCoverageReport (live Dgraph)", () => {
     ]);
   });
 
+  function coveredFileXids(result: {
+    cov?: { "Coverage.covers"?: { "File.xid": string }[] }[];
+  }): string[] {
+    return (result.cov?.[0]?.["Coverage.covers"] ?? []).map(
+      (c) => c["File.xid"],
+    );
+  }
+
   it("deletes the orphaned File when re-ingest drops its covered file", async () => {
     const repo = `test-cov/${randomUUID()}`;
 
@@ -249,9 +224,7 @@ describe.skipIf(!reachable)("ingestCoverageReport (live Dgraph)", () => {
     };
 
     expect(cov.cov?.[0]?.["Coverage.commit"]).toEqual("c2");
-    expect(
-      (cov.cov?.[0]?.["Coverage.covers"] ?? []).map((c) => c["File.xid"]),
-    ).toEqual([`${repo}|b.ts`]);
+    expect(coveredFileXids(cov)).toEqual([`${repo}|b.ts`]);
 
     const orphan = (await readGraph(
       `query q($xid: string) { f(func: eq(File.xid, $xid)) { uid } }`,

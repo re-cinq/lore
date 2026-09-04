@@ -7,6 +7,7 @@ import * as dgraph from "dgraph-js-http";
 import { projectSpecFile } from "./project-spec-file.js";
 import { ingestCoverageReport } from "./ingest-coverage.js";
 import { driftCheckFile } from "./drift-check-file.js";
+import { makeDeleteRepoNodes } from "./test-helpers/delete-repo-nodes.js";
 
 const DGRAPH_HTTP = process.env.DGRAPH_HTTP ?? "http://localhost:8081";
 const APPLIER = join(
@@ -57,42 +58,18 @@ describe.skipIf(!reachable)(
       }
     }
 
-    async function deleteRepoNodes(repo: string): Promise<void> {
-      const txn = dgraphClient.newTxn();
-
-      try {
-        const res = await txn.queryWithVars(
-          `query nodes($repo: string) {
-          specs(func: eq(Spec.repo, $repo)) { uid }
-          root(func: eq(Repo.xid, $repo)) { uid }
-          blocks(func: eq(Block.repo, $repo)) { uid }
-          sections(func: eq(Section.repo, $repo)) { uid }
-          statements(func: eq(Statement.repo, $repo)) { uid }
-          acs(func: eq(AcceptanceCriterion.repo, $repo)) { uid }
-          codechunks(func: eq(CodeChunk.repo, $repo)) { uid }
-          testchunks(func: eq(TestChunk.repo, $repo)) { uid }
-          coverages(func: eq(Coverage.repo, $repo)) { uid }
-          files(func: eq(File.repo, $repo)) { uid }
-        }`,
-          { $repo: repo },
-        );
-        const written = res.data as Record<string, { uid: string }[]>;
-        const uids = Object.values(written)
-          .flat()
-          .map((node) => node.uid);
-
-        if (uids.length) {
-          await txn.mutate({
-            deleteNquads: uids.map((uid) => `<${uid}> * * .`).join("\n"),
-            commitNow: true,
-          });
-        }
-      } catch {
-        void 0;
-      } finally {
-        await txn.discard().catch(() => {});
-      }
-    }
+    const deleteRepoNodes = makeDeleteRepoNodes(dgraphClient, [
+      { alias: "specs", type: "Spec" },
+      { alias: "root", type: "Repo", field: "xid" },
+      { alias: "blocks", type: "Block" },
+      { alias: "sections", type: "Section" },
+      { alias: "statements", type: "Statement" },
+      { alias: "acs", type: "AcceptanceCriterion" },
+      { alias: "codechunks", type: "CodeChunk" },
+      { alias: "testchunks", type: "TestChunk" },
+      { alias: "coverages", type: "Coverage" },
+      { alias: "files", type: "File" },
+    ]);
 
     async function enrichCodeChunk(
       xid: string,
@@ -124,6 +101,10 @@ describe.skipIf(!reachable)(
       createdRepo = "";
     });
 
+    function firstRow<T>(rows: T[] | undefined): T | undefined {
+      return rows?.[0];
+    }
+
     it("projects a Ruby-linked spec to file+line nodes, covers by line overlap, and drifts on a code change", async () => {
       const repo = `lang-e2e/${randomUUID()}`;
 
@@ -151,13 +132,13 @@ describe.skipIf(!reachable)(
         { $sx: statementXid },
       )) as { stmt?: Record<string, unknown>[] };
 
-      expect(projected.stmt?.[0]?.["Statement.validated_by"]).toEqual([
+      expect(firstRow(projected.stmt)?.["Statement.validated_by"]).toEqual([
         {
           "TestChunk.xid": testChunkXid,
           "TestChunk.test_name": "validated by",
         },
       ]);
-      expect(projected.stmt?.[0]?.["Statement.implemented_by"]).toEqual([
+      expect(firstRow(projected.stmt)?.["Statement.implemented_by"]).toEqual([
         {
           "CodeChunk.xid": codeChunkXid,
           "CodeChunk.file_path": "src/widget.rb",
@@ -186,7 +167,7 @@ describe.skipIf(!reachable)(
         { $xid: `${repo}|spec/widget_spec.rb|validated by` },
       )) as { cov?: { "Coverage.covers"?: Record<string, unknown>[] }[] };
 
-      expect(coverage.cov?.[0]?.["Coverage.covers"]).toEqual([
+      expect(firstRow(coverage.cov)?.["Coverage.covers"]).toEqual([
         {
           "File.xid": `${repo}|src/widget.rb`,
           "Coverage.covers|ranges": "12-18",
@@ -212,7 +193,7 @@ describe.skipIf(!reachable)(
         { $sx: statementXid },
       )) as { stmt?: Record<string, unknown>[] };
 
-      expect(drifted.stmt?.[0]).toMatchObject({
+      expect(firstRow(drifted.stmt)).toMatchObject({
         "Statement.drifted": true,
         "Statement.drift_reason": "code-content-changed (src/widget.rb)",
       });

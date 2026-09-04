@@ -93,43 +93,76 @@ function ErroredSteps({ failures }: { failures: NodeDetail["failures"] }) {
   );
 }
 
+function StartedAtFact({ startedAt }: { startedAt: string | null }) {
+  if (!startedAt) {
+    return <Fact label="Started">—</Fact>;
+  }
+
+  return (
+    <Fact label="Started">
+      <time dateTime={startedAt} title={startedAt}>
+        {formatRelativeTime(startedAt)}
+      </time>
+    </Fact>
+  );
+}
+
+function transcriptSummary(detail: NodeDetail): string {
+  const eventLabel = `${detail.eventCount} event${detail.eventCount === 1 ? "" : "s"}`;
+  const droppedLabel =
+    detail.droppedCount > 0 ? ` (+${detail.droppedCount} dropped)` : "";
+
+  return `${eventLabel}${droppedLabel}`;
+}
+
+function AgentCrFact({ agentCrName }: { agentCrName: string | null }) {
+  if (!agentCrName) {
+    return null;
+  }
+
+  return (
+    <Fact label="Agent CR">
+      <span className={styles.mono}>{agentCrName}</span>
+    </Fact>
+  );
+}
+
+function CommitFact({
+  commitSha,
+  repo,
+}: {
+  commitSha: string | null;
+  repo: string;
+}) {
+  if (!commitSha) {
+    return null;
+  }
+
+  return (
+    <Fact label="Commit">
+      <a
+        className={styles.mono}
+        href={`https://github.com/${repo}/commit/${commitSha}`}
+        target="_blank"
+        rel="noreferrer"
+      >
+        {commitSha.substring(0, 7)}
+      </a>
+    </Fact>
+  );
+}
+
 function NodeFacts({ detail, repo }: { detail: NodeDetail; repo: string }) {
   return (
     <dl className={styles.facts}>
       <Fact label="Attempt">{detail.iteration || "—"}</Fact>
       <Fact label="Duration">{detail.durationLabel}</Fact>
-      <Fact label="Started">
-        {detail.startedAt ? (
-          <time dateTime={detail.startedAt} title={detail.startedAt}>
-            {formatRelativeTime(detail.startedAt)}
-          </time>
-        ) : (
-          "—"
-        )}
-      </Fact>
+      <StartedAtFact startedAt={detail.startedAt} />
       <Fact label="Outcome">{detail.outcomeLabel}</Fact>
       <Fact label="Files touched">{detail.files.length || "—"}</Fact>
-      <Fact label="Transcript">
-        {detail.eventCount} event{detail.eventCount === 1 ? "" : "s"}
-        {detail.droppedCount > 0 ? ` (+${detail.droppedCount} dropped)` : ""}
-      </Fact>
-      {detail.agentCrName ? (
-        <Fact label="Agent CR">
-          <span className={styles.mono}>{detail.agentCrName}</span>
-        </Fact>
-      ) : null}
-      {detail.commitSha ? (
-        <Fact label="Commit">
-          <a
-            className={styles.mono}
-            href={`https://github.com/${repo}/commit/${detail.commitSha}`}
-            target="_blank"
-            rel="noreferrer"
-          >
-            {detail.commitSha.substring(0, 7)}
-          </a>
-        </Fact>
-      ) : null}
+      <Fact label="Transcript">{transcriptSummary(detail)}</Fact>
+      <AgentCrFact agentCrName={detail.agentCrName} />
+      <CommitFact commitSha={detail.commitSha} repo={repo} />
     </dl>
   );
 }

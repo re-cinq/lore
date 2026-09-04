@@ -14,6 +14,7 @@ import {
   type ImpactReport,
   type ImpactStatement,
 } from "./trace-impact.js";
+import { makeDeleteRepoNodes } from "./test-helpers/delete-repo-nodes.js";
 
 const DGRAPH_HTTP = process.env.DGRAPH_HTTP ?? "http://localhost:8081";
 const APPLIER = join(
@@ -203,35 +204,11 @@ describe.skipIf(!reachable)("computeImpact coupling (live Dgraph)", () => {
     });
   });
 
-  async function deleteRepoNodes(repo: string): Promise<void> {
-    const txn = dgraphClient.newTxn();
-
-    try {
-      const res = await txn.queryWithVars(
-        `query nodes($repo: string) {
-          specs(func: eq(Spec.repo, $repo)) { uid }
-          stmts(func: eq(Statement.repo, $repo)) { uid }
-          codechunks(func: eq(CodeChunk.repo, $repo)) { uid }
-        }`,
-        { $repo: repo },
-      );
-      const written = res.data as Record<string, { uid: string }[]>;
-      const uids = Object.values(written)
-        .flat()
-        .map((n) => n.uid);
-
-      if (uids.length) {
-        await txn.mutate({
-          deleteNquads: uids.map((uid) => `<${uid}> * * .`).join("\n"),
-          commitNow: true,
-        });
-      }
-    } catch {
-      return;
-    } finally {
-      await txn.discard().catch(() => {});
-    }
-  }
+  const deleteRepoNodes = makeDeleteRepoNodes(dgraphClient, [
+    { alias: "specs", type: "Spec" },
+    { alias: "stmts", type: "Statement" },
+    { alias: "codechunks", type: "CodeChunk" },
+  ]);
 
   let createdRepo = "";
 

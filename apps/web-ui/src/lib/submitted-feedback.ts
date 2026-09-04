@@ -10,6 +10,36 @@ export interface SubmittedLine {
   body: string;
 }
 
+function sectionLines(sections: SectionAnswers["sections"]): SubmittedLine[] {
+  return Object.entries(sections ?? {})
+    .map(([heading, section]) => ({
+      heading,
+      direction: section.direction ?? null,
+      body: section.comment?.trim() ?? "",
+    }))
+    .filter((line) => line.body || line.direction);
+}
+
+function questionLines(
+  questions: SectionAnswers["questions"],
+): SubmittedLine[] {
+  return Object.entries(questions ?? {})
+    .map(([heading, answer]) => ({
+      heading,
+      direction: null,
+      body: answer.trim(),
+    }))
+    .filter((line) => line.body);
+}
+
+function freeFormLine(freeForm: string | undefined): SubmittedLine[] {
+  const note = freeForm?.trim();
+
+  return note
+    ? [{ heading: "Other comments", direction: null, body: note }]
+    : [];
+}
+
 /** Author's input for a round (sections, questions, free-form); whitespace-only dropped. */
 export function submittedFeedback(
   answers: SectionAnswers | null | undefined,
@@ -17,26 +47,10 @@ export function submittedFeedback(
   if (!answers) {
     return [];
   }
-  const lines: SubmittedLine[] = [];
 
-  for (const [heading, section] of Object.entries(answers.sections ?? {})) {
-    const body = section.comment?.trim() ?? "";
-
-    if (body || section.direction) {
-      lines.push({ heading, direction: section.direction ?? null, body });
-    }
-  }
-
-  for (const [heading, answer] of Object.entries(answers.questions ?? {})) {
-    if (answer.trim()) {
-      lines.push({ heading, direction: null, body: answer.trim() });
-    }
-  }
-  const note = answers.free_form?.trim();
-
-  if (note) {
-    lines.push({ heading: "Other comments", direction: null, body: note });
-  }
-
-  return lines;
+  return [
+    ...sectionLines(answers.sections),
+    ...questionLines(answers.questions),
+    ...freeFormLine(answers.free_form),
+  ];
 }

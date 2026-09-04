@@ -57,27 +57,43 @@ export function featurePhaseOf(input: FeaturePhaseInput): FeaturePhase {
   return fromLine ?? phaseFromRound(input);
 }
 
-/** The phase the line reports, or null when the line cannot say. */
-function phaseFromLine(run: FeaturePhaseInput["run"]): FeaturePhase | null {
-  if (!run) {
-    return null;
-  }
+type Run = NonNullable<FeaturePhaseInput["run"]>;
 
-  if (run.nodes.some((n) => n.outcome !== null && isFailure(n.outcome))) {
-    return { kind: "failed" };
-  }
+function hasFailedNode(nodes: readonly AssemblyRunNode[]): boolean {
+  return nodes.some((n) => n.outcome !== null && isFailure(n.outcome));
+}
 
-  if (run.status !== "running" && run.status !== "queued") {
-    return run.outcome && isFailure(run.outcome)
-      ? { kind: "failed" }
-      : { kind: "done" };
-  }
-  // Last open row; revisit mints a new one (FR6.40).
-  const working = [...run.nodes].reverse().find((n) => n.outcome === null);
-  const kind = working
-    ? (humanStation(run.graph?.nodes.find((n) => n.id === working.nodeId)?.type)
-        ?.phase ?? NODE_PHASE[working.nodeId])
-    : undefined;
+function isLineActive(status: string): boolean {
+  return status === "running" || status === "queued";
+}
+
+function terminalPhase(run: Run): FeaturePhase {
+  return run.outcome && isFailure(run.outcome)
+    ? { kind: "failed" }
+    : { kind: "done" };
+}
+
+/** Last open row; revisit mints a new one (FR6.40). */
+function lastOpenNode(
+  nodes: readonly AssemblyRunNode[],
+): AssemblyRunNode | undefined {
+  return [...nodes].reverse().find((n) => n.outcome === null);
+}
+
+function phaseKindFor(
+  run: Run,
+  nodeId: string,
+): FeaturePhase["kind"] | undefined {
+  const nodeType = run.graph?.nodes.find((n) => n.id === nodeId)?.type;
+
+  return humanStation(nodeType)?.phase ?? NODE_PHASE[nodeId];
+}
+
+function workingPhase(
+  run: Run,
+  working: AssemblyRunNode | undefined,
+): FeaturePhase | null {
+  const kind = working ? phaseKindFor(run, working.nodeId) : undefined;
 
   if (!working || !kind) {
     return null;
@@ -91,30 +107,67 @@ function phaseFromLine(run: FeaturePhaseInput["run"]): FeaturePhase | null {
   } as FeaturePhase;
 }
 
+/** The phase the line reports, or null when the line cannot say. */
+function phaseFromLine(run: FeaturePhaseInput["run"]): FeaturePhase | null {
+  if (!run) {
+    return null;
+  }
+
+  if (hasFailedNode(run.nodes)) {
+    return { kind: "failed" };
+  }
+
+  if (!isLineActive(run.status)) {
+    return terminalPhase(run);
+  }
+
+  return workingPhase(run, lastOpenNode(run.nodes));
+}
+
+function isTaskActive(task: FeaturePhaseInput["task"]): boolean {
+  return !task || RUNNING_TASK_STATUSES.has(task.status);
+}
+
+function isRoundReady(latest: FeaturePhaseInput["latestIteration"]): boolean {
+  return latest?.status === "ready" && !!latest.gap_result;
+}
+
+/** Settled but unusable: detect when round already died. */
+function roundSettledFailed(
+  task: FeaturePhaseInput["task"],
+  latest: FeaturePhaseInput["latestIteration"],
+): boolean {
+  return task?.status === "failed" || latest?.status === "failed";
+}
+
+function unusableRound(ready: boolean, taskActive: boolean): boolean {
+  return !ready && !taskActive;
+}
+
+function isRoundPlanning(
+  latest: FeaturePhaseInput["latestIteration"],
+): boolean {
+  return !latest || latest.status === "running";
+}
+
 /** The pre-merged-line derivation, kept for features that resolve no line. */
 function phaseFromRound(input: FeaturePhaseInput): FeaturePhase {
   if (!isPlanningActive(input.feature.status)) {
     return { kind: "done" };
   }
-  const latest = input.latestIteration;
-  const task = input.task;
-  const taskActive = !task || RUNNING_TASK_STATUSES.has(task.status);
-  const ready = latest?.status === "ready" && !!latest.gap_result;
+  const { latestIteration: latest, task } = input;
 
-  // Settled but unusable: detect when round already died.
-  if (task?.status === "failed" || latest?.status === "failed") {
+  if (roundSettledFailed(task, latest)) {
     return { kind: "failed" };
   }
 
-  if (!ready && !taskActive) {
+  if (unusableRound(isRoundReady(latest), isTaskActive(task))) {
     return { kind: "failed" };
   }
 
-  if (!latest || latest.status === "running") {
-    return { kind: "planning" };
-  }
-
-  return { kind: "awaiting-author" };
+  return isRoundPlanning(latest)
+    ? { kind: "planning" }
+    : { kind: "awaiting-author" };
 }
 
 function isFailure(outcome: string): boolean {

@@ -60,6 +60,13 @@ export function nodeHeightFor(graph: VisibleGraph): number {
     : BASE_NODE_HEIGHT;
 }
 
+function resolveEntry(
+  definition: AssemblyLineDefinition | null,
+  graph: VisibleGraph,
+): string {
+  return definition?.entry ?? graph.nodes[0]?.id ?? "";
+}
+
 // A layout-shaped definition from the visible graph; connectors carry no condition (structure only).
 export function toLayoutDefinition(
   graph: VisibleGraph,
@@ -69,7 +76,7 @@ export function toLayoutDefinition(
     name: definition?.name ?? "workflow",
     description: "",
     version: 1,
-    entry: definition?.entry ?? graph.nodes[0]?.id ?? "",
+    entry: resolveEntry(definition, graph),
     exit: definition?.exit ?? "",
     nodes: graph.nodes.map((node) => ({
       id: node.id,

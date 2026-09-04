@@ -2,6 +2,8 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth-options";
+import { resolveLoreApiConfig } from "@/lib/lore-api-config";
+import { forwardQueryParams } from "@/lib/forward-query-params";
 import { serverError } from "@/lib/api-error";
 
 // Thin authenticated proxy to lore-api's /api/analytics/spend-window — the browser holds a session, never the ingest token.
@@ -13,30 +15,22 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const apiUrl = process.env.LORE_API_URL;
-    const token = process.env.LORE_INGEST_TOKEN;
+    const apiConfig = resolveLoreApiConfig();
 
-    if (!apiUrl || !token) {
+    if (!apiConfig) {
       return NextResponse.json(
         { error: "LORE_API_URL/LORE_INGEST_TOKEN not configured" },
         { status: 500 },
       );
     }
 
-    const incoming = new URL(req.url);
-    const upstream = new URL(`${apiUrl}/api/analytics/spend-window`);
+    const upstream = new URL(`${apiConfig.apiUrl}/api/analytics/spend-window`);
 
-    for (const key of ["from", "to"]) {
-      const value = incoming.searchParams.get(key);
-
-      if (value !== null) {
-        upstream.searchParams.set(key, value);
-      }
-    }
+    forwardQueryParams(new URL(req.url), upstream, ["from", "to"]);
 
     const res = await fetch(upstream, {
       signal: AbortSignal.timeout(30_000),
-      headers: { Authorization: `Bearer ${token}` },
+      headers: { Authorization: `Bearer ${apiConfig.token}` },
     });
     const body: unknown = await res.json().catch(() => ({
       error: `lore-api returned ${res.status}`,

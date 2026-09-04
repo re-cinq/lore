@@ -2,17 +2,18 @@ export const dynamic = "force-dynamic";
 
 import { getRepo } from "@/lib/api/repos";
 import { getRepoTasks, getAuditLog } from "@/lib/api/tasks";
+import { resolveDarkFactorySettings } from "@/lib/dark-factory-resolve";
+import { deriveDarkFactoryConsole } from "./derive-console";
 import {
-  resolveDarkFactorySettings,
-  type DarkFactorySettings,
-} from "@/lib/dark-factory-resolve";
-import {
-  deriveDarkFactoryConsole,
-  type ConsoleTask,
-  type ConsoleAuditEvent,
-} from "./derive-console";
+  unwrapOr,
+  normalizeConsoleTasks,
+  normalizeConsoleDecisions,
+  resolveTrustLevel,
+  darkFactorySettingsOf,
+  type RawTaskRow,
+  type RawAuditRow,
+} from "./page-input";
 import DarkFactoryConsoleView from "./DarkFactoryConsoleView";
-import type { components } from "@/lib/api/schema";
 
 const DF_EVENT_TYPES = [
   "auto_merge_decision",
@@ -20,18 +21,6 @@ const DF_EVENT_TYPES = [
   "lease_expired",
   "spec_trace_ingest",
 ];
-
-interface TaskRow {
-  id: string;
-  task_type: string;
-  status: string;
-  pr_url: string | null;
-  created_at: string | Date;
-}
-
-type AuditRow = components["schemas"]["AuditLogPage"]["entries"][number];
-
-const iso = (value: string | Date): string => new Date(value).toISOString();
 
 export default async function DarkFactoryPage({
   params,
@@ -49,37 +38,20 @@ export default async function DarkFactoryPage({
   }
 
   const settings = repoData.settings ?? {};
-  const resolved = resolveDarkFactorySettings(
-    settings.dark_factory as DarkFactorySettings | undefined,
-  );
-  const trustLevel =
-    (settings.trust as { level?: string } | undefined)?.level ?? "unset";
+  const resolved = resolveDarkFactorySettings(darkFactorySettingsOf(settings));
+  const trustLevel = resolveTrustLevel(settings);
 
   // Reads are best-effort; legacy clusters without audit_log return empty list, not failure
   const [taskResult, auditResult] = await Promise.all([
     getRepoTasks(fullName, 15),
     getAuditLog(fullName, DF_EVENT_TYPES),
   ]);
-  const tasks: ConsoleTask[] = (
-    (taskResult.status === "ok"
-      ? taskResult.data.tasks
-      : []) as unknown as TaskRow[]
-  ).map((row) => ({
-    id: String(row.id),
-    task_type: row.task_type,
-    status: row.status,
-    pr_url: row.pr_url,
-    created_at: iso(row.created_at),
-  }));
-  const decisions: ConsoleAuditEvent[] = (
-    (auditResult.status === "ok"
-      ? auditResult.data.entries
-      : []) as unknown as AuditRow[]
-  ).map((row) => ({
-    event_type: row.event_type,
-    payload: row.payload ?? {},
-    created_at: iso(row.created_at),
-  }));
+  const tasks = normalizeConsoleTasks(
+    unwrapOr(taskResult, { tasks: [] }).tasks as unknown as RawTaskRow[],
+  );
+  const decisions = normalizeConsoleDecisions(
+    unwrapOr(auditResult, { entries: [] }).entries as unknown as RawAuditRow[],
+  );
 
   const model = deriveDarkFactoryConsole({
     resolved,

@@ -61,17 +61,28 @@ When the repo is not enabled, the activation state is `disabled` regardless of
 the cluster gate.
 ([validated by `is disabled when the repo is not enabled`](apps/web-ui/src/app/repos/[owner]/[repo]/dark-factory/derive-console.test.ts#L22))
 
-The model exposes the resolved config and trust level for display.
-([validated by `exposes the resolved config and trust level`](apps/web-ui/src/app/repos/[owner]/[repo]/dark-factory/derive-console.test.ts#L33))
+The model exposes the resolved config and trust level for display; the page
+resolves an unconfigured trust level to `unset` and reads the raw
+`dark_factory` settings block off the repo's settings (or `undefined` when
+absent) before resolving it.
+([validated by `exposes the resolved config and trust level`](apps/web-ui/src/app/repos/[owner]/[repo]/dark-factory/derive-console.test.ts#L33), [`returns the configured trust level`](apps/web-ui/src/app/repos/[owner]/[repo]/dark-factory/page-input.test.ts#L77), [`returns unset when no trust level is configured`](apps/web-ui/src/app/repos/[owner]/[repo]/dark-factory/page-input.test.ts#L81), [`returns the dark_factory settings block`](apps/web-ui/src/app/repos/[owner]/[repo]/dark-factory/page-input.test.ts#L87), [`returns undefined when no dark_factory block is configured`](apps/web-ui/src/app/repos/[owner]/[repo]/dark-factory/page-input.test.ts#L93))
+
+The page's reads of the tasks and audit-log APIs are best-effort: a result
+that did not come back `ok` resolves to an empty list rather than failing the
+page.
+([validated by `returns the data when the result status is ok`](apps/web-ui/src/app/repos/[owner]/[repo]/dark-factory/page-input.test.ts#L11), [`returns the fallback when the result status is not ok`](apps/web-ui/src/app/repos/[owner]/[repo]/dark-factory/page-input.test.ts#L15))
 
 Recent tasks are projected to work items carrying id, type, status, and PR link.
-([validated by `projects recent tasks to work items with id, type, status, and PR link`](apps/web-ui/src/app/repos/[owner]/[repo]/dark-factory/derive-console.test.ts#L40))
+([validated by `projects recent tasks to work items with id, type, status, and PR link`](apps/web-ui/src/app/repos/[owner]/[repo]/dark-factory/derive-console.test.ts#L40), [`stringifies the id and passes the rest through`](apps/web-ui/src/app/repos/[owner]/[repo]/dark-factory/page-input.test.ts#L21))
 
 Dark-factory audit events are projected to a decision feed: an
 `auto_merge_decision` summarizes its outcome, an `escalation_issued` its reason,
 a `lease_expired` its previous holder, and a `spec_trace_ingest` its
-validated_by / violated counts.
-([validated by `projects audit events to a decision feed summarized by kind`](apps/web-ui/src/app/repos/[owner]/[repo]/dark-factory/derive-console.test.ts#L63))
+validated_by / violated counts; an unrecognized event type falls back to its
+raw event type, and a missing payload field falls back to a placeholder value.
+A raw audit row with no payload normalizes to an empty object before it
+reaches the deriver.
+([validated by `projects audit events to a decision feed summarized by kind`](apps/web-ui/src/app/repos/[owner]/[repo]/dark-factory/derive-console.test.ts#L63), [`falls back to the raw event type for an unrecognized kind`](apps/web-ui/src/app/repos/[owner]/[repo]/dark-factory/derive-console.test.ts#L98), [`falls back to placeholder values when payload fields are missing`](apps/web-ui/src/app/repos/[owner]/[repo]/dark-factory/derive-console.test.ts#L113), [`defaults a missing payload to an empty object`](apps/web-ui/src/app/repos/[owner]/[repo]/dark-factory/page-input.test.ts#L45), [`passes an existing payload through unchanged`](apps/web-ui/src/app/repos/[owner]/[repo]/dark-factory/page-input.test.ts#L63))
 
 ## Out of Scope
 
