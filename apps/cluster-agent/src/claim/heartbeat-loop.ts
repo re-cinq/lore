@@ -19,21 +19,34 @@ export interface HeartbeatDeps {
   log?: (line: string) => void;
 }
 
+function heartbeatLog(deps: HeartbeatDeps): (line: string) => void {
+  return deps.log ?? console.warn;
+}
+
+async function postHeartbeat(
+  deps: HeartbeatDeps,
+  id: string,
+  token: string,
+): Promise<Response> {
+  return (deps.fetchImpl ?? fetch)(
+    `${deps.apiUrl}/api/cluster-agents/${id}/heartbeat`,
+    {
+      method: "POST",
+      headers: { authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(HEARTBEAT_TIMEOUT_MS),
+    },
+  );
+}
+
 /** One beat. Returns "ok" | "unauthorized" | "error"; never throws. */
 export async function heartbeatOnce(
   deps: HeartbeatDeps,
 ): Promise<"ok" | "unauthorized" | "error"> {
   const { id, token } = deps.identity();
+  const log = heartbeatLog(deps);
 
   try {
-    const res = await (deps.fetchImpl ?? fetch)(
-      `${deps.apiUrl}/api/cluster-agents/${id}/heartbeat`,
-      {
-        method: "POST",
-        headers: { authorization: `Bearer ${token}` },
-        signal: AbortSignal.timeout(HEARTBEAT_TIMEOUT_MS),
-      },
-    );
+    const res = await postHeartbeat(deps, id, token);
 
     if (res.status === 200) {
       return "ok";
@@ -42,15 +55,11 @@ export async function heartbeatOnce(
     if (res.status === 401 || res.status === 403) {
       return "unauthorized";
     }
-    (deps.log ?? console.warn)(
-      `[cluster-agent] heartbeat failed: HTTP ${res.status}`,
-    );
+    log(`[cluster-agent] heartbeat failed: HTTP ${res.status}`);
 
     return "error";
   } catch (err) {
-    (deps.log ?? console.warn)(
-      `[cluster-agent] heartbeat failed: ${errorMessage(err)}`,
-    );
+    log(`[cluster-agent] heartbeat failed: ${errorMessage(err)}`);
 
     return "error";
   }

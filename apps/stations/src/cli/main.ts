@@ -5,7 +5,11 @@
 import { Llm } from "@re-cinq/lore-shared/llm/llm.js";
 import { parseStationInput } from "@re-cinq/lore-shared/station-input.js";
 import { UsageTrackingLlm } from "../stations/lib/llm-usage-tracker.js";
-import { resultLine, eventLine } from "@re-cinq/lore-assembly-lines";
+import {
+  resultLine,
+  eventLine,
+  type NodeResult,
+} from "@re-cinq/lore-assembly-lines";
 import {
   nodeStationFor,
   type NodeStationRun,
@@ -15,6 +19,40 @@ import {
 /** Resolve by node type; the registry owns the type-to-station mapping. */
 const runnerFor = (type: string): NodeStationRun | undefined =>
   nodeStationFor(type)?.run;
+
+// Sums every model call the runner makes for the terminal line, unless a UsagePort is already logging per-call cost (Llm.usageConfigured) — reporting both would double-count spend.
+function acquireTracker(): UsageTrackingLlm | null {
+  if (Llm.usageConfigured) {
+    console.warn(
+      "[station] UsagePort configured — per-call cost logging is active; terminal-line usage is suppressed to avoid double-counting",
+    );
+
+    return null;
+  }
+
+  const tracker = new UsageTrackingLlm(Llm.instance);
+
+  Llm.setInstance(tracker);
+
+  return tracker;
+}
+
+function releaseTracker(tracker: UsageTrackingLlm | null): void {
+  if (tracker) {
+    Llm.setInstance(tracker.inner);
+  }
+}
+
+function successLine(
+  tracker: UsageTrackingLlm | null,
+  result: NodeResult,
+): string {
+  if (!tracker) {
+    return resultLine({ ...result, usage: undefined });
+  }
+
+  return resultLine(result, undefined, result.usage ?? tracker.totalUsage());
+}
 
 export async function runStation(
   type: string,
@@ -31,41 +69,19 @@ export async function runStation(
     };
   }
 
-  // Sums every model call the runner makes for the terminal line, unless a UsagePort is already logging per-call cost (Llm.usageConfigured) — reporting both would double-count spend.
-  const tracker = Llm.usageConfigured
-    ? null
-    : new UsageTrackingLlm(Llm.instance);
-
-  if (tracker) {
-    Llm.setInstance(tracker);
-  }
-
-  if (!tracker) {
-    console.warn(
-      "[station] UsagePort configured — per-call cost logging is active; terminal-line usage is suppressed to avoid double-counting",
-    );
-  }
+  const tracker = acquireTracker();
 
   try {
     const result = await runner(parseStationInput(inputJson), env);
 
-    if (!tracker) {
-      return { line: resultLine({ ...result, usage: undefined }), exitCode: 0 };
-    }
-
-    return {
-      line: resultLine(result, undefined, result.usage ?? tracker.totalUsage()),
-      exitCode: 0,
-    };
+    return { line: successLine(tracker, result), exitCode: 0 };
   } catch (err) {
     return {
       line: resultLine(null, (err as Error).message, tracker?.totalUsage()),
       exitCode: 1,
     };
   } finally {
-    if (tracker) {
-      Llm.setInstance(tracker.inner);
-    }
+    releaseTracker(tracker);
   }
 }
 

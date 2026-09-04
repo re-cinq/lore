@@ -21,6 +21,56 @@ const CHUNK_KINDS = new Set([
 /** One route per chunk KIND; the body is whichever collection the kind names. */
 const RepoChunksSchema = z.record(z.unknown());
 
+type ChunksProject = Awaited<ReturnType<typeof projectFor>>["chunks"];
+type ChunkQuery = Record<string, string | undefined>;
+
+async function hasChunkResult(chunks: ChunksProject, q: ChunkQuery) {
+  const contentType = q.content_type;
+
+  enforceTrue(contentType, apiError(400), "content_type required");
+
+  return { has: await chunks.hasChunk(contentType, q.file_suffix) };
+}
+
+async function staleChunkResult(chunks: ChunksProject, q: ChunkQuery) {
+  const days = Number(q.days ?? "90");
+
+  return { count: await chunks.staleChunkCount(days) };
+}
+
+const CHUNK_COLLECTION_BY_KIND: Record<
+  string,
+  (chunks: ChunksProject, q: ChunkQuery) => Promise<Record<string, unknown>>
+> = {
+  spec: async (chunks) => ({ specs: await chunks.specChunks() }),
+  "code-symbols": async (chunks) => ({
+    symbols: await chunks.codeSymbols(),
+  }),
+  "spec-ingest": async (chunks) => ({
+    specs: await chunks.specChunksWithIngest(),
+  }),
+  "test-ranges": async (chunks) => ({
+    ranges: await chunks.testChunkRanges(),
+  }),
+  "spec-backfill": async (chunks) => ({
+    specs: await chunks.specChunksForBackfill(),
+  }),
+  "code-backfill": async (chunks) => ({
+    chunks: await chunks.codeChunksForBackfill(),
+  }),
+  has: hasChunkResult,
+};
+
+async function chunkCollection(
+  kind: string,
+  chunks: ChunksProject,
+  q: ChunkQuery,
+): Promise<Record<string, unknown>> {
+  const resolve = CHUNK_COLLECTION_BY_KIND[kind] ?? staleChunkResult;
+
+  return resolve(chunks, q);
+}
+
 export function chunksRoute(): ServerRoute {
   return {
     method: "GET",
@@ -41,35 +91,7 @@ export function chunksRoute(): ServerRoute {
           await projectFor(`${request.params.owner}/${request.params.repo}`)
         ).chunks;
 
-        switch (kind) {
-          case "spec":
-            return h.response({ specs: await chunks.specChunks() });
-          case "code-symbols":
-            return h.response({ symbols: await chunks.codeSymbols() });
-          case "spec-ingest":
-            return h.response({ specs: await chunks.specChunksWithIngest() });
-          case "test-ranges":
-            return h.response({ ranges: await chunks.testChunkRanges() });
-          case "spec-backfill":
-            return h.response({ specs: await chunks.specChunksForBackfill() });
-          case "code-backfill":
-            return h.response({ chunks: await chunks.codeChunksForBackfill() });
-          case "has": {
-            const contentType = q.content_type;
-
-            enforceTrue(contentType, apiError(400), "content_type required");
-
-            return h.response({
-              has: await chunks.hasChunk(contentType, q.file_suffix),
-            });
-          }
-          default: {
-            // stale
-            const days = Number(q.days ?? "90");
-
-            return h.response({ count: await chunks.staleChunkCount(days) });
-          }
-        }
+        return h.response(await chunkCollection(kind, chunks, q));
       } catch (err) {
         // A guard's refusal already carries its status; only an unexpected failure is this block's to shape.
         rethrowBoom(err);

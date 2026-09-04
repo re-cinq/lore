@@ -77,6 +77,106 @@ describe("lore_ingest_files", () => {
       "Ingestion requires LORE_API_URL + LORE_INGEST_TOKEN. Run install.sh to configure.",
     );
   });
+
+  describe("with LORE_API_URL / LORE_INGEST_TOKEN configured", () => {
+    beforeEach(() => {
+      process.env.LORE_API_URL = "https://lore-api.example";
+      process.env.LORE_INGEST_TOKEN = "test-token";
+    });
+
+    it("uses the real local HEAD commit when the detected repo matches the target", async () => {
+      const { execSync } = await import("node:child_process");
+      const expectedHead = execSync("git rev-parse HEAD", {
+        encoding: "utf-8",
+      }).trim();
+
+      vi.mocked(detectCurrentRepo).mockReturnValue("re-cinq/lore");
+      let capturedBody: { commit?: string } = {};
+      const fetchSpy = vi
+        .spyOn(global, "fetch")
+        .mockImplementation(async (_url, init) => {
+          capturedBody = JSON.parse(String(init?.body));
+
+          return new Response(JSON.stringify({ ingested: 1, errors: 0 }), {
+            status: 200,
+          });
+        });
+
+      const handler = handlerFor("lore_ingest_files");
+      const result = await handler({
+        files: ["CLAUDE.md"],
+        repo: "re-cinq/lore",
+      });
+
+      expect(capturedBody.commit).toEqual(expectedHead);
+      expect(result.content[0].text).toEqual(
+        "Ingested 1 files into Lore for re-cinq/lore. 0 errors.",
+      );
+      fetchSpy.mockRestore();
+    });
+
+    it("falls back to HEAD as the commit when the detected repo differs from the target", async () => {
+      vi.mocked(detectCurrentRepo).mockReturnValue("re-cinq/other");
+      let capturedBody: { commit?: string } = {};
+      const fetchSpy = vi
+        .spyOn(global, "fetch")
+        .mockImplementation(async (_url, init) => {
+          capturedBody = JSON.parse(String(init?.body));
+
+          return new Response(JSON.stringify({ ingested: 2, errors: 1 }), {
+            status: 200,
+          });
+        });
+
+      const handler = handlerFor("lore_ingest_files");
+      const result = await handler({
+        files: ["CLAUDE.md"],
+        repo: "re-cinq/lore",
+      });
+
+      expect(capturedBody.commit).toEqual("HEAD");
+      expect(result.content[0].text).toEqual(
+        "Ingested 2 files into Lore for re-cinq/lore. 1 errors.",
+      );
+      fetchSpy.mockRestore();
+    });
+
+    it("surfaces a non-ok ingest response's error message", async () => {
+      vi.mocked(detectCurrentRepo).mockReturnValue("re-cinq/lore");
+      const fetchSpy = vi.spyOn(global, "fetch").mockResolvedValue(
+        new Response(JSON.stringify({ error: "quota exceeded" }), {
+          status: 429,
+        }),
+      );
+
+      const handler = handlerFor("lore_ingest_files");
+      const result = await handler({
+        files: ["CLAUDE.md"],
+        repo: "re-cinq/lore",
+      });
+
+      expect(result.content[0].text).toEqual(
+        "Ingestion failed: quota exceeded",
+      );
+      fetchSpy.mockRestore();
+    });
+
+    it("reports the caught error message when the ingest request itself throws", async () => {
+      vi.mocked(detectCurrentRepo).mockReturnValue("re-cinq/lore");
+      const fetchSpy = vi
+        .spyOn(global, "fetch")
+        .mockRejectedValue(new Error("network down"));
+
+      const handler = handlerFor("lore_ingest_files");
+      const result = await handler({
+        files: ["CLAUDE.md"],
+        repo: "re-cinq/lore",
+      });
+
+      expect(result.content[0].text).toEqual("Error: network down");
+      fetchSpy.mockRestore();
+    });
+  });
 });
 
 describe("lore_onboard_repo", () => {
@@ -170,5 +270,30 @@ describe("lore_list_repos", () => {
     expect(result.content[0].text).toEqual(
       "No repos onboarded yet. Use lore_onboard_repo to add one.",
     );
+  });
+
+  it("returns a config-required message when the proxy reports not_configured mid-page", async () => {
+    vi.mocked(proxyGetApi).mockResolvedValueOnce({
+      ok: false,
+      reason: "not_configured",
+    });
+
+    const result = await handlerFor("lore_list_repos")({});
+
+    expect(result.content[0].text).toEqual(
+      "Repo management requires LORE_API_URL + LORE_INGEST_TOKEN. Run install.sh to configure.",
+    );
+  });
+
+  it("returns a denied error when the proxy reports denied", async () => {
+    vi.mocked(proxyGetApi).mockResolvedValueOnce({
+      ok: false,
+      reason: "denied",
+      detail: "invalid token",
+    });
+
+    const result = await handlerFor("lore_list_repos")({});
+
+    expect(result.content[0].text).toContain("invalid token");
   });
 });

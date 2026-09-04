@@ -45,6 +45,24 @@ function fixtureClone(): string {
   return dir;
 }
 
+function blankNodeLabel(
+  setJson: Record<string, unknown> | undefined,
+): string | undefined {
+  const uid = setJson?.["uid"] as string | undefined;
+
+  return uid?.startsWith("_:") ? uid.slice(2) : undefined;
+}
+
+function extractXidHash(setJson: Record<string, unknown> | undefined): {
+  xid?: string;
+  hash?: string;
+} {
+  return {
+    xid: setJson?.["Spec.xid"] as string | undefined,
+    hash: setJson?.["Spec.content_hash"] as string | undefined,
+  };
+}
+
 function fakeDgraph(): { port: DgraphClientPort; mutations: number } {
   const state = { mutations: 0 };
   const txn: DgraphTxn = {
@@ -53,10 +71,10 @@ function fakeDgraph(): { port: DgraphClientPort; mutations: number } {
     mutate: async (m: Record<string, unknown>) => {
       state.mutations += 1;
       const setJson = m["setJson"] as Record<string, unknown> | undefined;
-      const uid = setJson?.["uid"] as string | undefined;
+      const label = blankNodeLabel(setJson);
 
-      if (uid?.startsWith("_:")) {
-        return { data: { uids: { [uid.slice(2)]: `0x${state.mutations}` } } };
+      if (label !== undefined) {
+        return { data: { uids: { [label]: `0x${state.mutations}` } } };
       }
 
       return { data: {} };
@@ -154,16 +172,14 @@ describe("runIngestStation", () => {
       },
       mutate: async (m: Record<string, unknown>) => {
         const setJson = m["setJson"] as Record<string, unknown> | undefined;
-        const xid = setJson?.["Spec.xid"] as string | undefined;
-        const hash = setJson?.["Spec.content_hash"] as string | undefined;
+        const { xid, hash } = extractXidHash(setJson);
 
         if (xid !== undefined && hash !== undefined) {
           hashByXid.set(xid, hash);
         }
+        const label = blankNodeLabel(setJson);
 
-        if ((setJson?.["uid"] as string | undefined)?.startsWith("_:")) {
-          const label = (setJson!["uid"] as string).slice(2);
-
+        if (label !== undefined) {
           return { data: { uids: { [label]: `0x${hashByXid.size + 1}` } } };
         }
 
@@ -300,5 +316,67 @@ describe("runIngestStation", () => {
         embed: async () => [0.1],
       }),
     ).rejects.toThrow(/no ingest handler for kind "bogus"/);
+  });
+
+  it("rejects a missing kind the same way as an unknown one", async () => {
+    await expect(
+      runIngestStation(input({}), {
+        workspaceDir: fixtureClone(),
+        dgraph: fakeDgraph().port,
+        embed: async () => [0.1],
+      }),
+    ).rejects.toThrow(/no ingest handler for kind "undefined"/);
+  });
+
+  it("falls back to WORKSPACE_DIR/target when workspaceDir is not injected", async () => {
+    const parent = mkdtempSync(join(tmpdir(), "ingest-station-workspace-"));
+
+    tmpDirs.push(parent);
+    const target = join(parent, "target");
+
+    mkdirSync(join(target, "specs", "alpha"), { recursive: true });
+    writeFileSync(
+      join(target, "specs", "alpha", "spec.md"),
+      "# Feature Specification: Alpha\n\nA lead paragraph.\n\n## Requirements\n\n- **FR1** Does the thing.\n",
+    );
+    const previousWorkspaceDir = process.env.WORKSPACE_DIR;
+
+    process.env.WORKSPACE_DIR = parent;
+
+    try {
+      const result = await runIngestStation(input({ kind: "specs" }), {
+        dgraph: fakeDgraph().port,
+        embed: async () => [0.1],
+      });
+
+      expect(result.extras?.["Lore-Ingest-Summary"]).toContain("projected=1");
+    } finally {
+      if (previousWorkspaceDir === undefined) {
+        delete process.env.WORKSPACE_DIR;
+      }
+
+      if (previousWorkspaceDir !== undefined) {
+        process.env.WORKSPACE_DIR = previousWorkspaceDir;
+      }
+    }
+  });
+
+  it("rejects when dgraph is not injected and LORE_DGRAPH_HTTP is unset", async () => {
+    const previousDgraphHttp = process.env.LORE_DGRAPH_HTTP;
+
+    delete process.env.LORE_DGRAPH_HTTP;
+
+    try {
+      await expect(
+        runIngestStation(input({ kind: "specs" }), {
+          workspaceDir: fixtureClone(),
+          embed: async () => [0.1],
+        }),
+      ).rejects.toThrow(/LORE_DGRAPH_HTTP not configured/);
+    } finally {
+      if (previousDgraphHttp !== undefined) {
+        process.env.LORE_DGRAPH_HTTP = previousDgraphHttp;
+      }
+    }
   });
 });

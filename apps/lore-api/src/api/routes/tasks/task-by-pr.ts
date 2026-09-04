@@ -16,6 +16,62 @@ const TaskByPrSchema = z.object({
   trailer_source: z.enum(["db", "pr_body", "final_commit"]),
 });
 
+async function taskIdFromDb(
+  pool: Pool,
+  repo: string,
+  prNumber: number,
+): Promise<string | null> {
+  try {
+    const { rows } = await pool.query(
+      `SELECT id FROM pipeline.tasks
+         WHERE target_repo = $1 AND pr_number = $2
+         LIMIT 1`,
+      [repo, prNumber],
+    );
+
+    return rows.length > 0 ? rows[0].id : null;
+  } catch (err) {
+    console.error("[by-pr] DB lookup failed:", err);
+
+    return null;
+  }
+}
+
+type PrTrailerResult = {
+  task_id: string;
+  trailer_source: "pr_body" | "final_commit";
+} | null;
+
+async function taskIdFromGithub(
+  owner: string,
+  repoName: string,
+  prNumber: number,
+): Promise<PrTrailerResult> {
+  const octokit = await getOctokit();
+  const pr = await octokit.rest.pulls.get({
+    owner,
+    repo: repoName,
+    pull_number: prNumber,
+  });
+
+  const fromBody = pr.data.body?.match(LORE_TASK_TRAILER_RE);
+
+  if (fromBody) {
+    return { task_id: fromBody[1], trailer_source: "pr_body" };
+  }
+
+  // Final commit on the PR head branch.
+  const commit = await octokit.rest.git.getCommit({
+    owner,
+    repo: repoName,
+    commit_sha: pr.data.head.sha,
+  });
+  const trailers = parseTrailers(commit.data.message);
+  const taskId = trailers?.taskId;
+
+  return taskId ? { task_id: taskId, trailer_source: "final_commit" } : null;
+}
+
 export function taskByPrRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "GET",
@@ -43,52 +99,18 @@ export function taskByPrRoute(getPool: () => Pool | null): ServerRoute {
       const repo = `${owner}/${repoName}`;
 
       // First try the DB — fast path.
-      try {
-        const { rows } = await pool.query(
-          `SELECT id FROM pipeline.tasks
-             WHERE target_repo = $1 AND pr_number = $2
-             LIMIT 1`,
-          [repo, prNumber],
-        );
+      const dbTaskId = await taskIdFromDb(pool, repo, prNumber);
 
-        if (rows.length > 0) {
-          return h.response({ task_id: rows[0].id, trailer_source: "db" });
-        }
-      } catch (err) {
-        console.error("[by-pr] DB lookup failed:", err);
+      if (dbTaskId) {
+        return h.response({ task_id: dbTaskId, trailer_source: "db" });
       }
 
       // Fall back to GitHub API: fetch PR body + final commit and parse for the Lore-Task: trailer.
       try {
-        const octokit = await getOctokit();
-        const pr = await octokit.rest.pulls.get({
-          owner,
-          repo: repoName,
-          pull_number: prNumber,
-        });
+        const fromGithub = await taskIdFromGithub(owner, repoName, prNumber);
 
-        const fromBody = pr.data.body?.match(LORE_TASK_TRAILER_RE);
-
-        if (fromBody) {
-          return h.response({
-            task_id: fromBody[1],
-            trailer_source: "pr_body",
-          });
-        }
-
-        // Final commit on the PR head branch.
-        const commit = await octokit.rest.git.getCommit({
-          owner,
-          repo: repoName,
-          commit_sha: pr.data.head.sha,
-        });
-        const trailers = parseTrailers(commit.data.message);
-
-        if (trailers?.taskId) {
-          return h.response({
-            task_id: trailers.taskId,
-            trailer_source: "final_commit",
-          });
+        if (fromGithub) {
+          return h.response(fromGithub);
         }
 
         return h.response({ error: "no_trailer_found" }).code(404);

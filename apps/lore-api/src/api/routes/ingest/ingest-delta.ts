@@ -101,6 +101,10 @@ const defaultDeps = (): IngestDeltaDeps => {
 
 const UNDEFINED_TABLE = "42P01";
 
+function isUndefinedTableError(err: unknown): boolean {
+  return err instanceof Error && "code" in err && err.code === UNDEFINED_TABLE;
+}
+
 /** The stored commit, with a pre-migration cluster reading as "no state". */
 async function storedCommit(
   pool: Pool,
@@ -116,7 +120,7 @@ async function storedCommit(
 
     return rows[0]?.commit_sha ?? null;
   } catch (err) {
-    if (err instanceof Error && "code" in err && err.code === UNDEFINED_TABLE) {
+    if (isUndefinedTableError(err)) {
       return null;
     }
 
@@ -144,17 +148,26 @@ async function applyTestReportDelta(
   return { testChunks, prunedTestFiles };
 }
 
-async function applyDocDelta(
+function docFunctions(
   deps: IngestDeltaDeps,
-  repo: string,
-  body: IngestDeltaBody,
-): Promise<{ projected: number; deleted: number }> {
-  const project = body.kind === "specs" ? deps.projectSpec : deps.projectAdr;
-  const remove = body.kind === "specs" ? deps.deleteSpec : deps.deleteAdr;
-  let projected = 0;
-  let deleted = 0;
+  kind: string,
+): {
+  project: IngestDeltaDeps["projectSpec"];
+  remove: IngestDeltaDeps["deleteSpec"];
+} {
+  return kind === "specs"
+    ? { project: deps.projectSpec, remove: deps.deleteSpec }
+    : { project: deps.projectAdr, remove: deps.deleteAdr };
+}
 
-  for (const file of body.files ?? []) {
+async function projectFiles(
+  project: IngestDeltaDeps["projectSpec"],
+  repo: string,
+  files: IngestDeltaBody["files"],
+): Promise<number> {
+  let projected = 0;
+
+  for (const file of files ?? []) {
     const outcome = await project(repo, file.path, file.content);
 
     if (outcome.projected) {
@@ -162,10 +175,29 @@ async function applyDocDelta(
     }
   }
 
-  for (const path of body.deleted ?? []) {
+  return projected;
+}
+
+async function removeFiles(
+  remove: IngestDeltaDeps["deleteSpec"],
+  repo: string,
+  paths: IngestDeltaBody["deleted"],
+): Promise<number> {
+  for (const path of paths ?? []) {
     await remove(repo, path);
-    deleted += 1;
   }
+
+  return paths?.length ?? 0;
+}
+
+async function applyDocDelta(
+  deps: IngestDeltaDeps,
+  repo: string,
+  body: IngestDeltaBody,
+): Promise<{ projected: number; deleted: number }> {
+  const { project, remove } = docFunctions(deps, body.kind);
+  const projected = await projectFiles(project, repo, body.files);
+  const deleted = await removeFiles(remove, repo, body.deleted);
 
   return { projected, deleted };
 }
@@ -297,7 +329,7 @@ async function advanceStoredCommit(
 
     return rows.length > 0;
   } catch (err) {
-    if (err instanceof Error && "code" in err && err.code === UNDEFINED_TABLE) {
+    if (isUndefinedTableError(err)) {
       return "unrecorded";
     }
 

@@ -220,6 +220,64 @@ describe("routes — agents", () => {
       );
     });
 
+    it("two-key gates an update that sets an image (no approval header)", async () => {
+      const { res } = await call(`${BASE}/general`, "PUT", {
+        image: "golang:1.23",
+      });
+
+      expect(res.statusCode).toBe(403);
+      expect((res.result as { error: string }).error).toBe("two_key_required");
+      expect(fakeAgents.update).not.toHaveBeenCalled();
+    });
+
+    it("applies an image update after CODEOWNERS approval", async () => {
+      fakeAgents.update.mockResolvedValue({ ...def, image: "golang:1.23" });
+      vi.mocked(getOctokit).mockResolvedValue(makeOctokit() as any);
+      vi.mocked(verifyApproval).mockResolvedValue({
+        prRef: "#5",
+        approver: "alice",
+        prUrl: "https://gh/5",
+      } as any);
+      const { res } = await call(
+        `${BASE}/general`,
+        "PUT",
+        { image: "golang:1.23" },
+        { headers: { "x-lore-approval-pr": "#5" } },
+      );
+
+      expect(res.result).toMatchObject({
+        ok: true,
+        ceremony: { tier: "two_key", approver: "alice" },
+      });
+    });
+
+    it("returns 403 on a CODEOWNERS failure for an image update", async () => {
+      vi.mocked(getOctokit).mockResolvedValue(makeOctokit() as any);
+      vi.mocked(verifyApproval).mockRejectedValue(
+        new TwoKeyError("nope", "approver_not_codeowner"),
+      );
+      const { res } = await call(
+        `${BASE}/general`,
+        "PUT",
+        { image: "golang:1.23" },
+        { headers: { "x-lore-approval-pr": "#5" } },
+      );
+
+      expect(res.result).toMatchObject({
+        error: "codeowners_check_failed",
+        code: "approver_not_codeowner",
+      });
+    });
+
+    it("rejects an invalid update body with 400", async () => {
+      const { res } = await call(`${BASE}/general`, "PUT", {
+        model: 123,
+      });
+
+      expect(res.statusCode).toBe(400);
+      expect((res.result as { error: string }).error).toBe("invalid_agent");
+    });
+
     it("a create with pod_resources writes the block merged over the inherited config, never the block alone", async () => {
       fakeAgents.resolve.mockResolvedValue({
         ...def,

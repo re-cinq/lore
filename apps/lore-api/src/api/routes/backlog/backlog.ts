@@ -60,18 +60,15 @@ interface NodeRow {
   outcome: string | null;
 }
 
-// The mini graph: every graph node in definition order, colored by its latest station-run outcome (absent = pending, open = running/waiting for a human station).
-export function pipelineOf(
-  run: LoopRunRow | undefined,
+/** Latest station-run visit per node in `run`, later iterations winning over earlier ones. */
+function latestVisitByNode(
+  runId: string,
   nodeRows: readonly NodeRow[],
-): Array<{ node_id: string; state: string }> | null {
-  if (!run?.graph?.nodes) {
-    return null;
-  }
+): Map<string, NodeRow> {
   const latest = new Map<string, NodeRow>();
 
   for (const row of nodeRows) {
-    if (row.assembly_run_id !== run.id) {
+    if (row.assembly_run_id !== runId) {
       continue;
     }
     const prior = latest.get(row.node_id);
@@ -81,22 +78,50 @@ export function pipelineOf(
     }
   }
 
-  return run.graph.nodes.map((node) => {
-    const visit = latest.get(node.id);
+  return latest;
+}
 
-    if (!visit) {
-      return { node_id: node.id, state: "pending" };
-    }
+/** absent = pending, open = running/waiting for a human station. */
+function nodeState(
+  node: { id: string; type: string },
+  visit: NodeRow | undefined,
+): { node_id: string; state: string } {
+  if (!visit) {
+    return { node_id: node.id, state: "pending" };
+  }
 
-    if (visit.outcome === null) {
-      return {
-        node_id: node.id,
-        state: node.type === "pr_review" ? "waiting" : "running",
-      };
-    }
+  if (visit.outcome === null) {
+    return {
+      node_id: node.id,
+      state: node.type === "pr_review" ? "waiting" : "running",
+    };
+  }
 
-    return { node_id: node.id, state: visit.outcome };
-  });
+  return { node_id: node.id, state: visit.outcome };
+}
+
+// The mini graph: every graph node in definition order, colored by its latest station-run outcome.
+export function pipelineOf(
+  run: LoopRunRow | undefined,
+  nodeRows: readonly NodeRow[],
+): Array<{ node_id: string; state: string }> | null {
+  if (!run?.graph?.nodes) {
+    return null;
+  }
+  const latest = latestVisitByNode(run.id, nodeRows);
+
+  return run.graph.nodes.map((node) => nodeState(node, latest.get(node.id)));
+}
+
+function runSummary(run: LoopRunRow | undefined): {
+  error: string | null;
+  run_id: string | null;
+} {
+  return { error: run?.reason ?? null, run_id: run?.id ?? null };
+}
+
+function ticketTitle(issue: IssueRef | undefined, row: LoopTaskRow): string {
+  return issue?.title ?? row.description.split("\n")[0];
 }
 
 function taskTicket(
@@ -109,17 +134,18 @@ function taskTicket(
     return null;
   }
   const issue = openIssues.find((i) => i.number === row.issue_number);
+  const { error, run_id } = runSummary(run);
 
   return {
     issue_number: row.issue_number,
     issue_url: row.issue_url,
-    title: issue?.title ?? row.description.split("\n")[0],
+    title: ticketTitle(issue, row),
     priority: priorityOf(issue),
     pr_url: row.pr_url,
     state: row.status,
     created_at: new Date(row.created_at).toISOString(),
-    error: run?.reason ?? null,
-    run_id: run?.id ?? null,
+    error,
+    run_id,
     pipeline: pipelineOf(run, nodeRows),
   };
 }
@@ -128,6 +154,50 @@ export function implementationLoopRoutes(
   getPool: () => Pool | null,
 ): ServerRoute[] {
   return [readBacklogRoute(getPool), writeBacklogRoute(getPool)];
+}
+
+function resolveEnabled(settings: Record<string, unknown> | null): boolean {
+  const loop = (
+    settings as { implementation_loop?: { enabled?: unknown } } | null
+  )?.implementation_loop;
+
+  return loop?.enabled === true;
+}
+
+interface RunContext {
+  taskRuns: LoopRunRow[];
+  nodeRows: NodeRow[];
+}
+
+// Each listed task's latest loop run + node rows, two batched queries; guarded because `= ANY($1)` on an empty JS array makes Postgres guess the type and 500 on a fresh repo.
+async function fetchRunContext(
+  pool: Pool,
+  taskIds: readonly string[],
+): Promise<RunContext> {
+  if (taskIds.length === 0) {
+    return { taskRuns: [], nodeRows: [] };
+  }
+  const { rows: taskRuns } = await pool.query<LoopRunRow>(
+    `SELECT DISTINCT ON (task_id) id, task_id, status, reason, graph
+       FROM pipeline.assembly_runs
+      WHERE task_id = ANY($1::uuid[])
+        AND blueprint_name = 'implementation-loop'
+      ORDER BY task_id, created_at DESC`,
+    [taskIds],
+  );
+
+  if (taskRuns.length === 0) {
+    return { taskRuns, nodeRows: [] };
+  }
+  const { rows: nodeRows } = await pool.query<NodeRow>(
+    `SELECT assembly_run_id, node_id, iteration, outcome
+       FROM pipeline.station_runs
+      WHERE assembly_run_id = ANY($1::uuid[])
+      ORDER BY started_at`,
+    [taskRuns.map((r) => r.id)],
+  );
+
+  return { taskRuns, nodeRows };
 }
 
 function readBacklogRoute(getPool: () => Pool | null): ServerRoute {
@@ -144,7 +214,12 @@ function readBacklogRoute(getPool: () => Pool | null): ServerRoute {
 
       enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
       const repo = repoOf(request.params);
-      const enabled = await readLoopEnabled(pool, repo);
+      const { rows } = await pool.query<{
+        settings: Record<string, unknown> | null;
+      }>("SELECT settings FROM lore.repos WHERE full_name = $1", [repo]);
+
+      enforceTrue(rows.length > 0, apiError(404), `repo not found: ${repo}`);
+      const enabled = resolveEnabled(rows[0].settings);
       // 2x the display cap: filtering out the open rows must still leave a full recent list.
       const { rows: taskRows } = await pool.query<LoopTaskRow>(
         `SELECT id, created_at, status, description, issue_number, issue_url, pr_url
@@ -163,129 +238,60 @@ function readBacklogRoute(getPool: () => Pool | null): ServerRoute {
           ORDER BY created_at DESC LIMIT 1`,
         [repo],
       );
-      const { runByTask, nodeRows } = await readLoopRuns(pool, taskRows);
+      const taskIds = taskRows.map((t) => t.id);
+      const { taskRuns, nodeRows } = await fetchRunContext(pool, taskIds);
+      const runByTask = new Map(taskRuns.map((r) => [r.task_id, r]));
       const currentRow = taskRows.find((t) =>
         (OPEN_TASK_STATES as readonly string[]).includes(t.status),
       );
+      const current = currentRow
+        ? taskTicket(
+            currentRow,
+            openIssues,
+            runByTask.get(currentRow.id),
+            nodeRows,
+          )
+        : null;
+      // Mirror the driver's eligibility guard: an issue whose task isn't failed/cancelled is already being worked or addressed — showing it as "next up" duplicated it into next and recent at once.
+      const guardedIssues = new Set(
+        taskRows
+          .filter((t) => !["failed", "cancelled"].includes(t.status))
+          .map((t) => t.issue_number),
+      );
+      const next = orderBacklog(openIssues)
+        .filter((i) => !guardedIssues.has(i.number))
+        .map((i) => ({
+          issue_number: i.number,
+          issue_url: i.url ?? null,
+          title: i.title,
+          priority: priorityOf(i),
+          pr_url: null,
+          state: "queued",
+          created_at: i.createdAt ? new Date(i.createdAt).toISOString() : null,
+          error: null,
+          run_id: null,
+          pipeline: null,
+        }));
+      const recent = taskRows
+        .filter((t) => t !== currentRow)
+        .filter(
+          (t) => !(OPEN_TASK_STATES as readonly string[]).includes(t.status),
+        )
+        .slice(0, RECENT_LIMIT)
+        .map((t) => taskTicket(t, openIssues, runByTask.get(t.id), nodeRows))
+        .filter((t): t is Ticket => t !== null);
 
       return h
         .response({
           enabled,
-          current: currentRow
-            ? taskTicket(
-                currentRow,
-                openIssues,
-                runByTask.get(currentRow.id),
-                nodeRows,
-              )
-            : null,
+          current,
           current_run_id: runRows[0]?.id ?? null,
-          next: nextTickets(openIssues, taskRows),
-          recent: recentTickets(taskRows, currentRow, {
-            openIssues,
-            runByTask,
-            nodeRows,
-          }),
+          next,
+          recent,
         })
         .code(200);
     },
   };
-}
-
-async function readLoopEnabled(pool: Pool, repo: string): Promise<boolean> {
-  const { rows } = await pool.query<{
-    settings: Record<string, unknown> | null;
-  }>("SELECT settings FROM lore.repos WHERE full_name = $1", [repo]);
-
-  enforceTrue(rows.length > 0, apiError(404), `repo not found: ${repo}`);
-  const settings = (rows[0].settings ?? {}) as {
-    implementation_loop?: { enabled?: unknown };
-  };
-
-  return settings.implementation_loop?.enabled === true;
-}
-
-/** Each listed task's latest loop run and that run's node rows, in two batched queries; guarded because `= ANY($1)` on an empty JS array makes Postgres guess the type and 500 on a fresh repo. */
-async function readLoopRuns(
-  pool: Pool,
-  taskRows: LoopTaskRow[],
-): Promise<{ runByTask: Map<string, LoopRunRow>; nodeRows: NodeRow[] }> {
-  const taskIds = taskRows.map((t) => t.id);
-  const { rows: taskRuns } = taskIds.length
-    ? await pool.query<LoopRunRow>(
-        `SELECT DISTINCT ON (task_id) id, task_id, status, reason, graph
-               FROM pipeline.assembly_runs
-              WHERE task_id = ANY($1::uuid[])
-                AND blueprint_name = 'implementation-loop'
-              ORDER BY task_id, created_at DESC`,
-        [taskIds],
-      )
-    : { rows: [] as LoopRunRow[] };
-  const { rows: nodeRows } = taskRuns.length
-    ? await pool.query<NodeRow>(
-        `SELECT assembly_run_id, node_id, iteration, outcome
-               FROM pipeline.station_runs
-              WHERE assembly_run_id = ANY($1::uuid[])
-              ORDER BY started_at`,
-        [taskRuns.map((r) => r.id)],
-      )
-    : { rows: [] as NodeRow[] };
-
-  return {
-    runByTask: new Map(taskRuns.map((r) => [r.task_id, r])),
-    nodeRows,
-  };
-}
-
-/** The queue, in priority order. Mirrors the driver's eligibility guard: an issue whose task is not failed or cancelled is already being worked or addressed, and showing it as "next up" duplicated it into next and recent at once. */
-function nextTickets(
-  openIssues: Awaited<
-    ReturnType<Awaited<ReturnType<typeof projectFor>>["issues"]["list"]>
-  >,
-  taskRows: LoopTaskRow[],
-) {
-  const guarded = new Set(
-    taskRows
-      .filter((t) => !["failed", "cancelled"].includes(t.status))
-      .map((t) => t.issue_number),
-  );
-
-  return orderBacklog(openIssues)
-    .filter((i) => !guarded.has(i.number))
-    .map((i) => ({
-      issue_number: i.number,
-      issue_url: i.url ?? null,
-      title: i.title,
-      priority: priorityOf(i),
-      pr_url: null,
-      state: "queued",
-      created_at: i.createdAt ? new Date(i.createdAt).toISOString() : null,
-      error: null,
-      run_id: null,
-      pipeline: null,
-    }));
-}
-
-/** What the loop has already finished with — the current ticket excluded, since it appears above. */
-function recentTickets(
-  taskRows: LoopTaskRow[],
-  currentRow: LoopTaskRow | undefined,
-  ctx: {
-    openIssues: Awaited<
-      ReturnType<Awaited<ReturnType<typeof projectFor>>["issues"]["list"]>
-    >;
-    runByTask: Map<string, LoopRunRow>;
-    nodeRows: NodeRow[];
-  },
-): Ticket[] {
-  return taskRows
-    .filter((t) => t !== currentRow)
-    .filter((t) => !(OPEN_TASK_STATES as readonly string[]).includes(t.status))
-    .slice(0, RECENT_LIMIT)
-    .map((t) =>
-      taskTicket(t, ctx.openIssues, ctx.runByTask.get(t.id), ctx.nodeRows),
-    )
-    .filter((t): t is Ticket => t !== null);
 }
 
 function writeBacklogRoute(getPool: () => Pool | null): ServerRoute {

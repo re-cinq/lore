@@ -196,4 +196,13 @@ describe("prReadyCheckSweep", () => {
       "checked 2, resumed 1, blocked 0, waiting 0, errors 1",
     );
   });
+
+  it("skips a parked run whose PR has no head sha yet, without erroring the sweep", async () => {
+    const d = deps({ getPrHeadSha: async () => null });
+
+    const summary = await prReadyCheckSweep(d.deps);
+
+    expect(d.reported).toEqual([]);
+    expect(summary).toBe("checked 1, resumed 0, blocked 0, waiting 0");
+  });
 });

@@ -151,7 +151,14 @@ interface SettingsPatch {
   toPatch: TaskOverridesPatch | undefined;
 }
 
-/** Reads the body, or says why it cannot. Zod's issue list is passed through untouched — a caller fixing a rejected patch needs the field, not a summary. */
+/** Zod's issue list is passed through untouched — a caller fixing a rejected patch needs the field, not a summary. */
+function issuesFromParseError(err: unknown): unknown {
+  return typeof err === "object" && err !== null && "issues" in err
+    ? (err as { issues: unknown }).issues
+    : (err as Error).message;
+}
+
+/** Reads the body, or says why it cannot. */
 function parseSettingsBody(
   body: unknown,
 ): SettingsPatch | { error: { error: string; issues: unknown } } {
@@ -164,12 +171,9 @@ function parseSettingsBody(
       toPatch: rawTo !== undefined ? parseTaskOverrides(rawTo) : undefined,
     };
   } catch (err) {
-    const issues =
-      typeof err === "object" && err !== null && "issues" in err
-        ? (err as { issues: unknown }).issues
-        : (err as Error).message;
-
-    return { error: { error: "invalid_settings", issues } };
+    return {
+      error: { error: "invalid_settings", issues: issuesFromParseError(err) },
+    };
   }
 }
 
@@ -195,6 +199,40 @@ function nested(value: unknown): Record<string, unknown> {
   return (value ?? {}) as Record<string, unknown>;
 }
 
+type CeremonyOutcome =
+  { ok: true; ceremony: Ceremony } | { ok: false; body: object; code: number };
+
+/** Two-key check (FR3.9): privileged fields require an approval-PR header. */
+async function resolveCeremony(
+  request: Request,
+  repo: string,
+  twoKey: string[],
+): Promise<CeremonyOutcome> {
+  if (twoKey.length === 0) {
+    return { ok: true, ceremony: { tier: "admin" } };
+  }
+
+  const gate = await checkApproval(
+    request,
+    repo,
+    twoKey,
+    "Privileged fields require an X-Lore-Approval-PR header. " +
+      "Reference an open PR labeled `dark-factory-approval` by a CODEOWNER.",
+  );
+
+  return gate.ok
+    ? {
+        ok: true,
+        ceremony: {
+          tier: "two_key",
+          pr_ref: gate.evidence.prRef,
+          approver: gate.evidence.approver,
+          pr_url: gate.evidence.prUrl,
+        },
+      }
+    : { ok: false, body: gate.body, code: gate.code };
+}
+
 async function handlePut(
   request: Request,
   h: ResponseToolkit,
@@ -208,32 +246,21 @@ async function handlePut(
     return h.response(parsed.error).code(400);
   }
 
-  // Two-key check (FR3.9): privileged fields require an approval-PR header.
   const twoKey = twoKeyFieldsTouched(parsed.patch, parsed.toPatch);
-  const gate =
-    twoKey.length > 0
-      ? await checkApproval(
-          request,
-          repo,
-          twoKey,
-          "Privileged fields require an X-Lore-Approval-PR header. " +
-            "Reference an open PR labeled `dark-factory-approval` by a CODEOWNER.",
-        )
-      : null;
+  const outcome = await resolveCeremony(request, repo, twoKey);
 
-  if (gate && !gate.ok) {
-    return h.response(gate.body).code(gate.code);
+  if (!outcome.ok) {
+    return h.response(outcome.body).code(outcome.code);
   }
-  const ceremony: Ceremony = gate?.ok
-    ? {
-        tier: "two_key",
-        pr_ref: gate.evidence.prRef,
-        approver: gate.evidence.approver,
-        pr_url: gate.evidence.prUrl,
-      }
-    : { tier: "admin" };
 
-  return await writeSettings({ pool, repo, h, twoKey, ceremony, ...parsed });
+  return await writeSettings({
+    pool,
+    repo,
+    h,
+    twoKey,
+    ceremony: outcome.ceremony,
+    ...parsed,
+  });
 }
 
 interface SettingsWrite extends SettingsPatch {
@@ -242,6 +269,55 @@ interface SettingsWrite extends SettingsPatch {
   h: ResponseToolkit;
   twoKey: string[];
   ceremony: Ceremony;
+}
+
+/** Deep-merges every touched task type over its existing entry; untouched types stay intact. */
+function mergedTaskOverrides(
+  prevTo: Record<string, Record<string, unknown>>,
+  toPatch: TaskOverridesPatch,
+): Record<string, Record<string, unknown>> {
+  const nextTo: Record<string, Record<string, unknown>> = { ...prevTo };
+
+  for (const [type, ov] of Object.entries(toPatch)) {
+    nextTo[type] = mergedTaskOverride(prevTo[type], ov);
+  }
+
+  return nextTo;
+}
+
+interface AppliedPatch {
+  settings: Record<string, unknown>;
+  prev: {
+    dark_factory: DarkFactoryState;
+    task_overrides: Record<string, Record<string, unknown>>;
+  };
+  next: DarkFactoryState;
+}
+
+/** Pure merge step: folds the patch (and optional task_overrides patch) over the row's current JSONB settings. */
+function applyPatch(
+  stored: Record<string, unknown> | null,
+  patch: DarkFactorySettings,
+  toPatch: TaskOverridesPatch | undefined,
+): AppliedPatch {
+  const settings: Record<string, unknown> = stored ?? {};
+  const prev = (settings.dark_factory ?? {}) as DarkFactoryState;
+  const prevTo = (settings.task_overrides ?? {}) as Record<
+    string,
+    Record<string, unknown>
+  >;
+  const next = mergedDarkFactory(prev, patch);
+
+  settings.dark_factory = next;
+  settings.task_overrides = toPatch
+    ? mergedTaskOverrides(prevTo, toPatch)
+    : prevTo;
+
+  return {
+    settings,
+    prev: { dark_factory: prev, task_overrides: prevTo },
+    next,
+  };
 }
 
 /** Read current, merge patch, write back, audit — under one row lock, because two concurrent PUTs to the same repo would otherwise each write a merge of the state they read. lore.repos.settings is JSONB. */
@@ -261,38 +337,32 @@ async function writeSettings(write: SettingsWrite): Promise<ResponseObject> {
 
       return h.response({ error: "repo not onboarded", repo }).code(404);
     }
-    const settings = rows[0].settings ?? {};
-    const prev: DarkFactoryState = settings.dark_factory ?? {};
-    const prevTo = settings.task_overrides ?? {};
-    const next = mergedDarkFactory(prev, patch);
-
-    settings.dark_factory = next;
-
-    // Deep-merge each touched task type over its existing entry; untouched types stay intact.
-    if (toPatch) {
-      const nextTo: Record<string, Record<string, unknown>> = { ...prevTo };
-
-      for (const [type, ov] of Object.entries(toPatch)) {
-        nextTo[type] = mergedTaskOverride(prevTo[type], ov);
-      }
-      settings.task_overrides = nextTo;
-    }
+    const applied = applyPatch(rows[0].settings, patch, toPatch);
 
     await client.query(
       `UPDATE lore.repos SET settings = $1 WHERE full_name = $2`,
-      [settings, repo],
+      [applied.settings, repo],
     );
     await auditChange(client, write, {
-      prev: { dark_factory: prev, task_overrides: prevTo },
+      prev: applied.prev,
       next: {
-        dark_factory: next,
-        task_overrides: settings.task_overrides ?? prevTo,
+        dark_factory: applied.next,
+        task_overrides: applied.settings.task_overrides,
       },
     });
     await client.query("COMMIT");
-    await captureBaselineIfEnabling(repo, pool, prev, next);
+    await captureBaselineIfEnabling(
+      repo,
+      pool,
+      applied.prev.dark_factory,
+      applied.next,
+    );
 
-    return h.response({ ok: true, applied: next, ceremony: write.ceremony });
+    return h.response({
+      ok: true,
+      applied: applied.next,
+      ceremony: write.ceremony,
+    });
   } catch (err) {
     await client.query("ROLLBACK").catch(() => {});
     console.error("[dark-factory] PUT settings failed:", err);

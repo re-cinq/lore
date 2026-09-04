@@ -38,7 +38,7 @@ Stops a locally-running background worktree task: kills the process, removes the
 ## Behavior
 
 1. Call `cancelLocalTask(task_id)`
-   ([handler](../../../apps/mcp-server/src/features/pipeline/runner.local.ts#L621)):
+   ([handler](../../../apps/mcp-server/src/features/pipeline/runner.local.ts#L995)):
    1. Read `~/.lore/local-tasks.json` and find the task by `taskId`.
    2. When not found, return `{cancelled: false, error: "Task not found"}`.
    3. When found but `status !== "running"`, return
@@ -68,7 +68,7 @@ or `"Error: {message}"`. **Never throws**.
 ## Acceptance Criteria
 
 Cancelling an unknown task id reports it as not found without claiming success.
-([validated by `runner.local.test.ts:226`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L226))
+([validated by `runner.local.test.ts:226`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L229))
 
 The SIGTERM kill, worktree removal, and not-running short-circuit are exercised
 only end-to-end. *(untested: those branches require a populated

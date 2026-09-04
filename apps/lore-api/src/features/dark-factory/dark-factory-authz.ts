@@ -50,6 +50,94 @@ export function parsePrRef(ref: string): {
   return { owner: m[1], repo: m[2], number: Number.parseInt(m[3], 10) };
 }
 
+type PullRequest = Awaited<ReturnType<Octokit["rest"]["pulls"]["get"]>>;
+type IssueEvents = Awaited<ReturnType<Octokit["rest"]["issues"]["listEvents"]>>;
+type LabelEvent = IssueEvents["data"][number];
+
+interface PrLookup {
+  octokit: Octokit;
+  owner: string;
+  repo: string;
+  number: number;
+  prRef: string;
+}
+
+async function fetchApprovalPr({
+  octokit,
+  owner,
+  repo,
+  number,
+  prRef,
+}: PrLookup): Promise<PullRequest> {
+  try {
+    return await octokit.rest.pulls.get({ owner, repo, pull_number: number });
+  } catch (err) {
+    enforceTrue(
+      (err as { status?: number }).status !== 404,
+      (message) => new TwoKeyError(message, "pr_not_found"),
+      `Approval PR ${prRef} not found`,
+    );
+    throw new TwoKeyError(
+      `GitHub API error fetching ${prRef}: ${(err as Error).message}`,
+      "github_api",
+    );
+  }
+}
+
+async function fetchApprovalEvents(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  number: number,
+): Promise<IssueEvents> {
+  try {
+    return await octokit.rest.issues.listEvents({
+      owner,
+      repo,
+      issue_number: number,
+      per_page: 100,
+    });
+  } catch (err) {
+    throw new TwoKeyError(
+      `GitHub API error fetching events: ${(err as Error).message}`,
+      "github_api",
+    );
+  }
+}
+
+// Octokit discriminated union: `label` exists only on `labeled`/`unlabeled` variants.
+function findApprovalLabelEvent(events: IssueEvents): LabelEvent | undefined {
+  return events.data.find((e) => {
+    if (e.event !== "labeled") {
+      return false;
+    }
+    const labeled = e as unknown as { label?: { name?: string } };
+
+    return labeled.label?.name === APPROVAL_LABEL;
+  });
+}
+
+function assertLabelPresent(
+  labelEvent: LabelEvent | undefined,
+  prRef: string,
+): asserts labelEvent is LabelEvent & { actor: { login: string } } {
+  enforceTrue(
+    !(!labelEvent || !labelEvent.actor?.login),
+    (message) => new TwoKeyError(message, "label_missing"),
+    `Approval label "${APPROVAL_LABEL}" missing on PR ${prRef}`,
+  );
+}
+
+// Team-membership lookup against GitHub team API is a follow-up; v1 requires direct @user handles in CODEOWNERS.
+function isTeamOnlyCodeowners(
+  codeowners: Array<{ pattern: string; owners: string[] }>,
+): boolean {
+  return (
+    codeowners.length > 0 &&
+    codeowners.every((row) => row.owners.every((o) => o.includes("/")))
+  );
+}
+
 /** Verify the approval ceremony; returns evidence or throws TwoKeyError. Approval PR must match targetRepo (FR3.9). */
 export async function verifyApproval(opts: {
   octokit: Octokit;
@@ -65,120 +153,44 @@ export async function verifyApproval(opts: {
       "wrong_repo",
     );
   }
-  const pr = await fetchApprovalPr(octokit, { owner, repo, number, prRef });
 
-  if (pr.state !== "open") {
+  const pr = await fetchApprovalPr({ octokit, owner, repo, number, prRef });
+
+  if (pr.data.state !== "open") {
     throw new TwoKeyError(
-      `Approval PR ${prRef} is ${pr.state}; ceremony requires open PR`,
+      `Approval PR ${prRef} is ${pr.data.state}; ceremony requires open PR`,
       "pr_state",
     );
   }
-  const approver = await findApprover(octokit, {
-    owner,
-    repo,
-    number,
-    prRef,
-  });
+
+  const events = await fetchApprovalEvents(octokit, owner, repo, number);
+  const labelEvent = findApprovalLabelEvent(events);
+
+  assertLabelPresent(labelEvent, prRef);
+
+  const approver = labelEvent.actor.login;
   const codeowners = await fetchCodeowners({ octokit, owner, repo });
 
   if (!isCodeowner(approver, codeowners)) {
-    refuseNonCodeowner(approver, targetRepo, codeowners);
-  }
-
-  return { prRef, approver, prUrl: pr.htmlUrl };
-}
-
-/** The approval PR itself. A 404 is a different refusal from an API failure: one means the ceremony was never performed, the other that we cannot tell. */
-async function fetchApprovalPr(
-  octokit: Octokit,
-  pr: { owner: string; repo: string; number: number; prRef: string },
-): Promise<{ state: string; htmlUrl: string }> {
-  const { owner, repo, number, prRef } = pr;
-
-  try {
-    const pr = await octokit.rest.pulls.get({
-      owner,
-      repo,
-      pull_number: number,
-    });
-
-    return { state: pr.data.state, htmlUrl: pr.data.html_url };
-  } catch (err) {
     enforceTrue(
-      (err as { status?: number }).status !== 404,
-      (message) => new TwoKeyError(message, "pr_not_found"),
-      `Approval PR ${prRef} not found`,
+      !isTeamOnlyCodeowners(codeowners),
+      (message) => new TwoKeyError(message, "team_membership_unresolved"),
+      `${targetRepo}'s CODEOWNERS contains only team handles (e.g. @org/team); ` +
+        `team-membership lookup is not implemented in v1. Add an explicit ` +
+        `@user owner for the approver, or wait for the per-path team ` +
+        `resolution follow-up.`,
     );
     throw new TwoKeyError(
-      `GitHub API error fetching ${prRef}: ${(err as Error).message}`,
-      "github_api",
+      `${approver} is not a CODEOWNERS member of ${targetRepo}`,
+      "approver_not_codeowner",
     );
   }
-}
 
-/** Who applied the approval label — the second key. The label alone proves nothing; the actor who applied it is the evidence. */
-async function findApprover(
-  octokit: Octokit,
-  pr: { owner: string; repo: string; number: number; prRef: string },
-): Promise<string> {
-  const { owner, repo, number, prRef } = pr;
-
-  let events;
-
-  try {
-    events = await octokit.rest.issues.listEvents({
-      owner,
-      repo,
-      issue_number: number,
-      per_page: 100,
-    });
-  } catch (err) {
-    throw new TwoKeyError(
-      `GitHub API error fetching events: ${(err as Error).message}`,
-      "github_api",
-    );
-  }
-  // Octokit discriminated union: `label` exists only on `labeled`/`unlabeled` variants.
-  const labelEvent = events.data.find((e) => {
-    if (e.event !== "labeled") {
-      return false;
-    }
-    const labeled = e as unknown as { label?: { name?: string } };
-
-    return labeled.label?.name === APPROVAL_LABEL;
-  });
-
-  enforceTrue(
-    !(!labelEvent || !labelEvent.actor?.login),
-    (message) => new TwoKeyError(message, "label_missing"),
-    `Approval label "${APPROVAL_LABEL}" missing on PR ${prRef}`,
-  );
-
-  return labelEvent.actor.login;
-}
-
-/** Two ways to fail the codeowner check, and they mean different things to whoever is stuck: the approver genuinely is not an owner, or CODEOWNERS names only teams and v1 cannot resolve membership. */
-function refuseNonCodeowner(
-  approver: string,
-  targetRepo: string,
-  codeowners: Array<{ pattern: string; owners: string[] }>,
-): never {
-  // Team-membership lookup against GitHub team API is a follow-up; v1 requires direct @user handles in CODEOWNERS.
-  enforceTrue(
-    !(
-      codeowners.length > 0 &&
-      codeowners.every((row) => row.owners.every((o) => o.includes("/")))
-    ),
-    (message) => new TwoKeyError(message, "team_membership_unresolved"),
-    `${targetRepo}'s CODEOWNERS contains only team handles (e.g. @org/team); ` +
-      `team-membership lookup is not implemented in v1. Add an explicit ` +
-      `@user owner for the approver, or wait for the per-path team ` +
-      `resolution follow-up.`,
-  );
-  throw new TwoKeyError(
-    `${approver} is not a CODEOWNERS member of ${targetRepo}`,
-    "approver_not_codeowner",
-  );
+  return {
+    prRef,
+    approver,
+    prUrl: pr.data.html_url,
+  };
 }
 
 /** Fetch CODEOWNERS file (.github/, root, docs/); returns [pattern, owners[]] or empty array. */

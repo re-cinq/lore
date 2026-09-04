@@ -22,6 +22,23 @@ const runners =
 
 afterEach(() => Llm.configure({}));
 
+describe("runStation unknown type", () => {
+  it("reports an error line and exit code 1 for an unregistered station type", async () => {
+    const { line, exitCode } = await runStation(
+      "bogus-type",
+      inputJson,
+      env,
+      runners(async () => ({ outcome: "success", extras: {} })),
+    );
+
+    expect(exitCode).toBe(1);
+    expect(JSON.parse(line)).toMatchObject({
+      is_error: true,
+      result: 'unknown station type "bogus-type"',
+    });
+  });
+});
+
 describe("runStation LLM usage tracking", () => {
   it("sums a runner's untracked model calls onto the terminal line", async () => {
     Llm.setInstance(
@@ -186,6 +203,41 @@ describe("runStation LLM usage tracking", () => {
       type: "result",
       is_error: false,
       result: 'LORE_NODE_RESULT: {"outcome":"success","extras":{}}',
+    });
+  });
+
+  it("carries no usage on an infrastructure-failure line when a UsagePort is configured", async () => {
+    Llm.configure({
+      usage: {
+        logLlmCall: async () => ({ correlated: true }),
+        processedCounts: async () => ({ today: 0, total: 0 }),
+        modelsUsed: async () => [],
+      },
+    });
+
+    const fake = new FakeLlm({
+      text: "ok",
+      usage: { inputTokens: 100, costUsd: 0.001 },
+    });
+
+    Llm.setInstance(fake);
+
+    const { line, exitCode } = await runStation(
+      "fake",
+      inputJson,
+      env,
+      runners(async () => {
+        await Llm.instance.complete({ prompt: "a" });
+        throw new Error("dgraph unreachable");
+      }),
+    );
+
+    expect(Llm.instance).toBe(fake);
+    expect(exitCode).toBe(1);
+    expect(JSON.parse(line)).toEqual({
+      type: "result",
+      is_error: true,
+      result: "dgraph unreachable",
     });
   });
 });

@@ -100,6 +100,12 @@ describe("/api/tokens", () => {
     expect(res.statusCode).toBe(400);
   });
 
+  it("returns 400 when the POST body is entirely absent", async () => {
+    const res = await req({ method: "POST" }, makePool());
+
+    expect(res.statusCode).toBe(400);
+  });
+
   it("creates a token, filtering invalid scopes and computing expiry", async () => {
     const pool = makePool();
 

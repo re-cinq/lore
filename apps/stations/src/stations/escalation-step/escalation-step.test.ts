@@ -172,3 +172,28 @@ describe("notify after an issue filed without a url", () => {
     });
   });
 });
+
+describe("notify with no params on the step at all", () => {
+  it("treats a missing params object the same as no issue filed", async () => {
+    const sent: string[] = [];
+    const audited: Record<string, unknown>[] = [];
+
+    await runEscalationStep(
+      "notify",
+      "t-1",
+      deps({
+        notify: async (msg) => {
+          sent.push(msg);
+        },
+        writeAudit: async (entry) => {
+          audited.push(entry);
+        },
+      }),
+    );
+
+    expect(sent[0]).toMatch(/Issue creation failed/);
+    expect(audited[0]).toMatchObject({
+      payload: { outcome: "audit_only" },
+    });
+  });
+});

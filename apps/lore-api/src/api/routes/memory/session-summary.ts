@@ -31,6 +31,70 @@ const SessionSummarySchema = z.union([
   z.object({ status: z.literal("duplicate") }),
 ]);
 
+function summaryText(sessionLog: SessionSummaryBody["session_log"]): string {
+  if (typeof sessionLog === "string") {
+    return sessionLog;
+  }
+
+  return sessionLog.summary || JSON.stringify(sessionLog);
+}
+
+function isEmptySummary(summary: string): boolean {
+  return !summary || summary.length < 10;
+}
+
+function sessionContent(repo: string | undefined, summary: string): string {
+  return `Session in ${repo || "unknown"}\n\n${summary}`;
+}
+
+async function insertSessionEpisode(
+  pool: Pool,
+  fields: {
+    agent: string;
+    content: string;
+    contentHash: string;
+    repo: string | null;
+  },
+) {
+  const { rows } = await pool.query(
+    `INSERT INTO memory.episodes (agent_id, content, content_hash, source, ref)
+     VALUES ($1, $2, $3, 'session', $4)
+     ON CONFLICT (agent_id, content_hash) DO NOTHING
+     RETURNING id`,
+    [fields.agent, fields.content, fields.contentHash, fields.repo],
+  );
+
+  return rows[0]?.id as string | undefined;
+}
+
+interface SessionExtractionFields {
+  episodeId: string;
+  content: string;
+  agent: string;
+  repo: string | null;
+}
+
+function scheduleSessionExtraction(
+  pool: Pool,
+  fields: SessionExtractionFields,
+) {
+  const { episodeId, content, agent, repo } = fields;
+
+  extractFactsFromEpisode(episodeId, content, agent, pool).catch(() => {});
+  const gLlm = makeGraphLlmCall(pool);
+
+  if (!gLlm) {
+    return;
+  }
+
+  extractAndUpdateGraph(
+    pool,
+    content,
+    { repo, sourceEpisodeId: episodeId, sourceMemoryId: null },
+    gLlm,
+  ).catch(() => {});
+}
+
 export function sessionSummaryRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "POST",
@@ -52,53 +116,38 @@ export function sessionSummaryRoute(getPool: () => Pool | null): ServerRoute {
       try {
         const { session_log, repo, agent_id } =
           request.payload as SessionSummaryBody;
+        const summary = summaryText(session_log);
 
-        const summary =
-          typeof session_log === "string"
-            ? session_log
-            : session_log.summary || JSON.stringify(session_log);
-
-        if (!summary || summary.length < 10) {
+        if (isEmptySummary(summary)) {
           return h.response({ status: "skipped", reason: "empty session" });
         }
 
-        const content = `Session in ${repo || "unknown"}\n\n${summary}`;
+        const content = sessionContent(repo, summary);
         const agent = agent_id || "session-hook";
+        const scopedRepo = repo || null;
         const contentHash = createHash("sha256").update(content).digest("hex");
 
         enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
 
-        const { rows } = await pool.query(
-          `INSERT INTO memory.episodes (agent_id, content, content_hash, source, ref)
-           VALUES ($1, $2, $3, 'session', $4)
-           ON CONFLICT (agent_id, content_hash) DO NOTHING
-           RETURNING id`,
-          [agent, content, contentHash, repo || null],
-        );
+        const episodeId = await insertSessionEpisode(pool, {
+          agent,
+          content,
+          contentHash,
+          repo: scopedRepo,
+        });
 
-        if (rows.length === 0) {
+        if (episodeId === undefined) {
           return h.response({ status: "duplicate" });
         }
 
-        extractFactsFromEpisode(rows[0].id, content, agent, pool).catch(
-          () => {},
-        );
-        const gLlm = makeGraphLlmCall(pool);
+        scheduleSessionExtraction(pool, {
+          episodeId,
+          content,
+          agent,
+          repo: scopedRepo,
+        });
 
-        if (gLlm) {
-          extractAndUpdateGraph(
-            pool,
-            content,
-            {
-              repo: repo || null,
-              sourceEpisodeId: rows[0].id,
-              sourceMemoryId: null,
-            },
-            gLlm,
-          ).catch(() => {});
-        }
-
-        return h.response({ status: "ok", episode_id: rows[0].id });
+        return h.response({ status: "ok", episode_id: episodeId });
       } catch (err) {
         // A guard's refusal already carries its status; only an unexpected failure is this block's to shape.
         rethrowBoom(err);

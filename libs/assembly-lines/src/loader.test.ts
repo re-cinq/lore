@@ -11,6 +11,33 @@ import {
 } from "./loader.js";
 import { definitionHash } from "./definition-hash.js";
 
+function nodeType(
+  wf: AssemblyLine | undefined,
+  id: string,
+): string | undefined {
+  return wf?.nodes.find((n) => n.id === id)?.type;
+}
+
+function hasNode(wf: AssemblyLine | undefined, id: string): boolean {
+  return wf?.nodes.some((n) => n.id === id) ?? false;
+}
+
+function edgeOn(
+  wf: AssemblyLine | undefined,
+  from: string,
+  to: string,
+): string | undefined {
+  return wf?.edges.find((e) => e.from === from && e.to === to)?.on;
+}
+
+function edgeTo(
+  wf: AssemblyLine | undefined,
+  from: string,
+  on: string,
+): string | undefined {
+  return wf?.edges.find((e) => e.from === from && e.on === on)?.to;
+}
+
 const linearAssemblyLine = `
 name: gap-fill
 description: A linear flow
@@ -638,15 +665,10 @@ describe("loadAssemblyLineDir — bundled assemblyLines", () => {
 
     expect(wf?.entry).toBe("review");
     expect(wf?.exit).toBe("done");
-    expect(wf?.nodes.find((n) => n.id === "review")?.type).toBe("agent");
-    expect(wf?.nodes.find((n) => n.id === "refine")).toBeUndefined();
-    expect(
-      wf?.edges.find((e) => e.from === "review" && e.to === "done")?.on,
-    ).toBe("success");
-    expect(
-      wf?.edges.find((e) => e.from === "review" && e.on === "changes_requested")
-        ?.to,
-    ).toBe("done");
+    expect(nodeType(wf, "review")).toBe("agent");
+    expect(hasNode(wf, "refine")).toBe(false);
+    expect(edgeOn(wf, "review", "done")).toBe("success");
+    expect(edgeTo(wf, "review", "changes_requested")).toBe("done");
   });
 
   it("comment-triage is a triage(station)→done graph", async () => {

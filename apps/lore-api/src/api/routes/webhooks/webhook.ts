@@ -4,9 +4,13 @@ import { z } from "zod";
 import { errorMessage } from "@re-cinq/lore-shared";
 // Webhook routes: GET/POST/secret for read/write/admin with graceful degradation.
 
-import type { ServerRoute } from "@hapi/hapi";
+import type { ResponseToolkit, ServerRoute } from "@hapi/hapi";
 import { listRepoWebhooks } from "../../../features/webhook/webhook-manage.js";
-import { ensureFloorWebhook } from "../../../features/webhook/webhook-ensure.js";
+import {
+  ensureFloorWebhook,
+  type EnsureFloorWebhookResult,
+  type WebhookSkipReason,
+} from "../../../features/webhook/webhook-ensure.js";
 import { classifyWebhook } from "../../../features/webhook/webhook-status.js";
 import { zodResponse } from "../../../server/plugins/zod-response.js";
 import { bearerScope } from "../../../server/plugins/bearer-scope.js";
@@ -90,6 +94,49 @@ export function webhookSecretRoute(): ServerRoute {
   };
 }
 
+const ENSURE_SKIP_STATUS: Partial<
+  Record<WebhookSkipReason, { status: number; error: string }>
+> = {
+  webhook_host_not_configured: {
+    status: 503,
+    error: "LORE_WEBHOOK_URL not configured",
+  },
+  secret_not_configured: {
+    status: 503,
+    error: "LORE_WEBHOOK_SECRET not configured",
+  },
+  app_no_webhook_permission: {
+    status: 403,
+    error: "GitHub App lacks the Webhooks (read & write) permission",
+  },
+};
+
+// A named skip reason maps to its status; any other (e.g. `ensure_failed`) falls back to 500 + detail.
+function ensureSkipResponse(
+  h: ResponseToolkit,
+  result: Extract<EnsureFloorWebhookResult, { ok: false }>,
+) {
+  const mapped = ENSURE_SKIP_STATUS[result.reason];
+
+  if (mapped) {
+    return h.response({ error: mapped.error }).code(mapped.status);
+  }
+
+  return h
+    .response({ error: result.detail || "webhook ensure failed" })
+    .code(500);
+}
+
+async function freshWebhookStatus(h: ResponseToolkit, repo: string) {
+  try {
+    return h.response(
+      classifyWebhook(await listRepoWebhooks(repo), canonicalUrl()),
+    );
+  } catch (err) {
+    return h.response({ error: errorMessage(err) || String(err) }).code(500);
+  }
+}
+
 export function webhookEnsureRoute(): ServerRoute {
   return {
     method: "POST",
@@ -104,38 +151,10 @@ export function webhookEnsureRoute(): ServerRoute {
       const result = await ensureFloorWebhook(repo);
 
       if (!result.ok) {
-        switch (result.reason) {
-          case "webhook_host_not_configured":
-            return h
-              .response({ error: "LORE_WEBHOOK_URL not configured" })
-              .code(503);
-          case "secret_not_configured":
-            return h
-              .response({ error: "LORE_WEBHOOK_SECRET not configured" })
-              .code(503);
-          case "app_no_webhook_permission":
-            return h
-              .response({
-                error:
-                  "GitHub App lacks the Webhooks (read & write) permission",
-              })
-              .code(403);
-          default:
-            return h
-              .response({ error: result.detail || "webhook ensure failed" })
-              .code(500);
-        }
+        return ensureSkipResponse(h, result);
       }
 
-      try {
-        return h.response(
-          classifyWebhook(await listRepoWebhooks(repo), canonicalUrl()),
-        );
-      } catch (err) {
-        return h
-          .response({ error: errorMessage(err) || String(err) })
-          .code(500);
-      }
+      return freshWebhookStatus(h, repo);
     },
   };
 }

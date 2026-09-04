@@ -14,7 +14,9 @@ import {
 } from "../../../features/agents/agents-schema.js";
 import { bearerScope } from "../../../server/plugins/bearer-scope.js";
 import { zodResponse } from "../../../server/plugins/zod-response.js";
-import { checkApproval } from "../two-key.js";
+import { checkApproval, type ApprovalOutcome } from "../two-key.js";
+import type { Request } from "@hapi/hapi";
+import type { PodResourcesWrite } from "@re-cinq/lore-shared/project/agents/agent-defs-port.js";
 
 // Per-repo agent definitions API; `image` is two-key gated like dark_factory.execution.image (ADR-025).
 
@@ -54,6 +56,62 @@ type Ceremony = {
   pr_ref?: string;
   approver?: string;
 };
+
+/** The image-touch gate, and the ceremony it produced — `gate` is null when the write never touched the gated field. */
+async function resolveCeremony(
+  request: Request,
+  repo: string,
+  imageTouched: boolean,
+): Promise<{ gate: ApprovalOutcome | null; ceremony: Ceremony }> {
+  const gate = imageTouched
+    ? await checkApproval(request, repo, ["image"], IMAGE_DETAIL)
+    : null;
+
+  const ceremony: Ceremony = gate?.ok
+    ? {
+        tier: "two_key",
+        pr_ref: gate.evidence.prRef,
+        approver: gate.evidence.approver,
+      }
+    : { tier: "admin" };
+
+  return { gate, ceremony };
+}
+
+type AgentDefsFacade = Awaited<ReturnType<typeof projectFor>>["agentDefs"];
+
+// config is whole-object across resolution layers — must carry the inherited (org → yaml) config or orphan its skills/command.
+async function createFieldsWithPodResources(
+  agentDefs: AgentDefsFacade,
+  fields: Omit<ReturnType<typeof parseAgentInput>, "pod_resources">,
+  podResources: ReturnType<typeof parseAgentInput>["pod_resources"],
+): Promise<typeof fields> {
+  if (!podResources) {
+    return fields;
+  }
+  const inherited = await agentDefs.resolve(fields.name);
+
+  return {
+    ...fields,
+    config: configWithPodResources(inherited?.config ?? null, podResources),
+  };
+}
+
+// Merge happens inside the upsert (atomic under the row lock); resolved config is only the fallback so a fresh fork keeps inherited org/yaml keys.
+async function resolvePodResourcesUpdate(
+  agentDefs: AgentDefsFacade,
+  name: string,
+  podResources: ReturnType<typeof parseAgentPatch>["pod_resources"],
+): Promise<PodResourcesWrite | undefined> {
+  if (podResources === undefined) {
+    return undefined;
+  }
+
+  return {
+    podResources,
+    inheritedConfig: (await agentDefs.resolve(name))?.config ?? null,
+  };
+}
 
 export function agentsGetRoute(getPool: () => Pool | null): ServerRoute {
   return {
@@ -125,35 +183,24 @@ export function agentsPostRoute(getPool: () => Pool | null): ServerRoute {
             .code(400);
         }
 
-        const gate = imageFieldTouched(create)
-          ? await checkApproval(request, repo, ["image"], IMAGE_DETAIL)
-          : null;
+        const { gate, ceremony } = await resolveCeremony(
+          request,
+          repo,
+          imageFieldTouched(create),
+        );
 
         if (gate && !gate.ok) {
           return h.response(gate.body).code(gate.code);
         }
 
-        const ceremony: Ceremony = gate?.ok
-          ? {
-              tier: "two_key",
-              pr_ref: gate.evidence.prRef,
-              approver: gate.evidence.approver,
-            }
-          : { tier: "admin" };
-
         const { pod_resources, ...fields } = create;
+        const finalFields = await createFieldsWithPodResources(
+          project.agentDefs,
+          fields,
+          pod_resources,
+        );
 
-        if (pod_resources) {
-          // config is whole-object across resolution layers — must carry the inherited (org → yaml) config or orphan its skills/command.
-          const inherited = await project.agentDefs.resolve(fields.name);
-
-          fields.config = configWithPodResources(
-            inherited?.config ?? null,
-            pod_resources,
-          );
-        }
-
-        const def = await project.agentDefs.create(fields);
+        const def = await project.agentDefs.create(finalFields);
 
         await audit(pool, repo, "agent_created", {
           name: def.name,
@@ -200,32 +247,22 @@ export function agentsPutRoute(getPool: () => Pool | null): ServerRoute {
             .code(400);
         }
 
-        const gate = imageFieldTouched(patch)
-          ? await checkApproval(request, repo, ["image"], IMAGE_DETAIL)
-          : null;
+        const { gate, ceremony } = await resolveCeremony(
+          request,
+          repo,
+          imageFieldTouched(patch),
+        );
 
         if (gate && !gate.ok) {
           return h.response(gate.body).code(gate.code);
         }
 
-        const ceremony: Ceremony = gate?.ok
-          ? {
-              tier: "two_key",
-              pr_ref: gate.evidence.prRef,
-              approver: gate.evidence.approver,
-            }
-          : { tier: "admin" };
-
         const { pod_resources, ...fields } = patch;
-        // Merge happens inside the upsert (atomic under the row lock); resolved config is only the fallback so a fresh fork keeps inherited org/yaml keys.
-        const podResources =
-          pod_resources === undefined
-            ? undefined
-            : {
-                podResources: pod_resources,
-                inheritedConfig:
-                  (await project.agentDefs.resolve(name))?.config ?? null,
-              };
+        const podResources = await resolvePodResourcesUpdate(
+          project.agentDefs,
+          name,
+          pod_resources,
+        );
 
         const def = await project.agentDefs.update(name, fields, podResources);
 

@@ -2,24 +2,31 @@
 
 import { errorMessage } from "@re-cinq/lore-shared";
 
-/** The apiserver's status code, wherever this client version happens to put it. */
-export function statusOf(err: unknown): number | undefined {
-  const e = err as {
-    code?: number;
-    statusCode?: number;
-    response?: { statusCode?: number };
-    body?: { code?: number };
-    message?: unknown;
-  };
-  const structured =
-    e?.code ?? e?.statusCode ?? e?.response?.statusCode ?? e?.body?.code;
+type RawK8sError =
+  | {
+      code?: number;
+      statusCode?: number;
+      response?: { statusCode?: number };
+      body?: { code?: number };
+      message?: unknown;
+    }
+  | null
+  | undefined;
 
-  if (structured !== undefined) {
-    return structured;
-  }
+function directStatus(e: RawK8sError): number | undefined {
+  return e?.code ?? e?.statusCode;
+}
 
-  // Last resort: some statuses surface ONLY as prose (a lost-race Secret write's 409 had every structured field undefined, so isConflict said false — 2026-08-25).
-  const message = typeof e?.message === "string" ? e.message : "";
+function nestedStatus(e: RawK8sError): number | undefined {
+  return e?.response?.statusCode ?? e?.body?.code;
+}
+
+function structuredStatus(e: RawK8sError): number | undefined {
+  return directStatus(e) ?? nestedStatus(e);
+}
+
+// Last resort: some statuses surface ONLY as prose (a lost-race Secret write's 409 had every structured field undefined, so isConflict said false — 2026-08-25).
+function statusFromMessage(message: string): number | undefined {
   const fromMessage = /^HTTP-Code:\s*(\d{3})\b/m.exec(message);
 
   if (fromMessage) {
@@ -28,6 +35,19 @@ export function statusOf(err: unknown): number | undefined {
 
   // A create refused as already-existing is a 409 (`AlreadyExists`); this client surfaces that as nothing but the words.
   return message.includes("already exists") ? 409 : undefined;
+}
+
+/** The apiserver's status code, wherever this client version happens to put it. */
+export function statusOf(err: unknown): number | undefined {
+  const e = err as RawK8sError;
+  const structured = structuredStatus(e);
+
+  if (structured !== undefined) {
+    return structured;
+  }
+  const message = typeof e?.message === "string" ? e.message : "";
+
+  return statusFromMessage(message);
 }
 
 export function isNotFound(err: unknown): boolean {

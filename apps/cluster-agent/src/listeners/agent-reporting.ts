@@ -31,6 +31,18 @@ interface AgentListPage {
   };
 }
 
+function pageResourceVersion(
+  page: AgentListPage,
+  previous: string | undefined,
+): string | undefined {
+  return page.metadata?.resourceVersion ?? previous;
+}
+
+// The wire field is `continue`; the model mapper would surface `_continue` instead — read whichever is present.
+function pageContinueToken(page: AgentListPage): string | undefined {
+  return page.metadata?._continue ?? page.metadata?.continue;
+}
+
 /** Walk the Agent CRs one page at a time, returning the list's resourceVersion — 180 accumulated CRs in one unpaginated LIST blew Node's heap on 2026-07-24. */
 export async function forEachAgentPage(
   k8sApi: AgentLister,
@@ -50,11 +62,11 @@ export async function forEachAgentPage(
     })) as AgentListPage;
 
     // Captured here rather than returned by the walk — the resourceVersion is this caller's concern (it seeds the watch), not pagination's.
-    resourceVersion = page.metadata?.resourceVersion ?? resourceVersion;
+    resourceVersion = pageResourceVersion(page, resourceVersion);
 
     return {
       items: page.items ?? [],
-      continueToken: page.metadata?._continue ?? page.metadata?.continue,
+      continueToken: pageContinueToken(page),
     };
   }, onPage);
 

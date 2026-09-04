@@ -68,6 +68,23 @@ export function buildPrompt(type: string, description: string): string {
   return tmpl.replace("{description}", description);
 }
 
+const DEFAULT_BASE_RECIPE: TaskTypeRecipe = {
+  prompt_template: DEFAULT_PROMPT,
+  timeout_minutes: 30,
+  review_required: false,
+};
+
+function resolvePromptTemplate(
+  overridePromptTemplate: unknown,
+  baseRecipe: TaskTypeRecipe,
+): string {
+  if (typeof overridePromptTemplate === "string" && overridePromptTemplate) {
+    return overridePromptTemplate;
+  }
+
+  return baseRecipe.prompt_template || DEFAULT_PROMPT;
+}
+
 /** Merge global task type config with per-repo overrides; repo overrides win. */
 export function getTaskTypeConfigForRepo(
   type: string,
@@ -76,20 +93,12 @@ export function getTaskTypeConfigForRepo(
     | null
     | undefined,
 ): TaskTypeRecipe & { system_prompt_suffix?: string } {
-  const base = config[type] || {
-    prompt_template: DEFAULT_PROMPT,
-    timeout_minutes: 30,
-    review_required: false,
-  };
+  const base = config[type] || DEFAULT_BASE_RECIPE;
   const overrides = repoSettings?.task_overrides?.[type] || {};
 
   return {
     ...base,
     ...overrides,
-    // Always use base prompt_template unless explicitly overridden
-    prompt_template:
-      (overrides.prompt_template as string) ||
-      base.prompt_template ||
-      DEFAULT_PROMPT,
+    prompt_template: resolvePromptTemplate(overrides.prompt_template, base),
   };
 }

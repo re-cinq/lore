@@ -291,13 +291,12 @@ function operationId(method: string, normPath: string): string {
   return `${method.toLowerCase()}_${slug}`;
 }
 
-function responsesFor(
-  isPublicOp: boolean,
-  hasBody: boolean,
-  success?: { meta: OpenApiResponseMeta; ref: JsonSchema },
-): Record<string, JsonSchema> {
+function successResponse(success?: {
+  meta: OpenApiResponseMeta;
+  ref: JsonSchema;
+}): Record<string, JsonSchema> {
   // Declared contract replaces generic 200 (not joins); two status types = union-to-unknown.
-  const responses: Record<string, JsonSchema> = success
+  return success
     ? {
         [String(success.meta.status)]: {
           description: success.meta.description,
@@ -310,37 +309,66 @@ function responsesFor(
             "Successful response (2xx; the response body is not described — see info.description)",
         },
       };
-  const declared = new Set<number>(success?.meta.errors ?? []);
+}
+
+// 401 here covers auth:false routes that hand-authenticate (pre-shared token).
+const DECLARABLE_ERRORS: Array<{ status: number; ref: string }> = [
+  { status: 401, ref: "Unauthorized" },
+  { status: 404, ref: "NotFound" },
+  { status: 409, ref: "Conflict" },
+];
+
+function declaredErrorResponses(
+  declared: Set<number>,
+): Record<string, JsonSchema> {
+  const responses: Record<string, JsonSchema> = {};
+
+  for (const { status, ref } of DECLARABLE_ERRORS) {
+    if (declared.has(status)) {
+      responses[String(status)] = { $ref: `#/components/responses/${ref}` };
+    }
+  }
+
+  return responses;
+}
+
+const PRIVATE_OP_RESPONSES: Record<string, JsonSchema> = {
+  "401": { $ref: "#/components/responses/Unauthorized" },
+  "403": { $ref: "#/components/responses/Forbidden" },
+  "503": { $ref: "#/components/responses/ServiceUnavailable" },
+};
+
+function bodyResponses(
+  hasBody: boolean,
+  declared: Set<number>,
+): Record<string, JsonSchema> {
+  const responses: Record<string, JsonSchema> = {};
 
   if (hasBody || declared.has(400)) {
     responses["400"] = { $ref: "#/components/responses/BadRequest" };
   }
 
-  // Auth:false routes that hand-authenticate (pre-shared token) declare 401 explicitly.
-  if (declared.has(401)) {
-    responses["401"] = { $ref: "#/components/responses/Unauthorized" };
-  }
-
-  if (declared.has(404)) {
-    responses["404"] = { $ref: "#/components/responses/NotFound" };
-  }
-
-  if (declared.has(409)) {
-    responses["409"] = { $ref: "#/components/responses/Conflict" };
-  }
-
-  if (!isPublicOp) {
-    responses["401"] = { $ref: "#/components/responses/Unauthorized" };
-    responses["403"] = { $ref: "#/components/responses/Forbidden" };
-    responses["503"] = { $ref: "#/components/responses/ServiceUnavailable" };
-  }
-
   if (hasBody) {
     responses["413"] = { $ref: "#/components/responses/PayloadTooLarge" };
   }
-  responses["429"] = { $ref: "#/components/responses/RateLimited" };
 
   return responses;
+}
+
+function responsesFor(
+  isPublicOp: boolean,
+  hasBody: boolean,
+  success?: { meta: OpenApiResponseMeta; ref: JsonSchema },
+): Record<string, JsonSchema> {
+  const declared = new Set<number>(success?.meta.errors ?? []);
+
+  return {
+    ...successResponse(success),
+    ...declaredErrorResponses(declared),
+    ...bodyResponses(hasBody, declared),
+    ...(isPublicOp ? {} : PRIVATE_OP_RESPONSES),
+    "429": { $ref: "#/components/responses/RateLimited" },
+  };
 }
 
 /** Resolve + classify a write route's request body; records coverage as a side effect. */

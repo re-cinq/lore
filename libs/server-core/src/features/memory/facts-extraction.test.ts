@@ -165,3 +165,66 @@ describe("extractFactsFromEpisode confidence", () => {
     expect(insert?.params).toEqual(["ep-1", "Episode fact", "[0.1,0.2,0.3]"]);
   });
 });
+
+describe("extractFacts fact isolation", () => {
+  it("continues storing remaining facts when one insert fails", async () => {
+    Llm.setInstance(
+      new FakeLlm({ text: '["Fact A fails", "Fact B succeeds"]' }),
+    );
+
+    let insertCalls = 0;
+    const query = async (sql: string) => {
+      if (/SELECT agent_id FROM memory\.memories/.test(sql)) {
+        return { rows: [{ agent_id: null }] };
+      }
+
+      if (!/INSERT INTO memory\.facts \(memory_id/.test(sql)) {
+        return { rows: [] };
+      }
+
+      insertCalls++;
+
+      if (insertCalls === 1) {
+        return Promise.reject(new Error("insert failed"));
+      }
+
+      return { rows: [{ id: "fact-b-id" }] };
+    };
+    const pool = asPool({ query });
+
+    await expect(
+      extractFacts("mem-1", "some memory value", pool),
+    ).resolves.toBeUndefined();
+
+    expect(insertCalls).toBe(2);
+  });
+});
+
+describe("extractFacts null embedding", () => {
+  it("skips the contradiction check when no embedding is returned", async () => {
+    const db = await import("../../platform/db.js");
+
+    vi.mocked(db.getQueryEmbedding).mockResolvedValueOnce(null);
+    Llm.setInstance(new FakeLlm({ text: '["Fact without embedding"]' }));
+
+    const pool = scriptedPool([
+      {
+        match: /SELECT agent_id FROM memory\.memories/,
+        rows: [{ agent_id: null }],
+      },
+      {
+        match: /INSERT INTO memory\.facts \(memory_id/,
+        rows: [{ id: "fact-1" }],
+      },
+    ]);
+
+    await extractFacts("mem-1", "some memory value", asPool(pool));
+
+    const insert = pool.calls.find((c) =>
+      /INSERT INTO memory\.facts \(memory_id/.test(c.sql),
+    );
+
+    expect(insert?.params).toEqual(["mem-1", "Fact without embedding", null]);
+    expect(pool.calls.some((c) => /AS similarity/.test(c.sql))).toBe(false);
+  });
+});

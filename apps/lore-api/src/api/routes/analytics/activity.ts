@@ -158,6 +158,16 @@ function memoryAuditRoute(getPool: () => Pool | null): ServerRoute {
   };
 }
 
+function trimmedOrUndefined(value?: string): string | undefined {
+  const trimmed = value?.trim();
+
+  return trimmed ? trimmed : undefined;
+}
+
+function whereClause(conditions: string[]): string {
+  return conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+}
+
 /** The optional filters, as a WHERE clause and its positional params — built once so the count and the page cannot disagree about what is being filtered. */
 function memoryAuditFilter(query: MemoryAuditQuery): {
   where: string;
@@ -165,14 +175,16 @@ function memoryAuditFilter(query: MemoryAuditQuery): {
 } {
   const conditions: string[] = [];
   const params: unknown[] = [];
+  const agent = trimmedOrUndefined(query.agent);
 
-  if (query.agent?.trim()) {
-    params.push(query.agent.trim());
+  if (agent) {
+    params.push(agent);
     conditions.push(`agent_id = $${params.length}`);
   }
+  const operation = trimmedOrUndefined(query.operation);
 
-  if (query.operation?.trim()) {
-    params.push(query.operation.trim());
+  if (operation) {
+    params.push(operation);
     conditions.push(`operation = $${params.length}`);
   }
 
@@ -180,10 +192,7 @@ function memoryAuditFilter(query: MemoryAuditQuery): {
     conditions.push(`metadata->>'result_count' = '0'`);
   }
 
-  return {
-    where: conditions.length ? `WHERE ${conditions.join(" AND ")}` : "",
-    params,
-  };
+  return { where: whereClause(conditions), params };
 }
 
 function eventsRoute(getPool: () => Pool | null): ServerRoute {

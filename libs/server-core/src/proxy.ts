@@ -70,6 +70,105 @@ function errorBodyDetail(
   }
 }
 
+// A thrown fetch error (network failure, abort timeout) reduced to a retry detail string.
+function describeFetchError(err: unknown): string {
+  if ((err as { name?: string })?.name === "TimeoutError") {
+    return "request timed out (15s)";
+  }
+
+  return (err as { message?: string })?.message || String(err);
+}
+
+type RequestOutcome =
+  { done: true; result: ProxyResult } | { done: false; detail: string };
+
+// One fetch attempt: ok body, an authoritative denial, a non-retriable refusal, or a retry signal.
+async function attemptRequest(
+  makeRequest: () => Promise<Response>,
+  label: string,
+  buildNonRetriableResult: (
+    status: number,
+    detail: string,
+    errorBody: string,
+  ) => ProxyResult,
+): Promise<RequestOutcome> {
+  try {
+    const res = await makeRequest();
+
+    if (res.ok) {
+      return {
+        done: true,
+        result: { ok: true, body: JSON.stringify(await res.json()) },
+      };
+    }
+    const statusDetail = `HTTP ${res.status} ${res.statusText}`;
+
+    if (isAuthDenial(res.status)) {
+      console.error(`[lore-mcp] ${label} denied (${statusDetail})`);
+
+      return {
+        done: true,
+        result: { ok: false, reason: "denied", detail: statusDetail },
+      };
+    }
+
+    if (isRetriableStatus(res.status)) {
+      return { done: false, detail: statusDetail };
+    }
+    const errorBody = await readErrorBody(res);
+    const detail = errorBodyDetail(res.status, res.statusText, errorBody);
+
+    console.error(`[lore-mcp] ${label} failed (${detail}); not retrying`);
+
+    return {
+      done: true,
+      result: buildNonRetriableResult(res.status, detail, errorBody),
+    };
+  } catch (err) {
+    return { done: false, detail: describeFetchError(err) };
+  }
+}
+
+// Shared retry loop behind proxyToApi/proxyGetApi: only the request + non-retriable-4xx shape differ.
+async function requestWithRetry(
+  makeRequest: () => Promise<Response>,
+  label: string,
+  buildNonRetriableResult: (
+    status: number,
+    detail: string,
+    errorBody: string,
+  ) => ProxyResult,
+): Promise<ProxyResult> {
+  let lastDetail = "no attempts made";
+
+  for (let attempt = 0; attempt <= PROXY_RETRY_DELAYS_MS.length; attempt++) {
+    const outcome = await attemptRequest(
+      makeRequest,
+      label,
+      buildNonRetriableResult,
+    );
+
+    if (outcome.done) {
+      return outcome.result;
+    }
+    lastDetail = outcome.detail;
+
+    if (attempt < PROXY_RETRY_DELAYS_MS.length) {
+      const delay = PROXY_RETRY_DELAYS_MS[attempt];
+
+      console.error(
+        `[lore-mcp] ${label} attempt ${attempt + 1} failed (${lastDetail}); retrying in ${delay}ms`,
+      );
+      await new Promise((r) => setTimeout(r, delay));
+    }
+  }
+  console.error(
+    `[lore-mcp] ${label} exhausted ${PROXY_RETRY_DELAYS_MS.length + 1} attempts; last error: ${lastDetail}`,
+  );
+
+  return { ok: false, reason: "unreachable", detail: lastDetail };
+}
+
 export async function proxyToApi(
   endpoint: string,
   body: Record<string, unknown>,
@@ -81,11 +180,9 @@ export async function proxyToApi(
     return { ok: false, reason: "not_configured" };
   }
 
-  let lastDetail = "no attempts made";
-
-  for (let attempt = 0; attempt <= PROXY_RETRY_DELAYS_MS.length; attempt++) {
-    try {
-      const res = await fetch(`${apiUrl}${endpoint}`, {
+  return requestWithRetry(
+    () =>
+      fetch(`${apiUrl}${endpoint}`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${apiToken}`,
@@ -93,57 +190,17 @@ export async function proxyToApi(
         },
         body: JSON.stringify(body),
         signal: AbortSignal.timeout(15_000),
-      });
-
-      if (res.ok) {
-        return { ok: true, body: JSON.stringify(await res.json()) };
-      }
-      lastDetail = `HTTP ${res.status} ${res.statusText}`;
-
-      if (isAuthDenial(res.status)) {
-        console.error(`[lore-mcp] proxy ${endpoint} denied (${lastDetail})`);
-
-        return { ok: false, reason: "denied", detail: lastDetail };
-      }
-
-      if (!isRetriableStatus(res.status)) {
-        // Non-retriable 4xx: surface server message + status/body so caller recognizes refusal.
-        const errorBody = await readErrorBody(res);
-        const detail = errorBodyDetail(res.status, res.statusText, errorBody);
-
-        console.error(
-          `[lore-mcp] proxy ${endpoint} failed (${detail}); not retrying`,
-        );
-
-        return {
-          ok: false,
-          reason: "unreachable",
-          detail,
-          status: res.status,
-          body: errorBody,
-        };
-      }
-    } catch (err) {
-      lastDetail =
-        (err as { name?: string })?.name === "TimeoutError"
-          ? "request timed out (15s)"
-          : (err as { message?: string })?.message || String(err);
-    }
-
-    if (attempt < PROXY_RETRY_DELAYS_MS.length) {
-      const delay = PROXY_RETRY_DELAYS_MS[attempt];
-
-      console.error(
-        `[lore-mcp] proxy ${endpoint} attempt ${attempt + 1} failed (${lastDetail}); retrying in ${delay}ms`,
-      );
-      await new Promise((r) => setTimeout(r, delay));
-    }
-  }
-  console.error(
-    `[lore-mcp] proxy ${endpoint} exhausted ${PROXY_RETRY_DELAYS_MS.length + 1} attempts; last error: ${lastDetail}`,
+      }),
+    `proxy ${endpoint}`,
+    // Non-retriable 4xx: surface server message + status/body so caller recognizes refusal.
+    (status, detail, errorBody) => ({
+      ok: false,
+      reason: "unreachable",
+      detail,
+      status,
+      body: errorBody,
+    }),
   );
-
-  return { ok: false, reason: "unreachable", detail: lastDetail };
 }
 
 export function proxyMemory(
@@ -164,38 +221,42 @@ function storeWhenCacheable(
   store(policy, body);
 }
 
-// Cache wrapper for proxied reads; fresh hit short-circuits network; stale on unreachable.
-export async function withReadCache(
-  policy: ReadCachePolicy | undefined,
-  doProxy: () => Promise<ProxyResult>,
-  opts: { label?: boolean; cacheIf?: (body: string) => boolean } = {},
-): Promise<ProxyResult> {
-  if (!policy || !isCacheEnabled()) {
-    return doProxy();
-  }
-  const label = opts.label ?? true;
+function serveFresh(
+  fresh: { body: string; ageSeconds: number },
+  label: boolean,
+): ProxyResult {
+  return {
+    ok: true,
+    body: label ? markFresh(fresh.body, fresh.ageSeconds) : fresh.body,
+  };
+}
 
+function readFreshHit(
+  policy: ReadCachePolicy,
+  label: boolean,
+): ProxyResult | null {
   const fresh = readFresh(policy);
 
-  if (fresh) {
-    return {
-      ok: true,
-      body: label ? markFresh(fresh.body, fresh.ageSeconds) : fresh.body,
-    };
-  }
+  return fresh ? serveFresh(fresh, label) : null;
+}
 
-  const result = await doProxy();
+type ReadCacheOpts = { label?: boolean; cacheIf?: (body: string) => boolean };
 
-  if (result.ok) {
-    storeWhenCacheable(policy, result.body, opts.cacheIf);
+function resolveReadCacheOpts(
+  opts: ReadCacheOpts | undefined,
+): Required<Pick<ReadCacheOpts, "label">> & Pick<ReadCacheOpts, "cacheIf"> {
+  return { label: opts?.label !== false, cacheIf: opts?.cacheIf };
+}
 
-    return result;
-  }
-
+// Falls back to a stale cached copy only for a genuine "unreachable" outcome; denials pass through.
+function serveStaleFallback(
+  policy: ReadCachePolicy,
+  result: Extract<ProxyResult, { ok: false }>,
+  label: boolean,
+): ProxyResult {
   if (result.reason !== "unreachable") {
     return result;
   }
-
   const stale = readAny(policy);
 
   if (!stale) {
@@ -208,6 +269,33 @@ export async function withReadCache(
   };
 }
 
+// Cache wrapper for proxied reads; fresh hit short-circuits network; stale on unreachable.
+export async function withReadCache(
+  policy: ReadCachePolicy | undefined,
+  doProxy: () => Promise<ProxyResult>,
+  opts?: ReadCacheOpts,
+): Promise<ProxyResult> {
+  if (!policy || !isCacheEnabled()) {
+    return doProxy();
+  }
+  const { label, cacheIf } = resolveReadCacheOpts(opts);
+  const hit = readFreshHit(policy, label);
+
+  if (hit) {
+    return hit;
+  }
+
+  const result = await doProxy();
+
+  if (result.ok) {
+    storeWhenCacheable(policy, result.body, cacheIf);
+
+    return result;
+  }
+
+  return serveStaleFallback(policy, result, label);
+}
+
 // GET sibling of proxyToApi for read-only routes; same gate/budget/shape, no body.
 export async function proxyGetApi(path: string): Promise<ProxyResult> {
   const apiUrl = process.env.LORE_API_URL;
@@ -217,62 +305,17 @@ export async function proxyGetApi(path: string): Promise<ProxyResult> {
     return { ok: false, reason: "not_configured" };
   }
 
-  let lastDetail = "no attempts made";
-
-  for (let attempt = 0; attempt <= PROXY_RETRY_DELAYS_MS.length; attempt++) {
-    try {
-      const res = await fetch(`${apiUrl}${path}`, {
+  return requestWithRetry(
+    () =>
+      fetch(`${apiUrl}${path}`, {
         method: "GET",
         headers: { Authorization: `Bearer ${apiToken}` },
         signal: AbortSignal.timeout(15_000),
-      });
-
-      if (res.ok) {
-        return { ok: true, body: JSON.stringify(await res.json()) };
-      }
-      lastDetail = `HTTP ${res.status} ${res.statusText}`;
-
-      if (isAuthDenial(res.status)) {
-        console.error(`[lore-mcp] proxy GET ${path} denied (${lastDetail})`);
-
-        return { ok: false, reason: "denied", detail: lastDetail };
-      }
-
-      if (!isRetriableStatus(res.status)) {
-        // Non-retriable 4xx: surface server's message to caller.
-        const detail = errorBodyDetail(
-          res.status,
-          res.statusText,
-          await readErrorBody(res),
-        );
-
-        console.error(
-          `[lore-mcp] proxy GET ${path} failed (${detail}); not retrying`,
-        );
-
-        return { ok: false, reason: "unreachable", detail };
-      }
-    } catch (err) {
-      lastDetail =
-        (err as { name?: string })?.name === "TimeoutError"
-          ? "request timed out (15s)"
-          : (err as { message?: string })?.message || String(err);
-    }
-
-    if (attempt < PROXY_RETRY_DELAYS_MS.length) {
-      const delay = PROXY_RETRY_DELAYS_MS[attempt];
-
-      console.error(
-        `[lore-mcp] proxy GET ${path} attempt ${attempt + 1} failed (${lastDetail}); retrying in ${delay}ms`,
-      );
-      await new Promise((r) => setTimeout(r, delay));
-    }
-  }
-  console.error(
-    `[lore-mcp] proxy GET ${path} exhausted ${PROXY_RETRY_DELAYS_MS.length + 1} attempts; last error: ${lastDetail}`,
+      }),
+    `proxy GET ${path}`,
+    // Non-retriable 4xx: surface server's message to caller (no status/body carried for GET).
+    (_status, detail) => ({ ok: false, reason: "unreachable", detail }),
   );
-
-  return { ok: false, reason: "unreachable", detail: lastDetail };
 }
 
 // Format MCP error for unreachable proxy; surfaces failure instead of silent fallback.

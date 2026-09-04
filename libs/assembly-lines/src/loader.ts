@@ -220,12 +220,13 @@ export async function loadAssemblyLineDir(
   return out;
 }
 
-function validateAssemblyLine(wf: AssemblyLine, source: string): void {
-  const nodeIds = new Set(wf.nodes.map((n) => n.id));
+type LoadErrorFactory = (message: string) => AssemblyLineLoadError;
 
-  const loadError = (message: string): AssemblyLineLoadError =>
-    new AssemblyLineLoadError(message, source);
-
+function validateEntryAndExit(
+  wf: AssemblyLine,
+  nodeIds: Set<string>,
+  loadError: LoadErrorFactory,
+): void {
   enforceTrue(
     nodeIds.has(wf.entry),
     loadError,
@@ -236,7 +237,13 @@ function validateAssemblyLine(wf: AssemblyLine, source: string): void {
     loadError,
     `exit "${wf.exit}" is not a defined node id`,
   );
+}
 
+function validateEdgeEndpoints(
+  wf: AssemblyLine,
+  nodeIds: Set<string>,
+  loadError: LoadErrorFactory,
+): void {
   for (const e of wf.edges) {
     enforceTrue(
       nodeIds.has(e.from),
@@ -245,39 +252,40 @@ function validateAssemblyLine(wf: AssemblyLine, source: string): void {
     );
     enforceTrue(nodeIds.has(e.to), loadError, `edge to unknown node "${e.to}"`);
   }
-
-  checkReachability(wf, nodeIds, loadError);
-  checkOutgoingEdges(wf, loadError);
-  checkNodeRequirements(wf);
-  checkContinuesReferences(wf, nodeIds, loadError);
-  checkOutcomeCoverage(wf, loadError);
-
-  // Cycles must carry iteration_max on the back-edge (DFS coloring).
-  detectCycles(wf, source);
 }
 
-type LoadError = (message: string) => AssemblyLineLoadError;
-
-/** BFS from entry: a node no edge can reach would never run, and a YAML that declares one is a mistake, not a feature. */
-function checkReachability(
+function enqueueUnreachedSuccessors(
   wf: AssemblyLine,
-  nodeIds: Set<string>,
-  loadError: LoadError,
+  cur: string,
+  reachable: Set<string>,
+  queue: string[],
 ): void {
+  for (const e of wf.edges) {
+    if (e.from === cur && !reachable.has(e.to)) {
+      reachable.add(e.to);
+      queue.push(e.to);
+    }
+  }
+}
+
+// Reachability from entry (BFS).
+function reachableNodeIds(wf: AssemblyLine): Set<string> {
   const reachable = new Set<string>([wf.entry]);
   const queue: string[] = [wf.entry];
-  const discoverSuccessorsOf = (cur: string): void => {
-    for (const e of wf.edges) {
-      if (e.from === cur && !reachable.has(e.to)) {
-        reachable.add(e.to);
-        queue.push(e.to);
-      }
-    }
-  };
 
   while (queue.length > 0) {
-    discoverSuccessorsOf(queue.shift()!);
+    enqueueUnreachedSuccessors(wf, queue.shift()!, reachable, queue);
   }
+
+  return reachable;
+}
+
+function validateReachability(
+  wf: AssemblyLine,
+  nodeIds: Set<string>,
+  loadError: LoadErrorFactory,
+): void {
+  const reachable = reachableNodeIds(wf);
 
   for (const id of nodeIds) {
     enforceTrue(
@@ -288,8 +296,11 @@ function checkReachability(
   }
 }
 
-/** Only the exit may be terminal; any other node without an outgoing edge strands the walk. */
-function checkOutgoingEdges(wf: AssemblyLine, loadError: LoadError): void {
+// Every non-exit node has at least one outgoing edge.
+function validateTerminalNodes(
+  wf: AssemblyLine,
+  loadError: LoadErrorFactory,
+): void {
   for (const n of wf.nodes) {
     if (n.id === wf.exit) {
       continue;
@@ -304,8 +315,8 @@ function checkOutgoingEdges(wf: AssemblyLine, loadError: LoadError): void {
   }
 }
 
-function checkNodeRequirements(wf: AssemblyLine): void {
-  // Parameterised node types need `job_ref` to have anything to dispatch; reject at load rather than at the pod, where the line is already half-walked.
+// Parameterised node types need `job_ref` to have anything to dispatch; reject at load rather than at the pod, where the line is already half-walked.
+function validateParameterisedNodes(wf: AssemblyLine): void {
   for (const n of wf.nodes) {
     enforceTrue(
       !PARAMETERISED_NODE_TYPES.has(n.type) || n.job_ref,
@@ -313,8 +324,10 @@ function checkNodeRequirements(wf: AssemblyLine): void {
       `${n.type} node "${n.id}" requires job_ref`,
     );
   }
+}
 
-  // A human station with no route leaves its worker with nowhere to go — reject at load, like a detect node with no job_ref.
+// A human station with no route leaves its worker with nowhere to go, and a placeholder reaching outside `args` could only be filled by the engine knowing what a feature is — the one thing it must never learn.
+function validateHumanStations(wf: AssemblyLine): void {
   for (const n of wf.nodes) {
     enforceTrue(
       !isHumanStation(n.type) || n.route,
@@ -324,7 +337,6 @@ function checkNodeRequirements(wf: AssemblyLine): void {
 
     const invalid = n.route ? invalidRoutePlaceholders(n.route) : [];
 
-    // A placeholder reaching outside `args` could only be filled by the engine knowing what a feature is — the one thing it must never learn.
     enforceTrue(
       invalid.length === 0,
       Error,
@@ -333,12 +345,12 @@ function checkNodeRequirements(wf: AssemblyLine): void {
   }
 }
 
-function checkContinuesReferences(
+// A `continues` reference must name a real node and a resolvable thread key — fail at LOAD, since an unresolvable reference would otherwise silently start a fresh conversation indistinguishable from one that remembers nothing.
+function validateContinuesReferences(
   wf: AssemblyLine,
   nodeIds: Set<string>,
-  loadError: LoadError,
+  loadError: LoadErrorFactory,
 ): void {
-  // A `continues` reference must name a real node and a resolvable thread key — fail at LOAD, since an unresolvable reference would otherwise silently start a fresh conversation indistinguishable from one that remembers nothing.
   for (const n of wf.nodes) {
     if (!n.continues) {
       continue;
@@ -358,8 +370,11 @@ function checkContinuesReferences(
   }
 }
 
-function checkOutcomeCoverage(wf: AssemblyLine, loadError: LoadError): void {
-  // Every outcome a node can produce must route somewhere, or it crashes the walk at runtime (getNextTransition's no-edge failure) instead of failing here at load.
+// Every outcome a node can produce must route somewhere, or it crashes the walk at runtime (getNextTransition's no-edge failure) instead of failing here at load.
+function validateOutcomesCovered(
+  wf: AssemblyLine,
+  loadError: LoadErrorFactory,
+): void {
   for (const n of wf.nodes) {
     const missing = uncoveredOutcomes(wf, n);
 
@@ -371,6 +386,23 @@ function checkOutcomeCoverage(wf: AssemblyLine, loadError: LoadError): void {
         .join(", ")}`,
     );
   }
+}
+
+function validateAssemblyLine(wf: AssemblyLine, source: string): void {
+  const nodeIds = new Set(wf.nodes.map((n) => n.id));
+  const loadError = (message: string): AssemblyLineLoadError =>
+    new AssemblyLineLoadError(message, source);
+
+  validateEntryAndExit(wf, nodeIds, loadError);
+  validateEdgeEndpoints(wf, nodeIds, loadError);
+  validateReachability(wf, nodeIds, loadError);
+  validateTerminalNodes(wf, loadError);
+  validateParameterisedNodes(wf);
+  validateHumanStations(wf);
+  validateContinuesReferences(wf, nodeIds, loadError);
+  validateOutcomesCovered(wf, loadError);
+  // Cycles must carry iteration_max on the back-edge (DFS coloring).
+  detectCycles(wf, source);
 }
 
 // The thread a `continues` reference belongs to: this run (`line`), this task across attempts (`task`), or `args.<name>` — the args form keeps the engine domain-free (e.g. planning threads key on args.feature_id).

@@ -3,9 +3,13 @@
 import { createStationProject } from "@re-cinq/lore-shared/project/index.js";
 import {
   decideIssueWork,
+  type PlannedIssue,
   type PlannedTask,
 } from "@re-cinq/lore-shared/feature-planning/issue-work.js";
-import { parseDecomposition } from "@re-cinq/lore-shared/feature-planning/decomposition-result.js";
+import {
+  parseDecomposition,
+  type DecompositionResult,
+} from "@re-cinq/lore-shared/feature-planning/decomposition-result.js";
 import { parseModelJson } from "@re-cinq/lore-shared/feature-planning/model-json.js";
 import { eventLine, type NodeResult } from "@re-cinq/lore-assembly-lines";
 import type { StationInput } from "@re-cinq/lore-shared/station-input.js";
@@ -46,9 +50,30 @@ export async function runIssuesStation(
       extras: { "Lore-Issues-Objection": work.objection },
     };
   }
+  const filed = await fileStoryIssues(project, decomposition, work.issues);
+
+  await createSpecTasks(project, work.tasks, input, filed);
+
+  return {
+    outcome: "success",
+    extras: {
+      "Lore-Issues": String(filed.length),
+      "Lore-Spec-Tasks": String(work.tasks.length),
+    },
+  };
+}
+
+type StationProject = ReturnType<typeof createStationProject>;
+
+/** Files one Issue per story, in order, returning the filed issue numbers by story index. */
+async function fileStoryIssues(
+  project: StationProject,
+  decomposition: DecompositionResult,
+  issues: readonly PlannedIssue[],
+): Promise<number[]> {
   const filed: number[] = [];
 
-  for (const issue of work.issues) {
+  for (const issue of issues) {
     const created = await project.issues.create(
       issue.title,
       storyBody(decomposition.stories[issue.storyIndex]),
@@ -59,17 +84,19 @@ export async function runIssuesStation(
     console.log(eventLine(`filed #${created.number} ${issue.title}`));
   }
 
-  for (const planned of work.tasks) {
+  return filed;
+}
+
+/** Files one spec-task per planned task, each linked back to the story Issue it implements. */
+async function createSpecTasks(
+  project: StationProject,
+  tasks: readonly PlannedTask[],
+  input: StationInput,
+  filed: number[],
+): Promise<void> {
+  for (const planned of tasks) {
     await project.tasks.create(taskInput(planned, input, filed));
   }
-
-  return {
-    outcome: "success",
-    extras: {
-      "Lore-Issues": String(filed.length),
-      "Lore-Spec-Tasks": String(work.tasks.length),
-    },
-  };
 }
 
 /** The Issue body: what the story is, and what has to be true for it to be done. */

@@ -108,15 +108,19 @@ export function followTargets(
 }
 
 /** Which agents this tick should open a log stream for — skips terminal ones, ones with no Job yet, and already-followed ones (else each stream reassigns seqs and dedupe cannot collapse the duplicates). */
+function orEmpty(value: string | undefined): string {
+  return value ?? "";
+}
+
 export function followableAgents(
   agents: readonly FollowableAgent[],
   following: ReadonlySet<string>,
 ): Array<{ agentCrName: string; jobName: string }> {
   return agents
     .map((agent) => ({
-      agentCrName: agent.metadata?.name ?? "",
-      jobName: agent.status?.jobName ?? "",
-      phase: agent.status?.phase ?? "",
+      agentCrName: orEmpty(agent.metadata?.name),
+      jobName: orEmpty(agent.status?.jobName),
+      phase: orEmpty(agent.status?.phase),
     }))
     .filter(
       (agent) =>
@@ -142,6 +146,16 @@ function createdAt(pod: FollowablePod): string {
   return raw instanceof Date ? raw.toISOString() : (raw ?? "");
 }
 
+function newestPodName(pod: FollowablePod | undefined): string | undefined {
+  return pod?.metadata?.name;
+}
+
+function firstContainerName(
+  pod: FollowablePod | undefined,
+): string | undefined {
+  return pod?.spec?.containers?.[0]?.name;
+}
+
 /** Which pod to stream, and WHICH CONTAINER — the container is not optional (`Log.log(ns, pod, "", …)` 400s); the FIRST container is the workload, anything after it a sidecar. */
 export function pickPodToFollow(
   pods: readonly FollowablePod[],
@@ -149,8 +163,8 @@ export function pickPodToFollow(
   const newest = [...pods].sort((a, b) =>
     createdAt(b).localeCompare(createdAt(a)),
   )[0];
-  const podName = newest?.metadata?.name;
-  const containerName = newest?.spec?.containers?.[0]?.name;
+  const podName = newestPodName(newest);
+  const containerName = firstContainerName(newest);
 
   if (!podName || !containerName) {
     return null;

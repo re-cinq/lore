@@ -2,8 +2,13 @@
 
 import type { NodeResult } from "@re-cinq/lore-assembly-lines";
 import type { StationInput } from "@re-cinq/lore-shared/station-input.js";
-import { writeEpisodeWithCuration } from "@re-cinq/lore-shared";
+import {
+  writeEpisodeWithCuration,
+  type PipelineTask,
+} from "@re-cinq/lore-shared";
+import type { MergeableTask } from "@re-cinq/lore-shared/project/tasks/task-queue-port.js";
 import { runMergeStep, type MergeStepDeps } from "./merge-step.js";
+import type { MergeStepTask } from "./merge-step.js";
 import {
   applyOutcomeFeedback,
   maybeFlipSpecStatus,
@@ -27,41 +32,63 @@ const hoursBetween = (from: string, to: string | null): number | null =>
         (new Date(to).getTime() - new Date(from).getTime()) / 3_600_000,
       );
 
+/** True when a task row exists and carries the PR number a merge step needs. */
+export function hasMergeStepFields(
+  row: PipelineTask | null,
+): row is PipelineTask & { pr_number: number } {
+  return row !== null && row.pr_number !== null && row.pr_number !== undefined;
+}
+
+/** Narrows a task-store row to the small shape the merge line's steps read. */
+export function toMergeStepTask(
+  row: PipelineTask & { pr_number: number },
+): MergeStepTask {
+  return {
+    id: row.id,
+    target_repo: row.target_repo ?? "",
+    pr_number: row.pr_number,
+    issue_number: row.issue_number ?? null,
+    task_type: row.task_type,
+    description: row.description ?? "",
+  };
+}
+
+/** Normalises a task-store row's task-store-only-undefined fields to the sweep's explicit null. */
+export function toFlipSpecStatusTask(
+  row: PipelineTask | null,
+  now: string,
+): MergeableTask {
+  const merged = { ...row } as NonNullable<typeof row>;
+
+  return {
+    ...merged,
+    target_branch: merged.target_branch ?? null,
+    pr_url: merged.pr_url ?? null,
+    task_group_id: merged.task_group_id ?? null,
+    context_bundle: merged.context_bundle ?? null,
+    created_at: merged.created_at ?? now,
+  } as MergeableTask;
+}
+
 function productionDeps(): MergeStepDeps {
   // Cache the whole row to hand to helpers rather than widening the step contract.
-  let row: Awaited<ReturnType<ReturnType<typeof taskStore>["getById"]>> = null;
+  let row: PipelineTask | null = null;
 
   return {
     task: async (id) => {
       row = await taskStore().getById(id);
 
-      return row === null ||
-        row.pr_number === null ||
-        row.pr_number === undefined
-        ? null
-        : {
-            id: row.id,
-            target_repo: row.target_repo ?? "",
-            pr_number: row.pr_number,
-            issue_number: row.issue_number ?? null,
-            task_type: row.task_type,
-            description: row.description ?? "",
-          };
+      return hasMergeStepFields(row) ? toMergeStepTask(row) : null;
     },
     setStatus: (id, status) => taskStore().setStatus(id, status),
     recordEvent: async (id, from, to) => {
       await taskStore().recordEvent(id, from, to, { merged_by: "merge-line" });
     },
     flipSpecStatus: async (task) => {
-      await maybeFlipSpecStatus(await projectFor(task.target_repo), {
-        ...(row as NonNullable<typeof row>),
-        // Normalise sweep null to task store undefined.
-        target_branch: row?.target_branch ?? null,
-        pr_url: row?.pr_url ?? null,
-        task_group_id: row?.task_group_id ?? null,
-        context_bundle: row?.context_bundle ?? null,
-        created_at: row?.created_at ?? new Date().toISOString(),
-      } as Parameters<typeof maybeFlipSpecStatus>[1]);
+      await maybeFlipSpecStatus(
+        await projectFor(task.target_repo),
+        toFlipSpecStatusTask(row, new Date().toISOString()),
+      );
     },
     commentAndCloseIssue: async (task) => {
       const issues = (await projectFor(task.target_repo)).issues;

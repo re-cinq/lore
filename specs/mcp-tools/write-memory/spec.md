@@ -105,11 +105,18 @@ the `unreachableError` message, or `"Error writing memory: {message}"`.
 2. A write to an existing key increments the version and updates the row in
    place. ([validated by `increments version when the key already exists`](libs/server-core/src/features/memory/memory.test.ts#L82))
 
-3. The handler orchestration (repo detect, embedding, proxy/file fallback,
+3. The handler orchestration (repo detect, embedding, file fallback,
    `extract_facts` trigger) has no unit seam. *(untested: the DB branch needs a
-   live `memory.memories`; the proxy branch needs `LORE_API_URL`; the
-   `extract_facts` trigger is a fire-and-forget dynamic import — the versioning
-   core is covered above.)*
+   live `memory.memories`; the `extract_facts` trigger is a fire-and-forget
+   dynamic import — the versioning core is covered above.)*
+
+4. In local stdio mode (no DB), the tool proxies the write and returns the
+   proxied body on success; a 401 is reported as a denied error on the first
+   attempt, without the retriable-status backoff loop. ([validated by `returns
+   the proxied body on a successful
+   write`](apps/mcp-server/src/mcp/tools/memory-tools.test.ts#L96), [`reports a
+   denied error on a 401 without
+   retrying`](apps/mcp-server/src/mcp/tools/memory-tools.test.ts#L110))
 
 ## Out of Scope
 

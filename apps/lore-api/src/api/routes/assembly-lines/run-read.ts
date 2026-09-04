@@ -29,6 +29,38 @@ const RunReadSchema = z.object({
   nodes: z.array(z.record(z.unknown())),
 });
 
+interface NodeGraphFields {
+  type: string | null;
+  promptRef: string | null;
+  route: string | null;
+  station: string | null;
+  stationInherited: boolean;
+}
+
+// The page a HUMAN station's worker acts on, resolved against THIS run's args (FR6.40); null when a placeholder (e.g. pr_url) isn't there yet — a half-built href is worse than no link.
+function nodeGraphFields(
+  node: RunGraphNode | undefined,
+  args: Record<string, unknown>,
+): NodeGraphFields {
+  if (!node) {
+    return {
+      type: null,
+      promptRef: null,
+      route: resolveRoute(undefined, args),
+      station: null,
+      stationInherited: false,
+    };
+  }
+
+  return {
+    type: node.type,
+    promptRef: node.prompt_ref ?? null,
+    route: resolveRoute(node.route, args),
+    station: node.station,
+    stationInherited: node.station_inherited,
+  };
+}
+
 export function describeNode(
   row: StationRunRecord,
   node: RunGraphNode | undefined,
@@ -42,12 +74,7 @@ export function describeNode(
     commitSha: row.commitSha,
     startedAt: row.startedAt,
     finishedAt: row.finishedAt,
-    type: node?.type ?? null,
-    promptRef: node?.prompt_ref ?? null,
-    // The page a HUMAN station's worker acts on, resolved against THIS run's args (FR6.40); null when a placeholder (e.g. pr_url) isn't there yet — a half-built href is worse than no link.
-    route: resolveRoute(node?.route, args),
-    station: node?.station ?? null,
-    stationInherited: node?.station_inherited ?? false,
+    ...nodeGraphFields(node, args),
   };
 }
 

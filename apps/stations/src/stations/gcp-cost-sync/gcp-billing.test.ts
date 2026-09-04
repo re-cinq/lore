@@ -114,4 +114,13 @@ describe("parseBillingQueryResponse", () => {
       "BigQuery billing query did not complete in time",
     );
   });
+
+  it("defaults null cell values and missing cells to empty string or zero", () => {
+    expect(
+      parseBillingQueryResponse({
+        jobComplete: true,
+        rows: [{ f: [{ v: null }, { v: null }] }],
+      }),
+    ).toEqual([{ bucketDate: "", service: "", costUsd: 0, creditsUsd: 0 }]);
+  });
 });

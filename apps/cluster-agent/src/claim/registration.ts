@@ -74,6 +74,41 @@ export async function registerOnce(
   }
 }
 
+function registerRequestBody(
+  config: RegistrationConfig,
+  current: ClusterAgentIdentity | null,
+): unknown {
+  return {
+    name: config.name,
+    tags: config.tags,
+    cluster_info: null,
+    ...(current ? { current_token: current.token } : {}),
+  };
+}
+
+function logRegistrationRefusal(name: string, status: number): void {
+  const reason =
+    status === 409
+      ? " — the name is registered to another identity and no current_token matched"
+      : "";
+
+  console.warn(
+    `[cluster-agent] registration of ${name} refused (HTTP ${status})${reason}`,
+  );
+}
+
+function parseIdentityBody(
+  body: Partial<ClusterAgentIdentity>,
+): ClusterAgentIdentity {
+  enforceTrue(
+    typeof body.id === "string" && typeof body.token === "string",
+    Error,
+    "registration answered 200 without an {id, token} body",
+  );
+
+  return { id: body.id, token: body.token };
+}
+
 /** One attempt, which may throw — `registerOnce` is the wrapper that promises it never does. Null means retry. */
 async function attemptRegistration(
   deps: RegisterDeps,
@@ -87,34 +122,19 @@ async function attemptRegistration(
       authorization: `Bearer ${config.registrationToken}`,
       "content-type": "application/json",
     },
-    body: JSON.stringify({
-      name: config.name,
-      tags: config.tags,
-      cluster_info: null,
-      ...(current ? { current_token: current.token } : {}),
-    }),
+    body: JSON.stringify(registerRequestBody(config, current)),
     signal: AbortSignal.timeout(REGISTER_TIMEOUT_MS),
   });
 
   if (!res.ok) {
-    console.warn(
-      `[cluster-agent] registration of ${config.name} refused (HTTP ${res.status})` +
-        (res.status === 409
-          ? " — the name is registered to another identity and no current_token matched"
-          : ""),
-    );
+    logRegistrationRefusal(config.name, res.status);
 
     return null;
   }
 
-  const body = (await res.json()) as Partial<ClusterAgentIdentity>;
-
-  enforceTrue(
-    typeof body.id === "string" && typeof body.token === "string",
-    Error,
-    "registration answered 200 without an {id, token} body",
+  const identity = parseIdentityBody(
+    (await res.json()) as Partial<ClusterAgentIdentity>,
   );
-  const identity = { id: body.id, token: body.token };
 
   await store.save(identity);
   // Both first registration and every rotation land here, so the run pods' credential never outlives its token.

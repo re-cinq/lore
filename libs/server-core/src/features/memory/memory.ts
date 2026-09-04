@@ -45,6 +45,24 @@ export interface WriteResult {
 
 // ── Write ────────────────────────────────────────────────────────────
 
+function toEmbeddingParam(embedding?: number[]): string | null {
+  return embedding ? `[${embedding.join(",")}]` : null;
+}
+
+interface MemoryLookup {
+  field: string;
+  value: string;
+}
+
+// Look up a memory row by repo (preferred) or agent, when neither is set.
+function resolveLookup(repo: string | undefined, agent: string): MemoryLookup {
+  if (repo) {
+    return { field: "repo", value: repo };
+  }
+
+  return { field: "agent_id", value: agent };
+}
+
 interface UpsertArgs {
   key: string;
   value: string;
@@ -58,17 +76,14 @@ async function upsertMemoryWithVersion(
   db: Pick<PgPool, "query">,
   { key, value, agent, ttl, embedding, repo }: UpsertArgs,
 ): Promise<{ memoryId: string; version: number }> {
-  const embeddingParam = embedding ? `[${embedding.join(",")}]` : null;
+  const embeddingParam = toEmbeddingParam(embedding);
   const ttlSeconds = ttl || null;
-
-  // Check if key already exists for this repo (or agent if no repo)
-  const lookupField = repo ? "repo" : "agent_id";
-  const lookupValue = repo || agent;
+  const lookup = resolveLookup(repo, agent);
   const existing = await db.query(
     `SELECT id, version FROM memory.memories
-     WHERE ${lookupField} = $1 AND key = $2 AND is_deleted = FALSE
+     WHERE ${lookup.field} = $1 AND key = $2 AND is_deleted = FALSE
      ORDER BY version DESC LIMIT 1`,
-    [lookupValue, key],
+    [lookup.value, key],
   );
 
   if (existing.rows.length > 0) {
@@ -132,6 +147,34 @@ export interface MemoryWriteInput {
   repo?: string;
 }
 
+// The memories row and its version row must land together — prod ran for months with sequential writes leaving version-less memories behind (#1154); hasConnect feature-detects connect(), a pool without it keeps the plain sequential path.
+async function runInTransaction<T>(
+  db: PgPool,
+  work: (tx: Pick<PgPool, "query">) => Promise<T>,
+): Promise<T> {
+  if (!hasConnect(db)) {
+    return work(db);
+  }
+
+  const client = await db.connect();
+
+  try {
+    await client.query("BEGIN");
+
+    const result = await work(client);
+
+    await client.query("COMMIT");
+
+    return result;
+  } catch (err) {
+    // Best-effort: the connection may already be dead, and that failure must not mask the original error.
+    await client.query("ROLLBACK").catch(() => undefined);
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
 export async function writeMemory({
   key,
   value,
@@ -141,37 +184,11 @@ export async function writeMemory({
   repo,
 }: MemoryWriteInput): Promise<WriteResult> {
   const agent = resolveAgentId(agentId);
-
-  // The memories row and its version row must land together — prod ran for months with sequential writes leaving version-less memories behind (#1154); hasConnect feature-detects connect(), a pool without it keeps the plain sequential path.
   const db = pool!;
-  const client = hasConnect(db) ? await db.connect() : null;
-  let memoryId: string;
-  let version: number;
 
-  try {
-    if (client) {
-      await client.query("BEGIN");
-    }
-
-    ({ memoryId, version } = await upsertMemoryWithVersion(client ?? db, {
-      key,
-      value,
-      agent,
-      ttl,
-      embedding,
-      repo,
-    }));
-
-    if (client) {
-      await client.query("COMMIT");
-    }
-  } catch (err) {
-    // Best-effort: the connection may already be dead, and that failure must not mask the original error.
-    await client?.query("ROLLBACK").catch(() => undefined);
-    throw err;
-  } finally {
-    client?.release();
-  }
+  const { memoryId, version } = await runInTransaction(db, (tx) =>
+    upsertMemoryWithVersion(tx, { key, value, agent, ttl, embedding, repo }),
+  );
 
   await auditLog(agent, "write", key);
 
@@ -190,48 +207,40 @@ export async function writeMemory({
 
 // ── Read ─────────────────────────────────────────────────────────────
 
-export async function readMemory(
-  key: string,
-  agentId?: string,
-  version?: string | number,
-) {
-  const agent = resolveAgentId(agentId);
-
-  if (version === "all") {
-    // Return all versions
-    const { rows } = await pool!.query(
-      `SELECT mv.version, mv.value, mv.created_at
-       FROM memory.memory_versions mv
-       JOIN memory.memories m ON m.id = mv.memory_id
-       WHERE m.agent_id = $1 AND m.key = $2
-       ORDER BY mv.version DESC`,
-      [agent, key],
-    );
-
-    await auditLog(agent, "read", key);
-
-    return rows;
-  }
-
-  if (
+function isVersionNumberLike(version: string | number | undefined): boolean {
+  return (
     typeof version === "number" ||
     (typeof version === "string" && !isNaN(Number(version)))
-  ) {
-    // `m.key` is selected so one-version read answers the same shape as a latest read — the endpoint declares one contract for `action: "read"`.
-    const { rows } = await pool!.query(
-      `SELECT m.key, mv.version, mv.value, mv.created_at
-       FROM memory.memory_versions mv
-       JOIN memory.memories m ON m.id = mv.memory_id
-       WHERE m.agent_id = $1 AND m.key = $2 AND mv.version = $3`,
-      [agent, key, Number(version)],
-    );
+  );
+}
 
-    await auditLog(agent, "read", key);
+async function readAllVersions(agent: string, key: string) {
+  const { rows } = await pool!.query(
+    `SELECT mv.version, mv.value, mv.created_at
+     FROM memory.memory_versions mv
+     JOIN memory.memories m ON m.id = mv.memory_id
+     WHERE m.agent_id = $1 AND m.key = $2
+     ORDER BY mv.version DESC`,
+    [agent, key],
+  );
 
-    return rows[0] || null;
-  }
+  return rows;
+}
 
-  // Latest version
+// `m.key` is selected so one-version read answers the same shape as a latest read — the endpoint declares one contract for `action: "read"`.
+async function readVersionAt(agent: string, key: string, version: number) {
+  const { rows } = await pool!.query(
+    `SELECT m.key, mv.version, mv.value, mv.created_at
+     FROM memory.memory_versions mv
+     JOIN memory.memories m ON m.id = mv.memory_id
+     WHERE m.agent_id = $1 AND m.key = $2 AND mv.version = $3`,
+    [agent, key, version],
+  );
+
+  return rows[0] || null;
+}
+
+async function readLatestVersion(agent: string, key: string) {
   const { rows } = await pool!.query(
     `SELECT key, value, version, created_at
      FROM memory.memories
@@ -241,9 +250,37 @@ export async function readMemory(
     [agent, key],
   );
 
+  return rows[0] || null;
+}
+
+export async function readMemory(
+  key: string,
+  agentId?: string,
+  version?: string | number,
+) {
+  const agent = resolveAgentId(agentId);
+
+  if (version === "all") {
+    const rows = await readAllVersions(agent, key);
+
+    await auditLog(agent, "read", key);
+
+    return rows;
+  }
+
+  if (isVersionNumberLike(version)) {
+    const row = await readVersionAt(agent, key, Number(version));
+
+    await auditLog(agent, "read", key);
+
+    return row;
+  }
+
+  const row = await readLatestVersion(agent, key);
+
   await auditLog(agent, "read", key);
 
-  return rows[0] || null;
+  return row;
 }
 
 // ── Delete ───────────────────────────────────────────────────────────
@@ -335,59 +372,61 @@ export async function listMemories(
 
 // ── Shared Pools ─────────────────────────────────────────────────────
 
+async function getOrCreateSharedPoolId(
+  tx: Pick<PgPool, "query">,
+  poolName: string,
+  agent: string,
+): Promise<string> {
+  const found = await tx.query(
+    `SELECT id FROM memory.shared_pools WHERE name = $1`,
+    [poolName],
+  );
+
+  if (found.rows.length > 0) {
+    return found.rows[0].id as string;
+  }
+
+  const created = await tx.query(
+    `INSERT INTO memory.shared_pools (name, created_by) VALUES ($1, $2) RETURNING id`,
+    [poolName, agent],
+  );
+
+  return created.rows[0].id as string;
+}
+
+// Same atomicity contract as writeMemory (#1154): pool lookup/create, memories insert, and version insert land in one transaction when the pool provides connect(); a query-only pool stays sequential.
+async function insertSharedMemory(
+  tx: Pick<PgPool, "query">,
+  poolName: string,
+  agent: string,
+  { key, value, embedding }: Omit<MemoryWriteInput, "ttl" | "repo" | "agentId">,
+): Promise<string> {
+  const embeddingParam = toEmbeddingParam(embedding);
+  const poolId = await getOrCreateSharedPoolId(tx, poolName, agent);
+  const result = await tx.query(
+    `INSERT INTO memory.memories (agent_id, key, value, embedding, version, pool_id) VALUES ($1, $2, $3, $4, 1, $5) RETURNING id, created_at`,
+    [agent, key, value, embeddingParam, poolId],
+  );
+
+  await tx.query(
+    `INSERT INTO memory.memory_versions (memory_id, version, value, embedding) VALUES ($1, 1, $2, $3)`,
+    [result.rows[0].id, value, embeddingParam],
+  );
+
+  return result.rows[0].created_at as string;
+}
+
 export async function sharedWrite(
   poolName: string,
-  { key, value, agentId, embedding }: Omit<MemoryWriteInput, "ttl" | "repo">,
+  input: Omit<MemoryWriteInput, "ttl" | "repo">,
 ): Promise<WriteResult> {
+  const { key, agentId } = input;
   const agent = resolveAgentId(agentId);
-  const embeddingParam = embedding ? `[${embedding.join(",")}]` : null;
-
-  // Same atomicity contract as writeMemory (#1154): pool lookup/create, memories insert, and version insert land in one transaction when the pool provides connect(); a query-only pool stays sequential.
   const db = pool!;
-  const client = hasConnect(db) ? await db.connect() : null;
-  const tx = client ?? db;
-  let createdAt: string;
 
-  try {
-    if (client) {
-      await client.query("BEGIN");
-    }
-
-    // Get or create pool
-    let poolResult = await tx.query(
-      `SELECT id FROM memory.shared_pools WHERE name = $1`,
-      [poolName],
-    );
-
-    if (poolResult.rows.length === 0) {
-      poolResult = await tx.query(
-        `INSERT INTO memory.shared_pools (name, created_by) VALUES ($1, $2) RETURNING id`,
-        [poolName, agent],
-      );
-    }
-    const poolId = poolResult.rows[0].id;
-    // Write memory with pool_id
-    const result = await tx.query(
-      `INSERT INTO memory.memories (agent_id, key, value, embedding, version, pool_id) VALUES ($1, $2, $3, $4, 1, $5) RETURNING id, created_at`,
-      [agent, key, value, embeddingParam, poolId],
-    );
-
-    await tx.query(
-      `INSERT INTO memory.memory_versions (memory_id, version, value, embedding) VALUES ($1, 1, $2, $3)`,
-      [result.rows[0].id, value, embeddingParam],
-    );
-    createdAt = result.rows[0].created_at as string;
-
-    if (client) {
-      await client.query("COMMIT");
-    }
-  } catch (err) {
-    // Best-effort: the connection may already be dead, and that failure must not mask the original error.
-    await client?.query("ROLLBACK").catch(() => undefined);
-    throw err;
-  } finally {
-    client?.release();
-  }
+  const createdAt = await runInTransaction(db, (tx) =>
+    insertSharedMemory(tx, poolName, agent, input),
+  );
 
   await auditLog(agent, "shared_write", key, { pool: poolName });
 

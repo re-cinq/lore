@@ -51,7 +51,7 @@ Shows unclaimed 'pending' backlog tasks grouped by repo — the 'what can I grab
       sections joined by a blank line.
 3. **Local fallback** — when the API is unconfigured or non-2xx, dynamically
    import `listPendingTasks` from `runner.local`
-   ([handler](../../../apps/mcp-server/src/features/pipeline/runner.local.ts#L884)), which reads
+   ([handler](../../../apps/mcp-server/src/features/pipeline/runner.local.ts#L1300)), which reads
    `~/.lore/pending-tasks.json` (returning `[]` if missing/unreadable). When `repo`
    was passed, filter to `t.target_repo === repo` (same as the API path). If empty →
    `"No pending tasks for {repo}."` (filtered) or `"No pending tasks."`. Else emit one
@@ -73,15 +73,18 @@ listing, a "No pending tasks" message, or the error message. Never throws.
 ## Acceptance Criteria
 
 `listPendingTasks` returns an array (empty when the cached pending file is
-absent). ([validated by `runner.local.test.ts:142`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L142))
+absent). ([validated by `runner.local.test.ts:142`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L145))
 
 The local-fallback path applies the `repo` filter, returns the repo-scoped empty
 message when nothing matches, and lists all repos when no filter is given.
 ([validated by `returns only the matching repo's tasks`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L76), [validated by `returns the repo-scoped empty message when nothing matches`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L86), [validated by `returns all repos when no filter is given`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L94))
 
-The API-path grouping/formatting runs only inside the tool. *(untested: the API
-branch needs a live `LORE_API_URL` and the formatting/grouping is inline in the
-handler with no extracted seam.)*
+The API path groups tasks by repo, filtered by the `repo` param, and falls
+back to the local file listing when the API responds non-ok. ([validated by
+`groups the API's tasks by repo, filtered by the repo
+param`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L117), [`falls
+back to the local file listing when the API responds
+non-ok`](apps/mcp-server/src/mcp/tools/pipeline-tools.test.ts#L146))
 
 ## Out of Scope
 

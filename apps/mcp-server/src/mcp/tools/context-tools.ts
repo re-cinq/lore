@@ -17,6 +17,7 @@ import {
   unreachableError,
   deniedError,
   textResult,
+  type ProxyResult,
 } from "./deps.js";
 import { updateBanner } from "../../features/update/mcp-update.js";
 
@@ -30,6 +31,25 @@ function readFileSafe(path: string): string | null {
   }
 }
 
+function topRrfScore(results: { rrf_score: number }[]): number {
+  return results.length > 0 ? results[0].rrf_score : 0;
+}
+
+async function searchWithOrgSharedFallback(
+  query: string,
+  schema: string,
+  team: string | undefined,
+  limit: number,
+) {
+  const results = await hybridSearch(query, schema, limit);
+
+  if (results.length > 0 || !team || team === "org_shared") {
+    return results;
+  }
+
+  return hybridSearch(query, "org_shared", limit);
+}
+
 /** Hybrid vector+BM25 search over the team schema, falling back to org_shared when the team has no hits. */
 async function searchDbContext(
   query: string,
@@ -37,16 +57,12 @@ async function searchDbContext(
   limit: number,
 ): Promise<{ content: Array<{ type: "text"; text: string }> }> {
   const schema = team || "org_shared";
-  let results = await hybridSearch(query, schema, limit);
-
-  if (results.length === 0 && team && team !== "org_shared") {
-    results = await hybridSearch(query, "org_shared", limit);
-  }
+  const results = await searchWithOrgSharedFallback(query, schema, team, limit);
 
   traceRetrieval({
     query,
     namespace: schema,
-    topScore: results[0]?.rrf_score || 0,
+    topScore: topRrfScore(results),
     resultCount: results.length,
   });
 
@@ -161,6 +177,52 @@ export function registerContextTools(server: McpServer) {
   registerAssembleContextTool(server);
 }
 
+// Auto-detects repo from git remote when no team is specified, to scope DB search to its context namespace.
+function logDetectedRepo(team: string | undefined): void {
+  const detectedRepo = !team ? detectCurrentRepo() : null;
+
+  if (detectedRepo) {
+    console.error(
+      `[lore] lore_search_context: auto-detected repo ${detectedRepo}`,
+    );
+  }
+}
+
+function resolveSearchRoot(team: string | undefined): string {
+  return team ? join(CONTEXT_PATH, "teams", team) : CONTEXT_PATH;
+}
+
+/** Case-insensitive substring scan of local .md files, used when no DB is available. */
+function fileFallbackSearch(
+  query: string,
+  team: string | undefined,
+  limit: number,
+): { content: Array<{ type: "text"; text: string }> } {
+  const searchRoot = resolveSearchRoot(team);
+
+  if (!existsSync(searchRoot)) {
+    return textResult(`Error: search path not found at ${searchRoot}.`);
+  }
+  const files = globSync(join(searchRoot, "**/*.md"), { nodir: true });
+  const results = collectMatchingParagraphs(files, query.toLowerCase(), limit);
+
+  traceRetrieval({
+    query,
+    namespace: team || "org",
+    topScore: results.length > 0 ? 1.0 : 0.0, // Phase 0: binary score, Phase 1 will be RRF.
+    resultCount: results.length,
+  });
+
+  if (results.length === 0) {
+    return textResult(`No results found for "${query}".`);
+  }
+  const text = results
+    .map((r) => `**Source:** ${r.source}\n\n${r.paragraph}`)
+    .join("\n\n---\n\n");
+
+  return textResult(text);
+}
+
 function registerSearchContextTool(server: McpServer) {
   server.tool(
     "lore_search_context",
@@ -168,55 +230,81 @@ function registerSearchContextTool(server: McpServer) {
 Use this when you want chunk-level evidence or the exact wording of a convention/ADR. For a ONE token-budgeted bundle combining all sources (conventions, ADRs, memories, facts, graph) call lore_assemble_context — that is the mandatory first call. For past learnings, decisions, and extracted facts from prior sessions call lore_search_memory. For entity relationships call lore_query_graph.`,
     SEARCH_CONTEXT_INPUT,
     async ({ query, team, limit }) => {
-      // Auto-detects repo from git remote when no team is specified, to scope DB search to its context namespace.
-      const detectedRepo = !team ? detectCurrentRepo() : null;
-
-      if (detectedRepo) {
-        console.error(
-          `[lore] lore_search_context: auto-detected repo ${detectedRepo}`,
-        );
-      }
+      logDetectedRepo(team);
 
       if (await isDbAvailable()) {
         return searchDbContext(query, team, limit);
       }
 
-      // File-based fallback
-      const searchRoot = team
-        ? join(CONTEXT_PATH, "teams", team)
-        : CONTEXT_PATH;
-
-      if (!existsSync(searchRoot)) {
-        return textResult(`Error: search path not found at ${searchRoot}.`);
-      }
-      const pattern = team
-        ? join(searchRoot, "**/*.md")
-        : join(CONTEXT_PATH, "**/*.md");
-      const files = globSync(pattern, { nodir: true });
-      const results = collectMatchingParagraphs(
-        files,
-        query.toLowerCase(),
-        limit,
-      );
-
-      const topScore = results.length > 0 ? 1.0 : 0.0; // Phase 0: binary score, Phase 1 will be RRF.
-
-      traceRetrieval({
-        query,
-        namespace: team || "org",
-        topScore,
-        resultCount: results.length,
-      });
-
-      if (results.length === 0) {
-        return textResult(`No results found for "${query}".`);
-      }
-      const text = results
-        .map((r) => `**Source:** ${r.source}\n\n${r.paragraph}`)
-        .join("\n\n---\n\n");
-
-      return textResult(text);
+      return fileFallbackSearch(query, team, limit);
     },
+  );
+}
+
+interface AssembleContextExtraArgs {
+  max_tokens?: number;
+  cross_repo?: boolean;
+  agent_id?: string;
+}
+
+// Only sent when non-default so these extras also seed the cache key, keeping a 16000-token request from being served an 8000-token cached body.
+function buildAssembleExtras(
+  args: AssembleContextExtraArgs,
+): Record<string, string> {
+  const extras: Record<string, string> = {};
+
+  if (args.max_tokens) {
+    extras.max_tokens = String(args.max_tokens);
+  }
+
+  if (args.cross_repo) {
+    extras.cross_repo = "true";
+  }
+
+  if (args.agent_id) {
+    extras.agent_id = args.agent_id;
+  }
+
+  return extras;
+}
+
+function resolveRepoLabel(repo: string | undefined): string {
+  return repo || detectCurrentRepo() || "";
+}
+
+async function fetchAssembledContext(
+  params: URLSearchParams,
+): Promise<ProxyResult> {
+  const r = await proxyGetApi(`/api/context?${params.toString()}`);
+
+  if (!r.ok) {
+    return r;
+  }
+  const body = JSON.parse(r.body) as { text?: string };
+
+  // A reachable backend returning empty context is a real result, not an outage — return as-is rather than serving a stale, mislabeled fallback.
+  return { ok: true as const, body: body.text ?? "" };
+}
+
+async function interpretProxiedContext(
+  proxied: ProxyResult,
+): Promise<{ content: Array<{ type: "text"; text: string }> }> {
+  if (proxied.ok) {
+    const banner = await updateBanner();
+
+    return textResult(banner + proxied.body);
+  }
+
+  if (proxied.reason === "unreachable") {
+    return unreachableError("lore_assemble_context", proxied.detail);
+  }
+
+  if (proxied.reason === "denied") {
+    return deniedError("lore_assemble_context", proxied.detail);
+  }
+
+  return textResult(
+    "Context assembly requires PostgreSQL or LORE_API_URL. Neither is configured.",
   );
 }
 
@@ -238,21 +326,12 @@ Instead: use lore_search_context for raw passages/exact wording from ingested do
               "Context assembly requires PostgreSQL or LORE_API_URL. Neither is configured.",
             );
           }
-          const resolvedRepo = repo || detectCurrentRepo() || "";
-          // Only sent when non-default so these extras also seed the cache key, keeping a 16000-token request from being served an 8000-token cached body.
-          const extras: Record<string, string> = {};
-
-          if (max_tokens) {
-            extras.max_tokens = String(max_tokens);
-          }
-
-          if (cross_repo) {
-            extras.cross_repo = "true";
-          }
-
-          if (agent_id) {
-            extras.agent_id = agent_id;
-          }
+          const resolvedRepo = resolveRepoLabel(repo);
+          const extras = buildAssembleExtras({
+            max_tokens,
+            cross_repo,
+            agent_id,
+          });
           const params = new URLSearchParams({
             query,
             template,
@@ -266,36 +345,10 @@ Instead: use lore_search_context for raw passages/exact wording from ingested do
               repo: resolvedRepo || undefined,
               ttlSeconds: 600,
             },
-            async () => {
-              const r = await proxyGetApi(`/api/context?${params.toString()}`);
-
-              if (!r.ok) {
-                return r;
-              }
-              const body = JSON.parse(r.body) as { text?: string };
-
-              // A reachable backend returning empty context is a real result, not an outage — return as-is rather than serving a stale, mislabeled fallback.
-              return { ok: true as const, body: body.text ?? "" };
-            },
+            () => fetchAssembledContext(params),
           );
 
-          if (proxied.ok) {
-            const banner = await updateBanner();
-
-            return textResult(banner + proxied.body);
-          }
-
-          if (proxied.reason === "unreachable") {
-            return unreachableError("lore_assemble_context", proxied.detail);
-          }
-
-          if (proxied.reason === "denied") {
-            return deniedError("lore_assemble_context", proxied.detail);
-          }
-
-          return textResult(
-            "Context assembly requires PostgreSQL or LORE_API_URL. Neither is configured.",
-          );
+          return await interpretProxiedContext(proxied);
         } catch (err) {
           return textResult(`Error assembling context: ${errorMessage(err)}`);
         }

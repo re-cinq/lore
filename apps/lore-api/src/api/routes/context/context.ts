@@ -67,6 +67,17 @@ async function joinedDocChunksWithinBudget(
   return parts.length > 0 ? parts.join(SEPARATOR) : null;
 }
 
+/** No-query path: repo chunks within budget, or null when repo/pool is missing. */
+async function joinedTextOrNull(
+  pool: Pool | null,
+  repo: string | undefined,
+  maxTokens: number,
+): Promise<string | null> {
+  return repo && pool
+    ? await joinedDocChunksWithinBudget(pool, repo, maxTokens)
+    : null;
+}
+
 /** Assembled context: text for agents, sections/trace for debug output only. */
 const AssembledContextSchema = z.object({
   text: z.string().nullable(),
@@ -100,25 +111,23 @@ export function contextRoute(getPool: () => Pool | null): ServerRoute {
 
       try {
         if (!(query && pool)) {
-          const text =
-            repo && pool
-              ? await joinedDocChunksWithinBudget(pool, repo, maxTokens)
-              : null;
-
-          return h.response({ text });
+          return h.response({
+            text: await joinedTextOrNull(pool, repo, maxTokens),
+          });
         }
 
+        const repoOrUndefined = repo || undefined;
         // Dgraph is optional; null when LORE_DGRAPH_HTTP is unset.
         const dgraph = createDgraphClient(process.env);
         const crossRepo = await resolveCrossRepo(
           pool,
-          repo || undefined,
+          repoOrUndefined,
           crossRepoRequested,
         );
         const result = await assembleContext(pool, query, {
           templateName: template,
           maxTokens,
-          repo: repo || undefined,
+          repo: repoOrUndefined,
           agentId,
           crossRepo,
           debug,

@@ -174,6 +174,16 @@ describe("POST /api/task", () => {
     expect(res.result).toEqual({ error: "Feedback is required" });
   });
 
+  it("returns 409 when revising with no feedback field at all", async () => {
+    const res = await post(
+      { action: "revise", task_id: "t1" },
+      poolWithTask("pr-created"),
+    );
+
+    expect(res.statusCode).toBe(409);
+    expect(res.result).toEqual({ error: "Feedback is required" });
+  });
+
   it("sets immediate priority", async () => {
     const pool = makePool();
 

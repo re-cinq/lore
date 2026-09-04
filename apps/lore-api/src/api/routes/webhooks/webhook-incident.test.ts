@@ -163,6 +163,36 @@ describe("POST /api/webhook/incident", () => {
     expect(res.statusCode).toBe(500);
   });
 
+  it("returns 500 with a generic message when the upsert rejects a non-Error", async () => {
+    const pool = makePool();
+
+    pool.query.mockRejectedValue("boom");
+    const res = await bearer({ repo: "o/r" }, pool);
+
+    expect(res.statusCode).toBe(500);
+    expect(res.result).toEqual({ error: "internal error" });
+  });
+
+  it("accepts a PagerDuty signature sent as a repeated header, using only the first value", async () => {
+    delete process.env.LORE_INCIDENT_WEBHOOK_TOKEN;
+    process.env.LORE_INCIDENT_WEBHOOK_SECRET = SECRET;
+    const pool = makePool();
+
+    pool.query.mockResolvedValue({});
+    const payload = JSON.stringify({ repo: "o/r" });
+    const res = await post(payload, {
+      pool,
+      headers: {
+        "x-pagerduty-signature": [
+          sign(payload),
+          "v1=bogus",
+        ] as unknown as string,
+      },
+    });
+
+    expect(res.result).toEqual({ ok: true, repo: "o/r" });
+  });
+
   it("upserts a direct-format incident", async () => {
     const pool = makePool();
 

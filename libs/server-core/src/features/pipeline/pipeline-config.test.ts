@@ -5,6 +5,7 @@ import {
   getTaskTypes,
   getDefaultRepo,
   buildPrompt,
+  getTaskTypeConfigForRepo,
 } from "./pipeline-config.js";
 import { join } from "node:path";
 
@@ -196,5 +197,68 @@ describe("getDefaultRepo", () => {
 
   it("falls back to re-cinq/lore for unknown types", () => {
     expect(getDefaultRepo("nonexistent")).toBe("re-cinq/lore");
+  });
+});
+
+describe("getTaskTypeConfigForRepo", () => {
+  beforeAll(() => {
+    const yamlPath = join(
+      import.meta.dirname,
+      "..",
+      "..",
+      "..",
+      "..",
+      "..",
+      "scripts",
+      "task-types.yaml",
+    );
+
+    process.env.TASK_TYPES_PATH = yamlPath;
+    loadTaskTypes();
+  });
+
+  it("returns base config unchanged when repoSettings is null", () => {
+    const cfg = getTaskTypeConfigForRepo("general", null);
+    const base = getTaskTypeConfig("general")!;
+
+    expect(cfg.prompt_template).toBe(base.prompt_template);
+    expect(cfg.timeout_minutes).toBe(base.timeout_minutes);
+  });
+
+  it("returns default base config for an unknown type with no repoSettings", () => {
+    const cfg = getTaskTypeConfigForRepo("nonexistent-type", undefined);
+
+    expect(cfg).toEqual({
+      prompt_template: "Complete the following task: {description}",
+      timeout_minutes: 30,
+      review_required: false,
+    });
+  });
+
+  it("applies a per-type override field on top of the base config", () => {
+    const cfg = getTaskTypeConfigForRepo("general", {
+      task_overrides: { general: { timeout_minutes: 99 } },
+    });
+
+    expect(cfg.timeout_minutes).toBe(99);
+  });
+
+  it("uses the override prompt_template when the repo sets one", () => {
+    const cfg = getTaskTypeConfigForRepo("general", {
+      task_overrides: {
+        general: { prompt_template: "Custom: {description}" },
+      },
+    });
+
+    expect(cfg.prompt_template).toBe("Custom: {description}");
+  });
+
+  it("keeps the base prompt_template when overrides omit it", () => {
+    const base = getTaskTypeConfig("general")!;
+    const cfg = getTaskTypeConfigForRepo("general", {
+      task_overrides: { general: { timeout_minutes: 5 } },
+    });
+
+    expect(cfg.prompt_template).toBe(base.prompt_template);
   });
 });

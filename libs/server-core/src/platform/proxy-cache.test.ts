@@ -108,6 +108,20 @@ describe("invalidate", () => {
     expect(readAny(policy({ repo: "owner/a" }))).toBeNull();
     expect(readAny(policy({ repo: "owner/b" }))?.body).toBe("b");
   });
+
+  it("is a no-op when the entries directory does not exist yet", () => {
+    expect(() => invalidate(["lore_search_memory"])).not.toThrow();
+  });
+
+  it("leaves non-.json files in the entries directory untouched", () => {
+    store(policy(), "s");
+    mkdirSync(join(dir, "entries"), { recursive: true });
+    writeFileSync(join(dir, "entries", "lore_search_memory.stray"), "junk");
+    invalidate(["lore_search_memory"]);
+    expect(existsSync(join(dir, "entries", "lore_search_memory.stray"))).toBe(
+      true,
+    );
+  });
 });
 
 describe("eviction", () => {

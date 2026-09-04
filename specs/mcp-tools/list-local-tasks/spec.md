@@ -37,7 +37,7 @@ The tool takes **no input** — the Zod shape is the empty object `{}`.
 ## Behavior
 
 1. Call `listLocalTasks()`
-   ([reader](../../../apps/mcp-server/src/features/pipeline/runner.local.ts#L601)):
+   ([reader](../../../apps/mcp-server/src/features/pipeline/runner.local.ts#L976)):
    read `~/.lore/local-tasks.json`; for every task whose `status === "running"`
    but whose PID is no longer alive (`process.kill(pid, 0)` throws), set
    `status = "failed"` and `error = "Process exited unexpectedly"`; persist if any
@@ -66,7 +66,7 @@ summary, or `"Error: {message}"`. **Never throws**.
 ## Acceptance Criteria
 
 `listPendingTasks` returns an array (empty when the backing file is absent).
-([validated by `listPendingTasks returns empty array when file is missing`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L142))
+([validated by `listPendingTasks returns empty array when file is missing`](apps/mcp-server/src/features/pipeline/runner.local.test.ts#L145))
 
 The live-PID reconciliation of `listLocalTasks` and the per-line formatting are
 exercised only end-to-end. *(untested: `listLocalTasks` reads

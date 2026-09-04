@@ -298,6 +298,25 @@ function poolDetailRoute(getPool: () => Pool | null): ServerRoute {
   };
 }
 
+function episodeFilter(source: string | undefined, agent: string | undefined) {
+  const conditions: string[] = [];
+  const params: unknown[] = [];
+
+  if (source?.trim()) {
+    params.push(source.trim());
+    conditions.push(`e.source = $${params.length}`);
+  }
+
+  if (agent?.trim()) {
+    params.push(agent.trim());
+    conditions.push(`e.agent_id = $${params.length}`);
+  }
+
+  const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+
+  return { where, params };
+}
+
 function listEpisodesRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "GET",
@@ -316,22 +335,7 @@ function listEpisodesRoute(getPool: () => Pool | null): ServerRoute {
       enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
       const { source, agent, limit, offset } =
         request.query as unknown as EpisodesQuery;
-
-      const conditions: string[] = [];
-      const params: unknown[] = [];
-
-      if (source?.trim()) {
-        params.push(source.trim());
-        conditions.push(`e.source = $${params.length}`);
-      }
-
-      if (agent?.trim()) {
-        params.push(agent.trim());
-        conditions.push(`e.agent_id = $${params.length}`);
-      }
-      const where = conditions.length
-        ? `WHERE ${conditions.join(" AND ")}`
-        : "";
+      const { where, params } = episodeFilter(source, agent);
 
       const { rows: countRows } = await pool.query<{ count: number }>(
         `SELECT count(*)::int as count FROM memory.episodes e ${where}`,

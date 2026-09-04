@@ -220,6 +220,14 @@ async function searchAction(
     : searchMemoryFile(body.query, body.agent_id, body.limit || 10);
 }
 
+async function deleteAction(
+  body: Extract<MemoryBody, { action: "delete" }>,
+): Promise<object> {
+  return isMemoryDbAvailable()
+    ? await deleteMemory(body.key, body.agent_id)
+    : deleteMemoryFile(body.key, body.agent_id);
+}
+
 async function listAction(
   body: Extract<MemoryBody, { action: "list" }>,
 ): Promise<object> {
@@ -267,11 +275,7 @@ export function memoryRoute(getPool: () => Pool | null): ServerRoute {
         }
 
         if (body.action === "delete") {
-          return h.response(
-            isMemoryDbAvailable()
-              ? await deleteMemory(body.key, body.agent_id)
-              : deleteMemoryFile(body.key, body.agent_id),
-          );
+          return h.response(await deleteAction(body));
         }
 
         return h.response(await listAction(body));

@@ -183,6 +183,22 @@ describe("PUT /api/repos/{owner}/{repo}/settings", () => {
     ).toBe(false);
   });
 
+  it("still saves when the team_changed event insert fails", async () => {
+    const pool = makePool();
+
+    pool.query
+      .mockResolvedValueOnce({
+        rows: [{ full_name: "re-cinq/lore", team: null }],
+      })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockRejectedValueOnce(new Error("events table down"));
+
+    const res = await put({ team: "platform" }, pool);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.result).toEqual({ ok: true });
+  });
+
   it("returns 400 for a dark_factory patch it cannot even parse", async () => {
     const pool = makePool();
 

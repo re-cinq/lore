@@ -69,6 +69,23 @@ describe("parseUsageReport", () => {
       },
     ]);
   });
+
+  it("defaults every optional field to empty string or zero when absent", () => {
+    const raw = {
+      data: [{ starting_at: "2025-08-01T00:00:00Z", results: [{}] }],
+    };
+
+    expect(parseUsageReport(raw)).toEqual([
+      {
+        date: "2025-08-01",
+        model: "",
+        inputTokens: 0,
+        outputTokens: 0,
+        cacheReadTokens: 0,
+        cacheCreationTokens: 0,
+      },
+    ]);
+  });
 });
 
 describe("mergeCostAndUsage", () => {

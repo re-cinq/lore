@@ -28,6 +28,56 @@ const TRACE_KINDS = new Set([
 // Union of all /trace/{kind} responses; one route, many contract shapes.
 const TraceReadSchema = z.record(z.unknown());
 
+type ProjectResult = Awaited<ReturnType<typeof projectFor>>;
+type Trace = ProjectResult["trace"];
+
+// lore.features is source of truth for Feature nodes (ADR-027); tolerate 42P01.
+async function graphWithFeatures(trace: Trace, project: ProjectResult) {
+  const [graph, features] = await Promise.all([
+    trace.graph(),
+    project.features.list().catch((err) => {
+      if ((err as { code?: string }).code === "42P01") {
+        return [];
+      }
+      throw err;
+    }),
+  ]);
+
+  return mergePersistentFeatures(
+    graph,
+    features.map((f) => ({
+      id: f.id,
+      title: f.title,
+      path: f.path,
+      status: f.status,
+    })),
+  );
+}
+
+// Kinds answerable without a ?path=; each handler shapes its own response body.
+const NO_PATH_KINDS: Record<
+  string,
+  (trace: Trace, project: ProjectResult) => Promise<object>
+> = {
+  specs: async (trace) => ({ specs: await trace.specs() }),
+  "spec-summaries": async (trace) => ({
+    summaries: await trace.specSummaries(),
+  }),
+  adrs: async (trace) => ({ adrs: await trace.adrs() }),
+  "adr-summaries": async (trace) => ({ summaries: await trace.adrSummaries() }),
+  graph: graphWithFeatures,
+};
+
+// Kinds gated behind the ?path= required-query check below.
+const PATH_KINDS: Record<
+  string,
+  (trace: Trace, filePath: string) => Promise<object>
+> = {
+  document: (trace, filePath) => trace.document(filePath),
+  ring: (trace, filePath) => trace.ring(filePath),
+  source: async (trace, filePath) => ({ source: await trace.source(filePath) }),
+};
+
 export function traceRoute(): ServerRoute {
   return {
     method: "GET",
@@ -51,65 +101,19 @@ export function traceRoute(): ServerRoute {
       const { path: filePath = "" } = request.query as TraceQuery;
 
       try {
-        const trace = (
-          await projectFor(`${request.params.owner}/${request.params.repo}`)
-        ).trace;
+        const project = await projectFor(
+          `${request.params.owner}/${request.params.repo}`,
+        );
+        const trace = project.trace;
+        const noPathHandler = NO_PATH_KINDS[kind];
 
-        if (kind === "specs") {
-          return h.response({ specs: await trace.specs() });
-        }
-
-        if (kind === "spec-summaries") {
-          return h.response({ summaries: await trace.specSummaries() });
-        }
-
-        if (kind === "adrs") {
-          return h.response({ adrs: await trace.adrs() });
-        }
-
-        if (kind === "adr-summaries") {
-          return h.response({ summaries: await trace.adrSummaries() });
-        }
-
-        if (kind === "graph") {
-          // lore.features is source of truth for Feature nodes (ADR-027); tolerate 42P01.
-          const project = await projectFor(
-            `${request.params.owner}/${request.params.repo}`,
-          );
-          const [graph, features] = await Promise.all([
-            trace.graph(),
-            project.features.list().catch((err) => {
-              if ((err as { code?: string }).code === "42P01") {
-                return [];
-              }
-              throw err;
-            }),
-          ]);
-
-          return h.response(
-            mergePersistentFeatures(
-              graph,
-              features.map((f) => ({
-                id: f.id,
-                title: f.title,
-                path: f.path,
-                status: f.status,
-              })),
-            ),
-          );
+        if (noPathHandler) {
+          return h.response(await noPathHandler(trace, project));
         }
 
         enforceTrue(filePath, apiError(400), "path query param required");
 
-        if (kind === "document") {
-          return h.response(await trace.document(filePath));
-        }
-
-        if (kind === "ring") {
-          return h.response(await trace.ring(filePath));
-        }
-
-        return h.response({ source: await trace.source(filePath) });
+        return h.response(await PATH_KINDS[kind](trace, filePath));
       } catch (err) {
         // Guard's refusal carries its status; only unexpected failure needs shaping.
         rethrowBoom(err);

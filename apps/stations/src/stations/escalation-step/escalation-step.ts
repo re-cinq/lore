@@ -67,34 +67,59 @@ async function fileIssue(
   return failed(`could not open the issue: ${lastError}`);
 }
 
+interface FiledIssue {
+  url: string | undefined;
+  number: string;
+}
+
+// The number is the filed sentinel, not the url: a filed Issue always has a number while the url is optional — keying on the url would audit a real Issue as audit_only.
+function filedIssue(deps: EscalationStepDeps): FiledIssue | undefined {
+  const issueNumber = deps.params?.issue_number;
+
+  return issueNumber
+    ? { url: deps.params?.issue_url, number: issueNumber }
+    : undefined;
+}
+
+function escalationAuditPayload(
+  input: EscalateInput,
+  issue: FiledIssue | undefined,
+): Record<string, unknown> {
+  return {
+    branch_name: input.branchName,
+    reason: input.reason,
+    outcome: issue ? "issue_created" : "audit_only",
+    ...(issue ? { issue_number: issue.number } : {}),
+    ...(issue?.url ? { issue_url: issue.url } : {}),
+  };
+}
+
+function escalationMessage(
+  input: EscalateInput,
+  issue: FiledIssue | undefined,
+): string {
+  if (!issue) {
+    // No Issue to read, so the message IS the escalation: the same rendered body the Issue would have carried, not a bare diagnostic string.
+    return `🚨 Lore needs human help (${input.reason}) on ${input.branchName} — Issue creation failed.\n\n${renderEscalationBody(input)}`;
+  }
+
+  return `🚨 Lore needs human help (${input.reason}) — ${issue.url ?? `issue #${issue.number}`}`;
+}
+
 async function notify(
   input: EscalateInput,
   deps: EscalationStepDeps,
 ): Promise<NodeResult> {
-  const issueUrl = deps.params?.issue_url;
-  const issueNumber = deps.params?.issue_number;
-  // The number is the filed sentinel, not the url: a filed Issue always has a number while the url is optional — keying on the url would audit a real Issue as audit_only.
-  const filed = Boolean(issueNumber);
+  const issue = filedIssue(deps);
 
   await deps.writeAudit({
     event_type: "escalation_issued",
     task_id: input.taskId,
     repo: input.repo,
-    payload: {
-      branch_name: input.branchName,
-      reason: input.reason,
-      outcome: filed ? "issue_created" : "audit_only",
-      ...(filed ? { issue_number: issueNumber } : {}),
-      ...(filed && issueUrl ? { issue_url: issueUrl } : {}),
-    },
+    payload: escalationAuditPayload(input, issue),
   });
 
-  await deps.notify(
-    filed
-      ? `🚨 Lore needs human help (${input.reason}) — ${issueUrl ?? `issue #${issueNumber}`}`
-      : // No Issue to read, so the message IS the escalation: the same rendered body the Issue would have carried, not a bare diagnostic string.
-        `🚨 Lore needs human help (${input.reason}) on ${input.branchName} — Issue creation failed.\n\n${renderEscalationBody(input)}`,
-  );
+  await deps.notify(escalationMessage(input, issue));
 
   return { outcome: "success" };
 }

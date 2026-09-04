@@ -74,6 +74,21 @@ describe("stationNodeOutcome", () => {
     });
   });
 
+  it("leaves failureDetail unset on a failed outcome carrying no Lore-Validation-Failed extra (nothing to lift)", () => {
+    const status: AgentNodeStatus = {
+      phase: "Succeeded",
+      output: resultLine({
+        outcome: "failed",
+        extras: { "Lore-Detect-Summary": "3 specs ok" },
+      }),
+    };
+
+    expect(stationNodeOutcome(detectNode, status)).toEqual({
+      outcome: "failed",
+      extras: { "Lore-Detect-Summary": "3 specs ok" },
+    });
+  });
+
   it("carries the failing commands' output into the detail when the station sent it (the agent sent back to fix the code reads this: 'lint' says where, the compiler's words say what)", () => {
     const status: AgentNodeStatus = {
       phase: "Succeeded",

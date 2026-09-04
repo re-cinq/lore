@@ -112,3 +112,23 @@ describe("importanceDecay — facts", () => {
     });
   });
 });
+
+describe("importanceDecay — stale-transition failure is non-fatal", () => {
+  class FailingStaleTransition extends InMemoryMemoryLifecycle {
+    override async transitionStaleFacts(): Promise<number> {
+      throw new Error("stale transition boom");
+    }
+  }
+
+  it("still reports the memory eviction when transitioning stale facts throws", async () => {
+    const store = new FailingStaleTransition({
+      memories: agedMemories("agent-1", MAX_MEMORIES_PER_AGENT + 2),
+    });
+
+    const summary = await importanceDecay(store);
+
+    expect(summary).toBe(
+      "Evicted 2 memories, 0 old facts, 0 stale transitions",
+    );
+  });
+});

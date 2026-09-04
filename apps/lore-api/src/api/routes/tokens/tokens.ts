@@ -68,7 +68,30 @@ const TokenWriteSchema = z.union([
   }),
 ]);
 
-/** GET lists, POST writes (separate shapes); wildcard 405 fallback (validation skipped). */
+const VALID_TOKEN_SCOPES: TokenScope[] = [
+  "read",
+  "write",
+  "task",
+  "webhook",
+  "admin",
+];
+
+function isTokenScope(scope: string): scope is TokenScope {
+  return VALID_TOKEN_SCOPES.includes(scope as TokenScope);
+}
+
+function resolveScopes(scopes: string[] | undefined): TokenScope[] {
+  return (scopes || ["read"]).filter(isTokenScope);
+}
+
+function expiryIso(expiresInDays: number | undefined): string | null {
+  if (!expiresInDays) {
+    return null;
+  }
+
+  return new Date(Date.now() + expiresInDays * 86400000).toISOString();
+}
+
 /** GET lists, POST writes (separate shapes); wildcard 405 fallback (validation skipped). */
 export function tokensRoute(getPool: () => Pool | null): ServerRoute[] {
   const listOptions = zodResponse(
@@ -113,18 +136,18 @@ export function tokensRoute(getPool: () => Pool | null): ServerRoute[] {
   ];
 }
 
-/** A page of active tokens. The hash is never selected, let alone served. */
 async function listTokens(
   pool: Pool | null,
   request: Request,
   h: ResponseToolkit,
 ) {
   enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
+  // List active tokens (never return the actual token)
   const { limit, offset } = request.query as unknown as TokensQuery;
   const { rows } = await pool.query(
     `SELECT id, name, scopes, created_by, expires_at, last_used, created_at
-         FROM pipeline.api_tokens WHERE revoked_at IS NULL ORDER BY created_at DESC
-         LIMIT $1 OFFSET $2`,
+       FROM pipeline.api_tokens WHERE revoked_at IS NULL ORDER BY created_at DESC
+       LIMIT $1 OFFSET $2`,
     [limit, offset],
   );
   const { rows: countRows } = await pool.query(
@@ -139,6 +162,45 @@ async function listTokens(
   });
 }
 
+async function revokeToken(pool: Pool, h: ResponseToolkit, tokenId: string) {
+  await pool.query(
+    `UPDATE pipeline.api_tokens SET revoked_at = now() WHERE id = $1`,
+    [tokenId],
+  );
+
+  return h.response({ ok: true });
+}
+
+async function createToken(
+  pool: Pool,
+  h: ResponseToolkit,
+  body: TokensPostBody,
+) {
+  enforceTrue(body.name, apiError(400), "name required");
+  const { randomBytes } = await import("node:crypto");
+  const rawToken = `lore_${randomBytes(32).toString("hex")}`;
+  const tokenHash = createHash("sha256").update(rawToken).digest("hex");
+  const resolvedScopes = resolveScopes(body.scopes);
+  const expiresAt = expiryIso(body.expires_in_days);
+
+  const { rows } = await pool.query(
+    `INSERT INTO pipeline.api_tokens (name, token_hash, scopes, created_by, expires_at)
+       VALUES ($1, $2, $3, $4, $5) RETURNING id, name, scopes, created_at`,
+    [body.name, tokenHash, resolvedScopes, "admin", expiresAt],
+  );
+
+  // Return the raw token ONCE — it cannot be retrieved again
+  return h
+    .response({ ...rows[0], token: rawToken, expires_at: expiresAt })
+    .code(201);
+}
+
+function isRevoke(body: TokensPostBody): body is TokensPostBody & {
+  token_id: string;
+} {
+  return body.action === "revoke" && Boolean(body.token_id);
+}
+
 async function writeToken(
   pool: Pool | null,
   request: Request,
@@ -149,56 +211,15 @@ async function writeToken(
   try {
     const body = (request.payload ?? {}) as TokensPostBody;
 
-    if (body.action === "revoke" && body.token_id) {
-      await pool.query(
-        `UPDATE pipeline.api_tokens SET revoked_at = now() WHERE id = $1`,
-        [body.token_id],
-      );
-
-      return h.response({ ok: true });
+    if (isRevoke(body)) {
+      return revokeToken(pool, h, body.token_id);
     }
 
-    return await createToken(pool, body, h);
+    return await createToken(pool, h, body);
   } catch (err) {
     // Guard refusals carry their status; shape only unexpected failures.
     rethrowBoom(err);
 
     return h.response({ error: errorMessage(err) }).code(500);
   }
-}
-
-/** Mints a token and answers with it ONCE — only its hash is stored, so it cannot be served again. */
-async function createToken(
-  pool: Pool,
-  body: TokensPostBody,
-  h: ResponseToolkit,
-) {
-  const { name, scopes, expires_in_days } = body;
-
-  enforceTrue(name, apiError(400), "name required");
-  const { randomBytes } = await import("node:crypto");
-  const rawToken = `lore_${randomBytes(32).toString("hex")}`;
-  const tokenHash = createHash("sha256").update(rawToken).digest("hex");
-  const validScopes: TokenScope[] = [
-    "read",
-    "write",
-    "task",
-    "webhook",
-    "admin",
-  ];
-  const resolvedScopes = (scopes || ["read"]).filter((s: string) =>
-    validScopes.includes(s as TokenScope),
-  );
-  const expiresAt = expires_in_days
-    ? new Date(Date.now() + expires_in_days * 86400000).toISOString()
-    : null;
-  const { rows } = await pool.query(
-    `INSERT INTO pipeline.api_tokens (name, token_hash, scopes, created_by, expires_at)
-           VALUES ($1, $2, $3, $4, $5) RETURNING id, name, scopes, created_at`,
-    [name, tokenHash, resolvedScopes, "admin", expiresAt],
-  );
-
-  return h
-    .response({ ...rows[0], token: rawToken, expires_at: expiresAt })
-    .code(201);
 }

@@ -15,6 +15,18 @@ export type EnsureFloorWebhookResult =
   | { ok: true; hookId: number; created: boolean }
   | { ok: false; reason: WebhookSkipReason; detail?: string };
 
+function classifyEnsureFailure(err: unknown): EnsureFloorWebhookResult {
+  if ((err as { status?: number })?.status === 403) {
+    return { ok: false, reason: "app_no_webhook_permission" };
+  }
+
+  return {
+    ok: false,
+    reason: "ensure_failed",
+    detail: errorMessage(err) || String(err),
+  };
+}
+
 export async function ensureFloorWebhook(
   repo: string,
 ): Promise<EnsureFloorWebhookResult> {
@@ -36,14 +48,6 @@ export async function ensureFloorWebhook(
 
     return { ok: true, hookId, created };
   } catch (err) {
-    if ((err as { status?: number })?.status === 403) {
-      return { ok: false, reason: "app_no_webhook_permission" };
-    }
-
-    return {
-      ok: false,
-      reason: "ensure_failed",
-      detail: errorMessage(err) || String(err),
-    };
+    return classifyEnsureFailure(err);
   }
 }

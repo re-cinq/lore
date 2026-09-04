@@ -2,7 +2,7 @@ import { enforceTrue } from "@re-cinq/lore-shared/lib/enforce.js";
 import { apiError } from "../../../server/api-error.js";
 import { zodResponse } from "../../../server/plugins/zod-response.js";
 import type { Pool } from "pg";
-import type { Request, ServerRoute } from "@hapi/hapi";
+import type { Request, ResponseToolkit, ServerRoute } from "@hapi/hapi";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { z } from "zod";
 import { formatZodError } from "../../../server/plugins/zod-validate.js";
@@ -114,22 +114,31 @@ interface IncidentCandidate {
   url: string | null;
 }
 
+// ISO `date` field, else `now` (validated as ISO clamped to now downstream).
+function incidentDate(incident: Record<string, unknown>, now: number): string {
+  return typeof incident.date === "string"
+    ? incident.date
+    : new Date(now).toISOString();
+}
+
+// `url` direct, else PagerDuty's `html_url`.
+function incidentUrl(incident: Record<string, unknown>): string | null {
+  const url = incident.url ?? incident.html_url;
+
+  return typeof url === "string" ? url : null;
+}
+
 // Maps PagerDuty/Opsgenie/direct field names onto the canonical incident shape.
 function buildIncidentCandidate(
   incident: Record<string, unknown>,
   now: number,
 ): IncidentCandidate {
-  const url = incident.url ?? incident.html_url;
-
   return {
     title: asString(incident.title ?? incident.summary, "Unknown incident"),
     severity: asString(incident.severity ?? incident.urgency, "unknown"),
-    date:
-      typeof incident.date === "string"
-        ? incident.date
-        : new Date(now).toISOString(),
+    date: incidentDate(incident, now),
     resolved: Boolean(incident.resolved ?? incident.status === "resolved"),
-    url: typeof url === "string" ? url : null,
+    url: incidentUrl(incident),
   };
 }
 
@@ -166,6 +175,62 @@ export function parseIncident(
   };
 }
 
+function firstHeaderValue(
+  header: string | string[] | undefined,
+): string | undefined {
+  return Array.isArray(header) ? header[0] : header;
+}
+
+// True when the caller presented either a valid PagerDuty HMAC signature or a matching bearer/query token.
+function credentialsPresented(
+  request: Request,
+  secret: string | undefined,
+  token: string | undefined,
+  body: string,
+): boolean {
+  const signature = firstHeaderValue(request.headers["x-pagerduty-signature"]);
+  const signatureOk =
+    !!secret && verifyPagerDutySignature(secret, signature, body);
+  const presented = presentedToken(request);
+  const tokenOk = !!token && !!presented && safeEqual(presented, token);
+
+  return signatureOk || tokenOk;
+}
+
+// Upserts the parsed incident onto the repo's FIFO-capped settings list.
+async function upsertIncident(
+  pool: Pool,
+  result: { repo: string; entry: IncidentEntry },
+  h: ResponseToolkit,
+) {
+  try {
+    await pool.query(
+      `UPDATE lore.repos
+             SET settings = jsonb_set(
+               COALESCE(settings, '{}'),
+               '{incidents}',
+               (SELECT jsonb_agg(elem) FROM (
+                 SELECT elem FROM jsonb_array_elements(
+                   COALESCE(settings->'incidents', '[]') || $2::jsonb
+                 ) AS elem
+                 ORDER BY elem->>'date' DESC
+                 LIMIT 10
+               ) sub)
+             )
+             WHERE full_name = $1`,
+      [result.repo, JSON.stringify(result.entry)],
+    );
+
+    return h.response({ ok: true, repo: result.repo });
+  } catch (err) {
+    return h
+      .response({
+        error: err instanceof Error ? err.message : "internal error",
+      })
+      .code(500);
+  }
+}
+
 export function incidentWebhookRoute(getPool: () => Pool | null): ServerRoute {
   return {
     method: "POST",
@@ -190,14 +255,12 @@ export function incidentWebhookRoute(getPool: () => Pool | null): ServerRoute {
       );
 
       const body = rawBody(request);
-      const sigHeader = request.headers["x-pagerduty-signature"];
-      const signature = Array.isArray(sigHeader) ? sigHeader[0] : sigHeader;
-      const signatureOk =
-        !!secret && verifyPagerDutySignature(secret, signature, body);
-      const presented = presentedToken(request);
-      const tokenOk = !!token && !!presented && safeEqual(presented, token);
 
-      enforceTrue(signatureOk || tokenOk, apiError(401), "unauthorized");
+      enforceTrue(
+        credentialsPresented(request, secret, token, body),
+        apiError(401),
+        "unauthorized",
+      );
 
       const result = parseIncident(body, Date.now());
 
@@ -210,32 +273,7 @@ export function incidentWebhookRoute(getPool: () => Pool | null): ServerRoute {
 
       enforceTrue(pool, apiError(503), "database unavailable");
 
-      try {
-        await pool.query(
-          `UPDATE lore.repos
-             SET settings = jsonb_set(
-               COALESCE(settings, '{}'),
-               '{incidents}',
-               (SELECT jsonb_agg(elem) FROM (
-                 SELECT elem FROM jsonb_array_elements(
-                   COALESCE(settings->'incidents', '[]') || $2::jsonb
-                 ) AS elem
-                 ORDER BY elem->>'date' DESC
-                 LIMIT 10
-               ) sub)
-             )
-             WHERE full_name = $1`,
-          [result.repo, JSON.stringify(result.entry)],
-        );
-
-        return h.response({ ok: true, repo: result.repo });
-      } catch (err) {
-        return h
-          .response({
-            error: err instanceof Error ? err.message : "internal error",
-          })
-          .code(500);
-      }
+      return upsertIncident(pool, result, h);
     },
   };
 }

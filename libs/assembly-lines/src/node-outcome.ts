@@ -1,6 +1,7 @@
 // Station contract's outcome parsing (ADR-031 D4/D9): maps a terminal Agent CR status to the node outcome the transition replay routes on. Precedence on Succeeded: LORE_NODE_RESULT → REVIEW_RESULT → success; a CR phase of Failed is a distinct infrastructure failure.
 
 import { classifyError } from "@re-cinq/lore-shared/error-classify.js";
+import type { FailureCategory } from "@re-cinq/lore-shared/error-classify.js";
 import type { NodeResult, StageOutcome } from "./node-types.js";
 
 // The slice of an Agent's status the outcome mapping reacts to.
@@ -41,16 +42,32 @@ function lastNodeResultPayload(output?: string): string | null {
   return matches.length ? matches[matches.length - 1][1].trim() : null;
 }
 
-function nodeResultFromPayload(payload: string): NodeResult | null {
-  // The bare word is legacy but LIVE: a deployed recipe instructs exactly it; rejecting it turned a station's objection into a silent success (#1469).
-  if (OUTCOMES.has(payload as StageOutcome)) {
-    return { outcome: payload as StageOutcome, extras: {} };
-  }
-  let parsed: unknown;
-
+function parseJsonPayload(payload: string): unknown {
   try {
-    parsed = JSON.parse(payload);
+    return JSON.parse(payload);
   } catch {
+    return undefined;
+  }
+}
+
+function stringExtrasOf(
+  extras: Record<string, unknown> | undefined,
+): Record<string, string> {
+  const stringExtras: Record<string, string> = {};
+
+  for (const [key, value] of Object.entries(extras ?? {})) {
+    if (typeof value === "string") {
+      stringExtras[key] = value;
+    }
+  }
+
+  return stringExtras;
+}
+
+function nodeResultFromJson(payload: string): NodeResult | null {
+  const parsed = parseJsonPayload(payload);
+
+  if (parsed === undefined) {
     return null;
   }
   const { outcome, extras } = parsed as {
@@ -61,15 +78,17 @@ function nodeResultFromPayload(payload: string): NodeResult | null {
   if (!OUTCOMES.has(outcome as StageOutcome)) {
     return null;
   }
-  const stringExtras: Record<string, string> = {};
 
-  for (const [key, value] of Object.entries(extras ?? {})) {
-    if (typeof value === "string") {
-      stringExtras[key] = value;
-    }
+  return { outcome: outcome as StageOutcome, extras: stringExtrasOf(extras) };
+}
+
+function nodeResultFromPayload(payload: string): NodeResult | null {
+  // The bare word is legacy but LIVE: a deployed recipe instructs exactly it; rejecting it turned a station's objection into a silent success (#1469).
+  if (OUTCOMES.has(payload as StageOutcome)) {
+    return { outcome: payload as StageOutcome, extras: {} };
   }
 
-  return { outcome: outcome as StageOutcome, extras: stringExtras };
+  return nodeResultFromJson(payload);
 }
 
 // Station contract's terminal line (LORE_NODE_RESULT JSON or legacy bare word); null on absence or malformation — see malformedNodeResultLine, which is how the node fails instead.
@@ -98,23 +117,81 @@ export interface NodeKind {
   type: string;
 }
 
+function liftedValidationDetail(stationResult: NodeResult): string | null {
+  const failedSuites = stationResult.extras?.["Lore-Validation-Failed"];
+
+  if (!failedSuites) {
+    return null;
+  }
+  const failureOutput = stationResult.extras?.["Lore-Validation-Output"];
+
+  return failureOutput
+    ? `validation failed: ${failedSuites}\n\n${failureOutput}`
+    : `validation failed: ${failedSuites}`;
+}
+
 // The validate station reports dead suites only via extras; lift that into failureDetail (with the commands' own output when sent) so the terminal reason names it — "lint,build failed" says where, the output says what to fix.
 function withValidationFailureDetail(stationResult: NodeResult): NodeResult {
-  const failedSuites = stationResult.extras?.["Lore-Validation-Failed"];
-  const failureOutput = stationResult.extras?.["Lore-Validation-Output"];
-  const needsLiftedDetail =
-    stationResult.outcome === "failed" && !stationResult.failureDetail;
+  if (stationResult.outcome !== "failed" || stationResult.failureDetail) {
+    return stationResult;
+  }
+  const failureDetail = liftedValidationDetail(stationResult);
 
-  if (needsLiftedDetail && failedSuites) {
-    return {
-      ...stationResult,
-      failureDetail: failureOutput
-        ? `validation failed: ${failedSuites}\n\n${failureOutput}`
-        : `validation failed: ${failedSuites}`,
-    };
+  return failureDetail ? { ...stationResult, failureDetail } : stationResult;
+}
+
+// A terminal, classified infrastructure failure — the CR-Failed and unparseable-marker cases share this exact shape.
+function infraFailureResult(
+  node: NodeKind,
+  detail: string,
+  failureClass: FailureCategory,
+): NodeResult {
+  return {
+    outcome: "failed",
+    failureClass,
+    failureDetail: detail,
+    extras: {
+      "Lore-Validation-Status": `${failureKind(node)}-failed`,
+      "Lore-Validation-Summary": detail,
+    },
+  };
+}
+
+// Precedence: agent's own last words first, Job-level reason only when it never spoke. `||` not `??`: an EMPTY error string must not win over the Job-level reason — "said nothing" is not "spoke".
+function failedPhaseDetail(node: NodeKind, status: AgentNodeStatus): string {
+  return (
+    status.errorText ||
+    status.failureReason ||
+    `${failureKind(node)} run failed`
+  ).substring(0, 300);
+}
+
+// Spoken but misheard: falling through to the default made an agent's objection a `success`, skipping the human decision point its edge exists for (#1469).
+function stationOutputOutcome(
+  node: NodeKind,
+  output: string | undefined,
+): NodeResult {
+  const stationResult = parseNodeResult(output);
+
+  if (stationResult) {
+    return withValidationFailureDetail(stationResult);
   }
 
-  return stationResult;
+  const malformed = malformedNodeResultLine(output);
+
+  if (malformed) {
+    const detail = `unparseable LORE_NODE_RESULT line: ${malformed}`.substring(
+      0,
+      300,
+    );
+
+    // Not a classified infrastructure failure: a recipe/contract bug, and `unknown` never trips the account-wide dispatch gate.
+    return infraFailureResult(node, detail, "unknown");
+  }
+
+  return parseReviewVerdict(output) === "changes_requested"
+    ? { outcome: "changes_requested" }
+    : { outcome: "success" };
 }
 
 // Maps a terminal Agent status to the node outcome (precedence above); mirrored by PRODUCIBLE_OUTCOMES in loader.ts — keep both in sync when adding an outcome.
@@ -123,53 +200,10 @@ export function stationNodeOutcome(
   status: AgentNodeStatus,
 ): NodeResult {
   if (status.phase === "Failed") {
-    // Precedence: agent's own last words first, Job-level reason only when it never spoke (reading failureReason first classified every death as BackoffLimitExceeded, e.g. a dry Anthropic account). `||` not `??`: an EMPTY error string must not win over the Job-level reason — "said nothing" is not "spoke".
-    const detail = (
-      status.errorText ||
-      status.failureReason ||
-      `${failureKind(node)} run failed`
-    ).substring(0, 300);
+    const detail = failedPhaseDetail(node, status);
 
-    return {
-      outcome: "failed",
-      failureClass: classifyError(detail).category,
-      failureDetail: detail,
-      extras: {
-        "Lore-Validation-Status": `${failureKind(node)}-failed`,
-        "Lore-Validation-Summary": detail,
-      },
-    };
-  }
-  const stationResult = parseNodeResult(status.output);
-
-  if (stationResult) {
-    return withValidationFailureDetail(stationResult);
+    return infraFailureResult(node, detail, classifyError(detail).category);
   }
 
-  // Spoken but misheard: falling through to the default made an agent's objection a `success`, skipping the human decision point its edge exists for (#1469).
-  const malformed = malformedNodeResultLine(status.output);
-
-  if (malformed) {
-    const detail = `unparseable LORE_NODE_RESULT line: ${malformed}`.substring(
-      0,
-      300,
-    );
-
-    return {
-      outcome: "failed",
-      // Not a classified infrastructure failure: a recipe/contract bug, and `unknown` never trips the account-wide dispatch gate.
-      failureClass: "unknown",
-      failureDetail: detail,
-      extras: {
-        "Lore-Validation-Status": `${failureKind(node)}-failed`,
-        "Lore-Validation-Summary": detail,
-      },
-    };
-  }
-
-  if (parseReviewVerdict(status.output) === "changes_requested") {
-    return { outcome: "changes_requested" };
-  }
-
-  return { outcome: "success" };
+  return stationOutputOutcome(node, status.output);
 }
