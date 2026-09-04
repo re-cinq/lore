@@ -192,174 +192,196 @@ export function assemblyLineRoutes(
     runs ?? new PgAssemblyRuns(pool);
 
   return withLegacyAlias([
-    {
-      method: "GET",
-      path: "/api/assembly-runs",
-      options: zodResponse(
-        {
-          ...bearerScope("read"),
-          validate: { query: zodValidate(RunsQuery) },
-        },
-        RunListSchema,
-        {
-          name: "AssemblyRunList",
-          description: "A page of runs, newest first",
-        },
-      ),
-      handler: async (request, h) => {
-        const pool = getPool();
+    listRunsRoute(getPool, portFor),
+    runNodesRoute(getPool, portFor),
+    runTokenUsageRoute(getPool),
+    // runDetailRoute stays OUTSIDE the alias: it is already spelled the legacy way, and aliasing it to itself makes hapi reject the duplicate route.
+  ]).concat([runDetailRoute(getPool, portFor)]);
+}
 
-        enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
-        const {
-          status,
-          repo,
-          blueprint,
-          task_id,
-          subject_key,
-          cluster_agent_id,
-          limit,
-        } = request.query as unknown as RunsQuery;
-        const port = portFor(pool);
-
-        try {
-          // A task-centric caller draws the run it gets back (needs the clone); a browse page renders tables that never touch it.
-          const selected = task_id
-            ? await port.list({ taskId: task_id, limit })
-            : await port.listSummaries({
-                repo,
-                blueprintName: blueprint,
-                status: status ? [status as AssemblyRunStatus] : undefined,
-                subjectKey: subject_key,
-                clusterAgentId: cluster_agent_id,
-                limit,
-              });
-          const enrichment = await enrichmentById(pool, selected);
-
-          return h.response({
-            runs: selected.map((run) =>
-              toRunRow(run, enrichment.get(run.id), task_id !== undefined),
-            ),
-          });
-        } catch (err) {
-          if (missingTable(err)) {
-            return h.response({ runs: [] });
-          }
-
-          throw err;
-        }
+function listRunsRoute(
+  getPool: () => Pool | null,
+  portFor: (pool: Pool) => AssemblyRunsPort,
+): ServerRoute {
+  return {
+    method: "GET",
+    path: "/api/assembly-runs",
+    options: zodResponse(
+      {
+        ...bearerScope("read"),
+        validate: { query: zodValidate(RunsQuery) },
       },
-    },
-
-    {
-      method: "GET",
-      path: "/api/assembly-runs/{id}/nodes",
-      options: zodResponse(bearerScope("read"), StationRunListSchema, {
-        name: "StationRunList",
-        description: "The run's station visits, in visit order",
-      }),
-      handler: async (request, h) => {
-        const pool = getPool();
-
-        enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
-
-        try {
-          const visits = await portFor(pool).listStationRuns(request.params.id);
-
-          return h.response({
-            nodes: visits.map((visit) => ({
-              node_id: visit.nodeId,
-              station_run_id: visit.stationRunId,
-              iteration: visit.iteration,
-              outcome: visit.outcome,
-              agent_cr_name: visit.agentCrName,
-              input: visit.input,
-              commit_sha: visit.commitSha,
-              started_at: visit.startedAt.toISOString(),
-              finished_at: visit.finishedAt?.toISOString() ?? null,
-            })),
-          });
-        } catch (err) {
-          if (missingTable(err)) {
-            return h.response({ nodes: [] });
-          }
-
-          throw err;
-        }
+      RunListSchema,
+      {
+        name: "AssemblyRunList",
+        description: "A page of runs, newest first",
       },
-    },
+    ),
+    handler: async (request, h) => {
+      const pool = getPool();
 
-    {
-      method: "GET",
-      path: "/api/assembly-runs/{id}/token-usage",
-      options: zodResponse(bearerScope("read"), TokenUsageSchema, {
-        name: "AssemblyRunTokenUsage",
-        description: "Tokens spent so far on the run",
-      }),
-      handler: async (request, h) => {
-        const pool = getPool();
+      enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
+      const {
+        status,
+        repo,
+        blueprint,
+        task_id,
+        subject_key,
+        cluster_agent_id,
+        limit,
+      } = request.query as unknown as RunsQuery;
+      const port = portFor(pool);
 
-        enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
+      try {
+        // A task-centric caller draws the run it gets back (needs the clone); a browse page renders tables that never touch it.
+        const selected = task_id
+          ? await port.list({ taskId: task_id, limit })
+          : await port.listSummaries({
+              repo,
+              blueprintName: blueprint,
+              status: status ? [status as AssemblyRunStatus] : undefined,
+              subjectKey: subject_key,
+              clusterAgentId: cluster_agent_id,
+              limit,
+            });
+        const enrichment = await enrichmentById(pool, selected);
 
-        // pipeline.agent_run_turns, NOT llm_calls: the cost table only lands a row when the run ENDS, but turns arrive while the pod streams — the only source that can answer "so far".
-        try {
-          const { rows } = await pool.query(
-            `SELECT
-               COALESCE(SUM((usage->>'input_tokens')::bigint), 0)::int AS input_tokens,
-               COALESCE(SUM((usage->>'output_tokens')::bigint), 0)::int AS output_tokens,
-               COALESCE(SUM((usage->>'cache_creation_input_tokens')::bigint), 0)::int
-                 AS cache_creation_tokens,
-               COALESCE(SUM((usage->>'cache_read_input_tokens')::bigint), 0)::int
-                 AS cache_read_tokens
-             FROM (
-               SELECT envelope->'event'->'message'->'usage' AS usage
-                 FROM pipeline.agent_run_turns
-                WHERE assembly_line_id = $1
-                  AND envelope->'event'->'message' ? 'usage'
-             ) turns`,
-            [request.params.id],
-          );
-
-          return h.response({ usage: rows[0] ?? null });
-        } catch (err) {
-          if (missingTable(err)) {
-            return h.response({ usage: null });
-          }
-
-          throw err;
+        return h.response({
+          runs: selected.map((run) =>
+            toRunRow(run, enrichment.get(run.id), task_id !== undefined),
+          ),
+        });
+      } catch (err) {
+        if (missingTable(err)) {
+          return h.response({ runs: [] });
         }
-      },
+
+        throw err;
+      }
     },
-  ]).concat([
-    // FLAT by-id read, served ONLY under the legacy spelling now (canonical /api/assembly-runs/{id} serves the enriched shape from run-read.ts); DELETE with the aliases (#1347 PR3). Registered OUTSIDE withLegacyAlias deliberately — aliasing it to itself would make hapi reject the duplicate route.
-    {
-      method: "GET",
-      path: "/api/assembly-lines/{id}",
-      options: zodResponse(bearerScope("read"), RunRowSchema, {
-        name: "AssemblyRunDetail",
-        description: "One run, carrying the blueprint clone it walked",
-        errors: [404],
-      }),
-      handler: async (request, h) => {
-        const pool = getPool();
+  };
+}
 
-        enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
+function runNodesRoute(
+  getPool: () => Pool | null,
+  portFor: (pool: Pool) => AssemblyRunsPort,
+): ServerRoute {
+  return {
+    method: "GET",
+    path: "/api/assembly-runs/{id}/nodes",
+    options: zodResponse(bearerScope("read"), StationRunListSchema, {
+      name: "StationRunList",
+      description: "The run's station visits, in visit order",
+    }),
+    handler: async (request, h) => {
+      const pool = getPool();
 
-        try {
-          const run = await portFor(pool).getById(request.params.id);
+      enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
 
-          enforceTrue(run, apiError(404), "Run not found");
-          const enrichment = await enrichmentById(pool, [run]);
+      try {
+        const visits = await portFor(pool).listStationRuns(request.params.id);
 
-          return h.response(toRunRow(run, enrichment.get(run.id), true));
-        } catch (err) {
-          // A guard's refusal already carries its status; only an unexpected failure is this block's to shape.
-          rethrowBoom(err);
-
-          enforceTrue(!missingTable(err), apiError(404), "Run not found");
-
-          throw err;
+        return h.response({
+          nodes: visits.map((visit) => ({
+            node_id: visit.nodeId,
+            station_run_id: visit.stationRunId,
+            iteration: visit.iteration,
+            outcome: visit.outcome,
+            agent_cr_name: visit.agentCrName,
+            input: visit.input,
+            commit_sha: visit.commitSha,
+            started_at: visit.startedAt.toISOString(),
+            finished_at: visit.finishedAt?.toISOString() ?? null,
+          })),
+        });
+      } catch (err) {
+        if (missingTable(err)) {
+          return h.response({ nodes: [] });
         }
-      },
+
+        throw err;
+      }
     },
-  ]);
+  };
+}
+
+function runTokenUsageRoute(getPool: () => Pool | null): ServerRoute {
+  return {
+    method: "GET",
+    path: "/api/assembly-runs/{id}/token-usage",
+    options: zodResponse(bearerScope("read"), TokenUsageSchema, {
+      name: "AssemblyRunTokenUsage",
+      description: "Tokens spent so far on the run",
+    }),
+    handler: async (request, h) => {
+      const pool = getPool();
+
+      enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
+
+      // pipeline.agent_run_turns, NOT llm_calls: the cost table only lands a row when the run ENDS, but turns arrive while the pod streams — the only source that can answer "so far".
+      try {
+        const { rows } = await pool.query(
+          `SELECT
+             COALESCE(SUM((usage->>'input_tokens')::bigint), 0)::int AS input_tokens,
+             COALESCE(SUM((usage->>'output_tokens')::bigint), 0)::int AS output_tokens,
+             COALESCE(SUM((usage->>'cache_creation_input_tokens')::bigint), 0)::int
+               AS cache_creation_tokens,
+             COALESCE(SUM((usage->>'cache_read_input_tokens')::bigint), 0)::int
+               AS cache_read_tokens
+           FROM (
+             SELECT envelope->'event'->'message'->'usage' AS usage
+               FROM pipeline.agent_run_turns
+              WHERE assembly_line_id = $1
+                AND envelope->'event'->'message' ? 'usage'
+           ) turns`,
+          [request.params.id],
+        );
+
+        return h.response({ usage: rows[0] ?? null });
+      } catch (err) {
+        if (missingTable(err)) {
+          return h.response({ usage: null });
+        }
+
+        throw err;
+      }
+    },
+  };
+}
+
+/** FLAT by-id read, served ONLY under the legacy spelling now (canonical /api/assembly-runs/{id} serves the enriched shape from run-read.ts); DELETE with the aliases (#1347 PR3). Registered OUTSIDE withLegacyAlias deliberately — aliasing it to itself would make hapi reject the duplicate route. */
+function runDetailRoute(
+  getPool: () => Pool | null,
+  portFor: (pool: Pool) => AssemblyRunsPort,
+): ServerRoute {
+  return {
+    method: "GET",
+    path: "/api/assembly-lines/{id}",
+    options: zodResponse(bearerScope("read"), RunRowSchema, {
+      name: "AssemblyRunDetail",
+      description: "One run, carrying the blueprint clone it walked",
+      errors: [404],
+    }),
+    handler: async (request, h) => {
+      const pool = getPool();
+
+      enforceTrue(pool, apiError(503), DB_UNAVAILABLE);
+
+      try {
+        const run = await portFor(pool).getById(request.params.id);
+
+        enforceTrue(run, apiError(404), "Run not found");
+        const enrichment = await enrichmentById(pool, [run]);
+
+        return h.response(toRunRow(run, enrichment.get(run.id), true));
+      } catch (err) {
+        // A guard's refusal already carries its status; only an unexpected failure is this block's to shape.
+        rethrowBoom(err);
+
+        enforceTrue(!missingTable(err), apiError(404), "Run not found");
+
+        throw err;
+      }
+    },
+  };
 }
