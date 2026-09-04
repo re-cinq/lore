@@ -11,6 +11,7 @@ export {
   unreachableError,
   deniedError,
   notConfiguredError,
+  textResult,
   PROXY_RETRY_DELAYS_MS,
   type ProxyResult,
 } from "@re-cinq/lore-server-core/proxy.js";
