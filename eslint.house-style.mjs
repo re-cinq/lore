@@ -1,12 +1,13 @@
 /**
  * Canonical house-style lint rules: mandatory braces + blank-line padding.
  * This file is the single source of truth — eslint.config.mjs consumes it
- * here, and sibling repos consume it as a git dependency
- * (`"@re-cinq/lore": "github:re-cinq/lore#main"`), which is why the root
- * package.json carries `name`, `version`, and a `files` allowlist.
+ * here, and sibling repos mirror it verbatim, byte-comparing their copy
+ * against this file's raw GitHub URL in CI (the same arrangement mirrors
+ * .prettierrc). Consumers exempt their mirror from their own formatter, so
+ * this file is the format authority for its own bytes.
  *
  * Rules-only and import-free on purpose: each consumer binds its own
- * `@stylistic/eslint-plugin` instance, so this module drags no dependencies
+ * `@stylistic/eslint-plugin` instance, so the mirror drags no dependencies
  * into consuming repos.
  */
 export const houseStyleRules = {
