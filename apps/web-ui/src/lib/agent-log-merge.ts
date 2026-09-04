@@ -1,4 +1,4 @@
-import type { LogEntry } from "./agent-log-types.js";
+import type { LogEntry } from "./agent-log-types";
 
 function supersedesThinkingTokens(previous: LogEntry | undefined): boolean {
   return previous?.kind === "thinking-tokens";

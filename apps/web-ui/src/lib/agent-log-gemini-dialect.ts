@@ -1,5 +1,5 @@
-import type { LogEntry } from "./agent-log-types.js";
-import { errorMessage, isRecord, toolSummary } from "./agent-log-format.js";
+import type { LogEntry } from "./agent-log-types";
+import { errorMessage, isRecord, toolSummary } from "./agent-log-format";
 
 /** A delta chunk keeps whitespace-only content — trimming it would glue the words around it at fold time. */
 function plainMessageEntries(

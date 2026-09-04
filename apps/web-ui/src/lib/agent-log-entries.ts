@@ -1,21 +1,21 @@
 // Parses an agent pod's raw NDJSON log into typed entries for the log viewers; unparseable lines pass through as raw. Pure.
-import type { LogEntry } from "./agent-log-types.js";
-import { isRecord } from "./agent-log-format.js";
-import { mergedDelta, supersedesPrevious } from "./agent-log-merge.js";
-import { claudeStreamEntries } from "./agent-log-claude-dialect.js";
-import { geminiStreamEntries } from "./agent-log-gemini-dialect.js";
-import { stationEntries } from "./agent-log-station.js";
+import type { LogEntry } from "./agent-log-types";
+import { isRecord } from "./agent-log-format";
+import { mergedDelta, supersedesPrevious } from "./agent-log-merge";
+import { claudeStreamEntries } from "./agent-log-claude-dialect";
+import { geminiStreamEntries } from "./agent-log-gemini-dialect";
+import { stationEntries } from "./agent-log-station";
 
-export type { LogEntry, RateLimitWindow } from "./agent-log-types.js";
+export type { LogEntry, RateLimitWindow } from "./agent-log-types";
 export {
   clip,
   toolSummary,
   toolResultText,
   formatTokens,
   formatDuration,
-} from "./agent-log-format.js";
-export { supersedesPrevious, mergedDelta } from "./agent-log-merge.js";
-export { rateLimitWindows, rateLimitSummary } from "./agent-log-station.js";
+} from "./agent-log-format";
+export { supersedesPrevious, mergedDelta } from "./agent-log-merge";
+export { rateLimitWindows, rateLimitSummary } from "./agent-log-station";
 
 /** Classifies an already-decoded envelope — callers holding the object (transcript store hands out parsed JSONB) must not stringify to re-parse it. */
 export function logEntriesFromValue(

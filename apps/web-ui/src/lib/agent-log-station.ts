@@ -1,5 +1,5 @@
-import type { LogEntry, RateLimitWindow } from "./agent-log-types.js";
-import { isRecord } from "./agent-log-format.js";
+import type { LogEntry, RateLimitWindow } from "./agent-log-types";
+import { isRecord } from "./agent-log-format";
 
 // Declared-artifact delivery — an event name is required, or the floor projection can't route it, so the bytes stay raw.
 function fileEntry(value: Record<string, unknown>): LogEntry[] | null {

@@ -1,5 +1,5 @@
-import type { LogEntry } from "./agent-log-types.js";
-import { isRecord, toolResultText, toolSummary } from "./agent-log-format.js";
+import type { LogEntry } from "./agent-log-types";
+import { isRecord, toolResultText, toolSummary } from "./agent-log-format";
 
 function sessionInitEntry(value: Record<string, unknown>): LogEntry[] {
   return [
