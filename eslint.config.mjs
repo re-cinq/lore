@@ -5,6 +5,7 @@ import reactHooks from "eslint-plugin-react-hooks";
 import stylistic from "@stylistic/eslint-plugin";
 import markdown from "@eslint/markdown";
 import lore from "./tools/eslint-plugin-lore/index.mjs";
+import { houseStyleRules } from "./eslint.house-style.mjs";
 
 /**
  * Repo-wide ESLint (flat config). One common linter across every package plus the
@@ -160,30 +161,13 @@ export default tseslint.config(
 
   // House style everywhere (JS + TS, incl. scripts/.mjs and tests): mandatory
   // braces + blank-line padding. Rules-only so it layers onto each file's parser
-  // without touching the type-aware setup above.
+  // without touching the type-aware setup above. The rule values live in
+  // eslint.house-style.mjs, the canonical definition sibling repos install as a
+  // git dependency.
   {
     files: ["**/*.{ts,tsx,mts,cts,mjs,cjs,js}"],
     plugins: { "@stylistic": stylistic },
-    rules: {
-      curly: ["error", "all"],
-      "@stylistic/padding-line-between-statements": [
-        "error",
-        { blankLine: "always", prev: "*", next: "return" },
-        { blankLine: "always", prev: "import", next: "*" },
-        { blankLine: "any", prev: "import", next: "import" },
-        { blankLine: "always", prev: ["const", "let", "var"], next: "*" },
-        {
-          blankLine: "any",
-          prev: ["const", "let", "var"],
-          next: ["const", "let", "var"],
-        },
-        {
-          blankLine: "always",
-          prev: "*",
-          next: ["if", "for", "while", "switch", "try", "do"],
-        },
-      ],
-    },
+    rules: houseStyleRules,
   },
 
   // web-ui: Next 15 / React 19, browser + node globals, react-hooks correctness rules.
